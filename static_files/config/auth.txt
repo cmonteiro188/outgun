@@ -1,0 +1,9 @@
+; This file is automatically rewritten whenever valid addresses are added.
+; New reserved names must be added manually: add lines "name <the name>"
+; and "password <the password>". Then you can add the IP's from the game
+; by typing "/auth <the name>,<the password>".
+;
+; e.g.
+;
+; name Einstein
+; password einstein-pass
