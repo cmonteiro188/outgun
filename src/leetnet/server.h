@@ -39,6 +39,8 @@ struct ServerHelloResult {
 // server class interface
 class server_c {
 public:
+	virtual ~server_c() { }
+
 	typedef void helloCallbackT			(void* customp, int client_id, char* data, int length, ServerHelloResult* res);
 	typedef void connectedCallbackT		(void* customp, int client_id);
 	typedef void disconnectedCallbackT	(void* customp, int client_id);
