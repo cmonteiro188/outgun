@@ -2,6 +2,7 @@
  *  gamemod.h
  *
  *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -79,7 +80,7 @@ class GS_FloatT : public GamemodSetting {
 public:
 	typedef std::numeric_limits<ValT> lim;	// can't be used on the constructor, avoid a VC feature
 
-	GS_FloatT(const std::string& name, ValT* pVar, ValT min_ = std::numeric_limits<ValT>::min(),
+	GS_FloatT(const std::string& name, ValT* pVar, ValT min_ = -std::numeric_limits<ValT>::max(),
 			ValT max_ = std::numeric_limits<ValT>::max(), float mul_ = 1., float add_ = 0.)
 		: GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_) { }
 	bool set(LogSet& log, const std::string& value);
@@ -237,9 +238,9 @@ bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) {
 	float val;
 	rd >> val;
 	if (!rd || rd.peek() != eof_ch || val < vmin || val > vmax) {
-		if (vmin == lim::min() && vmax == lim::max())
+		if (vmin == -lim::max() && vmax == lim::max())
 			return basicErrorMessage(log, value, "a real number");
-		else if (vmin == lim::min())
+		else if (vmin == -lim::max())
 			return basicErrorMessage(log, value, std::string() + "a real number, at most " + fcvt(vmax));
 		else if (vmax == lim::max())
 			return basicErrorMessage(log, value, std::string() + "a real number, at least " + fcvt(vmin));

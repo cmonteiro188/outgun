@@ -2,6 +2,7 @@
  *  gamemod.cpp
  *
  *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

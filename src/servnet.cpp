@@ -78,6 +78,7 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs) :
 	world(w),
 	log(logs),
 	hostname("Anonymous host"),
+	player_count(0),
 	web_refresh(0)
 {
 	server = 0;

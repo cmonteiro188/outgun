@@ -1057,10 +1057,19 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			xAcc /= sqrt(2.);
 			yAcc /= sqrt(2.);
 		}
-		if (h->sx * xAcc < 0)			// check if acceleration is opposite from speed
-			xAcc *= physics.brake_mul;
-		if (h->sy * yAcc < 0)
-			yAcc *= physics.brake_mul;
+		if (fabs(h->sx) > .001 || fabs(h->sy) > .001) {	// the player is moving in some direction (otherwise, any direction is 'forward')
+			// handle different directions : scale braking component by brake_mul and turning component by turn_mul
+			// acceleration component parallel to v = par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
+			double par_mul = (xAcc * h->sx + yAcc * h->sy) / (h->sx * h->sx + h->sy * h->sy);
+			double par_x = par_mul * h->sx, par_y = par_mul * h->sy;
+			double perp_x = xAcc - par_x, perp_y = yAcc - par_y;
+			if (par_mul < 0) {	// par is opposite to v == braking
+				par_x *= physics.brake_mul;
+				par_y *= physics.brake_mul;
+			}
+			xAcc = perp_x * physics.turn_mul + par_x;
+			yAcc = perp_y * physics.turn_mul + par_y;
+		}
 		h->sx += xAcc * player_accel;
 		h->sy += yAcc * player_accel;
 	}
@@ -1175,6 +1184,7 @@ PhysicalSettings::PhysicalSettings() :
 	drag		(0.0900),
 	accel		(1.44),
 	brake_mul	(0.50),
+	turn_mul	(1.00),
 	run_mul		(1.77),
 	turbo_mul	(1.45),
 	flag_mul	(0.900),
@@ -1194,6 +1204,7 @@ void PhysicalSettings::read(char* lebuf, int& count) {
 	readFloat(lebuf, count, drag);
 	readFloat(lebuf, count, accel);
 	readFloat(lebuf, count, brake_mul);
+	readFloat(lebuf, count, turn_mul);
 	readFloat(lebuf, count, run_mul);
 	readFloat(lebuf, count, turbo_mul);
 	readFloat(lebuf, count, flag_mul);
@@ -1212,6 +1223,7 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
 	writeFloat(lebuf, count, drag);
 	writeFloat(lebuf, count, accel);
 	writeFloat(lebuf, count, brake_mul);
+	writeFloat(lebuf, count, turn_mul);
 	writeFloat(lebuf, count, run_mul);
 	writeFloat(lebuf, count, turbo_mul);
 	writeFloat(lebuf, count, flag_mul);
@@ -2496,9 +2508,8 @@ void ServerWorld::simulateFrame() {
 						player[v].deathbringer_attacker = i;
 
 						// time of effect ; also freeze his gun for this same amount of time
-						const float mul = (v / TSIZE == i / TSIZE ? physics.friendly_db : 1.);
-						player[v].deathbringer_end = player[v].next_shoot_time =
-							get_time() + mul * (pupConfig.pup_deathbringer_time - 0.5 + rand() % 1000 / 1000.);
+						const float mul = (v / TSIZE == i / TSIZE ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
+						player[v].deathbringer_end = player[v].next_shoot_time = get_time() + mul * pupConfig.pup_deathbringer_time;
 
 						// calc recoil:
 						const double tx = player[v].lx - player[i].lx;
