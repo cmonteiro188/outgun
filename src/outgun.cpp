@@ -262,7 +262,7 @@ fica pro outgun II ...
 //
 #define GAME_STRING "Outgun"
 #define GAME_PROTOCOL "14"
-#define GAME_VERSION "0.5.0"
+#define GAME_VERSION "0.5.0-E"
 
 #define TK1_VERSION_STRING "v048"
 
@@ -3185,14 +3185,14 @@ public:
 		//the player's team
 		int t = pid/TSIZE;
 
-		//choose a team spawn point
-		if (++map.tinfo[t].lastspawn >= map.tinfo[t].spawn.size())
-			map.tinfo[t].lastspawn = 0;
-
 		spoint_t pos;
-		if (player[pid].respawn_to_base) {
-			int sp = map.tinfo[t].lastspawn;		//team spawn point #
-			pos = map.tinfo[t].spawn[sp];	// the point
+		if (map.tinfo[t].spawn.empty())
+			player[pid].respawn_to_base = false;
+		else if (player[pid].respawn_to_base) {
+			//choose a team spawn point
+			if (++map.tinfo[t].lastspawn >= map.tinfo[t].spawn.size())
+				map.tinfo[t].lastspawn = 0;
+			pos = map.tinfo[t].spawn[ map.tinfo[t].lastspawn ];	// the point
 		}
 
 		//if was killed or map spawn point places player over a wall
@@ -4684,12 +4684,11 @@ public:
 		for (int p=0; p<maxplayers; ++p)
 			player[p].want_map_exit=false;
 		#endif
+		last_vote_announce_votes = last_vote_announce_needed = 0;
+		next_vote_announce_frame = 0;	// let a new announcement be made as soon as someone votes
 
 		if (!load_rotation_map(currmap))
 			return false;
-
-		next_vote_announce_frame = 0;	// let new announce be made as soon as someone votes
-		last_vote_announce_votes = last_vote_announce_needed = 0;
 
 		// notify all players
 		for (int i=0;i<maxplayers;i++)
@@ -6246,6 +6245,7 @@ public:
 					//only if alive still
 					if (player[pid].health > 0) {
 						game_kill_player(pid, true);
+						player[pid].frags--;                        
 						player[pid].total_suicides++;
 					}
 				}
