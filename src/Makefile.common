@@ -37,7 +37,7 @@ LEETNET_OBJS = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
 
 OBJS = antialias.o world.o servnet.o server.o graphics.o commont.o \
 	client.o main.o names.o nameauth.o sounds.o mappic.o nassert.o \
-	$(LEETNET_OBJS)
+	globals.o log.o utility.o $(LEETNET_OBJS)
 
 MON_OBJS = srvmonit.o nassert.o
 
@@ -64,51 +64,62 @@ srvmonit.exe: $(MON_OBJS)
 admshell_inc =	admshell.h
 antialias_inc =	antialias.h
 antialias_internal_inc =	antialias_internal.h	$(antialias_inc)
-client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(world_inc)	$(network_inc)
-commont_inc =	commont.h
+client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(world_inc)	$(network_inc)	$(thread_inc)	$(log_inc)
+commont_inc =	commont.h	$(incalleg_inc)
 effects_inc =	effects.h
-graphics_inc =	graphics.h
-mappic_inc =	mappic.h
-nameauth_inc =	nameauth.h
+gameserver_interface_inc =	gameserver_interface.h
+graphics_inc =	graphics.h	$(utility_inc)
+incalleg_inc =	incalleg.h
+log_inc =	log.h		$(mutex_inc)
+mappic_inc =	mappic.h	$(utility_inc)
+mutex_inc =	mutex.h
+nameauth_inc =	nameauth.h	$(utility_inc)
 names_inc =	names.h
 nassert_inc =	nassert.h
 network_inc =	network.h
-server_inc =	server.h	$(nameauth_inc)	$(world_inc)	$(servnet_inc)
+server_inc =	server.h	$(nameauth_inc)	$(world_inc)	$(servnet_inc)	$(log_inc)	$(utility_inc)
 servnet_inc =	servnet.h	$(network_inc)
-sounds_inc =	sounds.h	$(commont_inc)
-world_inc =	world.h 	$(network_inc)	$(nassert_inc)	$(commont_inc)
-mappic_inc =	mappic.h
+sounds_inc =	sounds.h	$(commont_inc)	$(utility_inc)
+thread_inc =	thread.h
+utility_inc =	utility.h	$(nassert_inc)
+world_inc =	world.h 	$(network_inc)	$(nassert_inc)	$(commont_inc)	$(utility_inc)
 
 OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 LEETNETCOMPILE = $(OBJCOMPILE)
 
-antialias.o:	antialias.cpp	$(world_inc)	$(antialias_inc)	$(antialias_internal_inc)
+antialias.o:	antialias.cpp	$(nassert_inc)	$(world_inc)	$(antialias_internal_inc)	$(antialias_inc)
 	$(OBJCOMPILE)
-client.o:	client.cpp	$(commont_inc)	$(world_inc)	$(names_inc)	$(client_inc)	$(network_inc)	$(nassert_inc)
+client.o:	client.cpp	$(commont_inc)	$(world_inc)	$(names_inc)	$(network_inc)	$(nassert_inc)	$(gameserver_interface_inc)	$(utility_inc)	$(client_inc)
 	$(OBJCOMPILE)
 commont.o:	commont.cpp	$(commont_inc)
 	$(OBJCOMPILE)
-graphics.o:	graphics.cpp	$(commont_inc)	$(world_inc)	$(effects_inc)	$(sounds_inc)	$(antialias_inc)	$(graphics_inc)
+globals.o:	globals.cpp	$(commont_inc)	$(mutex_inc)
+	$(OBJCOMPILE)
+graphics.o:	graphics.cpp	$(commont_inc)	$(world_inc)	$(effects_inc)	$(sounds_inc)	$(antialias_inc)	$(client_inc)	$(graphics_inc)
 	$(OBJCOMPILE) $(GFX_COMPILE_EXTRA)
+log.o:		log.cpp		$(utility_inc)	$(log_inc)
+	$(OBJCOMPILE)
 main.o: 	main.cpp	$(commont_inc)	$(server_inc)	$(client_inc)	$(mappic_inc)
 	$(OBJCOMPILE)
 mappic.o:	mappic.cpp	$(commont_inc)	$(world_inc)	$(graphics_inc)	$(mappic_inc)
 	$(OBJCOMPILE)
-nameauth.o:	nameauth.cpp	$(nameauth_inc)	$(nassert_inc)
+nameauth.o:	nameauth.cpp	$(commont_inc)	$(nameauth_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
-names.o:	names.cpp
+names.o:	names.cpp	$(names_inc)
 	$(OBJCOMPILE)
 nassert.o:	nassert.cpp	$(nassert_inc)
 	$(OBJCOMPILE)
-server.o:	server.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(nassert_inc)
+server.o:	server.cpp	$(commont_inc)	$(world_inc) 	$(thread_inc)	$(nassert_inc)	$(server_inc)	$(gameserver_interface_inc)
 	$(OBJCOMPILE)
-servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)	$(admshell_inc)	$(network_inc)	$(servnet_inc)	$(nassert_inc)
+servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)	$(admshell_inc)	$(network_inc)	$(servnet_inc)	$(mutex_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
 sounds.o:	sounds.cpp	$(sounds_inc)
 	$(OBJCOMPILE)
 srvmonit.o:	srvmonit.cpp	$(admshell_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
-world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(nassert_inc)	$(server_inc)
+utility.o:	utility.cpp	$(incalleg_inc)	$(log_inc)	$(commont_inc)	$(utility_inc)
+	$(OBJCOMPILE)
+world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(nassert_inc)	$(utility_inc)
 	$(OBJCOMPILE)
 
 leetnet/client.o:	leetnet/client.cpp

@@ -5,10 +5,6 @@ using std::cout;
 using std::istream;
 using std::string;
 
-int atoi(const string& str) {
-	return std::atoi(str.c_str());
-}
-
 void ClientControls::fromKeyboard() {
 	const int up     =  1;
 	const int down   =  2;
@@ -39,46 +35,7 @@ void ClientControls::fromKeyboard() {
 		data |= strafe;
 }
 
-bool is_keypad(int sc) {
-	switch (sc) {
-		case KEY_1_PAD:
-		case KEY_2_PAD:
-		case KEY_3_PAD:
-		case KEY_4_PAD:
-		//case KEY_5_PAD:
-		case KEY_6_PAD:
-		case KEY_7_PAD:
-		case KEY_8_PAD:
-		case KEY_9_PAD:
-			return true;
-		default:
-			return false;
-	}
-}
-
-void rotate_angle(float& angle, float shift) {
-	angle += shift;
-	if (angle < 0)
-		angle += 360;
-	else if (angle >= 360)
-		angle -= 360;
-}
-
-char* strspnp(char* str, const char* charset) {
-	for (; *str; ++str)
-		if (strchr(charset, *str)==NULL)
-			return str;
-	return NULL;
-}
-
-const char* strspnp(const char* str, const char* charset) {
-	return strspnp(const_cast<char*>(str), charset);
-}
-
-char directory_separator;
-
-FILE *game_log;
-NLaddress		master_address;
+NLaddress master_address;
 char wheregamedir[WHERE_PATH_SIZE];
 double svp_fric, svp_accel, svp_maxspeed;
 double svp_fric_run, svp_accel_run, svp_maxspeed_run;
@@ -125,32 +82,12 @@ volatile bool force_exit = false;	// this is set true when the user tries to clo
 void closeButtonCallback() { force_exit = true; }
 
 void server_status_string(const string& str) {
+	#ifndef ALLEGRO_WINDOWS
 	if (textserver)
 		cout << str << '\n';
 	else
+	#endif
 		set_window_title(str.c_str());
-}
-
-//server timer (10Hz)
-volatile int server_speed_counter = 0;
-
-//client game timer (60Hz)
-volatile int speed_counter = 0;
-volatile int client_netsend_counter = 0;		//sub-counter for keypress sending
-
-//this timer will be used to emulate a better clock()
-volatile unsigned long time_counter = 0;
-
-double get_time() {
-	return ((double)time_counter) / 200.0;
-}
-
-char teamname[3][5];
-
-MutexHolder nlOpenMutex;
-
-int iround(double value) {
-	return static_cast<int>(value + 0.5);
 }
 
 istream& getline_smart(istream& in, string& str) {
@@ -170,11 +107,5 @@ istream& getline_smart(istream& in, string& str) {
 		}
 		str += c;
 	}
-}
-
-string toupper(string str) {
-	for (string::iterator s = str.begin(); s != str.end(); ++s)
-		*s = toupper(*s);
-	return str;
 }
 

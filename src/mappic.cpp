@@ -25,7 +25,7 @@ vector<string> Mappic::load_maps(const string& dir) {
 	char dest[1024];
 	append_filename(dest, wheregamedir, mappath.c_str(), WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
 
-	LOG1("Map picture save: scan dir is '%s'\n", dest);
+	log("Map picture save: scan dir is '%s'", dest);
 
 	al_ffblk mapffblk;	//for al_find*
 
@@ -40,25 +40,25 @@ vector<string> Mappic::load_maps(const string& dir) {
 		//try next
 		result = al_findnext(&mapffblk);
 	}
-	LOG1("%d maps found\n", maps.size());
+	log("%d maps found", maps.size());
 	return maps;
 }
 
 void Mappic::save_pictures() const {
 	set_color_depth(16);
-	Graphics graphics;
+	Graphics graphics(log);
 	graphics.setcolors();
 	string dir("mappic");
 	dir += directory_separator;
 	for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
 		string picture = dir + *name + ".pcx";
 		Map mp;
-		mp.load(SERVER_MAPS_DIR, *name);
+		mp.load(log, SERVER_MAPS_DIR, *name);
 		if (graphics.save_map_picture(picture, mp)) {
-			LOG1("Saved map picture to '%s'\n", picture.c_str());
+			log("Saved map picture to '%s'", picture.c_str());
 		}
 		else {
-			LOG1("Can't save map picture to '%s'\n", picture.c_str());
+			log.error("Can't save map picture to '%s'", picture.c_str());
 			throw Save_error();
 		}
 	}

@@ -3,7 +3,8 @@
 using std::ifstream;
 using std::string;
 
-Sounds::Sounds():
+Sounds::Sounds(LogSet logs):
+	log(logs),
 	no_theme(false)
 {
 	//no samples loaded -- important so unload_samples don't crash
@@ -29,7 +30,7 @@ void Sounds::search_themes() {
 	//try the last theme directory first
 	const string themepath = make_theme_path("*.*");
 
-	LOG1("theme searching '%s'\n", themepath.c_str());
+	log("theme searching '%s'", themepath.c_str());
 
 	int error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
 
@@ -42,7 +43,7 @@ void Sounds::search_themes() {
 		error = al_findnext(&themeffblk);
 	}
 	no_theme = true;
-	LOG("No sound theme selected.\n");
+	log("No sound theme selected.");
 }
 
 void Sounds::next_theme() {
@@ -57,7 +58,7 @@ void Sounds::next_theme() {
 	if (error) {
 		no_theme = true;
 		unload_samples();
-		LOG("No theme selected.\n");
+		log("No theme selected.");
 	}
 	else if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, ".."))
 		load_theme(themeffblk.name);
@@ -73,7 +74,7 @@ string Sounds::make_theme_path(const string& dir) {
 	char dest[WHERE_PATH_SIZE];
 	append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
 
-	LOG1("Sound theme path is '%s'.\n", dest);
+	log("Sound theme path is '%s'.", dest);
 
 	return dest;
 }
@@ -98,7 +99,7 @@ void Sounds::load_theme(const string& dir) {
 	ifstream in(dest);
 	if (!getline_smart(in, themename))
 		themename = "(unnamed theme)";
-	LOG1("Loaded sound theme from '%s'.\n", des_file.c_str());
+	log("Loaded sound theme from '%s'.", des_file.c_str());
 
 	//play a sample
 	if (!no_theme)
@@ -125,7 +126,7 @@ SAMPLE* Sounds::load_outgun_sample(const string& fname, int slot, bool try_redir
 	//sample must be played in reverse?
 	sample_reverse[slot] = reverse;
 
-	LOG4("load_sample[%i]: '%s' = %p  rev = %i\n", slot, dest, ret, sample_reverse[slot]);
+	log("load_sample[%i]: '%s' = %p  rev = %i", slot, dest, ret, sample_reverse[slot]);
 
 	//V0.3.10: if not found, look for .txt redirect
 	if (try_redirect && ret == 0) {	// don't go into endless loop

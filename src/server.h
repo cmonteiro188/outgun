@@ -11,6 +11,8 @@
 
 #include "world.h"
 #include "servnet.h"
+#include "log.h"
+#include "utility.h"
 
 //per-client struct (statically allocated to a single client)
 class ClientData {
@@ -53,7 +55,12 @@ public:
 };
 
 class gameserver_c {
-	// pelaajien hallinta
+	FileLog normalLog;
+	SupplementaryLog<MemoryLog> errorLog;
+	SupplementaryLog<FileLog> securityLog;
+	LogSet log;
+
+	// client control
 	std::vector<std::string> welcome_message;	// welcome message line by line
 	std::vector<std::string> info_message;		// the message /info shows, line by line
 	std::string		sayadmin_comment;
@@ -65,15 +72,15 @@ class gameserver_c {
 	ClientData		client[MAX_PLAYERS];
 	std::vector<bool> fav_colors[2];
 
-	// pelimaailma
+	// world
 	ServerWorld		world;
 	bool			gameover;
 	double			gameover_time;		//timeout for gameover plaque
 
-	// verkko
+	// networking
 	ServerNetworking network;
 
-	// asetukset
+	// settings
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;
 
@@ -86,9 +93,13 @@ class gameserver_c {
 	#endif
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
 
+	// copying not allowed
+	gameserver_c(const gameserver_c& o);
+	gameserver_c& operator=(const gameserver_c& o);
+
 public:
 
-	gameserver_c();
+	gameserver_c(LogSet hostLogs);
 	virtual ~gameserver_c();
 	bool start(int target_maxplayers);
 	void loop(volatile bool *running_flag);
@@ -98,7 +109,7 @@ public:
 	void simulate_and_broadcast_frame();
 	void server_think_after_broadcast();
 
-	// pelaajien hallinta
+	int get_player_count() const { return network.get_player_count(); }
 	void mutePlayer(int pid, int mode, int admin);
 	void kickPlayer(int pid, int admin, bool ban=false);
 	#ifdef SV_NAME_AUTHORIZATION
@@ -106,6 +117,8 @@ public:
 	bool isBanned(int cid) const { return authorizations.isBanned(network.get_client_address(cid)); }
 	bool check_name_password(const std::string& name, const std::string& password) const;
 	#endif
+	void disconnectPlayer(int pid, Disconnect_reason reason);
+	void sendMessage(int pid, Message_type type, const std::string& msg);
 
    int check[MAX_PLAYERS];
    int checount;
@@ -118,8 +131,8 @@ public:
 	void check_fav_colors(int pid);
 	void set_fav_colors(int pid, const std::vector<char>& colors);
 
-	void nameChange(int id, int pid, const std::string& tempname);
-	void chat(int id, int pid, const char* sbuf);	//#fix: separate console handling
+	void nameChange(int id, int pid, const std::string& tempname, const std::string& password);
+	void chat(int pid, const char* sbuf);	//#fix: separate console handling
 
 	const ClientData& getClientData(int cid) const { return client[cid]; }
 	      ClientData& getClientData(int cid)       { return client[cid]; }
@@ -141,8 +154,8 @@ public:
 	std::vector<MapInfo>& maplist() { return maprot; }
 
 	const std::vector<std::string>& getWelcomeMessage() const { return welcome_message; }
+	std::string getTeamName(int team) const { return world.getTeamName(team); }
 
-	// asetukset
 	void load_game_mod();
 	bool reset_settings(bool keepMap);
 };

@@ -3,10 +3,13 @@
 
 #include <vector>
 #include <string>
+#include "utility.h"
 
 class Map;
 
 class Mappic {
+	mutable LogSet log;
+
 	std::vector<std::string> smaps;	// server maps
 
 	std::vector<std::string> load_maps(const std::string& dir);
@@ -15,7 +18,7 @@ class Mappic {
 	void save_pictures() const;
 
 public:
-	Mappic() { }
+	Mappic(LogSet logs) : log(logs) { }
 
 	void run();
 	

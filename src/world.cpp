@@ -1,6 +1,7 @@
 #include "commont.h"
 #include "world.h"
 #include "nassert.h"
+#include "utility.h"
 
 #define PHYS_NEW
 //#define PHYS_VECTOR_ACC
@@ -174,7 +175,7 @@ bool Room::fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is
 	return false;
 }
 
-bool Map::load(const char *mapdir, const string& mapname) {
+bool Map::load(LogSet& log, const char *mapdir, const string& mapname) {
 	char lebuffer[1024];
 	char dest[WHERE_PATH_SIZE];
 
@@ -195,19 +196,19 @@ bool Map::load(const char *mapdir, const string& mapname) {
 		fclose(fmap);
 		ifstream in(dest);
 		if (in) {
-			if (!parse_file(in)) {
-				LOG1("Error loading map '%s'\n", mapname.c_str());
+			if (!parse_file(log, in)) {
+				log.error("Can't load map '%s'", mapname.c_str());
 				return false;
 			}
 			in.close();
 			return true;
 		}
 	}
-	LOG1("can't load mapfile from '%s'!\n", dest);
+	log.error("Can't load mapfile '%s'!", dest);
 	return false;
 }
 
-bool Map::parse_file(istream& in) {
+bool Map::parse_file(LogSet& log, istream& in) {
 	int crx = 0, cry = 0;
 	float scalex = 1., scaley = 1.;
 	vector<pair<string, pair<int, int> > > labels;
@@ -224,7 +225,7 @@ bool Map::parse_file(istream& in) {
 			const string label = line.substr(1);
 			for (vector<pair<string, vector<string> > >::const_iterator li = label_lines.begin(); li != label_lines.end(); ++li)
 				if (li->first == label)	{	// same label again
-					LOG1("Two identical label names not allowed: %s\n", line.c_str());
+					log.error("Two identical label names not allowed: %s", line.c_str());
 					return false;
 				}
 			pair<string, vector<string> > new_label;
@@ -237,16 +238,17 @@ bool Map::parse_file(istream& in) {
 			label_lines.back().second.push_back(line);
 	}
 	for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
-		if (!parse_line(*line, label_lines, crx, cry, scalex, scaley))
+		if (!parse_line(log, *line, label_lines, crx, cry, scalex, scaley))
 			return false;
 	if (w == 0 || h == 0 || title.empty()) {
-		LOG("Map has no width, height or title.\n");
+		log.error("Map has no width, height or title.");
 		return false;
 	}
 	return true;
 }
 
-bool Map::parse_line(const string& line, const vector<pair<string, vector<string> > >& label_lines, int& crx, int& cry, float& scalex, float& scaley, bool label_block) {
+bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, vector<string> > >& label_lines,
+														int& crx, int& cry, float& scalex, float& scaley, bool label_block) {
 	char nullc;	// to be used to make sure there is nothing extra on the line
 	istringstream ist(line);
 	string command;
@@ -264,7 +266,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			alpha = 255;
 		ist >> nullc;
 		if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		x1 *= plw / scalex; x2 *= plw / scalex;
@@ -287,7 +289,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			alpha = 255;
 		ist >> nullc;
 		if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
@@ -327,7 +329,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			a2 += 360;
 		ist >> nullc;
 		if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		x *= plw / scalex;
@@ -340,18 +342,18 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 	}
 	else if (command == "R") {	// R x y : set room pointer to (x,y)
 		if (label_block) {
-			LOG1("Room line not allowed in label block: %s\n", line.c_str());
+			log.error("Room line not allowed in label block: %s", line.c_str());
 			return false;
 		}
 		ist >> crx >> cry;
 		if (!ist || (ist >> nullc) || crx < 0 || crx >= w || cry < 0 || cry >= h) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 	}
 	else if (command == "X") {	// X label x1 y1 [x2 y2] : add walls from label to the rectangle (x1,y1)-(x2,y2)
 		if (label_block) {
-			LOG1("Label line not allowed in label block: %s\n", line.c_str());
+			log.error("Label line not allowed in label block: %s", line.c_str());
 			return false;
 		}
 		string nextlabel;
@@ -364,7 +366,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			ry2 = ry1;
 		}
 		else if (!ist || (ist >> nullc) || rx1 < 0 || rx2 >= w || rx2 < rx1 || ry1 < 0 || ry2 >= h || ry2 < ry1) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		for (vector<pair<string, vector<string> > >::const_iterator label = label_lines.begin(); label != label_lines.end(); ++label)
@@ -374,12 +376,12 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 						for (int rx = rx1; rx <= rx2; rx++) {
 							float sx = scalex;
 							float sy = scaley;
-							if (!parse_line(*label_line, label_lines, rx, ry, sx, sy, true))
+							if (!parse_line(log, *label_line, label_lines, rx, ry, sx, sy, true))
 								return false;
 						}
 				return true;
 			}
-		LOG2("Label '%s' not found: %s\n", nextlabel.c_str(), line.c_str());
+		log.error("Label '%s' not found: %s", nextlabel.c_str(), line.c_str());
 		return false;
 	}
 	else if (command == "P") {
@@ -387,12 +389,12 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		ist >> name;
 		if (name == "width") {	// P width w : set map width to w rooms #FIXME: Allow "P   width"
 			if (w != 0) {
-				LOG("Redefined map width\n");
+				log.error("Redefined map width");
 				return false;
 			}
 			ist >> w;
 			if (!ist || (ist >> nullc) || w < 1) {
-				LOG1("Invalid map line: %s\n", line.c_str());
+				log.error("Invalid map line: %s", line.c_str());
 				return false;
 			}
 			room.resize(w);
@@ -401,12 +403,12 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		}
 		else if (name == "height") {	// P height h : set map height to h rooms
 			if (h != 0) {
-				LOG("Redefined map height\n");
+				log.error("Redefined map height");
 				return false;
 			}
 			ist >> h;
 			if (!ist || (ist >> nullc) || h < 1) {
-				LOG1("Invalid map line: %s\n", line.c_str());
+				log.error("Invalid map line: %s", line.c_str());
 				return false;
 			}
 			for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
@@ -414,7 +416,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		}
 		else if (name == "title") {	// P title text : set map title to text
 			if (!title.empty()) {
-				LOG("Redefined map title\n");
+				log.error("Redefined map title");
 				return false;
 			}
 			ist.get();	// remove space
@@ -422,7 +424,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		}
 		else if (name == "author") {	// P author text : set map author to text
 			if (!author.empty()) {
-				LOG("Redefined map author\n");
+				log.error("Redefined map author");
 				return false;
 			}
 			ist.get();	// remove space
@@ -434,7 +436,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		float x, y;
 		ist >> team >> rx >> ry >> x >> y;
 		if (!ist || (ist >> nullc) || team < 0 || team > 1) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		spoint_t spot;
@@ -449,7 +451,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		float x, y;
 		ist >> team >> rx >> ry >> x >> y;
 		if (!ist || (ist >> nullc) || team < 0 || team > 2) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		spoint_t flag(bound(rx, 0, w - 1), bound(ry, 0, h - 1),
@@ -462,27 +464,27 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 	else if (command == "V") {	// V ver : set file format version
 		ist >> ver;
 		if (!ist || (ist >> nullc)) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 	}
 	else if (command == "S") {	// S x y : set map scale
 		ist >> scalex >> scaley;
 		if (!ist || (ist >> nullc) || scalex <= 0 || scaley <= 0) {
-			LOG1("Invalid map line: %s\n", line.c_str());
+			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 	}
 	else
-		LOG1("Unrecognized map line: %s\n", line.c_str());
+		log.error("Unrecognized map line: %s", line.c_str());
 	return true;
 }
 
 MapInfo::MapInfo() : votes(0), votes_changed(false) { }
 
-bool MapInfo::load(string mapName) {
+bool MapInfo::load(LogSet& log, string mapName) {
 	Map map;
-	bool ok = map.load(SERVER_MAPS_DIR, mapName);
+	bool ok = map.load(log, SERVER_MAPS_DIR, mapName);
 	if (!ok)
 		return false;
 	file = mapName;
@@ -495,27 +497,26 @@ bool MapInfo::load(string mapName) {
 	return true;
 }
 
-void ServerPlayer::reset_message_queue_timing() {	// make messages already on queue appear instantly
-	for (DMQueueT::iterator m=delayedMessages.begin(); m!=delayedMessages.end(); ++m)
-		m->first=0;
-}
-
-void ServerPlayer::add_to_queue(const std::string& str) {
-	int time;	// in server frames (1/10 sec)
-	if (delayedMessages.size()<=5)
-		time=0;
-	else
-		time=30;
-	delayedMessages.push_back(pair<int, string>(time, str));
-}
-
-void ServerPlayer::queue_printf(const char* fmt, ...) {
-	char buf[16385];
-	va_list argptr;
-	va_start(argptr, fmt);
-	vsprintf(buf, fmt, argptr);
-	va_end(argptr);
-	add_to_queue(string(buf));
+void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team_id) {
+	ping = 0;
+	frags = 0;
+	id = _pid;
+	name = _name;
+	item_deathbringer = item_shield = item_quad = item_speed = false;
+	visibility = 255;
+	roomx = roomy = 0;
+	lx = ly = sx = sy = 0;
+	gundir = 0;
+	dead = false;
+	reg_status = enable ? '-' : ' ';
+	score = 0;
+	neg_score = 0;
+	rank = 0;
+	used = enable;
+	team_nr = team_id;
+	stats().clear();
+	stats().set_start_time(static_cast<int>(get_time()));
+	personal_color = -1;
 }
 
 void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id) {
@@ -525,7 +526,6 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 	oldfrags = -666;
 	want_map_exit = false;		//by default don't want change maps
 	mapVote = -1;
-	delayedMessages.clear();
 	idleFrames = 0;
 	kickTimer = 0;
 	muted = 0;
@@ -814,6 +814,11 @@ void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double
 	add_rv();
 
 	#undef add_rv
+}
+
+std::string WorldBase::getTeamName(int team) {
+	const char* name[3] = { "RED", "BLUE", "WILD" };
+	return name[team];
 }
 
 BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius, float maxFraction) {
@@ -1316,11 +1321,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	else {
 		const int remaining_seconds = getTimeLeft() / 10;
 		// time limit not very useful when only one player
-		int players = 0;
-		for (int i = 0; i < maxplayers; i++)
-			if (player[i].used)
-				players++;
-		if (players == 1)
+		if (host->get_player_count() == 1)
 			map_time << " No time limit at the moment as you are the only player.";
 		else if (remaining_seconds < 0) {
 			const int extra_time_seconds = getExtraTimeLeft() / 10;
@@ -1341,7 +1342,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 
 bool ServerWorld::load_map(const char *mapdir, const string& mapname) {
 	map_start_time = frame;
-	bool success = WorldBase::load_map(mapdir, mapname);
+	bool success = WorldBase::load_map(log, mapdir, mapname);
 	for (int t = 0; t < 2; t++) {
 		teams[t].remove_flags();
 		for (vector<spoint_t>::const_iterator pi = map.tinfo[t].flags.begin(); pi != map.tinfo[t].flags.end(); ++pi)
@@ -1397,7 +1398,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 				break;
 			}
 	}
-	net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), teamname[team]);
+	net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
 	net->broadcast_sample(SAMPLE_CTF_LOST);
 	net->broadcast_flag_drop(player[pid]);
 	dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
@@ -1463,7 +1464,7 @@ void ServerWorld::respawnPlayer(int pid) {
 	}
 
 	//put player there
-	//LOG("SPAWN %i %i  %i %i\n", pos.px, pos.py, pos.x, pos.y);
+	//log("SPAWN %i %i  %i %i", pos.px, pos.py, pos.x, pos.y);
 	player[pid].roomx = pos.px;	//screen
 	player[pid].roomy = pos.py;
 	player[pid].lx = pos.x;	//screen position
@@ -1610,20 +1611,12 @@ void ServerWorld::respawn_pickup(int p) {
 
 // verifica powerups unused por jogadores presentes
 void ServerWorld::check_pickup_creation(bool instant) {
-	int pc, ic;
-
-	//count number of players
-	pc = 0;
-	for (int i = 0; i < maxplayers; i++)
-		if (player[i].used)
-			pc++;
-
 	//count number of items
-	// TEST SERVER FUK : change "if" to :    if (player[i].used)
-	ic = 0;
+	int ic = 0;
 	for (int i = 0; i < MAX_PICKUPS; i++)
 		if (item[i].kind != Powerup::pup_unused)
 			ic++;
+	int pc = host->get_player_count();
 
 	int real_min = pupConfig.getMinPups(map);
 	int real_max = pupConfig.getMaxPups(map);
@@ -1845,13 +1838,13 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	if (!same_team) {
 		for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
 			if (player[i].used && player[i].flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
-					net->bprintf(msg_info, "%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), teamname[atteam]);
+					net->bprintf(msg_info, "%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), getTeamName(atteam).c_str());
 					host->score_frag(attacker, 1);
 					break;	// only one message
 				}
 		for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
 			if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-				net->bprintf(msg_info, "%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), teamname[atteam]);
+				net->bprintf(msg_info, "%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), getTeamName(atteam).c_str());
 				host->score_frag(attacker, 1);
 				break;		// only one message
 			}
@@ -1903,7 +1896,6 @@ void ServerWorld::removePlayer(int pid) {
 	dropFlagIfAny(pid);
 
 	//erase player
-	player[pid].delayedMessages.clear();
 	player[pid].used = false;
 }
 
@@ -1925,7 +1917,7 @@ NLubyte ServerWorld::getFreeRocket() {
 			rock[i].owner = 0;
 			return i;
 		}
-	LOG("Rocket overwrite!\n");
+	log("Rocket overwrite!");
 	int i = rand() % MAX_ROCKETS;
 	rock[i].owner = 0;
 	return i;
@@ -2564,7 +2556,7 @@ void ServerWorld::simulateFrame() {
 				player[i].total_flags_returned++;
 				player[i].stats().add_flag_return();
 				teams[myteam].add_flag_return();
-				net->bprintf(msg_info, "%s RETURNED THE %s FLAG!", player[i].name.c_str(), teamname[myteam]);
+				net->bprintf(msg_info, "%s RETURNED THE %s FLAG!", player[i].name.c_str(), getTeamName(myteam).c_str());
 				net->broadcast_flag_return(player[i]);
 				returnFlag(myteam, f);  //flag returned
 				net->broadcast_sample(SAMPLE_CTF_RETURN);
@@ -2596,12 +2588,8 @@ void ServerWorld::simulateFrame() {
 	}
 
 	// check time limit
-	int players = 0;
-	for (int i=0; i<maxplayers; ++i)
-		if (player[i].used)
-			++players;
 	const NLulong time_limit = config.getTimeLimit();
-	if (players > 1 && time_limit > 0) {
+	if (host->get_player_count() > 1 && time_limit > 0) {
 		const int timeLeft = getTimeLeft();
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
 			net->bprintf(msg_info, "*** Five minutes left in the game");
@@ -2631,7 +2619,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 	host->score_frag(pid, 1);	// just add some frags
 	player[pid].stats().add_flag_take();
 	teams[pid / TSIZE].add_flag_take();
-	net->bprintf(msg_info, "%s GOT THE %s FLAG!", player[pid].name.c_str(), teamname[team]);
+	net->bprintf(msg_info, "%s GOT THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
 	net->broadcast_flag_take(player[pid]);
 	stealFlag(team, flag, pid);
 	player[pid].take_flag();
@@ -2668,7 +2656,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 	string one_more;
 	if (teams[myteam].score() == config.getCaptureLimit() - 1)
 		one_more = " One more to win!";
-	net->bprintf(msg_info, "%s CAPTURED THE %s FLAG!%s", player[pid].name.c_str(), teamname[team], one_more.c_str());
+	net->bprintf(msg_info, "%s CAPTURED THE %s FLAG!%s", player[pid].name.c_str(), getTeamName(team).c_str(), one_more.c_str());
 	net->broadcast_capture(player[pid]);
 
 	net->ctf_update_teamscore(myteam);		// this function can decide to restart the game

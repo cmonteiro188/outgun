@@ -40,6 +40,7 @@
 
 #include "sleep.h"
 
+#include "server.h"
 
 #define LOG_NOLOG		//disable logging
 #define LOG_EXPR client_c_log
@@ -281,7 +282,7 @@ public:
 	}
 
 	//disconnection done (timeout or reply received)
-	void nice_disconnect_done() {
+	void nice_disconnect_done(char reason) {
 		
 		LOG("nice_disconnect_done() - delete station - connectstatus = 0\n");
 
@@ -290,8 +291,8 @@ public:
 		//
 		client_runes_t args;
 		args.connect_result = 1;
-		args.data = 0;		//data + 8;	//skip 0,3
-		args.length = 0;	//length - 8;	//skip 0,3
+		args.data = &reason;
+		args.length = 1;
 		gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
 
 		//quit reader thread
@@ -437,6 +438,9 @@ DLOG_Scope s("CPIDg");
 
 				LOG2("special packet 0,2 arrived my connect_status == %i started_disc = %i\n", connect_status, started_disconnection);
 
+				NLulong reason;
+				readLong(data, count, reason);
+
 				// if was not already disconnected
 				//if (connect_status != 0) {
 				
@@ -463,7 +467,7 @@ DLOG_Scope s("CPIDg");
 					//				  quer detonar ele
 					// TEM QUE CHAMAR NICE_DISCONNECT_DONE porque é esse cara que chama 
 					//   o callback "client disconnected!"
-					nice_disconnect_done();					
+					nice_disconnect_done(static_cast<char>(reason));
 				}
 			}
 			// connection accepted
@@ -684,7 +688,7 @@ void *thread_disconnect_f(void *arg) {
 	}
 
 	//nice disconnect done
-	client->nice_disconnect_done();
+	client->nice_disconnect_done(server_c::disconnect_client_initiated);
 
 	LOG("THREAD DISCONNECT QUITTING\n");
 

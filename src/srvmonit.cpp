@@ -344,14 +344,14 @@ int main(int argc, const char* argv[]) {
 			}
 		}
 	}
-    if (nlInit() == NL_FALSE) {
-        printf("ERROR: cannot init HawkNL!\n");
-        return 1;
-    }
-    if (nlSelectNetwork(NL_IP) == NL_FALSE) {
-        printf("ERROR: no IP network!\n");
-        return 1;
-    }
+	if (nlInit() == NL_FALSE) {
+		printf("ERROR: cannot init HawkNL!\n");
+		return 1;
+	}
+	if (nlSelectNetwork(NL_IP) == NL_FALSE) {
+		printf("ERROR: no IP network!\n");
+		return 1;
+	}
 	outfile=fopen("srvmonit.log", "at");
 	if (!outfile) {
 		printf("Can't open srvmonit.log for append!\n");

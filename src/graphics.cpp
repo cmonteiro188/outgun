@@ -75,7 +75,7 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 }
 #endif
 
-Graphics::Graphics():
+Graphics::Graphics(LogSet logs):
 	drawbuf(0),
 	background(0),
 	minibg(0),
@@ -91,7 +91,8 @@ Graphics::Graphics():
 	vidpage2(0),
 	backbuf(0),
 	no_theme(false),
-	antialiasing(AA_both)
+	antialiasing(AA_both),
+	log(logs)
 { }
 
 Graphics::~Graphics() {
@@ -222,19 +223,19 @@ void Graphics::load_resolutions() {
 	resolutions.clear();
 	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
 	if (modes) {
-		LOG("Available graphics modes:\n");
+		log("Available graphics modes:");
 		for (int i = 0; i < modes->num_modes; i++) {
 			const GFX_MODE& mode = modes->mode[i];
 			pair<int, int> res(mode.width, mode.height);
 			if ((resolutions.empty() || res != resolutions.back()) && mode.width >= 640 && mode.height >= 480) {
-				LOG3("%d×%d×%d\n", mode.width, mode.height, mode.bpp);
+				log("%d×%d×%d", mode.width, mode.height, mode.bpp);
 				resolutions.push_back(res);
 			}
 		}
 		destroy_gfx_mode_list(modes);
 	}
 	else {
-		LOG("No possible graphics modes found for DirectX.\n");
+		log("No possible graphics modes found for DirectX.");
 	}
 	if (resolutions.empty())	// just try something
 		resolutions.push_back(pair<int, int>(640, 480));
@@ -267,9 +268,9 @@ bool Graphics::reset_video_mode() {
 	//show_video_bitmap(screen);
 
 	//destroy all old surfaces
-	if (vidpage1) { LOG("destroying vidpage1\n"); destroy_bitmap(vidpage1); vidpage1 = 0; }
-	if (vidpage2) { LOG("destroying vidpage2\n"); destroy_bitmap(vidpage2); vidpage2 = 0; }
-	if (backbuf) { LOG("destroying backbuf\n"); destroy_bitmap(backbuf); backbuf = 0; }
+	if (vidpage1) { log("destroying vidpage1"); destroy_bitmap(vidpage1); vidpage1 = 0; }
+	if (vidpage2) { log("destroying vidpage2"); destroy_bitmap(vidpage2); vidpage2 = 0; }
+	if (backbuf) { log("destroying backbuf"); destroy_bitmap(backbuf); backbuf = 0; }
 
 	int notok;
 
@@ -282,8 +283,8 @@ bool Graphics::reset_video_mode() {
 // ***** INICIO *******
 
 	if (notok < 0) {
-		LOG3("ERROR: cannot set %d×%d×16 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
-		LOG1("Allegro error: '%s'\n", allegro_error);
+		log("Cannot set %d×%d×16 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
+		log("Allegro error: '%s'", allegro_error);
 		err[0] = allegro_error;
 
 		//try again...
@@ -295,8 +296,8 @@ bool Graphics::reset_video_mode() {
 			notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 		if (notok < 0) {
-			LOG3("ERROR: cannot set %d×%d×16 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
-			LOG1("Allegro error: '%s'\n", allegro_error);
+			log("Cannot set %d×%d×16 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
+			log("Allegro error: '%s'", allegro_error);
 			err[1] = allegro_error;
 
 			//try again...
@@ -308,8 +309,8 @@ bool Graphics::reset_video_mode() {
 				notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 			if (notok < 0) {
-				LOG3("ERROR: cannot set %d×%d×15 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
-				LOG1("Allegro error: '%s'\n", allegro_error);
+				log("Cannot set %d×%d×15 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
+				log("Allegro error: '%s'", allegro_error);
 				err[2] = allegro_error;
 
 				//AND try again.....
@@ -321,12 +322,12 @@ bool Graphics::reset_video_mode() {
 					notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 				if (notok < 0) {
-					LOG3("ERROR: cannot set %d×%d×15 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
-					LOG1("Allegro error: '%s'\n", allegro_error);
+					log("Cannot set %d×%d×15 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
+					log("Allegro error: '%s'", allegro_error);
 					err[3] = allegro_error;
 
 					char elmsg[4096];
-					sprintf(elmsg, "ERROR: cannot initialize graphics! reasons:\n1 = '%s'\n2 = '%s'\n3 = '%s'\n4 = '%s'",
+					sprintf(elmsg, "Cannot initialize graphics! reasons:\n1 = '%s'\n2 = '%s'\n3 = '%s'\n4 = '%s'",
 					err[0].c_str(), err[1].c_str(), err[2].c_str(), err[3].c_str());
 					allegro_message(elmsg);
 					return false;	// FATAL error
@@ -341,35 +342,35 @@ bool Graphics::reset_video_mode() {
 	if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
 		if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) // allow running in the background
 		{
-			LOG("ERROR: client cannot run in the background!\n");
+			log.error("Client cannot run in the background!");
 			return false; // FATAL
 		}
-		else LOG("switch_background set ok.\n");
+		else log("switch_background set ok.");
 	}
-	else LOG("switch_BACKAMNESIA set ok.\n");
+	else log("switch_BACKAMNESIA set ok.");
 #endif
 
 	//attempt to create two video bitmaps, else use RAM backbuffer
 	if (trypageflip) {
 		vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
 		vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
-		LOG2("create vidpage1=%p vidpage2=%p\n", vidpage1, vidpage2);
+		log("create vidpage1=%p vidpage2=%p", vidpage1, vidpage2);
 	}
 
 	//delete any partial video pages
 	if ((!vidpage1) || (!vidpage2)) {
 		if (trypageflip)
-			LOG("PAGE FLIPPING: not enought video memory. using bruteforce doublebuffering\n")
+			log("PAGE FLIPPING: not enought video memory. using bruteforce doublebuffering");
 		else
-			LOG("USING SAFE MODE VIDEO -- DOUBLE-BUFFERING (option -dbuf). for page flipping use -flip\n")
+			log("USING SAFE MODE VIDEO -- DOUBLE-BUFFERING (option -dbuf). for page flipping use -flip");
 
-		if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; LOG("destroyed vidpage1\n"); }
-		if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; LOG("destroyed vidpage2\n");}
+		if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; log("destroyed vidpage1"); }
+		if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; log("destroyed vidpage2");}
 
 			//create RAM backbuffer
 		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
 		if (!backbuf) {
-			LOG("ERROR: cannot create memory backbuffer!\n");
+			log.error("Cannot create memory backbuffer!");
 			return false; // FATAL
 		}
 		drawbuf = backbuf;
@@ -2335,7 +2336,7 @@ void Graphics::search_themes() {
 
 	const string themepath = make_theme_path("*.*");
 
-	LOG1("Graphics theme searching '%s'\n", themepath.c_str());
+	log("Graphics theme searching '%s'", themepath.c_str());
 
 	int error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
 
@@ -2348,7 +2349,7 @@ void Graphics::search_themes() {
 		error = al_findnext(&themeffblk);
 	}
 	no_theme = true;
-	LOG("No graphics theme selected.\n");
+	log("No graphics theme selected.");
 }
 
 void Graphics::next_theme() {
@@ -2363,7 +2364,7 @@ void Graphics::next_theme() {
 	if (error) {
 		no_theme = true;
 		unload_pictures();
-		LOG("No graphics theme selected.\n");
+		log("No graphics theme selected.");
 	}
 	else if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, ".."))
 		load_theme(themeffblk.name);
@@ -2379,7 +2380,7 @@ string Graphics::make_theme_path(const string& dir) {
 	char dest[WHERE_PATH_SIZE];
 	append_filename(dest, wheregamedir, picture_name.c_str(), WHERE_PATH_SIZE);
 
-	LOG1("Graphics theme path is '%s'.\n", dest);
+	log("Graphics theme path is '%s'.", dest);
 	
 	return dest;
 }
@@ -2403,7 +2404,7 @@ void Graphics::load_theme(const string& dirname) {
 	ifstream in(dest);
 	if (!getline_smart(in, theme_name))
 		theme_name = "(unnamed theme)";
-	LOG1("Loaded graphics theme from '%s'.\n", des_file.c_str());
+	log("Loaded graphics theme from '%s'.", des_file.c_str());
 }
 
 void Graphics::load_pictures() {

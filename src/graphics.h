@@ -3,6 +3,7 @@
 
 #include <string>
 #include <list>
+#include "utility.h"
 
 // ---- client screen layout ----
 
@@ -20,7 +21,7 @@
 
 //scoreboard offset
 //#define sbx (plx + plw)
-//#define sby (mmy + 110)         // + XXX = minimap panel height
+//#define sby (mmy + 110)	// + XXX = minimap panel height
 
 class Map;
 class MapInfo;
@@ -36,7 +37,7 @@ class Message;
 
 class Graphics {
 public:
-	Graphics();
+	Graphics(LogSet logs);
 	~Graphics();
 
 	bool init();
@@ -286,12 +287,12 @@ private:
 	BITMAP* backbuf;
 	bool page_flipping;
 
-    std::list<clientfx_t> cfx;
+	std::list<clientfx_t> cfx;
 
-    std::string themedir;
-    std::string theme_name;
-    al_ffblk themeffblk;	// for al_find*
-    bool no_theme;
+	std::string themedir;
+	std::string theme_name;
+	al_ffblk themeffblk;	// for al_find*
+	bool no_theme;
 
 	Antialiasing_mode antialiasing;
 
@@ -353,6 +354,8 @@ private:
 	int teamdcol[2];	// dark colours for player name
 
 	int	col[NUM_OF_COL];
+
+	LogSet log;
 };
 
 #endif // GRAPHICS_H_INC

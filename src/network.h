@@ -1,11 +1,13 @@
 #ifndef NETWORK_H_INC
 #define NETWORK_H_INC
 
+#include "leetnet/server.h"
+
 //#define WATCH_CONNECTION
 #define SEND_FRAMEOFFSET
 //#define LOG_MESSAGE_TRAFFIC
 
-enum Network_data_codes {
+enum Network_data_code {
 	data_name_update,
 	data_text_message,
 	data_first_packet,
@@ -52,7 +54,14 @@ enum Network_data_codes {
 	data_flag_drop,
 	data_spawn,
 	data_movements_shots,
-	data_fav_colors
+	data_fav_colors,
+	data_name_authorization_request
+};
+
+enum Disconnect_reason {
+	disconnect_kick = server_c::disconnect_first_user_defined,
+	disconnect_idlekick,
+	disconnect_client_misbehavior
 };
 
 #endif

@@ -11,13 +11,6 @@ using std::ostream;
 using std::string;
 using std::vector;
 
-// these are from outgun.cpp, needed for LOG(...) ; argh
-#define LOG_EXPR game_log
-#define LOG_TIMEFUNC get_time()
-#include "leetnet/log.h"
-extern FILE *game_log;
-extern double get_time();
-
 void NameAuthorizationDatabase::Entry::save(ostream& out) const {
 	out << '\n';
 	out << "name " << nameUpr << '\n';
@@ -38,14 +31,14 @@ bool NameAuthorizationDatabase::Entry::hasAddress(NLaddress addr) const {
 }
 
 bool NameAuthorizationDatabase::addEntry(const Entry& e) {
-	if (e.nameUpr == "[BANNED]") {
+	if (e.nameUpr == "[BANNED]" && e.password.empty()) {
 		banned=e;
 		banned.password.clear();
 	}
-	else if (!e.nameUpr.empty() && !e.password.empty())
+	else if (!e.nameUpr.empty() && !e.password.empty() && e.addresses.empty())
 		db.push_back(e);
 	else {
-		LOG("*** INVALID DATA IN AUTH.TXT\n");
+		log.error("Invalid data in auth.txt");
 		return false;
 	}
 	return true;
@@ -61,7 +54,7 @@ bool NameAuthorizationDatabase::load() {
 	clear();
 	ifstream in("auth.txt");
 	if (!in) {
-		LOG("*** CAN'T READ AUTH.TXT\n");
+		log.error("Can't read auth.txt");
 		return false;
 	}
 	Entry e;
@@ -89,14 +82,14 @@ bool NameAuthorizationDatabase::load() {
 		}
 		if (!line.compare(0, 9, "password ")) {
 			if (!e.password.empty())
-				LOG("*** Password redefinition in auth.txt\n");
+				log.error("Password redefinition in auth.txt");
 			eActive=true;
 			e.password=line.substr(9, string::npos);
 			continue;
 		}
 		NLaddress addr;
 		if (!nlStringToAddr(line.c_str(), &addr))
-			LOG1("*** Invalid IP address in auth.txt: %s\n", line.c_str())	// important: no ; because LOG sucks
+			log.error("Invalid IP address in auth.txt: %s", line.c_str());
 		else {
 			nlSetAddrPort(&addr, 0);
 			e.addresses.push_back(addr);
@@ -107,7 +100,7 @@ bool NameAuthorizationDatabase::load() {
 bool NameAuthorizationDatabase::save() const {
 	ofstream out("auth.txt");
 	if (!out) {
-		LOG("*** CAN'T WRITE AUTH.TXT\n");
+		log.error("Can't write auth.txt");
 		return false;
 	}
 	out << "; This file is automatically rewritten whenever valid addresses are added.\n";
@@ -119,40 +112,6 @@ bool NameAuthorizationDatabase::save() const {
 	for (vector<Entry>::const_iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
 		dbi->save(out);
 	return true;
-}
-
-bool NameAuthorizationDatabase::checkNamePassword(const string& nameUpr, const string& password) const {
-	for (vector<Entry>::const_iterator dbi = db.begin(); dbi != db.end(); ++dbi)
-		if (dbi->nameUpr == nameUpr) {
-			if (dbi->password == password)
-				return true;
-			else
-				return false;
-		}
-	return true;	// name not found, password not needed
-}
-
-bool NameAuthorizationDatabase::clearIPs(const string& nameUpr, const string& password) {
-	for (vector<Entry>::iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
-		if (dbi->nameUpr==nameUpr) {
-			if (dbi->password!=password)
-				return false;
-			dbi->addresses.clear();
-			return true;
-		}
-	return false;
-}
-
-bool NameAuthorizationDatabase::addIP(const string& nameUpr, const string& password, NLaddress addr) {	// must be an existing name
-	for (vector<Entry>::iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
-		if (dbi->nameUpr==nameUpr) {
-			if (dbi->password!=password)
-				return false;
-			nlSetAddrPort(&addr, 0);
-			dbi->addresses.push_back(addr);
-			return true;
-		}
-	return false;
 }
 
 int NameAuthorizationDatabase::identifyName(const string& name) const {
@@ -202,9 +161,16 @@ int NameAuthorizationDatabase::identifyName(const string& name) const {
 	return -1;
 }
 
-bool NameAuthorizationDatabase::authorize(int idx, NLaddress addr) const {
-	nlSetAddrPort(&addr, 0);
-	return db[idx].hasAddress(addr);
+bool NameAuthorizationDatabase::authorize(int idx, const string& password) const {
+	return db[idx].password == password;
+}
+
+bool NameAuthorizationDatabase::checkNamePassword(const std::string& nameUpr, const std::string& password) const {
+	int idx = identifyName(nameUpr);
+	if (idx == -1)
+		return true;
+	else
+		return authorize(idx, password);
 }
 
 bool NameAuthorizationDatabase::isBanned(NLaddress addr) const {

@@ -13,19 +13,19 @@ enum FX_TYPE {
 };
 
 struct clientfx_t {
-    FX_TYPE type;		// type of fx
-    int px, py;			// screen where it spawned. if changed when time to redraw, delete it
-    double time;		// start time
+	FX_TYPE type;		// type of fx
+	int px, py;			// screen where it spawned. if changed when time to redraw, delete it
+	double time;		// start time
 
-    //fx specific vars
-    int x;                  // screen x  of fx
-    int y;                  // screen y  of fx
+	//fx specific vars
+	int x;	// screen x  of fx
+	int y;	// screen y  of fx
 
-    //speed fx
-    int col1, col2, gundir;
+	//speed fx
+	int col1, col2, gundir;
 
-    //deathbringer owner
-    int owner;
+	//deathbringer owner
+	int owner;
 };
 
 #endif // EFFECTS_H_INC

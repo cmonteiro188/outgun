@@ -5,9 +5,12 @@
 #include "leetnet/client.h"
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
-#include "client.h"
 #include "network.h"
 #include "nassert.h"
+#include "gameserver_interface.h"
+#include "utility.h"
+
+#include "client.h"
 
 using std::endl;
 using std::find;
@@ -28,7 +31,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-//#define CLIENT_PREDICTION
+#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
@@ -65,13 +68,59 @@ public:
 int cfunc_connection_update(client_runes_t *arg);
 int cfunc_server_data(client_runes_t *arg);
 
+void ServerThreadOwner::threadFn() {
+	srand(time(0));
+
+	GameserverInterface gameserver(log);
+	if (!gameserver.start(server_maxplayers)) {
+		log.error("cannot start LISTEN GAME SERVER!!!");
+		runFlag = false;
+		return;
+	}
+
+	gameserver.loop(&runFlag);
+	runFlag = false;
+
+	log("GAMESERVER STOPPING");
+	gameserver.stop();
+	log("GAMESERVER STOPPED");
+
+	//restore client's windowtitle
+	server_status_string("Outgun client - CTRL+F12 to quit");
+}
+
+void ServerThreadOwner::start(int port) {
+	nAssert(!runFlag && !threadFlag);
+	runPort = port;
+	runFlag = threadFlag = true;
+	log("listen_start()");
+	RedirectToMemFun<ServerThreadOwner, void> rmf(this, &ServerThreadOwner::threadFn);
+	int rv = serverThread.start(rmf);
+	if (rv) {
+		log.error("Couldn't create server thread (code %d)", rv);
+		runFlag = threadFlag = false;
+	}
+}
+
+void ServerThreadOwner::stop() {
+	nAssert(threadFlag);
+	runFlag = threadFlag = false;
+	log("listen_stop()");
+	serverThread.join();
+}
+
 //client password-to-token retrieval thread
 void *thread_clientpassword_f(void *arg);
 
 bool gameclient_c::force_exit = false;
 const size_t gameclient_c::chat_size = 32;
 
-gameclient_c::gameclient_c():
+gameclient_c::gameclient_c(LogSet hostLogs):
+	normalLog("clientlog.txt", true),
+	errorLog(normalLog, "ERROR: "),
+	securityLog(normalLog, "SECURITY WARNING: ", "client_securitylog.txt", false),
+	log(&normalLog, &errorLog, &securityLog),
+	listenServer(log),
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
@@ -80,8 +129,12 @@ gameclient_c::gameclient_c():
 	password_file("passwd.txt"),
 	autoconnect(false),
 	name_selected(true),
-	screenshot(false)
+	client_graphics(log),
+	screenshot(false),
+	client_sounds(log)
 {
+	hostLogs("See clientlog.txt for client's log messages");
+
 	//net client
 	client = 0;
 
@@ -135,10 +188,10 @@ gameclient_c::~gameclient_c() {
 		delete client;
 		client = 0;
 	}
-
 	pthread_mutex_destroy(&frame_mutex);
 	pthread_mutex_destroy(&mapInfoMutex);
 	pthread_mutex_destroy(&udpdq_mutex);
+	errorMessage("Client had these errors: (see clientlog.txt)", errorLog);
 }
 
 bool gameclient_c::start() {
@@ -155,10 +208,10 @@ bool gameclient_c::start() {
 
 	//default physics parameters
 	//set_default_physics();
-	//LOG3("NORMAL   fri %.1f acc %.1f mxs %.1f\n", svp_fric, svp_accel, svp_maxspeed);
-	//LOG3("RUN      fri %.1f acc %.1f mxs %.1f\n", svp_fric_run, svp_accel_run, svp_maxspeed_run);
-	//LOG3("TURBO    fri %.1f acc %.1f mxs %.1f\n", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
-	//LOG3("TURBORUN fri %.1f acc %.1f mxs %.1f\n", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
+	//log("NORMAL   fri %.1f acc %.1f mxs %.1f", svp_fric, svp_accel, svp_maxspeed);
+	//log("RUN      fri %.1f acc %.1f mxs %.1f", svp_fric_run, svp_accel_run, svp_maxspeed_run);
+	//log("TURBO    fri %.1f acc %.1f mxs %.1f", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
+	//log("TURBORUN fri %.1f acc %.1f mxs %.1f", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
 
 	//clear UDPDQ
 	for (int uq=0;uq<MAX_UDPDQ;uq++) udpdq[uq] = 0;
@@ -252,7 +305,7 @@ bool gameclient_c::start() {
 	//try to load client configuration
 	bool randomname = true; // give random name
 	append_filename(dest, wheregamedir, "clconfig.txt", WHERE_PATH_SIZE);
-	LOG1("dest for clconfig.txt = %s\n", dest);
+	log("dest for clconfig.txt = %s", dest);
 
 	ifstream cfg(dest);
 	if (cfg) {
@@ -260,13 +313,13 @@ bool gameclient_c::start() {
 		//read sound theme directory name
 		if (getline_smart(cfg, line)) {
 			client_sounds.set_theme_dir(line);
-			LOG1("Sound theme directory default = %s\n", line.c_str());
+			log("Sound theme directory default = %s", line.c_str());
 		}
 
 		//read graphics theme directory name
 		if (getline_smart(cfg, line)) {
 			client_graphics.set_theme_dir(line);
-			LOG1("Graphics theme directory default = %s\n", line.c_str());
+			log("Graphics theme directory default = %s", line.c_str());
 		}
 
 		//read antialiasing setting
@@ -287,7 +340,7 @@ bool gameclient_c::start() {
 
 		//read player name
 		string name;
-		if (getline_smart(cfg, name)) {
+		if (getline_smart(cfg, name) && name.find_first_not_of(' ') != string::npos) {
 			randomname = false;
 			playername = name;
 		}
@@ -370,10 +423,10 @@ void gameclient_c::client_password_thread(void *) {
 	while (player_password_set == true) {
 
 		//open a nonblocking socket
-		pthread_mutex_lock(&nlOpenMutex);
+		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
 		sock = nlOpen(0, NL_RELIABLE);
-		pthread_mutex_unlock(&nlOpenMutex);
+		nlOpenMutex.unlock();
 		if (sock == NL_INVALID) {
 			//show "cant open socket to master" error
 			namestatus = "SOCKET ERROR. RETRYING...";
@@ -482,10 +535,10 @@ void gameclient_c::client_password_thread(void *) {
 					(lebuf[n-0] == '>')
 				)
 				{
-					//LOG1("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i\n", n);
+					//log("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i", n);
 					html_end = true;
 					lebuf[n+1] = 0;
-					//LOG1("Full response: \"%s\"\n", lebuf);
+					//log("Full response: \"%s\"", lebuf);
 					break;
 				}
 			}
@@ -502,7 +555,7 @@ void gameclient_c::client_password_thread(void *) {
 				)
 				{
 					lebuf[n+1]=0;
-					//LOG1("** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
+					//log("** READ <HTML>, DISCARDING BUFFER '%s' **", lebuf);
 					n = -1;
 				}
 			}
@@ -527,7 +580,7 @@ void gameclient_c::client_password_thread(void *) {
 			namestatus = "RECEIVED RESPONSE!";
 
 			bool ok = false, wrongid = false, unavailable = false;
-			LOG1("RECV RESPONSE n = %i\n", n);
+			log("RECV RESPONSE n = %i", n);
 			for (int i = 0; i < n; i++) {
 
 				//0.4.7: "can't contact servlet runner.." > service unavailable
@@ -561,18 +614,18 @@ void gameclient_c::client_password_thread(void *) {
 				//control char
 				else if (lebuf[i] == '@') {
 
-					//LOG("(( @ ))\n");
+					//log("(( @ ))");
 					i++;
 
 					if (lebuf[i] == 'K') {
 
-						//LOG("(( @K ))\n");
+						//log("(( @K ))");
 						//scan the token....
 						i++;
 						player_token[0]=0;
 						int pt=0;
 						while (lebuf[i] != '#') {
-							//LOG("(( TOK ))\n");
+							//log("(( TOK ))");
 							player_token[pt]=lebuf[i];		//cat char
 							player_token[pt+1]=0;
 							if (pt > 15) {
@@ -589,7 +642,7 @@ void gameclient_c::client_password_thread(void *) {
 					}
 					else if ((lebuf[i] == 'E') || (lebuf[i] == 'F')) //query Error / Failed login (wrong name/pass)
 					{
-						//LOG("(( @E || @F ))\n");
+						//log("(( @E || @F ))");
 						wrongid = true;
 					}
 					else {
@@ -624,7 +677,7 @@ void gameclient_c::client_password_thread(void *) {
 			else if (wrongid) {
 				namestatus = "ERROR: WRONG ID!";
 				namestatus_code = 2;
-				LOG2("ERROR WRONG ID. QUERY='''%s''' LEBUF='''%s'''\n", blux, lebuf);
+				log.error("WRONG ID. QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
 					MS_SLEEP(500);
@@ -636,7 +689,7 @@ void gameclient_c::client_password_thread(void *) {
 			else if (unavailable) {
 				namestatus = "SERVER UNAVAILABLE";
 				namestatus_code = 2;
-				LOG2("ERROR UNKNOWN!!! QUERY='''%s''' LEBUF='''%s'''\n", blux, lebuf);
+				log.error("UNKNOWN ERROR!!! QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*1*2;busy++) {		//1 MINUTE
 					MS_SLEEP(500);
@@ -648,7 +701,7 @@ void gameclient_c::client_password_thread(void *) {
 			else {
 				namestatus = "UNKNOWN ERROR!";
 				namestatus_code = 2;
-				LOG2("ERROR UNKNOWN!!! QUERY='''%s''' LEBUF='''%s'''\n", blux, lebuf);
+				log.error("UNKNOWN ERROR!!! QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
 					MS_SLEEP(500);
@@ -685,7 +738,7 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 
 	//this is bad! but will never happen.
 	if (amount != len) {
-		LOG2("BAD BAD ERROR! process_udp_download_chunk can't fwrite len %i amount %i !!!\n", len, amount);
+		log.error("BAD BAD ERROR! process_udp_download_chunk can't fwrite len %i amount %i !!!", len, amount);
 		// FIXME: better handling
 	}
 
@@ -738,11 +791,11 @@ void gameclient_c::client_udp_setup_download() {
 	//open dest file for output (ud_fout)
 	ud_fout = fopen(r->dest, "wb");
 	if (ud_fout) {
-		LOG1("UDP client_download_thread() file '%s' opened\n", r->dest);
+		log("UDP client_download_thread() file '%s' opened", r->dest);
 	}
 	else {
 		//do something if can't write to the file (disconnect player/whatever)
-		LOG1("UDP client_download_thread() can't write output file!! (%s)\n", r->dest);
+		log.error("UDP client_download_thread() can't write output file!! (%s)", r->dest);
 		disconnect_command();		//FIXME make it better
 		return;
 	}
@@ -783,7 +836,7 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 		}
 
 	//error that will never happen even in a million years
-	LOG("BAD BAD **ERROR** : UDPDQ IS FULL\n");
+	log.error("BAD BAD **ERROR** : UDPDQ IS FULL");
 	nAssert(0);	//BAD ERROR
 
 	pthread_mutex_unlock ( &udpdq_mutex );
@@ -792,18 +845,18 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 //file download complete
 void gameclient_c::download_file_complete(download_runes_t  *r) {
 
-	LOG3("download_file_complete '%s' '%s' '%s'\n", r->type, r->name, r->dest);
+	log("download_file_complete '%s' '%s' '%s'", r->type, r->name, r->dest);
 
 	//map complete
 	if (!strcmp(r->type, "map")) {
 
 		//if expected map, change now
 		if (!strcmp(r->name, servermap)) {
-			bool ok = fd.load_map(CLIENT_MAPS_DIR, r->name) && fx.load_map(CLIENT_MAPS_DIR, r->name);	//#fix
+			bool ok = fd.load_map(log, CLIENT_MAPS_DIR, r->name) && fx.load_map(log, CLIENT_MAPS_DIR, r->name);	//#fix
 			if (!ok)
-				LOG1("AFTER DOWNLOAD: MAP '%s' NOT FOUND\n", r->name)
+				log.error("AFTER DOWNLOAD: MAP '%s' NOT FOUND", r->name);
 			else {
-				LOG1("AFTER DOWNLOAD: MAP '%s' LOADED SUCCESSFULLY!\n", r->name);
+				log("AFTER DOWNLOAD: MAP '%s' LOADED SUCCESSFULLY!", r->name);
 
 				//load ok!  (FIXME: tell server)
 				//
@@ -836,19 +889,19 @@ void gameclient_c::download_server_file(const char *type, const char *name, char
 // if map file not there, or the CRC's don't match, ask to download the map from the server
 void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) {
 
-	LOG1("CLIENT: server_map_command : '%s'\n", mapname);
+	log("CLIENT: server_map_command : '%s'", mapname);
 
 	strcpy(servermap, mapname);
 
 	//try to load the map. will fail if not found
-	bool ok = fd.load_map(CLIENT_MAPS_DIR, mapname) && fx.load_map(CLIENT_MAPS_DIR, mapname);	//#fix
+	bool ok = fd.load_map(log, CLIENT_MAPS_DIR, mapname) && fx.load_map(log, CLIENT_MAPS_DIR, mapname);	//#fix
 
 	if (!ok)
-		LOG1("MAP '%s' NOT FOUND\n", mapname)
+		log("MAP '%s' NOT FOUND", mapname);
 	else if (fx.map.crc != server_crc)
-		LOG3("MAP '%s' FOUND BUT ITS CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, fx.map.crc, server_crc)
+		log("MAP '%s' FOUND BUT ITS CRC %i DIFFERS FROM SERVER MAP CRC %i", mapname, fx.map.crc, server_crc);
 	else {
-		LOG1("MAP '%s' LOADED SUCCESSFULLY!\n", mapname);
+		log("MAP '%s' LOADED SUCCESSFULLY!", mapname);
 
 		//load ok!  (FIXME: tell server)
 		//
@@ -865,7 +918,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 		sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
 		print_message(msg_info, lix);
 
-		LOG1("%s\n", lix);
+		log("%s", lix);
 
 		// MAKE DOWNLOAD -- ASK FILE
 
@@ -975,7 +1028,7 @@ void gameclient_c::client_connected(char *data, int length) {
 				byte |= (*col << 4);
 			writeByte(lebuf, count, byte);
 		}
-		LOG1("Sent %d colours\n", fav_colors.size());
+		log("Sent %d colours", fav_colors.size());
 		client->send_message(lebuf, count);
 	}
 
@@ -1063,7 +1116,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	send_frame(true);
 }
 
-void gameclient_c::client_disconnected() {
+void gameclient_c::client_disconnected(const char* data, int length) {
 
 	//restore window title
 	server_status_string("Outgun client - CTRL+F12 to quit");
@@ -1075,6 +1128,16 @@ void gameclient_c::client_disconnected() {
 	// show a message
 	dialogmessage = "You have been disconnected. Press ESC.";
 	dialogmessage2.clear();
+	if (length == 1)
+		switch (data[0]) {
+			case server_c::disconnect_client_initiated: break;
+			case server_c::disconnect_server_shutdown:	dialogmessage2 = "Server was shut down."; break;
+			case server_c::disconnect_timeout: 			dialogmessage2 = "Connection timed out."; break;
+			case disconnect_kick:						dialogmessage2 = "You were kicked."; break;
+			case disconnect_idlekick:					dialogmessage2 = "You were kicked for being idle."; break;
+			case disconnect_client_misbehavior:			dialogmessage2 = "Internal error (client misbehaved)."; break;
+			default:	break;
+		}
 	set_menu(menu_dialog);
 
 	//namestatus
@@ -1183,7 +1246,7 @@ void gameclient_c::save_player_password(const string& name, const string& addres
 	}
 	ofstream out(password_file.c_str());
 	if (!out) {
-		LOG1("Can't save player password to %s!\n", password_file.c_str());
+		log.error("Can't save player password to %s!", password_file.c_str());
 		return;
 	}
 	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
@@ -1191,7 +1254,7 @@ void gameclient_c::save_player_password(const string& name, const string& addres
 		out << (*item)[1] << '\n';
 		if ((*item)[0] == name && (*item)[1] == address) {
 			out << password;
-			LOG2("New player password saved for %s at %s.\n", name.c_str(), address.c_str());
+			log("New player password saved for %s at %s.", name.c_str(), address.c_str());
 		}
 		else
 			out << (*item)[2];
@@ -1210,7 +1273,7 @@ void gameclient_c::remove_player_password(const string& name, const string& addr
 		return;
 	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
 		if ((*item)[0] == name && (*item)[1] == address) {
-			LOG2("%s's player password at %s removed.\n", name.c_str(), address.c_str());
+			log("%s's player password at %s removed.", name.c_str(), address.c_str());
 			continue;
 		}
 		for (int i = 0; i < 3; i++)
@@ -1231,13 +1294,13 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 	client_graphics.show_progress("", "Refreshing servers...", "");
 
-	pthread_mutex_lock(&nlOpenMutex);
+	nlOpenMutex.lock();
 	nlDisable(NL_BLOCKING_IO);
 	NLsocket sock = nlOpen(0, NL_UNRELIABLE);
-	pthread_mutex_unlock(&nlOpenMutex);
+	nlOpenMutex.unlock();
 
 	if (sock == NL_INVALID) {
-		LOG2("LIXAO!!!!!! %s %s\n", nlGetErrorStr(nlGetError()), nlGetSystemErrorStr(nlGetSystemError()) );
+		log.error("Can't connect to master for refresh: %s %s", nlGetErrorStr(nlGetError()), nlGetSystemErrorStr(nlGetSystemError()) );
 		return;
 	}
 
@@ -1492,6 +1555,7 @@ void gameclient_c::issue_change_name_command() {
 	if (playername.length() > 16)
 		playername.erase(15);			//truncate player name, max 16 chars
 	writeStr(lebuf, count, playername);	// the name
+	writeStr(lebuf, count, edit_player_password);	// empty or not, it's needed
 	client->send_message(lebuf, count);
 
 	//name changed:
@@ -1517,6 +1581,8 @@ void gameclient_c::issue_change_name_command() {
 //change name command
 void gameclient_c::change_name_command() {
 	//set new name, close menu
+	if (editplayername.find_first_not_of(' ') == string::npos)
+		return;
 	playername = editplayername;
 	if (menu != menu_none)
 		set_menu(menu_main);
@@ -1557,9 +1623,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	int whatme = 0;
 
 	//lock frame mutex
-	//LOG("locking INCOMING\n");
+	//log("locking INCOMING");
 	pthread_mutex_lock( &frame_mutex );
-	//LOG("locked! INCOMING\n");
+	//log("locked! INCOMING");
 
 	// (0) update lastpackettime
 	lastpackettime = get_time();
@@ -1670,7 +1736,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		if (xtra & 128) whatme += 16;
 
 		// v0.4.1: ISSO AQUI TAVA FALTANDO. como que tu vai ler um monte de coisa
-		//    dependente do "me" sem ter ele definido??????
+		//	dependente do "me" sem ter ele definido??????
 		//
 		me = whatme;
 
@@ -1719,10 +1785,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//coords & speeds
 					NLubyte xy;
-					//V0.3.9 : transmissao x,y de 4 bytes para 3
-					//256+512+1024+2048 = 3840    last 4 bits mask
-					//xy = ((hx & 3840) >> 8) + ((hy & 3840) >> 4); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
-					//writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
 
 					NLushort hx, hy;
 					readByte(data, count, xy);		//first 8 bits x
@@ -1767,12 +1829,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//bits 5..7 : gundir= 0..7
 					h.gundir = ccb >> 5;
-
-					//read items
-					//readByte(data, count, byt);
-					//player[i].item_shield =    ((byt & 1) != 0);
-					//player[i].item_speed =    ((byt & 2) != 0);
-					//player[i].item_quad =    ((byt & 4) != 0);
 
 					//read helm byte
 					readByte(data, count, byt);
@@ -1849,11 +1905,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			readByte(msg, count, code);
 
 			#ifdef LOG_MESSAGE_TRAFFIC
-			LOG1("SERVER MESSAGE CODE = %i\n", code);
+			log("SERVER MESSAGE CODE = %i", code);
 			#endif
 
 			//parse rest of message
-			switch (static_cast<Network_data_codes>(code)) {
+			switch (static_cast<Network_data_code>(code)) {
 				// name update
 				case data_name_update:
 					readByte(msg, count, pid);
@@ -1966,7 +2022,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					NLbyte flags;
 					readByte(msg, count, team);		// team of the flag
 					readByte(msg, count, flags);	// how many flags
-					LOG1("Flag message, %d flags.\n", flags);
+					log("Flag message, %d flags.", flags);
 					for (int i = 0; i < flags; i++) {
 						if (team == 2) {
 							if (i >= static_cast<int>(fx.wild_flags.size()))
@@ -2217,7 +2273,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.player[pid].rank = (int)prank;
 					fx.player[pid].score = (int)pscore;
 					fx.player[pid].neg_score = (int)nscore;
-					//LOG4("CRAPZ UPDATE %i %c %i %i\n", pid, abyte, prank, pscore);
+					//log("CRAPZ UPDATE %i %c %i %i", pid, abyte, prank, pscore);
 					break;
 				}
 
@@ -2231,7 +2287,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						map_end_time = static_cast<int>(get_time()) + time_left;
 						map_time_limit = true;
 					}
-					LOG1("Map time received. Time left %d seconds.\n", time_left);
+					log("Map time received. Time left %d seconds.", time_left);
 					break;
 				}
 
@@ -2389,8 +2445,21 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
+				case data_name_authorization_request: {
+					string oldPassword = edit_player_password;
+					edit_player_password = load_player_password(playername, address);
+					if (edit_player_password == oldPassword || edit_player_password.empty()) {
+						set_menu(menu_player_password);
+						save_password_selected = false;
+						autoconnect = false;
+					}
+					else
+						issue_change_name_command();
+					break;
+				}
+
 				default:
-					LOG1("BAD ERROR: UNKNOWN SERVER MESSAGE CODE = %i!!\n", code);
+					log.security("Unknown server message code = %i!!", code);
 					break;
 			}
 		}
@@ -2424,9 +2493,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	me = whatme;
 
 	//unlock frame mutex
-	//LOG("unlocking INCOMING\n");
+	//log("unlocking INCOMING");
 	pthread_mutex_unlock( &frame_mutex );
-	//LOG("unlocked! INCOMING\n");
+	//log("unlocked! INCOMING");
 }
 
 //send chat message
@@ -2496,10 +2565,10 @@ void gameclient_c::get_servers_from_master() {
 	NLsocket sock;
 
 	//open a nonblocking socket
-	pthread_mutex_lock(&nlOpenMutex);
+	nlOpenMutex.lock();
 	nlDisable(NL_BLOCKING_IO);
 	sock = nlOpen(0, NL_RELIABLE);
-	pthread_mutex_unlock(&nlOpenMutex);
+	nlOpenMutex.unlock();
 	if (sock == NL_INVALID) {
 		//show "cant open socket to master" error
 		show_dialog("ERROR", "Can't open socket!", "Press any key.", 0,makecol(0xff,0xaa,0xaa));
@@ -2541,7 +2610,7 @@ void gameclient_c::get_servers_from_master() {
 	client_graphics.show_progress("Getting updated internet server list", "Waiting response...", "Press ESC to cancel");
 
 	//log ok
-	LOG3("QUERY TO MASTER '%s', result = %i, count = %i\n", querybuf, result, qcount);
+	log("QUERY TO MASTER '%s', result = %i, count = %i", querybuf, result, qcount);
 
 	client_graphics.show_progress("Getting updated internet server list", "Request sent. Waiting a reply...", "Press ESC to cancel");
 
@@ -2565,8 +2634,8 @@ void gameclient_c::get_servers_from_master() {
 				if (html_end) {
 					if (nostuffcound > 200) {		//2 seconds after it came some stuff but now without coming more stuff
 						lebuf[n+1] = 0;
-						LOG("2 SEC TIMEOUT READING STUFF AFTER </HTML>\n");
-						LOG1("Full response: \"%s\"\n", lebuf);
+						log("2 SEC TIMEOUT READING STUFF AFTER </HTML>");
+						log("Full response: \"%s\"", lebuf);
 						break;
 					}
 				}
@@ -2592,7 +2661,7 @@ void gameclient_c::get_servers_from_master() {
 			if (html_end)
 				break;
 
-			LOG1("MASTER CLIENT QUERY ERROR READING RESPONSE result = %i\n", result);
+			log.error("MASTER CLIENT QUERY ERROR READING RESPONSE result = %i", result);
 			//show 'some problem occured try later'
 			/*
 			sprintf(dialogmessage, "Problem connecting! Try later. (2)");//%i %s %i %s", nlGetError(), nlGetErrorStr(nlGetError()), nlGetSystemError(), nlGetSystemErrorStr(nlGetSystemError()));
@@ -2620,11 +2689,11 @@ void gameclient_c::get_servers_from_master() {
 				(lebuf[n-0] == '>')
 			)
 			{
-				LOG1("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i\n", n);
+				log("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i", n);
 				html_end = true;
 				nostuffcound = 1;
 				lebuf[n+1] = 0;
-				LOG1("Full response: \"%s\"\n", lebuf);
+				log("Full response: \"%s\"", lebuf);
 				break;
 			}
 		}
@@ -2641,7 +2710,7 @@ void gameclient_c::get_servers_from_master() {
 			)
 			{
 				lebuf[n+1]=0;
-				//LOG1("** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
+				//log("** READ <HTML>, DISCARDING BUFFER '%s' **", lebuf);
 				html_end = false;
 				n = -1;
 			}
@@ -2811,7 +2880,7 @@ void gameclient_c::loop() {
 	char key_up=0, key_down=0, key_left=0, key_right=0;
 	int i;
 	while (notquit && !force_exit) {
-		//LOG("** another loop()...\n");
+		//log("** another loop()...");
 
 		// (-1) try to release "reverse" voices that have finished playing
 		//
@@ -2888,13 +2957,12 @@ void gameclient_c::loop() {
 					switch (menu) {
 						//main menu
 						case menu_main:
-							if (key[KEY_SPACE] && sc == KEY_F8 && !listen_server_running) {
+							if (key[KEY_SPACE] && sc == KEY_F8 && !listenServer.running()) {
 								port++;
 								if (port > DEFAULT_UDP_PORT + 5)
 									port = DEFAULT_UDP_PORT;
 							}
 							else if (sc == KEY_F10) {
-								editplayername = RandomName();
 								change_name_command();
 							}
 							switch (ch) {
@@ -2907,10 +2975,10 @@ void gameclient_c::loop() {
 									set_menu(menu_name_password);
 									break;
 								case '4': // start/stop listenserver
-									if (listen_server_running)
-										listen_stop();
+									if (listenServer.running())
+										listenServer.stop();
 									else
-										listen_start();
+										listenServer.start(port);
 									break;
 								case '5':
 									winclient = !winclient;
@@ -3060,8 +3128,14 @@ void gameclient_c::loop() {
 								edit_server_password += static_cast<char>(ch);
 							break;
 						case menu_player_password:
-							if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty())
-								connect_command();
+							if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty()) {
+								if (connected) {
+									issue_change_name_command();
+									set_menu(menu_none);
+								}
+								else
+									connect_command();
+							}
 							else if (sc == KEY_TAB)
 								save_password_selected = !save_password_selected;
 							else if (save_password_selected) {
@@ -3345,7 +3419,7 @@ void gameclient_c::loop() {
 
 		} while (speed_counter < 1);
 
-		//LOG("** ...exited spd counter>0\n");
+		//log("** ...exited spd counter>0");
 
 		//must be time for another frame later
 		while (speed_counter > 0) {
@@ -3387,16 +3461,16 @@ void gameclient_c::loop() {
 		// (3) draw operations
 		//
 		//if (page_flipping) {
-			//LOG1("acquire_bitmap/gs=%i...",gameshow);
+			//log("acquire_bitmap/gs=%i...",gameshow);
 			//acquire_bitmap(drawbuf);
-			//LOG("OK\n");
+			//log("OK");
 		//}
 
 		if (gameshow) {
 			//clear_to_color(drawbuf, makecol(rand(),0,0));	// clear buffer
-			//LOG("draw_game_frame()\n");
+			//log("draw_game_frame()");
 			draw_game_frame(); // draw game frame
-			//LOG("exit draw_game_frame()\n");
+			//log("exit draw_game_frame()");
 			#ifdef ROOM_CHANGE_BENCHMARK
 			if (benchmarkRuns >= 500)
 				notquit = false;
@@ -3415,9 +3489,9 @@ void gameclient_c::loop() {
 			draw_game_menu();
 
 		//if (page_flipping) {
-			//LOG("** releasing bitmap...\n");
+			//log("** releasing bitmap...");
 			//release_bitmap(drawbuf);
-			//LOG("OK!\n");
+			//log("OK!");
 		//}
 
 		// (4) flip or blt
@@ -3448,7 +3522,7 @@ void gameclient_c::stop() {
 
 	//join with token request thread, if any
 	if (player_password_set) {
-		LOG("**** CLIENT JOINING PASSWORD-TOKEN THREAD.... ****\n");
+		log("**** CLIENT JOINING PASSWORD-TOKEN THREAD.... ****");
 		player_password_set = false;
 		pthread_join( passthread, 0 );
 	}
@@ -3457,7 +3531,7 @@ void gameclient_c::stop() {
 	//try to load client configuration
 	char dest[WHERE_PATH_SIZE];
 	append_filename(dest, wheregamedir, "clconfig.txt", WHERE_PATH_SIZE);
-	LOG1("dest for clconfig.txt OUT = %s\n", dest);
+	log("dest for clconfig.txt OUT = %s", dest);
 
 	ofstream cfg(dest);
 	if (cfg) {
@@ -3478,20 +3552,18 @@ void gameclient_c::stop() {
 				cfg << static_cast<int>(*col) << ' ';
 		cfg << '\n';
 
-		if (!playername.empty())
-			cfg << playername << '\n';
-		else
-			cfg << "Unnamed_Bastard\n";
+		nAssert(!playername.empty());
+		cfg << playername << '\n';
 
 		for (int i = 0; i < MAX_GAMESPY; i++) {
-			LOG1("Saving gamespy address = '%s'\n", gamespy[i].address);
+			log("Saving gamespy address = '%s'", gamespy[i].address);
 			cfg << gamespy[i].address << '\n';
 		}
 		cfg.close();
 	}
 
 	//save client's password
-	LOG("Saving password file...\n");
+	log("Saving password file...");
 	append_filename(dest, wheregamedir, "password.bin", WHERE_PATH_SIZE);
 	FILE *psf = fopen(dest, "wb");
 	if (psf) {
@@ -3512,7 +3584,7 @@ void gameclient_c::stop() {
 		fclose(psf);
 	}
 	else
-		LOG("ERROR: CANNOT OPEN PASSWORD FILE FOR WRITING\n");
+		log.error("CANNOT OPEN PASSWORD FILE FOR WRITING");
 
 	//clear udpdq
 	for (int uq=0;uq<MAX_UDPDQ;uq++)
@@ -3523,8 +3595,8 @@ void gameclient_c::stop() {
 	if (message_logging)
 		message_log.close();
 
-	// stop listenserver if it was running
-	listen_stop();
+	if (listenServer.running())
+		listenServer.stop();
 }
 
 void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
@@ -3634,7 +3706,7 @@ void gameclient_c::draw_game_frame() {
 					client_graphics.draw_pup(fx.item[i], get_time());
 					if (fx.item[i].kind == Powerup::pup_deathbringer)
 						client_graphics.create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
-      						fx.item[i].px, fx.item[i].py, 0);
+							fx.item[i].px, fx.item[i].py, 0);
 				}
 
 		// draw speed effect
@@ -4034,9 +4106,9 @@ void gameclient_c::draw_game_frame() {
 	}
 
 	//unlock frame mutex
-	//LOG1("unlocking HOW=%i\n",HOWMANY);
+	//log("unlocking HOW=%i",HOWMANY);
 	pthread_mutex_unlock( &frame_mutex );
-	//LOG1("unlocked! HOW=%i\n",HOWMANY);
+	//log("unlocked! HOW=%i",HOWMANY);
 
 	// another frame, calc FPS...
 	//
@@ -4102,7 +4174,7 @@ void gameclient_c::draw_game_menu() {
 	switch (menu) {
 		case menu_main:
 			client_graphics.main_menu(connected, address, playername, namestatus,
-				listen_server_running, listen_port_running, client_sounds);
+				listenServer.running(), listenServer.port(), client_sounds);
 			break;
 		case menu_server_list:
 			if (showmaster) {
@@ -4149,43 +4221,46 @@ void gameclient_c::close_button_callback() {
 }
 
 int cfunc_connection_update(client_runes_t *arg) {
+	gameclient->connection_update(arg);
+	return 0;
+}
 
+void gameclient_c::connection_update(client_runes_t *arg) {
 	int count;
 	char lebuf[256];
 
 	switch (arg->connect_result) {
 	case 0:
-		LOG("client connected.\n");
-		gameclient->client_connected(arg->data, arg->length);
+		log("client connected.");
+		client_connected(arg->data, arg->length);
 		break;
 	case 1:
-		LOG("client disconnected.\n");
-		gameclient->client_disconnected();
+		log("client disconnected.");
+		client_disconnected(arg->data, arg->length);
 		break;
 	case 2:
-		LOG("cannot connect, server denied (full?)\n");
-		gameclient->connect_failed_denied(arg->data, arg->length);
+		log("cannot connect, server denied (full?)");
+		connect_failed_denied(arg->data, arg->length);
 		break;
 	case 3:
-		LOG("cannot connect, server not responding\n");
-		gameclient->connect_failed_unreachable();
+		log("cannot connect, server not responding");
+		connect_failed_unreachable();
 		break;
 	case 4:
-		LOG("cannot connect, net-server is full!\n");
+		log("cannot connect, net-server is full!");
 		count = 0;
 		writeString(lebuf, count, "Server is full.");
-		gameclient->connect_failed_denied(lebuf, count);
+		connect_failed_denied(lebuf, count);
 		break;
 	default:
-		LOG1("WARNING: client connection update unknown code = %i\n", arg->connect_result);
+		log.security("WARNING: client connection update unknown code = %i", arg->connect_result);
 		break;
 	}
-	return 0;
 }
 
 int cfunc_server_data(client_runes_t *arg) {
 
-	//LOG1("client data=%i\n", arg->length);
+	//log("client data=%i", arg->length);
 
 	gameclient->process_incoming_data(arg->data, arg->length);
 

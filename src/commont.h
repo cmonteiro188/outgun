@@ -3,68 +3,7 @@
 #ifndef COMMONT_H_INC
 #define COMMONT_H_INC
 
-#include "nassert.h"
-#include <stdio.h>
-// ----------------------
-
-// Validity checker:
-
-typedef unsigned long ulong;
-
-class ValidityChecker {
-  #ifdef BWNOVALIDITYCHECKS
-  public:
-  	void checkValidity() const { }
-  #else
-    int check;
-
-  public:
-    ValidityChecker() : check(0xC044EC7) { }
-    void checkValidity() const
-                      { numAssert((ulong)this>0x10000 && (ulong)this<0xFFFF0000, (int)this); nAssert(check!=0xDE7E7ED); nAssert(check==0xC044EC7); }
-    ~ValidityChecker() { checkValidity(); check=0xDE7E7ED; }
-  #endif
-};
-
-
-// ----------------------
-
-// Pointer leak information gatherer
-
-#pragma pack(push, 1)
-template<int size> class PointerLeakBuffer : private ValidityChecker {
-    char buffer[size];
-
-  public:
-    PointerLeakBuffer() {
-        for (int i=0; i<size; i++)
-            buffer[i]=0x11;
-    }
-    void checkValidity() const {
-        for (int i=0; i<size; i++)
-            if (buffer[i]!=0x11) {
-                printf("Leak buffer (@%p-%p) changed at %d (%p), data: ", &buffer[0], &buffer[size-1], i, &buffer[i]);
-                for (int x=i; x<size && buffer[x]!=0x11; x++)
-                    printf("%02X ", buffer[x]);
-                printf("\nas string: ");
-                for (; i<size && buffer[i]!=0x11; i++)
-                    printf("%c", buffer[i]);
-                printf("\n\n");
-            }
-        ValidityChecker::checkValidity();
-    }
-    ~PointerLeakBuffer() {
-        checkValidity();
-    }
-};
-#pragma pack(pop)
-////////////////////////////////////////////////////////
-
-#include <allegro.h>
-#ifdef ALLEGRO_WINDOWS
-#include <winalleg.h>
-#endif
-
+#include "incalleg.h"
 #include <vector>
 #include <list>
 #include <iostream>
@@ -73,22 +12,16 @@ template<int size> class PointerLeakBuffer : private ValidityChecker {
 #include <iomanip>
 #include <string>
 
-#include <cstdio>          // for -text (v0.5.0)
+#include <cstdio>
 #include <cstring>
 #include <cmath>
 
 #include <pthread.h>
 #include <sched.h>
-#include <nl.h>             // HawkNL
+#include <nl.h>
 
-//log utils
-//#define LOG_NOLOG     // uncomment to disable logging
-#define LOG_EXPR game_log
-#define LOG_TIMEFUNC get_time()
-#include "leetnet/log.h"
-extern FILE *game_log;
-
-int atoi(const std::string& str);
+// Reads a line, stops to \n or \r and skips empty lines.
+std::istream& getline_smart(std::istream& in, std::string& str);
 
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
 
@@ -109,36 +42,6 @@ public:
 	bool     idle() const { return  data    ==0; }
 };
 
-bool is_keypad(int sc);
-
-void rotate_angle(float& angle, float shift);
-
-template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
-
-// strspnp: (Watcom definition) find from str the first char not in charset
-char* strspnp(char* str, const char* charset);
-const char* strspnp(const char* str, const char* charset);
-
-class LineReceiver {
-protected:
-	LineReceiver() { }
-
-public:
-	virtual LineReceiver& operator()(const std::string& str) =0;
-};
-
-inline void readStr(const char* buf, int& count, std::string& dst) {
-	dst.clear();
-	while (buf[count])
-		dst += buf[count++];
-	++count;
-}
-inline void writeStr(char* buf, int& count, const std::string& src) {
-	memcpy(&buf[count], src.data(), src.length());
-	count += src.length();
-	buf[count++] = '\0';
-}
-
 //play area width/height
 #define plw 472
 #define plh 354
@@ -151,18 +54,16 @@ inline void writeStr(char* buf, int& count, const std::string& src) {
 //RANKING defines
 #define DEFAULT_PLAYER_RATE 1.0
 
-#define PASSBUFFER  32      //size of password file
+#define PASSBUFFER  32	//size of password file
 
-//quick debugs
-//#define MIN_ALPHA_FRIENDS 1           //debug value
 #define MIN_ALPHA_FRIENDS 64
 
-#define ROCKET_SPEED 50.0       //in pixels/0.1s
+#define ROCKET_SPEED 50.0	//in pixels/0.1s
 
 #define MIN_HEALTH_FOR_RUN_PENALTY 40
 
 //#define DEBUG_POWERUPS
-//#define REALLY_DEBUG_POWERUPS     //define only if DEBUG_POWERUPS defined
+//#define REALLY_DEBUG_POWERUPS	//define only if DEBUG_POWERUPS defined
 
 // GAME VERSION / GAME STRING
 //
@@ -180,7 +81,7 @@ inline void writeStr(char* buf, int& count, const std::string& src) {
 const NLushort DEFAULT_UDP_PORT = 25000;
 
 //the master server address (www.mycgiserver.com:80)
-extern NLaddress        master_address;
+extern NLaddress master_address;
 
 //directories for save/load maps
 #define SERVER_MAPS_DIR "maps"
@@ -204,11 +105,11 @@ extern bool   svp_friendly_fire, svp_friendly_db;
 void set_default_physics();
 
 // number-of-players
-#define MAX_PLAYERS 32                          // the MAXIMUM MAXIMUM number of players EVER
-extern int          maxplayers;     // the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
-#define TSIZE (maxplayers/2)                // CTF TEAM SIZE
+#define MAX_PLAYERS 32	// the MAXIMUM MAXIMUM number of players EVER
+extern int maxplayers;	// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
+#define TSIZE (maxplayers/2)	// CTF TEAM SIZE
 
-#define MAX_ROCKETS 256     // maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
+#define MAX_ROCKETS 256	// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
 #define MAX_PICKUPS MAX_PLAYERS // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
 
@@ -230,74 +131,44 @@ extern volatile bool force_exit;	// this is set true when the user tries to clos
 void closeButtonCallback();
 
 void server_status_string(const std::string& str);
-double get_time();
 
 extern volatile int server_speed_counter;
 extern volatile int speed_counter;
 extern volatile int client_netsend_counter;
 extern volatile unsigned long time_counter;
 
-class ProfileTimer {
-	const char* n;
-	unsigned long val;
-
-public:
-	ProfileTimer(const char* name) : n(name), val(0) { }
-	~ProfileTimer() { std::cerr << n << " : " << val << '\n'; }
-	unsigned long* getPtr() { return &val; }
-};
-
-class Profiler {
-	unsigned long* sump;
-	unsigned long start;
-
-public:
-	Profiler(ProfileTimer& timer) : sump(timer.getPtr()), start(time_counter) { }
-	~Profiler() { *sump += time_counter - start; }
-};
-
-class MutexHolder {
-	pthread_mutex_t mutex;
-
-public:
-	MutexHolder() { pthread_mutex_init(&mutex, 0); }
-	~MutexHolder() { pthread_mutex_destroy(&mutex); }
-	pthread_mutex_t* operator&() { return &mutex; }
-};
-
 //server_next_map() reasons
 enum {
-    NEXTMAP_NONE,
-    NEXTMAP_CAPTURE_LIMIT,
-    NEXTMAP_VOTE_EXIT,
-    NUM_OF_NEXTMAP
+	NEXTMAP_NONE,
+	NEXTMAP_CAPTURE_LIMIT,
+	NEXTMAP_VOTE_EXIT,
+	NUM_OF_NEXTMAP
 };
 
 //audio samples : codes
 enum {
+	SAMPLE_FIRE,
+	SAMPLE_HIT,
 
-    SAMPLE_FIRE,            //ok
-    SAMPLE_HIT,             //ok
+	SAMPLE_WALLHIT,
+	SAMPLE_QUADWALLHIT,
 
-    SAMPLE_WALLHIT,             //new! v0.3.9
-    SAMPLE_QUADWALLHIT,     //new! v0.3.9
-
-	SAMPLE_DEATH,			//ok
-	SAMPLE_DEATH_2,		//ok
-	SAMPLE_ENTERGAME,	//ok
-	SAMPLE_LEFTGAME,	//ok
+	SAMPLE_DEATH,
+	SAMPLE_DEATH_2,
+	SAMPLE_ENTERGAME,
+	SAMPLE_LEFTGAME,
 	SAMPLE_CHANGETEAM,
 	SAMPLE_TALK,
 	SAMPLE_WALLBOUNCE,
 
-	SAMPLE_WEAPON_UP,	// new! v0.1.2
+	SAMPLE_WEAPON_UP,
 
-	SAMPLE_MEGAHEALTH, // new! v0.3.0
+	SAMPLE_MEGAHEALTH,
 
-	SAMPLE_GETDEATHBRINGER, // new! v0.3.9 -- get deathbringer powerup (voz sinistra)
-	SAMPLE_USEDEATHBRINGER, // new! v0.3.9 -- use deathbringer powerup (carrier dies) ("GRRRAAWWKKLLLL!!")
-	SAMPLE_HITDEATHBRINGER,	// new! v0.3.9 -- target is hit by the deathbringer ("PWRRLLW!")
-	SAMPLE_DIEDEATHBRINGER,	// new! v0.3.9 -- target dies by the deathbringer		("HaHaHaHa!")
+	SAMPLE_GETDEATHBRINGER,
+	SAMPLE_USEDEATHBRINGER,
+	SAMPLE_HITDEATHBRINGER,
+	SAMPLE_DIEDEATHBRINGER,
 
 	SAMPLE_SHIELD_PICKUP,
 	SAMPLE_SHIELD_DAMAGE,
@@ -313,42 +184,24 @@ enum {
 	SAMPLE_HELM_ON,
 	SAMPLE_HELM_OFF,
 
-	SAMPLE_CTF_GOT,			//ok
-	SAMPLE_CTF_LOST,		//ok
-	SAMPLE_CTF_RETURN,	//ok
-	SAMPLE_CTF_CAPTURE,	//ok
-	SAMPLE_CTF_GAMEOVER,	//ok
+	SAMPLE_CTF_GOT,
+	SAMPLE_CTF_LOST,
+	SAMPLE_CTF_RETURN,
+	SAMPLE_CTF_CAPTURE,
+	SAMPLE_CTF_GAMEOVER,
 
 	NUM_OF_SAMPLES
 };
 
-extern char teamname[3][5];
-
-extern int listen_port_running;
-extern volatile bool	listen_server_running;
-extern pthread_t	listen_server_thread;
-void listen_start();
-void listen_stop();
-
 //server record
 struct gamespy_t {
-    NLaddress addr;
-    char address[128];  //IP-address typein buffer
-    bool invalid;
-    bool noresponse;
-    bool favs;  //hack
-    bool refreshed; //if data below is valid -------------
-    char info[128];
+	NLaddress addr;
+	char address[128];  //IP-address typein buffer
+	bool invalid;
+	bool noresponse;
+	bool favs;  //hack
+	bool refreshed; //if data below is valid -------------
+	char info[128];
 };
-
-int iround(double value);
-
-// Reads a line, stops to \n or \r and skips empty lines.
-std::istream& getline_smart(std::istream& in, std::string& str);
-
-// Convert string to uppercase.
-std::string toupper(std::string str);
-
-extern MutexHolder nlOpenMutex;
 
 #endif

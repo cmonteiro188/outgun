@@ -29,7 +29,7 @@
 
 */
 
-#include "../commont.h"	// for nlOpenMutex
+#include "../mutex.h"
 #include "rudp.h"		
 #include "nl.h"				// HawkNL
 //#include "stdio.h"		//for printf debugging  (FIXME - move to log)
@@ -512,10 +512,10 @@ DLOG_Scope s("UPIM");
 		nlStringToAddr(address, &netaddr);
 
 		//set address to socket remoteaddress
-		pthread_mutex_lock(&nlOpenMutex);
+		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
 		sendsock = nlOpen(0, NL_UNRELIABLE);
-		pthread_mutex_unlock(&nlOpenMutex);
+		nlOpenMutex.unlock();
 		if (sendsock == NL_INVALID)
 			return 0;		//ERROR
 		else
@@ -530,10 +530,10 @@ DLOG_Scope s("UPIM");
 		memcpy(&netaddr, some_addr, sizeof(NLaddress));
 	
 		//set address to socket remoteaddress
-		pthread_mutex_lock(&nlOpenMutex);
+		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
 		sendsock = nlOpen(0, NL_UNRELIABLE);
-		pthread_mutex_unlock(&nlOpenMutex);
+		nlOpenMutex.unlock();
 		if (sendsock == NL_INVALID)
 			return 0;		//ERROR
 		else

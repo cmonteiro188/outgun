@@ -70,6 +70,8 @@ class ServerNetworking {
 
 	server_c*		server;
 
+	LogSet			log;
+
 	#ifdef SEND_FRAMEOFFSET
 	double			frameSentTime;	// at what time the last frame was sent
 	#endif
@@ -111,7 +113,7 @@ class ServerNetworking {
 	int				player_count;
 
 public:
-	ServerNetworking(gameserver_c* hostp, ServerWorld& w);
+	ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs);
 	~ServerNetworking();
 
 	bool start();
@@ -158,6 +160,7 @@ public:
 	void sendPickupVisible(int pid, int pup_id, const Powerup& it);
 	void sendPupTime(int pid, NLubyte pupType, double timeLeft);
 	void sendFragUpdate(int pid, NLulong frags);
+	void sendNameAuthorizationRequest(int pid);
 
 	void broadcast_sample(int code);
 	void broadcast_screen_sample(int p, int code);
@@ -172,7 +175,7 @@ public:
 
 	void newPlayer(int pid);
 	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }
-	void disconnect_client(int cid, int timeout);
+	void disconnect_client(int cid, int timeout, Disconnect_reason reason);
 	void clientHello(int client_id, char* data, int length, ServerHelloResult* res);
 	int  client_connected(int id);
 	void client_disconnected(int id);

@@ -36,8 +36,7 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 
 */
 
-#define _log_h_
-#include "../commont.h"	// for nlOpenMutex
+#include "../mutex.h"
 #include "pthread.h"
 #include "sched.h"
 #include "leetnet.h"
@@ -85,6 +84,7 @@ struct client_t {
 																			// packet was already received from the client
 	volatile bool		server_disconnected; // set to true when the server kicks the client. told_disconnect may
 																			 // be false at that point.
+	NLubyte disconnect_reason;	// values are user defined, except 0 is used internally for drop at timeout
 
 	Time					ping_start_time;		//time of last ping request from gameserver
 
@@ -214,10 +214,10 @@ public:
 		set_client_timeout(5, 10);
 
 		//open the server socket
-		pthread_mutex_lock(&nlOpenMutex);
+		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
 		servsock = nlOpen((NLushort)port, NL_UNRELIABLE);
-		pthread_mutex_unlock(&nlOpenMutex);
+		nlOpenMutex.unlock();
 
 		if (servsock == NL_INVALID) {
 			LOG("server_ci::start(): cannot nlOpen server socket!\n");
@@ -273,7 +273,7 @@ public:
 		for (i=0;i<MAX_CLIENTS;i++) 
 		if (client[i].used)	//valid
 		if ((client[i].connected) && (!client[i].told_disconnect) && (!client[i].server_disconnected)) //still connected
-			disconnect_client(i, 3);
+			disconnect_client(i, 3, disconnect_server_shutdown);
 		
 		// signal threads to stop now
 		server_stopped = true;		
@@ -333,7 +333,7 @@ public:
 	}
 
 	//disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
-	virtual int disconnect_client(int client_id, int timeout) {
+	virtual int disconnect_client(int client_id, int timeout, NLubyte reason) {	// reason is user defined; reserved: 0 = client initiated, 1 = timeout
 
 		//call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
 		// DO NOT CALL if client not connected
@@ -347,6 +347,7 @@ public:
 		//
 		// this flag also makes any regular game-connection packets from the client to be discarded.
 		client[client_id].server_disconnected = true;
+		client[client_id].disconnect_reason = reason;
 
 		//countdown for client dropping - this var is checked by the reader thread
 		//
@@ -524,6 +525,7 @@ DLOG_Scope s("RM");
 		data_c *reply = new_data_c();
 		reply->addlong(0);		//"special packet"
 		reply->addlong(2);		//"you are now disconnected"
+		reply->addlong(client[id].disconnect_reason);
 		client[id].station->send_raw_packet(reply);
 		delete reply;
 
@@ -777,7 +779,7 @@ DLOG_Scope s("ST");
 						lagStatusCallback(customp, i, 2);
 
 					//disconnect the client - 3 sec timeout
-					disconnect_client(i, 3);
+					disconnect_client(i, 3, disconnect_timeout);
 				}
 		}
 	}
@@ -955,9 +957,11 @@ DLOG_Scope s("PCD_Sp");
 					
 					//reply: ok, you are disconnected
 					LOG1("sent disconnect that client %i initiated..\n", cid);
+					client[cid].disconnect_reason = disconnect_client_initiated;	// client initiated disconnection
 					data_c* reply = new_data_c();
 					reply->addlong(0);		//"special packet"
 					reply->addlong(2);		//"you are now disconnected"
+					reply->addlong(client[cid].disconnect_reason);
 					client[cid].station->send_raw_packet(reply);
 					delete reply;
 
@@ -974,26 +978,6 @@ DLOG_Scope s("PCD_Sp");
 		//AND the slot must be used, OF COURSE!
 		else if (client[cid].used) {
 			if (client[cid].connected == false) {
-				
-				//data packet before connection: just discard (may be receiving out of order?)
-				// FIXME REVIEW THIS FUCKING THING
-
-				// PROVAVELMENTE esses packet que chegam ANTES do PRIMEIRO 'hello' são:
-				//  1 - pacotes que nunca foram enviados de verdade (invencao do server/ station)
-				//  2 - bugs de envio do client
-				// etc.?
-
-				/*
-				data_c* reply = new_data_c();
-				reply->addlong(0);		//"special packet"
-				reply->addlong(2);		//"you are now disconnected"
-				client[cid].station->send_raw_packet(reply);
-				delete reply;
-
-				//dealloc this slave
-				LOG1("client %i's slave freed : receive data W/O CONNECTED!\n", cid);
-				free_slave(cid);		
-				*/
 			}
 			else if (client[cid].server_disconnected == true) {
 				
@@ -1017,6 +1001,7 @@ DLOG_Scope s("PCD_Sp");
 					data_c* reply = new_data_c();
 					reply->addlong(0);		//"special packet"
 					reply->addlong(2);		//"you are now disconnected"
+					reply->addlong(client[cid].disconnect_reason);
 					client[cid].station->send_raw_packet(reply);
 					delete reply;
 				}

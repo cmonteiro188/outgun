@@ -71,10 +71,12 @@ public:
 	virtual int start(int port) = 0;
 
 	//stops the server. parameter is number of seconds to wait for all clients to gently disconnect
+	// disconnect_reason is passed to disconnect_client if there are clients to disconnect
 	virtual int stop(int disconnect_clients_timeout) = 0;
 
+	enum Disconnect_reason { disconnect_client_initiated, disconnect_server_shutdown, disconnect_timeout, disconnect_first_user_defined };
 	//disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
-	virtual int disconnect_client(int client_id, int timeout) = 0;
+	virtual int disconnect_client(int client_id, int timeout, NLubyte reason) = 0;
 
 	//broadcast the given game frame (along with lotsa other stuff like enqueued reliable messages and acks)
 	//to all connected clients. this must be called by a "sender" thread in a fairly regular interval of time,

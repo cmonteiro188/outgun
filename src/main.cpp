@@ -1,7 +1,11 @@
+#include <strstream>
+
 #include "commont.h"
 #include "server.h"
 #include "client.h"
 #include "mappic.h"
+
+using std::ostringstream;
 
 void increment_time_counter() {
 	time_counter++;
@@ -16,8 +20,7 @@ void increment_server_speed_counter() {
 } END_OF_FUNCTION(increment_server_speed_counter);
 
 // this simple task is turning into a major headache...
-bool set_shitty_mode() {
-	//V0.5.0 : -text  flag
+bool set_shitty_mode(LogSet log) {
 	if (textserver)
 		return true;
 
@@ -26,7 +29,7 @@ bool set_shitty_mode() {
 	set_color_depth( DTC );
 
 	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
-		LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 1 with %i", DTC)
+		log("Could not set gfx mode 320x240 windowed.. try 1 with %i", DTC);
 	else
 		return true;	// OK
 
@@ -40,7 +43,7 @@ bool set_shitty_mode() {
 		set_color_depth( DTC );
 
 		if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
-			LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 2 with %i\n", DTC)
+			log("Could not set gfx mode 320x240 windowed.. try 2 with %i", DTC);
 		else
 			return true;
 	}
@@ -51,14 +54,14 @@ bool set_shitty_mode() {
 	set_color_depth( DTC );
 
 	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0)) {
-		LOG1("ERROR: could not set gfx mode 320x240 windowed.. tried with %i\n", DTC);
+		log("Could not set gfx mode 320x240 windowed.. tried with %i", DTC);
 	}
 	else
 		return true;
 
 	// try safe mode
 	if (set_gfx_mode(GFX_SAFE, 320, 240, 0, 0)) {
-		LOG("ERROR: could not set a safe gfx mode.\n");
+		log("Could not set a safe gfx mode.");
 		return false;
 	}
 	else
@@ -66,12 +69,10 @@ bool set_shitty_mode() {
 }
 
 int main(int argc, char *argv[]) {
-	//random random
-	srand((unsigned)time(0));
+	FileLog logFile("log.txt", true);
+	LogSet log(&logFile, &logFile, &logFile);
 
-	strcpy(teamname[0], "RED");		// #FIXME: move to servnet or world
-	strcpy(teamname[1], "BLUE");
-	strcpy(teamname[2], "WILD");
+	srand((unsigned)time(0));
 
 	// general init
 	gameclient = 0;
@@ -102,9 +103,8 @@ int main(int argc, char *argv[]) {
 
 	//open outgun.log at EXE root path
 	append_filename(lognamebuf, wheregamedir, "outgun.log", WHERE_PATH_SIZE);
-	LOG_OPEN(lognamebuf);
 
-	LOG3("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s\n", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
+	log("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
 	bool message_logging = false;
 	bool showinfo = false;
@@ -113,10 +113,10 @@ int main(int argc, char *argv[]) {
 	bool targetprio_specified = false;
 
 	// check args
-	for (int i=1;i<argc;i++) {
+	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-ded"))
 			dedserver = true;
-		else if (!strcmp(argv[i], "-text"))		//v0.5.0 UNIX TEXTMODE SERVER
+		else if (!strcmp(argv[i], "-text") || !strcmp(argv[i], "-nowindow"))
 			textserver = true;
 		else if (!strcmp(argv[i], "-priv"))
 			privateserver = true;
@@ -174,26 +174,31 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-log"))
 			message_logging = true;
 		else if (!strcmp(argv[i], "-mappic")) {
+			log("Saving map pictures");
 			set_window_title("Outgun map picture saver");
-			Mappic mappic;
+			Mappic mappic(log);
 			try {
 				mappic.run();
 				allegro_message("Saved map pictures to mappic directory.");
 			} catch (const Mappic::Save_error& s) {
-				allegro_message("Error: Could not save map pictures to mappic directory!");
+				allegro_message("ERROR: Could not save map pictures to mappic directory!");
 			}
 			return 0;
 		}
-		else
-			LOG2("WARNING: command-line argument #%i is unknown ('%s')\n", i, argv[i]);
+		else {
+			ostringstream msg;
+			msg << "Unknown command-line argument " << argv[i];
+			allegro_message(msg.str().c_str());
+			return 0;
+		}
 	}
 
 	if (nlInit() == NL_FALSE) {
-		LOG("ERROR: cannot init HawkNL!\n");
+		allegro_message("ERROR: cannot init HawkNL!");
 		return 0;
 	}
 	if (nlSelectNetwork(NL_IP) == NL_FALSE) {
-		LOG("ERROR: no IP network!\n");
+		allegro_message("ERROR: no IP network!");
 		return 0;
 	}
 
@@ -202,23 +207,23 @@ int main(int argc, char *argv[]) {
 
 	// resolve master server address
 	// #FIXME: read master server address from a file
-	LOG("resolving master server address...\n");
+	log("resolving master server address...");
 	try {
 		nlGetAddrFromName("www.mycgiserver.com", &master_address);	//www.mycgiserver.com
 	} catch (...) {
-		LOG("caught exception probably on nlGetAddrFromNameAsync()\n");
+		log("caught exception probably on nlGetAddrFromNameAsync()");
 		master_address.valid = NL_FALSE;
 	}
 
 	if (master_address.valid == NL_FALSE) {
-		LOG("can't resolve master server address to IP.\n");
+		log("can't resolve master server address to IP.");
 		nlStringToAddr("212.69.162.53", &master_address);					//last known resolution for www.mycgiserver.com
 	} else if (master_address.valid == NL_TRUE) {
-		LOG("address resolved sucessfully.\n");
+		log("address resolved sucessfully.");
 	}
 
 	nlSetAddrPort(&master_address, 80);													//port 80
-	LOG("master server address set.\n");
+	log("master server address set.");
 
 	// install higher-accuracy timer interrupt
 	LOCK_VARIABLE(speed_counter);
@@ -238,15 +243,15 @@ int main(int argc, char *argv[]) {
 	sched_param		param;
 	int				rc = pthread_getschedparam(tme, &policy, &param); // get priority of current thread (wich is the default value)
 	int				pdef = param.sched_priority;
-	LOG("Thread priorities:\n");
-	LOG4("   rc = %i policy = %i OTHER=%i sched_prio = %i\n", rc, policy, SCHED_OTHER, param.sched_priority);
-	LOG3("   pmin %i pmax %i pdef = %i\n", pmin, pmax, pdef);
+	log("Thread priorities:");
+	log("   rc = %i policy = %i OTHER=%i sched_prio = %i", rc, policy, SCHED_OTHER, param.sched_priority);
+	log("   pmin %i pmax %i pdef = %i", pmin, pmax, pdef);
 
 	//show info
 	if (showinfo) {
 		//get all local addresses
 		NLaddress *locals;
-		NLint     locsize;
+		NLint locsize;
 
 		locals = nlGetAllLocalAddr(&locsize);
 
@@ -267,7 +272,7 @@ int main(int argc, char *argv[]) {
 	// run dedicated server
 	if (dedserver) {
 		// here must get the safest and shittiest windowed gfx mode available
-		if (!set_shitty_mode())
+		if (!set_shitty_mode(log))
 			textserver = true;		// if 320×240 mode can't be set, use textserver
 
 		// dedicated server - set process priority (all threads) to a higher value
@@ -287,36 +292,29 @@ int main(int argc, char *argv[]) {
 			param.sched_priority = ptarg;
 			policy = SCHED_OTHER;
 			pthread_setschedparam(tme, policy, &param);
-			LOG1("NEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i\n", ptarg);
+			log("NEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i", ptarg);
 		}
 		else
-			LOG("-defaultprio: Leaving thread priorities on their default values\n");
-
-		// log
-		LOG_CLOSE();
-
-		//open log at EXE root path
-		append_filename(lognamebuf, wheregamedir, "out_svr.log", WHERE_PATH_SIZE);
-		LOG_OPEN(lognamebuf);
+			log("-defaultprio: Leaving thread priorities on their default values");
 
 		// gfx init
 		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) // allow running in the background
 		{
-			LOG("can't set SWITCH_BACKAMNESIA for SERVER\n");
+			log("can't set SWITCH_BACKAMNESIA for SERVER");
 			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) {
-				LOG("ERROR: server window cannot run in the background!\n");
+				allegro_message("ERROR: server window cannot run in the background!");
 				return 0;
 			}
 			else
-				LOG("set SWITCH_BACKGROUND for SERVER\n");
+				log("set SWITCH_BACKGROUND for SERVER");
 		}
 		else
-			LOG("set SWITCH_BACKAMNESIA for SERVER\n");
+			log("set SWITCH_BACKAMNESIA for SERVER");
 
 		// run server
-		gameserver_c* gameserver = new gameserver_c();
+		gameserver_c* gameserver = new gameserver_c(log);
 		if (!gameserver->start(server_maxplayers)) {
-			LOG("ERROR: cannot start gameserver!\n");
+			allegro_message("ERROR: cannot start gameserver!");
 			return 0;
 		}
 		gameserver->loop(0);
@@ -325,45 +323,36 @@ int main(int argc, char *argv[]) {
 	}
 	// run client
 	else {
-
 		//require CLIENT_MAPS_DIR directory
 		char mappath[256];
 		strcpy(mappath, CLIENT_MAPS_DIR);  // cmaps
 		char dest[1024];
 		append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
-		LOG1("CMAPS DIR IS = '%s'\n", dest);
+		log("CMAPS DIR IS = '%s'", dest);
 		al_ffblk mapffblk;	//for al_find*
 		int result = al_findfirst(dest, &mapffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
 		if (result != 0 || !(mapffblk.attrib&FA_DIREC)) {
-			allegro_message("Error: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", dest);
+			allegro_message("ERROR: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", dest);
 			return 0;
 		}
 
 		//window title
 		server_status_string("Outgun client - CTRL+F12 to quit");
 
-		// log
-		LOG_CLOSE();
-
-		//open log at EXE root path
-		append_filename(lognamebuf, wheregamedir, "out_cli.log", WHERE_PATH_SIZE);
-		LOG_OPEN(lognamebuf);
-
 		// try install sound
 		if (!nosound) {
-
 			if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
 			//if (install_sound(DIGI_WAVOUTID(0), MIDI_NONE, 0)) {
-
-				LOG("INSTALL_SOUND failed. no sound.\n");
+				log("INSTALL_SOUND failed. no sound.");
 				sound_inited = false;
-			}	else {
-				LOG("INSTALL_SOUND ok.\n");
+			}
+			else {
+				log("INSTALL_SOUND ok.");
 				sound_inited = true;
 			}
 		}
 		else
-			LOG("SOUND DISABLED by command line option -nosound\n");
+			log("SOUND DISABLED by command line option -nosound");
 
 		// install client timer
 		LOCK_VARIABLE(speed_counter);
@@ -371,11 +360,11 @@ int main(int argc, char *argv[]) {
 		install_int_ex(increment_speed_counter, BPS_TO_TIMER(targetfps));		//client MAX FPS
 
 		// run client
-		gameclient = new gameclient_c();
+		gameclient = new gameclient_c(log);
 		gameclient->message_logging = message_logging;
-		LOG1("Message logging is %s\n", message_logging ? "enabled" : "disabled");
+		log("Message logging is %s", message_logging ? "enabled" : "disabled");
 		if (!gameclient->start()) {
-			LOG("ERROR: cannot start gameclient!\n");
+			allegro_message("ERROR: cannot start gameclient!");
 			return 0;
 		}
 		gameclient->loop();
@@ -388,9 +377,5 @@ int main(int argc, char *argv[]) {
 
 	// exit HawkNL
 	nlShutdown();
-
-	// log close
-	LOG_CLOSE();
-
 	return 0;
 } END_OF_MAIN();

@@ -16,7 +16,7 @@ using std::cerr;
 
 // INTERSECTION_TRESHOLD	is how much inside a segment an intersection is allowed (must allow for rounding errors)
 // SPLIT_TRESHOLD			is how much y-borders are allowed to deviate (must exceed the precision of the given y coords)
-// FINAL_EXTREMECUT		    is how much of each element is removed y-wise to protect from exceeding function range
+// FINAL_EXTREMECUT			is how much of each element is removed y-wise to protect from exceeding function range
 // JOIN_TRESHOLD			is how much gap is allowed when joining two adjacent objects to one
 // all tresholds' unit is a pixel
 // these settings currently tune the module to work with values of y up to approximately +-1e8

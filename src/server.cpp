@@ -1,8 +1,12 @@
 #include "commont.h"
 #include "world.h"
 #include "leetnet/sleep.h"	// sleep util
-#include "server.h"
+#include "thread.h"
 #include "nassert.h"
+
+// implements:
+#include "server.h"
+#include "gameserver_interface.h"
 
 //#define DEBUG_RANKING
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
@@ -19,7 +23,16 @@ using std::string;
 using std::swap;
 using std::vector;
 
-gameserver_c::gameserver_c() : world(this, &network), network(this, world) {
+gameserver_c::gameserver_c(LogSet hostLogs) :
+	normalLog("serverlog.txt", true),
+	errorLog(normalLog, "ERROR: "),
+	securityLog(normalLog, "SECURITY WARNING: ", "server_securitylog.txt", false),
+	log(&normalLog, &errorLog, &securityLog),
+	world(this, &network, log),
+	network(this, world, log),
+	authorizations(log)
+{
+	hostLogs("See serverlog.txt for server's log messages");
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 	fav_colors[0].resize(16, false);
@@ -27,9 +40,12 @@ gameserver_c::gameserver_c() : world(this, &network), network(this, world) {
 }
 
 gameserver_c::~gameserver_c() {
+	errorMessage("Server had these errors: (see serverlog.txt)", errorLog);
 }
 
-void gameserver_c::mutePlayer(int pid, int mode, int admin) {    // 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
+void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
+	if (world.player[pid].muted == mode)
+		return;
 	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
 	if (mode==0 && world.player[pid].muted!=2)
 		network.plprintf(pid, msg_warning, "You have been unmuted (you can send messages again)");
@@ -50,7 +66,6 @@ void gameserver_c::mutePlayer(int pid, int mode, int admin) {    // 0 = unmute, 
 
 void gameserver_c::kickPlayer(int pid, int admin, bool ban) {
 	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
-	world.player[pid].delayedMessages.clear();
 	if (ban)
 		network.plprintf(pid, msg_warning, "You are now BANNED from this server! Have a nice life...");
 	else {
@@ -314,6 +329,10 @@ void gameserver_c::check_fav_colors(int pid) {
 	nAssert(0);		// should never go here
 }
 
+void gameserver_c::sendMessage(int pid, Message_type type, const std::string& msg) {
+	network.player_message(pid, type, msg);
+}
+
 //refresh team ratings
 void gameserver_c::refresh_team_score_modifiers() {
 	double raw[2];
@@ -416,7 +435,7 @@ void gameserver_c::load_game_mod() {
 	if (in) {
 		bool command = true;
 
-		LOG1("Loading game mod from '%s'...\n", filename);
+		log("Loading game mod from '%s'...", filename);
 
 		string line, cmd;
 		while (in) {
@@ -459,22 +478,22 @@ void gameserver_c::load_game_mod() {
 					if (ival == 0 || ival == 1)
 						svp_friendly_fire = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "friendly_deathbringer") {
 					if (ival == 0 || ival == 1)
 						svp_friendly_db = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "map") {
 					MapInfo mi;
-					if (mi.load(line)) {
+					if (mi.load(log, line)) {
 						maprot.push_back(mi);
-						LOG1("Added '%s' to map rotation\n", line.c_str());
+						log("Added '%s' to map rotation", line.c_str());
 					}
 					else {
-						LOG1("Can't add '%s' to map rotation\n", line.c_str());
+						log.error("Can't add '%s' to map rotation", line.c_str());
 					}
 				}
 				else if (cmd == "pups_min") {
@@ -484,7 +503,7 @@ void gameserver_c::load_game_mod() {
 							pupConfig.pups_min_percentage = true;
 						}
 						else {
-							LOG1("Can't set pups_min to %d%%\n", ival);
+							log.error("Can't set pups_min to %d%%", ival);
 						}
 					}
 					else if (ival >= 0 && ival <= MAX_PICKUPS) {
@@ -492,7 +511,7 @@ void gameserver_c::load_game_mod() {
 						pupConfig.pups_min_percentage = false;
 					}
 					else {
-						LOG1("Can't set pups_min to %d\n", ival);
+						log.error("Can't set pups_min to %d", ival);
 					}
 				}
 				else if (cmd == "pups_max") {
@@ -502,7 +521,7 @@ void gameserver_c::load_game_mod() {
 							pupConfig.pups_max_percentage = true;
 						}
 						else {
-							LOG1("Can't set pups_max to %d%%\n", ival);
+							log.error("Can't set pups_max to %d%%", ival);
 						}
 					}
 					else if (ival >= 0 && ival <= MAX_PICKUPS) {
@@ -510,7 +529,7 @@ void gameserver_c::load_game_mod() {
 						pupConfig.pups_max_percentage = false;
 					}
 					else {
-						LOG1("Can't set pups_max to %d\n", ival);
+						log.error("Can't set pups_max to %d", ival);
 					}
 				}
 				else if (cmd == "pups_respawn_time")
@@ -533,25 +552,25 @@ void gameserver_c::load_game_mod() {
 					if (ival >= 0)
 						worldConfig.time_limit = 60 * 10 * ival; // minutes to frames
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "extra_time") {
 					if (ival >= 0)
 						worldConfig.extra_time = 60 * 10 * ival; // minutes to frames
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "sudden_death") {
 					if (ival == 0 || ival == 1)
 						worldConfig.sudden_death = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "capture_limit") {
 					if (ival >= 0)
 						worldConfig.capture_limit = ival;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "welcome_message")
 					welcome_message.push_back(line);
@@ -563,109 +582,109 @@ void gameserver_c::load_game_mod() {
 					if (ival > 0 && ival < 1000)
 						pupConfig.pup_add_time = ival;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_max_time") {
 					if (ival > 0 && ival < 1000)
 						pupConfig.pup_max_time = ival;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_deathbringer_switch") {
 					if (ival == 0 || ival == 1)
 						pupConfig.pup_deathbringer_switch = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_deathbringer_time") {
 					if (val >= 1.0)
 						pupConfig.pup_deathbringer_time = val;
 					else
-						LOG2("Can't set %s to %f\n", cmd.c_str(), val);
+						log.error("Can't set %s to %f", cmd.c_str(), val);
 				}
 				else if (cmd == "pups_drop_at_death") {
 					if (ival == 0 || ival == 1)
 						pupConfig.pups_drop_at_death = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_health_bonus") {
 					if (ival >= 0)
 						pupConfig.pup_health_bonus = ival;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_power_damage") {
 					if (val > 0.)
 						pupConfig.pup_power_damage = val;
 					else
-						LOG2("Can't set %s to %f\n", cmd.c_str(), val);
+						log.error("Can't set %s to %f", cmd.c_str(), val);
 				}
 				else if (cmd == "pup_weapon_max") {
 					if (ival >= 1 && ival <= 9)
 						pupConfig.pup_weapon_max = ival - 1;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "random_maprot") {
 					if (ival == 0 || ival == 1)
 						random_maprot = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "vote_block_time") {
 					if (ival >= 0)
 						vote_block_time = 60 * 10 * ival;	// minutes to frames
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "idlekick_time") {
 					if (ival >= 10 || ival == 0)
 						idlekick_time = ival * 10;	// seconds to frames
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "respawn_time") {
 					if (val >= 0)
 						worldConfig.respawn_time = val;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "waiting_time_deathbringer") {
 					if (val >= 0)
 						worldConfig.waiting_time_deathbringer = val;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_shadow_invisibility") {
 					if (ival == 0 || ival == 1)
 						worldConfig.shadow_minimum = ival == 1 ? 0 : worldConfig.shadow_minimum_normal;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "rocket_damage") {
 					if (ival >= 0)
 						worldConfig.rocket_damage = ival;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "sayadmin_enabled") {
 					if (ival == 0 || ival == 1)
 						sayadmin_enabled = ival == 1 ? true : false;
 					else
-						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "sayadmin_comment")
 					sayadmin_comment = line;
 				else
-					LOG1("*** Bad command in gamemod: %s\n", cmd.c_str());
+					log.error("*** Bad command in gamemod: %s", cmd.c_str());
 			}
 
 			// command or parameter
 			command = !command;
 		}
 
-		LOG("END OF GAME MOD FILE.\n");
+		log("END OF GAME MOD FILE.");
 
 		// game without capture and time limit is not allowed
 		if (worldConfig.getCaptureLimit() == 0 && worldConfig.getTimeLimit() == 0)
@@ -674,7 +693,7 @@ void gameserver_c::load_game_mod() {
 		in.close();
 	}
 	else
-		LOG("Can't open game mod file gamemod.txt!\n");
+		log.error("Can't open game mod file gamemod.txt!");
 	world.setConfig(worldConfig, pupConfig);
 }
 
@@ -683,7 +702,7 @@ bool gameserver_c::load_rotation_map(int pos) {
 	bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
 	if (!ok)
 		return false;
-	LOG2("load_rotation_map() maprot[%i] = '%s'\n", pos, maprot[pos].file.c_str());
+	log("load_rotation_map() maprot[%i] = '%s'", pos, maprot[pos].file.c_str());
 	return true;
 }
 
@@ -809,7 +828,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 		char dest[1024];
 		append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
 
-		LOG1("MAP SCAN DIR IS = '%s'\n", dest);
+		log("MAP SCAN DIR IS = '%s'", dest);
 
 		al_ffblk mapffblk;	//for al_find*
 
@@ -820,12 +839,12 @@ bool gameserver_c::reset_settings(bool keepMap) {
 			nameBuf[strlen(nameBuf)-1] = 0;	//take last damn '.' out
 
 			MapInfo mi;
-			if (mi.load(nameBuf)) {
+			if (mi.load(log, nameBuf)) {
 				maprot.push_back(mi);
-				LOG1("Added '%s' to map rotation\n", nameBuf);
+				log("Added '%s' to map rotation", nameBuf);
 			}
 			else
-				LOG1("Can't add '%s' to map rotation\n", nameBuf);
+				log.error("Can't add '%s' to map rotation", nameBuf);
 
 			//try next
 			result = al_findnext(&mapffblk);
@@ -833,7 +852,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	}
 
 	if (maprot.empty()) {
-		LOG("No maps for rotation\n");
+		log.error("No maps for rotation");
 		return false;
 	}
 
@@ -855,7 +874,6 @@ bool gameserver_c::reset_settings(bool keepMap) {
 
 //start server
 bool gameserver_c::start(int target_maxplayers) {
-
 	#ifdef SV_NAME_AUTHORIZATION
 	authorizations.load();
 
@@ -869,10 +887,10 @@ bool gameserver_c::start(int target_maxplayers) {
 				break;
 			admins.push_back(line);
 		}
-		LOG1("Loaded %u administrator names\n", admins.size());
+		log("Loaded %u administrator names", admins.size());
 	}
 	else
-		LOG("Couldn't load administrator names: no admins.txt\n");
+		log("Couldn't load administrator names: no admins.txt");
 	#endif
 
 	//check if maxplayers is valid
@@ -927,7 +945,11 @@ void gameserver_c::game_remove_player(int pid) {
 	world.removePlayer(pid);
 }
 
-void gameserver_c::nameChange(int id, int pid, const string& tempname) {
+void gameserver_c::disconnectPlayer(int pid, Disconnect_reason reason) {
+	network.disconnect_client(world.player[pid].cid, 2, reason);
+}
+
+void gameserver_c::nameChange(int id, int pid, const string& tempname, const std::string& password) {
 	if (tempname == world.player[pid].name)
 		return;
 	//name change flooding protection
@@ -948,26 +970,24 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname) {
 	// must have just entered the game
 	bool entered_game = world.player[pid].name.empty();
 
-	world.player[pid].name = "(invalid name)";
 	if (tempname.find_first_not_of(' ') == string::npos)
-		network.player_message(pid, msg_warning, "Please enter a name");
+		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
 		#ifdef SV_NAME_AUTHORIZATION
-		int nid=authorizations.identifyName(tempname);
-		if (nid==-1 || authorizations.authorize(nid, network.get_client_address(id)))
+		int nid = authorizations.identifyName(tempname);
+		if (nid == -1 || authorizations.authorize(nid, password)) {
 			world.player[pid].name = tempname;
-		else {
-			network.plprintf(pid, msg_warning, "The name %s is reserved on this server.", authorizations.getName(nid).c_str());
-			network.plprintf(pid, msg_info, "To authorize, type /auth %s,pass where pass is your password.", authorizations.getName(nid).c_str());
-			network.plprintf(pid, msg_info, "Use /authadd instead if you want to keep your previous addresses authorized.");
+			world.player[pid].waitnametime = get_time() + 1.0;
 		}
+		else if (entered_game)
+			disconnectPlayer(pid, disconnect_client_misbehavior);
+		else
+			network.sendNameAuthorizationRequest(pid);
 		#else
 		world.player[pid].name = tempname;
+		world.player[pid].waitnametime = get_time() + 1.0;
 		#endif
 	}
-
-	// next time allowed to change name
-	world.player[pid].waitnametime = get_time() + 1.0;
 
 	//send entered-game message
 	if (entered_game)
@@ -977,13 +997,18 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname) {
 	network.broadcast_player_name(pid);
 }
 
-void gameserver_c::chat(int id, int pid, const char* sbuf) {
+class PlayerMessager : public LineReceiver {
+	gameserver_c& host;
+	int player;
+	Message_type type;
+
+public:
+	PlayerMessager(gameserver_c& server, int pid, Message_type mtype) : host(server), player(pid), type(mtype) { }
+	PlayerMessager& operator()(const std::string& str) { host.sendMessage(player, type, str); return *this; }
+};
+
+void gameserver_c::chat(int pid, const char* sbuf) {
 	// handle 'console' commands
-	if (world.player[pid].delayedMessages.size()>2) {
-		world.player[pid].delayedMessages.clear();
-		network.plprintf(pid, msg_info, "(rest of message cancelled)");
-	}
-	world.player[pid].reset_message_queue_timing();
 	if (sbuf[0]=='/') {
 		bool admin = false;
 		if (world.player[pid].reg_status == '*' || authorizations.identifyName(world.player[pid].name) != -1) {
@@ -1037,15 +1062,16 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 			}
 		}
 		else if (!strcmp(cbuf, "info") && !info_message.empty()) {
-			for (vector<string>::const_iterator line=info_message.begin(); line!=info_message.end(); line++)
-				network.player_message(pid, msg_info, *line);
+			network.player_message(pid, msg_header, info_message.front());
+			for (vector<string>::const_iterator line = info_message.begin() + 1; line != info_message.end(); line++)
+				network.player_message(pid, msg_normal, *line);
 			network.player_message(pid, msg_normal, "type /config to see current server settings");
 		}
 		else if (!strcmp(cbuf, "config")) {
 			network.player_message(pid, msg_header, "Current server settings:");
-			PlayerQueueAdder pqa(world.player[pid]);
-			worldConfig.print(pqa);
-			pupConfig.print(pqa);
+			PlayerMessager pm(*this, pid, msg_normal);
+			worldConfig.print(pm);
+			pupConfig.print(pm);
 		}
 		else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
 			if (strspnp(pCommand, " ")!=NULL) {
@@ -1077,8 +1103,8 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 			}
 		}
 		else if (!strcmp(cbuf, "time")) {
-			PlayerQueueAdder pqa(world.player[pid]);
-			world.printTimeStatus(pqa);
+			PlayerMessager pm(*this, pid, msg_info);
+			world.printTimeStatus(pm);
 		}
 		else if (!strcmp(cbuf, "stats")) {
 			int playing_time = (int)get_time() - world.player[pid].start_time;  // seconds
@@ -1120,33 +1146,6 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 				av_lifetime % 60);
 			// Add more stats: flag carrying time, etc.
 		}
-		#ifdef SV_NAME_AUTHORIZATION
-		else if (!strcmp(cbuf, "auth") || !strcmp(cbuf, "authadd")) {
-			string nameUpr;
-			for (; *pCommand && *pCommand!=','; ++pCommand)
-				nameUpr+=toupper(*pCommand);
-			if (*pCommand==',') {
-				string pwd(pCommand+1);
-				authorizations.load();
-				if (strcmp(cbuf, "authadd"))
-					authorizations.clearIPs(nameUpr, pwd);
-				if (authorizations.addIP(nameUpr, pwd, network.get_client_address(id))) {
-					authorizations.save();
-					ostringstream line;
-					line << "OK: authorized your IP address ";
-					if (!strcmp(cbuf, "authadd"))
-						line << "also ";
-					line << "to use " << nameUpr;
-					network.player_message(pid, msg_warning, line.str());
-					network.player_message(pid, msg_warning, "You may change your name now");
-				}
-				else
-					network.player_message(pid, msg_warning, "Authorization failed");
-			}
-			else
-				network.player_message(pid, msg_warning, "Invalid auth command");
-		}
-		#endif
 		else if (!strcmp(cbuf, "list") && admin) {
 			network.player_message(pid, msg_header, "Players on server: ID, name");
 			for (int ppid = 0; ppid < MAX_PLAYERS; ) {
@@ -1279,20 +1278,16 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	if (!gameover)
 		world.simulateFrame();
 
-	// announce voting status
-	if (world.frame >= next_vote_announce_frame) {
-		int votes=0, players=0;
-		for (int i=0; i<maxplayers; ++i)
-			if (world.player[i].used) {
-				++players;
-				if (world.player[i].want_map_exit)
-					++votes;
-			}
-		players=players/2+1;
-		if (votes!=last_vote_announce_votes || (players!=last_vote_announce_needed && votes!=0)) {
-			last_vote_announce_votes=votes;
-			last_vote_announce_needed=players;
-			next_vote_announce_frame=world.frame+SV_VOTE_ANNOUNCE_INTERVAL*10;
+	if (world.frame >= next_vote_announce_frame) {	// announce voting status
+		int votes = 0;
+		for (int i = 0; i < maxplayers; ++i)
+			if (world.player[i].used && world.player[i].want_map_exit)
+				++votes;
+		int players = get_player_count() / 2 + 1;
+		if (votes != last_vote_announce_votes || (players != last_vote_announce_needed && votes != 0)) {
+			last_vote_announce_votes = votes;
+			last_vote_announce_needed = players;
+			next_vote_announce_frame = world.frame + SV_VOTE_ANNOUNCE_INTERVAL * 10;
 			ostringstream voteinfo;
 			voteinfo << "*** " << votes << '/' << players << " votes for mapchange";
 			if (world.getMapTime() < vote_block_time)
@@ -1302,35 +1297,30 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		else if (world.getMapTime() == vote_block_time)
 			check_map_exit();
 	}
-	for (int i=0; i<maxplayers; ++i)
+	for (int i = 0; i < maxplayers; ++i)
 		if (world.player[i].used) {
 			if (world.player[i].kickTimer) {
 				--world.player[i].kickTimer;
-				if (world.player[i].kickTimer==0)
-					network.disconnect_client(world.player[i].cid, 1);	// 1 second timeout
-				else if (world.player[i].kickTimer%10 == 0 && world.player[i].kickTimer<=50)
-					network.plprintf(i, msg_warning, "Disconnecting in %d...", world.player[i].kickTimer/10);
+				if (world.player[i].kickTimer == 0)
+					disconnectPlayer(i, disconnect_kick);
+				else if (world.player[i].kickTimer % 10 == 0 && world.player[i].kickTimer <= 50)
+					network.plprintf(i, msg_warning, "Disconnecting in %d...", world.player[i].kickTimer / 10);
 				continue;
 			}
-			if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle()) {
+			if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle() && get_player_count() > 1) {
 				++world.player[i].idleFrames;
 				int timeToKick = idlekick_time - world.player[i].idleFrames;
 				if (timeToKick == 0)
-					network.disconnect_client(world.player[i].cid, 1);
+					disconnectPlayer(i, disconnect_idlekick);
 				else if ((timeToKick == 60*10 && idlekick_time >= 3*60*10) ||
 						 (timeToKick == 30*10 && idlekick_time >= 3*30*10) ||
 						 (timeToKick == 15*10 && idlekick_time >= 2*15*10) ||
-						  timeToKick ==  5*10) {
+						 (timeToKick ==  5*10 && idlekick_time >= 2* 5*10)) {
 					network.plprintf(i, msg_warning, "*** Idle kick: move or be kicked in %d seconds", timeToKick / 10);
 				}
 			}
 			else
 				world.player[i].idleFrames = 0;
-			ServerPlayer::DMQueueT& dm=world.player[i].delayedMessages;
-			while (dm.size() && --dm.begin()->first<0) {
-				network.player_message(i, msg_normal, dm.begin()->second.c_str());
-				dm.erase(dm.begin());
-			}
 		}
 	network.broadcast_frame(!gameover);
 }
@@ -1350,7 +1340,7 @@ void gameserver_c::server_think_after_broadcast() {
 // running_flag: pointer to bool, if this bool goes to false, the loop quits.
 void gameserver_c::loop(volatile bool *running_flag) {
 
-	LOG("GAMESERVER::LOOP()\n");
+	log("GAMESERVER::LOOP()");
 
 	world.frame = 0;	//frame to generate next
 
@@ -1364,7 +1354,7 @@ void gameserver_c::loop(volatile bool *running_flag) {
 	if (!running_flag)
 		running_flag = &keep_running;
 
-	LOG("GAMESERVER::LOOP() (2)\n");
+	log("GAMESERVER::LOOP() (2)");
 
 	while (*running_flag && !force_exit) {
 		// generate and send frame
@@ -1402,7 +1392,7 @@ void gameserver_c::loop(volatile bool *running_flag) {
 			keep_running = false;
 	}
 
-	LOG("GAMESERVER::LOOP() (EXITING!)\n");
+	log("GAMESERVER::LOOP() (EXITING!)");
 }
 
 //stop server
@@ -1422,62 +1412,23 @@ void gameserver_c::clearWorldRankingDeltas() {
 	}
 }
 
-//============================================================
-//  listen server thread
-//============================================================
-
-int listen_port_running;
-volatile bool	listen_server_running = false;
-pthread_t	listen_server_thread;
-
-void* thread_listenserver_f(void*) {
-	srand(time(0));
-
-	//save for display
-	listen_port_running = port;		//port selectr
-
-	//(1) start the localserver
-	//
-	gameserver_c* gameserver = new gameserver_c();
-	if (!gameserver->start(server_maxplayers)) {
-		LOG("ERROR: cannot start LISTEN GAME SERVER!!!\n");
-		listen_server_running = false;
-		return 0;
-	}
-
-	//(2) loop the server until not quitting
-	//
-	gameserver->loop( &listen_server_running );
-
-	//(3) shutdown the localserver
-	//
-	LOG("GAMESERVER STOPPING\n");
-	gameserver->stop();
-	LOG("GAMESERVER DELETING\n");
-	delete gameserver;
-	LOG("GAMESERVER DELETED\n");
-	gameserver = 0;
-
-	//restore client's windowtitle
-	server_status_string("Outgun client - CTRL+F12 to quit");
-
-	return 0;
+GameserverInterface::GameserverInterface(LogSet hostLog) {
+	host = new gameserver_c(hostLog);
 }
 
-void listen_start() {
-	if (listen_server_running)
-		return;
-	listen_server_running = true;
-	LOG("listen_start()\n");
-	pthread_create(&listen_server_thread, 0, thread_listenserver_f, (void *)0);
+GameserverInterface::~GameserverInterface() {
+	delete host;
 }
 
-void listen_stop() {
-	if (!listen_server_running)
-		return;
-	listen_server_running = false;
-	LOG("listen_stop()\n");
-	pthread_join(listen_server_thread, 0);
+bool GameserverInterface::start(int maxplayers) {
+	return host->start(maxplayers);
 }
 
+void GameserverInterface::loop(volatile bool* runFlag) {
+	host->loop(runFlag);
+}
+
+void GameserverInterface::stop() {
+	host->stop();
+}
 

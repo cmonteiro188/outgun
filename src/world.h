@@ -8,6 +8,8 @@
 #include <string>
 #include <algorithm>
 #include "commont.h"
+#include "utility.h"
+#include "debug.h"
 
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
@@ -106,8 +108,8 @@ struct teaminfo_t {
 };
 
 class Map {
-	bool parse_file(std::istream& in);
-	bool parse_line(const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
+	bool parse_file(LogSet& log, std::istream& in);
+	bool parse_line(LogSet& log, const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
 					int& crx, int& cry, float& scalex, float& scaley, bool label_block = false);
 
 public:
@@ -129,7 +131,7 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 		nAssert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
-	bool load(const char *mapdir, const std::string& mapname);
+	bool load(LogSet& log, const char *mapdir, const std::string& mapname);
 };
 
 class MapInfo {
@@ -140,7 +142,7 @@ public:
 	bool votes_changed;
 
 	MapInfo();
-	bool load(std::string mapName);
+	bool load(LogSet& log, std::string mapName);
 };
 
 class Statistics {
@@ -263,27 +265,7 @@ public:
 
 	virtual ~PlayerBase() { }
 	void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
-	void clear(bool enable, int _pid, const std::string& _name, int team_id) {
-		ping = 0;
-		frags = 0;
-		id = _pid;
-		name = _name;
-		item_deathbringer = item_shield = item_quad = item_speed = false;
-		visibility = 255;
-		roomx = roomy = 0;
-		lx = ly = sx = sy = 0;
-		gundir = 0;
-		dead = false;
-		reg_status = enable ? '-' : ' ';
-		score = 0;
-		neg_score = 0;
-		rank = 0;
-		used = enable;
-		team_nr = team_id;
-		stats().clear();
-		stats().set_start_time(static_cast<int>(get_time()));
-		personal_color = -1;
-	}
+	void clear(bool enable, int _pid, const std::string& _name, int team_id);
 
 	void set_color(int c) { personal_color = c; }
 
@@ -318,8 +300,6 @@ public:
 	size_t current_map_list_item;
 
 	int mapVote;
-	typedef std::list< std::pair<int, std::string> > DMQueueT;
-	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
 	int idleFrames;
 	int kickTimer;
 	int muted;	// 0 = no, 1 = yes, 2 = silently
@@ -369,10 +349,6 @@ public:
 
 	bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
-	//#fix: move these to a message queue type, store in client data, not player data
-	void reset_message_queue_timing();	// make messages already on queue appear instantly
-	void add_to_queue(const std::string& str);
-	void queue_printf(const char* fmt, ...);
 	void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
 
 	void set_fav_colors(const std::vector<char>& colors) { fav_col = colors; }
@@ -385,14 +361,6 @@ public:
 private:
 	bool carrying_flag;
 	std::vector<char> fav_col;
-};
-
-class PlayerQueueAdder : public LineReceiver {
-	ServerPlayer& ply;
-
-public:
-	PlayerQueueAdder(ServerPlayer& player) : ply(player) { }
-	PlayerQueueAdder& operator()(const std::string& str) { ply.add_to_queue(str); return *this; }
 };
 
 class ClientPlayer : public PlayerBase {
@@ -607,11 +575,13 @@ PointerLeakBuffer<32> buf2;
 										int frameAdvance, int team, bool power, int px, int py, int x, int y);
 
 	void run_server_player_physics(int pid);
-	virtual bool load_map(const char *mapdir, const std::string& mapname) { return map.load(mapdir, mapname); }
+	virtual bool load_map(LogSet& log, const char *mapdir, const std::string& mapname) { return map.load(log, mapdir, mapname); }
 	virtual void returnAllFlags();
 	virtual void returnFlag(int team, int flag);
 	virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
 	virtual void stealFlag(int team, int flag, int carrier);
+
+	static std::string getTeamName(int team);
 };
 
 class PowerupSettings {
@@ -672,6 +642,7 @@ PointerLeakBuffer<32> buf1;
 	ServerNetworking* net;
 	PowerupSettings pupConfig;
 	WorldSettings config;
+	LogSet log;
 PointerLeakBuffer<32> buf2;
 
 	NLubyte getFreeRocket();	// may give an existing rocket to overwrite if the table is full
@@ -685,7 +656,11 @@ public:
 	NLulong map_start_time;	// frame #
 	ServerPlayer player[MAX_PLAYERS];
 
-	ServerWorld(gameserver_c* hostp, ServerNetworking* netp) : host(hostp), net(netp), frame(0), map_start_time(0) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+	ServerWorld(gameserver_c* hostp, ServerNetworking* netp, LogSet logset) :
+					host(hostp), net(netp), log(logset), frame(0), map_start_time(0) {
+		for (int i = 0; i < MAX_PLAYERS; ++i)
+			WorldBase::player[i].setPtr(&player[i]);
+	}
 
 	void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
 

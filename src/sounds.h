@@ -1,10 +1,11 @@
 #ifndef SOUNDS_H_INC
 #define SOUNDS_H_INC
 #include "commont.h"
+#include "utility.h"
 
 class Sounds {
 public:
-	Sounds::Sounds();
+	Sounds::Sounds(LogSet logs);
 	Sounds::~Sounds();
 
 	bool valid() const;
@@ -28,13 +29,13 @@ private:
 	void unload_samples();
 	SAMPLE *load_outgun_sample(const std::string& fname, int slot, bool try_redirect = true, bool reverse = false);
 
+	LogSet log;
 	SAMPLE* sample[NUM_OF_SAMPLES];
 	bool sample_reverse[NUM_OF_SAMPLES];
 	std::string themedir;
 	std::string themename;
 	al_ffblk themeffblk;	// for al_find*
 	bool no_theme;
-
 };
 
 #endif // SOUNDS_H_INC

@@ -4,6 +4,8 @@
 #include "sounds.h"
 #include "world.h"
 #include "network.h"
+#include "thread.h"
+#include "log.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
@@ -36,13 +38,38 @@ enum Menu_selection {
 	menu_display_settings
 };
 
+class ServerThreadOwner {
+	LogSet log;
+	bool threadFlag, runFlag;	// threadFlag is true whenever the thread hasn't been joined, runFlag only when the server is successfully running
+	int runPort;
+	Thread serverThread;
+
+	void threadFn();
+
+public:
+	ServerThreadOwner(LogSet logs) : log(logs), threadFlag(false), runFlag(false) { }
+	~ServerThreadOwner() { if (threadFlag) stop(); }
+	bool running() { if (!runFlag && threadFlag) stop(); nAssert(runFlag == threadFlag); return runFlag; }
+	int port() const { return runPort; }
+	void start(int port);
+	void stop();
+};
+
 class client_c;	// of leetnet
+class client_runes_t;
 
 class gameclient_c {
+	FileLog normalLog;
+	SupplementaryLog<MemoryLog> errorLog;
+	SupplementaryLog<FileLog> securityLog;
+	mutable LogSet log;
+
 	std::vector<std::vector<std::string> > load_all_player_passwords() const;
 	std::string load_player_password(const std::string& name, const std::string& address) const;
 	void save_player_password(const std::string& name, const std::string& address, const std::string& password) const;
 	void remove_player_password(const std::string& name, const std::string& address) const;
+
+	ServerThreadOwner listenServer;
 
 	// world
 	ClientWorld fd, fx;	//#fix: two maps, etc.
@@ -152,7 +179,7 @@ class gameclient_c {
 public:
 	bool message_logging;
 
-	gameclient_c();
+	gameclient_c(LogSet hostLogs);
 	virtual ~gameclient_c();
 	bool start();
 	void loop();
@@ -167,8 +194,9 @@ public:
 	// network
 	void connect_command();
 	void disconnect_command();
+	void connection_update(client_runes_t *arg);
 	void client_connected(char *data, int length);
-	void client_disconnected();
+	void client_disconnected(const char* data, int length);
 	void connect_failed_denied(char *data, int length);
 	void connect_failed_unreachable();
 	void refresh_command();
