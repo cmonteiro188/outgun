@@ -95,8 +95,8 @@ void Menu_serverList::reset() {
     menu.add_component(&addServer.menu);
     menu.add_component(&manualEntry);
     ins_space();
-    menu.add_component(&keyHelp);
-    ins_space();
+//  menu.add_component(&keyHelp);
+//  ins_space();
     menu.add_component(&caption);
 }
 

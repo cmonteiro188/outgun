@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
     delete[] path;
 
     if (!check_dir("log"))
-        return mainError("The directory 'log' not found.\nPlease create this directory.\nThe game cannot run without it.");
+        return mainError("The directory 'log' was not found.\nPlease create this directory.\nThe game cannot run without it.");
     if (!check_dir("config"))
         allegro_message("The directory 'config' was not found.\nCreate it to be able to save the configuration\nor customize your server.");
 
@@ -445,7 +445,7 @@ int main(int argc, char *argv[]) {
         if (getline_skip_comments(in, lang_str)) {
             if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos) {
                 if (!language.load(lang_str))
-                    allegro_message("Language file not found for '%s'. Using English.", lang_str.c_str());
+                    allegro_message("Language file not found for '%s' (specified in %s).\nBoth config/languages/en.txt and config/languages/%s.txt are needed.\nUsing English.", lang_str.c_str(), lang_file.c_str(), lang_str.c_str());
             }
             else
                 log.error("Invalid language '%s' in %s.", lang_str.c_str(), lang_file.c_str());

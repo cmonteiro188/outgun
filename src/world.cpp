@@ -595,6 +595,10 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             getline(ist, author);
             author = trim(author);
         }
+        else {
+            log.error("Unrecognized map line: %s", line.c_str());
+            return false;
+        }
     }
     else if (command == "spawn") {  // spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
         int team, rx, ry;
@@ -627,12 +631,8 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         else
             wild_flags.push_back(flag);
     }
-    else if (command == "V") {  // V ver : set file format version
-        ist >> ver;
-        if (!ist || (ist >> nullc)) {
-            log.error("Invalid map line: %s", line.c_str());
-            return false;
-        }
+    else if (command == "V") {  // V ver : never really used "version"
+        // silently accept it with no action
     }
     else if (command == "S") {  // S x y : set map scale
         ist >> scalex >> scaley;
@@ -641,8 +641,10 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             return false;
         }
     }
-    else
+    else {
         log.error("Unrecognized map line: %s", line.c_str());
+        return false;
+    }
     return true;
 }
 

@@ -266,7 +266,7 @@ void YSegment::debug(bool verbose) const {
     if (!verbose)
         return;
     for (BorderListT::const_iterator bi = build.begin(); bi != build.end(); ++bi) {
-        cerr << "B   ";
+        cerr << "B     ";
         (*bi)->debug();
     }
     for (TexBorderListT::const_iterator fi = final.begin(); fi != final.end(); ++fi) {
@@ -589,6 +589,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 
         SegListT::iterator si;
         for (si = segDest.begin(); nAssert(si != segDest.end()), si->getY1() <= bi->y0; ++si);
+
         // si points to first segment whose y1 > bi->y0
         if (si->getY1() < bi->y0 + SPLIT_TRESHOLD) {    // in this case, this segment is ignored (too little of bi is in this segment)
             if (bi->y0 - si->getY0() < SPLIT_TRESHOLD)  // bi->y0 is the new si->y1; this test also matches when bi->y0 < si->getY0()
@@ -610,47 +611,46 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
         }
         nAssert(si != segDest.end());
         nAssert(fabs(bi->y0 - si->getY0()) <= 5. * SPLIT_TRESHOLD);
-        for (; si->getY1() <= bi->y1; ++si) {
+
+        for (; si->getY1() <= bi->y1; ) {
             nAssert(si != segDest.end());
-            splitOnIntersect(si, bi->fn, segDest);  // the next round will handle the newly created segment if any
-            si->add(bi->fn);
-        }
-        // si points to first segment whose y1 > bi->y1
-        for (;; ++si) { // the loop is manually broken out of when the segment no longer gets split
-            if (si->getY0() > bi->y1 - SPLIT_TRESHOLD) {    // in this case, the segment is ignored (too little of bi is in this segment)
-                if (si->getY0() < bi->y1) {
-                    si->setY0(bi->y1);
-                    if (si->width() < SPLIT_TRESHOLD)
-                        segDest.erase(si);
-                }
-                break;
-            }
-            else if (si->getY1() > bi->y1 + SPLIT_TRESHOLD) {   // in this case, the segment must be split (too much of the segment is outside bi)
-                SegListT::iterator insPos = si;
-                ++insPos;
-                segDest.insert(insPos, si->split(bi->y1));
-                const bool split = splitOnIntersect(si, bi->fn, segDest);   // the next round will handle the newly created segment if any
+            if (splitOnIntersect(si, bi->fn, segDest) && si->width() < SPLIT_TRESHOLD)  // the next round will handle the newly created segment if any
+                si = segDest.erase(si);
+            else {
                 si->add(bi->fn);
-                if (!split)
-                    break;
-                if (si->width() < SPLIT_TRESHOLD)
-                    si = segDest.erase(si);
+                ++si;
             }
-            else {  // in this case, the segment fits bi nicely and is only trimmed
-                si->setY1(bi->y1);
+        }
+
+        // si points to first segment whose y1 > bi->y1
+        if (si->getY0() > bi->y1 - SPLIT_TRESHOLD) {    // in this case, the segment is ignored (too little of bi is in this segment)
+            if (si->getY0() < bi->y1) {
+                si->setY0(bi->y1);
                 if (si->width() < SPLIT_TRESHOLD)
                     segDest.erase(si);
-                else {
-                    const bool split = splitOnIntersect(si, bi->fn, segDest);   // the next round will handle the newly created segment if any
-                    si->add(bi->fn);
-                    if (!split)
-                        break;
-                    if (si->width() < SPLIT_TRESHOLD)
-                        si = segDest.erase(si);
-                }
             }
+            continue;   // nothing more to do - this border fully inserted
+        }
+        if (si->getY1() > bi->y1 + SPLIT_TRESHOLD) {    // in this case, the segment must be split (too much of the segment is outside bi)
+            SegListT::iterator insPos = si;
+            ++insPos;
+            segDest.insert(insPos, si->split(bi->y1));  // the new, inserted part is not modified from here on, it's outside bi; from previous ifs, we know that both parts are larger than SPLIT_TRESHOLD, so no deletions needed
+        }
+        else    // in this case, the segment fits bi nicely and is only trimmed
+            si->setY1(bi->y1);  // from first if, we know that si still is larger than SPLIT_TRESHOLD, so no deletions needed
+        // now, the border only needs to be inserted to all of si and we're done
+        si->add(bi->fn);
+        for (;;) {
+            if (!splitOnIntersect(si, bi->fn, segDest))
+                break;
+            if (si->width() < SPLIT_TRESHOLD)
+                si = segDest.erase(si);
+            else
+                ++si;
             nAssert(si != segDest.end());
         }
+        if (si->width() < SPLIT_TRESHOLD)
+            segDest.erase(si);
     }
     #ifdef DEBUG_SPLIT
     cerr << "- - - split into: - - -\n";
@@ -1263,4 +1263,3 @@ void SceneAntialiaser::render(Texturizer& tex) const {
             tex.render(ei->getBaseTex(), &*ei, false);
     }
 }
-

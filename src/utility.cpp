@@ -299,4 +299,3 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
     textout_right(bmp, f, text, x, y, color);
 }
 #endif  // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-

@@ -2730,17 +2730,16 @@ void Client::loop(volatile bool* quitFlag) {
 
                     if (sc == KEY_F11)
                         screenshot = true;
-
-                    if (sc == KEY_F1)
+                    else if (sc == KEY_F1)
                         toggle_help();
                     else if (sc == KEY_F5) {
                         if (openMenus.safeTop() == &m_serverInfo.menu)
                             openMenus.close();
-                        else
+                        else if (connected)
                             showMenu(m_serverInfo);
                         stats_autoshowing = false;
                     }
-                    else if (menusel == menu_maps || menusel == menu_players || menusel == menu_teams) {
+                    else if (openMenus.empty() && (menusel == menu_maps || menusel == menu_players || menusel == menu_teams)) {
                         if (sc == KEY_F2) {
                             menusel = (menusel == menu_maps ? menu_none : menu_maps);
                             stats_autoshowing = false;
@@ -2755,7 +2754,11 @@ void Client::loop(volatile bool* quitFlag) {
                         }
                     }
 
-                    switch (menusel) {
+                    if (!openMenus.empty()) {
+                        MutexLock ml(frameMutex);   // some menus need access
+                        openMenus.handleKeypress(sc, ch);
+                    }
+                    else switch (menusel) {
                         case menu_maps:
                             if (key[KEY_UP])
                                 client_graphics.map_list_prev();
@@ -2800,11 +2803,8 @@ void Client::loop(volatile bool* quitFlag) {
                                 client_graphics.team_captures_prev();
                             if (key[KEY_DOWN])
                                 client_graphics.team_captures_next();
-                        case menu_none:
-                            if (!openMenus.empty()) {
-                                MutexLock ml(frameMutex);   // some menus need access
-                                openMenus.handleKeypress(sc, ch);
-                            }
+                            break;
+                        case menu_none: // regular menu, if any, drawn above
                             break;
                         default:
                             nAssert(0);
@@ -3017,14 +3017,14 @@ void Client::loop(volatile bool* quitFlag) {
                     kesc = true;
                     if (!talkbuffer.empty()) // cancel chat
                         talkbuffer.clear();
+                    else if (!openMenus.empty())
+                        MCF_menuCloser();
                     else if (menusel != menu_none) {
                         menusel = menu_none;
                         stats_autoshowing = false;
                     }
-                    else if (openMenus.empty())
-                        showMenu(menu);
                     else
-                        MCF_menuCloser();
+                        showMenu(menu);
                 }
             }
             else
@@ -3676,13 +3676,13 @@ void Client::draw_game_menu() {
         case menu_teams:
             client_graphics.team_statistics(fx.teams);
             break;
-        case menu_none:
-            if (!openMenus.empty())
-                openMenus.draw(client_graphics.drawbuffer());
+        case menu_none: // regular menus are drawn below, regardless of menusel
             break;
         default:
             numAssert(0, menusel);
     }
+    if (!openMenus.empty())
+        openMenus.draw(client_graphics.drawbuffer());
 }
 
 void Client::initMenus() {

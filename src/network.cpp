@@ -87,8 +87,7 @@ string getPublicIP(LogSet& log, bool allowAnyExternal) {
     NLaddress* locals = nlGetAllLocalAddr(&nLocals);
     for (int i = 0; i < nLocals; ++i) {
         const string addr = addressToString(locals[i]);
-        const bool priv = check_private_IP(addr);
-        if (priv)
+        if (check_private_IP(addr, allowAnyExternal))
             log("Local address %s ignored", addr.c_str());
         else {
             log("Found public address %s", addr.c_str());

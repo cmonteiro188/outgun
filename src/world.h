@@ -163,11 +163,10 @@ public:
 
     std::string title;  //map title
     std::string author;
-    int ver;    // map version
     int w, h;   // width height
     NLushort crc;   //map's 16bit CRC
 
-    Map() : ver(-1), w(0), h(0), crc(0) { }
+    Map() : w(0), h(0), crc(0) { }
 
     bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
 if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
