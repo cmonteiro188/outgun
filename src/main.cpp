@@ -8,6 +8,7 @@
 #include "gameserver_interface.h"
 #include "mappic.h"
 #include "network.h"
+#include "platform.h"	// platMkdir
 
 using std::ifstream;
 using std::ostringstream;
@@ -74,7 +75,7 @@ bool check_dir(const string& dir) {
 	const int result = al_findfirst(directory.c_str(), &mapffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
 	if (result == 0 && (mapffblk.attrib & FA_DIREC))
 		return true;	// exists
-	return !mkdir(directory.c_str());
+	return !platMkdir(directory.c_str());
 }
 
 class GlobalCloseButtonHook {
@@ -210,10 +211,8 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-nosound"))
 			clientCfg.nosound = true;
 		else if (!strcmp(argv[i], "-ip")) {
-			if (++i < argc) {
-				serverCfg.force_ip = true;			//force IP
+			if (++i < argc)
 				serverCfg.force_ip_name = argv[i];	//to next parameter value
-			}
 		}
 		else if (!strcmp(argv[i], "-mappic")) {
 			if (!check_dir("mappic")) {
@@ -306,7 +305,7 @@ int main(int argc, char *argv[]) {
 		locals = nlGetAllLocalAddr(&locsize);
 
 		char infobuf[2048];
-		snprintf(infobuf, 2048,
+		platSnprintf(infobuf, 2048,
 			"Information:\n"
 			"\n"
 			"Thread priorities for -prio <val> parameter:\n"

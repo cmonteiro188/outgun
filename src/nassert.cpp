@@ -6,6 +6,7 @@
 
 #ifndef DISABLE_ENHANCED_NASSERT
 #include "commont.h"
+#include "platform.h"
 #include "utility.h"
 #endif
 
@@ -46,7 +47,7 @@ void nasprintf(const char* expr, ...) {
 	// display using allegro_message
 	va_start(argptr, expr);
 	char buf[10000];
-	_vsnprintf(buf, 10000, expr, argptr);
+	platVsnprintf(buf, 10000, expr, argptr);
 	va_end(argptr);
 	allegro_message("%s\nTo help us fix this, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi", buf);
 	#endif // DISABLE_ENHANCED_NASSERT

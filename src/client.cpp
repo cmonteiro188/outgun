@@ -18,6 +18,7 @@
 #include "names.h"
 #include "nassert.h"
 #include "network.h"
+#include "platform.h"
 #include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "utility.h"
 #include "world.h"
@@ -352,10 +353,10 @@ void TournamentPasswordManager::threadFn() {
 			// the original code uses full case insensivity so response.find_last_of() can't be used
 			int startPos, endPos;
 			for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)	// start at length - 7 because "</html>" must fit after that
-				if (!stricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
+				if (!platStricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
 					break;
 			for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
-				if (!stricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
+				if (!platStricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
 					break;
 			if (startPos < 6 || endPos < startPos) {
 				log("Password thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
@@ -369,7 +370,7 @@ void TournamentPasswordManager::threadFn() {
 		for (string::size_type i = 0; i < response.length(); ++i) {
 			if (response[i] < 32)
 				response[i] = '+';	// for readability in the log
-			if (!stricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
+			if (!platStricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
 				log("Password thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
 				passStatus = PS_unavailable;
 				break;
@@ -1740,6 +1741,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				NLshort rx, ry;
 				readByte(lebuf, count, rpx);
 				readByte(lebuf, count, rpy);
+				numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
 				readShort(lebuf, count, rx);
 				readShort(lebuf, count, ry);
 
@@ -1772,6 +1774,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				NLubyte rpx, rpy;
 				readByte(lebuf, count, rpx);
 				readByte(lebuf, count, rpy);
+				numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
 				NLshort rx, ry;
 				readShort(lebuf, count, rx);
 				readShort(lebuf, count, ry);

@@ -11,8 +11,10 @@
 #include "incalleg.h"
 #include "log.h"
 #include "commont.h"	// for time_counter
+#include "platform.h"
 #include "utility.h"
 
+using std::dec;
 using std::hex;
 using std::min;
 using std::ostream;
@@ -26,10 +28,10 @@ int atoi(const string& str) {
 	return std::atoi(str.c_str());
 }
 
-string itoa(int val, int radix) {
-	char buf[256];
-	itoa(val, buf, radix);
-	return buf;
+string itoa(int val) {
+	ostringstream ss;
+	ss << val;
+	return ss.str();
 }
 
 string fcvt(double val) {
@@ -73,30 +75,26 @@ bool is_nonprintable_char(unsigned char c) {
 }
 
 string formatForLogging(const string& str) {
-	string result;
-	result.reserve(str.size());
+	ostringstream result;
 	for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
 		if (is_nonprintable_char(*s)) {
-			result += '\\';
+			result << '\\';
 			switch (*s) {
-				case '\n': result += 'n'; break;
-				case '\r': result += 'r'; break;
-				case '\t': result += 't'; break;
-				case '\v': result += 'v'; break;
-				case '\b': result += 'b'; break;
-				case '\f': result += 'f'; break;
+				case '\n': result << 'n'; break;
+				case '\r': result << 'r'; break;
+				case '\t': result << 't'; break;
+				case '\v': result << 'v'; break;
+				case '\b': result << 'b'; break;
+				case '\f': result << 'f'; break;
 				default:
-					result += 'x';
-					if (*s < 16)
-						result += '0';
-					result += itoa(*s, 16);
+					result << 'x' << setw(2) << setfill('0') << hex << static_cast<unsigned char>(*s) << dec << setfill(' ');
 					break;
 			}
 		}
 		else
-			result += *s;
+			result << *s;
 	}
-	return result;
+	return result.str();
 }
 
 // Split string to lines, but only at whitespaces.
@@ -234,7 +232,7 @@ void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color
 	va_list argptr;
 	char xbuf[16384];
 	va_start(argptr, format);
-	_vsnprintf(xbuf, 16384, format, argptr);
+	platVsnprintf(xbuf, 16384, format, argptr);
 	va_end(argptr);
 	textout(bmp, f, xbuf, x, y, color);
 }
@@ -243,7 +241,7 @@ void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, in
 	va_list argptr;
 	char xbuf[16384];
 	va_start(argptr, format);
-	_vsnprintf(xbuf, 16384, format, argptr);
+	platVsnprintf(xbuf, 16384, format, argptr);
 	va_end(argptr);
 	textout_centre(bmp, f, xbuf, x, y, color);
 }
@@ -252,7 +250,7 @@ void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int
 	va_list argptr;
 	char xbuf[16384];
 	va_start(argptr, format);
-	_vsnprintf(xbuf, 16384, format, argptr);
+	platVsnprintf(xbuf, 16384, format, argptr);
 	va_end(argptr);
 	textout_right(bmp, f, xbuf, x, y, color);
 }
