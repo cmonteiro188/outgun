@@ -35,126 +35,6 @@
 
 -------------------------------------------------------------------------
 
-OK - frags update on the scoreboard
-OK - fazer varias salas conectadas, mudando entre elas conforme passa de 1 p/ outra
-OK - alocacao de times na conexao
-OK - adicionar minimap
-OK - adicionar paredes
-OK - adicionar player list, fazer a HUD ficar como deveria
-OK - send direction to clients (3bit keys)
-OK - draw direction (gun)
-OK - ALT=strafe
-OK - send CTRL=fire!
-OK - add the flags for captures (base info on map)
-OK - (re)spawn player on teamspawn points
-OK - criar os sprites nas 5 direcoes (3 vem via H-mirror)
-OK - adicionar ao serverframe a informacao de qual das 8 direcoes (3bits-keys) um jogador
-     esta mirando (por causa do strafe) a animacao da frame especifica eh clientside
-OK - make fire cmd create a ball simulated on serverside/clientside
-OK - tiro hit: dec health, freeze targ's gun, kill ....
-OK - show flags on the map if dropped (not carried)
-OK - fix drop flag when killed as vezes some bug
-OK - nomes das pessoas envolvidas nos eventos CTF
-OK - X gibbed Y
-OK - shift = run gasta life
-OK - flag carrier movimentacao pior (menos maxspeed)
-OK - build a sprite for the minimap background (map walls + grid + borda verde + fundo cinza!)
-OK ==> MINIMAP / POS UPDATE
-	1o: pos update so pra quem ta na mesmissima sala
-	2o: minimap mostra quem vai num minimap-show
-	3o: quem eh mostrado no minimap:
-			- todos os caras do meu time, sempre (aha nao precisa do short pra isso!!)
-			- caras do outro time que estao na mesma tela que algum dos do meu time
-OK - mostrar flags do minimap:
-	OK - qualquer flag parada na sua base
-	OK - qualquer flag caida no chao
-	OK - flag inimiga carregada
-	OK - flag amiga carregada SE o carrier inimigo esta visivel
-OK - pseudo-FOG OF WAR: pintar de cinza as salas que nao tem nenhum amigo (nao se sabe o que ocorre la)
-OK - MAPA DECENTE
-OK - SPAWNPOINTS EM TODO O MAPA
-OK - implementar ping broadcast: envia pcts para todos os players, 1 por frame. player
-	OK - precisa responder 1 so imediatamente. sempre que eh bem sucedido, o ping do
-		   jogador eh atualizado
-	OK - segura TAB: exibe PING dos jogadores ao inves do score
-OK - delay da morte, mostrar corpo, respawn-time, nao atira ou move se health=0
-OK - PARTIDA-MANAGEMENT:
-	OK - team scoring (num captures)
-	OK - quando captures de um time == 8, reinicia partida
-	OK - quando um player conecta e fica == 2, reinicia partida
-	OK - reinicio de partida esta ok
-OK - suicide command = DEL
-OK - cliente mostra icone de desconexao se ultimo packet recebido ultrapassa os 500ms
-OK - com flag nao pesa, apenas a corrida eh menos eficiente (igual agora ta ok)
-OK - mudar cor do texto p/ ficar LEGIVEL
-OK - checagem de versão da l33tnet, client ignorado
-OK - home=cor CTRL+HOME=cor original
-OK - nomes aleatorios! inicio e INSERT key
-OK - checagem de versao do game (outgun)
-OK - defends the carrier against enemy: mata alguem com teu carrier na tela  X DEFENDS THE FLAG CARRIER  
-OK - defends the flag: mata alguem com tua flag na tela  X DEFENDS THE FLAG
-OK - podia fazer barrinha de sprint p/ correr em vez de tirar vida... barrinha de "sprint" - tira health so quando zera
-OK - net medidor bandwidth do cliente
-OK - +ATTACK e -ATTACK para tiro continuo e menos fuzui
-OK - tiro nao tira health: gasta energy da sprint bar!
-OK - SAY TEAM:   ponto"." antes da mensagem
-OK - COLORFUL TEXT: TEAM / ALL / INFO
-OK - BARRA COLORIDA DE LIFE
-OK - BUG: segura muito shift mata! -- minimo 30 health pra descontar do run
-OK - paralisia do tiro diminuida p/ 1 segundo (de 1.5)
-OK - mensagem tiro destroyed: vai ID do player atingido (BYTE) 255==nenhum
-OK - player pushed by shots
-OK - o server simula fisica muito grosseiramente, resultado eh que o ROCKET DELETE se adianta:
-   o server simula 10x 1/10 frames pro rocket nao "escapar" das pessoas, e a msg que ele manda
-	 ignora esses moves intermediarios. o cliente pode simular o tiro ate que ele colida visualmente
-	 com o alvo, ou ate que 100ms de simulacao desde o comando de delecao do tiro passem
-	 SOLUCAO BOA!!! UHUUU
-	 OK ===> INCLUSIVE ESPERAR ESSA COLISAO OU 100MS pra PISCAR O INIMIGO HIT !!!
-OK - BUG: DEFENDS FLAG bonus consertado
-OK - FPS COUNTER!!
-OK - COR TEXTO MAIS CLARA dos times na sbar
-OK - pontinho gigante do jogador no minimap piscante
-OK - ordenar scoreboard antes de desenhar. sempre que chega uma fragupdate message
-OK - desconta 1 frag por suicidio (DEL)
-OK - END: toggle WANT-CHANGE-TEAMS flag. quando dois do time adversario tao com a flag ligada,
-		 eles trocam de posicao nos times (player-ids)
-OK - VIROU SORVETE 10% de chance
-OK - fx de explosao spawn - puramente clientside
-OK - SOM / EVENTOS SONOROS!
-		GERAL:		- atira		- tiro acerta alguem		- alguem morre		- entered game		- left game
-		CTF:		- lost flag		- got flag		- returned flag		- captured flag		- game over victry
-OK - opcao desligar som cmd line (-nosound)  
-OK - opcao toggle fullscreen/windowed	 
-OK - contador de players conectados no window title do servidor dedicado
-OK - tela de conexao:	 N slots de IPs / servername / #players / #maxplayers
-	 seta cima/baixo move edicao de IP	 ENTER: connect	 SPACE: refresh all IPs digitados
-OK - protocolo de refresh:
-		cliente envia 0 / 200  (refresh request) /// servidor responde 0 / 200 (refresh response)   STRING(p/ display na tela!)
-OK - salvar config
-   OK- salvar o nome (e depois outras preferências) do jogo entre sessoes
-   OK- salvar tela conexao arquivo connect.txt
-OK - servidor especifica HOSTNAME aparece na tela de connect
-OK - powerups + SHIELD powerup
-OK - BOTAS powerup (pwup tempo)
-OK - ELMO powerup
-OK - LUVA/ARMA powerup (30s, instant kill, mesmo com escudo)
-OK - dar ICONES ANIMADOS para os powerups
-OK - save screenshots - F11
-OK - timer dos powerups na sbar junto com os:
-OK - icones dos powerups na sbar (nao eh bem "icones" mas tudo bem)
-OK - tela do canto inferior direito esta com as paredes estranhas. antes estava bom
- 		 como sera que ficou lixao assim!?!??!?! (r.: escrevendo lixo em player[-1])
-OK - CONSERTAR PAGEFLIP !!!!!!!!!!!!!!!!!OK!!!!!!!!!!!!!!!!!!! (era mutex)
-OK - mensagem connection refused explica quando versao do server eh mais antiga ou mais nova
-OK - consertado bug dava pau quando quit: reader thread do client_ci nao dava quit quando
-	   nao era mais necessaria, ao receber mensagens tipo "connection refused"
-OK - as paredes estao podres - consertar -- 
-OK - BOUNCY WALLS!!!!!!1
-OK - consertada piscação da tela que as pessoas tavam reclamando (erro no reset_video_mode())
-OK - consertados varios bugs que nao deixavam o servidor rodar direito depois que eu
-		 mudei o esquema de nao usar mais "new" pra criar stations
-OK - consertado bug que se manifestava no release: player unused sendo passado para rotina
-	   wallcorrect no calc_game_frame do gameclient
 
 versao 0.1.2
 ========================
@@ -200,38 +80,230 @@ OK - problem with 16 bit color depth vs. 15 bit color depth solved
 OK - BURRO! lancou o jogo com DEBUG POWERUPS !!! ARGHH!!!
 
 
-versao 0.3.0  (futura)
+versao 0.3.3  (interna)
 ========================
-OK - bonus de friction e acceleration se player com boots OU se esta correndo (ou ambos)
+OK - BOT framework
 OK - fazer com que o servidor negocia com o cliente a velocidade do jogo, assim nao
      precisa lancar uma nova versao sempre que eu fizer "tweak" disso (ver se tem outros
 	   parametros para mexer, como os frictions tambem.. parametrizar toda a fisica)
- - megahealth powerup: +100 health e +100 energy, ambos acumulaveis ate 300. se ja
+OK - megahealth powerup: +100 health e +100 energy, ambos acumulaveis ate 300. se ja
    estiver em 300 com um, passa pro outro
- - novo esquema de quantities de powerup (configuravel)
-  
-	 
-coisas p/ o futuro
-========================
- - bots, com as pessoas dizendo q tamanho de times minimo querem (de 0 a 8), pega a media
-   e buracos p/ atingir a media sao preenchidos com bots
- - mais built-in maps
- - vote-exit / vote-warp
- - configuracoes (parametros) do jogo (mais powerups... etc.)
- - adicionar suporte para joystick : detectar e sair usando (ver allegro)
- - esquema de master server para:
-   - servidores se cadastrarem automaticamente sem precisar admin mandar msg pra mim
-	 - jogadores obterem a lista de servidores sem ter que visitar a pagina
-	 - nao preciso mais atualizar a pagina com lista de servidores (pelo menos nao "a mao")
-
+OK - BUG: CLIENT SE DETONA AO MUDAR DE TIME. em qualquer situacao: sozinho e muda, dois human
+   no server e os dois fazem switch, etc. client (humano), mudou de time, se fudeu
+	 PODE SER BUG SEM NADA A VER COM BOTS !! (provavel)
+	 ===> NAO AFETA O SERVER
+OK - ACHEI O QUE ERA: aquela "otimizacao" de rede do rudp de nao enviar packets muito gigantes
+                      nao funciona.
+     - BUG: SERVER SCREW-UP: do nada, fui pegar um powerup. era do time azul (player 8). de repente
+        fui olhar meu "me" e estava em zero (!). os onscreen tambem estavam lixo (9, 14, 15 = 1,
+				resto zero) com dois "nits" aumentando continuamente. sozinho no server. dedserver local + client.
+				-> troquei uma coisinha e aparentemente o bug se moveu de lugar
+     - BUG: SERVER SCREW-UP -- mesma coisa, o screen x,y clientside fica sem wall, todos os players
+				ficam onscreen used (eu enchi o server de bot). ===> SERA Q NAO EH O PICKUP CREATION??
+OK - consertado bug que o server cheio nao respondia ao ping do gamespy
+OK - BUG: change teams com bot da pau (acho que consertei)
+OK - bot management por parte dos clientes -- eles dizem quantos bots querem, por votacao/média
+OK - nao permitir que jogadores troquem de time toda hora. intervalo de 10 segundos minimo
+   p/ efetuar de fato
  
+
+versao 0.3.7 BETA
+========================
+
+OK - LOGFILES NO ROOT DO EXE SEMPRE
+OK - refresh inicial da tela de favoritos ao dar TAB pra ela
+OK (acho) - BUG: retrieve master info com info velha: ao parsear <HTML> (sem slash) resetar lista de IPS
+OK - BUG: master pretty display repetindo statuses
+OK - BUG: as vezes cliente recebia do master arquivo com zero's, o que causava o fim do arquivo no parse antes de chegar no @K </HTML>
+OK - BUG: os powerups SUMIRAM!
+OK - jogadores obterem a lista de servidores sem ter que visitar a pagina. paginas de conexao
+     FAVORITES vs. INTERNET LISTING
+OK - respawnar players e itens somente se nao for sobre paredes
+  OK - inclusive workaround pra bad team spawn points definidos no mapa!!
+OK - adicionar TELAS / DIALOGS de PROGRESSO
+    - para o REFRESH
+		- para o RETRIEVE FROM MASTER
+OK - ADICIONAR CODIGO DE TRATAMENTO DE ERRO PRO DOWNLOAD DE MAPAS !! (tratar tudo, eh muito importante)
+OK - fazer SCANNING do diretorio "maps/" do servidor caso a rotacao de mapas nao esteja especificada
+OK - fazer uma fisica BEM PARECIDA COM A DA 0.2.3 (porque ta muito legal, se mudar, vai avacalhar)
+     no arquivo gamemod.txt e tambem nos defaults hardcoded
+OK - rotacao de mapas no gamemod.txt
+OK - map loading de file / map definition txt / map download p/ clients
+	 OK - usar conexao TCP para implementar download de arquivo. dai manda na velocidade que der!
+	 OK - mostrar uma UI especial pro client enquanto estiver baixando arquivos ("loading map")
+OK - desenha map-exit option no client
+OK - parse map exit messages pelo server, causando map exit quando votacao a favor excede 50%
+OK - no fim da partida, adicionar uma tela por 5 segundos
+   OK - TIME VERMELHO WINS
+	 (faz o download enquanto mostra essa tela)
+	 ideia:
+	 => por tras dessa tela segue o esquema de carga de mapa, etc, so que o input dos jogadores eh
+	    ignorado pelo server na hora de mexer as bolinhas
+	 => o server envia duas mensagens: uma pra botar e outra pra tirar a tela da visao dos jogadores
+	 => quando envia a de tirar, ja desliga o bloqueio ao input dos jogadores
+OK - colocar informacoes uteis nas loading / gameover plaques (botei final score, ta otimo)
+OK --> enviar frames vazias enquanto estiver fazendo downlaod do mapa : pra isso o jogador tem que 
+       enviar um ACK para o server, apos o server enviar o comando de mapchange. 
+OK - FAZER A TROCA DE MAPA da rotacao propriamente dita
+	 OK - trocar quando a partida acabar (8 capturas de alguem)
+	 OK - trocar quando as pessoas votarem p/ exit ! ADICIONAR suporte VOTE-EXIT para as pessoas 
+OK - ADICIONAR SUPORTE AO MAPA BUILT-IN: server manda msg/byte especial na mensagem de map command,
+	 informando que eh o mapa built-in que vai ser usado.
+OK - esquema de master server para:
+  OK - servidores se cadastrarem automaticamente sem precisar admin mandar msg pra mim
+  OK - nao preciso mais atualizar a pagina com lista de servidores (pelo menos nao "a mao")
+
+
+versao 0.3.8 BETA
+========================
+
+OK - BUG: segurando espaço ele refresha muitas e muitas vezes os servers
+OK - BUG: powerups multiplos (dois ou tres) na mesma sala, ate parece q eles se procuram
+OK - LOG do server muito grande por causa do contato com o master, removendo alguns "LOG()"s
+OK - trocar PLAYER ID enviado pra admin shell por CLIENT ID (TESTAR!!)
+OK - forcar tela do menu sempre aberta se nao tem jogo (tela preta)
+OK - dialogs e telas de ok/erro da consulta ao master server padronizados e com teclas melhores
+  OK - novo dialog de "@K nao recebido" / can't contact servlet runner
+OK - incluir o mapa default no maps e no cmaps do cliente
+OK - tutorial documentacao WEB para os mapas
+
+versao 0.3.9 BETA - protocolo 9
+========================
+
+OK - tela de conexao INTERNET vs. FAVORITOS, ta podre, muito contra-intuitivo
+OK - COMPLETAR a lista do master retornada com os servers dos favoritos que derem refresh "ok"
+OK - novas regras de invisibilidade
+ OK - invisiveis somem completamente do minimapa, inclusive da visao de outros invisiveis
+ OK - excecao: invisiveis com FLAG aparecem no minimapa sim
+OK - consertado não-logging do full response do client queryzando o master
+OK - explosao do rocket no lugar certo, o rocket nao se "passa" mais
+OK - tiro explode nas paredes 
+ OK - client-side: flaga "don't draw" e schedula pra remover em 5 segundos
+ OK - server-side: envia rocket delete mensagem com flag de parede touch (player target==254)
+ OK - quad tiro diferente, sons novos (load)
+OK - BUG "espantado" (circumvented) -- bug do map.filename sendo corrompido pelo map_load()
+OK - DEATHBRINGER powerup
+OK - FIXME: fazer com que o client nao precisa enviar 1000 mensagens de rede por causa de uma
+     bolinha batendo em uma wall FIXA! client tem que ele mesmo explodir a bolinha na
+		 wall, se a bola na verdade acertou alguem antes de bater na parede, azar, vai ter duas explosoes
+OK - FIXME: som de quad, ativar a cada disparo do quad, SOBRESCREVENDO O ANTERIOR
+OK - FIXME: som de wallhit/quadwallhit, a cada tiro novo clientside, SOBRESCREVER O SOM ANTERIOR e
+     nao mixar com os que ja tem fazendo um volume ensurdecedor
+OK - mudar algumas coisas no deathbringer
+ OK - fazer desvantagens de te-lo: regenera na 1/2 da velocidade e degenera ate 100/100 health/energy
+ OK - mudar o efeito de quando o cara eh atingido: tira 15/frame se com shield, 3/frame se sem shield
+OK - mapas com largura e altura variaveis (deixar WXMAX e WYMAX para o MAXIMO ABSOLUTO)
+OK - BUG: mapa do renato width 8 height 2 é carregado como ("HEIGHT 8 WIDTH 2 WIDTH 2" (bug))
+OK - embelezar o deathbringer
+  OK - FX grafico da onda
+	OK - FX do item
+	OK - FX de quem tem o item
+	OK - FX grafico do cara afetado
+
+ - incrementar limite de jogadores pra 256, leetnet e outgun.cpp
+   - muda o MAX MAX MESMO com um #define, mas deixar isso em 16 por enquanto
+   - adicionar parametro linha de comando " -maxplayers " pra limitar pra 16 por exemplo, (entre 1
+	   e o MAX MAX MESMO do #define), dai os times sao N players do -maxplayers / 2
+
+ - weapon pick-up item: classe de itens que, ao pegar, trocam a arma do jogador. por exemplo, laser
+   beam e hellblaze(flamethrower), sendo que todas as armas tem um significado diferente para os
+	 diferentes power levels (1 a 9), e as armas que nao sao o tiro default tem tempo: apos X segundos
+	 o jogador perde a arma.
+
+(feito) ==> tentando espantar os bugs abaixo: enviando o "me" com cada packet, sem excecao (5bits)
+
+ - BUG: SHUTDOWN: SFILE THREAD da acesso a memoria podre. (GPF)
+     SFILE Thread da pau no server shutdown as vezes. testando eu e o renato jogamos
+     um tempo, ele saiu, quando eu fui sair (server listen) deu esse pau
+		 (tentei "espantar" esse com um treco)
+
+ - BUG! JoL-PHIN conseguia mover o seu bonequinho e ele enxergava o mapa, mas:  
+    - nao enxergava outros jogadores
+		- enxergava seu player piscando na tela 2x2 enquanto tava em outro lugar nada a ver
+		- enxergava flags se movendo mas nao outros jogadores (?)
+		- reconectou consertou, mas aconteceu denovo
+		POSSIBILIDADES:
+		- a ver com troca de mapas? mas ele ja via o novo mapa e ja estava jogando. foi "do nada"
+
+ - BUG! WARP BUG! muito estranho, jogador pula de telas as vezes. tava jognado com renato e nos
+   dois warpamos!
+	 - "do nada"
+	 - sera que ocorre com o mapa built-in ou so com mapas custom??
+	
+ 	
+versao 0.4.0 (futura)
+========================
+
+ - aumentar a resolucao da tela pra 800x600 e aumentar o MAX MAX players do jogo para 
+   32 players (mas deixar o 'default' em menos, como 20 por exemplo)
+
+ - aumentar o timeout da gameover plaque e fazer que os jogadores podem pedir pra continuar o
+   jogo de uma vez teclando TIRO
+
+ - "DESLIGAR" O JOGADOR DO JOGO, isto eh nao desenhar ele em lugar nenhum, enquanto ele estiver 
+    fazendo DOWNLOAD de mapas. nao spawnar a bolinha de fato no jogo
+
+ - BUG: Flood de CTF GAME RESTARTED ao adicionar varios bots quando nao tinha nenhum (jogando sozinho)
+ - BUG: to sozinho no server e adiciono bots pra 7x7, ctf game nao restarta...
+ - bot I.A. do jannone
+	 
+
+versao 0.5.0 (futura)
+========================
+
+ - embonitar as telas de map loading e gameover plaque
+   - top fragger / most valuable player / dar uma olhada nessas coisas
+
+ - usar aquela janelinha 320x200 do servidor pra exibir status do tipo
+   - players overall: numero de jogadores que ja entraram no servidor
+	 - players today
+	 - media da sessao de jogo, dos que já saíram: overall
+	 - meida da sessao de jogo today
+	 - server utilization overall (tempo com 1 jogador, tempo com 2 jogadores ... tempo com 16
+	   jogadores dai faz a media)
+	 - server utilization today
+	 - server bandwidth mean overall
+	 - server bandwidth mean today
+	 - server up time
+ - enviar essas informacoes para o master server, codificadas no query de add mesmo
+
+coisas mais pro futuro (1.0)
+========================
+ 
+ - menus (GUI) legal e muito melhor que a atual (jogar a atual no lixo)
+   - GUI no geral muito mais bonita, mudar tudo
+
+ - configuracoes (parametros) do jogo (mais powerups... etc.)
+
+ - CONSOLE para o jogo 
+ 
+ - CONFIGURACAO DE TECLAS (tela GUI pra isso)
+ 
+ - adicionar suporte para joystick : detectar e sair usando (ver allegro)
+
+ - bug de memory leak ao trocar entre modo fullscreen e windowed (====> e coisa da ALLEGRO!!! acontece
+     com _qualquer_ jogo allegro aqui em casa! se roda 4 ou 5 vezes um jogo allegro, fode o windows98)
+
+ - bug: load_map escreve merda no map.filename carregando o mapa gerado pelo renato por exemplo.
+        basicamente o load_map_bla_label(..) inicial q loada o mapa escreve sobre o name (zeros,
+				transforma em uma string null). ENTAO: tirar o map.PROTEKT e consertar o map_load		
+
 */
+
+// ***** FORTIFY !!! *****
+
+#include "FORTFY22/FORTIFY.H"
+
+// ***** FORTIFY !!! *****
+
+
+//TURN OFF BOTS?
+#define NO_BOTS
+
 
 
 //same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
 #define		SHOT_DELTAX	 18
-
-//#define		OLD_DIRECTIONALS
 
 //#define   SWITCH_PAUSE_CLIENT
 
@@ -239,7 +311,7 @@ coisas p/ o futuro
 
 #define PI 3.1416
 
-#define PIOIT 0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854    0.3927  //PI/8
+#define PIOIT 0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
 //quick debugs
 //#define   MIN_ALPHA_FRIENDS  1			//debug value
@@ -247,13 +319,13 @@ coisas p/ o futuro
 
 #define   ROCKET_SPEED	50.0		//in pixels/0.1s
 
-#define   NUMBER_OF_POWERUP_KINDS   6    //quad shield shadow turbo weapon-up megahealth
+#define   NUMBER_OF_POWERUP_KINDS   7    //quad shield shadow turbo weapon-up megahealth deathbringer
 
-//#define  DEBUG_POWERUPS
+#define  DEBUG_POWERUPS
 //#define  REALLY_DEBUG_POWERUPS		//define only if DEBUG_POWERUPS defined
 
 #ifdef DEBUG_POWERUPS
-#define PICKUP_RESPAWN_TIME 1.0		//debug time
+#define PICKUP_RESPAWN_TIME 6.0		//debug time
 #else
 #define PICKUP_RESPAWN_TIME 30.0		// 30 seconds to respawn a pickup
 #endif
@@ -262,8 +334,8 @@ coisas p/ o futuro
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "6"
-#define GAME_VERSION "0.3.0"
+#define GAME_PROTOCOL "9"
+#define GAME_VERSION "0.3.9"
 
 
 
@@ -291,6 +363,9 @@ coisas p/ o futuro
 #include <string>
 using namespace std;
 #include "names.h"		//the COOLEST random-name generator by Renato Hentschke
+
+//admin shell protocol
+#include "admshell.h"
 
 //log utils
 //#define LOG_NOLOG		// uncomment to disable logging
@@ -339,6 +414,13 @@ char* itoa(const int i, char* buf, const int base)
 //  common stuff
 //************************************************************
 
+//the master server address (www.mycgiserver.com:80)
+NLaddress		master_address;
+
+//directories for save/load maps
+#define SERVER_MAPS_DIR "maps"
+#define CLIENT_MAPS_DIR "cmaps"
+
 //root path (game executable path)
 #define WHERE_PATH_SIZE 256
 char wheregamedir[WHERE_PATH_SIZE];
@@ -349,11 +431,6 @@ bool reset_video_mode();
 #define CTF_NUMBER_OF_CAPTURES 8
 
 // server game phisics parameters
-//double	sv_frictionx, sv_frictiony, sv_accelx, sv_accely, sv_maxspeedx, sv_maxspeedy;
-//double	sv_maxspeedrunx, sv_maxspeedruny, sv_flag_penalty_x, sv_flag_penalty_y;
-//double  sv_boots_top_bonus_x, sv_boots_top_bonus_y, sv_boots_accel_bonus, sv_run_accel_bonus;
-
-// NEW server game phisics parameters
 double  svp_fric, svp_accel, svp_maxspeed;
 double  svp_fric_run, svp_accel_run, svp_maxspeed_run;
 double  svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
@@ -362,6 +439,26 @@ double  svp_flag_penalty;
 
 // set the default physics parameters
 void set_default_physics() {
+
+	// OLD (and cool) 0.2.3 PHYSICS
+	//
+	svp_fric = 1.5;
+	svp_accel = 2.0;
+	svp_maxspeed = 12.0;
+	svp_fric_run     = 1.5;
+	svp_accel_run    = 2.0;
+	svp_maxspeed_run = 22.0;
+	svp_fric_turbo     = 3.0;
+	svp_accel_turbo    = 4.0;
+	svp_maxspeed_turbo = 18.0;
+	svp_fric_turborun     = 3.0;
+	svp_accel_turborun    = 4.0;
+	svp_maxspeed_turborun = 33.0;
+	svp_flag_penalty	= 3.0;
+
+	// NEW (and lame) PHYSICS 0.3.0 +
+	//
+	/*
 	svp_fric     = 1.5;
 	svp_accel    = 2.0;
 	svp_maxspeed = 12.0;
@@ -375,10 +472,43 @@ void set_default_physics() {
 	svp_accel_turborun    = svp_accel * 1.75;
 	svp_maxspeed_turborun = 32.0;
 	svp_flag_penalty	= 3.0;
+	*/
+	/*
+	what was in the GAMEMOD.TXT FILE for 0.3.0
+				friction
+				2.5
+				accel
+				2.5
+				maxspeed
+				15.0
+				friction_run
+				3.0
+				accel_run
+				3.0
+				maxspeed_run
+				22.0
+				friction_turbo
+				4.0
+				accel_turbo
+				4.0
+				maxspeed_turbo
+				24.0
+				friction_turborun
+				6.0
+				accel_turborun
+				6.0
+				maxspeed_turborun
+				33.0
+				flag_penalty
+				3.0
+	*/
 }
 
 
-#define MAX_PLAYERS 16		// maximum number of players
+// number-of-players
+#define MAX_PLAYERS 32						// the MAXIMUM MAXIMUM number of players EVER
+int			maxplayers;								// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
+#define TEAMSIZE (maxplayers/2)			// CTF TEAM SIZE
 
 #define MAX_ROCKETS 256		// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
@@ -388,11 +518,16 @@ void set_default_physics() {
 
 //arg switches (+ default values)
 bool dedserver = false;		//dedicated server?  -ded
+bool privateserver = false;	//private server? (will not publish)
 bool winclient = true;		//windowed client?	 -win / -fs
 bool trypageflip = false;	//try page flipping? -flip / -dbuf
 bool nosound = false;			//disable sound?    -nosound
 int	 targetfps = 60;			//target (MAX) frames-per-second 
 int	 port = 25000;				//the server port
+bool showinfo = false;		//apenas show info e desliga server
+bool defaultprio = false;	//select default server threads priority
+#define TARGET_PRIO_UNSPECIFIED -666666
+int  targetprio = TARGET_PRIO_UNSPECIFIED;	//unspecified
 
 bool sound_inited;		  //install_sound succeeded?
 bool sound_enabled = true;		// player wants sounds?
@@ -403,6 +538,10 @@ enum {
 
 	SAMPLE_FIRE,			//ok
 	SAMPLE_HIT,				//ok
+
+	SAMPLE_WALLHIT,				//new! v0.3.9
+	SAMPLE_QUADWALLHIT,		//new! v0.3.9
+
 	SAMPLE_DEATH,			//ok
 	SAMPLE_DEATH_2,		//ok
 	SAMPLE_ENTERGAME,	//ok
@@ -414,6 +553,11 @@ enum {
 	SAMPLE_WEAPON_UP,	// new! v0.1.2
 
 	SAMPLE_MEGAHEALTH, // new! v0.3.0
+
+	SAMPLE_GETDEATHBRINGER, // new! v0.3.9 -- get deathbringer powerup (voz sinistra)
+	SAMPLE_USEDEATHBRINGER, // new! v0.3.9 -- use deathbringer powerup (carrier dies) ("GRRRAAWWKKLLLL!!")
+	SAMPLE_HITDEATHBRINGER,	// new! v0.3.9 -- target is hit by the deathbringer ("PWRRLLW!")
+	SAMPLE_DIEDEATHBRINGER,	// new! v0.3.9 -- target dies by the deathbringer		("HaHaHaHa!")
 
 	SAMPLE_SHIELD_PICKUP,
 	SAMPLE_SHIELD_DAMAGE,
@@ -557,6 +701,8 @@ struct gamespy_t {
 
 	bool				noresponse;		//no response?
 
+	bool				favs;					//hack
+
 	bool				refreshed;		//if data below is valid -------------
 
 	char				info[128];		//server info string
@@ -564,23 +710,42 @@ struct gamespy_t {
 };
 
 //the world is a x,y indexed 2d array of rooms
-#define WXMAX 6 		//maximum world size
-#define WYMAX 6 
-#define WALLMAX 16	//maximum number of walls
+#define WXMAX 20 		//maximum world size
+#define WYMAX 20 
+#define WALLMAX			64	//maximum number of walls in a room
+#define GROUNDMAX		64	//maximum number of ground patches in a room
 
+//rectangles
 class wall_c { public:
 
 	//rectangle coords (a,b)->(c,d)  a==-1 unused
 	int a, b, c, d;
 
+	int tex; //texture id
+		
+	int alpha; //alpha
+
 	//unused wall
-	wall_c() { a = -1; }
+	wall_c() { clear(); }
+
+	void clear() { a = -1; tex = -1; alpha = -1; }
 };
+
 
 class room_c { public:
 
 	//a collection of walls (rectangles)
 	wall_c		wall[WALLMAX];
+
+	//NEW! : collection of visual rectangles (ground patches)
+	wall_c	ground[GROUNDMAX];
+
+	void clear() {
+		for (int i=0;i<WALLMAX;i++) {
+			wall[i].clear();
+			ground[i].clear();
+		}
+	}
 };
 
 //entity locale
@@ -613,7 +778,51 @@ class map_c { public:
 	//team information for red=0 and blue=1 teams
 	teaminfo_t	tinfo[2];	
 
-	//FIXME: other level information (item/powerup spawnpoints etc.)
+	//clear all map information
+	void clear() {
+		//clear team info
+		memset(&tinfo[0], 0, sizeof(teaminfo_t));
+		memset(&tinfo[1], 0, sizeof(teaminfo_t));
+
+		//clear rooms
+		int x,y;
+		for (x=0;x<WXMAX;x++)
+		for (y=0;y<WYMAX;y++)
+			room[x][y].clear();
+	}
+
+	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) {
+
+		for (int w=0;w<WALLMAX;w++)
+		if (room[px][py].wall[w].a != -1)
+		{
+			wall_c *wa = &(room[px][py].wall[w]);
+			if (wa->c > x1)
+			if (wa->a < x2)
+			if (wa->d > y1)
+			if (wa->b < y2) 
+			{
+				//HIT
+				return true;
+			}
+		}
+
+		//no hits
+		return false;
+	}
+
+	//---- map parser state ----------
+	char PROTEKT[65536];	//protect mapfilename (beats me...)
+												//also a slack area to the map loader code to write crap ho ho ho
+												//my code sucks
+
+	char title[256];		//map title
+	
+	char filename[256];		//map filename (shortcut for server's crappy list)
+	int rx, ry;		// current room
+	int	ver;				// map version
+	int w, h;			// width height
+	NLushort crc;	//map's 16bit CRC
 };
 
 //wall hit?
@@ -633,8 +842,8 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 
 	if (px < 0) return false;
 	if (py < 0) return false;
-	if (px >= WXMAX) return false;
-	if (py >= WYMAX) return false;
+	if (px >= map->w) return false;
+	if (py >= map->h) return false;
 
 	//delta old to new  (ok)
 
@@ -741,20 +950,40 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 	return ever_had_wall_hit;
 }
 
-//draw a wall in a map
-void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
+//draw a wall, solid or nonsolid, texid, lum, in a map
+void drawwall_tex(map_c *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
 	
-	for (int w=0;w<WALLMAX;w++)
-	if (m->room[x][y].wall[w].a < 0) {
-
-		m->room[x][y].wall[w].a = a;
-		m->room[x][y].wall[w].b = b;
-		m->room[x][y].wall[w].c = c;
-		m->room[x][y].wall[w].d = d;
-
-		//ok
-		break;
+	if (is_solid) {
+		for (int w=0;w<WALLMAX;w++)
+		if (m->room[x][y].wall[w].a < 0) {
+			m->room[x][y].wall[w].a = a;
+			m->room[x][y].wall[w].b = b;
+			m->room[x][y].wall[w].c = c;
+			m->room[x][y].wall[w].d = d;
+			m->room[x][y].wall[w].tex = tex;
+			m->room[x][y].wall[w].alpha = alpha;
+			break;
+		}
 	}
+	else {
+		for (int w=0;w<WALLMAX;w++)
+		if (m->room[x][y].wall[w].a < 0) {
+			m->room[x][y].ground[w].a = a;
+			m->room[x][y].ground[w].b = b;
+			m->room[x][y].ground[w].c = c;
+			m->room[x][y].ground[w].d = d;
+			m->room[x][y].ground[w].tex = tex;
+			m->room[x][y].ground[w].alpha = alpha;
+			break;
+		}
+	}
+}
+
+//draw a solid wall in a map
+void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
+
+	//draw solid wall with tex = -1 & alpha 255 
+	drawwall_tex(m, true, x, y, a, b, c, d, -1, 255);
 }
 
 int COMPX = plw / 4;
@@ -779,25 +1008,15 @@ void closedwall(map_c *map, int x, int y) {
 //load default map (for testing)
 void load_default_map(map_c *map) {
 
+	//importante...
+	map->clear();
+	//map size
+	map->w = 6;
+	map->h = 6;
+
 	int i;
-
-	// BUILD WALLS
-	//
-	//int COMPX = plw / 4;		//globals
-	//int COMPY = plh / 4;
-	//int LARGX = COMPX / 4;
-	//int LARGY = COMPY / 4;
-
-	for (int x=0;x<WXMAX;x++)
-	for (int y=0;y<WYMAX;y++)	{
-
-		/*
-		map->room[x][y].wall[0].a = 50 + x * 10;
-		map->room[x][y].wall[0].b = 50 + y * 10;
-		map->room[x][y].wall[0].c = 180 + x * 10; 
-		map->room[x][y].wall[0].d = 180 + y * 10; 
-		*/
-
+	for (int x=0;x<map->w;x++)
+	for (int y=0;y<map->h;y++)	{
 		//default borderwalls
 		drawwall(map, x, y, 0, 0, COMPX, LARGY);		//0
 		drawwall(map, x, y, 0, 0, LARGX, COMPY);		//1
@@ -812,8 +1031,6 @@ void load_default_map(map_c *map) {
 	//closewalls
 	closelwall(map, 0, 0);
 	closelwall(map, 0, 1);
-	//closelwall(map, 0, 2);
-	//closelwall(map, 0, 3);
 	closelwall(map, 0, 4);
 	closelwall(map, 0, 5);
 	closelwall(map, 1, 1);
@@ -843,8 +1060,6 @@ void load_default_map(map_c *map) {
 	closerwall(map, 4, 4);
 	closerwall(map, 5, 0);
 	closerwall(map, 5, 1);
-	//closerwall(map, 5, 2);
-	//closerwall(map, 5, 3);
 	closerwall(map, 5, 4);
 	closerwall(map, 5, 5);
 
@@ -866,7 +1081,6 @@ void load_default_map(map_c *map) {
 	closedwall(map, 3, 0);
 	closedwall(map, 2, 4);
 
-
 	// BUILD RED TEAM INFO
 	//
 	map->tinfo[0].flag.px = 1;		// flag pos
@@ -883,17 +1097,34 @@ void load_default_map(map_c *map) {
 
 	// BUILD BLUE TEAM INFO
 	//
-	map->tinfo[1].flag.px = WXMAX-2;		// flag pos
-	map->tinfo[1].flag.py = WYMAX-2;
+	map->tinfo[1].flag.px = map->w-2;		// flag pos
+	map->tinfo[1].flag.py = map->h-2;
 	map->tinfo[1].flag.x = plw / 2;
 	map->tinfo[1].flag.y = plh / 2;
 	map->tinfo[1].lastspawn = 0;		// lastspawn
 	for (i=0;i<MAX_TEAM_SPAWNS;i++) {	// teamspawns
-		map->tinfo[1].spawn[i].px = WXMAX-2;
-		map->tinfo[1].spawn[i].py = WYMAX-2;
+		map->tinfo[1].spawn[i].px = map->w-2;
+		map->tinfo[1].spawn[i].py = map->h-2;
 		map->tinfo[1].spawn[i].x = 80 + 30 * i;
 		map->tinfo[1].spawn[i].y = plh / 4;
 	}
+}
+
+//utility
+// FIXME: MAKE ACCEPT VARIABLE # OF PARAMETERS
+//textprintf_centre_x(drawbuf, font, 320, 40, col[COLYELLOW], 0, "Showing INTERNET LISTING connection page");
+void textprintf_centre_x(BITMAP *b, FONT *f, int x, int y, int c1, int c2, char *text) {
+
+	textprintf_centre(b,f,x-1,y,c2,text);
+	textprintf_centre(b,f,x+1,y,c2,text);
+	textprintf_centre(b,f,x,y-1,c2,text);
+	textprintf_centre(b,f,x,y+1,c2,text);
+	textprintf_centre(b,f,x-1,y-1,c2,text);
+	textprintf_centre(b,f,x+1,y+1,c2,text);
+	textprintf_centre(b,f,x+1,y-1,c2,text);
+	textprintf_centre(b,f,x-1,y+1,c2,text);
+
+	textprintf_centre(b,f,x,y,c1,text);
 }
 
 //************************************************************
@@ -905,9 +1136,23 @@ struct player_t {
 
 	bool			used;		// player record valid?
 
+	bool			isbot;	// BOTZ: TRUE when this player is a serverside bot
+
+	//server-side flag: waiting for this client to say that it has all the resources needed to play
+	bool			awaiting_client_ready;
+
+	//client-to-server bot configuration preferences:
+	NLubyte		botsize;		//target team sizes
+	NLubyte		botmode;		//wanted bot mode  0=default   1=use botsize   2=fill holes
+
 	int				weapon;	// poder da arma atual (nivel) 0,1,2,3,4 (...?)
 
+	bool			want_map_exit; //server side - player quer sair p/ proximo mapa na rotacao
+
 	bool			want_change_teams;		//server-side: player wants do change teams?
+	double		team_change_time;		//server-side time to allow next team change
+	bool			team_change_pending;	//server-side hack
+
 
 	double		speed_drop_time;		//speed powerup FX aux var
 	double		wall_sound_time;		// min time to play sound again
@@ -915,6 +1160,13 @@ struct player_t {
 	bool			onscreen;	//player onscreen? used only in clientside
 
 	NLubyte		enemyvis;	//enemies being viewed . clientside only
+
+	//DEATHBRINGER
+	bool			item_deathbringer;	// DEATHBRINGER -- if player carries it
+	long			item_deathbringer_time;	//time of start explosion (server simulation)
+	double		deathbringer_end;	// end time of deathbringer effect on this player
+	bool			deathbringer_affected;		//CLIENT-SIDE: draw/spawn affected deathbringer effect
+	double		death_drop_time;
 
 	bool			item_shield;		// SHIELD: bit sent always: shield fx / shield present
 	bool      item_quad;			// QUAD damage
@@ -930,7 +1182,6 @@ struct player_t {
 	double		hitfx;		// player-hit fx (relative to time): clientside only
 
 	bool			attack;		// if player is holding attack button
-	double		attacktime;	// time of last transition from attack=false to attack=true
 
 	int				id;			// player's id (position on the vectr)
 	
@@ -956,6 +1207,8 @@ struct player_t {
 
 	int				energy;			// player's energy (run/shoot)
 
+	int				megabonus;	// bonus left de health e energy
+
 	bool			dead;		//dead? zframe byte == 255  clientside only
 	bool			old_dead;		// to detect time to play death sound
 
@@ -964,11 +1217,25 @@ struct player_t {
 	double		respawn_time;				// time for respawn
 
 	bool			respawn_to_base;		// force respawning to base
+
+	//admin shell stats
+	int				total_kills;
+	int				total_deaths;
+	int				total_captures;
+	int				start_time;
+
+	//=== CLIENT-SIDE DEBUG FIELDS: ====
+	bool			hot1;		//valid for interpolation (onscreen) this frame
+	bool			walc;		//wall-corrected this frame
+	int				nits;		//iterations for phisics
 };
 
 
 // a player's sprite state
 struct hero_t {
+
+	//INFO FOR BOTS ONLY:
+	int			tx, ty;		//tela X,Y
 
 	// position and speed
 	double    x, y, z, sx, sy;
@@ -1006,14 +1273,21 @@ public:
 	//owning player-id (-1  == unused)
 	int	owner;
 
+	//don't draw flag & remove schedule (CLIENT-SIDE): se dontdraw==true, nao desenha em client side e remove quando tempo >= clremove
+	bool	 dontdraw;
+	double clremove;
+
 	//team/color
 	int team;
 
 	//power	(na verdade a partir da versao 0.1.2, cada rocket pode ser um multi-rocket!
-	NLubyte		power;
+	//NLubyte		power;
 
 	//notification list (bitfield, bit0=player0, bit1=player1... etc.)
 	NLulong		vislist;
+
+	//hit position
+	NLshort hitx, hity;
 
 	//screen coords
 	int px, py;
@@ -1039,7 +1313,7 @@ public:
 	//time-of-hit do rocket clientside
 	double hit_time;
 	
-	//hit_target. se ==255, ninguem em particular
+	//hit_target. se ==255, ninguem em particular.  se ==254 hit wall
 	int		 hit_target;
 
 	rocket_c() { owner = -1; }
@@ -1114,15 +1388,456 @@ public:
 	}
 };
 
+//============================================================
+//  map loading API
+//============================================================
+
+//ok = getword(word, s, &c);
+// buffer da palavra (que seja grande o suficiente...), string original, pointeiro para posicao atual na string original
+// retorna false se acabou a string e nao tinha mais palavras
+// brancos (' ') == espacos entre palavras
+bool getword(char *word, char *s, int &c) {
+
+	bool copied = false;
+	char *oword = word;
+
+	//LOG2("gw '%s'(%i) = ", s, c);
+
+	//skip blanks
+	while (s[c] == ' ')
+		c++;
+
+	//copy word
+	while ((s[c] != ' ') && (s[c] != 0)) {
+		copied = true;
+		word[0] = s[c];
+		word++;
+		c++;
+	}
+
+	//zero-terminate word
+	word[0] = 0;
+
+	//LOG2("'%s'(%i)\n", oword, c);
+
+	//return result
+	return copied;
+}
+						 
+
+// funcao utilitaria
+// procura pelo label e executa. se label NULL, executa desde o inicio
+// retorna FALSE se erro
+bool load_map_parse_label(FILE *f, char *label, map_c *map) {
+
+	//label scan mode?
+	bool labelscan = false;
+	char labeltmp[256];
+	if (label) {
+		labelscan = true;
+		sprintf(labeltmp, ":%s", label);
+
+		//LOG1("LABEL SCAN: '%s'\n", label);
+	}
+
+	//seek beginning of file
+	rewind(f);
+
+	//parse the map file
+	while (1) {
+//char* fgets(char* s, int n, FILE* stream); 
+//Copies characters from (input) stream stream to s, stopping when n-1 characters copied, newline copied, 
+//end-of-file reached or error occurs. If no error, s is NUL-terminated. Returns NULL on end-of-file or 
+//error, s otherwise.
+
+		char s[1024];
+		if (fgets((char *)s, 1024, f) == 0) {		//end-of-file
+			if (labelscan)
+				return false;		//error:label not found
+			else
+				return true;		//ok?... (end of label by end-of-file)
+		}
+
+		s[ strlen(s) - 1] = 0;	//erase \n
+
+		//if (!labelscan)
+			//LOG1("mapf '%s'\n", s);
+
+		if (strlen(s) == 0)	//skip blanks
+			continue;
+
+		if (s[0] == ';') // skip comments
+			continue;
+
+		//if seeking for a label, ignore until it is found
+		if (labelscan) {
+			if (!strcmp(s, labeltmp)) {		//achou 
+				//LOG("LABEL FOUND\n");
+				labelscan = false;
+			}
+			continue;	//continue anyways
+		}
+
+		//end of label: when finds another label or ":"
+		if (!labelscan)
+		if (s[0] == ':')
+			return true;		//end of label execution
+
+		//*** PARSE USEFUL STUFF ***
+		char word[256];
+		int c = 0;
+		bool ok;
+
+		ok = getword(word, s, c);
+
+		if (!ok) {
+			//FIXME: handle error
+		}
+		else if ((!strcmp(word, "W")) || (!strcmp(word, "G"))) {
+
+			//W or G?
+			bool is_solid = !strcmp(word, "W");
+
+			double x1,y1,x2,y2,texid,alpha;
+
+			ok = getword(word, s, c);
+			if (ok) {
+				sscanf(word, "%lf", &x1);
+				ok = getword(word, s, c);
+				if (ok) {
+					sscanf(word, "%lf", &y1);
+					ok = getword(word, s, c);
+					if (ok) {
+						sscanf(word, "%lf", &x2);
+						ok = getword(word, s, c);
+						if (ok) {
+							sscanf(word, "%lf", &y2);
+							ok = getword(word, s, c);
+							if (ok) {
+								sscanf(word, "%lf", &texid);
+								ok = getword(word, s, c);
+								if (ok) {
+									sscanf(word, "%lf", &alpha);
+
+									//add wall
+									//void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
+									int a,b,c,d;
+									a = (int)(x1 * (double)plw);
+									b = (int)(y1 * (double)plh);
+									c = (int)(x2 * (double)plw);
+									d = (int)(y2 * (double)plh);
+									drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d, texid, alpha);
+								}
+							}
+							else {
+
+								//add wall with default tex id & alpha
+								//void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
+								int a,b,c,d;
+								a = (int)(x1 * (double)plw);
+								b = (int)(y1 * (double)plh);
+								c = (int)(x2 * (double)plw);
+								d = (int)(y2 * (double)plh);
+								drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d, -1, 255);
+							}
+						}
+					}
+				}
+			}
+		}
+		else if (!strcmp(word, "R")) {
+			ok = getword(word, s, c);
+			if (ok) {
+				sscanf(word, "%i", &map->rx);
+				//VALIDATE
+				if (map->rx < 0) map->rx = 0; else if (map->rx > map->w - 1) map->rx = map->w - 1;
+				ok = getword(word, s, c);
+				if (ok) {
+					sscanf(word, "%i", &map->ry);
+					//VALIDATE
+					if (map->ry < 0) map->ry = 0; else if (map->ry > map->h - 1) map->ry = map->h - 1;
+				}
+			}
+		}
+		else if (!strcmp(word, "X")) {
+			ok = getword(word, s, c);
+			if (ok) {
+				char nextlabel[64];
+				strcpy(nextlabel, word);
+
+				int rx1,ry1,rx2,ry2;
+				rx2 = -1;
+
+				ok = getword(word, s, c);
+				if (ok) {
+					sscanf(word, "%i", &rx1);
+					ok = getword(word, s, c);
+					if (ok) {
+						sscanf(word, "%i", &ry1);
+						ok = getword(word, s, c);
+						if (ok) {
+							sscanf(word, "%i", &rx2);
+							ok = getword(word, s, c);
+							if (ok) {
+								sscanf(word, "%i", &ry2);
+							}
+						}
+					}
+				}
+
+				//record previous file position
+				long filepos = ftell(f); 
+
+				//one room only call
+				if (rx2 == -1) {
+					map->rx = rx1;
+					map->ry = ry1;
+					//VALIDATE
+					if (map->rx < 0) map->rx = 0; else if (map->rx > map->w - 1) map->rx = map->w - 1;
+					if (map->ry < 0) map->ry = 0; else if (map->ry > map->h - 1) map->ry = map->h - 1;
+					ok = load_map_parse_label(f, nextlabel, map);
+					if (!ok)
+						return false;	//ERROR!
+				}
+				//room range call
+				else {
+					for (int ry=ry1;ry<=ry2;ry++)
+					for (int rx=rx1;rx<=rx2;rx++)
+					{
+						map->rx = rx;
+						map->ry = ry;
+						//VALIDATE
+						if (map->rx < 0) map->rx = 0; else if (map->rx > map->w - 1) map->rx = map->w - 1;
+						if (map->ry < 0) map->ry = 0; else if (map->ry > map->h - 1) map->ry = map->h - 1;
+						ok = load_map_parse_label(f, nextlabel, map);
+						if (!ok)
+							return false;	//ERROR!
+					}
+				}
+
+				//restore previous file position
+				fseek(f, filepos, 0);		//0 == "SEEK_SET" ??
+			}
+		}
+		else if (!strcmp(word, "P")) {
+			ok = getword(word, s, c);
+			if (ok) {
+				if (!strcmp(word, "width")) {
+					ok = getword(word, s, c);
+					if (ok) {
+						sscanf(word, "%i", &map->w);
+						//VALIDATE
+						if ((map->w < 1) || (map->w > WXMAX))
+							map->w = WXMAX;
+						LOG1("MAP LOAD P WIDTH = %i\n", map->w);
+					}
+				}
+				else if (!strcmp(word, "height")) {
+					ok = getword(word, s, c);
+					if (ok) {
+						sscanf(word, "%i", &map->h);
+						//VALIDATE
+						if ((map->h < 1) || (map->h > WYMAX))
+							map->h = WYMAX;
+						LOG1("MAP LOAD P HEIGHT = %i\n", map->h);
+					}
+				}
+				else if (!strcmp(word, "title")) {
+					// copy title to map->title
+					map->title[0]=0;
+					bool first = true;
+					while (getword(word, s, c)) {
+						if (first)
+							first = false;
+						else
+							strcat(map->title, " "); //space
+						strcat(map->title, word); //append the word
+					}
+				}
+			}
+		}
+		else if (!strcmp(word, "spawn")) {
+			int team, rx, ry;
+			double x, y;
+
+			ok = getword(word, s, c);
+			if (ok) {
+				sscanf(word, "%i", &team);
+				ok = getword(word, s, c);
+				if (ok) {
+					sscanf(word, "%i", &rx);
+					//VALIDATE
+					if (rx < 0) rx = 0; else if (rx > map->w - 1) rx = map->w - 1;
+					ok = getword(word, s, c);
+					if (ok) {
+						sscanf(word, "%i", &ry);
+						//VALIDATE
+						if (ry < 0) ry = 0; else if (ry > map->h - 1) ry = map->h - 1;
+						ok = getword(word, s, c);
+						if (ok) {
+							sscanf(word, "%lf", &x);
+							ok = getword(word, s, c);
+							if (ok) {
+								sscanf(word, "%lf", &y);
+
+								map->tinfo[team].spawn[map->tinfo[team].lastspawn].px = rx;
+								map->tinfo[team].spawn[map->tinfo[team].lastspawn].py = ry;
+								map->tinfo[team].spawn[map->tinfo[team].lastspawn].x = (int)(x * (double)plw);
+								map->tinfo[team].spawn[map->tinfo[team].lastspawn].y = (int)(y * (double)plh);
+
+								map->tinfo[team].lastspawn++;
+							}
+						}
+					}
+				}
+			}
+		}
+		else if (!strcmp(word, "flag")) {
+			int team, rx, ry;
+			double x, y;
+
+			ok = getword(word, s, c);
+			if (ok) {
+				sscanf(word, "%i", &team);
+				ok = getword(word, s, c);
+				if (ok) {
+					sscanf(word, "%i", &rx);
+					//VALIDATE
+					if (rx < 0) rx = 0; else if (rx > map->w - 1) rx = map->w - 1;
+					ok = getword(word, s, c);
+					if (ok) {
+						sscanf(word, "%i", &ry);
+						//VALIDATE
+						if (ry < 0) ry = 0; else if (ry > map->h - 1) ry = map->h - 1;
+						ok = getword(word, s, c);
+						if (ok) {
+							sscanf(word, "%lf", &x);
+							ok = getword(word, s, c);
+							if (ok) {
+								sscanf(word, "%lf", &y);
+
+								map->tinfo[team].flag.px = rx;
+								map->tinfo[team].flag.py = ry;
+								map->tinfo[team].flag.x = (int)(x * (double)plw);
+								map->tinfo[team].flag.y = (int)(y * (double)plh);
+							}
+						}
+					}
+				}
+			}
+		}
+		else if (!strcmp(word, "V")) {
+			ok = getword(word, s, c);
+			if (ok) {
+				sscanf(word, "%i", &map->ver);
+				// FIXME: do version check to select the appropriate mapfile parser
+			}			
+		}
+
+	}
+}
+
+// tenta carregar um mapa do arquivo OUTGUN_DIR/mapdir/mapname.TXT
+// retorna FALSE se nao conseguiu abrir ou se tava corrompido etc
+// retorna o mapa (map_c) atualizado no parametro *map
+
+bool load_map(char *mapdir, char *mapname, map_c *map, NLushort *crc) {
+
+	//clear
+	map->clear();
+
+	//hack
+	map->tinfo[0].lastspawn = 0;		// lastspawn
+	map->tinfo[1].lastspawn = 0;		// lastspawn
+
+	char lebuffer[1024];
+	char dest[WHERE_PATH_SIZE];
+	
+	// MAPDIR + / + MAPNAME + .TXT
+	strcpy(lebuffer, mapdir);
+	put_backslash(lebuffer);
+	strcat(lebuffer, mapname);
+	strcat(lebuffer, ".txt");
+
+	//append all that to the root dir of the game
+	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
+	FILE *fmap = fopen(dest, "r");
+	if (fmap) {
+
+		//save name
+		strcpy(map->filename, mapname);
+		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
+
+		//set the map width/height to the default WXMAX/WYMAX values
+		map->w = WXMAX;
+		map->h = WYMAX;
+		map->rx = 0;
+		map->ry = 0;
+
+		//get fokken crc
+		NLubyte lebigbuf[65536];
+
+		//size_t fread(void* ptr, size_t size, size_t nobj, FILE* stream); 
+		//Reads (at most) nobj objects of size size from stream stream into ptr and returns number of objects
+		//read. (feof and ferror can be used to check status.) 		
+
+		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
+		(*crc) = nlGetCRC16((NLubyte*)lebigbuf, numread);
+		rewind(fmap);	//e volta pro comeco
+
+		LOG1("PRE LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
+
+		//parse map file
+		load_map_parse_label(fmap, 0, map);
+
+		LOG1("POS LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
+
+		//hack
+		map->tinfo[0].lastspawn = 0;		// lastspawn
+		map->tinfo[1].lastspawn = 0;		// lastspawn
+
+		fclose(fmap);
+		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
+		return true;
+	}
+	else {
+		LOG1("can't load mapfile from '%s'!\n", dest);
+		return false;
+	}
+}
+
+
 
 //************************************************************
 //  server stuff
 //************************************************************
 
+//delay for the server contacting the master server, in seconds
+// it is good if this delay is set to a minute or so, since this will
+// filter out people opening and closing servers frequently
+#define	DELAY_TO_REPORT_SERVER	1.0
+
+//bot frame extrapolation depth (numero de frames que o bot extrapola pra frente)
+#define BOT_XDEPTH 10
+
+//server_next_map() reasons
+enum {
+	NEXTMAP_NONE,
+	NEXTMAP_CAPTURE_LIMIT,
+	NEXTMAP_VOTE_EXIT,
+	NUM_OF_NEXTMAP
+};
+
 #define SERVER_DEFAULT_PLAYER_NAME "**DEFAULT**"
+
+#define MAPFILENAMESIZE 32			// e tah mais que bom!
+#define MAPROTSIZE      32			//tambem mais do que bom
 
 // client count
 int	player_count;
+
+// serverside bot count BOTZ
+int bot_count;
 
 // server callbacks
 int sfunc_client_hello(runes_t *arg);
@@ -1131,6 +1846,17 @@ int sfunc_client_disconnected(runes_t *arg);
 int sfunc_client_lag_status(runes_t *arg);
 int sfunc_client_data(runes_t *arg);
 int sfunc_client_ping_result(runes_t *arg);
+
+//threads for tcp file transfer
+void *thread_filemaster_f(void *arg);
+void *thread_fileslave_f(void *arg);
+
+//thread for master server interaction
+void *thread_mastertalker_f(void *arg);
+
+//thread for server shell connections
+void *thread_shellmaster_f(void *arg);
+void *thread_shellslave_f(void *arg);
 
 // the game server state
 class gameserver_c {
@@ -1142,15 +1868,44 @@ public:
 	// net server
 	server_c	*server;
 
+	//master server interaction thread and socket
+	NLsocket		msock;
+	pthread_t		mthread;
+	double			master_talk_time;	//time to talk?
+	bool				master_pre_exiting_ok;		// if no need to kill the master socket...
+	bool				master_exiting_ok;		// if no need to kill the master socket...
+	bool				master_never_talked;		// if never talked to master, then no need to unregister the server when qutting (optimization)
+
+	// socket for connection acceptance
+	bool							file_threads_quit;		//terminate all file server threads/sockets now
+	NLsocket					filesock;
+	pthread_t					server_filemaster_thread;  // thread for server filemaster
+	pthread_mutex_t		fslavesock_mutex;  //mutex for socket list
+	NLsocket					fslavesock[MAX_PLAYERS];
+	pthread_t					fslavethr[MAX_PLAYERS];
+
+	//shell socket
+	NLsocket		shellmsock;
+	pthread_t		shellmthread;
+	NLsocket		shellssock;
+	pthread_t		shellsthread;
+
 	//hostname
 	char		hostname[256];
 
 	// the players
 	player_t	player[MAX_PLAYERS];
-	int				ctop[64];			// client id-to-player id index
+	int				ctop[256];			// client id-to-player id index. ctop[255] reservado para lixo area de bots
 
 	//the current frame (game world simulation state)
 	frame_t		world;
+
+	//frames extrapoladas tempo zero: world  tempo 1 em diante:		xw[0] em diante
+	frame_t		xw[BOT_XDEPTH];
+
+	//bot target configuration
+	int  botmode;		//1= fill-in (default)  2= target team size
+	int  botsize;
 
 	// current frame count
 	NLulong		frame;
@@ -1161,6 +1916,16 @@ public:
 	// ping send counter
 	int ping_send_counter, ping_send_client;
 
+	// server map rotation list
+	int		maprots;		//quantos mapas em maprots
+	int		currmap;		//mapa atual do maprot
+	bool	builtin;		//using the builtin map
+	char	maprot[MAPROTSIZE][MAPFILENAMESIZE];
+
+	//server showing gameover plaque?
+	bool	gameover;
+	double		gameover_time;		//timeout for gameover plaque
+
 	//ctor
 	gameserver_c() {
 		server = 0;
@@ -1170,10 +1935,16 @@ public:
 		server_kbps_traffic = 0;		//total server traffic in kbytes/sec
 		ping_send_counter = 0;		// ping send counter
 		ping_send_client = 0;
+
+
+		pthread_mutex_init(&fslavesock_mutex, 0);
 	}
 
 	//dtor
 	virtual ~gameserver_c() {
+
+		pthread_mutex_destroy(&fslavesock_mutex);
+		
 		LOG("GAMESERVER_C() DESTRUCTOR");
 		if (server) {
 			delete server;
@@ -1181,7 +1952,283 @@ public:
 		}
 	}
 
+	//---- FILE DOWNLOADING TO CLIENTS --------
+
+	//load file from disk. puts file of type/name into the given buffer, returns filesize
+	int get_download_file(char *lebuf, char *ftype, char *fname) {
+
+		//map file type
+		if (!strcmp(ftype, "map")) {
+
+			char lebuffer[1024];
+			char dest[WHERE_PATH_SIZE];
+			
+			// MAPDIR + / + MAPNAME + .TXT
+			strcpy(lebuffer, SERVER_MAPS_DIR);
+			put_backslash(lebuffer);
+			strcat(lebuffer, fname);
+			strcat(lebuffer, ".txt");
+
+			//append all that to the root dir of the game
+			append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
+			FILE *fmap = fopen(dest, "r");
+			if (fmap) {
+				int amount = fread(lebuf, 1, 65536, fmap);
+				fclose(fmap);
+				return amount;	//size read!
+			}			
+			else 
+				return -1;	//can't read!
+		}
+
+		// don't know type!
+		return -1;
+	}
+
+	//run a file master thread
+	void run_filemaster_thread(void *arg) {
+
+		while (1) {
+			//accept one connection
+			nlEnable(NL_BLOCKING_IO);
+			NLsocket pidaosock = nlAcceptConnection(filesock);
+			nlDisable(NL_BLOCKING_IO);
+
+			//valid socket?
+			if (pidaosock != NL_INVALID) {
+
+				// FIXME: deny connections from client IPs that are not connected to the server already!
+
+				//create thread for serving this client
+				// & update list
+				int i;
+				pthread_mutex_lock( &fslavesock_mutex );
+
+				for (i=0;i<MAX_PLAYERS;i++)
+					if (fslavesock[i] == NL_INVALID) {
+						pthread_create(&(fslavethr[i]), 0, thread_fileslave_f, (void *)i);	//keep thread so we can join
+						fslavesock[i] = pidaosock;		//keep socket so it can be closed
+						break;
+					}
+
+				pthread_mutex_unlock( &fslavesock_mutex );
+			}
+			else {
+				if (file_threads_quit) {		//quitting!
+					LOG("FILEMASTER THREAD IS QUITTING\n");
+					nlClose(filesock);
+					return;
+				}
+			}
+
+			//sleep a bit
+			MS_SLEEP(500);
+		}
+	}
+
+	//run a file slave thread
+	void run_fileslave_thread(void *arg) {
+
+		//NLsocket sock = (NLsocket)arg;
+
+		int k = (int)arg;
+
+		pthread_mutex_lock( &fslavesock_mutex );
+		NLsocket sock = fslavesock[k];
+		pthread_mutex_unlock( &fslavesock_mutex );
+		
+		char lebuf[65536]; int count = 0;
+
+		char ftype[256];
+		char fname[256];
+		
+		while (1) {
+		
+			//read what client wants
+			NLint result = nlRead(sock, lebuf, 1);
+			if (file_threads_quit) break;
+			//FIXME: check result
+			if (result == 0) {
+				MS_SLEEP(100);	//this should never be happening
+				continue;
+			}
+			if (result != 1) {
+				//not read a byte, NL_INVALID!
+				//FIXME: client misbehaved, should also disconnect him
+				LOG("ERROR: CLIENT MISBEHAVED HIS FILE SOCKET, QUITTING THREAD!");
+				break;
+			}							
+
+			NLubyte req;
+			count = 0;
+			readByte(lebuf, count, req);
+
+			//what you want?
+			if (req == 1) {		// gimme file!
+				LOG("FILE SLAVE THREAD: CLIENT WANTS FILE!\n");
+			
+				int i;	//index
+				bool bad_error;
+
+				//READ ONE STRING ON LEBUF
+				i = 0;
+				bad_error = false;
+				do {
+					result = nlRead(sock, &(lebuf[i]), 1);
+					if (file_threads_quit) break;
+					//FIXME: check result
+					if (result == 0) {
+						MS_SLEEP(100);	//this should never be happening
+						continue;
+					}
+					if (result != 1) {
+						//not read a byte, NL_INVALID!
+						//FIXME: client misbehaved, should also disconnect him
+						bad_error = true;
+						break;
+					}							
+					
+					if (lebuf[i] == 0)
+						break;
+					i++;
+				} while (1);
+				if (file_threads_quit) break;
+
+				//can't break from inside the loop
+				if (bad_error) {
+					LOG("ERROR: CLIENT MISBEHAVED HIS FILE SOCKET, QUITTING THREAD! (2)");
+					break;
+				}
+
+				//copy to ftype
+				strcpy(ftype, lebuf);
+
+				LOG1("FILE SLAVE THREAD: TYPE IS '%s'!\n", ftype);
+
+				//READ ONE STRING ON LEBUF
+				i = 0;
+				bad_error = false;
+				do {
+					result = nlRead(sock, &(lebuf[i]), 1);
+					if (file_threads_quit) break;
+					//FIXME: check result
+					if (result == 0) {
+						MS_SLEEP(100);	//this should never be happening
+						continue;
+					}
+					if (result != 1) {
+						//not read a byte, NL_INVALID!
+						//FIXME: client misbehaved, should also disconnect him
+						bad_error = true;
+						break;
+					}							
+					if (lebuf[i] == 0)
+						break;
+					i++;
+				} while (1);
+				if (file_threads_quit) break;
+
+				//can't break from inside the loop
+				if (bad_error) {
+					LOG("ERROR: CLIENT MISBEHAVED HIS FILE SOCKET, QUITTING THREAD! (3)");
+					break;
+				}
+
+				//copy to fname
+				strcpy(fname, lebuf);
+
+				LOG1("FILE SLAVE THREAD: NAME IS '%s'!\n", fname);
+				
+				//load file from disk. puts file of type/name into the given buffer, returns filesize
+				int filesize = get_download_file((char *)lebuf, ftype, fname);
+				if (file_threads_quit) break;
+
+				// FIXME: write 4 or something to signal THAT THE FILE WAS NOT FOUND then quit
+				if (filesize == -1) {
+					//FIXME: also client misbehaved -- asked for bad file -- disconnect him!
+					LOG("ERROR: CLIENT MISBEHAVED ASKING FOR BAD FILE, QUITTING THREAD!");
+					break;
+				}				
+
+				//write 2 (sending file baby!)				
+				char	leheader[256];
+				count = 0;
+				writeByte(leheader, count, 2);	//ok baby, sending!
+				writeShort(leheader, count, 0);		//FIXME: send file CRC
+				writeLong(leheader, count, (NLulong)filesize);	// file size
+				result = nlWrite(sock, leheader, count);
+				if (file_threads_quit) break;
+				//FIXME: check result
+				if (result != count) {
+					//not read a byte, NL_INVALID!
+					//FIXME: client misbehaved, should also disconnect him
+					LOG("ERROR: CLIENT MISBEHAVED HIS FILE SOCKET, QUITTING THREAD! (4)");
+					break;
+				}							
+
+				LOG1("FILE SLAVE THREAD: FILESIZE UPLOADED IS %i\n", filesize);
+
+				//send file to client as a big chunk)	
+				// FIXME: make this send in smaller pieces
+				result = nlWrite(sock, lebuf, filesize);
+				if (file_threads_quit) break;
+				// FIXME: check result
+				if (result != filesize) {
+					//not read a byte, NL_INVALID!
+					//FIXME: client misbehaved, should also disconnect him
+					LOG("ERROR: CLIENT MISBEHAVED HIS FILE SOCKET, QUITTING THREAD! (5)");
+					break;
+				}							
+
+				LOG1("FILE SLAVE THREAD: RESULT OF UPLOAD IS %i\n", result);
+			}
+			else if (req == 3) {	// bye!
+				LOG("FILE SLAVE THREAD GIVING BYE...\n");
+				//ok..
+				//nlClose(sock);
+				break;
+			}
+		}
+
+		//thread is no more - will quit by itself, no need to notify
+		nlClose(sock);
+		LOG("FILESLAVE THREAD IS QUITTING...");
+		pthread_mutex_lock( &fslavesock_mutex );
+		fslavethr[k] = (pthread_t)-1;		//"invalid"?
+		fslavesock[k] = NL_INVALID;
+		pthread_mutex_unlock( &fslavesock_mutex );		
+		LOG("QUIT!\n");
+	}
+
 	//---- CTF/GAME ------------------
+
+	//also called the "first packet"
+	// na verdade eh um packet de proposito geral. manda sempre que:
+	//  - fisica mudar
+	//  - "myself" de um client mudar
+	void send_me_packet(int pid) {
+		int count = 0;
+		char lebuf[1024];
+		writeByte(lebuf, count, 3); // "3" = first-packet information
+		writeByte(lebuf, count, ((NLubyte)pid) );		// who am I
+		writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
+		writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
+		//server physics parameters
+		writeFloat(lebuf, count, ((NLfloat)svp_fric) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed) );
+		writeFloat(lebuf, count, ((NLfloat)svp_fric_run) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel_run) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_run) );
+		writeFloat(lebuf, count, ((NLfloat)svp_fric_turbo) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel_turbo) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turbo) );
+		writeFloat(lebuf, count, ((NLfloat)svp_fric_turborun) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
+		writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
+		server->send_message(player[pid].cid, lebuf, count);
+	}
 
 	//broadcast new player name
 	void broadcast_player_name(int pid) {
@@ -1221,11 +2268,16 @@ public:
 		//valid players that want to change teams only
 		if (!player[pid].used) return;
 		if (!player[pid].want_change_teams) return;
+		if (get_time() < player[pid].team_change_time) {
+			player[pid].team_change_pending = true;	//vai continuar tentando
+			return;	//v0.3.3 : intervalos minimos para troca de times
+		}
 
-		//count players in each team
+		//count players in each team - IGNORE BOTS
 		int tc[2];tc[0]=0;tc[1]=0;
 		for (int i=0;i<MAX_PLAYERS;i++)
 			if (player[i].used)
+			if (!player[i].isbot)		// IGNORE BOTS
 				tc[i/8]++;
 
 		//check if team changing happens: calculate delta TARGET TEAM - MY TEAM 
@@ -1238,11 +2290,19 @@ public:
 		else if (teamdelta <= -2) {
 			// MOVE W/O TRADE
 			for (int i=0;i<MAX_PLAYERS;i++) 
-			if (!player[i].used)		// player vago
 			if (i/8 != pid/8)			// no time oposto
 			{
-				move_player(pid, i);	// move pid to free slot
-				break;
+				if (!player[i].used)		// player vago
+				{
+					move_player(pid, i);	// move pid to free slot
+					break;
+				}
+				else if (player[i].isbot)  // bot
+				{
+					bot_disconnect(i); // DESCONECTA BOT primeiro
+					move_player(pid, i);	// move pid to free slot
+					break;				
+				}
 			}
 		}
 		//case 2: target team with 0 player less: check for trade, else do nothing
@@ -1253,6 +2313,7 @@ public:
 
 			for (int i=0;i<MAX_PLAYERS;i++)
 			if (player[i].used)	// um player
+			if (!player[i].isbot)		// player que NAO EH BOT
 			if (i/8 != pid/8)		// do outro time
 			if (player[i].want_change_teams)		// que quer trocar de time
 			{
@@ -1263,6 +2324,25 @@ public:
 
 			// IF TRADE NOT FOUND AND TEAMDELTA == 1, MOVE W/O TRADE
 			if ((teamdelta == -1) && (!found)) {
+
+				//comentando isso fora conserta o bug q eh o server entrar em loop 
+				
+				for (int i=0;i<MAX_PLAYERS;i++) 
+				if (i/8 != pid/8)			// no time oposto
+				{
+					if (!player[i].used)		// player vago
+					{
+						move_player(pid, i);	// move pid to free slot
+						break;
+					}
+					else if (player[i].isbot)  // bot
+					{
+						bot_disconnect(i); // DESCONECTA BOT primeiro
+						move_player(pid, i);	// move pid to free slot
+						break;				
+					}
+				}
+				/*
 				for (int i=0;i<MAX_PLAYERS;i++) 
 				if (!player[i].used)		// player vago
 				if (i/8 != pid/8)			// no time oposto
@@ -1270,6 +2350,7 @@ public:
 					move_player(pid, i);	// move pid to free slot
 					break;
 				}
+				*/
 			}
 		}					
 	}
@@ -1278,16 +2359,21 @@ public:
 	//
 	void move_update_player(int a) {
 
-		char lebuf[256]; int count = 0;
 		if (player[a].used) {
 			broadcast_player_name(a);
 
-			count = 0;
-			writeByte(lebuf, count, 3); // "3" = first-packet information
-			writeByte(lebuf, count, ((NLubyte)a) );		// who am I
-			writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
-			writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
-			server->send_message(player[a].cid, lebuf, count);
+			if (!player[a].isbot) {
+				
+				send_me_packet(a);
+				/*
+				count = 0;
+				writeByte(lebuf, count, 3); // "3" = first-packet information
+				writeByte(lebuf, count, ((NLubyte)a) );		// who am I
+				writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
+				writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
+				server->send_message(player[a].cid, lebuf, count);
+				*/
+			}
 
 			//message
 			broadcast_message("@I%s moved to %s team", player[a].name, teamname[a/8]);
@@ -1322,10 +2408,12 @@ public:
 		game_remove_player(f);
 
 		//update ctop 
-		ctop[ player[t].cid ] = t;
+		if (!player[t].isbot) 
+			ctop[ player[t].cid ] = t;
 
 		//I really dont want to change teams no more..
 		player[t].want_change_teams = false;
+		player[t].team_change_time = get_time() + 10.0;		//10 secs interval
 
 		//kill t
 		if (player[t].health > 0)	game_damage_player(t, t, 333333);
@@ -1352,12 +2440,16 @@ public:
 		player[b] = ptemp;
 
 		//swap client id's
-		ctop[ player[a].cid ] = a;
-		ctop[ player[b].cid ] = b;
+		if (!player[a].isbot)
+			ctop[ player[a].cid ] = a;
+		if (!player[b].isbot)
+			ctop[ player[b].cid ] = b;
 
 		//either don't want to change teams anymore
 		player[a].want_change_teams = false;
+		player[a].team_change_time = get_time() + 10.0;		//10 secs interval
 		player[b].want_change_teams = false;
+		player[b].team_change_time = get_time() + 10.0;		//10 secs interval
 		
 		//send updates
 		move_update_player(a);
@@ -1464,8 +2556,13 @@ public:
 	void ctf_update_teamscore(int t) {
 
 		if (world.flag[t].score == CTF_NUMBER_OF_CAPTURES) {
-			//maximum score reached -- restart game
+
+			//change map!
+			server_next_map(NEXTMAP_CAPTURE_LIMIT);
+
+			//maximum score reached -- restart game (reposiciona jogadores no novo mapa)
 			ctf_game_restart();
+
 			return;
 		}
 		
@@ -1498,7 +2595,14 @@ public:
 			int sp = map.tinfo[t].lastspawn;		//team spawn point #
 			pos = map.tinfo[t].spawn[sp];	// the point
 		}
-		else {
+		
+		//if was killed or map spawn point places player over a wall
+		if (
+				(killed)  
+				||
+				(map.fall_on_wall(pos.px, pos.py, pos.x-10, pos.y-10, pos.x+10, pos.y+10))
+			 )
+		{
 			//if killed, generate a random spot for respawn:
 			// - unnocupied screen
 			// - away from walls
@@ -1510,20 +2614,34 @@ public:
 			if (player[i].used)
 			if (player[i].x >= 0)	//enforce valid player screen (needed for "touch room")
 			if (player[i].y >= 0)
-			if (player[i].x < WXMAX)
-			if (player[i].y < WYMAX)
+			if (player[i].x < map.w)
+			if (player[i].y < map.h)
 				roompop[player[i].x][player[i].y] = true;
-			
-			//find screen
-			do {
-				pos.px = rand() % WXMAX;
-				pos.py = rand() % WYMAX;
-			} while (roompop[pos.px][pos.py] == true);	//keep trying until unnocupied (==false)
 
-			//find a suitable coordinate -- middle square
-			// FIXME: do a check for walls, maybe retrying another screen if hits a wall
-			pos.x = plw / 4 + rand() % (plw / 2);
-			pos.y = plh / 4 + rand() % (plh / 2);
+			int runaway = 1000;
+
+			do {
+
+				//find screen
+				do {
+					pos.px = rand() % map.w;
+					pos.py = rand() % map.h;
+				} while (roompop[pos.px][pos.py] == true);	//keep trying until unnocupied (==false)
+
+				//find a suitable coordinate -- middle square
+				pos.x = plw / 8 + rand() % (3 * plw / 4);
+				pos.y = plh / 8 + rand() % (3 * plh / 4);
+
+				//do a check for walls, maybe retrying another screen if hits a wall
+				if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-20, pos.x+20, pos.y+20))
+					break;	//success!
+
+				//fall on wall true, keep trying...
+
+			} while (runaway-- > 0);
+
+			if (runaway <= 0)
+				broadcast_message("PLAYER SPAWN RUNAWAY\n");
 		}
 
 		//put player there
@@ -1540,26 +2658,33 @@ public:
 		//reset player attributes
 		player[pid].health = 100;
 		player[pid].energy = 100;
-		
+		player[pid].megabonus = 0;  //balaca megahealth
+				
 		player[pid].weapon = 0;		//default weapon
+		
 		//notify player weapon power change
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 18);		//player power change
-		writeByte(lebuf, count, ((NLubyte)player[pid].weapon) );
-		server->send_message(player[pid].cid, lebuf, count);
+		if (!player[pid].isbot) {
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 18);		//player power change
+			writeByte(lebuf, count, ((NLubyte)player[pid].weapon) );
+			server->send_message(player[pid].cid, lebuf, count);
+		}
 
 		player[pid].item_shield = false;			// no items
 		player[pid].item_quad = false;
 		player[pid].item_speed = false;
 		player[pid].item_helm = 0;
+		player[pid].item_deathbringer = false;//
+		player[pid].deathbringer_end = 0;		//not hit by deathbringer yet
+
+		//for all effects, player screen changed
+		game_player_screen_change(pid);
 
 		//FIXME: add teleport visual effect and sound
 	}
 
 	//delete a rocket
-	void game_delete_rocket(int r, int framesleft, int targ) {
-
-		//LOG1("game_delete_rocket %i\n", r);
+	void game_delete_rocket(int r, NLshort hitx, NLshort hity, int targ) {
 
 		rocket_c *rock = &(world.rock[r]);
 		
@@ -1570,12 +2695,16 @@ public:
 		writeByte(lebuf, count, byt);		// rocket-object id
 		byt = (NLubyte)targ;
 		writeByte(lebuf, count, byt);		// player-target. if 255, no player in particular was hit
-		byt = (NLubyte)framesleft;
-		writeByte(lebuf, count, byt);		// 10-msecs' left to the client to animate
+		
+		//byt = (NLubyte)framesleft;
+		//writeByte(lebuf, count, byt);		// 10-msecs' left to the client to animate
+		writeShort(lebuf, count, hitx);		// HIT X,Y OF ROCKET
+		writeShort(lebuf, count, hity);
 
 		//send message to players that received the rocket
 		for (int p=0;p<MAX_PLAYERS;p++) 
 		if (player[p].used)								//still valid player? (nao custa checar..)
+		if (!player[p].isbot)							// not a bot !!!!
 		if (rock->vislist & (1 << p))			//verifica se o bit de "conhece o rocket" ta ligado
 		{
 			// send the message to this player
@@ -1601,7 +2730,7 @@ public:
 			rocket_c *rock = &(world.rock[i]);
 			rock->owner = playernum;
 			rock->team = playernum/8;
-			
+
 			//SERVER NAO USA TIME!
 			//rock->sv_time = get_time() - 0.25;		//v0.1.2 : + 1/2 frame
 
@@ -1647,71 +2776,6 @@ public:
 		//allocate a new rocket server-side for each shot
 		// shots = qual arma (1-9 tiros!)
 		switch (shots) {
-#ifdef OLD_DIRECTIONALS
-		case 1:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-			break;
-		case 2:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-			break;
-		case 3:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			break;
-		case 4:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			break;
-		case 5:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-			sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-			break;
-		case 6:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-			sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-			break;
-		case 7:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-			sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-			sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-			sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
-			break;
-		case 8:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-			sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-			sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-			sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
-			break;
-		case 9:
-			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-			sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-			sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-			sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-			sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-			sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-			sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-			sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
-			sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 4, 0);	//+ ou - tanto faz = 180 graus!
-			break;
-#else
 		case 1:
 			sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
 			break;
@@ -1775,7 +2839,6 @@ public:
 			sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
 			sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
 			break;
-#endif
 		}
 
 #ifdef DEBUG_WEAPON
@@ -1807,6 +2870,7 @@ public:
 		NLushort  vislist = 0;
 		for (int p=0;p<MAX_PLAYERS;p++) 
 		if (player[p].used)
+		if (!player[p].isbot)	//not bot!!
 		if (player[p].x == px)
 		if (player[p].y == py) {
 			vislist += (1 << p);	// mark as sent
@@ -1870,10 +2934,13 @@ public:
 				if (player[target].energy <= 0) {
 					player[target].energy = 0;
 					player[target].item_shield = false;
-					broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+					if (target != attacker)
+						broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
 				}
-				else
-					broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+				else {
+					if (target != attacker)
+						broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+				}
 			}
 			//else do the regular body damage
 			else {
@@ -1950,6 +3017,27 @@ public:
 				char lix[256];
 				sprintf(lix, "@I%s was nailed by %s", player[target].name, player[attacker].name);
 				broadcast_message(lix);
+
+				//add to total kills/deaths
+				player[attacker].total_kills++;
+				player[target].total_deaths++;
+
+				//update the ADMIN SHELL
+				if (shellssock) {
+					char lebuf[256]; int count; NLint result;
+					if (!player[attacker].isbot) {
+						count = 0;
+						writeLong(lebuf, count, STA_PLAYER_KILLS);
+						writeLong(lebuf, count, player[attacker].cid);
+						result = nlWrite(shellssock, lebuf, count);
+					}
+					if (!player[target].isbot) {
+						count = 0;
+						writeLong(lebuf, count, STA_PLAYER_DIES);
+						writeLong(lebuf, count, player[target].cid);
+						result = nlWrite(shellssock, lebuf, count);
+					}
+				}
 			}
 
 			//respawn target in a few seconds
@@ -1958,6 +3046,24 @@ public:
 				player[target].respawn_to_base = true;	//special respawn-to-base damage
 			else
 				player[target].respawn_to_base = false;
+
+			//!!DEATHBRINGER!!
+			if (player[target].item_deathbringer) {
+
+				//record time to simulate the deathbringer explosion
+				player[target].item_deathbringer_time = frame;
+
+				//delay respawn, so you can watch the PAIN! THE HORROR! HAHAHAHAHAHHAHA!
+				player[target].respawn_time = get_time() + 4.0;
+
+				//deathbringer message
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 26);	//26==deathbringer
+				writeByte(lebuf, count, ((NLubyte)target));	//team/target player
+				//x,y can be taken from the player since it's rock-dead on the bringer's position
+				writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
+				server->broadcast_message(lebuf, count);
+			}
 		}
 	}
 
@@ -1967,13 +3073,16 @@ public:
 		//remove all shots from this player
 		for (int r=0;r<MAX_ROCKETS;r++) 
 		if (world.rock[r].owner == pid)
-			game_delete_rocket(r, 0, 255);
+			game_delete_rocket(r, 0, 0, 255);
 
 		//if player carrying flag, drop it
 		ctf_drop_flag_if_any(pid);
 
 		//erase player
 		player[pid].used = false;
+
+		//bot prefs changed?
+		bot_prefs_change();
 	}
 
 	//restart ctf game
@@ -1986,7 +3095,7 @@ public:
 
 		//sound
 		broadcast_sample(SAMPLE_CTF_GAMEOVER);
-		
+
 		// zero teamscores
 		world.flag[0].score = 0;
 		world.flag[1].score = 0;
@@ -1998,13 +3107,25 @@ public:
 		ctf_return_flag(1);
 
 		// zero all player frags and kill them
-		for (int i=0;i<MAX_PLAYERS;i++) 
+		int i;
+		for (i=0;i<MAX_PLAYERS;i++) 
 		if (player[i].used)
 		{
 			//kill - to respawn
 			game_damage_player(i, i, 666666);	//666666==special damage - spawn on base
 			//zero score
 			player[i].frags = 0;
+		}
+
+		//zero all rockets
+		for (i=0;i<MAX_ROCKETS;i++)
+			world.rock[i].owner = -1;
+
+		//update the ADMIN SHELL
+		if (shellssock) {
+			char lebuf[256]; int count = 0;
+			writeLong(lebuf, count, STA_GAME_OVER);
+			NLint result = nlWrite(shellssock, lebuf, count);
 		}
 	}
 
@@ -2019,12 +3140,13 @@ public:
 		world.item[p].kind = 0;
 
 		//find a screen with no players and no other powerups
-		int px, py, i;
+		int px, py, itemx, itemy, i;
 		bool hit;
+		int runaway = 100;
 		do {
 			hit = false;
-			px = rand() % WXMAX;
-			py = rand() % WYMAX;
+			px = rand() % map.w;
+			py = rand() % map.h;
 			
 			//check players
 			for (i=0;i<MAX_PLAYERS;i++)
@@ -2043,14 +3165,28 @@ public:
 			if (world.item[i].py == py) {
 				hit = true;
 				break;
-			}		
+			}
 
-#ifdef REALLY_DEBUG_POWERUPS
-			px = 4;
-			py = 4;
-#endif
+//#ifdef REALLY_DEBUG_POWERUPS
+//			px = 4;
+//			py = 4;
+//#endif
 			
-		} while (hit);
+			//bug fixed -- test if not already hit before overwriting hit variable
+			if (!hit) {
+
+				//find a suitable coordinate -- middle square
+				itemx = plw / 8 + rand() % (3 * plw / 4);
+				itemy = plh / 8 + rand() % (3 * plh / 4);
+
+				//do a check for walls, maybe retrying another screen if hits a wall
+				hit = map.fall_on_wall(px, py, itemx - 20, itemy - 20, itemx + 20, itemy + 20);
+			}
+
+		} while ((hit) && (runaway-- > 0));
+
+		if (runaway <= 0)
+			broadcast_message("ITEM SPAWN RUNAWAY\n");
 
 #ifdef REALLY_DEBUG_POWERUPS
 		char lixx[2000];
@@ -2058,18 +3194,18 @@ public:
 		broadcast_message(lixx);
 #endif
 
-		//alloc powerup
-		world.item[p].kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
-		//world.item[p].respawning = false;
-		world.item[p].px = px;
-		world.item[p].py = py;
 #ifdef DEBUG_POWERUPS
 		LOG3("POWERUP %i placed at %i   %i \n", p, px, py);
 #endif
-		//find a suitable coordinate -- middle square
-		// FIXME: do a check for walls, maybe retrying another screen if hits a wall
-		world.item[p].x = plw / 4 + rand() % (plw / 2);
-		world.item[p].y = plh / 4 + rand() % (plh / 2);
+
+		//alloc powerup
+		world.item[p].kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
+		
+		//world.item[p].respawning = false;
+		world.item[p].px = px;
+		world.item[p].py = py;
+		world.item[p].x = itemx;	//copy from randomized position
+		world.item[p].y = itemy;
 	}
 
 	// verifica powerups unused por jogadores presentes
@@ -2084,9 +3220,10 @@ public:
 				pc++;
 
 		//count number of items
+		// TEST SERVER FUK : change "if" to :    if (player[i].used)
 		ic = 0;
 		for (i=0;i<MAX_PICKUPS;i++)
-			if (player[i].used)
+			if (world.item[i].kind != 0)	//0=unused 255=respawning 1..6(?)=spawned/kind
 				ic++;
 
 		//while number of players > number of pickups: create a pickup and ic++
@@ -2097,36 +3234,17 @@ public:
 		if (world.item[i].kind == 0)
 		{
 			world.item[i].kind = 255;
-			world.item[i].respawn_time = get_time() + 2.0;
-
-#ifdef REALLY_DEBUG_POWERUPS
-		char lixx[2000];
-		sprintf(lixx, "pickup %i creation RESPAWNING==TRUE KIND=0\n", i);
-		broadcast_message(lixx);
-#endif
-
-		}
-	
-
-	/*
-		for (int i=0;i<MAX_PLAYERS;i++)
-#ifdef DEBUG_POWERUPS
-#else
-		if ((player[i%8].used) || (player[8+i%8].used))	//jogs de qualquer um dos times
-#endif
-		if (world.item[i].kind == 0) {
-			world.item[i].kind = 255;		// 255=valid but respawning
-			//world.item[i].respawning = true;			// can't touch
-
-#ifdef REALLY_DEBUG_POWERUPS
-		char lixx[2000];
-		sprintf(lixx, "pickup %i creation RESPAWNING==TRUE KIND=0\n", i);
-		broadcast_message(lixx);
-#endif
-
 			world.item[i].respawn_time = get_time() + PICKUP_RESPAWN_TIME;
+
+			ic++;
+
+#ifdef REALLY_DEBUG_POWERUPS
+		char lixx[2000];
+		sprintf(lixx, "pickup %i creation pc=%i ic=%i RESPAWNING==TRUE KIND=0\n", i, pc, ic);
+		broadcast_message(lixx);
+#endif
+
 		}
-		*/
 	}
 
 	// player i touches a pickup p!
@@ -2141,6 +3259,14 @@ public:
 		writeByte(lebuf, count, (NLubyte)pk);	//what item id
 		//server->send_message(player[j].cid, lebuf, count);
 		broadcast_screen_message(it->px, it->py, lebuf, count);
+
+
+#ifdef REALLY_DEBUG_POWERUPS
+		char lixx[2000];
+		sprintf(lixx, "pickup %i snatched!\n", pk);
+		broadcast_message(lixx);
+#endif
+
 
 		//player picked it! make fx
 		//shield
@@ -2167,11 +3293,13 @@ public:
 			player[p].item_speed = true;	
 			player[p].item_speed_time = get_time() + 60.0;
 
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 17);		//powerup time indicator
-			writeByte(lebuf, count, it->kind);		//what kind
-			writeShort(lebuf, count, (NLushort)60);		//time
-			server->send_message(player[p].cid, lebuf, count);
+			if (!player[p].isbot) {
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 17);		//powerup time indicator
+				writeByte(lebuf, count, it->kind);		//what kind
+				writeShort(lebuf, count, (NLushort)60);		//time
+				server->send_message(player[p].cid, lebuf, count);
+			}
 
 			broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
 		}
@@ -2181,11 +3309,13 @@ public:
 			player[p].item_helm = 1;		//invis maximo de inicio
 			player[p].item_helm_time = get_time() + 60.0;
 
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 17);		//powerup time indicator
-			writeByte(lebuf, count, it->kind);		//what kind
-			writeShort(lebuf, count, (NLushort)60);		//time
-			server->send_message(player[p].cid, lebuf, count);
+			if (!player[p].isbot) {
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 17);		//powerup time indicator
+				writeByte(lebuf, count, it->kind);		//what kind
+				writeShort(lebuf, count, (NLushort)60);		//time
+				server->send_message(player[p].cid, lebuf, count);
+			}
 
 			broadcast_screen_sample(p, SAMPLE_HELM_ON);
 		}
@@ -2195,11 +3325,13 @@ public:
 			player[p].item_quad = true;		
 			player[p].item_quad_time = get_time() + 60.0;
 
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 17);		//powerup time indicator
-			writeByte(lebuf, count, it->kind);		//what kind
-			writeShort(lebuf, count, (NLushort)60);		//time
-			server->send_message(player[p].cid, lebuf, count);
+			if (!player[p].isbot) {
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 17);		//powerup time indicator
+				writeByte(lebuf, count, it->kind);		//what kind
+				writeShort(lebuf, count, (NLushort)60);		//time
+				server->send_message(player[p].cid, lebuf, count);
+			}
 
 			broadcast_screen_sample(p, SAMPLE_QUAD_ON);
 		}
@@ -2217,27 +3349,40 @@ public:
 			}
 
 			//notify player weapon power change
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 18);		//player power change
-			writeByte(lebuf, count, ((NLubyte)player[p].weapon) );
-			server->send_message(player[p].cid, lebuf, count);
+			if (!player[p].isbot) {
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 18);		//player power change
+				writeByte(lebuf, count, ((NLubyte)player[p].weapon) );
+				server->send_message(player[p].cid, lebuf, count);
+			}
 
 			broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
 		}
 		//megahealth
 		else if (it->kind == 6) {
 
+			//megabonus!
+			player[p].megabonus += 160;
+
 			//increase energy +100, upto 300
-			player[p].energy += 100;
-			if (player[p].energy > 300)
-				player[p].energy = 300;
+			//player[p].energy += 100;
+			//if (player[p].energy > 300)
+			//	player[p].energy = 300;
 
 			//increase health +100, upto 300
-			player[p].health += 100;
-			if (player[p].health > 300)
-				player[p].health = 300;
-
+			//player[p].health += 100;
+			//if (player[p].health > 300)
+			//	player[p].health = 300;
+			
 			broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
+		}
+		//deathbringer
+		else if (it->kind == 7) {
+
+			//flag as having the deathbringer
+			player[p].item_deathbringer = true;
+
+			broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
 		}
 
 		// unused item
@@ -2289,7 +3434,11 @@ public:
 							non_satisfactory = true;
 						else if ((it->kind == 4) && (player[p].item_quad) && (player[p].item_quad_time - get_time() > 40.0))
 							non_satisfactory = true;
-
+						else if ((it->kind == 6) && (player[p].health == 300))
+							non_satisfactory = true;
+						else if ((it->kind == 7) && (player[p].item_deathbringer))
+							non_satisfactory = true;
+						
 						//re-choose item type
 						if (non_satisfactory)	
 							it->kind = 1 + rand() % NUMBER_OF_POWERUP_KINDS;
@@ -2302,15 +3451,17 @@ public:
 				}
 
 				//send a "item on the screen" message
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 15);		//"item update"
-				writeByte(lebuf, count, (NLubyte)i);	//what item
-				writeByte(lebuf, count, (NLubyte)it->kind);	//kind
-				writeByte(lebuf, count, (NLubyte)it->px);		//screen
-				writeByte(lebuf, count, (NLubyte)it->py);
-				writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
-				writeShort(lebuf, count, (NLushort)it->y);	
-				server->send_message(player[p].cid, lebuf, count);
+				if (!player[p].isbot) {
+					char lebuf[256]; int count = 0;
+					writeByte(lebuf, count, 15);		//"item update"
+					writeByte(lebuf, count, (NLubyte)i);	//what item
+					writeByte(lebuf, count, (NLubyte)it->kind);	//kind
+					writeByte(lebuf, count, (NLubyte)it->px);		//screen
+					writeByte(lebuf, count, (NLubyte)it->py);
+					writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
+					writeShort(lebuf, count, (NLushort)it->y);	
+					server->send_message(player[p].cid, lebuf, count);
+				}
 			}
 		}
 	}
@@ -2326,10 +3477,18 @@ public:
 		// send message only to teammates
 		for (int i=0;i<MAX_PLAYERS;i++)
 		if (player[i].used)
+		if (!player[i].isbot)	// nao para bots!!
 		if ((i/8) == team) {
 			server->send_message(player[i].cid, lebuf, count);
 		}
 
+		//send to the admin shell
+		if (shellssock) {
+			count = 0;
+			writeLong(lebuf, count, STA_GAME_TEXT);
+			writeString(lebuf, count, text);
+			NLint result = nlWrite(shellssock, lebuf, count);
+		}
 	}
 
 	//broadcast message to all players in one screen
@@ -2337,6 +3496,7 @@ public:
 	
 		for (int j=0;j<MAX_PLAYERS;j++)
 		if (player[j].used)
+		if (!player[j].isbot)		// nao para bots!!
 		if (player[j].x == px)
 		if (player[j].y == py)
 			server->send_message(player[j].cid, lebuf, count); //send the message
@@ -2361,7 +3521,16 @@ public:
 		writeString(lebuf, count, text);
 		for (int i=0;i<MAX_PLAYERS;i++)
 		if (player[i].used)
+		if (!player[i].isbot)	// nao para bots!
 			server->send_message(player[i].cid, lebuf, count);
+
+		//send to the admin shell
+		if (shellssock) {
+			count = 0;
+			writeLong(lebuf, count, STA_GAME_TEXT);
+			writeString(lebuf, count, text);
+			NLint result = nlWrite(shellssock, lebuf, count);
+		}
 	}
 
 	// ---- GAME MOD -------
@@ -2413,6 +3582,7 @@ public:
 					else if (!strcmp(s, "accel_turborun")) cmd = 11;
 					else if (!strcmp(s, "maxspeed_turborun")) cmd = 12;
 					else if (!strcmp(s, "flag_penalty")) cmd = 13;
+					else if (!strcmp(s, "map")) cmd = 14;
 					else 
 						cmd = 0;
 
@@ -2466,13 +3636,159 @@ public:
 					else if (cmd == 13) {
 						svp_flag_penalty = val;
 					}
+					else if (cmd == 14) {
+						//	int		maprots;		//quantos mapas em maprots
+						//	int		currmap;		//mapa atual do maprot
+						//	char	maprot[MAPROTSIZE][MAPFILENAMESIZE];
+						strcpy(maprot[maprots], s);
+						maprots++;
+					}
 				}
 
 				//parameter
 				command = !command;
 			}
 
+			LOG("END OF MOD FILE.\n");
+
 			fclose(fmod);
+		}
+	}
+
+	//load a map from the rotation list
+	bool load_rotation_map(int pos) {
+
+		bool ok = load_map(SERVER_MAPS_DIR, maprot[pos], &map, &(map.crc));
+		builtin = false;
+
+		LOG4("load_rotation_map() maprot[%i] = '%s' map.name='%s' result = %i\n", pos, maprot[pos], map.filename, ok);
+
+		if (ok == false) {
+			//failed (what a shame) -- load the builtin map
+			load_default_map(&map);
+			builtin = true;
+		}
+
+		return ok;
+	}
+
+	//send map change message to a player
+	//reason: NEXTMAP_CAPTURE_LIMIT ou NEXTMAP_VOTE_EXIT
+	void send_map_change_message(int pid, int reason) {
+
+		char lebuf[256];
+		int count = 0;
+		writeByte(lebuf, count, 20);	// 20 = map change
+
+		if (builtin) {
+			writeByte(lebuf, count, 1);		// 1 = built-in map message
+			writeByte(lebuf, count, 1);		//1= the first (and probably only) built-in map
+		}
+		else {
+			writeByte(lebuf, count, 2);		// 2 = custom map message
+			writeShort(lebuf, count, map.crc);
+			LOG2("SERVER: send mapchange to %i mapfile = '%s'\n", pid, map.filename);
+			writeString(lebuf, count, map.filename);	//.filename is shortcut for server's current map rotation list entry (whatever it is)
+		}
+		server->send_message(player[pid].cid, lebuf, count);
+		
+		//VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
+		player[pid].awaiting_client_ready = true;
+
+		//send a show gameover plaque message, if that is the case
+		if (reason != NEXTMAP_NONE) {
+
+			count = 0;
+			writeByte(lebuf, count, 24);	// 24 = gameover plaque
+			writeByte(lebuf, count, ((NLubyte)reason));		//capture limit plaque or vote exit plaque
+			if (
+					(reason == NEXTMAP_CAPTURE_LIMIT) 
+					||
+					(reason == NEXTMAP_VOTE_EXIT) 
+				 )
+			{
+				//informacoes para mostrar apos o jogo (time vencedor, most valuable player, etc.)
+				
+				writeByte(lebuf, count, (NLubyte)world.flag[0].score);	//RED team final score
+				writeByte(lebuf, count, (NLubyte)world.flag[1].score);	//BLUE team final score
+			}
+			server->send_message(player[pid].cid, lebuf, count);
+
+			//important: server is showing gameover plaque. nobody should move or receive world frames
+			gameover = true;
+			gameover_time = get_time() + 5.0;		//5 secods timeout for gameover plaque
+		}
+	}
+
+	//go to server_next_map();
+	void server_next_map(int reason) {
+
+		char lix[256];lix[0]=0;
+		
+		if (maprots == 0) {
+			//no map rotation - change to next built-in
+			load_default_map(&map);		// default map
+			builtin = true;
+			sprintf(lix, "Server changed map to: DEFAULT (0)");
+		}
+		else {
+
+			//next map on rotation
+			currmap++;
+			if (currmap >= maprots) {
+				currmap = 0;
+			}
+
+			// attempts to load map from current position of rotation list
+			bool ok = load_rotation_map(currmap);
+			if (ok)
+				sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
+			else
+				sprintf(lix, "Server changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
+
+		}
+
+		// notify all players
+		for (int i=0;i<MAX_PLAYERS;i++)
+		if (player[i].used)
+			if (!player[i].isbot)
+			send_map_change_message(i, reason);
+
+		broadcast_message(lix);
+	}
+
+	//check map exit by vote
+	void check_map_exit() {
+
+		//broadcast_message("CHECKING MAP EXIT...");
+
+		int exit_count = 0;
+		int i = 0;
+
+		for (i=0;i<MAX_PLAYERS;i++) 
+		if (player[i].used)
+		if (!player[i].isbot)
+		{
+			if (player[i].want_map_exit)
+				exit_count++;		//a favor
+			else
+				exit_count--;		//contra
+		}
+
+		//passou o voto!
+		if (exit_count > 0) {
+
+			//broadcast_message("ENOUGH VOTES, EXITING!!");
+			
+			//reseta votos - ninguem mais quer sair
+			for (i=0;i<MAX_PLAYERS;i++)
+				player[i].want_map_exit = false;
+
+			//vai para o proximo mapa
+			server_next_map(NEXTMAP_VOTE_EXIT);
+			
+			//reposiciona jogadores
+			ctf_game_restart();
 		}
 	}
 
@@ -2481,17 +3797,22 @@ public:
 	//start server
 	bool start() {
 
+		//not showing gameover plaque to clients
+		gameover = false;
+
 		ping_send_counter = 0;
 		ping_send_client = 0;
+
+		//reset fslavesocks
+		for (int ss=0;ss<MAX_PLAYERS;ss++)
+			fslavesock[ss] = NL_INVALID;			//inicializa
+		file_threads_quit = false;	//not yet
 
 		// server game phisics parameters
 		// DEFAULT VALUES...
 		//
 		set_default_physics();
 
-		// default map
-		load_default_map(&map);
-		
 		// reset players
 		//players_present = 0;
 		player_count = 0;
@@ -2500,6 +3821,10 @@ public:
 			player[i].id = i;
 			player[i].name[0]=0;
 		}
+
+		// reset bots
+		bot_count = 0;
+		bot_prefs_change();
 
 		//load hostname
 		char dest[WHERE_PATH_SIZE];
@@ -2514,11 +3839,64 @@ public:
 		else
 			strcpy(hostname, "ANNONYMOUS HOST");
 
-		// load physics parameters from gamemod.txt
-		load_game_mod();		
+		// reset server rotation list
+		maprots = 0;
+		currmap = 0;
+		builtin = false;
 
+		// load server configuration from gamemod.txt
+		load_game_mod();
+
+		// did not specify maps, scan "maps/" folder for .txt map files
+		if (maprots == 0) {
+
+			char mappath[256];
+			strcpy(mappath, SERVER_MAPS_DIR);  // maps
+			put_backslash(mappath);						 // maps/
+			strcat(mappath, "*.txt");					 // maps/*.txt
+			char dest[1024];
+			append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
+
+			LOG1("MAP SCAN DIR IS = '%s'\n", dest);
+
+			al_ffblk mapffblk;	//for al_find*
+
+			int result = al_findfirst(dest, &mapffblk, FA_ARCH);
+			while (result == 0) {
+
+				//work with result
+				//Replaces the specified filename+extension with a new extension tail, storing at most size bytes 
+				//into the dest buffer. Returns a copy of the dest parameter. 
+				//char *replace_extension(char *dest, const char *filename, const char *ext, int size
+				//strcpy(maprot[maprots], mapffblk.name);
+				
+				replace_extension(maprot[maprots], mapffblk.name, "", MAPFILENAMESIZE-1);
+				maprot[maprots][strlen(maprot[maprots])-1] = 0;	//take last damn '.' out
+				
+				LOG2("COPYING TO MAPROT %i = '%s'\n", maprots, maprot[maprots]);
+
+				maprots++;
+				if (maprots == MAPROTSIZE)	//can't store any more maps in the rotation....
+					break;
+				
+				//try next
+				result = al_findnext(&mapffblk);
+			}
+		}
+
+		// load first map from rotation list, or load built-in if still no maps found
+		if (maprots == 0) {
+				
+			// default map
+			load_default_map(&map);		
+			builtin = true;
+		}
+		else
+			load_rotation_map(currmap);		// rand() % maprots : load map from a random position of the rotation list
+		
 		// start server
 		server = new_server_c();
+
 		server->set_callback(SFUNC_CLIENT_HELLO, sfunc_client_hello);
 		server->set_callback(SFUNC_CLIENT_CONNECTED, sfunc_client_connected);
 		server->set_callback(SFUNC_CLIENT_DISCONNECTED, sfunc_client_disconnected);
@@ -2526,12 +3904,56 @@ public:
 		server->set_callback(SFUNC_CLIENT_DATA, sfunc_client_data);
 		server->set_callback(SFUNC_CLIENT_PING_RESULT, sfunc_client_ping_result);
 		server->set_client_timeout(5, 10);
+
 		if (!server->start(port))
 			return false;
 
+		//open socket for accepting connections to TCP file download requests
+		//nlEnable(NL_BLOCKING_IO);
+		filesock = nlOpen(24999, NL_RELIABLE);
+		//nlDisable(NL_BLOCKING_IO);
+		if (filesock == NL_INVALID) {
+			LOG("CAN'T OPEN THE TCP SOCKET ON PORT 24999\n");
+			return false; //oh no
+		}
+		NLboolean ok = nlListen(filesock);
+		if (!ok) {
+			LOG("CAN'T SET SOCKET TO LISTEN MODE\n");
+			return false; //oh no
+		}
+
+		//start TCP file server master thread
+		pthread_create(&server_filemaster_thread, 0, thread_filemaster_f, (void *)0);
+
+		//start TCP thread for talking with master server
+		if (!privateserver) {
+			master_talk_time = get_time();
+			msock = NL_INVALID;		//not opened
+			master_talk_time = get_time() + DELAY_TO_REPORT_SERVER;	//give it a break
+			master_never_talked = true;		//not talked yet
+			pthread_create(&mthread, 0, thread_mastertalker_f, (void *)0);
+		}
+
+		//shell socket
+		shellmsock = nlOpen(24500, NL_RELIABLE);
+		if (shellmsock == NL_INVALID) {
+			LOG("CAN'T OPEN THE SHELL SOCKET ON PORT 24500\n");
+			return false; //oh no
+		}
+		ok = nlListen(shellmsock);
+		if (!ok) {
+			LOG("CAN'T SET SHELL SOCKET TO LISTEN MODE\n");
+			return false; //oh no
+		}
+		shellssock = NL_INVALID;
+		
+		//start TCP shell master and slave threads
+		pthread_create(&shellmthread, 0, thread_shellmaster_f, (void *)0);
+		pthread_create(&shellsthread, 0, thread_shellslave_f, (void *)0);
+	
 		// reset game
 		ctf_game_restart();
-
+		
 		//default serverinfo
 		update_serverinfo();
 
@@ -2545,17 +3967,368 @@ public:
 		server->set_server_info(sinfo);
 	}
 
-	//client connected (callback function)
-	void client_connected(int id) {
-		
-		//another one...
-		player_count++;
+	// ---------- SERVER BOT API START -------------------------------------------
 
-		//update serverinfo
-		update_serverinfo();
+	// INSERE (tenta inserir) UM BOT PLAYER NO JOGO
+	//  retorna: player id do bot criado ou -1 se o server ja ta full (tratar isso (-1) porque
+	//     pode acontecer de um player de carne e osso conectar no meio tempo)
+	//
+	// essa funcao aqui se chama de algum outro método aqui do gameserver_c mesmo. quer dizer,
+	// é a lógica do server é quem vai inserir ou remover bots do jogo. os clientes (players)
+	// até podem fazer parte do processo (pedir mais bots ou menos bots), mas eles entram so
+	// com requisicoes pro gameserver, que eh quem vai efetivamente colocar ou remover bots
+	// do jogo
+	int bot_connect() {
+		
+		if (bot_count + player_count >= MAX_PLAYERS)		// nao deixa extrapolar o maximo, nao custa nada checar isso
+			return -1;
+
+		// mais um bots...
+		bot_count++;
+
+		// consuma a conexao pelas vias naturais
+		int bot_id = client_connected(-1, true);
+
+		// trocando o nome:  (FIXME BOTZ)
+		//
+		static int fakek_counter =0;
+		sprintf(player[bot_id].name, "[BOT] P%i N%i", bot_id, fakek_counter++);
+
+		// send entered-game message
+		//
+		//char dummy[1] = { 0 };
+		//broadcast_message("@I%s added to the game%s", player[bot_id].name, dummy);
+		//broadcast_sample(SAMPLE_ENTERGAME);
+
+		// broadcast the new player's name 
+		//
+		broadcast_player_name(bot_id);
+
+		//		aqui:		gameserver_c::player[bot_id]  <-- player_t que representa o bot
+
+		return bot_id;
+	}
+
+	// REMOVE UM BOT PLAYER DO JOGO
+	// valem as mesmas observacoes do bot_connect acima
+	// passa como parametro o id (player[id]) que o bot_connect te passou
+	//
+	void bot_disconnect(int bot_id) {
+
+		// paranoia total
+		if (player[bot_id].isbot == false) {
+			LOG("\nERROR!!!!! ARGH QUE COISA ESTRANHA BOT_DISCONNECT() TENTANDO DESCONECTAR ALGUEM QUE NAO EH FLAGGED COMO BOT !!!\n");
+			throw 6789;
+			return;
+		}
+
+		// menos um bots...
+		bot_count--;
+
+		// consuma a desconexão por vias naturais
+		client_disconnected(bot_id, true);
+	}
+
+	//funcao invocada quando ha mudanca nas preferencias individuais de cada player sobre como
+	// cada um deles acha que os bots no server devem se comportar (numero de bots, modo de preenchimento
+	// com bots, etc.)
+	void bot_prefs_change() {
+
+		int mode[3];		//votos para modo[0] (sem opiniao), modo[1] (bots fill-in) e modo[2] (bot fill teams to size)
+		mode[0]=mode[1]=mode[2]=0;
+		int sizeacum = 0;
+		int i;
+
+		// conta votos para modos e team sizes
+		for (i=0;i<MAX_PLAYERS;i++) 
+		if (player[i].used)
+		if (!player[i].isbot)
+		{
+			switch (player[i].botmode) {
+			case 0: mode[0]++; break;
+			case 1: mode[1]++; break;
+			case 2: 
+				mode[2]++; 
+				sizeacum += player[i].botsize;
+				break;
+			}
+		}
+
+		//se tem mais gente votando pra fit-to-size, seta e usa size a media dos pedidos
+		if (mode[2] > mode[1]) {
+			botmode = 2;	//fit-to-size
+			botsize = sizeacum / mode[2];
+			//broadcast_message("SERVER BOT MODE IS TARGET TO SIZE");
+		}
+		//senao usa modo automatico fill-in
+		else {
+			botmode = 1;	//fill-in
+			//broadcast_message("SERVER BOT MODE IS FILL-IN");
+		}
+	}
+
+	// bot_before_frame
+	// aqui adicionar ou remover bots conforme necessidade
+	void bot_before_frame() {
+
+		//========================================================
+		// 1. check entrada e saida de bots
+		//========================================================
+
+		//fill-in
+		if (botmode == 1) {
+
+			//count HUMAN players in each team
+			int tc[2];tc[0]=0;tc[1]=0;
+			int i;
+			for (i=0;i<MAX_PLAYERS;i++)
+				if (player[i].used)
+				if (!player[i].isbot)
+					tc[i/8]++;
+
+			// 0. disconnect all bots from team that has the most human players
+
+			int t = -1;
+			if (tc[0] > tc[1]) 
+				t = 0;
+			else if (tc[1] > tc[0])
+				t = 1;
+
+			//same number of humans in both teams
+			if (t == -1) {
+
+				//simply disconnect any and all bots from the game
+				for (i=0;i<MAX_PLAYERS;i++)
+				if (player[i].used)
+				if (player[i].isbot)
+					bot_disconnect(i);
+
+			}
+			//team t has the most human players
+			else {
+
+				// 0. disconnect all bots from team t
+				for (i=0;i<MAX_PLAYERS;i++)
+				if (i/8 == t)	//that team
+				if (player[i].used)		//valid
+				if (player[i].isbot)	//bot
+					bot_disconnect(i);	//bye
+
+				// 0,5 recalc number of players in each team
+				//count players in each team
+				tc[0]=tc[1]=0;
+				for (i=0;i<MAX_PLAYERS;i++)
+					if (player[i].used)
+						tc[i/8]++;
+				
+				// 1. disconnect bots from team that has most players, until number of players is the same
+				// or the team with most players runs out of bots
+
+				int t = -1;
+				if (tc[0] > tc[1]) 
+					t = 0;
+				else if (tc[1] > tc[0])
+					t = 1;
+
+				//is there a team that has most players?
+				if (t != -1) {
+
+					for (i=0;i<MAX_PLAYERS;i++)
+					if (i/8 == t) // player of that team
+					if (player[i].used)	//valid
+					if (player[i].isbot)	//bot
+					if (tc[t] > tc[1-t])	//time continua com mais gente
+					{
+						tc[t]--;	//menos um
+						bot_disconnect(i);	//tira o bot
+					}
+				}
+
+				// 2. connect bots until number of players is the same
+
+				while (tc[0] != tc[1])	//um dos timem continua com menos gente
+				{
+					int pid = bot_connect();	//coloca um bot - ja vai pro time com menos gente
+					tc[pid/8]++;							//mais um pra esse time
+				}
+
+			}//t != -1
+		}
+		//set to target team size
+		else if (botmode == 2) {
+			
+			//count players in each team
+			int tc[2];tc[0]=0;tc[1]=0;
+			int i;
+			for (i=0;i<MAX_PLAYERS;i++)
+				if (player[i].used)
+					tc[i/8]++;
+
+			//for both teams
+			for (int t=0;t<2;t++) {
+
+				//keep disconnecting bots until no bots left or tc[t] == botsize
+				if (tc[t] > botsize) {
+					
+					for (i=0;i<MAX_PLAYERS;i++) 
+					if (i/8 == t)					//do time
+					if (player[i].used)		//player used
+					if (player[i].isbot)	//eh bot
+					if (tc[t] > botsize)	//time ainda ta grande demais
+					{
+						tc[t]--;		//menos um
+						bot_disconnect(i);	//remove o bot
+					}
+
+				}
+			}
+
+			//connect bots until same number of players on both teams
+			while ((tc[0] < botsize) || (tc[1] < botsize)) {
+
+				//add a bot
+				int pid = bot_connect();
+
+				//update counter of the team the bot went
+				tc[pid/8]++;
+			} 
+
+		}
+
+		//========================================================
+		// 2. calcula extrapolated frames
+		//========================================================
+
+		int fwd;	//forward frame count. 0= +100ms 1= +200ms ...
+		for (fwd=0;fwd<BOT_XDEPTH;fwd++) {
+
+			if (fwd == 0) {
+				//world to xw[0]
+
+				// start by copying state
+				memcpy(&xw[0], &world, sizeof(frame_t));
+
+				// run physics frame for all players
+				for (int p=0;p<MAX_PLAYERS;p++)
+				if (player[p].used)
+					run_server_player_physics(p, &world, &xw[0]);	//player id, frame source, frame dest
+			}
+			else {
+				//xw[fwd-1] to xw[fwd]
+
+				// start by copying state
+				memcpy(&xw[fwd], &xw[fwd-1], sizeof(frame_t));
+
+				// run physics frame for all players
+				for (int p=0;p<MAX_PLAYERS;p++)
+				if (player[p].used)
+					run_server_player_physics(p, &xw[fwd-1], &xw[fwd]);	//player id, frame source, frame dest
+			}
+
+			// update rocket coordinates
+			for (int r=0;r<MAX_ROCKETS;r++) {
+				
+				rocket_c *rock = &xw[fwd].rock[r];
+				rocket_c *oldrock;
+				if (fwd == 0)
+					oldrock = &world.rock[r];
+				else
+					oldrock = &xw[fwd-1].rock[r];
+
+				if (rock->owner != -1)
+				{
+					//move-se
+					rock->x = oldrock->x + rock->sx;
+					rock->y = oldrock->y + rock->sy;
+
+					//out of bounds
+					if ((rock->x < -20) || (rock->y < -20) || (rock->x > plw + 20) || (rock->y > plh + 20)) {
+						rock->owner = -1;	//just remove it. clients will figure out the same
+					}
+				}
+			}
+		}
+
+		//========================================================
+		// 3. FIXME MAKE-ME : calcula alguma coisa pros bots, baseado
+		//    no extrapolated frame acima
+		//========================================================
+
+		// **** FIXME ****
+
+	}
+
+	// ******************************************************************************************
+	// ******************************************************************************************
+	//BOTZ!!!
+	// !!!! NESSA FUNÇÃO É ONDE VAI A INTELIGENCIA ARTIFICIAL DO SUPER HIPER BOT DO JANNONE !!!!!
+	//
+	//  bot_frame_think()
+	//  entradas:
+	//     1. int bi: player id (indice do array "player" que deve estar no escopo da funcao)
+	//     2. uma porrada de variaveis do gameserver_c, caso voce nao tenha notado (perfeitamente
+	//        compreensivel devido ao tamanho dessa porcaria) essa funcao eh um metodo de
+	//        gameserver_c, entao o bot enxerga tudo que o server enxerga (maps, jogadores, etc.)
+	//        o bot pode ate roubar e ir correndo atras de powerups e pessoas que ele nao enxerga!!
+	//        --> PERGUNTAR PRO FABIO PARA QUE VARIAVEIS PERGUNTAR QUAIS INFORMACOES O BOT PRECISA
+	//
+	//    essa funcao vai ser chamada de 100 em 100 milisegundos, ou seja, sempre que o server
+	//    realizar um step de simulacao (aquela coisa suave clientside eh pura extrapolacao de
+	//    movimento). o objetivo dessa funcao eh o bot dizer, para essa frame, que teclas ele
+	//    estah pressionando (o input dele)
+	//
+	//  saida:
+	//     a saida do bot escreve direto nessas vars: (eu sei, tah podre, fazer o que:)
+	//		 world.hero[bi].l  :  se esta pressionando a tecla de "move left"
+	//		 world.hero[bi].r	 :  se esta pressionando a tecla de "move right"
+	//		 world.hero[bi].u  :  se esta pressionando a tecla de "move up"
+	//		 world.hero[bi].d  :  se esta pressionando a tecla de "move down"
+	//     world.hero[bi].run : se esta pressionando a tecla de "run"	
+	//    (*** ATENCAO ACHO QUE BOT NAO PRECISA DO STRAFE -- USAR "GUNDIR" DIRETO ***)
+	//     world.hero[bi].strafe :  se esta pressionando a tecla de "strafe" 
+	//		 world.hero[bi].gundir :  gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
+	//                              gundir=0 eh pra direita, e vai aumentando 1 por 1 girando em sentido horario ate 7 (sao 8 angulos diferentes)
+	//     player[bi].attack : true se esta pressionando a tecla de ataque (nao significa que
+	//                         vai sair um tiro na proxima frame, pois tem o delay do tiro, que
+	//												 da' pra ser lido de player[bi].next_shoot_time)
+	//
+	// ******************************************************************************************
+	// ******************************************************************************************
+	void bot_frame_think(int bi) {
+
+		// bot mutcho louco!
+		//
+		world.hero[bi].l = (rand() % 2) == 0;
+		world.hero[bi].r = (rand() % 2) == 0;
+		world.hero[bi].u = (rand() % 2) == 0;
+		world.hero[bi].d = (rand() % 2) == 0;
+		world.hero[bi].run    = (rand() % 2) == 0;
+		world.hero[bi].gundir = rand() % 8;		//0..7
+		player[bi].attack     = (rand() % 2) == 0;
+	}
+
+	// ---------- SERVER BOT API END ---------------------------------------------
+
+	//client connected (callback function)
+	// se is_bot, significa que é um BOT! essa funcao eh chamada pelo callback do leet server
+	//  quando eh um client de carne e osso, e tambem chamada pelo BOT_CONNECT para conectar um bot
+	//  pelas vias naturais
+	//
+	//NEW! a funcao retorna o player id alocado, bom para bots
+	//
+	int client_connected(int id, bool is_bot) {
+
+		//another one...
+		if (!is_bot) {
+			player_count++;
+
+			//update serverinfo
+			update_serverinfo();
+		}
 
 		// se o player_count ficou == 2, reseta partida
-		if (player_count == 2)
+		//
+		if (player_count + bot_count == 2)
 			ctf_game_restart();
 
 		//2TEAM: check wich team to put player
@@ -2565,6 +4338,11 @@ public:
       int i;
 		for (i=0;i<MAX_PLAYERS;i++) {
 			if (player[i].used)
+			if ((!is_bot) && (player[i].isbot))	//NAO CONTA BOTS SE NAO FOR BOT!
+			{
+				//nop
+			}
+			else
 				if (i/8 == 0)
 					t1++;
 				else
@@ -2589,8 +4367,12 @@ public:
 		i = bla++;
 #else
 		for (i=targ;i<(targ+8);i++) {
-			if (!player[i].used) {
+			if ((!player[i].used) || ((player[i].isbot) && (!is_bot)) ) {		//UPDATE: sobrescreve bots SE NAO EH BOT
 #endif
+
+				//se bot, tira
+				if (player[i].isbot)
+					bot_disconnect(i);
 
 				// add player to players_present
 				//players_present = players_present | (1 << i);
@@ -2600,15 +4382,39 @@ public:
 				player[i].ping = 0;
 				player[i].frags = 0;	//reset score ?
 				player[i].oldfrags = -666;
+				player[i].want_map_exit = false;		//by default don't want change maps
 				player[i].want_change_teams = false;	// don't want to change teams yet
+				player[i].team_change_time = 0;	
+				player[i].team_change_pending = false;
 				player[i].next_shoot_time = 0;
 				player[i].attack = false;
-				player[i].attacktime = 0;
-				ctop[id] = i;			// index for fast find
-				player[i].cid = id;
+
+				if (!is_bot) {
+					ctop[id] = i;			// index for fast find
+					player[i].cid = id;
+				}
+				else {
+					ctop[222+i] = i;			// HACK 
+					player[i].cid = 222+i;
+				}
+
 				player[i].id = i;
 				strcpy(player[i].name, SERVER_DEFAULT_PLAYER_NAME);	//the default name
 				player[i].waitnametime = get_time() - 666.0;	//can change name right now
+
+				//default stats
+				player[i].total_kills = 0;
+				player[i].total_deaths = 0;
+				player[i].total_captures = 0;
+				player[i].start_time = get_time();
+				
+				// BOTZ: bot ou nao?
+				player[i].isbot = is_bot;
+
+				//default bot preferences
+				player[i].botmode = 0;
+				player[i].botsize = 0;
+
 				player[i].used = true;
 				myself = i;
 
@@ -2633,91 +4439,114 @@ public:
 		// internal error can be detected if no player is free (used == false)
 		if (myself == -1) {
 			LOG("ERROR: BAD BAD BAD INTERNAL GAMESERVER ERROR myself == -1 !!! client_connected()...\n");
-			return;
+			return myself;	//-1...
 		}
 
-		//update the player with world information
-		char lebuf[256]; int count;
+		if (!is_bot) {
+			
+			char lebuf[256]; int count;
 
-		//	- who is he (player #)
-		count = 0;
-		writeByte(lebuf, count, 3); // "3" = first-packet information
-		writeByte(lebuf, count, ((NLubyte)myself) );		// who am I
-		writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
-		writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
-		//server physics parameters
-		writeFloat(lebuf, count, ((NLfloat)svp_fric) );
-		writeFloat(lebuf, count, ((NLfloat)svp_accel) );
-		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed) );
-		writeFloat(lebuf, count, ((NLfloat)svp_fric_run) );
-		writeFloat(lebuf, count, ((NLfloat)svp_accel_run) );
-		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_run) );
-		writeFloat(lebuf, count, ((NLfloat)svp_fric_turbo) );
-		writeFloat(lebuf, count, ((NLfloat)svp_accel_turbo) );
-		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turbo) );
-		writeFloat(lebuf, count, ((NLfloat)svp_fric_turborun) );
-		writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
-		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
-		writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
-		server->send_message(id, lebuf, count);
+			//first update the ADMIN SHELL
+			if (shellssock) {
+				count = 0;
+				writeLong(lebuf, count, STA_PLAYER_CONNECTED);
+				writeLong(lebuf, count, player[myself].cid);
+				NLint result = nlWrite(shellssock, lebuf, count);
+			}
 
-		// - world ctf flags information
-		ctf_net_flag_status(id, 0);
-		ctf_net_flag_status(id, 1);
+			//update the player with world information
+			//	- who is he (player #)
 
-		// - all other player's names
-		// - all other player's frags
-		
-		for (i=0;i<MAX_PLAYERS;i++)
-		if (player[i].used)
-		if (i != myself) {
+			send_me_packet(myself);
 
-			//player name update
-			count = 0;
-			writeByte(lebuf, count, 1);	// "1" = player name update
-			writeByte(lebuf, count, i);		// what player id
-			player[i].name[15]=0;		// force trunc name at 15 chars (paranoia)
-			writeString(lebuf, count, player[i].name);
-			server->send_message(id, lebuf, count);
+			// - world ctf flags information
+			ctf_net_flag_status(id, 0);
+			ctf_net_flag_status(id, 1);
 
-			//frags update
-			count = 0;
-			writeByte(lebuf, count, 4);	//"4" = frags update
-			writeByte(lebuf, count, i);		// what player id
-			writeLong(lebuf, count, player[i].frags);
-			server->send_message(id, lebuf, count);
+			// MAP NAME+CRC !!! VERY IMPORTANT
+			//
+			send_map_change_message(myself, NEXTMAP_NONE);
+
+			// - all other player's names
+			// - all other player's frags
+			
+			for (i=0;i<MAX_PLAYERS;i++)
+			if (player[i].used)
+			if (i != myself) {
+
+				//player name update
+				count = 0;
+				writeByte(lebuf, count, 1);	// "1" = player name update
+				writeByte(lebuf, count, i);		// what player id
+				player[i].name[15]=0;		// force trunc name at 15 chars (paranoia)
+				writeString(lebuf, count, player[i].name);
+				server->send_message(id, lebuf, count);
+
+				//frags update
+				count = 0;
+				writeByte(lebuf, count, 4);	//"4" = frags update
+				writeByte(lebuf, count, i);		// what player id
+				writeLong(lebuf, count, player[i].frags);
+				server->send_message(id, lebuf, count);
+			}
 		}
 
 		//check for team changes
 		//
 		check_team_changes();
+
+		//ok!
+		//
+		return myself;
 	}
 
 	//client disconnected (callback function)
-	void client_disconnected(int id) {
+	//
+	// mesmas observacoes para client_connect. adicionalmente:
+	//  se is_bot == true, entao id eh um PLAYER ID
+	//  se is_bot == false, entao id eh um CLIENT ID
+	//
+	void client_disconnected(int id, bool is_bot) {
 
-		//less one...
-		player_count--;
+		int pid;
 
-		//update serverinfo
-		update_serverinfo();
+		if (!is_bot) {
+			
+			//less one...
+			player_count--;
 
-		//what player
-		int pid = ctop[id];		
+			//update serverinfo
+			update_serverinfo();
 
-		//broadcast a textual message "Player BLABLA left the game"
-		char lix[64]; 
-		broadcast_message("@I%s left the game with %s frags", player[pid].name, itoa(player[pid].frags, lix, 10));
+			//what player
+			pid = ctop[id];		
 
-		//sound
-		broadcast_sample(SAMPLE_LEFTGAME);
+			//first update the ADMIN SHELL
+			if (shellssock) {
+				char lebuf[256]; int count;
+				count = 0;
+				writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
+				writeLong(lebuf, count, player[pid].cid);
+				NLint result = nlWrite(shellssock, lebuf, count);
+			}
+
+			//broadcast a textual message "Player BLABLA left the game"
+			char lix[64]; 
+			broadcast_message("@I%s left the game with %s frags", player[pid].name, itoa(player[pid].frags, lix, 10));
+
+			//sound
+			broadcast_sample(SAMPLE_LEFTGAME);
+		}
+		else
+			//se bot, pid eh o proprio id
+			pid = id;
 
 		//remove player from the game
 		game_remove_player(pid);
 
-		//check for team changes
-		//
-		check_team_changes();
+		//check for team changes - APENAS se nao era bot. bots saindo/entrando nao devem afetar isso!
+		if (!is_bot)
+			check_team_changes();
 	}
 
 	//client ping result
@@ -2817,12 +4646,49 @@ public:
 
 						//broadcast the new player's name 
 						broadcast_player_name(pid);
+
+						//update the ADMIN SHELL
+						if (shellssock) {
+							char lebuf[256]; int count = 0;
+							writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+							writeLong(lebuf, count, player[pid].cid);
+							writeString(lebuf, count, player[pid].name);
+							NLint result = nlWrite(shellssock, lebuf, count);
+						}
 					}
 				}
 				//chat!
 				else if (code == 2) {
 
 					//FIXME: talk flood protection .... ?
+
+					//BOTZ temporario
+					/*
+					if (msg[1] == '$') {		//add a bot
+						//add bot
+						bot_connect();
+					}
+					else if (msg[1] == '*') {  //remove a bot
+
+						//count players in each team
+						int tc[2];tc[0]=0;tc[1]=0;
+						for (int i=0;i<MAX_PLAYERS;i++)
+							if (player[i].used)
+								tc[i/8]++;
+
+						//remove bot do time que tem excesso de players ou numero igual de players
+						// ISSO AQUI NEM DEVE SER THREAD-SAFE. TROCAR POR UMA FLAG QUE SETA NO PLAYER_T DO BOT
+						// E QUE OBRIGA ELE A SE AUTODESCONECTAR QUANDO FOR CHAMADO O PROXIMO BOT_THINK()
+						for (int bi=0;bi<MAX_PLAYERS;bi++)
+						if (player[bi].used)
+						if (player[bi].isbot) 
+						if (tc[bi/8] >= tc[1-bi/8])	//tirando do time que tem mais players, ou entao de qqer um se tem numero igual de players nos dois times
+						{
+							bot_disconnect(bi);
+							break;		//desconecta 1 bot soh
+						}
+					}
+					*/
 
 					// check for team message:
 					if (msg[1] == '.') {
@@ -2846,12 +4712,7 @@ public:
 
 					player[pid].attack = true;
 
-					if (fire_event) {
-
-						//set time of startfire (may be used for charge-shot)
-						player[pid].attacktime = get_time();
-
-						// firing code moved to simulate/broadcast frame (player[id].attack is tested there)
+					if (fire_event) { // firing code moved to simulate/broadcast frame (player[id].attack is tested there)
 					}
 			
 				}
@@ -2885,7 +4746,7 @@ public:
 						//set
 						player[pid].want_change_teams = true;
 						//show message
-						broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/8], player[pid].name);
+						//broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/8], player[pid].name);
 						//check for team changes
 						check_team_changes();
 					}
@@ -2895,7 +4756,41 @@ public:
 					// show message if command had effect
 					if (player[pid].want_change_teams) {
 						player[pid].want_change_teams = false;
-						broadcast_message("@I%s player '%s' don't want to change teams", teamname[pid/8], player[pid].name);
+						player[pid].team_change_pending = false; //so pra garantir
+						//broadcast_message("@I%s player '%s' don't want to change teams", teamname[pid/8], player[pid].name);
+					}
+				}
+				// game preferences update
+				else if (code == 19) {
+					NLubyte prefcode;
+					readByte(msg, count, prefcode);
+					if (prefcode == 1) {
+						//bot preferences
+						readByte(msg, count, player[pid].botmode);
+						readByte(msg, count, player[pid].botsize);
+						bot_prefs_change();
+					}
+					else {
+						//unknown preferences --- just discard message
+					}
+				}
+				// "client ready" message
+				else if (code == 21) {
+					//client is ready to play now
+					player[pid].awaiting_client_ready = false;
+				}
+				// want change teams
+				else if (code == 22) {
+					if (player[pid].want_map_exit == false) {
+						player[pid].want_map_exit = true;
+						check_map_exit();		//check map exit
+					}
+				}
+				// dont' want change teams
+				else if (code == 23) {
+					if (player[pid].want_map_exit == true) {
+						player[pid].want_map_exit = false;
+						check_map_exit();		//check map exit
 					}
 				}
 				else {
@@ -2922,6 +4817,147 @@ public:
 			return true;	//touch
 
 		return false;
+	}
+
+	//run a physics frame simulation step for a player
+	void run_server_player_physics(int i, frame_t *src, frame_t *dest) {	//player id, frame source, frame dest
+		
+		hero_t *h = &(src->hero[i]);
+		hero_t *hd = &(dest->hero[i]);
+	
+		//select effective physics vars for the player
+		//
+		double player_accel;
+		double player_friction;
+		double player_maxspeed;
+		if (h->run) {
+			if (player[i].item_speed) {
+				player_accel    = svp_accel_turborun;
+				player_friction = svp_fric_turborun;
+				player_maxspeed = svp_maxspeed_turborun;
+			}
+			else {
+				player_accel    = svp_accel_run;
+				player_friction = svp_fric_run;
+				player_maxspeed = svp_maxspeed_run;
+			}
+		}
+		else {
+			if (player[i].item_speed) {
+				player_accel    = svp_accel_turbo;
+				player_friction = svp_fric_turbo;
+				player_maxspeed = svp_maxspeed_turbo;
+			}
+			else {
+				player_accel    = svp_accel;
+				player_friction = svp_fric;
+				player_maxspeed = svp_maxspeed;
+			}
+		}
+
+		//flag carrier disadvantage when running
+		if (h->run)
+		if (src->flag[1-(i/8)].carried)
+		if (src->flag[1-(i/8)].carrier == i)
+			player_maxspeed -= svp_flag_penalty;
+
+			//friction x - apply if l xor r
+#ifndef ALWAYS_FRICTION
+//					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > max_speed_x) ) {
+			if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
+#endif
+				if (h->sx > 0) {
+					//h->sx -= sv_frictionx * boots_accel_bonus;
+					hd->sx = h->sx - player_friction;
+					if (hd->sx < 0) hd->sx = 0;
+				}
+				else if (h->sx < 0) {
+					//h->sx += sv_frictionx * boots_accel_bonus;
+					hd->sx = h->sx + player_friction;
+					if (hd->sx > 0) hd->sx = 0;
+				}
+#ifndef ALWAYS_FRICTION
+			}
+#endif
+
+			//friction y
+#ifndef ALWAYS_FRICTION
+			if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
+#endif
+				if (h->sy > 0) {
+					//h->sy -= sv_frictiony * boots_accel_bonus;
+					hd->sy = h->sy - player_friction;
+					if (hd->sy < 0) hd->sy = 0;
+				}
+				else if (h->sy < 0) {
+					//h->sy += sv_frictiony * boots_accel_bonus;
+					hd->sy = h->sy + player_friction;
+					if (hd->sy > 0) hd->sy = 0;
+				}
+#ifndef ALWAYS_FRICTION
+			}
+#endif
+
+		//deathbringer penalty : no movement. move only if not in effect (<)
+		if (player[i].deathbringer_end < get_time()) {
+
+			//accelerate x if not over maximum speed
+			if ((h->l) && (h->sx > -player_maxspeed))
+				hd->sx = h->sx - player_accel;
+			if ((h->r) && (h->sx < +player_maxspeed))
+				hd->sx = h->sx + player_accel;
+
+			//accelerate y if not over maximum speed
+			if ((h->u) && (h->sy > -player_maxspeed))
+				hd->sy = h->sy - player_accel;
+			if ((h->d) && (h->sy < +player_maxspeed))
+				hd->sy = h->sy + player_accel;
+		}
+
+		//save ox,oy
+		hd->ox = h->x;
+		hd->oy = h->y;
+
+		//move x
+		hd->x = h->x + hd->sx;
+		if (hd->x < 0) hd->x = 0;
+		else if (hd->x > plw) hd->x = plw;
+
+		//move y
+		hd->y = h->y + hd->sy;
+		if (hd->y < 0) hd->y = 0;
+		else if (hd->y > plh) hd->y = plh;
+
+		//wall collision correction
+		wallcorrect(i, &map, &(hd->x), &(hd->y), &(hd->sx), &(hd->sy), &hd->ox, &hd->oy, h->tx, h->ty);
+
+		//check room change x
+		if (hd->x == plw) {
+			hd->x = 1;
+			hd->tx = h->tx + 1;
+			if (hd->tx > map.w - 1)
+				hd->tx = 0;
+		}
+		else if (hd->x == 0) {
+			hd->x = plw - 1;
+			hd->tx = h->tx - 1;
+			if (hd->tx < 0)
+				hd->tx = map.w - 1;
+		}
+
+		//check room change y
+		if (hd->y == plh) {
+			hd->y = 1;
+			hd->ty = h->ty + 1;
+			if (hd->ty > map.h - 1)
+				hd->ty = 0;
+		}
+		else if (hd->y == 0) {
+			hd->y = plh - 1;
+			hd->ty = h->ty - 1;
+			if (hd->ty < 0)
+				hd->ty = map.h - 1;
+		}
 	}
 
 	//simulate and broadcast frame
@@ -2952,6 +4988,7 @@ public:
 
 		// (0) do stuff for every player
 		//
+		if (!gameover)		//skip if game over
 		for (i=0;i<MAX_PLAYERS;i++) 
 		if (player[i].used) {
 
@@ -2992,6 +5029,104 @@ public:
 				player[i].item_helm -= 10;		//slowly fades....
 				if (player[i].item_helm < 7)		// minimum
 					player[i].item_helm = 7;
+			}
+
+			// check deathbringer effect
+			//
+			if (player[i].deathbringer_end > get_time()) {
+				//check if still alive
+				if (player[i].health > 0) {   
+					//has shield: do big damage to it, in order to remove the shield
+					if (player[i].item_shield) {
+						game_damage_player(i, i, 15);	//15x0.1 = 150/sec = 750 5sec
+						//broadcast_message("UGA!");
+					} else {
+						game_damage_player(i, i, 3); // 3x0.1 = 30/sec = 150 5sec
+						//broadcast_message("BUGA BUGA!");
+					}
+					//dead? play "HA HA HA HA HA"
+					if (player[i].health <= 0) {
+						broadcast_screen_sample(i, SAMPLE_DIEDEATHBRINGER);
+						//reason broadcast
+						char lix[256];
+						sprintf(lix, "@I%s choked to death", player[i].name);
+						broadcast_message(lix);
+
+					}
+				}
+			}
+
+			// check for a player's deathbringer to bring death
+			//
+			if (player[i].health <= 0) //dead
+			if (player[i].item_deathbringer)		//with deathbringer
+			{
+				//delta time since shoot
+				double delta = (frame - player[i].item_deathbringer_time) * 0.1;
+				//figure out new radius
+				int rad;
+				if (delta < 1.0)
+					rad = (int)(delta * 100);
+				else
+					rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
+				
+				//check enemy players onscreen that are not hit by it yet and are inside 
+				// the donut radius...radius-50
+				for (int v=0;v<MAX_PLAYERS;v++) 
+				if (v/8 != i/8)		//enemy players only
+				if (player[v].used)	//used
+				if (player[v].health > 0)	//alive
+				if (player[v].x == player[i].x)	// in the same screen of the deathbringer
+				if (player[v].y == player[i].y)
+				if (player[v].deathbringer_end < get_time())		// deathbringer fx end time -- not already hit?
+				{
+					//calculate player distance to the deathbringer core
+					double ex = world.hero[i].x;
+					double ey = world.hero[i].y - 15;
+					double rx = world.hero[v].x;
+					double ry = world.hero[v].y - 15;
+					double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
+
+					// hit distance: if dt == rad, hit, if rad 
+					if ((rad <= dt + 20) && (rad >= dt - 60)) {
+						
+						//take his deathbringer off
+						player[v].item_deathbringer = false;
+
+						//hit sample
+						broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
+
+						//time of effect
+						//also freeze his gun for this same amount of time
+						player[v].deathbringer_end = player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
+
+						// calc recoil:
+						double tx = world.hero[v].x - world.hero[i].x;		//triangle size x
+						double ty = world.hero[v].y - world.hero[i].y;		//triangle size y
+
+						// for lack of trigonometry knowledge, using this ugly hack
+						if ((fabs(tx) >= 40.0) || (fabs(ty) >= 40.0)) { //too much
+							//while one of them abs's is greater than 50, divide by some amount
+							while (  ((fabs(tx) >= 40.0) || (fabs(ty) >= 40.0))  ) {
+								tx *= 0.90;		//reduce
+								ty *= 0.90;
+							}
+						}
+						else { //too little
+							//while both abses are smaller than 50, multiply by some amount
+							while (  ((fabs(tx) <= 40.0) && (fabs(ty) <= 40.0))  ) {
+								tx *= 1.10;		//increase
+								ty *= 1.10;
+							}
+						}
+
+						//set the new speed
+						world.hero[v].sx = tx;
+						world.hero[v].sy = ty;
+					}
+
+				}
+
 			}
 
 			// check for player weapons fire time
@@ -3041,6 +5176,7 @@ public:
 
 		// for each ROCKET, update position
 		//
+		if (!gameover)		//skip if game over
 		for (i=0;i<MAX_ROCKETS;i++)
 		if (world.rock[i].owner != -1)	//exists
 		{
@@ -3058,6 +5194,29 @@ public:
 					rock->owner = -1;	//just remove it. clients will figure out the same
 
 					//broadcast_message("SE FOI");
+
+					//2-loop break
+					t=999;break;
+				}
+
+				//wall hit - remove
+				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
+
+					rock->owner = -1;
+
+					//send message rocket deletion
+					//delete shot
+					//game_delete_rocket(i, t, p);
+					
+					//254==normal   253==quaded
+					/*
+						FIXED: let clients figure out rockets hitting walls...				
+							
+					if (player[rock->owner].item_quad)
+						game_delete_rocket(i, rock->x, rock->y, 253);
+					else
+						game_delete_rocket(i, rock->x, rock->y, 254);
+					*/
 
 					//2-loop break
 					t=999;break;
@@ -3084,6 +5243,9 @@ public:
 					//the number is the sum of the two balls bounding boxes radiuses (15 player + 3 rocket's)
 					if (dt <= 18.0)			
 					{
+						//record wether the player had shield, if yes, will not blink him
+						bool had_shield = player[p].item_shield;
+
 						//damage the target: dano 70 = almost sure kill
 						game_damage_player(p, rock->owner, 70);
 
@@ -3108,19 +5270,14 @@ public:
 							//adiciona velocidade do rocket/3
 							world.hero[p].sx += rock->sx / 3.0;
 							world.hero[p].sy += rock->sy / 3.0;
-
-							//FIXME
-							//char lix[2000];
-							//sprintf(lix, "HIT nsx=%2.2f nsy=%2.2f rsx=%2.2f %2.2f", world.hero[p].sx
-							//		, world.hero[p].sy
-							//		, rock->sx
-							//		, rock->sy
-							//	);
-							//broadcast_message(lix);
 						}
 
 						//delete shot
-						game_delete_rocket(i, t, p);
+						//game_delete_rocket(i, t, p);
+						if (had_shield)
+							game_delete_rocket(i, rock->x, rock->y, 252);		//do not blink
+						else
+							game_delete_rocket(i, rock->x, rock->y, p);			//blink
 
 						//2-loop break
 						t=999;break;
@@ -3134,6 +5291,7 @@ public:
 		//
 		hero_t  *h;
 
+		if (!gameover)		//skip if game over
 		for (i=0;i<MAX_PLAYERS;i++) 
 		if (player[i].used)
     {
@@ -3150,214 +5308,59 @@ public:
 			// player alive: do stuff for alive players
       else {
 
-				//select effective physics vars for the player
-				//
-				double player_accel;
-				double player_friction;
-				double player_maxspeed;
-				if (h->run) {
-					if (player[i].item_speed) {
-						player_accel    = svp_accel_turborun;
-						player_friction = svp_fric_turborun;
-						player_maxspeed = svp_maxspeed_turborun;
-					}
-					else {
-						player_accel    = svp_accel_run;
-						player_friction = svp_fric_run;
-						player_maxspeed = svp_maxspeed_run;
-					}
-				}
-				else {
-					if (player[i].item_speed) {
-						player_accel    = svp_accel_turbo;
-						player_friction = svp_fric_turbo;
-						player_maxspeed = svp_maxspeed_turbo;
-					}
-					else {
-						player_accel    = svp_accel;
-						player_friction = svp_fric;
-						player_maxspeed = svp_maxspeed;
-					}
-				}
-/*
-				//max speed: running?
-				double max_speed_x, max_speed_y;
-				if (h->run) {
-					max_speed_x = sv_maxspeedrunx;
-					max_speed_y = sv_maxspeedruny;
-				}
-				else {
-					max_speed_x = sv_maxspeedx;
-					max_speed_y = sv_maxspeedy;
-				}
-*/
+				// IN : copia player screen p/ hero screen
+				h->tx = player[i].x;
+				h->ty = player[i].y;
 
-				//flag carrier disadvantage when running
-				if (h->run)
-				if (world.flag[1-(i/8)].carried)
-				if (world.flag[1-(i/8)].carrier == i)
-					player_maxspeed -= svp_flag_penalty;
+				// run server physics frame
+				run_server_player_physics(i, &world, &world);	//player id, frame source, frame dest
 
-				//powerup: boots bonus topspeed
-				/*
-				double boots_accel_bonus = 1.0;
-				if (player[i].item_speed) {
-					max_speed_x *= sv_boots_top_bonus_x;
-					max_speed_y *= sv_boots_top_bonus_y;
-				}
-				*/
-
-				//powerup boots / run: bonus accel
-				/*
-				if (player[i].item_speed)
-					boots_accel_bonus = sv_boots_accel_bonus;
-				else if (h->run)
-					boots_accel_bonus = sv_run_accel_bonus;
-				*/
-
-					//friction x - apply if l xor r
-#ifndef ALWAYS_FRICTION
-//					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > max_speed_x) ) {
-					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
-#endif
-						if (h->sx > 0) {
-							//h->sx -= sv_frictionx * boots_accel_bonus;
-							h->sx -= player_friction;
-							if (h->sx < 0) h->sx = 0;
-						}
-						else if (h->sx < 0) {
-							//h->sx += sv_frictionx * boots_accel_bonus;
-							h->sx += player_friction;
-							if (h->sx > 0) h->sx = 0;
-						}
-#ifndef ALWAYS_FRICTION
-					}
-#endif
-
-					//friction y
-#ifndef ALWAYS_FRICTION
-					if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
-#endif
-						if (h->sy > 0) {
-							//h->sy -= sv_frictiony * boots_accel_bonus;
-							h->sy -= player_friction;
-							if (h->sy < 0) h->sy = 0;
-						}
-						else if (h->sy < 0) {
-							//h->sy += sv_frictiony * boots_accel_bonus;
-							h->sy += player_friction;
-							if (h->sy > 0) h->sy = 0;
-						}
-#ifndef ALWAYS_FRICTION
-					}
-#endif
-				
-				/*
-				//accelerate x if not over maximum speed
-				if ((h->l) && (h->sx > -max_speed_x))
-					h->sx -= sv_accelx * boots_accel_bonus;
-				if ((h->r) && (h->sx < +max_speed_x))
-					h->sx += sv_accelx * boots_accel_bonus;
-
-				//accelerate y if not over maximum speed
-				if ((h->u) && (h->sy > -max_speed_y))
-					h->sy -= sv_accely * boots_accel_bonus;
-				if ((h->d) && (h->sy < +max_speed_y))
-					h->sy += sv_accely * boots_accel_bonus;
-				*/
-				//accelerate x if not over maximum speed
-				if ((h->l) && (h->sx > -player_maxspeed))
-					h->sx -= player_accel;
-				if ((h->r) && (h->sx < +player_maxspeed))
-					h->sx += player_accel;
-
-				//accelerate y if not over maximum speed
-				if ((h->u) && (h->sy > -player_maxspeed))
-					h->sy -= player_accel;
-				if ((h->d) && (h->sy < +player_maxspeed))
-					h->sy += player_accel;
-		
-				//save ox,oy
-				h->ox = h->x;
-				h->oy = h->y;
-
-				//move x
-				h->x += h->sx;
-				if (h->x < 0) h->x = 0;
-				else if (h->x > plw) h->x = plw;
-
-				//move y
-				h->y += h->sy;
-				if (h->y < 0) h->y = 0;
-				else if (h->y > plh) h->y = plh;
-
-				//wall collision correction
-				wallcorrect(i, &map, &(h->x), &(h->y), &(h->sx), &(h->sy), &h->ox, &h->oy, player[i].x, player[i].y);
-
-				//check room change x
-				if (h->x == plw) {
-					h->x = 1;
-					player[i].x += 1;
-					if (player[i].x > WXMAX - 1)
-						player[i].x = 0;
+				//OUT : copy screen information from hero back to player
+				// (for bots)
+				if ((player[i].x != h->tx) || (player[i].y != h->ty))
+				{
+					player[i].x = h->tx;
+					player[i].y = h->ty;
 
 					//player screen changed check
 					game_player_screen_change(i);
 				}
-				else if (h->x == 0) {
-					h->x = plw - 1;
-					player[i].x -= 1;
-					if (player[i].x < 0)
-						player[i].x = WXMAX - 1;
-
-					//player screen changed check
-					game_player_screen_change(i);
-				}
-
-				//check room change y
-				if (h->y == plh) {
-					h->y = 1;
-					player[i].y += 1;
-					if (player[i].y > WYMAX - 1)
-						player[i].y = 0;
-
-					//player screen changed check
-					game_player_screen_change(i);
-				}
-				else if (h->y == 0) {
-					h->y = plh - 1;
-					player[i].y -= 1;
-					if (player[i].y < 0)
-						player[i].y = WYMAX - 1;
-
-					//player screen changed check
-					game_player_screen_change(i);
-				}
+								
 
 				//---------------------------------
 				// player every-frame stuff
 				//---------------------------------
 
-				// regenerate +1 health or +1 energy
-				if (player[i].health < 100)
-					player[i].health++;
-				else {
+				// check don't regen because of deathbringer
+				bool deathbringer_penalty = 
+						((player[i].item_deathbringer) && (rand() % 100 < 50))
+						  ||
+						(player[i].deathbringer_end > get_time());
 
-					//caso energy > 100, regenera mais devagar (-33%)
-					if (player[i].energy < 100)
-						player[i].energy++;
-					else if (player[i].energy < 200) {
-						// 0.3.0: MAIS devagar
-						//if (frame % 3)
-						if (frame % 2)
+				// regen?
+				if (!deathbringer_penalty) {
+
+					// regenerate +1 health or +1 energy
+					if (player[i].health < 100)
+						player[i].health++;
+					else {
+
+						//caso energy > 100, regenera mais devagar (-33%)
+						if (player[i].energy < 100)
 							player[i].energy++;
+						else if (player[i].energy < 200) {
+							// 0.3.0: MAIS devagar
+							//if (frame % 3)
+							if (frame % 2)
+								player[i].energy++;
+						}
+						//MEGA health vagarosamente...
+						else if ((player[i].health < 200) && (frame %10 == 0))
+							player[i].health++;												
 					}
-					//MEGA health vagarosamente...
-					else if ((player[i].health < 200) && (frame %10 == 0))
-						player[i].health++;												
 				}
 
-				// loose -2 energy or -2 health if running
+				//lose health & energy if running
 				if (h->run) {
 					
 					if (player[i].energy <= 0) {
@@ -3391,6 +5394,37 @@ public:
 						}
 					}
 				}
+
+				//rot health to 100 if has deathbringer
+				if ((player[i].item_deathbringer) && (player[i].health > 100) && (frame % 5 == 0))
+					player[i].health--;
+
+				//rot energy to 100 if has deathbringer
+				if ((player[i].item_deathbringer) && (player[i].energy > 100) && (frame % 5 == 0))
+					player[i].energy--;
+
+				//megahealth bonus:
+				if (player[i].megabonus > 0)
+				if ((player[i].health == 300) && (player[i].energy == 300))
+					player[i].megabonus--;	// realiza um certo "guardamento" de energia mas nao muito...
+				else
+				for (int mh=0;mh<5;mh++) {
+						
+						//+health
+						if (player[i].megabonus > 0)
+						if (player[i].health < 300) {
+								player[i].health++;
+								player[i].megabonus--;
+						}
+
+						//+energy
+						if (player[i].megabonus > 0)
+						if (player[i].energy < 300) {
+								player[i].energy++;
+								player[i].megabonus--;
+						}
+				}
+				
 
 				//limit health 0 .. 300
 				if (player[i].health < 0)
@@ -3473,16 +5507,30 @@ public:
 				if (check_flag_touch(i, player[i].x, player[i].y, h->x, h->y, myteam))		// I touch my flag
 				{
 					//add 15 frags to all players of the team
-					for (int h=0;h<MAX_PLAYERS;h++)
-					if (player[h].used)
-					if ((h/8) == myteam)
-						player[h].frags += 15;	
+					//for (int h=0;h<MAX_PLAYERS;h++)
+					//if (player[h].used)
+					//if ((h/8) == myteam)
+					//	player[h].frags += 15;	
+					//CHANGED 0.3.9: add 5 frags to the capturer
+					player[i].frags += 5;
 
 					//return enemy flag to their base
 					ctf_return_flag(enemyteam);
 
 					//message
 					broadcast_message("@I%s CAPTURED THE %s FLAG!", player[i].name, teamname[enemyteam]);
+
+					//count
+					player[i].total_captures++;
+
+					//update the ADMIN SHELL
+					if (!player[i].isbot) {
+						char lebuf[256]; int count; NLint result;
+						count = 0;
+						writeLong(lebuf, count, STA_PLAYER_CAPTURES);
+						writeLong(lebuf, count, player[i].cid);
+						result = nlWrite(shellssock, lebuf, count);
+					}
 
 					//CAPTURE (team count ++)
 					world.flag[myteam].score++;
@@ -3556,25 +5604,61 @@ public:
 		int tview[2][8];		//[time][inimigo# visto? 1-8]
 		NLubyte	tview_bits[2];	//enemy view byte (bitfield for the 8 enemies of each team(0,1))
 
+		//HELM PATCH: the "helm view" bytes for both teams - if somebody has helm, he will se 
+		//  helmview[] for his team
+		NLubyte helmview[2];
+				
 		//atualiza HELM ITERATOR - para em um player valido ou entao qualquer um
 		int runaway = MAX_PLAYERS + 1;
 		do {
 			helmiter++;
 			if (helmiter > MAX_PLAYERS - 1)
 				helmiter = 0;
-			if (player[helmiter].used)
-				break;			
+			if (player[helmiter].used)						
+				//fix: helm nao enxerga outros helms, a nao ser com a flag
+				//ou seja: so mostra (break) se:  NAO TEM HELM   ou   TEM FLAG
+				if (
+						 (player[helmiter].item_helm == 0) 
+						 || 
+						 (
+								(world.flag[1-helmiter/8].carried)
+								&&
+								(world.flag[1-helmiter/8].carrier == helmiter)
+						 )
+					 )
+					break;
 		} while (runaway-- > 0);
-		
-		//atualiza tview
-		for (int t=0;t<2;t++) {		// p/ cada time
+
+		int t;
+
+		//atualiza tview E HELMVIEW
+		for (t=0;t<2;t++) {		// p/ cada time
 
 			tview_bits[t] = 0;
+
+			helmview[t] = 0;		//default zero
 
 			for (int i=0;i<MAX_PLAYERS;i++)			// p/ cada inimigo desse time
 			if (i/8 == 1-t)
 			if (player[i].used)
-			{
+			{	
+				// ---- helmview -----
+				// mostra se NAO TEM HELM ou SE TA COM FLAG
+				if (
+							(player[i].item_helm == 0)
+							||
+							(
+								(world.flag[1-i/8].carried)
+								&&
+								(world.flag[1-i/8].carrier == i)
+							)
+					 )
+				{
+					//adiciona bit
+					helmview[t] += (1 << (i%8));
+				}
+
+				// ---- tview -----
 				tview[t][i] = 0;		// default = nao visto
 
 				for (int j=0;j<MAX_PLAYERS;j++)			// verifica se ele esta no campo de visao (tela) de alguem do meu time
@@ -3583,8 +5667,16 @@ public:
 				{
 					if ((player[j].x == player[i].x) && (player[j].y == player[i].y))	{
 
-						//se o cara tem helm, nao aparece!!
-						if (player[i].item_helm > 0)
+						//se o cara tem helm E NAO TEM FLAG, nao aparece!!
+						if (
+									(player[i].item_helm > 0)
+									&&
+									(
+										(world.flag[1-i/8].carried == false)
+										||
+										(world.flag[1-i/8].carrier != i)
+									)
+							 )
 						{
 							//nao visto!
 						}
@@ -3628,164 +5720,189 @@ public:
 
 		for (i=0;i<MAX_PLAYERS;i++)
 		if (player[i].used)			// REVISAR: todo client é um player used.  ? atualmente sim.... mas...
-		{
+		if (!player[i].isbot)		//BOTZ: para bots, nao faz o "BROADCAST" do simulate_and_broadcast...
+    {
 			//rewrite past common data
 			lecount = count;
-
-			//player data field for each player ON SCREEN
-			NLushort		players_onscreen = 0;
-
-			//keep place for players_onscreen
-			int p_on_count = lecount;
-			writeShort(lebuf, lecount, 0);
-
-			NLubyte keys;
-			for (int j=0;j<MAX_PLAYERS;j++) 
-			if ((players_present & (1 << j)) != 0)		//player j exists
-			// j is on same screen than i (the viewer)
-			// AND 
-			//   ((j helm != 1)  ||  (j/8 == i/8))  // nao-totalmente invisivel OU e do mesmo time OU j com flag
-			if (
-					 (player[j].x == player[i].x)
-					 && 
-					 (player[j].y == player[i].y)
-					 &&
-					 (
-					   (player[j].item_helm != 1) 
-						 || 
-						 (i/8 == j/8) 
-					   || 
-					   (
-						   (world.flag[1-j/8].carried)
-							 &&
-							 (world.flag[1-j/8].carrier == j)
-						 )
-					 )
-				 )
-			{
-				//add to players_onscreen
-				players_onscreen += (1 << j);
-
-				h = &(world.hero[j]);
-
-				NLshort sho;
-
-				sho = ((NLshort)player[j].x);
-				writeShort(lebuf, lecount, sho);	//player.x (screen)
-
-				sho = ((NLshort)player[j].y);
-				writeShort(lebuf, lecount, sho);	//player.y (screen)
-
-				sho = ((NLshort)h->x);
-				writeShort(lebuf, lecount, sho);	//x
-
-				sho = ((NLshort)h->y);
-				writeShort(lebuf, lecount, sho);	//y
-
-				sho = ((NLshort)(h->sx * 100));
-				writeShort(lebuf, lecount, sho );	//sx  30.283482345634... = 30283 = 30.283(depois)
-
-				sho = ((NLshort)(h->sy * 100));
-				writeShort(lebuf, lecount, sho );	//sy
-
-				/*
-				EXTRA BYTE (ex- zframe)
-
-	       bit 0 : player dead
-				 bit 1 : health extra bit
-				 bit 2 : energy extra bit
-				*/
-				NLubyte extra = 0;
-
-				//deadflag
-				if (player[j].health <= 0) extra += 1;
-
-				//write extra byte
-				writeByte(lebuf, lecount, extra);
-
-				//keys
-				keys = 0;
-				
-				//set bits 0..3
-				// if dead player, don't send keys
-				if (player[j].health > 0) {
-					if (h->l) keys += 1;
-					if (h->r) keys += 2;
-					if (h->u) keys += 4;
-					if (h->d) keys += 8;
-					if (h->run) keys += 16;		//bit 4 is "running" flag (max-speed modifier for the clientside movement extrapolator)
-				}
-
-				//set bits 5..7
-				keys = keys + (h->gundir * 32);
-				
-				//write keys
-				writeByte(lebuf, lecount, keys);		
-
-				//write SHIELD  BOOTS / QUAD
-				NLubyte		itemflags = 0;
-				if (player[j].item_shield)		itemflags += 1;
-				if (player[j].item_speed)			itemflags += 2;
-				if (player[j].item_quad)			itemflags += 4;
-
-				writeByte(lebuf, lecount, itemflags);
-
-				//write HELM alpha level
-				writeByte(lebuf, lecount, ((NLubyte)player[j].item_helm));
-			}
-
-			//update players_onscreen (it's before the players on screen data (above))
-			writeShort(lebuf, p_on_count, players_onscreen);
-
-			//ELMO: visao alem do alcance!!
-			NLubyte who;
-			if (player[i].item_helm > 0) {
-				
-				//team "viewed enemies" do meu time (i/8)
-				writeByte(lebuf, lecount, 255);		// todos!!!
-
-				//"quem eu vou ficar sabendo no minimap agora?" -- do time
-				who = (NLubyte)helmiter;
-				writeByte(lebuf, lecount, who);
-			}
-			//sem elmo: visao normal
-			else {
-				
-				//team "viewed enemies" do meu time (i/8)
-				writeByte(lebuf, lecount, tview_bits[i/8]);
-
-				//"quem eu vou ficar sabendo no minimap agora?" -- do time
-				who = (NLubyte)tviter[i/8];
-				writeByte(lebuf, lecount, who);
-			}
-
-			//x do cara, 0..255 (%) do mundo
-			NLubyte mx = (NLubyte)(((world.hero[who].x + ((double)(player[who].x * plw))) / (WXMAX*plw)) * 255.0);
-			writeByte(lebuf, lecount, mx);
-
-			//y do cara, 0..255 (%) do mundo
-			NLubyte my = (NLubyte)(((world.hero[who].y + ((double)(player[who].y * plh))) / (WYMAX*plh)) * 255.0);
-			writeByte(lebuf, lecount, my);
-
-			//send player's BASE health (first 8 bits)
-			if (player[i].health < 0) player[i].health = 0;
-			writeByte(lebuf, lecount, ((NLubyte)(player[i].health & 255)));
-
-			//send player's BASE energy (first 8 bits)
-			if (player[i].energy < 0) player[i].energy = 0;
-			writeByte(lebuf, lecount, ((NLubyte)(player[i].energy & 255)));
 
 			//extra byte of information
 			// BIT 0: extra health
 			// BIT 1: extra energy
+			// BIT 2  ( VERY IMPORTANT ) : player not ready bit (envia frame vazio!) OU server exibindo placa "game over"
 			NLubyte xtra = 0;
 			if (player[i].health & 256) xtra += 1;
 			if (player[i].energy & 256) xtra += 2;
+			// BITS 3..8 == what player id
+			if (i & 1) xtra += 8;
+			if (i & 2) xtra += 16;
+			if (i & 4) xtra += 32;
+			if (i & 8) xtra += 64;
+			if (i & 16) xtra += 128;
+
+			bool skip_frame = (player[i].awaiting_client_ready) || ((gameover) && (gameover_time > get_time()));
+
+			if (skip_frame) xtra += 4;		// VERY IMPORTANT
 			writeByte(lebuf, lecount, xtra);
 
-			//ping of player frame# % MAXPLAYERS
-			NLushort theping = player[frame % MAX_PLAYERS].ping;
-			writeShort(lebuf, lecount, theping);
+			//****** VERY IMPORTANT ****** 
+			// send almost empty frame if client not ready (leave bandwidth for data transfer) OR IF
+			// server showing gameover plaque
+			if (!skip_frame) {
+
+				//player data field for each player ON SCREEN
+				NLushort		players_onscreen = 0;
+
+				//keep place for players_onscreen
+				int p_on_count = lecount;
+				writeShort(lebuf, lecount, 0);
+
+				NLubyte keys;
+				for (int j=0;j<MAX_PLAYERS;j++) 
+				if ((players_present & (1 << j)) != 0)		//player j exists
+				// j is on same screen than i (the viewer)
+				// AND 
+				//   ((j helm != 1)  ||  (j/8 == i/8))  // nao-totalmente invisivel OU e do mesmo time OU j com flag
+				if (
+						 (player[j].x == player[i].x)
+						 && 
+						 (player[j].y == player[i].y)
+						 &&
+						 (
+							 (player[j].item_helm != 1) 
+							 || 
+							 (i/8 == j/8) 
+							 || 
+							 (
+								 (world.flag[1-j/8].carried)
+								 &&
+								 (world.flag[1-j/8].carrier == j)
+							 )
+						 )
+					 )
+				{
+					//add to players_onscreen
+					players_onscreen += (1 << j);
+
+					h = &(world.hero[j]);
+
+					NLshort sho;
+
+					sho = ((NLshort)player[j].x);
+					writeShort(lebuf, lecount, sho);	//player.x (screen)
+
+					sho = ((NLshort)player[j].y);
+					writeShort(lebuf, lecount, sho);	//player.y (screen)
+
+					sho = ((NLshort)h->x);
+					writeShort(lebuf, lecount, sho);	//x
+
+					sho = ((NLshort)h->y);
+					writeShort(lebuf, lecount, sho);	//y
+
+					sho = ((NLshort)(h->sx * 100));
+					writeShort(lebuf, lecount, sho );	//sx  30.283482345634... = 30283 = 30.283(depois)
+
+					sho = ((NLshort)(h->sy * 100));
+					writeShort(lebuf, lecount, sho );	//sy
+
+					/*
+					EXTRA BYTE (ex- zframe)
+
+					 bit 0 : player dead
+					 bit 1 : has deathbringer
+					 bit 2 : deathbringer-affected
+					*/
+					NLubyte extra = 0;
+					if (player[j].health <= 0) extra += 1; //deadflag
+					if (player[j].item_deathbringer) extra += 2; //has deathbringer 
+					if (player[j].deathbringer_end > get_time()) extra += 4;		//deathbringer-affected
+
+					//write extra byte
+					writeByte(lebuf, lecount, extra);
+
+					//keys
+					keys = 0;
+					
+					//set bits 0..3
+					// if dead player, don't send keys
+					if (player[j].health > 0) {
+						if (h->l) keys += 1;
+						if (h->r) keys += 2;
+						if (h->u) keys += 4;
+						if (h->d) keys += 8;
+						if (h->run) keys += 16;		//bit 4 is "running" flag (max-speed modifier for the clientside movement extrapolator)
+					}
+
+					//set bits 5..7
+					keys = keys + (h->gundir * 32);
+					
+					//write keys
+					writeByte(lebuf, lecount, keys);		
+
+					//write SHIELD  BOOTS / QUAD
+					NLubyte		itemflags = 0;
+					if (player[j].item_shield)		itemflags += 1;
+					if (player[j].item_speed)			itemflags += 2;
+					if (player[j].item_quad)			itemflags += 4;
+
+					writeByte(lebuf, lecount, itemflags);
+
+					//write HELM alpha level
+					writeByte(lebuf, lecount, ((NLubyte)player[j].item_helm));
+				}
+
+				//update players_onscreen (it's before the players on screen data (above))
+				writeShort(lebuf, p_on_count, players_onscreen);
+
+				//ELMO: visao alem do alcance!!
+				NLubyte who;
+				if (player[i].item_helm > 0) {
+					
+					//team "viewed enemies" do meu time (i/8)
+					//writeByte(lebuf, lecount, 255);		// todos!!!
+					//FIX: helm nao enxerga todo mundo nao
+					//team "viewed enemies" do meu time (i/8)
+					//writeByte(lebuf, lecount, tview_bits[i/8]);
+					//FIX: helm tambem nao eh no viewed enemies. o helm de um time é 255 (todos)
+					//     menos quem tem helm
+					writeByte(lebuf, lecount, helmview[i/8]);
+
+					//"quem eu vou ficar sabendo no minimap agora?" -- do time
+					who = (NLubyte)helmiter;
+					writeByte(lebuf, lecount, who);
+				}
+				//sem elmo: visao normal
+				else {
+					
+					//team "viewed enemies" do meu time (i/8)
+					writeByte(lebuf, lecount, tview_bits[i/8]);
+
+					//"quem eu vou ficar sabendo no minimap agora?" -- do time
+					who = (NLubyte)tviter[i/8];
+					writeByte(lebuf, lecount, who);
+				}
+
+				//x do cara, 0..255 (%) do mundo
+				NLubyte mx = (NLubyte)(((world.hero[who].x + ((double)(player[who].x * plw))) / (map.w*plw)) * 255.0);
+				writeByte(lebuf, lecount, mx);
+
+				//y do cara, 0..255 (%) do mundo
+				NLubyte my = (NLubyte)(((world.hero[who].y + ((double)(player[who].y * plh))) / (map.h*plh)) * 255.0);
+				writeByte(lebuf, lecount, my);
+
+				//send player's BASE health (first 8 bits)
+				if (player[i].health < 0) player[i].health = 0;
+				writeByte(lebuf, lecount, ((NLubyte)(player[i].health & 255)));
+
+				//send player's BASE energy (first 8 bits)
+				if (player[i].energy < 0) player[i].energy = 0;
+				writeByte(lebuf, lecount, ((NLubyte)(player[i].energy & 255)));
+
+				//ping of player frame# % MAXPLAYERS
+				NLushort theping = player[frame % MAX_PLAYERS].ping;
+				writeShort(lebuf, lecount, theping);
+			
+			}//!player[i].awaiting_client_ready
 			
 			//send the packet
 			server->send_frame(player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
@@ -3805,7 +5922,9 @@ public:
 					ping_send_client = 0;
 
 				// valid player
-				if (player[ping_send_client].used) {
+				if (player[ping_send_client].used)
+				if (!player[ping_send_client].isbot)	//NOT a bot
+				{
 					//ping it
 					server->ping_client(player[ping_send_client].cid);
 				}
@@ -3814,16 +5933,41 @@ public:
 
 	}
 
+	//run something after simulate_and_broadcast
+	void server_think_after_broadcast() {
+		int i;
+
+		//check players with pending team changes
+		for (i=0;i<MAX_PLAYERS;i++)
+		if (player[i].used)
+		if (!player[i].isbot)
+		if (player[i].team_change_pending)
+		if (player[i].want_change_teams)
+		if (player[i].team_change_time < get_time())
+			check_player_change_teams(i);
+
+		//check end of gameover plaque
+		if (gameover)
+		if (gameover_time < get_time()) {
+			gameover = false;
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 25);		//end of gameover plaque
+			server->broadcast_message(lebuf, count);
+		}
+	}
+
 	//loop server
 	// running_flag: pointer to bool, if this bool goes to false, the loop quits.
 	void loop(volatile bool *running_flag) {
+
+		LOG("GAMESERVER::LOOP()\n");
 	
 		frame = 0;	//frame to generate next
 
 		//sync with speed counter until it's time to generate one frame (== 1)
 		server_speed_counter = -3;
 		while (server_speed_counter < 1)
-			MS_SLEEP(1);		
+			MS_SLEEP(1);		//*** NO CPU PROBLEM HERE ***
 
 		// no flag specified: esc quits
 		bool keep_running = true;
@@ -3831,6 +5975,8 @@ public:
 			running_flag = &keep_running;
 
 		static int fubie = 0;
+
+		LOG("GAMESERVER::LOOP() (2)\n");
 
 		while ( (*running_flag) == true )	{
 
@@ -3858,26 +6004,706 @@ public:
 				set_window_title(elbuf);
 			}
 
+			// executa algo para todos os players
+			server_think_after_broadcast();
+
+			// BOTZ: apos a simulacao da fisica da frame e envio de frame update pra todos os jogadores de
+			//   carne e osso, segue-se um periodo de dormencia do server, em torno de 100 ms (menos, porque
+			//   o simulate/broadcast frame tem seu custo)
+			//
+			//   ANTES desta sonolencia, ha um tempo para que os bots "pensem" que teclas vao apertar.
+			//   fabuloso, nao?
+			//
+			//   todos os bots tem que atualizar seus keypresses lá no bot_frame_think()
+			//
+#ifndef	NO_BOTS
+
+			bot_before_frame();		// roda algo sobre bots, só que antes de todos os bots pensarem
+
+			int bi;
+			for (bi=0;bi<MAX_PLAYERS;bi++) 
+				if (player[bi].used)		// bá, muito importante! quase esqueco....
+				if (player[bi].isbot)		// é bot? nao avacalhar teclas dos outros...
+					bot_frame_think(bi);
+
+#endif
+
 			// sleep while not time to send again
 			while (server_speed_counter <= 0) {
 				
 				// sleep a bit
-				MS_SLEEP(1);
+				MS_SLEEP(2);			// *** OPTIMIZE THIS ***
 			}
 
 			// quit? if no running-flag specified
 			if (key[KEY_ESC])
 				keep_running = false;
 		}
+
+		LOG("GAMESERVER::LOOP() (EXITING!)\n");
+	}
+
+	//master server talker thread
+	void run_mastertalker_thread(void *arg) {
+
+		//FIXME: generate a decent password here
+
+		LOG("run_mastertalker_thread()\n");
+
+		//get my IP
+		char address[256];
+		NLaddress myadr;
+		get_self_IP(&myadr);
+		nlAddrToString(&myadr, address);
+
+		//while not time to quit
+		while (!file_threads_quit) {
+
+			//time to update with master server?
+			if (get_time() > master_talk_time) {
+
+				//LOG("MASTER TALKER: time to talk\n");
+
+				//schedule next
+				master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
+
+				//open socket
+				nlEnable(NL_BLOCKING_IO);
+				msock = nlOpen(0, NL_RELIABLE);
+				nlDisable(NL_BLOCKING_IO);
+				if (msock == NL_INVALID) {
+					LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO MASTER SERVER!!\n");
+					continue;
+				}
+
+				//LOG("MASTER TALKER: socket open\n");
+
+				//connect
+				//NLaddress masadr;
+				//nlGetAddrFromName("www.mycgiserver.com", &masadr);	//www.mycgiserver.com
+				//nlStringToAddr("212.69.162.53", &masadr);
+				//nlSetAddrPort(&masadr, 80);													//port 80
+				if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
+					LOG("SERVER CAN'T CONNECT TO WWW.MYCGISERVER.COM:80 !!!\n");
+					nlClose(msock);
+					msock = NL_INVALID;
+					continue;
+				}
+
+				//LOG("MASTER TALKER: socket connected\n");
+
+				//built the state 
+				char state[1024];
+				sprintf(state, "%2i players - %s - v%s", player_count, hostname, GAME_VERSION);
+				for (int h=0;h<strlen(state);h++) {
+					if (state[h] == ' ')	//switch spaces to plus'es
+						state[h] = '+';
+				}
+
+				//build the GET request
+				char query[1024];
+				sprintf(query, "GET /servlet/fcecin.m3/index.html?add=%s&pass=1111&st=%s\n\n", address, state);
+				char lebuf[65536]; int count = 0;
+				writeString(lebuf, count, query);
+				//erase the 0
+				count--;
+
+				//chance to give up
+				if (file_threads_quit)
+					break;
+
+				//now we have talked
+				master_never_talked = false;
+
+				//send it
+				NLint result = nlWrite(msock, lebuf, count);
+				//LOG3("WROTE TO MASTER '%s', result = %i, count = %i\n", query, result, count);
+				LOG2("MASTER TALKER: wrote to master %i,%i", result, count);
+
+				//parse the response (should be <HTML><BODY> etc... with "@K" on it
+				int n=0;
+				double timeout = get_time() + 60.0;
+				do {
+
+					//read
+					result = nlRead(msock, &(lebuf[n]), 1);
+					if (result != 1) {
+						LOG1("MASTER TALKER: ERROR r=%i\n", result);
+						break;
+					}
+
+					//check for received </HTML>
+					if (n > 8) {
+						if (
+							(lebuf[n-6] == '<') &&
+							(lebuf[n-5] == '/') &&
+							((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
+							((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
+							((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
+							((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
+							(lebuf[n-0] == '>')
+						)
+						{
+
+							LOG("MASTER TALKER: </HTML>\n");
+							lebuf[n+1] = 0;
+							//LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+							break;
+						}
+					}
+
+					//read next
+					n++;
+
+					//quit if timeout
+					if (get_time() > timeout)
+						break;
+
+					//quit if told to
+					if (file_threads_quit)
+						break;				
+
+				} while (1);
+
+				//close socket
+				nlClose(msock);
+				msock = NL_INVALID;				
+			}
+
+			//no: sleep a bit
+			MS_SLEEP(500);
+		}
+
+		LOG("MASTER TALKER: time to say goodbye\n");
+
+		//master is pre-exiting, no need to do the first socket closure
+		master_pre_exiting_ok = true;
+
+		//qutting: close the socket
+		if (msock != NL_INVALID) {
+			LOG("MASTER TALKER: bye 1\n");
+			nlClose(msock);
+			msock = NL_INVALID;
+		}
+
+		//never talked? then just quit
+		if (master_never_talked) {
+			//master exited OK!
+			master_exiting_ok = true;
+			return;
+		}
+
+		LOG("MASTER TALKER: bye 2\n");
+
+		//quitting: delete my IP from master so clients won't see it
+		//open socket
+		nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
+		msock = nlOpen(0, NL_RELIABLE);
+		
+		if (msock == NL_INVALID) {
+			LOG("(QUIT) SERVER CAN'T OPEN SOCKET TO CONNECT TO MASTER SERVER!!\n");
+			return;
+		}
+
+		//connect
+		//NLaddress masadr;
+		//nlGetAddrFromName("www.mycgiserver.com", &masadr);	//www.mycgiserver.com
+		//nlStringToAddr("212.69.162.53", &masadr);
+		//nlSetAddrPort(&masadr, 80);													//port 80
+		if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
+			LOG("(QUIT) SERVER CAN'T CONNECT TO WWW.MYCGISERVER.COM:80 !!!\n");
+			nlClose(msock);
+			msock = NL_INVALID;
+			return;
+		}
+
+		//build the GET request
+		char query[1024];
+		sprintf(query, "GET /servlet/fcecin.m3/index.html?del=%s&pass=1111\n\n", address);
+		char lebuf[65536]; int count = 0;
+		writeString(lebuf, count, query);
+		//erase the 0
+		count--;
+
+		//send it
+		
+		NLint result;
+		double querytimeout = get_time() + 5.0;
+		
+		do {
+			MS_SLEEP(50);
+			result = nlWrite(msock, lebuf, count);
+		} while ((result == NL_INVALID) && (get_time() < querytimeout));
+
+		if (get_time() >= querytimeout) {
+			
+			LOG("(QUIT) query timeout\n");
+
+			//master exited OK!
+			master_exiting_ok = true;
+
+			//close socket
+			nlClose(msock);
+			msock = NL_INVALID;				
+			return;
+		}
+
+		LOG3("(QUIT) WROTE TO MASTER '%s', result = %i, count = %i\n", query, result, count);		
+		
+		//parse the response (should be <HTML><BODY> etc... with "@K" on it
+		double timeout = get_time() + 5.0;
+		int n=0;
+		do {
+
+			//read
+			result = nlRead(msock, &(lebuf[n]), 1);
+			if (result == NL_INVALID) {
+				LOG1("(QUIT) ERROR READING RESPONSE result = %i\n", result);
+				break;
+			}
+			//timeout?
+			if (get_time() > timeout)
+				break;
+			//nothing to read
+			if (result == 0) {
+				MS_SLEEP(10);
+				continue;
+			}
+
+			//check for received </HTML>
+			if (n > 8) {
+				if (
+					(lebuf[n-6] == '<') &&
+					(lebuf[n-5] == '/') &&
+					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
+					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
+					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
+					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
+					(lebuf[n-0] == '>')
+				)
+				{
+					LOG("(QUIT) RECEIVED </HTML>! SUCCESS!!\n");
+					lebuf[n+1] = 0;
+					//LOG1("(QUIT) ---- Full response START ----\n%s\n(QUIT) ---- Full response END ----\n", lebuf);
+					break;
+				}
+			}
+
+			//read next
+			n++;
+
+		} while (1);
+
+		//master exited OK!
+		master_exiting_ok = true;
+
+		//close socket
+		nlClose(msock);
+		msock = NL_INVALID;				
+	}
+
+	//read a string from a blocking TCP stream, one char at a time
+	bool read_string_from_TCP(NLsocket sock, char *buf) {
+
+		int n =0;
+
+		do {
+			
+			NLint result = nlRead(sock, &(buf[n]), 1);
+			if (result != 1)	//interrupted
+				return false;
+
+			if (buf[n] == '0')	//string was terminated
+				return true;
+
+			n++;
+
+		} while (1);
+	}
+
+	//run a admin shell master thread
+	void run_shellmaster_thread(void *arg) {
+
+		LOG("\n(ALL-NEW) run_shellmaster_thread() STARTED\n");
+
+		while (1) {
+			//accept one connection
+			nlEnable(NL_BLOCKING_IO);
+			NLsocket pidaosock = nlAcceptConnection(shellmsock);
+			nlDisable(NL_BLOCKING_IO);
+
+			//valid socket?
+			if (pidaosock != NL_INVALID) {
+
+				LOG("\npidaosock NOT INVALID! incoming SHELL CONNECTION!\n");
+				
+				//accept connections only from localhost
+				NLaddress addr, c1, c2;
+				nlGetRemoteAddr(pidaosock, &addr);
+				nlStringToAddr("127.0.0.1", &c1);
+				get_self_IP(&c2);
+				nlSetAddrPort(&addr, 0);
+				nlSetAddrPort(&c1, 0);
+				nlSetAddrPort(&c2, 0);
+
+				if (
+						(nlAddrCompare(&addr, &c1) == NL_FALSE)
+						&&
+						(nlAddrCompare(&addr, &c2) == NL_FALSE)
+					 )
+				{
+					LOG("\nWARNING: attempt to connect a remote admin shell blocked!\n");
+					nlClose(pidaosock);
+					continue;
+				}
+
+				//if already connected, skip
+				if (shellssock != NL_INVALID)	{ //skip
+					LOG("\nWARNING: attempt to connect two simultaneous admin shells blocked!\n");
+					nlClose(pidaosock);
+					continue;				
+				}
+
+				LOG("**** ADMIN SHELL SOCKET CONNECTED ON LOOPBACK PORT 24500! ******\n");
+				
+				//ADMIN SHELL just connected: tell about the current situation!
+				//
+				char lebuf[4096]; int count = 0;
+				for (int i=0;i<MAX_PLAYERS;i++) 
+				if (player[i].used)
+				if (!player[i].isbot)
+				{
+					writeLong(lebuf, count, STA_PLAYER_CONNECTED);////1 .... player connected <int id>
+					writeLong(lebuf, count, player[i].cid);
+					writeLong(lebuf, count, STA_PLAYER_FRAGS);
+					writeLong(lebuf, count, player[i].cid);
+					writeLong(lebuf, count, player[i].frags);
+					writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+					writeLong(lebuf, count, player[i].cid);
+					writeString(lebuf, count, player[i].name);
+				}
+				NLint result = nlWrite(pidaosock, lebuf, count);				
+
+				//keep socket so it can be closed. this assignment also will reflect
+				// on the execution of run_shellslave_thread()
+				shellssock = pidaosock;
+			}
+			else {
+				if (file_threads_quit) {		//quitting!
+					LOG("SHELLMASTER THREAD IS QUITTING\n");
+					nlClose(shellmsock);
+					return;
+				}
+				//else 
+				//LOG("(SH)");
+			}
+
+			//sleep a bit
+			MS_SLEEP(500);
+		}
+	}
+
+	//run an admin shell slave thread
+	void run_shellslave_thread(void *arg) {
+
+		LOG("run_shellslave_thread() STARTED\n");
+
+		while (1) {
+
+			// valid socket?
+			if (shellssock != NL_INVALID) {
+
+				//LOG("SLAVE SHELLSOCK READING MESSAGE...\n");
+
+				//read request code
+				NLint code, pid, clid;
+				char rbuf[256]; int rcount = 0;
+				NLint result = nlRead(shellssock, rbuf, 4);
+				rcount = 0; readLong(rbuf, rcount, code);
+				
+				//a zero result may be connection not ready yet (?)
+				if (result == 0) {
+					MS_SLEEP(10);
+					continue;
+				}
+
+				LOG2("READ RESULT = %i VALUE = %i\n", result, code);
+
+				if (result == NL_INVALID) {
+					LOG4("RESULT IS NL_INVALID. errors are %i %s %i %s\n", nlGetError(), nlGetErrorStr(nlGetError()), nlGetSystemError(), nlGetSystemErrorStr(nlGetSystemError()));
+					LOG("SLAVE CONNECTION RESET (1)\n");
+					if (shellssock != NL_INVALID) {
+						nlClose(shellssock);
+						shellssock = NL_INVALID;
+					}
+					continue;
+				}
+				
+				if (file_threads_quit) { 
+					LOG("SLAVE QUIT (2)\n");
+					break; //quitting...
+				}
+
+				if (result != 4) {
+					LOG("SLAVE CONNECTION RESET (2)\n");
+					if (shellssock != NL_INVALID) {
+						nlClose(shellssock);
+						shellssock = NL_INVALID;
+					}
+					continue;
+				}//error occured: end here
+
+				bool should_quit = false;
+				bool answer = false;
+				char lebuf[1024];
+				char chat[2048];
+				char lechat[2048];
+				int count = 0, delta;
+							
+				//parse it
+				switch (code) {
+				case ATS_NOOP:						//0= no-op
+					break;
+				case ATS_GET_PLAYER_FRAGS:		//1... request the frags amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						
+						if ((!player[pid].used) || (player[pid].isbot)) {
+						}
+						else {
+							answer = true; //ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_FRAGS);
+							writeLong(lebuf, count, player[pid].cid);
+							writeLong(lebuf, count, player[pid].frags);
+						}
+					}
+					break;
+				case ATS_GET_PLAYER_TOTAL_TIME:		//request the frags amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						
+						if ((!player[pid].used) || (player[pid].isbot)) {
+						}
+						else { //ADMIN SHELL
+							answer = true;
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
+							writeLong(lebuf, count, player[pid].cid);
+							delta = (int)(get_time() - player[pid].start_time);
+							writeLong(lebuf, count, delta);
+						}
+					}
+					break;
+				case ATS_GET_PLAYER_TOTAL_KILLS:		//request the total kills amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						
+						if ((!player[pid].used) || (player[pid].isbot)) {
+						}
+						else {
+							answer = true;//ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
+							writeLong(lebuf, count, player[pid].cid);
+							writeLong(lebuf, count, player[pid].total_kills);
+						}
+					}
+					break;
+				case ATS_GET_PLAYER_TOTAL_DEATHS:		//request the total deaths amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						if ((!player[pid].used) || (player[pid].isbot)) {
+						}
+						else {
+							answer = true;//ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
+							writeLong(lebuf, count, player[pid].cid);
+							writeLong(lebuf, count, player[pid].total_deaths);
+						}
+					}
+					break;
+				case ATS_GET_PLAYER_TOTAL_CAPTURES:		//request the total captures amount of a player <int id>				}
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						
+						if ((!player[pid].used) || (player[pid].isbot)) {
+						}
+						else {
+							answer = true;//ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
+							writeLong(lebuf, count, player[pid].cid);
+							writeLong(lebuf, count, player[pid].total_captures);
+						}
+					}
+					break;
+				case ATS_SERVER_CHAT:									//server is saying <string chat line>
+					read_string_from_TCP(shellssock, (char *)chat);
+					sprintf(lechat, "ADMIN: %s", chat);
+					broadcast_message(lechat);
+					break;
+				case ATS_QUIT:
+					should_quit = true;
+					break;
+				}
+
+				//quitting?
+				if (should_quit) {
+					LOG("SLAVE ATS_QUIT (connction reset)\n");
+					if (shellssock != NL_INVALID) {
+						nlClose(shellssock);
+						shellssock = NL_INVALID;
+					}
+					continue;
+				}
+
+				//quitting...
+				if (file_threads_quit) { 
+					LOG("SLAVE QUIT (4)\n");
+					break; 
+				}
+
+				//send answer to the shell
+				if (answer) {
+					result = nlWrite(shellssock, lebuf, count);
+				}
+			}
+			//not valid
+			else {
+				//sleep a bit
+				MS_SLEEP(1000);
+			}
+
+			//quitting...
+			if (file_threads_quit) { 
+				LOG("SLAVE QUIT (5)\n");
+				break; 
+			}
+		}
+
+		//quitting
+		LOG("ADMIN SHELL SLAVE THREAD QUITTING... CLOSING SOCKET\n");
+		if (shellssock != NL_INVALID) {
+			nlClose(shellssock);
+			shellssock = NL_INVALID;
+		}
 	}
 
 	//stop server
 	void stop() {
-		
+
+		set_window_title("Shutdown: Net Server");
+
 		if (server)
 			server->stop(3);
 		else
 			throw 8384;
+
+		// flag so threads will quit themselves
+		master_pre_exiting_ok = false;
+		master_exiting_ok = false;		
+		file_threads_quit = true;	//quit stuff now
+
+		//close TCP connection with the server admin shell
+		//
+		set_window_title("Shutdown: MSHELL Thread");
+
+		LOG("GAMESERVER JOINING SHELL-MASTER THREAD...\n");
+		pthread_join( shellmthread, 0 );
+
+		set_window_title("Shutdown: SSHELL Socket");
+
+		LOG("GAMESERVER CLOSING SHELL-SLAVE SOCKET...\n");
+		if (shellssock != NL_INVALID)
+			nlClose( shellssock );
+
+		set_window_title("Shutdown: SSHELL Thread");
+
+		LOG("GAMESERVER JOINING SHELL-SLAVE THREAD...\n");
+		pthread_join( shellsthread, 0 );		
+
+		//file downlaod to clients threads..
+		//
+		LOG("GAMESERVER CLOSING FILEMASTER'S SOCKET...\n");
+
+		set_window_title("Shutdown: FILE Socket");
+
+		nlClose(filesock);
+		LOG("GAMESERVER STOP JOIN FILEMASTER...\n");
+
+		set_window_title("Shutdown: MFILE Thread");
+
+		pthread_join( server_filemaster_thread , 0 );
+		LOG("OK!\n");
+
+		pthread_mutex_lock( &fslavesock_mutex );
+
+		for (int i=0;i<MAX_PLAYERS;i++) 
+			if (fslavesock[i] != NL_INVALID) {
+				set_window_title("Shutdown: SFILE Socket");
+				nlClose(fslavesock[i]);
+				LOG2("GAMESERVER STOP JOIN FILESLAVE %i %i...", i, fslavesock[i]);
+				set_window_title("Shutdown: SFILE Thread");
+				if (fslavethr[i] != (pthread_t)-1)
+					pthread_join ( fslavethr[i] , 0 );
+				LOG("OK!\n");
+			}
+
+		pthread_mutex_unlock( &fslavesock_mutex );
+		
+		//thread for TCP connection that server uses to register it's IP on the master-server
+		//
+		if (!privateserver) {
+
+			//MS_SLEEP(1000);	//wait a bit for the slave thread to catch up
+
+			if (!master_pre_exiting_ok) {
+				if (msock != NL_INVALID) {
+					LOG("GAMESERVER CLOSING MASTER SERVER SOCKET...\n");
+					set_window_title("Shutdown: MASTER Socket 1");
+					nlClose(msock);
+					msock = NL_INVALID;
+				}
+				else
+					LOG("GAMESERVER CLOSING MASTER SERVER SOCKET (BUT IT HAS ALREADY BEEN DISCONNECTED AND SENDING DISCONNECT TO MASTER)...\n");
+			}
+
+			//MS_SLEEP(1000);	//wait a bit for the slave thread to catch up
+
+			LOG("GAMESERVER JOINING MASTER SERVER THREAD...\n");
+
+			set_window_title("Shutdown: MASTER Thread");
+
+			int waitcount = 0;
+			do {
+				MS_SLEEP(100);
+				if (master_exiting_ok) {	//done!
+					LOG("IT EXITED...\n");
+					break;
+				}
+				
+				waitcount++;
+				if (waitcount > 30) {		// 30 * 100ms = 3 seconds
+					LOG("TIRED OF WAITING...\n");
+					//kill the socket
+					set_window_title("Shutdown: MASTER Socket 2");
+					nlClose(msock);		//close AGAIN (it's a different one)
+					msock = NL_INVALID;
+					break;
+				}
+
+			} while (1);
+
+			//NOW one can join with the thread without fear
+			LOG("DE FACTO JOIN...\n");
+
+			set_window_title("(Kill this window if not closing)");
+
+			pthread_join( mthread , 0 );
+		}
+
 
 	}
 
@@ -3979,7 +6805,7 @@ int sfunc_client_connected(runes_t *arg) {
 
 	LOG1("client connected %i\n", arg->client_id);
 
-	gameserver->client_connected(arg->client_id);
+	gameserver->client_connected(arg->client_id, false); //false == nao eh serverside bot
 	
 	return 0;
 }
@@ -3988,7 +6814,7 @@ int sfunc_client_disconnected(runes_t *arg) {
 	
 	LOG1("client disconnected %i\n", arg->client_id);
 
-	gameserver->client_disconnected(arg->client_id);
+	gameserver->client_disconnected(arg->client_id, false);	//false == nao eh serverside bot
 	
 	return 0;
 }
@@ -4013,6 +6839,55 @@ int sfunc_client_data(runes_t *arg) {
 int sfunc_client_ping_result(runes_t *arg) {
 
 	gameserver->ping_result(arg->client_id, arg->pingtime);
+
+	return 0;
+}
+
+//============================================================
+//  TCP server admin shell interaction thread
+//============================================================
+
+//thread for server shell connections
+void *thread_shellmaster_f(void *arg) {
+
+	gameserver->run_shellmaster_thread(arg);
+
+	return 0;
+}
+
+void *thread_shellslave_f(void *arg) {
+
+	gameserver->run_shellslave_thread(arg);
+
+	return 0;
+}
+
+//============================================================
+//  TCP master server (web servlet) interaction thread
+//============================================================
+
+//thread for master server interaction
+void *thread_mastertalker_f(void *arg) {
+
+	gameserver->run_mastertalker_thread(arg);
+
+	return 0;
+}
+
+//============================================================
+//  TCP file server threads
+//============================================================
+
+void *thread_filemaster_f(void *arg) {
+
+	gameserver->run_filemaster_thread(arg);
+
+	return 0;
+}
+
+void *thread_fileslave_f(void *arg) {
+
+	gameserver->run_fileslave_thread(arg);
 
 	return 0;
 }
@@ -4089,7 +6964,7 @@ void listen_stop() {
 #define MAX_CLIENTFX 64
 
 // size of connect screen
-#define MAX_GAMESPY 20
+#define MAX_GAMESPY 24
 
 // drawing screens
 BITMAP *drawbuf, *vidpage1=0, *vidpage2=0, *backbuf=0;
@@ -4117,7 +6992,24 @@ struct clientfx_t {
 
 	//speed fx
 	int col1, col2, gundir;
+
+	//deathbringer owner
+	int owner;
 };
+
+struct download_runes_t {
+
+	int did;		//download id
+
+	char type[64];	//type of file to download
+	char name[256];	//name of file to download
+	char dest[512];	//full destination path+name for downloaded file
+	
+};
+
+//client downloader thread prototype
+void *thread_clientdownloader_f(void *arg);
+
 
 // the game client state
 // this includes graphics, simulation & networking (what a mess)
@@ -4174,6 +7066,15 @@ public:
 
 	//if player wants to changeteams
 	bool want_change_teams;
+	
+	//if player wants to exit the map
+	bool want_map_exit;
+
+	//client-to-server bot configuration preferences:
+	NLubyte		botsize;		//target team sizes
+	NLubyte		botmode;		//wanted bot mode  0=fill holes  1=use botsize
+	double		bot_pref_time;		//otimizando rede: caso jogador fique trocando toda hora de cfg de bot
+	bool			bot_pref_change;	//otimizando rede: caso jogador fique trocando toda hora de cfg de bot
 
 	//the scoreboard, maps entry # to display into player-id
 	int scoreboard[MAX_PLAYERS];
@@ -4189,9 +7090,12 @@ public:
 	int		strlen_hostname;	//strlen precalculado
 
 	//connect screen, my "mini-gamespy"
+	bool	showmaster;		//showing master screen (opposite: showing favourites screen)
+	bool	first_fav_refresh;		//first refresh of favorites page already done?
 	gamespy_t		gamespy[MAX_GAMESPY];	
 	int					gi;	//what game entry
-
+	gamespy_t		mgamespy[MAX_GAMESPY];		//gamespy of masterserver
+	
 	char playername[256]; //the player's name (max name len = 16)
 	char editplayername[256]; //the player's name edit buffer
 	char address[256];		//server IP address
@@ -4204,6 +7108,14 @@ public:
 	//bitmap for minimap background (level walls, screen grid)
 	BITMAP *minibg;
 
+	//flag if map valid or not ready yet
+	bool map_ready;
+	char servermap[64];	//last map command from server
+
+	//flag for gameover plaque showing
+	int gameover_plaque;
+	int red_final_score, blue_final_score;		//final scores for showing in the gameover plaque
+	
 	//start
 	bool start() {
 
@@ -4221,7 +7133,12 @@ public:
 		framecount = 0;
 		
 		// default map
-		load_default_map(&map);
+		//load_default_map(&map);
+		map_ready = false;		// NO map change commands from server yet
+		servermap[0]=0;
+
+		//not showing gameover plaque
+		gameover_plaque = NEXTMAP_NONE;
 
 		//update minimap background
 		minibg = create_bitmap(100, 100);
@@ -4238,12 +7155,18 @@ public:
 		client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
 		
 		//init gamespy/adresses
+		first_fav_refresh = false;
+		showmaster = true;
 		address[0]=0;
 		gi = 0;
 		for (int i=0;i<MAX_GAMESPY;i++) {
 			gamespy[i].address[0]=0;
 			gamespy[i].refreshed = false;
 			gamespy[i].invalid = false;	//don't know the status yet
+			//master gamespy:
+			mgamespy[i].address[0]=0;
+			mgamespy[i].refreshed = false;
+			mgamespy[i].invalid = false;	//don't know the status yet
 		}
 
 		//try to load client configuration
@@ -4282,6 +7205,7 @@ public:
 				if (fscanf(cfg, "%s", lebuf) == 1) {
 					lebuf[15]=0;		// max needed for IP=15!
 					strcpy(gamespy[i].address, lebuf);
+					strcpy(mgamespy[i].address, lebuf); //copy to master list too!
 				}
 			}
 
@@ -4292,6 +7216,7 @@ public:
 		if (randomname) {
 			string nome_tri_legal = RandomName();
 			strcpy(playername, nome_tri_legal.c_str() );
+			FreeName(nome_tri_legal);
 		}
 
 		//no themes set yet
@@ -4338,7 +7263,275 @@ public:
 			set_theme_dir(0);		//0=sfxthemedir already set
 		}
 
+		//refresh master!
+		get_servers_from_master();
+
 		return true;
+	}
+
+	//send "client ready" message to server (when map load and/or download completes)
+	void send_client_ready() {
+		char lebuf[256]; int count = 0;
+		writeByte(lebuf, count, 21);		// 21 = "client ready"
+		client->send_message(lebuf, count);		// bem curtinha a mensagem mesmo...
+	}
+
+	//file download complete
+	void download_file_complete(download_runes_t  *r) {
+
+		LOG3("download_file_complete '%s' '%s' '%s'\n", r->type, r->name, r->dest);
+
+		//map complete
+		if (!strcmp(r->type, "map")) {
+
+			//if expected map, change now
+			if (!strcmp(r->name, servermap)) {
+
+				NLushort crc;
+				bool ok = load_map(CLIENT_MAPS_DIR, r->name, &map, &crc);
+
+				if (!ok) {
+					LOG1("AFTER DOWNLOAD: MAP '%s' NOT FOUND\n", r->name);
+				}
+				else {
+					LOG1("AFTER DOWNLOAD: MAP '%s' LOADED SUCESSFULLY!\n", r->name);
+
+					//load ok!  (FIXME: tell server)
+					//
+					update_minimap_background();		// recalc minimap
+					map_ready = true;								// map ready to show
+					send_client_ready();				//send "client ready" to server
+				}		
+			}
+		}
+
+		//delete the download record
+		delete r; r = 0;
+	}
+
+	//start downloading a server file
+	void download_server_file(char *type, char *name, char *dest) {
+		
+		//static int download_id = 1;
+
+		download_runes_t	*rune = new download_runes_t();
+		strcpy(rune->type, type);
+		strcpy(rune->name, name);
+		strcpy(rune->dest, dest);
+
+		//start new thread wich will call client_download_thread below (yes sucks but works)
+		pthread_t			downloader_thread;
+		pthread_create(&downloader_thread, 0, thread_clientdownloader_f, (void *)(rune));
+	}
+
+	//downloads a server file
+	void client_download_thread(void *arg) {
+
+		//get pointer to runes
+		download_runes_t  *r = (download_runes_t*)arg;
+
+		//open blocking, thank god, TCP connection
+		nlEnable(NL_BLOCKING_IO);
+		NLsocket sok = nlOpen(0, NL_RELIABLE);
+		nlDisable(NL_BLOCKING_IO);
+
+		if (sok == NL_INVALID) {		//d'oh!
+			//disconnect client here
+			disconnect_command();
+			return;
+		}
+		
+		//connect to server IP : 24999
+		char addr_n_port[256];
+		sprintf(addr_n_port, "%s:%i", address, 24999);	//24999 = TCP PORT
+		NLaddress addr;
+		nlStringToAddr(addr_n_port, &addr);
+
+		NLboolean ok = nlConnect(sok, &addr);
+		if (ok == NL_FALSE) {
+			//disconnect client here (FIXME: or retry?)
+			nlClose(sok);
+			disconnect_command();
+			return;
+		}
+
+		//request file
+		char lebuf[65536];
+		int count = 0;
+		writeByte(lebuf, count, 1);		//1 = request file download
+		writeString(lebuf, count, r->type);	//filetype
+		writeString(lebuf, count, r->name);	//filename
+		NLint result = nlWrite(sok, lebuf, count);
+		// check result of write
+		if (result != count) {
+			nlClose(sok);
+			disconnect_command();		//FIXME make it better
+			return;
+		}
+		
+		//download file
+		result = nlRead(sok, lebuf, 1);		// read response byte
+		//check result
+		if (result != 1) {
+			nlClose(sok);
+			disconnect_command();		//FIXME make it better
+			return;
+		}
+		
+		NLubyte ans;
+		count = 0;
+		readByte(lebuf, count, ans);
+
+		//FIXME: deal with other answers
+		if (ans == 2)    // 2 = file request ok, sending file
+		{
+			//read file CRC
+			result = nlRead(sok, lebuf, 2);
+			if (result != 2) {
+				nlClose(sok);
+				disconnect_command();		//FIXME make it better
+				return;
+			}
+			NLushort incrc;
+			count = 0;
+			readShort(lebuf, count, incrc);
+
+			//read file SIZE
+			result = nlRead(sok, lebuf, 4);
+			if (result != 4) {
+				nlClose(sok);
+				disconnect_command();		//FIXME make it better
+				return;
+			}
+			NLulong filesize;
+			count = 0;
+			readLong(lebuf, count, filesize);
+			
+			//read the file in 1 big chunk
+			result = nlRead(sok, lebuf, filesize);
+			if (result != filesize) {
+				nlClose(sok);
+				disconnect_command();		//FIXME make it better
+				return;
+			}
+
+			//write to the file
+			FILE *fw = fopen(r->dest, "w");
+//size_t fwrite(const void* ptr, size_t size, size_t nobj, FILE* stream); 
+//Writes to stream stream, nobj objects of size size from array ptr. Returns number of objects written. 
+			if (fw) {
+				int amount = fwrite(lebuf, 1, filesize, fw);
+				// FIXME: check amount
+				fclose(fw);
+
+				//file download complete
+				download_file_complete(r);
+			}
+			else {
+				//do something if can't write to the file (disconnect player/whatever)
+				nlClose(sok);
+				disconnect_command();		//FIXME make it better
+				return;
+			}
+
+			//disconnect
+			int count = 0;
+			writeByte(lebuf, count, 3);		//3 = bye
+			NLint result = nlWrite(sok, lebuf, count);
+			//FIXME: check result
+
+			//wait a bit
+			MS_SLEEP(3000);
+
+			//drop connection
+			nlClose(sok);			
+		}
+		else {
+			//unknown answer code
+			nlClose(sok);
+			disconnect_command();		//FIXME make it better
+			return;
+		}
+
+		//close connection
+		
+		//do stuff in the event of download complete
+
+		// FIXME: if error with connection, quit. 
+		
+	}
+
+	//server tells client of map change to builtin map
+	//  num: number of builtin map (deve ser "1" que eh o unico)
+	void server_builtin_map_command(NLubyte num) {
+		
+		if (num == 1) {
+			load_default_map(&map);
+		}
+		else {
+			//FIXME: "error": unknown builtin map number
+			return;
+		}
+
+		//load ok!  (FIXME: tell server)
+		//
+		update_minimap_background();  // recalc minimap
+		map_ready = true;
+		send_client_ready();				//send "client ready" to server
+	}
+
+	//server tells client of current map / map change
+	// client must attempt to load map from "cmaps" dir
+	// if map file not there, or the CRC's don't match, ask to download the map from the server
+	void server_map_command(char *mapname, NLushort server_crc) {
+
+		LOG1("CLIENT: server_map_command : '%s'", mapname);
+
+		//try to load the map. will fail if not found
+		NLushort crc;
+		bool ok = load_map(CLIENT_MAPS_DIR, mapname, &map, &crc);
+
+		if (!ok) {
+			LOG1("MAP '%s' NOT FOUND\n", mapname);
+		}
+		else if (crc != server_crc) {
+			LOG3("MAP '%s' FOUND BUT IT'S CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, crc, server_crc);
+		}
+		else {
+			LOG1("MAP '%s' LOADED SUCESSFULLY!\n", mapname);
+
+			//load ok!  (FIXME: tell server)
+			//
+			update_minimap_background();  // recalc minimap
+			map_ready = true;  // map ready to show
+			send_client_ready();				//send "client ready" to server
+		}		
+
+		// download map from server (ask file)
+		if ((!ok) || (crc != server_crc)) {
+
+			char lix[256];
+			sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
+			print_message(lix);
+
+			// MAKE DOWNLOAD -- ASK FILE
+
+			char fname[256];
+			strcpy(fname, CLIENT_MAPS_DIR);
+			put_backslash(fname);
+			strcat(fname, mapname);
+			strcat(fname, ".txt");
+			
+			char dest[1024];	//full destination path for file
+			append_filename(dest, wheregamedir, fname, WHERE_PATH_SIZE);
+
+			//copy to name of map waiting -- for when download_server_file completes
+			strcpy(servermap, mapname);
+
+
+			//download server file -- opens new thread and TCP conection
+			download_server_file("map", mapname, dest);
+		}
 	}
 
 	void next_sfx_theme() {
@@ -4475,9 +7668,15 @@ public:
 		if (!sound_inited) return;
 
 		sample[SAMPLE_FIRE] = load_outgun_sample("fire.wav");
-		//sample[SAMPLE_FIRE_2] = load_outgun_sample("fire2.wav");
-		//sample[SAMPLE_FIRE_3] = load_outgun_sample("fire3.wav");
 		sample[SAMPLE_HIT] = load_outgun_sample("hit.wav");
+		sample[SAMPLE_WALLHIT] = load_outgun_sample("wallhit.wav");	//new 0.3.9
+		sample[SAMPLE_QUADWALLHIT] = load_outgun_sample("qwallhit.wav");	//new 0.3.9
+
+		sample[SAMPLE_GETDEATHBRINGER] = load_outgun_sample("getdb.wav");	// new! v0.3.9 -- get deathbringer powerup (voz sinistra)
+		sample[SAMPLE_USEDEATHBRINGER] = load_outgun_sample("usedb.wav");	// new! v0.3.9 -- use deathbringer powerup (carrier dies) ("GRRRAAWWKKLLLL!!")
+		sample[SAMPLE_HITDEATHBRINGER] = load_outgun_sample("hitdb.wav");	// new! v0.3.9 -- target is hit by the deathbringer ("PWRRLLW!")
+		sample[SAMPLE_DIEDEATHBRINGER] = load_outgun_sample("diedb.wav");	// new! v0.3.9 -- target dies by the deathbringer		("HaHaHaHa!")
+
 		sample[SAMPLE_DEATH] = load_outgun_sample("death1.wav");
 		sample[SAMPLE_DEATH_2] = load_outgun_sample("death2.wav");
 		//sample[SAMPLE_RESPAWN] = load_outgun_sample("respawn.wav");
@@ -4518,8 +7717,10 @@ public:
 	//play sample
 	void sound(int s) {
 		if (sound_enabled)
-		if (sample[s])
+		if (sample[s]) {
+			stop_sample(sample[s]);
 			play_sample(sample[s], 255, 127, 1000, false);
+		}
 	}
 
 	//clear clientside fx's
@@ -4535,6 +7736,93 @@ public:
 			return i;
 		//print_message("overflow");
 		return rand() % MAX_CLIENTFX;	//overwrite algum sorteado....
+	}
+
+	//create wall explosion fx
+	void cfx_create_wallexplo(int x, int y, int px, int py) {
+
+		int f = get_new_cfx();
+
+		cfx[f].used = true;
+		cfx[f].type = 2;		// WALL EXPLOSION
+		cfx[f].x = x;
+		cfx[f].y = y;
+		cfx[f].time = get_time();
+		cfx[f].px = px;
+		cfx[f].py = py;
+
+		//sound
+		sound(SAMPLE_WALLHIT);
+	}
+
+	//create quad wall explosion fx
+	void cfx_create_quadwallexplo(int x, int y, int px, int py) {
+
+		int f = get_new_cfx();
+
+		cfx[f].used = true;
+		cfx[f].type = 3;		// QUAD WALL EXPLOSION
+		cfx[f].x = x;
+		cfx[f].y = y;
+		cfx[f].time = get_time();
+		cfx[f].px = px;
+		cfx[f].py = py;
+
+		//sound
+		sound(SAMPLE_QUADWALLHIT);
+	}
+
+	//create deathbringer explosion fx
+	void cfx_create_deathbringer(int owner, double start_time, int x, int y, int px, int py) {
+
+		int f = get_new_cfx();
+
+		cfx[f].used = true;
+		cfx[f].owner = owner;		//deathbringer owner
+		cfx[f].type = 4;		// DEATHBRINGER EXPLOSION
+		cfx[f].x = x;
+		cfx[f].y = y;
+		cfx[f].time = start_time;
+		cfx[f].px = px;
+		cfx[f].py = py;
+
+		//sound
+		sound(SAMPLE_USEDEATHBRINGER);
+	}
+
+	//create deathbringer carrier trail fx
+	void cfx_create_deathcarrier(int x, int y, int px, int py, int team) {
+
+		int f = get_new_cfx();
+
+		cfx[f].used = true;
+		cfx[f].type = 5;	//death carrier cloud fx
+		cfx[f].x = x;
+		cfx[f].y = y;
+		cfx[f].px = px;
+		cfx[f].py = py;
+		cfx[f].time = get_time();
+		
+		//owner: set color
+		int r = rand() %100;
+		if (team) {
+			if (r < 50)
+				cfx[f].col1 = makecol(0,0,0xff);
+			else if (r < 75) 
+				cfx[f].col1 = makecol(0,0xff,0);
+			else
+				cfx[f].col1 = 0;
+		} else {
+			if (r < 50)
+				cfx[f].col1 = makecol(0xff,0,0);
+			else if (r < 75) 
+				cfx[f].col1 = makecol(0,0xff,0);
+			else
+				cfx[f].col1 = 0;			
+		}
+
+		//JUST BLACK
+		cfx[f].col1 = 0;
 	}
 
 	//create explosion fx
@@ -4637,9 +7925,14 @@ public:
 			hero_t  *h, *hx;
 			for (i=0;i<MAX_PLAYERS;i++) 
 			
-			if (player[i].onscreen)		// nao eh suficiente usar platyer[i].USED !!!
+			if (!player[i].onscreen)		// nao eh suficiente usar platyer[i].USED !!!
 																// tem que ser ONSCREEN !!!!
 			{
+				player[i].hot1 = false;	//DEBUG
+			}
+			else
+			{
+				player[i].hot1 = true;	//DEBUG
 				
 				//copy all to fill in holes
 				memcpy(&fd.hero[i], &fx.hero[i], sizeof(hero_t));
@@ -4651,7 +7944,11 @@ public:
 				double dc, f;
 				dc = d;
 
+				player[i].nits = 0;	//DEBUG
+
 				while (dc > 0) {
+
+					player[i].nits++;		//DEBUG
 
 					//calc amount of movement
 					f = dc;
@@ -4693,18 +7990,6 @@ public:
 						player_maxspeed = svp_maxspeed;
 					}
 				}
-/*
-				//max speed: running?
-				double max_speed_x, max_speed_y;
-				if (h->run) {
-					max_speed_x = sv_maxspeedrunx;
-					max_speed_y = sv_maxspeedruny;
-				}
-				else {
-					max_speed_x = sv_maxspeedx;
-					max_speed_y = sv_maxspeedy;
-				}
-*/
 
 				//flag carrier disadvantage when running
 				if (h->run)
@@ -4712,24 +7997,7 @@ public:
 				if (fx.flag[1-(i/8)].carrier == i)
 					player_maxspeed -= svp_flag_penalty;
 
-				//powerup: boots bonus topspeed
-				/*
-				double boots_accel_bonus = 1.0;
-				if (player[i].item_speed) {
-					max_speed_x *= sv_boots_top_bonus_x;
-					max_speed_y *= sv_boots_top_bonus_y;
-				}
-				*/
-
-				//powerup boots / run: bonus accel
-				/*
-				if (player[i].item_speed)
-					boots_accel_bonus = sv_boots_accel_bonus;
-				else if (h->run)
-					boots_accel_bonus = sv_run_accel_bonus;
-				*/
-
-					//friction x - apply if l xor r
+				//friction x - apply if l xor r
 #ifndef ALWAYS_FRICTION
 					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
 #endif
@@ -4765,109 +8033,28 @@ public:
 					}
 #endif
 				
-				/*
-				//accelerate x if not over maximum speed
-				if ((h->l) && (h->sx > -max_speed_x))
-					h->sx -= sv_accelx * boots_accel_bonus;
-				if ((h->r) && (h->sx < +max_speed_x))
-					h->sx += sv_accelx * boots_accel_bonus;
+				//deathbringer penalty : no movement. move only if not in effect
+				if (!player[i].deathbringer_affected) {
 
-				//accelerate y if not over maximum speed
-				if ((h->u) && (h->sy > -max_speed_y))
-					h->sy -= sv_accely * boots_accel_bonus;
-				if ((h->d) && (h->sy < +max_speed_y))
-					h->sy += sv_accely * boots_accel_bonus;
-				*/
-				//accelerate x if not over maximum speed
-				if ((h->l) && (h->sx > -player_maxspeed))
-					h->sx -= player_accel * f;
-				if ((h->r) && (h->sx < +player_maxspeed))
-					h->sx += player_accel * f;
+					//accelerate x if not over maximum speed
+					if ((h->l) && (h->sx > -player_maxspeed))
+						h->sx -= player_accel * f;
+					if ((h->r) && (h->sx < +player_maxspeed))
+						h->sx += player_accel * f;
 
-				//accelerate y if not over maximum speed
-				if ((h->u) && (h->sy > -player_maxspeed))
-					h->sy -= player_accel * f;
-				if ((h->d) && (h->sy < +player_maxspeed))
-					h->sy += player_accel * f;
+					//accelerate y if not over maximum speed
+					if ((h->u) && (h->sy > -player_maxspeed))
+						h->sy -= player_accel * f;
+					if ((h->d) && (h->sy < +player_maxspeed))
+						h->sy += player_accel * f;
+				}
 
-/*
-					//max speed: running?
-					double max_speed_x, max_speed_y;
-					if (h->run) {
-						max_speed_x = sv_maxspeedrunx;
-						max_speed_y = sv_maxspeedruny;
-					}
-					else {
-						max_speed_x = sv_maxspeedx;
-						max_speed_y = sv_maxspeedy;
-					}
-					
-					//flag carrier disadvantage
-					if (h->run)
-					if (fx.flag[1-(i/8)].carried)
-					if (fx.flag[1-(i/8)].carrier == i) {
-						max_speed_x -= sv_flag_penalty_x;
-						max_speed_y -= sv_flag_penalty_y;
-					}
+				//DEBUG
+				//if (h->sx > +player_maxspeed) h->sx = +player_maxspeed;
+				//if (h->sx < -player_maxspeed) h->sx = -player_maxspeed;
+				//if (h->sy > +player_maxspeed) h->sy = +player_maxspeed;
+				//if (h->sy < -player_maxspeed) h->sy = -player_maxspeed;
 
-					//powerup: boots bonus topspeed
-					double boots_accel_bonus = 1.0;
-					if (player[i].item_speed) {
-						max_speed_x *= sv_boots_top_bonus_x;
-						max_speed_y *= sv_boots_top_bonus_y;
-					}
-
-				  //powerup boots / run: bonus accel
-					if (player[i].item_speed)
-						boots_accel_bonus = sv_boots_accel_bonus;
-					else if (h->run)
-						boots_accel_bonus = sv_run_accel_bonus;
-
-					//friction x - apply if l xor r
-#ifndef ALWAYS_FRICTION
-					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > max_speed_x) ) {
-#endif
-						if (h->sx > 0) {
-							h->sx -= sv_frictionx * boots_accel_bonus * f;
-							if (h->sx < 0) h->sx = 0;
-						}
-						else if (h->sx < 0) {
-							h->sx += sv_frictionx * boots_accel_bonus * f;
-							if (h->sx > 0) h->sx = 0;
-						}
-#ifndef ALWAYS_FRICTION
-					}
-#endif
-
-					//friction y
-#ifndef ALWAYS_FRICTION
-					if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > max_speed_y) ){
-#endif
-						if (h->sy > 0) {
-							h->sy -= sv_frictiony * boots_accel_bonus * f;
-							if (h->sy < 0) h->sy = 0;
-						}
-						else if (h->sy < 0) {
-							h->sy += sv_frictiony * boots_accel_bonus * f;
-							if (h->sy > 0) h->sy = 0;
-						}
-#ifndef ALWAYS_FRICTION
-					}
-#endif
-
-				//accelerate x if not over maximum speed
-				if ((h->l) && (h->sx > -max_speed_x))
-					h->sx -= sv_accelx * boots_accel_bonus * f;
-				if ((h->r) && (h->sx < +max_speed_x))
-					h->sx += sv_accelx * boots_accel_bonus * f;
-
-				//accelerate y if not over maximum speed
-				if ((h->u) && (h->sy > -max_speed_y))
-					h->sy -= sv_accely * boots_accel_bonus * f;
-				if ((h->d) && (h->sy < +max_speed_y))
-					h->sy += sv_accely * boots_accel_bonus * f;
-*/
-				
 					//save ox,oy
 					h->ox = h->x;
 					h->oy = h->y;
@@ -4883,9 +8070,9 @@ public:
 					else if (h->y > plw) h->y = plw;
 
 					//wall collision correction
-					//wallcorrect(&map, &(h->x), &(h->y), h->sx, h->sy, player[i].x, player[i].y);
-					//LOG("wc: ");
 					if (wallcorrect(i, &map, &(h->x), &(h->y), &(h->sx), &(h->sy), &(h->ox), &(h->oy), player[i].x, player[i].y)) {
+						
+						player[i].walc = true;	//DEBUG
 						
 						//player bounced: play bounce sample if minimum time elapsed
 						if (get_time() > player[i].wall_sound_time) {
@@ -4893,8 +8080,9 @@ public:
 							sound(SAMPLE_WALLBOUNCE);
 						}
 					}
-					//LOG("ok; ");
-					
+					else
+						player[i].walc = false; //DEBUG
+
 				}
 			}
 
@@ -4906,28 +8094,83 @@ public:
 				rocket_c *rd = &(fd.rock[i]);
 				rocket_c *rx = &(fx.rock[i]);
 
-				//find pos for draw
-				// pos = startpos + sin/cos deg * timetravel * speed
-				rd->x = (int)( rx->x + (fd.frame - rx->cl_time) * cos(rx->deg) * ROCKET_SPEED );
-				rd->y = (int)( rx->y + (fd.frame - rx->cl_time) * sin(rx->deg) * ROCKET_SPEED );
+				//still drawing only - update pos
+				if (!rx->dontdraw) {
+					//find pos for draw
+					// pos = startpos + sin/cos deg * timetravel * speed
+					rd->x = (int)( rx->x + (fd.frame - rx->cl_time) * cos(rx->deg) * ROCKET_SPEED );
+					rd->y = (int)( rx->y + (fd.frame - rx->cl_time) * sin(rx->deg) * ROCKET_SPEED );
+				}
 
 				//SPECIAL CASE: check if rocket just died
-				if (rx->hit_time > 0)
-				if (get_time() > rx->hit_time)
+				if ((rx->hit_time > 0) && (get_time() > rx->hit_time))
 				{
 					rx->owner = -1;		// nao rola mais
-					if (rx->hit_target != 255)  //if a player was hit
-						player[rx->hit_target].hitfx = get_time() + 0.3;	// blink player
+					rd->x = rx->hitx;	// hit coords
+					rd->y = rx->hity;
 
-					//spawn clientside fx
-					cfx_create_gunexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
+					//quad-hit wall?
+					/*
+					   FIXED 0.3.9 (2) : wall collision+explosion is totally clientside
+
+					if (rx->hit_target == 253) {
+
+						//spawn clientside fx
+						cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
+
+					} 
+					//hit wall?
+					else if (rx->hit_target == 254) {
+
+						//spawn clientside fx
+						cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
+
+					} 
+					*/
+					//just removing rocket == NOP
+					//else 
+					if (rx->hit_target == 255) {
+					}
+					//hit player
+					else {
+						
+						// blink player if not hit shield (252)
+						if (rx->hit_target < 250)
+							player[rx->hit_target].hitfx = get_time() + 0.3;	
+						
+						//spawn clientside fx
+						cfx_create_gunexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
+					}
+				}
+				//else if still drawing check collisions/out of screen
+				else if (!rx->dontdraw) {
+				
+					//0.3.9: check rocket hit a wall (clientside) if not vanished already
+					if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y, (int)rd->x, (int)rd->y)) {
+						//probably hit wall
+						rx->dontdraw = true;
+						rx->clremove = get_time() + 5.0;
+						// IF the rocket is in the same room of "me" player
+						if (rx->px == player[me].x) 
+						if (rx->py == player[me].y) {
+							//then SPAWN a client-side hit-wall FX for the rocket
+							if (player[rx->owner].item_quad)
+								cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
+							else
+								cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
+						}
+					}
+					// check out of screen (erase)
+					else if ((rd->x < 0) || (rd->y < 5) || (rd->x > plw) || (rd->y > plh)) {
+						rx->dontdraw = true;
+						rx->clremove = get_time() + 1.0;	//enough...
+					}
 				}
 
-				// check out of screen (erase)
-				if ((rd->x < -20) || (rd->y < -20) || (rd->x > plw + 20) || (rd->y > plh + 20)) {
-					rx->owner = -1; // erase from clientside simulation
-				}
-
+				// check rocket expired
+				if (rx->dontdraw)
+				if (get_time() <= rx->clremove)
+					rx->owner = -1;		 // erase from clientside simulation
 			}
 		}
 
@@ -4966,8 +8209,8 @@ public:
 		int f = whatteam;
 
 			double px, py;
-			px = ((double)fx.flag[f].pos.px * (double)plw + fx.flag[f].pos.x) / ((double)plw * WXMAX);
-			py = ((double)fx.flag[f].pos.py * (double)plh + fx.flag[f].pos.y) / ((double)plh * WYMAX);
+			px = ((double)fx.flag[f].pos.px * (double)plw + fx.flag[f].pos.x) / ((double)plw * map.w);
+			py = ((double)fx.flag[f].pos.py * (double)plh + fx.flag[f].pos.y) / ((double)plh * map.h);
 			int pix = mmx + 21 + ((int)(px*98));
 			int piy = mmy + 11 + ((int)(py*98));
 
@@ -4980,24 +8223,26 @@ public:
 	//update the minimap background
 	void update_minimap_background() {
 
+		LOG2("update_minimap map.w = %i map.h = %i\n", map.w, map.h);
+
 		//black bg
 		clear_to_color(minibg, 0);
 		
 		//draw screen boundaries
-		int MMSCRW = (int)(98.0/((double)WXMAX));
-		int MMSCRH = (int)(98.0/((double)WYMAX));
+		int MMSCRW = (int)(98.0/((double)map.w));
+		int MMSCRH = (int)(98.0/((double)map.h));
       int j;
-		for (j=1;j<WXMAX;j++)
+		for (j=1;j<map.w;j++)
 			line(minibg, 2+MMSCRW * j, 1, 2+MMSCRW * j, 100, col[COLSHADOW]);
-		for (j=1;j<WYMAX;j++)
+		for (j=1;j<map.h;j++)
 			line(minibg, 1, 2+MMSCRH * j, 100, 2+MMSCRH * j, col[COLSHADOW]);
 
 		//draw solid walls
 		int a,b,c,d;
-		double maxx = plw*(WXMAX);
-		double maxy = plh*(WYMAX);
-		for (int x=0;x<WXMAX;x++)
-		for (int y=0;y<WYMAX;y++)
+		double maxx = plw*(map.w);
+		double maxy = plh*(map.h);
+		for (int x=0;x<map.w;x++)
+		for (int y=0;y<map.h;y++)
 		for (int w=0;w<WALLMAX;w++)
 		if (map.room[x][y].wall[w].a != -1)
 		{
@@ -5095,38 +8340,102 @@ public:
 		pthread_mutex_lock( &frame_mutex );
 		//LOG1("locked! HOW=%i",HOWMANY);
 
-		//SUPER USELESS MODE   //if (rand() % 10 < 2) MS_SLEEP(30);
+		//SUPER USELESS MODE   //if (rand() % 10 < 2) SEEP(30);
 		//clear_to_color(drawbuf, makecol(rand(),0,0));	// clear buffer
 
 		// game screen background		
 		//
 		clear_to_color(drawbuf, col[COLSHADOW]);	
 
+		// hiding stuff?
+		bool hide_game = ((!map_ready) || (gameover_plaque != NEXTMAP_NONE));
+
 		// the PLAY AREA: border, walls and pits
 		//
-		rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);		//ground
+		if (hide_game) {
+			
+			//draw THE PLAQUE
+			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, 0);
 
-		if (player[me].x >= 0)
-		if (player[me].y >= 0)
-		if (player[me].x < WXMAX)
-		if (player[me].y < WYMAX) 
-		{
-			room_c *r = &(map.room[player[me].x][player[me].y]);
-			if (r) {
-				for (int w=0;w<WALLMAX;w++) 
-				if (r->wall[w].a != -1)	{
-					rectfill(drawbuf, 
-						plx + r->wall[w].a, 
-						ply + r->wall[w].b, 
-						plx + r->wall[w].c, 
-						ply + r->wall[w].d, 
-						col[COLWALL]
-					);
+			if (
+					(gameover_plaque == NEXTMAP_CAPTURE_LIMIT) 
+					||
+					(gameover_plaque == NEXTMAP_VOTE_EXIT)
+				 )
+			{
+
+				if (red_final_score > blue_final_score) {
+					textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2, col[COLLRED], "RED TEAM WINS");
+					textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLLRED], "SCORE: %i x %i", red_final_score, blue_final_score);
+				}
+				else if (blue_final_score > red_final_score) {
+					textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2, col[COLLBLUE], "BLUE TEAM WINS");
+					textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLLBLUE], "SCORE: %i x %i", blue_final_score, red_final_score);
+				}
+				else {
+					textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2, col[COLGREEN], "GAME TIED");
+					textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "SCORE: %i x %i", blue_final_score, red_final_score);
+				}
+			}
+			else {
+				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2, col[COLGREEN], "CONNECTING...");
+			}
+			
+			if (map_ready)
+				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 60, col[COLGREEN], "WAITING GAME START...");
+			else
+				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 60, col[COLGREEN], "LOADING MAP...");
+		}
+		else {
+
+			// map ground
+			//
+			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);		
+
+			// DEATHBRINGER: darken ground for carriers
+			//
+			for (int o=0;o<MAX_PLAYERS;o++)
+			if (player[o].used)	//valid
+			if (player[o].x == player[me].x)	//in visible screen
+			if (player[o].y == player[me].y)
+			if (player[o].item_deathbringer)		// has deathbringer
+			{
+				set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
+				//darken ground
+				drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+				for (int i=50;i>0;i -= 5) {
+					set_trans_blender(0,0,0,50-i);
+					ellipsefill(drawbuf, plx + fd.hero[o].x, ply + fd.hero[o].y - 10, i, i, 0);
+				}
+				solid_mode();
+				set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
+			}
+
+			// map walls
+			//
+			if (player[me].x >= 0)
+			if (player[me].y >= 0)
+			if (player[me].x < map.w)
+			if (player[me].y < map.h) 
+			{
+				room_c *r = &(map.room[player[me].x][player[me].y]);
+				if (r) {
+					for (int w=0;w<WALLMAX;w++) 
+					if (r->wall[w].a != -1)	{
+						rectfill(drawbuf, 
+							plx + r->wall[w].a, 
+							ply + r->wall[w].b, 
+							plx + r->wall[w].c, 
+							ply + r->wall[w].d, 
+							col[COLWALL]
+						);
+					}
 				}
 			}
 		}
 
 		// frame is valid?
+		if (!hide_game)		// do not draw if map not set yet
 		if (fd.frame >= 0) {
 
 			int i;
@@ -5209,10 +8518,10 @@ public:
 				else if (it->kind == 6) {
 
 					//caixa de saude pulsante
-					int varia = ((int)(get_time() * 15)) % 12;
+					int varia = ((int)(get_time() * 15)) % 10;
 
-					if (varia > 6)
-						varia = 12 - varia;
+					if (varia > 5)
+						varia = 10 - varia;
 
 					int itemsize = 11 + varia;
 					int crossize = 8 + varia;
@@ -5235,6 +8544,15 @@ public:
 					rectfill(drawbuf, plx + it->x - crosslar, ply + it->y - crossize,
 						                plx + it->x + crosslar, ply + it->y + crossize,
 														col[COLRED]);
+				}
+				//deathbringer
+				else if (it->kind == 7) {
+
+					//bola preta
+					ellipsefill(drawbuf, plx + it->x, ply + it->y, 12, 12, makecol(0x22,0x33,0x22));
+
+					//smoke da bola preta
+					cfx_create_deathcarrier(it->x + rand()%30-15, it->y + rand()%30-5, it->px, it->py, 0);
 				}
 			}	
 
@@ -5260,6 +8578,7 @@ public:
 						draw_player(drawbuf, cfx[i].x, cfx[i].y, cfx[i].gundir, cfx[i].col1, cfx[i].col2, alpha);
 					}
 				}
+
 			}
 
 			// FIXME: y-ordering of draw not maintained
@@ -5279,6 +8598,7 @@ public:
 			if (me >= 0)
 			for (i=0;i<MAX_ROCKETS;i++)
 			if (fx.rock[i].owner != -1)		// valid
+			if (fx.rock[i].dontdraw == false)	// DO draw?
 			if (fx.rock[i].px == player[me].x)	//in same screen
 			if (fx.rock[i].py == player[me].y)
 			{
@@ -5380,6 +8700,8 @@ public:
 					// se player morto, desenha poca de sangue
 					if (player[i].dead) {
 
+						// FIXME: draw different deathbringer death (green stuff?)
+
 						// virou sorvete!
 						if ((player[i].frags >= 10) && (player[i].frags % 10 == 0)) {
 							ellipsefill(drawbuf, plx + fx.hero[i].x, ply + fx.hero[i].y - 15, 6, 15, col[COLORA]);
@@ -5435,6 +8757,43 @@ public:
 						//draw player
 						draw_player(drawbuf, fd.hero[i].x, fd.hero[i].y, fd.hero[i].gundir, pc1, pc2, alpha);
 
+						//FIXME; draw a decent deathbringer carrier effect
+						if (player[i].item_deathbringer) {
+							// intervalo entre drop de efeito 
+							if (get_time() > player[i].death_drop_time)		
+							{
+								//tempo p/ proximo efeito
+								player[i].death_drop_time = get_time() + 0.01;
+								//drop it
+								cfx_create_deathcarrier(fd.hero[i].x + rand()%40-20, fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/8);
+								cfx_create_deathcarrier(fd.hero[i].x + rand()%40-20, fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/8);
+							}
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 12+rand()%3, 12+rand()%3, 0);
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 12+rand()%5, 12+rand()%5, 0);
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 12+rand()%9, 12+rand()%9, 0);
+						}
+
+						//FIXME: draw a decent deathbringer affected effect : add a "thunderbolt shock" effect
+						if (player[i].deathbringer_affected) {
+							drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+							set_trans_blender(0,0,0,128);
+							int q,co;
+							if (i/8)
+								co = makecol(0xA0,0,0);
+							else
+								co = makecol(0,0,0xff);
+							for (q=0;q<5;q++)
+								ellipsefill(drawbuf, plx + fd.hero[i].x+rand()%40-20, ply + fd.hero[i].y+rand()%40-20 - 15, 15, 15, co);
+							for (q=0;q<5;q++)
+								ellipsefill(drawbuf, plx + fd.hero[i].x+rand()%40-20, ply + fd.hero[i].y+rand()%40-20 - 15, 15, 15, 0);
+							solid_mode();
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 18+rand()%3, 18+rand()%3, col[COLWHITE]);
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 18+rand()%5, 18+rand()%5, col[COLYELLOW]);
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 18+rand()%9, 18+rand()%9, col[COLORA]);
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 18+rand()%13, 18+rand()%13, col[COLRED]);
+							//ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 18+rand()%18, 18+rand()%18, col[COLGREEN]);
+						}
+
 						// SHIELD FX!!
 						if (player[i].item_shield) {
 							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
@@ -5469,109 +8828,198 @@ public:
 						}
 					}
 				}
+				//wall explosion
+				else if (cfx[i].type == 2) {
+					
+					double delta = tim - cfx[i].time; 
+					if (delta > 0.2)
+						cfx[i].used = false;
+					else {
+						for (int e=0;e<2;e++) {
+							int rad = 4 + e + (int)(delta * 40);
+							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, rad, makecol(rand(),rand(),rand()));
+						}
+					}
+				}
+				//quad wall explosion
+				else if (cfx[i].type == 3) {
+					
+					double delta = tim - cfx[i].time; 
+					if (delta > 0.2)
+						cfx[i].used = false;
+					else {
+						for (int e=0;e<3;e++) {
+							int rad = 4 + e + (int)(delta * 60);
+							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, rad, makecol(rand(),rand(),rand()));
+						}
+					}
+				}
+				// deathcarrier rastro
+				else if (cfx[i].type == 5) {
+
+					double delta = tim - cfx[i].time; 
+					if (delta > 0.6) {
+						cfx[i].used = false;
+					}
+					else {
+						int alpha = 120 - ((int)(delta * 200.0));
+						drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+						set_trans_blender(0,0,0,alpha);
+						double drad = (3.0 + 9.0 * (0.6 - delta));
+						int rad = (int)drad;
+						int subdist = (int)( (96.0 - drad * 8.0) );
+						ellipsefill(drawbuf, plx + cfx[i].x, ply + cfx[i].y - subdist, rad, rad, cfx[i].col1);
+						solid_mode();
+					}
+				}
+				//the deathbringer
+				else if (cfx[i].type == 4) {
+					
+					double delta = tim - cfx[i].time; 
+					if (delta > 3.0) {
+						cfx[i].used = false;
+					}
+					else {
+						set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
+						//radius
+						int e,rad,co;
+						if (delta < 1.0) 
+							rad = (int)(delta * 100);
+						else
+							rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
+						//brightening ring
+						for (e=0;e<30;e++) {
+							if (cfx[i].owner/8)
+								co = makecol(0,0,14+8*e);	
+							else
+								co = makecol(14+8*e,0,0);	
+							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y,   rad, rad, co);
+							ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
+							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
+							rad++;
+						}
+						//darkening ring
+						for (e=0;e<10;e++) {
+							if (cfx[i].owner/8)
+								co = makecol(0,0,255-14*e);
+							else
+								co = makecol(255-14*e,0,0);
+							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y,   rad, rad, co);
+							ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
+							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
+							rad++;
+						}
+						set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
+					}
+				}
+
 			}
 
 		}
 
-		// the MINIMAP
-		//
-		blit(minibg, drawbuf, 0, 0, mmx + 20, mmy + 10, minibg->w, minibg->h);	// minimap bg
+		//do not draw stuff below if map not ready to show
+		if (!hide_game) {
 
-		//draw the miniflags
-		// - qualquer flag no chao (na base ou nao, carried == false)
-		for (int f=0;f<2;f++)
-		if (fx.flag[f].carried == false)
-			draw_mini_flag(drawbuf, f);
+			// the MINIMAP
+			//
+			blit(minibg, drawbuf, 0, 0, mmx + 20, mmy + 10, minibg->w, minibg->h);	// minimap bg
 
-		//room "touch" matrix - for fog-of-war
-		bool roomvis[WXMAX][WYMAX];
-		if (me >= 0)
-		if (player[me].item_helm > 0)	// has helm invis visao alem do alcance thundercats?
-			memset(roomvis, 1, WXMAX*WYMAX);	// sem fog! ve tudo!!
-		else
-			memset(roomvis, 0, WXMAX*WYMAX);  // tapa a fog
+			//draw the miniflags
+			// - qualquer flag no chao (na base ou nao, carried == false)
+			for (int f=0;f<2;f++)
+			if (fx.flag[f].carried == false)
+				draw_mini_flag(drawbuf, f);
 
-		// draw all teammates and enemies on screens where there are teammates
-		//draw all the players - put a pixel where they are
-		if (me >= 0)
-		if (fx.frame >= 0)
-		for (int i=0;i<MAX_PLAYERS;i++) 
-		if (player[i].used)
-		if (player[i].x >= 0)	//enforce valid player screen (needed for "touch room")
-		if (player[i].y >= 0)
-		if (player[i].x < WXMAX)
-		if (player[i].y < WYMAX)
-		if (
-					(i/8 == me/8)		//show all teammates
-					||
-					(
-						(i/8 != me/8)		//enemies
-						&&
-						((player[me].enemyvis & (1 << (i%8) )) != 0)		//a visible enemy
-					)
-			 )
-		{
-			//"touch" room (calculating fog of war)
-			roomvis[player[i].x][player[i].y] = true;
+			//room "touch" matrix - for fog-of-war
+			bool roomvis[WXMAX][WYMAX];
+			if (me >= 0)
+			if (player[me].item_helm > 0)	// has helm invis visao alem do alcance thundercats?
+				memset(roomvis, 1, WXMAX*WYMAX);	// sem fog! ve tudo!!
+			else
+				memset(roomvis, 0, WXMAX*WYMAX);  // tapa a fog
 
-			// coord on minimap 
-			double px, py;
-			px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * WXMAX);
-			py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * WYMAX);
-			int pix = mmx + 21 + ((int)(px*98));
-			int piy = mmy + 11 + ((int)(py*98));
+			// draw all teammates and enemies on screens where there are teammates
+			//draw all the players - put a pixel where they are
+			if (me >= 0)
+			if (fx.frame >= 0)
+			for (int i=0;i<MAX_PLAYERS;i++) 
+			if (player[i].used)
+			if (player[i].x >= 0)	//enforce valid player screen (needed for "touch room")
+			if (player[i].y >= 0)
+			if (player[i].x < map.w)
+			if (player[i].y < map.h)
+			if (
+						(i/8 == me/8)		//show all teammates
+						||
+						(
+							(i/8 != me/8)		//enemies
+							&&
+							((player[me].enemyvis & (1 << (i%8) )) != 0)		//a visible enemy
+						)
+				 )
+			{
+				//"touch" room (calculating fog of war)
+				roomvis[player[i].x][player[i].y] = true;
 
-			//verifica se o jogador a ser desenhado é um carrier de flag inimiga 
-			int enemyteam = 1-i/8;
-			if (fx.flag[enemyteam].carried)
-			if (fx.flag[enemyteam].carrier == i) {
-				
-				// update flag position for draw
-				fx.flag[enemyteam].pos.px = player[i].x;
-				fx.flag[enemyteam].pos.py = player[i].y;
-				fx.flag[enemyteam].pos.x = fx.hero[i].x;
-				fx.flag[enemyteam].pos.y = fx.hero[i].y;
+				// coord on minimap 
+				double px, py;
+				px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * map.w);
+				py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * map.h);
+				int pix = mmx + 21 + ((int)(px*98));
+				int piy = mmy + 11 + ((int)(py*98));
 
-				// draw the miniflag here
-				draw_mini_flag(drawbuf, enemyteam);
+				//verifica se o jogador a ser desenhado é um carrier de flag inimiga 
+				int enemyteam = 1-i/8;
+				if (fx.flag[enemyteam].carried)
+				if (fx.flag[enemyteam].carrier == i) {
+					
+					// update flag position for draw
+					fx.flag[enemyteam].pos.px = player[i].x;
+					fx.flag[enemyteam].pos.py = player[i].y;
+					fx.flag[enemyteam].pos.x = fx.hero[i].x;
+					fx.flag[enemyteam].pos.y = fx.hero[i].y;
+
+					// draw the miniflag here
+					draw_mini_flag(drawbuf, enemyteam);
+				}
+
+				if (i != me) {
+					putpixel(drawbuf, pix+0, piy+0, teamcol[i/8]);	//3 pixel teamcol
+					putpixel(drawbuf, pix+1, piy+0, teamcol[i/8]);	//3 pixel teamcol
+					putpixel(drawbuf, pix+0, piy+1, teamcol[i/8]);	//3 pixel teamcol
+					putpixel(drawbuf, pix+1, piy+1, col[i%8]);		// 1 pixel personal-color
+				}
+				else {
+					//myself: draw differently
+					if ( ((int) (get_time() * 15) ) % 3 > 0 ) {
+						ellipsefill(drawbuf, pix, piy, 2, 2, col[COLYELLOW]);
+						ellipsefill(drawbuf, pix, piy, 1, 1, teamlcol[i/8]);
+					} else
+						ellipsefill(drawbuf, pix, piy, 2, 2, 0);
+				}
 			}
 
-			if (i != me) {
-				putpixel(drawbuf, pix+0, piy+0, teamcol[i/8]);	//3 pixel teamcol
-				putpixel(drawbuf, pix+1, piy+0, teamcol[i/8]);	//3 pixel teamcol
-				putpixel(drawbuf, pix+0, piy+1, teamcol[i/8]);	//3 pixel teamcol
-				putpixel(drawbuf, pix+1, piy+1, col[i%8]);		// 1 pixel personal-color
+			// paint fog of war in all invisible rooms
+			//
+			for (int ry=0;ry<map.h;ry++)
+			for (int rx=0;rx<map.w;rx++) 
+			if (roomvis[rx][ry] == false)	//not seeing map room[rx][ry]- paint fog
+			{
+				drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+
+				set_trans_blender(0,0,0,0x38);
+
+				// FOG OF WAR!!!!!!!!
+				int a,b,c,d;
+				a = mmx+21 + rx*98/map.w;
+				b = mmy+11 + ry*98/map.h;
+				c = mmx+21 + (rx+1)*98/map.w-1;
+				d = mmy+11 + (ry+1)*98/map.h-1;
+				rectfill(drawbuf, a,b,c,d, col[COLFOGOFWAR]);
+
+				solid_mode();
 			}
-			else {
-				//myself: draw differently
-				if ( ((int) (get_time() * 15) ) % 3 > 0 ) {
-					ellipsefill(drawbuf, pix, piy, 2, 2, col[COLYELLOW]);
-					ellipsefill(drawbuf, pix, piy, 1, 1, teamlcol[i/8]);
-				} else
-					ellipsefill(drawbuf, pix, piy, 2, 2, 0);
-			}
-		}
-
-		// paint fog of war in all invisible rooms
-		//
-		for (int ry=0;ry<WYMAX;ry++)
-		for (int rx=0;rx<WXMAX;rx++) 
-		if (roomvis[rx][ry] == false)	//not seeing map room[rx][ry]- paint fog
-		{
-			drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-
-			set_trans_blender(0,0,0,0x38);
-
-			// FOG OF WAR!!!!!!!!
-			int a,b,c,d;
-			a = mmx+21 + rx*98/WXMAX;
-			b = mmy+11 + ry*98/WYMAX;
-			c = mmx+21 + (rx+1)*98/WXMAX-1;
-			d = mmy+11 + (ry+1)*98/WYMAX-1;
-			rectfill(drawbuf, a,b,c,d, col[COLFOGOFWAR]);
-
-			solid_mode();
-		}
+		}//!hide_game
 
 		// the SCOREBOARD
 		//
@@ -5641,6 +9089,20 @@ public:
 
 			//WEAPON LEVEL
 			textprintf(drawbuf, font, plx+340, ply+plh+5, col[COLWHITE], "WEAPON: %i", player[me].weapon + 1);
+
+			//BOT CFG
+#ifndef	NO_BOTS
+
+			if (botmode == 0)
+				textprintf(drawbuf, font, plx+440, ply+plh+5, col[COLWHITE], "Bots: Default");
+			else if (botmode == 1)
+				textprintf(drawbuf, font, plx+440, ply+plh+5, col[COLWHITE], "Bots: AutoFill");
+			else if (botsize > 0)
+				textprintf(drawbuf, font, plx+440, ply+plh+5, col[COLWHITE], "Bots: %ix%i", botsize, botsize);
+			else
+				textprintf(drawbuf, font, plx+440, ply+plh+5, col[COLWHITE], "Bots: None");
+
+#endif  // NO_BOTS
 		}
 
 		//server hostname
@@ -5652,8 +9114,15 @@ public:
 			int c = col[COLWHITE];
 			if ( ( (int) (get_time() * 2.0) ) % 2 )	// blink!
 				c = col[COLRED];
-			textprintf(drawbuf, font, plx + plw - 6*8 - 10,     ply + plh - 18, c, "CHANGE");
-			textprintf(drawbuf, font, plx + plw - 6*8 - 10 + 4, ply + plh -  9, c, "TEAMS");
+			textprintf(drawbuf, font, +0 + plx + plw - 6*8 - 10,     ply + plh - 18, c, "CHANGE");
+			textprintf(drawbuf, font, +0 + plx + plw - 6*8 - 10 + 4, ply + plh -  9, c, "TEAMS");
+		}
+		if (want_map_exit) {
+			int c = col[COLWHITE];
+			if ( ( (int) (get_time() * 2.0) ) % 2 )	// blink!
+				c = col[COLRED];
+			textprintf(drawbuf, font, -40 + plx + plw - 6*8 - 10,     ply + plh - 18, c, "EXIT");
+			textprintf(drawbuf, font, -40 + plx + plw - 6*8 - 10 + 4, ply + plh -  9, c, "MAP");
 		}
 
 		// the STATUSBAR : health energy, bars ....
@@ -5764,6 +9233,27 @@ public:
 			textprintf(drawbuf, font, 220, 255, col[COLWHITE], "or the server disconnected");
 		}
 
+		// debug panel
+		if (key[KEY_F9]) {
+			clear_to_color(drawbuf, col[COLSHADOW]);
+			
+			textprintf(drawbuf,font,0,0,col[COLWHITE], "me=%i ", me);
+
+			int p;
+			for (p=0;p<MAX_PLAYERS;p++) {
+				textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%i sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f o=%.1f,%.1f | os%i wc%i ni%i",
+					p, player[p].used, player[p].onscreen, player[p].enemyvis, player[p].x, player[p].y,
+
+					//					fx.hero[p].x, fx.hero[p].y, fx.hero[p].sx, fx.hero[p].sy,
+					fd.hero[p].x, fd.hero[p].y, fd.hero[p].sx, fd.hero[p].sy, fd.hero[p].ox, fd.hero[p].oy,
+
+					player[p].hot1, player[p].walc, player[p].nits
+
+					);
+			}
+		}
+
+
 		//unlock frame mutex
 		//LOG1("unlocking HOW=%i",HOWMANY);
 		pthread_mutex_unlock( &frame_mutex );
@@ -5795,10 +9285,10 @@ public:
 		textprintf(drawbuf, font, x+100, y+120, col[COLWHITE], "For more information access Outgun's website at:");
 		textprintf(drawbuf, font, x+100, y+130, col[COLGREEN], "                http://www.inf.ufrgs.br/~fcecin/outgun");
 
-		textprintf(drawbuf, font, x+100, y+160, col[COLWHITE], "MOVING YOUR CHARACTER:   ARROW KEYS = MOVE");
-		textprintf(drawbuf, font, x+100, y+170, col[COLWHITE], "                         CONTROL    = SHOOT!");
-		textprintf(drawbuf, font, x+100, y+180, col[COLWHITE], "                         ALT        = STRAFE");
-		textprintf(drawbuf, font, x+100, y+190, col[COLWHITE], "                         SHIFT      = RUN");
+		textprintf(drawbuf, font, x+100, y+160, col[COLWHITE], " MOVING     ARROW KEYS = MOVE       >>> BOT PREFERENCES: <<<");
+		textprintf(drawbuf, font, x+100, y+170, col[COLWHITE], "  YOUR      CONTROL    = SHOOT!     F5,F6 = Less or More bots");
+		textprintf(drawbuf, font, x+100, y+180, col[COLWHITE], "CHARACTER:  ALT        = STRAFE     F7    = Auto-fill teams");
+		textprintf(drawbuf, font, x+100, y+190, col[COLWHITE], "  >>>>>     SHIFT      = RUN        F8    = Let others decide");
 		
 		textprintf(drawbuf, font, x+100, y+210, col[COLWHITE], "TALKING TO ALL PLAYERS: Just type your message and hit ENTER");
 
@@ -5845,14 +9335,14 @@ public:
 			textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
 			textprintf(drawbuf, font, 150, 135, col[COLWHITE], "a L33TNET demonstration game");
 		}
-		else {
+		//else {
 			//Big F Menu
-			rect(drawbuf,  19,  19, 619, 459, col[COLMENUWHITE]);
-			rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
-			rectfill(drawbuf, 20, 20, 620, 460, col[COLMENUGRAY]);
-			textprintf(drawbuf, font, 40, 40, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
-			textprintf(drawbuf, font, 40, 55, col[COLWHITE], "a L33TNET demonstration game");
-		}
+			//ct(drawbuf,  19,  19, 619, 459, col[COLMENUWHITE]);
+			//ct(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
+			//ctfill(drawbuf, 20, 20, 620, 460, col[COLMENUGRAY]);
+			//textprintf(drawbuf, font, 40, 40, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
+			//textprintf(drawbuf, font, 40, 55, col[COLWHITE], "a L33TNET demonstration game");
+		//}
 
 
 
@@ -5884,13 +9374,74 @@ public:
 		}
 		else if (menu == 1) {
 
-			
-			textprintf(drawbuf, font, 50, 70, col[COLWHITE], "Type server's IP to connect.");
-			textprintf(drawbuf, font, 50, 85, col[COLWHITE], "Select a slot using UP and DOWN arrows");
-			textprintf(drawbuf, font, 50, 100, col[COLWHITE], "ENTER = OK     ESC = CANCEL    SPACE = REFRESH");
-			textprintf(drawbuf, font, 50, 115, col[COLWHITE], "Enter empty address to connect to localhost");
+			//Big F Menu
+			rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
+			rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
 
-			textprintf(drawbuf, font, 50, 135, col[COLWHITE], "IP Address        Ping #P Version/Hostname");
+			int lotext = makecol(0x99, 0x99, 0x99);
+			
+
+			if (showmaster) {
+
+				int hi = makecol(0x68, 0x68, 0x88); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
+				int lo = makecol(0x68,0x48,0x48);
+				//hilight all
+				rectfill(drawbuf, 20, 20, 620, 460, hi);
+				//first bar hi vs lo
+				rectfill(drawbuf, 20, 20, 320, 50, hi);
+				rectfill(drawbuf, 320, 19, 621, 50, 0);
+				rectfill(drawbuf, 320, 24, 616, 50, lo);
+				vline(drawbuf, 320, 20, 50, col[COLMENUBLACK]);
+				hline(drawbuf, 320, 50, 621, col[COLMENUWHITE]);
+				hline(drawbuf, 320, 24, 616, lotext);
+				vline(drawbuf, 616, 24, 49, col[COLMENUBLACK]);
+				textprintf_centre(drawbuf, font, 170, 35, col[COLWHITE], "INTERNET SEARCH");
+				textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
+				//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing INTERNET LISTING page (TAB = FAVORITES)");
+
+				if (((int)(get_time() * 1)) % 2)
+					textprintf_centre(drawbuf, font, 320, 65, col[COLGREEN], "F2 = UPDATE LIST OF SERVERS");
+				else
+					textprintf_centre(drawbuf, font, 320, 65, col[COLYELLOW], "F2 = UPDATE LIST OF SERVERS");
+
+				textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
+				//textprintf_centre_x(drawbuf, font, 320, 75, col[COLGREEN], 0, "TAB = Change to FAVORITES page");
+
+				//textprintf_centre(drawbuf, font, 320, 115, col[COLWHITE], "ARROWS:Select - ENTER:Connect - ESC:Cancel - SPACE:Refresh");
+
+				textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+			}
+			else {
+				
+				int hi = makecol(0x88, 0x68, 0x68); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
+				int lo = makecol(0x48,0x48,0x68);
+				//hilight all
+				rectfill(drawbuf, 20, 20, 620, 460, hi);
+				//first bar lo vs hi
+				rectfill(drawbuf, 320, 20, 620, 50, hi);
+				rectfill(drawbuf, 19, 19, 320, 50, 0);
+				rectfill(drawbuf, 24, 24, 320, 50, lo);
+				vline(drawbuf, 320, 19, 50, col[COLMENUWHITE]);//?
+				hline(drawbuf, 19, 50, 320, col[COLMENUWHITE]);
+				hline(drawbuf, 24, 24, 320, lotext);
+				vline(drawbuf, 24, 24, 49, col[COLMENUWHITE]);
+				textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
+				textprintf_centre(drawbuf, font, 470, 35, col[COLWHITE], "FAVORITES");
+				
+				//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing FAVORITES page (TAB = INTERNET LISTING)");
+				textprintf_centre(drawbuf, font, 320, 65, col[COLWHITE], "Type the IP address of the server and hit ENTER");
+				textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
+				//textprintf_centre_x(drawbuf, font, 320, 75, col[COLYELLOW], 0, "TAB = Change to INTERNET LISTING page");
+
+				textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+			}
+			
+
+			//textprintf(drawbuf, font, 50, 85, col[COLWHITE], "Select a slot using UP and DOWN arrows");
+			//textprintf(drawbuf, font, 50, 100, col[COLWHITE], "ENTER = OK     ESC = CANCEL    SPACE = REFRESH");
+			//textprintf(drawbuf, font, 50, 115, col[COLWHITE], "Enter empty address to connect to localhost");
+
+			textprintf(drawbuf, font, 50, 105, col[COLWHITE], "IP Address        Ping #P Version/Hostname");
 
 			char blinkchar[2];
 
@@ -5898,7 +9449,7 @@ public:
 			for (int i=0;i<MAX_GAMESPY;i++) {
 
 				xi = 50;
-				yi = 150 + 00 + i*15;
+				yi = 120 + i*13;
 
 				//selectr
 				if (gi == i) {
@@ -5915,24 +9466,47 @@ public:
 					blinkchar[0]=0;
 
 				//server edit prompt
-				textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",gamespy[i].address, blinkchar);
+				if (showmaster) {
+					textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",mgamespy[i].address, blinkchar);
+					
+					//favs watermarks
+					if (mgamespy[i].favs)
+						textprintf(drawbuf, font, xi - 12, yi, makecol(0x99,0x78,0x78), "*");
+				}
+				else
+					textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",gamespy[i].address, blinkchar);
 
 				//draw gamespy entry
-				if (!gamespy[i].refreshed) { // not refreshed
+				bool refreshed, invalid, noresponse;
+				if (showmaster) {
+					refreshed  = mgamespy[i].refreshed;
+					invalid    = mgamespy[i].invalid;
+					noresponse = mgamespy[i].noresponse;
+				}
+				else {
+					refreshed  = gamespy[i].refreshed;
+					invalid    = gamespy[i].invalid;
+					noresponse = gamespy[i].noresponse;
+				}
+
+				if (!refreshed) { // not refreshed
 					//server info
 					textprintf(drawbuf, font, xi + 18*8, yi, col[COLWHITE], "press SPACEBAR to refresh...");
 				}
-				else if (gamespy[i].invalid) {	//refreshed, invalid
+				else if (invalid) {	//refreshed, invalid
 					//server info
 					textprintf(drawbuf, font, xi + 18*8, yi, col[COLWHITE], "---");
 				}
-				else if (gamespy[i].noresponse) {	//refreshed, no response
+				else if (noresponse) {	//refreshed, no response
 					//server info
 					textprintf(drawbuf, font, xi + 18*8, yi, col[COLWHITE], "no response.");
 				}
 				else {  //refreshed, valid
 					//server info
-					textprintf(drawbuf, font, xi + 18*8, yi, col[COLGREEN], "%s", gamespy[i].info);
+					if (showmaster)
+						textprintf(drawbuf, font, xi + 18*8, yi, col[COLGREEN], "%s", mgamespy[i].info);
+					else
+						textprintf(drawbuf, font, xi + 18*8, yi, col[COLGREEN], "%s", gamespy[i].info);
 				}
 			}
 		}
@@ -5989,6 +9563,14 @@ public:
 
 		//don't want to change teams by default
 		want_change_teams = false;
+
+		//don't want to exit map by default
+		want_map_exit = false;
+
+		//default bot preferences
+		botmode = 0;
+		botsize = 0;
+		bot_pref_change = false;
 
 		//avoid "dropped" plaque
 		lastpackettime = get_time() + 1.0;
@@ -6080,6 +9662,17 @@ public:
 
 	//refresh servers command
 	void refresh_command() {
+		
+		if (showmaster)
+			refresh_command_2(mgamespy);
+		else
+			refresh_command_2(gamespy);
+	}
+
+	//refresh servers command
+	void refresh_command_2(gamespy_t *gamespy) {
+
+		show_progress("", "Refreshing servers...", "");
 
 		NLsocket sock = nlOpen(0, NL_UNRELIABLE);
 		
@@ -6111,8 +9704,7 @@ public:
 			gamespy[i].noresponse = true;
 			gamespy[i].invalid = true; // invalid entry for default
 			gamespy[i].refreshed = true;	//refreshed now
-
-
+	
 			nlOpen(0,0);//force invalid enum error
 
 			nlStringToAddr(gamespy[i].address, &gamespy[i].addr);
@@ -6164,7 +9756,7 @@ public:
 			//
          for (int bla=0;bla<20;bla++) 
          {
-            MS_SLEEP(5);			
+            MS_SLEEP(5);			//*** NO CPU PROBLEM HERE ***
    
             //(3) collect any responses so far
             //
@@ -6212,7 +9804,7 @@ public:
 				break;
 
 			//sleep a bit
-			MS_SLEEP(5);
+			MS_SLEEP(5);	//*** NO CPU PROBLEM HERE ***
 
 			//collect responses
          
@@ -6277,7 +9869,11 @@ public:
 
 		// copy gamespy address
 		//
-		strcpy(address, gamespy[gi].address);
+		if (showmaster)
+			strcpy(address, mgamespy[gi].address);
+		else
+			strcpy(address, gamespy[gi].address);
+
 		
 		// start connecting to specified IP/port 
 		// connection results will come through the CFUNC_CONNECTION_UPDATE callback
@@ -6286,7 +9882,10 @@ public:
 			NLaddress myadr;
 			get_self_IP(&myadr);
 			nlAddrToString(&myadr, address);
-			strcpy(gamespy[gi].address, address);	//copy to gamespy
+			if (showmaster)
+				strcpy(mgamespy[gi].address, address);	//copy to gamespy
+			else
+				strcpy(gamespy[gi].address, address);	//copy to gamespy
 		}
 
 		sprintf(addr, "%s:%i", address, port);
@@ -6359,6 +9958,7 @@ public:
 																						//porque foi atirado mais antes
 
 		rock->owner = owner;
+		rock->dontdraw = false;		//DO draw...
 		rock->team = owner/8;
 		rock->x = x;
 		rock->y = y;
@@ -6378,75 +9978,6 @@ public:
 		//print_message(lix);
 
 		switch (pow) {
-#ifdef OLD_DIRECTIONALS
-		case 1:
-			//sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);	
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-			break;
-		case 2:
-			//sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);	
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-			client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-			break;
-		case 3:
-			//sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);	
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[1], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[2], dir-1,frameno,owner,px,py,x,y, 0);
-			break;
-		case 4:
-			//sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);	
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-			client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-			client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
-			break;
-		case 5:
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[1], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[2], dir-1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[3], dir+2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[4], dir-2,frameno,owner,px,py,x,y, 0);
-			break;
-		case 6:
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-			client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-			client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[4], dir+2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[5], dir-2,frameno,owner,px,py,x,y, 0);
-			break;
-		case 7:
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[1], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[2], dir-1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[3], dir+2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[4], dir-2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[5], dir+3,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[6], dir-3,frameno,owner,px,py,x,y, 0);
-			break;
-		case 8:
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-			client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-			client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[4], dir+2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[5], dir-2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[6], dir+3,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[7], dir-3,frameno,owner,px,py,x,y, 0);
-			break;
-		case 9:
-			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-			client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-			client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[4], dir+2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[5], dir-2,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[6], dir+3,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[7], dir-3,frameno,owner,px,py,x,y, 0);
-			client_set_rocket(rids[8], dir-4,frameno,owner,px,py,x,y, 0);
-			break;
-#else
 		case 1:
 			//sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);	
 			client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
@@ -6514,12 +10045,14 @@ public:
 			client_set_rocket(rids[7], dir+3,frameno,owner,px,py,x,y, 0);
 			client_set_rocket(rids[8], dir-3,frameno,owner,px,py,x,y, 0);
 			break;
-#endif
 		}
 	}
 
 	//process incoming data
 	void process_incoming_data(char *data, int length) {
+
+		//this is a HACK:
+		int whatme = 0;
 
 		//lock frame mutex
 		//LOG("locking INCOMING\n");
@@ -6556,133 +10089,178 @@ public:
 
 			//----- PLAYER SPECIFIC DATA -----
 
-			NLushort	players_onscreen;		//players onscreen
-			readShort(data, count, players_onscreen);
-			
-			//decode players_onscreen and update player data
-			for (i=0;i<MAX_PLAYERS;i++) {
-				
-				//decode players_onscreen: sets if "player" record is there to be read
-				if (players_onscreen & (1 << i))
-					player[i].onscreen = true;
-				else
-					player[i].onscreen = false;
-
-				//if player on screen, parse the data
-				hero_t	*h;
-				if (player[i].onscreen) {
-					
-					h = &(fx.hero[i]);
-					
-					NLshort sho;
-					
-					readShort(data, count, sho);		//player.x
-					player[i].x = ((double)sho);
-					readShort(data, count, sho);		//player.y
-					player[i].y = ((double)sho);
-					
-					
-					readShort(data, count, sho);		//x
-					h->x = ((double)sho);
-					readShort(data, count, sho);		//y
-					h->y = ((double)sho);
-					readShort(data, count, sho);		//sx
-					h->sx = ((double)sho) / 100.0;
-					readShort(data, count, sho);		//sy
-					h->sy = ((double)sho) / 100.0;
-
-					//FIXME: read / recalc z
-					NLubyte byt, extra;
-					readByte(data, count, extra);			//zframe
-					h->z = 0;
-
-					//remendo: (zframe == 255) ==  dead player
-					//DEAD PLAYER = extra bit 0
-					if (extra & 1)
-						player[i].dead = true;
-					else
-						player[i].dead = false;
-
-					//verifica se acabou de morrer - play death sound
-					if ((player[i].dead) && (!player[i].old_dead))
-						sound(SAMPLE_DEATH + rand() % 2);
-					player[i].old_dead = player[i].dead;
-		
-					//l,r,u,d  accel
-					readByte(data, count, h->keys);
-					h->l = ((h->keys & 1) != 0);  
-					h->r = ((h->keys & 2) != 0);	
-					h->u = ((h->keys & 4) != 0);	
-					h->d = ((h->keys & 8) != 0);
-
-					//RUN!!! (COMO QUE NAO TINHA ISSO???)
-					//  devo ter apagado sem querer... ????
-					h->run = ((h->keys & 16) != 0);
-
-					//bits 5..7 : gundir= 0..7
-					h->gundir = (h->keys & (32+64+128)) / 32;
-
-					//read items
-					readByte(data, count, byt);
-					
-					//bool oldquad = player[i].item_quad;
-					//bool oldspeed = player[i].item_speed;
-					//bool oldhelm = (player[i].item_helm != 0);
-
-					player[i].item_shield =    ((byt & 1) != 0);
-					player[i].item_speed =    ((byt & 2) != 0);
-					player[i].item_quad =    ((byt & 4) != 0);
-
-					//read helm byte
-					readByte(data, count, byt);
-					player[i].item_helm = byt;
-				}
-			}
-
-			//read "enemies on team vislist"
-			NLubyte eviz;
-			readByte(data, count, eviz);
-			if (me >= 0)
-				player[me].enemyvis = eviz;
-
-			//read who,x,y
-			NLubyte who,whox,whoy;
-			readByte(data, count, who);
-			readByte(data, count, whox);
-			readByte(data, count, whoy);
-
-			//update this player's px,py,x,y 
-			//ignore self and anybody onscreen -- because then I've got better accuracy
-			if (who != me) 
-			if (!player[who].onscreen) {
-				player[who].x = whox / (255/WXMAX);	//screen = 0..255 / (WXMAX/255)
-				player[who].y = whoy / (255/WYMAX);
-				fx.hero[who].x = (whox % (255/WXMAX)) * plw / (255/WXMAX);	//posicao dentro da tela especifica
-				fx.hero[who].y = (whoy % (255/WYMAX)) * plh / (255/WXMAX);
-			}
-
-			//read player's health and energy
-			NLubyte healt, energ;
-			readByte(data, count, healt);
-			if (me >= 0)
-				player[me].health = healt;
-
-			readByte(data, count, energ);
-			if (me >= 0)
-				player[me].energy = energ;
-
 			//extra byte of information
 			// BIT 0: extra health
 			// BIT 1: extra energy
+			// BIT 2 (****VERY IMPORTANT****): NO MORE DATA ON PACKET BECAUSE PLAYER IS NOT READY 
 			NLubyte xtra = 0;
 			readByte(data, count, xtra);
-			if (xtra & 1) player[me].health += 256;
-			if (xtra & 2) player[me].energy += 256;
+			
+			//moved below: after health assignment
+			//if (xtra & 1) player[me].health += 256;
+			//if (xtra & 2) player[me].energy += 256;
 
-			//read ping of player frame % MAX_PLAYERS
-			NLushort daping;
-			readShort(data, count, daping);
-			player[ svframe % MAX_PLAYERS ].ping = daping;
+			bool empty_frame_cause_not_ready_yet;
+			if (xtra & 4) 
+				empty_frame_cause_not_ready_yet = true;
+			else
+				empty_frame_cause_not_ready_yet = false;
+
+			//read "me" (v0.3.9 tentando espantar bug com tiro de canhao!)
+			// BITS 3..8 == what player id
+			whatme = 0;
+			if (xtra & 8)   whatme += 1;
+			if (xtra & 16)  whatme += 2;
+			if (xtra & 32)  whatme += 4;
+			if (xtra & 64)  whatme += 8;
+			if (xtra & 128) whatme += 16;
+
+			//EMPTY FRAME? if yes, do something about it, if not, parse it
+			if (empty_frame_cause_not_ready_yet) {
+
+				//an empty frame
+				
+				// FIXME: mark somewhere that the frame (fx) should not be read/simulated?
+				//					hmm...
+			}
+			else {
+
+				//a regular frame
+
+				NLushort	players_onscreen;		//players onscreen
+				readShort(data, count, players_onscreen);
+				
+				//decode players_onscreen and update player data
+				for (i=0;i<MAX_PLAYERS;i++) {
+					
+					//decode players_onscreen: sets if "player" record is there to be read
+					if (players_onscreen & (1 << i))
+						player[i].onscreen = true;
+					else
+						player[i].onscreen = false;
+
+					//if player on screen, parse the data
+					hero_t	*h;
+					if (player[i].onscreen) {
+						
+						h = &(fx.hero[i]);
+						
+						NLshort sho;
+						
+						readShort(data, count, sho);		//player.x
+						player[i].x = ((double)sho);
+						readShort(data, count, sho);		//player.y
+						player[i].y = ((double)sho);
+						
+						
+						readShort(data, count, sho);		//x
+						h->x = ((double)sho);
+						readShort(data, count, sho);		//y
+						h->y = ((double)sho);
+						readShort(data, count, sho);		//sx
+						h->sx = ((double)sho) / 100.0;
+						readShort(data, count, sho);		//sy
+						h->sy = ((double)sho) / 100.0;
+
+						//FIXME: read / recalc z
+						NLubyte byt, extra;
+						readByte(data, count, extra);			//zframe
+						h->z = 0;
+
+						//remendo: (zframe == 255) ==  dead player
+						//DEAD PLAYER = extra bit 0
+						if (extra & 1)
+							player[i].dead = true;
+						else
+							player[i].dead = false;
+
+						//deathbringer: extra bit 1
+						if (extra & 2)
+							player[i].item_deathbringer = true;
+						else
+							player[i].item_deathbringer = false;
+
+						//deathbringer-affected: extra bit 2
+						if (extra & 4)
+							player[i].deathbringer_affected = true;
+						else
+							player[i].deathbringer_affected = false;
+
+						//verifica se acabou de morrer - play death sound
+						if ((player[i].dead) && (!player[i].old_dead))
+							sound(SAMPLE_DEATH + rand() % 2);
+						player[i].old_dead = player[i].dead;
+			
+						//l,r,u,d  accel
+						readByte(data, count, h->keys);
+						h->l = ((h->keys & 1) != 0);  
+						h->r = ((h->keys & 2) != 0);	
+						h->u = ((h->keys & 4) != 0);	
+						h->d = ((h->keys & 8) != 0);
+
+						//RUN!!! (COMO QUE NAO TINHA ISSO???)
+						//  devo ter apagado sem querer... ????
+						h->run = ((h->keys & 16) != 0);
+
+						//bits 5..7 : gundir= 0..7
+						h->gundir = (h->keys & (32+64+128)) / 32;
+
+						//read items
+						readByte(data, count, byt);
+						
+						player[i].item_shield =    ((byt & 1) != 0);
+						player[i].item_speed =    ((byt & 2) != 0);
+						player[i].item_quad =    ((byt & 4) != 0);
+
+						//read helm byte
+						readByte(data, count, byt);
+						player[i].item_helm = byt;
+					}
+				}
+
+				//read "enemies on team vislist"
+				NLubyte eviz;
+				readByte(data, count, eviz);
+				if (me >= 0)
+					player[me].enemyvis = eviz;
+
+				//read who,x,y
+				NLubyte who,whox,whoy;
+				readByte(data, count, who);
+				readByte(data, count, whox);
+				readByte(data, count, whoy);
+
+				//update this player's px,py,x,y 
+				//ignore self and anybody onscreen -- because then I've got better accuracy
+				if (who != me) 
+				if (!player[who].onscreen) {
+					player[who].x = whox / (255/map.w);	//screen = 0..255 / (WXMAX/255)
+					player[who].y = whoy / (255/map.h);
+					fx.hero[who].x = (whox % (255/map.w)) * plw / (255/map.w);	//posicao dentro da tela especifica
+					fx.hero[who].y = (whoy % (255/map.h)) * plh / (255/map.h);
+				}
+
+				//read player's health and energy
+				NLubyte healt, energ;
+				readByte(data, count, healt);
+				if (me >= 0) {
+					player[me].health = healt;
+					//EXTRA BIT FROM WAYY ABOVE
+					if (xtra & 1) player[me].health += 256;
+				}
+
+				readByte(data, count, energ);
+				if (me >= 0) {
+					player[me].energy = energ;
+					//EXTRA BIT FROM WAYY ABOVE
+					if (xtra & 2) player[me].energy += 256;
+				}
+
+				//read ping of player frame % MAX_PLAYERS
+				NLushort daping;
+				readShort(data, count, daping);
+				player[ svframe % MAX_PLAYERS ].ping = daping;
+			}//frame not empty
 		}
 
 		//(2) process messages
@@ -6700,9 +10278,10 @@ public:
 			if (msg != 0) {
 				
 				//switch tempvars
-				//char lixox[256];
+				char mapname[128];
 				int rids[16]; //rocket ids pra msg 7
-				NLubyte rowner, rpx, rpy, code, pid, team, carried, abyte, rockid, timeleft, iid, rpow, rdir;
+				NLubyte rowner, rpx, rpy, code, pid, team, carried, abyte, rockid, iid, rpow, rdir;
+				NLshort   rokx, roky;	//rocket hit msg 8
 				NLushort	usho;
 				NLulong frameno;
 				NLfloat aflo;
@@ -6750,6 +10329,14 @@ public:
 				//"hello" one-time server information ("first packet")
 				case 3:
 					readByte(msg, count, pid);	//"who am I"
+					
+					//DEBUG msg
+					if (pid != whatme) {
+						char lixoverde[200];
+						sprintf(lixoverde, "###WARNING###: me %i memsg %i whatme %i\n", me, pid, whatme);
+						send_chat(lixoverde);
+					}
+
 					me = pid;
 
 					//reset want-change-teams: this message is send when players are swapped also
@@ -6822,16 +10409,6 @@ public:
 						fx.flag[team].pos.x = ashort;
 						readShort(msg, count, ashort);	//y
 						fx.flag[team].pos.y = ashort;
-
-						//char lix[256];
-						//sprintf(lix, "flag %i dropped at %i %i %i %i", 
-						//	team,
-					  //	fx.flag[team].pos.px,
-					  //		fx.flag[team].pos.py,
-					  // 		fx.flag[team].pos.x,
-						//	fx.flag[team].pos.y
-						//);
-						//print_message(lix);
 					}
 					else {
 						fx.flag[team].carried = true;
@@ -6840,13 +10417,6 @@ public:
 						fx.flag[team].carrier = abyte;	
 
 						sound(SAMPLE_CTF_GOT);
-
-						//char lix[256];
-						//sprintf(lix, "flag %i carried by %i", 
-						//							team,
-						//							fx.flag[team].carrier
-						//);
-						//print_message(lix);
 					}
 					break;
 
@@ -6858,8 +10428,6 @@ public:
 					//readByte(lebuf, count, rpowdir);	// rocket powerdir
 					readByte(lebuf, count, rpow);	// rocket powerdir
 					readByte(lebuf, count, rdir);	// rocket powerdir
-					//rpow = rpowdir & 15;
-					//rdir = rpowdir >> 4;
 
 					//para cada pow, tira um id de shot pra alocar
 					for (k=0;k<rpow;k++) {
@@ -6889,7 +10457,7 @@ public:
 						if (player[rowner].item_quad) {
 							if (get_time() > player[rowner].quad_sound_finished) {
 								sound(SAMPLE_QUAD_FIRE);
-								player[rowner].quad_sound_finished = get_time() + 1.0;
+								player[rowner].quad_sound_finished = get_time() + 0.1;		//0.3.9 : quad_sound disabled, play always
 							}
 						}
 					}
@@ -6899,15 +10467,15 @@ public:
 				case 8:
 					readByte(lebuf, count, rockid);	// rocket object id
 					readByte(lebuf, count, abyte);	// target player
-					readByte(lebuf, count, timeleft);	// frames left of animation
-
-					//jura o rocket de morte
-					fx.rock[rockid].hit_time = get_time() + 0.01 * timeleft;		// tempo de morte
-					
-					//sprintf(lixox, "tempo = %i  %f %f", timeleft, get_time(), fx.rock[rockid].hit_time);
-					//print_message(lixox);
-
-					fx.rock[rockid].hit_target = abyte;		// alvo
+					//hit position
+					readShort(lebuf, count, rokx);
+					readShort(lebuf, count, roky);
+					fx.rock[rockid].hitx = rokx;
+					fx.rock[rockid].hity = roky;
+					//signal died
+					fx.rock[rockid].hit_time = get_time(); //die now
+					//target
+					fx.rock[rockid].hit_target = abyte;		
 					break;
 
 				//CTF team score update
@@ -6967,6 +10535,65 @@ public:
 					}
 					break;
 
+				//server commands client to change map
+				case 20:
+					map_ready = false;	// map NOT ready anymore: must load/change
+
+					want_map_exit =false;		// and player does not want to exit the map anymore
+
+					readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
+
+					if (abyte == 1) {
+						readByte(lebuf, count, abyte);		// what built-in map
+						server_builtin_map_command(abyte);
+					}
+					else if (abyte == 2) {
+						readShort(lebuf, count, usho);				//read CRC16 of map
+						readString(lebuf, count, mapname);		//read map name
+						server_map_command(mapname, usho);
+					}
+					else {
+						//FIXME: unknown map kind
+					}
+					break;
+
+				//server shows gameover plaque
+				case 24:
+					readByte(lebuf, count, abyte);
+					gameover_plaque = abyte;		// kind of plaque (capture limit or vote exit)
+
+					if (
+								(gameover_plaque == NEXTMAP_CAPTURE_LIMIT)
+								||
+								(gameover_plaque == NEXTMAP_VOTE_EXIT)
+						 )
+					{
+
+						readByte(lebuf, count, abyte);	//RED team final score
+						red_final_score = abyte;
+						readByte(lebuf, count, abyte);  //BLUE team final score
+						blue_final_score = abyte;
+					}
+
+					break;
+
+				//server hides gameover plaque
+				case 25:
+					gameover_plaque = NEXTMAP_NONE;		//hide
+					break;
+
+				//deathbringer shot
+				case 26:
+					//print_message("DEATHBRINGER!!!");
+					readByte(lebuf, count, abyte);	//what player
+					readLong(lebuf, count, frameno);		// start time 
+					//spawn clientside fx at the owner's position
+					cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.hero[abyte].x, (int)fx.hero[abyte].y, player[abyte].x, player[abyte].y);
+					//if (player[abyte].x == player[me].x)
+					//if (player[abyte].y == player[me].y)
+						//print_message("DEATHBRINGER ON MY SCREEENN!!!");
+					break;
+
 				default:
 					LOG1("BAD ERROR: UNKNOWN SERVER MESSAGE CODE = %i!!\n", code);
 					break;
@@ -6999,6 +10626,9 @@ public:
 			player[me].oldx = player[me].x;
 			player[me].oldy = player[me].y;
 		}
+
+		//this is a HACK:
+		me = whatme;
 
 		//unlock frame mutex
 		//LOG("unlocking INCOMING\n");
@@ -7079,6 +10709,332 @@ public:
 			sound(SAMPLE_FIRE);
 	}
 
+	//show progress (for tight loops that don't work with the regular screen flip loop)
+	void show_progress(char *t1, char *t2, char *t3, int fg = -1, int bg = 0) {
+		if (fg == -1) fg = col[COLWHITE];
+		vsync();
+		acquire_screen();
+		rect(screen, 320 - 200-1, 240 - 50-1, 320 + 200-1, 240 + 50-1, col[COLWHITE]);
+		rect(screen, 320 - 200+1, 240 - 50+1, 320 + 200+1, 240 + 50+1, col[COLDARKGRAY]);
+		rectfill(screen, 320 - 200, 240 - 50, 320 + 200, 240 + 50, bg);
+		textprintf_centre(screen, font, 320, 240 - 25, fg, t1);
+		textprintf_centre(screen, font, 320, 240     , fg, t2);
+		textprintf_centre(screen, font, 320, 240 + 25, fg, t3);
+		release_screen();
+	}
+
+	//show progress / press any key / dialog
+	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0) {
+		clear_keybuf();
+		do {
+			show_progress(t1,t2,t3,fg,bg);
+			if (keypressed())
+				break;
+			MS_SLEEP(50);
+		} while (1);
+		//wait until ESC released
+		while (key[KEY_ESC]) ;
+		clear_keybuf();
+	}
+
+	//GET SERVERS FROM MASTER!!!
+	void get_servers_from_master() {
+
+		int i = 0;
+		NLsocket sock;
+
+		//open a nonblocking socket
+		nlDisable(NL_BLOCKING_IO);
+		sock = nlOpen(0, NL_RELIABLE);
+		if (sock == NL_INVALID) {
+			//show "cant open socket to master" error
+			show_dialog("ERROR", "Can't open socket!", "Press any key.", 0,makecol(0xff,0xaa,0xaa));
+			return;
+		}
+		
+		//connect the nonblocking way
+		nlConnect(sock, &master_address);
+
+		//build query
+		char querybuf[1024]; int qcount = 0;
+		writeString(querybuf, qcount, "GET /servlet/fcecin.m3/index.html?get=x\n\n");
+		qcount--;	//take the zero out
+
+		show_progress("Getting updated internet server list", "Contacting server...", "Press ESC to cancel");
+
+		//keep trying to write the query until user presses ESC
+		NLint result;
+		do {
+			result = nlWrite(sock, querybuf, qcount);
+			MS_SLEEP(10);
+			if (key[KEY_ESC]) {
+				// 'attempt cancelled'
+				nlClose(sock);
+				clear_keybuf(); //clear keystrokes buffer
+				while (key[KEY_ESC]); //wait to release esc
+				return;
+			}
+		} while ((result == NL_INVALID) && (nlGetError() == NL_CON_PENDING));
+
+		//check bogus
+		if (result == NL_INVALID) {
+			nlClose(sock);
+			// show 'some problem occured try later'
+			show_dialog("Problem connecting to master server (1).", "Try again later.", "Press any key.", 0, makecol(0xff,0x88,0x88));
+			return;
+		}
+
+		show_progress("Getting updated internet server list", "Waiting response...", "Press ESC to cancel");
+
+		//log ok
+		LOG3("QUERY TO MASTER '%s', result = %i, count = %i\n", querybuf, result, qcount);
+
+		//FIXME: show 'request sent... waiting reply'
+		
+		//try to read the reply or until user presses ESC
+		//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
+		bool html_end = false;
+		int nostuffcound = 0;
+		char lebuf[65536]; 
+		int n = 0;
+		do {
+
+			//read
+			result = nlRead(sock, &(lebuf[n]), 1);
+
+			//no byte
+			if (result == 0) {
+				
+				if (nostuffcound > 0) {
+					nostuffcound++;
+
+					if (html_end) {
+						if (nostuffcound > 200) {		//2 seconds after it came some stuff but now without coming more stuff
+							lebuf[n+1] = 0;
+							LOG("2 SEC TIMEOUT READING STUFF AFTER </HTML>");
+							LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+							break;
+						}
+					}
+					//did not receive end yet -- then wait...
+					else {
+					}
+				}
+
+				MS_SLEEP(10);
+				if (key[KEY_ESC]) {
+					// 'attempt cancelled'
+					nlClose(sock);
+					clear_keybuf(); //clear keystrokes buffer
+					while (key[KEY_ESC]); //wait to release esc
+					return;
+				}
+			}
+
+			//error occured
+			if (result == NL_INVALID) {
+
+				//if already got html_end, no error
+				if (html_end)
+					break;
+
+				LOG1("MASTER CLIENT QUERY ERROR READING RESPONSE result = %i\n", result);
+				//show 'some problem occured try later'
+				/*
+				sprintf(dialogmessage, "Problem connecting! Try later. (2)");//%i %s %i %s", nlGetError(), nlGetErrorStr(nlGetError()), nlGetSystemError(), nlGetSystemErrorStr(nlGetSystemError()));
+				strcpy(dialogmessage2, "Press ESC");
+				set_menu(2);	//dialog menu
+				*/
+				nlClose(sock);
+				show_dialog("Problem connecting to master server (2).", "Try again later.", "Press any key.", 0, makecol(0xff,0x88,0x88));
+				return;
+			}
+
+			//received anything below 32: turn them into "+" signals...
+			if (lebuf[n] < 32)
+				lebuf[n] = '+';
+
+			//check for received </HTML>
+			if (n >= 6) {
+				if (
+					(lebuf[n-6] == '<') &&
+					(lebuf[n-5] == '/') &&
+					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
+					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
+					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
+					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
+					(lebuf[n-0] == '>')
+				)
+				{
+					LOG1("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i\n", n);
+					html_end = true;
+					nostuffcound = 1;
+					lebuf[n+1] = 0;
+					LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+					break;
+				}
+			}
+
+			//check for received another <HTML> : reset all stuff
+			if (n >= 5) {
+				if (
+					(lebuf[n-5] == '<') &&
+					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
+					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
+					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
+					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
+					(lebuf[n-0] == '>')
+				)
+				{
+					LOG1("\n** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
+					html_end = false;
+					n = -1;					
+				}
+			}
+
+			//read next
+			n++;
+
+		} while (1);
+
+		//clear the old gamespy master screen
+		//
+		for (int j=0;j<MAX_GAMESPY;j++) {
+			mgamespy[j].address[0]=0;
+			mgamespy[j].refreshed = false;
+			mgamespy[j].invalid = false;	//don't know the status yet
+			mgamespy[j].favs = false;
+		}
+		
+		//parse the successful response into the gamespy screen
+		//
+		int c = 0;
+		int m = 0;		//gamespy entry
+		bool found_k = false;
+		bool found_i = false;
+		do {
+
+			// check command char
+			if (lebuf[c++] == '@') {
+
+				//check IP char
+				if (lebuf[c] == 'I') {
+
+					found_i = true; //found an @I
+					
+					//point to first char of IP
+					c++;
+
+					//parse IP into a buf
+					char ipbuf[30];
+					int  ic = 0;
+					do {
+						
+						//copy one
+						ipbuf[ic++] = lebuf[c++];
+
+					} while (
+						(lebuf[c] == '1') || (lebuf[c] == '4') || (lebuf[c] == '7') || (lebuf[c] == '0') ||
+						(lebuf[c] == '2') || (lebuf[c] == '5') || (lebuf[c] == '8') || (lebuf[c] == '.') ||
+						(lebuf[c] == '3') || (lebuf[c] == '6') || (lebuf[c] == '9')
+					);
+
+					//zero terminate
+					ipbuf[ic] = 0;
+
+					//copy if enough room
+					if (m < MAX_GAMESPY) {
+						strcpy(mgamespy[m].address, ipbuf);
+						m++;	//next entry
+					}
+				}
+				//check DONE char
+				else if (lebuf[c] == 'K') {
+					//done!
+					found_k = true;
+					break;
+				}
+			}
+
+		} while (lebuf[c] != 0);
+
+		//copy addresses from favourites to holes in master entries, anyway
+		//if (!found_k) {
+		// for (int h=0;h<MAX_GAMESPY;h++)
+		 // strcpy(mgamespy[h].address, gamespy[h].address);
+		//}
+		int f = 0;	//favorites entry
+		int minf = m;		//first favorites entry 
+		while ((m < MAX_GAMESPY) && (f < MAX_GAMESPY)) {		//slot in master list
+			if (strlen(gamespy[f].address) > 0) {
+
+				//scan for duplicate: then ignore
+				bool dup = false;
+				for (i=0;i<MAX_GAMESPY;i++)
+					if (!strcmp(gamespy[f].address, mgamespy[i].address)) {
+						dup = true;		//dup
+						break;
+					}
+				
+				//no dup? add
+				if (!dup) {
+					strcpy(mgamespy[m].address, gamespy[f].address);
+					mgamespy[m].favs = true;
+					m++;	//next m slot
+				}
+			}
+			f++;	//next f anyways
+		}
+
+		//refresh (has own progress dialog)
+		//
+		// OBS.: will refresh even if master server fails -- refreshes favourites
+		//
+		refresh_command();
+
+		//remove all invalid IPs
+		//
+		int e;
+		for (e=0;e<MAX_GAMESPY;e++)
+			if (mgamespy[e].invalid)	//erase address
+				mgamespy[e].address[0]=0;
+
+		//remove all "no response"s below minf
+		//
+		for (e=minf;e<MAX_GAMESPY;e++)
+			if (mgamespy[e].noresponse)	{ //erase address
+				mgamespy[e].address[0]=0;
+				mgamespy[e].invalid = true;
+			}
+
+		//compress entries
+		//
+		gamespy_t  temp[MAX_GAMESPY];
+		memcpy(temp, mgamespy, sizeof(gamespy_t)*MAX_GAMESPY);	//copy to temp
+		for (e=0;e<MAX_GAMESPY;e++) {
+			mgamespy[e].address[0]=0;	//erase all master
+			mgamespy[e].favs=false;
+		}
+		int next=0;	//master entry next
+		for (e=0;e<MAX_GAMESPY;e++)
+			if (temp[e].address[0] != 0) {
+				memcpy(&(mgamespy[next]), &(temp[e]), sizeof(gamespy_t));	//copy back to master
+				next++;
+			}
+		
+		//show an error dialog if no @K in message
+		if (!found_k) {
+			if (found_i) 
+				show_dialog("ERROR: corrupted response.", "Try again later.", "Press any key.", 0, makecol(0xff,0x88,0x88));
+			else
+				show_dialog("ERROR: service unavailable", "Try again in a minute.", "Press any key.", 0, makecol(0xff,0x88,0x88));
+		}
+
+		//close socket
+		//
+		nlClose(sock);
+	}
+
 	//loop
 	void loop() {
 		
@@ -7094,12 +11050,31 @@ public:
 		client_netsend_counter = 0;
 
 		//loop		
-		bool quick_fix, key_fire=false, key_kill=false, key_swap=false;
+		bool quick_fix, key_fire=false, key_kill=false, key_swap=false, key_votexit=false;
 		char key_up=0, key_down=0, key_left=0, key_right=0;
 		int i;
 		while (notquit) {
 
 			//LOG("** another loop()...\n");
+
+			// (0) check for time to send delayed messages
+			//
+			//bot preferences update
+#ifndef	NO_BOTS
+
+			if (bot_pref_change) 
+			if (get_time() > bot_pref_time)
+			{
+				bot_pref_change = false;
+
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 19);		//19==update preferences
+				writeByte(lebuf, count, 1);			//1 == bot preferences
+				writeByte(lebuf, count, botmode);
+				writeByte(lebuf, count, botsize);
+				client->send_message(lebuf, count);
+			}
+#endif // NO_BOTS
 
 			// (1) loop doing input/sleep before next simulation/draw time
 			//
@@ -7159,6 +11134,7 @@ public:
 								lerud_abloxon = RandomName();
 								strcpy(editplayername, lerud_abloxon.c_str());
 								change_name_command();
+								FreeName(lerud_abloxon);
 							}
 							switch (ch) {
 							case '1': set_menu(1); break;
@@ -7180,16 +11156,26 @@ public:
 							break;
 						//connect screen
 						case 1:
-							i = strlen(gamespy[gi].address);
+							if (showmaster)
+								i = strlen(mgamespy[gi].address);
+							else
+								i = strlen(gamespy[gi].address);
 							if (
 										(i < 16)	// max length of IP address typein
 										&&
 										(((ch >= '0') && (ch <= '9')) || (ch == '.')) 
 								 )							
 							{
-								gamespy[gi].address[i] = ch;
-								gamespy[gi].address[i+1] = 0;
-								gamespy[gi].refreshed = false;
+								if (showmaster) {
+									mgamespy[gi].address[i] = ch;
+									mgamespy[gi].address[i+1] = 0;
+									mgamespy[gi].refreshed = false;
+								}
+								else {
+									gamespy[gi].address[i] = ch;
+									gamespy[gi].address[i+1] = 0;
+									gamespy[gi].refreshed = false;
+								}
 							}
 							else if (sc == KEY_UP) {
 								gi--;
@@ -7204,15 +11190,35 @@ public:
 							else if (sc == KEY_SPACE) {
 								
 								refresh_command();
+								clear_keybuf();	//clear the key buffer to stop too much refreshing.
 							}
 							else if (sc == KEY_BACKSPACE) {
 								if (i > 0) {
-									gamespy[gi].address[i-1] = 0;
-									gamespy[gi].refreshed = false;
+									if (showmaster) {
+										mgamespy[gi].address[i-1] = 0;
+										mgamespy[gi].refreshed = false;
+									}
+									else {
+										gamespy[gi].address[i-1] = 0;
+										gamespy[gi].refreshed = false;
+									}
 								}
 							}
 							else if (sc == KEY_ENTER) {
 								connect_command();
+							}
+							else if (sc == KEY_TAB) {
+								showmaster = !showmaster;
+
+								//make the first refresh of favorites when showing it
+								if ((!showmaster) && (first_fav_refresh == false)) {
+									first_fav_refresh = true;
+									refresh_command();
+								}
+							} 
+							else if ((sc == KEY_F2) && (showmaster)) {
+								//update from master
+								get_servers_from_master();
 							}
 							break;
 						//dialog screen : just ESC
@@ -7306,6 +11312,26 @@ public:
 					}
 					else key_swap = false;
 
+					// F4 == want/don't want to exit map
+					//
+					if (key[KEY_F4]) {
+						if (!key_votexit) {
+							key_votexit = true;
+
+							//toggle my local option
+							want_map_exit = !want_map_exit;
+
+							//want to swap/dont want  message
+							char lebuf[16]; int count = 0;
+							if (want_map_exit)
+								writeByte(lebuf, count, 22);	// 22 -- want
+							else
+								writeByte(lebuf, count, 23);	// 23 -- dont want
+							client->send_message(lebuf, count);
+						}
+					}
+					else key_votexit = false;
+
 					// l,r,u,d,fire game keys
 					//
 					if (
@@ -7362,7 +11388,50 @@ public:
 							string lerud_abloxon = RandomName();
 							strcpy(editplayername, lerud_abloxon.c_str());
 							change_name_command();
+							FreeName(lerud_abloxon);
 						}
+#ifndef	NO_BOTS
+						// BOT PREFERENCES: F5: less bots (botmode 2)
+						else if (sc == KEY_F5) {
+							if ((botsize > 0) || (botmode != 2)) {
+								botmode = 2;
+								if (botsize > 0)
+									botsize--;
+								//send update to server:
+								bot_pref_change = true;
+								bot_pref_time = get_time() + 3.0;
+							}
+						}
+						// BOT PREFERENCES: F6: more bots (botmode 2)
+						else if (sc == KEY_F6) {
+							if ((botsize < 8) || (botmode != 2)) {
+								botmode = 2;
+								if (botsize < 8)
+									botsize++;
+								//send update to server:
+								bot_pref_change = true;
+								bot_pref_time = get_time() + 3.0;
+							}
+						}
+						// BOT PREFERENCES: F7: fill mode  (botmode 1 "auto")
+						else if (sc == KEY_F7) {
+							if (botmode != 1) {
+								botmode = 1;
+								//send update to server:
+								bot_pref_change = true;
+								bot_pref_time = get_time() + 3.0;
+							}
+						}
+						// BOT PREFERENCES: F8: default/no opinion (botmode 0)
+						else if (sc == KEY_F8) {
+							if (botmode != 0) {
+								botmode = 0;
+								//send update to server:
+								bot_pref_change = true;
+								bot_pref_time = get_time() + 3.0;
+							}
+						}
+#endif // NO_BOTS
 						// F11:screenshot
 						else if (sc == KEY_F11) {
 							save_screenshot();
@@ -7429,7 +11498,7 @@ public:
 				if (quick_fix) 
 					quick_fix = false; 
 				else 
-					MS_SLEEP(1);
+					MS_SLEEP(2);				// *** OPTIMIZE THIS ***
 
 			} while (speed_counter < 1);
 
@@ -7472,9 +11541,14 @@ public:
 				//LOG("exit draw_game_frame()\n");
 			} else {
 				clear_to_color(drawbuf, 0);	// clear buffer
-				textprintf(drawbuf, font, 0, 0, col[COLWHITE], "page-flipping = %i", page_flipping);
-				textprintf(drawbuf, font, 0, 10, col[COLWHITE], "port = %i", port);
+				int co = makecol(0x22, 0x22, 0x22);
+				textprintf(drawbuf, font, 0, 0, co, "page-flipping = %i", page_flipping);
+				textprintf(drawbuf, font, 0, 10, co, "port = %i", port);
 			}
+
+			//force menu open if no game
+			if (!gameshow)
+				menushow = true;
 
 			if (menushow)
 				draw_game_menu();	// draw the game menu
@@ -7721,10 +11795,64 @@ int cfunc_server_data(client_runes_t *arg) {
 	return 0;
 }
 
+//============================================================
+//  client "download file from server" thread
+//============================================================
+
+void *thread_clientdownloader_f(void *arg) {
+
+	gameclient->client_download_thread(arg);
+
+	return 0;
+}
+
 
 //************************************************************
 //  mainloop
 //************************************************************
+
+/*
+bool reset_video_mode() {
+
+	// free backbuffer
+	//
+	if (backbuf) {
+		destroy_bitmap(backbuf);
+		backbuf = 0;
+		LOG("BACKBUFFER DESTROYED\n");
+	}
+
+	// hicolor
+	//
+	set_color_depth(16); 
+			
+	// set mode
+	//
+	set_gfx_mode(GFX_AUTODETECT_WINDOWED, RESOL_X, RESOL_Y, 0, 0); 
+
+	//transparent text
+	//
+	text_mode(-1);	
+
+	//create back buffer
+	//
+	backbuf = create_bitmap(SCREEN_W, SCREEN_H);
+
+	//error?
+	//
+	if (!backbuf) {
+		LOG("ERROR: cannot create memory backbuffer!\n");
+		return false; // FATAL
+	}
+	
+	// ok
+	//
+	setcolors();
+	drawbuf = backbuf;
+	page_flipping = false;
+	return true;
+}
+*/
 
 bool reset_video_mode() {
 
@@ -7734,7 +11862,7 @@ bool reset_video_mode() {
 		char err4[1024];
 
 		//un-show any video bitmaps?
-		show_video_bitmap(screen);
+		//show_video_bitmap(screen);
 		
 		//destroy all old surfaces
 		if (vidpage1) { LOG("destroying vidpage1\n"); destroy_bitmap(vidpage1); vidpage1 = 0; }
@@ -7748,6 +11876,8 @@ bool reset_video_mode() {
 			notok = set_gfx_mode(GFX_AUTODETECT_WINDOWED, RESOL_X, RESOL_Y, 0, 0); 
 		else
 			notok = set_gfx_mode(GFX_AUTODETECT, RESOL_X, RESOL_Y, 0, 0);
+
+// ***** INICIO *******
 
 		if (notok < 0) {
 			LOG1("ERROR: cannot set 640x480x16 windowed?=%i graphics mode!\n", winclient);
@@ -7804,6 +11934,9 @@ bool reset_video_mode() {
 				}
 			}
 		}
+
+// ***** FIM *******
+
 		text_mode(-1);	//transparent text
 		
 #ifndef SWITCH_PAUSE_CLIENT
@@ -7824,6 +11957,8 @@ bool reset_video_mode() {
 			vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
 			LOG2("create vidpage1=%i vidpage2=%i\n", vidpage1, vidpage2); 
 		}
+
+		//delete any partial video pages
 		if ((!vidpage1) || (!vidpage2)) {
 			
 			if (trypageflip)
@@ -7831,8 +11966,10 @@ bool reset_video_mode() {
 			else
 				LOG("USING SAFE MODE VIDEO -- DOUBLE-BUFFERING (option -dbuf). for page flipping use -flip\n")
 
-			if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; }
-			if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; }
+			if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; LOG("destroyed vidpage1\n"); }
+			if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; LOG("destroyed vidpage2\n");}
+
+			//create RAM backbuffer
 			backbuf = create_bitmap(SCREEN_W, SCREEN_H);
 			if (!backbuf) {
 				LOG("ERROR: cannot create memory backbuffer!\n");
@@ -7860,6 +11997,7 @@ bool reset_video_mode() {
 }
 
 int main(int argc, char *argv[]) {
+
 
 	//random random
 	srand((unsigned)time(0));
@@ -7907,24 +12045,30 @@ int main(int argc, char *argv[]) {
 	gameclient = 0;
 	gameserver = 0;
 
-	LOG_OPEN("outgun.log");
-	
+	//LOG_OPEN("outgun.log");
+
 	allegro_init();
 	install_keyboard();
 	install_timer();
 
-	LOG(argv[0]);
+	//LOG(argv[0]);
 
 	// find out where we are
 	//
 	char *exespec = new char[2048];
 	get_executable_name(exespec, 2048);
-	LOG1("exespec = '%s'\n", exespec);
+	//LOG1("exespec = '%s'\n", exespec);
 	replace_filename((char*)wheregamedir, (const char *)exespec, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
 	//put_backslash((char*)wheregamedir); //-nao poe isso porque transforma diretorio atual "" em raiz!
-	LOG1("where = '%s'\n", wheregamedir);
+	//LOG1("where = '%s'\n", wheregamedir);
 	delete exespec; 
 	exespec = 0;
+
+	char lognamebuf[1024];
+
+	//open outgun.log at EXE root path
+	append_filename(lognamebuf, wheregamedir, "outgun.log", WHERE_PATH_SIZE);
+	LOG_OPEN(lognamebuf);
 
 	if (nlInit() == NL_FALSE) {
 		LOG("ERROR: cannot init HawkNL!\n");
@@ -7944,6 +12088,17 @@ int main(int argc, char *argv[]) {
 	for (int i=1;i<argc;i++) {
 		if (!strcmp(argv[i], "-ded"))
 			dedserver = true;
+		else if (!strcmp(argv[i], "-priv"))
+			privateserver = true;
+		else if (!strcmp(argv[i], "-info"))
+			showinfo = true;
+		else if (!strcmp(argv[i], "-defaultprio"))
+			defaultprio = true;
+		else if (!strcmp(argv[i], "-prio")) {
+			if (++i<argc) {
+				targetprio = strtol(argv[i], NULL, 10);
+			}			
+		}
 		else if (!strcmp(argv[i], "-win"))
 			winclient = true;
 		else if (!strcmp(argv[i], "-flip"))
@@ -7972,6 +12127,26 @@ int main(int argc, char *argv[]) {
 			LOG2("WARNING: command-line argument #%i is unknown ('%s')\n", i, argv[i]);
 	}
 
+	// resolve master server address
+	//
+	LOG("resolving master server address...\n");
+	try {
+		nlGetAddrFromName("www.mycgiserver.com", &master_address);	//www.mycgiserver.com
+	} catch (...) {
+		LOG("caugth exception probably on nlGetAddrFromNameAsync()\n");
+		master_address.valid = NL_FALSE;
+	}
+
+	if (master_address.valid == NL_FALSE) {
+		LOG("can't resolve master server address to IP.\n");
+		nlStringToAddr("212.69.162.53", &master_address);					//last known resolution for www.mycgiserver.com
+	} else if (master_address.valid == NL_TRUE) {
+		LOG("address resolved sucessfully.\n");
+	}
+
+	nlSetAddrPort(&master_address, 80);													//port 80
+	LOG("master server address set.\n");
+
 	// try install sound
 	//
 	if (!nosound) {
@@ -7985,7 +12160,8 @@ int main(int argc, char *argv[]) {
 	}
 	else
 		LOG("SOUND DISABLED by command line option -nosound\n");
-	
+
+
 	// here must get the safest and shittiest windowed gfx mode available
 	//
 	set_color_depth(8);
@@ -7993,6 +12169,7 @@ int main(int argc, char *argv[]) {
 		LOG("ERROR: could not set gfx mode 320x240 windowed");
 		return 0;
 	}
+
 	
 	// holding left shift on boot = switch to dedicated server
 	// holding right control on boot = toggle winclient flag
@@ -8016,35 +12193,74 @@ int main(int argc, char *argv[]) {
 	LOCK_FUNCTION(increment_server_speed_counter);
 	install_int_ex(increment_server_speed_counter, BPS_TO_TIMER(10));		//10Hz
 
+	// get system thread priorities
+	//
+	int						pmin = sched_get_priority_min(SCHED_OTHER);
+	int						pmax = sched_get_priority_max(SCHED_OTHER);
+	int						policy;
+	pthread_t			tme = pthread_self();
+	sched_param		param;
+	int						rc = pthread_getschedparam(tme, &policy, &param); // get priority of current thread (wich is the default value)
+	int						pdef = param.sched_priority;
+	LOG("\nThread priorities:");
+	LOG4("   rc = %i policy = %i OTHER=%i sched_prio = %i\n", rc, policy, SCHED_OTHER, param.sched_priority);
+	LOG3("   pmin %i pmax %i pdef = %i\n", pmin, pmax, pdef);
+
+	//show info
+	if (showinfo) {
+		allegro_message("Information:\n\nThread priorities for -prio <val> parameter:\n* Minimum -prio <val> : %i\n* Maximum -prio <val> : %i\n* System default (use -defaultprio) : %i\n", pmin, pmax, pdef);
+		return 0;
+	}
+
 	// run server
 	//
 	if (dedserver) {
 
+		// here must get the safest and shittiest windowed gfx mode available
+		//
+		set_color_depth(8);
+		if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0)) {
+			LOG("ERROR: could not set gfx mode 320x240 windowed");
+			return 0;
+		}
+
 		// FIXME/REVIEW: dedicated server - set process priority (all threads) to a higher value
 		//		--> threads filhas estao com as priorities certas? LOGAR pra  ver. senao mudar p/ INHERIT
-		int pmin = sched_get_priority_min(SCHED_OTHER);
-    int pmax = sched_get_priority_max(SCHED_OTHER);
 		int ptarg;
-		//chutando: um "passo" abaixo do maximo
-		if (pmin < pmax) { // pmin ..... OI! . PMAX
-			ptarg = pmax - 1;
+
+		//change default priority?
+		if (!defaultprio) {
+
+			//if -prio parameter is unspecified
+			if (targetprio == TARGET_PRIO_UNSPECIFIED) {
+
+				//guess one below system maximum (wich usually means realtime and should never be used really)
+				//
+				if (pmin < pmax) { // pmin ..... OI! . PMAX
+					ptarg = pmax - 1;
+				}
+				else {             // PMAX . OI! ..... pmin
+					ptarg = pmax + 1;
+				}
+
+			}
+			else
+				ptarg = targetprio;
+
+			param.sched_priority = ptarg;
+			policy = SCHED_OTHER;
+			pthread_setschedparam(tme, policy, &param);
+			LOG1("\nNEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i\n", ptarg);
 		}
-		else {             // PMAX . OI! ..... pmin
-			ptarg = pmax + 1;
-		}
-		pthread_t		tme = pthread_self();
-		int					policy;
-		sched_param param;
-		int rc = pthread_getschedparam(tme, &policy, &param);
-		LOG4("rc = %i policy = %i OTHER=%i sched_prio = %i\n", rc, policy, SCHED_OTHER, param.sched_priority);
-		param.sched_priority = ptarg;
-		policy = SCHED_OTHER;
-		LOG3("pmin %i pmax %i ptarg = %i\n", pmin, pmax, ptarg);
-		pthread_setschedparam(tme, policy, &param);
+		else
+			LOG("\n-defaultprio: Leaving thread priorities on their default values");
 
 		// log 
 		LOG_CLOSE();
-		LOG_OPEN("out_svr.log");
+		//LOG_OPEN("out_svr.log");
+		//open log at EXE root path
+		append_filename(lognamebuf, wheregamedir, "out_svr.log", WHERE_PATH_SIZE);
+		LOG_OPEN(lognamebuf);
 		
 		// gfx init
 		//
@@ -8070,7 +12286,7 @@ int main(int argc, char *argv[]) {
 			return 0;
 		}
 		gameserver->loop(0);
-		gameserver->stop();	// FIXME: this wasn't called before (review)
+		gameserver->stop();	
 		delete gameserver;
 		gameserver = 0;
 	}
@@ -8078,11 +12294,28 @@ int main(int argc, char *argv[]) {
 	//
 	else {
 
+		//require CLIENT_MAPS_DIR directory
+		char mappath[256];
+		strcpy(mappath, CLIENT_MAPS_DIR);  // cmaps
+		char dest[1024];
+		append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
+		LOG1("CMAPS DIR IS = '%s'\n", dest);
+		al_ffblk mapffblk;	//for al_find*
+		int result = al_findfirst(dest, &mapffblk, FA_DIREC | FA_ARCH);
+		if (result != 0) {
+			allegro_message("Error: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", dest);
+			return 0;
+		}
+
+		//window title
 		set_window_title("Outgun client - CTRL+F12 to quit");
 
 		// log 
 		LOG_CLOSE();
-		LOG_OPEN("out_cli.log");
+		//LOG_OPEN("out_cli.log");
+		//open log at EXE root path
+		append_filename(lognamebuf, wheregamedir, "out_cli.log", WHERE_PATH_SIZE);
+		LOG_OPEN(lognamebuf);
 
 		// gfx init
 		//
@@ -8106,9 +12339,7 @@ int main(int argc, char *argv[]) {
 
 		// disconnect client
 		//
-		gameclient->stop();	// FIXME: when this was not called (gameclient deleted directly)
-												//        the program GPF'ed. test if it's the deletion or not
-												//				disconnecting before leaving the program that causes it.
+		gameclient->stop();
 		delete gameclient;
 		gameclient = 0;
 
