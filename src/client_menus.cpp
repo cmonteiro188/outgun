@@ -119,7 +119,6 @@ Menu_game::Menu_game() :
 	favoriteColors		("Favorite colors"),
 	lagPrediction		("Lag prediction", false),
 	lagPredictionAmount	("Lag prediction amount", true, 0, 10, 10),
-	joystick			("Enable joystick control", false),
 
 	messageLogging		("Save chat messages", false),
 	saveStats			("Save game statistics", false),
@@ -134,7 +133,6 @@ Menu_game::Menu_game() :
 	menu.add_component(&favoriteColors);
 	menu.add_component(&lagPrediction);
 	menu.add_component(&lagPredictionAmount);
-	menu.add_component(&joystick);
 	ins_space();
 	menu.add_component(&messageLogging);
 	menu.add_component(&saveStats);
@@ -142,6 +140,27 @@ Menu_game::Menu_game() :
 	menu.add_component(&showServerInfo);
 	ins_space();
 	menu.add_component(&autoGetServerList);
+}
+
+Menu_controls::Menu_controls() :
+	keypadMoving		("Use keypad for moving", true),
+	joystick			("Enable joystick control", false),
+	joyText				("Joystick buttons (0 = disabled)"),
+	joyMove				("Moving stick", false, 0, 5, 1),
+	joyShoot			("Shoot ", false, 0, 16, 1),
+	joyRun				("Run   ", false, 0, 16, 2),
+	joyStrafe			("Strafe", false, 0, 16, 3),
+
+	menu				("Controls", true)
+{
+	menu.add_component(&keypadMoving);
+	ins_space();
+	menu.add_component(&joystick);
+	menu.add_component(&joyMove);
+	menu.add_component(&joyText);
+	menu.add_component(&joyShoot);
+	menu.add_component(&joyRun);
+	menu.add_component(&joyStrafe);
 }
 
 void Menu_graphics::reloadChoices(const Graphics& gfx) {
@@ -249,7 +268,7 @@ void Menu_sounds::init(const Sounds& snd) {
 }
 
 void Menu_sounds::update(const Sounds& snd) {	// tries to keep the selected theme
-	string oldTheme = theme();
+	const string oldTheme = theme();
 	init(snd);
 	theme.set(oldTheme);
 }
@@ -257,6 +276,7 @@ void Menu_sounds::update(const Sounds& snd) {	// tries to keep the selected them
 Menu_options::Menu_options() :
 	name	(),
 	game	(),
+	controls(),
 	graphics(),
 	sounds	(),
 
@@ -264,6 +284,7 @@ Menu_options::Menu_options() :
 {
 	menu.add_component(&name.menu);
 	menu.add_component(&game.menu);
+	menu.add_component(&controls.menu);
 	menu.add_component(&graphics.menu);
 	menu.add_component(&sounds.menu);
 }
@@ -272,6 +293,7 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
 	menu.setHook(opener);
 	name	.recursiveSetMenuOpener(opener->clone());
 	game	.recursiveSetMenuOpener(opener->clone());
+	controls.recursiveSetMenuOpener(opener->clone());
 	graphics.recursiveSetMenuOpener(opener->clone());
 	sounds	.recursiveSetMenuOpener(opener->clone());
 }

@@ -24,15 +24,15 @@ public:
 	ClientControls() : data(0) { }
 	NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
 	void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
-	void fromKeyboard();
-	void fromJoystick();
-	bool     isUp() const { return (data&up    ) != 0; }
-	bool   isDown() const { return (data&down  ) != 0; }
-	bool   isLeft() const { return (data&left  ) != 0; }
-	bool  isRight() const { return (data&right ) != 0; }
-	bool    isRun() const { return (data&run   ) != 0; }
-	bool isStrafe() const { return (data&strafe) != 0; }
-	bool     idle() const { return  data         == 0; }
+	void fromKeyboard(bool use_pad);
+	void fromJoystick(int moving_stick, int run_button, int strafe_button);
+	bool     isUp() const { return (data & up    ) != 0; }
+	bool   isDown() const { return (data & down  ) != 0; }
+	bool   isLeft() const { return (data & left  ) != 0; }
+	bool  isRight() const { return (data & right ) != 0; }
+	bool    isRun() const { return (data & run   ) != 0; }
+	bool isStrafe() const { return (data & strafe) != 0; }
+	bool     idle() const { return  data           == 0; }
 
 private:
 	NLubyte data;

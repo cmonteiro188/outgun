@@ -79,7 +79,12 @@ enum ClientCfgSetting {
 	CCS_ShowStats,
 	CCS_AutoGetServerList,
 	CCS_ShowServerInfo,
-	CCS_MaxCommand = CCS_ShowServerInfo
+	CCS_KeypadMoving,
+	CCS_JoystickMove,
+	CCS_JoystickShoot,
+	CCS_JoystickRun,
+	CCS_JoystickStrafe,
+	CCS_MaxCommand = CCS_JoystickStrafe
 };
 
 class ServerThreadOwner {

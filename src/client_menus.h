@@ -63,7 +63,6 @@ public:
 	Colorselect	favoriteColors;
 	Checkbox	lagPrediction;
 	Slider		lagPredictionAmount;
-	Checkbox	joystick;
 	Checkbox	messageLogging;
 	Checkbox	saveStats;
 	Checkbox	showStats;
@@ -73,6 +72,22 @@ public:
 	Menu menu;
 
 	Menu_game();
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+};
+
+class Menu_controls {
+public:
+	Checkbox	keypadMoving;
+	Checkbox	joystick;
+	StaticText	joyText;
+	Slider		joyMove;
+	Slider		joyShoot;
+	Slider		joyRun;
+	Slider		joyStrafe;
+
+	Menu menu;
+
+	Menu_controls();
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
@@ -126,6 +141,7 @@ class Menu_options {
 public:
 	Menu_name		name;
 	Menu_game		game;
+	Menu_controls	controls;
 	Menu_graphics	graphics;
 	Menu_sounds		sounds;
 

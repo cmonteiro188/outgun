@@ -703,12 +703,19 @@ bool Client::start() {
 			}
 			case CCS_LagPrediction:			menu.options.game.lagPrediction.set(args == "1"); break;
 			case CCS_LagPredictionAmount:	menu.options.game.lagPredictionAmount.boundSet(atoi(args)); break;
-			case CCS_Joystick:				menu.options.game.joystick.set(args == "1"); break;
 			case CCS_MessageLogging:		menu.options.game.messageLogging.set(args == "1"); break;
 			case CCS_SaveStats:				menu.options.game.saveStats.set(args == "1"); break;
 			case CCS_ShowStats:				menu.options.game.showStats.set(args == "1"); break;
 			case CCS_AutoGetServerList:		menu.options.game.autoGetServerList.set(args == "1"); break;
 			case CCS_ShowServerInfo:		menu.options.game.showServerInfo.set(args == "1"); break;
+
+			// controls menu
+			case CCS_KeypadMoving:			menu.options.controls.keypadMoving.set(args == "1"); break;
+			case CCS_Joystick:				menu.options.controls.joystick.set(args == "1"); break;
+			case CCS_JoystickMove:			menu.options.controls.joyMove.boundSet(atoi(args)); break;
+			case CCS_JoystickShoot:			menu.options.controls.joyShoot.boundSet(atoi(args)); break;
+			case CCS_JoystickRun:			menu.options.controls.joyRun.boundSet(atoi(args)); break;
+			case CCS_JoystickStrafe:		menu.options.controls.joyStrafe.boundSet(atoi(args)); break;
 
 			// graphics menu
 			case CCS_Windowed:				menu.options.graphics.windowed.set(args == "1"); break;
@@ -770,8 +777,6 @@ bool Client::start() {
 	tournamentPassword.changeData(playername, menu.options.name.password());
 
 	// game
-	if (menu.options.game.joystick())
-		install_joystick(JOY_TYPE_AUTODETECT);
 	if (menu.options.game.messageLogging())
 		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
 	for (int i = 0; i < 16; i++)
@@ -779,6 +784,10 @@ bool Client::start() {
 			fav_colors.push_back(i);
 	for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
 		menu.options.game.favoriteColors.addOption(*col);
+
+	// controls
+	if (menu.options.controls.joystick())
+		install_joystick(JOY_TYPE_AUTODETECT);
 
 	// graphics
 	if (extConfig.winclient != -1)
@@ -1284,9 +1293,9 @@ void Client::send_frame(bool newFrame) {
 
 	ClientControls currCtrl;
 	if (menusel == menu_none && openMenus.empty()) {	// don't move when menu or similar is open
-		currCtrl.fromKeyboard();
-		if (menu.options.game.joystick())
-			currCtrl.fromJoystick();
+		currCtrl.fromKeyboard(menu.options.controls.keypadMoving());
+		if (menu.options.controls.joystick())
+			currCtrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun() - 1, menu.options.controls.joyStrafe() - 1);
 	}
 
 	if (newFrame) {
@@ -2700,8 +2709,10 @@ void Client::loop(volatile bool* quitFlag) {
 
 				// control == fire
 				bool fire = key[KEY_LCONTROL] || key[KEY_RCONTROL];
-				if (!fire && menu.options.game.joystick() && !poll_joystick() && joy[0].num_buttons >= 1 && joy[0].button[0].b)
-					fire = true;
+				if (!fire && menu.options.controls.joystick() && !poll_joystick() &&
+					joy[0].num_buttons > menu.options.controls.joyShoot() - 1 &&
+					joy[0].button[menu.options.controls.joyShoot() - 1].b)
+						fire = true;
 
 				if (fire) {
 					if (!key_fire) {
@@ -2794,12 +2805,15 @@ void Client::loop(volatile bool* quitFlag) {
 				if (sendnow)
 					send_frame(false);
 
-				// Check Alt+keypad sequences
-				if (keyboard_needs_poll())
-					poll_keyboard();	// ignore return value
 				static bool alt_sequence = false;
-				if (key_shifts & KB_INALTSEQ_FLAG)
-					alt_sequence = true;
+
+				if (menu.options.controls.keypadMoving()) {
+					// Check Alt+keypad sequences
+					if (keyboard_needs_poll())
+						poll_keyboard();	// ignore return value
+					if (key_shifts & KB_INALTSEQ_FLAG)
+						alt_sequence = true;
+				}
 
 				// keypresses to talk prompt
 				while (keypressed()) {
@@ -2862,8 +2876,9 @@ void Client::loop(volatile bool* quitFlag) {
 						}
 					}
 					// Add character to text, max text length 60 chars.
-					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) && !is_keypad(sc) && !alt_sequence)
-						talkbuffer += static_cast<char>(ch);
+					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) &&
+						(!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence)))
+							talkbuffer += static_cast<char>(ch);
 				}
 				if (!(key_shifts & KB_INALTSEQ_FLAG))
 					alt_sequence = false;
@@ -3054,12 +3069,19 @@ void Client::stop() {
 		}
 		cfg << CCS_LagPrediction		<< ' ' << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
 		cfg << CCS_LagPredictionAmount	<< ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
-		cfg << CCS_Joystick				<< ' ' << (menu.options.game.joystick() ? 1 : 0) << '\n';
 		cfg << CCS_MessageLogging		<< ' ' << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
 		cfg << CCS_SaveStats			<< ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
 		cfg << CCS_ShowStats			<< ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
 		cfg << CCS_AutoGetServerList	<< ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
 		cfg << CCS_ShowServerInfo		<< ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
+
+		// save controls menu settings
+		cfg << CCS_KeypadMoving			<< ' ' << (menu.options.controls.keypadMoving() ? 1 : 0) << '\n';
+		cfg << CCS_Joystick				<< ' ' << (menu.options.controls.joystick() ? 1 : 0) << '\n';
+		cfg << CCS_JoystickMove			<< ' ' << menu.options.controls.joyMove() << '\n';
+		cfg << CCS_JoystickShoot		<< ' ' << menu.options.controls.joyShoot() << '\n';
+		cfg << CCS_JoystickRun			<< ' ' << menu.options.controls.joyRun() << '\n';
+		cfg << CCS_JoystickStrafe		<< ' ' << menu.options.controls.joyStrafe() << '\n';
 
 		// save graphics menu settings
 		cfg << CCS_Windowed				<< ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
@@ -3432,7 +3454,7 @@ void Client::draw_game_frame() {
 
 		vector<vector<pair<int, int> > > sticks;
 		vector<int> buttons;
-		if (menu.options.game.joystick()) {
+		if (menu.options.controls.joystick()) {
 			const JOYSTICK_INFO& joystick = joy[0];
 			for (int i = 0; i < joystick.num_sticks; i++) {
 				vector<pair<int, int> > axes;
@@ -3559,8 +3581,9 @@ void Client::initMenus() {
 	menu.options.name.removePasswords	.setHook(new MCB::N<Textarea,		&Client::MCF_removePasswords		>(this));
 
 	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGameMenu		>(this));
-	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&Client::MCF_joystick				>(this));
 	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&Client::MCF_messageLogging			>(this));
+
+	menu.options.controls.joystick		.setHook(new MCB::N<Checkbox,		&Client::MCF_joystick				>(this));
 
 	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGfxMenu			>(this));
 	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawGfxMenu		>(this));
@@ -3692,7 +3715,7 @@ void Client::MCF_prepareGameMenu() {
 }
 
 void Client::MCF_joystick() {
-	if (menu.options.game.joystick())
+	if (menu.options.controls.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
 	else
 		remove_joystick();
