@@ -61,11 +61,11 @@ public:
 		return s;
 	}
 
-	bool token     () const { return data & SB_token;      }	// client has reported a token
-	bool masterAuth() const { return data & SB_masterAuth; }	// client's token has been authorized by master
-	bool tournament() const { return data & SB_tournament; }	// client's score is being recorded for tournament scoring
-	bool localAuth () const { return data & SB_localAuth;  }	// client has been authorized by the server's auth.txt
-	bool admin     () const { return data & SB_admin;      }	// client is an admin on this server
+	bool token     () const { return (data & SB_token     ) != 0; }	// client has reported a token
+	bool masterAuth() const { return (data & SB_masterAuth) != 0; }	// client's token has been authorized by master
+	bool tournament() const { return (data & SB_tournament) != 0; }	// client's score is being recorded for tournament scoring
+	bool localAuth () const { return (data & SB_localAuth ) != 0; }	// client has been authorized by the server's auth.txt
+	bool admin     () const { return (data & SB_admin     ) != 0; }	// client is an admin on this server
 
 	void setToken     (bool b) { data = (data & (~SB_token     )) | (b ? SB_token      : 0); }
 	void setMasterAuth(bool b) { data = (data & (~SB_masterAuth)) | (b ? SB_masterAuth : 0); }
@@ -147,6 +147,10 @@ static const int MAX_PICKUPS = 32; // the MAXIMUM MAXIMUM number of pickups layi
 extern volatile unsigned long server_speed_counter;	// 10 Hz (100 ms) server frame counter
 extern volatile unsigned long time_counter;	// 200 Hz (5 ms) counter used by get_time() and for client frame timing
 //#fix: time_counter goes around in 248 days; that might cause serious trouble (?)
+
+static const double N_PI   = 3.14159265358979323846;
+static const double N_PI_2 = 1.57079632679489661923;
+static const double N_PI_4 = 0.78539816339744830962;
 
 //server_next_map() reasons
 enum {

@@ -1008,18 +1008,18 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) {
 
 	float ar[2];
 	for (int i = 0; i < 2; ++i)
-		ar[i] = wall.angles()[i] * M_PI / 180.;
+		ar[i] = wall.angles()[i] * N_PI / 180.;
 	if (ar[1] < ar[0])
-		ar[1] += 2. * M_PI;
+		ar[1] += 2. * N_PI;
 	nAssert(ar[1] >= ar[0]);
 	nAssert(ar[0] >= 0.);
 
 	const double yeo = cy - ro * va2.second;	// - belongs to va2.second
 	const double yei = cy - ri * va2.second;	// - belongs to va2.second
 	double ang = ar[0];
-	const int pi_i = static_cast<int>(ang / M_PI) + 1;
+	const int pi_i = static_cast<int>(ang / N_PI) + 1;
 	bool rightSide = (pi_i & 1) != 0;
-	double npi = M_PI * pi_i;
+	double npi = N_PI * pi_i;
 
 	for (;;) {
 		const double yao = cy - ro * cos(ang);	// - belongs to cos
@@ -1054,7 +1054,7 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) {
 			break;
 		}
 		ang = npi;
-		npi += M_PI;
+		npi += N_PI;
 		rightSide = !rightSide;
 	}
 

@@ -168,11 +168,11 @@ CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float a
 {
 	angle[0] = ang1;
 	angle[1] = ang2;
-	const float a1r = angle[0] * M_PI / 180;
-	const float a2r = angle[1] * M_PI / 180;
+	const float a1r = angle[0] * N_PI / 180;
+	const float a2r = angle[1] * N_PI / 180;
 	va1 = Coords(sin(a1r), cos(a1r));
 	va2 = Coords(sin(a2r), cos(a2r));
-	const float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * M_PI);
+	const float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * N_PI);
 	if (a1r == a2r)
 		anglecos = -1.;	// full circle => max width
 	else
@@ -202,7 +202,7 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const {
 	if (dcr - rr <= 0)
 		return true;
 	// find out at what range of angles the circle projects to, in relation to the wall's center of radius; compare this to the wall's bounding angles
-	double centerAngle = asin(-dy / dcr) * 180. / M_PI;	// -dy because screen coordinates are reversed
+	double centerAngle = asin(-dy / dcr) * 180. / N_PI;	// -dy because screen coordinates are reversed
 	if (dx < 0)
 		centerAngle = 180 - centerAngle;
 	// now within [-90, 270] in physical coordinates (not screen coordinates)
@@ -211,7 +211,7 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const {
 	if (centerAngle < 0.)
 		centerAngle += 360.;
 	// now within [0, 360[ in map coordinates
-	const double width = asin(rr / dcr) * 180. / M_PI;	// how far from centerAngle the projection gets
+	const double width = asin(rr / dcr) * 180. / N_PI;	// how far from centerAngle the projection gets
 	float a0 = angle[0], a1 = angle[1];
 	if (a1 < a0)
 		a1 += 360.;
@@ -783,7 +783,6 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
 BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) {
-	// check for solution A (if there is one, there is no need to check B)
 	const double bounceRad = ar + (outside ? cr : -cr);
 	const double m2 = mx * mx + my * my, r2 = bounceRad * bounceRad;
 	const double mdotd = mx * dx + my * dy;
@@ -1104,11 +1103,11 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	r->y = y;
 	r->direction = dir;
 
-	const float deg = dir * M_PI_4;
+	const float deg = dir * N_PI_4;
 
 	if (xdelta) {
-		r->sx = xdelta * shot_deltax * cos(deg + M_PI_2);
-		r->sy = xdelta * shot_deltax * sin(deg + M_PI_2);
+		r->sx = xdelta * shot_deltax * cos(deg + N_PI_2);
+		r->sy = xdelta * shot_deltax * sin(deg + N_PI_2);
 		const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 		r->move(1);
 		if (wallTime < 1.) {
@@ -2276,6 +2275,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 
 		// execute movement
 
+		double moveCeiling = minPlyCollision - .001;	// -.001 to not go and overlap; this is applied to irrelevant players too which could be eliminated
 		// find the next event
 		if (minBounce < subFrame + .01)	// avoid infinite bouncing; this could be done more delicately (based on rounds spent)
 			minBounce = subFrame + .01;	// it's also possible that this causes some bugs
@@ -2284,9 +2284,11 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		const double eventTime = min(min(minCollision, minBounce), minPlyCollision);
 		const double mt = min<double>(fraction, eventTime);	// mt is where subFrame will be advanced to for the next round
 		nAssert(mt >= subFrame - .0001);
+		if (mt < moveCeiling)
+			moveCeiling = mt;
 		for (int pi = 0; pi < static_cast<int>(rply.size()); ) {
-			// don't move more than mt or more than plyMoveMax-.001 (-.001 to stay out of walls)
-			const double plTime = min(plyMoveMax[pi].first - .001, mt);
+			// don't move more than plyMoveMax-.001 (-.001 to stay out of walls)
+			const double plTime = min(plyMoveMax[pi].first - .001, moveCeiling);
 			if (plTime <= subFrame) {	// we are waiting to bounce: nothing can be done
 				++pi;
 				continue;

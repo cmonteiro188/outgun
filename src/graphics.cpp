@@ -1256,8 +1256,8 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
 		// deg: 0..360
 		double deg = static_cast<int>(time * 1000) % 1000;		//thousand ticks
 		deg /= 1000.0;		// normalise between 0...1
-		deg *= 2 * M_PI;	// 360°
-		deg += M_PI_2 * b;	// 90°
+		deg *= 2 * N_PI;	// 360°
+		deg += N_PI_2 * b;	// 90°
 
 		// position
 		double dx = 10 * cos(deg);
