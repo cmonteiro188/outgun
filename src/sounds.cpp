@@ -97,7 +97,7 @@ void Sounds::load_theme(const string& dir) {
 	string name;
 	ifstream in(dest);
 	if (in) {
-		if (!getline(in, name))
+		if (!getline_smart(in, name))
 			name = "(unnamed theme)";
 		in.close();
 	}
@@ -145,7 +145,7 @@ SAMPLE* Sounds::load_outgun_sample(const string& fname, int slot, bool try_redir
 		ifstream in(dest);
 		if (in) {
 			string redir_name;
-			getline(in, redir_name);
+			getline_smart(in, redir_name);
 			in.close();
 
 			bool is_reversed = false;

@@ -104,7 +104,7 @@ class ServerNetworking {
 	
 	bool			website_exiting_ok;
 
-	char			hostname[256];
+	std::string		hostname;
 	int				ping_send_client;
 	int				ctop[256];			// client id-to-player id index
 	int				player_count;

@@ -40,7 +40,6 @@ public:
 };
 
 ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w) : host(hostp), world(w) {
-	hostname[0] = 0;
 	server = 0;
 	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = 0;	// no meaning
@@ -696,17 +695,16 @@ bool ServerNetworking::start() {
 
 //reload hostname
 void ServerNetworking::reload_hostname() {
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, "hostname.txt", WHERE_PATH_SIZE);
-	FILE *cfg = fopen(dest, "r");
-	if (cfg) {
-		fgets(hostname, 256, cfg);
-		hostname[ strlen(hostname) - 1 ] = 0;  //replace newline with \0
-		LOG1("HOSTNAME IS = '%s'\n", hostname);
-		fclose(cfg);
+	char filename[WHERE_PATH_SIZE];
+	append_filename(filename, wheregamedir, "hostname.txt", WHERE_PATH_SIZE);
+	ifstream in(filename);
+	if (in) {
+		getline_smart(in, hostname);
+		LOG1("HOSTNAME IS = '%s'\n", hostname.c_str());
+		in.close();
 	}
 	else
-		strcpy(hostname, "Anonymous host");
+		hostname = "Anonymous host";
 
 	//update serverinfo
 	update_serverinfo();
@@ -726,9 +724,9 @@ void ServerNetworking::update_serverinfo() {
 	//force player_count
 	player_count = pc;
 
-	char sinfo[1024];
-	sprintf(sinfo, "%2i %7s/%s", player_count, GAME_VERSION, hostname);
-	server->set_server_info(sinfo);
+	ostringstream info;
+	info << setw(2) << player_count << ' ' << setw(7) << GAME_VERSION << '/' << hostname;
+	server->set_server_info(info.str().c_str());
 }
 
 int ServerNetworking::client_connected(int id) {
@@ -1319,7 +1317,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				for (int j = 0; j < maxplayers; j++)
 					if (j / TSIZE == t && world.player[j].used)
 						if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)
-							if (world.player[i].visibility > 0 || world.player[i].flag()) { // visible
+							if (world.player[i].visibility > 10 || world.player[i].flag()) { // visible
 								tview[t][i % TSIZE] = true;
 								tview_bits[t] |= (1 << (i % TSIZE));	// set visibility bit
 								break;
@@ -2095,7 +2093,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 			//built the state
 			char state[1024];
-			sprintf(state, "%i/%i players - %s - v%s", player_count, maxplayers, hostname, GAME_VERSION);
+			sprintf(state, "%i/%i players - %s - v%s", player_count, maxplayers, hostname.c_str(), GAME_VERSION);
 			for (int h=0; state[h]; h++)
 				if (state[h] == ' ')	//switch spaces to plus'es
 					state[h] = '+';
@@ -3193,7 +3191,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		else {
 			res->accepted = true;
 			writeByte(res->customData, res->customDataLength, ((NLubyte)maxplayers));
-			writeString(res->customData, res->customDataLength, hostname);
+			writeStr(res->customData, res->customDataLength, hostname);
 		}
 	}
 }

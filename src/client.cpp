@@ -162,20 +162,20 @@ bool gameclient_c::start() {
 	if (cfg) {
 		string dir;
 		//read sound theme directory name
-		if (getline(cfg, dir)) {
+		if (getline_smart(cfg, dir)) {
 			client_sounds.set_theme_dir(dir);
 			LOG1("Sound theme directory default = %s\n", dir.c_str());
 		}
 
 		//read graphics theme directory name
-		if (getline(cfg, dir)) {
+		if (getline_smart(cfg, dir)) {
 			client_graphics.set_theme_dir(dir);
 			LOG1("Graphics theme directory default = %s\n", dir.c_str());
 		}
 
 		//read player name
 		string name;
-		if (getline(cfg, name)) {
+		if (getline_smart(cfg, name)) {
 			randomname = false;
 			playername = name;
 		}
@@ -183,7 +183,7 @@ bool gameclient_c::start() {
 		//read addresses
 		for (int i = 0; i < MAX_GAMESPY; i++) {
 			string addr;
-			if (getline(cfg, addr)) {
+			if (getline_smart(cfg, addr)) {
 				strncpy(gamespy[i].address, addr.c_str(), 127);
 				strncpy(mgamespy[i].address, addr.c_str(), 127); //copy to master list too!
 			}
@@ -3511,7 +3511,8 @@ void gameclient_c::draw_game_frame() {
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
-			if (option_show_names && fx.player[i].used && !(fx.player[i].visibility == 0 && i / TSIZE != me / TSIZE)) {
+			if (option_show_names && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
+				fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
 				int ttx = (int)fd.player[i].lx;
 				int tty = (int)fd.player[i].ly;
 				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);

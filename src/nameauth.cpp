@@ -1,6 +1,7 @@
 #include <nl.h>
 #include <fstream>
 
+#include "commont.h"
 #include "nameauth.h"
 #include "nassert.h"
 
@@ -17,7 +18,7 @@ extern double get_time();
 void NameAuthorizationDatabase::Entry::save(ostream& out) const {
 	out << '\n';
 	out << "name " << nameUpr << '\n';
-	if (password.length())
+	if (!password.empty())
 		out << "password " << password << '\n';
 	for (vector<NLaddress>::const_iterator ai=addresses.begin(); ai!=addresses.end(); ++ai) {
 		char sbuf[50];
@@ -38,7 +39,7 @@ bool NameAuthorizationDatabase::addEntry(const Entry& e) {
 		banned=e;
 		banned.password.clear();
 	}
-	else if (e.nameUpr.length() && e.password.length())
+	else if (!e.nameUpr.empty() && !e.password.empty())
 		db.push_back(e);
 	else {
 		LOG("*** INVALID DATA IN AUTH.TXT\n");
@@ -57,14 +58,12 @@ bool NameAuthorizationDatabase::load() {
 	bool eActive=false;
 	for (;;) {
 		string line;
-		getline(in, line);
+		getline_smart(in, line);
 		if (!in) {
 			if (eActive)
 				return addEntry(e);
 			return true;
 		}
-		if (line.length()==0)
-			continue;
 		if (line[0]==';')
 			continue;
 		if (!line.compare(0, 5, "name ")) {
@@ -79,7 +78,7 @@ bool NameAuthorizationDatabase::load() {
 			continue;
 		}
 		if (!line.compare(0, 9, "password ")) {
-			if (e.password.length())
+			if (!e.password.empty())
 				LOG("*** Password redefinition in auth.txt\n");
 			eActive=true;
 			e.password=line.substr(9, string::npos);
@@ -105,7 +104,7 @@ bool NameAuthorizationDatabase::save() const {
 	out << "; New reserved names must be added manually: add lines \"name <the name>\"\n";
 	out << "; and \"password <the password>\". Then you can add the IP's from the game\n";
 	out << "; by typing \"/auth <the name>,<the password>\".\n";
-	if (banned.addresses.size())
+	if (!banned.addresses.empty())
 		banned.save(out);
 	for (vector<Entry>::const_iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
 		dbi->save(out);

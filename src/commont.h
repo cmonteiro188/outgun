@@ -251,4 +251,8 @@ struct gamespy_t {
     char info[128];
 };
 
+// Reads a line, stops to \n or \r and skips empty lines.
+std::istream& getline_smart(std::istream& in, std::string& str);
+
 #endif
+
