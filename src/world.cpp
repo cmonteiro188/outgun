@@ -1899,7 +1899,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player
 	if (pupConfig.pups_drop_at_death)
 		drop_pickup(player[target]);
 
-	resetPlayer(target, (player[target].item_deathbringer || time_penalty)?config.getDeathbringerWaitingTime():0);
+	resetPlayer(target, (player[target].item_deathbringer || time_penalty) ? config.getDeathbringerWaitingTime() : 0);
 }
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {	// inflict normal or deathbringer damage on target
