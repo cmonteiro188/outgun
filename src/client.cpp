@@ -1409,6 +1409,11 @@ void Client::process_incoming_data(const char* data, int length) {
 		if (empty_frame_cause_not_ready_yet)
 			fx.skipped = true;
 		else {
+			if (!map_ready) {
+				log.error("Serror sent frame data when loading map");
+				addThreadMessage(new TM_DoDisconnect());
+				return;
+			}
 			//a regular frame
 			fx.skipped = false;
 
