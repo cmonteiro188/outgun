@@ -262,9 +262,8 @@ bool gameclient_c::start() {
 	//try to load client configuration
 	// defaults
 	bool randomname = true;
-	client_graphics.select_theme("<no theme>");
-
 	vector<int> fav_colors;
+	client_graphics.select_theme("<no theme>");
 
 	fileName = wheregamedir + "config" + directory_separator + "client.cfg";
 
@@ -277,6 +276,14 @@ bool gameclient_c::start() {
 			randomname = false;
 			playername = line;
 		}
+
+		// read connect menu settings
+		if (getline_smart(cfg, line))
+			menu.connect.favorites.set(line == "1");
+
+		// read game menu settings
+		if (getline_smart(cfg, line))
+			menu.options.game.showNames.set(line == "1");
 		if (getline_smart(cfg, line)) {
 			istringstream ist(line);
 			int col;
@@ -284,10 +291,6 @@ bool gameclient_c::start() {
 				if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
 					fav_colors.push_back(col);
 		}
-
-		// read game menu settings
-		if (getline_smart(cfg, line))
-			menu.options.game.showNames.set(line == "1");
 		if (getline_smart(cfg, line))
 			menu.options.game.lagPrediction.set(line == "1");
 		if (getline_smart(cfg, line)) {
@@ -372,23 +375,26 @@ bool gameclient_c::start() {
 	if (randomname)
 		playername = RandomName();
 
-	client_graphics.select_theme(menu.options.graphics.theme());
-	if (!screenModeChange())
-		return false;
-	client_sounds.select_theme(menu.options.sounds.theme());
-
 	for (int i = 0; i < 16; i++)
 		if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
 			fav_colors.push_back(i);
 	for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
 		menu.options.game.favoriteColors.addOption(*col);
 
+	client_graphics.select_theme(menu.options.graphics.theme());
+	if (!screenModeChange())
+		return false;
+	client_sounds.select_theme(menu.options.sounds.theme());
+log("SCBC");//#debug
 	set_close_button_callback(gameclient_c::close_button_callback);
 
+log("IJ");//#debug
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
+log("MLO");//#debug
 	if (menu.options.game.messageLogging())
 		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
+log("EXIT");//#debug
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	MCF_updateServers();
@@ -3068,17 +3074,21 @@ void gameclient_c::stop() {
 		nAssert(!playername.empty());
 		cfg << playername << '\n';
 
-		if (menu.options.game.favoriteColors.values().empty())
-			cfg << -1;
-		else {
-			const vector<int>& colVec = menu.options.game.favoriteColors.values();
-			for (vector<int>::const_iterator col = colVec.begin(); col != colVec.end(); ++col)
-				cfg << *col << ' ';
-		}
-		cfg << '\n';
+		// save connect menu settings
+		cfg << (menu.connect.favorites() ? 1 : 0) << '\n';
 
 		// save game menu settings
 		cfg << (menu.options.game.showNames() ? 1 : 0) << '\n';
+		{	// favorite colors
+			if (menu.options.game.favoriteColors.values().empty())
+				cfg << -1;
+			else {
+				const vector<int>& colVec = menu.options.game.favoriteColors.values();
+				for (vector<int>::const_iterator col = colVec.begin(); col != colVec.end(); ++col)
+					cfg << *col << ' ';
+			}
+			cfg << '\n';
+		}
 		cfg << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
 		cfg << menu.options.game.lagPredictionAmount() << '\n';
 		cfg << (menu.options.game.joystick() ? 1 : 0) << '\n';

@@ -44,16 +44,9 @@ using std::string;
 using std::vector;
 
 Graphics::Graphics(LogSet logs):
-	vidpage1(0),
-	vidpage2(0),
-	backbuf(0),
-	drawbuf(0),
-	background(0),
-	minibg(0),
 	show_chat_messages(true),
 	show_scoreboard(true),
 	show_minimap(true),
-	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
 	team_captures_size(16),
@@ -80,8 +73,8 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	if (!vidpage1 || !vidpage2) {
 		if (trypageflip)
 			log("Not enough video memory. Can't use page flipping.");
-		unload_bitmap(vidpage1);
-		unload_bitmap(vidpage2);
+		vidpage1.free();
+		vidpage2.free();
 		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
 		nAssert(backbuf);
 
@@ -94,16 +87,11 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	}
 
 	scr_mul = static_cast<double>(width) / 640;
-	floor_texture.resize(4, 0);
-	wall_texture.resize(1, 0);
-	for (int t = 0; t < 2; t++) {
-		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
-		shield_sprite[t] = 0;
-		dead_sprite[t] = 0;
-		rocket_sprite[t] = 0;
-		power_rocket_sprite[t] = 0;
-	}
-	pup_sprite.resize(Powerup::pup_last_real + 1, 0);
+	floor_texture.resize(4);
+	wall_texture.resize(1);
+	for (int t = 0; t < 2; t++)
+		player_sprite[t].resize(MAX_PLAYERS / 2);
+	pup_sprite.resize(Powerup::pup_last_real + 1);
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
 	background = create_bitmap(SCREEN_W, SCREEN_H);
@@ -129,19 +117,12 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	return true;
 }
 
-void Graphics::unload_bitmap(BITMAP*& bitmap) {
-	if (bitmap) {
-		destroy_bitmap(bitmap);
-		bitmap = 0;
-	}
-}
-
 void Graphics::unload_bitmaps() {
-	unload_bitmap(vidpage1);
-	unload_bitmap(vidpage2);
-	unload_bitmap(backbuf);
-	unload_bitmap(background);
-	unload_bitmap(minibg);
+	vidpage1.free();
+	vidpage2.free();
+	backbuf.free();
+	background.free();
+	minibg.free();
 	unload_pictures();
 }
 
@@ -370,7 +351,7 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			backupTexture.setTexture(floor_texture.front());
 		else
 			backupTexture.setSolid(col[COLGROUND]);
-		for (vector<BITMAP*>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti) {
+		for (vector<Bitmap>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti) {
 			if (*ti) { td.setTexture(*ti); textures.push_back(td); }
 			else textures.push_back(backupTexture);
 		}
@@ -379,7 +360,7 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			backupTexture.setTexture(wall_texture.front());
 		else
 			backupTexture.setSolid(col[COLWALL]);
-		for (vector<BITMAP*>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti) {
+		for (vector<Bitmap>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti) {
 			if (*ti) { td.setTexture(*ti); textures.push_back(td); }
 			else textures.push_back(backupTexture);
 		}
@@ -481,7 +462,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		return;
 	}
 	// ring or sector
-	BITMAP* cbuff = create_bitmap(iround(2 * scale * ro) + 1, iround(2 * scale * ro) + 1);
+	Bitmap cbuff = create_bitmap(iround(2 * scale * ro) + 1, iround(2 * scale * ro) + 1);
 	nAssert(cbuff);
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
@@ -567,7 +548,6 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		}
 	}
 	masked_blit(cbuff, buffer, 0, 0, iround(x0 + scale * (x - ro)), iround(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
-	destroy_bitmap(cbuff);
 	solid_mode();
 }
 
@@ -753,7 +733,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);
 
 	// draw bases
-	BITMAP* backup = create_bitmap(minimap_place_w, minimap_place_w);
+	Bitmap backup = create_bitmap(minimap_place_w, minimap_place_w);
 	nAssert(backup);
 
 	for (int ry = 0; ry < map.h; ++ry)
@@ -840,7 +820,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			}
 		}
 
-	destroy_bitmap(backup);
+	backup.free();
 
 	//draw circles (or flags) to flag positions
 	for (int t = 0; t <= 2; ++t) {
@@ -896,17 +876,8 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	else if (player_sprite[team][pli])
 		sprite = player_sprite[team][pli];
 	if (sprite) {
-		if (alpha < 255) {
-			const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
-			const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
-			BITMAP* buffer = create_bitmap(width, height);
-			nAssert(buffer);
-			const int transparent = bitmap_mask_color(drawbuf);
-			clear_to_color(buffer, transparent);
-			rotate_sprite(buffer, sprite, (buffer->w - sprite->w) / 2, (buffer->h - sprite->h) / 2, itofix(gundir * 32));
-			draw_trans_sprite(drawbuf, buffer, plx + x - buffer->w / 2, ply + y - buffer->h / 2);
-			destroy_bitmap(buffer);
-		}
+		if (alpha < 255)
+			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(gundir * 32));
 		else
 			rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(gundir * 32));
 	}
@@ -914,7 +885,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		// outer color: team color
 		circlefill(drawbuf, plx + x, ply + y, player_radius, pc1);
 		// inner color: self color
-		circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 2) / 3, pc2);
+		circlefill(drawbuf, plx + x, ply + y, player_radius * 2 / 3, pc2);
 		// gun direction
 		int xg, yg;
 		switch (gundir) {
@@ -973,15 +944,51 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 	textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
 }
 
+void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
+	set_write_alpha_blender();
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	if (alpha)
+		draw_trans_sprite(bitmap, alpha, 0, 0);
+	else	// maximum alpha level
+		rectfill(bitmap, 0, 0, bitmap->w - 1, bitmap->h - 1, 255);
+	solid_mode();
+}
+
+void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) {	// x,y are destination coords of the sprite center
+	// make room so that rotating won't clip the corners off
+	//const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
+	//const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
+	nAssert(sprite->w == sprite->h);	// if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
+	const int size = sprite->h + sprite->h / 2;
+	Bitmap buffer = create_bitmap(size, size);
+	nAssert(buffer);
+	clear_to_color(buffer, bitmap_mask_color(buffer));
+	rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
+	draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
+}
+
+void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) {	// x,y are destination coords of the sprite center
+	// make room so that rotating won't clip the corners off
+	//const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
+	//const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
+	nAssert(bitmap_color_depth(sprite) == 32);
+	nAssert(sprite->w == sprite->h);	// if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
+	const int size = sprite->h + sprite->h / 2;
+	Bitmap buffer = create_bitmap_ex(32, size, size);
+	nAssert(buffer);
+	clear_to_color(buffer, bitmap_mask_color(buffer));
+	rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
+	set_alpha_blender();
+	draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
+	solid_mode();
+}
+
 void Graphics::draw_player_dead(const ClientPlayer& player) {
 	const int x = scale(player.lx);
 	const int y = scale(player.ly);
 	BITMAP* sprite = dead_sprite[player.team()];
-	if (sprite) {
-		set_alpha_blender();
-		rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(player.gundir * 32));
-		solid_mode();
-	}
+	if (sprite)
+		rotate_alpha_sprite(drawbuf, sprite, plx + x, ply + y, itofix(player.gundir * 32));
 	else {
 		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 		set_trans_blender(0, 0, 0, 90);
@@ -1082,20 +1089,8 @@ void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int directi
 	r = scale(r);
 	if ((team == 0 || team == 1) && shield_sprite[team]) {
 		BITMAP* sprite = shield_sprite[team];
-		if (alpha < 255) {
-			const int width  = direction % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
-			const int height = direction % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
-			BITMAP* buffer = create_bitmap(width, height);
-			nAssert(buffer);
-			const int transparent = bitmap_mask_color(drawbuf);
-			clear_to_color(buffer, transparent);
-			rotate_sprite(buffer, sprite, (buffer->w - sprite->w) / 2, (buffer->h - sprite->h) / 2, itofix(direction * 32));
-			drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-			set_trans_blender(0, 0, 0, alpha);
-			draw_trans_sprite(drawbuf, buffer, plx + x - buffer->w / 2, ply + y - buffer->h / 2);
-			solid_mode();
-			destroy_bitmap(buffer);
-		}
+		if (alpha < 255)
+			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(direction * 32));
 		else
 			rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(direction * 32));
 		return;
@@ -2054,7 +2049,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	const int old_minimap_p_h = minimap_place_h;
 	minimap_place_w = map.w * 60 + 2;
 	minimap_place_h = map.h * 45 + 2;
-	BITMAP* buffer = create_bitmap(minimap_place_w, minimap_place_h);
+	Bitmap buffer = create_bitmap(minimap_place_w, minimap_place_h);
 	nAssert(buffer);
 	update_minimap_background(buffer, map, true);
 	PALETTE pal;
@@ -2062,7 +2057,6 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	minimap_place_w = old_minimap_p_w;
 	minimap_place_h = old_minimap_p_h;
 	bool failure = !save_bitmap(filename.c_str(), buffer, pal);
-	destroy_bitmap(buffer);
 	return failure;
 }
 
@@ -2089,10 +2083,9 @@ void Graphics::search_themes(LineReceiver& dst) const {
 }
 
 void Graphics::select_theme(const string& dir) {
-	if (dir == "<no theme>") {
+	unload_pictures();
+	if (dir == "<no theme>")
 		no_theme = true;
-		unload_pictures();
-	}
 	else {
 		no_theme = false;
 		load_theme(dir.c_str());
@@ -2124,7 +2117,6 @@ void Graphics::load_pictures(const string& path) {
 }
 
 void Graphics::load_floor_textures(const string& path) {
-	unload_floor_textures();
 	floor_texture[0] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
 	floor_texture[1] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
 	floor_texture[2] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
@@ -2132,7 +2124,6 @@ void Graphics::load_floor_textures(const string& path) {
 }
 
 void Graphics::load_wall_textures(const string& path) {
-	unload_wall_textures();
 	wall_texture[0] = load_bitmap((path + "wall.pcx").c_str(), NULL);
 }
 
@@ -2151,50 +2142,34 @@ BITMAP* Graphics::get_wall_texture(int texid) {
 }
 
 void Graphics::load_player_sprites(const string& filename_common, const string& filename_team, const string& filename_personal) {
-	unload_player_sprites();
-	// Load player images.
-	BITMAP* common_base = load_bitmap(filename_common.c_str(), NULL);
-	//set_color_conversion(COLORCONV_NONE);
-	BITMAP* team_base = load_bitmap(filename_team.c_str(), NULL);
-	BITMAP* personal_base = load_bitmap(filename_personal.c_str(), NULL);
-	//set_color_conversion(COLORCONV_TOTAL);
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
-	if (common_base && team_base && personal_base) {
-		BITMAP* common = create_bitmap(size, size);
-		BITMAP* team = create_bitmap(size, size);
-		BITMAP* personal = create_bitmap(size, size);
-		nAssert(common && team && personal);
-		// Resize player images.
-		stretch_blit(common_base, common, 0, 0, common_base->w, common_base->h, 0, 0, common->w, common->h);
-		stretch_blit(team_base, team, 0, 0, team_base->w, team_base->h, 0, 0, team->w, team->h);
-		stretch_blit(personal_base, personal, 0, 0, personal_base->w, personal_base->h, 0, 0, personal->w, personal->h);
+	Bitmap common = scale_sprite(filename_common, size, size);
+	Bitmap team = scale_alpha_sprite(filename_team, size, size);
+	Bitmap personal = scale_alpha_sprite(filename_personal, size, size);
+	if (common && team && personal) {
 		// Make player sprites by combining player image with team and personal colours.
 		for (int t = 0; t < 2; t++)
 			for (int p = 0; p < MAX_PLAYERS / 2; p++) {
 				player_sprite[t][p] = create_bitmap(size, size);
+				nAssert(player_sprite[t][p]);
 				create_player_sprite(player_sprite[t][p], common, team, personal, teamcol[t], col[p]);
 			}
 		// Make a sprite for player with power.
 		player_sprite_power = create_bitmap(size, size);
+		nAssert(player_sprite_power);
 		create_player_sprite(player_sprite_power, common, team, personal, col[COLWHITE], col[COLCYAN]);
-		destroy_bitmap(common);
-		destroy_bitmap(team);
-		destroy_bitmap(personal);
 	}
-	unload_bitmap(common_base);
-	unload_bitmap(team_base);
-	unload_bitmap(personal_base);
 }
 
-void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const {
+void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const {	// be careful to give the colors in same format as sprite
 	blit(common, sprite, 0, 0, 0, 0, common->w, common->h);
 	if (!team && !personal)
 		return;
 	// todo: remove pixel by pixel drawing if possible
 	for (int y = 0; y < sprite->h; y++)
 		for (int x = 0; x < sprite->w; x++) {
-			const int team_alpha = (team ? getr(getpixel(team, x, y)) : 0);
-			const int personal_alpha = (personal ? getr(getpixel(personal, x, y)) : 0);
+			const int team_alpha = (team ? getpixel(team, x, y) : 0);	// assume 8-bit team and personal bitmaps
+			const int personal_alpha = (personal ? getpixel(personal, x, y) : 0);
 			if (team_alpha != 0 || personal_alpha != 0) {
 				drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 				set_trans_blender(0, 0, 0, personal_alpha);
@@ -2207,96 +2182,90 @@ void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team
 }
 
 void Graphics::load_shield_sprites(const string& path) {
-	unload_shield_sprites();
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
-	BITMAP* picture = scale_sprite(path + "player_shield.pcx", size, size);
-	BITMAP* team = scale_sprite(path + "player_shield_team.pcx", size, size);
-	if (picture) {
-		for (int t = 0; t < 2; t++) {
-			shield_sprite[t] = create_bitmap_ex(32, size, size);
-			if (shield_sprite[t])
-				create_player_sprite(shield_sprite[t], picture, team, 0, teamcol[t], 0);
-		}
+	Bitmap picture = scale_sprite(path + "player_shield.pcx", size, size);		  
+	if (!picture)
+		return;
+	Bitmap team  = scale_alpha_sprite(path + "player_shield_team.pcx", size, size);
+	for (int t = 0; t < 2; t++) {
+		shield_sprite[t] = create_bitmap(size, size);
+		nAssert(shield_sprite[t]);
+		create_player_sprite(shield_sprite[t], picture, team, 0, teamcol[t], 0);
 	}
-	unload_bitmap(picture);
-	unload_bitmap(team);
 }
 
 void Graphics::load_dead_sprites(const string& path) {
-	unload_dead_sprites();
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
-	BITMAP* picture = scale_sprite(path + "dead.pcx", size, size);
-	//set_color_conversion(COLORCONV_NONE);
-	BITMAP* alpha = scale_sprite(path + "dead_alpha.pcx", size, size);
-	BITMAP* team = scale_sprite(path + "dead_team.pcx", size, size);
-	//set_color_conversion(COLORCONV_TOTAL);
-	if (picture) {
-		for (int t = 0; t < 2; t++) {
-			dead_sprite[t] = create_bitmap_ex(32, size, size);
-			if (dead_sprite[t]) {
-				create_player_sprite(dead_sprite[t], picture, team, 0, teamcol[t], 0);
-				set_write_alpha_blender();
-				drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-				if (alpha)
-					draw_trans_sprite(dead_sprite[t], alpha, 0, 0);
-				else	// maximum alpha level
-					rectfill(dead_sprite[t], 0, 0, dead_sprite[t]->w - 1, dead_sprite[t]->h - 1, 255);
-				solid_mode();
-			}
-		}
+	Bitmap picture = scale_sprite(path + "dead.pcx", size, size);
+	if (!picture)
+		return;
+	Bitmap alpha = scale_alpha_sprite(path + "dead_alpha.pcx", size, size);
+	Bitmap team  = scale_alpha_sprite(path + "dead_team.pcx" , size, size);
+	for (int t = 0; t < 2; t++) {
+		dead_sprite[t] = create_bitmap_ex(32, size, size);
+		nAssert(dead_sprite[t]);
+		create_player_sprite(dead_sprite[t], picture, team, 0, colorTo32(teamcol[t]), 0);
+		set_alpha_channel(dead_sprite[t], alpha);
 	}
-	unload_bitmap(picture);
-	unload_bitmap(alpha);
-	unload_bitmap(team);
 }
 
 void Graphics::load_rocket_sprites(const string& path) {
-	unload_rocket_sprites();
 	const int size = scale(2 * 2 * ROCKET_RADIUS);
-	BITMAP* normal = scale_sprite(path + "rocket.pcx", size, size);
+	Bitmap normal = scale_sprite(path + "rocket.pcx", size, size);
 	if (normal) {
-		BITMAP* alpha = scale_sprite(path + "rocket_team.pcx", size, size);
+		Bitmap alpha = scale_alpha_sprite(path + "rocket_team.pcx", size, size);
 		for (int t = 0; t < 2; t++) {
 			rocket_sprite[t] = create_bitmap(size, size);
+			nAssert(rocket_sprite[t]);
 			create_player_sprite(rocket_sprite[t], normal, alpha, 0, teamcol[t], 0);
 		}
-		unload_bitmap(normal);
-		unload_bitmap(alpha);
+		normal.free();
 	}
-	BITMAP* power = scale_sprite(path + "rocket_pow.pcx", size, size);
+	Bitmap power = scale_sprite(path + "rocket_pow.pcx", size, size);
 	if (power) {
-		BITMAP* alpha = scale_sprite(path + "rocket_pow_team.pcx", size, size);
+		Bitmap alpha = scale_alpha_sprite(path + "rocket_pow_team.pcx", size, size);
 		for (int t = 0; t < 2; t++) {
 			power_rocket_sprite[t] = create_bitmap(size, size);
-			clear_to_color(power_rocket_sprite[t], bitmap_mask_color(drawbuf));
+			nAssert(power_rocket_sprite[t]);
 			create_player_sprite(power_rocket_sprite[t], power, alpha, 0, teamcol[t], 0);
 		}
-		unload_bitmap(power);
-		unload_bitmap(alpha);
 	}
 }
 
 void Graphics::load_pup_sprites(const string& path) {
-	unload_pup_sprites();
 	const int size = scale(2 * PLAYER_RADIUS);
-	pup_sprite[Powerup::pup_shield] = scale_sprite(path + "shield.pcx", size, size);
-	pup_sprite[Powerup::pup_turbo] = scale_sprite(path + "turbo.pcx", size, size);
-	pup_sprite[Powerup::pup_shadow] = scale_sprite(path + "shadow.pcx", size, size);
-	pup_sprite[Powerup::pup_power] = scale_sprite(path + "power.pcx", size, size);
-	pup_sprite[Powerup::pup_weapon] = scale_sprite(path + "weapon.pcx", size, size);
-	pup_sprite[Powerup::pup_health] = scale_sprite(path + "health.pcx", size, size);
+	pup_sprite[Powerup::pup_shield      ] = scale_sprite(path + "shield.pcx"      , size, size);
+	pup_sprite[Powerup::pup_turbo       ] = scale_sprite(path + "turbo.pcx"       , size, size);
+	pup_sprite[Powerup::pup_shadow      ] = scale_sprite(path + "shadow.pcx"      , size, size);
+	pup_sprite[Powerup::pup_power       ] = scale_sprite(path + "power.pcx"       , size, size);
+	pup_sprite[Powerup::pup_weapon      ] = scale_sprite(path + "weapon.pcx"      , size, size);
+	pup_sprite[Powerup::pup_health      ] = scale_sprite(path + "health.pcx"      , size, size);
 	pup_sprite[Powerup::pup_deathbringer] = scale_sprite(path + "deathbringer.pcx", size, size);
 }
 
-BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) {
-	BITMAP* temp = load_bitmap(filename.c_str(), NULL);
+BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
+	Bitmap temp = load_bitmap(filename.c_str(), NULL);
 	if (!temp)
 		return 0;
-	BITMAP* target = create_bitmap_ex(bitmap_color_depth(temp), x, y);
+	BITMAP* target = create_bitmap(x, y);
 	nAssert(target);
-	clear_to_color(target, bitmap_mask_color(drawbuf));
-	stretch_sprite(target, temp, 0, 0, target->w, target->h);
-	destroy_bitmap(temp);
+	stretch_blit(temp, target, 0, 0, temp->w, temp->h, 0, 0, target->w, target->h);
+	return target;
+}
+
+BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const {
+	set_color_conversion(COLORCONV_NONE);
+	BITMAP* temp = load_bitmap(filename.c_str(), NULL);
+	set_color_conversion(COLORCONV_TOTAL);
+	if (!temp)
+		return 0;
+	if (bitmap_color_depth(temp) != 8) {
+		log.error("Alpha bitmaps must be 8-bit grayscale images; %s is %d-bit", filename.c_str(), bitmap_color_depth(temp));
+		return 0;
+	}
+	BITMAP* target = create_bitmap_ex(8, x, y);
+	nAssert(target);
+	stretch_blit(temp, target, 0, 0, temp->w, temp->h, 0, 0, target->w, target->h);
 	return target;
 }
 
@@ -2311,42 +2280,42 @@ void Graphics::unload_pictures() {
 }
 
 void Graphics::unload_floor_textures() {
-	for (vector<BITMAP*>::iterator pl = floor_texture.begin(); pl != floor_texture.end(); ++pl)
-		unload_bitmap(*pl);
+	for (vector<Bitmap>::iterator pl = floor_texture.begin(); pl != floor_texture.end(); ++pl)
+		pl->free();
 }
 
 void Graphics::unload_wall_textures() {
-	for (vector<BITMAP*>::iterator pl = wall_texture.begin(); pl != wall_texture.end(); ++pl)
-		unload_bitmap(*pl);
+	for (vector<Bitmap>::iterator pl = wall_texture.begin(); pl != wall_texture.end(); ++pl)
+		pl->free();
 }
 
 void Graphics::unload_player_sprites() {
 	for (int t = 0; t < 2; t++)
-		for (vector<BITMAP*>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
-			unload_bitmap(*pl);
-	unload_bitmap(player_sprite_power);
+		for (vector<Bitmap>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
+			pl->free();
+	player_sprite_power.free();
 }
 
 void Graphics::unload_shield_sprites() {
 	for (int i = 0; i < 2; i++)
-		unload_bitmap(shield_sprite[i]);
+		shield_sprite[i].free();
 }
 
 void Graphics::unload_dead_sprites() {
 	for (int i = 0; i < 2; i++)
-		unload_bitmap(dead_sprite[i]);
+		dead_sprite[i].free();
 }
 
 void Graphics::unload_rocket_sprites() {
 	for (int i = 0; i < 2; i++) {
-		unload_bitmap(rocket_sprite[i]);
-		unload_bitmap(power_rocket_sprite[i]);
+		rocket_sprite[i].free();
+		power_rocket_sprite[i].free();
 	}
 }
 
 void Graphics::unload_pup_sprites() {
-	for (vector<BITMAP*>::iterator pup = pup_sprite.begin(); pup != pup_sprite.end(); ++pup)
-		unload_bitmap(*pup);
+	for (vector<Bitmap>::iterator pup = pup_sprite.begin(); pup != pup_sprite.end(); ++pup)
+		pup->free();
 }
 
 inline int Graphics::scale(double value) const {

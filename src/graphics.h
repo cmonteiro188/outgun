@@ -36,6 +36,24 @@ public:
 	bool operator<(const ScreenMode& o) const { return width < o.width || (width == o.width && height < o.height); }
 };
 
+class Bitmap {
+	BITMAP* ptr;
+
+public:
+	Bitmap() : ptr(0) { }
+	Bitmap(BITMAP* ptr_) : ptr(ptr_) { }
+	~Bitmap() { free(); }
+
+	Bitmap(const Bitmap& o) : ptr(0) { nAssert(!o.ptr); }
+	void operator=(const Bitmap& o) { nAssert(!ptr); nAssert(!o.ptr); }
+
+	void free() { if (ptr) { destroy_bitmap(ptr); ptr = 0; } }
+	const Bitmap& operator=(BITMAP* ptr_) { nAssert(!ptr); ptr = ptr_; return *this; }
+
+	operator BITMAP*() const { return ptr; }
+	BITMAP* operator->() const { return ptr; }
+};
+
 class Graphics {
 public:
 	Graphics(LogSet logs);
@@ -173,7 +191,6 @@ public:
 	void setColors();
 
 private:
-	static void unload_bitmap(BITMAP*& bitmap);
 	void unload_bitmaps();
 
 	bool reset_video_mode(int width, int height, int depth, bool windowed);
@@ -216,14 +233,19 @@ private:
 	BITMAP* get_wall_texture(int texid);
 
 	void load_player_sprites(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
-	void create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
+	void create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;	// be careful to give the colors in same format as sprite
 
 	void load_shield_sprites(const std::string& path);
 	void load_dead_sprites(const std::string& path);
 	void load_rocket_sprites(const std::string& path);
 	void load_pup_sprites(const std::string& path);
 
-	BITMAP* scale_sprite(const std::string& filename, int x, int y);
+	BITMAP* scale_sprite(const std::string& filename, int x, int y) const;
+	BITMAP* scale_alpha_sprite(const std::string& filename, int x, int y) const;
+	static void set_alpha_channel(BITMAP* bitmap, BITMAP* alpha);
+	static void rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle);	// x,y are destination coords of the sprite center
+	static void rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle);	// x,y are destination coords of the sprite center
+	static int colorTo32(int color) { return makecol32(getr(color), getg(color), getb(color)); }
 
 	void unload_pictures();
 	void unload_floor_textures();
@@ -237,14 +259,14 @@ private:
 	int scale(double value) const;
 	
 	// drawing screens
-	BITMAP* vidpage1;
-	BITMAP* vidpage2;
-	BITMAP* backbuf;
+	Bitmap vidpage1;
+	Bitmap vidpage2;
+	Bitmap backbuf;
 	bool page_flipping;
 
-	BITMAP* drawbuf;	// main draw buffer
-	BITMAP* background;	// draw buffer for floor, walls and minimap
-	BITMAP* minibg;		// minimap draw buffer
+	BITMAP* drawbuf;	// main draw buffer (points to vidpage# or backbuf at a given time)
+	Bitmap background;	// draw buffer for floor, walls and minimap
+	Bitmap minibg;		// minimap draw buffer
 
 	BITMAP* roombg;		// room background sub-bitmap
 
@@ -264,18 +286,18 @@ private:
 	static const int flagpos_radius = 30;
 	double scr_mul;	// screen size multiplier
 
-	std::vector<BITMAP*> floor_texture;
-	std::vector<BITMAP*> wall_texture;
-	BITMAP* player_sprite_power;
+	std::vector<Bitmap> floor_texture;
+	std::vector<Bitmap> wall_texture;
+
+	Bitmap player_sprite_power;
+	std::vector<Bitmap> pup_sprite;
 
 	// Team specific sprites
-	std::vector<BITMAP*> player_sprite[2];
-	BITMAP* shield_sprite[2];
-	BITMAP* dead_sprite[2];
-	BITMAP* rocket_sprite[2];
-	BITMAP* power_rocket_sprite[2];
-
-	std::vector<BITMAP*> pup_sprite;
+	std::vector<Bitmap> player_sprite[2];
+	Bitmap shield_sprite[2];
+	Bitmap dead_sprite[2];
+	Bitmap rocket_sprite[2];
+	Bitmap power_rocket_sprite[2];
 
 	int map_list_size;
 	int map_list_start;

@@ -172,7 +172,7 @@ public:
 
 	void broadcast_frame(bool gameRunning);
 
-	void reload_hostname();
+	void set_hostname(const std::string& name);
 	NLaddress get_client_address(int cid) const;
 	int get_player_count() const { return player_count; }
 

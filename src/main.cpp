@@ -91,13 +91,10 @@ int main(int argc, char *argv[]) {
 	// general init
 	gameclient = 0;
 
-	//LOG_OPEN("outgun.log");
-
 	// Set the text encoding format for Allegro as 8 bit Ascii
 	set_uformat(U_ASCII);
 
 	allegro_init();
-	//set_close_button_callback(closeButtonCallback);
 	install_keyboard();
 	install_timer();
 
@@ -125,7 +122,6 @@ int main(int argc, char *argv[]) {
 
 	log("Outgun log file. Game string: %s, protocol: %s, version: %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
-	bool message_logging = false;
 	bool showinfo = false;
 	bool defaultprio = false;	//select default server threads priority
 	int targetprio = 0;
@@ -190,8 +186,6 @@ int main(int argc, char *argv[]) {
 				strcpy(force_ip_name, argv[i]);	//to next parameter value
 			}
 		}
-		else if (!strcmp(argv[i], "-log"))
-			message_logging = true;
 		else if (!strcmp(argv[i], "-mappic")) {
 			if (!check_dir("mappic")) {
 				allegro_message("ERROR: Directory 'mappic' not found.\nMake this directory.");
@@ -376,8 +370,6 @@ int main(int argc, char *argv[]) {
 
 		// run client
 		gameclient = new gameclient_c(log);
-		gameclient->message_logging = message_logging;
-		log("Message logging is %s", message_logging ? "enabled" : "disabled");
 		if (!gameclient->start()) {
 			allegro_message("ERROR: cannot start gameclient!");
 			return 0;

@@ -60,7 +60,12 @@ public:
 	}
 };
 
-ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs) : host(hostp), world(w), log(logs), hostname("Anonymous host") {
+ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs) :
+	host(hostp),
+	world(w),
+	log(logs),
+	hostname("Anonymous host")
+{
 	server = 0;
 	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = 0;	// no meaning
@@ -2165,7 +2170,7 @@ void ServerNetworking::run_mastertalker_thread() {
 	log("Result: %i", result);
 
 	// save response to a file
-	ofstream out((wheregamedir + "config" + directory_separator + "master.log").c_str());
+	ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
 	save_http_response(msock, out);
 	out.close();
 

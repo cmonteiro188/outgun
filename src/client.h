@@ -220,8 +220,6 @@ class gameclient_c {
 	bool screenModeChange();	// the return value should be tested at the first call
 
 public:
-	bool message_logging;
-
 	gameclient_c(LogSet hostLogs);
 	virtual ~gameclient_c();
 	bool start();
