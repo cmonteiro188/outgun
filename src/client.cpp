@@ -3516,13 +3516,12 @@ void gameclient_c::predraw() {
 		return;	//#fix: this shouldn't be needed, or should be checked from a simple flag
 	vector< pair<int, const spoint_t*> > flags;
 
-	for (int team = 0; team < 2; team++)
-		for (vector<spoint_t>::const_iterator pi = fx.map.tinfo[team].flags.begin(); pi != fx.map.tinfo[team].flags.end(); ++pi)
+	for (int team = 0; team <= 2; team++) {
+		const vector<spoint_t>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
+		for (vector<spoint_t>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
 			if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
 				flags.push_back(pair<int, const spoint_t*>(team, &(*pi)));
-	for (vector<spoint_t>::const_iterator pi = fx.map.wild_flags.begin(); pi != fx.map.wild_flags.end(); ++pi)
-		if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
-			flags.push_back(pair<int, const spoint_t*>(2, &(*pi)));
+	}
 
 	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], flags);
 }
