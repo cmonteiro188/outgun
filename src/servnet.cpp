@@ -3039,7 +3039,7 @@ void ServerNetworking::stop() {
 void ServerNetworking::sendWeaponPower(int pid) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_weapon_change);
-	writeByte(lebuf, count, ((NLubyte)world.player[pid].weapon) );
+	writeByte(lebuf, count, static_cast<NLubyte>(world.player[pid].weapon));
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
