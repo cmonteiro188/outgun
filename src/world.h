@@ -50,6 +50,8 @@ public:
 	}
 };
 
+	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro; }
+
 struct Room {
 	vector<RectWall> rwalls, rground;	// ground: optional list of textures for ground [not used]
 	vector<TriWall>  twalls, tground;
