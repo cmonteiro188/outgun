@@ -185,8 +185,7 @@ class MapInfo {
 public:
     std::string title, author, file;
     int width, height;
-    int votes;
-    bool votes_changed;
+    int votes, sentVotes;
 
     MapInfo();
     bool load(LogSet& log, const std::string& mapName);
@@ -370,7 +369,7 @@ public:
     double deathbringer_end;    // end of effect of another players deathbringer
     int deathbringer_attacker;  // whose deathbringer it is
 
-    bool awaiting_client_ready;
+    int awaiting_client_readies;
     bool want_map_exit;
 
     size_t current_map_list_item;

@@ -273,6 +273,7 @@ class Client {
     NLulong svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     volatile bool connected;
     bool map_ready;
+    int clientReadiesWaiting;
     std::string old_map;
     std::string servermap;  //last map command from server
 

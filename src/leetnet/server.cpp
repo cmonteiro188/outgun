@@ -45,7 +45,6 @@
 #include "../network.h"
 #include "../thread.h"
 #include "../utility.h" // get_time
-#include "dlog.h"
 #include "leetnet.h"
 #include "server.h"
 #include "rudp.h"
@@ -54,8 +53,6 @@
 #include "ConditionVariable.h"
 #include "Mutex.h"
 using namespace GNE;
-
-const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };  // for dlog.h logging
 
 // max (absolute) clients that can connect to a server
 // change this to meet your needs
@@ -386,8 +383,6 @@ public:
     //packet is ok I guess, a 500-byte is too much IMHO (remember to give room for the reliable messages/ack
     //protocol that introduces it's own shitload). optimize your foken data, every byte saved counts!
     virtual int broadcast_frame(const char* data, int length) {
-DLOG_Scope s("BcF");
- 
         #ifdef LEETNET_DATA_LOG
         if (datalog)
             MutexLock ml(datalogMutex);
@@ -420,8 +415,6 @@ DLOG_Scope s("BcF");
 
         //send frame method - when broadcast_frame doesn't quite cut it
     virtual int send_frame(int client_id, const char* data, int length) {
-DLOG_Scope s("SF");
-
         if (!client[client_id].used)
             return 0;   // client not used (?)
 
@@ -453,8 +446,6 @@ DLOG_Scope s("SF");
     //stuff he can even miss but it's better if he doesn't and the message is so infrequent and small that
     //it's worth it.
     virtual int send_message(int client_id, const char* data, int length) {
-DLOG_Scope s("SM");
-
         //FIXME 1. assert here: client[client_id].used == true
         //          2. use station mutex ?
 
@@ -481,8 +472,6 @@ DLOG_Scope s("SM");
     //function to be called by the SFUNC_CLIENT_DATA callback
     //gets the next reliable message avaliable from the given client. null if no message pending
     virtual char* receive_message(int client_id, int *length) {
-DLOG_Scope s("RM");
-
         data_c *data = client[client_id].station->read_reliable();
 
         if (data == 0)  // no messages
@@ -576,8 +565,6 @@ DLOG_Scope s("RM");
 
     //incoming datagram from UDP socket
     virtual int process_incoming_datagram(char* packet, int length) {
-DLOG_Scope s("PIDg");
-
         //MAKEIT
         //
         //o que pode acontecer
@@ -636,7 +623,6 @@ DLOG_Scope s("PIDg");
             // ok
             return 1;
         }
-{ DLOG_Scope s("PIDg_S"); }
         // ==== nao eh de client conhecido: aceita soh alguns special packets ====
 
         //se nao for special packet, nao aceita
@@ -768,7 +754,6 @@ DLOG_Scope s("PIDg");
 
     //HACK (a better one): called by reader thread to do some thinking for the server
     void server_think() {
-DLOG_Scope s("ST");
         //FIXME: THIS (was) JUST PLAIN WASTE OF CPU!
         //          but we can do better....
         double curr_time = get_time();
@@ -826,8 +811,6 @@ DLOG_Scope s("ST");
 
     //process data from a client (on the client's station)
     virtual int process_client_data(int cid) {
-DLOG_Scope s("PCD");
-
         //FIXME: no futuro: READ, UNLOCK, PROCESS e nao READ, PROCESS, UNLOCK
 
         //FIXME: read and process all the stuff from the station
@@ -868,7 +851,6 @@ DLOG_Scope s("PCD");
         //
         
         if (is_special) {
-DLOG_Scope s("PCD_Sp");
             // get the special code
             NLulong code;
             int count = 4;  //skip "0"
@@ -1045,16 +1027,12 @@ DLOG_Scope s("PCD_Sp");
                         client[cid].connected_knows = true;
 
                         //call gameserver "client connected" callback
-{DLOG_Scope s("ScbCon");
                         connectedCallback(customp, cid);
-}
                     }
 
                     // send the data to the gameserver 
                     // call SFUNC_CLIENT_DATA callback
-{DLOG_Scope s("ScbDat");
                     dataCallback(customp, cid, data, len);
-}
                 }
             }   
         }
@@ -1166,7 +1144,6 @@ DLOG_Scope s("PCD_Sp");
 #define THREAD_READER_BUFSIZE 8192
 void thread_master_f(server_ci* server)
 {
-DLOG_ScopeNegStart("TMF");
     logThreadStart("Leet server thread_master_f", server->log);
     //get socket to read from
     NLsocket servsock = server->get_server_socket();
@@ -1177,35 +1154,20 @@ DLOG_ScopeNegStart("TMF");
 
     //loop
     while (1) {
-
         //read from socket
-{DLOG_Scope s("TMFr1");
         amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
-}
-        
+
         //HACK (a better one): think for the server
         server->server_think();
 
         // test quit
-        //if (server->reader_thread_quit()) 
         if (server->server_stopped)
             break;
 
         // if no data, keep reading
-        while (amount == 0) {
-{DLOG_ScopeNeg s("TMF");
-            //sleep a bit
-            MS_SLEEP(2);        //alternativa: blocking I/O
-}                       
-            //read from socket
-{DLOG_Scope s("TMFr2");
-            amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
-}
-
-            // test quit
-            //if (server->reader_thread_quit()) {
-            if (server->server_stopped)
-                return;
+        if (amount == 0) {
+            MS_SLEEP(2);
+            continue;
         }
 
         // check for error
@@ -1262,7 +1224,6 @@ void thread_slave_f(client_t* mydata)
 
         //check if the thread/client slot is still being used
         if (mydata->used) {
-DLOG_Scope s(TSFS[myid]);
             //log("SLAVE %i working...", myid);
 
             //process the data -- it's on the station

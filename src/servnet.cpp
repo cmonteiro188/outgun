@@ -626,9 +626,9 @@ void ServerNetworking::broadcast_map_votes_update() {
     vector<pair<NLchar, NLchar> > votes;    // map number and votes
     NLchar i = 0;
     for (vector<MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
-        if (mi->votes_changed) {
+        if (mi->sentVotes != mi->votes) {
             votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
-            mi->votes_changed = false;
+            mi->sentVotes = mi->votes;
         }
 
     if (votes.empty())
@@ -852,10 +852,10 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     //VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
     if (pid < 0) {
         for (int i = 0; i < maxplayers; ++i)
-            world.player[i].awaiting_client_ready = true;
+            ++world.player[i].awaiting_client_readies;
     }
     else
-        world.player[pid].awaiting_client_ready = true;
+        ++world.player[pid].awaiting_client_readies;
 
     //send a show gameover plaque message, if that is the case
     if (reason != NEXTMAP_NONE) {
@@ -1359,8 +1359,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     world.player[pid].team_change_pending = false; //so pra garantir
                 }
             }
-            else if (code == data_client_ready)
-                world.player[pid].awaiting_client_ready = false;
+            else if (code == data_client_ready) {
+                nAssert(world.player[pid].awaiting_client_readies);
+                --world.player[pid].awaiting_client_readies;
+            }
             else if (code == data_map_exit_on) {
                 if (world.player[pid].want_map_exit == false) {
                     world.player[pid].want_map_exit = true;
@@ -1459,12 +1461,8 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 NLbyte vote;
                 readByte(msg, count, vote);
                 if (world.player[pid].mapVote != vote) {
-                    if (world.player[pid].mapVote >= 0 && world.player[pid].mapVote < static_cast<int>(host->maplist().size()))
-                        host->maplist()[world.player[pid].mapVote].votes_changed = true;
-                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size())) {
-                        host->maplist()[vote].votes_changed = true;
+                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
                         world.player[pid].mapVote = vote;
-                    }
                     else
                         world.player[pid].mapVote = -1;
                     host->check_map_exit(); // just to update the map vote count, exiting should not actually happen (but it wouldn't hurt)
@@ -1650,7 +1648,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         writeByte(lebuf, lecount, fo);
         #endif
 
-        const bool skip_frame = world.player[i].awaiting_client_ready || !gameRunning;
+        const bool skip_frame = world.player[i].awaiting_client_readies || !gameRunning;
 
         // first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
         NLubyte xtra = i << 3;

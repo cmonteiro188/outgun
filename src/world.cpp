@@ -605,7 +605,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             getline(ist, title);
             title = trim(title);
             if (title.empty()) {
-                log.error(_("Empty title."));
+                log.error(_("Invalid map line: $1", line));
                 return false;
             }
         }
@@ -617,7 +617,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             getline(ist, author);
             author = trim(author);
             if (author.empty()) {
-                log.error(_("Empty author."));
+                log.error(_("Invalid map line: $1", line));
                 return false;
             }
         }
@@ -670,7 +670,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     return true;
 }
 
-MapInfo::MapInfo() : votes(0), votes_changed(false) { }
+MapInfo::MapInfo() : votes(0), sentVotes(0) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) {
     Map map;
@@ -682,8 +682,7 @@ bool MapInfo::load(LogSet& log, const string& mapName) {
     author = map.author;
     width = map.w;
     height = map.h;
-    votes = 0;
-    votes_changed = false;
+    votes = sentVotes = 0;
     return true;
 }
 
@@ -731,7 +730,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     #ifdef SEND_FRAMEOFFSET
     frameOffset = 0;
     #endif
-    awaiting_client_ready = true;
+    awaiting_client_readies = 0;
     item_deathbringer_time = 0;
     deathbringer_team = 0;  // need not be valid yet
     deathbringer_end = 0;
@@ -2649,7 +2648,7 @@ void ServerWorld::simulateFrame() {
 
         //check if dead/respawn
         if (pl.health <= 0) {
-            if (pl.respawn_time < get_time() && !pl.awaiting_client_ready)
+            if (pl.respawn_time < get_time() && !pl.awaiting_client_readies)
                 respawnPlayer(i);       //time to respawn player
             else
                 continue;

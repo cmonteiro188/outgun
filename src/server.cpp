@@ -610,7 +610,6 @@ bool Server::server_next_map(int reason) {
             world.player[p].mapVote = -1;
     }
     maprot[currmap].votes = 0;
-    maprot[currmap].votes_changed = true;
     last_vote_announce_votes = last_vote_announce_needed = 0;
     next_vote_announce_frame = 0;   // let a new announcement be made as soon as someone votes
 
@@ -763,7 +762,6 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
                     pl.mapVote = mapi;
                     network.send_map_vote(pl);  // don't care if index changed: client has zeroed its vote at reset_map_list and must be re-told it
                     ++maprot[mapi].votes;
-                    maprot[mapi].votes_changed = true;
                     vi = oldVotes.erase(vi);
                 }
                 else

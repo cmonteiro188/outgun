@@ -676,7 +676,8 @@ bool Client::start() {
 
     // default map
     //load_default_map(&map);
-    map_ready = false;      // NO map change commands from server yet
+    map_ready = false;  // NO map change commands from server yet
+    clientReadiesWaiting = 0;
 
     //not showing gameover plaque
     gameover_plaque = NEXTMAP_NONE;
@@ -920,8 +921,8 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
                 log("Map '%s' downloaded successfully", dl.shortName.c_str());
                 mapChanged = true;
                 map_ready = true;
-                send_client_ready();
             }
+            ++clientReadiesWaiting;
         }
         else
             nAssert(0);
@@ -987,7 +988,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         log("Map '%s' loaded successfully", mapname.c_str());
         mapChanged = true;
         map_ready = true;
-        send_client_ready();
+        ++clientReadiesWaiting;
         return;
     }
 
@@ -1103,6 +1104,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     send_tournament_participation();
 
     map_ready = false;
+    clientReadiesWaiting = 0;
     servermap.clear();
 
     {
@@ -2717,6 +2719,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 readLong(lebuf, count, minutes);
                 readStr(lebuf, count, admin);
+                if (admin.empty())
+                    admin = _("The admin");
                 if (pid == me) {
                     string msg;
                     if (minutes == 0)
@@ -3403,6 +3407,12 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 }
 
                 send_frame(false, sendnow);
+            }
+
+            while (clientReadiesWaiting > 1 ||
+                   (clientReadiesWaiting && openMenus.empty() && menusel == menu_none)) {
+                send_client_ready();
+                --clientReadiesWaiting;
             }
 
             // process messages from network that have been collected

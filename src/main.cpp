@@ -55,6 +55,9 @@ void increment_server_speed_counter() {
 bool set_shitty_mode(LogSet log) {
     int DTC = desktop_color_depth();
 
+    if (DTC == 0)   // no windowing supported
+        DTC = 8;    // try something anyway (with 0, set_color_depth chokes)
+
     set_color_depth(DTC);
 
     if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
@@ -145,9 +148,6 @@ int main(int argc, const char* argv[]) {
     unsigned long stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
     srand((unsigned)time(0));
 
-    // general init
-    gameclient = 0;
-
     // Set the text encoding format for Allegro as 8 bit Ascii
     set_uformat(U_ASCII);
 
@@ -156,7 +156,10 @@ int main(int argc, const char* argv[]) {
 
     three_finger_flag = FALSE;
 
-    allegro_init();
+    if (allegro_init()) {   // rely on unspecified behavior: 4.0.3 exit()s on error and doesn't get here but returns 0 on success, newer Allegro returns status
+        fprintf(stderr, "Initializing Allegro failed.\n");
+        return 1;
+    }
     install_keyboard();
     install_timer();
 
@@ -367,6 +370,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-ip must be followed by a space and an IP address."));
         }
+        #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-mappic")) {
             check_dir("mappic", log);
             if (argc != 2)
@@ -386,6 +390,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             }
             return;
         }
+        #endif
         else if (!strcmp(argv[i], "-suppressmessages"))
             g_allowBlockingMessages = false;
         else if (!strcmp(argv[i], "-debug")) {
@@ -499,16 +504,22 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     check_dir(SERVER_MAPS_DIR, log);    // the client might run a server, so check these in any case
     check_dir("server_stats" , log);
 
+    #ifdef DEDICATED_SERVER_ONLY
+    serverCfg.dedserver = textserver = true;
+    #endif
+
     // run dedicated server
     if (serverCfg.dedserver) {
         if (textserver)
             serverCfg.statusOutput = statusOutputText;
+        #ifndef DEDICATED_SERVER_ONLY
         else {
             if (!set_shitty_mode(log))  // if 320×240 mode can't be set, use textserver
                 serverCfg.statusOutput = statusOutputText;
             else
                 serverCfg.statusOutput = statusOutputWindow;
         }
+        #endif
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
             if (set_display_switch_mode(SWITCH_BACKGROUND) == -1)
@@ -538,6 +549,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         delete gameserver;
     }
     // run client
+    #ifndef DEDICATED_SERVER_ONLY
     else {
         check_dir(CLIENT_MAPS_DIR, log);
         check_dir("screens"      , log);
@@ -560,6 +572,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             log.error(_("Can't start the client."));
         delete gameclient;
     }
+    #endif
 
     log("Exiting");
     // exit HawkNL

@@ -55,6 +55,7 @@ void platMessageBox(const string& caption, const string& msg) {
     const char* captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
     const char*     msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
 
+    #ifndef DEDICATED_SERVER_ONLY
     static const int nFuncs = 3;
     static const char* func[nFuncs] = { "gdialog", "kdialog", "xmessage" };
     static int funci = 0;   // updated to whatever works; nFuncs means nothing works
@@ -83,6 +84,7 @@ void platMessageBox(const string& caption, const string& msg) {
         ++lFunci;
         funci = lFunci;
     }
+    #endif
     // execution of any dialog failed -> print to console
-    fprintf(stderr, "%s: %s\n", caption.c_str(), msg.c_str());
+    fprintf(stderr, "%s: %s\n", captionConv, msgConv);
 }

@@ -288,7 +288,11 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
     #ifdef ALLEGRO_WINDOWS
     GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
     #else
+    #ifdef GFX_XWINDOWS_FULLSCREEN
     GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_XWINDOWS_FULLSCREEN);
+    #else
+    GFX_MODE_LIST* modes = 0;
+    #endif
     #endif
     if (modes) {
         int depth2 = (depth == 16) ? 15 : depth;    // 15 and 16 bit modes are considered equal
