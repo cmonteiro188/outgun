@@ -2,11 +2,58 @@
 #include <nl.h>
 #include <cstdio>
 #include <ctime>
-#include <conio.h>
-#include <windows.h>    // for Sleep
-#include "admshell.h"
-#include "nassert.h"
-#include "platform.h"
+#include "../admshell.h"
+#include "../nassert.h"
+#include "../platform.h"
+
+// platform dependent code for kbhit, getch and Sleep
+#ifdef WIN32
+
+#include <windows.h>    // Sleep
+#include <conio.h>  // kbhit, getch
+void initKeyboard() { }
+void resetKeyboard() { }
+#else   // WIN32
+
+#include <unistd.h> // usleep
+void Sleep(int msec) { usleep(msec * 1000); }
+
+#include <sys/termios.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+struct termios orig_termios;
+
+void initKeyboard() {
+    int fd = STDIN_FILENO;
+    struct termios t;
+    nAssert(tcgetattr(fd, &t) >= 0);
+    orig_termios = t;
+    t.c_lflag &= ~(ICANON|ECHO);
+    nAssert(tcsetattr(fd, TCSANOW, &t) >= 0);
+    setbuf(stdin, NULL);
+}
+
+void resetKeyboard() {
+    int fd = STDIN_FILENO;
+    nAssert(tcsetattr(fd, TCSANOW, &orig_termios) >= 0);
+}
+
+int getch() { return getc(stdin); }
+
+bool kbhit() {
+    fd_set rfds;
+    timeval tv;
+    FD_ZERO(&rfds);
+    FD_SET(STDIN_FILENO, &rfds);    // add stdin
+    tv.tv_sec = tv.tv_usec = 0; // return immediately
+    int v = select(STDIN_FILENO + 1, &rfds, 0, 0, &tv);
+    nAssert(v != -1);
+    return v != 0;
+}
+
+#endif  // WIN32
 
 using std::string;
 
@@ -59,7 +106,7 @@ public:
                     printf("(aborted)\n");
                     sayIdx=-1;
                 }
-                else if (key=='\r') {
+                else if (key=='\r' || key == '\n') {
                     writeLong(buf, idx, ATS_SERVER_CHAT);
                     sayBuf[sayIdx]=0;
                     writeString(buf, idx, sayBuf);
@@ -297,8 +344,12 @@ bool runMonitor(int port, bool disableMessagebox) {
                 char cap[strBufLen+100];
                 platSnprintf(cap, strBufLen+100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
                 dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
+                #ifdef WIN32
                 if (!disableMessagebox)
                     MessageBox(NULL, strBuf, cap, MB_OK);
+                #else
+                (void)disableMessagebox;
+                #endif
                 break;
             }
             case STA_PLAYER_IP: dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf); break;
@@ -330,6 +381,7 @@ bool runMonitor(int port, bool disableMessagebox) {
 }
 
 int main(int argc, const char* argv[]) {
+    initKeyboard();
     int port=24500;
     bool disableMessagebox = false;
     if (argc>1) {
@@ -362,5 +414,6 @@ int main(int argc, const char* argv[]) {
     int r=runMonitor(port, disableMessagebox)?0:1;
     fclose(outfile);
     nlShutdown();
+    resetKeyboard();
     return r;
 }
