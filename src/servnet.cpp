@@ -654,7 +654,7 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 		count = 0;
 		writeByte(lebuf, count, data_gameover_show);
 		writeByte(lebuf, count, ((NLubyte)reason));		//capture limit plaque or vote exit plaque
-		if ((reason == NEXTMAP_CAPTURE_LIMIT) || (reason == NEXTMAP_VOTE_EXIT)) {
+		if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
 			//informacoes para mostrar apos o jogo (time vencedor, most valuable player, etc.)
 			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));	//RED team final score
 			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));	//BLUE team final score
@@ -789,10 +789,8 @@ int ServerNetworking::client_connected(int id) {
 
 	broadcast_new_player(world.player[myself]);
 
-	// move to a spawn spot to wait for the game
-	ServerPlayer& pl = world.player[myself];
-	WorldCoords pos = world.map.tinfo[pl.team()].spawn[rand() % world.map.tinfo[pl.team()].spawn.size()];
-	pl.roomx = pos.px; pl.roomy = pos.py; pl.lx = pos.x; pl.ly = pos.y;
+	world.player[myself].respawn_to_base = true;
+	world.respawnPlayer(myself);	// move to a spawn spot to wait for the game
 	world.resetPlayer(myself, -1e10);	// kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
 	world.player[myself].respawn_to_base = true;	// New players always spawn in the base.
 	// don't actually spawn until the client has loaded the map and is in the game

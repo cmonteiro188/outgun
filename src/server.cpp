@@ -702,6 +702,7 @@ bool Server::reset_settings(bool keepMap) {
 		if (mapi == maprot.size()) {	// not found
 			currmap = -1;
 			server_next_map(NEXTMAP_VOTE_EXIT);
+			// do not restart the game
 		}
 		else
 			currmap = mapi;

@@ -1384,10 +1384,13 @@ void ServerWorld::reset() {
 
 	for (int i = 0; i < maxplayers; i++)
 		if (player[i].used) {
-			//kill - to respawn
-			player[i].respawn_to_base = true;
-			resetPlayer(i);
 			player[i].stats().clear();
+			// prepare for respawn
+			player[i].respawn_to_base = true;
+			respawnPlayer(i);	// move to a spawn spot to wait for the game
+			resetPlayer(i, -1e10);	// kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
+			player[i].respawn_to_base = true;	// always spawn in the base at the beginning of a map
+			// don't actually spawn until the client has loaded the map and is in the game
 		}
 
 	// remove rockets
