@@ -27,4 +27,7 @@
     ((expr)?(void)0:nAssertFail(#expr, #val1, val1, #val2, val2, #val3, val3, #val4, val4, __FILE__, __LINE__))
 #endif // NDEBUG
 
+#undef assert
+#define assert Use_nAssert_instead_of_assert_please
+
 #endif

@@ -35,6 +35,10 @@ class gameclient_c {
 	// network
 	client_c *client;
 	double lastpackettime;
+	NLubyte clFrameSent, clFrameWorld;
+	float serverFrameOffset;	// at what time within the frame our packets are currently arriving on the server (reported by the server)
+	double lastSendTime;
+	ClientControls controlHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
 	volatile bool trying_connection;
 	volatile bool connected;
 	bool map_ready;
@@ -48,7 +52,7 @@ class gameclient_c {
 	FILE *ud_fout;	//input or output file
 
 	bool player_password_set;
-	bool player_token_new;	//TRUE if first call to token servled
+	bool player_token_new;	//TRUE if first call to token servlet
 	bool player_token_set;
 	char player_token[64];
 	char player_password[16];
@@ -132,7 +136,7 @@ public:
 	void change_name_command();
 	void send_client_ready();
 	void send_chat(char *msg);
-	void send_frame();
+	void send_frame(bool newFrame);
 	void process_incoming_data(char *data, int length);
 
 	void check_change_pass_command();

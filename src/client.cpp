@@ -7,6 +7,8 @@
 #include "client.h"
 #include "nassert.h"
 
+#define CLIENT_PREDICTION
+
 #ifdef NIX
 void set_close_button_callback(void (*fn)()) {
 	set_window_close_hook(fn);
@@ -74,6 +76,9 @@ bool gameclient_c::start() {
 
 	totalframecount = 0;
 	framecount = 0;
+
+	clFrameSent = clFrameWorld = 0;
+	lastSendTime = 0;
 
 	// default map
 	//load_default_map(&map);
@@ -873,11 +878,14 @@ void gameclient_c::client_connected(char *data, int length) {
 	//avoid "dropped" plaque
 	lastpackettime = get_time() + 1.0;
 
+	clFrameSent = clFrameWorld = 0;
+	lastSendTime = 0;
+
 	// reset gamestate?
 	connected = true;
 	gameshow = true;
-	fx.frame = -1.0;		// no data
-	fd.frame = -1.0;		// no data
+	fx.frame = fd.frame = 0;
+	fx.skipped = fd.skipped = true;
 	me = -1;	//don't know who am I
 
 	//hide menu : must be AFTER gameshow = true
@@ -925,6 +933,8 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//clear client side effects
 	client_graphics.clear_fx();
+
+	send_frame(true);
 }
 
 void gameclient_c::client_disconnected() {
@@ -1288,23 +1298,20 @@ void gameclient_c::change_name_command() {
 }
 
 //send the client's frame to server (keypresses)
-void gameclient_c::send_frame() {
-
+void gameclient_c::send_frame(bool newFrame) {
 	char lebuf[256]; int count = 0;
 
-	//client send: l,r,u,d keys and strafe
-	NLubyte  keys = 0;
-	if (key[KEY_LEFT])  keys += 1;
-	if (key[KEY_RIGHT]) keys += 2;
-	if (key[KEY_UP])    keys += 4;
-	if (key[KEY_DOWN])  keys += 8;
-	if ((key[KEY_ALT]) || (key[KEY_ALTGR]))   //strafe
-		keys += 16;
-	if ((key[KEY_LSHIFT] || (key[KEY_RSHIFT])))	//run
-		keys += 32;
-	writeByte(lebuf, count, keys);
+	if (newFrame) {
+		++clFrameSent;
+		#ifdef CLIENT_PREDICTION
+		lastSendTime = get_time();
+		#endif
+	}
+	controlHistory[clFrameSent].fromKeyboard();
 
-	//send the client input
+	writeByte(lebuf, count, clFrameSent);
+	writeByte(lebuf, count, controlHistory[clFrameSent].toNetwork(false));
+
 	client->send_frame(lebuf, count);
 }
 
@@ -1332,13 +1339,14 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	//discard older frames
 	//overwrite always the newer frames
 	// TARGET FRAME: just one
-	if (svframe > fx.frame)
-	{
+	if (svframe > fx.frame) {
+		#ifndef CLIENT_PREDICTION
+		lastSendTime = get_time();
+		#endif
 		nAssert(fx.frame == (int)fx.frame);
 		ClientPhysicsCallbacks cb(*this);
 		fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
 		fx.frame = svframe;
-		fx.time  = get_time();		//hope it's good enough... needed 10ms clock (1/100 sec) at least.
 
 		NLulong	players_present;		//LONG players present (32 players max)
 		readLong(data, count, players_present);
@@ -1359,11 +1367,16 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 		//----- PLAYER SPECIFIC DATA -----
 
+		readByte(data, count, clFrameWorld);
+		NLubyte fo;
+		readByte(data, count, fo);
+		serverFrameOffset = fo / 256.;
+
 		//extra byte of information
 		// BIT 0: extra health
 		// BIT 1: extra energy
 		// BIT 2 (****VERY IMPORTANT****): NO MORE DATA ON PACKET BECAUSE PLAYER IS NOT READY
-		NLubyte xtra = 0;
+		NLubyte xtra;
 		readByte(data, count, xtra);
 
 		//moved below: after health assignment
@@ -1425,18 +1438,15 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.player[i].onscreen = false;
 
 				//if player on screen, parse the data
-				ClientPlayer	*h;
 				if (fx.player[i].onscreen) {
-
-					h = &(fx.player[i]);
+					ClientPlayer &h = fx.player[i];
 
 					//V0.3.9: took out screen reading, replacing for the same screen of "me"
 					// that is set above
-					fx.player[i].roomx = fx.player[me].roomx;	//same screen since it's on the "players on same screen" vector
-					fx.player[i].roomy = fx.player[me].roomy;
+					h.roomx = fx.player[me].roomx;	//same screen since it's on the "players on same screen" vector
+					h.roomy = fx.player[me].roomy;
 
 					//coords & speeds
-//						NLshort sho;
 					NLubyte xy;
 					//V0.3.9 : transmissao x,y de 4 bytes para 3
 					//256+512+1024+2048 = 3840    last 4 bits mask
@@ -1444,29 +1454,19 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
 
 					readByte(data, count, xy);		//first 8 bits x
-					h->lx = ((double)xy);
+					h.lx = static_cast<double>(xy);
 					readByte(data, count, xy);		//first 8 bits y
-					h->ly = ((double)xy);
+					h.ly = static_cast<double>(xy);
 					readByte(data, count, xy);		//first 4 bits x + first 4 bits y
-					h->lx += ((double)  ( (xy &  15) << 8 )   );	//bits 0-3 to 8-11
-					h->ly += ((double)  ( (xy & 240) << 4 )   ); //bits 4-7 to 8-11
-
-					//readShort(data, count, sho);		//x
-					//h->x = ((double)sho);
-					//readShort(data, count, sho);		//y
-					//h->y = ((double)sho);
+					h.lx += static_cast<double>( (xy &  15) << 8 );	//bits 0-3 to 8-11
+					h.ly += static_cast<double>( (xy & 240) << 4 ); //bits 4-7 to 8-11
 
 					//V0.3.9 speed em bytes, xinelao mesmo
 					NLbyte sxy;
 					readByte(data, count, sxy);	//sx
-					h->sx = ((double)sxy) / 2.0;
+					h.sx = static_cast<double>(sxy) / 2.0;
 					readByte(data, count, sxy);	//sy
-					h->sy = ((double)sxy) / 2.0;
-
-					//readShort(data, count, sho);		//sx
-					//h->sx = ((double)sho) / 100.0;
-					//readShort(data, count, sho);		//sy
-					//h->sy = ((double)sho) / 100.0;
+					h.sy = static_cast<double>(sxy) / 2.0;
 
 					//EXTRA BYTE
 					NLubyte byt, extra;
@@ -1474,33 +1474,25 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//FLAGS BYTE
 					//
-					fx.player[i].dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
-					fx.player[i].item_deathbringer = (extra & 2) != 0;		//deathbringer: extra bit 1
-					fx.player[i].deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
+					h.dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
+					h.item_deathbringer = (extra & 2) != 0;		//deathbringer: extra bit 1
+					h.deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
 					// ITEMS: movido para este byte
-					fx.player[i].item_shield = (extra & 8) != 0;
-					fx.player[i].item_speed = (extra & 16) != 0;
-					fx.player[i].item_quad = (extra & 32) != 0;
+					h.item_shield = (extra & 8) != 0;
+					h.item_speed = (extra & 16) != 0;
+					h.item_quad = (extra & 32) != 0;
 
 					//verifica se acabou de morrer - play death sound
-					if ((fx.player[i].dead) && (!fx.player[i].old_dead))
+					if (h.dead && !h.old_dead)
 						client_sounds.play(SAMPLE_DEATH + rand() % 2);
-					fx.player[i].old_dead = fx.player[i].dead;
+					h.old_dead = h.dead;
 
-					//l,r,u,d  accel
-					NLubyte keys;
-					readByte(data, count, keys);
-					h->l = ((keys & 1) != 0);
-					h->r = ((keys & 2) != 0);
-					h->u = ((keys & 4) != 0);
-					h->d = ((keys & 8) != 0);
-
-					//RUN!!! (COMO QUE NAO TINHA ISSO???)
-					//  devo ter apagado sem querer... ????
-					h->run = ((keys & 16) != 0);
+					NLubyte ccb;
+					readByte(data, count, ccb);
+					h.controls.fromNetwork(ccb, true);
 
 					//bits 5..7 : gundir= 0..7
-					h->gundir = (keys & (32+64+128)) / 32;
+					h.gundir = ccb >> 5;
 
 					//read items
 					//readByte(data, count, byt);
@@ -1510,7 +1502,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//read helm byte
 					readByte(data, count, byt);
-					fx.player[i].item_helm = byt;
+					h.item_helm = byt;
 				}
 			}
 
@@ -1736,14 +1728,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readByte(lebuf, count, rpy);
 				readShort(lebuf, count, rx);
 				readShort(lebuf, count, ry);
-				NLubyte byte;
-				readByte(lebuf, count, byte);
-				int bsx = byte - 128;
-				readByte(lebuf, count, byte);
-				int bsy = byte - 128;
 
 				ClientPhysicsCallbacks cb(*this);
-				fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame-frameno), team, power, rpx, rpy, rx, ry, bsx, bsy);
+				fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame-frameno), team, power, rpx, rpy, rx, ry);
 
 				//play sound if rocket on screen
 				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
@@ -2740,13 +2727,8 @@ void gameclient_c::loop() {
 				}
 
 				//send client's input packet now
-				if (sendnow) {
-					//V0.3.9: just speed up increasing the netsend counter if it's too small
-					//send_frame();
-					//client_netsend_counter = 3;	//should be set to 0 but we want to send a new packet soon after this one
-					if (client_netsend_counter < 4)
-						client_netsend_counter = 4;
-				}
+				if (sendnow)
+					send_frame(false);
 
 				// keypresses to talk prompt
 				//
@@ -2858,18 +2840,39 @@ void gameclient_c::loop() {
 		// so when netsend == 6, it's reset to zero and the packet is sent
 		if (client_netsend_counter >= (targetfps / 10) ) {
 			client_netsend_counter = 0;
-			send_frame();
+			send_frame(true);
 		}
 
 		// (2) if game is showing, simulate
 		//
 		if (gameshow) {
-			//LOG("** ...calc game frame\n");
 			pthread_mutex_lock( &frame_mutex );
 			ClientPhysicsCallbacks cb(*this);
-			fd.extrapolate(fx, get_time(), cb);
+			#ifdef CLIENT_PREDICTION
+			float subFrame = (get_time() - lastSendTime) * 10. + serverFrameOffset;
+			NLubyte firstFrame;
+			if (clFrameSent == clFrameWorld) {
+				firstFrame = clFrameWorld;
+				subFrame -= 1.;
+				if (subFrame < 0.)
+					subFrame = 0.;
+			}
+			else
+				firstFrame = clFrameWorld + 1;
+/*
+			string buf;
+			for (int x = (clFrameSent - firstFrame + subFrame) * 10; x>=0; --x)
+				buf += 'X';
+			if (buf.length() < 80)
+				print_message(buf.c_str());
+*/
+			if (subFrame > 5.)
+				subFrame = 5.;
+			fd.extrapolate(fx, cb, me, controlHistory, firstFrame, clFrameSent, subFrame);
+			#else
+			fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, get_time() - lastSendTime);
+			#endif
 			pthread_mutex_unlock( &frame_mutex );
-			//LOG("** ...game frame calced ok\n");
 		}
 
 		// (3) draw operations
@@ -3238,11 +3241,11 @@ void gameclient_c::draw_game_frame() {
 		for (int k = 0; k < maxplayers; k++) {
 
 			//HACK REMENDEX: predict item_helm
-			if (fx.player[i].item_helm > 0) {
-				int hspd = (int) ((fd.time - fx.time) * 100.0);
-				fx.player[i].item_helm -= hspd;
-				if (fx.player[i].item_helm < 1)
-					fx.player[i].item_helm = 1;
+			if (fd.player[i].item_helm > 0) {
+				int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
+				fd.player[i].item_helm = fx.player[i].item_helm - hspd;
+				if (fd.player[i].item_helm < 1)
+					fd.player[i].item_helm = 1;
 			}
 
 			//indirection: draw in y-order
@@ -3252,12 +3255,12 @@ void gameclient_c::draw_game_frame() {
 			if (i >= 0 && fx.player[i].onscreen) {		// draw only players on my screen
 				//calcula alfa do player
 				int alpha = 255;
-				if (fx.player[i].item_helm > 0) {
-					alpha = fx.player[i].item_helm;
+				if (fd.player[i].item_helm > 0) {
+					alpha = fd.player[i].item_helm;
 					if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
 						alpha = MIN_ALPHA_FRIENDS;
 				}
-				client_graphics.draw_player_shadow(fx.player[i], alpha);
+				client_graphics.draw_player_shadow(fx.player[i], alpha);	//#fix? fx -> fd to make shadow not jump
 				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
 				for (int t = 0; t < 2; t++)
 					if (fx.flag[t].carried && fx.flag[t].carrier == i)

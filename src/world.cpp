@@ -131,9 +131,9 @@ CircWall::CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int
  * the wall is extended: it's limiting angles are discarded, and so it's treated as a solid ring
  */
 bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const {
-	// more crude check against the wall's bounding rectangle: return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro;
+	// more crude check against the wall's bounding rectangle would be: return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro;
 	double rwr = (x2 - x1) / 2., rhr = (y2 - y1) / 2.;
-	double rr = max(rwr, rhr);
+	double rr = sqrt( rwr*rwr + rhr*rhr );
 	double rcx = x1 + rwr, rcy = y1 + rhr;
 	double dx = rcx - x, dy = rcy - y;
 	double dcr = sqrt( dx*dx + dy*dy );	// this is the radius of the rect bound-circle center in relation to the wall center
@@ -718,15 +718,15 @@ void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double
 	#undef add_rv
 }
 
-BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius) {
+BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius, float maxFraction) {
 	BounceData bd;
 	bd.first = 1e99;
 
 	if (mx == 0 && my == 0)
 		return bd;
 
-	Coords bbox0(min(x-radius, x+mx-radius), min(y-radius, y+my-radius)),
-	       bbox1(max(x+radius, x+mx+radius), max(y+radius, y+my+radius));
+	Coords bbox0(min(x-radius, x+mx*maxFraction-radius), min(y-radius, y+my*maxFraction-radius)),
+	       bbox1(max(x+radius, x+mx*maxFraction+radius), max(y+radius, y+my*maxFraction+radius));
 
 	for (vector<RectWall>::const_iterator wi=room.rwalls.begin(); wi!=room.rwalls.end(); ++wi) {	// go through rectangular walls
 		// fast and crude bounding-box style check first
@@ -772,12 +772,12 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, d
 	return bd;
 }
 
-BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius) {
-	return genGetTimeTillWall(room, pl.lx, pl.ly, pl.sx, pl.sy, plyRadius);
+BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction) {
+	return genGetTimeTillWall(room, pl.lx, pl.ly, pl.sx, pl.sy, plyRadius, maxFraction);
 }
 
-double WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock) {
-	return genGetTimeTillWall(room, rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS).first;
+double WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock, float maxFraction) {
+	return genGetTimeTillWall(room, rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS, maxFraction).first;
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius) {
@@ -806,7 +806,7 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 
 	//select effective physics vars for the player
 	float player_accel, player_friction, player_maxspeed;
-	if (h->run) {
+	if (h->controls.isRun()) {
 		if (turbo) {
 			player_accel    = svp_accel_turborun;
 			player_friction = svp_fric_turborun;
@@ -831,10 +831,10 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 		}
 	}
 	//flag carrier disadvantage when running
-	if (h->run && carryFlag)
+	if (h->controls.isRun() && carryFlag)
 		player_maxspeed -= svp_flag_penalty;
 
-	int xAcc = (h->r?1:0) - (h->l?1:0), yAcc = (h->d?1:0) - (h->u?1:0);
+	int xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
 
 	#ifdef PHYS_VECTOR_ACC
 
@@ -928,7 +928,7 @@ void WorldBase::stealFlag(int team, int carrier) {
 	flag[team].atbase = false;		// not at base (not needed / paranoia)
 }
 
-void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y, int bsx, int bsy,
+void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
 													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
 	rocket_c* r = &rock[i];
 	r->owner = playernum;
@@ -944,7 +944,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	if (xdelta) {
 		r->sx = xdelta * SHOT_DELTAX * cos(deg + PI/2);
 		r->sy = xdelta * SHOT_DELTAX * sin(deg + PI/2);
-		double wallTime = getTimeTillWall(map.room[px][py], *r);
+		double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 		r->move(1);
 		if (wallTime < 1.) {
 			cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
@@ -952,10 +952,10 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 		}
 	}
 
-	r->sx = bsx + cos(deg) * ROCKET_SPEED;
-	r->sy = bsy + sin(deg) * ROCKET_SPEED;
+	r->sx = cos(deg) * ROCKET_SPEED;
+	r->sy = sin(deg) * ROCKET_SPEED;
 	double advance = .5 + double(frameAdvance);
-	double wallTime = getTimeTillWall(map.room[px][py], *r);
+	double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 	if (wallTime <= advance) {
 		r->move(wallTime);
 		cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
@@ -965,7 +965,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 }
 
 void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids, int frameAdvance,
-																	int team, bool power, int px, int py, int x, int y, int bsx, int bsy) {
+																	int team, bool power, int px, int py, int x, int y) {
 	struct RocketFormation {
 		int nForward;
 		int directions[6];
@@ -984,19 +984,19 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
 	const RocketFormation& form = formations[pow-1];
 
 	if (form.nForward == 1)
-		addRocket(rids[0], playernum, team, px, py, x, y, bsx, bsy, power, dir,  0, frameAdvance, cb);
+		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameAdvance, cb);
 	else if (form.nForward == 2) {
-		addRocket(rids[0], playernum, team, px, py, x, y, bsx, bsy, power, dir, -1, frameAdvance, cb);
-		addRocket(rids[1], playernum, team, px, py, x, y, bsx, bsy, power, dir, +1, frameAdvance, cb);
+		addRocket(rids[0], playernum, team, px, py, x, y, power, dir, -1, frameAdvance, cb);
+		addRocket(rids[1], playernum, team, px, py, x, y, power, dir, +1, frameAdvance, cb);
 	}
 	else {
-		addRocket(rids[0], playernum, team, px, py, x, y, bsx, bsy, power, dir,  0, frameAdvance, cb);
-		addRocket(rids[1], playernum, team, px, py, x, y, bsx, bsy, power, dir, -2, frameAdvance, cb);
-		addRocket(rids[2], playernum, team, px, py, x, y, bsx, bsy, power, dir, +2, frameAdvance, cb);
+		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameAdvance, cb);
+		addRocket(rids[1], playernum, team, px, py, x, y, power, dir, -2, frameAdvance, cb);
+		addRocket(rids[2], playernum, team, px, py, x, y, power, dir, +2, frameAdvance, cb);
 	}
 	const int* dirp = &form.directions[0];
 	for (int ri = form.nForward; ri < pow; ++ri, ++dirp)
-		addRocket(rids[ri], playernum, team, px, py, x, y, bsx, bsy, power, dir + *dirp, 0, frameAdvance, cb);
+		addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + *dirp, 0, frameAdvance, cb);
 }
 
 void PowerupSettings::reset() {
@@ -1663,7 +1663,6 @@ NLubyte ServerWorld::getFreeRocket() {
 
 void ServerWorld::shootRockets(int pid, int shots) {
 	int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
-int bsx = 0, bsy = 0;//	int bsx = static_cast<int>(player[pid].sx), bsy = static_cast<int>(player[pid].sy);
 
 	player[pid].total_shots++;
 
@@ -1672,7 +1671,7 @@ int bsx = 0, bsy = 0;//	int bsx = static_cast<int>(player[pid].sx), bsy = static
 		sid[i] = getFreeRocket();
 
 	ServerPhysicsCallbacks cb(*this);
-	WorldBase::shootRockets(cb, pid, shots, player[pid].gundir, sid, 0, pid/TSIZE, player[pid].item_quad, px, py, x, y, bsx, bsy);
+	WorldBase::shootRockets(cb, pid, shots, player[pid].gundir, sid, 0, pid/TSIZE, player[pid].item_quad, px, py, x, y);
 
 	//build people-that-know DOUBLE WORD (32bits == 32players max)
 	//send message to players on the same screen
@@ -1685,7 +1684,7 @@ int bsx = 0, bsy = 0;//	int bsx = static_cast<int>(player[pid].sx), bsy = static
 	for (int k=0;k<shots;k++)
 		rock[ sid[k] ].vislist = vislist;
 
-	net->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y, bsx, bsy);
+	net->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
@@ -1770,6 +1769,9 @@ void WorldBase::executeBounce(PlayerBase& ply, const BounceData& b, double plyRa
 }
 
 void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction) {
+	if (fraction < .001)
+		return;
+
 	// note: design decision: vector is used extensively instead of list, to provide access by index
 	//       it shouldn't harm since the vectors are short and anything is rarely erased
 	vector< vector< vector<int> > > roomPly, roomRock;	// player id's for players in room, rocket id's for rockets in room
@@ -1793,7 +1795,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, f
 			roomPly[pl.roomx][pl.roomy].push_back(i);
 		}
 	}
-	for (int i=0;i<MAX_ROCKETS;i++) {
+	for (int i=0; i<MAX_ROCKETS; i++) {
 		if (rock[i].owner == -1)
 			continue;
 		nAssert(rock[i].px>=0 && rock[i].py>=0 && rock[i].px<map.w && rock[i].py<map.h);
@@ -1813,14 +1815,20 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	typedef unsigned int uint;	// for loop counters, to disable the brainless 'signed vs unsigned comparison' warning by G++
 
 	for (vector<int>::const_iterator pi=rply.begin(); pi!=rply.end(); ++pi)
-		plyMoveMax.push_back(getTimeTillBounce(room, player[*pi], plyRadius));
+{nAssert(*pi>=0 && *pi<maxplayers);//#t
+		plyMoveMax.push_back(getTimeTillBounce(room, player[*pi], plyRadius, fraction));
+}
 	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri)
-		rockMoveMax.push_back(getTimeTillWall(room, rock[*ri]));
+		rockMoveMax.push_back(getTimeTillWall(room, rock[*ri], fraction));
 
 	double subFrame = 0.;	// signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
+	#ifndef NDEBUG
+	int round = 0;
+	#endif
 	for (;;) {	//#fix: optimize this loop, esp. for client
+		nAssert(++round < 200);
 		// find out next player-wall collision
-		double minBounce = 2.;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
+		double minBounce = fraction + 1;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
 		int bPly=0, bPlyI=-1;	// which player it is, pid and room-table-index
 		for (uint pi=0; pi<rply.size(); ++pi) {
 			double bt = plyMoveMax[pi].first;
@@ -1830,9 +1838,10 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				bPly = rply[pi];
 			}
 		}
+		nAssert(minBounce > subFrame - .001);
 
 		// find out next player-rocket collision
-		double minCollision = 2.;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
+		double minCollision = fraction + 1;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
 		int cPly=0, cPlyI=-1, cRock=0, cRockI=-1;	// which player and rocket they are, pid/rid and room-table-indices
 		if (callback.collideToRockets()) {
 			for (uint pi=0; pi<rply.size(); ++pi) {
@@ -1851,11 +1860,13 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 					}
 				}
 			}
+			nAssert(minCollision >= 0.);
 			minCollision += subFrame;	// it was calculated in forward time, now it's in absolute frame time as are player movements
 		}
 
 		// execute movement
 		double mt = min<double>(fraction, min<double>(minCollision, minBounce + .01));	// time of the next event (add .01 to minBounce to not bounce infinitely)
+		nAssert(mt >= subFrame-.0001);
 		for (int pi = 0; pi < static_cast<int>(rply.size()); ) {
 			// don't move more than mt or more than plyMoveMax-.001 but don't move backwards (-.001 to stay out of walls)
 			double amount = bound<double>(plyMoveMax[pi].first - .001, subFrame, mt);
@@ -1906,7 +1917,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 			}
 		}
 		subFrame = mt;
-		if (subFrame > fraction*.999)
+		if (subFrame > fraction-.001)
 			break;
 
 		// execute collision or bounce
@@ -1939,7 +1950,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				plyChanged = -1;
 		}
 		if (plyChanged != -1) {
-			plyMoveMax[plyChanged] = getTimeTillBounce(room, player[rply[plyChanged]], plyRadius);
+			plyMoveMax[plyChanged] = getTimeTillBounce(room, player[rply[plyChanged]], plyRadius, fraction - subFrame);
 			plyMoveMax[plyChanged].first += subFrame;	// keep the table in absolute frame time
 		}
 	}
@@ -1953,7 +1964,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
 	for (int i = 0; i < MAX_ROCKETS; ++i)
 		if (rock[i].owner != -1) {
-			double wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i]);
+			double wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i], frames);
 			if (wallTime < frames) {
 				rock[i].move(wallTime);
 				callback.rocketHitWall(i, rock[i].power, rock[i].x, rock[i].y, rock[i].px, rock[i].py);
@@ -2156,7 +2167,7 @@ void ServerWorld::simulateFrame() {
 			}
 		}
 		//lose health & energy if running
-		if (h->run) {
+		if (h->controls.isRun()) {
 			if (player[i].energy <= 0) {
 				//if (!player[i].item_speed)	// se ta com SPEED, faz nao hurt
 				if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
@@ -2348,18 +2359,18 @@ void ServerWorld::simulateFrame() {
 	}
 }
 
-void ClientWorld::extrapolate(ClientWorld& source, double currTime, PhysicsCallbacksBase& physCallbacks) {
+// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
+void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
+						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter) {
+LOG("+extrapolate\n");
 	if (source.skipped) {
 		skipped = true;
+LOG("-R0\n");
 		return;
 	}
+	nAssert(source.frame > 0);
 
-	if (source.frame <= 0)	// invalid? (#fix)
-		return;
-
-	time = currTime;
-	double frameDiff = (time - source.time) * 10.;
-	frame = source.frame + frameDiff;
+	frame = source.frame;
 
 	for (int i=0; i<2; ++i)
 		flag[i] = source.flag[i];
@@ -2370,23 +2381,26 @@ void ClientWorld::extrapolate(ClientWorld& source, double currTime, PhysicsCallb
 		else
 			player[i].used = false;
 	}
-	for (int i=0;i<MAX_ROCKETS;i++) {
+	for (int i=0; i<MAX_ROCKETS; i++) {
 		if (source.rock[i].owner == -1)
 			rock[i].owner = -1;
 		else
 			rock[i] = source.rock[i];
 	}
 
-	//delta counter
-	double dc, f;
-	dc = frameDiff;
-
-	while (dc > 0) {
-		f = dc;
-		if (f > 1.0)
-			f = 1.0;
-		dc -= 1.0;
-		applyPhysics(physCallbacks, PLAYER_RADIUS-1., f);	// -1. to counter problems in bouncing caused by inaccurate positions over network
+int count=0;
+	for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {	// note: it is OK to wrap around in the middle of the sequence
+LOG1("%d", count);
+++count;
+		player[me].controls = ctrlTab[ctrli];
+		applyPhysics(physCallbacks, PLAYER_RADIUS-1., 1.);	// 1 is full frame
+		++frame;
 	}
+LOG("e");
+	player[me].controls = ctrlTab[ctrlLast];
+	applyPhysics(physCallbacks, PLAYER_RADIUS-1., subFrameAfter);
+	frame += subFrameAfter;
+	// PLAYER_RADIUS-1. is used to counter problems in bouncing caused by inaccurate positions over network
+LOG("-extrapolate\n");
 }
 

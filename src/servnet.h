@@ -57,13 +57,15 @@ class ServerNetworking {
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
 	NLint post_http_data(const std::string& script, std::string parameters, const std::string& auth) const;
-	void ServerNetworking::save_http_response(std::ostream& out) const;
-	std::string ServerNetworking::encode_base64(const std::string& data) const;
+	void save_http_response(std::ostream& out) const;
+	std::string encode_base64(const std::string& data) const;
 
 	gameserver_c*	host;
 	ServerWorld&	world;
 
 	server_c*		server;
+
+	double			frameSentTime;	// at what time the last frame was sent
 
 	NLsocket		msock;
 	pthread_t		mthread;
@@ -129,7 +131,7 @@ public:
 	void client_report_status(int id);
 	void sendEndGameover();
 	void sendWeaponPower(int pid);
-	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y, int bsx, int bsy);	// sid = shot-id: array of NLubyte[shots]
+	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id: array of NLubyte[shots]
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 	void sendDeathbringer(int pid, const ServerPlayer& ply);
 	void sendPickupVisible(int pid, int pup_id, const pickup_c& it);

@@ -94,4 +94,4 @@ srvmonit.o:	srvmonit.cpp	$(admshell_inc)	$(nassert_inc)
 PHONY: clean
 
 clean:
-	rm -f $(OBJS)
+	rm -f $(OBJS) $(EXTRA_OBJS) $(MON_OBJS)

@@ -1,5 +1,17 @@
 #include "commont.h"
 
+void ClientControls::fromKeyboard() {
+	data = 0;
+	if (key[KEY_UP   ]) data |= 1;
+	if (key[KEY_DOWN ]) data |= 2;
+	if (key[KEY_LEFT ]) data |= 4;
+	if (key[KEY_RIGHT]) data |= 8;
+	if (key[KEY_LSHIFT] || key[KEY_RSHIFT])	// run
+		data |= 16;
+	if (key[KEY_ALT] || key[KEY_ALTGR])	// strafe
+		data |= 32;
+}
+
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)

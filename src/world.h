@@ -147,8 +147,7 @@ public:
 
 	int roomx, roomy;
 	double lx, ly, sx, sy;	// position within room and speed
-	bool l, r, u, d;	// left, right, up, down acceleration keys
-	bool run;
+	ClientControls controls;
 	int gundir;	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
 
 // get rid of (or move elsewhere)
@@ -173,7 +172,6 @@ public:
 		item_helm = 0;
 		roomx = roomy = 0;
 		lx = ly = sx = sy = 0;
-		l = r = u = d = run = false;
 		gundir = 0;
 		dead = false;
 		reg_status = enable ? '-' : ' ';
@@ -215,8 +213,10 @@ public:
 	bool team_change_pending;
 
 	int cid;	// client id (network identity)
+	NLubyte lastClientFrame;	// client set frame identifier of the latest data received
+	float frameOffset;	// at what time within the frame the client's packet arrived
 	double waitnametime;
-	int oldfrags;	// last value informed to the client
+	int oldfrags;	// last value informed to clients
 	int megabonus;
 
 	bool dropped_flag;
@@ -311,6 +311,8 @@ public:
 		last_spawn_time = start_time;
 		lifetime = 0;
 
+		lastClientFrame = 0;
+		frameOffset = 0;
 		awaiting_client_ready = false;
 		item_deathbringer_time = 0;
 		deathbringer_end = 0;
@@ -458,12 +460,12 @@ public:
 };
 
 class WorldBase {
-	void addRocket(int i, int playernum, int team, int px, int py, int x, int y, int bsx, int bsy,
+	void addRocket(int i, int playernum, int team, int px, int py, int x, int y,
 													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
 
-	static BounceData genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius);
-	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius);
-	static double getTimeTillWall(const Room& room, const rocket_c& rock);
+	static BounceData genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius, float maxFraction);
+	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction);
+	static double getTimeTillWall(const Room& room, const rocket_c& rock, float maxFraction);
 	static double getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius);
 	void applyPlayerAcceleration(int pid);
 	void executeBounce(PlayerBase& ply, const BounceData& b, double plyRadius);	// needs plyRadius as a shortcut to b.second's length
@@ -486,7 +488,7 @@ public:
 	virtual ~WorldBase() { }
 
 	void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids,
-										int frameAdvance, int team, bool power, int px, int py, int x, int y, int bsx, int bsy);
+										int frameAdvance, int team, bool power, int px, int py, int x, int y);
 
 	void run_server_player_physics(int pid);
 	virtual bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
@@ -598,11 +600,12 @@ class ClientWorld : public WorldBase {
 public:
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
 	double frame;
-	double time;	// real time (clientside) of the frame
 
 	ClientPlayer player[MAX_PLAYERS];
-	ClientWorld() { time = 0; for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
-	void extrapolate(ClientWorld& source, double currTime, PhysicsCallbacksBase& physCallbacks);
+	ClientWorld() : skipped(true) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+	// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
+	void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
+						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter);
 };
 
 #endif

@@ -42,6 +42,22 @@ extern FILE *game_log;
 
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
 
+class ClientControls {
+	NLubyte data;
+
+public:
+	ClientControls() : data(0) { }
+	NLubyte toNetwork(bool server) const { if (server) return data & 0x31; else return data; }
+	void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 0x31; }
+	void fromKeyboard();
+	bool     isUp() const { return (data& 1)!=0; }
+	bool   isDown() const { return (data& 2)!=0; }
+	bool   isLeft() const { return (data& 4)!=0; }
+	bool  isRight() const { return (data& 8)!=0; }
+	bool    isRun() const { return (data&16)!=0; }
+	bool isStrafe() const { return (data&32)!=0; }
+};
+
 template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
 
 // strspnp: (Watcom definition) find from str the first char not in charset

@@ -41,6 +41,7 @@ public:
 ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w) : host(hostp), world(w) {
 	hostname[0] = 0;
 	server = 0;
+	frameSentTime = 0;	// no meaning
 	pthread_mutex_init(&fslavesock_mutex, 0);
 	pthread_mutex_init(&mjob_mutex, 0);
 }
@@ -634,10 +635,7 @@ int ServerNetworking::client_connected(int id) {
 			myself = i;
 
 			//reset keypresses
-			world.player[i].l = 0;
-			world.player[i].r = 0;
-			world.player[i].u = 0;
-			world.player[i].d = 0;
+			world.player[i].controls = ClientControls();
 
 			//check pickup creation
 			world.check_pickup_creation(false);
@@ -819,46 +817,47 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 	int pid = ctop[id];
 
 	//1. process client's frame data
-	NLubyte keys;
 	int count = 0;
-	readByte(data, count, keys);
-	//update the player's direction keys (accel.vectrs) (and other keys too if needed later)
-	ServerPlayer *h;
-	h = &(world.player[pid]);
+	ServerPlayer& h = world.player[pid];
 
-	h->l = (keys & 1) != 0;
-	h->r = (keys & 2) != 0;
-	h->u = (keys & 4) != 0;
-	h->d = (keys & 8) != 0;
-	bool strafe = (keys & 16) != 0;
-	h->run = (keys & 32) != 0;
+	NLubyte clFrame;
+	readByte(data, count, clFrame);
+	if (static_cast<NLubyte>(h.lastClientFrame - clFrame) >= 128) {	// this frame is very likely newer than the previous one
+		h.lastClientFrame = clFrame;
+		h.frameOffset = 10. * (get_time() - frameSentTime);
 
-	//if not strafing, update direction
-	if (!strafe) {
-		// left
-		if ((h->l) && (!h->r)) {
-			if ((h->u) && (!h->d))	// + up
-				h->gundir = 5;
-			else if ((!h->u) && (h->d)) // + down
-				h->gundir = 3;
-			else if ((!h->u) && (!h->d)) // !up !down
-				h->gundir = 4;
-		}
-		// right
-		else if ((!h->l) && (h->r)) {
-			if ((h->u) && (!h->d))	// + up
-				h->gundir = 7;
-			else if ((!h->u) && (h->d)) // + down
-				h->gundir = 1;
-			else if ((!h->u) && (!h->d)) // !up !down
-				h->gundir = 0;
-		}
-		//!right !left
-		else if ((!h->l) && (!h->r)) {
-			if ((h->u) && (!h->d))	// + up
-				h->gundir = 6;
-			else if ((!h->u) && (h->d)) // + down
-				h->gundir = 2;
+		NLubyte ccb;
+		readByte(data, count, ccb);
+		h.controls.fromNetwork(ccb, false);
+
+		const ClientControls& ctrl = h.controls;
+		//if not strafing, update direction
+		if (!ctrl.isStrafe()) {
+			// left
+			if (ctrl.isLeft() && !ctrl.isRight()) {
+				if (ctrl.isUp() && !ctrl.isDown())	// + up
+					h.gundir = 5;
+				else if (!ctrl.isUp() && ctrl.isDown()) // + down
+					h.gundir = 3;
+				else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
+					h.gundir = 4;
+			}
+			// right
+			else if (!ctrl.isLeft() && ctrl.isRight()) {
+				if (ctrl.isUp() && !ctrl.isDown())	// + up
+					h.gundir = 7;
+				else if (!ctrl.isUp() && ctrl.isDown()) // + down
+					h.gundir = 1;
+				else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
+					h.gundir = 0;
+			}
+			//!right !left
+			else if (!ctrl.isLeft() && !ctrl.isRight()) {
+				if (ctrl.isUp() && !ctrl.isDown())	// + up
+					h.gundir = 6;
+				else if (!ctrl.isUp() && ctrl.isDown()) // + down
+					h.gundir = 2;
+			}
 		}
 	}
 
@@ -900,7 +899,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					//network.broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], world.player[pid].name.c_str());
 					host->check_team_changes();
 					pid = ctop[id];
-					h = &world.player[pid];
+					h = world.player[pid];
 				}
 			}
 			// want changeteams off
@@ -1217,11 +1216,17 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	// ==================================================================
 	//   BUILD AND SEND EVERY DAMN PACKET
 	// ==================================================================
-	for (int i=0;i<maxplayers;i++)
-	if (world.player[i].used)			// player valido (used)
-	{
+	for (int i=0; i<maxplayers; i++) {
+		if (!world.player[i].used)
+			continue;
+
 		//rewrite past common data
 		lecount = count;
+
+		NLubyte clFrame = world.player[i].lastClientFrame;
+		writeByte(lebuf, lecount, clFrame);
+		NLubyte fo = static_cast<NLubyte>( bound<float>(world.player[i].frameOffset, 0., .999) * 256. );
+		writeByte(lebuf, lecount, fo);
 
 		//extra byte of information
 		// BIT 0: extra health
@@ -1277,7 +1282,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				//add to players_onscreen
 				players_onscreen += (1 << j);
 
-				ServerPlayer* h = &(world.player[j]);
+				const ServerPlayer& h = world.player[j];
 
 //					NLshort sho;
 
@@ -1286,8 +1291,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				//V0.3.9 : transmissao x,y de 4 bytes para 3
 				NLubyte xy;
 				NLushort hx,hy;
-				hx = (NLushort)h->lx;
-				hy = (NLushort)h->ly;
+				hx = (NLushort)h.lx;
+				hy = (NLushort)h.ly;
 
 				xy = (NLubyte) (hx & 255);
 				writeByte(lebuf, lecount, xy);		//first 8 bits x
@@ -1297,21 +1302,21 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				xy = (NLubyte) ( ((hx & 0xF00) >> 8) + ((hy & 0xF00) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
 				writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
 
-				//sho = ((NLshort)h->x);
+				//sho = ((NLshort)h.x);
 				//writeShort(lebuf, lecount, sho);	//x
-				//sho = ((NLshort)h->y);
+				//sho = ((NLshort)h.y);
 				//writeShort(lebuf, lecount, sho);	//y
 
 				//speed em bytes - xinelao mesmo
 				NLbyte sxy;
-				sxy = ((NLbyte)(h->sx * 2));
+				sxy = ((NLbyte)(h.sx * 2));
 				writeByte(lebuf, lecount, sxy);
-				sxy = ((NLbyte)(h->sy * 2));
+				sxy = ((NLbyte)(h.sy * 2));
 				writeByte(lebuf, lecount, sxy);
 
-				//sho = ((NLshort)(h->sx * 100));
+				//sho = ((NLshort)(h.sx * 100));
 				//writeShort(lebuf, lecount, sho );	//sx  30.283482345634... = 30283 = 30.283(depois)
-				//sho = ((NLshort)(h->sy * 100));
+				//sho = ((NLshort)(h.sy * 100));
 				//writeShort(lebuf, lecount, sho );	//sy
 
 				// EXTRA BYTE (ex- zframe)  bit 0 : player dead  bit 1 : has deathbringer  bit 2 : deathbringer-affected
@@ -1327,16 +1332,13 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				//write extra byte
 				writeByte(lebuf, lecount, extra);
 
-				NLubyte keys = h->gundir << 5;
-				// if dead player, don't send keys
-				if (world.player[j].health > 0) {
-					if (h->l) keys |= 1;
-					if (h->r) keys |= 2;
-					if (h->u) keys |= 4;
-					if (h->d) keys |= 8;
-					if (h->run) keys |= 16;
-				}
-				writeByte(lebuf, lecount, keys);
+				NLubyte ccb;
+				if (world.player[j].health > 0)	// if dead player, don't send keys
+					ccb = world.player[j].controls.toNetwork(true);
+				else
+					ccb = 0;
+				ccb |= h.gundir << 5;
+				writeByte(lebuf, lecount, ccb);
 
 				writeByte(lebuf, lecount, (NLubyte)world.player[j].item_helm);
 			}
@@ -1404,6 +1406,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		ping_send_client = 0;
 	if (world.player[ping_send_client].used) // valid player?
 		server->ping_client(world.player[ping_send_client].cid); //ping
+
+	frameSentTime = get_time();
 }
 
 double ServerNetworking::getTraffic() {
@@ -2674,14 +2678,14 @@ void ServerNetworking::run_shellslave_thread() {
 			case ATS_KICK_PLAYER:
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4)
+				if (result == 4 && pid != -1)
 					host->kickPlayer(pid);
 				break;
 			#ifdef SV_NAME_AUTHORIZATION
 			case ATS_BAN_PLAYER:
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4)
+				if (result == 4 && pid != -1)
 					host->banPlayer(pid);
 				break;
 			#endif
@@ -2869,17 +2873,16 @@ void ServerNetworking::sendWeaponPower(int pid) {
 }
 
 void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power,
-												int px, int py, int x, int y, int bsx, int bsy) {	// sid = shot-id; array of NLubyte[shots]
-	//assembly multi-rocket message
+												int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
 	//NLubyte  powerdir;		//bits 0..4 = power bits 5..8=dir
 	//powerdir = NLubyte(shots) | NLubyte(gundir<<4);
-	//writeByte(lebuf, count, powerdir);		// power and dir
-	writeByte(lebuf, count, shots);		// power and dir
+	//writeByte(lebuf, count, powerdir);	// power and dir
+	writeByte(lebuf, count, shots);			// power and dir
 	writeByte(lebuf, count, gundir);		// power and dir
-	for (int i=0;i<shots;i++) //MULTI ROCKETS!
-		writeByte(lebuf, count, sid[i]);		// rocket-object id (needed because client-side rockets can be deleted by the server)
+	for (int i=0; i<shots; i++)
+		writeByte(lebuf, count, sid[i]);	// rocket-object id (needed because client-side rockets can be deleted by the server)
 	writeLong(lebuf, count, world.frame);	// time of shot of the rocket: current (last simulated) frame
 	NLubyte shotType = (team<<1) | power;
 	writeByte(lebuf, count, (NLubyte)shotType);	// owner of all rockets
@@ -2887,8 +2890,6 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 	writeByte(lebuf, count, (NLubyte)py);
 	writeShort(lebuf, count, (NLshort)x);
 	writeShort(lebuf, count, (NLshort)y);
-	writeByte(lebuf, count, static_cast<NLubyte>(bsx + 128));
-	writeByte(lebuf, count, static_cast<NLubyte>(bsy + 128));
 
 	for (int p=0; p<maxplayers; p++)
 		if (world.player[p].used && world.player[p].roomx==px && world.player[p].roomy==py)
