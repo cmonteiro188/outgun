@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "commont.h"
 #include "world.h"
 #include "leetnet/sleep.h"	// sleep util

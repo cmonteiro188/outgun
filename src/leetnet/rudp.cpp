@@ -35,6 +35,7 @@
 #include "rudp.h"		
 #include "nl.h"				// HawkNL
 //#include "stdio.h"		//for printf debugging  (FIXME - move to log)
+#include <cassert>
 
 
 // buffer size limitations (stupid hardcoded but works)

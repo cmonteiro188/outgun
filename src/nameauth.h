@@ -5,8 +5,7 @@
 #include <vector>
 #include <ostream>
 
-struct _NLaddress;
-typedef struct _NLaddress NLaddress;
+#include "nl.h"
 
 class NameAuthorizationDatabase {
 	typedef std::string string;

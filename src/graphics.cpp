@@ -8,6 +8,24 @@
 
 #ifdef NIX	// use GDI graphics mode instead of DirectX - works better on my computer, slows things down on all computers
 #define WINMODE GFX_GDI       // can't pageflip
+void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+	text_mode(bg);
+	va_list argptr;
+	char xbuf[16384];
+	va_start(argptr, format);
+	vsprintf(xbuf, format, argptr);
+	va_end(argptr);
+	textprintf(bmp, f, x, y, color, "%s", xbuf);
+}
+void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+	text_mode(bg);
+	va_list argptr;
+	char xbuf[16384];
+	va_start(argptr, format);
+	vsprintf(xbuf, format, argptr);
+	va_end(argptr);
+	textprintf_centre(bmp, f, x, y, color, "%s", xbuf);
+}
 #else
 #define WINMODE GFX_AUTODETECT_WINDOWED
 #endif
@@ -551,8 +569,8 @@ void Graphics::draw_shield(int x, int y, int r, int alpha) {
 	solid_mode();
 }
 
-void Graphics::draw_player_name(const string name, int x, int y, int team) {
-	print_text_border_centre(name, x, y - 40, col[COLWHITE], teamdcol[team]);
+void Graphics::draw_player_name(const string& name, int x, int y, int team) {
+	print_text_border_centre(name, plx + x, ply + y - 40, col[COLWHITE], teamdcol[team]);
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
@@ -862,11 +880,11 @@ void Graphics::print_chat_input(int line, const string& message) {
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol) {
-	print_text_border(text, plx + x, ply + y, textcol, bordercol, false);
+	print_text_border(text, x, y, textcol, bordercol, false);
 }
 
 void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol) {
-	print_text_border(text, plx + x, ply + y, textcol, bordercol, true);
+	print_text_border(text, x, y, textcol, bordercol, true);
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, bool centring) {

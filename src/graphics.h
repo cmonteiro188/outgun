@@ -142,7 +142,7 @@ public:
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
 	void draw_player_shadow(const ClientPlayer& player, int alpha);
-	void draw_player_name(const std::string name, int x, int y, int team);
+	void draw_player_name(const std::string& name, int x, int y, int team);
 	void draw_rocket(const rocket_c& rocket, double time);
 	void draw_gun_explosion(int x, int y, int rad);
 	void draw_deathbringer_smoke(int x, int y, double time);

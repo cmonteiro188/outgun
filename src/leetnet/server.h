@@ -25,8 +25,7 @@
 #ifndef _server_h_
 #define _server_h_
 
-struct _NLaddress;
-typedef struct _NLaddress NLaddress;
+#include "nl.h"
 
 struct ServerHelloResult {
 	bool accepted;

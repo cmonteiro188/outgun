@@ -1,6 +1,8 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
+#include <cassert>
+
 typedef pair<double, double> Coords;
 
 class RectWall {	// rectangular wall

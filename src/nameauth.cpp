@@ -1,19 +1,18 @@
 #include <nl.h>
 #include <fstream>
+#include <cassert>
 
 #include "nameauth.h"
 
 using namespace std;
 
 
-//#NR these are from outgun.cpp, needed for LOG(...) ; argh
+// these are from outgun.cpp, needed for LOG(...) ; argh
 #define LOG_EXPR game_log
 #define LOG_TIMEFUNC get_time()
 #include "leetnet/log.h"
 extern FILE *game_log;
 extern double get_time();
-//#NR end
-
 
 void NameAuthorizationDatabase::Entry::save(ostream& out) const {
 	out << '\n';

@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "commont.h"
 #include "world.h"
 
@@ -135,7 +137,12 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			else
 				return true;
 		}
-		s[strlen(s)-1] = '\0';	// erase \n
+		for (int si=strlen(s)-1; si>=0; --si) {
+			if (s[si]=='\n' || s[si]=='\r')
+				s[si] = '\0';
+			else
+				break;
+		}
 		if (s[0] == '\0' || s[0]==';')
 			continue;
 		if (s[0]==':') {	// a label is found
@@ -1609,7 +1616,7 @@ void ServerWorld::suicide(int pid) {
 }
 
 NLubyte ServerWorld::getFreeRocket() {
-	for (NLubyte i=0;i<MAX_ROCKETS;i++)
+	for (int i=0; i<MAX_ROCKETS; i++)
 		if (rock[i].owner == -1) {
 			rock[i].owner = 0;
 			return i;

@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "commont.h"
 #include "server.h"
 #include "admshell.h"

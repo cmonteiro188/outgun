@@ -1,20 +1,30 @@
-ifdef NIX
-GFX_COMPILE_EXTRA = -dNIX
-endif
+MINGW = 1
+# if you are compiling for Linux, comment out the above line
 
-CFLAGS = -W -Wall -O2 -Wno-deprecated
-#CFLAGS = -W -Wall -Os -fno-default-inline -Wno-deprecated
+#distro: CFLAGS = -mcpu=pentium -Wall -W -O2 -ffast-math
+CFLAGS = -W -Wall -O2
 
 ifdef STATIC_ALLEGRO
 #ifndef DYNAMIC_ALLEGRO
+ # if you want to use static_allegro in Linux, you'll have to
+ # find out what to put on the libs-line yourself...
  LIBS = -lalleg_s -lNL -lpthreadGC -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 -ldinput -lddraw -ldxguid -lwinmm -ldsound
  EXTRA_CFLAGS = -DALLEGRO_STATICLINK
 else
- LIBS = -lalleg -lNL -lpthreadGC
+ ifdef MINGW
+  LIBS = -lalleg -lNL -lpthreadGC
+ else
+  LIBS = `allegro-config --libs` -lNL
+ endif
 endif
 
-OBJS = servnet.o server.o graphics.o commont.o client.o main.o world.o names.o nameauth.o effects.o sounds.o
-EXTRA_OBJS = icon.res
+OBJS = servnet.o server.o graphics.o commont.o client.o main.o world.o names.o nameauth.o sounds.o
+
+ifdef MINGW
+ EXTRA_OBJS = icon.res
+ #distro: LFLAGS = -mwindows
+ LFLAGS = $(OUTGUN_LINK_FLAGS)
+endif
 
 LEETNET = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
 	leetnet/rudp.o leetnet/server.o leetnet/Thread.o leetnet/timefunc.o \
@@ -24,9 +34,8 @@ all: og
 og: outgun.exe
 
 outgun.exe: $(OBJS) $(EXTRA_OBJS)
-	g++ -mconsole -s $(LEETNET) -o $@ $(OBJS) $(EXTRA_OBJS) $(LIBS)
-	cp outgun.exe ../test
-	cp outgun.exe ../client.exe
+	g++ $(LFLAGS) -s $(LEETNET) -o $@ $(OBJS) $(EXTRA_OBJS) $(LIBS)
+	$(COPY_OUTGUN_EXE)
 
 %.res: %.rc
 	windres -i $< -O coff -o $@

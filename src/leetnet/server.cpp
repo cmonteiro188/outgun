@@ -53,7 +53,7 @@
 
 #include "timefunc.h"
 
-#include "timer.h"
+#include "Timer.h"
 
 #include "sleep.h"
 
