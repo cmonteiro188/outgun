@@ -13,6 +13,9 @@
 
 #include <vector>
 #include <list>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
 
 #ifdef NR_FIX_BOUNCING
 /* NR_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
@@ -6089,10 +6092,10 @@ public:
 						else if (!strcmp(cbuf, "time")) {
  						    int seconds = (frame - map_start_time) / 10;
    						    int remaining_seconds = (time_limit / 10 - seconds);
-    						char map_time[20];
-    						sprintf(map_time, "@TMap time: %d:%02d.", seconds / 60, seconds % 60);
+    						ostringstream map_time;
+                            map_time << "@IMap time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
 						    if (time_limit == 0)
-                                player[pid].queue_printf("%s There is no time limit.", map_time);
+                                map_time << " There is no time limit.";
                             else {
                                 // time limit not very useful when only one player
                                 int players = 0;
@@ -6100,13 +6103,15 @@ public:
                                     if (player[i].used)
                                         players++;
                                 if (players == 1)
-                                    player[pid].queue_printf("%s No time limit at the moment as you are the only player.", map_time);
+									map_time << " No time limit at the moment as you are the only player.";
    						        else if (remaining_seconds < 0) // if time is out and game continues, it must be sudden death
-                                    player[pid].queue_printf("%s Sudden death.", map_time);
-                                else
-                                    player[pid].queue_printf("%s Time left: %d:%02d.", map_time, 
-                                                remaining_seconds / 60, remaining_seconds % 60);
+									map_time << " Sudden death.";
+                                else {
+                                    map_time << " Time left: " << remaining_seconds / 60 << ':';
+                                    map_time << setfill('0') << setw(2) << remaining_seconds % 60 << '.';
+                                }
                             }
+                            player[pid].add_to_queue(map_time.str());
 			            }
 						else
 							player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
@@ -9490,13 +9495,18 @@ public:
 	//host's banner image
 	BITMAP *hostad;
 	char    hostadname[128];
-		
+
+	ofstream message_log;
+
 	//start
 	bool start() {
 
 		//host ad
 		hostad = 0;
 		hostadname[0]=0;
+		
+		// open message log file
+		message_log.open("message.log", ios::app);
 
 		//default physics parameters
 		//set_default_physics();
@@ -14084,7 +14094,7 @@ public:
 	}
 
 	//print message to "console"
-	void print_message(char *msg) {
+	void print_message(const char *msg) {
 
 		// find top
 		int top = 0;
@@ -14105,6 +14115,19 @@ public:
 
 		// set new at top position
 		strcpy(chatbuffer[top], msg);
+
+		// print message to log, if it is not empty
+		if (strlen(msg) != 0) {
+			// date and time
+			time_t tt = time(0);
+			struct tm* tmb = localtime(&tt);
+			message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
+				<< '-' << setfill('0') << setw(2) << tmb->tm_mday
+				<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
+				<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
+				// message
+			message_log << (msg[0] == '@' ? msg + 2 : msg) << '\n';
+		}
 
 		// time to erase
 		chaterasetime = get_time() + 10.0;
@@ -15190,6 +15213,7 @@ public:
 				delete udpdq[uq];
 				udpdq[uq] = 0;
 			}
+		message_log.close();
 	}
 
 	//ctor
