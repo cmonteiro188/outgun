@@ -1908,14 +1908,13 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     if (player[target].health > 0)
         return;
 
-    const bool same_team = (target / TSIZE == attacker / TSIZE);
+    const int tateam = target / TSIZE;
+    const int atteam = attacker / TSIZE;
+    const bool same_team = (tateam == atteam);
     if (!same_team)
         host->score_frag(attacker, 1);      // frag to attacker for the kill
     else
         host->score_frag(attacker, -2);     // take two frags for killing own player
-
-    const int tateam = target / TSIZE;
-    const int atteam = attacker / TSIZE;
 
     //check if the enemy flag is carried in this screen(target's) by somebody that is not me
     bool carrier_defended = false, flag_defended = false;
@@ -1930,26 +1929,24 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
             if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
                 flag_defended = true;
                 host->score_frag(attacker, 1);
-                break;      // only one frag even for defending multiple flags
+                break;  // only one frag even for defending multiple flags
             }
     }
     const bool flag = player[target].stats().has_flag();
-    bool wild_flag = false;
+    const bool wild_flag = player[target].stats().has_wild_flag();
     if (flag) {
-        player[attacker].stats().add_carrier_kill();
-        if (!same_team)
+        if (!same_team) {
+            player[attacker].stats().add_carrier_kill();
             host->score_frag(attacker, 1);  // extra frag for fragging a carrier
+        }
         else
             host->score_frag(attacker, -1); // extra penalty for fragging own carrier
-        for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
-            if (fi->carrier() == target) {
-                wild_flag = true;
-                break;
-            }
     }
 
-    player[attacker].stats().add_kill(type == DT_deathbringer);
-    teams[atteam].add_kill();
+    if (!same_team) {
+        player[attacker].stats().add_kill(type == DT_deathbringer);
+        teams[atteam].add_kill();
+    }
     player[target].stats().add_death(type == DT_deathbringer, static_cast<int>(get_time()));
     teams[tateam].add_death();
 

@@ -275,6 +275,7 @@ Menu_graphics::Menu_graphics() :
     theme       (_("Theme")),
     antialiasing(_("Antialiasing"), true),
     contTextures(_("Continuous textures between rooms"), false),
+    minimapPlayers(_("Disappeared players on minimap")),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
 
     fpsLimit    (_("FPS limit"), false, 1, 10000, 60, 0),
@@ -293,10 +294,15 @@ Menu_graphics::Menu_graphics() :
     menu.add_component(&theme);
     menu.add_component(&antialiasing);
     menu.add_component(&contTextures);
+    menu.add_component(&minimapPlayers);
     menu.add_component(&statsBgAlpha);
     ins_space();
     menu.add_component(&fpsLimit);
     menu.add_component(&mapInfoMode);
+
+    minimapPlayers.addOption(_("fade out"  ), MP_Fade);
+    minimapPlayers.addOption(_("hide early"), MP_EarlyCut);
+    minimapPlayers.addOption(_("hide late" ), MP_LateCut);
 }
 
 void Menu_graphics::init(const Graphics& gfx) { // call just once, before calling update

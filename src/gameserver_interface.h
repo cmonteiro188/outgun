@@ -52,9 +52,10 @@ public:
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;  // must be set properly (non-null) when used
     bool showErrorCount;
+    bool ownScreen;
 
     ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), minLocalPort(0), maxLocalPort(0), privateserver(false),
-        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), threadLock(true), statusOutput(0), showErrorCount(true) { }
+        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), threadLock(true), statusOutput(0), showErrorCount(true), ownScreen(false) { }
 };
 
 class GameserverInterface {

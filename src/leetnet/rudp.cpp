@@ -260,11 +260,11 @@ public:
     // since all unacked messages are always sent, this includes those that were not sent a single time yet.
     msgrec reliable[MAXMSG];  // FIXME: access to "reliable" must be sinchronized
     NLbyte  reliable_count;     //count of reliable messages in buffer
+    MutexHolder relmsg_mutex;
 
     #ifdef EXTRA_RELIABLE_STORAGE
     NLulong reliable_size;  // total size of reliable messages in reliable[], plus 6 bytes extra for each
     std::queue<data_ci*> extra_reliables;
-    MutexHolder queue_mutex;
     void erase_extra_reliables() {
         while (!extra_reliables.empty()) {
             delete extra_reliables.front();
@@ -284,6 +284,7 @@ public:
             sendsock = NL_INVALID_SOCKET;
         }       
 
+        relmsg_mutex.lock();
         //reset msgrecs!
         for (int m=0;m<MAXMSG;m++)
             reliable[m].clear();
@@ -291,6 +292,7 @@ public:
         reliable_size = 0;
         erase_extra_reliables();
         #endif
+        relmsg_mutex.unlock();
 
         //reset all the internal state for object initialization or reuse
         sendbuf[0]=0;
@@ -319,7 +321,9 @@ public:
     //dtor
     virtual ~station_ci() {
         #ifdef EXTRA_RELIABLE_STORAGE
+        relmsg_mutex.lock();
         erase_extra_reliables();
+        relmsg_mutex.unlock();
         #endif
         
         //FIXME -- what else?
@@ -425,7 +429,9 @@ DLOG_Scope s("URR");
         reldata.set(&(message[index][0]), (NLshort)message_size[index]);
 
         //clear msg (slide window)
+        relmsg_mutex.lock();
         message_size[index] = -1;
+        relmsg_mutex.unlock();
         
         //update msg_current (slide window)
         msg_current++;
@@ -570,6 +576,7 @@ DLOG_Scope s("UPIP");
         
         // for every message in the outgoing buffer...
         //
+        relmsg_mutex.lock();
         for (i=0; i<MAXMSG; i++) 
             if (reliable[i].used() && reliable[i].sentBefore(packet_ack)) {
                 DLOG_Scope s("UPIP_A");
@@ -579,7 +586,6 @@ DLOG_Scope s("UPIP");
                 reliable_size -= reliable[i].msgSize() + 6;
                 reliable[i].clear();
                 // check if there's a message on the extra queue that can be sent now
-                queue_mutex.lock();
                 if (!extra_reliables.empty() && can_add_reliable(extra_reliables.front()->getlen())) {
                     data_ci* msg = extra_reliables.front();
                     extra_reliables.pop();
@@ -606,12 +612,12 @@ DLOG_Scope s("UPIP");
                 }
                 else
                     reliable_count--;
-                queue_mutex.unlock();
                 #else
                 reliable[i].clear();
                 reliable_count--;                   // less one
                 #endif
             }
+        relmsg_mutex.unlock();
 
         //ok -return stuff
         (*size) = unreliable_size;
@@ -624,14 +630,11 @@ DLOG_Scope s("UPIP");
 DLOG_Scope s("UWR");
         nAssert(length <= MAX_MESSAGE_SIZE);
 
+        relmsg_mutex.lock();
         #ifdef EXTRA_RELIABLE_STORAGE
-        queue_mutex.lock();
         if (reliable_count<MAXMSG && can_add_reliable(length) && extra_reliables.empty())
         #endif
         {
-            #ifdef EXTRA_RELIABLE_STORAGE
-            queue_mutex.unlock();
-            #endif
             //find slot in reliable
             //
             for (int i=0; i<MAXMSG; i++) 
@@ -639,6 +642,7 @@ DLOG_Scope s("UWR");
                     reliable[i].set(idgen_reliable_send++, data, (NLshort)length);
                     reliable_count++;                                               // another one
                     reliable_size += length + 6;
+                    relmsg_mutex.unlock();
                     return 1;                       //ok
                 }
             #ifdef EXTRA_RELIABLE_STORAGE
@@ -651,9 +655,10 @@ DLOG_Scope s("UWR");
         data_ci* msg = new data_ci();
         msg->set(data, (NLshort)length);
         extra_reliables.push(msg);
-        queue_mutex.unlock();
+        relmsg_mutex.unlock();
         return 1;
         #else
+        relmsg_mutex.unlock();
         return 0;
         #endif
     }
@@ -703,8 +708,8 @@ DLOG_Scope s("USP");
 
         //if (debug) printf(" rc=%i", reliable_count);
 
+        relmsg_mutex.lock();
         writeByte(sendbuf, count, reliable_count);  // number of reliable messages (wiil be overwritten)
-
         for (i=0;i<MAXMSG;i++)  // reliable messages in queue
             if (reliable[i].used()) {
                 writeLong(sendbuf, count, reliable[i].id());        //id
@@ -713,7 +718,8 @@ DLOG_Scope s("USP");
                 //add this send packet id to the message's outgoing sends
                 reliable[i].send(id);
             }
-        
+        relmsg_mutex.unlock();
+
         // FIXED: o "unreliable size" eh inferido do tamanho do datagrama UDP
         //              ou seja o "resto" do pacote eh o unreliable data! (nao precisa enviar size)
         //writeShort(sendbuf, count, unreliable.ulen);      // unreliable size

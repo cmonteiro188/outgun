@@ -1223,7 +1223,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
             // update (re-clear) window too, if there's the possibility it has been corrupted
-            if (GlobalDisplaySwitchHook::readAndClear())
+            if (extConfig.ownScreen && GlobalDisplaySwitchHook::readAndClear())
                 clear_bitmap(screen);
         }
 

@@ -142,6 +142,8 @@ class Menu_graphics {
     void reloadChoices(const Graphics& gfx);
 
 public:
+    enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut };
+
     Select<int>         colorDepth;
     StaticText          desktopDepth;
     Select<ScreenMode>  resolution;
@@ -152,6 +154,7 @@ public:
     Select<std::string> theme;
     Checkbox            antialiasing;
     Checkbox            contTextures;
+    Select<MinimapPlayerMode> minimapPlayers;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;

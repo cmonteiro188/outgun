@@ -516,8 +516,10 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else
             log("Switch_backamnesia set ok.");
 
-        if (serverCfg.statusOutput == statusOutputWindow)
+        if (serverCfg.statusOutput == statusOutputWindow) {
             GlobalDisplaySwitchHook::install();
+            serverCfg.ownScreen = true;
+        }
 
         if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
             return;

@@ -1015,7 +1015,7 @@ void ServerNetworking::update_serverinfo() {
         info << "D ";
     else
         info << "  ";
-    info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
+    info << setw(2) << player_count << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
     server->set_server_info(info.str().c_str());
 }
 

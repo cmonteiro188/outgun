@@ -795,6 +795,7 @@ bool Client::start() {
             break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);   // ignore error
             break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
+            break; case CCS_MinimapPlayers:        menu.options.graphics.minimapPlayers.set(args == "1" ? Menu_graphics::MP_EarlyCut : args == "2" ? Menu_graphics::MP_LateCut : Menu_graphics::MP_Fade);
             break; case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args));
 
             // sound menu
@@ -2293,13 +2294,15 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
-                if (known_attacker)
-                    fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
-                fx.teams[attacker_team].add_kill();
+                if (!same_team) {
+                    if (known_attacker)
+                        fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
+                    fx.teams[attacker_team].add_kill();
+                }
                 fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(get_time()));
                 fx.teams[target_team].add_death();
                 if (flag) {
-                    if (known_attacker)
+                    if (!same_team && known_attacker)
                         fx.player[attacker].stats().add_carrier_kill();
                     fx.player[target].stats().add_flag_drop(get_time());
                     fx.teams[target_team].add_flag_drop();
@@ -2312,7 +2315,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 }
-                if (known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
+                if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
                         addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
                     msg = _("$1 is on a killing spree!", fx.player[attacker].name);
@@ -3292,6 +3295,12 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             client->send_message(lebuf, count);
         }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
+        break; case KEY_PLUS_PAD:
+            if (key[KEY_P])
+                print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
+        break; case KEY_MINUS_PAD:
+            if (key[KEY_P])
+                print_message(msg_info, "Ping +" + itoa(iround(client->decreasePacketDelay() * 1000)));
         break; default:
             // Add character to text
             if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
@@ -3558,6 +3567,7 @@ void Client::stop() {
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
+        cfg << CCS_MinimapPlayers       << ' ' << (menu.options.graphics.minimapPlayers() == Menu_graphics::MP_EarlyCut ? 1 : menu.options.graphics.minimapPlayers() == Menu_graphics::MP_LateCut ? 2 : 0) << '\n';
         cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
 
         // save sound menu settings
@@ -3824,12 +3834,17 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         vector<NLubyte> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
 
         // draw all teammates and enemies on screens where there are teammates
+        int max_time, start_fadeout;    // in frames
+        switch (menu.options.graphics.minimapPlayers()) {
+        /*break;*/ case Menu_graphics::MP_EarlyCut: max_time =     start_fadeout = 12;
+            break; case Menu_graphics::MP_LateCut:  max_time =     start_fadeout = 20;
+            break; case Menu_graphics::MP_Fade:     max_time = 20; start_fadeout = 10;
+            break; default: nAssert(0); max_time = start_fadeout = 0;
+        }
         if (me >= 0 && fx.frame >= 0)
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
-                if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - 20) {
-                    static const int max_time      = 20; // frames
-                    static const int start_fadeout = 10; // frames
+                if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
                     int alpha;
                     if (fx.frame > pl.posUpdated + start_fadeout)
                         alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));

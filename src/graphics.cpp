@@ -1072,12 +1072,12 @@ void Graphics::draw_virou_sorvete(int x, int y) {
     if (ice_cream)
         draw_sprite(drawbuf, ice_cream, plx + x - ice_cream->w / 2, ply + y - ice_cream->h / 2);
     else {
-        ellipsefill(drawbuf, plx + x, ply + y, 6, 15, col[COLORA]);
-        circlefill(drawbuf, plx + x - 8, ply + y - 10, 8, col[COLBLUE]);
-        circlefill(drawbuf, plx + x + 8, ply + y - 10, 8, col[COLMAG]);
-        circlefill(drawbuf, plx + x + 0, ply + y - 20, 8, col[COLGREEN]);
-        textout_centre_ex(drawbuf, font, _("VIROU"   ).c_str(), plx + x + 0, ply + y - 48, col[COLWHITE], -1);
-        textout_centre_ex(drawbuf, font, _("SORVETE!").c_str(), plx + x + 0, ply + y - 38, col[COLWHITE], -1);
+        ellipsefill(drawbuf, plx + x           , ply + y            , scale(6), scale(15), col[COLORA  ]);
+        circlefill (drawbuf, plx + x - scale(8), ply + y - scale(10), scale(8),            col[COLBLUE ]);
+        circlefill (drawbuf, plx + x + scale(8), ply + y - scale(10), scale(8),            col[COLMAG  ]);
+        circlefill (drawbuf, plx + x           , ply + y - scale(20), scale(8),            col[COLGREEN]);
+        textout_centre_ex(drawbuf, font, _("VIROU"   ).c_str(), plx + x, ply + y - scale(38) - 10, col[COLWHITE], -1);
+        textout_centre_ex(drawbuf, font, _("SORVETE!").c_str(), plx + x, ply + y - scale(38)     , col[COLWHITE], -1);
     }
 }
 
@@ -1344,7 +1344,7 @@ void Graphics::draw_pup_deathbringer(int x, int y) {
 }
 
 void Graphics::draw_one_line_message(const string& message) {
-    textout_centre_ex(drawbuf, font, message.c_str(), plx + plw / 2, ply + plh / 2, col[COLGREEN], -1);
+    textout_centre_ex(drawbuf, font, message.c_str(), plx + scale(plw) / 2, ply + scale(plh) / 2, col[COLGREEN], -1);
 }
 
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) {
@@ -1935,12 +1935,18 @@ void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col
 }
 
 void Graphics::show_not_responding_message() {
-    rect(drawbuf, 194, 199, 444, 279, col[COLMENUWHITE]);
-    rect(drawbuf, 196, 201, 446, 281, col[COLMENUBLACK]);
-    rectfill(drawbuf, 195, 200, 445, 280, col[COLMENUGRAY]);
-    textout_ex(drawbuf, font, _("SERVER NOT RESPONDING..."   ).c_str(), 220, 220, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, _("May be heavy packet loss,"  ).c_str(), 220, 240, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, _("or the server disconnected.").c_str(), 220, 255, col[COLWHITE], -1);
+    const int centerX = SCREEN_W / 2;
+    const int centerY = SCREEN_H / 2;
+    const int width = 250, height = 80;
+    const int textX0 = centerX - 100;
+    const int x0 = centerX - width / 2, y0 = centerY - height / 2;
+    const int x1 = centerX + width / 2, y1 = centerY + height / 2;
+    rect    (drawbuf, x0 - 1, y0 - 1, x1 - 1, y1 - 1, col[COLMENUWHITE]);
+    rect    (drawbuf, x0 + 1, y0 + 1, x1 + 1, y1 + 1, col[COLMENUBLACK]);
+    rectfill(drawbuf, x0    , y0    , x1    , y1    , col[COLMENUGRAY ]);
+    textout_ex(drawbuf, font, _("SERVER NOT RESPONDING..."   ).c_str(), textX0, centerY - 20, col[COLWHITE], -1);
+    textout_ex(drawbuf, font, _("May be heavy packet loss,"  ).c_str(), textX0, centerY     , col[COLWHITE], -1);
+    textout_ex(drawbuf, font, _("or the server disconnected.").c_str(), textX0, centerY + 15, col[COLWHITE], -1);
 }
 
 bool Graphics::save_screenshot(const string& filename) const {

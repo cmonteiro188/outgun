@@ -118,7 +118,8 @@ enum ClientCfgSetting {
     CCS_ServerAddress,
     CCS_AutodetectAddress,
     CCS_ArrowKeysInStats,
-    CCS_MaxCommand = CCS_ArrowKeysInStats
+    CCS_MinimapPlayers,
+    CCS_MaxCommand = CCS_MinimapPlayers
 };
 
 class ServerThreadOwner {

@@ -30,6 +30,8 @@
 #include "client.h"
 
 #include <memory>   // auto_ptr
+#include <queue>
+
 #include <nl.h>
 
 #include <pthread.h>
@@ -61,6 +63,41 @@ void thread_disconnect_f(client_ci* client);
 //reader thread function
 void thread_reader_f(client_ci* client);
 
+class QueueSendCommand {    // base class
+protected:
+    data_c* data;
+
+public:
+    QueueSendCommand() : data(new_data_c()) { }
+    virtual ~QueueSendCommand() { delete data; }
+    virtual void execute(client_ci* client, station_c* station) = 0;
+};
+
+class QWriter : public QueueSendCommand {
+public:
+    QWriter(char* data_, int length) { data->set(data_, length); }
+    void execute(client_ci*, station_c* station) { station->writer(data->getbuf(), data->getlen()); }
+};
+
+class QSendRawPacket : public QueueSendCommand {
+public:
+    QSendRawPacket(const data_c* data_) { data->set(data_); }
+    void execute(client_ci*, station_c* station) { station->send_raw_packet(data); }
+};
+
+class QSendRawPacketToPort : public QueueSendCommand {
+    int port;
+
+public:
+    QSendRawPacketToPort(const data_c* data_, int port_) : port(port_) { data->set(data_); }
+    void execute(client_ci*, station_c* station) { station->send_raw_packet_to_port(data, port); }
+};
+
+class QSendFrame : public QueueSendCommand {
+public:
+    QSendFrame(char* data_, int length) { data->set(data_, length); }
+    void execute(client_ci* client, station_c*);
+};
 
 //the client class
 class client_ci : public client_c {
@@ -76,6 +113,10 @@ public:
     FILE* datalog;
     MutexHolder datalogMutex;
     #endif
+
+    double packetDelay; // how many seconds every sent frame is delayed to increase lag
+    MutexHolder sendQueueMutex; // lock for operating on sendQueue
+    std::queue< std::pair<double, QueueSendCommand*> > sendQueue;  // pair of sendtime, command for delayed sends (used if packetDelay != 0)
 
     //the callbacks
     client_callback_t       gamecfunc[NUM_OF_CFUNC];
@@ -191,21 +232,91 @@ public:
         }
     }
 
+    void queueSend(QueueSendCommand* qsc) {
+        MutexLock ml(sendQueueMutex);
+        sendQueue.push(std::pair<double, QueueSendCommand*>(get_time() + packetDelay, qsc));
+    }
+
+    void probeSendQueue() {
+        if (packetDelay == 0.)
+            return;
+        sendQueueMutex.lock();
+        if (!sendQueue.empty()) {
+            if (get_time() >= sendQueue.front().first) {
+                QueueSendCommand* qsc = sendQueue.front().second;
+                sendQueue.pop();
+                sendQueueMutex.unlock();
+                qsc->execute(this, station);
+                delete qsc;
+                return;
+            }
+        }
+        else if (packetDelay < .001)    // set to signal not used but non-empty queue
+            packetDelay = 0.;    // now queue is empty, no need for the signal
+        sendQueueMutex.unlock();
+    }
+
+    void clearSendQueue() {
+        MutexLock ml(sendQueueMutex);
+        while (!sendQueue.empty()) {
+            delete sendQueue.front().second;
+            sendQueue.pop();
+        }
+    }
+
+    double increasePacketDelay() {
+        packetDelay += .01;
+        return packetDelay;
+    }
+
+    double decreasePacketDelay() {
+        packetDelay -= .01;
+        if (packetDelay <= 0.) {
+            packetDelay = 1e-5; // flag for probeSendQueue that the queue is still operational, but when it's empty, packetDelay is zeroed
+            return 0;
+        }
+        return packetDelay;
+    }
+
     //send reliable message
     virtual void send_message(char *data, int length) {
-        station->writer(data, length);
+        if (packetDelay < .001)
+            station->writer(data, length);
+        else
+            queueSend(new QWriter(data, length));
+    }
+
+    void sendRawPacket(const data_c* data) {
+        if (packetDelay < .001)
+            station->send_raw_packet(data);
+        else
+            queueSend(new QSendRawPacket(data));
+    }
+
+    void sendRawPacketToPort(const data_c* data, int port) {
+        if (packetDelay < .001)
+            station->send_raw_packet_to_port(data, port);
+        else
+            queueSend(new QSendRawPacketToPort(data, port));
     }
 
     //dispatches the packet with the given frame (unreliable data) and all the
     //protocol overload (reliable messages, acks...)
     virtual void send_frame(char *data, int length) {
+        if (packetDelay < .001)
+            doSendFrame(data, length);
+        else
+            queueSend(new QSendFrame(data, length));
+    }
+
+    void doSendFrame(char* data, int length) {
         //do not send if not connected
         if (connect_status != 3)
             return;
 
         if (length > 0)
             station->write(data, length);
-        int packet_id;
+        int packet_id;  // unused
 
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
@@ -292,7 +403,7 @@ public:
         data_c  *dat = new_data_c();
         dat->addlong(0); //special packet
         dat->addlong(2); //disconnect ACK
-        station->send_raw_packet(dat);  // FIXME: deal with send erros?
+        sendRawPacket(dat);  // FIXME: deal with send erros?
         delete dat;
 
         //stop now if done
@@ -321,6 +432,7 @@ public:
 
         //close the socket/station
         station->reset_state();
+        clearSendQueue();
 
         //set var to not connected anymore (THIS MUST BE THE LAST THING!! ou nao? :-)
         connect_status = 0;
@@ -338,6 +450,7 @@ public:
         //CLEAR station
         //station = new_station_c();
         station->reset_state();
+        clearSendQueue();
 
         //set station remote address (opens the client's ONLY socket)
         //char adrstr[NL_MAX_STRING_LENGTH];
@@ -380,6 +493,7 @@ public:
 
         //delete station -- CLOSES the socket
         station->reset_state();
+        clearSendQueue();
 
         //cancel
         want_connect = false;   //you don't want to connect anymore
@@ -420,7 +534,7 @@ DLOG_Scope s("CPIDg");
                 data_c *dat = new_data_c();
                 dat->addlong(0);
                 dat->addlong(666);      //pong!
-                station->send_raw_packet(dat);
+                sendRawPacket(dat);
                 delete dat;
             }
             // connection refused by special motive: engine server doesn't support
@@ -478,7 +592,7 @@ DLOG_Scope s("CPIDg");
                     data_c  *dat = new_data_c();
                     dat->addlong(0); //special packet
                     dat->addlong(2); //disconnect ACK
-                    station->send_raw_packet(dat);  // FIXME: deal with send erros?
+                    sendRawPacket(dat);  // FIXME: deal with send erros?
                     delete dat;
 
                     //REMENDÃO: o cliente se suicida assim que recebe noticia que o server
@@ -498,7 +612,7 @@ DLOG_Scope s("CPIDg");
                     if (port > 0 && port < 65536) {
                         // send a dummy packet to the server port in order to get the local firewall open and/or NAT tunnel active (may not work if the server is also behind a NAT)
                         data_c* reply = new_data_c();
-                        station->send_raw_packet_to_port(reply, port);
+                        sendRawPacketToPort(reply, port);
                         delete reply;
                     }
 
@@ -621,7 +735,7 @@ DLOG_Scope s("CPIDg");
         if (connect_data_length > 0)
             dat->add(connect_data, connect_data_length);
 
-        station->send_raw_packet(dat);  // FIXME: deal with send erros?
+        sendRawPacket(dat);  // FIXME: deal with send erros?
         delete dat;
 
         //keep trying
@@ -639,10 +753,11 @@ DLOG_Scope s("CPIDg");
         logp(g_leetnetLog ?
              static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetclientlog.txt").c_str(), true)) :
              static_cast<Log*>(new NoLog())),
-        log(*logp)
+        log(*logp),
         #else
-        log()
+        log(),
         #endif
+        packetDelay(0.)
     {
         #ifdef LEETNET_DATA_LOG
         if (g_leetnetDataLog)
@@ -680,6 +795,8 @@ DLOG_Scope s("CPIDg");
             delete station;
             station = 0;
         }
+
+        clearSendQueue();
 
         #ifdef LEETNET_DATA_LOG
         if (datalog)
@@ -737,6 +854,8 @@ DLOG_ScopeNegStart("CTR");
         //read from socket
         amount = client->read_station(buffer, THREAD_READER_BUFSIZE); //nlRead(clsock, buffer, THREAD_READER_BUFSIZE);
 
+        client->probeSendQueue();
+
         if (amount == 0) {
 DLOG_ScopeNeg s("CTR");
             MS_SLEEP(2);  //alternativa, usar BLOCKING I/O
@@ -769,4 +888,8 @@ DLOG_ScopeNeg s("CTR");
 //factory
 client_c        *new_client_c(int thread_priority) {
     return new client_ci(thread_priority);
+}
+
+void QSendFrame::execute(client_ci* client, station_c*) {
+    client->doSendFrame(data->getbuf(), data->getlen());
 }
