@@ -6,6 +6,59 @@
 #include "menu.h"
 #include "utility.h"
 
+class Menu_serverList {
+public:
+	Checkbox favorites;
+	Textarea update;
+	Textarea refresh;
+	Textarea caption;
+	std::vector<std::pair<std::string, Textarea> > servers;	// address and server info
+
+	Menu menu;
+
+	Menu_serverList() :
+		favorites	("Favorite servers"),
+		update		("Update server list"),
+		refresh		("Refresh servers"),
+		caption		("IP address            Ping Players Version Host name"),
+
+		menu		("Server list")
+	{
+		reset();
+	}
+
+	void add(const std::string& address, const std::string& serverInfo) {
+		servers.push_back(std::pair<std::string, Textarea>(address, Textarea(serverInfo)));
+	}
+
+	void reset() {
+		menu.clear_components();
+		servers.clear();
+		menu.add_component(&favorites);
+		menu.add_component(&update);
+		menu.add_component(&refresh);
+		menu.add_component(&caption);
+	}
+
+	void addHooks(Hookable<Textarea>::HookFunctionT* hook) {
+		for (std::vector<std::pair<std::string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+			servi->second.setHook(hook->clone());
+			menu.add_component(&servi->second);
+		}
+		delete hook;
+	}
+
+	std::string getAddress(const Textarea& target) {
+		for (std::vector<std::pair<std::string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+			if (&servi->second == &target)
+				return servi->first;
+		}
+		return std::string();
+	}
+
+	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+};
+
 class Menu_name {
 public:
 	Textfield	name;
@@ -129,7 +182,7 @@ public:
 		std::string oldtheme = theme();
 		init(gfx);
 		resolution.set(oldmode);	// may fail; ignore
-		theme.set(oldtheme);	// may fail; ignore
+		theme.set(oldtheme);		// may fail; ignore
 	}
 	bool newMode() {
 		if (oldMode == resolution() && oldDepth == colorDepth() && oldWin == windowed())
@@ -207,7 +260,7 @@ public:
 
 class Menu_main {
 public:
-	Textarea		connect;
+	Menu_serverList	connect;
 	Textarea		disconnect;
 	Menu_options	options;
 	Textarea		startServer;
@@ -216,7 +269,7 @@ public:
 	Menu menu;
 
 	Menu_main() :
-		connect		("Connect"),
+		connect		(),
 		disconnect	("Disconnect"),
 		options		(),
 		startServer	("Start local server"),
@@ -224,7 +277,7 @@ public:
 
 		menu		("Outgun " GAME_VERSION)
 	{
-		menu.add_component(&connect);
+		menu.add_component(&connect.menu);
 		menu.add_component(&disconnect);
 		menu.add_component(&options.menu);
 		menu.add_component(&startServer);
@@ -232,6 +285,7 @@ public:
 	}
 	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) {
 		menu.setHook(opener);
+		connect.recursiveSetMenuOpener(opener->clone());
 		options.recursiveSetMenuOpener(opener->clone());
 	}
 };

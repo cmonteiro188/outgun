@@ -75,7 +75,7 @@ col_disabled		= makecol(0x00, 0xAA, 0x00);
 col_value			= makecol(0xFF, 0xFF, 0xFF);
 	drawHook.call(*this);
 
-	if (!components[selected_item]->isEnabled())	// a disabled component can not be active
+	if (!components.empty() && !components[selected_item]->isEnabled())	// a disabled component can not be active
 		if (!next())	// try moving down first - feels intuitive
 			prev();	// if this fails too, so be it
 
@@ -122,7 +122,7 @@ col_value			= makecol(0xFF, 0xFF, 0xFF);
 	}
 }
 
-void Menu::handleKeypress(char scan, char chr) {
+void Menu::handleKeypress(char scan, unsigned char chr) {
 	if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
 		prev();
 	else if (scan == KEY_DOWN || scan == KEY_TAB)
@@ -131,6 +131,19 @@ void Menu::handleKeypress(char scan, char chr) {
 		home();
 	else if (scan == KEY_END)
 		end();
+	else if (chr == 0) {	// Alt + number
+		switch (scan) {
+			case KEY_1: selected_item = 0; break;
+			case KEY_2: selected_item = 1; break;
+			case KEY_3: selected_item = 2; break;
+			case KEY_4: selected_item = 3; break;
+			case KEY_5: selected_item = 4; break;
+			case KEY_6: selected_item = 5; break;
+			case KEY_7: selected_item = 6; break;
+			case KEY_8: selected_item = 7; break;
+			case KEY_9: selected_item = 8; break;
+		}
+	}
 	//#todo: handle number shortcuts if the active component doesn't needNumberKeys()
 	if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
 		return;
@@ -150,7 +163,7 @@ void Menu::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 }
 
-bool Menu::handleKey(char scan, char chr) {
+bool Menu::handleKey(char scan, unsigned char chr) {
 	(void)chr;
 	if (!(scan == KEY_ENTER || scan == KEY_ENTER_PAD))
 		return false;
@@ -196,10 +209,10 @@ int Textfield::height() const {
 	return line_h;
 }
 
-bool Textfield::handleKey(char scan, char chr) {
+bool Textfield::handleKey(char scan, unsigned char chr) {
 	if (scan == KEY_BACKSPACE && !value.empty())
 		value.erase(value.end() - 1);
-	else if (chr >= 32 && static_cast<int>(value.length()) < maxlen)
+	else if (((chr >= 32 && chr <= 127) || chr >= 160) && static_cast<int>(value.length()) < maxlen)
 		value += chr;
 	else
 		return false;
@@ -230,7 +243,7 @@ int SelectBase::height() const {
 	return line_h;
 }
 
-bool SelectBase::handleKey(char scan, char chr) {
+bool SelectBase::handleKey(char scan, unsigned char chr) {
 	(void)chr;
 	if (scan == KEY_LEFT && selected > 0)
 		--selected;
@@ -267,7 +280,7 @@ int Colorselect::height() const {
 	return line_h;
 }
 
-bool Colorselect::handleKey(char scan, char chr) {
+bool Colorselect::handleKey(char scan, unsigned char chr) {
 	if (scan == KEY_LEFT && selected > 0)
 		--selected;
 	else if (scan == KEY_RIGHT && selected + 1 < static_cast<int>(options.size()))
@@ -301,7 +314,7 @@ int Checkbox::height() const {
 	return line_h;
 }
 
-bool Checkbox::handleKey(char scan, char chr) {
+bool Checkbox::handleKey(char scan, unsigned char chr) {
 	(void)chr;
 	if (scan == KEY_SPACE)
 		toggle();
@@ -330,7 +343,7 @@ void Slider::draw(BITMAP* buffer, int x, int y, bool active) const {
 		rectfill(buffer, x0 + 1, y + 1, x0 + barLength, y + height() - 2, col_value);
 }
 
-bool Slider::handleKey(char scan, char chr) {
+bool Slider::handleKey(char scan, unsigned char chr) {
 	(void)chr;
 	if (scan == KEY_LEFT && val > vmin)
 		--val;
@@ -361,7 +374,7 @@ void Textarea::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 
-bool Textarea::handleKey(char scan, char chr) {
+bool Textarea::handleKey(char scan, unsigned char chr) {
 	(void)chr;
 	if (scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
 		callHook(*this);

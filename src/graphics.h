@@ -220,23 +220,12 @@ private:
 	void unload_wall_textures();
 	void unload_player_sprites();
 
-	// scaleable primitive drawing functions
 	int scale(double value) const;
-	void rectfill_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const;
-	void triangle_sc(BITMAP* buff, double x1, double y1, double x2, double y2, double x3, double y3, int color) const;
-	void circle_sc(BITMAP* buff, double x, double y, double r, int color) const;
-	void circlefill_sc(BITMAP* buff, double x, double y, double r, int color) const;
-	void ellipse_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const;
-	void ellipsefill_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const;
-	void putpixel_sc(BITMAP* buff, double x, double y, int color) const;
-	void line_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const;
-	void hline_sc(BITMAP* buff, double x1, double y, double x2, int color) const;
-	void vline_sc(BITMAP* buff, double x, double y1, double y2, int color) const;
-	
+
 	BITMAP* drawbuf;	// main draw buffer
 	BITMAP* background;	// draw buffer for floor, walls and minimap
 	BITMAP* minibg;		// minimap draw buffer
-	//int plw, plh;
+	BITMAP* roombg;		// room background sub-bitmap
 
 	int plx, ply;		// playground position on the screen
 	int mmx, mmy;		// minimap position
@@ -249,8 +238,6 @@ private:
 	int minimap_place_w, minimap_place_h;
 	int minimap_start_x, minimap_start_y;
 	int indicators_x, indicators_y;
-
-	BITMAP* roombg;		// room background sub-bitmap
 
 	static const int flagpos_radius = 30;
 	double scr_mul;	// screen size multiplier

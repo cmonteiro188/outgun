@@ -1,7 +1,10 @@
+#include <algorithm>
 #include "sounds.h"
 
 using std::ifstream;
 using std::string;
+using std::sort;
+using std::vector;
 
 Sounds::Sounds(LogSet logs):
 	log(logs),
@@ -29,14 +32,20 @@ void Sounds::search_themes(LineReceiver& dst) const {
 
 	const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
 
+ 	vector<string> themes;
 	struct al_ffblk ffblk;
 	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
 		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, "..")) {
-			dst(ffblk.name);
+			themes.push_back(ffblk.name);
 			found = true;
 		}
-	if (!found)
+	if (!found) {
 		dst("<no themes found>");
+		return;
+	}
+	sort(themes.begin(), themes.end());
+	for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti)
+		dst(*ti);
 }
 
 void Sounds::select_theme(const string& dir) {

@@ -460,7 +460,7 @@ void gameserver_c::load_game_mod() {
 	if (in) {
 		bool command = true;
 
-		log("Loading game mod from '%s'...", filename.c_str());
+		log("Loading game mod: '%s'", filename.c_str());
 
 		string line, cmd;
 		while (in) {
@@ -1000,7 +1000,8 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	// must have just entered the game
 	bool entered_game = world.player[pid].name.empty();
 
-	if (tempname.find_first_not_of(' ') == string::npos)
+	// Name with only whitespaces not allowed.
+	if (tempname.find_first_not_of("  \t") == string::npos)
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
 		#ifdef SV_NAME_AUTHORIZATION

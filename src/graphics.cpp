@@ -31,6 +31,7 @@ using std::right;
 using std::setfill;
 using std::setprecision;
 using std::setw;
+using std::sort;
 using std::string;
 using std::vector;
 
@@ -81,7 +82,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	else
 		mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
-	sbx = SCREEN_W - 21 * 8 + 4;	// scoreboard is 20 characters wide
+	sbx = SCREEN_W - (20 * 8 + 4);	// scoreboard is 20 characters wide
 	sby = mmy + minimap_place_h + 10;
 	indicators_x = 0;
 	indicators_y = SCREEN_H - 30;
@@ -93,12 +94,22 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 }
 
 void Graphics::unload_bitmaps() {
-	if (drawbuf)
+	if (drawbuf) {
 		destroy_bitmap(drawbuf);
-	if (background)
+		drawbuf = 0;
+	}
+	if (background) {
 		destroy_bitmap(background);
-	if (minibg)
+		background = 0;
+	}
+	if (minibg) {
 		destroy_bitmap(minibg);
+		minibg = 0;
+	}
+	if (vidpage2) {
+		destroy_bitmap(minibg);
+		minibg = 0;
+	}
 	unload_pictures();
 }
 
@@ -201,7 +212,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 		int depth2 = (depth == 16) ? 15 : depth;	// 15 and 16 bit modes are considered equal
 		for (int i = 0; i < modes->num_modes; i++) {
 			const GFX_MODE& mode = modes->mode[i];
-			if (mode.width >= 640 && mode.height >= 480 && (mode.bpp == depth || mode.bpp == depth2))
+			if (mode.width >= 640 && mode.height >= 400 && (mode.bpp == depth || mode.bpp == depth2))
 				mvec.push_back(ScreenMode(mode.width, mode.height));
 		}
 		destroy_gfx_mode_list(modes);
@@ -224,7 +235,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 			log.error("Syntax error in gfxmodes.txt, line '%s'.", line.c_str());
 			break;
 		}
-		if (width < 640 || width < 480 || (bits != 16 && bits != 24 && bits != 32)) {
+		if (width < 640 || height < 400 || (bits != 16 && bits != 24 && bits != 32)) {
 			log.error("Unusable mode in gfxmodes.txt : %d×%d×%d (should be at least 640×480 with bits 16, 24 or 32)",
 							width, height, bits);
 			break;
@@ -234,31 +245,36 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 	}
 	if (mvec.empty())
 		mvec.push_back(ScreenMode(640, 480));	// just try something
-	std::sort(mvec.begin(), mvec.end());
+	sort(mvec.begin(), mvec.end());
 	mvec.erase(std::unique(mvec.begin(), mvec.end()), mvec.end());
 	return mvec;
 }
 
 bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed) {
-	if (vidpage1) { log("destroying vidpage1"); destroy_bitmap(vidpage1); vidpage1 = 0; }
-	if (vidpage2) { log("destroying vidpage2"); destroy_bitmap(vidpage2); vidpage2 = 0; }
-	if (backbuf) { log("destroying backbuf"); destroy_bitmap(backbuf); backbuf = 0; }
+	if (vidpage1) {
+		destroy_bitmap(vidpage1);
+		vidpage1 = 0;
+	}
+	if (vidpage2) {
+		destroy_bitmap(vidpage2);
+		vidpage2 = 0;
+	}
+	if (backbuf) {
+		destroy_bitmap(backbuf);
+		backbuf = 0;
+	}
 
-	log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed?"windowed":"fullscreen");
+	log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed ? "windowed" : "fullscreen");
 	set_color_depth(depth);
-	int res = set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0);
-	if (res < 0) {
+	if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0)) {
 		log("Error: '%s'", allegro_error);
 		if (depth == 16) {	// try equivalent 15-bit mode too
 			set_color_depth(15);
-			res = set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0);
-			if (res < 0) {
+			if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0)) {
 				log("Error with equivalent 15-bit mode: '%s'", allegro_error);
 				return false;
 			}
 		}
-		else
-			return false;
 	}
 
 	#ifndef SWITCH_PAUSE_CLIENT
@@ -288,8 +304,14 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 		else
 			log("Using safe mode video -- double-buffering (option -dbuf). For page flipping use -flip.");
 
-		if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; log("destroyed vidpage1"); }
-		if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; log("destroyed vidpage2"); }
+		if (vidpage1) {
+			destroy_bitmap(vidpage1);
+			vidpage1 = 0;
+		}
+		if (vidpage2) {
+			destroy_bitmap(vidpage2);
+			vidpage2 = 0;
+		}
 
 		//create RAM backbuffer
 		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
@@ -298,14 +320,16 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 			return false; // FATAL
 		}
 		drawbuf = backbuf;
+		backbuf = 0;
 		page_flipping = false;
 	}
 	else {
 		drawbuf = vidpage1;
+		vidpage1 = 0;
 		page_flipping = true;
 	}
 
-	return true; //ok
+	return true;
 }
 
 void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags) {
@@ -1687,7 +1711,7 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
 		case msg_header: c = col[COLYELLOW]; break;
 		case msg_normal: default: c = col[COLORA];
 	}
-	textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
+	print_text_border(message, x, y, c, 0, -1);
 }
 
 void Graphics::print_chat_input(const string& message, int x, int y) {
@@ -2039,10 +2063,15 @@ void Graphics::search_themes(LineReceiver& dst) const {
 
 	const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
 
+ 	vector<string> themes;
 	struct al_ffblk ffblk;
 	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
 		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
-			dst(ffblk.name);
+			themes.push_back(ffblk.name);
+
+	sort(themes.begin(), themes.end());
+	for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti)
+		dst(*ti);
 }
 
 void Graphics::select_theme(const string& dir) {

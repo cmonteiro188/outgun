@@ -102,7 +102,6 @@ void ServerNetworking::upload_next_file_chunk(int i) {
 
 //load file from disk. puts file of type/name into the given buffer, returns filesize
 int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
-
 	//map file type
 	if (!strcmp(ftype, "map")) {
 		if (strpbrk(fname, "./:\\")!=NULL) {

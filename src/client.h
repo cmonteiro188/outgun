@@ -168,7 +168,7 @@ class gameclient_c {
 	// menu callback functions
 	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
 	void MCF_menuCloser() { openMenus.close(); }
-	void MCF_connect() { openMenus.clear(); if (m_playerPassword.save()) save_player_password(playername, address, m_playerPassword.password()); else remove_player_password(playername, address); connect_command(); }	//#fix: menu!
+	void MCF_connect(Textarea& target);
 	void MCF_disconnect() { disconnect_command(); }
 	void MCF_startServer() { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
 	void MCF_stopServer() { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
@@ -187,6 +187,9 @@ class gameclient_c {
 	void MCF_prepareGfxMenu();
 	void MCF_sndThemeChange();
 	void MCF_prepareSndMenu();
+	void MCF_prepareServerMenu();
+	void MCF_updateServers() { if (!menu.connect.favorites()) get_servers_from_master(); MCF_prepareServerMenu(); }
+	void MCF_refreshServers() { refresh_command(); MCF_prepareServerMenu(); }
 
 	bool screenModeChange();	// the return value should be tested at the first call
 
