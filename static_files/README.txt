@@ -5,7 +5,7 @@
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
 *******************************************************************************
-                                                           [ 1.0.0 2005-01-26 ]
+                                                           [ 1.0.1 2005-02-07 ]
 
 
 -------------------------
@@ -23,7 +23,7 @@ Brazilian Outgun website
 
 
 -------------------------
-Notes for 1.0.0:
+Notes for 1.0:
 -------------------------
 
 See the HTML help in the doc directory for full documentation.
@@ -55,7 +55,7 @@ Programming for 0.5.0 by
    Fabio "Spinal" Cecin <fcecin@inf.ufrgs.br> <frcecin@terra.com.br>
    Random Name Routine(TM) by Renato Hentschke <renato@amok.com.br>
 
-Programming for 1.0.0 by
+Programming for 1.0 by
    Niko Ritari (Nix) <npr1@suomi24.fi>
    Jani Rivinoja (Huntta) <janir@mbnet.fi>
    Special player collision effects by Fabio "Spinal" Cecin
@@ -75,10 +75,10 @@ Maps by
    Huntta, Joonas, PHiN, evilKaioh, Flyer-DH, Juggis, Fabio Cecin, Luque,
    MK-HeadShot (unBugger), Jakke, and Devil
 
-1.0.0 beta testers (in decreasing order of bugs reported)
+1.0.0 beta and later bug reports (in decreasing order of bugs reported)
    ThOR27 (very much deserving of his own line),
    Spinal, Caio Monteiro "Nosferatu", Joonas, PHiN, MM-coiote, rFrota,
-   Detonador, K4(Maicon), Zigue, Syrus-DH
+   Detonador, K4(Maicon), Zigue, Syrus-DH, Miague-DH, SnoOpY
    You. Get your name here by reporting a new bug. :)
 
 This game uses the excellent libraries:
