@@ -46,6 +46,7 @@ struct GraphicsEffect {
     int y;  // screen y  of fx
 
     int team;
+    float alpha;  // [0, 1]
     // for turbo effect
     int col1, col2, gundir;
 };

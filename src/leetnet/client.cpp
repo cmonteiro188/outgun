@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  */
 
 /*
@@ -135,7 +135,7 @@ public:
     //set connection status. if set to TRUE, engine will try to estabilish connection
     //with the server. if set to FALSE, will stop trying to connect or will disconnect
     //results are returned in the CFUNC_CONNENCTION_UPDATE callback
-    virtual void connect(bool yes) {
+    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) {
         log("connect now=%i  set to=%i   constatus=%i", want_connect, yes, connect_status);
 
         //noop
@@ -150,7 +150,7 @@ public:
                 log("starting connect sequence.");
 
                 //start connection sequence
-                start_connect();
+                start_connect(minLocalPort, maxLocalPort);
             }
             else if (connect_status == 1) {
                 log("wil star connect sequence.");
@@ -163,7 +163,7 @@ public:
                 log("starting connect sequence.");
 
                 //now connect normally
-                start_connect();
+                start_connect(minLocalPort, maxLocalPort);
             }
         }
         //want to disconnect
@@ -328,7 +328,7 @@ public:
     }
 
     //start connection sequence
-    void start_connect() {
+    void start_connect(int minLocalPort, int maxLocalPort) {
         //trying. this should be the FIRST THING!
         int old_status = connect_status;
         connect_status = 2;     
@@ -343,9 +343,13 @@ public:
         //char adrstr[NL_MAX_STRING_LENGTH];
         //nlAddrToString(&serveraddr, adrstr);
         //station->set_remote_address(adrstr);
-        if (station->set_remote_address(&serveraddr) == 0) {
+        if (station->set_remote_address(&serveraddr, minLocalPort, maxLocalPort) == 0) {
             log("start_connect() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
             connect_status = old_status;    //no idea if this is needed...
+            // "socket problem"
+            client_runes_t args;
+            args.connect_result = 5;
+            gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
             return;
         }
 
@@ -489,13 +493,21 @@ DLOG_Scope s("CPIDg");
 
                 // check if callback called already
                 if (connect_status != 3) {
+                    NLulong port;
+                    readLong(data, count, port);
+                    if (port > 0 && port < 65536) {
+                        // send a dummy packet to the server port in order to get the local firewall open and/or NAT tunnel active (may not work if the server is also behind a NAT)
+                        data_c* reply = new_data_c();
+                        station->send_raw_packet_to_port(reply, port);
+                        delete reply;
+                    }
 
                     //connection callback w/ status = 0  (connected)
                     //also handle the rest of the packet to the gameclient
                     client_runes_t args;
                     args.connect_result = 0;
-                    args.data = data + 8;   //skip 0,3
-                    args.length = length - 8;   //skip 0,3
+                    args.data = data + 12;   //skip 0,3,port
+                    args.length = length - 12;   //skip 0,3,port
                     gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
                     
                     //connected!

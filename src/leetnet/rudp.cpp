@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  */
 
 /*
@@ -360,42 +360,45 @@ DLOG_Scope s("UPIM");
         message_size[index] = msgsize;
         memcpy(&(message[index][0]), msgdata, msgsize);
     }
-    
-    // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(char* address) {
-        //decode the address
-        nlStringToAddr(address, &netaddr);
 
-        //set address to socket remoteaddress
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        sendsock = nlOpen(0, NL_UNRELIABLE);
-        nlOpenMutex.unlock();
-        if (sendsock == NL_INVALID)
-            return 0;       //ERROR
-        else
-            nlSetRemoteAddr(sendsock, &netaddr);
-        //ok
-        return 1;
+    // set the station's remote address for sending (IP:PORT)
+    virtual int set_remote_address(char* address, int localPortMin, int localPortMax) {
+        NLaddress addr;
+        nlStringToAddr(address, &addr);
+        return set_remote_address(&addr, localPortMin, localPortMax);
     }
 
     // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(NLaddress *some_addr) {
-        //copy address
+    virtual int set_remote_address(NLaddress *some_addr, int localPortMin, int localPortMax) {
         memcpy(&netaddr, some_addr, sizeof(NLaddress));
-    
-        //set address to socket remoteaddress
+
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        sendsock = nlOpen(0, NL_UNRELIABLE);
+        static int localPortLastTry = -1;
+        if (localPortLastTry < localPortMin || localPortLastTry > localPortMax)
+            localPortLastTry = localPortMin;
+        const int firstTry = localPortLastTry;
+        for (;;) {
+            sendsock = nlOpen(localPortLastTry, NL_UNRELIABLE);
+            if (sendsock != NL_INVALID)
+                break;
+            ++localPortLastTry;
+            if (localPortLastTry > localPortMax)
+                localPortLastTry = localPortMin;
+            if (localPortLastTry == firstTry) {
+                nlOpenMutex.unlock();
+                return 0;   // ERROR
+            }
+        }
         nlOpenMutex.unlock();
-        if (sendsock == NL_INVALID)
-            return 0;       //ERROR
-        else
-            nlSetRemoteAddr(sendsock, &netaddr);
+        nlSetRemoteAddr(sendsock, &netaddr);
+        return 1;   // ok
+    }
 
-        //ok
-        return 1;
+    virtual int getLocalPort() const {
+        NLaddress addr;
+        nlGetLocalAddr(sendsock, &addr);
+        return nlGetPortFromAddr(&addr);
     }
 
     // read a reliable message from the queue
@@ -751,6 +754,13 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
         return 1;
     }
 
+    virtual int send_raw_packet_to_port(const data_c* data, int port) {
+        NLaddress addr = netaddr;
+        nlSetAddrPort(&addr, port);
+        nlSetRemoteAddr(sendsock, &addr);
+        NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
+        return (result == NL_INVALID) ? 0 : 1;
+    }
     
     // non-blocking call: attempt to read data from the socket
     // buffer/bufsize: buffer given to the routine

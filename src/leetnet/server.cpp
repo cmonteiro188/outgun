@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  */
 
 /*
@@ -144,6 +144,8 @@ public:
 
     // the server UDP socket
     NLsocket            servsock;
+
+    int minLocalPort, maxLocalPort;
 
     //serverinfo buffer
     char                    serverinfo[2048];
@@ -729,8 +731,9 @@ DLOG_Scope s("PIDg");
                 //char  adrstr[NL_MAX_STRING_LENGTH];               
                 //nlAddrToString(&client[i].addr, adrstr);      
                 //client[i].station->set_remote_address(adrstr);    
-                if (client[i].station->set_remote_address(&(client[i].addr)) == 0) { 
+                if (client[i].station->set_remote_address(&client[i].addr, minLocalPort, maxLocalPort) == 0) { 
                     log("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
+                    client[i].station_mutex.release();
                     return 1;       //abort connection
                 }
 
@@ -905,19 +908,15 @@ DLOG_Scope s("PCD_Sp");
                         data_c* reply = new_data_c();
                         reply->addlong(0);  //"special packet"
                         reply->addlong(3);  //"connection accepted"
+                        reply->addlong(client[cid].station->getLocalPort());
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom game data
                         
 //                      log("station debuginfo = %s", client[cid].station->debug_info());
 
-                        int ok = client[cid].station->send_raw_packet(reply);
-
-                        if (ok == 0) {
-                            log("ERROR: send_raw_packet() failed!!");
-                        }
-                        else {
-                            log("send_raw_packet() was OK!");
-                        }
+                        // send using the server socket from where the originating message was received: to make sure the reply gets through any firewalls/NATs
+                        nlSetRemoteAddr(servsock, &client[cid].addr);
+                        nlWrite(servsock, reply->getbuf(), reply->getlen());
 
                         delete reply;
                     }
@@ -1107,15 +1106,17 @@ DLOG_Scope s("PCD_Sp");
     //------------------------
     
     //ctor
-    server_ci(int thread_priority) :
+    server_ci(int thread_priority, int minLocalPort_, int maxLocalPort_) :
         #ifdef LEETNET_LOG
         logp(g_leetnetLog ?
              static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetserverlog.txt").c_str(), true)) :
              static_cast<Log*>(new NoLog())),
-        log(*logp)
+        log(*logp),
         #else
-        log()
+        log(),
         #endif
+        minLocalPort(minLocalPort_),
+        maxLocalPort(maxLocalPort_)
     {
         #ifdef LEETNET_DATA_LOG
         if (g_leetnetDataLog)
@@ -1297,7 +1298,7 @@ void thread_disconnector_f(client_t* mydata) {
 
 
 // server factory
-server_c *new_server_c(int thread_priority) {
-    return new server_ci(thread_priority);
+server_c *new_server_c(int thread_priority, int minLocalPort, int maxLocalPort) {
+    return new server_ci(thread_priority, minLocalPort, maxLocalPort);
 }
 

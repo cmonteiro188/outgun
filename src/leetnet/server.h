@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  */
 
 /*
@@ -116,7 +116,7 @@ public:
 
 
 // server factory 
-server_c *new_server_c(int thread_priority);
+server_c *new_server_c(int thread_priority, int minLocalPort = 0, int maxLocalPort = 0);
 
 
 

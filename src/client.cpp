@@ -2,7 +2,7 @@
  *  client.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -567,6 +567,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         break; case 1: cl->client_disconnected(data, length);
         break; case 2: cl->connect_failed_denied(data, length);
         break; case 3: cl->connect_failed_unreachable();
+        break; case 5: cl->connect_failed_socket();
         break; case 4: {
             const string msg = _("The server is full.");
             cl->connect_failed_denied(msg.data(), msg.length());
@@ -748,7 +749,7 @@ bool Client::start() {
             break; case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args));
             break; case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none);
             break; case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1");
-            break; case CCS_ShowStats:             menu.options.game.showStats.set(args == "1");
+            break; case CCS_ShowStats:             menu.options.game.showStats.set(args == "1" ? Menu_game::SS_teams : args == "2" ? Menu_game::SS_players : Menu_game::SS_none);
             break; case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1");
             break; case CCS_UnderlineMasterAuth:   menu.options.game.underlineMasterAuth.set(args == "1");
             break; case CCS_UnderlineServerAuth:   menu.options.game.underlineServerAuth.set(args == "1");
@@ -761,6 +762,7 @@ bool Client::start() {
                     nAssert(menu.options.controls.keyboardLayout.set(args));
                 }
             break; case CCS_KeypadMoving:          menu.options.controls.keypadMoving.set(args == "1");
+            break; case CCS_ArrowKeysInStats:      menu.options.controls.arrowKeysInStats.set(args == "1" ? Menu_controls::AS_movePlayer : Menu_controls::AS_useMenu);
             break; case CCS_Joystick:              menu.options.controls.joystick.set(args == "1");
             break; case CCS_JoystickMove:          menu.options.controls.joyMove.boundSet(atoi(args));
             break; case CCS_JoystickShoot:         menu.options.controls.joyShoot.boundSet(atoi(args));
@@ -1224,6 +1226,12 @@ void Client::connect_failed_unreachable() {
     log("Connecting failed: no response");
 }
 
+void Client::connect_failed_socket() {
+    m_connectProgress.wrapLine(_("Can't open socket."));
+    // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
+    log("Connecting failed: no response");
+}
+
 string Client::load_player_password(const string& name, const string& address) const {
     ifstream in(password_file.c_str());
     while (in) {
@@ -1321,10 +1329,12 @@ int Client::remove_player_passwords(const std::string& name) const {
     return removed;
 }
 
-//connect command
-void Client::connect_command(bool loadPassword) {
+void Client::connect_command(bool loadPassword) {   // call with frameMutex locked
     // disconnect
     client->connect(false);
+
+    handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
+    openMenus.close(&m_connectProgress.menu);
 
     // start connecting to specified IP/port
     // connection results will come through the CFUNC_CONNECTION_UPDATE callback
@@ -1345,7 +1355,7 @@ void Client::connect_command(bool loadPassword) {
 
     client->set_connect_data(lebuf, count);
 
-    client->connect(true);
+    client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
 
     m_connectProgress.clear();
     m_connectProgress.wrapLine(_("Trying to connect..."), true);
@@ -1392,7 +1402,7 @@ void Client::send_frame(bool newFrame) {
 
     ClientControls currCtrl;
     if (openMenus.empty())  // don't move at all when a real menu is open
-        currCtrl = readControls(menusel == menu_none);  // reserve cursor keys for stats screen or similar
+        currCtrl = readControls(menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
 
     if (newFrame) {
         ++clFrameSent;
@@ -2140,8 +2150,12 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_stats_ready: {
-                if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
-                    menusel = menu_teams;
+                if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
+                    switch (menu.options.game.showStats()) {
+                        break; case Menu_game::SS_teams:   menusel = menu_teams;
+                        break; case Menu_game::SS_players: menusel = menu_players;
+                        break; default: nAssert(0);
+                    }
                     stats_autoshowing = true;
                 }
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
@@ -2545,8 +2559,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 addThreadMessage(new TM_NameAuthorizationRequest());
 
             break; case data_server_settings: {
-                NLubyte caplimit, timelimit, extratime, misc1;
-                NLushort pupMin, pupMax, pupAddTime, pupMaxTime;
+                NLubyte caplimit, timelimit, extratime;
+                NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
                 readByte(lebuf, count, caplimit);
                 readByte(lebuf, count, timelimit);
                 readByte(lebuf, count, extratime);
@@ -2739,6 +2753,15 @@ void Client::toggle_help() {
         openMenus.close();
     else
         showMenu(menu.help);
+}
+
+void Client::handlePendingThreadMessages() {    // should only be called by the main thread
+    while (!messageQueue.empty()) {
+        ThreadMessage* msg = messageQueue.front();
+        messageQueue.pop_front();
+        msg->execute(this);
+        delete msg;
+    }
 }
 
 string Client::refreshStatusAsString() const {
@@ -3132,6 +3155,8 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
 
 bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
     (void)(withControl&alt_sequence);
+    if (menu.options.controls.arrowKeysInStats() != Menu_controls::AS_useMenu && (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_LEFT || sc == KEY_RIGHT))
+        return false;
     switch (menusel) {
         break; case menu_maps:
             switch (sc) {
@@ -3328,14 +3353,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             // process messages from network that have been collected
             {
-                MutexDebug md("frameMutex", __LINE__, log);
                 MutexLock ml(frameMutex);
-                while (!messageQueue.empty()) {
-                    ThreadMessage* msg = messageQueue.front();
-                    messageQueue.pop_front();
-                    msg->execute(this);
-                    delete msg;
-                }
+                handlePendingThreadMessages();
+
                 if (GlobalDisplaySwitchHook::readAndClear() && menu.options.graphics.flipping())
                     predraw();
             }
@@ -3483,7 +3503,7 @@ void Client::stop() {
         cfg << CCS_LagPredictionAmount  << ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
         cfg << CCS_MessageLogging       << ' ' << ((menu.options.game.messageLogging() == Menu_game::ML_full) ? 1 : (menu.options.game.messageLogging() == Menu_game::ML_chat) ? 2 : 0) << '\n';
         cfg << CCS_SaveStats            << ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
-        cfg << CCS_ShowStats            << ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
+        cfg << CCS_ShowStats            << ' ' << ((menu.options.game.showStats() == Menu_game::SS_teams) ? 1 : (menu.options.game.showStats() == Menu_game::SS_players) ? 2 : 0) << '\n';
         cfg << CCS_ShowServerInfo       << ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
         cfg << CCS_UnderlineMasterAuth  << ' ' << (menu.options.game.underlineMasterAuth() ? 1 : 0) << '\n';
         cfg << CCS_UnderlineServerAuth  << ' ' << (menu.options.game.underlineServerAuth() ? 1 : 0) << '\n';
@@ -3492,6 +3512,7 @@ void Client::stop() {
         // save controls menu settings
         cfg << CCS_KeyboardLayout       << ' ' <<  menu.options.controls.keyboardLayout() << '\n';
         cfg << CCS_KeypadMoving         << ' ' << (menu.options.controls.keypadMoving() ? 1 : 0) << '\n';
+        cfg << CCS_ArrowKeysInStats     << ' ' << (menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer ? 1 : 0) << '\n';
         cfg << CCS_Joystick             << ' ' << (menu.options.controls.joystick() ? 1 : 0) << '\n';
         cfg << CCS_JoystickMove         << ' ' <<  menu.options.controls.joyMove() << '\n';
         cfg << CCS_JoystickShoot        << ' ' <<  menu.options.controls.joyShoot() << '\n';
@@ -3742,7 +3763,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         for (int i = 0; i < maxplayers; i++)
             if (fx.player[i].used && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy &&
                 fx.player[i].onscreen && fx.player[i].item_deathbringer)
-                    client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
+                    client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly, calculatePlayerAlpha(i));
 
         client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
@@ -3915,14 +3936,20 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     }
 }
 
+int Client::calculatePlayerAlpha(int pid) const {
+    static const int min_alpha_friends = 128;
+    const int baseAlpha = fd.player[pid].visibility;
+    if (fx.player[pid].team() == fx.player[me].team() && baseAlpha < min_alpha_friends)
+        return min_alpha_friends;
+    else if (baseAlpha < 7)
+        return 7;
+    else
+        return baseAlpha;
+}
+
 void Client::draw_player(int pid) {
     ClientPlayer& player = fx.player[pid];
-    int alpha = fd.player[pid].visibility;
-    const int min_alpha_friends = 128;
-    if (player.team() == fx.player[me].team() && alpha < min_alpha_friends)
-        alpha = min_alpha_friends;
-    else if (alpha < 7)
-        alpha = 7;
+    const int alpha = calculatePlayerAlpha(pid);
     // draw flag if player is carrier of a flag
     for (int t = 0; t < 2; t++)
         for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
@@ -3941,7 +3968,7 @@ void Client::draw_player(int pid) {
             if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
                         get_time() > player.next_turbo_effect_time) {
                 player.next_turbo_effect_time = get_time() + 0.05;
-                    client_graphics.create_turbofx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir);
+                client_graphics.create_turbofx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir, alpha);
             }
 
             //draw player
@@ -3952,11 +3979,11 @@ void Client::draw_player(int pid) {
         if (player.item_deathbringer && get_time() > player.next_smoke_effect_time) {
             player.next_smoke_effect_time = get_time() + 0.01;
             for (int i = 0; i < 2; i++)
-                client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy);
+                client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy, alpha);
         }
         // draw deathbringer affected effect
         if (player.deathbringer_affected)
-            client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team());
+            client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team(), alpha);
         // shield
         if (player.item_shield)
             client_graphics.draw_shield(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), PLAYER_RADIUS + SHIELD_RADIUS_ADD, alpha, player.team(), player.gundir);
@@ -4603,7 +4630,7 @@ void Client::loadSplashScreen() {
     }
     else {
         static const char* msg[] = {
-            GAME_STRING " " GAME_VERSION ", copyright © 2002-2004 multiple authors.",
+            GAME_STRING " " GAME_VERSION ", copyright © 2002-2005 multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to",
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY",

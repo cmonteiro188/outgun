@@ -2,7 +2,7 @@
  *  gameserver_interface.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -38,6 +38,7 @@ class ServerExternalSettings {
 public:
     bool dedserver;     // dedicated server? only affects what's told to master and asking players
     int port;           // the server port
+    int minLocalPort, maxLocalPort; // secondary ports
     bool privateserver; // private server?
     std::string ipAddress;
     // forced means set from the outside so that the server should not change them according to lesser priority requests
@@ -52,7 +53,7 @@ public:
     StatusOutputFnT* statusOutput;  // must be set properly (non-null) when used
     bool showErrorCount;
 
-    ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), privateserver(false),
+    ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), minLocalPort(0), maxLocalPort(0), privateserver(false),
         portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), threadLock(true), statusOutput(0), showErrorCount(true) { }
 };
 

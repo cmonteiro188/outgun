@@ -2,7 +2,7 @@
  *  main.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -311,6 +311,44 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             }
             else
                 log.error(_("-port must be followed by a space and a port number."));
+        }
+        else if (!strcmp(argv[i], "-cport")) {
+            if (++i < argc) {
+                int p1, p2;
+                char c1, c2;
+                const int count = sscanf(argv[i], "%d%c%d%c", &p1, &c1, &p2, &c2);
+                if (count != 1 && !(count == 3 && c1 == ':'))
+                    log.error(_("-cport must be followed by a space and either a port number or minport:maxport."));
+                else if (p1 < 1 || p1 > 65535 || (count == 3 && (p2 < 1 || p2 > 65535)))
+                    log.error(_("-cport X or -cport X:Y: X and Y must be in the range of 1 to 65535."));
+                else if (count == 3 && p2 <= p1)
+                    log.error(_("-cport X:Y: Y must be greater than X."));
+                else {
+                    clientCfg.minLocalPort = p1;
+                    clientCfg.maxLocalPort = (count == 3) ? p2 : p1;
+                }
+            }
+            else
+                log.error(_("-cport must be followed by a space and either a port number or minport:maxport."));
+        }
+        else if (!strcmp(argv[i], "-sport")) {
+            if (++i < argc) {
+                int p1, p2;
+                char c1, c2;
+                const int count = sscanf(argv[i], "%d%c%d%c", &p1, &c1, &p2, &c2);
+                if (!(count == 3 && c1 == ':'))
+                    log.error(_("-sport must be followed by a space and minport:maxport."));
+                else if (p1 < 1 || p1 > 65535 || p2 < 1 || p2 > 65535)
+                    log.error(_("-sport X:Y: X and Y must be in the range of 1 to 65535."));
+                else if (p2 <= p1)
+                    log.error(_("-sport X:Y: Y must be greater than X."));
+                else {
+                    serverCfg.minLocalPort = p1;
+                    serverCfg.maxLocalPort = p2;
+                }
+            }
+            else
+                log.error(_("-sport must be followed by a space and minport:maxport."));
         }
         else if (!strcmp(argv[i], "-nosound"))
             clientCfg.nosound = true;

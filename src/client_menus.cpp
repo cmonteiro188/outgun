@@ -1,7 +1,7 @@
 /*
  *  client_menus.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2005 - Niko Ritari
  *  Copyright (C) 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -158,7 +158,7 @@ Menu_game::Menu_game() :
 
     messageLogging      (_("Save game messages")),
     saveStats           (_("Save game statistics"), false),
-    showStats           (_("Show stats after the round"), false),
+    showStats           (_("Show stats after the round")),
     showServerInfo      (_("Show server info when connected"), false),
     underlineMasterAuth (_("Underline master-authenticated players"), true),
     underlineServerAuth (_("Underline server-authenticated players"), false),
@@ -184,11 +184,15 @@ Menu_game::Menu_game() :
     messageLogging.addOption(_("off"), ML_none);
     messageLogging.addOption(_("chat only"), ML_chat);
     messageLogging.addOption(_("all messages"), ML_full);
+    showStats.addOption(_("off"), SS_none);
+    showStats.addOption(_("teams"), SS_teams);
+    showStats.addOption(_("players"), SS_players);
 }
 
 Menu_controls::Menu_controls() :
     keyboardLayout      (_("Keyboard layout")),
     keypadMoving        (_("Use keypad for moving"), true),
+    arrowKeysInStats    (_("Arrow keys in statistics")),
 
     joystick            (_("Enable joystick control"), false),
     joyMove             (_("Moving stick"), false, 0, 5, 1),
@@ -203,6 +207,7 @@ Menu_controls::Menu_controls() :
 {
     menu.add_component(&keyboardLayout);
     menu.add_component(&keypadMoving);
+    menu.add_component(&arrowKeysInStats);
     ins_space();
     menu.add_component(&joystick);
     menu.add_component(&joyMove);
@@ -212,6 +217,9 @@ Menu_controls::Menu_controls() :
     menu.add_component(&joyStrafe);
     ins_space();
     menu.add_component(&activeControls);
+
+    arrowKeysInStats.addOption(_("change stats view"), AS_useMenu);
+    arrowKeysInStats.addOption(_("move player"), AS_movePlayer);
 
     // add keyboard layouts in alphabetical order (depends on translation)
     vector< pair<string, string> > layouts;

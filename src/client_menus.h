@@ -1,7 +1,7 @@
 /*
  *  client_menus.h
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2005 - Niko Ritari
  *  Copyright (C) 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -89,6 +89,11 @@ public:
         ML_chat,
         ML_full
     };
+    enum ShowStatsMode {
+        SS_none,
+        SS_teams,
+        SS_players
+    };
 
     Checkbox    showNames;
     Colorselect favoriteColors;
@@ -96,7 +101,7 @@ public:
     Slider      lagPredictionAmount;
     Select<MessageLoggingMode>  messageLogging;
     Checkbox    saveStats;
-    Checkbox    showStats;
+    Select<ShowStatsMode> showStats;
     Checkbox    showServerInfo;
     Checkbox    underlineMasterAuth;
     Checkbox    underlineServerAuth;
@@ -110,8 +115,11 @@ public:
 
 class Menu_controls {
 public:
+    enum ArrowKeysInStatsMode { AS_useMenu, AS_movePlayer };
+
     Select<std::string> keyboardLayout;
     Checkbox            keypadMoving;
+    Select<ArrowKeysInStatsMode> arrowKeysInStats;
     Checkbox            joystick;
     Slider              joyMove;
     StaticText          joyText;

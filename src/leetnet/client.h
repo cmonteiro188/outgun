@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- *  Modified by Niko Ritari 2003, 2004
+ *  Modified by Niko Ritari 2003, 2004, 2005
  */
 
 /*
@@ -81,7 +81,7 @@ public:
     //set connection status. if set to TRUE, engine will try to estabilish connection
     //with the server. if set to FALSE, will stop trying to connect or will disconnect
     //results are returned in the CFUNC_CONNENCTION_UPDATE callback
-    virtual void connect(bool yes) = 0;
+    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) = 0;
 
     //send reliable message
     virtual void send_message(char *data, int length) = 0;

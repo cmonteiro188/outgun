@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003 - Niko Ritari
+ *  Copyright (C) 2003, 2005 - Niko Ritari
  */
 
 /*
@@ -108,8 +108,11 @@ public:
 
     // set the station's remote address for sending. 
     // returns 0 if (nlOpen(0, NL_UNRELIABLE) == NL_INVALID), returns 1 otherwise
-    virtual int set_remote_address(char* address) = 0; //notation is "bla.bla.bla.bla:portnum"
-    virtual int set_remote_address(NLaddress *some_addr) = 0; //NL address struct
+    // if any local port is OK, set localPortMin = localPortMax = 0
+    virtual int set_remote_address(char* address, int localPortMin = 0, int localPortMax = 0) = 0; //notation is "bla.bla.bla.bla:portnum"
+    virtual int set_remote_address(NLaddress *some_addr, int localPortMin = 0, int localPortMax = 0) = 0; //NL address struct
+
+    virtual int getLocalPort() const = 0;
 
     // non-blocking call: attempt to read data from the socket
     // buffer/bufsize: buffer given to the routine
@@ -151,7 +154,8 @@ public:
     // disconnection, or some authentication etc. schemes. raw packets with the first
     // long == 0 are "special" and not treated as rudp packets (see process_incoming_packet())
     // - returns 1 if ok, 0 if nlWrite failed
-    virtual int send_raw_packet(const data_c *data) = 0;
+    virtual int send_raw_packet(const data_c* data) = 0;
+    virtual int send_raw_packet_to_port(const data_c* data, int port) = 0;
 
     // return the socket for get_socket_stat purposes
     virtual NLsocket get_nl_socket() = 0;

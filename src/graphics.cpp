@@ -2,7 +2,7 @@
  *  graphics.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1088,14 +1088,14 @@ void Graphics::draw_gun_explosion(int x, int y, int rad, int team) {
     circle(drawbuf, plx + x, ply + y, scale(rad), c);
 }
 
-void Graphics::draw_deathbringer_smoke(int x, int y, double time) {
+void Graphics::draw_deathbringer_smoke(int x, int y, double time, double alpha) {
     x = scale(x);
     y = scale(y);
-    const int alpha = 120 - static_cast<int>(time * 200.0);
-    if (alpha <= 0)
+    const int effAlpha = static_cast<int>((120 - time * 200.0) * alpha);
+    if (effAlpha <= 0)
         return;
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, alpha);
+    set_trans_blender(0, 0, 0, effAlpha);
     const double drad = 3.0 + 9.0 * (0.6 - time);
     const int rad = scale(drad);
     const int subdist = scale(96.0 - drad * 8.0);
@@ -1140,11 +1140,11 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
     }
 }
 
-void Graphics::draw_deathbringer_affected(int x, int y, int team) {
+void Graphics::draw_deathbringer_affected(int x, int y, int team, int alpha) {
     x = scale(x);
     y = scale(y);
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, 128);
+    set_trans_blender(0, 0, 0, alpha / 2);
     for (int i = 0; i < 5; i++)
         circlefill(drawbuf, plx + x + scale(rand() % 40 - 20), ply + y + scale(rand() % 40 - 20), scale(15), teamcol[team]);
     for (int i = 0; i < 5; i++)
@@ -1152,14 +1152,14 @@ void Graphics::draw_deathbringer_affected(int x, int y, int team) {
     solid_mode();
 }
 
-void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
+void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
     x = scale(x);
     y = scale(y);
     set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
     //darken ground
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
     for (int r = scale(50); r >= 0; r -= 5) {
-        set_trans_blender(0, 0, 0, max(50 - static_cast<int>(r / scr_mul), 0));
+        set_trans_blender(0, 0, 0, max((50 - static_cast<int>(r / scr_mul)) * alpha / 255, 0));
         circlefill(drawbuf, plx + x, ply + y, r, 0);
     }
     solid_mode();
@@ -1985,11 +1985,11 @@ void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team) {
 // Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
 void Graphics::create_smoke(int x, int y, int px, int py) {
     if (!pup_sprite[Powerup::pup_deathbringer])
-        create_deathcarrier(x, y, px, py);
+        create_deathcarrier(x, y, px, py, 255);
 }
 
 //create deathbringer carrier trail fx
-void Graphics::create_deathcarrier(int x, int y, int px, int py) {
+void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha) {
     GraphicsEffect fx;
 
     fx.type = FX_DEATHCARRIER_SMOKE;
@@ -1999,11 +1999,12 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py) {
     fx.py = py;
     fx.time = get_time();
     fx.col1 = 0;    // black
+    fx.alpha = alpha / 255.;
 
     cfx.push_back(fx);
 }
 
-void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir) {
+void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha) {
     GraphicsEffect fx;
 
     fx.type = FX_TURBO;
@@ -2013,6 +2014,7 @@ void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, 
     fx.py = py;
     fx.time = get_time();
 
+    fx.alpha = alpha / 255.;
     fx.col1 = col1;
     fx.col2 = col2;
     fx.gundir = gundir;
@@ -2101,7 +2103,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                 if (delta > 0.6)
                     fx = cfx.erase(fx);
                 else {
-                    draw_deathbringer_smoke(fx->x, fx->y, delta);
+                    draw_deathbringer_smoke(fx->x, fx->y, delta, fx->alpha);
                     ++fx;
                 }
             break; default:
@@ -2120,7 +2122,7 @@ void Graphics::draw_turbofx(int room_x, int room_y, double time) {
         if (delta > 0.3)
             fx = cfx.erase(fx);
         else {
-            const int alpha = 90 - static_cast<int>(delta * 300);
+            const int alpha = static_cast<int>(fx->alpha * (90 - delta * 300));
             draw_player(fx->x, fx->y, fx->col1, fx->col2, fx->gundir, time, false, alpha, time);
             ++fx;
         }

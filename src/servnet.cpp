@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -664,7 +664,7 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) const {
         settings |= (1 << i);
     i++;
     settings |= (pupConfig.pup_weapon_max << i);
-    i += 4; // 4 bits are required to transfer pup_weapon_max, in range [0, 8]
+    i += 4; // 4 bits are required to transfer pup_weapon_max, in range [1, 9]
     nAssert(i <= 16);
     writeShort(lebuf, count, settings);
     writeShort(lebuf, count, pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
@@ -913,7 +913,7 @@ bool ServerNetworking::start() {
         fileTransfer[i].reset();
 
     // start server
-    server = new_server_c(host->config().networkPriority);
+    server = new_server_c(host->config().networkPriority, host->config().minLocalPort, host->config().maxLocalPort);
 
     server->setHelloCallback(sfunc_client_hello);
     server->setConnectedCallback(sfunc_client_connected);

@@ -2,7 +2,7 @@
  *  client.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -117,7 +117,8 @@ enum ClientCfgSetting {
     CCS_KeyboardLayout,
     CCS_ServerAddress,
     CCS_AutodetectAddress,
-    CCS_MaxCommand = CCS_AutodetectAddress
+    CCS_ArrowKeysInStats,
+    CCS_MaxCommand = CCS_ArrowKeysInStats
 };
 
 class ServerThreadOwner {
@@ -199,11 +200,12 @@ public:
     bool nosound;       // disable sound? -nosound
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
+    int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
 
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
 
-    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1) { }
+    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0) { }
 };
 
 class Client;
@@ -425,13 +427,14 @@ class Client {
     bool shouldApplyPhysicsToPlayerCallback(int pid);
 
     // network
-    void connect_command(bool loadPassword);
+    void connect_command(bool loadPassword);    // call with frameMutex locked
     void disconnect_command();  // do not call from a network thread
     void connection_update(client_runes_t *arg);
     void client_connected(const char* data, int length);    // call with frameMutex locked
     void client_disconnected(const char* data, int length);
     void connect_failed_denied(const char* data, int length);
     void connect_failed_unreachable();
+    void connect_failed_socket();
     void send_player_token();
     void send_tournament_participation();
     void issue_change_name_command();
@@ -454,6 +457,8 @@ class Client {
     void download_server_file(const std::string& type, const std::string& name);
     void server_map_command(const std::string& mapname, NLushort server_crc);
 
+    void handlePendingThreadMessages(); // should only be called by the main thread; call with frameMutex locked
+
     //#fix: leetnet callbacks
     static int cfunc_connection_update(client_runes_t *arg);
     static int cfunc_server_data(client_runes_t *arg);
@@ -467,6 +472,7 @@ class Client {
     template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
     void predraw();
     void draw_game_frame();
+    int calculatePlayerAlpha(int pid) const;
     void draw_player(int pid);
     void draw_game_menu();
 
