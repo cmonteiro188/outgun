@@ -97,7 +97,8 @@ void Sounds::load_theme(const string& dir) {
 	string name;
 	ifstream in(dest);
 	if (in) {
-		if (!getline_smart(in, name))
+		getline_smart(in, name);
+		if (name.empty())
 			name = "(unnamed theme)";
 		in.close();
 	}

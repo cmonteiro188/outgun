@@ -46,6 +46,7 @@ int cfunc_server_data(client_runes_t *arg);
 void *thread_clientpassword_f(void *arg);
 
 bool gameclient_c::force_exit = false;
+const size_t gameclient_c::chat_size = 32;
 
 bool gameclient_c::start() {
 	// gfx init
@@ -687,7 +688,7 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 			if (!ok)
 				LOG1("AFTER DOWNLOAD: MAP '%s' NOT FOUND\n", r->name)
 			else {
-				LOG1("AFTER DOWNLOAD: MAP '%s' LOADED SUCESSFULLY!\n", r->name);
+				LOG1("AFTER DOWNLOAD: MAP '%s' LOADED SUCCESSFULLY!\n", r->name);
 
 				//load ok!  (FIXME: tell server)
 				//
@@ -728,9 +729,9 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	if (!ok)
 		LOG1("MAP '%s' NOT FOUND\n", mapname)
 	else if (fx.map.crc != server_crc)
-		LOG3("MAP '%s' FOUND BUT IT'S CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, fx.map.crc, server_crc)
+		LOG3("MAP '%s' FOUND BUT ITS CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, fx.map.crc, server_crc)
 	else {
-		LOG1("MAP '%s' LOADED SUCESSFULLY!\n", mapname);
+		LOG1("MAP '%s' LOADED SUCCESSFULLY!\n", mapname);
 
 		//load ok!  (FIXME: tell server)
 		//
@@ -828,8 +829,8 @@ void gameclient_c::disconnect_command() {
 	client->connect(false);
 
 	//dialogz
-	strcpy(dialogmessage, "You are disconnected. Press ESC.");
-	strcpy(dialogmessage2, "");
+	dialogmessage = "You are disconnected. Press ESC.";
+	dialogmessage2.clear();
 	set_menu(menu_dialog);
 }
 
@@ -846,10 +847,11 @@ void gameclient_c::client_connected(char *data, int length) {
 	NLubyte maxpl;
 	readByte(data, count, maxpl);
 	maxplayers = maxpl;
-	//strcpy(hostname, data);
-	readString(data, count, hostname);
-	hostname[32]=0;		//truncate at 32 chars
-	strlen_hostname = strlen(hostname);	//for drawing
+
+	readStr(data, count, hostname);
+	hostname = hostname.substr(0, 32);	//truncate at 32 chars
+
+	chat_visible = 8;
 
 	//set window title: the hostname
 	ostringstream caption;
@@ -881,9 +883,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	me = -1;	//don't know who am I
 
 	//reset chat buffer
-	talkbuffer[0] = 0;
-	for (int i = 0; i < CHAT_SIZE; i++)
-		chatbuffer[i][0] = 0;
+	talkbuffer.clear();
+	chatbuffer.clear();
 	chaterasetime = get_time() + 10.0;
 
 	//reset world data
@@ -938,8 +939,8 @@ void gameclient_c::client_disconnected() {
 	gameshow = false;
 
 	// show a message
-	strcpy(dialogmessage, "You have been disconnected. Press ESC.");
-	strcpy(dialogmessage2, "");
+	dialogmessage = "You have been disconnected. Press ESC.";
+	dialogmessage2.clear();
 	set_menu(menu_dialog);
 
 	//namestatus
@@ -957,23 +958,25 @@ void gameclient_c::client_disconnected() {
 }
 
 void gameclient_c::connect_failed_denied(char *data, int length) {
-
 	//not trying anymore
 	trying_connection = false;
 
 	//extract message
-	char message[256];
+	string message;
 	if (length > 0) {
 		int count = 0;
-		readString(data, count, message);
+		readStr(data, count, message);
 	}
 	else
-		strcpy(message, "no reason given.");
+		message = "no reason given.";
 
 	// show a message
-	strcpy(dialogmessage, "Connection refused. Press ESC.");
-	strcpy(dialogmessage2, message);
-	set_menu(menu_dialog);
+	dialogmessage = "Connection refused. Press ESC.";
+	dialogmessage2 = message;
+	if (message == "PASSWORD")
+		set_menu(menu_server_password);
+	else
+		set_menu(menu_dialog);
 }
 
 void gameclient_c::connect_failed_unreachable() {
@@ -982,8 +985,8 @@ void gameclient_c::connect_failed_unreachable() {
 	trying_connection = false;
 
 	// show a message
-	strcpy(dialogmessage, "No response from server. Press ESC.");
-	strcpy(dialogmessage2, "");
+	dialogmessage = "No response from server. Press ESC.";
+	dialogmessage2.clear();
 	set_menu(menu_dialog);
 }
 
@@ -1220,14 +1223,19 @@ void gameclient_c::connect_command() {
 	char lebuf[256]; int count = 0;
 	writeString(lebuf, count, GAME_STRING);
 	writeString(lebuf, count, GAME_PROTOCOL);
+	if (!edit_server_password.empty()) {
+		writeStr(lebuf, count, edit_server_password);
+		edit_server_password.clear();	// clear password to avoid sending it everywhere
+	}
+
 	client->set_connect_data(lebuf, count);
 
 	client->connect(true);
 
 	// set flags, show dialog...
 	trying_connection = true;
-	sprintf(dialogmessage, "Trying to connect... ESC = cancel");
-	dialogmessage2[0] = '\0';
+	dialogmessage = "Trying to connect... ESC = cancel";
+	dialogmessage2.clear();
 	set_menu(menu_dialog);
 }
 
@@ -1593,540 +1601,542 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 			//parse rest of message
 			switch (static_cast<Network_data_codes>(code)) {
+				// name update
+				case data_name_update:
+					readByte(msg, count, pid);
+					readStr(msg, count, fx.player[pid].name);
+					update_scoreboard();		//tentando consertar bug change teams
+					break;
 
-			// name update
-			case data_name_update:
-				readByte(msg, count, pid);
-				readStr(msg, count, fx.player[pid].name);
-				update_scoreboard();		//tentando consertar bug change teams
-				break;
+				//text message
+				case data_text_message: {
+					chatmsg = &(msg[1]);		//avoid a useless readString...
+					print_message(chatmsg);		//print it to the "console"
+					if (message_logging) {
+						// print message to log
+						// date and time
+						time_t tt = time(0);
+						struct tm* tmb = localtime(&tt);
+						message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
+							<< '-' << setfill('0') << setw(2) << tmb->tm_mday
+							<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
+							<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
+						// message
+						message_log << (chatmsg[0] == '@' ? chatmsg + 2 : chatmsg) << '\n';
+					}
 
-			//text message
-			case data_text_message: {
-				chatmsg = &(msg[1]);		//avoid a useless readString...
-				print_message(chatmsg);		//print it to the "console"
-				if (message_logging) {
-					// print message to log
-					// date and time
-					time_t tt = time(0);
-					struct tm* tmb = localtime(&tt);
-					message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
-						<< '-' << setfill('0') << setw(2) << tmb->tm_mday
-						<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
-						<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
-					// message
-					message_log << (chatmsg[0] == '@' ? chatmsg + 2 : chatmsg) << '\n';
+					//talk sound
+					if ((strlen(chatmsg) >= 2) && (chatmsg[0] == '@') && (chatmsg[1] == 'I')) {
+						//don't play talk
+					}
+					else
+						client_sounds.play(SAMPLE_TALK);
+					break;
 				}
 
-				//talk sound
-				if ((strlen(chatmsg) >= 2) && (chatmsg[0] == '@') && (chatmsg[1] == 'I')) {
-					//don't play talk
+				//"hello" one-time server information ("first packet")
+				case data_first_packet: {
+					readByte(msg, count, pid);	//"who am I"
+
+					//DEBUG msg
+					if (pid != whatme) {
+						char lixoverde[200];
+						sprintf(lixoverde, "###WARNING###: me %i memsg %i whatme %i\n", me, pid, whatme);
+						send_chat(lixoverde);
+					}
+
+					me = pid;
+
+					NLchar map_nr;
+					readByte(msg, count, map_nr);	//current map number
+					current_map = map_nr;
+
+					//reset want-change-teams: this message is send when players are swapped also
+					want_change_teams = false;
+
+					readByte(msg, count, abyte);	//team 0 score
+					fx.teams[0].set_score(abyte);
+					readByte(msg, count, abyte);	//team 1 score
+					fx.teams[1].set_score(abyte);
+
+					//server physics parameters
+					readFloat(msg, count, aflo);
+					svp_fric = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed = aflo;
+					readFloat(msg, count, aflo);
+					svp_fric_run = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel_run = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed_run = aflo;
+					readFloat(msg, count, aflo);
+					svp_fric_turbo = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel_turbo = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed_turbo = aflo;
+					readFloat(msg, count, aflo);
+					svp_fric_turborun = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel_turborun = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed_turborun = aflo;
+					readFloat(msg, count, aflo);
+					svp_flag_penalty = aflo;
+					readByte(msg, count, abyte);
+					svp_friendly_fire = abyte & 0x01;
+					svp_friendly_db = abyte & 0x02;
+
+					// room is probably changed
+					fx.player[me].oldx = -1;
+					fx.player[me].oldy = -1;
+
+					//update scoreboard!
+					update_scoreboard();
+
+					break;
 				}
-				else
-					client_sounds.play(SAMPLE_TALK);
-				break;
-			}
 
-			//"hello" one-time server information ("first packet")
-			case data_first_packet: {
-				readByte(msg, count, pid);	//"who am I"
+				//frags update
+				case data_frags_update:
+					readByte(msg, count, pid);	// what player
+					readLong(msg, count, fragz);	// new frag value
+					fx.player[pid].frags = fragz;
+					update_scoreboard();		// update clientside scoreboard
+					break;
 
-				//DEBUG msg
-				if (pid != whatme) {
-					char lixoverde[200];
-					sprintf(lixoverde, "###WARNING###: me %i memsg %i whatme %i\n", me, pid, whatme);
-					send_chat(lixoverde);
+				//CTF flag update
+				case data_flag_update: {
+					NLbyte flags;
+					readByte(msg, count, team);		// team of the flag
+					readByte(msg, count, flags);	// how many flags
+					LOG1("Flag message, %d flags.\n", flags);
+					for (int i = 0; i < flags; i++) {
+						if (i >= static_cast<int>(fx.teams[team].flags().size()))
+							fx.teams[team].add_flag(spoint_t());
+						readByte(msg, count, carried);	// 0==not carried 1==carried
+						if (carried == 0) {
+							//not carried: update position
+							readByte(msg, count, abyte);		//px
+							const int px = abyte;
+							readByte(msg, count, abyte);		//py
+							const int py = abyte;
+							readShort(msg, count, ashort);		//x
+							const int x = ashort;
+							readShort(msg, count, ashort);		//y
+							const int y = ashort;
+							fx.teams[team].drop_flag(i, spoint_t(px, py, x, y));
+						}
+						else {
+							//carried: get carrier
+							readByte(msg, count, abyte);	//carrier
+							fx.teams[team].steal_flag(i, abyte);
+							client_sounds.play(SAMPLE_CTF_GOT);
+						}
+					}
+					break;
 				}
 
-				me = pid;
+				//rocket fire notification
+				case data_rocket_fire: {
+					// add to clientside rocket objects list
+					//
+					//readByte(lebuf, count, rpowdir);	// rocket powerdir
+					readByte(lebuf, count, rpow);	// rocket powerdir
+					readByte(lebuf, count, rdir);	// rocket powerdir
 
-				NLchar map_nr;
-				readByte(msg, count, map_nr);	//current map number
-				current_map = map_nr;
+					NLubyte rids[16];
+					for (k=0;k<rpow;k++)
+						readByte(lebuf, count, rids[k]);
 
-				//reset want-change-teams: this message is send when players are swapped also
-				want_change_teams = false;
+					readLong(lebuf, count, frameno);	// frame # of shot
+					readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
 
-				readByte(msg, count, abyte);	//team 0 score
-				fx.teams[0].set_score(abyte);
-				readByte(msg, count, abyte);	//team 1 score
-				fx.teams[1].set_score(abyte);
+					bool power = ((rteampower & 1) != 0);
+					int team = (rteampower & 2) >> 1;
+					readByte(lebuf, count, rpx);
+					readByte(lebuf, count, rpy);
+					readShort(lebuf, count, rx);
+					readShort(lebuf, count, ry);
 
-				//server physics parameters
-				readFloat(msg, count, aflo);
-				svp_fric = aflo;
-				readFloat(msg, count, aflo);
-				svp_accel = aflo;
-				readFloat(msg, count, aflo);
-				svp_maxspeed = aflo;
-				readFloat(msg, count, aflo);
-				svp_fric_run = aflo;
-				readFloat(msg, count, aflo);
-				svp_accel_run = aflo;
-				readFloat(msg, count, aflo);
-				svp_maxspeed_run = aflo;
-				readFloat(msg, count, aflo);
-				svp_fric_turbo = aflo;
-				readFloat(msg, count, aflo);
-				svp_accel_turbo = aflo;
-				readFloat(msg, count, aflo);
-				svp_maxspeed_turbo = aflo;
-				readFloat(msg, count, aflo);
-				svp_fric_turborun = aflo;
-				readFloat(msg, count, aflo);
-				svp_accel_turborun = aflo;
-				readFloat(msg, count, aflo);
-				svp_maxspeed_turborun = aflo;
-				readFloat(msg, count, aflo);
-				svp_flag_penalty = aflo;
+					ClientPhysicsCallbacks cb(*this);
+					fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame-frameno), team, power, rpx, rpy, rx, ry);
 
-				// room is probably changed
-				fx.player[me].oldx = -1;
-				fx.player[me].oldy = -1;
+					//play sound if rocket on screen
+					if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
+						if (power)
+							client_sounds.play(SAMPLE_QUAD_FIRE);
+						else
+							client_sounds.play(SAMPLE_FIRE);
+					break;
+				}
 
-				//update scoreboard!
-				update_scoreboard();
+				//rocket deletion notification
+				case data_rocket_delete:
+					readByte(lebuf, count, rockid);	// rocket object id
+					readByte(lebuf, count, abyte);	// target player
+					//hit position
+					readShort(lebuf, count, rokx);
+					readShort(lebuf, count, roky);
+					fx.rock[rockid].owner = -1;
+					if (abyte != 255) {	// hit player
+						if (abyte < 250)	// blink player if not hit shield (252)
+							fx.player[abyte].hitfx = get_time() + .3;
+						client_graphics.create_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
+						client_sounds.play(SAMPLE_HIT);
+					}
+					break;
 
-				break;
-			}
+				//CTF team score update
+				case data_score_update: {
+					NLubyte score;
+					readByte(lebuf, count, abyte);		//team
+					readByte(lebuf, count, score);		//new score
+					fx.teams[abyte].set_score(score);	// update the score
+					break;
+				}
 
-			//frags update
-			case data_frags_update:
-				readByte(msg, count, pid);	// what player
-				readLong(msg, count, fragz);	// new frag value
-				fx.player[pid].frags = fragz;
-				update_scoreboard();		// update clientside scoreboard
-				break;
+				//sound event
+				case data_sound:
+					readByte(lebuf, count, abyte);		// sample #
+					client_sounds.play(abyte);
+					break;
 
-			//CTF flag update
-			case data_flag_update: {
-				NLbyte flags;
-				readByte(msg, count, team);		// team of the flag
-				readByte(msg, count, flags);	// how many flags
-				LOG1("Flag message, %d flags.\n", flags);
-				for (int i = 0; i < flags; i++) {
-					if (i >= static_cast<int>(fx.teams[team].flags().size()))
-						fx.teams[team].add_flag(spoint_t());
-					readByte(msg, count, carried);	// 0==not carried 1==carried
-					if (carried == 0) {
-						//not carried: update position
-						readByte(msg, count, abyte);		//px
-						const int px = abyte;
-						readByte(msg, count, abyte);		//py
-						const int py = abyte;
-						readShort(msg, count, ashort);		//x
-						const int x = ashort;
-						readShort(msg, count, ashort);		//y
-						const int y = ashort;
-						fx.teams[team].drop_flag(i, spoint_t(px, py, x, y));
+				//pickup visible
+				case data_pup_visible:
+					//print_message("POWERUP_VISIBLE!!!");
+					readByte(lebuf, count, iid);		// item id
+					readByte(lebuf, count, abyte);		// kind
+					fx.item[iid].kind = abyte;
+					readByte(lebuf, count, abyte);		// screen x
+					fx.item[iid].px = abyte;
+					readByte(lebuf, count, abyte);		// screen y
+					fx.item[iid].py = abyte;
+					readShort(lebuf, count, usho);		// pos x
+					fx.item[iid].x = usho;
+					readShort(lebuf, count, usho);		// pos y
+					fx.item[iid].y = usho;
+					break;
+
+				//pickup picked
+				case data_pup_picked:
+					readByte(lebuf, count, iid);
+					fx.item[iid].kind = 0;		// no more!
+					break;
+
+				//powerup clientside timer set
+				case data_pup_timer:
+					readByte(lebuf, count, iid);	//kind
+					readShort(lebuf, count, usho);	//amount of time
+					if (me >= 0) {
+						if (iid == 2)
+							fx.player[me].item_speed_time = get_time() + ((double)usho);
+						else if (iid == 3)
+							fx.player[me].item_helm_time = get_time() + ((double)usho);
+						else if (iid == 4)
+							fx.player[me].item_quad_time = get_time() + ((double)usho);
+					}
+					break;
+
+				//my weapon notify change
+				case data_weapon_change:
+					readByte(lebuf, count, abyte);	// weapon level
+					if (me >= 0) {
+						fx.player[me].weapon = abyte;
+					}
+					break;
+
+				//server commands client to change map
+				case data_map_change:
+					map_ready = false;	// map NOT ready anymore: must load/change
+					want_map_exit = false;		// and player does not want to exit the map anymore
+					fx.teams[0].remove_flags();
+					fx.teams[1].remove_flags();
+					readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
+					if (abyte == 2) {
+						readShort(lebuf, count, usho);				//read CRC16 of map
+						readString(lebuf, count, mapname);		//read map name
+						server_map_command(mapname, usho);
+						NLchar map_nr;
+						readByte(lebuf, count, map_nr);
+						current_map = map_nr;
+						if (map_vote == current_map)
+							map_vote = -1;
 					}
 					else {
-						//carried: get carrier
-						readByte(msg, count, abyte);	//carrier
-						fx.teams[team].steal_flag(i, abyte);
-						client_sounds.play(SAMPLE_CTF_GOT);
+						//FIXME: unknown map kind
 					}
-				}
-				break;
-			}
+					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
+						fx.item[iid].kind = 0;
+					fx.player[me].oldx = -1;
+					fx.player[me].oldy = -1;
+					break;
 
-			//rocket fire notification
-			case data_rocket_fire: {
-				// add to clientside rocket objects list
-				//
-				//readByte(lebuf, count, rpowdir);	// rocket powerdir
-				readByte(lebuf, count, rpow);	// rocket powerdir
-				readByte(lebuf, count, rdir);	// rocket powerdir
-
-				NLubyte rids[16];
-				for (k=0;k<rpow;k++)
-					readByte(lebuf, count, rids[k]);
-
-				readLong(lebuf, count, frameno);	// frame # of shot
-				readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
-
-				bool power = ((rteampower & 1) != 0);
-				int team = (rteampower & 2) >> 1;
-				readByte(lebuf, count, rpx);
-				readByte(lebuf, count, rpy);
-				readShort(lebuf, count, rx);
-				readShort(lebuf, count, ry);
-
-				ClientPhysicsCallbacks cb(*this);
-				fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame-frameno), team, power, rpx, rpy, rx, ry);
-
-				//play sound if rocket on screen
-				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
-					if (power)
-						client_sounds.play(SAMPLE_QUAD_FIRE);
+				//server shows gameover plaque
+				case data_gameover_show:
+					readByte(lebuf, count, abyte);
+					gameover_plaque = abyte;		// kind of plaque (capture limit or vote exit)
+					if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
+						readByte(lebuf, count, abyte);	//RED team final score
+						red_final_score = abyte;
+						readByte(lebuf, count, abyte);  //BLUE team final score
+						blue_final_score = abyte;
+					}
 					else
-						client_sounds.play(SAMPLE_FIRE);
-				break;
-			}
+						gameover_plaque = NEXTMAP_NONE;
+					break;
 
-			//rocket deletion notification
-			case data_rocket_delete:
-				readByte(lebuf, count, rockid);	// rocket object id
-				readByte(lebuf, count, abyte);	// target player
-				//hit position
-				readShort(lebuf, count, rokx);
-				readShort(lebuf, count, roky);
-				fx.rock[rockid].owner = -1;
-				if (abyte != 255) {	// hit player
-					if (abyte < 250)	// blink player if not hit shield (252)
-						fx.player[abyte].hitfx = get_time() + .3;
-					client_graphics.create_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
-					client_sounds.play(SAMPLE_HIT);
-				}
-				break;
+				//server hides gameover plaque
+				case data_gameover_hide:
+					gameover_plaque = NEXTMAP_NONE;		//hide
+					break;
 
-			//CTF team score update
-			case data_score_update: {
-				NLubyte score;
-				readByte(lebuf, count, abyte);		//team
-				readByte(lebuf, count, score);		//new score
-				fx.teams[abyte].set_score(score);	// update the score
-				break;
-			}
+				//deathbringer shot
+				case data_deathbringer:
+					//print_message("DEATHBRINGER!!!");
+					readByte(lebuf, count, abyte);	//what player
+					readLong(lebuf, count, frameno);		// start time
+					//spawn clientside fx at the owner's position
+					//V0.4.6: sending explicitly the screen/coord of the shot
+					readByte(lebuf, count, sx);
+					readByte(lebuf, count, sy);
+					readShort(lebuf, count, hx);
+					readShort(lebuf, count, hy);
+					client_graphics.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
+					client_sounds.play(SAMPLE_USEDEATHBRINGER);
 
-			//sound event
-			case data_sound:
-				readByte(lebuf, count, abyte);		// sample #
-				client_sounds.play(abyte);
-				break;
+					//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.player[abyte].x, (int)fx.player[abyte].y, player[abyte].x, player[abyte].y);
+					//if (player[abyte].x == player[me].x)
+					//if (player[abyte].y == player[me].y)
+					//print_message("DEATHBRINGER ON MY SCREEENN!!!");
+					/*
+					writeByte(lebuf, count, 26);	//26==deathbringer
+					writeByte(lebuf, count, ((NLubyte)target));	//team/target player
+					//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
+					//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
+					//  trying sending screen x,y and player x y
+					writeByte(lebuf, count, ((NLubyte)player[target].x));
+					writeByte(lebuf, count, ((NLubyte)player[target].y));
+					writeShort(lebuf, count, ((NLushort)world.player[target].x));
+					writeShort(lebuf, count, ((NLushort)world.player[target].y));
+					writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
+					*/
+					//sprintf(debuf, "t %i sx %i sy %i x %i y %i
+					//print_message
+					break;
 
-			//pickup visible
-			case data_pup_visible:
-				//print_message("POWERUP_VISIBLE!!!");
-				readByte(lebuf, count, iid);		// item id
-				readByte(lebuf, count, abyte);		// kind
-				fx.item[iid].kind = abyte;
-				readByte(lebuf, count, abyte);		// screen x
-				fx.item[iid].px = abyte;
-				readByte(lebuf, count, abyte);		// screen y
-				fx.item[iid].py = abyte;
-				readShort(lebuf, count, usho);		// pos x
-				fx.item[iid].x = usho;
-				readShort(lebuf, count, usho);		// pos y
-				fx.item[iid].y = usho;
-				break;
+				//v0.4.4: UDP FILE DOWNLOAD: incoming chunk
+				case data_file_download:
+					readByte(lebuf, count, abyte);		//"last chunk"?
+					readLong(lebuf, count, frameno);	//absolute pos of the chunk on file
+					readShort(lebuf, count, usho);		//chunk size
+					//PROCESS IT
+					process_udp_download_chunk(abyte, frameno, usho, &(lebuf[count]));
+					break;
 
-			//pickup picked
-			case data_pup_picked:
-				readByte(lebuf, count, iid);
-				fx.item[iid].kind = 0;		// no more!
-				break;
+				//v0.4.4: registration response from server
+				case data_registration_response:
+					readByte(lebuf, count, abyte);
+					if (abyte == 1) {
+						//success!
+						namestatus = "RECORDING (";
+						namestatus += player_token;
+						namestatus += ")";
+						//code
+						namestatus_code = 3;
+					}
+					else {
+						//fail
+						namestatus = "REJECTED (";
+						namestatus += player_token;
+						namestatus += ")";
+					}
 
-			//powerup clientside timer set
-			case data_pup_timer:
-				readByte(lebuf, count, iid);	//kind
-				readShort(lebuf, count, usho);	//amount of time
-				if (me >= 0) {
-					if (iid == 2)
-						fx.player[me].item_speed_time = get_time() + ((double)usho);
-					else if (iid == 3)
-						fx.player[me].item_helm_time = get_time() + ((double)usho);
-					else if (iid == 4)
-						fx.player[me].item_quad_time = get_time() + ((double)usho);
-				}
-				break;
+					break;
 
-			//my weapon notify change
-			case data_weapon_change:
-				readByte(lebuf, count, abyte);	// weapon level
-				if (me >= 0) {
-					fx.player[me].weapon = abyte;
-				}
-				break;
+				//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
+				case data_crap_update:
+					readByte(lebuf, count, pid);			//waht player slot
+					readByte(lebuf, count, abyte);		//reg char
+					readLong(lebuf, count, prank);		//ranking#
+					readLong(lebuf, count, pscore);		//score
+					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
+					readLong(lebuf, count, max_world_rank);		//world players count
+					readLong(lebuf, count, max_world_score);		//world score max
+					fx.player[pid].reg_status = (char)abyte;
+					fx.player[pid].rank = (int)prank;
+					fx.player[pid].score = (int)pscore;
+					fx.player[pid].neg_score = (int)nscore;
+					//LOG4("CRAPZ UPDATE %i %c %i %i\n", pid, abyte, prank, pscore);
+					break;
 
-			//server commands client to change map
-			case data_map_change:
-				map_ready = false;	// map NOT ready anymore: must load/change
-				want_map_exit = false;		// and player does not want to exit the map anymore
-				fx.teams[0].remove_flags();
-				fx.teams[1].remove_flags();
-				readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
-				if (abyte == 2) {
-					readShort(lebuf, count, usho);				//read CRC16 of map
-					readString(lebuf, count, mapname);		//read map name
-					server_map_command(mapname, usho);
-					NLchar map_nr;
-					readByte(lebuf, count, map_nr);
-					current_map = map_nr;
-					if (map_vote == current_map)
-						map_vote = -1;
-				}
-				else {
-					//FIXME: unknown map kind
-				}
-				for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-					fx.item[iid].kind = 0;
-				fx.player[me].oldx = -1;
-				fx.player[me].oldy = -1;
-				break;
-
-			//server shows gameover plaque
-			case data_gameover_show:
-				readByte(lebuf, count, abyte);
-				gameover_plaque = abyte;		// kind of plaque (capture limit or vote exit)
-				if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
-					readByte(lebuf, count, abyte);	//RED team final score
-					red_final_score = abyte;
-					readByte(lebuf, count, abyte);  //BLUE team final score
-					blue_final_score = abyte;
-				}
-				else
-					gameover_plaque = NEXTMAP_NONE;
-				break;
-
-			//server hides gameover plaque
-			case data_gameover_hide:
-				gameover_plaque = NEXTMAP_NONE;		//hide
-				break;
-
-			//deathbringer shot
-			case data_deathbringer:
-				//print_message("DEATHBRINGER!!!");
-				readByte(lebuf, count, abyte);	//what player
-				readLong(lebuf, count, frameno);		// start time
-				//spawn clientside fx at the owner's position
-				//V0.4.6: sending explicitly the screen/coord of the shot
-				readByte(lebuf, count, sx);
-				readByte(lebuf, count, sy);
-				readShort(lebuf, count, hx);
-				readShort(lebuf, count, hy);
-				client_graphics.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
-				client_sounds.play(SAMPLE_USEDEATHBRINGER);
-
-				//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.player[abyte].x, (int)fx.player[abyte].y, player[abyte].x, player[abyte].y);
-				//if (player[abyte].x == player[me].x)
-				//if (player[abyte].y == player[me].y)
-				//print_message("DEATHBRINGER ON MY SCREEENN!!!");
-				/*
-				writeByte(lebuf, count, 26);	//26==deathbringer
-				writeByte(lebuf, count, ((NLubyte)target));	//team/target player
-				//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
-				//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
-				//  trying sending screen x,y and player x y
-				writeByte(lebuf, count, ((NLubyte)player[target].x));
-				writeByte(lebuf, count, ((NLubyte)player[target].y));
-				writeShort(lebuf, count, ((NLushort)world.player[target].x));
-				writeShort(lebuf, count, ((NLushort)world.player[target].y));
-				writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
-				*/
-				//sprintf(debuf, "t %i sx %i sy %i x %i y %i
-				//print_message
-				break;
-
-			//v0.4.4: UDP FILE DOWNLOAD: incoming chunk
-			case data_file_download:
-				readByte(lebuf, count, abyte);		//"last chunk"?
-				readLong(lebuf, count, frameno);	//absolute pos of the chunk on file
-				readShort(lebuf, count, usho);		//chunk size
-				//PROCESS IT
-				process_udp_download_chunk(abyte, frameno, usho, &(lebuf[count]));
-				break;
-
-			//v0.4.4: registration response from server
-			case data_registration_response:
-				readByte(lebuf, count, abyte);
-				if (abyte == 1) {
-					//success!
-					namestatus = "RECORDING (";
-					namestatus += player_token;
-					namestatus += ")";
-					//code
-					namestatus_code = 3;
-				}
-				else {
-					//fail
-					namestatus = "REJECTED (";
-					namestatus += player_token;
-					namestatus += ")";
+				// map time left
+				case data_map_time: {
+					int time_left;
+					readLong(lebuf, count, time_left);
+					map_end_time = (int)get_time() + time_left;
+					map_time_limit = true;
+					LOG("Map time left received.\n");
+					break;
 				}
 
-				break;
-
-			//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
-			case data_crap_update:
-				readByte(lebuf, count, pid);			//waht player slot
-				readByte(lebuf, count, abyte);		//reg char
-				readLong(lebuf, count, prank);		//ranking#
-				readLong(lebuf, count, pscore);		//score
-				readLong(lebuf, count, nscore);		//score	NEG v0.4.8
-				readLong(lebuf, count, max_world_rank);		//world players count
-				readLong(lebuf, count, max_world_score);		//world score max
-				fx.player[pid].reg_status = (char)abyte;
-				fx.player[pid].rank = (int)prank;
-				fx.player[pid].score = (int)pscore;
-				fx.player[pid].neg_score = (int)nscore;
-				//LOG4("CRAPZ UPDATE %i %c %i %i\n", pid, abyte, prank, pscore);
-				break;
-
-			// map time left
-			case data_map_time: {
-				int time_left;
-				readLong(lebuf, count, time_left);
-				map_end_time = (int)get_time() + time_left;
-				map_time_limit = true;
-				LOG("Map time left received.\n");
-				break;
-			}
-
-			// server map list
-			case data_map_list: {
-				NLchar width, height, votes;
-				gameserver_c::MapInfo mapinfo;
-				readStr(lebuf, count, mapinfo.title);
-				readStr(lebuf, count, mapinfo.author);
-				readByte(lebuf, count, width);
-				readByte(lebuf, count, height);
-				readByte(lebuf, count, votes);
-				mapinfo.width = width;
-				mapinfo.height = height;
-				mapinfo.votes = votes;
-				maps.push_back(mapinfo);
-				break;
-			}
-
-			case data_map_votes_update: {
-				NLchar total, map_nr, votes;
-				readByte(lebuf, count, total);
-				for (int i = 0; i < total; i++) {
-					readByte(lebuf, count, map_nr);
+				// server map list
+				case data_map_list: {
+					NLchar width, height, votes;
+					gameserver_c::MapInfo mapinfo;
+					readStr(lebuf, count, mapinfo.title);
+					readStr(lebuf, count, mapinfo.author);
+					readByte(lebuf, count, width);
+					readByte(lebuf, count, height);
 					readByte(lebuf, count, votes);
-					if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
-						maps[map_nr].votes = votes;
+					mapinfo.width = width;
+					mapinfo.height = height;
+					mapinfo.votes = votes;
+					maps.push_back(mapinfo);
+					break;
 				}
-				break;
-			}
 
-			case data_capture: {
-				NLchar pid;
-				readByte(lebuf, count, pid);
-				fx.player[pid].stats().add_capture();
-				break;
-			}
-
-			case data_kill: {
-				NLchar attacker, target;
-				readByte(lebuf, count, attacker);
-				readByte(lebuf, count, target);
-				const bool deathbringer = attacker & 0x80;
-				attacker &= ~0x80;
-				const bool flag = target & 0x80;
-				target &= ~0x80;
-				fx.player[attacker].stats().add_kill(deathbringer);
-				fx.teams[attacker / TSIZE].add_kill();
-				fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
-				fx.teams[target / TSIZE].add_death();
-				if (flag) {
-					fx.player[attacker].stats().add_carrier_kill();
-					fx.player[target].stats().add_flag_drop();
-					fx.teams[target / TSIZE].add_flag_drop();
+				case data_map_votes_update: {
+					NLchar total, map_nr, votes;
+					readByte(lebuf, count, total);
+					for (int i = 0; i < total; i++) {
+						readByte(lebuf, count, map_nr);
+						readByte(lebuf, count, votes);
+						if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
+							maps[map_nr].votes = votes;
+					}
+					break;
 				}
-				break;
-			}
 
-			case data_flag_take: {
-				NLchar pid;
-				readByte(lebuf, count, pid);
-				fx.player[pid].stats().add_flag_take();
-				fx.teams[pid / TSIZE].add_flag_take();
-				break;
-			}
+				case data_capture: {
+					NLchar pid;
+					readByte(lebuf, count, pid);
+					fx.player[pid].stats().add_capture();
+					break;
+				}
 
-			case data_flag_return: {
-				NLchar pid;
-				readByte(lebuf, count, pid);
-				fx.player[pid].stats().add_flag_return();
-				fx.teams[pid / TSIZE].add_flag_return();
-				break;
-			}
+				case data_kill: {
+					NLchar attacker, target;
+					readByte(lebuf, count, attacker);
+					readByte(lebuf, count, target);
+					const bool deathbringer = attacker & 0x80;
+					attacker &= ~0x80;
+					const bool flag = target & 0x80;
+					target &= ~0x80;
+					fx.player[attacker].stats().add_kill(deathbringer);
+					fx.teams[attacker / TSIZE].add_kill();
+					fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
+					fx.teams[target / TSIZE].add_death();
+					if (flag) {
+						fx.player[attacker].stats().add_carrier_kill();
+						fx.player[target].stats().add_flag_drop();
+						fx.teams[target / TSIZE].add_flag_drop();
+					}
+					break;
+				}
 
-			case data_flag_drop: {
-				NLchar pid;
-				readByte(lebuf, count, pid);
-				fx.player[pid].stats().add_flag_drop();
-				fx.teams[pid / TSIZE].add_flag_drop();
-				break;
-			}
+				case data_flag_take: {
+					NLchar pid;
+					readByte(lebuf, count, pid);
+					fx.player[pid].stats().add_flag_take();
+					fx.teams[pid / TSIZE].add_flag_take();
+					break;
+				}
 
-			case data_suicide: {
-				NLchar pid;
-				readByte(lebuf, count, pid);
-				const bool flag = pid & 0x80;
-				pid &= ~0x80;
-				fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
-				fx.teams[pid / TSIZE].add_suicide();
-				if (flag) {
+				case data_flag_return: {
+					NLchar pid;
+					readByte(lebuf, count, pid);
+					fx.player[pid].stats().add_flag_return();
+					fx.teams[pid / TSIZE].add_flag_return();
+					break;
+				}
+
+				case data_flag_drop: {
+					NLchar pid;
+					readByte(lebuf, count, pid);
 					fx.player[pid].stats().add_flag_drop();
 					fx.teams[pid / TSIZE].add_flag_drop();
+					break;
 				}
-				break;
-			}
 
-			case data_spawn: {
-				NLchar pid;
-				readByte(lebuf, count, pid);
-				fx.player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
-				break;
-			}
-
-			case data_movements_shots: {
-				for (int i = 0; i < MAX_PLAYERS; i++) {
-					if (!fx.player[i].used)
-						continue;
-					NLlong movement;
-					readLong(lebuf, count, movement);
-					fx.player[i].stats().set_movement(movement);
-					NLshort data;
-					readShort(lebuf, count, data);
-					fx.player[i].stats().set_shots(data);
-					readShort(lebuf, count, data);
-					fx.player[i].stats().set_hits(data);
-					readShort(lebuf, count, data);
-					fx.player[i].stats().set_shots_taken(data);
+				case data_suicide: {
+					NLchar pid;
+					readByte(lebuf, count, pid);
+					const bool flag = pid & 0x80;
+					pid &= ~0x80;
+					fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
+					fx.teams[pid / TSIZE].add_suicide();
+					if (flag) {
+						fx.player[pid].stats().add_flag_drop();
+						fx.teams[pid / TSIZE].add_flag_drop();
+					}
+					break;
 				}
-				break;
-			}
 
-			case data_stats: {
-				for (int i = 0; i < MAX_PLAYERS; i++) {
-					if (!fx.player[i].used)
-						continue;
-					NLubyte data;
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_kills(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_deaths(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_cons_kills(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_current_cons_kills(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_cons_deaths(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_current_cons_deaths(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_suicides(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_captures(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_flags_taken(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_flags_dropped(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_flags_returned(data);
-					readByte(lebuf, count, data);
-					fx.player[i].stats().set_carriers_killed(data);
+				case data_spawn: {
+					NLchar pid;
+					readByte(lebuf, count, pid);
+					fx.player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
+					break;
 				}
-				break;
-			}
 
-			default:
-				LOG1("BAD ERROR: UNKNOWN SERVER MESSAGE CODE = %i!!\n", code);
-				break;
+				case data_movements_shots: {
+					for (int i = 0; i < MAX_PLAYERS; i++) {
+						if (!fx.player[i].used)
+							continue;
+						NLlong movement;
+						readLong(lebuf, count, movement);
+						fx.player[i].stats().set_movement(movement);
+						NLshort data;
+						readShort(lebuf, count, data);
+						fx.player[i].stats().set_shots(data);
+						readShort(lebuf, count, data);
+						fx.player[i].stats().set_hits(data);
+						readShort(lebuf, count, data);
+						fx.player[i].stats().set_shots_taken(data);
+					}
+					break;
+				}
+
+				case data_stats: {
+					for (int i = 0; i < MAX_PLAYERS; i++) {
+						if (!fx.player[i].used)
+							continue;
+						NLubyte data;
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_kills(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_deaths(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_cons_kills(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_current_cons_kills(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_cons_deaths(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_current_cons_deaths(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_suicides(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_captures(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_flags_taken(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_flags_dropped(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_flags_returned(data);
+						readByte(lebuf, count, data);
+						fx.player[i].stats().set_carriers_killed(data);
+					}
+					break;
+				}
+
+				default:
+					LOG1("BAD ERROR: UNKNOWN SERVER MESSAGE CODE = %i!!\n", code);
+					break;
 			}
 		}
 	} while (msg != 0);
@@ -2165,36 +2175,28 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 }
 
 //send chat message
-void gameclient_c::send_chat(char *msg) {
+void gameclient_c::send_chat(const string& msg) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
-	writeString(lebuf, count, msg);	// the message
+	writeStr(lebuf, count, msg);
 	client->send_message(lebuf, count);
 }
 
 void gameclient_c::erase_first_message() {
-	for (int i=1; i<CHAT_SIZE; ++i)
-		strcpy(chatbuffer[i-1], chatbuffer[i]);
-	chatbuffer[CHAT_SIZE-1][0] = '\0';
+	if (!chatbuffer.empty())
+		chatbuffer.pop_front();
 	chaterasetime = get_time() + 10.0;
 }
 
 //print message to "console"
-void gameclient_c::print_message(const char *msg) {
-	int i;
-	for (i = CHAT_SIZE - 1; i > 0; --i)
-		if (chatbuffer[i][0] == '\0')
-			break;
-	// i points to first shift target (0 if no spaces were found)
-	for (++i; i < CHAT_SIZE; ++i)
-		strcpy(chatbuffer[i - 1], chatbuffer[i]);
-	strcpy(chatbuffer[CHAT_SIZE - 1], msg);
+void gameclient_c::print_message(const string& msg) {
+	if (chatbuffer.size() == chat_size)
+		chatbuffer.pop_front();
+	chatbuffer.push_back(msg);
 	chaterasetime = get_time() + 10.0;
 }
 
 void gameclient_c::save_screenshot() {
-	// FIXME: save all screenshots to a subdirectory
-	// FIXME: taking a screenshot causes about one second delay in the game
 	// FIXME: make screenshots possible everywhere in the game
 	string filename;
 	for (int i = 0; i < 1000; i++) {
@@ -2726,7 +2728,7 @@ void gameclient_c::loop() {
 									}
 								}
 							}
-							else if (sc == KEY_ENTER) {
+							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
 								connect_command();
 							}
 							else if (sc == KEY_TAB) {
@@ -2776,7 +2778,7 @@ void gameclient_c::loop() {
 										editplayerpass.erase(editplayerpass.end() - 1);
 								}
 							}
-							else if (sc == KEY_ENTER) {
+							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
 								change_name_command();
 								//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
 								//conectado...
@@ -2784,6 +2786,15 @@ void gameclient_c::loop() {
 							}
 							else if (sc == KEY_TAB)		// switch fields
 								name_selected = !name_selected;
+							break;
+						// server password requesting dialog
+						case menu_server_password:
+							if (sc == KEY_BACKSPACE && !edit_server_password.empty())
+								edit_server_password.erase(edit_server_password.end() - 1);
+							else if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_server_password.empty())
+								connect_command();
+							else if (ch >= 32)
+								edit_server_password += static_cast<char>(ch);
 							break;
 						case menu_maps:
 							if (key[KEY_UP])
@@ -2796,7 +2807,7 @@ void gameclient_c::loop() {
 								if (!edit_map_vote.empty())
 									edit_map_vote.erase(edit_map_vote.end() - 1);
 							}
-							else if (sc == KEY_ENTER) {
+							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
 								int new_vote = atoi(edit_map_vote.c_str()) - 1;
 								edit_map_vote = "";
 								if (new_vote != map_vote && (new_vote >= 0 && new_vote < static_cast<int>(maps.size()) ||
@@ -2927,8 +2938,6 @@ void gameclient_c::loop() {
 					int sc = ch >> 8;	// scancode
 					ch = ch & 0xff;		// char
 
-					i = strlen(talkbuffer);
-
 					// toggle help
 					if (sc == KEY_F1)
 						toggle_help();
@@ -2949,7 +2958,15 @@ void gameclient_c::loop() {
 						predraw();
 					}
 
-					// Insert: change name
+					// Insert: show more messages
+					if (sc == KEY_INSERT) {
+						if (chat_visible < chat_size)
+							chat_visible = chat_size;
+						else
+							chat_visible = 8;
+					}
+
+					// F10: change name
 					if (sc == KEY_F10) {
 						editplayername = RandomName();
 						change_name_command();
@@ -2963,20 +2980,19 @@ void gameclient_c::loop() {
 					}
 					// Backspace: erase one character
 					else if (sc == KEY_BACKSPACE) {
-						if (i>0) talkbuffer[i-1] = 0;
+						if (!talkbuffer.empty())
+							talkbuffer.erase(talkbuffer.end() - 1);
 					}
 					// Enter: send text
 					else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-						if (i > 0) {
+						if (!talkbuffer.empty()) {
 							send_chat(talkbuffer);
-							talkbuffer[0]=0;
+							talkbuffer.clear();
 						}
 					}
 					// Add character to text, max text length 60 chars.
-					else if (i < 60 && ch >= 32) {
-						talkbuffer[i] = static_cast<char>(ch);
-						talkbuffer[i + 1] = 0;
-					}
+					else if (talkbuffer.length() < 60 && ch >= 32)
+						talkbuffer += static_cast<char>(ch);
 				}
 			}
 
@@ -3005,8 +3021,8 @@ void gameclient_c::loop() {
 			if (key[KEY_ESC]) {
 				if (!kesc) {
 					kesc = true;
-					if (talkbuffer[0] != '\0') // cancel chat
-						talkbuffer[0] = '\0';
+					if (!talkbuffer.empty()) // cancel chat
+						talkbuffer.clear();
 					else if (trying_connection) {		//trying connection
 						trying_connection = false;	//not anymore
 
@@ -3021,10 +3037,10 @@ void gameclient_c::loop() {
 					else if (menu == menu_none)		// no menu, show
 						set_menu(menu_main);
 					else {		// menu
-						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list)	// go back one screen
-							set_menu(menu_main);
-						else						// hide menu
-							set_menu(menu_none);
+						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list || menu == menu_server_password)
+							set_menu(menu_main);	// go back one screen
+						else if (gameshow || menu != menu_main)
+							set_menu(menu_none);	// hide menu
 					}
 				}
 			}
@@ -3261,11 +3277,6 @@ gameclient_c::gameclient_c():
 	//connect screen, my "mini-gamespy"
 	gi=0;	//what game entry
 
-	dialogmessage[0]=0;	//dialog message
-	dialogmessage2[0]=0;	//dialog message line 2
-	talkbuffer[0]=0;			// chat input buffer
-	for (int i=0;i<CHAT_SIZE;i++)	// last chat messages list
-		chatbuffer[i][0]=0;
 	chaterasetime = 0;				// time to erase a chat message from the list
 
 	pthread_mutex_init(&frame_mutex, 0);
@@ -3686,9 +3697,6 @@ void gameclient_c::draw_game_frame() {
 		client_graphics.draw_player_weapon(fx.player[me].weapon + 1);
 	}
 
-	//server hostname
-	//textprintf(drawbuf, font, plx+6*8+334+(32-strlen_hostname)*8, ply+plh+25, col[COLINFO], "%s", hostname);
-
 	//show "want change teams" flag if active
 	if (want_change_teams)
 		client_graphics.draw_change_team_message(get_time());
@@ -3697,47 +3705,18 @@ void gameclient_c::draw_game_frame() {
 		client_graphics.draw_change_map_message(get_time());
 
 	// the STATUSBAR : health energy, bars ....
-	//
 	if (me >= 0) {
 		client_graphics.draw_player_health(fx.player[me].health);
 		client_graphics.draw_player_energy(fx.player[me].energy);
 	}
 
 	// the HUD: message output
-	//
-	char lix[16];
-	char *themsg;
-	int top = 0;
-	for (int i = 0; i < CHAT_SIZE; i++)
-		if (chatbuffer[i][0] != '\0') {
-			//default text color (normal chat)
-			MESSAGE_TYPE type = MSG_NORMAL;
-
-			//change color if team chat
-			strncpy(lix, chatbuffer[i], 2);	//2 primeiros chars da string
-			lix[2] = 0;
-			themsg = &chatbuffer[i][2];
-			if (!strcmp(lix, "@T"))		// T eam message
-				type = MSG_TEAM;
-			else if (!strcmp(lix, "@I")) // I nformation
-				type = MSG_INFO;
-			else if (!strcmp(lix, "@W")) // W warning
-				type = MSG_WARNING;
-			else
-				themsg = chatbuffer[i];	//don't discard 2 chars because there's no "@x" rpefix
-
-			//colorful text
-			client_graphics.print_chat_message(top, themsg, type);
-			top++;
-		}
-
-	// the HUD: input text on "top" of message output
-	//
-	if (talkbuffer[0] != 0) {
-		ostringstream message;
-		message << "Say: " << talkbuffer << '_';
-		client_graphics.print_chat_input(top, message.str());
-	}
+	int start = static_cast<int>(chatbuffer.size()) - static_cast<int>(chat_visible);
+	if (start < 0)
+		start = 0;
+	list<string>::const_iterator msg = chatbuffer.begin();
+	for (int i = 0; i < start; ++i, ++msg);
+	client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer);
 
 	//"server not responding... connection may have dropped" plaque
 	if (get_time() > lastpackettime + 1.0)
@@ -3855,12 +3834,12 @@ void gameclient_c::draw_game_frame() {
 	}*/
 
 	// debug panel
-	/*if (key[KEY_F9]) {
-		clear_to_color(drawbuf, col[COLSHADOW]);
+	if (key[KEY_F9]) {
+		const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
+		const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
+		client_graphics.debug_panel(fx.player, me, bpsin, bpsout);
 
-		textprintf(drawbuf,font,0,0,col[COLWHITE], "me=%i ", me);
-
-		int p;
+		/*int p;
 		for (p=0;p<maxplayers;p++) {
 			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f",
 				p, fx.player[p].used, fx.player[p].onscreen, fx.player[p].enemyvis, fx.player[p].roomx, fx.player[p].roomy,
@@ -3874,8 +3853,8 @@ void gameclient_c::draw_game_frame() {
 		int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
 		int bpstraffic = bpsin + bpsout;
 		textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
-		textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);
-	}*/
+		textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);*/
+	}
 
 
 	//unlock frame mutex
@@ -3919,6 +3898,9 @@ void gameclient_c::draw_game_menu() {
 			break;
 		case menu_name_password:
 			client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
+			break;
+		case menu_server_password:
+			client_graphics.server_password_menu(edit_server_password.length());
 			break;
 		case menu_maps:
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);

@@ -105,6 +105,7 @@ class ServerNetworking {
 	bool			website_exiting_ok;
 
 	std::string		hostname;
+	std::string		server_password;
 	int				ping_send_client;
 	int				ctop[256];			// client id-to-player id index
 	int				player_count;
@@ -193,6 +194,8 @@ public:
 	void reload_hostname();
 	NLaddress get_client_address(int cid) const;
 	int get_player_count() const { return player_count; }
+
+	void set_server_password(const std::string& passwd) { server_password = passwd; }
 };
 
 bool is_url_safe(char c);

@@ -94,8 +94,8 @@ public:
 	void draw_loading_map_message(const std::string& text);
 	void show_not_responding_message();
 	void draw_scores(const std::string& text, int col, int score1, int score2);
-	void print_chat_message(int line, const std::string& message, MESSAGE_TYPE type);
-	void print_chat_input(int line, const std::string& message);
+	void print_chat_messages(std::list<std::string>::const_iterator begin, const std::list<std::string>::const_iterator& end,
+							 const std::string& talkbuffer);
 
 	void draw_scoreboard(const std::vector<ClientPlayer>& players);
 	void draw_scoreboard_caption(int team, const std::string& caption);
@@ -104,6 +104,7 @@ public:
 
 	void team_statistics(const Team* teams);
 	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
+	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout);
 
 	void map_list(const vector<gameserver_c::MapInfo>& maps, int current = -1,
 				  int own_vote = -1, const std::string& edit_vote = "");
@@ -149,6 +150,7 @@ public:
 	void public_servers(const std::vector<gamespy_t>& servers, int selection);
 	void favourite_servers(const std::vector<gamespy_t>& servers, int selection);
 	void name_password_menu(const std::string& name, int password_len, bool name_selected, const std::string& namestatus);
+	void server_password_menu(int password_len);
 	void game_help();
 	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
 	void dialog(const std::string& t1, const std::string& t2);
@@ -180,6 +182,9 @@ private:
 
 	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time);
 
+	void print_chat_message(const std::string& message, MESSAGE_TYPE type, int x, int y);
+	void print_chat_input(const std::string& message, int x, int y);
+
 	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 
@@ -193,6 +198,9 @@ private:
 
 	void load_floor_textures(const std::string& filename);
 	void load_wall_textures(const std::string& filename);
+	BITMAP* get_floor_texture(int texid);
+	BITMAP* get_wall_texture(int texid);
+
 	void load_player_sprite(const std::string& filename_team, const std::string& filename_personal);
 	void create_player_sprite(BITMAP* sprite, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
 

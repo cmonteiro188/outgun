@@ -330,16 +330,16 @@ void Graphics::draw_background() {
 }
 
 void Graphics::predraw_room_ground(const Room& room) {
-	draw_room_ground(roombg, room, 0, 0, 1., col[COLWALL], true);
+	draw_room_ground(roombg, room, 0, 0, 1., col[COLGROUND], true);
 }
 
 void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
 	for (vector<RectWall>::const_iterator rwi = room.rground.begin(); rwi != room.rground.end(); ++rwi)
-		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture ? floor_texture[rwi->texture()] : 0);
+		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture ? get_floor_texture(rwi->texture()) : 0);
 	for (vector<TriWall>::const_iterator twi = room.tground.begin(); twi != room.tground.end(); ++twi)
-		draw_tri_wall(buffer, *twi, x, y, scale, color, texture ? floor_texture[twi->texture()] : 0);
+		draw_tri_wall(buffer, *twi, x, y, scale, color, texture ? get_floor_texture(twi->texture()) : 0);
 	for (vector<CircWall>::const_iterator cwi = room.cground.begin(); cwi != room.cground.end(); ++cwi)
-		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture ? floor_texture[cwi->texture()] : 0);
+		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture ? get_floor_texture(cwi->texture()) : 0);
 }
 
 void Graphics::predraw_room_walls(const Room& room) {
@@ -348,11 +348,11 @@ void Graphics::predraw_room_walls(const Room& room) {
 
 void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
 	for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
-		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture ? wall_texture[rwi->texture()] : 0);
+		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture ? get_wall_texture(rwi->texture()) : 0);
 	for (vector<TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
-		draw_tri_wall(buffer, *twi, x, y, scale, color, texture ? wall_texture[twi->texture()] : 0);
+		draw_tri_wall(buffer, *twi, x, y, scale, color, texture ? get_wall_texture(twi->texture()) : 0);
 	for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
-		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture ? wall_texture[cwi->texture()] : 0);
+		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture ? get_wall_texture(cwi->texture()) : 0);
 }
 
 void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
@@ -1223,6 +1223,23 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 	textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[team], -1);
 }
 
+void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout) {
+	clear_to_color(drawbuf, 0);
+
+	int line = 0;
+	for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
+		const int c = me == line ? col[COLYELLOW] : col[COLWHITE];
+		textprintf_ex(drawbuf, font, 0, line++ * 10, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
+			line, player->used, player->onscreen, player->enemyvis, player->roomx, player->roomy,
+			player->lx, player->ly, player->sx, player->sy);
+	}
+
+	line++;
+	const int bpstraffic = bpsin + bpsout;
+	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "Traffic: %4i b/s", bpstraffic);
+	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "in %4i b/s, out %4i b/s", bpsin, bpsout);
+}
+
 void Graphics::map_time(int seconds) {
 	textprintf_right_ex(drawbuf, font, plx + plw - 2, ply + plh + 5, col[COLGREEN], -1, "%4d:%02d", seconds / 60, seconds % 60);
 }
@@ -1371,7 +1388,33 @@ void Graphics::draw_player_energy(int energy) {
 		rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + targ, ply + plh + 18 + 10, col[COLENER3]);
 }
 
-void Graphics::print_chat_message(int line, const string& message, MESSAGE_TYPE type) {
+void Graphics::print_chat_messages(list<string>::const_iterator msg, const list<string>::const_iterator& end, const string& talkbuffer) {
+	const int line_height = 11;
+	const int marginal = 3;
+	int line = 0;
+	for (; msg != end; ++msg, ++line) {
+		//default text color (normal chat)
+		MESSAGE_TYPE type = MSG_NORMAL;
+
+		//change color if special message
+		if (msg->substr(0, 2) == "@T")		// T eam message
+			type = MSG_TEAM;
+		else if (msg->substr(0, 2) == "@I") // I nformation
+			type = MSG_INFO;
+		else if (msg->substr(0, 2) == "@W") // W warning
+			type = MSG_WARNING;
+
+		// print the message
+		print_chat_message(msg->substr(type == MSG_NORMAL ? 0 : 2), type, marginal, marginal + line * line_height);
+	}
+	if (!talkbuffer.empty()) {
+		ostringstream message;
+		message << "Say: " << talkbuffer << '_';
+		print_chat_input(message.str(), marginal, marginal + line * line_height);
+	}
+}
+
+void Graphics::print_chat_message(const string& message, MESSAGE_TYPE type, int x, int y) {
 	int c;
 	switch (type) {
 		case MSG_WARNING: c = col[COLLRED]; break;
@@ -1379,14 +1422,11 @@ void Graphics::print_chat_message(int line, const string& message, MESSAGE_TYPE 
 		case MSG_INFO: c = col[COLGREEN]; break;
 		default: c = col[COLORA];
 	}
-	textout_ex(drawbuf, font, message.c_str(), 3, 3 + line * 11, c, -1);
+	textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
 }
 
-void Graphics::print_chat_input(int line, const string& message) {
-	const int x = 3;
-	const int y = 3;
-	const int lh = 11;
-	print_text_border(message, x, y + line * lh, col[COLWHITE], 0, -1);
+void Graphics::print_chat_input(const string& message, int x, int y) {
+	print_text_border(message, x, y, col[COLWHITE], 0, -1);
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
@@ -1619,8 +1659,7 @@ void Graphics::menu_caption() {
 
 //draw the main menu
 void Graphics::main_menu(bool connected, const string& address, const string& playername, const string& namestatus,
-						 bool listen_server_running, int listen_port_running, const Sounds& sounds)
-{
+						 bool listen_server_running, int listen_port_running, const Sounds& sounds) {
 	menu_caption();
 	int DELY = 10;
 	textprintf_ex(drawbuf, font, 150, 185-DELY, col[COLWHITE], -1, "  [ 1 ]   Connect");
@@ -1692,6 +1731,15 @@ void Graphics::name_password_menu(const string& name, int password_len, bool nam
 	// favourite colours
 	/*for (int i = 0; i < 10; i++)
 		draw_player(130 + 37 * i, 230, 1, i, 7, 0., 0, 255, 0.);*/
+}
+
+void Graphics::server_password_menu(int password_len) {
+	menu_caption();
+	const string password(password_len, '*');
+	ostringstream line;
+	line << "Server password: " << password << '_';
+	textout_ex(drawbuf, font, line.str().c_str(), 150, 230, col[COLWHITE], -1);
+	textout_ex(drawbuf, font, "Esc to cancel.", 150, 250, col[COLWHITE], -1);
 }
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
@@ -2027,7 +2075,8 @@ void Graphics::load_theme(const string& dirname) {
 	string name;
 	ifstream in(dest);
 	if (in) {
-		if (!getline_smart(in, name))
+		getline_smart(in, name);
+		if (name.empty())
 			name = "(unnamed theme)";
 		in.close();
 	}
@@ -2057,6 +2106,20 @@ void Graphics::load_floor_textures(const string& path) {
 void Graphics::load_wall_textures(const string& path) {
 	unload_wall_textures();
 	wall_texture[0] = load_bitmap((path + "wall.pcx").c_str(), NULL);
+}
+
+BITMAP* Graphics::get_floor_texture(int texid) {
+	if (floor_texture[texid])
+		return floor_texture[texid];
+	else
+		return floor_texture.front();
+}
+
+BITMAP* Graphics::get_wall_texture(int texid) {
+	if (wall_texture[texid])
+		return wall_texture[texid];
+	else
+		return wall_texture.front();
 }
 
 void Graphics::load_player_sprite(const string& filename_team, const string& filename_personal) {

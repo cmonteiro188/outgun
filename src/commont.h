@@ -68,7 +68,7 @@ public:
 };
 
 inline void readStr(const char* buf, int& count, string& dst) {
-	dst = "";
+	dst.clear();
 	while (buf[count])
 		dst += buf[count++];
 	++count;
@@ -126,6 +126,7 @@ extern NLaddress        master_address;
 #define SERVER_MAPS_DIR "maps"
 #define CLIENT_MAPS_DIR "cmaps"
 
+// system directory separator
 extern char directory_separator;
 
 //root path (game executable path)
@@ -138,6 +139,7 @@ extern double svp_fric_run, svp_accel_run, svp_maxspeed_run;
 extern double svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
 extern double svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun;
 extern double svp_flag_penalty;
+extern bool   svp_friendly_fire, svp_friendly_db;
 
 void set_default_physics();
 

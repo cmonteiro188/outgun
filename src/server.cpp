@@ -360,8 +360,9 @@ void gameserver_c::load_game_mod() {
 		LOG1("Loading game mod from '%s'...\n", filename);
 
 		string line, cmd;
-		while (getline_smart(in, line)) {
-			if (line[0] == ';')	//skip blank and comment
+		while (in) {
+			getline_smart(in, line);
+			if (line.empty() || line[0] == ';')	//skip blank and comment
 				continue;
 			else if (command)
 				cmd = line;
@@ -395,6 +396,18 @@ void gameserver_c::load_game_mod() {
 					svp_maxspeed_turborun = val;
 				else if (cmd == "flag_penalty")
 					svp_flag_penalty = val;
+				else if (cmd == "friendly_fire") {
+					if (ival == 0 || ival == 1)
+						svp_friendly_fire = ival == 1 ? true : false;
+					else
+						LOG1("Can't set friendly_fire to %d\n", ival);
+				}
+				else if (cmd == "friendly_deathbringer") {
+					if (ival == 0 || ival == 1)
+						svp_friendly_db = ival == 1 ? true : false;
+					else
+						LOG1("Can't set friendly_deathbringer to %d\n", ival);
+				}
 				else if (cmd == "map") {
 					MapInfo mi;
 					if (mi.load(line)) {
@@ -469,6 +482,8 @@ void gameserver_c::load_game_mod() {
 					welcome_message.push_back(line);
 				else if (cmd == "info_message")
 					info_message.push_back(line);
+				else if (cmd == "server_password")
+					network.set_server_password(line);
 				else if (cmd == "pup_add_time") {
 					if (ival > 0 && ival < 1000)
 						pupConfig.pup_add_time = ival;
@@ -531,7 +546,7 @@ void gameserver_c::load_game_mod() {
 
 		LOG("END OF GAME MOD FILE.\n");
 
-		//in.close();
+		in.close();
 	}
 	else
 		LOG("Can't open game mod file!\n");

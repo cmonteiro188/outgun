@@ -156,205 +156,244 @@ bool Map::load(const char *mapdir, const string& mapname) {
 		NLubyte lebigbuf[65536];
 		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
 		crc = nlGetCRC16((NLubyte*)lebigbuf, numread);
-		rewind(fmap);
-		bool ok = parse_label(fmap, 0);
 		fclose(fmap);
-		if (!ok) {
-			LOG1("Error loading map '%s'\n", mapname.c_str());
-			return false;
-		}
-		fclose(fmap);
-		return true;
-	}
-	else {
-		LOG1("can't load mapfile from '%s'!\n", dest);
-		return false;
-	}
-}
-
-bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float scalex, float scaley) {	// crx,cry = "current room pointer"
-	rewind(f);
-	for (;;) {
-		char s[1024];
-		if (!fgets(s, 1024, f)) {	// end-of-file or error
-			if (scan_label) {
-				LOG1("Map label %s not found\n", scan_label);
+		ifstream in(dest);
+		if (in) {
+			if (!parse_file(in)) {
+				LOG1("Error loading map '%s'\n", mapname.c_str());
 				return false;
 			}
-			else
-				return true;
+			in.close();
+			return true;
 		}
-		for (int si=strlen(s)-1; si>=0; --si) {
-			if (s[si]=='\n' || s[si]=='\r')
-				s[si] = '\0';
-			else
-				break;
+	}
+	LOG1("can't load mapfile from '%s'!\n", dest);
+	return false;
+}
+
+bool Map::parse_file(istream& in) {
+	int crx = 0, cry = 0;
+	float scalex = 1, scaley = 1;
+	vector<pair<string, pair<int, int> > > labels;
+	string current_label;
+	while (1) {
+		string line;
+		getline_smart(in, line);
+		if (line.empty() || line[0] == ';')		// empty line or comment
+			continue;
+		if (line[0] == ':') {	// a label is found
+			current_label = line.substr(1);
+			continue;
 		}
-		if (s[0] == '\0' || s[0]==';')
-			continue;
-		if (s[0]==':') {	// a label is found
-			if (!scan_label)
-				return true;
-			if (!strcmp(s+1, scan_label))
-				scan_label = 0;
-			continue;
-		}
-		if (scan_label)
-			continue;
-		char nullc;	// to be used at ends of sscanf to make sure there is nothing extra on the line
-		if (s[0]=='W' || s[0]=='G') {	// W x1 y1 x2 y2 [tex alpha] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
+		char nullc;	// to be used to make sure there is nothing extra on the line
+		if (line[0] == 'W' || line[0] == 'G') {	// W x1 y1 x2 y2 [tex alpha] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
 			float x1, y1, x2, y2;
 			int texid, alpha;
-			int n = sscanf(s+1, " %f %f %f %f %i %i %c", &x1, &y1, &x2, &y2, &texid, &alpha, &nullc);
-			if (n == 4)
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> x1 >> y1 >> x2 >> y2;
+			bool ok = ist;
+			ist >> texid;
+			if (!ist)
 				texid = 0;
-			if (n == 4 || n == 5)
+			ist >> alpha;
+			if (!ist)
 				alpha = 255;
-			if (n < 4 || n > 6 || crx < 0 || cry < 0 || crx >= w || cry >= h) {
-				LOG1("Invalid map line: %s\n", s);
+			ist >> nullc;
+			if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
 			x1 *= plw / scalex; x2 *= plw / scalex;
 			y1 *= plh / scaley; y2 *= plh / scaley;
-			Room& rm = room[crx][cry];
-			vector<RectWall>& wvec = (s[0] == 'W') ? rm.rwalls : rm.rground;
-			wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
-			continue;
+			if (!current_label.empty()) {
+				for (int i = 0; i < static_cast<int>(labels.size()); i++)
+					if (labels[i].first == current_label) {
+						Room& rm = room[labels[i].second.first][labels[i].second.second];
+						vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
+						wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
+					}
+			}
+			else {
+				Room& rm = room[crx][cry];
+				vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
+				wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
+			}
 		}
-		if (s[0]=='T') {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex alpha] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
+		else if (line[0] == 'T') {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex alpha] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
 			char type;
 			float x1, y1, x2, y2, x3, y3;
 			int texid, alpha;
-			int n = sscanf(s+1, " %c %f %f %f %f %f %f %i %i %c", &type, &x1, &y1, &x2, &y2, &x3, &y3, &texid, &alpha, &nullc);
-			if (n == 7)
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
+			bool ok = ist;
+			ist >> texid;
+			if (!ist)
 				texid = 0;
-			if (n == 7 || n == 8)
+			ist >> alpha;
+			if (!ist)
 				alpha = 255;
-			if (n < 7 || n > 9 || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h) {
-				LOG1("Invalid map line: %s\n", s);
+			ist >> nullc;
+			if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
 			x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
 			y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
-			Room& rm = room[crx][cry];
-			vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-			wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
-			continue;
+			if (!current_label.empty()) {
+				for (int i = 0; i < static_cast<int>(labels.size()); i++)
+					if (labels[i].first == current_label) {
+						Room& rm = room[labels[i].second.first][labels[i].second.second];
+						vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
+						wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+					}
+			}
+			else {
+				Room& rm = room[crx][cry];
+				vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
+				wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+			}
 		}
-		if (s[0]=='C') {	// C (W|G) x y or [ir [a1 a2 [tex alpha]]] : circular wall (W) or ground tex (G)
+		else if (line[0] == 'C') {	// C (W|G) x y or [ir [a1 a2 [tex alpha]]] : circular wall (W) or ground tex (G)
 			char type;
 			float x, y, ro, ri, a1, a2;
 			int texid, alpha;
-			int n = sscanf(s + 1, " %c %f %f %f %f %f %f %i %i %c", &type, &x, &y, &ro, &ri, &a1, &a2, &texid, &alpha, &nullc);
-			switch (n) {
-				case 4:
-					ri = 0;			// flow
-				case 5:
-					a1 = a2 = 0;	// flow
-				case 7:
-					texid = 0;
-				case 8:
-					alpha = 255;
-					break;
-				default: break;
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> type >> x >> y >> ro;
+			bool ok = ist;
+			ist >> ri;
+			if (!ist) {
+				ri = a1 = a2 = 0;
 			}
+			else {
+				ist >> a1;
+				if (!ist)
+					a1 = 0;
+				else {
+					ist >> a2;
+					if (!ist)
+						ok = false;
+				}
+			}
+			ist >> texid;
+			if (!ist)
+				texid = 0;
+			ist >> alpha;
+			if (!ist)
+				alpha = 255;
 			if (a1 < 0)
 				a1 += 360;
 			if (a2 < 0)
 				a2 += 360;
-			if ((n != 9 && n != 8 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360) {
-				LOG1("Invalid map line: %s\n", s);
+			ist >> nullc;
+			if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
 			x *= plw / scalex;
 			y *= plh / scaley;
 			ro *= plh / scaley;
 			ri *= plh / scaley;
-			Room& rm = room[crx][cry];
-			vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-			wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
-			continue;
+			if (!current_label.empty()) {
+				for (int i = 0; i < static_cast<int>(labels.size()); i++)
+					if (labels[i].first == current_label) {
+						Room& rm = room[labels[i].second.first][labels[i].second.second];
+						vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
+						wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
+					}
+			}
+			else {
+				Room& rm = room[crx][cry];
+				vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
+				wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
+			}
 		}
-		if (s[0]=='R') {	// R x y : set room pointer to (x,y)
-			int n = sscanf(s+1, " %i %i %c", &crx, &cry, &nullc);
-			if (n!=2 || crx<0 || crx>=w || cry<0 || cry>=h) {
-				LOG1("Invalid map line: %s\n", s);
+		else if (line[0] == 'R') {	// R x y : set room pointer to (x,y)
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> crx >> cry;
+			if (!ist || (ist >> nullc) || crx < 0 || crx >= w || cry < 0 || cry >= h) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
-			continue;
 		}
-		if (s[0]=='X') {	// X label x1 y1 [x2 y2] : add walls from label to the rectangle (x1,y1)-(x2,y2)
-			char nextlabel[64];
+		else if (line[0] == 'X') {	// X label x1 y1 [x2 y2] : add walls from label to the rectangle (x1,y1)-(x2,y2)
+			string nextlabel;
 			int rx1, ry1, rx2, ry2;
-			int n = sscanf(s+1, " %64s %i %i %i %i %c", nextlabel, &rx1, &ry1, &rx2, &ry2, &nullc);
-			if (n == 3) {	// one room only
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> nextlabel >> rx1 >> ry1;
+			bool ok = ist;
+			ist >> rx2 >> ry2;
+			if (ok && !ist) {	// one room only
 				rx2 = rx1;
 				ry2 = ry1;
 			}
-			if ((n!=3 && n!=5) || rx1<0 || rx2>=w || rx2<rx1 || ry1<0 || ry2>=h || ry2<ry1) {
-				LOG1("Invalid map line: %s\n", s);
+			else if (!ist || (ist >> nullc) || rx1 < 0 || rx2 >= w || rx2 < rx1 || ry1 < 0 || ry2 >= h || ry2 < ry1) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
-			long filepos = ftell(f);
-			for (int ry=ry1; ry<=ry2; ry++)
-				for (int rx=rx1; rx<=rx2; rx++)
-					if (!parse_label(f, nextlabel, rx, ry, scalex, scaley))
-						return false;
-			fseek(f, filepos, SEEK_SET);
-			crx=rx2; cry=ry2;	// compatibility with original sloppy specs (needed?)
-			continue;
+			for (int ry = ry1; ry <= ry2; ry++)
+				for (int rx = rx1; rx <= rx2; rx++) {
+					const pair<string, pair<int, int> > label(nextlabel, pair<int, int>(rx, ry));
+					labels.push_back(label);
+				}
 		}
-		if (!strncmp(s, "P width ", 8)) {	// P width w : set map width to w rooms #FIXME: Allow "P   width"
+		else if (line.find("P width ") == 0) {	// P width w : set map width to w rooms #FIXME: Allow "P   width"
 			if (w != 0) {
 				LOG("Redefined map width\n");
 				return false;
 			}
-			int n = sscanf(s+1, " width %i %c", &w, &nullc);
-			if (w<1 || n!=1) {
-				LOG1("Invalid map line: %s\n", s);
+			istringstream ist(line);
+			ist.seekg(8);
+			ist >> w;
+			if (!ist || (ist >> nullc) || w < 1) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
 			room.resize(w);
-			for (vector< vector<Room> >::iterator ri=room.begin(); ri!=room.end(); ++ri)
+			for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
 				ri->resize(h);
-			continue;
 		}
-		if (!strncmp(s, "P height ", 9)) {	// P height h : set map height to h rooms
+		else if (line.find("P height ") == 0) {	// P height h : set map height to h rooms
 			if (h != 0) {
 				LOG("Redefined map height\n");
 				return false;
 			}
-			int n = sscanf(s+1, " height %i %c", &h, &nullc);
-			if (h<1 || n!=1) {
-				LOG1("Invalid map line: %s\n", s);
+			istringstream ist(line);
+			ist.seekg(9);
+			ist >> h;
+			if (!ist || (ist >> nullc) || h < 1) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
-			for (vector< vector<Room> >::iterator ri=room.begin(); ri!=room.end(); ++ri)
+			for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
 				ri->resize(h);
-			continue;
 		}
-		if (!strncmp(s, "P title ", 8)) {	// P title text : set map title to text
+		else if (line.find("P title ") == 0) {	// P title text : set map title to text
 			if (!title.empty()) {
 				LOG("Redefined map title\n");
 				return false;
 			}
-			title=string(s+8);
-			continue;
+			title = line.substr(8);
 		}
-		if (!strncmp(s, "P author ", 9)) {	// P author text : set map author to text
+		else if (line.find("P author ") == 0) {	// P author text : set map author to text
 			if (!author.empty()) {
 				LOG("Redefined map author\n");
 				return false;
 			}
-			author=string(s+9);
-			continue;
+			author = line.substr(9);
 		}
-		if (!strncmp(s, "spawn ", 6)) {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
+		else if (line.find("spawn ") == 0) {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
 			int team, rx, ry;
 			float x, y;
-			int n = sscanf(s, "spawn %i %i %i %f %f %c", &team, &rx, &ry, &x, &y, &nullc);
-			if (n != 5) {
-				LOG1("Invalid map line: %s\n", s);
+			istringstream ist(line);
+			ist.seekg(6);
+			ist >> team >> rx >> ry >> x >> y;
+			if (!ist || (ist >> nullc) || team < 0 || team > 1) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
 			spoint_t spot;
@@ -363,41 +402,43 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 			spot.x = (int)(x * (double)plw / scalex);
 			spot.y = (int)(y * (double)plh / scaley);
 			tinfo[team].spawn.push_back(spot);
-			continue;
 		}
-		if (!strncmp(s, "flag ", 5)) {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
+		else if (line.find("flag ") == 0) {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
 			int team, rx, ry;
 			float x, y;
-			int n = sscanf(s, "flag %i %i %i %f %f %c", &team, &rx, &ry, &x, &y, &nullc);
-			if (n != 5) {
-				LOG1("Invalid map line: %s\n", s);
+			istringstream ist(line);
+			ist.seekg(5);
+			ist >> team >> rx >> ry >> x >> y;
+			if (!ist || (ist >> nullc) || team < 0 || team > 1) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
 			spoint_t flag(bound(rx, 0, w-1), bound(ry, 0, h-1),
 				static_cast<int>(x * (double)plw / scalex), static_cast<int>(y * (double)plh / scaley));
 			tinfo[team].flags.push_back(flag);
-			continue;
 		}
-		if (s[0]=='V') {	// V ver : set file format version
-			int n = sscanf(s+1, " %i %c", &ver, &nullc);
-			if (n != 1) {
-				LOG1("Invalid map line: %s\n", s);
+		else if (line[0] == 'V') {	// V ver : set file format version
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> ver;
+			if (!ist || (ist >> nullc)) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
-			continue;
 		}
-		if (s[0]=='S') {	// S x y : set map scale
-			float sx, sy;
-			int n = sscanf(s+1, " %f %f %c", &sx, &sy, &nullc);
-			if (n != 2 || sx <= 0 || sy <= 0) {
-				LOG1("Invalid map line: %s\n", s);
+		else if (line[0] == 'S') {	// S x y : set map scale
+			istringstream ist(line);
+			ist.seekg(2);
+			ist >> scalex >> scaley;
+			if (!ist || (ist >> nullc) || scalex <= 0 || scaley <= 0) {
+				LOG1("Invalid map line: %s\n", line.c_str());
 				return false;
 			}
-			scalex = sx;
-			scaley = sy;
-			continue;
 		}
-		LOG1("Unrecognized map line: %s\n", s);
+		else
+			LOG1("Unrecognized map line: %s\n", line.c_str());
+		if (!in)	// end-of-file or error
+			return true;
 	}
 }
 
@@ -998,6 +1039,8 @@ void WorldSettings::print(LineReceiver& printer) const {
 		line << "- No map time limit.";
 	else
 		line << "- Map time limit: " << time_limit / 10 / 60 << " min";
+	if (svp_friendly_fire)
+		line << "- Friendly fire is on";
 	printer(line.str());
 	if (shadow_minimum == 1)
 		printer("- A player using the shadow power-up gets totally invisible");
@@ -1529,7 +1572,11 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	if (player[target].health > 0)
 		return;
 
-	host->score_frag(attacker, 1);	//frag to attacker for the kill
+	bool same_team = (target / TSIZE == attacker / TSIZE);
+	if (!same_team)
+		host->score_frag(attacker, 1);		// frag to attacker for the kill
+	else
+		host->score_frag(attacker, -2);		// take two frags for killing own player
 	player[attacker].total_kills++;
 	if (++player[attacker].current_consecutive_kills > player[attacker].most_consecutive_kills)
 		player[attacker].most_consecutive_kills = player[attacker].current_consecutive_kills;
@@ -1539,36 +1586,49 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	const int atteam = attacker / TSIZE;
 
 	//check if the enemy flag is carried in this screen(target's) by somebody that is not me
-	for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
-		if (fi->carried()) {
-			const int p = fi->carrier();
-			if (player[p].used && p != attacker && player[p].roomx == player[target].roomx && player[p].roomy == player[target].roomy) {
-				net->bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), teamname[atteam]);
-				host->score_frag(attacker, 1);
-				break;	// only one message
+	if (!same_team) {
+		for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
+			if (fi->carried()) {
+				const int p = fi->carrier();
+				if (player[p].used && p != attacker && player[p].roomx == player[target].roomx && player[p].roomy == player[target].roomy) {
+					net->bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), teamname[atteam]);
+					host->score_frag(attacker, 1);
+					break;	// only one message
+				}
 			}
-		}
-	for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
-		if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-			net->bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), teamname[atteam]);
-			host->score_frag(attacker, 1);
-			break;		// only one message
-		}
+		for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
+			if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+				net->bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), teamname[atteam]);
+				host->score_frag(attacker, 1);
+				break;		// only one message
+			}
+	}
 	const bool flag = player[target].flag();
 	if (flag) {
-		host->score_frag(attacker, 1);	// extra frag for fragging a carrier
+		if (!same_team)
+			host->score_frag(attacker, 1);	// extra frag for fragging a carrier
+		else
+			host->score_frag(attacker, -1);	// extra penalty for fragging a carrier
 		player[attacker].total_flag_carriers_killed++;
 	}
 
 	if (deathbringer) {
-		if (player[attacker].used)
-			net->bprintf("@I%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
+		if (player[attacker].used) {
+			if (!same_team)
+				net->bprintf("@I%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
+			else
+				net->bprintf("@I%s was choked by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
+		}
 		else
 			net->bprintf("@I%s was choked", player[target].name.c_str());
 		net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
 	}
-	else
-		net->bprintf("@I%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
+	else {
+		if (!same_team)
+			net->bprintf("@I%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
+		else
+			net->bprintf("@I%s was nailed by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
+	}
 
 	net->broadcast_kill(player[attacker], player[target], deathbringer, flag);
 
@@ -1812,7 +1872,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				int pid = rply[pi];
 				for (uint ri=0; ri<rrock.size(); ++ri) {
 					int rid = rrock[ri];
-					if (rock[rid].team == pid/TSIZE)	// friendly rocket
+					if (rock[rid].team == pid / TSIZE && (!svp_friendly_fire || rock[rid].owner == pid))	// friendly rocket
 						continue;
 					double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
 					if (time < minCollision && time < rockMoveMax[ri]) {
@@ -2016,41 +2076,40 @@ void ServerWorld::simulateFrame() {
 
 			//check enemy players onscreen that are not hit by it yet and are inside
 			// the donut radius...radius-50
-			for (int v=0;v<maxplayers;v++)
-			if (v/TSIZE != i/TSIZE)		//enemy players only
-			if (player[v].used)	//used
-			if (player[v].health > 0)	//alive
-			if (player[v].roomx == player[i].roomx)	// in the same screen of the deathbringer
-			if (player[v].roomy == player[i].roomy)
-			if (player[v].deathbringer_end < get_time())		// deathbringer fx end time -- not already hit?
-			{
-				//calculate player distance to the deathbringer core
-				double ex = player[i].lx;
-				double ey = player[i].ly;
-				double rx = player[v].lx;
-				double ry = player[v].ly;
-				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
+			for (int v = 0; v < maxplayers; v++)
+				//enemy players only if friendly fire is off
+				if ((v/TSIZE != i/TSIZE || svp_friendly_db) && player[v].used && player[v].health > 0 &&
+								player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
+								player[v].deathbringer_end < get_time()) {
+					//calculate player distance to the deathbringer core
+					const double ex = player[i].lx;
+					const double ey = player[i].ly;
+					const double rx = player[v].lx;
+					const double ry = player[v].ly;
+					const double dt = sqrt((ex - rx) * (ex - rx) + (ey - ry) * (ey - ry));
 
-				// hit distance: if dt == rad, hit, if rad
-				if ((rad <= dt + 20) && (rad >= dt - 60)) {
-					player[v].item_deathbringer = false;
-					net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-					player[v].deathbringer_attacker = i;
-					// time of effect ; also freeze his gun for this same amount of time
-					player[v].deathbringer_end = player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
+					// hit distance: if dt == rad, hit, if rad
+					if (rad <= dt + 20 && rad >= dt - 60) {
+						player[v].item_deathbringer = false;
+						net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
+						player[v].deathbringer_attacker = i;
 
-					// calc recoil:
-					double tx = player[v].lx - player[i].lx;
-					double ty = player[v].ly - player[i].ly;
+						// time of effect ; also freeze his gun for this same amount of time
+						player[v].deathbringer_end = player[v].next_shoot_time =
+							get_time() + 4.5 + (rand() % 1000) / 1000.;
 
-					double div = sqrt( tx*tx + ty*ty );
-					if (div != 0) {
-						double mul = 40. / div;	// set speed to 40
-						player[v].sx = tx * mul;
-						player[v].sy = ty * mul;
+						// calc recoil:
+						const double tx = player[v].lx - player[i].lx;
+						const double ty = player[v].ly - player[i].ly;
+
+						const double div = sqrt(tx * tx + ty * ty);
+						if (div != 0) {
+							double mul = 40. / div;	// set speed to 40
+							player[v].sx = tx * mul;
+							player[v].sy = ty * mul;
+						}
 					}
 				}
-			}
 		}
 
 		// check for player weapons fire time

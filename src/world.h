@@ -120,7 +120,7 @@ struct teaminfo_t {
 };
 
 class Map {
-	bool parse_label(FILE *f, const char *label, int crx = 0, int cry = 0, float scalex = 1, float scaley = 1);	// crx,cry = "current room pointer"
+	bool parse_file(std::istream& in);
 
 public:
 	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?

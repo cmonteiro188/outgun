@@ -147,6 +147,12 @@ void ServerNetworking::send_me_packet(int pid) {
 	writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
 	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
 	writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
+	NLubyte ff_db = 0;
+	if (svp_friendly_fire)
+		ff_db |= 0x01;
+	if (svp_friendly_db)
+		ff_db |= 0x02;
+	writeByte(lebuf, count, ff_db);
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
@@ -246,7 +252,6 @@ void ServerNetworking::move_update_player(int a) {
 
 //broadcast a sample
 void ServerNetworking::broadcast_sample(int code) {
-
 	char lebuf[64]; int count = 0;
 	writeByte(lebuf, count, data_sound);
 	writeByte(lebuf, count, (NLubyte)code);		// the sample code
@@ -414,12 +419,12 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) {
 	int count = 0;
 	char lebuf[256];
 	writeByte(lebuf, count, data_map_list);
-	const vector<gameserver_c::MapInfo>::const_iterator mi = host->maplist().begin() + player.current_map_list_item;
-	writeStr(lebuf, count, mi->title);
-	writeStr(lebuf, count, mi->author);
-	writeByte(lebuf, count, static_cast<NLchar>(mi->width));
-	writeByte(lebuf, count, static_cast<NLchar>(mi->height));
-	writeByte(lebuf, count, static_cast<NLchar>(mi->votes));
+	const gameserver_c::MapInfo& map = host->maplist()[player.current_map_list_item];
+	writeStr(lebuf, count, map.title);
+	writeStr(lebuf, count, map.author);
+	writeByte(lebuf, count, static_cast<NLchar>(map.width));
+	writeByte(lebuf, count, static_cast<NLchar>(map.height));
+	writeByte(lebuf, count, static_cast<NLchar>(map.votes));
 	server->send_message(player.cid, lebuf, count);
 }
 
@@ -1522,7 +1527,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		server->send_frame(world.player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
 
 		//send server map list if not sent yet
-		if (world.player[i].current_map_list_item < host->maplist().size()) {
+		if (world.player[i].current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
 			send_map_info(world.player[i]);
 			++world.player[i].current_map_list_item;
 		}
@@ -3137,14 +3142,13 @@ void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* da
 }
 
 void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) {
-	(void)length;	//#fix
 	res->customDataLength = 0;
 
 	//LOG1("hello client %i!\n", arg->client_id);
 
 	//check versions
-	char stri[256];
-	char temp[256];
+	string stri;
+	ostringstream temp;
 	int count = 0;
 
 	/*LOG("args bytevalues : ");
@@ -3156,31 +3160,35 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		LOG1("%c.\n", arg->data[i] );
 	}*/
 
-	readString(data, count, stri);	//read gamestring
+	if (length > 0)
+		readStr(data, count, stri);	//read gamestring
 
-	if (strcmp(stri, GAME_STRING)) {
-		LOG2("GAME STRINGS DONT MATCH: %s and %s\n", GAME_STRING, stri);
+	if (stri != GAME_STRING) {
+		LOG2("GAME STRINGS DONT MATCH: %s and %s\n", GAME_STRING, stri.c_str());
 		res->accepted = false;		// not accepted
 
-		sprintf(temp, "Different game: '%s'", stri);
-		writeString(res->customData, res->customDataLength, temp);
+		temp << "Different game: '" << stri.c_str() << '\'';
+		writeStr(res->customData, res->customDataLength, temp.str());
 	}
 	else {
-		readString(data, count, stri);	//read protocol string
+		if (length - count > 0)
+			readStr(data, count, stri);	//read protocol string
+		else
+			stri.clear();
 
-		if (strcmp(stri, GAME_PROTOCOL)) {
-			LOG2("GAME PROTOCOL STRINGS DONT MATCH: %s and %s\n", GAME_PROTOCOL, stri);
+		if (stri != GAME_PROTOCOL) {
+			LOG2("GAME PROTOCOL STRINGS DONT MATCH: %s and %s\n", GAME_PROTOCOL, stri.c_str());
 			res->accepted = false;
 
-			sprintf(temp, "Protocol mismatch: server: %s, client: %s", GAME_PROTOCOL, stri);
-			writeString(res->customData, res->customDataLength, temp);
+			temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri;
+			writeStr(res->customData, res->customDataLength, temp.str());
 		}
 		else if (player_count >= maxplayers) {		//server full!
 			LOG("....unfortunatelly the server is FULL! hello rejected\n");
 			res->accepted = false;
 
-			sprintf(temp, "Server is full. (%i players)", player_count);
-			writeString(res->customData, res->customDataLength, temp);
+			temp << "Server is full. (" << player_count << " players)";
+			writeStr(res->customData, res->customDataLength, temp.str());
 		}
 		#ifdef SV_NAME_AUTHORIZATION
 		else if (host->isBanned(client_id)) {
@@ -3189,9 +3197,21 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		}
 		#endif
 		else {
-			res->accepted = true;
-			writeByte(res->customData, res->customDataLength, ((NLubyte)maxplayers));
-			writeStr(res->customData, res->customDataLength, hostname);
+			string password;
+			if (!server_password.empty() && length - count > 0)
+				readStr(data, count, password);
+			if (server_password.empty() || server_password == password) {
+				res->accepted = true;
+				writeByte(res->customData, res->customDataLength, ((NLubyte)maxplayers));
+				writeStr(res->customData, res->customDataLength, hostname);
+			}
+			else {
+				res->accepted = false;
+				if (password.empty())
+					writeStr(res->customData, res->customDataLength, "PASSWORD");
+				else
+					writeStr(res->customData, res->customDataLength, "Wrong password");
+			}
 		}
 	}
 }
