@@ -27,7 +27,6 @@
 const float delay_to_report_server = 30.0;
 
 using std::ifstream;
-using std::istringstream;
 using std::map;
 using std::max;
 using std::ofstream;
@@ -2276,12 +2275,16 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 			case ATS_BAN_PLAYER:
 				host->banPlayer(pid, -1, 60 * 24 * 365);	// ban for a year; this can be later adjusted in auth.txt
 				break;
-			case ATS_RESET_SETTINGS:
+			case ATS_RESET_SETTINGS: {
 				host->reset_settings(true);
+				char lebuf[16]; int count = 0;
+				writeByte(lebuf, count, data_reset_map_list);
+				server->broadcast_message(lebuf, count);
 				for (int p = 0; p < maxplayers; ++p)
 					if (world.player[p].used)
 						world.player[p].current_map_list_item = 0;	// restart sending map info, because list may have changed
 				break;
+			}
 		}
 
 		if (error)
