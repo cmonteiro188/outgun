@@ -3304,15 +3304,6 @@ void Client::draw_game_frame() {
 				draw_player(i);
 			if (k == maxplayers - 1)				// last draw me
 				draw_player(me);
-
-			//draw player's name -- nao interessa se vivo ou morto
-			//NOT an invisible enemy
-			if (menu.options.game.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
-				fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
-				const int ttx = static_cast<int>(fd.player[i].lx);
-				const int tty = static_cast<int>(fd.player[i].ly);
-				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
-			}
 		}
 
 		for (int i = 0; i < maxplayers; i++)
@@ -3321,6 +3312,15 @@ void Client::draw_game_frame() {
 					client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
 
 		client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
+
+		// Draw player names but not for invisible enemies.
+		for (int i = 0; i < maxplayers; i++)
+			if (menu.options.game.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
+					fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy && fx.player[i].onscreen && !fx.player[i].dead) {
+				const int ttx = static_cast<int>(fd.player[i].lx);
+				const int tty = static_cast<int>(fd.player[i].ly);
+				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
+			}
 	}
 
 	//do not draw stuff below if map not ready to show
