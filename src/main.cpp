@@ -105,7 +105,7 @@ void statusOutputText(const string& str) {
 }
 
 int main(int argc, char *argv[]) {
-	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
+	unsigned long stackGuard = STACK_GUARD;	stackGuardHackPtr = &stackGuard;
 
 	srand((unsigned)time(0));
 
