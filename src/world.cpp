@@ -1955,6 +1955,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	}
 	const bool flag = player[target].flag();
 	if (flag) {
+		player[attacker].stats().add_carrier_kill();
 		if (!same_team)
 			host->score_frag(attacker, 1);	// extra frag for fragging a carrier
 		else
