@@ -508,6 +508,11 @@ void Server::load_game_mod() {
 			}
 		}
 
+		const int max = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
+						+ pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
+		if (max == 0)
+			pupConfig.pups_max = 0;
+
 		if ((pupConfig.pups_min_percentage == pupConfig.pups_max_percentage && pupConfig.pups_min > pupConfig.pups_max) ||
 				pupConfig.pups_max == 0)	// if they are in different units, only the value of 0 is comparable
 			pupConfig.pups_min = pupConfig.pups_max;
