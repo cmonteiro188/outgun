@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
 	//random random
 	srand((unsigned)time(0));
 
-	strcpy(teamname[0], "RED");
+	strcpy(teamname[0], "RED");		// #FIXME: move to servnet or world
 	strcpy(teamname[1], "BLUE");
 
 	// general init
@@ -81,8 +81,7 @@ int main(int argc, char *argv[]) {
 	set_uformat(U_ASCII);
 
 	allegro_init();
-	set_window_close_button(TRUE);
-	set_window_close_hook(closeButtonCallback);
+	//set_close_button_callback(closeButtonCallback);
 	install_keyboard();
 	install_timer();
 
@@ -188,12 +187,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	// resolve master server address
-	//
+	// #FIXME: read master server address from a file
 	LOG("resolving master server address...\n");
 	try {
 		nlGetAddrFromName("www.mycgiserver.com", &master_address);	//www.mycgiserver.com
 	} catch (...) {
-		LOG("caugth exception probably on nlGetAddrFromNameAsync()\n");
+		LOG("caught exception probably on nlGetAddrFromNameAsync()\n");
 		master_address.valid = NL_FALSE;
 	}
 
@@ -383,14 +382,9 @@ int main(int argc, char *argv[]) {
 		gameclient->loop();
 
 		// disconnect client
-		//
 		gameclient->stop();
 		delete gameclient;
 		gameclient = 0;
-
-		// stop listenserver if it was running
-		//
-		listen_stop();
 	}
 
 	// exit HawkNL

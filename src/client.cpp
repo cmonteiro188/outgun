@@ -35,10 +35,14 @@ int cfunc_server_data(client_runes_t *arg);
 //client password-to-token retrieval thread
 void *thread_clientpassword_f(void *arg);
 
+bool gameclient_c::force_exit = false;
+
 bool gameclient_c::start() {
 	// gfx init
 	if (!client_graphics.reset_video_mode())		// fatal error
 		return false;
+
+	set_close_button_callback(gameclient_c::close_button_callback);
 
 	// open message log file
 	if (message_logging)
@@ -2979,6 +2983,9 @@ void gameclient_c::stop() {
 		}
 	if (message_logging)
 		message_log.close();
+
+	// stop listenserver if it was running
+	listen_stop();
 }
 
 //ctor
@@ -3717,6 +3724,10 @@ void gameclient_c::draw_game_menu() {
 		client_graphics.name_password_menu(editplayername, strlen(editplayerpass), namecursor[0] != '\0', namestatus);
 	else
 		assert(0);
+}
+
+void gameclient_c::close_button_callback() {
+	force_exit = true;
 }
 
 int cfunc_connection_update(client_runes_t *arg) {

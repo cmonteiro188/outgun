@@ -100,6 +100,9 @@ class gameclient_c {
 
 	ofstream message_log;
 
+	static bool force_exit;
+	static void close_button_callback();
+
 public:
 	bool message_logging;
 
