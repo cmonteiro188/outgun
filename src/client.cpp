@@ -102,7 +102,7 @@ class TM_MapChange : public ThreadMessage {
 
 public:
 	TM_MapChange(const string& name_, NLushort crc_) : name(name_), crc(crc_) { }
-	void execute(Client* cl) const { cl->old_map = cl->fx.map.title; cl->server_map_command(name, crc); }
+	void execute(Client* cl) const { cl->server_map_command(name, crc); }
 };
 
 class TM_NameAuthorizationRequest : public ThreadMessage {
@@ -1840,6 +1840,7 @@ void Client::process_incoming_data(const char* data, int length) {
 					map_vote = -1;
 				fx.player[me].oldx = -1;
 				fx.player[me].oldy = -1;
+				old_map = fx.map.title;
 				addThreadMessage(new TM_MapChange(mapname, crc));
 				break;
 			}
