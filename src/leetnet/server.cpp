@@ -1,4 +1,5 @@
 #define LEETNET_LOG
+#define LEETNET_DATA_LOG
 
 #include "dlog.h"
 const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
@@ -128,6 +129,9 @@ public:
 	FileLog log;
 	#else
 	NoLog log;
+	#endif
+	#ifdef LEETNET_DATA_LOG
+	FILE* datalog;
 	#endif
 
 	// number of clients allocated
@@ -555,7 +559,12 @@ DLOG_Scope s("PIDg");
 		readLong(packet, count, packid);	//packet id
 		readLong(packet, count, smsgid);	// special message id (if packet id == 0)
 
-		log("INCOMING: %s size=%i (%i,%i) -- ", addressToString(remoteaddr).c_str(), length, packid, smsgid);
+		#ifdef LEETNET_DATA_LOG
+		double currTime = get_time();
+		fwrite(&currTime, sizeof(double), 1, datalog);
+		fwrite(&length, sizeof(int), 1, datalog);
+		fwrite(packet, length, 1, datalog);
+		#endif
 
 		// verifica se a mensagem eh de algum client conhecido
       int i;
@@ -1069,6 +1078,9 @@ DLOG_Scope s("PCD_Sp");
 		log()
 		#endif
 	{
+		#ifdef LEETNET_DATA_LOG
+		datalog = fopen((wheregamedir + "log" + directory_separator + "leetserverdata.bin").c_str(), "wb");
+		#endif
 		strcpy(serverinfo, "default serverinfo");
 
 		//it's true...
@@ -1095,6 +1107,10 @@ DLOG_Scope s("PCD_Sp");
 			delete client[i].station;
 			client[i].station = 0;
 		}
+
+		#ifdef LEETNET_DATA_LOG
+		fclose(datalog);
+		#endif
 	}
 };
 

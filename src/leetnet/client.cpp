@@ -1,4 +1,5 @@
 #define LEETNET_LOG
+#define LEETNET_DATA_LOG
 
 #include "dlog.h"
 
@@ -68,6 +69,9 @@ public:
 	FileLog log;
 	#else
 	NoLog log;
+	#endif
+	#ifdef LEETNET_DATA_LOG
+	FILE* datalog;
 	#endif
 
 	//the callbacks
@@ -368,8 +372,12 @@ DLOG_Scope s("CPIDg");
 		NLulong l1, l2;
 		readLong(udp_data, fubar, l1);		//discard the "0"
 		readLong(udp_data, fubar, l2);
-		log("CLIENT INCOMING size=%i (%lu, %lu)", udp_length, l1,l2);
-
+		#ifdef LEETNET_DATA_LOG
+		double currTime = get_time();
+		fwrite(&currTime, sizeof(double), 1, datalog);
+		fwrite(&udp_length, sizeof(int), 1, datalog);
+		fwrite(udp_data, udp_length, 1, datalog);
+		#endif
 		//set datagram
 		station->set_incoming_packet(udp_data, udp_length);
 
@@ -604,6 +612,9 @@ DLOG_Scope s("CPIDg");
 		log()
 		#endif
 	{
+		#ifdef LEETNET_DATA_LOG
+		datalog = fopen((wheregamedir + "log" + directory_separator + "leetclientdata.bin").c_str(), "wb");
+		#endif
 		station = 0;
 		want_connect = false;
 		connect_status = 0;
@@ -634,6 +645,10 @@ DLOG_Scope s("CPIDg");
 			delete station;
 			station = 0;
 		}
+
+		#ifdef LEETNET_DATA_LOG
+		fclose(datalog);
+		#endif
 	}
 };
 
