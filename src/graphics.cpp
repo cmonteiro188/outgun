@@ -1053,7 +1053,9 @@ void Graphics::draw_gun_explosion(int x, int y, int rad) {
 void Graphics::draw_deathbringer_smoke(int x, int y, double time) {
 	x = scale(x);
 	y = scale(y);
-	const int alpha = max(0, 120 - static_cast<int>(time * 200.0));
+	const int alpha = 120 - static_cast<int>(time * 200.0);
+	if (alpha <= 0)
+		return;
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
 	const double drad = 3.0 + 9.0 * (0.6 - time);
