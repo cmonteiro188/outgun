@@ -339,6 +339,12 @@ void Menu_text::addLine(const string& caption, const string& value, bool cancela
 	menu.setSelection(oldSel);
 }
 
+void Menu_text::wrapLine(const string& line, bool cancelable, int wrapPos) {
+	vector<string> lines = split_to_lines(line, wrapPos, 5);	// indent continuation lines by 5 characters
+	for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li)
+		addLine(*li, "", cancelable);
+}
+
 void Menu_text::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
 	menu.setHook(opener);
 }

@@ -944,7 +944,7 @@ void Client::connect_failed_denied(char *data, int length) {
 	}
 	else {
 		nAssert(openMenus.safeTop() == &m_connectProgress.menu);
-		m_connectProgress.addLine(message);
+		m_connectProgress.wrapLine(message);
 		if (message == "Wrong player password")
 			remove_player_password(playername, addressToString(serverIP));
 	}
@@ -1609,7 +1609,8 @@ void Client::process_incoming_data(char *data, int length) {
 				case data_sound: {
 					NLubyte sample;
 					readByte(lebuf, count, sample);		// sample #
-					client_sounds.play(sample);
+					if (sample < NUM_OF_SAMPLES)
+						client_sounds.play(sample);
 					break;
 				}
 
@@ -1889,8 +1890,18 @@ void Client::process_incoming_data(char *data, int length) {
 						fx.player[target].stats().add_flag_drop(get_time());
 						fx.teams[target / TSIZE].add_flag_drop();
 					}
-					if (attacker == me && fx.player[attacker].stats().current_cons_kills() % 10 == 0)
-						client_sounds.play(SAMPLE_KILLING_SPREE);
+					if (fx.player[target].stats().current_cons_kills() >= 10) {
+						ostringstream msg;
+						msg << fx.player[target].name.c_str() << "'s killing spree was ended by " << fx.player[attacker].name.c_str();
+						print_message(msg_info, msg.str());
+					}
+					if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
+						if (attacker == me)
+							client_sounds.play(SAMPLE_KILLING_SPREE);
+						ostringstream msg;
+						msg << fx.player[attacker].name.c_str() << " is on a killing spree!";
+						print_message(msg_info, msg.str());
+					}
 					break;
 				}
 
@@ -2357,6 +2368,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 }
 
 bool Client::getServerList() {
+log.error("Testing testing this is a long error message that should be neatly divided to lines. Isn't that funny or what? Hello hello testing testing bye bye.");
 	refreshStatus = RS_connecting;
 
 	//open a nonblocking socket
@@ -2868,7 +2880,7 @@ void Client::loop(volatile bool* quitFlag) {
 		const int errors = errorLog.size();
 		if (errors) {
 			for (int count = 0; count < errors; ++count)
-				m_errors.addLine(errorLog.pop());
+				m_errors.wrapLine(errorLog.pop());
 			if (openMenus.safeTop() != &m_errors.menu)
 				showMenu(m_errors);
 		}

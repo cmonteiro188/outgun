@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <cstdarg>
 #include <cstdlib>
@@ -19,6 +20,7 @@ using std::ostringstream;
 using std::setfill;
 using std::setw;
 using std::string;
+using std::vector;
 
 int atoi(const string& str) {
 	return std::atoi(str.c_str());
@@ -94,6 +96,31 @@ string formatForLogging(const string& str) {
 	return result;
 }
 
+// Split string to lines, but only at whitespaces.
+vector<string> split_to_lines(const string& source, int lineLength, int indent) {
+    vector<string> lines;
+    if (source.empty())
+        return lines;
+    size_t start = 0, end = 0;
+    while (end != string::npos) {
+        if (source.length() < start + lineLength)
+            end = string::npos;
+        else
+            end = source.find_last_of(" \t", start + lineLength);
+        if (end <= start)
+            end = source.find_first_of(" \t", start + lineLength);
+		string line;
+		if (start == 0)	// first line
+			lineLength -= indent;	// next lines are shorter because of the indent
+		else
+			line = string(indent, ' ');	// apply indentation
+        line += source.substr(start, end - start);
+        lines.push_back(line);
+        start = end + 1;
+    }
+    return lines;
+}
+
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)
@@ -106,8 +133,8 @@ const char* strspnp(const char* str, const char* charset) {
 }
 
 void LogSet::operator()(const char* fmt, ...) { if (!  normalLog) return; va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
-void LogSet::error(const char* fmt, ...)      { if (!   errorLog) return; va_list args; va_start(args, fmt); (*   errorLog)(fmt, args); va_end(args); }
-void LogSet::security(const char* fmt, ...)   { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
+void LogSet::error     (const char* fmt, ...) { if (!   errorLog) return; va_list args; va_start(args, fmt); (*   errorLog)(fmt, args); va_end(args); }
+void LogSet::security  (const char* fmt, ...) { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
 
 void errorMessage(const string& heading, MemoryLog& errorLog) {
 	int errors = errorLog.size();

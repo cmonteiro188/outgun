@@ -32,6 +32,9 @@ bool is_nonprintable_char(unsigned char c);
 // Replace control characters with their C escape sequences (note: for readability, it doesn't convert \ to \\ so the result might be ambiguous)
 std::string formatForLogging(const std::string& str);
 
+// Split string to lines, but only at whitespaces.
+std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0);
+
 // strspnp: (Watcom definition) find from str the first char not in charset
 char* strspnp(char* str, const char* charset);
 const char* strspnp(const char* str, const char* charset);

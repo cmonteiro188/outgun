@@ -177,6 +177,7 @@ void Sounds::unload_samples() {
 }
 
 void Sounds::play(int s) const {
+	nAssert(s >= 0 && s < NUM_OF_SAMPLES);
 	if (enabled && sample[s]) {
 		nAssert(allegroSoundInitialized);
 		stop_sample(sample[s]);	// kill any voice playing that sample

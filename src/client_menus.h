@@ -182,6 +182,7 @@ public:
 	void clear() { lines.clear(); }
 	void addLine(const std::string& line, bool cancelable = false);
 	void addLine(const std::string& caption, const std::string& value, bool cancelable = false);
+	void wrapLine(const std::string& line, bool cancelable = false, int wrapPos = 68);
 
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
