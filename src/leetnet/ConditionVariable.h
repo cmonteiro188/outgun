@@ -3,7 +3,7 @@
 
 /* GNE - Game Networking Engine, a portable multithreaded networking library.
  * Copyright (C) 2001 Jason Winnebeck (gillius@mail.rit.edu)
- * Modified by Niko Ritari 2003
+ * Modified (unneeded features stripped) by Niko Ritari 2003, 2004
  * Project website: http://www.rit.edu/~jpw9607/
  *
  *  This library is free software; you can redistribute it and/or modify
@@ -41,31 +41,8 @@ public:
   //##ModelId=3B07538003CD
   ConditionVariable();
 
-  /**
-   * Initalizes this class, with another mutex that the caller is
-   * responsible for allocating and destroying.
-   * @param m the mutex to be associated with this conditional variable.
-   *          this mutex will not be deallocated.
-   */
-  //##ModelId=3B07538003CE
-  ConditionVariable(Mutex* m);
-
   //##ModelId=3B07538003D0
   virtual ~ConditionVariable();
-
-  /**
-   * Locks the associated mutex for this condition variable.
-   * @see Mutex#acquire()
-   */
-  //##ModelId=3B0753810000
-  void acquire();
-
-  /**
-   * Releases the associated mutex.
-   * @see Mutex#release()
-   */
-  //##ModelId=3B0753810001
-  void release();
 
   /**
    * This method will block until the thread is woken up by a call to
@@ -92,12 +69,6 @@ public:
   //##ModelId=3B0753810005
   void signal();
 
-  /**
-   * Wakes up all threads waiting on this CV.
-   */
-  //##ModelId=3B0753810006
-  void broadcast();
-
 private:
   //##ModelId=3AE20D83001E
   pthread_cond_t cond;
@@ -117,6 +88,4 @@ private:
 
 }
 #endif /* CONDITIONVARIABLE_H_INCLUDED_C51DFF03 */
-
-
 

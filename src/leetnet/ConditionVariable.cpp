@@ -1,6 +1,6 @@
 /* GNE - Game Networking Engine, a portable multithreaded networking library.
  * Copyright (C) 2001 Jason Winnebeck (gillius@mail.rit.edu)
- * Modified by Niko Ritari 2003
+ * Modified (unneeded features stripped) by Niko Ritari 2003, 2004
  * Project website: http://www.rit.edu/~jpw9607/
  *
  *  This library is free software; you can redistribute it and/or modify
@@ -33,28 +33,11 @@ ConditionVariable::ConditionVariable() {
   mutex = new Mutex();
 }
 
-//##ModelId=3B07538003CE
-ConditionVariable::ConditionVariable(Mutex* m) {
-  valassert(pthread_cond_init( &cond, NULL ), 0);
-  mutex = m;
-  ourMutex = false;
-}
-
 //##ModelId=3B07538003D0
 ConditionVariable::~ConditionVariable() {
   valassert(pthread_cond_destroy( &cond ), 0);
   if (ourMutex)
     delete mutex;
-}
-
-//##ModelId=3B0753810000
-void ConditionVariable::acquire() {
-  mutex->acquire();
-}
-
-//##ModelId=3B0753810001
-void ConditionVariable::release() {
-  mutex->release();
 }
 
 //##ModelId=3B0753810002
@@ -75,11 +58,6 @@ void ConditionVariable::timedWait(int ms) {
 //##ModelId=3B0753810005
 void ConditionVariable::signal() {
   valassert(pthread_cond_signal( &cond ), 0);
-}
-
-//##ModelId=3B0753810006
-void ConditionVariable::broadcast() {
-  valassert(pthread_cond_broadcast( &cond ), 0);
 }
 
 }
