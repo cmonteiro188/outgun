@@ -181,7 +181,7 @@ public:
 
 	void master_job_response(masterjob_c *j);
 	void run_masterjob_thread(masterjob_c* job);
-	bool check_private_IP(char *address);
+	bool check_private_IP(const char* address);
 	void run_mastertalker_thread();
 
 	bool read_string_from_TCP(NLsocket sock, char *buf);

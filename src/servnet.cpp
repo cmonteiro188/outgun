@@ -1994,10 +1994,10 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 }
 
 //check for private IP
-bool ServerNetworking::check_private_IP(char *address) {
+bool ServerNetworking::check_private_IP(const char *address) {
 	int i1, i2;
-	int n=sscanf(address, "%d.%d.", &i1, &i2);
-	nAssert(n==2);
+	int n = sscanf(address, "%d.%d.", &i1, &i2);
+	nAssert(n == 2);
 	if (n != 2)
 		return false;
 	// private IP ranges:
@@ -2005,7 +2005,7 @@ bool ServerNetworking::check_private_IP(char *address) {
 	// 172.16.0.0      -   172.31.255.255
 	// 192.168.0.0     -   192.168.255.255
 	// 169.254.0.0     -   169.254.255.255 [used by Microsoft DHCP client]
-	return (i1==10 || (i1==172 && i2>=16 && i2<=31) || (i1==192 && i2==168) || (i1==169 && i2==254));
+	return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
 }
 
 //master server talker thread
@@ -2022,6 +2022,12 @@ void ServerNetworking::run_mastertalker_thread() {
 		strcpy(address, force_ip_name);		//force IP
 
 		LOG1("FORCING IP TO VALUE %s\n", force_ip_name);
+		if (check_private_IP(address)) {
+			LOG1("PRIVATE IP: %s: not talking to master server...\n", address);
+			msock = NL_INVALID;	//???
+			master_exiting_ok = true;
+			return;
+		}
 	}
 	else {
 		//don't force: resolve
