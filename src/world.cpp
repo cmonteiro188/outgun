@@ -1634,7 +1634,7 @@ NLubyte ServerWorld::getFreeRocket() {
 
 void ServerWorld::shootRockets(int pid, int shots) {
 	int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
-	int bsx = static_cast<int>(player[pid].sx), bsy = static_cast<int>(player[pid].sy);
+int bsx = 0, bsy = 0;//	int bsx = static_cast<int>(player[pid].sx), bsy = static_cast<int>(player[pid].sy);
 
 	player[pid].total_shots++;
 
@@ -1709,8 +1709,8 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 
 	//if player not dead, push him
 	if (player[pid].health > 0) {
-		player[pid].sx += rock[rid].sx * .5;
-		player[pid].sy += rock[rid].sy * .5;
+		player[pid].sx += rock[rid].sx * .33;
+		player[pid].sy += rock[rid].sy * .33;
 	}
 
 	if (had_shield)
@@ -1812,7 +1812,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 					int rid = rrock[ri];
 					if (rock[rid].team == pid/TSIZE)	// friendly rocket
 						continue;
-					float time = getTimeTillCollision(player[pid], rock[rid], static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
+					float time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
 					if (time < minCollision && time < rockMoveMax[ri]) {
 						minCollision = time;
 						cPlyI = pi;
@@ -2284,7 +2284,7 @@ void ServerWorld::simulateFrame() {
 			++players;
 	NLulong time_limit = config.getTimeLimit();
 	if (players > 1 && time_limit > 0) {
-		int timeLeft = getTimeLeft() / 10;
+		int timeLeft = getTimeLeft();
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
 			net->bprintf("@I*** Five minutes left in the game");
 		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
