@@ -53,6 +53,8 @@
 
 #include "timefunc.h"
 
+#include "timer.h"	//#NR
+
 #include "sleep.h"
 
 #include "ConditionVariable.h"
@@ -90,7 +92,8 @@ struct client_t {
 	volatile bool		server_disconnected; // set to true when the server kicks the client. told_disconnect may
 																			 // be false at that point.
 
-	double					ping_start_time;		//time of last ping request from gameserver
+//	double					ping_start_time;		//time of last ping request from gameserver
+	Time					ping_start_time;		//time of last ping request from gameserver	//#NR
 
 	server_ci				*server;		// the server instance (for the thread)
 
@@ -465,7 +468,8 @@ public:
 		
 		client[client_id].station->send_raw_packet(dat);		
 
-		client[client_id].ping_start_time = get_timeh();
+//		client[client_id].ping_start_time = get_timeh();
+		client[client_id].ping_start_time = Timer::getCurrentTime();	//#NR
 
 		delete dat;
 
@@ -660,7 +664,8 @@ public:
 			{
 				//zero'ing state
 				client[i].id = i;					// the client's id (index on the array)
-				client[i].ping_start_time = 0;		//time of last ping request from gameserver
+//				client[i].ping_start_time = 0;		//time of last ping request from gameserver
+				client[i].ping_start_time = Time(0, 0);		//time of last ping request from gameserver	//#NR
 				client[i].server = this;		// the server instance (for the thread)
 				//client[i].thread = 0;			// the slave thread
 				//client[i].discthread = 0;		// the disconnector thread
@@ -853,7 +858,12 @@ public:
 			case 666:	// "pong"  (from previous ping request)
 
 				args.client_id = cid;
-				args.pingtime = (int)( (get_timeh() - client[cid].ping_start_time) * 1000 );
+				//#NR
+				{
+					Time pt=Timer::getCurrentTime()-client[cid].ping_start_time;
+					args.pingtime=pt.getSec()*1000+pt.getuSec()/1000;
+				}
+//				args.pingtime = (int)( (get_timeh() - client[cid].ping_start_time) * 1000 );
 
 				gamesfunc[SFUNC_CLIENT_PING_RESULT](&args);
 				break;

@@ -1,9 +1,10 @@
-LIBS = `allegro-config --libs` -lNL
-CFLAGS = -O2 
-LDFLAGS =  
+LIBS = -lalleg -lNL -lpthreadGC
+CFLAGS = -O2 -Wno-deprecated
 OBJS = \
 	names.o \
 	outgun.o \
+
+PUBOBJS = names.o pubsrvog.o
 
 LEENET = \
 	leetnet/client.o \
@@ -18,11 +19,24 @@ LEENET = \
 	leetnet/Timer.o
 
 
-PROGNAME = ../outgun
+all: og pub mon
+og: outgun.exe
+pub: pubsrvog.exe
+mon: srvmonit.exe
 
+outgun.exe: $(OBJS)
+	g++ -mconsole $(LEENET) -o $@ $(OBJS) $(LIBS)
+	cp outgun.exe ../test
 
-outgun: $(OBJS)
-	g++ $(LDFLAGS) $(LEENET) -o $(PROGNAME) $(OBJS) $(LIBS)
+pubsrvog.exe: $(PUBOBJS)
+	g++ -mwindows $(LEENET) -o $@ $(PUBOBJS) $(LIBS)
+	cp pubsrvog.exe ..
+
+srvmonit.exe: srvmonit.cpp
+	g++ -mconsole -o $@ $< -lNL
+
+pubsrvog.o: pubsrvog.cpp
+	g++ $(CFLAGS) -DPUBLIC_SERVER -c -o $@ $<
 
 %.o: %.cpp
 	g++ $(CFLAGS) -c -o $@ $<

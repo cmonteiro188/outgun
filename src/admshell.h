@@ -21,7 +21,8 @@ enum {
 	ATS_GET_PLAYER_TOTAL_DEATHS,		//request the total deaths amount of a player <int id>
 	ATS_GET_PLAYER_TOTAL_CAPTURES,		//request the total captures amount of a player <int id>
 	ATS_SERVER_CHAT,									//server is saying <string chat line>
-	ATS_QUIT,							//QUIT flag, very important. on receiving, should close socket and quit 
+	ATS_QUIT,							//QUIT flag, very important. on receiving, should close socket and quit
+	ATS_GET_PINGS,	//#NR
 
 	NUMBER_OF_ATS
 };
@@ -43,7 +44,9 @@ enum {
 	STA_PLAYER_TOTAL_DEATHS,	//player's total deaths since connected <int id> <int total-deaths>
 	STA_PLAYER_TOTAL_CAPTURES,//player's total captures since connected <int id> <int total-captures>
 	STA_GAME_TEXT,   					//only one parameter: a <string> of broadcast text, identical to the one that players get
-	STA_QUIT,							//QUIT flag, very important. on receiving, should close socket and quit 
+	STA_QUIT,							//QUIT flag, very important. on receiving, should close socket and quit
+	STA_PLAYER_PING,	//#NR
+	STA_ADMIN_MESSAGE,	//#NR
 
 	NUMBER_OF_STA
 };

@@ -21,7 +21,7 @@ PROGNAME = outgun
 outgun: $(OBJS)
 
 %.o: %.cpp
-	g++ $(CFLAGS) -c -o $@ $<
+	g++ -Wno-deprecated $(CFLAGS) -c -o $@ $<
 
 
 PHONY: clean

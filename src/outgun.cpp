@@ -1,6 +1,7 @@
 #ifndef PUBLIC_SERVER
 //#define NR_CLIENT_AFFECTING
-#define NR_CONSOLE_COMMANDS
+#define NR_CONSOLE
+#define NR_VOTEMAP
 //#define NR_FIX_BOUNCING	// this probably won't be worth enabling even with further development since the client doesn't follow well
 #endif
 
@@ -10,6 +11,8 @@
 #define NR_NO_PUP_SWITCHING
 #define NR_VOTE_ANNOUNCE_INTERVAL 5
 #define NR_RANDOM_MAPROT
+
+#include <vector>	//#NR
 
 
 #ifdef NR_FIX_BOUNCING
@@ -25,11 +28,11 @@
 #define WELCOME_MESSAGE_1 "@TWelcome to Nix's Outgun server in Finland (bad ping to Brazil, sorry)"
 #define WELCOME_MESSAGE_2   "There are added features but the gameplay is standard except for powerups"
 #define WELCOME_MESSAGE_3   "Contact the admin at npr1@suomi24.fi if there are any problems"
-//#define WELCOME_MESSAGE_3   "Type /config for more details or contact npr1@suomi24.fi if there are problems"
+//#define WELCOME_MESSAGE_3   "Type /help for more details about this server and contact information"
 #else
 #define WELCOME_MESSAGE_1 "@TWelcome to Nix's Code Testing server (bad ping to Brazil, sorry)"
 #define WELCOME_MESSAGE_2   "This server is temporarily on to test new features I'm developing"
-#define WELCOME_MESSAGE_3   "Contact me at npr1@suomi24.fi when there are problems"
+#define WELCOME_MESSAGE_3   "Type /help for more details about this server and contact information"
 #endif
 
 /*
@@ -975,6 +978,7 @@ int wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy,
 	double dtx=* x, dty=* y-NR_SHIFTY;	// destination
 
 	double mx=dtx-stx, my=dty-sty;	// movement vector
+	assert(mx*(*sx)>=0. && my*(*sy)>=0.);
 
 	double minMovement=1.;
 	Coords bounceVec;
@@ -1353,6 +1357,9 @@ struct player_t {
 	int				weapon;	// poder da arma atual (nivel) 0,1,2,3,4 (...?)
 
 	bool			want_map_exit; //server side - player quer sair p/ proximo mapa na rotacao
+	#ifdef NR_VOTEMAP
+	int mapVote;
+	#endif
 
 	bool			want_change_teams;		//server-side: player wants do change teams?
 	double		team_change_time;		//server-side time to allow next team change
@@ -2248,6 +2255,14 @@ public:
 	int		currmap;		//mapa atual do maprot
 	bool	builtin;		//using the builtin map
 	char	maprot[MAPROTSIZE][MAPFILENAMESIZE];
+	#ifdef NR_CONSOLE
+	struct MapInfo {
+		string title, file;
+		int votes;
+		MapInfo() : votes(0) { }
+	};
+	MapInfo mapinfo[MAPROTSIZE];
+	#endif
 
 	//#NR: vote announce timer
 	NLulong next_vote_announce_frame;
@@ -4550,12 +4565,36 @@ public:
 			sprintf(lix, "Server changed map to: DEFAULT (0)");
 		}
 		else {
-
+			#ifdef NR_VOTEMAP
+			vector<int> winners;
+			int maxVotes=0;
+			for (int m=0; m<maprots; ++m) {
+				if (m==currmap)
+					continue;
+				if (mapinfo[m].votes<maxVotes)
+					continue;
+				if (mapinfo[m].votes>maxVotes) {
+					maxVotes=mapinfo[m].votes;
+					winners.clear();
+				}
+				winners.push_back(m);
+			}
+			if (maxVotes==0)
+				currmap=(currmap+1)%maprots;
+			else
+				currmap=winners[rand()%winners.size()];
+			// clear votes for the current map
+			for (int p=0; p<maxplayers; ++p)
+				if (player[p].mapVote==currmap)
+					player[p].mapVote=-1;
+			mapinfo[currmap].votes=0;
+			#else
 			//next map on rotation
 			currmap++;
 			if (currmap >= maprots) {
 				currmap = 0;
 			}
+			#endif
 
 			// attempts to load map from current position of rotation list
 			bool ok = load_rotation_map(currmap);
@@ -4591,6 +4630,15 @@ public:
 			else
 				exit_count--;		//contra
 		}
+
+		#ifdef NR_VOTEMAP
+		// this could be done elsewhere, but this function is called whenever votes change
+		for (int m=0; m<maprots; ++m)
+			mapinfo[m].votes=0;
+		for (int p=0; p<maxplayers; ++p)
+			if (player[p].used && !player[p].isbot && player[p].mapVote!=-1)
+				++mapinfo[player[p].mapVote].votes;
+		#endif
 
 		//passou o voto!
 		if (exit_count > 0) {
@@ -4729,6 +4777,13 @@ public:
 			strcpy(buf, maprot[p]);
 			strcpy(maprot[p], maprot[i]);
 			strcpy(maprot[i], buf);
+		}
+		#endif
+		#ifdef NR_CONSOLE
+		for (int p=0; p<maprots; ++p) {
+			load_rotation_map(p);
+			mapinfo[p].title=map.title;
+			mapinfo[p].file=maprot[p];
 		}
 		#endif
 
@@ -5427,6 +5482,9 @@ public:
 				player[i].frags = 0;	//reset score ?
 				player[i].oldfrags = -666;
 				player[i].want_map_exit = false;		//by default don't want change maps
+				#ifdef NR_VOTEMAP
+				player[i].mapVote=-1;
+				#endif
 				player[i].want_change_teams = false;	// don't want to change teams yet
 				player[i].team_change_time = 0;	
 				player[i].team_change_pending = false;
@@ -5638,8 +5696,10 @@ public:
 		game_remove_player(pid);
 
 		//check for team changes - APENAS se nao era bot. bots saindo/entrando nao devem afetar isso!
-		if (!is_bot)
+		if (!is_bot) {
 			check_team_changes();
+			check_map_exit();	//#NR
+		}
 
 		//update serverinfo
 		update_serverinfo();
@@ -5774,55 +5834,169 @@ public:
 				//chat!
 				else if (code == 2) {
 
-					//talk flood protection
-					player[pid].talk_temp += player[pid].talk_hotness;
-					player[pid].talk_hotness += 3.0;
-					if (player[pid].talk_temp > 18.0)
-						player[pid].talk_temp = 18.0;
-					if (player[pid].talk_hotness > 6.0)
-						player[pid].talk_hotness = 6.0;
-
-					if (player[pid].talk_temp > 10.0) {
-
-						//esquenta o cara
-						player[pid].talk_temp = 18.0;	
-
-						char elbuf[200]; int elcnt = 0;
-						writeByte(elbuf, elcnt, 2);
-						writeString(elbuf, elcnt, "@WToo much talk. Chill...");
-						server->send_message(player[pid].cid, elbuf, elcnt);
-					}
-					else {
-						//#NR remove single %'s
-						char sbuf[strlen(msg+1)+1];
-						int si=0, mi=1;
-						do {
-							if (msg[mi]!='%')
-								sbuf[si++]=msg[mi++];
-							else if (msg[mi+1]=='%') {	// allow pairs of '%' only
-								sbuf[si++]='%';
-								sbuf[si++]='%';
-								mi+=2;
+					//#NR remove single %'s
+					char sbuf[strlen(msg+1)+1];
+					int si=0, mi=1;
+					do {
+						if (msg[mi]!='%')
+							sbuf[si++]=msg[mi++];
+						else if (msg[mi+1]=='%') {	// allow pairs of '%' only
+							sbuf[si++]='%';
+							sbuf[si++]='%';
+							mi+=2;
+						}
+						else
+							++mi;
+					} while (msg[mi-1]!='\0');
+					//#NR handle 'console' commands
+					#ifdef NR_CONSOLE
+					if (sbuf[0]=='/') {
+						char* pCommand=sbuf+1;
+						char cbuf[30];
+						int ci;
+						for (ci=0;; ++ci, ++pCommand) {
+							if (ci==29) {
+								cbuf[29]='\0';
+								break;
+							}
+							if (*pCommand==' ') {
+								cbuf[ci]='\0';
+								++pCommand;
+								break;
+							}
+							cbuf[ci]=*pCommand;
+							if (*pCommand=='\0')
+								break;
+						}
+						if (!strcmp(cbuf, "help")) {
+//											 123456789*123456789*123456789*123456789*123456789*123456789*123456789*123456789*
+							plprintf(pid, "@TConsole commands available on this server:");
+							plprintf(pid,   "/help        this screen");
+							plprintf(pid,   "/info        information about this server");
+							plprintf(pid,   "/config      current server configuration");
+							plprintf(pid,   "/mapinfo n   information about map n (default: current map)");
+							plprintf(pid,   "/votemap n   vote for the next map to be n (default: list maps and votes)");
+							plprintf(pid,   "/sayadmin t  forward \"t\" to the server admin (in English or Finnish, please)");
+						}
+						else if (!strcmp(cbuf, "info")) {
+							unsigned long uptime=frame/10/60;	// minutes
+							plprintf(pid, "@TThis is Nix's Outgun server in Finland (that means bad ping to Brazil, sorry)");
+							plprintf(pid,   "The server has been up for %d:%02d. It's not 24 h and may be shut down anytime.", uptime/60, uptime%60);
+							plprintf(pid,   "Contact the admin at npr1@suomi24.fi or send short messages using /sayadmin");
+							plprintf(pid,   "For more info go to http://koti.mbnet.fi/~npr/outgun/ (not yet online)");
+							plprintf(pid,   "type /config to see current server settings");
+						}
+						else if (!strcmp(cbuf, "config")) {
+							plprintf(pid, "@W(under construction)");
+						}
+						else if (!strcmp(cbuf, "sayadmin")) {
+							if (*pCommand!='\0') {
+								FILE* logp=fopen("msglog.txt", "at+");
+								fprintf(logp, "%s: %s\n", player[pid].name, pCommand);
+								fclose(logp);
+								if (shellssock) {
+									char lebuf[256];
+									int count=0;
+									writeLong(lebuf, count, STA_ADMIN_MESSAGE);
+									writeString(lebuf, count, player[pid].name);
+									writeString(lebuf, count, pCommand);
+									NLint result=nlWrite(shellssock, lebuf, count);
+								}
+								plprintf(pid, "@IYour message has been logged. Thank you for your feedback!");
 							}
 							else
-								++mi;
-						} while (msg[mi-1]!='\0');
-						//#NR handle 'console' commands
-						#ifdef NR_CONSOLE_COMMANDS
-						bool forceCommand=false;
-						char* pCommand=sbuf;
-						if (pCommand[0]=='/') {
-							forceCommand=true;
-							++pCommand;
+								plprintf(pid, "@W(empty message ignored)");
 						}
-						if (!strcmp(pCommand, "help")) {
-							plprintf(pid, "@W[the 'console' command facility is being built, help will appear here]");
+						else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
+						if (*pCommand!='\0') {
+							int mid=atoi(pCommand)-1;
+							if (mid>=0 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0')
+								plprintf(pid, "@IMap %d is %s (%s.txt)", mid+1, mapinfo[mid].title.c_str(), mapinfo[mid].file.c_str());
+							else
+								plprintf(pid, "@WValid map id's are 1 to %d", maprots);
 						}
-						else if (forceCommand)
-							plprintf(pid, "@WUnknown command %s. Type help for a list.", pCommand);
-						else // say
-						#endif
-						{
+						else
+							plprintf(pid, "@IThis map is %s (%s)", mapinfo[currmap].title.c_str(), mapinfo[currmap].file.c_str());
+							#ifdef NR_VOTEMAP
+							plprintf(pid, "@IType /votemap to see a list of all maps");
+							#endif
+						}
+						else if (!strcmp(cbuf, "votemap")) {
+							string status;
+							bool err=false;
+							if (*pCommand!='\0') {
+								int mid=atoi(pCommand)-1;
+								if (mid>=-1 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0') {
+									if (player[pid].mapVote==mid)
+										status="no changes";
+									else {
+										if (player[pid].mapVote==-1)
+											status="vote added";
+										else if (mid==-1)
+											status="vote removed";
+										else
+											status="vote updated";
+										player[pid].mapVote=mid;
+										check_map_exit();
+									}
+								}
+								else {
+									plprintf(pid, "@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprots);
+									err=true;
+								}
+							}
+							if (!err) {
+								if (status.length())
+									plprintf(pid, "@T(%s) Maps on this server: ID, votes, description", status.c_str());
+								else
+									plprintf(pid, "@TMaps on this server: ID, votes, description");
+								// 26 chars usable for entry, to fit three on a line
+								char buf[200]; int bufi=0;
+								int rows=(maprots+2)/3;
+								for (int row=0; row<rows; ++row) {
+									for (int col=0; col<3; ++col) {
+										int mid=col*rows+row;
+										if (mid>=maprots)
+											continue;
+										sprintf(buf+bufi, "%2d %2d %-18s", mid+1, mapinfo[mid].votes, mapinfo[mid].title.c_str());
+										if (strlen(buf+bufi)>24)
+											strcpy(buf+bufi+23, ".. ");
+										else
+											strcpy(buf+bufi+24, "  ");
+										bufi+=26;
+									}
+									plprintf(pid, "%s", buf);
+									bufi=0;
+								}
+								if (!player[pid].want_map_exit)
+									plprintf(pid, "@IPress F4 to actually vote for a mapchange");
+							}
+						}
+						else
+							plprintf(pid, "@WUnknown command %s. Type /help for a list.", cbuf);
+					}
+					else
+					#endif
+					{
+						//talk flood protection
+						player[pid].talk_temp += player[pid].talk_hotness;
+						player[pid].talk_hotness += 3.0;
+						if (player[pid].talk_temp > 18.0)
+							player[pid].talk_temp = 18.0;
+						if (player[pid].talk_hotness > 6.0)
+							player[pid].talk_hotness = 6.0;
+
+						if (player[pid].talk_temp > 10.0) {
+
+							//esquenta o cara
+							player[pid].talk_temp = 18.0;	
+
+							char elbuf[200]; int elcnt = 0;
+							writeByte(elbuf, elcnt, 2);
+							writeString(elbuf, elcnt, "@WToo much talk. Chill...");
+							server->send_message(player[pid].cid, elbuf, elcnt);
+						}
+						else {
 							// check for team message:
 							if (msg[1] == '.') {
 								sprintf(talkmsg, "@T%s: %s", player[pid].name, sbuf+1);
@@ -6177,7 +6351,7 @@ public:
 		else if (hd->x > plw) hd->x = plw;
 
 		//#NR lots done to relocate the y-coordinate so that it represents the wanted place of shadow (bottom of player)
-		//    which is how it is interpreted elsewhere; but at the same time fix the bouncing
+		//    which is how it is interpreted elsewhere; but at the same time fix the bouncing and room enter/exit
 		//move y
 		hd->y = h->y + hd->sy;
 		if (hd->y-NR_SHIFTY < 0) hd->y = 0 +NR_SHIFTY;
