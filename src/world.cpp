@@ -620,16 +620,14 @@ void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team
 	score = 0;
 	neg_score = 0;
 	rank = 0;
-	used = enable;
 	team_nr = team_id;
 	stats().clear();
 	stats().set_start_time(static_cast<int>(get_time()));
 	personal_color = -1;
+	used = enable;
 }
 
 void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id) {
-	PlayerBase::clear(enable, _pid, _name, team_id);
-
 	attack = false;
 	oldfrags = -666;
 	want_map_exit = false;		//by default don't want change maps
@@ -651,7 +649,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 	#ifdef SEND_FRAMEOFFSET
 	frameOffset = 0;
 	#endif
-	awaiting_client_ready = false;
+	awaiting_client_ready = true;
 	item_deathbringer_time = 0;
 	deathbringer_end = 0;
 	deathbringer_attacker = 0;
@@ -664,11 +662,11 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 	respawn_time = 0;
 	respawn_to_base = false;
 	carrying_flag = false;
+
+	PlayerBase::clear(enable, _pid, _name, team_id);
 }
 
 void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int team_id) {
-	PlayerBase::clear(enable, _pid, _name, team_id);
-
 	item_quad_time = item_speed_time = item_helm_time = 0;
 	health = energy = 0;
 	weapon = 0;
@@ -682,6 +680,8 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
 	drawptr = drawused = 0;
 	old_dead = false;
 	oldx = oldy = 0;
+
+	PlayerBase::clear(enable, _pid, _name, team_id);
 }
 
 /* bounceFromPoint():
