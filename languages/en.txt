@@ -1,6 +1,6 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2004 <no one>
+; Original copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2005 <no one>
 
 
 ; Language of the translation, in the target language.
@@ -138,6 +138,7 @@ Get server list at startup
 Controls
 Keyboard layout
 Use keypad for moving
+Arrow keys in statistics
 Enable joystick control
 Moving stick
 Joystick buttons (0 = disabled)
@@ -278,9 +279,17 @@ United Kingdom
 United States
 unknown ($1)
 
-; Used as values for 'save messages' in game menu.
+; Used as values for 'save messages' in the game menu.
 all messages
 chat only
+
+; Used as values for 'show stats after the round' in the game menu.
+players
+teams
+
+; Used as values for 'arrow keys in statistics' in the controls menu.
+change stats view
+move player
 
 ; Used in the controls menu 'active controls' display.
 up
@@ -605,6 +614,9 @@ Saved map pictures to the directory 'mappic'.
 ; No length restrictions.
 
 ; Command line errors.
+-cport must be followed by a space and either a port number or minport:maxport.
+-cport X or -cport X:Y: X and Y must be in the range of 1 to 65535.
+-cport X:Y: Y must be greater than X.
 -debug must be followed by a space and a number.
 -debug X: X must be in the range of 0 to 2.
 -fps must be followed by a space and a number.
@@ -616,6 +628,9 @@ Saved map pictures to the directory 'mappic'.
 -maxp X: X must be an even number in the range of 2 to $1.
 -port must be followed by a space and a port number.
 -port X: X must be in the range of 1 to 65535.
+-sport must be followed by a space and minport:maxport.
+-sport X:Y: X and Y must be in the range of 1 to 65535.
+-sport X:Y: Y must be greater than X.
 The given priority $1 isn't within system limits. Run with -info for more information.
 Unknown command-line argument '$1'.
 
@@ -717,6 +732,7 @@ Admin shell: Can't set socket to listen mode.
 Admin shell: read failed. Reason: $1
 Admin shell: sending response failed. Reason: $1
 Can't connect to master server. $1
+Can't open socket.
 Can't open socket for refreshing servers. $1
 Can't open socket to connect to master server. $1
 Can't start network server on port $1.

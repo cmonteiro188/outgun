@@ -1,4 +1,4 @@
-Outgun 1.0.0, copyright © 2002-2004 multiple authors.
+Outgun 1.0.0, copyright © 2002-2005 multiple authors.
  
 Outgun is free software under the GNU GPL, and you are welcome to
 redistribute it under certain conditions. Outgun comes with ABSOLUTELY
@@ -14,6 +14,6 @@ find the cause of the failure. We can't contact you for more information,
 so it is recommended to also send an e-mail with more details.
  
 Choose the preferred mode below with left and right arrow keys, and close
-the menu with Enter or ESC. After the first time of starting Outgun, you
+the menu with Enter or Esc. After the first time of starting Outgun, you
 can find this screen from the Options menu.
  

@@ -1,6 +1,6 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2004 Jani Rivinoja, Niko Ritari
+; Original copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
 
 
 ; Language of the translation, in the target language.
@@ -138,6 +138,7 @@ Hae palvelinlista pelin käynnistyessä
 Ohjaimet
 Näppäimistön asettelu
 Käytä numeronäppäimistöä liikkumiseen
+Nuolinäppäimet tilastoruuduissa
 Käytä peliohjainta
 Liikuttava sauva
 Ohjaimen napit (0 = ei käytössä)
@@ -213,8 +214,8 @@ Joukkueiden tasoitus
 Herkkujen pudotus
 Näkymätön varjo
 Vaihtava savupommi
-Aserajoitus
 Kertakäyttösuoja
+Aserajoitus
 Herkkuja
 Herkkuja vähintään
 Herkkuja enintään
@@ -278,9 +279,17 @@ Iso-Britannia
 Yhdysvallat
 tuntematon ($1)
 
-; Used as values for 'save messages' in game menu.
+; Used as values for 'save messages' in the game menu.
 kaikki
 keskustelu
+
+; Used as values for 'show stats after the round' in the game menu.
+pelaajat
+joukkueet
+
+; Used as values for 'arrow keys in statistics' in the controls menu.
+vaihtavat näytettäviä tilastoja
+liikuttavat pelaajaa
 
 ; Used in the controls menu 'active controls' display.
 ylös
@@ -605,6 +614,9 @@ Karttakuvat tallentuneet hakemistoon "mappic".
 ; No length restrictions.
 
 ; Command line errors.
+-cport - perässä täytyy olla välilyönti ja portin numero tai minimiportti:maksimiportti.
+-cport X tai -cport X:Y: X:n ja Y:n täytyy olla 1 - 65535.
+-cport X:Y: Y:n täytyy olla suurempi kuin X.
 -debug - perässä täytyy olla välilyönti ja luku.
 -debug X: X:n pitää olla 0 - 2.
 -fps - perässä täytyy olla välilyönti ja luku.
@@ -616,6 +628,9 @@ Karttakuvat tallentuneet hakemistoon "mappic".
 -maxp X: X:n täytyy olla parillinen luku väliltä 2 - $1.
 -port - perässä täytyy olla välilyönti ja portin numero.
 -port X: X:n täytyy olla 1 - 65535.
+-sport - perässä täytyy olla välilyönti ja minimiportti:maksimiportti.
+-sport X:Y: X:n ja Y:n täytyy olla 1 - 65535.
+-sport X:Y: Y:n täytyy olla suurempi kuin X.
 Annettu prioriteetti $1 ei ole järjestelmän rajoissa. Aja ohjelma parametrin -info kanssa saadaksesi lisätietoa.
 Tuntematon komentoriviparametri "$1".
 
@@ -717,6 +732,7 @@ Ylläpitoyhteys: Soketin asetus listen-tilaan epäonnistui.
 Ylläpitoyhteys: luku epäonnistui. Syy: $1
 Ylläpitoyhteys: vastauksen lähetys epäonnistui. Syy: $1
 Pääpalvelimelle ei ole yhteyttä. $1
+Soketin avaus ei onnistu.
 Soketti ei aukea palvelinten tietojen päivitystä varten. $1
 Soketti ei aukea pääpalvelimelle yhdistämistä varten. $1
 Verkkopalvelin ei käynnisty portissa $1.

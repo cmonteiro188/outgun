@@ -1,7 +1,7 @@
 Lisätietoa saa näistä paikoista:
- pelin dokumentaatio             hakemisto "doc"
- alkuperäinen Outgun-sivusto     http://outgun.sf.net/en/
- Nixin ja Huntan Outgun-sivusto  http://koti.mbnet.fi/outgun/
+ Pelin dokumentaatio             hakemisto "doc"
+ Outgun-sivusto                  http://koti.mbnet.fi/outgun/
+ Brasilian Outgun-sivusto        http://outgun.sf.net/
  
 Pelaajan ohjaus
  

@@ -1,7 +1,7 @@
 For more information access these resources:
  game documentation              directory 'doc'
- the original Outgun website     http://outgun.sf.net/en/
- development by Nix and Huntta   http://koti.mbnet.fi/outgun/
+ Outgun website                  http://koti.mbnet.fi/outgun/
+ Brazilian Outgun website        http://outgun.sf.net/
  
 Controls
  

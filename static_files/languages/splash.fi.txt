@@ -1,4 +1,4 @@
-Outgun 1.0.0, copyright © 2002-2004 tekijät.
+Outgun 1.0.0, copyright © 2002-2005 tekijät.
  
 Outgun on GNU GPL:n alla levitettävä vapaa ohjelma ja sen levitys on
 suotavaa muutamien vaatimusten puitteissa. KAIKKI VASTUU ON KÄYTTÄJÄLLÄ.
@@ -15,6 +15,6 @@ yhteyttä lisätietojen saamiseksi, joten on suositeltavaa myös lähettää
 sähköpostia virheen sattuessa.
  
 Valitse haluamasi tietojen määrä alla käyttäen vasenta ja oikeaa nuoli-
-näppäintä, ja sulje valikko painamalla Enter tai ESC. Ensimmäisen
+näppäintä, ja sulje valikko painamalla Enter tai Esc. Ensimmäisen
 käynnistyskerran jälkeen tämä ruutu löytyy asetusvalikosta.
  

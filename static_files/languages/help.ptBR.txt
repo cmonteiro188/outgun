@@ -1,18 +1,8 @@
 Para mais informações acesse as fontes:
  Documentação do jogo              diretório 'doc' (em Inglês)
- Site original do outgun           http://outgun.sf.net/
- desenvolvimento por Nix e Huntta  http://koti.mbnet.fi/outgun/
+ Site Brasileiro do Outgun         http://outgun.sf.net/
+ Site do Outgun                    http://koti.mbnet.fi/outgun/
  
- Tradução para o Português - Brasil, 4ª revisão
- ==============================================
- 
- Problemas na tradução para o português, por favor fale com:
- ThOR27 - Thomaz de Oliveira dos Reis
- Contatos: 
- E-Mails: thommy@globo.com, thor27@ibest.com.br (serve como MSNM)
- ICQ: 117089308 - YIM: thommybill - Jabber: thor27@jabber.org
-
-  
 Controles
  
  Movimentos         Setas ou keypad
@@ -31,26 +21,25 @@ Outras Teclas
  Estado do time     F3
  Estado do jogador  F4
  Info do servidor   F5
- Votar para a 
+ Votar para a
  mudança de mapas   F8
  Screenshot         F11
  Mais mensagens     Insert
  
 Conceito do Jogo
  
- Você é membro de um time, ou vermelho ou azul, escolhido para 
- você aleatoreamente quando conecta. Seu objetivo é ajudar o seu 
- time ganhar, capturando a bandeira inimiga. Para capturar a 
+ Você é membro de um time, ou vermelho ou azul, escolhido para
+ você aleatoreamente quando conecta. Seu objetivo é ajudar o seu
+ time ganhar, capturando a bandeira inimiga. Para capturar a
  bandeira, um membro do seu time precisa roubar a bandeira inimiga
- e traze-la para a bandeira do time, desde que sua bandeira não 
+ e traze-la para a bandeira do time, desde que sua bandeira não
  tenha sido roubada!
  
 Saúe e energia
  
-Se sua saúde chegar a zero, você morre. A energia é usada para correr
-atirar e também uma proteção para sua saúde quando você tiver o poder 
-do escudo. Saúde e energia se regeneram para 200 com o tempo.
-
+ Se sua saúde chegar a zero, você morre. A energia é usada para correr
+ atirar e também uma proteção para sua saúde quando você tiver o poder
+ do escudo. Saúde e energia se regeneram para 200 com o tempo.
  
 Mini-mapa
  
@@ -58,16 +47,19 @@ Mini-mapa
  os seus parceiros e todos os oponentes que eles podem ver. Se você
  tiver o poder da sombra, você verá todos os oponentes que não tiverem
  sombra também.
-  
+ 
 Poderes
  
 Se você ver algum item pelo chão, pegue-o. Ele é um item de poder.
-
+ 
  + arma          ganha um tiro adicional e mais energia
  turbo           mais velocidade
  sombra          invisibilidade, ver oponentes no mini-mapa
  força           seu tiro causa um maior dano 
  mega-saude      mais saude e energia
  escudo          sua saúde é protegida enquanto o escudo durar
- fumaça 	 asfixia os adversários que ficarem na mesma sala quando
- 		 você morre
+ encaminhador    mata os adversários que ficarem na mesma sala quando
+   de mortes       você morre
+ 
+ Traduzido por ThOR27 - Thomaz dos Reis.
+ Para contatos leia o arquivo languages/ptBR.txt
