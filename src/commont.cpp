@@ -107,8 +107,11 @@ istream& getline_smart(istream& in, string& str) {
 	str.clear();
 	while (1) {
 		const char c = in.get();
-		if (!in)
+		if (!in) {
+			if (!str.empty())
+				in.clear();
 			return in;
+		}
 		if (c == '\n' || c == '\r') {
 			if (str.empty())
 				continue;
