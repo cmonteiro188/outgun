@@ -153,6 +153,9 @@ int main(int argc, const char* argv[]) {
 
     // APbuild messes up the automation -> call by hand
     setAllegroIcon();
+
+    three_finger_flag = FALSE;
+
     allegro_init();
     install_keyboard();
     install_timer();

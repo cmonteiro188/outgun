@@ -345,6 +345,14 @@ void ServerNetworking::broadcast_reset_map_list() {
     broadcast_simple_message(data_reset_map_list);
 }
 
+void ServerNetworking::broadcast_current_map(int mapNr) const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_current_map);
+    writeByte(lebuf, count, mapNr);
+    broadcast_message(lebuf, count);
+}
+
 // Tell that stats are ready for saving.
 void ServerNetworking::broadcast_stats_ready() const {
     broadcast_simple_message(data_stats_ready);
@@ -842,7 +850,12 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         server->send_message(world.player[pid].cid, lebuf, count);
 
     //VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
-    world.player[pid].awaiting_client_ready = true;
+    if (pid < 0) {
+        for (int i = 0; i < maxplayers; ++i)
+            world.player[i].awaiting_client_ready = true;
+    }
+    else
+        world.player[pid].awaiting_client_ready = true;
 
     //send a show gameover plaque message, if that is the case
     if (reason != NEXTMAP_NONE) {

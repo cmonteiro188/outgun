@@ -162,6 +162,7 @@ public:
     };
 
     TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority);   // warning: the callback will be called from a background thread
+    ~TournamentPasswordManager() { stop(); }
 
     void stop();
     void changeData(const std::string& newName, const std::string& newPass);

@@ -772,6 +772,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
         }
         if (currmap == -1)  // not found
             server_next_map(NEXTMAP_VOTE_EXIT);
+        else
+            network.broadcast_current_map(currmap);
         // what is left are players whose voted map was erased from the list
         for (list< pair<int, string> >::iterator vi = oldVotes.begin(); vi != oldVotes.end(); ++vi)
             world.player[vi->first].mapVote = -1;   // the client knows this because of broadcast_reset_map_list above

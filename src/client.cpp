@@ -1162,6 +1162,12 @@ void Client::client_disconnected(const char* data, int length) {
         log("Disconnected: %s", description.c_str());
 
     tournamentPassword.disconnectedFromServer();
+
+    {
+        MutexDebug md("downloadMutex", __LINE__, log);
+        MutexLock ml(downloadMutex);
+        downloads.clear();
+    }
 }
 
 void Client::connect_failed_denied(const char* data, int length) {
@@ -1460,6 +1466,9 @@ void Client::send_frame(bool newFrame, bool forceSend) {
 void Client::process_incoming_data(const char* data, int length) {
     MutexDebug md("frameMutex", __LINE__, log);
     MutexLock ml(frameMutex);
+
+    if (!connected) // means that the connection notification is still in the thread message queue
+        return;
 
     (void)length;
 
@@ -2154,6 +2163,12 @@ void Client::process_incoming_data(const char* data, int length) {
                 MutexLock ml(mapInfoMutex);
                 maps.clear();
                 map_vote = -1;
+            }
+
+            break; case data_current_map: {
+                NLubyte mapNr;
+                readByte(lebuf, count, mapNr);
+                current_map = mapNr;
             }
 
             break; case data_map_list: {
@@ -3790,8 +3805,9 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             if (fx.player[i].onscreen && fx.player[i].item_shadow()) {
                 const int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
                 fd.player[i].visibility = fx.player[i].visibility - hspd;
-                if (fd.player[i].visibility < 0)
-                    fd.player[i].visibility = 0;
+                const int limit = (fx.player[i].visibility >= 7) ? 7 : 0;   // this produces an error of at most one server frame if total invisibility is enabled
+                if (fd.player[i].visibility < limit)
+                    fd.player[i].visibility = limit;
             }
 
             if (fx.player[i].onscreen && i != me)   // draw only players on my screen
@@ -3989,8 +4005,6 @@ int Client::calculatePlayerAlpha(int pid) const {
     const int baseAlpha = fd.player[pid].visibility;
     if (fx.player[pid].team() == fx.player[me].team() && baseAlpha < min_alpha_friends)
         return min_alpha_friends;
-    else if (baseAlpha < 7)
-        return 7;
     else
         return baseAlpha;
 }
