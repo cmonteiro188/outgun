@@ -1817,7 +1817,7 @@ void ServerNetworking::run_mastertalker_thread() {
 				ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
 				out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
 				out << "--- Query ---\n";
-				out << data;
+				out << data << "\n";
 				out << "\n--- Response ---\n";
 				out << response.str();
 				out.close();
@@ -1877,7 +1877,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
 			out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
 			out << "--- Query ---\n";
-			out << data;
+			out << data << "\n";
 			out << "\n--- Response ---\n";
 			out << response.str();
 			out.close();
@@ -2103,7 +2103,6 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 		for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
 			url_encode(*s, param_line);
 	}
-	param_line << "\r\n";
 	return param_line.str();
 }
 
