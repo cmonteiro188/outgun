@@ -60,9 +60,11 @@ public:
 	~Graphics();
 
 	std::vector<ScreenMode> getResolutions(int depth) const;	// returns a sorted list of unique resolutions
-	bool init(int width, int height, int depth, bool windowed);
+	bool init(int width, int height, int depth, bool windowed, bool tryFlipping);
 
-	void draw_screen() const;
+	void startDraw();	// call endDraw for each startDraw
+	void endDraw();
+	void draw_screen();
 	bool save_screenshot(const std::string& filename) const;
 
 	void clear();

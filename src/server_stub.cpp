@@ -20,7 +20,7 @@ using std::string;
 using std::swap;
 using std::vector;
 
-gameserver_c::gameserver_c(LogSet hostLogs) :
+gameserver_c::gameserver_c(LogSet& hostLogs) :
 	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
@@ -145,7 +145,7 @@ void gameserver_c::server_think_after_broadcast() {
 
 //loop server
 // running_flag: pointer to bool, if this bool goes to false, the loop quits.
-void gameserver_c::loop(volatile bool *running_flag) {
+void gameserver_c::loop(volatile bool *quitFlag, bool acceptEsc) {
 }
 
 //stop server

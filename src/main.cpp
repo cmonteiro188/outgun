@@ -16,19 +16,12 @@ void increment_time_counter() {
 	time_counter++;
 } END_OF_FUNCTION(increment_time_counter);
 
-void increment_speed_counter() {
-	speed_counter++;
-} END_OF_FUNCTION(increment_speed_counter);
-
 void increment_server_speed_counter() {
 	server_speed_counter++;
 } END_OF_FUNCTION(increment_server_speed_counter);
 
 // this simple task is turning into a major headache...
 bool set_shitty_mode(LogSet log) {
-	if (textserver)
-		return true;
-
 	int DTC = desktop_color_depth();
 
 	set_color_depth( DTC );
@@ -82,6 +75,21 @@ bool check_dir(const string& dir) {
 		return true;	// exists
 	return !mkdir(directory.c_str());
 }
+
+class GlobalCloseButtonHook {
+	static volatile bool flag;
+	static void closeCallback() { flag = true; } END_OF_STATIC_FUNCTION(closeCallback);
+
+public:
+	static void install() {
+		LOCK_VARIABLE(flag);
+		LOCK_FUNCTION(closeCallback);
+		set_close_button_callback(closeCallback);
+	}
+	static volatile bool* flagPtr() { return &flag; }
+};
+
+volatile bool GlobalCloseButtonHook::flag = false;
 
 int main(int argc, char *argv[]) {
 	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
@@ -141,7 +149,7 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-defaultprio"))
 			defaultprio = true;
 		else if (!strcmp(argv[i], "-prio")) {
-			if (++i<argc) {
+			if (++i < argc) {
 				targetprio = strtol(argv[i], NULL, 10);
 				targetprio_specified = true;
 			}
@@ -164,7 +172,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if (!strcmp(argv[i], "-maxp")) {
-			if (++i<argc) {
+			if (++i < argc) {
 				server_maxplayers = strtol(argv[i], NULL, 10);
 				if (server_maxplayers % 2 == 1)	//ímpar: des-impariza
 					server_maxplayers++;
@@ -175,14 +183,13 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if (!strcmp(argv[i], "-port")) {
-			if (++i<argc) {
+			if (++i < argc)
 				port = strtol(argv[i], NULL, 10);
-			}
 		}
 		else if (!strcmp(argv[i], "-nosound"))
 			nosound = true;	//#fix: forward to client
 		else if (!strcmp(argv[i], "-ip")) {
-			if (++i<argc) {
+			if (++i < argc) {
 				force_ip = true;			//force IP
 				strcpy(force_ip_name, argv[i]);	//to next parameter value
 			}
@@ -252,7 +259,7 @@ int main(int argc, char *argv[]) {
 	log("Master server address set: %s (%s), port %d.", name.c_str(), address.c_str(), nlGetPortFromAddr(&master_address));
 
 	// install higher-accuracy timer interrupt
-	LOCK_VARIABLE(speed_counter);
+	LOCK_VARIABLE(time_counter);
 	LOCK_FUNCTION(increment_time_counter);
 	install_int_ex(increment_time_counter, BPS_TO_TIMER(200));		//5 ms accuracy is already 10 times better than clock()
 
@@ -295,11 +302,14 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
+	GlobalCloseButtonHook::install();
+
 	// run dedicated server
 	if (dedserver) {
 		// here must get the safest and shittiest windowed gfx mode available
-		if (!set_shitty_mode(log))
-			textserver = true;		// if 320×240 mode can't be set, use textserver
+		if (!textserver)
+			if (!set_shitty_mode(log))
+				textserver = true;		// if 320×240 mode can't be set, use textserver
 
 		// dedicated server - set process priority (all threads) to a higher value
 		//		--> threads filhas estao com as priorities certas? LOGAR pra  ver. senao mudar p/ INHERIT
@@ -343,7 +353,7 @@ int main(int argc, char *argv[]) {
 			allegro_message("ERROR: cannot start gameserver!");
 			return 0;
 		}
-		gameserver->loop(0);
+		gameserver->loop(GlobalCloseButtonHook::flagPtr(), true);
 		gameserver->stop();
 		delete gameserver;
 	}
@@ -366,23 +376,15 @@ int main(int argc, char *argv[]) {
 		//window title
 		server_status_string("Outgun client - CTRL+F12 to quit");
 
-		// install client timer
-		LOCK_VARIABLE(speed_counter);
-		LOCK_FUNCTION(increment_speed_counter);
-		install_int_ex(increment_speed_counter, BPS_TO_TIMER(targetfps));		//client MAX FPS
-
 		// run client
 		gameclient = new gameclient_c(log);
 		if (!gameclient->start()) {
 			allegro_message("ERROR: cannot start gameclient!");
 			return 0;
 		}
-		gameclient->loop();
-
-		// disconnect client
+		gameclient->loop(GlobalCloseButtonHook::flagPtr());
 		gameclient->stop();
 		delete gameclient;
-		gameclient = 0;
 	}
 
 	// exit HawkNL

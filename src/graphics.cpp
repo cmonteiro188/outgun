@@ -60,18 +60,18 @@ Graphics::~Graphics() {
 	unload_bitmaps();
 }
 
-bool Graphics::init(int width, int height, int depth, bool windowed) {
+bool Graphics::init(int width, int height, int depth, bool windowed, bool tryFlipping) {
+	unload_bitmaps();
+
 	if (!reset_video_mode(width, height, depth, windowed))
 		return false;
 
-	unload_bitmaps();
-
-	if (trypageflip) {
+	if (tryFlipping) {
 		vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
 		vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
 	}
 	if (!vidpage1 || !vidpage2) {
-		if (trypageflip)
+		if (tryFlipping)
 			log("Not enough video memory. Can't use page flipping.");
 		vidpage1.free();
 		vidpage2.free();
@@ -86,9 +86,9 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 		page_flipping = true;
 	}
 
-	scr_mul = static_cast<double>(width) / 640;
-	if (SCREEN_H - scr_mul * plh < 35)			// the window is too low for playground
-		scr_mul = static_cast<double>(SCREEN_H - 35 - 8) / 354;	// leave one line for messages
+	scr_mul = static_cast<double>(SCREEN_W) / 640;
+	if (SCREEN_H < scr_mul * plh + 35 + 8)			// the window is too low for playground and one line for messages
+		scr_mul = static_cast<double>(SCREEN_H - 35 - 8) / plh;
 	floor_texture.resize(8);
 	wall_texture.resize(8);
 	for (int t = 0; t < 2; t++)
@@ -128,10 +128,27 @@ void Graphics::unload_bitmaps() {
 	unload_pictures();
 }
 
-void Graphics::draw_screen() const {
-	acquire_screen();
-	blit(drawbuf, screen, 0, 0, 0, 0, SCREEN_W, SCREEN_H);
-	release_screen();
+void Graphics::startDraw() {
+	if (page_flipping)
+		acquire_bitmap(drawbuf);
+}
+
+void Graphics::endDraw() {
+	if (page_flipping)
+		release_bitmap(drawbuf);
+}
+
+void Graphics::draw_screen() {
+	if (page_flipping) {
+		show_video_bitmap(drawbuf);
+
+		if (drawbuf == vidpage1)
+			drawbuf = vidpage2;
+		else
+			drawbuf = vidpage1;
+	}
+	else
+		blit(drawbuf, screen, 0, 0, 0, 0, SCREEN_W, SCREEN_H);
 }
 
 void Graphics::setColors() {

@@ -48,16 +48,16 @@ enum Menu_selection {	// screens that aren't quite menus //#fix: get rid
 
 class ServerThreadOwner {
 	LogSet log;
-	bool threadFlag, runFlag;	// threadFlag is true whenever the thread hasn't been joined, runFlag only when the server is successfully running
+	bool threadFlag, quitFlag;	// threadFlag is true whenever the thread hasn't been joined, quitFlag false only when the server is successfully running
 	int runPort;
 	Thread serverThread;
 
 	void threadFn();
 
 public:
-	ServerThreadOwner(LogSet logs) : log(logs), threadFlag(false), runFlag(false) { }
+	ServerThreadOwner(LogSet logs) : log(logs), threadFlag(false), quitFlag(true) { }
 	~ServerThreadOwner() { if (threadFlag) stop(); }
-	bool running() { if (!runFlag && threadFlag) stop(); nAssert(runFlag == threadFlag); return runFlag; }
+	bool running() { if (quitFlag && threadFlag) stop(); nAssert(quitFlag != threadFlag); return !quitFlag; }
 	int port() const { return runPort; }
 	void start(int port);
 	void stop();
@@ -150,6 +150,7 @@ class gameclient_c {
 	#ifdef SEND_FRAMEOFFSET
 	float frameOffsetDeltaTotal;
 	int frameOffsetDeltaNum;
+	volatile int netsendAdjustment;
 	#endif
 	float averageLag;
 	double frameReceiveTime;	// when fx was received
@@ -230,27 +231,36 @@ class gameclient_c {
 
 	std::ofstream message_log;
 
-	static bool force_exit;
-	static void close_button_callback();
+	class GFXMode {
+	public:
+		int width, height, depth;
+		bool windowed;
+
+		GFXMode() : width(-1) { }
+		GFXMode(int w, int h, int d, bool win) : width(w), height(h), depth(d), windowed(win) { }
+		bool used() const { return width != -1; }
+	};
+
+	GFXMode workingGfxMode;
 
 	void initMenus();
 
 	// menu callback functions
-	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
-	void MCF_menuCloser() { openMenus.close(); if (!gameshow && openMenus.empty()) showMenu(menu); }
+	void MCF_menuOpener(Menu& menu);
+	void MCF_menuCloser();
 	void MCF_connect(Textarea& target);
 	void MCF_cancelConnect();
-	void MCF_disconnect() { disconnect_command(); }
-	void MCF_startServer() { if (!listenServer.running()) listenServer.start(port); }
-	void MCF_stopServer() { if (listenServer.running()) listenServer.stop(); }
+	void MCF_disconnect();
+	void MCF_startServer();
+	void MCF_stopServer();
 	void MCF_prepareMainMenu();
 	void MCF_prepareNameMenu();
 	void MCF_prepareDrawNameMenu();
 	void MCF_nameMenuClose();
-	void MCF_nameChange() { menu.options.name.password.set(""); tournamentPassword.changeData(playername, ""); }	// only function to clear the password
-	void MCF_randomName() { menu.options.name.name.set(RandomName()); MCF_nameChange(); }
+	void MCF_nameChange();	// only function to clear the password
+	void MCF_randomName();
 	void MCF_removePasswords();
-	void MCF_prepareGameMenu() { menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics); }
+	void MCF_prepareGameMenu();
 	void MCF_joystick();
 	void MCF_messageLogging();
 	void MCF_screenDepthChange();
@@ -258,6 +268,7 @@ class gameclient_c {
 	void MCF_gfxThemeChange();
 	void MCF_antialiasChange();
 	void MCF_prepareGfxMenu();
+	void MCF_prepareDrawGfxMenu();
 	void MCF_sndEnableChange();
 	void MCF_sndVolumeChange();
 	void MCF_sndThemeChange();
@@ -281,7 +292,7 @@ public:
 	gameclient_c(LogSet hostLogs);
 	virtual ~gameclient_c();
 	bool start();
-	void loop();
+	void loop(volatile bool* quitFlag);
 	void stop();
 
 	// world	//#fix: should these be moved to ClientWorld?

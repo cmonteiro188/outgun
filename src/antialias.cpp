@@ -681,8 +681,6 @@ vector<DrawElement> assembleScene(const vector<ObjectSource>& objects) {
 		for (SegListT::iterator si = segs.begin(); si != segs.end(); ++si) {
 			si->sort();
 			si->simplify();
-			SegListT::iterator nexti = si;
-			++nexti;
 			si->moveElementsWithOverlap(oi->texid, oi->overlay);
 		}
 	}

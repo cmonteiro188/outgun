@@ -74,13 +74,15 @@ public:
 class Menu_graphics {
 	ScreenMode oldMode;
 	int oldDepth;
-	bool oldWin;
+	bool oldWin, oldFlip;
 
 public:
 	Checkbox			windowed;
 	Select<int>			colorDepth;
 	Textarea			desktopDepth;
 	Select<ScreenMode>	resolution;
+	Checkbox			flipping;
+	Slider				fpsLimit;
 	Textarea			refreshRate;
 	Textarea			apply;
 	Select<std::string>	theme;
@@ -91,7 +93,7 @@ public:
 	Menu_graphics();
 	void init(const Graphics& gfx);
 	void update(const Graphics& gfx);	// tries to keep the selected resolution and theme
-	bool newMode();
+	bool newMode();	// returns true if the current selection differs from the one at last call
 
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };

@@ -120,6 +120,8 @@ Menu_graphics::Menu_graphics() :
 	colorDepth	("Color depth"),
 	desktopDepth(" desktop", itoa(desktop_color_depth()) + "-bit"),
 	resolution	("Screen size"),
+	flipping	("Use page flipping", false),
+	fpsLimit	("FPS limit", 1, 100, 60),
 	refreshRate	("Refresh rate"),
 	apply		("Apply changes"),
 	theme		("Theme"),
@@ -138,6 +140,8 @@ Menu_graphics::Menu_graphics() :
 	menu.add_component(&colorDepth);
 	menu.add_component(&desktopDepth);
 	menu.add_component(&resolution);
+	menu.add_component(&flipping);
+	menu.add_component(&fpsLimit);
 	menu.add_component(&refreshRate);
 	menu.add_component(&apply);
 	menu.add_component(&theme);
@@ -164,11 +168,12 @@ void Menu_graphics::update(const Graphics& gfx) {	// tries to keep the selected 
 }
 
 bool Menu_graphics::newMode() {
-	if (oldMode == resolution() && oldDepth == colorDepth() && oldWin == windowed())
+	if (oldMode == resolution() && oldDepth == colorDepth() && oldWin == windowed() && oldFlip == flipping())
 		return false;
 	oldMode = resolution();
 	oldDepth = colorDepth();
 	oldWin = windowed();
+	oldFlip = flipping();
 	return true;
 }
 

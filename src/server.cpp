@@ -1343,27 +1343,18 @@ void gameserver_c::server_think_after_broadcast() {
 				check_player_change_teams(i);
 }
 
-//loop server
-// running_flag: pointer to bool, if this bool goes to false, the loop quits.
-void gameserver_c::loop(volatile bool *running_flag) {
-
+void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
+	nAssert(quitFlag);
 	log("GAMESERVER::LOOP()");
 
 	world.frame = 0;	//frame to generate next
 
 	//sync with speed counter until it's time to generate one frame (== 1)
-	server_speed_counter = -3;
+	server_speed_counter = 0;
 	while (server_speed_counter < 1)
-		MS_SLEEP(1);		// *** NO CPU PROBLEM HERE ***
+		MS_SLEEP(2);
 
-	// no flag specified: esc quits
-	bool keep_running = true;
-	if (!running_flag)
-		running_flag = &keep_running;
-
-	log("GAMESERVER::LOOP() (2)");
-
-	while (*running_flag && !force_exit) {
+	while (!*quitFlag) {
 		// generate and send frame
 		simulate_and_broadcast_frame();
 
@@ -1373,14 +1364,14 @@ void gameserver_c::loop(volatile bool *running_flag) {
 		// next frame
 		world.frame++;
 
-		//update dedserver wintitle
+		//update wintitle
 		if (world.frame % 10 == 0) {
 			//update bar
 			ostringstream status;
 			status << network.get_player_count() << '/' << maxplayers << "p ";
 			status << setprecision(1) << std::fixed << network.getTraffic() << "k/s v" << GAME_VERSION;
 			status << " port:" << port;
-			if (dedserver)
+			if (quitOnEsc)
 				status << " ESC:quit";
 			server_status_string(status.str());
 		}
@@ -1394,9 +1385,8 @@ void gameserver_c::loop(volatile bool *running_flag) {
 			MS_SLEEP(2);			// *** OPTIMIZE THIS ***
 		}
 
-		// quit? if no running-flag specified
-		if (key[KEY_ESC])
-			keep_running = false;
+		if (quitOnEsc && key[KEY_ESC])
+			break;
 	}
 
 	log("GAMESERVER::LOOP() (EXITING!)");
@@ -1431,8 +1421,8 @@ bool GameserverInterface::start(int maxplayers) {
 	return host->start(maxplayers);
 }
 
-void GameserverInterface::loop(volatile bool* runFlag) {
-	host->loop(runFlag);
+void GameserverInterface::loop(volatile bool *quitFlag, bool quitOnEsc) {
+	host->loop(quitFlag, quitOnEsc);
 }
 
 void GameserverInterface::stop() {

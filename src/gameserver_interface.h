@@ -11,7 +11,7 @@ public:
 	GameserverInterface(LogSet& hostLog);
 	~GameserverInterface();
 	bool start(int maxplayers);
-	void loop(volatile bool* runFlag);
+	void loop(volatile bool *quitFlag, bool quitOnEsc);
 	void stop();
 };
 

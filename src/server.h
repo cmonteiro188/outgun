@@ -107,7 +107,7 @@ public:
 	gameserver_c(LogSet& hostLogs);
 	virtual ~gameserver_c();
 	bool start(int target_maxplayers);
-	void loop(volatile bool *running_flag);
+	void loop(volatile bool *quitFlag, bool quitOnEsc);
 	void stop();
 
 	void ctf_game_restart();

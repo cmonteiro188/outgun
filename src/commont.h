@@ -88,7 +88,7 @@ private:
 //the default game port
 const NLushort DEFAULT_UDP_PORT = 25000;
 
-//the master server address (www.mycgiserver.com:80)
+//the master server address
 extern NLaddress master_address;
 
 //directories for save/load maps
@@ -103,7 +103,7 @@ extern std::string wheregamedir;
 
 // number-of-players
 #define MAX_PLAYERS 32	// the MAXIMUM MAXIMUM number of players EVER
-#define TSIZE (maxplayers/2)	// CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessable, the variable in question will vary by place of use
+#define TSIZE (maxplayers/2)	// CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessible, the variable in question will vary by place of use
 
 #define MAX_ROCKETS 256	// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
@@ -111,26 +111,23 @@ extern std::string wheregamedir;
 
 extern bool dedserver;		//dedicated server? -ded
 extern bool textserver;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
+
+extern int port;			//the server port
 extern bool privateserver;	//private server? (will not publish)
+extern bool force_ip;		//force IP?
+extern char force_ip_name[32];	//force IP to what?
+extern int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
+
 extern bool winclient;		//windowed client?  -win / -fs
 extern bool trypageflip;	//try page flipping? -flip / -dbuf
 extern bool nosound;		//disable sound? -nosound
 extern int targetfps;		//target (MAX) frames-per-second
-extern int port;			//the server port
-extern int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
-extern bool force_ip;		//force IP?
-extern char force_ip_name[32];	//force IP to what?
-
-extern volatile bool force_exit;	// this is set true when the user tries to close the window
-
-void closeButtonCallback();
 
 void server_status_string(const std::string& str);
 
-extern volatile int server_speed_counter;
-extern volatile int speed_counter;
-extern volatile int client_netsend_counter;
-extern volatile unsigned long time_counter;
+extern volatile unsigned long server_speed_counter;	// 10 Hz (100 ms) server frame counter
+extern volatile unsigned long time_counter;	// 200 Hz (5 ms) counter used by get_time() and for client frame timing
+//#fix: time_counter goes around in 248 days; that might cause serious trouble (?)
 
 //server_next_map() reasons
 enum {

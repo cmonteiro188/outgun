@@ -77,12 +77,12 @@ void ServerThreadOwner::threadFn() {
 	GameserverInterface gameserver(log);
 	if (!gameserver.start(server_maxplayers)) {
 		log.error("cannot start LISTEN GAME SERVER!!!");
-		runFlag = false;
+		quitFlag = true;
 		return;
 	}
 
-	gameserver.loop(&runFlag);
-	runFlag = false;
+	gameserver.loop(&quitFlag, false);
+	quitFlag = true;
 
 	log("GAMESERVER STOPPING");
 	gameserver.stop();
@@ -93,9 +93,10 @@ void ServerThreadOwner::threadFn() {
 }
 
 void ServerThreadOwner::start(int port) {
-	nAssert(!runFlag && !threadFlag);
+	nAssert(quitFlag && !threadFlag);
 	runPort = port;
-	runFlag = threadFlag = true;
+	quitFlag = false;
+	threadFlag = true;
 	log("listen_start()");
 	RedirectToMemFun<ServerThreadOwner, void> rmf(this, &ServerThreadOwner::threadFn);
 	serverThread.start_assert(rmf);
@@ -103,7 +104,8 @@ void ServerThreadOwner::start(int port) {
 
 void ServerThreadOwner::stop() {
 	nAssert(threadFlag);
-	runFlag = threadFlag = false;
+	quitFlag = true;
+	threadFlag = false;
 	log("listen_stop()");
 	serverThread.join();
 }
@@ -302,8 +304,6 @@ void TournamentPasswordManager::threadFn() {
 	}
 }
 
-bool gameclient_c::force_exit = false;
-
 gameclient_c::gameclient_c(LogSet hostLogs):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
@@ -486,15 +486,13 @@ bool gameclient_c::start() {
 			bool ok = is;
 			char nullc;
 			is >> nullc;
-			if (!ok || is || width < 640 || height < 480 || (depth != 16 && depth != 24 && depth != 32))
+			if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
 				log("Bad screen mode in client.cfg");
 			else {
 				nAssert(menu.options.graphics.colorDepth.set(depth));
 				menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
 				if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
 					log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
-				else
-					MCF_screenModeChange();
 			}
 		}
 		if (getline_smart(cfg, line)) {	// theme
@@ -530,6 +528,15 @@ bool gameclient_c::start() {
 				log("Sound theme directory loaded = %s", line.c_str());
 		}
 
+		//#fix: unsorted
+		if (getline_smart(cfg, line)) {	// FPS limit
+			int limit = atoi(line);
+			if (limit >= 1 && limit <= 100)
+				menu.options.graphics.fpsLimit.set(limit);
+		}
+		if (getline_smart(cfg, line))
+			menu.options.graphics.flipping.set(line == "1");
+
 		cfg.close();
 	}
 	fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
@@ -560,8 +567,8 @@ bool gameclient_c::start() {
 		return false;
 	client_sounds.select_theme(menu.options.sounds.theme());
 
-log("SCBC");//#debug
-	set_close_button_callback(gameclient_c::close_button_callback);
+	if (targetfps != -1)
+		menu.options.graphics.fpsLimit.set(targetfps);
 
 log("IJ");//#debug
 	if (menu.options.game.joystick())
@@ -1285,7 +1292,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 	//lock frame mutex
 	//log("locking INCOMING");
-	pthread_mutex_lock( &frame_mutex );
+	pthread_mutex_lock(&frame_mutex);
 	//log("locked! INCOMING");
 
 	// (0) update lastpackettime
@@ -1359,12 +1366,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		frameOffsetDeltaTotal += offsetDelta;
 		if (++frameOffsetDeltaNum == 10) {	// try to fix deviations every 10 frames
 			frameOffsetDeltaTotal /= 10.;
-			if (fabs(frameOffsetDeltaTotal) > .2) {
-				if (frameOffsetDeltaTotal > 0.)	// frames arrive too late to server
-					++client_netsend_counter;
-				else
-					--client_netsend_counter;	// frames arrive too early to server
-			}
+			netsendAdjustment = -static_cast<int>(frameOffsetDeltaTotal * 20.);	// the time_counter used for timing netsends is 200 Hz so one frame is 20 ticks
 			frameOffsetDeltaTotal = 0;
 			frameOffsetDeltaNum = 0;
 		}
@@ -2154,7 +2156,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 	//unlock frame mutex
 	//log("unlocking INCOMING");
-	pthread_mutex_unlock( &frame_mutex );
+	pthread_mutex_unlock(&frame_mutex);
 	//log("unlocked! INCOMING");
 }
 
@@ -2509,21 +2511,23 @@ bool gameclient_c::getServerList() {
 }
 
 //loop
-void gameclient_c::loop() {
+void gameclient_c::loop(volatile bool* quitFlag) {
+	nAssert(quitFlag);
 	bool notquit = true;
 
 	openMenus.clear();
 	showMenu(menu);
 	gameshow = false;
 
-	speed_counter = 0;
-	client_netsend_counter = 0;
+	unsigned long sendFrameStep = 20;	// 20 steps of 200 Hz clock equals the 10 Hz server clock
+	unsigned long nextSendFrame = time_counter;
+	unsigned long nextClientFrame = time_counter;
 
 	bool key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
-	while (notquit && !force_exit) {
+	while (notquit && !*quitFlag) {
 		// (1) loop doing input/sleep before next simulation/draw time
-		do {
+		for (;;) {
 			//quit key Control-F12
 			if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
 				notquit = false;
@@ -2820,29 +2824,38 @@ void gameclient_c::loop() {
 			else
 				kesc = false;
 
+			if (time_counter >= nextSendFrame || time_counter >= nextClientFrame)
+				break;
+
+			if (nextSendFrame - time_counter > 1000 || nextClientFrame - time_counter > 1000)	// time_counter gone around
+				nextSendFrame = nextClientFrame = time_counter;
+
 			//sleep a bit
-			if (speed_counter < 1)
-				MS_SLEEP(2);				// *** OPTIMIZE THIS ***
-
-		} while (speed_counter < 1);
-
-		//log("** ...exited spd counter>0");
-
-		//must be time for another frame later
-		while (speed_counter > 0) {
-			speed_counter--;
-			client_netsend_counter++;
+			MS_SLEEP(2);				// *** OPTIMIZE THIS ***
 		}
 
-		while (client_netsend_counter >= targetfps / 10) {
-			client_netsend_counter = 0;
+		if (time_counter >= nextSendFrame) {
+			nextSendFrame += sendFrameStep;
+			#ifdef SEND_FRAMEOFFSET
+			nextSendFrame += netsendAdjustment;
+			netsendAdjustment = 0;	// losing a value due to concurrency is vaguely possible but affordable
+			#endif
+			if (time_counter > nextSendFrame)	// don't accumulate lag
+				nextSendFrame = time_counter;
 			send_frame(true);
 		}
 
-		// (2) if game is showing, simulate
-		//
+		if (time_counter < nextClientFrame)
+			continue;
+
+		// the rest is drawing
+
+		nextClientFrame += 200 / menu.options.graphics.fpsLimit();
+		if (time_counter > nextClientFrame)	// don't accumulate lag
+			nextClientFrame = time_counter;
+
 		if (gameshow) {
-			pthread_mutex_lock( &frame_mutex );
+			pthread_mutex_lock(&frame_mutex);
 			ClientPhysicsCallbacks cb(*this);
 			if (menu.options.game.lagPrediction()) {
 				const float lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.);	// lagPredictionAmount() is in range [0, 10]
@@ -2863,32 +2876,19 @@ void gameclient_c::loop() {
 			}
 			else
 				fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
-			pthread_mutex_unlock( &frame_mutex );
-		}
 
-		// (3) draw operations
-		//
-		//if (page_flipping) {
-			//log("acquire_bitmap/gs=%i...",gameshow);
-			//acquire_bitmap(drawbuf);
-			//log("OK");
-		//}
+			client_graphics.startDraw();
+			draw_game_frame();
 
-		if (gameshow) {
-			//clear_to_color(drawbuf, makecol(rand(),0,0));	// clear buffer
-			//log("draw_game_frame()");
-			draw_game_frame(); // draw game frame
-			//log("exit draw_game_frame()");
 			#ifdef ROOM_CHANGE_BENCHMARK
 			if (benchmarkRuns >= 500)
 				notquit = false;
 			#endif
+
+			pthread_mutex_unlock(&frame_mutex);
 		} else {
+			client_graphics.startDraw();
 			client_graphics.clear();
-			//int co = makecol(0x22, 0x22, 0x22);
-			//textprintf(drawbuf, font, 0, 0, co, "page-flipping = %i", page_flipping);
-			//textprintf(drawbuf, font, 0, 10, co, "port = %i", port);
-			//menu = menu_main;
 		}
 
 		int errors = errorLog.size();
@@ -2904,23 +2904,7 @@ void gameclient_c::loop() {
 		else if (menusel != menu_none || !openMenus.empty())
 			draw_game_menu();
 
-		//if (page_flipping) {
-			//log("** releasing bitmap...");
-			//release_bitmap(drawbuf);
-			//log("OK!");
-		//}
-
-		// (4) flip or blt
-		//
-		/*if (page_flipping) {
-			show_video_bitmap(drawbuf);
-
-			if (drawbuf == vidpage1)
-				drawbuf = vidpage2;
-			else
-				drawbuf = vidpage1;
-		}
-		else*/
+		client_graphics.endDraw();
 		client_graphics.draw_screen();
 		if (screenshot) {
 			save_screenshot();
@@ -2979,6 +2963,10 @@ void gameclient_c::stop() {
 		cfg << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
 		cfg << menu.options.sounds.volume() << '\n';
 		cfg << menu.options.sounds.theme() << '\n';
+
+		//#fix: unsorted
+		cfg << menu.options.graphics.fpsLimit() << '\n';
+		cfg << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
 
 		cfg.close();
 	}
@@ -3067,9 +3055,6 @@ void gameclient_c::predraw() {
 
 //draw the whole game screen
 void gameclient_c::draw_game_frame() {
-	//lock frame mutex
-	pthread_mutex_lock( &frame_mutex );
-
 	// hiding stuff?
 	// v0.4.1 : hide stuff if frame skipped
 	bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
@@ -3417,11 +3402,6 @@ void gameclient_c::draw_game_frame() {
 		client_graphics.debug_panel(fx.player, me, bpsin, bpsout, sticks, buttons);
 	}
 
-	//unlock frame mutex
-	//log("unlocking HOW=%i",HOWMANY);
-	pthread_mutex_unlock( &frame_mutex );
-	//log("unlocked! HOW=%i",HOWMANY);
-
 	// another frame, calc FPS...
 	//
 	totalframecount++;
@@ -3544,6 +3524,7 @@ void gameclient_c::initMenus() {
 	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_messageLogging	>(this));
 
 	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGfxMenu	>(this));
+	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareDrawGfxMenu>(this));
 	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
 	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&gameclient_c::MCF_screenDepthChange>(this));
@@ -3572,6 +3553,16 @@ void gameclient_c::initMenus() {
 	menu.options.sounds.init(client_sounds);
 }
 
+void gameclient_c::MCF_menuOpener(Menu& menu) {
+	openMenus.open(&menu);
+}
+
+void gameclient_c::MCF_menuCloser() {
+	openMenus.close();
+	if (!gameshow && openMenus.empty())
+		showMenu(menu);
+}
+
 void gameclient_c::MCF_prepareMainMenu() {
 	if (listenServer.running()) {
 		menu.startServer.setEnable(false);
@@ -3582,6 +3573,20 @@ void gameclient_c::MCF_prepareMainMenu() {
 		menu.stopServer.setEnable(false);
 	}
 	menu.disconnect.setEnable(connected);
+}
+
+void gameclient_c::MCF_disconnect() {
+	disconnect_command();
+}
+
+void gameclient_c::MCF_startServer() {
+	if (!listenServer.running())
+		listenServer.start(port);
+}
+
+void gameclient_c::MCF_stopServer() {
+	if (listenServer.running())
+		listenServer.stop();
 }
 
 void gameclient_c::MCF_cancelConnect() {
@@ -3601,6 +3606,16 @@ void gameclient_c::MCF_nameMenuClose() {
 	change_name_command();
 }
 
+void gameclient_c::MCF_nameChange() {	// only function to clear the password
+	menu.options.name.password.set("");
+	tournamentPassword.changeData(playername, "");
+}
+
+void gameclient_c::MCF_randomName() {
+	menu.options.name.name.set(RandomName());
+	MCF_nameChange();
+}
+
 void gameclient_c::MCF_removePasswords() {
 	const int removed = remove_player_passwords(menu.options.name.name());
 	ostringstream dialog;
@@ -3611,6 +3626,10 @@ void gameclient_c::MCF_removePasswords() {
 	m_dialog.clear();
 	m_dialog.addLine(dialog.str());
 	showMenu(m_dialog);
+}
+
+void gameclient_c::MCF_prepareGameMenu() {
+	menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
 }
 
 void gameclient_c::MCF_joystick() {
@@ -3633,6 +3652,10 @@ void gameclient_c::MCF_prepareGfxMenu() {
 	menu.options.graphics.update(client_graphics);
 }
 
+void gameclient_c::MCF_prepareDrawGfxMenu() {
+	menu.options.graphics.flipping.setEnable(!menu.options.graphics.windowed());
+}
+
 void gameclient_c::MCF_gfxThemeChange() {
 	client_graphics.select_theme(menu.options.graphics.theme());
 	predraw();
@@ -3642,16 +3665,18 @@ void gameclient_c::MCF_screenDepthChange() {
 	menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
 }
 
-void gameclient_c::MCF_screenModeChange() { screenModeChange(); }	// used to lose the return value
+void gameclient_c::MCF_screenModeChange() {	// used to lose the return value
+	nAssert(screenModeChange());	// it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
+}
 
-bool gameclient_c::screenModeChange() {	// the return value should be tested at the first call
+bool gameclient_c::screenModeChange() {	// returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
 	if (!menu.options.graphics.newMode())
 		return true;
 	ScreenMode res = menu.options.graphics.resolution();
 	int ow = res.width, oh = res.height, depth = menu.options.graphics.colorDepth();
 	bool owin = menu.options.graphics.windowed();
 	for (int nTry = 0;; ++nTry) {
-		if (client_graphics.init(res.width, res.height, depth, menu.options.graphics.windowed())) {
+		if (client_graphics.init(res.width, res.height, depth, menu.options.graphics.windowed(), menu.options.graphics.flipping())) {
 			if (nTry != 0)
 				log.error("Couldn't set screen mode %d×%d×%d %s; reverted to 640×480 %s", ow, oh, depth, owin?"windowed":"fullscreen", menu.options.graphics.windowed()?"windowed":"fullscreen");
 			break;
@@ -3660,16 +3685,22 @@ bool gameclient_c::screenModeChange() {	// the return value should be tested at 
 			case 0:
 				res.width = 640;
 				res.height = 480;
-				if (!menu.options.graphics.resolution.set(res))
+				if (!menu.options.graphics.resolution.set(res)) {
+					if (workingGfxMode.used())
+						return client_graphics.init(workingGfxMode.width, workingGfxMode.height, workingGfxMode.depth, workingGfxMode.windowed, menu.options.graphics.flipping());
 					return false;
+				}
 				break;
 			case 1:
 				menu.options.graphics.windowed.set(!owin);
 				break;
 			case 2:
+				if (workingGfxMode.used())
+					return client_graphics.init(workingGfxMode.width, workingGfxMode.height, workingGfxMode.depth, workingGfxMode.windowed, menu.options.graphics.flipping());
 				return false;
 		}
 	}
+	workingGfxMode = GFXMode(res.width, res.height, depth, menu.options.graphics.windowed());
 	client_graphics.update_minimap_background(fx.map);
 	predraw();
 	const int rate = get_refresh_rate();
@@ -3677,7 +3708,7 @@ bool gameclient_c::screenModeChange() {	// the return value should be tested at 
 	if (rate == 0)
 		ost << "unknown";
 	else
-		ost << get_refresh_rate() << " Hz";
+		ost << rate << " Hz";
 	menu.options.graphics.refreshRate.set(ost.str());
 	return true;
 }
@@ -3806,10 +3837,6 @@ void gameclient_c::CB_tournamentToken(string token) {	// callback called by tour
 		client->send_message(lebuf, count);
 		tournamentPassword.serverProcessingToken();
 	}
-}
-
-void gameclient_c::close_button_callback() {
-	force_exit = true;
 }
 
 int cfunc_connection_update(client_runes_t *arg) {
