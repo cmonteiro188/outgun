@@ -11,8 +11,9 @@
 #define NR_NO_PUP_SWITCHING
 #define NR_VOTE_ANNOUNCE_INTERVAL 5
 #define NR_SERVER_PHYSICS
+//#define NR_PHYS_VECTOR_ACC
+//#define NR_SUPPORT_OLD_CLIENTS
 //#define NR_FIX_BOUNCING	// makes a difference only when nr_server_physics not defined
-#define NR_PHYS_VECTOR_ACC
 
 // ---- client side defines
 
@@ -31,6 +32,8 @@
 
 #ifdef NR_SERVER_PHYSICS
 #define NR_FIX_BOUNCING
+#else
+#define NR_SUPPORT_OLD_CLIENTS
 #endif
 
 #ifdef NR_FIX_BOUNCING
@@ -38,6 +41,7 @@
 #define NR_SHIFTY 15
 #else
 #define NR_SHIFTY 0
+#define NR_SUPPORT_OLD_CLIENTS
 #endif
 
 #ifdef NR_NAME_AUTHORIZATION
@@ -657,7 +661,7 @@ struct TriWall {	// triangular wall
 			if (y2<y1) { swap(x1, x2); swap(y1, y2); }	// all sorted
 		}
 		boundx1=min(x1, min(x2, x3)), boundy1=min(y1, min(y2, y3));
-		boundx2=max(x1, min(x2, x3)), boundy2=max(y1, min(y2, y3));
+		boundx2=max(x1, max(x2, x3)), boundy2=max(y1, max(y2, y3));
 	}
 	bool intersects_rect(float x1, float y1, float x2, float y2) const;
 };
@@ -676,16 +680,6 @@ bool subIntersection(float lx1, float ly1,  float lx2, float ly2,  float rx1, fl
 	float miny = max(max(ly1, ry1), recty1), maxy=min(min(ly2, ry2), recty2);
 	if (maxy < miny)
 		return false;
-for (float y=miny; y<maxy; y+=(maxy-miny)/10.) {
- float lx = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1);
- float rx = rx1 + (y-ry1)*(rx2-rx1)/(ry2-ry1);
- assert(lx<=rx);
-}
-printf("\nsubIntersection:\n"
-	   " l1=(%f,%f) l2=(%f,%f)\n"
-	   " r1=(%f,%f) r2=(%f,%f)\n"
-	   " rect1=(%f,%f) rect2=(%f,%f)\n", lx1, ly1, lx2, ly2, rx1, ry1, rx2, ry2, rectx1, recty1, rectx2, recty2);
-printf(" y range : [%f,%f]\n", miny, maxy);
 	// first narrow the range by lx(y) <= rectx2
 	if (lx1 == lx2) {	// can't formulate a value for intersection-y
 		if (lx1 > rectx2)	// lx(y) <= rectx2 identically false => no solutions
@@ -695,7 +689,6 @@ printf(" y range : [%f,%f]\n", miny, maxy);
 	else {
 		// solve lx(y) == rectx2 , where lx(y) = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1)
 		float intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
-printf(" lx(y) == rectx2 : y = %f\n", intersect_y);
 		if (lx2 > lx1) {	// the intersection is at y <= intersect_y
 			if (maxy > intersect_y)
 				maxy = intersect_y;
@@ -705,10 +698,8 @@ printf(" lx(y) == rectx2 : y = %f\n", intersect_y);
 				miny = intersect_y;
 		}
 	}
-printf(" y range : [%f,%f]\n", miny, maxy);
 	if (maxy < miny)
 		return false;
-return true;
 	// now narrow the range further by rx(y) >= rectx1, similarly
 	if (rx1 == rx2)
 		return (rx1 >= rectx1);
@@ -806,12 +797,22 @@ public:
 	Map() : valid_for_scoring(true), ver(-1), w(0), h(0), crc(0) { }
 
 	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
+if (px<0 || py<0 || px>=w || py>=h) return false;	//#NR remove this and track why these are given sometimes
 		assert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
 	void draw_minimap(BITMAP* buffer) const;
-	bool load(FILE* f) { *this=Map(); return parse_label(f, 0, 0, 0); }
+	bool load(FILE* f);
 };
+
+bool Map::load(FILE* f) {
+	*this=Map();
+	NLubyte lebigbuf[65536];
+	int numread = fread((void*)lebigbuf, 1, 65536, f);
+	crc = nlGetCRC16((NLubyte*)lebigbuf, numread);
+	rewind(f);
+	return parse_label(f, 0, 0, 0);
+}
 
 bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	// crx,cry = "current room pointer"
 	rewind(f);
@@ -877,6 +878,7 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			Room& rm = room[crx][cry];
 			vector<TriWall>& wvec = (type=='W') ? rm.twalls : rm.tground;
 			wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+			continue;
 		}
 		if (s[0]=='R') {	// R x y : set room pointer to (x,y)
 			int n = sscanf(s+1, " %i %i %c", &crx, &cry, &nullc);
@@ -1093,7 +1095,6 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 	double rBase = ( dx1*diffy - dy1*diffx ) / div;
 	double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
 	double t = rBase - fabs(rAdd);	// the collision with smaller t (the other would be going away)
-// fprintf(stderr, "d1: %f,%f ; d2: %f,%f ; m: %f,%f ; rBase: %f ; rAdd %f ; t %f\n", dx1, dy1, dx2, dy2, mx, my, rBase, rAdd, t);
 	if (t >= 0) {
 		// make sure we are not off an end of the line
 		// this can surely be calculated in a simpler way, but this first came to mind
@@ -1104,10 +1105,6 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 		// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
 		// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
 		double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-double dx=dx1+k*diffx-t*mx, dy=dy1+k*diffy-t*my;
-if (fabs(dx*dx+dy*dy-r*r)>=.0001)
- printf("dx: %f  dy: %f\n", dx, dy);
-assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 		if (k>=0. && k<=1.)
 			return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
 	}
@@ -1142,29 +1139,19 @@ assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 			collisionCoords=Coords(dx2-t*mx, dy2-t*my);
 		}
 	}
-if (dist<1.) {
- double dx=collisionCoords.first, dy=collisionCoords.second;
- if (fabs(dx*dx+dy*dy-r*r)>=.0001)
-  printf("dx: %f  dy: %f\n", dx, dy);
- assert(fabs(dx*dx+dy*dy-r*r)<.0001);
-}
 	return pair<double, Coords>(dist, collisionCoords);
 }
 
-bool NR_wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py) {
+bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy, double *ox, double *oy) {
 	static const double plyRadius=15;
-
-	assert(px >= 0 && py >= 0 && px < map->w && py < map->h);
-	const Room& r = map->room[px][py];
 
 	double stx=*ox, sty=*oy-NR_SHIFTY;	// start pos
 	double dtx=* x, dty=* y-NR_SHIFTY;	// destination
 
 	double mx=dtx-stx, my=dty-sty;	// movement vector
-//	assert(fabs(mx-*sx)<.0001 && fabs(my-*sy)<.0001);
 
 	bool bounced=false;
-	double movementLeft=1.;
+	double movementLeft=fraction;
 
 	for (;;) {
 		double minMovement=movementLeft;
@@ -1197,8 +1184,6 @@ bool NR_wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *s
 			#ifndef NDEBUG
 			if (minMovement<movementLeft) {
 				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
-if (fabs(dx*dx+dy*dy-r*r)>=.0001)
- printf("dx: %f  dy: %f\n", dx, dy);
 				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 			}
 			#endif
@@ -1231,10 +1216,14 @@ if (fabs(dx*dx+dy*dy-r*r)>=.0001)
 			}
 			#endif
 		}
-		assert(minMovement>=0. && minMovement<=1.);
+		assert(minMovement>=0. && minMovement<=movementLeft);
 		stx+=mx*minMovement*.999;	// make sure we aren't going the least bit inside a wall :)
 		sty+=my*minMovement*.999;
-		if (minMovement>=.999)	// not bounced
+		if (stx < 0)    { sty-=     stx *my/mx; stx=  0; break; }
+		if (stx >= plw) { sty-=(stx-plw)*my/mx; stx=plw; break; }
+		if (sty < 0)    { stx-=     sty *mx/my; sty=  0; break; }
+		if (sty >= plh) { stx-=(sty-plh)*mx/my; sty=plh; break; }
+		if (minMovement>=movementLeft*.999)	// not bounced
 			break;
 		bounced=true;
 		// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
@@ -1259,21 +1248,14 @@ if (fabs(dx*dx+dy*dy-r*r)>=.0001)
 	return bounced;
 }
 
-//#NRtodo: scrap these as soon as we have only clients that use NR_wallcorrect ::
+#ifdef NR_SUPPORT_OLD_CLIENTS
 
 //wall hit?
 bool wallhit(double x, double y, const RectWall &w) { return w.intersects_rect(x, y, x, y); }
 
 //wall collision correction
-bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py) {
-
-	if (px < 0) return false;
-	if (py < 0) return false;
-	if (px >= map->w) return false;
-	if (py >= map->h) return false;
-
+bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy, double *ox, double *oy) {
 	//delta old to new (ok)
-
 	double tx,ty;
 	tx = (*ox) - (*x);
 	ty = (*oy) - (*y);
@@ -1291,7 +1273,7 @@ bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, 
 
 	bool ever_had_wall_hit = false;
 	bool had_wall_hit; //keep pushing out until no wall hit
-	Room *r = &(map->room[px][py]);
+	const Room* r = &room;
 
 	int runaway = 10;
 	do {
@@ -1311,7 +1293,6 @@ bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, 
 				y_solved = true;
 				runaw--;
 				if (runaw < 0) {
-					LOG1("RA (2) = %i\n", p);
 					(*x) = (*ox);
 					(*y) = (*oy);
 					return false;
@@ -1327,7 +1308,6 @@ bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, 
 		}
 		runaway--;
 		if (runaway < 0) {
-			LOG1("RA = %i\n", p);
 			(*x) = (*ox);
 			(*y) = (*oy);
 			return false;
@@ -1343,6 +1323,8 @@ bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, 
 	}
 	return ever_had_wall_hit;
 }
+
+#endif	// NR_SUPPORT_OLD_CLIENTS
 
 //draw a wall, solid or nonsolid, texid, lum, in a map
 void drawwall_tex(Map *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
@@ -1565,11 +1547,6 @@ struct player_t {
 	int		total_captures;
 	int		start_time;
 
-	//=== CLIENT-SIDE DEBUG FIELDS: ====
-	bool	hot1;		//valid for interpolation (onscreen) this frame
-	bool	walc;		//wall-corrected this frame
-	int		nits;		//iterations for phisics
-
 	void reset_message_queue_timing() {	// make messages already on queue appear instantly
 		for (DMQueueT::iterator m=delayedMessages.begin(); m!=delayedMessages.end(); ++m)
 			m->first=0;
@@ -1650,8 +1627,6 @@ struct player_t {
 		dead=old_dead=false;
 		respawn_time=0;
 		respawn_to_base=false;
-		hot1=walc=false;
-		nits=0;
 
 		if (enable) {
 			reg_status='-';
@@ -1727,30 +1702,15 @@ public:
 	}
 };
 
-
 // a player's sprite state
 struct hero_t {
-
-	//INFO FOR BOTS ONLY:
-	int			tx, ty;		//tela X,Y
-
-	// position and speed
-	double		x, y, sx, sy;
-
-	// old coords: garantidamente NAO em paredes
-	double		ox, oy;
-
-	// left, right, up, down keypresses (player acceleration vectrs)
-	bool			l, r, u, d;
-
-	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
-	int				gundir;
-
-	// strafing?
-	bool			strafe;
-
-	//running
-	bool			run;
+	int tx, ty;		//tela X,Y
+	double x, y, sx, sy;	// position and speed
+	double ox, oy;	// old coords: garantidamente NAO em paredes
+	bool l, r, u, d;	// left, right, up, down keypresses (player acceleration vectrs)
+	int gundir;	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
+	bool strafe;	// strafing?
+	bool run;	//running
 
 	//keypresses (net format)
 	// 0,1,2,3 : lrud
@@ -1895,7 +1855,7 @@ public:
 // retorna FALSE se nao conseguiu abrir ou se tava corrompido etc
 // retorna o mapa (map_c) atualizado no parametro *map
 
-bool load_map(char *mapdir, char *mapname, Map *map, NLushort *crc) {
+bool load_map(char *mapdir, char *mapname, Map *map) {
 	//clear
 	char lebuffer[1024];
 	char dest[WHERE_PATH_SIZE];
@@ -1911,19 +1871,11 @@ bool load_map(char *mapdir, char *mapname, Map *map, NLushort *crc) {
 	FILE *fmap = fopen(dest, "r");	// FIXME: r or rb ??
 	if (fmap) {
 		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", mapname);
-
-		NLubyte lebigbuf[65536];
-		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
-		(*crc) = nlGetCRC16((NLubyte*)lebigbuf, numread);
-
-		rewind(fmap);	//e volta pro comeco
 		if (!map->load(fmap)) {
 			LOG1("Error loading map '%s'\n", mapname);
 			return false;
 		}
-
 		fclose(fmap);
-		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", mapname);
 		return true;
 	}
 	else {
@@ -1932,7 +1884,234 @@ bool load_map(char *mapdir, char *mapname, Map *map, NLushort *crc) {
 	}
 }
 
+bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+	//select effective physics vars for the player
+	//
+	float player_accel;
+	float player_friction;
+	float player_maxspeed;
+	if (h->run) {
+		if (turbo) {
+			player_accel    = svp_accel_turborun;
+			player_friction = svp_fric_turborun;
+			player_maxspeed = svp_maxspeed_turborun;
+		}
+		else {
+			player_accel    = svp_accel_run;
+			player_friction = svp_fric_run;
+			player_maxspeed = svp_maxspeed_run;
+		}
+	}
+	else {
+		if (turbo) {
+			player_accel    = svp_accel_turbo;
+			player_friction = svp_fric_turbo;
+			player_maxspeed = svp_maxspeed_turbo;
+		}
+		else {
+			player_accel    = svp_accel;
+			player_friction = svp_fric;
+			player_maxspeed = svp_maxspeed;
+		}
+	}
+	//flag carrier disadvantage when running
+	if (h->run && carryFlag)
+		player_maxspeed -= svp_flag_penalty;
 
+	int xAcc = (h->r?1:0) - (h->l?1:0), yAcc = (h->d?1:0) - (h->u?1:0);
+
+	#ifdef NR_PHYS_VECTOR_ACC
+
+	// scale these up so the acceleration is near the average of original (either 1 or sqrt(2) times)
+	player_accel *= 1.2;
+	player_friction *= 1.2;
+	player_maxspeed *= 1.2;
+
+	// friction
+	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+	float mul;
+	if (spd < player_friction)
+		mul = 0.;
+	else
+		mul = 1. - player_friction/spd;
+	spd *= mul;
+	h->sx *= mul;
+	h->sy *= mul;
+
+	// acceleration
+	if (!deathbringer_affected && spd<player_maxspeed) {
+		float mul = player_accel+player_friction;
+		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
+			mul /= sqrt(2.);
+
+		h->sx += float(xAcc)*mul;
+		h->sy += float(yAcc)*mul;
+
+		spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+		if (spd > player_maxspeed) {
+			float mul = player_maxspeed/spd;
+			h->sx *= mul;
+			h->sy *= mul;
+		}
+	}
+
+	#else	// NR_PHYS_VECTOR_ACC
+
+	// friction
+	if (!xAcc) {
+		if (fabs(h->sx) > player_friction)
+			h->sx *= 1. - player_friction/fabs(h->sx);
+		else
+			h->sx = 0.;
+	}
+	if (!yAcc) {
+		if (fabs(h->sy) > player_friction)
+			h->sy *= 1. - player_friction/fabs(h->sy);
+		else
+			h->sy = 0.;
+	}
+
+	// acceleration
+	if (!deathbringer_affected) {
+		if (xAcc!=0) {
+			h->sx += float(xAcc)*player_accel;
+			if (fabs(h->sx) > player_maxspeed)
+				h->sx *= player_maxspeed/fabs(h->sx);
+		}
+		if (yAcc!=0) {
+			h->sy += float(yAcc)*player_accel;
+			if (fabs(h->sy) > player_maxspeed)
+				h->sy *= player_maxspeed/fabs(h->sy);
+		}
+	}
+
+	#endif	// NR_PHYS_VECTOR_ACC else
+
+	h->ox=h->x; h->oy=h->y;
+	h->x+=h->sx;
+	h->y+=h->sy;
+
+	//wall collision correction
+	return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
+}
+
+#ifdef NR_SUPPORT_OLD_CLIENTS
+bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, bool fixBouncing) {
+	//select effective physics vars for the player
+	//
+	float player_accel;
+	float player_friction;
+	float player_maxspeed;
+	if (h->run) {
+		if (turbo) {
+			player_accel    = svp_accel_turborun;
+			player_friction = svp_fric_turborun;
+			player_maxspeed = svp_maxspeed_turborun;
+		}
+		else {
+			player_accel    = svp_accel_run;
+			player_friction = svp_fric_run;
+			player_maxspeed = svp_maxspeed_run;
+		}
+	}
+	else {
+		if (turbo) {
+			player_accel    = svp_accel_turbo;
+			player_friction = svp_fric_turbo;
+			player_maxspeed = svp_maxspeed_turbo;
+		}
+		else {
+			player_accel    = svp_accel;
+			player_friction = svp_fric;
+			player_maxspeed = svp_maxspeed;
+		}
+	}
+	//flag carrier disadvantage when running
+	if (h->run && carryFlag)
+		player_maxspeed -= svp_flag_penalty;
+
+	//friction x - apply if l xor r
+	#ifndef ALWAYS_FRICTION
+	if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
+	#endif
+		if (h->sx > 0) {
+			//h->sx -= sv_frictionx * boots_accel_bonus;
+			h->sx -= player_friction * fraction;
+			if (h->sx < 0) h->sx = 0;
+		}
+		else if (h->sx < 0) {
+			//h->sx += sv_frictionx * boots_accel_bonus;
+			h->sx += player_friction * fraction;
+			if (h->sx > 0) h->sx = 0;
+		}
+	#ifndef ALWAYS_FRICTION
+	}
+	#endif
+
+	//friction y
+	#ifndef ALWAYS_FRICTION
+	if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
+	#endif
+		if (h->sy > 0) {
+			//h->sy -= sv_frictiony * boots_accel_bonus;
+			h->sy -= player_friction * fraction;
+			if (h->sy < 0) h->sy = 0;
+		}
+		else if (h->sy < 0) {
+			//h->sy += sv_frictiony * boots_accel_bonus;
+			h->sy += player_friction * fraction;
+			if (h->sy > 0) h->sy = 0;
+		}
+	#ifndef ALWAYS_FRICTION
+	}
+	#endif
+
+	//deathbringer penalty : no movement. move only if not in effect
+	if (!deathbringer_affected) {
+
+		//accelerate x if not over maximum speed
+		if ((h->l) && (h->sx > -player_maxspeed))
+			h->sx -= player_accel * fraction;
+		if ((h->r) && (h->sx < +player_maxspeed))
+			h->sx += player_accel * fraction;
+		//accelerate y if not over maximum speed
+		if ((h->u) && (h->sy > -player_maxspeed))
+			h->sy -= player_accel * fraction;
+		if ((h->d) && (h->sy < +player_maxspeed))
+			h->sy += player_accel * fraction;
+	}
+
+	//DEBUG
+	//if (h->sx > +player_maxspeed) h->sx = +player_maxspeed;
+	//if (h->sx < -player_maxspeed) h->sx = -player_maxspeed;
+	//if (h->sy > +player_maxspeed) h->sy = +player_maxspeed;
+	//if (h->sy < -player_maxspeed) h->sy = -player_maxspeed;
+
+	//save ox,oy
+	h->ox = h->x;
+	h->oy = h->y;
+
+	//wall collision correction
+	if (fixBouncing) {
+		h->x += h->sx;
+		h->y += h->sy;
+		return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
+	}
+	else {
+		//move x
+		h->x += h->sx * fraction;
+		if (h->x < 0) h->x = 0;
+		else if (h->x > plw) h->x = plw;
+
+		//move y
+		h->y += h->sy * fraction;
+		if (h->y-NR_SHIFTY < 0) h->y = 0+NR_SHIFTY;
+		else if (h->y-NR_SHIFTY > plh) h->y = plh+NR_SHIFTY;
+
+		return wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
+	}
+}
+#endif
 
 //************************************************************
 //  server stuff
@@ -2178,9 +2357,9 @@ public:
 		for (int i=0; i<MAX_PLAYERS; ++i)
 			if (player[i].used && !player[i].isbot && i!=pid) {
 				if (mode == 0)
-					plprintf(i, "@IThe admin has unmuted %s (he can send messages again)", player[pid].name);
+					plprintf(i, "@IThe admin has unmuted %s (s/he can send messages again)", player[pid].name);
 				else
-					plprintf(i, "@IThe admin has muted %s (he can't send messages)", player[pid].name);
+					plprintf(i, "@IThe admin has muted %s (s/he can't send messages)", player[pid].name);
 			}
 		player[pid].muted = mode;
 	}
@@ -4221,7 +4400,7 @@ public:
 
 				//LOG1("modline '%s'\n", s);
 
-				if (strlen(s) == 0)	//skip blank
+				if (s[0] == '\0')	//skip blank
 					continue;
 
 				if (s[0] == ';') // skip comment
@@ -4432,7 +4611,7 @@ public:
 
 	//load a map from the rotation list
 	void load_rotation_map(int pos) {
-		bool ok = load_map(SERVER_MAPS_DIR, maprot[pos], &map, &(map.crc));
+		bool ok = load_map(SERVER_MAPS_DIR, maprot[pos], &map);
 		assert(ok);
 		LOG2("load_rotation_map() maprot[%i] = '%s'\n", pos, maprot[pos]);
 	}
@@ -6269,247 +6448,68 @@ public:
 
 	//run a physics frame simulation step for a player
 	void run_server_player_physics(int i, frame_t *src, frame_t *dest) {	//player id, frame source, frame dest
+		if (dest != src)
+			dest->hero[i] = src->hero[i];
+		hero_t* hd = &dest->hero[i];
 
-		hero_t *h = &(src->hero[i]);
-		hero_t *hd = &(dest->hero[i]);
+		if (hd->tx<0 || hd->ty<0 || hd->tx>=map.w || hd->ty>=map.h) return;	//#NR remove this and track why these are given sometimes
+		const Room& room = map.room[hd->tx][hd->ty];
 
-		//select effective physics vars for the player
-		//
-		double player_accel;
-		double player_friction;
-		double player_maxspeed;
-		if (h->run) {
-			if (player[i].item_speed) {
-				player_accel    = svp_accel_turborun;
-				player_friction = svp_fric_turborun;
-				player_maxspeed = svp_maxspeed_turborun;
-			}
-			else {
-				player_accel    = svp_accel_run;
-				player_friction = svp_fric_run;
-				player_maxspeed = svp_maxspeed_run;
-			}
-		}
-		else {
-			if (player[i].item_speed) {
-				player_accel    = svp_accel_turbo;
-				player_friction = svp_fric_turbo;
-				player_maxspeed = svp_maxspeed_turbo;
-			}
-			else {
-				player_accel    = svp_accel;
-				player_friction = svp_fric;
-				player_maxspeed = svp_maxspeed;
-			}
-		}
+		bool carryFlag = src->flag[1-(i/TSIZE)].carried && src->flag[1-(i/TSIZE)].carrier == i;
+		bool deathbringerAffected = player[i].deathbringer_end >= get_time();
 
-		//flag carrier disadvantage when running
-		if (h->run)
-		if (src->flag[1-(i/TSIZE)].carried)
-		if (src->flag[1-(i/TSIZE)].carrier == i)
-			player_maxspeed -= svp_flag_penalty;
-
-#ifdef NR_SERVER_PHYSICS
-
-		int xAcc = (h->r?1:0) - (h->l?1:0), yAcc = (h->d?1:0) - (h->u?1:0);
-
-		#ifdef NR_PHYS_VECTOR_ACC
-
-		// friction
-		float spd = sqrt( hd->sx*hd->sx + hd->sy*hd->sy );
-		float mul;
-		if (spd < player_friction)
-			mul = 0.;
-		else
-			mul = 1. - player_friction/spd;
-		spd *= mul;
-		hd->sx *= mul;
-		hd->sy *= mul;
-
-		// acceleration
-		if (player[i].deathbringer_end < get_time()) {
-			float mul = player_accel+player_friction;
-			if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
-				mul /= sqrt(2.);
-
-			hd->sx = h->sx + float(xAcc)*mul;
-			hd->sy = h->sy + float(yAcc)*mul;
-		}
-
-		// speed cut
-		if (spd > player_maxspeed) {
-			float mul = player_maxspeed/spd;
-			hd->sx *= mul;
-			hd->sy *= mul;
-		}
-
-		#else	// NR_PHYS_VECTOR_ACC
-
-		// friction
-		if (!xAcc) {
-			if (fabs(hd->sx) > player_friction)
-				hd->sx *= 1. - player_friction/fabs(hd->sx);
-			else
-				hd->sx = 0.;
-		}
-		if (!yAcc) {
-			if (fabs(hd->sy) > player_friction)
-				hd->sy *= 1. - player_friction/fabs(hd->sy);
-			else
-				hd->sy = 0.;
-		}
-
-		// acceleration
-		if (player[i].deathbringer_end < get_time()) {
-			hd->sx = h->sx + float(xAcc)*player_accel*mul;
-			hd->sy = h->sy + float(yAcc)*player_accel*mul;
-		}
-
-		// speed cut
-		if (fabs(hd->sx) > player_maxspeed)
-			hd->sx *= player_maxspeed/fabs(hd->sx);
-		if (fabs(hd->sy) > player_maxspeed)
-			hd->sy *= player_maxspeed/fabs(hd->sy);
-
-		#endif	// NR_PHYS_VECTOR_ACC else
-
-		hd->ox=h->x; hd->oy=h->y;
-hd->x=h->x+hd->sx;
-hd->y=h->y+hd->sy;
-//		hd->x=bound<double>(h->x+hd->sx, 0, plw);
-//		hd->y=bound<double>(h->y+hd->sy, NR_SHIFTY, plh+NR_SHIFTY);
-
-#else	// NR_SERVER_PHYSICS
-
-			//friction x - apply if l xor r
-#ifndef ALWAYS_FRICTION
-//					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > max_speed_x) ) {
-			if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
-#endif
-				if (h->sx > 0) {
-					//h->sx -= sv_frictionx * boots_accel_bonus;
-					hd->sx = h->sx - player_friction;
-					if (hd->sx < 0) hd->sx = 0;
-				}
-				else if (h->sx < 0) {
-					//h->sx += sv_frictionx * boots_accel_bonus;
-					hd->sx = h->sx + player_friction;
-					if (hd->sx > 0) hd->sx = 0;
-				}
-#ifndef ALWAYS_FRICTION
-			}
-#endif
-
-			//friction y
-#ifndef ALWAYS_FRICTION
-			if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
-#endif
-				if (h->sy > 0) {
-					//h->sy -= sv_frictiony * boots_accel_bonus;
-					hd->sy = h->sy - player_friction;
-					if (hd->sy < 0) hd->sy = 0;
-				}
-				else if (h->sy < 0) {
-					//h->sy += sv_frictiony * boots_accel_bonus;
-					hd->sy = h->sy + player_friction;
-					if (hd->sy > 0) hd->sy = 0;
-				}
-#ifndef ALWAYS_FRICTION
-			}
-#endif
-
-		//deathbringer penalty : no movement. move only if not in effect (<)
-		if (player[i].deathbringer_end < get_time()) {
-
-			//accelerate x if not over maximum speed
-			if ((h->l) && (h->sx > -player_maxspeed))
-				hd->sx = h->sx - player_accel;
-			if ((h->r) && (h->sx < +player_maxspeed))
-				hd->sx = h->sx + player_accel;
-
-			//accelerate y if not over maximum speed
-			if ((h->u) && (h->sy > -player_maxspeed))
-				hd->sy = h->sy - player_accel;
-			if ((h->d) && (h->sy < +player_maxspeed))
-				hd->sy = h->sy + player_accel;
-		}
-
-		//save ox,oy
-		hd->ox = h->x;
-		hd->oy = h->y;
-
-		//move x
-		hd->x = h->x + hd->sx;
-		if (hd->x < 0) hd->x = 0;
-		else if (hd->x > plw) hd->x = plw;
-
-		//move y
-		hd->y = h->y + hd->sy;
-		if (hd->y-NR_SHIFTY < 0) hd->y = 0 +NR_SHIFTY;
-		else if (hd->y-NR_SHIFTY > plh) hd->y = plh +NR_SHIFTY;
-
-#endif	// NR_SERVER_PHYSICS else
-
-		//wall collision correction
-		#ifdef NR_FIX_BOUNCING
-		bool bounce=NR_wallcorrect(i, &map, &(hd->x), &(hd->y), &(hd->sx), &(hd->sy), &hd->ox, &hd->oy, h->tx, h->ty);
-		if (bounce) {
-			bool clientBounce=wallcorrect(i, &map, &(hd->x), &(hd->y), &(hd->sx), &(hd->sy), &hd->ox, &hd->oy, h->tx, h->ty);
-			//player bounced: play bounce sample if minimum time elapsed
-			if (!clientBounce && get_time() > player[i].wall_sound_time || get_time() + 0.2 < player[i].wall_sound_time) {	// second test means w_s_t is invalid (since it is not initialized, ever)
-				player[i].wall_sound_time = get_time() + 0.2;
-				broadcast_screen_sample(i, SAMPLE_WALLBOUNCE);
-			}
-		}
+		#ifdef NR_SERVER_PHYSICS
+			bool realBounce = NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 		#else
-		wallcorrect(i, &map, &(hd->x), &(hd->y), &(hd->sx), &(hd->sy), &hd->ox, &hd->oy, h->tx, h->ty);
+			#ifdef NR_FIX_BOUNCING
+				bool realBounce = applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected, true);
+			#else
+				bool realBounce = applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected, false);
+				#define DEFAULT_DONE
+			#endif
+		#endif
+		#ifdef NR_SUPPORT_OLD_CLIENTS
+			#ifndef DEFAULT_DONE
+				if (realBounce) {
+					hero_t testHero = src->hero[i];
+					bool clientBounce = applyDefaultPhysics(&testHero, room, 1., player[i].item_speed, carryFlag, deathbringerAffected, false);
+					//player bounced: play bounce sample if minimum time elapsed
+					if (!clientBounce && get_time() > player[i].wall_sound_time || get_time() + 0.2 < player[i].wall_sound_time) {	// second test means w_s_t is invalid (since it is not initialized, ever)
+						player[i].wall_sound_time = get_time() + 0.2;
+						broadcast_screen_sample(i, SAMPLE_WALLBOUNCE);
+					}
+					else if (clientBounce)
+						player[i].wall_sound_time = get_time() + 0.2;
+				}
+			#else
+				#undef DEFAULT_DONE
+				(void)realBounce;
+			#endif
+		#else
+			(void)realBounce;
 		#endif
 
 		//check room change x
-		#ifdef NR_FIX_BOUNCING
-		if (hd->x >= plw-1) {	//#NR
-			hd->x = 2;
-		#else
-		if (hd->x == plw) {
+		if (int(hd->x) == plw) {
 			hd->x = 1;
-		#endif
-			hd->tx = h->tx + 1;
-			if (hd->tx > map.w - 1)
+			if (++hd->tx >= map.w)
 				hd->tx = 0;
 		}
-		#ifdef NR_FIX_BOUNCING
-		else if (hd->x <= 1) {	// #NR
-			hd->x = plw - 2;
-		#else
-		else if (hd->x == 0) {
+		else if (int(hd->x) == 0) {
 			hd->x = plw - 1;
-		#endif
-			hd->tx = h->tx - 1;
-			if (hd->tx < 0)
+			if (--hd->tx < 0)
 				hd->tx = map.w - 1;
 		}
 
 		//check room change y
-		#ifdef NR_FIX_BOUNCING
-		if (hd->y-NR_SHIFTY >= plh-1) {	// #NR
-			hd->y = 2 +NR_SHIFTY;
-		#else
-		if (hd->y-NR_SHIFTY == plh) {
+		if (int(hd->y)-NR_SHIFTY == plh) {
 			hd->y = 1 +NR_SHIFTY;
-		#endif
-			hd->ty = h->ty + 1;
-			if (hd->ty > map.h - 1)
+			if (++hd->ty >= map.h)
 				hd->ty = 0;
 		}
-		#ifdef NR_FIX_BOUNCING
-		else if (hd->y-NR_SHIFTY <= 1) {	//#NR
-			hd->y = plh - 2 +NR_SHIFTY;
-		#else
-		else if (hd->y-NR_SHIFTY == 0) {
+		else if (int(hd->y)-NR_SHIFTY == 0) {
 			hd->y = plh - 1 +NR_SHIFTY;
-		#endif
-			hd->ty = h->ty - 1;
-			if (hd->ty < 0)
+			if (--hd->ty < 0)
 				hd->ty = map.h - 1;
 		}
 	}
@@ -6748,7 +6748,9 @@ hd->y=h->y+hd->sy;
 		{
 			rocket_c *rock = &(world.rock[i]);
 
+			#ifdef NR_SUPPORT_OLD_CLIENTS
 			bool NR_hit=false;
+			#endif
 			//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
 			int t;
 			for (t=0;t<10;t++)
@@ -6768,12 +6770,19 @@ hd->y=h->y+hd->sy;
 				}
 
 				//wall hit - remove
+				#ifdef NR_SUPPORT_OLD_CLIENTS
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
 					rock->owner=-1;
 					t=999;break;
 				}
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2))	//#NR
 					NR_hit=true;
+				#else
+				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2)) {
+					rock->owner=-1;
+					t=999;break;
+				}
+				#endif
 
 				// check if a player (alive) is hit by this rocket now
 				//
@@ -6837,8 +6846,10 @@ hd->y=h->y+hd->sy;
 				}
 
 			}
+			#ifdef NR_SUPPORT_OLD_CLIENTS
 			if (t==10 && NR_hit)	//# ugly fix to remove rockets inside walls under new physics, only when clients won't
 				game_delete_rocket(i, (int)rock->x, (int)rock->y, 255);
+			#endif
 		}
 
 		// for each player, update positions & speeds
@@ -10148,13 +10159,9 @@ public:
 
 			//if expected map, change now
 			if (!strcmp(r->name, servermap)) {
-
-				NLushort crc;
-				bool ok = load_map(CLIENT_MAPS_DIR, r->name, &map, &crc);
-
-				if (!ok) {
-					LOG1("AFTER DOWNLOAD: MAP '%s' NOT FOUND\n", r->name);
-				}
+				bool ok = load_map(CLIENT_MAPS_DIR, r->name, &map);
+				if (!ok)
+					LOG1("AFTER DOWNLOAD: MAP '%s' NOT FOUND\n", r->name)
 				else {
 					LOG1("AFTER DOWNLOAD: MAP '%s' LOADED SUCESSFULLY!\n", r->name);
 
@@ -10401,15 +10408,12 @@ public:
 		LOG1("CLIENT: server_map_command : '%s'", mapname);
 
 		//try to load the map. will fail if not found
-		NLushort crc;
-		bool ok = load_map(CLIENT_MAPS_DIR, mapname, &map, &crc);
+		bool ok = load_map(CLIENT_MAPS_DIR, mapname, &map);
 
-		if (!ok) {
-			LOG1("MAP '%s' NOT FOUND\n", mapname);
-		}
-		else if (crc != server_crc) {
-			LOG3("MAP '%s' FOUND BUT IT'S CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, crc, server_crc);
-		}
+		if (!ok)
+			LOG1("MAP '%s' NOT FOUND\n", mapname)
+		else if (map.crc != server_crc)
+			LOG3("MAP '%s' FOUND BUT IT'S CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, map.crc, server_crc)
 		else {
 			LOG1("MAP '%s' LOADED SUCESSFULLY!\n", mapname);
 
@@ -10421,7 +10425,7 @@ public:
 		}
 
 		// download map from server (ask file)
-		if ((!ok) || (crc != server_crc)) {
+		if (!ok || map.crc != server_crc) {
 
 			char lix[256];
 			sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
@@ -10904,34 +10908,24 @@ public:
 
 			//player extrapolation
 			//
-			hero_t  *h, *hx;
+			hero_t  *h;
 			for (i=0;i<maxplayers;i++)
 
-			if (!player[i].onscreen)		// nao eh suficiente usar platyer[i].USED !!!
-																// tem que ser ONSCREEN !!!!
-			{
-				player[i].hot1 = false;	//DEBUG
-			}
-			else
-			{
-				player[i].hot1 = true;	//DEBUG
-
+			if (player[i].onscreen) {	// nao eh suficiente usar platyer[i].USED !!!
 				//copy all to fill in holes
 				memcpy(&fd.hero[i], &fx.hero[i], sizeof(hero_t));
 
+				if (player[i].x<0 || player[i].y<0 || player[i].x>=map.w || player[i].y>=map.h) continue;	//#NR remove this and track why these are given sometimes
+				const Room& room = map.room[player[i].x][player[i].y];
+				bool carryFlag = fx.flag[1-(i/TSIZE)].carried && fx.flag[1-(i/TSIZE)].carrier == i;
+
 				h = &fd.hero[i];
-				hx = &fx.hero[i];
 
 				//delta counter
 				double dc, f;
 				dc = d;
 
-				player[i].nits = 0;	//DEBUG
-
 				while (dc > 0) {
-
-					player[i].nits++;		//DEBUG
-
 					//calc amount of movement
 					f = dc;
 					if (f > 1.0)
@@ -10942,129 +10936,28 @@ public:
 
 					//run physics
 
-
-				//select effective physics vars for the player
-				//
-				double player_accel;
-				double player_friction;
-				double player_maxspeed;
-				if (h->run) {
-					if (player[i].item_speed) {
-						player_accel    = svp_accel_turborun;
-						player_friction = svp_fric_turborun;
-						player_maxspeed = svp_maxspeed_turborun;
-					}
-					else {
-						player_accel    = svp_accel_run;
-						player_friction = svp_fric_run;
-						player_maxspeed = svp_maxspeed_run;
-					}
-				}
-				else {
-					if (player[i].item_speed) {
-						player_accel    = svp_accel_turbo;
-						player_friction = svp_fric_turbo;
-						player_maxspeed = svp_maxspeed_turbo;
-					}
-					else {
-						player_accel    = svp_accel;
-						player_friction = svp_fric;
-						player_maxspeed = svp_maxspeed;
-					}
-				}
-
-				//flag carrier disadvantage when running
-				if (h->run)
-				if (fx.flag[1-(i/TSIZE)].carried)
-				if (fx.flag[1-(i/TSIZE)].carrier == i)
-					player_maxspeed -= svp_flag_penalty;
-
-				//friction x - apply if l xor r
-#ifndef ALWAYS_FRICTION
-					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
-#endif
-						if (h->sx > 0) {
-							//h->sx -= sv_frictionx * boots_accel_bonus;
-							h->sx -= player_friction * f;
-							if (h->sx < 0) h->sx = 0;
-						}
-						else if (h->sx < 0) {
-							//h->sx += sv_frictionx * boots_accel_bonus;
-							h->sx += player_friction * f;
-							if (h->sx > 0) h->sx = 0;
-						}
-#ifndef ALWAYS_FRICTION
-					}
-#endif
-
-					//friction y
-#ifndef ALWAYS_FRICTION
-					if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
-#endif
-						if (h->sy > 0) {
-							//h->sy -= sv_frictiony * boots_accel_bonus;
-							h->sy -= player_friction * f;
-							if (h->sy < 0) h->sy = 0;
-						}
-						else if (h->sy < 0) {
-							//h->sy += sv_frictiony * boots_accel_bonus;
-							h->sy += player_friction * f;
-							if (h->sy > 0) h->sy = 0;
-						}
-#ifndef ALWAYS_FRICTION
-					}
-#endif
-
-				//deathbringer penalty : no movement. move only if not in effect
-				if (!player[i].deathbringer_affected) {
-
-					//accelerate x if not over maximum speed
-					if ((h->l) && (h->sx > -player_maxspeed))
-						h->sx -= player_accel * f;
-					if ((h->r) && (h->sx < +player_maxspeed))
-						h->sx += player_accel * f;
-
-					//accelerate y if not over maximum speed
-					if ((h->u) && (h->sy > -player_maxspeed))
-						h->sy -= player_accel * f;
-					if ((h->d) && (h->sy < +player_maxspeed))
-						h->sy += player_accel * f;
-				}
-
-				//DEBUG
-				//if (h->sx > +player_maxspeed) h->sx = +player_maxspeed;
-				//if (h->sx < -player_maxspeed) h->sx = -player_maxspeed;
-				//if (h->sy > +player_maxspeed) h->sy = +player_maxspeed;
-				//if (h->sy < -player_maxspeed) h->sy = -player_maxspeed;
-
-					//save ox,oy
-					h->ox = h->x;
-					h->oy = h->y;
-
-					//move x
-					h->x += h->sx * f;
-					if (h->x < 0) h->x = 0;
-					else if (h->x > plw) h->x = plw;
-
-					//move y
-					h->y += h->sy * f;
-					if (h->y < 0) h->y = 0;
-					else if (h->y > plw) h->y = plw;
-
-					//wall collision correction
-					if (wallcorrect(i, &map, &(h->x), &(h->y), &(h->sx), &(h->sy), &(h->ox), &(h->oy), player[i].x, player[i].y)) {
-
-						player[i].walc = true;	//DEBUG
-
+					#ifdef NR_SERVER_PHYSICS
+					if (NR_applyPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 						//player bounced: play bounce sample if minimum time elapsed
 						if (get_time() > player[i].wall_sound_time) {
 							player[i].wall_sound_time = get_time() + 0.2;
 							sound(SAMPLE_WALLBOUNCE);
 						}
 					}
-					else
-						player[i].walc = false; //DEBUG
-
+					#else	// NR_SERVER_PHYSICS
+					#ifdef NR_FIX_BOUNCING
+					bool fixBouncing = true;
+					#else
+					bool fixBouncing = false;
+					#endif
+					if (applyDefaultPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected, fixBouncing)) {
+						//player bounced: play bounce sample if minimum time elapsed
+						if (get_time() > player[i].wall_sound_time) {
+							player[i].wall_sound_time = get_time() + 0.2;
+							sound(SAMPLE_WALLBOUNCE);
+						}
+					}
+					#endif	// NR_SERVER_PHYSICS else
 				}
 			}
 
@@ -11128,7 +11021,7 @@ public:
 				else if (!rx->dontdraw) {
 
 					//0.3.9: check rocket hit a wall (clientside) if not vanished already
-					if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y, (int)rd->x, (int)rd->y)) {
+					if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-NR_SHIFTY-2, (int)rd->x+2, (int)rd->y-NR_SHIFTY+2)) {
 						//probably hit wall
 						rx->dontdraw = true;
 						rx->clremove = get_time() + 5.0;
@@ -11361,32 +11254,33 @@ public:
 			// place of flag
 			set_trans_blender(0, 0, 0, 128);
 			if (player[me].x==map.tinfo[0].flag.px && player[me].y==map.tinfo[0].flag.py) {
-			#ifdef CL_SMOOTH_FLAGPOS
+				#ifdef CL_SMOOTH_FLAGPOS
 				int r = getr(col[COLGROUND]);
 				const int g = getg(col[COLGROUND]);
 				const int b = getb(col[COLGROUND]);
-				for (int i = 30; i >= 0; i--) {
-					r = min(r + 10, 255);
+#define SMOOTH_STEP 3
+				for (int i = 30; i >= 0; i-=SMOOTH_STEP) {
+					r = min(r + 10*SMOOTH_STEP, 255);
 					int c = makecol(r, g, b);
 					circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, i, c);
 				}
-			#else
+				#else
 				circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, 20, col[COLBRED]);
-			#endif
+				#endif
 			}
 			if (player[me].x==map.tinfo[1].flag.px && player[me].y==map.tinfo[1].flag.py) {
-			#ifdef CL_SMOOTH_FLAGPOS
+				#ifdef CL_SMOOTH_FLAGPOS
 				const int r = getr(col[COLGROUND]);
 				const int g = getg(col[COLGROUND]);
 				int b = getb(col[COLGROUND]);
-				for (int i = 30; i >= 0; i--) {
-					b = min(b + 10, 255);
+				for (int i = 30; i >= 0; i-=SMOOTH_STEP) {
+					b = min(b + 10*SMOOTH_STEP, 255);
 					int c = makecol(r, g, b);
 					circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, i, c);
 				}
-			#else
+				#else
 				circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, 20, col[COLBBLUE]);
-			#endif
+				#endif
 			}
 			solid_mode();
 
@@ -12214,7 +12108,7 @@ public:
 					themsg = chatbuffer[i];	//don't discard 2 chars because there's no "@x" rpefix
 
 				//colorful text
-				textprintf(drawbuf, font, 3, 3+i*11, tcol, themsg);
+				textprintf(drawbuf, font, 3, 3+i*11, tcol, "%s", themsg);
 			}
 		}
 
@@ -12226,17 +12120,17 @@ public:
 			sprintf(themsg, "say: %s_", talkbuffer);
 
 			//nice border
-			textprintf(drawbuf, font, +1+3, +0+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, +1+3, +1+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, +0+3, +1+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, -1+3, +1+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, -1+3, +0+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, -1+3, -1+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, +0+3, -1+3+top*11, 0, themsg);
-			textprintf(drawbuf, font, +1+3, -1+3+top*11, 0, themsg);
+			textprintf(drawbuf, font, +1+3, +0+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, +1+3, +1+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, +0+3, +1+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, -1+3, +1+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, -1+3, +0+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, -1+3, -1+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, +0+3, -1+3+top*11, 0, "%s", themsg);
+			textprintf(drawbuf, font, +1+3, -1+3+top*11, 0, "%s", themsg);
 
 			// the prompt text
-			textprintf(drawbuf, font, 3, 3+top*11, col[COLWHITE], themsg);
+			textprintf(drawbuf, font, 3, 3+top*11, col[COLWHITE], "%s", themsg);
 		}
 
 		//"server not responding... connection may have dropped" plaque
@@ -12396,14 +12290,11 @@ public:
 
 			int p;
 			for (p=0;p<maxplayers;p++) {
-				textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f o=%.1f,%.1f | os%i wc%i ni%i",
+				textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f o=%.1f,%.1f",
 					p, player[p].used, player[p].onscreen, player[p].enemyvis, player[p].x, player[p].y,
 
 					//					fx.hero[p].x, fx.hero[p].y, fx.hero[p].sx, fx.hero[p].sy,
-					fd.hero[p].x, fd.hero[p].y, fd.hero[p].sx, fd.hero[p].sy, fd.hero[p].ox, fd.hero[p].oy,
-
-					player[p].hot1, player[p].walc, player[p].nits
-
+					fd.hero[p].x, fd.hero[p].y, fd.hero[p].sx, fd.hero[p].sy, fd.hero[p].ox, fd.hero[p].oy
 					);
 			}
 
@@ -13093,7 +12984,7 @@ public:
 		// start connecting to specified IP/port
 		// connection results will come through the CFUNC_CONNECTION_UPDATE callback
 		char addr[256];
-		if (strlen(address) == 0)	{ //empty address == my own ip
+		if (address[0] == '\0')	{ //empty address == my own ip
 			NLaddress myadr;
 			get_self_IP(&myadr);
 			nlAddrToString(&myadr, address);
