@@ -2397,7 +2397,7 @@ bool Client::getServerList() {
 	string skip;
 	string master_script;
 	if (!getline_skip_comments(in, skip) || !getline_skip_comments(in, skip) || !getline_skip_comments(in, master_script))
-		master_script = "/janir/outgun/servers.php";
+		master_script = "/outgun/servers/";
 	in.close();
 
 	//build query

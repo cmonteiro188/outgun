@@ -1672,7 +1672,7 @@ void ServerNetworking::run_mastertalker_thread() {
 	string line;
 	string master_script;
 	if (!getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, master_script))
-		master_script = "/janir/outgun/submit.php";
+		master_script = "/outgun/servers/submit.php";
 	in.close();
 
 	// determine the public IP to send to master
