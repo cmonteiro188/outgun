@@ -1551,6 +1551,8 @@ struct player_t {
 	int		total_captures;
 	int		total_flags_taken;
 	int		total_flags_dropped;
+	int		total_flags_returned;
+	int		total_flag_carriers_killed;
 	int		total_shots;
 	int		total_hits;
 	int		total_shots_taken;
@@ -1607,10 +1609,11 @@ struct player_t {
 		total_captures = 0;
 		total_flags_taken = 0;
 		total_flags_dropped = 0;
+		total_flags_returned = 0;
+		total_flag_carriers_killed = 0;
 		total_shots = 0;
 		total_hits = 0;
 		total_shots_taken = 0;
-
 		start_time = (int)get_time();
 
 		// BOTZ: bot ou nao?
@@ -3748,8 +3751,10 @@ public:
 			//drop flag if any
 			if (ctf_drop_flag_if_any(target)) {
 				//extra frag for fragging a carrier
-				if (attacker != target)
+				if (attacker != target) {
 					score_frag(attacker, 1);
+					player[attacker].total_flag_carriers_killed++;
+				}
 
 				//V0.4.8 SCORE NEG POINTS because of losing the flag
 				if (!no_death_penalty)
@@ -6202,9 +6207,12 @@ public:
 								player[pid].total_kills,
 								player[pid].total_deaths,
 								player[pid].total_suicides);
-							player[pid].queue_printf("Flags: %d taken, %d dropped",
+							player[pid].queue_printf("Enemy flags: %d taken, %d dropped",
 								player[pid].total_flags_taken,
 								player[pid].total_flags_dropped);
+							player[pid].queue_printf("Own flags: %d returned, %d carriers killed",
+								player[pid].total_flags_returned,
+								player[pid].total_flag_carriers_killed);
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
@@ -6692,6 +6700,8 @@ public:
 						if (player[a].used) {
 							//give +1 frag
 							score_frag(a, 1);
+							player[a].total_kills++;
+							player[i].total_deaths++;
 							//reason broadcast
 							bprintf("@I%s was choked by %s", player[i].name, player[a].name);
 						}
@@ -7151,6 +7161,7 @@ public:
 				{
 					//FLAG RETURNED!
 					score_frag(i, 1);	// just add some frags
+					player[i].total_flags_returned++;
 
 					bprintf("@I%s RETURNED THE %s FLAG!", player[i].name, teamname[myteam]);
 
@@ -12448,7 +12459,7 @@ public:
 			rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
 			rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
 			textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
-			textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://www.inf.ufrgs.br/~fcecin/outgun");
+			textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://www.amok.com.br/outgun/en/");
 		}
 
 		if (menu == 0) {
