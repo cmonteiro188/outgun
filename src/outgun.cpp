@@ -10,7 +10,7 @@
 
 #define NR_NO_PUP_SWITCHING
 #define NR_VOTE_ANNOUNCE_INTERVAL 5
-//#define NR_SERVER_PHYSICS
+#define NR_SERVER_PHYSICS
 //#define NR_FIX_BOUNCING	// makes a difference only when nr_server_physics not defined
 #define NR_PHYS_VECTOR_ACC
 
@@ -681,6 +681,11 @@ for (float y=miny; y<maxy; y+=(maxy-miny)/10.) {
  float rx = rx1 + (y-ry1)*(rx2-rx1)/(ry2-ry1);
  assert(lx<=rx);
 }
+printf("\nsubIntersection:\n"
+	   " l1=(%f,%f) l2=(%f,%f)\n"
+	   " r1=(%f,%f) r2=(%f,%f)\n"
+	   " rect1=(%f,%f) rect2=(%f,%f)\n", lx1, ly1, lx2, ly2, rx1, ry1, rx2, ry2, rectx1, recty1, rectx2, recty2);
+printf(" y range : [%f,%f]\n", miny, maxy);
 	// first narrow the range by lx(y) <= rectx2
 	if (lx1 == lx2) {	// can't formulate a value for intersection-y
 		if (lx1 > rectx2)	// lx(y) <= rectx2 identically false => no solutions
@@ -690,6 +695,7 @@ for (float y=miny; y<maxy; y+=(maxy-miny)/10.) {
 	else {
 		// solve lx(y) == rectx2 , where lx(y) = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1)
 		float intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
+printf(" lx(y) == rectx2 : y = %f\n", intersect_y);
 		if (lx2 > lx1) {	// the intersection is at y <= intersect_y
 			if (maxy > intersect_y)
 				maxy = intersect_y;
@@ -699,8 +705,10 @@ for (float y=miny; y<maxy; y+=(maxy-miny)/10.) {
 				miny = intersect_y;
 		}
 	}
+printf(" y range : [%f,%f]\n", miny, maxy);
 	if (maxy < miny)
 		return false;
+return true;
 	// now narrow the range further by rx(y) >= rectx1, similarly
 	if (rx1 == rx2)
 		return (rx1 >= rectx1);
@@ -1081,27 +1089,28 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 	double diffx = dx2-dx1, diffy = dy2-dy1;
 	double div = mx*diffy - my*diffx;
 	if (div == 0)	// movement parallel to the line => no collision
-		return pair<double, Coords>(1., Coords());
+		return pair<double, Coords>(999., Coords());
 	double rBase = ( dx1*diffy - dy1*diffx ) / div;
 	double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
-	double t;
-	if (rBase - rAdd >= 0)	// select the first 'collision' with t>0 (the possible second one would not be a collision since we would be going away)
-		t = rBase - rAdd;
-	else
-		t = rBase + rAdd;
+	double t = rBase - fabs(rAdd);	// the collision with smaller t (the other would be going away)
 // fprintf(stderr, "d1: %f,%f ; d2: %f,%f ; m: %f,%f ; rBase: %f ; rAdd %f ; t %f\n", dx1, dy1, dx2, dy2, mx, my, rBase, rAdd, t);
-	assert(t >= 0);
-	// make sure we are not off an end of the line
-	// this can surely be calculated in a simpler way, but this first came to mind
-	// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
-	// | t*m - collp |  minimum (=r)
-	// | t*m - p1 - k(p2-p1) |  minimum (=r)
-	// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
-	// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
-	// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
-	double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-	if (k>=0. && k<=1.)
-		return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+	if (t >= 0) {
+		// make sure we are not off an end of the line
+		// this can surely be calculated in a simpler way, but this first came to mind
+		// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
+		// | t*m - collp |  minimum (=r)
+		// | t*m - p1 - k(p2-p1) |  minimum (=r)
+		// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
+		// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
+		// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
+		double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
+double dx=dx1+k*diffx-t*mx, dy=dy1+k*diffy-t*my;
+if (fabs(dx*dx+dy*dy-r*r)>=.0001)
+ printf("dx: %f  dy: %f\n", dx, dy);
+assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+		if (k>=0. && k<=1.)
+			return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+	}
 
 	double dist=1.;
 	Coords collisionCoords;
@@ -1133,6 +1142,12 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 			collisionCoords=Coords(dx2-t*mx, dy2-t*my);
 		}
 	}
+if (dist<1.) {
+ double dx=collisionCoords.first, dy=collisionCoords.second;
+ if (fabs(dx*dx+dy*dy-r*r)>=.0001)
+  printf("dx: %f  dy: %f\n", dx, dy);
+ assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+}
 	return pair<double, Coords>(dist, collisionCoords);
 }
 
@@ -1180,7 +1195,7 @@ bool NR_wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *s
 				bounceVec = rv.second;
 			}
 			#ifndef NDEBUG
-			if (minMovement<1.) {
+			if (minMovement<movementLeft) {
 				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
 if (fabs(dx*dx+dy*dy-r*r)>=.0001)
  printf("dx: %f  dy: %f\n", dx, dy);
@@ -1210,7 +1225,7 @@ if (fabs(dx*dx+dy*dy-r*r)>=.0001)
 				bounceVec = rv.second;
 			}
 			#ifndef NDEBUG
-			if (minMovement<1.) {
+			if (minMovement<movementLeft) {
 				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
 				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 			}
@@ -11341,7 +11356,7 @@ public:
 			//regular ground
 			else
 			*/
-			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
+				rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 			// place of flag
 			set_trans_blender(0, 0, 0, 128);
@@ -12208,7 +12223,7 @@ public:
 		if (talkbuffer[0] != 0) {
 
 			static char themsg[128];
-			sprintf(themsg, "Say: %s_", talkbuffer);
+			sprintf(themsg, "say: %s_", talkbuffer);
 
 			//nice border
 			textprintf(drawbuf, font, +1+3, +0+3+top*11, 0, themsg);
