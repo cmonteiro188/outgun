@@ -1881,6 +1881,11 @@ void Client::process_incoming_data(char *data, int length) {
 					attacker &= ~0x80;
 					const bool flag = target & 0x80;
 					target &= ~0x80;
+					if (fx.player[target].stats().current_cons_kills() >= 10) {
+						ostringstream msg;
+						msg << fx.player[target].name.c_str() << "'s killing spree was ended by " << fx.player[attacker].name.c_str() << '.';
+						print_message(msg_info, msg.str());
+					}
 					fx.player[attacker].stats().add_kill(deathbringer);
 					fx.teams[attacker / TSIZE].add_kill();
 					fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
@@ -1889,11 +1894,6 @@ void Client::process_incoming_data(char *data, int length) {
 						fx.player[attacker].stats().add_carrier_kill();
 						fx.player[target].stats().add_flag_drop(get_time());
 						fx.teams[target / TSIZE].add_flag_drop();
-					}
-					if (fx.player[target].stats().current_cons_kills() >= 10) {
-						ostringstream msg;
-						msg << fx.player[target].name.c_str() << "'s killing spree was ended by " << fx.player[attacker].name.c_str();
-						print_message(msg_info, msg.str());
 					}
 					if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
 						if (attacker == me)
@@ -1934,6 +1934,11 @@ void Client::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, pid);
 					const bool flag = pid & 0x80;
 					pid &= ~0x80;
+					if (fx.player[pid].stats().current_cons_kills() >= 10) {
+						ostringstream msg;
+						msg << fx.player[pid].name.c_str() << "'s killing spree was ended.";
+						print_message(msg_info, msg.str());
+					}
 					fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
 					fx.teams[pid / TSIZE].add_suicide();
 					if (flag) {
@@ -2368,7 +2373,6 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 }
 
 bool Client::getServerList() {
-log.error("Testing testing this is a long error message that should be neatly divided to lines. Isn't that funny or what? Hello hello testing testing bye bye.");
 	refreshStatus = RS_connecting;
 
 	//open a nonblocking socket
