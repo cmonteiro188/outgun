@@ -457,11 +457,13 @@ void ServerNetworking::broadcast_map_votes_update() {
 
 //send map time left
 void ServerNetworking::send_map_time(int cid) {
-	if (!world.isTimeLimit())
-		return;
+	//if (!world.isTimeLimit())
+		//return;
+	const NLulong current_time = world.getMapTime() / 10;
 	const NLulong time_left = max(0, world.getTimeLeft()) / 10;
 	char lebuf[64]; int count = 0;
 	writeByte(lebuf, count, data_map_time);
+	writeLong(lebuf, count, current_time);
 	writeLong(lebuf, count, time_left);
 	if (cid == -1)
 		server->broadcast_message(lebuf, count);
@@ -716,7 +718,6 @@ void ServerNetworking::reload_hostname() {
 
 //update serverinfo
 void ServerNetworking::update_serverinfo() {
-
 	//v0.4.8 UGLY FIX : count all players again, check for discrepancy
 	int pc = 0;
 	for (int i=0;i<maxplayers;i++)
@@ -734,7 +735,6 @@ void ServerNetworking::update_serverinfo() {
 }
 
 int ServerNetworking::client_connected(int id) {
-
 	//2TEAM: check wich team to put player
 	int t1, t2, targ;
 	t1 = 0;		//red team count

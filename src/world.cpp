@@ -205,12 +205,18 @@ bool Map::parse_file(istream& in) {
 	while (1) {
 		string line;
 		if (!getline_smart(in, line))
-			break;			// end-of-file or error
-		if (line[0] == ';')		// empty line or comment
+			break;
+		if (line[0] == ';')				// comment
 			continue;
 		if (line[0] == ':')	{			// new label
+			const string label = line.substr(1);
+			for (vector<pair<string, vector<string> > >::const_iterator li = label_lines.begin(); li != label_lines.end(); ++li)
+				if (li->first == label)	{	// same label again
+					LOG1("Two identical label names not allowed: %s\n", line.c_str());
+					return false;
+				}
 			pair<string, vector<string> > new_label;
-			new_label.first = line.substr(1);
+			new_label.first = label;
 			label_lines.push_back(new_label);
 		}
 		else if (!label_lines.empty())	// labels have started
@@ -221,10 +227,14 @@ bool Map::parse_file(istream& in) {
 	for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
 		if (!parse_line(*line, label_lines, crx, cry, scalex, scaley))
 			return false;
+	if (w == 0 || h == 0 || title.empty()) {
+		LOG("Map has no width, height or title.\n");
+		return false;
+	}
 	return true;
 }
 
-bool Map::parse_line(const string& line, const vector<pair<string, vector<string> > > label_lines, int& crx, int& cry, float& scalex, float& scaley, bool label_block) {
+bool Map::parse_line(const string& line, const vector<pair<string, vector<string> > >& label_lines, int& crx, int& cry, float& scalex, float& scaley, bool label_block) {
 	char nullc;	// to be used to make sure there is nothing extra on the line
 	istringstream ist(line);
 	string command;
@@ -249,7 +259,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		y1 *= plh / scaley; y2 *= plh / scaley;
 		Room& rm = room[crx][cry];
 		vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
-		wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
+		wvec.push_back(RectWall(x1, y1, x2, y2, texid, alpha));
 	}
 	else if (command == "T") {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex [alpha]] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
 		char type;
@@ -272,7 +282,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
 		Room& rm = room[crx][cry];
 		vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-		wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+		wvec.push_back(TriWall(x1, y1, x2, y2, x3, y3, texid, alpha));
 	}
 	else if (command == "C") {	// C (W|G) x y or [ir [a1 a2 [tex [alpha]]]] : circular wall (W) or ground tex (G)
 		char type;
@@ -315,7 +325,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		ri *= plh / scaley;
 		Room& rm = room[crx][cry];
 		vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-		wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
+		wvec.push_back(CircWall(x, y, ro, ri, a1, a2, texid, alpha));
 	}
 	else if (command == "R") {	// R x y : set room pointer to (x,y)
 		if (label_block) {
@@ -346,7 +356,6 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			LOG1("Invalid map line: %s\n", line.c_str());
 			return false;
 		}
-		bool label_found = false;
 		for (vector<pair<string, vector<string> > >::const_iterator label = label_lines.begin(); label != label_lines.end(); ++label)
 			if (label->first == nextlabel) {
 				for (vector<string>::const_iterator label_line = label->second.begin(); label_line != label->second.end(); ++label_line)
@@ -357,13 +366,10 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 							if (!parse_line(*label_line, label_lines, rx, ry, sx, sy, true))
 								return false;
 						}
-				label_found = true;
-				break;
+				return true;
 			}
-		if (!label_found) {
-			LOG2("Label '%s' not found: %s\n", nextlabel.c_str(), line.c_str());
-			return false;
-		}
+		LOG2("Label '%s' not found: %s\n", nextlabel.c_str(), line.c_str());
+		return false;
 	}
 	else if (command == "P") {
 		string name;
@@ -2477,7 +2483,7 @@ void ServerWorld::simulateFrame() {
 					player[i].total_captures++;
 					player[i].stats().add_capture();
 					player[i].drop_flag();
-					teams[myteam].add_score();
+					teams[myteam].add_score(getMapTime(), player[i].name);
 					returnFlag(enemyteam, f);
 
 					string one_more;
@@ -2573,6 +2579,7 @@ void Team::clear() {
 	total_flags_returned = 0;
 	total_shots = 0;
 	total_hits = 0;
+	caps.clear();
 }
 
 void Team::add_flag(const spoint_t& pos) {
@@ -2581,6 +2588,11 @@ void Team::add_flag(const spoint_t& pos) {
 
 void Team::remove_flags() {
 	team_flags.clear();
+}
+
+void Team::add_score(double time, const string& player) {
+	++points;
+	caps.push_back(pair<int, string>(static_cast<int>(time), player));
 }
 
 void Team::steal_flag(int n, int carrier) {

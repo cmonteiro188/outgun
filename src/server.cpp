@@ -247,13 +247,13 @@ void gameserver_c::refresh_team_score_modifiers() {
 
 	//somatorio raw ratings
 	for (int p=0;p<maxplayers;p++)
-	if (world.player[p].used) {
-		// use "1.0" rating for anybody with less than 100 positive points
-		if (client[world.player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
-			raw[p/TSIZE] += DEFAULT_PLAYER_RATE;
-		else
-			raw[p/TSIZE] += ( ((double)client[world.player[p].cid].score) + 1.0) / ( ((double)client[world.player[p].cid].neg_score) + 1.0);
-	}
+		if (world.player[p].used) {
+			// use "1.0" rating for anybody with less than 100 positive points
+			if (client[world.player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
+				raw[p/TSIZE] += DEFAULT_PLAYER_RATE;
+			else
+				raw[p/TSIZE] += ( ((double)client[world.player[p].cid].score) + 1.0) / ( ((double)client[world.player[p].cid].neg_score) + 1.0);
+		}
 
 	//modifiers
 	team_smul[0] = raw[1] / raw[0];
@@ -270,7 +270,6 @@ void gameserver_c::refresh_team_score_modifiers() {
 
 //score!
 void gameserver_c::score_frag(int p, int amount) {
-
 	//add regular frags amount
 	world.player[p].frags += amount;
 

@@ -1228,7 +1228,7 @@ void Graphics::draw_scoreboard_points(int y, int team, int points) {
 
 void Graphics::team_statistics(const Team* teams) {
 	const int w = 300;
-	const int h = 160;
+	const int h = 360;
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
 	const int x1 = mx - w / 2;
@@ -1268,6 +1268,31 @@ void Graphics::team_statistics(const Team* teams) {
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_taken());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_dropped());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_returned());
+	}
+	line++;
+	int red_score = 0, blue_score = 0;
+	for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ; ) {
+		ostringstream message;
+		int color;
+		if (red != teams[0].captures().end() && (blue == teams[1].captures().end() || red->first <= blue->first)) {
+			++red_score;
+			color = teamlcol[0];
+			message << setw(3) << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60;
+			message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+			message << red->second;
+			++red;
+		}
+		else if (blue != teams[1].captures().end() && (red == teams[0].captures().end() || blue->first <= red->first)) {
+			++blue_score;
+			color = teamlcol[1];
+			message << setw(3) << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60;
+			message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+			message << blue->second;
+			++blue;
+		}
+		else
+			break;
+		textout_ex(drawbuf, font, message.str().c_str(), (3 * x1 + x2) / 4, y1 + line++ * line_height, color, -1);
 	}
 }
 
@@ -1315,7 +1340,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, in
 
 void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time) {
 	ostringstream stats;
-	stats << left << setw(15) << player.name.c_str() << ' ' << right;
+	stats << left << setw(15) << player.name << ' ' << right;
 	switch (page) {
 		case 0:
 			stats << setw(4) << player.ping << ' ';

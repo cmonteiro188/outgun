@@ -909,6 +909,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	
 	//reset map time
 	map_time_limit = false;
+	map_start_time = 0;
 	map_end_time = 0;
 
 	//send name update request
@@ -1981,11 +1982,15 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				// map time left
 				case data_map_time: {
-					int time_left;
+					int current_time, time_left;
+					readLong(lebuf, count, current_time);
 					readLong(lebuf, count, time_left);
-					map_end_time = (int)get_time() + time_left;
-					map_time_limit = true;
-					LOG("Map time left received.\n");
+					map_start_time = static_cast<int>(get_time()) - current_time;
+					if (time_left >= 0) {
+						map_end_time = static_cast<int>(get_time()) + time_left;
+						map_time_limit = true;
+					}
+					LOG("Map time received.\n");
 					break;
 				}
 
@@ -2021,6 +2026,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					NLchar pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().add_capture();
+					fx.teams[pid / TSIZE].add_score(get_time() - map_start_time, fx.player[pid].name);
 					break;
 				}
 
@@ -3362,14 +3368,14 @@ void gameclient_c::draw_game_frame() {
 
 	// hiding stuff?
 	// v0.4.1 : hide stuff if frame skipped
-	bool hide_game = !map_ready || gameover_plaque!=NEXTMAP_NONE || fx.skipped || me<0 || me>maxplayers;
+	bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me > maxplayers;
 
 	// the playground: border, walls and pits
 	if (hide_game) {
 		client_graphics.draw_empty_background();
 
 		// game over message
-		if ((gameover_plaque == NEXTMAP_CAPTURE_LIMIT) || (gameover_plaque == NEXTMAP_VOTE_EXIT)) {
+		if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
 			if (red_final_score > blue_final_score)
 				client_graphics.draw_scores("RED TEAM WINS", 0, red_final_score, blue_final_score);
 			else if (blue_final_score > red_final_score)
@@ -3678,8 +3684,8 @@ void gameclient_c::draw_game_frame() {
 
 	// Time left if time limit is on.
 	if (map_time_limit)
-		if (map_end_time > (unsigned int)get_time())
-			client_graphics.map_time(map_end_time - (unsigned int)get_time());
+		if (map_end_time > static_cast<unsigned int>(get_time()))
+			client_graphics.map_time(map_end_time - static_cast<unsigned int>(get_time()));
 		else
 			client_graphics.map_time(0);
 

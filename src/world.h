@@ -107,7 +107,7 @@ struct teaminfo_t {
 
 class Map {
 	bool parse_file(std::istream& in);
-	bool parse_line(const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > > label_lines,
+	bool parse_line(const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
 					int& crx, int& cry, float& scalex, float& scaley, bool label_block = false);
 
 public:
@@ -465,8 +465,8 @@ public:
 	void clear();
 
 	void set_score(int s) { points = s; }
-	void add_score() { ++points; }
-	
+	void add_score(double time, const std::string& player);
+
 	void add_kill() { ++total_kills; }
 	void add_death() { ++total_deaths; }
 	void add_suicide() { ++total_suicides; ++total_deaths; }
@@ -500,6 +500,8 @@ public:
 	const Flag& flag(int n) const { return team_flags[n]; }
 	const std::vector<Flag>& flags() const { return team_flags; }
 
+	const std::vector<std::pair<int, std::string> >& captures() const { return caps; }
+
 private:
 	int points;
 	int total_kills;
@@ -511,6 +513,7 @@ private:
 	int total_shots;
 	int total_hits;
 	std::vector<Flag> team_flags;
+	std::vector<std::pair<int, std::string> > caps;	// time and player name
 };
 
 //pickups

@@ -85,6 +85,7 @@ class gameclient_c {
 	bool want_map_exit;
 	bool option_show_names;
 	bool map_time_limit;
+	NLulong map_start_time;
 	NLulong map_end_time;
 
 	// GUI
