@@ -118,7 +118,7 @@ public:
 	void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
 							 const std::string& talkbuffer);
 
-	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers);
+	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings = false);
 
 	void team_statistics(const Team* teams);
 	void draw_statistics(const std::vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank = 0);

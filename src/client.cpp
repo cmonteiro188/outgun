@@ -3318,7 +3318,7 @@ void Client::draw_game_frame() {
 		if (menu.options.game.showNames())	// Draw player names but not for invisible enemies.
 			for (int i = 0; i < maxplayers; i++)
 				if (fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
-					fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
+					fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy && fx.player[i].onscreen && !fx.player[i].dead) {
 					const int ttx = static_cast<int>(fd.player[i].lx);
 					const int tty = static_cast<int>(fd.player[i].ly);
 					client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
@@ -3389,7 +3389,7 @@ void Client::draw_game_frame() {
 					client_graphics.draw_minimap_room(fx.map, rx, ry);
 	}//!hide_game
 
-	client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers);
+	client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB]);
 
 	client_graphics.draw_fps(FPS);
 

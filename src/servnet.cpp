@@ -807,6 +807,7 @@ int ServerNetworking::client_connected(int id) {
 
 	if (player_count == 2) {
 		host->ctf_game_restart();
+		world.reset_time();
 		sendStartGame();
 	}
 
@@ -1497,7 +1498,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		broadcast_map_votes_update();
 
 	// stats update
-	if (world.frame / MAX_PLAYERS % 5 == 0) {
+	if (gameRunning && world.frame / MAX_PLAYERS % 5 == 0) {
 		const int pid = world.frame % MAX_PLAYERS;
 		if (world.player[pid].used) {
 			send_movements_and_shots(world.player[pid]);
