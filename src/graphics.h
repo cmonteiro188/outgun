@@ -11,16 +11,16 @@
 #define RESOL_Y 480
 
 //play area offset
-#define plx 0
-#define ply 90
+//#define plx 0
+//#define ply 90
 
 //minimap offset
-#define mmx (plx + plw + 4)
-#define mmy ply
+//#define mmx (plx + plw + 4)
+//#define mmy ply
 
 //scoreboard offset
-#define sbx (plx + plw)
-#define sby (mmy + 110)         // + XXX = minimap panel height
+//#define sbx (plx + plw)
+//#define sby (mmy + 110)         // + XXX = minimap panel height
 
 class Map;
 class MapInfo;
@@ -97,10 +97,7 @@ public:
 	void print_chat_messages(std::list<std::string>::const_iterator begin, const std::list<std::string>::const_iterator& end,
 							 const std::string& talkbuffer);
 
-	void draw_scoreboard(const std::vector<ClientPlayer>& players);
-	void draw_scoreboard_caption(int team, const std::string& caption);
-	void draw_scoreboard_name(int y, int pcol, const ClientPlayer& player);
-	void draw_scoreboard_points(int y, int team, int points);
+	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams);
 
 	void team_statistics(const Team* teams);
 	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
@@ -153,12 +150,13 @@ public:
 	void public_servers(const std::vector<gamespy_t>& servers, int selection);
 	void favourite_servers(const std::vector<gamespy_t>& servers, int selection);
 	void name_password_menu(const std::string& name, int password_len, bool name_selected, const std::string& namestatus);
-	void password_menu(const std::string& caption, int password_len);
+	void password_menu(const std::string& caption, int password_len, bool selected = true);
+	void password_menu_save(const std::string& caption, int password_len, bool save_password, bool pw_selected);
 	void game_help();
 	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
 	void dialog(const std::string& t1, const std::string& t2);
-	
-	bool save_map_picture(const string& filename, const Map& map);
+
+	bool save_map_picture(const std::string& filename, const Map& map);
 
 	void search_themes();
 	void next_theme();
@@ -184,6 +182,10 @@ private:
 	void menu_caption();
 
 	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time);
+
+	void draw_scoreboard_caption(int team, const std::string& caption);
+	void draw_scoreboard_name(const std::string& name, int x, int y, int pcol);
+	void draw_scoreboard_points(int points, int x, int y, int team);
 
 	void print_chat_message(const std::string& message, MESSAGE_TYPE type, int x, int y);
 	void print_chat_input(const std::string& message, int x, int y);
@@ -212,11 +214,28 @@ private:
 	void unload_wall_textures();
 	void unload_player_sprites();
 
+	// scaleable primitive drawing functions
+	int scale(double value) const;
+	void rectfill_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const;
+	void triangle_sc(BITMAP* buff, double x1, double y1, double x2, double y2, double x3, double y3, int color) const;
+	void circle_sc(BITMAP* buff, double x, double y, double r, int color) const;
+	void circlefill_sc(BITMAP* buff, double x, double y, double r, int color) const;
+	void ellipse_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const;
+	void ellipsefill_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const;
+	void putpixel_sc(BITMAP* buff, double x, double y, int color) const;
+	void line_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const;
+	void hline_sc(BITMAP* buff, double x1, double y, double x2, int color) const;
+	void vline_sc(BITMAP* buff, double x, double y1, double y2, int color) const;
+
 	BITMAP* drawbuf;	// main draw buffer
 	BITMAP* background;	// draw buffer for floor, walls and minimap
 	BITMAP* minibg;		// minimap draw buffer
 	//int plw, plh;
-	//int plx, ply;
+
+	int plx, ply;		// playground position on the screen
+	int mmx, mmy;		// minimap position
+	int sbx, sby;		// scoreboard position
+
 	int minimap_w, minimap_h;
 	int minimap_place_w, minimap_place_h;
 	int minimap_start_x, minimap_start_y;
@@ -224,6 +243,7 @@ private:
 	BITMAP* roombg;		// room background sub-bitmap
 
 	static const int flagpos_radius = 30;
+	double scr_mul;	// screen size multiplier
 
 	std::vector<BITMAP*> floor_texture;
 	std::vector<BITMAP*> wall_texture;

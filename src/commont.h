@@ -15,7 +15,6 @@
 #include <sstream>
 #include <iomanip>
 #include <string>
-using namespace std;
 
 #include <cstdio>          // for -text (v0.5.0)
 #include <cstring>
@@ -63,16 +62,16 @@ protected:
 	LineReceiver() { }
 
 public:
-	virtual LineReceiver& operator()(const string& str) =0;
+	virtual LineReceiver& operator()(const std::string& str) =0;
 };
 
-inline void readStr(const char* buf, int& count, string& dst) {
+inline void readStr(const char* buf, int& count, std::string& dst) {
 	dst.clear();
 	while (buf[count])
 		dst += buf[count++];
 	++count;
 }
-inline void writeStr(char* buf, int& count, const string& src) {
+inline void writeStr(char* buf, int& count, const std::string& src) {
 	memcpy(&buf[count], src.data(), src.length());
 	count += src.length();
 	buf[count++] = '\0';
@@ -271,10 +270,12 @@ struct gamespy_t {
     char info[128];
 };
 
+int iround(double value);
+
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str);
 
 // Convert string to uppercase.
-string toupper(string str);
+std::string toupper(std::string str);
 
 #endif

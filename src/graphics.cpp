@@ -62,16 +62,24 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 
 //#define SWITCH_PAUSE_CLIENT
 
+using std::ifstream;
+using std::left;
+using std::list;
+using std::max;
+using std::min;
+using std::ostringstream;
+using std::pair;
+using std::right;
+using std::setfill;
+using std::setprecision;
+using std::setw;
 using std::string;
 using std::vector;
-using std::list;
-using std::setprecision;
 
 Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
-	/*plx(0),
-	ply(90),*/
 	minimap_start_x(0),
 	minimap_start_y(0),
+	scr_mul(static_cast<double>(RESOL_X) / 640),
 	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
@@ -89,20 +97,29 @@ Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
 	if (reset_video)
 		reset_video_mode();
+	plx = 0;
+	ply = SCREEN_H - scale(plh) - 35;
 	drawbuf = create_bitmap(scr_w, scr_h);
 	background = create_bitmap(scr_w, scr_h);
-	roombg = create_sub_bitmap(background, plx, ply, plw, plh);
-	minimap_w = minimap_place_w = 160;
-	minimap_h = minimap_place_h = 100;
+	roombg = create_sub_bitmap(background, plx, ply, scale(plw), scale(plh));
+	minimap_w = minimap_place_w = scale(160);
+	minimap_h = minimap_place_h = scale(100);
+	mmx = scr_w - minimap_w;
+	mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
+	sbx = SCREEN_W - 21 * 8 + 4;
+	sby = mmy + minimap_place_h + 10;
 	setcolors();
 	reset_playground_colors();
 }
 
 Graphics::~Graphics() {
-	destroy_bitmap(drawbuf);
-	destroy_bitmap(background);
-	destroy_bitmap(minibg);
+	if (drawbuf)
+		destroy_bitmap(drawbuf);
+	if (background)
+		destroy_bitmap(background);
+	if (minibg)
+		destroy_bitmap(minibg);
 	unload_pictures();
 }
 
@@ -325,7 +342,7 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 	clear_to_color(background, 0);
 	if (antialiasing == AA_both) {
 		SceneAntialiaser scene;
-		scene.setScaling(0, 0, 1.);
+		scene.setScaling(0, 0, scr_mul);
 
 		// add bottom ground to drawing system
 		scene.addRectangle(0, 0, plw, plh, 0);
@@ -410,7 +427,7 @@ void Graphics::draw_background() {
 }
 
 void Graphics::predraw_room_ground(const Room& room) {
-	draw_room_ground(roombg, room, 0, 0, 1., col[COLGROUND], true);
+	draw_room_ground(roombg, room, 0, 0, scr_mul, col[COLGROUND], true);
 }
 
 void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
@@ -423,7 +440,7 @@ void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, float x, float
 }
 
 void Graphics::predraw_room_walls(const Room& room) {
-	draw_room_walls(roombg, room, 0, 0, 1., col[COLWALL], true);
+	draw_room_walls(roombg, room, 0, 0, scr_mul, col[COLWALL], true);
 }
 
 void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
@@ -438,8 +455,8 @@ void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float 
 void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
 	if (texture)
 		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
-	rectfill(buffer, int(x0 + scale * wall.x1()), int(y0 + scale * wall.y1()),
-					 int(x0 + scale * wall.x2()), int(y0 + scale * wall.y2()), color);
+	rectfill(buffer, iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
+					 iround(x0 + scale * wall.x2()), iround(y0 + scale * wall.y2()), color);
 	if (texture)
 		solid_mode();
 }
@@ -448,9 +465,9 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, floa
 	if (texture)
 		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 	triangle(buffer,
-		int(x0 + scale * wall.x1()), int(y0 + scale * wall.y1()),
-		int(x0 + scale * wall.x2()), int(y0 + scale * wall.y2()),
-		int(x0 + scale * wall.x3()), int(y0 + scale * wall.y3()), color);
+		iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
+		iround(x0 + scale * wall.x2()), iround(y0 + scale * wall.y2()),
+		iround(x0 + scale * wall.x3()), iround(y0 + scale * wall.y3()), color);
 	if (texture)
 		solid_mode();
 }
@@ -464,22 +481,22 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
 		if (texture)
 			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
-		circlefill(buffer, int(x0 + scale * x), int(y0 + scale * y), int(scale * ro), color);
+		circlefill(buffer, iround(x0 + scale * x), iround(y0 + scale * y), iround(scale * ro), color);
 		if (texture)
 			solid_mode();
 		return;
 	}
 	// ring or sector
-	BITMAP* cbuff = create_bitmap(int(2 * scale * ro) + 1, int(2 * scale * ro) + 1);
+	BITMAP* cbuff = create_bitmap(iround(2 * scale * ro) + 1, iround(2 * scale * ro) + 1);
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, int(scale * (ro - x)), int(scale * (ro - y)));
-	circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ro), color);
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, static_cast<int>(scale * (ro - x)), static_cast<int>(scale * (ro - y)));
+	circlefill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * ro), color);
 	if (texture)
 		solid_mode();
 	if (ri > 0)						// ring
-		circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ri) - 1, transparent);
+		circlefill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * ri - 1), transparent);
 	if (angle[0] != angle[1]) {		// sector
 		const double vx[] = { wall.angle_vector_1().first, wall.angle_vector_2().first };
 		const double vy[] = { wall.angle_vector_1().second, wall.angle_vector_2().second };
@@ -488,28 +505,28 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		float ang1 = angle[0];
 		float ang2 = angle[1];
 		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 1
-			rectfill(cbuff, int(scale * ro), 0, int(scale * 2 * ro), int(scale * ro), transparent);
+			rectfill(cbuff, iround(scale * ro), 0, iround(scale * 2 * ro), iround(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
 		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 2
-			rectfill(cbuff, 0, 0, int(scale * ro), int(scale * ro), transparent);
+			rectfill(cbuff, 0, 0, iround(scale * ro), iround(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
 		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 3
-			rectfill(cbuff, 0, int(scale * ro), int(scale * ro), int(scale * 2 * ro), transparent);
+			rectfill(cbuff, 0, iround(scale * ro), iround(scale * ro), iround(scale * 2 * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
 		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 4
-			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
+			rectfill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * 2 * ro), iround(scale * 2 * ro), transparent);
 		// remove the rest unnecessary sectors of the circle
 		const float k = 1.5;
 		float diff = angle[1] - angle[0];
 		if (diff < 0)
 			diff += 360;
 		if (vx[0] * vx[1] > 0 && vy[0] * vy[1] > 0 && diff > 90) {	// remove a sector (<90°) between the angles
-			triangle(cbuff, int(scale * ro), int(scale * ro),
-					int(scale * (ro + k * vx[0] * ro)), int(scale * (ro + k * (-vy[0]) * ro)),
-					int(scale * (ro + k * vx[1] * ro)), int(scale * (ro + k * (-vy[1]) * ro)), transparent);
+			triangle(cbuff, iround(scale * ro), iround(scale * ro),
+					iround(scale * (ro + k * vx[0] * ro)), iround(scale * (ro + k * (-vy[0]) * ro)),
+					iround(scale * (ro + k * vx[1] * ro)), iround(scale * (ro + k * (-vy[1]) * ro)), transparent);
 		}
 		else {											// remove sectors between the angles and n·90°
 			for (int i = 0; i < 2; i++) {
@@ -535,52 +552,54 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 					ty = 0;
 				}
 				if (tx != 0 || ty != 0)
-					triangle(cbuff, int(scale * ro), int(scale * ro),
-						int(scale * (ro + k * vx[i] * ro)), int(scale * (ro + k * (-vy[i]) * ro)),
-						int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
+					triangle(cbuff, iround(scale * ro), iround(scale * ro),
+						iround(scale * (ro + k * vx[i] * ro)), iround(scale * (ro + k * (-vy[i]) * ro)),
+						iround(scale * (ro + k * tx * ro)), iround(scale * (ro + k * (-ty) * ro)), transparent);
 			}
 		}
 		// draw back removed lines at n·90°
 		if (texture)
-			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, int(scale * (ro - x)), int(scale * (ro - y)));
+			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, static_cast<int>(scale * (ro - x)), static_cast<int>(scale * (ro - y)));
 		for (int i = 0; i < 2; i++) {
 			if (angle[i] == 0)
-				vline(cbuff, int(scale * ro), int(scale * (ro - ri)), 0, color);
+				vline(cbuff, iround(scale * ro), iround(scale * (ro - ri)), 0, color);
 			else if (angle[i] == 90)
-				hline(cbuff, int(scale * (ro + ri)), int(scale * ro), int(scale * 2 * ro), color);
+				hline(cbuff, iround(scale * (ro + ri)), iround(scale * ro), iround(scale * 2 * ro), color);
 			else if (angle[i] == 180)
-				vline(cbuff, int(scale * ro), int(scale * (ro + ri)), int(scale * 2 * ro), color);
+				vline(cbuff, iround(scale * ro), iround(scale * (ro + ri)), iround(scale * 2 * ro), color);
 			else if (angle[i] == 270)
-				hline(cbuff, int(scale * (ro - ri)), int(scale * ro), 0, color);
+				hline(cbuff, iround(scale * (ro - ri)), iround(scale * ro), 0, color);
 		}
 	}
-	masked_blit(cbuff, buffer, 0, 0, int(x0 + scale * (x - ro)), int(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
+	masked_blit(cbuff, buffer, 0, 0, iround(x0 + scale * (x - ro)), iround(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
 	destroy_bitmap(cbuff);
 	solid_mode();
 }
 
 //draw a flag  team 0/1   x, y: coord relative to playarea
 void Graphics::draw_flag(int team, int x, int y) {
+	x = scale(x);
+	y = scale(y);
 	//draw shadow
 	ellipsefill(drawbuf,
 		plx + x,
 		ply + y,
-		12, 3, col[COLSHADOW]
+		scale(12), scale(3), col[COLSHADOW]
 	);
 	//draw flagpole
 	rectfill(drawbuf,
-		plx + x - 3,
-		ply + y - 40,
-		plx + x + 3,
+		plx + x - scale(3),
+		ply + y - scale(40),
+		plx + x + scale(3),
 		ply + y,
 		col[COLYELLOW]
 	);
 	//draw the flag itself
 	rectfill(drawbuf,
 		plx + x,
-		ply + y - 38,
-		plx + x + 20,
-		ply + y - 20,
+		ply + y - scale(38),
+		plx + x + scale(20),
+		ply + y - scale(20),
 		teamcol[team]
 	);
 }
@@ -807,10 +826,10 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 					if (getpixel(buffer, x, y) != 0)
 						continue;
 					const float roomx = float(x + 1 - xmin) / float(room_w) * plw;
-					float dist_r2 = INT_MAX;
+					double dist_r2 = INT_MAX;
 					for (vector<spoint_t>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
 						dist_r2 = min(dist_r2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
-					float dist_b2 = INT_MAX;
+					double dist_b2 = INT_MAX;
 					for (vector<spoint_t>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
 						dist_b2 = min(dist_b2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
 					const int color = (dist_r2 < dist_b2) ? teamdcol[0] : teamdcol[1];
@@ -839,6 +858,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 //draws a basic player object
 void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_quad, int alpha, double time) {
+	x = scale(x);
+	y = scale(y);
 	int pc1 = teamcol[team];
 	int pc2 = col[pli];
 	// test different colours:
@@ -869,8 +890,8 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		case 7: xg = 28; yg =-28; break;
 		default: xg = 0; yg =  0; break;
 	}
-	xg = (int)((double)xg * 0.7);
-	yg = (int)((double)yg * 0.7);
+	xg = scale(xg * 0.7);
+	yg = scale(yg * 0.7);
 
 	if (alpha < 255) {
 		set_trans_blender(0, 0, 0, alpha);
@@ -885,15 +906,15 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	const int g2 = getg(pc2);
 	const int b2 = getb(pc2);
 	int r = r1, g = g1, b = b1;
-	const int r_diff = (r2 - r1) / PLAYER_RADIUS + 1;
-	const int g_diff = (g2 - g1) / PLAYER_RADIUS + 1;
-	const int b_diff = (b2 - b1) / PLAYER_RADIUS + 1;
+	const int r_diff = (r2 - r1) / scale(PLAYER_RADIUS) + 1;
+	const int g_diff = (g2 - g1) / scale(PLAYER_RADIUS) + 1;
+	const int b_diff = (b2 - b1) / scale(PLAYER_RADIUS) + 1;
 	if (item_quad && player_sprite_power && static_cast<int>(time * 10) % 2)
-		masked_blit(player_sprite_power, drawbuf, 0, 0, plx + x - PLAYER_RADIUS, ply + y - PLAYER_RADIUS, player_sprite_power->w, player_sprite_power->h);
+		masked_blit(player_sprite_power, drawbuf, 0, 0, plx + x - scale(PLAYER_RADIUS), ply + y - scale(PLAYER_RADIUS), player_sprite_power->w, player_sprite_power->h);
 	else if (player_sprite[team][pli])
-		masked_blit(player_sprite[team][pli], drawbuf, 0, 0, plx + x - PLAYER_RADIUS, ply + y - PLAYER_RADIUS, player_sprite[team][pli]->w, player_sprite[team][pli]->h);
+		masked_blit(player_sprite[team][pli], drawbuf, 0, 0, plx + x - scale(PLAYER_RADIUS), ply + y - scale(PLAYER_RADIUS), player_sprite[team][pli]->w, player_sprite[team][pli]->h);
 	else
-		for (int i = PLAYER_RADIUS; i >= 0; i--) {
+		for (int i = scale(PLAYER_RADIUS); i >= 0; i--) {
 			circlefill(drawbuf, plx + x, ply + y, i, makecol(r, g, b));
 			r = max(0, min(r + r_diff, 255));
 			g = max(0, min(g + g_diff, 255));
@@ -901,9 +922,9 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		}
 #else
 	// outer color: team color
-	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS, pc1);
+	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS), pc1);
 	// inner color: self color
-	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS*2/3, pc2);
+	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 2 / 3), pc2);
 #endif
 
 	// draw player's gun
@@ -933,11 +954,13 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 void Graphics::draw_player_shadow(const ClientPlayer& player, int alpha) {
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
-	ellipsefill(drawbuf, plx + (int)player.lx, ply + (int)player.ly + PLAYER_RADIUS, 15, 3, col[COLSHADOW]);
+	ellipsefill(drawbuf, plx + scale(player.lx), ply + scale(player.ly + PLAYER_RADIUS), 15, 3, col[COLSHADOW]);
 	solid_mode();
 }
 
 void Graphics::draw_virou_sorvete(int x, int y) {
+	x = scale(x);
+	y = scale(y);
 	ellipsefill(drawbuf, plx + x, ply + y, 6, 15, col[COLORA]);
 	circlefill(drawbuf, plx + x - 8, ply + y - 10, 8, col[COLBLUE]);
 	circlefill(drawbuf, plx + x + 8, ply + y - 10, 8, col[COLMAG]);
@@ -947,53 +970,61 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 }
 
 void Graphics::draw_player_dead(int x, int y) {
-	ellipsefill(drawbuf, plx + x, ply + y + PLAYER_RADIUS*4/5, 20, 6, col[COLRED]);
-	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS*4/5, col[COLRED]);
+	x = scale(x);
+	y = scale(y);
+	ellipsefill(drawbuf, plx + x, ply + y + scale(PLAYER_RADIUS * 4 / 5), 20, 6, col[COLRED]);
+	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 4 / 5), col[COLRED]);
 }
 
 void Graphics::draw_gun_explosion(int x, int y, int rad) {
-	circle(drawbuf, plx + x, ply + y, rad, makecol(rand() % 256, rand() % 256, rand() % 256));
+	x = scale(x);
+	y = scale(y);
+	circle(drawbuf, plx + x, ply + y, scale(rad), makecol(rand() % 256, rand() % 256, rand() % 256));
 }
 
 void Graphics::draw_deathbringer_smoke(int x, int y, double time) {
+	x = scale(x);
+	y = scale(y);
 	int alpha = 120 - (int)(time * 200.0);
 	alpha = max(alpha, 0);
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
 	double drad = 3.0 + 9.0 * (0.6 - time);
-	int rad = (int)drad;
-	int subdist = (int)(96.0 - drad * 8.0);
+	int rad = scale(drad);
+	int subdist = scale(96.0 - drad * 8.0);
 	circlefill(drawbuf, plx + x, ply + y - subdist, rad, 0);
 	solid_mode();
 }
 
 void Graphics::draw_deathbringer(int x, int y, int team, double time) {
+	x = scale(x);
+	y = scale(y);
 	//radius
-	int e, rad;
+	int rad;
 	if (time < 1.0)
-		rad = (int)(time * 100);
+		rad = scale(time * 100);
 	else
-		rad = 100 + (int)((time - 1.0) * (time - 1.0) * 800);
-	int maxxd = max(x, plw - x);
-	int maxyd = max(y, plh - y);
+		rad = scale(100 + (time - 1.0) * (time - 1.0) * 800);
+	int maxxd = max(x, scale(plw) - x);
+	int maxyd = max(y, scale(plh) - y);
 	if (maxxd * maxxd + maxyd * maxyd >= rad * rad) {
-		set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
+		set_clip(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
 		//brightening ring
-		for (e = 0; e < 30; e++, rad++) {
+		for (int e = 0; e < scale(30); e++, rad++) {
 			int co;
 			if (team == 0)
-				co = makecol(14 + 8 * e, 0, 0);
+				co = makecol(14 + static_cast<int>(8 * e / scr_mul), 0, 0);
 			else
-				co = makecol(0, 0, 14 + 8 * e);
+				co = makecol(0, 0, 14 + static_cast<int>(8 * e / scr_mul));
 			circle(drawbuf, plx + x, ply + y, rad, co);
 		}
 		//darkening ring
-		for (e = 0; e < 10; e++, rad++) {
+		for (int e = 0; e < scale(10); e++, rad++) {
 			int co;
 			if (team == 0)
-				co = makecol(255 - 14 * e, 0, 0);
+				co = makecol(255 - static_cast<int>(14 * e / scr_mul), 0, 0);
 			else
-				co = makecol(0, 0, 255 - 14 * e);
+				co = makecol(0, 0, 255 - static_cast<int>(14 * e / scr_mul));
 			circle(drawbuf, plx + x, ply + y, rad, co);
 			circle(drawbuf, plx + x + 1, ply + y, rad, co);
 			circle(drawbuf, plx + x, ply + y + 1, rad, co);
@@ -1003,65 +1034,80 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
 }
 
 void Graphics::draw_deathbringer_affected(int x, int y, int team) {
+	x = scale(x);
+	y = scale(y);
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, 128);
 	for (int i = 0; i < 5; i++)
-		circlefill(drawbuf, plx + x + rand() % 40 - 20, ply + y + rand() % 40 - 20, 15, teamcol[team]);
+		circlefill(drawbuf, plx + x + scale(rand() % 40 - 20), ply + y + scale(rand() % 40 - 20), scale(15), teamcol[team]);
 	for (int i = 0; i < 5; i++)
-		circlefill(drawbuf, plx + x + rand() % 40 - 20, ply + y + rand() % 40 - 20, 15, 0);
+		circlefill(drawbuf, plx + x + scale(rand() % 40 - 20), ply + y + scale(rand() % 40 - 20), scale(15), 0);
 	solid_mode();
 }
 
 void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
-	set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
+	x = scale(x);
+	y = scale(y);
+	set_clip(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
 	//darken ground
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	for (int r = 50; r > 0; r -= 5) {
-		set_trans_blender(0, 0, 0, 50 - r);
-		circlefill(drawbuf, plx + x, ply + y + PLAYER_RADIUS/3, r, 0);
+	for (int r = scale(50); r > 0; r -= 5) {
+		set_trans_blender(0, 0, 0, 50 - static_cast<int>(r / scr_mul));
+		circlefill(drawbuf, plx + x, ply + y, r, 0);
 	}
 	solid_mode();
 	set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 }
 
 void Graphics::draw_shield(int x, int y, int r, int alpha) {
+	x = scale(x);
+	y = scale(y);
+	r = scale(r);
+	const int v1 = scale(3);
+	const int v2 = scale(5);
+	const int v3 = scale(9);
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
-	ellipse(drawbuf, plx + x, ply + y, r + rand() % 3, r + rand() % 3, makecol(rand() % 256, rand() % 256, rand() % 256));
-	ellipse(drawbuf, plx + x, ply + y, r + rand() % 5, r + rand() % 5, makecol(rand() % 256, rand() % 256, rand() % 256));
-	ellipse(drawbuf, plx + x, ply + y, r + rand() % 9, r + rand() % 9, makecol(rand() % 256, rand() % 256, rand() % 256));
+	ellipse(drawbuf, plx + x, ply + y, r + rand() % v1, r + rand() % v1, makecol(rand() % 256, rand() % 256, rand() % 256));
+	ellipse(drawbuf, plx + x, ply + y, r + rand() % v2, r + rand() % v2, makecol(rand() % 256, rand() % 256, rand() % 256));
+	ellipse(drawbuf, plx + x, ply + y, r + rand() % v3, r + rand() % v3, makecol(rand() % 256, rand() % 256, rand() % 256));
 	solid_mode();
 }
 
 void Graphics::draw_player_name(const string& name, int x, int y, int team) {
-	print_text_border_centre(name, plx + x, ply + y - PLAYER_RADIUS - 10, col[COLWHITE], teamdcol[team], -1);
+	x = scale(x);
+	y = scale(y);
+	print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS - 10), col[COLWHITE], teamdcol[team], -1);
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
+	const int x = scale(rocket.x);
+	const int y = scale(rocket.y);
 	if (rocket.power) {	// powered rocket
 		//draw rocket shadow
-		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y + QUAD_ROCKET_RADIUS + 8, QUAD_ROCKET_RADIUS, 3, col[COLSHADOW]);
+		ellipsefill(drawbuf, plx + x, ply + y + scale(QUAD_ROCKET_RADIUS + 8), scale(QUAD_ROCKET_RADIUS), scale(3), col[COLSHADOW]);
 		//draw the rocket
 		if ((int)(time * 30) % 2)
-			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, QUAD_ROCKET_RADIUS, col[COLWHITE]);	//y-12?
+			circlefill(drawbuf, plx + x, ply + y, scale(QUAD_ROCKET_RADIUS), col[COLWHITE]);	//y-12?
 		else
-			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, QUAD_ROCKET_RADIUS, teamlcol[rocket.team]); //y-12??
+			circlefill(drawbuf, plx + x, ply + y, scale(QUAD_ROCKET_RADIUS), teamlcol[rocket.team]); //y-12??
 	}
 	else {				// normal rocket
 		//draw rocket shadow
-		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y + ROCKET_RADIUS + 8, ROCKET_RADIUS, 2, col[COLSHADOW]);
+		ellipsefill(drawbuf, plx + x, ply + y + scale(ROCKET_RADIUS + 8), scale(ROCKET_RADIUS), scale(2), col[COLSHADOW]);
 		//draw the rocket
-		circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, ROCKET_RADIUS, teamcol[rocket.team]); //y-10??
+		circlefill(drawbuf, plx + x, ply + y, scale(ROCKET_RADIUS), teamcol[rocket.team]); //y-10??
 	}
 }
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	const int flagpos_radius = scale(this->flagpos_radius);
 	const int step = 300 / flagpos_radius;
-	for (int y = flag_y - flagpos_radius; y < flag_y + flagpos_radius; y++)
-		for (int x = flag_x - flagpos_radius; x < flag_x + flagpos_radius; x++) {
-			const int dx = flag_x - x;
-			const int dy = flag_y - y;
+	for (int y = scale(flag_y) - flagpos_radius; y < scale(flag_y) + flagpos_radius; y++)
+		for (int x = scale(flag_x) - flagpos_radius; x < scale(flag_x) + flagpos_radius; x++) {
+			const int dx = scale(flag_x) - x;
+			const int dy = scale(flag_y) - y;
 			const float dist = sqrt(static_cast<float>(dx * dx + dy * dy));
 			if (dist > flagpos_radius)
 				continue;
@@ -1074,7 +1120,7 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 
 void Graphics::draw_pup(const pickup_c& pup, double time) {
 	// pup's shadow
-	ellipsefill(drawbuf, plx + pup.x, ply + pup.y + 12, 12, 3, col[COLSHADOW]);
+	ellipsefill(drawbuf, plx + scale(pup.x), ply + scale(pup.y + 12), scale(12), scale(3), col[COLSHADOW]);
 	switch (pup.kind) {
 		case 1: draw_pup_shield(pup.x, pup.y); break;		// shield
 		case 2:	draw_pup_turbo(pup.x, pup.y); break; 		// turbo
@@ -1088,13 +1134,14 @@ void Graphics::draw_pup(const pickup_c& pup, double time) {
 
 void Graphics::draw_pup_shield(int x, int y) {
 	draw_shield(x, y, 14);
-	circlefill(drawbuf, plx + x, ply + y, 12, col[COLGREEN]);
+	circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(12), col[COLGREEN]);
 }
 
 void Graphics::draw_pup_turbo(int x, int y) {
-	circlefill(drawbuf, plx + x + rand()%6-3, ply + y + rand()%6-3, 12, col[COLDARKORA]);
-	circlefill(drawbuf, plx + x + rand()%8-4, ply + y + rand()%8-4, 12, col[COLORA]);
-	circlefill(drawbuf, plx + x + rand()%12-6, ply + y + rand()%12-6, 12, col[COLYELLOW]);
+	const int r = scale(12);
+	circlefill(drawbuf, plx + scale(x + rand() % 6 - 3), ply + scale(y + rand() % 6 - 3), r, col[COLDARKORA]);
+	circlefill(drawbuf, plx + scale(x + rand() % 8 - 4), ply + scale(y + rand() % 8 - 4), r, col[COLORA]);
+	circlefill(drawbuf, plx + scale(x + rand() % 12 - 6), ply + scale(y + rand() % 12 - 6), r, col[COLYELLOW]);
 }
 
 void Graphics::draw_pup_shadow(int x, int y, double time) {
@@ -1103,15 +1150,15 @@ void Graphics::draw_pup_shadow(int x, int y, double time) {
 	if (alpha > 200)
 		alpha = 400 - alpha;
 	set_trans_blender(0, 0, 0, 55 + alpha);
-	circlefill(drawbuf, plx + x, ply + y, 12, col[COLMAG]);
+	circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(12), col[COLMAG]);
 	solid_mode();
 }
 
 void Graphics::draw_pup_power(int x, int y, double time) {
 	if ((int)(time * 30) % 2)
-		circlefill(drawbuf, plx + x, ply + y, 13, col[COLWHITE]);
+		circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(13), col[COLWHITE]);
 	else
-		circlefill(drawbuf, plx + x, ply + y, 11, col[COLCYAN]);
+		circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(11), col[COLCYAN]);
 }
 
 void Graphics::draw_pup_weapon(int x, int y, double time) {
@@ -1136,18 +1183,20 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
 			case 3: c = col[COLYELLOW]; break;
 		}
 		//draw a ball
-		circlefill(drawbuf, plx + x + (int)dx, ply + y + (int)dy, 4, c);
+		circlefill(drawbuf, plx + scale(x + dx), ply + scale(y + dy), scale(4), c);
 	}
 }
 
 void Graphics::draw_pup_health(int x, int y, double time) {
+	x = scale(x);
+	y = scale(y);
 	//caixa de saude pulsante
 	int varia = (int)(time * 15) % 10;
 	if (varia > 5)
 		varia = 10 - varia;
-	int itemsize = 11 + varia;
-	int crossize = 8 + varia;
-	int crosslar = 3; //aria/2;
+	int itemsize = scale(11 + varia);
+	int crossize = scale(8 + varia);
+	int crosslar = scale(3); //aria/2;
 	// health box black border
 	rectfill(drawbuf, plx + x - itemsize - 2, ply + y - itemsize - 2, plx + x + itemsize + 2, ply + y + itemsize + 2, 0);
 	// health box
@@ -1159,7 +1208,7 @@ void Graphics::draw_pup_health(int x, int y, double time) {
 
 void Graphics::draw_pup_deathbringer(int x, int y) {
 	//bola preta
-	circlefill(drawbuf, plx + x, ply + y, 12, makecol(0x22, 0x33, 0x22));
+	circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(12), makecol(0x22, 0x33, 0x22));
 }
 
 void Graphics::draw_one_line_message(const string& message) {
@@ -1185,33 +1234,40 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
 }
 
-void Graphics::draw_scoreboard(const vector<ClientPlayer>& players) {
-	int i = 0;
-	for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
-		if (!player->used)
-			continue;
-		ostringstream line;
-		line << player->reg_status;
-		line << left << setw(15) << player->name << right;
-		const int tcol = teamlcol[player->team()];
-		const int pcol = col[player->color()];
-		textout_ex(drawbuf, font, line.str().c_str(), sbx + 4, sby + 8 + i * 12, pcol, -1);
-		textprintf_ex(drawbuf, font, sbx + 4 + 16 * 8, sby + 8 + i * 12, tcol, -1, "%4d", player->frags);
-		++i;
+void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams) {
+	// captions
+	ostringstream red;
+	red << "Red Team:    " << setw(2) << teams[0].score() << " capt";
+	draw_scoreboard_caption(0, red.str());
+	ostringstream blue;
+	blue << "Blue Team:   " << setw(2) << teams[1].score() << " capt";
+	draw_scoreboard_caption(1, blue.str());
+
+	int line[2] = { 0, 0 };
+	for (int i = 0; i < static_cast<int>(players.size()); i++) {
+		const ClientPlayer& player = *players[i];
+		ostringstream name;
+		name << player.reg_status << player.name.substr(0, 15);
+		const int pcol = col[player.color()];
+		const int x = sbx;
+		const int y = sby + 8 + line[player.team()] * 12 + player.team() * 18 * 8;
+		draw_scoreboard_name(name.str(), x, y, pcol);
+		draw_scoreboard_points(player.frags, x + 20 * 8, y, player.team());
+		line[player.team()]++;
 	}
 }
 
 void Graphics::draw_scoreboard_caption(int team, const string& caption) {
 	const int nameydelta_min = 8;
-	textout_ex(drawbuf, font, caption.c_str(), sbx + 4, sby - 4 + team * 18 * nameydelta_min, teamlcol[team], -1);
+	textout_ex(drawbuf, font, caption.c_str(), sbx, sby - 4 + team * 18 * nameydelta_min, teamlcol[team], -1);
 }
 
-void Graphics::draw_scoreboard_name(int y, int pcol, const ClientPlayer& player) {
-	textprintf_ex(drawbuf, font, sbx + 4, y, col[pcol], -1, "%c%s", player.reg_status, player.name.c_str());
+void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol) {
+	textout_ex(drawbuf, font, name.c_str(), x, y, pcol, -1);
 }
 
-void Graphics::draw_scoreboard_points(int y, int team, int points) {
-	textprintf_ex(drawbuf, font, sbx + 4 + 16 * 8, y, teamlcol[team], -1, "%4i", points);
+void Graphics::draw_scoreboard_points(int points, int x, int y, int team) {
+	textprintf_right_ex(drawbuf, font, x, y, teamlcol[team], -1, "%d", points);
 }
 
 void Graphics::team_statistics(const Team* teams) {
@@ -1497,75 +1553,83 @@ void Graphics::team_captures_next() {
 }
 
 void Graphics::draw_player_power(double val) {
-	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 5, col[COLCYAN], -1, "POWER: %3.0f", val);
+	textprintf_ex(drawbuf, font, 244, SCREEN_H - 30, col[COLCYAN], -1, "POWER: %3.0f", val);
 }
 
 void Graphics::draw_player_turbo(double val) {
-	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 15, col[COLYELLOW], -1, "TURBO: %3.0f", val);
+	textprintf_ex(drawbuf, font, 244, SCREEN_H - 20, col[COLYELLOW], -1, "TURBO: %3.0f", val);
 }
 
 void Graphics::draw_player_shadow(double val) {
-	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 25, col[COLMAG], -1, "SHADOW:%3.0f", val);
+	textprintf_ex(drawbuf, font, 244, SCREEN_H - 10, col[COLMAG], -1, "SHADOW:%3.0f", val);
 }
 
 void Graphics::draw_player_weapon(int level) {
-	textprintf_ex(drawbuf, font, plx + 340, ply + plh + 5, col[COLWHITE], -1, "WEAPON: %i", level);
+	textprintf_ex(drawbuf, font, 340, SCREEN_H - 30, col[COLWHITE], -1, "WEAPON: %i", level);
 }
 
 void Graphics::draw_change_team_message(double time) {
-	int c = col[COLWHITE];
-	if ((int)(time * 2.0) % 2)	// blink!
+	int c;
+	if (static_cast<int>(time * 2.0) % 2)	// blink!
 		c = col[COLRED];
-	textout_ex(drawbuf, font, "CHANGE", plx + plw - 6 * 8 - 10,     ply + plh - 18, c, -1);
-	textout_ex(drawbuf, font, "TEAMS", plx + plw - 6 * 8 - 10 + 4, ply + plh -  9, c, -1);
+	else
+		c = col[COLWHITE];
+	textout_ex(drawbuf, font, "CHANGE", plx + scale(plw - 6 * 8 - 10),     ply + scale(plh - 18), c, -1);
+	textout_ex(drawbuf, font, "TEAMS",  plx + scale(plw - 6 * 8 - 10 + 4), ply + scale(plh -  9), c, -1);
 }
 
 void Graphics::draw_change_map_message(double time) {
-	int c = col[COLWHITE];
-	if ((int)(time * 2.0) % 2)	// blink!
+	int c;
+	if (static_cast<int>(time * 2.0) % 2)	// blink!
 		c = col[COLRED];
-	textout_ex(drawbuf, font, "EXIT", -40 + plx + plw - 6 * 8 - 10,     ply + plh - 18, c, -1);
-	textout_ex(drawbuf, font, "MAP", -40 + plx + plw - 6 * 8 - 10 + 4, ply + plh -  9, c, -1);
+	else
+		c = col[COLWHITE];
+	textout_ex(drawbuf, font, "EXIT", plx + scale(plw - 40 - 6 * 8 - 10),     ply + scale(plh - 18), c, -1);
+	textout_ex(drawbuf, font, "MAP",  plx + scale(plw - 40 - 6 * 8 - 10 + 4), ply + scale(plh -  9), c, -1);
 }
 
 void Graphics::draw_player_health(int health) {
+	const int x0 = 10;
+	const int y0 = SCREEN_H - 30;
 	// health value
-	textprintf_ex(drawbuf, font, 10, ply + plh + 5, col[COLWHITE], -1, "Health: %5i", health);
+	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "Health: %5i", health);
 	// health bar
-	rectfill(drawbuf, 10, ply + plh + 18, 10 + 100, ply + plh + 18 + 10, col[COLNOLIFE]);
+	rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
 	if (health == 0)
 		return;
 	// health 0...100
 	int targ = min(health, 100);
-	rectfill(drawbuf, 10, ply + plh + 18, 10 + targ, ply + plh + 18 + 10, col[COLRED]);
+	rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLRED]);
 	// health 100...200
 	targ = min(health - 100, 100);
 	if (targ > 0)
-		rectfill(drawbuf, 10, ply + plh + 18, 10 + targ, ply + plh + 18 + 10, col[COLYELLOW]);
+		rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLYELLOW]);
 	//health 200...300
 	targ = min(health - 200, 100);
 	if (targ > 0)
-		rectfill(drawbuf, 10, ply + plh + 18, 10 + targ, ply + plh + 18 + 10, col[COLMAG]);
+		rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLMAG]);
 }
 
 void Graphics::draw_player_energy(int energy) {
+	const int x0 = 10 + 14 * 8;
+	const int y0 = SCREEN_H - 30;
 	// energy value
-	textprintf_ex(drawbuf, font, 10 + 14 * 8, ply + plh + 5, col[COLWHITE], -1, "Energy: %5i", energy);
+	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "Energy: %5i", energy);
 	// energy bar
-	rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + 100, ply + plh + 18 + 10, col[COLNOLIFE]);
+	rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
 	if (energy == 0)
 		return;
 	//barra azul 0..100
 	int targ = min(energy, 100);
-	rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + targ, ply + plh + 18 + 10, col[COLBLUE]);
+	rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLBLUE]);
 	//barra verde 100..200
 	targ = min(energy - 100, 100);
 	if (targ > 0)
-		rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + targ, ply + plh + 18 + 10, col[COLGREEN]);
+		rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLGREEN]);
 	//barra 3o nivel
 	targ = min(energy - 200, 100);
 	if (targ > 0)
-		rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + targ, ply + plh + 18 + 10, col[COLENER3]);
+		rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLENER3]);
 }
 
 void Graphics::print_chat_messages(list<string>::const_iterator msg, const list<string>::const_iterator& end, const string& talkbuffer) {
@@ -1916,13 +1980,28 @@ void Graphics::name_password_menu(const string& name, int password_len, bool nam
 		draw_player(130 + 37 * i, 230, 1, i, 7, 0., 0, 255, 0.);*/
 }
 
-void Graphics::password_menu(const string& caption, int password_len) {
+void Graphics::password_menu(const string& caption, int password_len, bool selected) {
 	menu_caption();
-	const string password(password_len, '*');
 	ostringstream line;
-	line << caption << ": " << password << '_';
-	textout_ex(drawbuf, font, line.str().c_str(), 150, 230, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, "Esc to cancel.", 150, 250, col[COLWHITE], -1);
+	line << caption << ": ";
+	const int x = 150;
+	textout_ex(drawbuf, font, line.str().c_str(), x, 230, col[COLWHITE], -1);
+	string password(password_len, '*');
+	if (selected)
+		password += '_';
+	textout_ex(drawbuf, font, password.c_str(), x + 8 * line.str().length(), 230, col[COLGREEN], -1);
+	textout_ex(drawbuf, font, "Esc to cancel.", x, 270, col[COLWHITE], -1);
+}
+
+void Graphics::password_menu_save(const string& caption, int password_len, bool save_password, bool pw_selected) {
+	password_menu(caption, password_len, !pw_selected);
+	const int x = 150;
+	const int y = 250;
+	textout_ex(drawbuf, font, "[ ] Save password", x, y, col[COLWHITE], -1);
+	if (save_password)
+		textout_ex(drawbuf, font, "X", x + 8, y, col[COLGREEN], -1);
+	if (pw_selected)
+		textout_ex(drawbuf, font, "_", x + 8, y, col[COLGREEN], -1);
 }
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
@@ -2363,5 +2442,51 @@ void Graphics::set_theme_dir(const string& dir) {
 	themedir = dir;
 	if (dir == "-")
 		no_theme = true;
+}
+
+// Scaleable functions for primitive drawing
+
+inline int Graphics::scale(double value) const {
+	return static_cast<int>(scr_mul * value + 0.5);
+}
+
+void Graphics::rectfill_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const {
+	rectfill(buff, scale(x1), scale(y1), scale(x2), scale(y2), color);
+}
+
+void Graphics::triangle_sc(BITMAP* buff, double x1, double y1, double x2, double y2, double x3, double y3, int color) const {
+	triangle(buff, scale(x1), scale(y1), scale(x2), scale(y2), scale(x3), scale(y3), color);
+}
+
+void Graphics::circle_sc(BITMAP* buff, double x, double y, double r, int color) const {
+	circle(buff, scale(x), scale(y), scale(r), color);
+}
+
+void Graphics::circlefill_sc(BITMAP* buff, double x, double y, double r, int color) const {
+	circlefill(buff, scale(x), scale(y), scale(r), color);
+}
+
+void Graphics::ellipse_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const {
+	ellipse(buff, scale(x), scale(y), scale(rx), scale(ry), color);
+}
+
+void Graphics::ellipsefill_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const {
+	ellipsefill(buff, scale(x), scale(y), scale(rx), scale(ry), color);
+}
+
+void Graphics::putpixel_sc(BITMAP* buff, double x, double y, int color) const {
+	putpixel(buff, scale(x), scale(y), color);
+}
+
+void Graphics::line_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const {
+	line(buff, scale(x1), scale(y1), scale(x2), scale(y2), color);
+}
+
+void Graphics::hline_sc(BITMAP* buff, double x1, double y, double x2, int color) const {
+	hline(buff, scale(x1), scale(y), scale(x2), color);
+}
+
+void Graphics::vline_sc(BITMAP* buff, double x, double y1, double y2, int color) const {
+	vline(buff, scale(x), scale(y1), scale(y2), color);
 }
 

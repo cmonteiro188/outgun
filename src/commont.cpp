@@ -1,5 +1,9 @@
 #include "commont.h"
 
+using std::cout;
+using std::istream;
+using std::string;
+
 void ClientControls::fromKeyboard() {
 	data = 0;
 	if (key[KEY_UP   ]) data |= 1;
@@ -102,6 +106,10 @@ double get_time() {
 }
 
 char teamname[2][5];
+
+int iround(double value) {
+	return static_cast<int>(value + 0.5);
+}
 
 istream& getline_smart(istream& in, string& str) {
 	str.clear();

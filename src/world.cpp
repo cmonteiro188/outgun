@@ -16,6 +16,18 @@
 #define PI M_PI //3.1416
 #define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
+using std::ifstream;
+using std::istream;
+using std::istringstream;
+using std::min;
+using std::ostringstream;
+using std::pair;
+using std::setfill;
+using std::setw;
+using std::string;
+using std::swap;
+using std::vector;
+
 /* subIntersection:
  * returns true if the area between lines (lx1,ly1)-(lx2,ly2) and (rx1,ry1)-(rx2,ry2) intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
  * every line must be y-ordered : ly1<=ly2, ry1<=ry2, recty1<=recty2 ; additionally rectx1<=rectx2 and lx(y)<=rx(y) for all applicable y
@@ -174,7 +186,7 @@ bool Map::load(const char *mapdir, const string& mapname) {
 
 	//append all that to the root dir of the game
 	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
-	FILE *fmap = fopen(dest, "r");	// FIXME: r or rb ??
+	FILE *fmap = fopen(dest, "r");	// ### FIXME: r or rb ??
 	if (fmap) {
 		*this = Map();
 		NLubyte lebigbuf[65536];
@@ -503,8 +515,8 @@ void ServerPlayer::queue_printf(const char* fmt, ...) {
 	add_to_queue(string(buf));
 }
 
-void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name) {
-	PlayerBase::clear(enable, _pid, _name);
+void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id) {
+	PlayerBase::clear(enable, _pid, _name, team_id);
 
 	attack = false;
 	oldfrags = -666;
@@ -561,8 +573,8 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name) {
 	carrying_flag = false;
 }
 
-void ClientPlayer::clear(bool enable, int _pid, const std::string& _name) {
-	PlayerBase::clear(enable, _pid, _name);
+void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int team_id) {
+	PlayerBase::clear(enable, _pid, _name, team_id);
 
 	item_quad_time = item_speed_time = item_helm_time = 0;
 	health = energy = 0;

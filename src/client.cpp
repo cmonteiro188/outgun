@@ -9,10 +9,24 @@
 #include "network.h"
 #include "nassert.h"
 
+using std::find;
+using std::ifstream;
+using std::ios;
+using std::list;
+using std::max;
+using std::min;
+using std::ofstream;
+using std::ostringstream;
+using std::pair;
+using std::setfill;
+using std::setw;
+using std::string;
+using std::vector;
+
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-#define CLIENT_PREDICTION
+//#define CLIENT_PREDICTION
 const float lagWanted = 1.;
 
 #ifdef NIX
@@ -900,7 +914,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	// players
 
 	for (int i = 0; i < MAX_PLAYERS; i++)
-		fx.player[i].clear(false, i, "(name unknown)");
+		fx.player[i].clear(false, i, "(name unknown)", i / TSIZE);
+	players_sb.clear();
 
 	//reset FPS count vars
 	framecount = 0;
@@ -986,8 +1001,12 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 
 	if (message == "SERVER PASSWORD")
 		set_menu(menu_server_password);
-	else if (message == "PLAYER PASSWORD")
+	else if (message == "PLAYER PASSWORD") {
 		set_menu(menu_player_password);
+		save_password_selected = false;
+		edit_player_password = load_player_password(playername);
+		save_pl_password = !edit_player_password.empty();
+	}
 	else {
 		set_menu(menu_dialog);
 		// clear passwords to avoid sending them everywhere
@@ -1004,6 +1023,74 @@ void gameclient_c::connect_failed_unreachable() {
 	dialogmessage = "No response from server. Press ESC.";
 	dialogmessage2.clear();
 	set_menu(menu_dialog);
+}
+
+string gameclient_c::load_player_password(const string& name) const {
+	ifstream in(password_file.c_str());
+	while (in) {
+		string load_name, load_password;
+		getline(in, load_name);
+		getline(in, load_password);
+		if (load_name == name)
+			return load_password;
+	}
+	return string();
+}
+
+vector<pair<string, string> > gameclient_c::load_all_player_passwords() const {
+	vector<pair<string, string> > passwords;
+	ifstream in(password_file.c_str());
+	while (1) {
+		string name, password;
+		getline(in, name);
+		getline(in, password);
+		if (in)
+			passwords.push_back(pair<string, string>(name, password));
+		else
+			break;
+	}
+	return passwords;
+}
+
+void gameclient_c::save_player_password(const string& name, const string& password) const {
+	vector<pair<string, string> > passwd_list = load_all_player_passwords();
+	// check if player already has a password
+	string test = load_player_password(name);
+	if (test.empty())
+		passwd_list.push_back(pair<string, string>(name, password));
+	ofstream out(password_file.c_str());
+	if (!out) {
+		LOG1("Can't save player password to %s!\n", password_file.c_str());
+		return;
+	}
+	for (vector<pair<string, string> >::const_iterator name_pwd = passwd_list.begin();
+					name_pwd != passwd_list.end(); ++name_pwd) {
+		out << name_pwd->first << '\n';
+		if (name_pwd->first == name)
+			out << password;
+		else
+			out << name_pwd->second;
+		out << '\n';
+		LOG2("%s, %s\n", name_pwd->first.c_str(), name_pwd->second.c_str());
+	}
+}
+
+void gameclient_c::remove_player_password(const string& name) const {
+	// check if player has a password
+	string test = load_player_password(name);
+	if (test.empty())
+		return;
+	vector<pair<string, string> > passwd_list = load_all_player_passwords();
+	ofstream out(password_file.c_str());
+	if (!out)
+		return;
+	for (vector<pair<string, string> >::const_iterator name_pwd = passwd_list.begin();
+					name_pwd != passwd_list.end(); ++name_pwd) {
+		if (name_pwd->first == name)
+			continue;
+		out << name_pwd->first << '\n';
+		out << name_pwd->second << '\n';
+	}
 }
 
 //refresh servers command
@@ -1205,6 +1292,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 //connect command
 void gameclient_c::connect_command() {
+	LOG("connect_command()\n");
 	// disconnect
 	client->connect(false);
 
@@ -1230,7 +1318,11 @@ void gameclient_c::connect_command() {
 		address += port.str();
 	}
 
+	LOG("connect_command() 1\n");
+
 	client->set_server_address(address.c_str());
+
+	LOG("connect_command() 2\n");
 
 	//set connect-data (goes in every connect packet): outgun game name and version strings
 	char lebuf[256]; int count = 0;
@@ -1239,18 +1331,28 @@ void gameclient_c::connect_command() {
 	writeStr(lebuf, count, playername);
 	if (!edit_server_password.empty())
 		writeStr(lebuf, count, edit_server_password);
-	if (!edit_player_password.empty())
+	if (!edit_player_password.empty()) {
 		writeStr(lebuf, count, edit_player_password);
+		if (save_pl_password)
+			save_player_password(playername, edit_player_password);
+		else
+			remove_player_password(playername);
+	}
+
+	LOG("connect_command() 3\n");
 
 	client->set_connect_data(lebuf, count);
+	LOG("connect_command() 4\n");
 
 	client->connect(true);
+	LOG("connect_command() 5\n");
 
 	// set flags, show dialog...
 	trying_connection = true;
 	dialogmessage = "Trying to connect... ESC = cancel";
 	dialogmessage2.clear();
 	set_menu(menu_dialog);
+	LOG("connect_command() OK\n");
 }
 
 //send player token message
@@ -1367,10 +1469,19 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		readLong(data, count, players_present);
 		for (int i = 0; i < maxplayers; i++) {
 			//decode players_present: sets if "player" record is used or not, in clientside
-			if (players_present & (1 << i))
+			if (players_present & (1 << i)) {
+				if (!fx.player[i].used)
+					players_sb.push_back(&fx.player[i]);
 				fx.player[i].used = true;
-			else
+			}
+			else {
+				if (fx.player[i].used) {
+					vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[i]);
+					if (rm != players_sb.end())
+						players_sb.erase(rm);
+				}
 				fx.player[i].used = false;
+			}
 		}
 
 		//UGLY HACK
@@ -1579,7 +1690,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//read ping of player frame % MAX_PLAYERS
 			NLushort daping;
 			readShort(data, count, daping);
-			fx.player[ svframe % maxplayers ].ping = daping;
+			fx.player[svframe % maxplayers].ping = daping;
 		}//frame not empty
 	}
 
@@ -2814,6 +2925,10 @@ void gameclient_c::loop() {
 								edit_player_password.erase(edit_player_password.end() - 1);
 							else if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty())
 								connect_command();
+							else if (sc == KEY_TAB)
+								save_password_selected = !save_password_selected;
+							else if (save_password_selected && sc == KEY_SPACE)
+								save_pl_password = !save_pl_password;
 							else if (ch >= 32)
 								edit_player_password += static_cast<char>(ch);
 							break;
@@ -3258,10 +3373,12 @@ gameclient_c::gameclient_c():
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
+	save_pl_password(false),
+	save_password_selected(false),
+	password_file("passwd.txt"),
 	name_selected(true),
 	screenshot(false)
 {
-
 	//net client
 	client = 0;
 
@@ -3270,8 +3387,8 @@ gameclient_c::gameclient_c():
 
 	//all the players to show including me
 	//player_t player[MAX_PLAYERS];
-	for (int p=0;p<MAX_PLAYERS;p++)
-		fx.player[p].used=false;
+	for (int p = 0; p < MAX_PLAYERS; p++)
+		fx.player[p].used = false;
 
 	//wich player I am
 	me = -1;
@@ -3615,16 +3732,15 @@ void gameclient_c::draw_game_frame() {
 	// the SCOREBOARD
 	//
 
-	ostringstream red;
+	/*ostringstream red;
 	red << "Red Team:    " << setw(2) << fx.teams[0].score() << " capt";
 	client_graphics.draw_scoreboard_caption(0, red.str());
 	ostringstream blue;
 	blue << "Blue Team:   " << setw(2) << fx.teams[1].score() << " capt";
-	client_graphics.draw_scoreboard_caption(1, blue.str());
+	client_graphics.draw_scoreboard_caption(1, blue.str());*/
 
-	/*vector<ClientPlayer> plrs(fx.player, fx.player + MAX_PLAYERS);
-	client_graphics.draw_scoreboard(plrs);*/
-	int pix[2]; pix[0]=pix[1]=0;
+	client_graphics.draw_scoreboard(players_sb, fx.teams);
+	/*int pix[2]; pix[0]=pix[1]=0;
 	for (int fw=0;fw<2;fw++)		//first count, then draw
 	{
 		const int NAMEYDELTA_MIN = 8;
@@ -3656,6 +3772,8 @@ void gameclient_c::draw_game_frame() {
 			if (fx.player[i].used)
 			{
 				int what_y;
+				const int ply = 90;
+				const int mmy = ply;
 				if (i < TSIZE)
 					what_y = sby + 8 + dp * NAMEYDELTA;
 				else
@@ -3678,7 +3796,7 @@ void gameclient_c::draw_game_frame() {
 				}
 			}
 		}
-	}
+	}*/
 
 	// the STATUSBAR : traffic
 	//
@@ -3927,7 +4045,7 @@ void gameclient_c::draw_game_menu() {
 			client_graphics.password_menu("Server password", edit_server_password.length());
 			break;
 		case menu_player_password:
-			client_graphics.password_menu("Player password for " + playername, edit_player_password.length());
+			client_graphics.password_menu_save("Player password for " + playername, edit_player_password.length(), save_pl_password, save_password_selected);
 			break;
 		case menu_maps:
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);

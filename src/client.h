@@ -38,8 +38,14 @@ enum Menu_selection {
 class client_c;	// of leetnet
 
 class gameclient_c {
+	std::vector<std::pair<std::string, std::string> > load_all_player_passwords() const;
+	std::string load_player_password(const std::string& name) const;
+	void save_player_password(const std::string& name, const std::string& password) const;
+	void remove_player_password(const std::string& name) const;
+
 	// world
 	ClientWorld fd, fx;	//#fix: two maps, etc.
+	std::vector<ClientPlayer*> players_sb;	// player pointers for scoreboard
 	int me;
 	pthread_mutex_t frame_mutex;
 
@@ -108,12 +114,18 @@ class gameclient_c {
 	gamespy_t gamespy[MAX_GAMESPY];
 	int gi;	//what game entry
 	gamespy_t mgamespy[MAX_GAMESPY];	//gamespy of masterserver
+
 	std::string playername;	//the player's name (max name len = 16)
 	std::string namestatus;	// v0.4.4: NAME STATUS (unregistered, registering..., registered!)
 	std::string editplayername;
 	std::string address;	//server IP address
+
 	std::string edit_server_password;
 	std::string edit_player_password;
+	bool save_pl_password;
+	bool save_password_selected;
+	std::string password_file;
+	
 	std::string dialogmessage;
 	std::string dialogmessage2;
 	std::string talkbuffer;

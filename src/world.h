@@ -261,7 +261,7 @@ public:
 
 	virtual ~PlayerBase() { }
 	void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
-	void clear(bool enable, int _pid, const std::string& _name) {
+	void clear(bool enable, int _pid, const std::string& _name, int team_id) {
 		ping = 0;
 		frags = 0;
 		id = _pid;
@@ -277,7 +277,7 @@ public:
 		neg_score = 0;
 		rank = 0;
 		used = enable;
-		team_nr = 0;
+		team_nr = team_id;
 		stats().clear();
 		stats().set_start_time(static_cast<int>(get_time()));
 	}
@@ -287,7 +287,7 @@ public:
 
 	bool item_helm() const { return visibility < 255; }
 	int team() const { return team_nr; }
-	int color() const { return id; }
+	int color() const { return id % TSIZE; }
 	virtual bool under_deathbringer_effect(double curr_time) const =0;
 };
 
@@ -367,7 +367,7 @@ public:
 	void reset_message_queue_timing();	// make messages already on queue appear instantly
 	void add_to_queue(const std::string& str);
 	void queue_printf(const char* fmt, ...);
-	void clear(bool enable, int _pid, int _cid, const std::string& _name);
+	void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
 
 	void take_flag() { carrying_flag = true; }
 	void drop_flag() { carrying_flag = false; }
@@ -409,7 +409,7 @@ public:
 
 	bool under_deathbringer_effect(double curr_time) const { (void)curr_time; return deathbringer_affected; }
 
-	void clear(bool enable, int _pid, const std::string& _name);
+	void clear(bool enable, int _pid, const std::string& _name, int team_id);
 };
 
 // a rocket-shot
