@@ -3052,7 +3052,7 @@ void gameclient_c::draw_game_frame() {
 
 	// hiding stuff?
 	// v0.4.1 : hide stuff if frame skipped
-	bool hide_game = ((!map_ready) || (gameover_plaque != NEXTMAP_NONE) || (fx.skipped));
+	bool hide_game = !map_ready || gameover_plaque!=NEXTMAP_NONE || fx.skipped || me<0 || me>maxplayers;
 
 	// the playground: border, walls and pits
 	if (hide_game) {
