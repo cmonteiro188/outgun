@@ -140,7 +140,7 @@ bool RectWall::intersects_circ(double x, double y, double r) const {
 }
 
 TriWall::TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_)
-		: p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3), tex(tex_), alpha(alpha_) {
+		: WallBase(tex_, alpha_), p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3) {
 	if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// 1, 2 sorted
 	if (p3y < p2y) {
 		swap(p2x, p3x); swap(p2y, p3y);	// 1, 3 and 2, 3 sorted
@@ -184,12 +184,11 @@ bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) co
 }
 
 CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_) :
+	WallBase(tex_, alpha_),
 	x(x_),
 	y(y_),
 	ro(ro_),
-	ri(ri_),
-	tex(tex_),
-	alpha(alpha_)
+	ri(ri_)
 {
 	angle[0] = ang1;
 	angle[1] = ang2;
@@ -272,30 +271,53 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
 	return intersects_circ(x1 + rwr, y1 + rhr, sqrt( rwr*rwr + rhr*rhr ));
 }
 
+Room::~Room() {
+	for (vector<WallBase*>::iterator i = walls.begin(); i != walls.end(); i = walls.erase(i))
+		delete *i;
+	for (vector<WallBase*>::iterator i = ground.begin(); i != ground.end(); i = ground.erase(i))
+		delete *i;
+}
+
 bool Room::fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
-	for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
-		if (rwi->intersects_rect(x1, y1, x2, y2))
-			return true;
-	for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
-		if (twi->intersects_rect(x1, y1, x2, y2))
-			return true;
-	for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
-		if (cwi->intersects_rect(x1, y1, x2, y2))
+	for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
+		if ((*wi)->intersects_rect(x1, y1, x2, y2))
 			return true;
 	return false;
 }
 
 bool Room::fall_on_wall(int x, int y, int r) const {
-	for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
-		if (rwi->intersects_circ(x, y, r))
-			return true;
-	for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
-		if (twi->intersects_circ(x, y, r))
-			return true;
-	for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
-		if (cwi->intersects_circ(x, y, r))
+	for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
+		if ((*wi)->intersects_circ(x, y, r))
 			return true;
 	return false;
+}
+
+BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, double radius, float maxFraction) const {
+	BounceData bd;
+	bd.first = 1e99;
+
+	if (mx == 0 && my == 0)
+		return bd;
+
+	const Coords bbox0(min(x - radius, x + mx * maxFraction - radius), min(y - radius, y + my * maxFraction - radius));
+	const Coords bbox1(max(x + radius, x + mx * maxFraction + radius), max(y + radius, y + my * maxFraction + radius));
+
+	for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi) {
+		// fast and crude bounding-box style check first
+		if (!(*wi)->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
+			continue;
+		// check more carefully
+		(*wi)->tryBounce(&bd, x, y, mx, my, radius);
+		#ifndef NDEBUG
+		if (bd.first < 1e10) {
+			const double dx = bd.second.first, dy = bd.second.second, r = radius;
+			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
+		}
+		#endif
+	}
+
+	nAssert(bd.first>=0.);
+	return bd;
 }
 
 bool Map::load(LogSet& log, const char* mapdir, const string& mapname) {
@@ -405,8 +427,11 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		x1 *= plw / scalex; x2 *= plw / scalex;
 		y1 *= plh / scaley; y2 *= plh / scaley;
 		Room& rm = room[crx][cry];
-		vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
-		wvec.push_back(RectWall(x1, y1, x2, y2, texid, alpha));
+		RectWall* wall = new RectWall(x1, y1, x2, y2, texid, alpha);
+		if (line[0] == 'W')
+			rm.addWall(wall);
+		else
+			rm.addGround(wall);
 	}
 	else if (command == "T") {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex [alpha]] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
 		char type;
@@ -428,8 +453,11 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
 		y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
 		Room& rm = room[crx][cry];
-		vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-		wvec.push_back(TriWall(x1, y1, x2, y2, x3, y3, texid, alpha));
+		TriWall* wall = new TriWall(x1, y1, x2, y2, x3, y3, texid, alpha);
+		if (type == 'W')
+			rm.addWall(wall);
+		else
+			rm.addGround(wall);
 	}
 	else if (command == "C") {	// C (W|G) x y or [ir [a1 a2 [tex [alpha]]]] : circular wall (W) or ground tex (G)
 		char type;
@@ -470,8 +498,11 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		ro *= plh / scaley;
 		ri *= plh / scaley;
 		Room& rm = room[crx][cry];
-		vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-		wvec.push_back(CircWall(x, y, ro, ri, a1, a2, texid, alpha));
+		CircWall* wall = new CircWall(x, y, ro, ri, a1, a2, texid, alpha);
+		if (type == 'W')
+			rm.addWall(wall);
+		else
+			rm.addGround(wall);
 	}
 	else if (command == "R") {	// R x y : set room pointer to (x,y)
 		if (label_block) {
@@ -836,78 +867,78 @@ BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coord
 	return BounceData(1e99, Coords());
 }
 
-void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+void RectWall::tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const {
 	#define add_rv() if (rv.first < bd->first) *bd = rv;
 
 	BounceData rv;
 	rv.first = 1e99;
 	bool onLine = false;
-	if (mx > 0 && w.a > stx)	// check vertical wall a
-		rv = bounceFromLine(w.a - stx, w.b - sty, w.a - stx, w.d - sty, mx, my, plyRadius);
-	else if (mx < 0 && w.c < stx)	// check vertical wall c
-		rv = bounceFromLine(w.c - stx, w.b - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
+	if (mx > 0 && a > stx)	// check vertical wall a
+		rv = bounceFromLine(a - stx, b - sty, a - stx, d - sty, mx, my, plyRadius);
+	else if (mx < 0 && c < stx)	// check vertical wall c
+		rv = bounceFromLine(c - stx, b - sty, c - stx, d - sty, mx, my, plyRadius);
 	if (rv.first < 1e10) {
 		onLine = true;
 		add_rv();
 	}
-	if (my > 0 && w.b > sty)	// check horizontal wall b
-		rv = bounceFromLine(w.a - stx, w.b - sty, w.c - stx, w.b - sty, mx, my, plyRadius);
-	else if (my < 0 && w.d < sty)	// check horizontal wall d
-		rv = bounceFromLine(w.a - stx, w.d - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
+	if (my > 0 && b > sty)	// check horizontal wall b
+		rv = bounceFromLine(a - stx, b - sty, c - stx, b - sty, mx, my, plyRadius);
+	else if (my < 0 && d < sty)	// check horizontal wall d
+		rv = bounceFromLine(a - stx, d - sty, c - stx, d - sty, mx, my, plyRadius);
 	if (rv.first < 1e10) {
 		onLine = true;
 		add_rv();
 	}
 	if (!onLine) {	// check corners
-		rv = bounceFromPoint(w.a - stx, w.b - sty, mx, my, plyRadius);
+		rv = bounceFromPoint(a - stx, b - sty, mx, my, plyRadius);
 		add_rv();
-		rv = bounceFromPoint(w.c - stx, w.b - sty, mx, my, plyRadius);
+		rv = bounceFromPoint(c - stx, b - sty, mx, my, plyRadius);
 		add_rv();
-		rv = bounceFromPoint(w.a - stx, w.d - sty, mx, my, plyRadius);
+		rv = bounceFromPoint(a - stx, d - sty, mx, my, plyRadius);
 		add_rv();
-		rv = bounceFromPoint(w.c - stx, w.d - sty, mx, my, plyRadius);
+		rv = bounceFromPoint(c - stx, d - sty, mx, my, plyRadius);
 		add_rv();
 	}
 
 	#undef add_rv
 }
 
-void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+void TriWall::tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const {
 	#define add_rv() if (rv.first < bd->first) *bd = rv;
 
 	BounceData rv;
-	rv = bounceFromLine(w.p1x - stx, w.p1y - sty, w.p2x - stx, w.p2y - sty, mx, my, plyRadius);	// wall p1-p2
+	rv = bounceFromLine(p1x - stx, p1y - sty, p2x - stx, p2y - sty, mx, my, plyRadius);	// wall p1-p2
 	add_rv();
-	rv = bounceFromLine(w.p1x - stx, w.p1y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p1-p3
+	rv = bounceFromLine(p1x - stx, p1y - sty, p3x - stx, p3y - sty, mx, my, plyRadius);	// wall p1-p3
 	add_rv();
-	rv = bounceFromLine(w.p2x - stx, w.p2y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p2-p3
+	rv = bounceFromLine(p2x - stx, p2y - sty, p3x - stx, p3y - sty, mx, my, plyRadius);	// wall p2-p3
 	add_rv();
-	rv = bounceFromPoint(w.p1x - stx, w.p1y - sty, mx, my, plyRadius);
+	rv = bounceFromPoint(p1x - stx, p1y - sty, mx, my, plyRadius);
 	add_rv();
-	rv = bounceFromPoint(w.p2x - stx, w.p2y - sty, mx, my, plyRadius);
+	rv = bounceFromPoint(p2x - stx, p2y - sty, mx, my, plyRadius);
 	add_rv();
-	rv = bounceFromPoint(w.p3x - stx, w.p3y - sty, mx, my, plyRadius);
+	rv = bounceFromPoint(p3x - stx, p3y - sty, mx, my, plyRadius);
 	add_rv();
 
 	#undef add_rv
 }
 
-void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+void CircWall::tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const {
 	#define add_rv() if (rv.first < bd->first) *bd = rv;
 
 	BounceData rv;
 	// outside
-	rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ro, plyRadius, true);
+	rv = bounceFromArc(x - stx, y - sty, mx, my, midvec, anglecos, ro, plyRadius, true);
 	add_rv();
 	// inside
-	if (w.ri > plyRadius) {
-		rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ri, plyRadius, false);
+	if (ri > plyRadius) {
+		rv = bounceFromArc(x - stx, y - sty, mx, my, midvec, anglecos, ri, plyRadius, false);
 		add_rv();
 	}
-	if (w.angle[0] == w.angle[1])	// no sectoring
+	if (angle[0] == angle[1])	// no sectoring
 		return;
-	double p1x = w.x + w.ro * w.va1.first - stx, p1y = w.y - w.ro * w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
-	double p2x = w.x + w.ri * w.va1.first - stx, p2y = w.y - w.ri * w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
+	double p1x = x + ro * va1.first - stx, p1y = y - ro * va1.second - sty;	//NOTE: - ...*va1.second because va1.second is in reversed coordinates
+	double p2x = x + ri * va1.first - stx, p2y = y - ri * va1.second - sty;	//NOTE: - ...*va1.second because va1.second is in reversed coordinates
 	// side wall at angle va1
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
@@ -917,8 +948,8 @@ void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double
 	rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// side wall at angle va2
-	p1x = w.x + w.ro * w.va2.first - stx, p1y = w.y - w.ro * w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
-	p2x = w.x + w.ri * w.va2.first - stx, p2y = w.y - w.ri * w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
+	p1x = x + ro * va2.first - stx, p1y = y - ro * va2.second - sty;	//NOTE: - ...*va2.second because va2.second is in reversed coordinates
+	p2x = x + ri * va2.first - stx, p2y = y - ri * va2.second - sty;	//NOTE: - ...*va2.second because va2.second is in reversed coordinates
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// corners at angle va2
@@ -935,66 +966,12 @@ std::string WorldBase::getTeamName(int team) {
 	return name[team];
 }
 
-BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius, float maxFraction) {
-	BounceData bd;
-	bd.first = 1e99;
-
-	if (mx == 0 && my == 0)
-		return bd;
-
-	const Coords bbox0(min(x - radius, x + mx * maxFraction - radius), min(y - radius, y + my * maxFraction - radius));
-	const Coords bbox1(max(x + radius, x + mx * maxFraction + radius), max(y + radius, y + my * maxFraction + radius));
-
-	for (vector<RectWall>::const_iterator wi = room.rwalls.begin(); wi != room.rwalls.end(); ++wi) {	// go through rectangular walls
-		// fast and crude bounding-box style check first
-		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
-			continue;
-		// check more carefully
-		tryBounce(&bd, *wi, x, y, mx, my, radius);
-		#ifndef NDEBUG
-		if (bd.first < 1e10) {
-			const double dx = bd.second.first, dy = bd.second.second, r = radius;
-			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
-		}
-		#endif
-	}
-	for (vector<TriWall>::const_iterator wi = room.twalls.begin(); wi != room.twalls.end(); ++wi) {	// go through triangular walls
-		// fast and crude bounding-box style check first
-		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
-			continue;
-		// check more carefully
-		tryBounce(&bd, *wi, x, y, mx, my, radius);
-		#ifndef NDEBUG
-		if (bd.first < 1e10) {
-			const double dx = bd.second.first, dy = bd.second.second, r = radius;
-			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
-		}
-		#endif
-	}
-	for (vector<CircWall>::const_iterator wi = room.cwalls.begin(); wi != room.cwalls.end(); ++wi) {	// go through circular walls
-		// fast and crude bounding-box style check first
-		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
-			continue;
-		// check more carefully
-		tryBounce(&bd, *wi, x, y, mx, my, radius);
-		#ifndef NDEBUG
-		if (bd.first < 1e10) {
-			const double dx = bd.second.first, dy = bd.second.second, r = radius;
-			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
-		}
-		#endif
-	}
-
-	nAssert(bd.first>=0.);
-	return bd;
-}
-
 BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction) {
-	return genGetTimeTillWall(room, pl.lx, pl.ly, pl.sx, pl.sy, plyRadius, maxFraction);
+	return room.genGetTimeTillWall(pl.lx, pl.ly, pl.sx, pl.sy, plyRadius, maxFraction);
 }
 
 double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, float maxFraction) {
-	return genGetTimeTillWall(room, rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS, maxFraction).first;
+	return room.genGetTimeTillWall(rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS, maxFraction).first;
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius) {

@@ -27,6 +27,7 @@
 #include <vector>
 #include <list>
 #include "incalleg.h"
+#include "nassert.h"
 
 // // // // internal definitions
 
@@ -221,11 +222,13 @@ public:
 	void addRectWall(const RectWall& wall, int texture);
 	void addTriWall (const  TriWall& wall, int texture);
 	void addCircWall(const CircWall& wall, int texture);
+	void addWall    (const WallBase* wall, int texture);
 
 	void setClipping(float x1, float y1, float x2, float y2);	// setClipping applies scaling to the coords
 	void addRectWallClipped(const RectWall& wall, int texture);
 	void addTriWallClipped (const  TriWall& wall, int texture);
 	void addCircWallClipped(const CircWall& wall, int texture);
+	void addWallClipped    (const WallBase* wall, int texture);
 	void clipAll() { clip(0); }	// clips all added objects to the current clipping rectangle
 
 	void render(Texturizer& tex) const;

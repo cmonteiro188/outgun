@@ -38,36 +38,43 @@
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
 
-class RectWall {	// rectangular wall
+class WallBase {	// base class
+public:
+	WallBase() { }
+	WallBase(int tex_, int alpha_) : tex(tex_), alpha(alpha_) { }
+	virtual ~WallBase() { }
+	virtual bool intersects_rect(double x1, double y1, double x2, double y2) const = 0;
+	virtual bool intersects_circ(double x, double y, double r) const = 0;
+	virtual void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const = 0;
+	int texture() const { return tex; }
+
+private:
+	int tex, alpha;
+};
+
+class RectWall : public WallBase {	// rectangular wall
 public:
 	RectWall() { }
 	RectWall(float a_, float b_, float c_, float d_, int tex_, int alpha_)
-			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) std::swap(a, c); if (d<b) std::swap(b, d); }
-
-	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }	// perfect
-	bool intersects_circ(double x, double y, double r) const;	// perfect
+			: WallBase(tex_, alpha_), a(a_), b(b_), c(c_), d(d_) { if (c<a) std::swap(a, c); if (d<b) std::swap(b, d); }
 
 	float x1() const { return a; }
 	float y1() const { return b; }
 	float x2() const { return c; }
 	float y2() const { return d; }
-	int texture() const { return tex; }
+
+	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }	// perfect
+	bool intersects_circ(double x, double y, double r) const;	// perfect
+	void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
 	float a, b, c, d;	// rectangle coords (a,b)->(c,d)
-	int tex;	// texture id
-	int alpha;
-
-	friend void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius);
 };
 
-class TriWall {	// triangular wall
+class TriWall : public WallBase {	// triangular wall
 public:
 	TriWall() { }
 	TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_);
-
-	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;	// perfect
-	bool intersects_circ(double x, double y, double r) const;	// very much imperfect (uses bounding rectangle)
 
 	float x1() const { return p1x; }
 	float y1() const { return p1y; }
@@ -75,23 +82,20 @@ public:
 	float y2() const { return p2y; }
 	float x3() const { return p3x; }
 	float y3() const { return p3y; }
-	int texture() const { return tex; }
+
+	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;	// perfect
+	bool intersects_circ(double x, double y, double r) const;	// very much imperfect (uses bounding rectangle)
+	void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
 	float p1x, p1y, p2x, p2y, p3x, p3y;
 	float boundx1, boundy1, boundx2, boundy2;
-	int tex, alpha;
-
-	friend void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
 };
 
-class CircWall {	// circular wall
+class CircWall : public WallBase {	// circular wall
 public:
 	CircWall() { }
 	CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_);
-
-	bool intersects_rect(double x1, double y1, double x2, double y2) const;	// very much imperfect (uses bounding circle)
-	bool intersects_circ(double rcx, double rcy, double rr) const;	// imperfect
 
 	float X() const { return x; }
 	float Y() const { return y; }
@@ -100,25 +104,34 @@ public:
 	const float* angles() const { return angle; }
 	const Coords& angle_vector_1() const { return va1; }
 	const Coords& angle_vector_2() const { return va2; }
-	int texture() const { return tex; }
+
+	bool intersects_rect(double x1, double y1, double x2, double y2) const;	// very much imperfect (uses bounding circle)
+	bool intersects_circ(double rcx, double rcy, double rr) const;	// imperfect
+	void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
 	float x, y, ro, ri;
 	float angle[2];
 	Coords va1, va2, midvec;
 	float anglecos;
-	int tex, alpha;
-
-	friend void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius);
 };
 
-struct Room {
-	std::vector<RectWall> rwalls, rground;	// ground: optional list of textures for ground
-	std::vector<TriWall>  twalls, tground;
-	std::vector<CircWall> cwalls, cground;
+class Room {
+public:
+	~Room();
+
+	void addWall(WallBase* w) { walls.push_back(w); }
+	void addGround(WallBase* w) { ground.push_back(w); }
 
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const;	// this check follows the quality of *Wall::intersects_rect and isn't perfect
 	bool fall_on_wall(int x, int y, int r) const;	// this check follows the quality of *Wall::intersects_circ and isn't perfect
+	BounceData genGetTimeTillWall(double x, double y, double mx, double my, double radius, float maxFraction) const;
+
+	const std::vector<WallBase*>& readWalls() const { return walls; }
+	const std::vector<WallBase*>& readGround() const { return ground; }
+
+private:
+	std::vector<WallBase*> walls, ground;	// ground: optional list of textures for ground
 };
 
 //entity locale
@@ -638,7 +651,6 @@ class WorldBase {
 	void addRocket(int i, int playernum, int team, int px, int py, int x, int y,
 													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
 
-	static BounceData genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius, float maxFraction);
 	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction);
 	static double getTimeTillWall(const Room& room, const Rocket& rock, float maxFraction);
 	static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);

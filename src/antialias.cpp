@@ -1100,6 +1100,22 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) {
 	borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
 }
 
+void SceneAntialiaser::addWall(const WallBase* wall, int texture) {
+	const RectWall* rwp = dynamic_cast<const RectWall*>(wall);
+	if (rwp) {
+		addRectWall(*rwp, texture);
+		return;
+	}
+	const TriWall*  twp = dynamic_cast<const TriWall *>(wall);
+	if (twp) {
+		addTriWall (*twp, texture);
+		return;
+	}
+	const CircWall* cwp = dynamic_cast<const CircWall*>(wall);
+	nAssert(cwp);
+	addCircWall    (*cwp, texture);
+}
+
 void SceneAntialiaser::setClipping(float x1, float y1, float x2, float y2) {
 	nAssert(x1 < x2 && y1 < y2);
 	clipx1 = x0 + x1 * scale;
@@ -1213,6 +1229,12 @@ void SceneAntialiaser::addTriWallClipped (const  TriWall& wall, int texture) {
 void SceneAntialiaser::addCircWallClipped(const CircWall& wall, int texture) {
 	const int startNew = objects.size();
 	addCircWall(wall, texture);
+	clip(startNew);
+}
+
+void SceneAntialiaser::addWallClipped    (const WallBase* wall, int texture) {
+	const int startNew = objects.size();
+	addWall(wall, texture);
 	clip(startNew);
 }
 

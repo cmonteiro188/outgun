@@ -364,6 +364,22 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	return true;
 }
 
+void addWallToScene(SceneAntialiaser& scene, const WallBase* wall, int tex) {
+	const RectWall* rwp = dynamic_cast<const RectWall*>(wall);
+	if (rwp) {
+		scene.addRectWall(*rwp, tex);
+		return;
+	}
+	const TriWall*  twp = dynamic_cast<const TriWall *>(wall);
+	if (twp) {
+		scene.addTriWall (*twp, tex);
+		return;
+	}
+	const CircWall* cwp = dynamic_cast<const CircWall*>(wall);
+	nAssert(cwp);
+	scene.addCircWall    (*cwp, tex);
+}
+
 void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
 	acquire_bitmap(background);
 	clear_to_color(background, 0);
@@ -375,12 +391,8 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoor
 		scene.addRectangle(0, 0, plw, plh, 0);
 
 		// add additional ground textures
-		for (vector<RectWall>::const_iterator rwi = room.rground.begin(); rwi != room.rground.end(); ++rwi)
-			scene.addRectWall(*rwi, rwi->texture());
-		for (vector< TriWall>::const_iterator twi = room.tground.begin(); twi != room.tground.end(); ++twi)
-			scene.addTriWall (*twi, twi->texture());
-		for (vector<CircWall>::const_iterator cwi = room.cground.begin(); cwi != room.cground.end(); ++cwi)
-			scene.addCircWall(*cwi, cwi->texture());
+		for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
+			addWallToScene(scene, *wi, (*wi)->texture());
 
 		// add flag markers as overlays
 		const float fr = flagpos_radius;
@@ -391,13 +403,10 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoor
 
 		// add walls
 		const int texShift = floor_texture.size();
-		for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
-			scene.addRectWall(*rwi, rwi->texture() + texShift);
-		for (vector< TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
-			scene.addTriWall (*twi, twi->texture() + texShift);
-		for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
-			scene.addCircWall(*cwi, cwi->texture() + texShift);
+		for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
+			addWallToScene(scene, *wi, (*wi)->texture() + texShift);
 
+		// clip
 		scene.setClipping(0, 0, plw, plh);
 		scene.clipAll();
 
@@ -478,12 +487,8 @@ void Graphics::predraw_room_ground(const Room& room) {
 }
 
 void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
-	for (vector<RectWall>::const_iterator rwi = room.rground.begin(); rwi != room.rground.end(); ++rwi)
-		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture ? get_floor_texture(rwi->texture()) : 0);
-	for (vector<TriWall>::const_iterator twi = room.tground.begin(); twi != room.tground.end(); ++twi)
-		draw_tri_wall(buffer, *twi, x, y, scale, color, texture ? get_floor_texture(twi->texture()) : 0);
-	for (vector<CircWall>::const_iterator cwi = room.cground.begin(); cwi != room.cground.end(); ++cwi)
-		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture ? get_floor_texture(cwi->texture()) : 0);
+	for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
+		draw_wall(buffer, *wi, x, y, scale, color, texture ? get_floor_texture((*wi)->texture()) : 0);
 }
 
 void Graphics::predraw_room_walls(const Room& room) {
@@ -491,12 +496,24 @@ void Graphics::predraw_room_walls(const Room& room) {
 }
 
 void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
-	for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
-		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture ? get_wall_texture(rwi->texture()) : 0);
-	for (vector<TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
-		draw_tri_wall(buffer, *twi, x, y, scale, color, texture ? get_wall_texture(twi->texture()) : 0);
-	for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
-		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture ? get_wall_texture(cwi->texture()) : 0);
+	for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
+		draw_wall(buffer, *wi, x, y, scale, color, texture ? get_wall_texture((*wi)->texture()) : 0);
+}
+
+void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, float x, float y, float scale, int color, BITMAP* tex) {
+	RectWall* rwp = dynamic_cast<RectWall*>(wall);
+	if (rwp) {
+		draw_rect_wall(buffer, *rwp, x, y, scale, color, tex);
+		return;
+	}
+	TriWall * twp = dynamic_cast<TriWall *>(wall);
+	if (twp) {
+		draw_tri_wall (buffer, *twp, x, y, scale, color, tex);
+		return;
+	}
+	CircWall* cwp = dynamic_cast<CircWall*>(wall);
+	nAssert(cwp);
+	draw_circ_wall    (buffer, *cwp, x, y, scale, color, tex);
 }
 
 void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
@@ -759,12 +776,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			scene.setScaling(bx, by, xmul);
 			scene.setClipping(0, 0, plw, plh);
 			const Room& room = map.room[x][y];
-			for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
-				scene.addRectWallClipped(*rwi, 1);
-			for (vector< TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
-				scene.addTriWallClipped (*twi, 1);
-			for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
-				scene.addCircWallClipped(*cwi, 1);
+			for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
+				scene.addWallClipped(*wi, 1);
 		}
 	}
 
