@@ -1,9 +1,8 @@
-#include <cassert>
-
 #include "commont.h"
 #include "world.h"
 #include "leetnet/sleep.h"	// sleep util
 #include "server.h"
+#include "nassert.h"
 
 //#define DEBUG_RANKING
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
@@ -626,7 +625,7 @@ bool gameserver_c::server_next_map(int reason) {
 	//(re)load hostname
 	network.reload_hostname();
 
-	assert(!maprot.empty());
+	nAssert(!maprot.empty());
 
 	vector<int> winners;
 	int maxVotes=0;

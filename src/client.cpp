@@ -1,5 +1,3 @@
-#include <cassert>
-
 #include "commont.h"
 #include "world.h"
 #include "names.h"
@@ -7,6 +5,13 @@
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
 #include "client.h"
+#include "nassert.h"
+
+#ifdef NIX
+void set_close_button_callback(void (*fn)()) {
+	set_window_close_hook(fn);
+}
+#endif
 
 gameclient_c *gameclient;	//#fix: get rid
 
@@ -1329,7 +1334,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	// TARGET FRAME: just one
 	if (svframe > fx.frame)
 	{
-		assert(fx.frame == (int)fx.frame);
+		nAssert(fx.frame == (int)fx.frame);
 		ClientPhysicsCallbacks cb(*this);
 		fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
 		fx.frame = svframe;
@@ -3723,7 +3728,7 @@ void gameclient_c::draw_game_menu() {
 	else if (menu == 3)
 		client_graphics.name_password_menu(editplayername, strlen(editplayerpass), namecursor[0] != '\0', namestatus);
 	else
-		assert(0);
+		nAssert(0);
 }
 
 void gameclient_c::close_button_callback() {

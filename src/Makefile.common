@@ -20,7 +20,8 @@ else
  endif
 endif
 
-OBJS = world.o servnet.o server.o graphics.o commont.o client.o main.o names.o nameauth.o sounds.o
+OBJS = world.o servnet.o server.o graphics.o commont.o client.o main.o names.o nameauth.o sounds.o nassert.o
+MON_OBJS = srvmonit.o nassert.o
 
 ifdef MINGW
  EXTRA_OBJS = icon.res
@@ -32,49 +33,59 @@ LEETNET = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
 	leetnet/rudp.o leetnet/server.o leetnet/Thread.o leetnet/timefunc.o \
 	leetnet/Time.o leetnet/TimerCallback.o leetnet/Timer.o
 
-all: og
+all: og mon
 og: outgun.exe
+mon: srvmonit.exe
 
 outgun.exe: $(OBJS) $(EXTRA_OBJS)
 	g++ $(LFLAGS) -s $(LEETNET) -o $@ $(OBJS) $(EXTRA_OBJS) $(LIBS)
 	$(COPY_OUTGUN_EXE)
 
+srvmonit.exe: $(MON_OBJS)
+	g++ -mconsole -s -o $@ $(MON_OBJS) -lNL
+
 %.res: %.rc
 	windres -i $< -O coff -o $@
 
 admshell_inc =	admshell.h
-names_inc =	names.h
-commont_inc =	commont.h
-server_inc =	server.h	$(nameauth_inc)	$(world_inc)	$(servnet_inc)
 client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(world_inc)
-world_inc =	world.h
-nameauth_inc =	nameauth.h
-graphics_inc =	graphics.h	$(world_inc)	$(effects_inc)	$(sounds_inc)
-sounds_inc =	sounds.h	$(commont_inc)
+commont_inc =	commont.h
 effects_inc =	effects.h
+graphics_inc =	graphics.h	$(world_inc)	$(effects_inc)	$(sounds_inc)
+nameauth_inc =	nameauth.h
+names_inc =	names.h
+nassert_inc =	nassert.h
+server_inc =	server.h	$(nameauth_inc)	$(world_inc)	$(servnet_inc)
 servnet_inc =	servnet.h
+sounds_inc =	sounds.h	$(commont_inc)
+world_inc =	world.h 	$(nassert_inc)
 
 OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
-names.o:	names.cpp
-	$(OBJCOMPILE)
-main.o: 	main.cpp	$(commont_inc)	$(server_inc)	$(client_inc)
-	$(OBJCOMPILE)
-server.o:	server.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)
-	$(OBJCOMPILE)
-client.o:	client.cpp	$(commont_inc)	$(world_inc) 	$(names_inc)	$(client_inc)
+client.o:	client.cpp	$(commont_inc)	$(world_inc) 	$(names_inc)	$(client_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
 commont.o:	commont.cpp	$(commont_inc)
 	$(OBJCOMPILE)
-world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(client_inc)
-	$(OBJCOMPILE)
-nameauth.o:	nameauth.cpp	$(nameauth_inc)
-	$(OBJCOMPILE)
 graphics.o:	graphics.cpp	$(commont_inc)	$(graphics_inc)
 	$(OBJCOMPILE) $(GFX_COMPILE_EXTRA)
+main.o: 	main.cpp	$(commont_inc)	$(server_inc)	$(client_inc)
+	$(OBJCOMPILE)
+nameauth.o:	nameauth.cpp	$(nameauth_inc)	$(nassert_inc)
+	$(OBJCOMPILE)
+names.o:	names.cpp
+	$(OBJCOMPILE)
+nassert.o:	nassert.cpp	$(nassert_inc)
+	$(OBJCOMPILE)
+server.o:	server.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(nassert_inc)
+	$(OBJCOMPILE)
+servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)	$(admshell_inc)	$(servnet_inc)	$(nassert_inc)
+	$(OBJCOMPILE)
 sounds.o:	sounds.cpp	$(sounds_inc)
 	$(OBJCOMPILE)
-servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)	$(admshell_inc)	$(servnet_inc)
+world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(client_inc)	$(nassert_inc)
+	$(OBJCOMPILE)
+
+srvmonit.o:	srvmonit.cpp	$(admshell_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
 
 PHONY: clean

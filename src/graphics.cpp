@@ -42,8 +42,8 @@ using std::vector;
 using std::list;
 
 Graphics::Graphics(int scr_w, int scr_h):
-	minimap_start_x(),
-	minimap_start_y(),
+	minimap_start_x(0),
+	minimap_start_y(0),
 	flagpos_ready(false)
 {
 	reset_video_mode();

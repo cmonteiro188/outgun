@@ -1,7 +1,6 @@
-#include <cassert>
-
 #include "commont.h"
 #include "world.h"
+#include "nassert.h"
 
 #define PHYS_NEW
 //#define PHYS_VECTOR_ACC
@@ -25,10 +24,10 @@
  * for the appropriate range of y, if there exists an y so that lx(y)<=rectx2 AND rx(y)>=rectx1 , there is an intersection in that range
  * those ranges are solved with simple linear equasions since lx and rx are linear
  */
-bool subIntersection(float lx1, float ly1,  float lx2, float ly2,  float rx1, float ry1,  float rx2, float ry2,
-				float rectx1, float recty1, float rectx2, float recty2) {
-	assert(ly1<=ly2 && ry1<=ry2);
-	float miny = max(max(ly1, ry1), recty1), maxy=min(min(ly2, ry2), recty2);
+bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx1, double ry1,  double rx2, double ry2,
+				double rectx1, double recty1, double rectx2, double recty2) {
+	nAssert(ly1<=ly2 && ry1<=ry2);
+	double miny = max(max(ly1, ry1), recty1), maxy=min(min(ly2, ry2), recty2);
 	if (maxy < miny)
 		return false;
 	// first narrow the range by lx(y) <= rectx2
@@ -39,7 +38,7 @@ bool subIntersection(float lx1, float ly1,  float lx2, float ly2,  float rx1, fl
 	}
 	else {
 		// solve lx(y) == rectx2 , where lx(y) = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1)
-		float intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
+		double intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
 		if (lx2 > lx1) {	// the intersection is at y <= intersect_y
 			if (maxy > intersect_y)
 				maxy = intersect_y;
@@ -55,7 +54,7 @@ bool subIntersection(float lx1, float ly1,  float lx2, float ly2,  float rx1, fl
 	if (rx1 == rx2)
 		return (rx1 >= rectx1);
 	else {
-		float intersect_y = (rectx1 - rx1) * (ry2 - ry1) / (rx2 - rx1) + ry1;
+		double intersect_y = (rectx1 - rx1) * (ry2 - ry1) / (rx2 - rx1) + ry1;
 		if (rx2 > rx1) {	// the intersection is at y >= intersect_y
 			if (miny < intersect_y)
 				miny = intersect_y;
@@ -76,9 +75,9 @@ inline void rotate_angle(float& angle, float shift) {
 		angle -= 360;
 }
 
-bool TriWall::intersects_rect(float rx1, float ry1, float rx2, float ry2) const {
-	assert(ry1<=ry2 && rx1<=rx2);
-	assert(p1y<=p2y && p2y<=p3y);
+bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) const {
+	nAssert(ry1<=ry2 && rx1<=rx2);
+	nAssert(p1y<=p2y && p2y<=p3y);
 	if (rx1>boundx2 || rx2<boundx1 || ry1>boundy2 || ry2<boundy1)
 		return false;
 	/* idea: triangle is split in two triangles: y<=y2 and y>=y2
@@ -122,6 +121,29 @@ CircWall::CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int
 		anglecos = cos((a2r_greater - a1r)/2.);
 	float midangle = (a2r_greater + a1r) / 2;
 	midvec = Coords(sin(midangle), cos(midangle));
+}
+
+/* CircWall::intersects_rect idea:
+ *
+ * this function cheats a bit: it often returns true even if they don't really intersect, but if it returns false, it's certain they don't intersect
+ *
+ * the rectangle is extended: instead of it, the intersection is tested against it's bounding circle
+ * the wall is extended: it's limiting angles are discarded, and so it's treated as a solid ring
+ */
+bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const {
+	// more crude check against the wall's bounding rectangle: return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro;
+	double rwr = (x2 - x1) / 2., rhr = (y2 - y1) / 2.;
+	double rr = max(rwr, rhr);
+	double rcx = x1 + rwr, rcy = y1 + rhr;
+	double dx = rcx - x, dy = rcy - y;
+	double dcr = sqrt( dx*dx + dy*dy );	// this is the radius of the rect bound-circle center in relation to the wall center
+	// if the extended rectangle is wholly within the wall inner bounding circle (r=ri), there's no intersection
+	if (dcr + rr < ri)
+		return false;
+	// now if the extended rectangle and the wall bounding circle (r=ro) overlap, there is an intersection, otherwise not
+	if (dcr - rr < ro)
+		return true;
+	return false;
 }
 
 void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) const {
@@ -697,7 +719,7 @@ void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double
 	#undef add_rv
 }
 
-BounceData WorldBase::genGetTimeTillWall(const Room& room, float x, float y, float mx, float my, float radius) {
+BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius) {
 	BounceData bd;
 	bd.first = 1e99;
 
@@ -716,7 +738,7 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, float x, float y, flo
 		#ifndef NDEBUG
 		if (bd.first < 1e10) {
 			double dx = bd.second.first, dy = bd.second.second, r = radius;
-			assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			nAssert(fabs(dx*dx+dy*dy-r*r)<.0001);
 		}
 		#endif
 	}
@@ -729,7 +751,7 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, float x, float y, flo
 		#ifndef NDEBUG
 		if (bd.first < 1e10) {
 			double dx = bd.second.first, dy = bd.second.second, r = radius;
-			assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			nAssert(fabs(dx*dx+dy*dy-r*r)<.0001);
 		}
 		#endif
 	}
@@ -742,28 +764,28 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, float x, float y, flo
 		#ifndef NDEBUG
 		if (bd.first < 1e10) {
 			double dx = bd.second.first, dy = bd.second.second, r = radius;
-			assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			nAssert(fabs(dx*dx+dy*dy-r*r)<.0001);
 		}
 		#endif
 	}
 
-	assert(bd.first>=0.);
+	nAssert(bd.first>=0.);
 	return bd;
 }
 
-BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, float plyRadius) {
+BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius) {
 	return genGetTimeTillWall(room, pl.lx, pl.ly, pl.sx, pl.sy, plyRadius);
 }
 
-float WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock) {
+double WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock) {
 	return genGetTimeTillWall(room, rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS).first;
 }
 
-float WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, float collRadius) {
-	float dx = rock.x-pl.lx, dy = rock.y-pl.ly, r2 = collRadius*collRadius;
+double WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius) {
+	double dx = rock.x-pl.lx, dy = rock.y-pl.ly, r2 = collRadius*collRadius;
 	if (dx*dx + dy*dy < r2)
 		return 0;
-	float mx = pl.sx-rock.sx, my = pl.sy-rock.sy;
+	double mx = pl.sx-rock.sx, my = pl.sy-rock.sy;
 
 	double m2 = mx*mx + my*my;
 	double mdotd = mx*dx + my*dy;
@@ -827,13 +849,15 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 
 	// friction
 	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
-	float mul;
-	if (spd <= player_friction)
-		mul = 0.;
-	else
-		mul = 1. - player_friction/spd;
-	h->sx *= mul;
-	h->sy *= mul;
+	if (spd > 0) {
+		float mul;
+		if (spd <= player_friction)
+			mul = 0.;
+		else
+			mul = 1. - player_friction/spd;
+		h->sx *= mul;
+		h->sy *= mul;
+	}
 
 	// acceleration
 	if (!deathbringer_affected && spd<player_maxspeed) {
@@ -921,19 +945,18 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	if (xdelta) {
 		r->sx = xdelta * SHOT_DELTAX * cos(deg + PI/2);
 		r->sy = xdelta * SHOT_DELTAX * sin(deg + PI/2);
-		float wallTime = getTimeTillWall(map.room[px][py], *r);
+		double wallTime = getTimeTillWall(map.room[px][py], *r);
+		r->move(1);
 		if (wallTime < 1.) {
-			r->move(wallTime);
 			cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
 			return;
 		}
-		r->move(1);
 	}
 
 	r->sx = bsx + cos(deg) * ROCKET_SPEED;
 	r->sy = bsy + sin(deg) * ROCKET_SPEED;
-	float advance = .5 + float(frameAdvance);
-	float wallTime = getTimeTillWall(map.room[px][py], *r);
+	double advance = .5 + double(frameAdvance);
+	double wallTime = getTimeTillWall(map.room[px][py], *r);
 	if (wallTime <= advance) {
 		r->move(wallTime);
 		cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
@@ -1052,7 +1075,6 @@ int PowerupSettings::pups_by_percent(int percentage, const Map& map) const {
 #include "server.h"
 //#fix: include needed for funny callback activities and SV_SHADOW_MINIMUM_NORMAL - get rid!
 
-//#@
 void WorldSettings::reset() {
 	respawn_time = 2.0;
 	waiting_time_deathbringer = 4.0;
@@ -1736,7 +1758,7 @@ bool ServerWorld::shouldApplyPhysicsToPlayerCallback(int pid) {
 	return player[pid].health > 0;
 }
 
-void WorldBase::executeBounce(PlayerBase& ply, const BounceData& b, float plyRadius) {	// needs plyRadius as a shortcut to b.second's length
+void WorldBase::executeBounce(PlayerBase& ply, const BounceData& b, double plyRadius) {	// needs plyRadius as a shortcut to b.second's length
 	// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
 	// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
 	const Coords& bounceVec = b.second;
@@ -1748,7 +1770,7 @@ void WorldBase::executeBounce(PlayerBase& ply, const BounceData& b, float plyRad
 	ply.sy *= .95;
 }
 
-void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, float plyRadius, float fraction) {
+void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction) {
 	// note: design decision: vector is used extensively instead of list, to provide access by index
 	//       it shouldn't harm since the vectors are short and anything is rarely erased
 	vector< vector< vector<int> > > roomPly, roomRock;	// player id's for players in room, rocket id's for rockets in room
@@ -1775,7 +1797,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, float plyRadius, fl
 	for (int i=0;i<MAX_ROCKETS;i++) {
 		if (rock[i].owner == -1)
 			continue;
-		assert(rock[i].px>=0 && rock[i].py>=0 && rock[i].px<map.w && rock[i].py<map.h);
+		nAssert(rock[i].px>=0 && rock[i].py>=0 && rock[i].px<map.w && rock[i].py<map.h);
 		roomRock[rock[i].px][rock[i].py].push_back(i);
 	}
 
@@ -1785,9 +1807,9 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, float plyRadius, fl
 			applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
-void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, float plyRadius, float fraction) {
+void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction) {
 	vector<BounceData> plyMoveMax;	// plyMoveMax changes when player bounces
-	vector<float> rockMoveMax;	// rockMoveMax is fixed
+	vector<double> rockMoveMax;	// rockMoveMax is fixed
 
 	typedef unsigned int uint;	// for loop counters, to disable the brainless 'signed vs unsigned comparison' warning by G++
 
@@ -1796,13 +1818,13 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri)
 		rockMoveMax.push_back(getTimeTillWall(room, rock[*ri]));
 
-	float subFrame = 0.;	// signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
+	double subFrame = 0.;	// signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
 	for (;;) {	//#fix: optimize this loop, esp. for client
 		// find out next player-wall collision
-		float minBounce = 2.;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
-		uint bPly=0, bPlyI=0;	// which player it is, pid and room-table-index
+		double minBounce = 2.;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
+		int bPly=0, bPlyI=-1;	// which player it is, pid and room-table-index
 		for (uint pi=0; pi<rply.size(); ++pi) {
-			float bt = plyMoveMax[pi].first;
+			double bt = plyMoveMax[pi].first;
 			if (bt < minBounce) {
 				minBounce = bt;
 				bPlyI = pi;
@@ -1811,8 +1833,8 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		}
 
 		// find out next player-rocket collision
-		float minCollision = 2.;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
-		uint cPly=0, cPlyI=0, cRock=0, cRockI=0;	// which player and rocket they are, pid/rid and room-table-indices
+		double minCollision = 2.;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
+		int cPly=0, cPlyI=-1, cRock=0, cRockI=-1;	// which player and rocket they are, pid/rid and room-table-indices
 		if (callback.collideToRockets()) {
 			for (uint pi=0; pi<rply.size(); ++pi) {
 				int pid = rply[pi];
@@ -1820,7 +1842,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 					int rid = rrock[ri];
 					if (rock[rid].team == pid/TSIZE)	// friendly rocket
 						continue;
-					float time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
+					double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
 					if (time < minCollision && time < rockMoveMax[ri]) {
 						minCollision = time;
 						cPlyI = pi;
@@ -1834,42 +1856,48 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		}
 
 		// execute movement
-		float mt = min(fraction, min<float>(minCollision, minBounce + .01));	// time of the next event (add .01 to minBounce to not bounce infinitely)
-		for (uint pi=0; pi<rply.size(); ) {
+		double mt = min<double>(fraction, min<double>(minCollision, minBounce + .01));	// time of the next event (add .01 to minBounce to not bounce infinitely)
+		for (int pi = 0; pi < static_cast<int>(rply.size()); ) {
 			// don't move more than mt or more than plyMoveMax-.001 but don't move backwards (-.001 to stay out of walls)
-			float amount = bound<float>(plyMoveMax[pi].first - .001, subFrame, mt);
+			double amount = bound<double>(plyMoveMax[pi].first - .001, subFrame, mt);
 			PlayerBase& pl = player[rply[pi]];
 			pl.move(amount - subFrame);
 			if (callback.gatherMovementDistance())
 				callback.addMovementDistance(rply[pi], (amount - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
 			bool rch = false;
 			if (callback.allowRoomChange()) {
-				if (pl.lx < 0)   { pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
-				if (pl.lx > plw) { pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
-				if (pl.ly < 0)   { pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
-				if (pl.ly > plh) { pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
+				if (pl.lx < 0)   { nAssert(pl.sx != 0); pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
+				if (pl.lx > plw) { nAssert(pl.sx != 0); pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
+				if (pl.ly < 0)   { nAssert(pl.sy != 0); pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
+				if (pl.ly > plh) { nAssert(pl.sy != 0); pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
 			}
 			if (rch) {
 				callback.playerScreenChange(rply[pi]);
 				rply.erase(rply.begin() + pi);
 				plyMoveMax.erase(plyMoveMax.begin() + pi);
-				if (bPlyI >= pi)
+				if (bPlyI == pi)
+					bPlyI = -1;
+				else if (bPlyI > pi)
 					--bPlyI;
-				if (cPlyI >= pi)
+				if (cPlyI == pi)
+					cPlyI = -1;
+				else if (cPlyI > pi)
 					--cPlyI;
 				// continue with the same index (which points to the next player now)
 			}
 			else
 				++pi;
 		}
-		for (uint ri=0; ri<rrock.size(); ) {
+		for (int ri = 0; ri < static_cast<int>(rrock.size()); ) {
 			rocket_c& r = rock[rrock[ri]];
 			if (mt > rockMoveMax[ri]) {
 				r.move(rockMoveMax[ri] - subFrame);
 				callback.rocketHitWall(rrock[ri], r.power, r.x, r.y, r.px, r.py);
 				rrock.erase(rrock.begin() + ri);
 				rockMoveMax.erase(rockMoveMax.begin() + ri);
-				if (cRockI >= ri)
+				if (cRockI == ri)
+					cRockI = -1;
+				else if (cRockI > ri)
 					--cRockI;
 				// continue with the same index (which points to the next rocket now)
 			}
@@ -1885,20 +1913,31 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		// execute collision or bounce
 		int plyChanged;
 		if (minCollision < minBounce) {	// the event is a collision
-			if (callback.rocketHitPlayer(cRock, cPly)) {	// true if player is dead
-				rply.erase(rply.begin() + cPlyI);
-				plyMoveMax.erase(plyMoveMax.begin() + cPlyI);
-				plyChanged = -1;	// no player needs recalculation since the changed player was removed
+			if (cRockI != -1 && cPlyI != -1) {
+				nAssert(cRockI < static_cast<int>(rrock.size()));
+				nAssert(cPlyI < static_cast<int>(rply.size()));
+				if (callback.rocketHitPlayer(cRock, cPly)) {	// true if player is dead
+					rply.erase(rply.begin() + cPlyI);
+					plyMoveMax.erase(plyMoveMax.begin() + cPlyI);
+					plyChanged = -1;	// no player needs recalculation since the changed player was removed
+				}
+				else
+					plyChanged = cPlyI;
+				rrock.erase(rrock.begin() + cRockI);
+				rockMoveMax.erase(rockMoveMax.begin() + cRockI);
 			}
 			else
-				plyChanged = cPlyI;
-			rrock.erase(rrock.begin() + cRockI);
-			rockMoveMax.erase(rockMoveMax.begin() + cRockI);
+				plyChanged = -1;
 		}
 		else {	// the event is a bounce
-			executeBounce(player[bPly], plyMoveMax[bPlyI], plyRadius);
-			callback.playerHitWall(bPly);
-			plyChanged = bPlyI;
+			if (bPlyI != -1) {
+				nAssert(bPlyI < static_cast<int>(rply.size()));
+				executeBounce(player[bPly], plyMoveMax[bPlyI], plyRadius);
+				callback.playerHitWall(bPly);
+				plyChanged = bPlyI;
+			}
+			else
+				plyChanged = -1;
 		}
 		if (plyChanged != -1) {
 			plyMoveMax[plyChanged] = getTimeTillBounce(room, player[rply[plyChanged]], plyRadius);
@@ -1915,7 +1954,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
 	for (int i = 0; i < MAX_ROCKETS; ++i)
 		if (rock[i].owner != -1) {
-			float wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i]);
+			double wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i]);
 			if (wallTime < frames) {
 				rock[i].move(wallTime);
 				callback.rocketHitWall(i, rock[i].power, rock[i].x, rock[i].y, rock[i].px, rock[i].py);
@@ -2032,9 +2071,12 @@ void ServerWorld::simulateFrame() {
 					double tx = player[v].lx - player[i].lx;
 					double ty = player[v].ly - player[i].ly;
 
-					double mul = 40. / sqrt( tx*tx + ty*ty );	// set speed to 40
-					player[v].sx = tx * mul;
-					player[v].sy = ty * mul;
+					double div = sqrt( tx*tx + ty*ty );
+					if (div != 0) {
+						double mul = 40. / div;	// set speed to 40
+						player[v].sx = tx * mul;
+						player[v].sy = ty * mul;
+					}
 				}
 			}
 		}
@@ -2306,9 +2348,6 @@ void ServerWorld::simulateFrame() {
 		}
 	}
 }
-
-#include "client.h"
-//#fix: include needed for funny callback activities - get rid!
 
 void ClientWorld::extrapolate(ClientWorld& source, double currTime, PhysicsCallbacksBase& physCallbacks) {
 	if (source.skipped) {

@@ -1,5 +1,4 @@
 #include <cctype>
-#include <cassert>
 
 #include "commont.h"
 #include "server.h"
@@ -8,6 +7,7 @@
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
 #include "servnet.h"
+#include "nassert.h"
 
 //delay for the server contacting the master server, in seconds
 // it is good if this delay is set to a minute or so, since this will
@@ -1833,7 +1833,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 bool ServerNetworking::check_private_IP(char *address) {
 	int i1, i2;
 	int n=sscanf(address, "%d.%d.", &i1, &i2);
-	assert(n==2);
+	nAssert(n==2);
 	if (n != 2)
 		return false;
 	// private IP ranges:
@@ -1924,7 +1924,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			nlDisable(NL_BLOCKING_IO);
 			if (msock == NL_INVALID) {
 				LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO MASTER SERVER!!\n");
-				break; //continue;
+				continue;
 			}
 
 			//LOG("MASTER TALKER: socket open\n");
@@ -1938,7 +1938,7 @@ void ServerNetworking::run_mastertalker_thread() {
 				LOG("SERVER CAN'T CONNECT TO WWW.MYCGISERVER.COM:80 !!!\n");
 				nlClose(msock);
 				msock = NL_INVALID;
-				break; //continue;
+				continue;
 			}
 
 			//LOG("MASTER TALKER: socket connected\n");

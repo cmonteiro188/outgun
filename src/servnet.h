@@ -66,7 +66,6 @@ class ServerNetworking {
 	NLsocket		msock;
 	pthread_t		mthread;
 	double			master_talk_time;
-
 	bool			master_pre_exiting_ok;	// if no need to kill the master socket...
 	bool			master_exiting_ok;		// if no need to kill the master socket...
 	bool			master_never_talked;	// if never talked to master, then no need to unregister the server when qutting (optimization)

@@ -1,0 +1,54 @@
+#include "nassert.h"
+
+#include <cstdio>
+#include <cstdarg>
+#include <cstdlib>	// exit
+
+void nasprintf(const char* expr, ...) {
+	va_list argptr;
+	va_start(argptr, expr);
+	vfprintf(stderr, expr, argptr);
+	va_end(argptr);
+	FILE* asfile = fopen("assert.log", "at");
+	if (asfile) {
+		va_start(argptr, expr);
+		vfprintf(asfile, expr, argptr);
+		va_end(argptr);
+		fclose(asfile);
+	}
+}
+
+#define ARGP(num) const char* name##num, int val##num
+
+void nAssertFail(const char* expr, const char* file, int line) {
+	nasprintf("Assertion failed: %s, file %s, line %d\nABNORMAL TERMINATION\n",
+																			expr, file, line);
+	exit(-1);
+}
+
+void nAssertFail(const char* expr, ARGP(1), const char* file, int line) {
+	nasprintf("Assertion failed: %s (%s==%d), file %s, line %d\nABNORMAL TERMINATION\n",
+															expr, name1, val1, file, line);
+	exit(-1);
+}
+
+void nAssertFail(const char* expr, ARGP(1), ARGP(2), const char* file, int line) {
+	nasprintf("Assertion failed: %s (%s==%d, %s==%d), file %s, line %d\nABNORMAL TERMINATION\n",
+												expr, name1, val1, name2, val2, file, line);
+	exit(-1);
+}
+
+void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), const char* file, int line) {
+	nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d), file %s, line %d\nABNORMAL TERMINATION\n",
+									expr, name1, val1, name2, val2, name3, val3, file, line);
+	exit(-1);
+}
+
+void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const char* file, int line) {
+	nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d, %s==%d), file %s, line %d\nABNORMAL TERMINATION\n",
+									expr, name1, val1, name2, val2, name3, val3, name4, val4, file, line);
+	exit(-1);
+}
+
+#undef ARGP
+

@@ -1,8 +1,8 @@
 #include <nl.h>
 #include <fstream>
-#include <cassert>
 
 #include "nameauth.h"
+#include "nassert.h"
 
 using namespace std;
 
@@ -153,7 +153,7 @@ int NameAuthorizationDatabase::identifyName(const string& name) const {
 			if (nBegin==0) break;	// nBegin tells how many real chars more should be deleted
 			--nBegin; ++ui;
 		}
-		assert(nameUpr[ui]==nu[0]);
+		nAssert(nameUpr[ui]==nu[0]);
 		if (ui>0 && nameUpr[ui-1]!='.')	// nu is only a part of a word in nameUpr
 			continue;
 		nBegin=nu.length()-1;	// so that ui will point to the last char in nameUpr
@@ -163,7 +163,7 @@ int NameAuthorizationDatabase::identifyName(const string& name) const {
 			while (nameUpr[ui]=='.')
 				++ui;
 		}
-		assert(nameUpr[ui]==nu[nu.length()-1]);
+		nAssert(nameUpr[ui]==nu[nu.length()-1]);
 		if (ui+1<nameUpr.length() && nameUpr[ui+1]!='.')	// nu is only a part of a word in nameUpr
 			continue;
 		return idx;

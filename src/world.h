@@ -1,7 +1,7 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
-#include <cassert>
+#include "nassert.h"
 
 typedef pair<double, double> Coords;
 typedef pair<double, Coords> BounceData;
@@ -17,7 +17,7 @@ public:
 	RectWall() { }
 	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_)
 			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) swap(a, c); if (d<b) swap(b, d); }
-	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
+	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
 	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
 		rectfill(buffer, int(x0+xScale*a), int(y0+yScale*b), int(x0+xScale*c), int(y0+yScale*d), color);
 	}
@@ -42,7 +42,7 @@ public:
 		boundx1=min(p1x, min(p2x, p3x)), boundy1=min(p1y, min(p2y, p3y));
 		boundx2=max(p1x, max(p2x, p3x)), boundy2=max(p1y, max(p2y, p3y));
 	}
-	bool intersects_rect(float rx1, float ry1, float rx2, float ry2) const;
+	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;
 	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
 		triangle(buffer,
 				int(x0+xScale*p1x), int(y0+yScale*p1y),
@@ -64,7 +64,7 @@ public:
 	CircWall() { }
 	CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int tex_, int alpha_);
 
-	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro; }
+	bool intersects_rect(double x1, double y1, double x2, double y2) const;
 	void draw(BITMAP* buffer, float x0, float y0, float scale, int color) const;
 };
 
@@ -128,7 +128,7 @@ public:
 
 	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
 if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track why these are given sometimes
-		assert(px>=0 && py>=0 && px<w && py<h);
+		nAssert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
 	bool load(const char *mapdir, const string& mapname);
@@ -163,7 +163,7 @@ public:
 	int neg_score;
 
 	virtual ~PlayerBase() { }
-	void move(float fraction) { lx += sx*fraction; ly += sy*fraction; }
+	void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
 	void clear(bool enable, int _pid, const string& _name) {
 		ping = 0;
 		frags = 0;
@@ -390,7 +390,7 @@ public:
 	NLulong time;		//time of shot or current time
 
 	rocket_c() { owner = -1; }
-	void move(float fraction) { x += sx*fraction; y += sy*fraction; }
+	void move(double fraction) { x += sx*fraction; y += sy*fraction; }
 };
 
 struct ctflag_t {
@@ -439,8 +439,8 @@ public:
 	void setPtr(Type* p) { ptr=p; }
 	      Type* getPtr()       { return ptr; }
 	const Type* getPtr() const { return ptr; }
-	operator       Type&()       { assert(ptr); return *ptr; }
-	operator const Type&() const { assert(ptr); return *ptr; }
+	operator       Type&()       { nAssert(ptr); return *ptr; }
+	operator const Type&() const { nAssert(ptr); return *ptr; }
 };
 
 class PhysicsCallbacksBase {
@@ -461,19 +461,19 @@ class WorldBase {
 	void addRocket(int i, int playernum, int team, int px, int py, int x, int y, int bsx, int bsy,
 													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
 
-	static BounceData genGetTimeTillWall(const Room& room, float x, float y, float mx, float my, float radius);
-	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, float plyRadius);
-	static float getTimeTillWall(const Room& room, const rocket_c& rock);
-	static float getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, float collRadius);
+	static BounceData genGetTimeTillWall(const Room& room, double x, double y, double mx, double my, double radius);
+	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius);
+	static double getTimeTillWall(const Room& room, const rocket_c& rock);
+	static double getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius);
 	void applyPlayerAcceleration(int pid);
-	void executeBounce(PlayerBase& ply, const BounceData& b, float plyRadius);	// needs plyRadius as a shortcut to b.second's length
-	void applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, float plyRadius, float fraction);
+	void executeBounce(PlayerBase& ply, const BounceData& b, double plyRadius);	// needs plyRadius as a shortcut to b.second's length
+	void applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 
 protected:
 	WorldBase() { }
 
 public:
-	void applyPhysics(PhysicsCallbacksBase& callback, float plyRadius, float fraction);
+	void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 	void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback);
 
 	Map map;
@@ -593,8 +593,6 @@ public:
 	void rocketOutOfBoundsCallback(int rid);
 	bool shouldApplyPhysicsToPlayerCallback(int pid);
 };
-
-class gameclient_c;	//#fix: get rid of this callback system
 
 class ClientWorld : public WorldBase {
 public:

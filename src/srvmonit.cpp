@@ -1,11 +1,13 @@
-#include <nl.h>
-#include <conio.h>
-#include <stdio.h>
-#include <assert.h>
-#include <windows.h>	// for Sleep
-#include <time.h>
 #include <string>
+#include <nl.h>
+#include <cstdio>
+#include <ctime>
+#include <conio.h>
+#include <windows.h>	// for Sleep
 #include "admshell.h"
+#include "nassert.h"
+
+//#define MBOX_SAYADMIN
 
 using std::string;
 
@@ -29,10 +31,10 @@ public:
 class DelayHandler : public IdleFunction {
 	enum { sayBufLen=1024 };
 	char sayBuf[sayBufLen+1];
+	NLsocket sock;
 	int sayIdx;	// -1 when not typing
 	bool kick, ban;
 	int mute;
-	NLsocket sock;
 
 public:
 	DelayHandler(NLsocket socket) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0) { }
@@ -148,6 +150,16 @@ public:
 			} else if (key=='p' || key=='P') {
 				writeLong(buf, idx, ATS_GET_PINGS);
 				send(sock, buf, idx);
+			} else if (key=='r' || key=='R') {
+				printf("Confirm reset settings? ");
+				fflush(stdout);
+				if (getch()=='Y') {
+					writeLong(buf, idx, ATS_RESET_SETTINGS);
+					send(sock, buf, idx);
+					printf("done\n");
+				}
+				else
+					printf("(aborted)\n");
 			}
 		}
 	}
@@ -210,7 +222,7 @@ bool runMonitor(int port) {
 
 	nlDisable(NL_BLOCKING_IO);
 	sock=nlOpen(0, NL_RELIABLE);
-	assert(sock!=NL_INVALID);
+	nAssert(sock!=NL_INVALID);
 
   try {
 	NLaddress addr;
@@ -232,8 +244,8 @@ bool runMonitor(int port) {
 		dh.resumeSay();
 		NLulong val=reader.getLong();
 		dh.pauseSay();
-		if (val<0 || val>=NUMBER_OF_STA) {
-			printf("<Invalid STA code: %d>", val);
+		if (val>=NUMBER_OF_STA) {
+			printf("<Invalid STA code: %lud>", val);
 			continue;
 		}
 		static const int ints[NUMBER_OF_STA]={ 0, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 0, 0, 2, 1, 1 };
@@ -281,11 +293,12 @@ bool runMonitor(int port) {
 			case STA_PLAYER_PING: dualprintf("| %s has ping %d\n", plyName(ival[0]), ival[1]); break;
 			case STA_ADMIN_MESSAGE:
 			{
-				const char txtBufLen=strBufLen;
 				char cap[strBufLen+100];
 				sprintf(cap, "Sayadmin message from %s", plyNames[ival[0]].c_str());
 				dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
-				MessageBox(NULL, strBuf, cap, MB_OK); break;
+				#ifdef MBOX_SAYADMIN
+				MessageBox(NULL, strBuf, cap, MB_OK);
+				#endif
 				break;
 			}
 			case STA_PLAYER_IP: dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf); break;

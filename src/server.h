@@ -110,8 +110,8 @@ public:
 	bool isBanned(int cid) { return authorizations.isBanned(network.get_client_address(cid)); }
 	#endif
 
-	int check[MAX_PLAYERS];
-	int checount;
+   int check[MAX_PLAYERS];
+   int checount;
 	void check_team_changes();
 	void check_player_change_teams(int pid);
 	void move_player(int f, int t);
