@@ -178,10 +178,14 @@ public:
 	void set_hits(int n) { total_hits = n; }
 	void set_shots_taken(int n) { total_shots_taken = n; }
 	void set_movement(double amount) { total_movement = amount; }
-	void set_spawn_time(float time) { last_spawn_time = time; dead = false; }
+	void set_spawn_time(float time) { last_spawn_time = time; }
 	void set_start_time(float time) { starttime = time; }
 	void set_lifetime(float time) { total_lifetime = time; }
 	void set_flag_carrying_time(double time) { total_flag_carrying_time = time; }
+	void set_flag_take_time(double time) { flag_taking_time = time; }
+	void set_flag(bool f) { flag = f; }
+
+	void spawn(float time) { set_spawn_time(time); dead = false; }
 
 	void add_frag(int n = 1) { total_frags += n; }
 	void add_kill(bool deathbringer);
@@ -227,6 +231,7 @@ public:
 	float old_speed() const { return saved_speed; }
 	float start_time() const { return starttime; }
 	double flag_carrying_time(double time) const;
+	double flag_take_time() const { return flag_taking_time; }
 
 private:
 	int total_frags;

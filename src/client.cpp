@@ -2137,7 +2137,7 @@ void Client::process_incoming_data(const char* data, int length) {
 			case data_spawn: {
 				NLubyte pid;
 				readByte(lebuf, count, pid);
-				fx.player[pid].stats().set_spawn_time(get_time());
+				fx.player[pid].stats().spawn(get_time());
 				break;
 			}
 
@@ -2201,8 +2201,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				id &= ~0x80;
 				// todo: check id
 				Statistics& stats = fx.player[id].stats();
-				if (flag)
-					stats.add_flag_take(get_time());
+				stats.set_flag(flag);
 				NLubyte data;
 				readByte(lebuf, count, data);
 				stats.set_kills(data);
@@ -2234,7 +2233,11 @@ void Client::process_incoming_data(const char* data, int length) {
 				readLong(lebuf, count, ldata);
 				stats.set_lifetime(ldata);
 				readLong(lebuf, count, ldata);
+				stats.set_spawn_time(ldata);
+				readLong(lebuf, count, ldata);
 				stats.set_flag_carrying_time(ldata);
+				readLong(lebuf, count, ldata);
+				stats.set_flag_take_time(ldata);
 				break;
 			}
 
