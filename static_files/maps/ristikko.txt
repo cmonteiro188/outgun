@@ -1,0 +1,117 @@
+;
+; ristikko.txt
+;
+; By JR Oja
+;
+
+V 1
+P width 3
+P height 3
+P title Ristikko, by JR Oja
+
+; punainen lippu ja syntymäpaikat
+flag  0 1 1 0.25 0.25
+spawn 0 1 1 0.3 0.4
+spawn 0 1 1 0.4 0.4
+spawn 0 1 1 0.5 0.4
+spawn 0 1 1 0.6 0.4
+spawn 0 1 1 0.7 0.4
+spawn 0 1 1 0.4 0.6
+spawn 0 1 1 0.5 0.6
+spawn 0 1 1 0.6 0.6
+
+; sininen lippu ja syntymäpaikat
+flag  1 1 1 0.75 0.75
+spawn 1 1 1 0.3 0.6
+spawn 1 1 1 0.4 0.6
+spawn 1 1 1 0.5 0.6
+spawn 1 1 1 0.6 0.6
+spawn 1 1 1 0.7 0.6
+spawn 1 1 1 0.4 0.4
+spawn 1 1 1 0.5 0.4
+spawn 1 1 1 0.6 0.4
+
+X perus 0 0 2 2
+
+X pysty 1 1
+X vaaka 1 1
+
+X alapysty 1 0
+X ylapysty 1 2
+X vaakavasen 2 1
+X vaakaoikea 0 1
+
+X yla 1 0
+X ala 1 2
+X vasen 0 1
+X oikea 2 1
+
+X poterovy 0 0
+X poterova 0 2
+X poterooy 2 0
+X poterooa 2 2
+
+; perushuone, jossa on neljä kulkuaukkoa
+:perus
+W 0      0      0.25   0.05
+W 0      0      0.05   0.25
+W 0.75   0      1      0.05
+W 0.95   0      1      0.25
+W 0      0.95   0.25   1
+W 0      0.75   0.05   1
+W 0.75   0.95   1      1
+W 0.95   0.75   1      1
+
+; huoneen vasen seinä
+:vasen
+W 0      0      0.05   1
+
+; huoneen oikea seinä
+:oikea
+W 0.95   0      1      1
+
+; huoneen yläseinä
+:yla
+W 0      0      1      0.05
+
+; huoneen alaseinä
+:ala
+W 0      0.95   1      1
+
+:pysty
+W 0.45   0      0.55   1
+
+:ylapysty
+W 0.45   0      0.55   0.75
+
+:alapysty
+W 0.45   0.25   0.55   1
+
+:vaaka
+W 0      0.45   1      0.55
+
+:vaakavasen
+W 0      0.45   0.75   0.55
+
+:vaakaoikea
+W 0.25   0.45   1      0.55
+
+:poterova
+W 0.25   0.25   0.35   0.75
+W 0.65   0.25   0.75   0.75
+W 0.25   0.65   0.75   0.75
+
+:poterooy
+W 0.25   0.25   0.35   0.75
+W 0.25   0.25   0.75   0.35
+W 0.65   0.25   0.75   0.75
+
+:poterovy
+W 0.25   0.25   0.75   0.35
+W 0.65   0.25   0.75   0.75
+W 0.25   0.65   0.75   0.75
+
+:poterooa
+W 0.25   0.25   0.75   0.35
+W 0.25   0.25   0.35   0.75
+W 0.25   0.65   0.75   0.75
