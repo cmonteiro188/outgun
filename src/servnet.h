@@ -1,7 +1,7 @@
 #ifndef SERVNET_H_INC
 #define SERVNET_H_INC
 
-#include "network.h"
+#include "protocol.h"
 #include "thread.h"
 
 #include <map>
@@ -48,7 +48,6 @@ class ServerNetworking {
 	bool post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
 							const std::string& script, const std::string& parameters, const std::string& auth = "") const;	// timeout in ms
 	bool save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
-	bool writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
 
 	gameserver_c*	host;
 	ServerWorld&	world;

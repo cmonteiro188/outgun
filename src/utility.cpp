@@ -70,46 +70,6 @@ void errorMessage(const string& heading, MemoryLog& errorLog) {
 	}
 }
 
-const char* getNlErrorString() {
-	if (nlGetError() == NL_SYSTEM_ERROR)
-		return nlGetSystemErrorStr(nlGetSystemError());
-	else
-		return nlGetErrorStr(nlGetError());
-}
-
-bool check_private_IP(const char *address) {
-	int i1, i2;
-	int n = sscanf(address, "%d.%d.", &i1, &i2);
-	nAssert(n == 2);
-	if (n != 2)
-		return false;
-	// private IP ranges:
-	// 10.0.0.0        -   10.255.255.255
-	// 172.16.0.0      -   172.31.255.255
-	// 192.168.0.0     -   192.168.255.255
-	// 169.254.0.0     -   169.254.255.255 [used by Microsoft DHCP client]
-	return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
-}
-
-string getPublicIP(LogSet& log) {
-	NLaddress* locals;
-	NLint nLocals;
-	locals = nlGetAllLocalAddr(&nLocals);
-	for (int i = 0; i < nLocals; ++i) {
-		char buf[NL_MAX_STRING_LENGTH];
-		nlAddrToString(&locals[i], buf);
-		bool priv = check_private_IP(buf);
-		if (priv)
-			log("Local address %s ignored", buf);
-		else {
-			log("Found public address %s", buf);
-			return buf;
-		}
-	}
-	log("No public address found");
-	return string();
-}
-
 bool is_keypad(int sc) {
 	switch (sc) {
 		case KEY_1_PAD:
@@ -146,70 +106,6 @@ string date_and_time() {
 	char time_str[time_w + 1];
 	strftime(time_str, time_w, "%Y-%m-%d %H:%M:%S", tmb);
 	return time_str;
-}
-
-string url_encode(const string& str) {
-	ostringstream ost;
-	for (string::const_iterator s = str.begin(); s != str.end(); s++)
-		url_encode(*s, ost);
-	return ost.str();
-}
-
-void url_encode(char c, ostream& out) {
-	if (is_url_safe(c))	// send safe characters as they are
-		out << c;
-	else if (c == ' ')	// spaces to + characters
-		out << '+';
-	else				// encode unsafe characters to %xx
-		out << '%' << hex << setw(2) << setfill('0') << static_cast<int>(static_cast<unsigned char>(c));
-}
-
-bool is_url_safe(char c) {
-	if (c >= 'a' && c <= 'z')
-		return true;
-	else if (c >= 'A' && c <= 'Z')
-		return true;
-	else if (c >= '0' && c <= '9')
-		return true;
-	const string safe_characters("$-_.+!*'(),");
-	return safe_characters.find(c) != string::npos;
-}
-
-string base64_encode(const string& data) {
-	const string conversion_table("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
-	const char padding = '=';
-	string result;
-	// Convert data to 6-bit sequences. Take characters for every sequence
-	// from the conversion table.
-	for (string::const_iterator s = data.begin(); s != data.end(); s++) {
-		// first encoded byte
-		char value = (*s >> 2) & 0x3F;
-		result += conversion_table[value];
-		// second encoded byte
-		value = (*s << 4) & 0x3F;
-		s++;
-		if (s != data.end())
-			value |= (*s >> 4) & 0x0F;
-		result += conversion_table[value];
-		// third encoded byte
-		if (s != data.end()) {
-			value = (*s << 2) & 0x3F;
-			s++;
-			if (s != data.end())
-				value |= (*s >> 6) & 0x03;
-			result += conversion_table[value];
-		}
-		else
-			result += padding;
-		// fourth encoded byte
-		if (s != data.end()) {
-			value = *s & 0x3F;
-			result += conversion_table[value];
-		}
-		else
-			result += padding;
-	}
-	return result;
 }
 
 void threadRandomize() {	// declared in thread.h

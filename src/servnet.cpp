@@ -7,17 +7,18 @@
 
 #include <cctype>
 
-#include "commont.h"
-#include "server.h"
-#include "admshell.h"
 #include "leetnet/server.h"
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
-#include "network.h"
-#include "servnet.h"
+#include "admshell.h"
+#include "commont.h"
 #include "mutex.h"
-#include "thread.h"
 #include "nassert.h"
+#include "network.h"
+#include "server.h"
+#include "protocol.h"
+#include "servnet.h"
+#include "thread.h"
 
 // Delay for the server contacting the master server, in seconds.
 // It is good if this delay is set to a minute or so, since this will
@@ -39,7 +40,6 @@ using std::vector;
 //master job struct
 class masterjob_c {
 public:
-
 	char		request[512];
 
 	bool		html_end;
@@ -74,9 +74,6 @@ ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet l
 }
 
 ServerNetworking::~ServerNetworking() {
-nAssert(!mthread.isRunning());
-nAssert(!shellmthread.isRunning());
-nAssert(!webthread.isRunning());
 	pthread_mutex_destroy(&mjob_mutex);
 	if (server) {
 		delete server;
@@ -1767,7 +1764,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	NLsocket sock = NL_INVALID;
 
 	while (mjob_exit == false) {
-
 		//open a nonblocking socket
 		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
@@ -1811,7 +1807,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		int n = 0;
 		char *lebuf = &(job->lebuf[0]);
 		do {
-
 			//read
 			result = nlRead(sock, &(lebuf[n]), 1);
 
@@ -1820,7 +1815,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 
 			//no byte
 			if (result == 0) {
-
 				if (nostuffcound > 0) {
 					nostuffcound++;
 					//200 (4000*50/1000) seconds after it came some stuff but now without coming more stuff
@@ -1841,7 +1835,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 
 			//error occured
 			if (result == NL_INVALID) {
-
 				//if already got html_end, no error
 				//if (html_end)  // *** FIXME: parsing the result?
 				//break;
@@ -1897,7 +1890,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 
 			//read next
 			n++;
-
 		} while (1);
 
 		//save n
@@ -1908,7 +1900,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 
 		//found it?
 		if (job->html_end) {
-
 			//FIRST THINGS FIRST: close the socket
 			nlClose(sock);
 			sock = NL_INVALID;
@@ -1926,7 +1917,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		else {
 			//failed, just retry (go on with the loop)
 		}
-
 	}//WHILE(password set)
 
 	// =====
@@ -1954,7 +1944,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	// determine the public IP to send to master
 	string localAddress;
-	if (force_ip) {
+	if (force_ip) {	// use IP manually given to the program
 		log("Master talker: Forcing IP to value %s", force_ip_name);
 
 		NLaddress testAddr;
@@ -1967,7 +1957,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			return;
 		}
 
-		localAddress = force_ip_name;	// use IP manually given to the program
+		localAddress = force_ip_name;
 	}
 	else {
 		localAddress = getPublicIP(log);
@@ -2002,17 +1992,10 @@ void ServerNetworking::run_mastertalker_thread() {
 			continue;
 		}
 
-		//connect
-		if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
+		if (nlConnect(msock, &master_address) == NL_FALSE) {
 			log.error("Master talker: Server can't connect to master server.");
 			nlClose(msock);
 			continue;
-		}
-
-		//chance to give up
-		if (file_threads_quit) {
-			nlClose(msock);
-			break;
 		}
 
 		//now we have talked
@@ -2323,7 +2306,6 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 
 bool ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
 											const string& script, const string& parameters, const string& auth) const {
-	char lebuf[65536]; int count = 0;
 	ostringstream data;
 	data << "POST " << script << " HTTP/1.0\r\n";
 	data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
@@ -2332,56 +2314,13 @@ bool ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abo
 	data << "Connection: close\r\n";
 	data << "Content-Type: application/x-www-form-urlencoded\r\n";
 	data << "Content-Length: " << parameters.length() << "\r\n\r\n";
-	writeStr(lebuf, count, data.str()); count--;
-	writeStr(lebuf, count, parameters); count--;
-	return writeToUnblockingTCP(socket, lebuf, count, abortFlag, timeout);
-}
-
-bool ServerNetworking::writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout) const {
-	int at = 0;
-	const int roundDelay = 500;	// we're not in a hurry
-	int tries = 0;
-	while (at < length) {
-		if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-			return false;
-
-		NLint written = nlWrite(socket, data + at, length - at);
-		if (written == NL_INVALID) {
-			if (nlGetError() != NL_CON_PENDING)
-				return false;
-		}
-		else
-			at += written;
-
-		MS_SLEEP(roundDelay);
-		++tries;
-	}
-	return true;
+	data << parameters;
+	const string& str = data.str();
+	return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
 }
 
 bool ServerNetworking::save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) const {
-	const int buffer_size = 511;
-	char lebuf[buffer_size + 1];
-
-	const int roundDelay = 500;	// we're not in a hurry
-	int tries = 0;
-	for (;;) {
-		if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-			return false;
-
-		NLint read = nlRead(socket, lebuf, buffer_size);
-		if (read == NL_INVALID) {
-			if (nlGetError() != NL_CON_PENDING)
-				return nlGetError() == NL_MESSAGE_END;
-		}
-		else {
-			lebuf[read] = '\0';
-			out << lebuf;
-		}
-
-		MS_SLEEP(roundDelay);
-		++tries;
-	}
+	return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
@@ -2532,8 +2471,8 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 			break;
 		}
 
-		NLulong cid;
-		int pid;	// pid and cid set if argPid[code]
+		NLulong cid = 0;
+		int pid = 0;	// pid and cid set if argPid[code]
 		NLulong dwArg;	// set if argDw[code]
 		//                         noop, get-functions,ch,qu,pi,kckbanmte,reset
 		int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };

@@ -1,68 +1,36 @@
 #ifndef NETWORK_H_INC
 #define NETWORK_H_INC
 
-#include "leetnet/server.h"
+#include <iostream>
+#include <string>
 
-//#define WATCH_CONNECTION
-#define SEND_FRAMEOFFSET
-//#define LOG_MESSAGE_TRAFFIC
+class LogSet;
+class NLSocket;
 
-enum Network_data_code {
-	data_name_update,
-	data_text_message,
-	data_first_packet,
-	data_frags_update,
-	data_flag_update,
-	data_rocket_fire,
-	data_rocket_delete,
-	data_score_update,
-	data_sound,
-	data_pup_visible,
-	data_pup_picked,
-	data_pup_timer,
-	data_weapon_change,
-	data_map_change,
-	data_world_reset,
-	data_gameover_show,
-	data_gameover_hide,
-	data_deathbringer,
-	data_file_request,
-	data_file_download,
-	data_file_ack,
-	data_registration_token,
-	data_registration_response,
-	data_crap_update,
-	data_map_time,
-	data_fire_on,
-	data_fire_off,
-	data_suicide,
-	data_drop_flag,
-	data_stop_drop_flag,
-	data_change_team_on,
-	data_change_team_off,
-	data_map_exit_on,
-	data_map_exit_off,
-	data_client_ready,
-	data_map_list,
-	data_map_votes_update,
-	data_map_vote,
-	data_stats,
-	data_capture,
-	data_kill,
-	data_flag_take,
-	data_flag_return,
-	data_flag_drop,
-	data_spawn,
-	data_movements_shots,
-	data_fav_colors,
-	data_name_authorization_request,
-	data_server_settings
-};
+const char* getNlErrorString();
+bool check_private_IP(const char* address);
+std::string getPublicIP(LogSet& log);
 
-enum Disconnect_reason {
-	disconnect_kick = server_c::disconnect_first_user_defined,
-	disconnect_idlekick,
-	disconnect_client_misbehavior
-};
+inline void readStr(const char* buf, int& count, std::string& dst) {
+	dst.clear();
+	while (buf[count])
+		dst += buf[count++];
+	++count;
+}
+inline void writeStr(char* buf, int& count, const std::string& src) {
+	memcpy(&buf[count], src.data(), src.length());
+	count += src.length();
+	buf[count++] = '\0';
+}
+
+bool writeToUnblockingTCP(NLsocket& socket, const char* data, int length,
+								const volatile bool* abortFlag, int timeout, int roundDelay = 500);
+bool saveAllFromUnblockingTCP(NLsocket& socket, std::ostream& out,
+								const volatile bool* abortFlag, int timeout, int roundDelay = 500);
+
+std::string url_encode(const std::string& str);
+void url_encode(char c, std::ostream& out);
+bool is_url_safe(char c);
+std::string base64_encode(const std::string& data);
 
 #endif

@@ -100,7 +100,7 @@ class gameserver_c {
 
 public:
 
-	gameserver_c(LogSet hostLogs);
+	gameserver_c(LogSet& hostLogs);
 	virtual ~gameserver_c();
 	bool start(int target_maxplayers);
 	void loop(volatile bool *running_flag);

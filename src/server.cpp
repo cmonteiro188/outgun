@@ -34,7 +34,7 @@ using std::string;
 using std::swap;
 using std::vector;
 
-gameserver_c::gameserver_c(LogSet hostLogs) :
+gameserver_c::gameserver_c(LogSet& hostLogs) :
 	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
@@ -1408,7 +1408,7 @@ void gameserver_c::clearWorldRankingDeltas() {
 	}
 }
 
-GameserverInterface::GameserverInterface(LogSet hostLog) {
+GameserverInterface::GameserverInterface(LogSet& hostLog) {
 	host = new gameserver_c(hostLog);
 }
 

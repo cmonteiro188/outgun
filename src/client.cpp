@@ -9,16 +9,17 @@
 #include <cmath>
 
 #include "incalleg.h"
-#include "commont.h"
-#include "world.h"
-#include "names.h"
 #include "leetnet/client.h"
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
-#include "network.h"
-#include "nassert.h"
+#include "commont.h"
 #include "gameserver_interface.h"
+#include "names.h"
+#include "nassert.h"
+#include "network.h"
+#include "protocol.h"
 #include "utility.h"
+#include "world.h"
 
 #include "client.h"
 
@@ -96,11 +97,7 @@ void ServerThreadOwner::start(int port) {
 	runFlag = threadFlag = true;
 	log("listen_start()");
 	RedirectToMemFun<ServerThreadOwner, void> rmf(this, &ServerThreadOwner::threadFn);
-	int rv = serverThread.start(rmf);
-	if (rv) {
-		log.error("Couldn't create server thread (code %d)", rv);
-		runFlag = threadFlag = false;
-	}
+	serverThread.start_assert(rmf);
 }
 
 void ServerThreadOwner::stop() {
@@ -221,12 +218,6 @@ bool gameclient_c::start() {
 	client = new_client_c();
 	client->set_callback(CFUNC_CONNECTION_UPDATE, cfunc_connection_update);
 	client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
-
-	//assume no password
-	player_token_set = false;			//no token
-	player_password_set = false;	//no password
-	menu.options.name.namestatus.set("NO PASSWORD SET");
-	namestatus_code = 0;
 
 	//try to load the client's password
 	string fileName = wheregamedir + "password.bin";
@@ -419,10 +410,8 @@ void gameclient_c::check_change_pass_command() {
 	if (newPass == player_password)
 		return;
 
-	//player_password_set = false is a flag for the token retrieve thread
-	//join with it
-	if (player_password_set) {
-		player_password_set = false;
+	if (!quit_password_thread) {
+		quit_password_thread = true;
 		passthread.join();
 	}
 
@@ -438,34 +427,31 @@ void gameclient_c::check_change_pass_command() {
 		menu.options.name.namestatus.set("STARTING LOGIN...");
 
 		//setup stuff for the new thread
-		player_password_set = true;	//don't quit the thread
+		quit_password_thread = false;	//thread running; don't quit
 		player_token_new = true;	//getting a NEW token, not refreshing the token
 
 		// request new token for this password
-		Thread::startDetachedThread(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::client_password_thread));
+		passthread.start_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::client_password_thread));
 	}
 }
 
-//THREAD for getting a token from a password. nonblocking TCP operations, if
-// player_password_set == false, then quit immediately
+//THREAD for getting a token from a password. nonblocking TCP operations, quit on quit_password_thread
 void gameclient_c::client_password_thread() {
 	NLsocket sock = NL_INVALID;
 
-	while (player_password_set == true) {
-
+	while (!quit_password_thread) {
 		//open a nonblocking socket
 		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
 		sock = nlOpen(0, NL_RELIABLE);
 		nlOpenMutex.unlock();
 		if (sock == NL_INVALID) {
-			//show "cant open socket to master" error
+			log("Password thread: Can't open socket. %s", getNlErrorString());
 			menu.options.name.namestatus.set("SOCKET ERROR. RETRYING...");
 			MS_SLEEP(3000);	//five secs
 			continue;				//again...
 		}
 
-		//connect the nonblocking way
 		nlConnect(sock, &master_address);
 
 		//build query
@@ -488,13 +474,13 @@ void gameclient_c::client_password_thread() {
 			MS_SLEEP(50);
 
 			//qutting?
-			if (player_password_set == false)
+			if (quit_password_thread)
 				break;
 
 		} while (result == NL_INVALID && (nlGetError() == NL_CON_PENDING));
 
 		//qutting?
-		if (player_password_set == false)
+		if (quit_password_thread)
 			continue;
 
 		menu.options.name.namestatus.set("WAITING RESPONSE...");
@@ -506,17 +492,15 @@ void gameclient_c::client_password_thread() {
 		char lebuf[65536];
 		int n = 0;
 		do {
-
 			//read
 			result = nlRead(sock, &(lebuf[n]), 1);
 
 			//quitting?
-			if (player_password_set == false)
+			if (quit_password_thread)
 				break;
 
 			//no byte
 			if (result == 0) {
-
 				if (nostuffcound > 0) {
 					nostuffcound++;
 					//200 (4000*50/1000) seconds after it came some stuff but now without coming more stuff
@@ -537,7 +521,6 @@ void gameclient_c::client_password_thread() {
 
 			//error occured
 			if (result == NL_INVALID) {
-
 				//if already got html_end, no error
 				//if (html_end)  // *** FIXME: parsing the result?
 				//break;
@@ -593,12 +576,10 @@ void gameclient_c::client_password_thread() {
 
 			//read next
 			n++;
-
 		} while (1);
 
 		//found it?
 		if (html_end) {
-
 			//FIRST THINGS FIRST: close the socket
 			nlClose(sock);
 			sock = NL_INVALID;
@@ -613,7 +594,6 @@ void gameclient_c::client_password_thread() {
 			bool ok = false, wrongid = false, unavailable = false;
 			log("RECV RESPONSE n = %i", n);
 			for (int i = 0; i < n; i++) {
-
 				//0.4.7: "can't contact servlet runner.." > service unavailable
 				if ((i>21)
 					&&
@@ -644,12 +624,10 @@ void gameclient_c::client_password_thread() {
 				}
 				//control char
 				else if (lebuf[i] == '@') {
-
 					//log("(( @ ))");
 					i++;
 
 					if (lebuf[i] == 'K') {
-
 						//log("(( @K ))");
 						//scan the token....
 						i++;
@@ -698,7 +676,7 @@ void gameclient_c::client_password_thread() {
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
 					MS_SLEEP(500);
-					if (player_password_set == false)
+					if (quit_password_thread)
 						break;
 				}
 			}
@@ -710,7 +688,7 @@ void gameclient_c::client_password_thread() {
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
 					MS_SLEEP(500);
-					if (player_password_set == false)
+					if (quit_password_thread)
 						break;
 				}
 			}
@@ -722,7 +700,7 @@ void gameclient_c::client_password_thread() {
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*1*2;busy++) {		//1 MINUTE
 					MS_SLEEP(500);
-					if (player_password_set == false)
+					if (quit_password_thread)
 						break;
 				}
 			}
@@ -734,7 +712,7 @@ void gameclient_c::client_password_thread() {
 				//wait xxx minutes to send again	//*2 == halfsecond
 				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
 					MS_SLEEP(500);
-					if (player_password_set == false)
+					if (quit_password_thread)
 						break;
 				}
 			}
@@ -745,19 +723,12 @@ void gameclient_c::client_password_thread() {
 
 	}//WHILE(password set)
 
-	// =====
-	//CLOSE SOCKET AND WAIT UNTIL SETPASS==FALSE
-	// =====
 	if (sock != NL_INVALID)
 		nlClose(sock);
-	while (player_password_set == true) {
-		MS_SLEEP(500);
-	}
 }
 
 // incoming chunk of requested file by UDP
 void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, char* buf) {
-
 	//progress...
 	fdp = pos + len;
 
@@ -2395,7 +2366,7 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 	nlOpenMutex.unlock();
 
 	if (sock == NL_INVALID) {
-		log.error("Can't open socket for refreshing servers! (%s)", getNlErrorString());
+		log.error("Can't open socket for refreshing servers. %s", getNlErrorString());
 		return false;
 	}
 
@@ -2507,13 +2478,13 @@ bool gameclient_c::getServerList() {
 	NLsocket sock = nlOpen(0, NL_RELIABLE);
 	nlOpenMutex.unlock();
 	if (sock == NL_INVALID) {
-		log.error("Client can't open socket to connect to master server. (%s)", getNlErrorString());
+		log.error("Client can't open socket to connect to master server. %s", getNlErrorString());
 		return false;
 	}
 
 	//connect the nonblocking way
 	if (nlConnect(sock, &master_address) == NL_FALSE) {
-		log.error("Client can't connect to master server. (%s)", getNlErrorString());
+		log.error("Client can't connect to master server. %s", getNlErrorString());
 		nlClose(sock);
 		sock = NL_INVALID;
 		return false;
@@ -2553,7 +2524,7 @@ bool gameclient_c::getServerList() {
 
 	//check bogus
 	if (result == NL_INVALID) {
-		log("Client can't connect to master server. Reason: %s", getNlErrorString());
+		log("Client can't connect to master server. %s", getNlErrorString());
 		nlClose(sock);
 		return false;
 	}
@@ -3052,19 +3023,22 @@ void gameclient_c::loop() {
 	//client exit cleanup: done at stop wich needs to be called after loop
 }
 
-//stop
+void TournamentPasswordManager::stop() {
+	//join with token request thread, if any
+	if (!quit_password_thread) {
+		log("**** CLIENT JOINING PASSWORD-TOKEN THREAD.... ****");
+		quit_password_thread = true;
+		passthread.join();
+	}
+}
+
 void gameclient_c::stop() {
 	abortThreads = true;
 
 	//at least disconnect
 	disconnect_command();
 
-	//join with token request thread, if any
-	if (player_password_set) {
-		log("**** CLIENT JOINING PASSWORD-TOKEN THREAD.... ****");
-		player_password_set = false;
-		passthread.join();
-	}
+	tournamentPassword.stop();
 
 	//save configuration file
 	string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
@@ -3249,6 +3223,11 @@ void gameclient_c::draw_game_frame() {
 			}
 		}
 
+Powerup t;
+t.kind = Powerup::pup_shadow;
+t.x = t.y = 200;
+for (int ti = 0; ti < 500; ++ti)//#@
+ client_graphics.draw_pup(t, get_time());
 		// FIXME: y-ordering of draw not maintained
 		// draw any item pickups
 		if (me >= 0)
@@ -4015,14 +3994,14 @@ void gameclient_c::MCF_connect(Textarea& target) {
 void gameclient_c::MCF_updateServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
-		Thread::startDetachedThread(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::getServerListThread));
+		Thread::startDetachedThread_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::getServerListThread));
 	}
 }
 
 void gameclient_c::MCF_refreshServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
-		Thread::startDetachedThread(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::refreshThread));
+		Thread::startDetachedThread_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::refreshThread));
 	}
 }
 

@@ -1,7 +1,7 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
-#include "network.h"	//#fix: needed for possible definition of SEND_FRAMEOFFSET
+#include "protocol.h"	//#fix: needed for possible definition of SEND_FRAMEOFFSET
 #include "nassert.h"
 #include <vector>
 #include <list>

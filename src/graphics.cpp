@@ -1165,8 +1165,15 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 void Graphics::draw_pup(const Powerup& pup, double time) {
 	nAssert(pup.kind >= 0 && pup.kind < static_cast<int>(pup_sprite.size()));
 	BITMAP* sprite = pup_sprite[pup.kind];
-	if (sprite)
-		masked_blit(sprite, drawbuf, 0, 0, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2, sprite->w, sprite->h);
+	if (sprite) {
+/*#@7:		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+		set_alpha_blender();
+		draw_trans_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
+		solid_mode();*/
+//18:		draw_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
+
+//		masked_blit(sprite, drawbuf, 0, 0, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2, sprite->w, sprite->h);
+	}
 	else
 		switch (pup.kind) {
 			case Powerup::pup_shield:		draw_pup_shield(pup.x, pup.y); break;

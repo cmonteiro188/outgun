@@ -31,13 +31,12 @@ else
  endif
 endif
 
-LEETNET_OBJS = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
-	leetnet/rudp.o leetnet/server.o leetnet/timefunc.o \
-	leetnet/Time.o leetnet/Timer.o leetnet/dlog.o
-
 OBJS = antialias.o world.o servnet.o server.o graphics.o commont.o \
 	client.o client_menus.o main.o names.o nameauth.o sounds.o mappic.o \
-	nassert.o globals.o log.o utility.o menu.o $(LEETNET_OBJS)
+	nassert.o globals.o log.o utility.o menu.o network.o \
+	leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
+	leetnet/rudp.o leetnet/server.o leetnet/timefunc.o \
+	leetnet/Time.o leetnet/Timer.o leetnet/dlog.o
 
 MON_OBJS = srvmonit.o nassert.o
 

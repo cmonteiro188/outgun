@@ -4,7 +4,7 @@
 #include "graphics.h"
 #include "sounds.h"
 #include "world.h"
-#include "network.h"
+#include "protocol.h"
 #include "thread.h"
 #include "mutex.h"
 #include "log.h"
@@ -62,6 +62,34 @@ public:
 	void stop();
 };
 
+class TournamentPasswordManager {
+	volatile bool quit_password_thread;
+	Thread passthread;
+
+	bool player_token_new;	//TRUE if first call to token servlet
+	bool player_token_set;
+	char player_token[64];
+	std::string player_password;
+	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
+
+	void client_password_thread();
+
+public:
+	TournamentPasswordManager();
+
+TournamentPasswordManager::TournamentPasswordManager() :
+	quit_password_thread(true),
+	player_token_set(false),
+	player_token_new,
+	namestatus_code(0)
+{
+//	menu.options.name.namestatus.set("NO PASSWORD SET");
+}
+
+
+};
+
+
 class client_c;	// of leetnet
 class client_runes_t;
 
@@ -108,12 +136,7 @@ class gameclient_c {
 	int ud_fp;	//file pointer for read/write
 	FILE *ud_fout;	//input or output file
 
-	bool player_password_set;
-	bool player_token_new;	//TRUE if first call to token servlet
-	bool player_token_set;
-	char player_token[64];
-	std::string player_password;
-	Thread passthread;
+	TournamentPasswordManager tournamentPassword;
 
 	NLulong fdp, fdp_max;
 	NLulong max_world_score, max_world_rank;
@@ -122,8 +145,6 @@ class gameclient_c {
 	std::vector<MapInfo> maps;
 	int current_map;
 	int map_vote;
-	std::string edit_map_vote;
-	int player_stats_page;
 	bool want_change_teams;
 	bool want_map_exit;
 	bool map_time_limit;
@@ -151,6 +172,8 @@ class gameclient_c {
 	int scoreboard[MAX_PLAYERS];
 	std::string hostname;
 	int strlen_hostname;
+	std::string edit_map_vote;
+	int player_stats_page;
 
 	std::vector<gamespy_t> gamespy;
 	std::vector<gamespy_t> mgamespy;	//gamespy of master server
@@ -158,7 +181,6 @@ class gameclient_c {
 
 	std::string playername;	//the player's name (max name len = 16)
 	std::string address;	//server IP address
-	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 
 	volatile bool abortThreads;
 
@@ -249,7 +271,6 @@ public:
 	void process_incoming_data(char* data, int length);
 
 	void check_change_pass_command();
-	void client_password_thread();
 
 	const char* gameclient_c::refreshStatusAsString() const;
 	void getServerListThread();
