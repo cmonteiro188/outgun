@@ -448,13 +448,16 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		int team, rx, ry;
 		float x, y;
 		ist >> team >> rx >> ry >> x >> y;
-		if (!ist || (ist >> nullc) || team < 0 || team > 1) {
+		if (!ist || (ist >> nullc) || team < 0 || team > 2) {
 			LOG1("Invalid map line: %s\n", line.c_str());
 			return false;
 		}
 		spoint_t flag(bound(rx, 0, w-1), bound(ry, 0, h-1),
 			static_cast<int>(x * (double)plw / scalex), static_cast<int>(y * (double)plh / scaley));
-		tinfo[team].flags.push_back(flag);
+		if (team < 2)
+			tinfo[team].flags.push_back(flag);
+		else
+			wild_flags.push_back(flag);
 	}
 	else if (command == "V") {	// V ver : set file format version
 		ist >> ver;
@@ -904,6 +907,12 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			carryFlag = true;
 			break;
 		}
+	if (!carryFlag)
+		for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+			if (fi->carrier() == pid) {
+				carryFlag = true;
+				break;
+			}
 
 	//select effective physics vars for the player
 	float player_accel, player_friction, player_maxspeed;
@@ -1011,19 +1020,32 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 void WorldBase::returnAllFlags() {
 	for (int t = 0; t < 2; t++)
 		teams[t].return_all_flags();
+	for (vector<Flag>::iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+		fi->return_to_base();
 }
 
 void WorldBase::returnFlag(int team, int flag) {
-	teams[team].return_flag(flag);
+	if (team == 2)
+		wild_flags[flag].return_to_base();
+	else
+		teams[team].return_flag(flag);
 }
 
 void WorldBase::dropFlag(int team, int flag, int px, int py, int x, int y) {
 	const spoint_t pos(px, py, x, y + 15);
-	teams[team].drop_flag(flag, pos);
+	if (team == 2) {
+		wild_flags[flag].move(pos);
+		wild_flags[flag].drop();
+	}
+	else
+		teams[team].drop_flag(flag, pos);
 }
 
 void WorldBase::stealFlag(int team, int flag, int carrier) {
-	teams[team].steal_flag(flag, carrier, get_time());
+	if (team == 2)
+		wild_flags[flag].take(carrier, get_time());
+	else
+		teams[team].steal_flag(flag, carrier, get_time());
 }
 
 void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
@@ -1251,7 +1273,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	unsigned long uptime = frame/10/60;	// minutes
 	int days = uptime / 60 / 24;
 	ostringstream server_time;
-	server_time << "@IThe server has been up for ";
+	server_time << "The server has been up for ";
 	if (days > 0)
 		server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
 	server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
@@ -1262,7 +1284,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	// map time
 	int seconds = getMapTime() / 10;
 	ostringstream map_time;
-	map_time << "@IMap time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
+	map_time << "Map time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
 	if (config.getTimeLimit() == 0)
 		map_time << " There is no time limit.";
 	else {
@@ -1292,6 +1314,9 @@ bool ServerWorld::load_map(const char *mapdir, const string& mapname) {
 		for (vector<spoint_t>::const_iterator pi = map.tinfo[t].flags.begin(); pi != map.tinfo[t].flags.end(); ++pi)
 			teams[t].add_flag(*pi);
 	}
+	wild_flags.clear();
+	for (vector<spoint_t>::const_iterator pi = map.wild_flags.begin(); pi != map.wild_flags.end(); ++pi)
+		wild_flags.push_back(Flag(*pi));
 	return success;
 }
 
@@ -1301,6 +1326,7 @@ void ServerWorld::returnAllFlags() {
 		player[i].drop_flag();
 	net->ctf_net_flag_status(-1, 0);
 	net->ctf_net_flag_status(-1, 1);
+	net->ctf_net_flag_status(-1, 2);
 }
 
 void ServerWorld::returnFlag(int team, int flag) {
@@ -1319,20 +1345,29 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) {
 }
 
 bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
-	const int enemy = 1 - pid / TSIZE;
+	int team = 1 - pid / TSIZE;
 	if (!player[pid].flag())
 		return false;
-	int flag = 0;
+	int flag = -1;
 	int i = 0;
-	for (vector<Flag>::const_iterator fi = teams[enemy].flags().begin(); fi != teams[enemy].flags().end(); ++fi, ++i)
+	for (vector<Flag>::const_iterator fi = teams[team].flags().begin(); fi != teams[team].flags().end(); ++fi, ++i)
 		if (fi->carrier() == pid) {
 			flag = i;
 			break;
 		}
-	net->bprintf("@I%s LOST THE %s FLAG!", player[pid].name.c_str(), teamname[enemy]);
+	if (flag == -1) {
+		team = 2;
+		i = 0;
+		for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi, ++i)
+			if (fi->carrier() == pid) {
+				flag = i;
+				break;
+			}
+	}
+	net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), teamname[team]);
 	net->broadcast_sample(SAMPLE_CTF_LOST);
 	net->broadcast_flag_drop(player[pid]);
-	dropFlag(enemy, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
+	dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
 	player[pid].drop_flag();
 	player[pid].stats().add_flag_drop();
 	teams[pid / TSIZE].add_flag_drop();
@@ -1392,7 +1427,7 @@ void ServerWorld::respawnPlayer(int pid) {
 		} while (runaway-- > 0);
 
 		if (runaway <= 0)
-			net->broadcast_message("PLAYER SPAWN RUNAWAY");
+			net->broadcast_message(msg_warning, "PLAYER SPAWN RUNAWAY");
 	}
 
 	//put player there
@@ -1525,7 +1560,7 @@ void ServerWorld::respawn_pickup(int p) {
 		if (!hit)
 			break;
 		if (--runaway < 0) {
-			net->broadcast_message("ITEM SPAWN RUNAWAY");
+			net->broadcast_message(msg_warning, "ITEM SPAWN RUNAWAY");
 			return;
 		}
 	}
@@ -1777,18 +1812,15 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 
 	//check if the enemy flag is carried in this screen(target's) by somebody that is not me
 	if (!same_team) {
-		for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
-			if (fi->carried()) {
-				const int p = fi->carrier();
-				if (player[p].used && p != attacker && player[p].roomx == player[target].roomx && player[p].roomy == player[target].roomy) {
-					net->bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), teamname[atteam]);
+		for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
+			if (player[i].used && player[i].flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
+					net->bprintf(msg_info, "%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), teamname[atteam]);
 					host->score_frag(attacker, 1);
 					break;	// only one message
 				}
-			}
 		for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
 			if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-				net->bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), teamname[atteam]);
+				net->bprintf(msg_info, "%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), teamname[atteam]);
 				host->score_frag(attacker, 1);
 				break;		// only one message
 			}
@@ -1798,26 +1830,26 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 		if (!same_team)
 			host->score_frag(attacker, 1);	// extra frag for fragging a carrier
 		else
-			host->score_frag(attacker, -1);	// extra penalty for fragging a carrier
+			host->score_frag(attacker, -1);	// extra penalty for fragging own carrier
 		player[attacker].total_flag_carriers_killed++;
 	}
 
 	if (deathbringer) {
 		if (player[attacker].used) {
 			if (!same_team)
-				net->bprintf("@I%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
+				net->bprintf(msg_info, "%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
 			else
-				net->bprintf("@I%s was choked by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
+				net->bprintf(msg_info, "%s was choked by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
 		}
 		else
-			net->bprintf("@I%s was choked", player[target].name.c_str());
+			net->bprintf(msg_info, "%s was choked", player[target].name.c_str());
 		net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
 	}
 	else {
 		if (!same_team)
-			net->bprintf("@I%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
+			net->bprintf(msg_info, "%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
 		else
-			net->bprintf("@I%s was nailed by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
+			net->bprintf(msg_info, "%s was nailed by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
 	}
 
 	net->broadcast_kill(player[attacker], player[target], deathbringer, flag);
@@ -2467,35 +2499,36 @@ void ServerWorld::simulateFrame() {
 				game_touch_pickup(i, k);		//COOL!
 			}
 
-		// --> CTF FLAG STEAL touch other team's flag
-		// enemy flag dropped (at base or somewhere)
+		// Flag steal - touch other team's flag or wild flag
 		bool touches_flag = false;
 		if (!player[i].flag()) {
 			int f = 0;
-			for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
+			for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi, ++f)
 				if (!fi->carried() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
 					touches_flag = true;
 					// Has player just dropped the flag or not?
 					if (!player[i].dropped_flag && !player[i].drop_key) {
-						//FLAG STOLEN!
-						host->score_frag(i, 1);	// just add some frags
-						player[i].total_flags_taken++;
-						player[i].stats().add_flag_take();
-						teams[myteam].add_flag_take();
-						net->bprintf("@I%s GOT THE %s FLAG!", player[i].name.c_str(), teamname[enemyteam]);
-						net->broadcast_flag_take(player[i]);
-						stealFlag(enemyteam, f, i);  //flag stolen!
-						player[i].take_flag();
-						//HELM powerup: show player
-						if (player[i].item_helm())
-							player[i].visibility = 254;
+						player_steals_flag(i, 2, f);
 						break;	// only take one flag
 					}
 				}
+			if (!player[i].flag()) {
+				int f = 0;
+				for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
+					if (!fi->carried() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+						touches_flag = true;
+						// Has player just dropped the flag or not?
+						if (!player[i].dropped_flag && !player[i].drop_key) {
+							player_steals_flag(i, enemyteam, f);
+							break;	// only take one flag
+						}
+					}
+			}
 		}
 		if (!player[i].drop_key && !touches_flag)
 			player[i].dropped_flag = false;
-		// --> CTF FLAG RETURN
+
+		// Flag return - wild flags can't be returned
 		int f = 0;
 		for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
 			if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
@@ -2504,48 +2537,28 @@ void ServerWorld::simulateFrame() {
 				player[i].total_flags_returned++;
 				player[i].stats().add_flag_return();
 				teams[myteam].add_flag_return();
-				net->bprintf("@I%s RETURNED THE %s FLAG!", player[i].name.c_str(), teamname[myteam]);
+				net->bprintf(msg_info, "%s RETURNED THE %s FLAG!", player[i].name.c_str(), teamname[myteam]);
 				net->broadcast_flag_return(player[i]);
 				returnFlag(myteam, f);  //flag returned
 				net->broadcast_sample(SAMPLE_CTF_RETURN);
 			}
 
-		// --> CTF FLAG CAPTURE
+		// Flag capture - take enemy or wild flag to own flag
 		for (vector<Flag>::const_iterator fmy = teams[myteam].flags().begin(); fmy != teams[myteam].flags().end(); ++fmy) {
 			int f = 0;
 			for (vector<Flag>::const_iterator fen = teams[enemyteam].flags().begin(); fen != teams[enemyteam].flags().end(); ++fen, ++f)
 				if (fen->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
-					//v0.4.7: detect degenerated maps
-					if (map.valid_for_scoring && get_time() - fen->grab_time() <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
-						//this map is bogus, ignore all scoring for it.
-						map.valid_for_scoring = false;
-						net->broadcast_message("@WThis map is too small. Scoring for World Ranking disabled.");
-						host->clearWorldRankingDeltas();
+					player_captures_flag(i, enemyteam, f);
+					if (teams[myteam].score() >= config.getCaptureLimit()) {
+						host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
+						host->ctf_game_restart();
+						return;
 					}
-					//add frags to all players of the team
-					// V0.4.8: PENALIZE every player of the other team
-					for (int h = 0; h < MAX_PLAYERS; h++)
-						if (player[h].used) {
-							if (h / TSIZE == myteam)
-								host->score_frag(h, 2);				//small two-frag bonus
-							else
-								host->score_neg(h, 1);		//v0.4.8 : small NEG POINT penalty for YOUR FLAG BEING CAPTURED
-						}
-					host->score_frag(i, 3);
-					player[i].total_captures++;
-					player[i].stats().add_capture();
-					player[i].drop_flag();
-					teams[myteam].add_score(getMapTime(), player[i].name);
-					returnFlag(enemyteam, f);
-
-					string one_more;
-					if (teams[myteam].score() == config.getCaptureLimit() - 1)
-						one_more = " One more to win!";
-					net->bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name.c_str(), teamname[enemyteam], one_more.c_str());
-					net->broadcast_capture(player[i]);
-
-					net->ctf_update_teamscore(myteam);		//this function can decide to restart the game . (?)
-					net->broadcast_sample(SAMPLE_CTF_CAPTURE);
+				}
+			f = 0;
+			for (vector<Flag>::const_iterator fw = wild_flags.begin(); fw != wild_flags.end(); ++fw, ++f)
+				if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+					player_captures_flag(i, 2, f);
 					if (teams[myteam].score() >= config.getCaptureLimit()) {
 						host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 						host->ctf_game_restart();
@@ -2555,7 +2568,7 @@ void ServerWorld::simulateFrame() {
 		}
 	}
 
-	// check timelimit
+	// check time limit
 	int players = 0;
 	for (int i=0; i<maxplayers; ++i)
 		if (player[i].used)
@@ -2564,17 +2577,65 @@ void ServerWorld::simulateFrame() {
 	if (players > 1 && time_limit > 0) {
 		const int timeLeft = getTimeLeft();
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
-			net->bprintf("@I*** Five minutes left in the game");
+			net->bprintf(msg_info, "*** Five minutes left in the game");
 		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
-			net->bprintf("@I*** One minute left in the game");
+			net->bprintf(msg_info, "*** One minute left in the game");
 		else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
-			net->bprintf("@I*** 30 seconds left in the game");
+			net->bprintf(msg_info, "*** 30 seconds left in the game");
 		else if (timeLeft <= 0) {
-			net->bprintf("@I*** Time out - CTF game over");
+			net->bprintf(msg_info, "*** Time out - CTF game over");
 			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 			host->ctf_game_restart();
 		}
 	}
+}
+
+void ServerWorld::player_steals_flag(int pid, int team, int flag) {
+	host->score_frag(pid, 1);	// just add some frags
+	player[pid].stats().add_flag_take();
+	teams[pid / TSIZE].add_flag_take();
+	net->bprintf(msg_info, "%s GOT THE %s FLAG!", player[pid].name.c_str(), teamname[team]);
+	net->broadcast_flag_take(player[pid]);
+	stealFlag(team, flag, pid);
+	player[pid].take_flag();
+	// shadow powerup: show player
+	if (player[pid].item_helm())
+		player[pid].visibility = 254;
+}
+
+void ServerWorld::player_captures_flag(int pid, int team, int flag) {
+	const Flag& capt_flag = team == 2 ? wild_flags[flag] : teams[team].flag(flag);
+	const int myteam = pid / TSIZE;
+	if (map.valid_for_scoring && get_time() - capt_flag.grab_time() <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
+		// this map is too small, ignore all scoring for it
+		map.valid_for_scoring = false;
+		net->broadcast_message(msg_warning, "This map is too small. Scoring for World Ranking disabled.");
+		host->clearWorldRankingDeltas();
+	}
+	// add frags to all players of the team and
+	// penalise every player of the other team
+	for (int h = 0; h < MAX_PLAYERS; h++)
+		if (player[h].used) {
+			if (h / TSIZE == myteam)
+				host->score_frag(h, 2);	// small two-frag bonus
+			else if (team != 2)
+				host->score_neg(h, 1);	// small neg point penalty for your flag being captured
+		}
+	host->score_frag(pid, 3);
+	player[pid].total_captures++;
+	player[pid].stats().add_capture();
+	player[pid].drop_flag();
+	teams[myteam].add_score(getMapTime(), player[pid].name);
+	returnFlag(team, flag);
+
+	string one_more;
+	if (teams[myteam].score() == config.getCaptureLimit() - 1)
+		one_more = " One more to win!";
+	net->bprintf(msg_info, "%s CAPTURED THE %s FLAG!%s", player[pid].name.c_str(), teamname[team], one_more.c_str());
+	net->broadcast_capture(player[pid]);
+
+	net->ctf_update_teamscore(myteam);		// this function can decide to restart the game
+	net->broadcast_sample(SAMPLE_CTF_CAPTURE);
 }
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me

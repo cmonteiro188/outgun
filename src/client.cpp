@@ -182,17 +182,25 @@ bool gameclient_c::start() {
 
 	ifstream cfg(dest);
 	if (cfg) {
-		string dir;
+		string line;
 		//read sound theme directory name
-		if (getline_smart(cfg, dir)) {
-			client_sounds.set_theme_dir(dir);
-			LOG1("Sound theme directory default = %s\n", dir.c_str());
+		if (getline_smart(cfg, line)) {
+			client_sounds.set_theme_dir(line);
+			LOG1("Sound theme directory default = %s\n", line.c_str());
 		}
 
 		//read graphics theme directory name
-		if (getline_smart(cfg, dir)) {
-			client_graphics.set_theme_dir(dir);
-			LOG1("Graphics theme directory default = %s\n", dir.c_str());
+		if (getline_smart(cfg, line)) {
+			client_graphics.set_theme_dir(line);
+			LOG1("Graphics theme directory default = %s\n", line.c_str());
+		}
+
+		//read antialiasing setting
+		if (getline_smart(cfg, line)) {
+			int mode = atoi(line);
+			if (mode < 0 || mode > 2)
+				mode = 0;
+			client_graphics.set_antialiasing(static_cast<Graphics::Antialiasing_mode>(mode));
 		}
 
 		//read player name
@@ -771,7 +779,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 		char lix[256];
 		sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
-		print_message(lix);
+		print_message(msg_info, lix);
 
 		LOG1("%s\n", lix);
 
@@ -847,6 +855,7 @@ void gameclient_c::set_menu(Menu_selection menumber) {
 //disconnect command
 void gameclient_c::disconnect_command() {
 	//disconnect the client here if was connected, else does nothing
+	LOG("disconnect_command()\n");
 	client->connect(false);
 
 	//dialogz
@@ -908,10 +917,10 @@ void gameclient_c::client_connected(char *data, int length) {
 	//reset chat buffer
 	talkbuffer.clear();
 	chatbuffer.clear();
-	chaterasetime = get_time() + 10.0;
 
 	//reset world data
 	// players
+
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		fx.player[i].clear(false, i, "(name unknown)", i / TSIZE);
 	players_sb.clear();
@@ -928,6 +937,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	map_time_limit = false;
 	map_start_time = 0;
 	map_end_time = 0;
+	map_vote = -1;
 
 	//send name update request
 	issue_change_name_command();
@@ -1007,10 +1017,12 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 		set_menu(menu_player_password);
 		save_password_selected = false;
 		edit_player_password = load_player_password(playername, address);
-		save_pl_password = !edit_player_password.empty();
+		autoconnect = save_pl_password = !edit_player_password.empty();
 	}
 	else {
 		set_menu(menu_dialog);
+		if (message == "Wrong player password")
+			remove_player_password(playername, address);
 		// clear passwords to avoid sending them everywhere
 		edit_server_password.clear();
 		edit_player_password.clear();
@@ -1308,7 +1320,10 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 //connect command
 void gameclient_c::connect_command() {
 	// disconnect
+	LOG("connect_command()\n");
 	client->connect(false);
+	
+	autoconnect = false;
 
 	// copy gamespy address
 	if (showmaster)
@@ -1460,12 +1475,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	if (svframe != fx.frame + 1) {
 		ostringstream dstr;
 		if (svframe == fx.frame)
-			dstr << "@WS>C packet duplicated: " << svframe;
+			dstr << "S>C packet duplicated: " << svframe;
 		else if (svframe < fx.frame)
-			dstr << "@WS>C packet order: prev " << fx.frame << " this " << svframe;
+			dstr << "S>C packet order: prev " << fx.frame << " this " << svframe;
 		else
-			dstr << "@WS>C packet lost : prev " << fx.frame << " this " << svframe;
-		print_message(dstr.str().c_str());
+			dstr << "S>C packet lost : prev " << fx.frame << " this " << svframe;
+		print_message(msg_warning, dstr.str().c_str());
 	}
 	#endif
 	//discard older frames
@@ -1717,13 +1732,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	int msglen;
 	NLulong		fragz;
 
-	//switch vars
-	char *chatmsg;
-
 	do {
 		lebuf = msg = client->receive_message(&msglen);
 		if (msg != 0) {
-
 			//switch tempvars
 			char mapname[128];
 			NLubyte rteampower, rpx, rpy, code, pid, team, carried, abyte, rockid, iid, rpow, rdir, sx, sy;
@@ -1753,8 +1764,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//text message
 				case data_text_message: {
-					chatmsg = &(msg[1]);		//avoid a useless readString...
-					print_message(chatmsg);		//print it to the "console"
+					char byte;
+					readByte(msg, count, byte);
+					const Message_type type = static_cast<Message_type>(byte);
+					string chatmsg;
+					readStr(msg, count, chatmsg);
+					print_message(type, chatmsg);		//print it to the "console"
 					if (message_logging) {
 						// print message to log
 						// date and time
@@ -1765,11 +1780,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 							<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
 							<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
 						// message
-						message_log << (chatmsg[0] == '@' ? chatmsg + 2 : chatmsg) << '\n';
+						message_log << chatmsg << '\n';
 					}
 
 					//talk sound
-					if ((strlen(chatmsg) >= 2) && (chatmsg[0] == '@') && (chatmsg[1] == 'I')) {
+					if (type == msg_info) {
 						//don't play talk
 					}
 					else
@@ -1858,7 +1873,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(msg, count, flags);	// how many flags
 					LOG1("Flag message, %d flags.\n", flags);
 					for (int i = 0; i < flags; i++) {
-						if (i >= static_cast<int>(fx.teams[team].flags().size()))
+						if (team == 2) {
+							if (i >= static_cast<int>(fx.wild_flags.size()))
+								fx.wild_flags.push_back(Flag(spoint_t()));
+						}
+						else if (i >= static_cast<int>(fx.teams[team].flags().size()))
 							fx.teams[team].add_flag(spoint_t());
 						readByte(msg, count, carried);	// 0==not carried 1==carried
 						if (carried == 0) {
@@ -1871,12 +1890,20 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 							const int x = ashort;
 							readShort(msg, count, ashort);		//y
 							const int y = ashort;
-							fx.teams[team].drop_flag(i, spoint_t(px, py, x, y));
+							if (team == 2) {
+								fx.wild_flags[i].move(spoint_t(px, py, x, y));
+								fx.wild_flags[i].drop();
+							}
+							else
+								fx.teams[team].drop_flag(i, spoint_t(px, py, x, y));
 						}
 						else {
 							//carried: get carrier
 							readByte(msg, count, abyte);	//carrier
-							fx.teams[team].steal_flag(i, abyte);
+							if (team == 2)
+								fx.wild_flags[i].take(abyte);
+							else
+								fx.teams[team].steal_flag(i, abyte);
 							client_sounds.play(SAMPLE_CTF_GOT);
 						}
 					}
@@ -1950,7 +1977,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//pickup visible
 				case data_pup_visible:
-					//print_message("POWERUP_VISIBLE!!!");
 					readByte(lebuf, count, iid);		// item id
 					readByte(lebuf, count, abyte);		// kind
 					fx.item[iid].kind = static_cast<Powerup::Pup_type>(abyte);
@@ -2000,6 +2026,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.teams[1].remove_flags();
 					fx.teams[0].clear();
 					fx.teams[1].clear();
+					fx.wild_flags.clear();
 					readShort(lebuf, count, usho);				//read CRC16 of map
 					readString(lebuf, count, mapname);		//read map name
 					server_map_command(mapname, usho);
@@ -2038,7 +2065,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//deathbringer shot
 				case data_deathbringer:
-					//print_message("DEATHBRINGER!!!");
 					readByte(lebuf, count, abyte);	//what player
 					readLong(lebuf, count, frameno);		// start time
 					//spawn clientside fx at the owner's position
@@ -2049,25 +2075,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readShort(lebuf, count, hy);
 					client_graphics.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
 					client_sounds.play(SAMPLE_USEDEATHBRINGER);
-
-					//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.player[abyte].x, (int)fx.player[abyte].y, player[abyte].x, player[abyte].y);
-					//if (player[abyte].x == player[me].x)
-					//if (player[abyte].y == player[me].y)
-					//print_message("DEATHBRINGER ON MY SCREEENN!!!");
-					/*
-					writeByte(lebuf, count, 26);	//26==deathbringer
-					writeByte(lebuf, count, ((NLubyte)target));	//team/target player
-					//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
-					//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
-					//  trying sending screen x,y and player x y
-					writeByte(lebuf, count, ((NLubyte)player[target].x));
-					writeByte(lebuf, count, ((NLubyte)player[target].y));
-					writeShort(lebuf, count, ((NLushort)world.player[target].x));
-					writeShort(lebuf, count, ((NLushort)world.player[target].y));
-					writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
-					*/
-					//sprintf(debuf, "t %i sx %i sy %i x %i y %i
-					//print_message
 					break;
 
 				//v0.4.4: UDP FILE DOWNLOAD: incoming chunk
@@ -2331,18 +2338,12 @@ void gameclient_c::send_chat(const string& msg) {
 	client->send_message(lebuf, count);
 }
 
-void gameclient_c::erase_first_message() {
-	if (!chatbuffer.empty())
-		chatbuffer.pop_front();
-	chaterasetime = get_time() + 10.0;
-}
-
 //print message to "console"
-void gameclient_c::print_message(const string& msg) {
+void gameclient_c::print_message(Message_type type, const string& msg) {
 	if (chatbuffer.size() == chat_size)
 		chatbuffer.pop_front();
-	chatbuffer.push_back(msg);
-	chaterasetime = get_time() + 10.0;
+	Message message(type, msg, static_cast<int>(get_time()));
+	chatbuffer.push_back(message);
 }
 
 void gameclient_c::save_screenshot() {
@@ -2364,7 +2365,7 @@ void gameclient_c::save_screenshot() {
 		message << "Saved screenshot to " << filename << '.';
 	else
 		message << "Could not save screenshot to " << filename << '.';
-	print_message(message.str().c_str());
+	print_message(msg_warning, message.str().c_str());
 }
 
 //toggle help screen
@@ -2756,6 +2757,8 @@ void gameclient_c::loop() {
 						screenshot = true;
 				}
 			}
+			else if (menu == menu_player_password && autoconnect)
+				connect_command();
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
 			else if (menu != menu_none) {
 				while (keypressed()) {
@@ -2820,7 +2823,7 @@ void gameclient_c::loop() {
 									predraw();
 									break;
 								case '8':
-									client_graphics.toggleAntialiasing();
+									client_graphics.toggle_antialiasing();
 									client_graphics.update_minimap_background(fx.map);
 									predraw();
 									break;
@@ -3350,6 +3353,7 @@ void gameclient_c::stop() {
 			cfg << "-\n";
 		else
 			cfg << client_graphics.theme_dir() << '\n';
+		cfg << client_graphics.antialiasing_mode() << '\n';
 
 		if (!playername.empty())
 			cfg << playername << '\n';
@@ -3408,6 +3412,7 @@ gameclient_c::gameclient_c():
 	save_pl_password(false),
 	save_password_selected(false),
 	password_file("passwd.txt"),
+	autoconnect(false),
 	name_selected(true),
 	screenshot(false)
 {
@@ -3451,8 +3456,6 @@ gameclient_c::gameclient_c():
 
 	//connect screen, my "mini-gamespy"
 	gi=0;	//what game entry
-
-	chaterasetime = 0;				// time to erase a chat message from the list
 
 	pthread_mutex_init(&frame_mutex, 0);
 	pthread_mutex_init(&mapInfoMutex, 0);
@@ -3508,19 +3511,20 @@ void gameclient_c::predraw() {
 			fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
 		return;	//#fix: this shouldn't be needed, or should be checked from a simple flag
 	vector< pair<int, const spoint_t*> > flags;
+
 	for (int team = 0; team < 2; team++)
 		for (vector<spoint_t>::const_iterator pi = fx.map.tinfo[team].flags.begin(); pi != fx.map.tinfo[team].flags.end(); ++pi)
 			if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
 				flags.push_back(pair<int, const spoint_t*>(team, &(*pi)));
+	for (vector<spoint_t>::const_iterator pi = fx.map.wild_flags.begin(); pi != fx.map.wild_flags.end(); ++pi)
+		if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
+			flags.push_back(pair<int, const spoint_t*>(2, &(*pi)));
+
 	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], flags);
 }
 
 //draw the whole game screen
 void gameclient_c::draw_game_frame() {
-	// erase old chat messages (this shouldn't be here really but wtf..)
-	if (chaterasetime < get_time())
-		erase_first_message();
-
 	//lock frame mutex
 	pthread_mutex_lock( &frame_mutex );
 
@@ -3561,14 +3565,12 @@ void gameclient_c::draw_game_frame() {
 	// frame is valid?
 	if (!hide_game && fd.frame >= 0) {
 		// draw dead players, except ice creams
-		for (int k = 0; k < maxplayers; k++) {
-			const int i = fd.player[k].drawptr;
-
-			if (i >= 0 && fx.player[i].onscreen && fx.player[i].dead) {
+		for (int i = 0; i < maxplayers; i++) {
+			if (fx.player[i].used && fx.player[i].onscreen && fx.player[i].dead) {
 				if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
 					;	// draw later
 				else
-					client_graphics.draw_player_dead((int)fx.player[i].lx, (int)fx.player[i].ly);
+					client_graphics.draw_player_dead(static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly));
 			}
 		}
 
@@ -3596,6 +3598,10 @@ void gameclient_c::draw_game_frame() {
 				if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy)
 					client_graphics.draw_flag(t, fi->position().x, fi->position().y);
 
+		for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+			if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy)
+				client_graphics.draw_flag(2, fi->position().x, fi->position().y);
+
 		// FIXME: y-ordering of draw not maintained
 		// draw any rockets
 		for (int i = 0; i < MAX_ROCKETS; i++)
@@ -3605,39 +3611,10 @@ void gameclient_c::draw_game_frame() {
 				client_graphics.draw_rocket(fd.rock[i], get_time());
 			}
 
-		// sort order of drawing of the players
-		//
-		for (int i = 0; i < maxplayers; i++) {
-			fd.player[i].drawused = 0;
-			fd.player[i].drawptr = -1;
-		}
-
-		double miny;
-		int minyid;
-
-		int i;
-		for (i = 0; i < maxplayers; i++) {
-			minyid = -1;
-			miny = 999999;
-
-			for (int j = 0; j < maxplayers; j++)
-			if (fd.player[j].used)	{
-				if (fd.player[j].drawused == 0)
-				if (fd.player[j].ly < miny) {
-					miny = fd.player[j].ly;
-					minyid = j;
-				}
-			}
-
-			if (minyid == -1)
-				break;
-
-			fd.player[minyid].drawused = 1;
-			fd.player[i].drawptr = minyid;
-		}
-
 		// the PLAY AREA: the players!
 		for (int k = 0; k < maxplayers; k++) {
+			const int i = (me / TSIZE == 0 ? k : maxplayers - k - 1);
+
 			//HACK REMENDEX: predict item_helm
 			if (fd.player[i].item_helm()) {
 				int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
@@ -3646,59 +3623,10 @@ void gameclient_c::draw_game_frame() {
 					fd.player[i].visibility = 0;
 			}
 
-			//indirection: draw in y-order
-			int i;
-			i = fd.player[k].drawptr;
-
-			if (i >= 0 && fx.player[i].onscreen) {		// draw only players on my screen
-				//calcula alfa do player
-				int alpha = fd.player[i].visibility;
-				if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
-					alpha = MIN_ALPHA_FRIENDS;
-				//client_graphics.draw_player_shadow(fx.player[i], alpha);	//#fix? fx -> fd to make shadow not jump
-				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
-				for (int t = 0; t < 2; t++)
-					for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
-						if (fi->carrier() == i)
-							client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
-				if (fx.player[i].dead) {	// draw only ice creams
-					if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
-						client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);
-				}
-				// desenha player vivo
-				else {
-					// turbo effect
-					if (fx.player[i].item_speed && (fabs(fx.player[i].sx) > svp_maxspeed || fabs(fx.player[i].sy) > svp_maxspeed) &&
-						get_time() > fx.player[i].speed_drop_time)		// intervalo entre drop de efeito bolinha
-					{
-						//tempo minimo pra soltar outra bolinha fade
-						fx.player[i].speed_drop_time = get_time() + 0.05;
-						//solta a bolinha
-						client_graphics.create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
-					}
-
-					//draw player
-					client_graphics.draw_player((int)fd.player[i].lx, (int)fd.player[i].ly, i / TSIZE, i % TSIZE, fx.player[i].gundir, fx.player[i].hitfx, fx.player[i].item_quad, alpha, get_time());
-
-					//draw deathbringer carrier effect
-					if (fx.player[i].item_deathbringer) {
-						// intervalo entre drop de efeito
-						if (get_time() > fx.player[i].death_drop_time) {
-							//tempo p/ proximo efeito
-							fx.player[i].death_drop_time = get_time() + 0.01;
-							//drop it
-							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-						}
-					}
-					// draw deathbringer affected effect
-					if (fx.player[i].deathbringer_affected)
-						client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE);
-					// shield
-					if (fx.player[i].item_shield)
-						client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, fx.player[i].team());
-				}
-			}
+			if (fx.player[i].onscreen && i != me)	// draw only players on my screen
+				draw_player(i);
+			if (k == maxplayers - 1)				// last draw me
+				draw_player(me);
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
@@ -3730,6 +3658,10 @@ void gameclient_c::draw_game_frame() {
 				if (!fi->carried())
 					client_graphics.draw_mini_flag(t, *fi, fx.map);
 
+		for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+			if (!fi->carried())
+				client_graphics.draw_mini_flag(2, *fi, fx.map);
+
 		vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm()) ? true : false);
 
 		// draw all teammates and enemies on screens where there are teammates
@@ -3751,6 +3683,16 @@ void gameclient_c::draw_game_frame() {
 
 							// draw the miniflag here
 							client_graphics.draw_mini_flag(enemy, *fi, fx.map);
+						}
+
+					for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+						if (fi->carrier() == i) {
+							// update flag position for draw
+							fi->move(spoint_t(fx.player[i].roomx, fx.player[i].roomy,
+								static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
+
+							// draw the miniflag here
+							client_graphics.draw_mini_flag(2, *fi, fx.map);
 						}
 
 					if (i != me)
@@ -3895,8 +3837,12 @@ void gameclient_c::draw_game_frame() {
 	int start = static_cast<int>(chatbuffer.size()) - static_cast<int>(chat_visible);
 	if (start < 0)
 		start = 0;
-	list<string>::const_iterator msg = chatbuffer.begin();
+	list<Message>::const_iterator msg = chatbuffer.begin();
 	for (int i = 0; i < start; ++i, ++msg);
+	if (chat_visible == 8)
+		for (; msg != chatbuffer.end(); ++msg)
+			if (get_time() < msg->time() + 80)
+				break;
 	client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer);
 
 	//"server not responding... connection may have dropped" plaque
@@ -4054,6 +4000,48 @@ void gameclient_c::draw_game_frame() {
 			frameCountStartTime = get_time();
 			framecount = 0;
 		}
+	}
+}
+
+void gameclient_c::draw_player(int i) {
+	int alpha = fd.player[i].visibility;
+	if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
+		alpha = MIN_ALPHA_FRIENDS;
+	// draw flag if player is carrier of a flag
+	for (int t = 0; t < 2; t++)
+		for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+			if (fi->carrier() == i)
+				client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
+	for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+		if (fi->carrier() == i)
+			client_graphics.draw_flag(2, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
+	if (fx.player[i].dead) {	// draw only ice creams
+		if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
+			client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);
+	}
+	else {
+		// turbo effect
+		if (fx.player[i].item_speed && (fabs(fx.player[i].sx) > svp_maxspeed || fabs(fx.player[i].sy) > svp_maxspeed) &&
+					get_time() > fx.player[i].speed_drop_time) {
+			fx.player[i].speed_drop_time = get_time() + 0.05;
+			client_graphics.create_speedfx(static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly), fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
+		}
+
+		//draw player
+		client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, i % TSIZE, fx.player[i].gundir, fx.player[i].hitfx, fx.player[i].item_quad, alpha, get_time());
+
+		//draw deathbringer carrier effect
+		if (fx.player[i].item_deathbringer && get_time() > fx.player[i].death_drop_time) {
+			fx.player[i].death_drop_time = get_time() + 0.01;
+			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE);
+			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE);
+		}
+		// draw deathbringer affected effect
+		if (fx.player[i].deathbringer_affected)
+			client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE);
+		// shield
+		if (fx.player[i].item_shield)
+			client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, fx.player[i].team());
 	}
 }
 

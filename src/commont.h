@@ -33,7 +33,7 @@ extern FILE *game_log;
 
 int atoi(const std::string& str);
 
-enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
+enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
 
 class ClientControls {
 	NLubyte data;
@@ -256,7 +256,7 @@ enum {
 	NUM_OF_SAMPLES
 };
 
-extern char teamname[2][5];
+extern char teamname[3][5];
 
 extern int listen_port_running;
 extern volatile bool	listen_server_running;

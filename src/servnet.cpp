@@ -259,7 +259,7 @@ void ServerNetworking::move_update_player(int a) {
 		//broadcast_player_name( a );
 
 		//message
-		bprintf("@I%s moved to %s team", world.player[a].name.c_str(), teamname[a/TSIZE]);
+		bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), teamname[a/TSIZE]);
 	}
 }
 
@@ -291,9 +291,15 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
 	writeByte(lebuf, count, static_cast<NLubyte>(team));	//what team
 
 	// how many flags
-	writeByte(lebuf, count, static_cast<NLubyte>(world.teams[team].flags().size()));
+	NLubyte size;
+	if (team == 2)
+		size = static_cast<NLubyte>(world.wild_flags.size());
+	else
+		size = static_cast<NLubyte>(world.teams[team].flags().size());
+	writeByte(lebuf, count, size);
 
-	for (vector<Flag>::const_iterator fi = world.teams[team].flags().begin(); fi != world.teams[team].flags().end(); ++fi)
+	const vector<Flag>& flags = team == 2 ? world.wild_flags : world.teams[team].flags();
+	for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
 		if (fi->carried())	{ 			//carried?
 			writeByte(lebuf, count, 1);	//TRUE
 			//new flag carrier
@@ -524,23 +530,22 @@ void ServerNetworking::client_report_status(int id) {
 }
 
 //broadcast team message
-void ServerNetworking::broadcast_team_message(int team, char *text) {
+void ServerNetworking::broadcast_team_message(int team, const string& text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
-	writeString(lebuf, count, text);
+	writeByte(lebuf, count, msg_team);
+	writeStr(lebuf, count, text);
 
 	// send message only to teammates
 	for (int i=0;i<maxplayers;i++)
-	if (world.player[i].used)
-	if ((i/TSIZE) == team) {
-		server->send_message(world.player[i].cid, lebuf, count);
-	}
+		if (world.player[i].used && i / TSIZE == team)
+			server->send_message(world.player[i].cid, lebuf, count);
 
 	//send to the admin shell
 	if (shellssock) {
 		count = 0;
 		writeLong(lebuf, count, STA_GAME_TEXT);
-		writeString(lebuf, count, text);
+		writeStr(lebuf, count, text);
 		nlWrite(shellssock, lebuf, count);
 	}
 }
@@ -555,7 +560,7 @@ void ServerNetworking::broadcast_screen_message(int px, int py, char *lebuf, int
 }
 
 // V0.4.9 : broadcast message with varargs
-void ServerNetworking::bprintf(const char *fs, ...) {
+void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
 	//vsprintf...
 	va_list argptr;
 	char msg[16384];
@@ -564,31 +569,35 @@ void ServerNetworking::bprintf(const char *fs, ...) {
 	va_end (argptr);
 
 	//broadcast it
-	broadcast_message(msg);
+	broadcast_message(type, msg);
 }
-void ServerNetworking::plprintf(int pid, const char* fmt, ...) {	// bprintf for a single player
-	char buf[16385];
-	buf[0] = data_text_message;	// message type
+
+void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) {	// bprintf for a single player
+	char buf[16384];
+	buf[0] = data_text_message;
+	buf[1] = type;
 	va_list argptr;
 	va_start(argptr, fmt);
-	vsprintf(buf+1, fmt, argptr);
+	vsprintf(buf + 2, fmt, argptr);
 	va_end(argptr);
-	server->send_message(world.player[pid].cid, buf, strlen(buf)+1);
+	server->send_message(world.player[pid].cid, buf, 2 + strlen(buf + 2) + 1);
 }
 
 //send a single message player-printf
-void ServerNetworking::player_message(int pid, const char *text) {
+void ServerNetworking::player_message(int pid, Message_type type, const string& text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
-	writeString(lebuf, count, text);
+	writeByte(lebuf, count, type);
+	writeStr(lebuf, count, text);
 	if (world.player[pid].used)
 		server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 //broadcast message to all
-void ServerNetworking::broadcast_message(const string& text) {
+void ServerNetworking::broadcast_message(Message_type type, const string& text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
+	writeByte(lebuf, count, type);
 	writeStr(lebuf, count, text);
 	for (int i=0;i<maxplayers;i++)
 		if (world.player[i].used)
@@ -839,6 +848,7 @@ int ServerNetworking::client_connected(int id) {
 	// - world ctf flags information
 	ctf_net_flag_status(id, 0);
 	ctf_net_flag_status(id, 1);
+	ctf_net_flag_status(id, 2);
 
 	// - all other player's names
 	// - all other player's frags
@@ -863,7 +873,7 @@ int ServerNetworking::client_connected(int id) {
 
 	const vector<string>& welcome_message = host->getWelcomeMessage();
 	for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
-		world.player[myself].add_to_queue(*line);
+		player_message(myself, msg_info, *line);
 
 	host->check_team_changes();
 	update_serverinfo();
@@ -898,7 +908,7 @@ void ServerNetworking::client_disconnected(int id) {
 		nlWrite(shellssock, lebuf, count);
 	}
 
-	bprintf("@I%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].frags);
+	bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].frags);
 	broadcast_sample(SAMPLE_LEFTGAME);
 
 	//report the latest player achievements to the master server
@@ -924,7 +934,7 @@ void ServerNetworking::ping_result(int client_id, int ping_time) {
 }
 
 void ServerNetworking::newPlayer(int pid) {
-	bprintf("@I%s entered the game", world.player[pid].name.c_str());
+	bprintf(msg_info, "%s entered the game", world.player[pid].name.c_str());
 	broadcast_sample(SAMPLE_ENTERGAME);
 	if (shellssock) {
 		char lebuf[256]; int count = 0;
@@ -968,9 +978,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 	#ifdef WATCH_CONNECTION
 	if (pl.lastClientFrame != clFrame) {
 		if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) < 128)
-			plprintf(pid, "@WC>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
+			plprintf(pid, msg_warning, "C>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
 		else if (static_cast<NLubyte>(pl.lastClientFrame + 1) != clFrame)
-			plprintf(pid, "@WC>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
+			plprintf(pid, msg_warning, "C>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
 	}
 	#endif
 	if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) {	// this frame is very likely newer or the same as the previous one
@@ -2384,7 +2394,7 @@ void ServerNetworking::run_website_thread() {
 			const string data = build_http_data(parameters);
 			NLint result = post_http_data(site_script, data, site_auth);
 			LOG("Website thread: Sent information to server website:\n");
-			LOG1("\t%s\n", data.c_str());
+			LOG1("\t%s", data.c_str());
 			LOG1("\tResult: %i\n", result);
 			if (result == -1)
 				website_talk_time = get_time() + 15.0;		// 15 seconds
@@ -2438,7 +2448,7 @@ void ServerNetworking::run_website_thread() {
 	const string quit = "quit=1\r\n";
 	NLint result = post_http_data(site_script, quit, site_auth);
 	LOG("Website thread: Sent information to server website:\n");
-	LOG1("\t%s\n", quit.c_str());
+	LOG1("\t%s", quit.c_str());
 	LOG1("\tResult: %i\n", result);
 
 	// save response to a file
@@ -2804,7 +2814,7 @@ void ServerNetworking::run_shellslave_thread() {
 			case ATS_SERVER_CHAT:									//server is saying <string chat line>
 				read_string_from_TCP(shellssock, (char *)chat);
 				sprintf(lechat, "ADMIN: %s", chat);
-				broadcast_message(lechat);
+				broadcast_message(msg_normal, lechat);
 				break;
 			case ATS_GET_PINGS:
 				for (int p=0; p<maxplayers; ++p)

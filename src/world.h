@@ -113,6 +113,7 @@ class Map {
 public:
 	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?
 	teaminfo_t tinfo[2];	//team information for red=0 and blue=1 teams
+	std::vector<spoint_t> wild_flags;
 	std::vector< std::vector<Room> > room;	// accessed by [x][y]
 
 	std::string title;	//map title
@@ -584,6 +585,9 @@ public:
 
 	PointerContainer<PlayerBase> player[MAX_PLAYERS];
 	Team teams[2];
+
+	std::vector<Flag> wild_flags;	// both teams can capture these (team ID is 2)
+
 	rocket_c rock[MAX_ROCKETS];
 	Powerup item[MAX_PICKUPS];
 
@@ -650,6 +654,9 @@ class ServerWorld : public WorldBase {
 
 	NLubyte getFreeRocket();	// may give an existing rocket to overwrite if the table is full
 	void drop_pickup(const ServerPlayer& player);
+
+	void player_steals_flag(int pid, int team, int flag);
+	void player_captures_flag(int pid, int team, int flag);
 
 public:
 	NLulong frame;

@@ -161,12 +161,12 @@ public:
 
 	void broadcast_sample(int code);
 	void broadcast_screen_sample(int p, int code);
-	void broadcast_team_message(int team, char *text);
+	void broadcast_team_message(int team, const std::string& text);
 	void broadcast_screen_message(int px, int py, char *lebuf, int count);
-	void bprintf(const char *fs, ...);
-	void plprintf(int pid, const char* fmt, ...);
-	void player_message(int pid, const char *text);
-	void broadcast_message(const std::string& text);
+	void bprintf(Message_type type, const char *fs, ...);
+	void plprintf(int pid, Message_type type, const char* fmt, ...);
+	void player_message(int pid, Message_type type, const std::string& text);
+	void broadcast_message(Message_type type, const std::string& text);
 
 	void forwardSayadminMessage(int cid, const std::string& message);
 

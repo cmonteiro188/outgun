@@ -126,12 +126,12 @@ class gameclient_c {
 	bool save_pl_password;
 	bool save_password_selected;
 	std::string password_file;
+	bool autoconnect;
 	
 	std::string dialogmessage;
 	std::string dialogmessage2;
 	std::string talkbuffer;
-	std::list<std::string> chatbuffer;
-	double chaterasetime;
+	std::list<Message> chatbuffer;
 	static const std::size_t chat_size;
 	std::size_t chat_visible;
 	std::string editplayerpass;
@@ -197,7 +197,7 @@ public:
 	Graphics& graphics() { return client_graphics; }
 
 	void erase_first_message();
-	void print_message(const std::string& msg);
+	void print_message(Message_type type, const std::string& msg);
 
 	void save_screenshot();
 	void toggle_help();
@@ -205,11 +205,27 @@ public:
 	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
 	void predraw();
 	void draw_game_frame();
+	void draw_player(int pid);
 	void draw_game_menu();
 	void update_scoreboard();
 	void set_menu(Menu_selection menumber);
 };
 
 extern gameclient_c *gameclient;
+
+class Message {
+public:
+	Message(Message_type type_, const std::string& txt, int time_):
+		msg_type(type_), msg_text(txt), msg_time(time_) { }
+
+	Message_type type() const { return msg_type; }
+	const std::string& text() const { return msg_text; }
+	int time() const { return msg_time; }
+
+private:
+	Message_type msg_type;
+	std::string msg_text;
+	int msg_time;
+};
 
 #endif

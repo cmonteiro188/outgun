@@ -71,6 +71,7 @@ int main(int argc, char *argv[]) {
 
 	strcpy(teamname[0], "RED");		// #FIXME: move to servnet or world
 	strcpy(teamname[1], "BLUE");
+	strcpy(teamname[2], "WILD");
 
 	// general init
 	//

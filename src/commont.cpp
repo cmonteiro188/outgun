@@ -1,6 +1,5 @@
-#include "commont.h"
-
 #include <cstdlib>
+#include "commont.h"
 
 using std::cout;
 using std::istream;
@@ -146,7 +145,7 @@ double get_time() {
 	return ((double)time_counter) / 200.0;
 }
 
-char teamname[2][5];
+char teamname[3][5];
 
 int iround(double value) {
 	return static_cast<int>(value + 0.5);

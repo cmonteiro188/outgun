@@ -32,6 +32,7 @@ class Sounds;
 class gamespy_t;
 class clientfx_t;
 class Team;
+class Message;
 
 class Graphics {
 public:
@@ -94,7 +95,7 @@ public:
 	void draw_loading_map_message(const std::string& text);
 	void show_not_responding_message();
 	void draw_scores(const std::string& text, int col, int score1, int score2);
-	void print_chat_messages(std::list<std::string>::const_iterator begin, const std::list<std::string>::const_iterator& end,
+	void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
 							 const std::string& talkbuffer);
 
 	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams);
@@ -167,7 +168,12 @@ public:
 	void set_theme_dir(const std::string& dir);
 	const std::string& theme_dir() const { return themedir; }
 	bool basic() const { return no_theme; }
-	void toggleAntialiasing();
+
+	enum Antialiasing_mode { AA_none, AA_map, AA_both };
+
+	Antialiasing_mode antialiasing_mode() const { return antialiasing; }
+	void toggle_antialiasing();
+	void set_antialiasing(Antialiasing_mode mode) { antialiasing = mode; }
 
 private:
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
@@ -191,7 +197,7 @@ private:
 	void draw_scoreboard_name(const std::string& name, int x, int y, int pcol);
 	void draw_scoreboard_points(int points, int x, int y, int team);
 
-	void print_chat_message(const std::string& message, MESSAGE_TYPE type, int x, int y);
+	void print_chat_message(Message_type type, const std::string& message, int x, int y);
 	void print_chat_input(const std::string& message, int x, int y);
 
 	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
@@ -273,7 +279,7 @@ private:
     al_ffblk themeffblk;	// for al_find*
     bool no_theme;
 
-	enum { AA_none, AA_map, AA_both } antialiasing;
+	Antialiasing_mode antialiasing;
 
 	//colors
 	enum {
@@ -324,7 +330,7 @@ private:
 		NUM_OF_COL
 	};
 
-	int teamcol[2];
+	int teamcol[3];
 	int teamlcol[2];	// light colours for statusbar
 	int teamdcol[2];	// dark colours for player name
 

@@ -4,6 +4,7 @@
 #include "effects.h"
 #include "sounds.h"
 #include "antialias.h"
+#include "client.h"
 #include "graphics.h"
 
 #define PATTERNED_PLAYER
@@ -174,6 +175,7 @@ void Graphics::setcolors() {
 	//teams 0 & 1 (playernum(0..15) / 8) colors:
 	teamcol[0] = col[COLRED];
 	teamcol[1] = col[COLBLUE];
+	teamcol[2] = col[COLWHITE];
 
 	//light colours for text
 	teamlcol[0] = col[COLLRED];
@@ -343,7 +345,8 @@ bool Graphics::reset_video_mode() {
 	col[COLGROUND] = makecol(ground_r, ground_g, ground_b);
 	col[COLWALL] = makecol(wall_r, wall_g, wall_b);
 
-	load_pictures();
+	if (!no_theme)
+		load_pictures();
 
 	return true; //ok
 }
@@ -1681,24 +1684,16 @@ void Graphics::draw_player_energy(int energy) {
 		rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLENER3]);
 }
 
-void Graphics::print_chat_messages(list<string>::const_iterator msg, const list<string>::const_iterator& end, const string& talkbuffer) {
+void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer) {
 	const int line_height = 11;
 	const int marginal = 3;
 	int line = 0;
 	for (; msg != end; ++msg, ++line) {
-		//default text color (normal chat)
-		MESSAGE_TYPE type = MSG_NORMAL;
-
-		//change color if special message
-		if (msg->substr(0, 2) == "@T")		// T eam message
-			type = MSG_TEAM;
-		else if (msg->substr(0, 2) == "@I") // I nformation
-			type = MSG_INFO;
-		else if (msg->substr(0, 2) == "@W") // W warning
-			type = MSG_WARNING;
+		if (msg->text().empty())
+			continue;
 
 		// print the message
-		print_chat_message(msg->substr(type == MSG_NORMAL ? 0 : 2), type, marginal, marginal + line * line_height);
+		print_chat_message(msg->type(), msg->text(), marginal, marginal + line * line_height);
 	}
 	if (!talkbuffer.empty()) {
 		ostringstream message;
@@ -1707,13 +1702,14 @@ void Graphics::print_chat_messages(list<string>::const_iterator msg, const list<
 	}
 }
 
-void Graphics::print_chat_message(const string& message, MESSAGE_TYPE type, int x, int y) {
+void Graphics::print_chat_message(Message_type type, const string& message, int x, int y) {
 	int c;
 	switch (type) {
-		case MSG_WARNING: c = col[COLLRED]; break;
-		case MSG_TEAM: c = col[COLYELLOW]; break;
-		case MSG_INFO: c = col[COLGREEN]; break;
-		default: c = col[COLORA];
+		case msg_warning: c = col[COLLRED]; break;
+		case msg_team: c = col[COLYELLOW]; break;
+		case msg_info: c = col[COLGREEN]; break;
+		case msg_header: c = col[COLYELLOW]; break;
+		case msg_normal: default: c = col[COLORA];
 	}
 	textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
 }
@@ -2284,7 +2280,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	return failure;
 }
 
-void Graphics::toggleAntialiasing() {
+void Graphics::toggle_antialiasing() {
 	if (antialiasing == AA_none)
 		antialiasing = AA_map;
 	else if (antialiasing == AA_map)
