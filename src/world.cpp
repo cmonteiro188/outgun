@@ -2,7 +2,7 @@
  *  world.cpp
  *
  *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -761,12 +761,12 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
 
     next_turbo_effect_time = wall_sound_time = player_sound_time = 0;
     onscreen = false;
-    enemyvis = 0;
     deathbringer_affected = false;
     next_smoke_effect_time = 0;
     hitfx = 0;
     drawptr = drawused = 0;
     oldx = oldy = 0;
+    posUpdated = 0;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
@@ -2198,21 +2198,21 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         }
 
         // humiliation hit/kill:
-        // non-shielded, non-deathbringer infected and quad-damage carrying "player X" that runs into an "enemy player Y" that is
-        // non-shielded, non-deathbringer carrier, and non-quad-damage carrying will cause about the same effect as Y being hit by a non-quaded rocket fired by X 
+        // non-shielded, non-deathbringer infected and power carrying "player X" that runs into an "enemy player Y" that is
+        // non-shielded, non-deathbringer carrier, and non-power carrying will cause about the same effect as Y being hit by a non-power rocket fired by X 
         //  - blink target / freeze gun / do damage
-        //  - play quad-rocket or rocket-hit sample
-        const int quadColdam = static_cast<int>(speed * 80);    // 80 at top running speed without turbo
+        //  - play power-rocket or rocket-hit sample
+        const int powColdam = static_cast<int>(speed * 80);    // 80 at top running speed without turbo
         if (pl1.item_power && !pl1.item_shield && pl1.deathbringer_end < get_time() && !pl2.item_deathbringer &&
                 !pl2.item_shield && !pl2.item_power) {
-            damagePlayer(pid2, pid1, quadColdam, DT_collision);
+            damagePlayer(pid2, pid1, powColdam, DT_collision);
             toss_b = true;
             net->broadcast_screen_power_collision(pid2);
         }
         // same thing but inverting a / b
         if (pl2.item_power && !pl2.item_shield && pl2.deathbringer_end < get_time() && !pl1.item_deathbringer &&
                 !pl1.item_shield && !pl1.item_power) {
-            damagePlayer(pid1, pid2, quadColdam, DT_collision);
+            damagePlayer(pid1, pid2, powColdam, DT_collision);
             toss_a = true;
             net->broadcast_screen_power_collision(pid1);
         }

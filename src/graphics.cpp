@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -1672,8 +1672,8 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     const int margin = 8;
     for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
         const int c = (me == line - 1) ? col[COLYELLOW] : col[COLWHITE];
-        textprintf_ex(drawbuf, font, margin, line++ * line_h, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
-            line, player->used, player->onscreen, player->enemyvis, player->roomx, player->roomy,
+        textprintf_ex(drawbuf, font, margin, line++ * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
+            line, player->used, player->onscreen, player->roomx, player->roomy,
             player->lx, player->ly, player->sx, player->sy);
     }
 

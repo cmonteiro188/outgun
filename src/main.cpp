@@ -500,8 +500,10 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else {
             if (!set_shitty_mode(log))  // if 320×240 mode can't be set, use textserver
                 serverCfg.statusOutput = statusOutputText;
-            else
+            else {
+                GlobalDisplaySwitchHook::install();
                 serverCfg.statusOutput = statusOutputWindow;
+            }
         }
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {

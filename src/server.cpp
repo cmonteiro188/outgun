@@ -1216,6 +1216,9 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             if (quitOnEsc)
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
+            // update (re-clear) window too, if there's the possibility it has been corrupted
+            if (GlobalDisplaySwitchHook::readAndClear())
+                clear_bitmap(screen);
         }
 
         // executa algo para todos os players

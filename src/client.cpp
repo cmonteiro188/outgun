@@ -1388,9 +1388,9 @@ void Client::change_name_command() {
     tournamentPassword.changeData(playername, menu.options.name.password());
 }
 
-ClientControls Client::readControls(bool useCursorKeys) {
+ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
     ClientControls ctrl;
-    ctrl.fromKeyboard(menu.options.controls.keypadMoving(), useCursorKeys);
+    ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
     return ctrl;
@@ -1402,7 +1402,7 @@ void Client::send_frame(bool newFrame) {
 
     ClientControls currCtrl;
     if (openMenus.empty())  // don't move at all when a real menu is open
-        currCtrl = readControls(menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
+        currCtrl = readControls(menusel != menu_maps, menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
 
     if (newFrame) {
         ++clFrameSent;
@@ -1551,8 +1551,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 hy += (xy & 0xF0) << 4;
                 h.lx = hx * (plw / double(0xFFF));
                 h.ly = hy * (plh / double(0xFFF));
+                h.posUpdated = svframe;
 
-                //V0.3.9 speed em bytes, xinelao mesmo
                 typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
                 NLubyte byte;
                 readByte(data, count, byte);
@@ -1585,25 +1585,22 @@ void Client::process_incoming_data(const char* data, int length) {
                 h.visibility = byt;
             }
 
-            //read "enemies on team vislist"
-            NLushort eviz;
-            readShort(data, count, eviz);
-            if (me >= 0)
-                fx.player[me].enemyvis = eviz;
+            for (int round = 0; round < 2; ++round) {
+                //read who,x,y
+                NLubyte who,whox,whoy;
+                readByte(data, count, who);
+                readByte(data, count, whox);
+                readByte(data, count, whoy);
 
-            //read who,x,y
-            NLubyte who,whox,whoy;
-            readByte(data, count, who);
-            readByte(data, count, whox);
-            readByte(data, count, whoy);
-
-            //update this player's px,py,x,y
-            //ignore self and anybody onscreen -- because then I've got better accuracy
-            if (who != me && !fx.player[who].onscreen) {
-                fx.player[who].roomx = whox / (255/fx.map.w);   //screen = 0..255 / (WXMAX/255)
-                fx.player[who].roomy = whoy / (255/fx.map.h);
-                fx.player[who].lx = (whox % (255/fx.map.w)) * plw / (255/fx.map.w); //posicao dentro da tela especifica
-                fx.player[who].ly = (whoy % (255/fx.map.h)) * plh / (255/fx.map.h);
+                //update this player's px,py,x,y
+                //ignore self and anybody onscreen -- because then I've got better accuracy
+                if (who != me && !fx.player[who].onscreen) {
+                    fx.player[who].roomx = whox / (255/fx.map.w);   //screen = 0..255 / (WXMAX/255)
+                    fx.player[who].roomy = whoy / (255/fx.map.h);
+                    fx.player[who].lx = (whox % (255/fx.map.w)) * plw / (255/fx.map.w); //posicao dentro da tela especifica
+                    fx.player[who].ly = (whoy % (255/fx.map.h)) * plh / (255/fx.map.h);
+                    fx.player[who].posUpdated = svframe;
+                }
             }
 
             //read player's health and energy
@@ -3802,10 +3799,9 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         if (me >= 0 && fx.frame >= 0)
             for (int i = 0; i < maxplayers; i++)
                 if (fx.player[i].used && fx.player[i].roomx >= 0 && fx.player[i].roomy >= 0 && fx.player[i].roomx < fx.map.w && fx.player[i].roomy < fx.map.h &&
-                        (i / TSIZE == me / TSIZE || (fx.player[me].enemyvis & (1 << (i % TSIZE))))) {
+                        fx.player[i].posUpdated > fx.frame - 20) {
                     roomvis[fx.player[i].roomy * fx.map.w + fx.player[i].roomx] = true;
 
-                    //verifica se o jogador a ser desenhado é um carrier de flag inimiga
                     const int enemy = 1 - i / TSIZE;
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
@@ -4164,7 +4160,7 @@ void Client::MCF_prepareGameMenu() {
 }
 
 void Client::MCF_prepareControlsMenu() {
-    ClientControls ctrl = readControls(true);
+    ClientControls ctrl = readControls(true, true);
     string active;
     if (ctrl.isUp())
         active += _("up")     + ' ';

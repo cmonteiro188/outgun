@@ -476,7 +476,7 @@ class Client {
     void draw_player(int pid);
     void draw_game_menu();
 
-    ClientControls readControls(bool useCursorKeys);
+    ClientControls readControls(bool canUseKeypad, bool useCursorKeys);
 
     void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
     bool handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey

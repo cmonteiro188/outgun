@@ -2,8 +2,8 @@
  *  world.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -430,11 +430,11 @@ public:
     double wall_sound_time;
     double player_sound_time;
     bool onscreen;
-    NLulong enemyvis;
     double hitfx;
     int drawptr;
     int drawused;
     int oldx, oldy; // detect room changes
+    NLulong posUpdated; // on which frame the player's position has been last received (including the low-res info for minimap purposes)
 
     // get rid of these since they are only known for the local player
     double item_power_time;

@@ -1526,58 +1526,49 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     //===============================
     int lecount;    //count after "count"
 
-    //stuff for minimap update: my team's enemy team view
-    static int tviter[2] = { 0, 0 };
-    static int shadowiter = 0;
-    bool tview[2][MAX_PLAYERS / 2];
-    NLushort tview_bits[2];         //enemy view SHORT (bitfield for the 8 enemies of each team(0,1))
-    NLushort shadowview[2];
+    static int normalViewI[2] = { 0, 0 };   // each team's normal view player iterator
+    static int shadowViewI[2] = { 0, 0 };   // each team's shadow view player iterator
+    NLulong normalView[2];  // players shown on minimap to each team, without shadow
+    NLulong shadowView[2];  // players shown on minimap to each team, with shadow
 
-    int runaway = maxplayers + 1;
-    do {
-        shadowiter++;
-        if (shadowiter > maxplayers - 1)
-            shadowiter = 0;
-        if (world.player[shadowiter].used && !world.player[shadowiter].item_shadow() || world.player[shadowiter].flag())
-            break;
-    } while (runaway-- > 0);
-
-    for (int t = 0; t < 2; t++) {
-        tview_bits[t] = 0;
-        shadowview[t] = 0;
-
-        for (int i = 0; i < maxplayers; i++)
-            if (i / TSIZE == 1 - t && world.player[i].used) {
-                if (!world.player[i].item_shadow() || world.player[i].flag())
-                    shadowview[t] += static_cast<NLushort>(1 << (i % TSIZE));
-
-                tview[t][i % TSIZE] = false;        // invisible
-
-                for (int j = 0; j < maxplayers; j++)
-                    if (j / TSIZE == t && world.player[j].used)
-                        if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)
-                            if (world.player[i].visibility > 10 || world.player[i].flag()) { // visible
-                                tview[t][i % TSIZE] = true;
-                                tview_bits[t] |= (1 << (i % TSIZE));    // set visibility bit
-                                break;
-                            }
-        }
-
-        int runaway = maxplayers + 3;
-        do {
-            tviter[t]++;
-            if (tviter[t] >= maxplayers)
-                tviter[t] = 0;
-
-            if (world.player[tviter[t]].used) {
-                if (tviter[t] / TSIZE == t)
-                    break;
-                // enemy team, check if visible
-                if (tviter[t] / TSIZE == 1 - t && tview[t][tviter[t] % TSIZE])
-                    break;
+    for (int t = 0; t < 2; ++t) {
+        normalView[t] = shadowView[t] = 0;
+        for (int i = 0; i < maxplayers; ++i) {
+            if (!world.player[i].used)
+                continue;
+            if (i / TSIZE == t) {
+                normalView[t] |= 1 << i;    // teammates always visible
+                const int oppTeamStart = (1 - i / TSIZE) * TSIZE;
+                for (int j = oppTeamStart; j < oppTeamStart + TSIZE; ++j)   // find out who this teammate sees (who are in the same room and visible)
+                    if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
+                           (world.player[j].visibility > 10 || world.player[j].flag()))
+                        normalView[t] |= 1 << j;
+                continue;
             }
-        } while (runaway-- > 0);
+            if (!world.player[i].item_shadow() || world.player[i].flag())
+                shadowView[t] += static_cast<NLulong>(1 << i);
+        }
+        shadowView[t] |= normalView[t];
     }
+
+    // send 2 players' coordinates each frame; pick those two for each team both with and without shadow
+    int normalIters[2][2];  // [team][number]
+    int shadowIters[2][2];  // [team][number]
+    for (int round = 0; round < 2; ++round)
+        for (int t = 0; t < 2; ++t) {
+            if (normalView[t] == 0) // no players in this team -> no need for these either
+                continue;
+            do {
+                if (++normalViewI[t] == maxplayers)
+                    normalViewI[t] = 0;
+            } while (!(normalView[t] & (1 << normalViewI[t])));
+            do {
+                if (++shadowViewI[t] == maxplayers)
+                    shadowViewI[t] = 0;
+            } while (!(shadowView[t] & (1 << shadowViewI[t])));
+            normalIters[t][round] = normalViewI[t];
+            shadowIters[t][round] = shadowViewI[t];
+        }
 
     // ==================================================================
     //   BUILD AND SEND EVERY DAMN PACKET
@@ -1680,23 +1671,20 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             // write players_onscreen in its place (reserved before the above loop)
             writeLong(lebuf, p_on_count, players_onscreen);
 
-            NLubyte who;
-            if (world.player[i].item_shadow()) {
-                writeShort(lebuf, lecount, shadowview[i/TSIZE] | tview_bits[i/TSIZE]);
-                who = static_cast<NLubyte>(shadowiter);
+            for (int round = 0; round < 2; ++round) {
+                NLubyte who;
+                if (world.player[i].item_shadow())
+                    who = static_cast<NLubyte>(shadowIters[i / TSIZE][round]);
+                else
+                    who = static_cast<NLubyte>(normalIters[i / TSIZE][round]);
                 writeByte(lebuf, lecount, who);
-            }
-            else {
-                writeShort(lebuf, lecount, tview_bits[i/TSIZE]);
-                who = static_cast<NLubyte>(tviter[i/TSIZE]);
-                writeByte(lebuf, lecount, who);
-            }
 
-            const NLubyte mx = static_cast<NLubyte>((world.player[who].lx + world.player[who].roomx * plw) / (world.map.w * plw) * 255.0);
-            writeByte(lebuf, lecount, mx);
+                const NLubyte mx = static_cast<NLubyte>((world.player[who].lx + world.player[who].roomx * plw) / (world.map.w * plw) * 255.0);
+                writeByte(lebuf, lecount, mx);
 
-            const NLubyte my = static_cast<NLubyte>((world.player[who].ly + world.player[who].roomy * plh) / (world.map.h * plh) * 255.0);
-            writeByte(lebuf, lecount, my);
+                const NLubyte my = static_cast<NLubyte>((world.player[who].ly + world.player[who].roomy * plh) / (world.map.h * plh) * 255.0);
+                writeByte(lebuf, lecount, my);
+            }
 
             // send 8 bits of player's health
             if (world.player[i].health < 0)
