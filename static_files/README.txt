@@ -5,30 +5,26 @@
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
 *******************************************************************************
-                                                   [ 1.0.0 beta 16 2004-12-29 ]
+                                                           [ 1.0.0 2005-01-25 ]
 
 
 -------------------------
 Project homepages:
 -------------------------
 
-Outgun 1.0.0 beta testing page
-   http://koti.mbnet.fi/outgun/1.0.0_beta/
+Outgun 1.0 page
+   http://koti.mbnet.fi/outgun/1.0/
 
-Outgun development by Nix and Huntta
+Outgun website
    http://koti.mbnet.fi/outgun/
 
-The original Outgun site
+Brazilian Outgun website
    http://outgun.sf.net/
 
 
 -------------------------
-Notes for 1.0.0 beta:
+Notes for 1.0.0:
 -------------------------
-
-This is a beta version. It contains bugs, and will be outdated. Use it at your
-own risk! See http://koti.mbnet.fi/outgun/1.0.0_beta/ for more information
-about the beta, instructions for reporting bugs, and the newest version.
 
 See the HTML help in the doc directory for full documentation.
 
@@ -42,8 +38,13 @@ removed from the distribution or updated, or the credits changed, contact us at
 outgun@mbnet.fi. Also feel free to send us new maps to be included with the
 game. Especially good ones. ;)
 
-This game is free software under GPL. See the file 'COPYING' for more details.
-Download the sources from http://koti.mbnet.fi/outgun/.
+This game is free software under GNU GPL. See the file 'COPYING' for more
+details. Download the sources from http://koti.mbnet.fi/outgun/
+
+There most certainly are bugs in this program, but at the time of release we
+aren't aware of any. See http://koti.mbnet.fi/outgun/1.0/known_issues.html for
+a list of known problems, including bugs when they are found. If you find a
+new bug, please report it! The quality of future versions depends on you.
 
 
 -------------------------
@@ -76,7 +77,7 @@ Maps by
 
 1.0.0 beta testers (in decreasing order of bugs reported)
    ThOR27 (very much deserving of his own line),
-   Spinal, Caio Monteiro "Nosferatu", Joonas, PHIN, MM-coiote, rFrota,
+   Spinal, Caio Monteiro "Nosferatu", Joonas, PHiN, MM-coiote, rFrota,
    Detonador, K4(Maicon), Zigue, Syrus-DH
    You. Get your name here by reporting a new bug. :)
 
@@ -85,9 +86,10 @@ This game uses the excellent libraries:
  * HawkNL - http://www.hawksoft.com/hawknl/
  * Pthreads-win32 - http://sources.redhat.com/pthreads-win32/
 
-The executable and DLLs have been packed to almost 50% of their original size
-using UPX - http://upx.sourceforge.net/
+The Windows executable and DLLs have been packed to almost 50% of their
+original size using UPX - http://upx.sourceforge.net/
 
-The HawkNL NL.dll shipped with Outgun is modified by Nix to avoid problems
-(sockets that are left open) with at least Windows 98 SE. Sources for the
-modified version are at http://koti.mbnet.fi/outgun/HawkNL168src_Nix.zip
+The HawkNL NL.dll shipped with the Windows build of Outgun is modified by Nix
+to avoid some problems (sockets that are left open with at least Windows 98 SE,
+and "address already in use"). Sources for the modified version are available
+at http://koti.mbnet.fi/outgun/HawkNL168src_Nix.zip
