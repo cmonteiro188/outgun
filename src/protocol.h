@@ -3,9 +3,9 @@
 
 #include "leetnet/server.h"
 
-//#define WATCH_CONNECTION
-#define SEND_FRAMEOFFSET
-//#define LOG_MESSAGE_TRAFFIC
+static const bool WATCH_CONNECTION = false;
+static const bool LOG_MESSAGE_TRAFFIC = false;
+#define SEND_FRAMEOFFSET	// effects some structures -> must be a define
 
 enum Network_data_code {
 	data_name_update,

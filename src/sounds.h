@@ -19,7 +19,7 @@ public:
 	void select_theme(const std::string& dir);
 
 	bool setEnable(bool enable);
-	void setVolume(int vol) { volume = 255 * vol / 10; }	// vol in 0 to 10
+	void setVolume(int vol) { nAssert(vol >= 0 && vol <= 255); volume = vol; }
 
 private:
 	bool try_init();

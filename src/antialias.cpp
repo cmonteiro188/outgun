@@ -876,6 +876,15 @@ void TextureTexturizer::putPixI(int alpha) {
 		tx = 0;
 }
 
+FlagmarkerTexturizer::FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td) :
+	host(host_),
+	color(td.color),
+	markRadius(td.radius),
+	intensityMul(300 / td.radius / 255. * (1 << PartialPixelSegment::scale)),
+	cx(td.cx),
+	cy(td.cy)
+{ }
+
 void FlagmarkerTexturizer::setLine(int y) {
 	host.setLine(y);
 	dy = y - cy;
@@ -900,12 +909,11 @@ void FlagmarkerTexturizer::startPixSpan(int x) {
 }
 
 void FlagmarkerTexturizer::putPix(double alpha) {	// draws at current x coord and increases it
-	static const float mul = 300 / markRadius / 255. * (1 << PartialPixelSegment::scale);
 	float intensity = markRadius - sqrt(dx * dx + dy2);
 	if (intensity <= 0)
 		host.putPix(0, 0);
 	else {
-		int iAlpha = static_cast<int>(intensity * alpha * mul);
+		int iAlpha = static_cast<int>(intensity * alpha * intensityMul);
 		host.blendPix(color, iAlpha);
 	}
 	++dx;

@@ -40,14 +40,12 @@ void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 =
 void gameserver_c::kickPlayer(int pid, int admin, bool ban) {
 }
 
-#ifdef SV_NAME_AUTHORIZATION
-void gameserver_c::banPlayer(int pid, int admin) {
+void gameserver_c::banPlayer(int pid, int admin, int minutes) {
 }
 
 bool gameserver_c::check_name_password(const string& name, const string& password) const {
 	return false;
 }
-#endif
 
 void gameserver_c::ctf_game_restart() {
 }
@@ -150,9 +148,6 @@ void gameserver_c::loop(volatile bool *quitFlag, bool acceptEsc) {
 
 //stop server
 void gameserver_c::stop() {
-}
-
-void gameserver_c::clearWorldRankingDeltas() {
 }
 
 GameserverInterface::GameserverInterface(LogSet hostLog) {

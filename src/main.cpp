@@ -141,8 +141,9 @@ int main(int argc, char *argv[]) {
 	FileLog logFile(wheregamedir + "log" + directory_separator + "log.txt", true);
 	LogSet log(&logFile, &logFile, &logFile);
 
-	log("main() ID = %d", pthread_self());
 	log("Outgun log file. Game string: %s, protocol: %s, version: %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
+	if (LOG_THREAD_IDS)
+		log("main() ID = %d", pthread_self());
 
 	bool textserver = false;
 	bool showinfo = false;
@@ -250,9 +251,9 @@ int main(int argc, char *argv[]) {
 	log("resolving master server address...");
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string name, address;
-	if (!getline_smart(in, name))
+	if (!getline_skip_comments(in, name))
 		name = "koti.mbnet.fi";
-	if (!getline_smart(in, address))
+	if (!getline_skip_comments(in, address))
 		address = "194.100.161.5";
 	in.close();
 	try {
@@ -366,23 +367,16 @@ int main(int argc, char *argv[]) {
 
 		// run server
 		GameserverInterface* gameserver = new GameserverInterface(log, serverCfg);
-		if (!gameserver->start(serverCfg.server_maxplayers)) {
-			allegro_message("ERROR: cannot start gameserver!");
-			return 0;
+		if (gameserver->start(serverCfg.server_maxplayers)) {
+			gameserver->loop(GlobalCloseButtonHook::flagPtr(), true);
+			gameserver->stop();
 		}
-		gameserver->loop(GlobalCloseButtonHook::flagPtr(), true);
-		gameserver->stop();
+		else
+			allegro_message("ERROR: cannot start gameserver!");
 		delete gameserver;
 	}
 	// run client
 	else {
-		/*const string mapPath = wheregamedir + CLIENT_MAPS_DIR;
-		al_ffblk mapffblk;	//for al_find*
-		int result = al_findfirst(mapPath.c_str(), &mapffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
-		if (result != 0 || !(mapffblk.attrib&FA_DIREC)) {
-			allegro_message("ERROR: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", mapPath.c_str());
-			return 0;
-		}*/
 		if (!check_dir(CLIENT_MAPS_DIR)) {
 			allegro_message("ERROR: directory '%s' not found.\n\nPlease create this directory.\n\nThe game cannot run without it.", CLIENT_MAPS_DIR);
 			return 0;
@@ -394,15 +388,16 @@ int main(int argc, char *argv[]) {
 		clientCfg.statusOutput = statusOutputWindow;
 		serverCfg.statusOutput = statusOutputWindow;
 		gameclient = new gameclient_c(log, clientCfg, serverCfg);
-		if (!gameclient->start()) {
-			allegro_message("ERROR: cannot start gameclient!");
-			return 0;
+		if (gameclient->start()) {
+			gameclient->loop(GlobalCloseButtonHook::flagPtr());
+			gameclient->stop();
 		}
-		gameclient->loop(GlobalCloseButtonHook::flagPtr());
-		gameclient->stop();
+		else
+			allegro_message("ERROR: cannot start gameclient!");
 		delete gameclient;
 	}
 
+	log("Exiting");
 	// exit HawkNL
 	nlShutdown();
 	return 0;

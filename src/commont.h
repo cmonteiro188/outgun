@@ -11,17 +11,11 @@
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str);
 
+// Read a line like getline_smart, but additionally skip lines that begin with a ;
+std::istream& getline_skip_comments(std::istream& in, std::string& str);
+
 // Check player name validity.
 bool check_name(const std::string& name);
-
-class FileReader {	// reads a file non-empty line by line, skipping commented lines (with ';')
-public:
-	FileReader(const std::string& filename);
-	std::string readLine();	// returns an empty string at end of file
-
-private:
-	std::ifstream file;
-};
 
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
 
@@ -94,31 +88,19 @@ private:
 	NLubyte data;
 };
 
-//play area width/height
-#define plw 472
-#define plh 354
+static const bool LOG_THREAD_IDS = false;
 
-#define PLAYER_RADIUS 15
-#define SHIELD_RADIUS_ADD 9	// this is added to PLAYER_RADIUS
-#define ROCKET_RADIUS 4
-#define QUAD_ROCKET_RADIUS 6
+static const int plw = 472, plh = 354;	// play area width/height
 
-//RANKING defines
-#define DEFAULT_PLAYER_RATE 1.0
-
-#define PASSBUFFER  32	//size of password file
-
-//#define MIN_ALPHA_FRIENDS 64
-
-#define ROCKET_SPEED 50.0	//in pixels/0.1s
-
-#define MIN_HEALTH_FOR_RUN_PENALTY 40
+static const int PLAYER_RADIUS = 15;
+static const int SHIELD_RADIUS_ADD = 9;	// this is added to PLAYER_RADIUS
+static const int ROCKET_RADIUS = 4, QUAD_ROCKET_RADIUS = 6;
 
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "Nix test v0.1"
-#define GAME_VERSION "NTST-01"
+#define GAME_PROTOCOL "1.0.0b1"
+#define GAME_VERSION "1.0.0 beta 1"
 
 #define TK1_VERSION_STRING "v048"
 
@@ -143,12 +125,11 @@ extern char directory_separator;
 extern std::string wheregamedir;
 
 // number-of-players
-#define MAX_PLAYERS 32	// the MAXIMUM MAXIMUM number of players EVER
-#define TSIZE (maxplayers/2)	// CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessible, the variable in question will vary by place of use
+static const int MAX_PLAYERS = 32;	// the MAXIMUM MAXIMUM number of players EVER
+#define TSIZE (maxplayers/2)	// macro for CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessible, the variable in question will vary by place of use
 
-#define MAX_ROCKETS 256	// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
-
-#define MAX_PICKUPS MAX_PLAYERS // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
+static const int MAX_ROCKETS = 256;	// maximum number of rockets (must be <= 256 while IDs are transmitted as bytes)
+static const int MAX_PICKUPS = 32; // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
 
 extern volatile unsigned long server_speed_counter;	// 10 Hz (100 ms) server frame counter
 extern volatile unsigned long time_counter;	// 200 Hz (5 ms) counter used by get_time() and for client frame timing

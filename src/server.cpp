@@ -16,13 +16,14 @@
 #include "server.h"
 #include "gameserver_interface.h"
 
-//#define DEBUG_RANKING
 const int minimum_positive_score_for_ranking = 100;
+const int voteAnnounceInterval = 5;	// in seconds, how often a changing voting status will be announced
 
 using std::endl;
 using std::find;
 using std::ifstream;
 using std::ios;
+using std::istringstream;
 using std::max;
 using std::ofstream;
 using std::ostringstream;
@@ -77,36 +78,31 @@ void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 =
 	world.player[pid].muted = mode;
 }
 
-void gameserver_c::kickPlayer(int pid, int admin, bool ban) {
+void gameserver_c::kickPlayer(int pid, int admin, int minutes) {	// if minutes > 0, it's really a ban
 	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
-	if (ban)
-		network.plprintf(pid, msg_warning, "You are now BANNED from this server! Have a nice life...");
-	else {
+	if (minutes > 0)
+		network.plprintf(pid, msg_warning, "You are BANNED from this server for %s!", approxTime(minutes * 60).c_str());
+	else
 		network.plprintf(pid, msg_warning, "You are being kicked from this server!");
-		network.plprintf(pid, msg_warning, "Warning: you can get permanently banned for behaving badly!");
-	}
 	if (admin != -1)
 		network.plprintf(pid, msg_info, "The administrator responsible is %s.", adminName);
 	for (int i=0; i<MAX_PLAYERS; ++i)
 		if (world.player[i].used && i!=pid)
-			network.plprintf(i, msg_info, "%s has %s %s (disconnect in 10 seconds)", adminName, ban?"banned":"kicked", world.player[pid].name.c_str());
-	world.player[pid].kickTimer = 10*10;
+			network.plprintf(i, msg_info, "%s has %s %s (disconnect in 10 seconds)", adminName, minutes > 0 ? "banned" : "kicked", world.player[pid].name.c_str());
+	world.player[pid].kickTimer = 10 * 10;
 }
 
-#ifdef SV_NAME_AUTHORIZATION
-void gameserver_c::banPlayer(int pid, int admin) {
+void gameserver_c::banPlayer(int pid, int admin, int minutes) {
 	authorizations.load();
 	NLaddress addr = network.get_client_address(world.player[pid].cid);
-	const int minutes = (admin == -1 ? 60 * 24 * 100 : 60);	// allow long bans only to 'hard' admin because of the required IP tracking
 	authorizations.ban(addr, world.player[pid].name, minutes);
 	authorizations.save();
-	kickPlayer(pid, admin, true);
+	kickPlayer(pid, admin, minutes);
 }
 
 bool gameserver_c::check_name_password(const string& name, const string& password) const {
 	return authorizations.checkNamePassword(name, password);
 }
-#endif
 
 void gameserver_c::ctf_game_restart() {
 	//submit all pending reports and update tournament participation flags
@@ -225,8 +221,6 @@ void gameserver_c::check_player_change_teams(int pid) {
 					move_player(pid, i);
 					return;
 				}
-	//case 2: target team with 0 player less: check for trade, else do nothing
-	//case 3: target team with 1 player less: check for trade, else go anyways
 	// Find a trade.
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used && i / TSIZE != pid / TSIZE && world.player[i].want_change_teams) {
@@ -368,22 +362,14 @@ void gameserver_c::refresh_team_score_modifiers() {
 		if (world.player[p].used) {
 			// use "1.0" rating for anybody with less than 100 positive points
 			if (client[world.player[p].cid].score < minimum_positive_score_for_ranking)
-				raw[p / TSIZE] += DEFAULT_PLAYER_RATE;
+				raw[p / TSIZE] += 1.0;
 			else
 				raw[p / TSIZE] += (client[world.player[p].cid].score + 1.0) / (client[world.player[p].cid].neg_score + 1.0);
 		}
 
 	//modifiers
-	team_smul[0] = raw[1] / raw[0];
-	team_smul[1] = raw[0] / raw[1];
-
-	//ceil,floor (1/3 & 3/1)
-	for (int i = 0; i < 2; i++) {
-		if (team_smul[i] < 0.3333)
-			team_smul[i] = 0.3333;
-		if (team_smul[i] > 3.0)
-			team_smul[i] = 3.0;
-	}
+	team_smul[0] = bound(raw[1] / raw[0], .3333, 3.);
+	team_smul[1] = bound(raw[0] / raw[1], .3333, 3.);
 }
 
 //score!
@@ -394,7 +380,7 @@ void gameserver_c::score_frag(int p, int amount) {
 	const int cid = world.player[p].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
-	if (tournament && world.map.valid_for_scoring && network.get_player_count() >= 2 && client[cid].current_participation) {
+	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
 		//refresh team ratings
 		refresh_team_score_modifiers();
 
@@ -416,7 +402,7 @@ void gameserver_c::score_neg(int p, int amount) {
 	const int cid = world.player[p].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
-	if (tournament && world.map.valid_for_scoring && network.get_player_count() >= 2 && client[cid].current_participation) {
+	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
 		//refresh team ratings
 		refresh_team_score_modifiers();
 
@@ -439,10 +425,8 @@ void gameserver_c::load_game_mod() {
 		log("Loading game mod: '%s'", filename.c_str());
 
 		string line, cmd;
-		while (getline_smart(in, line)) {
-			if (line[0] == ';')	// skip comment
-				continue;
-			else if (command)
+		while (getline_skip_comments(in, line)) {
+			if (command)
 				cmd = line;
 			else {	// parameter
 				double val = atof(line.c_str());
@@ -879,7 +863,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 
 	if (keepMap) {
 		size_t mapi;
-		for (mapi=0; mapi<maprot.size(); ++mapi)
+		for (mapi = 0; mapi < maprot.size(); ++mapi)
 			if (maprot[mapi].file == currMapFile)
 				break;
 		if (mapi == maprot.size()) {	// not found
@@ -894,24 +878,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 
 //start server
 bool gameserver_c::start(int target_maxplayers) {
-	#ifdef SV_NAME_AUTHORIZATION
 	authorizations.load();
-
-	// read the admins file
-	ifstream is((wheregamedir + "config" + directory_separator + "admins.txt").c_str());
-	if (is) {
-		for (;;) {
-			string line;
-			getline_smart(is, line);
-			if (!is)
-				break;
-			admins.push_back(line);
-		}
-		log("Loaded %u administrator names", admins.size());
-	}
-	else
-		log("Couldn't load administrator names: no admins.txt");
-	#endif
 
 	//check if maxplayers is valid
 	if (target_maxplayers < 2)				//menos de dois
@@ -990,7 +957,6 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	if (!check_name(tempname))
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
-		#ifdef SV_NAME_AUTHORIZATION
 		if (authorizations.checkNamePassword(tempname, password)) {
 			world.player[pid].name = tempname;
 			world.player[pid].waitnametime = get_time() + 1.0;
@@ -999,10 +965,6 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 			disconnectPlayer(pid, disconnect_client_misbehavior);
 		else
 			network.sendNameAuthorizationRequest(pid);
-		#else
-		world.player[pid].name = tempname;
-		world.player[pid].waitnametime = get_time() + 1.0;
-		#endif
 	}
 
 	if (entered_game)
@@ -1024,11 +986,11 @@ public:
 };
 
 bool gameserver_c::isLocallyAuthorized(int pid) const {
-	return authorizations.identifyName(world.player[pid].name) != -1;	// must have authorized because otherwise couldn't use the name
+	return world.player[pid].localIP || authorizations.identifyName(world.player[pid].name) != -1;	// must have authorized because otherwise couldn't use the name
 }
 
 bool gameserver_c::isAdmin(int pid) const {
-	return find(admins.begin(), admins.end(), world.player[pid].name) != admins.end();
+	return world.player[pid].localIP || authorizations.isAdmin(world.player[pid].name);
 }
 
 void gameserver_c::chat(int pid, const char* sbuf) {
@@ -1078,7 +1040,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 				network.player_message(pid, msg_header, "Admin commands:");
 				network.player_message(pid, msg_normal, "/list       get a list of player ID's");
 				network.player_message(pid, msg_normal, "/kick n     kick player with ID n");
-				network.player_message(pid, msg_normal, "/ban n      ban player with ID n");
+				network.player_message(pid, msg_normal, "/ban n t    ban player with ID n for t minutes (default: 60)");
 				network.player_message(pid, msg_normal, "/mute n     mute player with ID n");
 				network.player_message(pid, msg_normal, "/smute n    silently mute player with ID n (crude!)");
 				network.player_message(pid, msg_normal, "/unmute n   cancel muting of player with ID n");
@@ -1144,12 +1106,29 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		}
 		else if ((!strcmp(cbuf, "kick") || !strcmp(cbuf, "ban") || !strcmp(cbuf, "mute")
 					|| !strcmp(cbuf, "smute") || !strcmp(cbuf, "unmute")) && admin) {
-			int ppid = atoi(pCommand);
-			if (*pCommand != '\0' && ppid >= 0 && ppid < MAX_PLAYERS && world.player[ppid].used && pCommand[strspn(pCommand, "0123456789")]=='\0') {
+			istringstream command(pCommand);
+			int ppid;
+			int time = 0;	// used only for bans
+			command >> ppid;
+			bool ok = command;
+			if (!strcmp(cbuf, "ban")) {
+				command >> time;
+				if (command.eof())
+					time = 60;	// default: 1 hour
+				else if (!command)
+					ok = false;
+			}
+			if (!ok)
+				network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", cbuf, !strcmp(cbuf, "ban") ? " [minutes]" : "");
+			else if (ppid < 0 || ppid >= MAX_PLAYERS || !world.player[ppid].used)
+				network.player_message(pid, msg_warning, "No such player. Type /list for a list of IDs.");
+			else if (time <= 0 || time > 60 * 24 * 7)	// allow at most a weeks ban (a bit over 10000 minutes)
+				network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week)");
+			else {	// syntax OK
 				if (!strcmp(cbuf, "kick"))
 					kickPlayer(ppid, pid);
 				else if (!strcmp(cbuf, "ban"))
-					banPlayer(ppid, pid);
+					banPlayer(ppid, pid, time);
 				else if (!strcmp(cbuf, "mute"))
 					mutePlayer(ppid, 1, pid);
 				else if (!strcmp(cbuf, "smute"))
@@ -1159,8 +1138,6 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 				else
 					nAssert(0);
 			}
-			else
-				network.player_message(pid, msg_warning, "No such player. Type /list for a list of IDs.");
 		}
 		else if (!strcmp(cbuf, "forcemap") && admin) {
 			if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
@@ -1213,21 +1190,8 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 
 bool gameserver_c::changeRegistration(int id, const string& token) {
 	int intoken = atoi(token.c_str()); //atoi it
-	if (intoken == client[id].intoken) {
-		#ifdef DEBUG_RANKING
-		network.bprintf("%s %i %i token identico.", world.player[ctop[id]].name.c_str(), client[id].intoken, intoken);
-		#endif
+	if (intoken == client[id].intoken)
 		return false;
-	}
-	#ifdef DEBUG_RANKING
-	//debug message
-	if ((client[id].token_have) && (client[id].token_valid))
-		network.bprintf("%s %i %i changes registration, submitting results...", world.player[ctop[id]].name.c_str(), client[id].intoken, intoken);
-	else if ((client[id].token_have) && (!client[id].token_valid))
-		network.bprintf("%s %i %i changes registration ('?')", world.player[ctop[id]].name.c_str(), client[id].intoken, intoken);
-	else if (!client[id].token_have)
-		network.bprintf("%s %i %i sends registration.", world.player[ctop[id]].name.c_str(), client[id].intoken, intoken);
-	#endif
 
 	// v0.4.9 FIX : IF HAD previous token have/valid, then FLUSH his stats
 	network.client_report_status(id);
@@ -1272,7 +1236,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		if (votes != last_vote_announce_votes || (players != last_vote_announce_needed && votes != 0)) {
 			last_vote_announce_votes = votes;
 			last_vote_announce_needed = players;
-			next_vote_announce_frame = world.frame + SV_VOTE_ANNOUNCE_INTERVAL * 10;
+			next_vote_announce_frame = world.frame + voteAnnounceInterval * 10;
 			ostringstream voteinfo;
 			voteinfo << "*** " << votes << '/' << players << " votes for mapchange";
 			if (world.getMapTime() < vote_block_time)
@@ -1373,18 +1337,6 @@ void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 //stop server
 void gameserver_c::stop() {
 	network.stop();
-}
-
-void gameserver_c::clearWorldRankingDeltas() {
-	for (int p=0;p<MAX_PLAYERS;p++) {
-		if (!world.player[p].used)
-			continue;
-		int cid = world.player[p].cid;
-		client[cid].delta_score = 0;
-		client[cid].neg_delta_score = 0;		//V0.4.8
-		client[cid].fdp = 0.0;
-		client[cid].fdn = 0.0;		//V0.4.8
-	}
 }
 
 GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings) {

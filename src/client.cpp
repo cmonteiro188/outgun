@@ -18,7 +18,7 @@
 #include "names.h"
 #include "nassert.h"
 #include "network.h"
-#include "protocol.h"
+#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "utility.h"
 #include "world.h"
 
@@ -45,7 +45,9 @@ using std::string;
 using std::vector;
 
 //#define ROOM_CHANGE_BENCHMARK
-#define DISABLE_AUTOMATIC_SERVER_SEARCH
+const bool DISABLE_AUTOMATIC_SERVER_SEARCH = false;
+
+const int PASSBUFFER = 32;	//size of password file
 
 #ifdef ROOM_CHANGE_BENCHMARK
 int benchmarkRuns = 0;
@@ -81,6 +83,9 @@ bool compare_players(const ClientPlayer* a, const ClientPlayer* b) {
 }
 
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
+	if (LOG_THREAD_IDS)
+		log("ServerThreadOwner::threadFn() ID = %d", pthread_self());
+
 	GameserverInterface gameserver(log, config);
 	if (!gameserver.start(config.server_maxplayers)) {
 		log.error("cannot start LISTEN GAME SERVER!!!");
@@ -97,6 +102,9 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 
 	//restore client's windowtitle
 	config.statusOutput("Outgun client");	// note: this is the server's statusOutput not client's
+
+	if (LOG_THREAD_IDS)
+		log("exiting: ServerThreadOwner::threadFn() ID = %d", pthread_self());
 }
 
 void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
@@ -183,6 +191,9 @@ const char* TournamentPasswordManager::statusAsString() const {
 }
 
 void TournamentPasswordManager::threadFn() {
+	if (LOG_THREAD_IDS)
+		log("TournamentPasswordManager::threadFn() ID = %d", pthread_self());
+
 	bool newToken = true;
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
 	
@@ -308,6 +319,9 @@ void TournamentPasswordManager::threadFn() {
 			passStatus = PS_invalidResponse;
 		}
 	}
+
+	if (LOG_THREAD_IDS)
+		log("exiting: TournamentPasswordManager::threadFn() ID = %d", pthread_self());
 }
 
 gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
@@ -372,6 +386,8 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 }
 
 gameclient_c::~gameclient_c() {
+	log("Exiting client: destructor");
+
 	abortThreads = true;
 	if (client) {
 		delete client;
@@ -382,7 +398,10 @@ gameclient_c::~gameclient_c() {
 	pthread_mutex_destroy(&frame_mutex);
 	pthread_mutex_destroy(&mapInfoMutex);
 	pthread_mutex_destroy(&udpdq_mutex);
+
 	errorMessage("Client had these errors: (see clientlog.txt)", errorLog);
+
+	log("Exiting client: destructor exiting");
 }
 
 bool gameclient_c::start() {
@@ -468,8 +487,6 @@ bool gameclient_c::start() {
 			menu.connect.favorites.set(line == "1");
 
 		// read game menu settings
-		if (getline_smart(cfg, line))
-			menu.options.game.showNames.set(line == "1");
 		if (getline_smart(cfg, line)) {
 			istringstream ist(line);
 			int col;
@@ -479,12 +496,8 @@ bool gameclient_c::start() {
 		}
 		if (getline_smart(cfg, line))
 			menu.options.game.lagPrediction.set(line == "1");
-		if (getline_smart(cfg, line)) {
-			int v = atoi(line);
-			if (v < 0 || v > 10)
-				v = 10;
-			menu.options.game.lagPredictionAmount.set(v);
-		}
+		if (getline_smart(cfg, line))
+			menu.options.game.lagPredictionAmount.boundSet(atoi(line));
 		if (getline_smart(cfg, line))
 			menu.options.game.joystick.set(line == "1");
 		if (getline_smart(cfg, line))
@@ -513,48 +526,29 @@ bool gameclient_c::start() {
 		}
 		if (getline_smart(cfg, line) && extConfig.trypageflip == -1)
 			menu.options.graphics.flipping.set(line == "1");
-		if (getline_smart(cfg, line)) {	// FPS limit
-			int limit = atoi(line);
-			if (limit >= 1 && limit <= 100)
-				menu.options.graphics.fpsLimit.set(limit);
-		}
-		if (getline_smart(cfg, line)) {	// theme
-			if (!menu.options.graphics.theme.set(line))
-				log("Previous graphics theme not available (%s)", line.c_str());
-			else
-				log("Graphics theme directory loaded = %s", line.c_str());
-		}
+		if (getline_smart(cfg, line))
+			menu.options.graphics.fpsLimit.boundSet(atoi(line));
+		if (getline_smart(cfg, line))
+			menu.options.graphics.theme.set(line);	// ignore error
 		if (getline_smart(cfg, line)) {	// antialiasing
 			int modei = atoi(line);
 			if (modei < 0 || modei > 2)
 				modei = 0;
 			Graphics::Antialiasing_mode mode = static_cast<Graphics::Antialiasing_mode>(modei);
 			menu.options.graphics.antialiasing.set(mode);
-			client_graphics.set_antialiasing(mode);
 		}
-		if (getline_smart(cfg, line)) {	// stats screen background translucency
-			int alpha = atoi(line);
-			if (alpha < 0 || alpha > 255)
-				alpha = 255;
-			menu.options.graphics.statsBgAlpha.set(alpha);
-			client_graphics.set_stats_alpha(alpha);
-		}
+		if (getline_smart(cfg, line))	// stats screen background translucency
+			menu.options.graphics.statsBgAlpha.boundSet(atoi(line));
+		if (getline_smart(cfg, line))
+			menu.options.graphics.showNames.set(line == "1");
 
 		// read sound menu settings
 		if (getline_smart(cfg, line))
 			soundsEnabled = (line == "1");
-		if (getline_smart(cfg, line)) {
-			int vol = atoi(line);
-			if (vol >= 0 && vol <= 10)
-				menu.options.sounds.volume.set(vol);
-			client_sounds.setVolume(vol);
-		}
-		if (getline_smart(cfg, line)) {	// theme
-			if (!menu.options.sounds.theme.set(line))
-				log("Previous sound theme not available (%s)", line.c_str());
-			else
-				log("Sound theme directory loaded = %s", line.c_str());
-		}
+		if (getline_smart(cfg, line))
+			menu.options.sounds.volume.boundSet(atoi(line));
+		if (getline_smart(cfg, line))
+			menu.options.sounds.theme.set(line);	// ignore error
 
 		cfg.close();
 	}
@@ -562,7 +556,7 @@ bool gameclient_c::start() {
 	ifstream fav(fileName.c_str());
 	if (fav) {
 		string addr;
-		while (getline_smart(fav, addr)) {
+		while (getline_skip_comments(fav, addr)) {
 			NLaddress testAddr;	// test IP address validity
 			if (nlStringToAddr(addr.c_str(), &testAddr)) {
 				gamespy_t spy;
@@ -574,37 +568,43 @@ bool gameclient_c::start() {
 		fav.close();
 	}
 
-	if (randomname)
-		playername = trim(RandomName().substr(0, 15));
+	// finalize and apply the settings
 
+	// name
+	if (randomname)
+		playername = RandomName();
 	tournamentPassword.changeData(playername, menu.options.name.password());
 
+	// game
+	if (menu.options.game.joystick())
+		install_joystick(JOY_TYPE_AUTODETECT);
+	if (menu.options.game.messageLogging())
+		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
 	for (int i = 0; i < 16; i++)
 		if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
 			fav_colors.push_back(i);
 	for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
 		menu.options.game.favoriteColors.addOption(*col);
 
+	// graphics
+	client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
+	MCF_statsBgChange();
 	client_graphics.select_theme(menu.options.graphics.theme());
 	if (!screenModeChange())
 		return false;
-	client_sounds.select_theme(menu.options.sounds.theme());
-
 	if (extConfig.targetfps != -1)
 		menu.options.graphics.fpsLimit.set(extConfig.targetfps);
+
+	// sounds
 	if (extConfig.nosound)
 		soundsEnabled = false;
 	menu.options.sounds.enabled.set(soundsEnabled);
-	client_sounds.setEnable(soundsEnabled);
+	MCF_sndEnableChange();
+	client_sounds.setVolume(menu.options.sounds.volume());
+	client_sounds.select_theme(menu.options.sounds.theme());
 
-	if (menu.options.game.joystick())
-		install_joystick(JOY_TYPE_AUTODETECT);
-	if (menu.options.game.messageLogging())
-		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
-
-	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
-	MCF_updateServers();
-	#endif
+	if (!DISABLE_AUTOMATIC_SERVER_SEARCH)
+		MCF_updateServers();
 
 	return true;
 }
@@ -702,8 +702,7 @@ void gameclient_c::client_udp_setup_download() {
 
 //add to UDP DOWNLOAD QUEUE
 void gameclient_c::client_udp_download(download_runes_t  *rune) {
-
-	pthread_mutex_lock ( &udpdq_mutex );
+	pthread_mutex_lock(&udpdq_mutex);
 
 	for (int i=0;i<MAX_UDPDQ;i++)
 		if (udpdq[i] == 0) {
@@ -720,7 +719,7 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 			}
 
 			//anyway, we're done
-			pthread_mutex_unlock ( &udpdq_mutex );
+			pthread_mutex_unlock(&udpdq_mutex);
 			return;
 		}
 
@@ -728,7 +727,7 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 	log.error("BAD BAD **ERROR** : UDPDQ IS FULL");
 	nAssert(0);	//BAD ERROR
 
-	pthread_mutex_unlock ( &udpdq_mutex );
+	pthread_mutex_unlock(&udpdq_mutex);
 }
 
 //file download complete
@@ -1258,31 +1257,21 @@ void gameclient_c::change_name_command() {
 void gameclient_c::send_frame(bool newFrame) {
 	char lebuf[256]; int count = 0;
 
+	ClientControls currCtrl;
+	if (menusel == menu_none && openMenus.empty()) {	// don't move when menu or similar is open
+		currCtrl.fromKeyboard();
+		if (menu.options.game.joystick())
+			currCtrl.fromJoystick();
+	}
+
 	if (newFrame) {
 		++clFrameSent;
-		if (menusel == menu_none && openMenus.empty()) {	// don't move when menu or similar is open
-			controlHistory[clFrameSent].fromKeyboard();
-			if (menu.options.game.joystick())
-				controlHistory[clFrameSent].fromJoystick();
-		}
-		else
-			controlHistory[clFrameSent] = ClientControls();
+		controlHistory[clFrameSent] = currCtrl;
 		svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
-
-		writeByte(lebuf, count, clFrameSent);
-		writeByte(lebuf, count, controlHistory[clFrameSent].toNetwork(false));
 	}
-	else {
-		ClientControls currCtrl;
-		if (menusel == menu_none && openMenus.empty()) {	// don't move when menu or similar is open
-			currCtrl.fromKeyboard();
-			if (menu.options.game.joystick())
-				currCtrl.fromJoystick();
-		}
 
-		writeByte(lebuf, count, clFrameSent);
-		writeByte(lebuf, count, currCtrl.toNetwork(false));
-	}
+	writeByte(lebuf, count, clFrameSent);
+	writeByte(lebuf, count, currCtrl.toNetwork(false));
 
 	client->send_frame(lebuf, count);
 }
@@ -1308,8 +1297,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	NLulong svframe;	//server's frame
 	readLong(data, count, svframe);
 
-	#ifdef WATCH_CONNECTION
-	if (svframe != fx.frame + 1) {
+	if (WATCH_CONNECTION && svframe != fx.frame + 1) {
 		ostringstream dstr;
 		if (svframe == fx.frame)
 			dstr << "S>C packet duplicated: " << svframe;
@@ -1319,7 +1307,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			dstr << "S>C packet lost : prev " << fx.frame << " this " << svframe;
 		print_message(msg_warning, dstr.str().c_str());
 	}
-	#endif
 	//discard older frames
 	//overwrite always the newer frames
 	// TARGET FRAME: just one
@@ -1563,9 +1550,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//get msg code
 			readByte(msg, count, code);
 
-			#ifdef LOG_MESSAGE_TRAFFIC
-			log("SERVER MESSAGE CODE = %i", code);
-			#endif
+			if (LOG_MESSAGE_TRAFFIC)
+				log("SERVER MESSAGE CODE = %i", code);
 
 			//parse rest of message
 			switch (static_cast<Network_data_code>(code)) {
@@ -1589,7 +1575,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					string chatmsg;
 					readStr(msg, count, chatmsg);
 					if (find_nonprintable_char(chatmsg))
-						log.error("Server sent a non-printable characters.");
+						log.error("Server sent non-printable characters.");
 					else {
 						print_message(type, chatmsg);		//print it to the "console"
 						if (menu.options.game.messageLogging())
@@ -1902,8 +1888,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readLong(lebuf, count, pscore);		//score
 					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
 					readLong(lebuf, count, max_world_rank);		//world players count
-					log("%d", max_world_rank);
-					readFloat(lebuf, count, max_world_score);		//world score max
 					if (color < MAX_PLAYERS / 2)
 						fx.player[pid].set_color(color);
 					else
@@ -1943,7 +1927,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					float power[2] = { 0, 0 };
 					for (int i = 0; i < fx.maxplayers; i++)
 						if (fx.player[i].used)
-							power[fx.player[i].team()] = (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
+							power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
 					for (int t = 0; t < 2; t++)
 						fx.teams[t].set_power(power[t]);
 					break;
@@ -1959,7 +1943,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						map_end_time = static_cast<int>(get_time()) + time_left;
 						map_time_limit = true;
 					}
-					log("Map time received. Time left %d seconds.", time_left);
+					//log("Map time received. Time left %d seconds.", time_left);
 					break;
 				}
 
@@ -2309,10 +2293,10 @@ void gameclient_c::save_screenshot() {
 
 //toggle help screen
 void gameclient_c::toggle_help() {
-	if (openMenus.safeTop() == &m_help.menu)
+	if (openMenus.safeTop() == &menu.help.menu)
 		openMenus.close();
 	else
-		showMenu(m_help);
+		showMenu(menu.help);
 }
 
 const char* gameclient_c::refreshStatusAsString() const {
@@ -2329,6 +2313,9 @@ const char* gameclient_c::refreshStatusAsString() const {
 }
 
 void gameclient_c::getServerListThread() {
+	if (LOG_THREAD_IDS)
+		log("getServerListThread() ID = %d", pthread_self());
+
 	nAssert(refreshStatus == RS_running);
 
 	// get server list and refresh
@@ -2336,13 +2323,21 @@ void gameclient_c::getServerListThread() {
 	if (!abortThreads)
 		if (!refresh_all_servers())
 			ok = false;
+
+	if (LOG_THREAD_IDS)
+		log("exiting: getServerListThread() ID = %d", pthread_self());
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
 void gameclient_c::refreshThread() {
-	log("refreshThread() ID = %d", pthread_self());
+	if (LOG_THREAD_IDS)
+		log("refreshThread() ID = %d", pthread_self());
+
 	nAssert(refreshStatus == RS_running);
 	bool ok = refresh_all_servers();
+
+	if (LOG_THREAD_IDS)
+		log("exiting: refreshThread() ID = %d", pthread_self());
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
@@ -2501,7 +2496,7 @@ bool gameclient_c::getServerList() {
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string skip;
 	string master_script;
-	if (!getline_smart(in, skip) || !getline_smart(in, skip) || !getline_smart(in, master_script))
+	if (!getline_skip_comments(in, skip) || !getline_skip_comments(in, skip) || !getline_skip_comments(in, master_script))
 		master_script = "/janir/outgun/servers.php";
 	in.close();
 
@@ -2612,7 +2607,7 @@ bool gameclient_c::getServerList() {
 //loop
 void gameclient_c::loop(volatile bool* quitFlag) {
 	nAssert(quitFlag);
-	bool notquit = true;
+	quitCommand = false;
 
 	openMenus.clear();
 	showMenu(menu);
@@ -2625,16 +2620,16 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 
 	bool key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
-	while (notquit && !*quitFlag) {
+	while (!quitCommand && !*quitFlag) {
 		// (1) loop doing input/sleep before next simulation/draw time
 		for (;;) {
 			//quit key Control-F12
 			if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
-				notquit = false;
+				quitCommand = true;
 				break;
 			}
 
-			//menu keypresses (from char buf) - ESC already dealed with, ignore
+			// menu keypresses; ESC is dealt with elsewhere
 			if (menusel != menu_none || !openMenus.empty()) {
 				while (keypressed()) {
 					int ch = readkey();
@@ -2877,7 +2872,7 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 				}
 			}
 
-			// F4 == want/don't want to exit map
+			// F8 == want/don't want to exit map
 			if (openMenus.empty() && (menusel == menu_none || menusel == menu_maps) && key[KEY_F8]) {
 				if (!key_votexit) {
 					key_votexit = true;
@@ -2974,7 +2969,7 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 
 			#ifdef ROOM_CHANGE_BENCHMARK
 			if (benchmarkRuns >= 500)
-				notquit = false;
+				quitCommand = true;
 			#endif
 
 			pthread_mutex_unlock(&frame_mutex);
@@ -3006,6 +3001,8 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 }
 
 void gameclient_c::stop() {
+	log("Client exiting: stop() called");
+
 	abortThreads = true;
 
 	//at least disconnect
@@ -3028,7 +3025,6 @@ void gameclient_c::stop() {
 		cfg << (menu.connect.favorites() ? 1 : 0) << '\n';
 
 		// save game menu settings
-		cfg << (menu.options.game.showNames() ? 1 : 0) << '\n';
 		{	// favorite colors
 			if (menu.options.game.favoriteColors.values().empty())
 				cfg << -1;
@@ -3054,6 +3050,7 @@ void gameclient_c::stop() {
 		cfg << menu.options.graphics.theme() << '\n';
 		cfg << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
 		cfg << menu.options.graphics.statsBgAlpha() << '\n';
+		cfg << (menu.options.graphics.showNames() ? 1 : 0) << '\n';
 
 		// save sound menu settings
 		cfg << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
@@ -3076,8 +3073,8 @@ void gameclient_c::stop() {
 	FILE *psf = fopen(fileName.c_str(), "wb");
 	if (psf) {
 		const string& password = menu.options.name.password();
-		for (string::size_type c = 0; c < PASSBUFFER; c++) {
-			if (c < password.length())
+		for (int c = 0; c < PASSBUFFER; c++) {
+			if (c < (int)password.length())
 				fputc(static_cast<unsigned char>(255 - password[c]), psf);
 			else
 				fputc(255, psf);	// 255 = 0 toggled (important)
@@ -3098,6 +3095,8 @@ void gameclient_c::stop() {
 
 	if (listenServer.running())
 		listenServer.stop();
+
+	log("Client stop() completed");
 }
 
 void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
@@ -3263,7 +3262,7 @@ void gameclient_c::draw_game_frame() {
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
-			if (menu.options.game.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
+			if (menu.options.graphics.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
 				fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
 				const int ttx = static_cast<int>(fd.player[i].lx);
 				const int tty = static_cast<int>(fd.player[i].ly);
@@ -3524,6 +3523,7 @@ void gameclient_c::initMenus() {
 	menu.disconnect						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_disconnect		>(this));
 	menu.startServer					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_startServer		>(this));
 	menu.stopServer						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_stopServer		>(this));
+	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_exitOutgun		>(this));
 
 	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareServerMenu>(this));
 	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareServerMenu>(this));	//#fix: inefficient!
@@ -3535,25 +3535,21 @@ void gameclient_c::initMenus() {
 	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareAddServer	>(this));
 	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_addServer		>(this));
 
-	menu.options.menu				  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
-
 	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareNameMenu	>(this));
 	menu.options.name.menu			.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareDrawNameMenu>(this));
 	menu.options.name.menu		   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_nameMenuClose	>(this));
-	menu.options.name.menu			  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.name.name				.setHook(new MCB::N<Textfield,		&gameclient_c::MCF_nameChange		>(this));
 	menu.options.name.randomName		.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_randomName		>(this));
 	menu.options.name.removePasswords	.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_removePasswords	>(this));
 
 	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGameMenu	>(this));
-	menu.options.game.menu			  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_joystick			>(this));
 	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_messageLogging	>(this));
 
 	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGfxMenu	>(this));
 	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareDrawGfxMenu>(this));
 	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
 	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&gameclient_c::MCF_screenDepthChange>(this));
 	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_screenModeChange	>(this));
 	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&gameclient_c::MCF_gfxThemeChange	>(this));
@@ -3563,7 +3559,6 @@ void gameclient_c::initMenus() {
 	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&gameclient_c::predraw				>(this));
 
 	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareSndMenu	>(this));
-	menu.options.sounds.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.sounds.enabled			.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_sndEnableChange	>(this));
 	menu.options.sounds.volume			.setHook(new MCB::N<Slider,			&gameclient_c::MCF_sndVolumeChange	>(this));
 	menu.options.sounds.theme			.setHook(new MCB::N<Select<string>,	&gameclient_c::MCF_sndThemeChange	>(this));
@@ -3621,6 +3616,10 @@ void gameclient_c::MCF_stopServer() {
 		listenServer.stop();
 }
 
+void gameclient_c::MCF_exitOutgun() {
+	quitCommand = true;
+}
+
 void gameclient_c::MCF_cancelConnect() {
 	if (!connected)
 		disconnect_command();	// will cancel the (probably) ongoing connect attempt
@@ -3645,7 +3644,7 @@ void gameclient_c::MCF_nameChange() {	// only function to clear the password
 }
 
 void gameclient_c::MCF_randomName() {
-	menu.options.name.name.set(trim(RandomName().substr(0, 15)));
+	menu.options.name.name.set(RandomName());
 	MCF_nameChange();
 }
 
@@ -3823,7 +3822,17 @@ void gameclient_c::MCF_prepareServerMenu() {
 			if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address) == addresses.end()) {
 				ostringstream info;
 				info << setw(21) << left << spy->address << right;
-				info << setw(4) << spy->ping << ' ' << spy->info;
+				info << setw(4);
+				if (spy->ping > 0)
+					info << spy->ping;
+				else
+					info << '?';
+				if (spy->refreshed) {
+					if (spy->noresponse)
+						info << " no response";
+					else
+						info << ' ' << spy->info;
+				}
 				menu.connect.add(spy->address, info.str());
 				addresses.push_back(spy->address);
 			}
@@ -3911,17 +3920,17 @@ void gameclient_c::MCF_refreshServers() {
 }
 
 void gameclient_c::MCF_loadHelp() {
-	m_help.clear();
+	menu.help.clear();
 	const string configFile = wheregamedir + "config" + directory_separator + "help.txt";
 	ifstream in(configFile.c_str());
 	if (!in) {
-		m_help.addLine(string() + "No help found. It should be in");
-		m_help.addLine(string() + configFile);
+		menu.help.addLine("No help found. It should be in");
+		menu.help.addLine(configFile);
 		return;
 	}
 	string line;
 	while (getline_smart(in, line))
-		m_help.addLine(line);
+		menu.help.addLine(line);
 }
 
 void gameclient_c::CB_tournamentToken(string token) {	// callback called by tournamentPassword from another thread

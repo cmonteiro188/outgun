@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <cmath>
+
 #include "incalleg.h"
+#include "client.h"
 #include "nassert.h"
 
-#include "client.h"
 #include "menu.h"
 
 using std::max;
@@ -13,7 +15,7 @@ using std::vector;
 
 // character width and line height in pixels
 const int char_w = 8;
-const int line_h = 20;
+const int line_h = 16;
 
 int col_background, col_borderShadow, col_borderHighlight, col_menuCaption, col_menuCaptionBg, col_caption, col_active, col_disabled, col_value, col_scrollbar, col_scrollbarBg;
 
@@ -24,6 +26,16 @@ void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, i
 		if (bar_h > 0)
 			rectfill(buffer, x, y + bar_y, x + width - 1, y + bar_y + bar_h - 1, col1);
 	}
+}
+
+void drawKeySymbol(BITMAP* buffer, int x, int y, const string& text) {
+	int width = text.length() * char_w;
+	hline(buffer, x - 4, y - 1, x + width + 3, makecol(0xEE, 0xEE, 0xEE));
+	vline(buffer, x - 4, y - 1, y + 8        , makecol(0xEE, 0xEE, 0xEE));
+	hline(buffer, x - 4, y + 8, x + width + 3, makecol(0x22, 0x22, 0x22));
+	vline(buffer, x + width + 3, y - 1, y + 8, makecol(0x22, 0x22, 0x22));
+	rectfill(buffer, x - 3, y, x + width + 2, y + 7, makecol(0x99, 0x99, 0x99));
+	textout_ex(buffer, font, text.c_str(), x, y, 0, -1);
 }
 
 int Component::captionColor(bool active) const {
@@ -78,17 +90,19 @@ bool Menu::next() {
 }
 
 void Menu::draw(BITMAP* buffer) {
-col_background		= makecol(0x30, 0x40, 0x30);
-col_borderShadow	= makecol(0x50, 0x60, 0x50);
-col_borderHighlight	= makecol(0xA0, 0xB0, 0xA0);
-col_menuCaption 	= makecol(0xFF, 0xFF, 0xFF);
-col_menuCaptionBg	= makecol(0x00, 0x77, 0x00);
-col_caption			= makecol(0x40, 0xFF, 0x40);
-col_active			= makecol(0xFF, 0xFF, 0x00);
-col_disabled		= makecol(0x00, 0xAA, 0x00);
-col_value			= makecol(0xFF, 0xFF, 0xFF);
-col_scrollbar		= makecol(0x00, 0xFF, 0x00);
-col_scrollbarBg		= makecol(0x00, 0x77, 0x00);
+	//#fix: handle colors and other drawing details with a separate class connected with Graphics
+	col_background		= makecol(0x30, 0x40, 0x30);
+	col_borderShadow	= makecol(0x50, 0x60, 0x50);
+	col_borderHighlight	= makecol(0xA0, 0xB0, 0xA0);
+	col_menuCaption 	= makecol(0xFF, 0xFF, 0xFF);
+	col_menuCaptionBg	= makecol(0x00, 0x77, 0x00);
+	col_caption			= makecol(0x40, 0xFF, 0x40);
+	col_active			= makecol(0xFF, 0xFF, 0x00);
+	col_disabled		= makecol(0x00, 0xAA, 0x00);
+	col_value			= makecol(0xFF, 0xFF, 0xFF);
+	col_scrollbar		= makecol(0x00, 0xFF, 0x00);
+	col_scrollbarBg		= makecol(0x00, 0x77, 0x00);
+
 	drawHook.call(*this);
 
 	if (selected_item >= static_cast<int>(components.size()))
@@ -114,10 +128,6 @@ col_scrollbarBg		= makecol(0x00, 0x77, 0x00);
 	const int y2 = my + h / 2;
 
 	rectfill(buffer, x1, y1, x2, y2, col_background);
-/*	hline(buffer, x1 + 1, y1 + 1, x2 - 1, col_borderHighlight);
-	vline(buffer, x1 + 1, y1 + 1, y2 - 1, col_borderHighlight);
-	hline(buffer, x1 + 1, y2 - 1, x2 - 1, col_borderShadow);
-	vline(buffer, x2 - 1, y1 + 1, y2 - 1, col_borderShadow);*/
 	hline(buffer, x1 - 1, y1 - 1, x2 + 1, col_borderHighlight);
 	vline(buffer, x1 - 1, y1 - 1, y2 + 1, col_borderHighlight);
 	hline(buffer, x1 - 1, y2 + 1, x2 + 1, col_borderShadow);
@@ -159,6 +169,7 @@ col_scrollbarBg		= makecol(0x00, 0x77, 0x00);
 }
 
 void Menu::handleKeypress(char scan, unsigned char chr) {
+	nAssert(components.size() > 0);
 	if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
 		prev();
 	else if (scan == KEY_DOWN || scan == KEY_TAB)
@@ -167,17 +178,25 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
 		home();
 	else if (scan == KEY_END)
 		end();
-	else if (chr == 0) {	// Alt + number
+	else if (chr == 0) {	// check for Alt + number
+		int shortcut;
 		switch (scan) {
-			case KEY_1: selected_item = 0; break;
-			case KEY_2: selected_item = 1; break;
-			case KEY_3: selected_item = 2; break;
-			case KEY_4: selected_item = 3; break;
-			case KEY_5: selected_item = 4; break;
-			case KEY_6: selected_item = 5; break;
-			case KEY_7: selected_item = 6; break;
-			case KEY_8: selected_item = 7; break;
-			case KEY_9: selected_item = 8; break;
+			case KEY_1: shortcut = 0; break;
+			case KEY_2: shortcut = 1; break;
+			case KEY_3: shortcut = 2; break;
+			case KEY_4: shortcut = 3; break;
+			case KEY_5: shortcut = 4; break;
+			case KEY_6: shortcut = 5; break;
+			case KEY_7: shortcut = 6; break;
+			case KEY_8: shortcut = 7; break;
+			case KEY_9: shortcut = 8; break;
+			default: shortcut = -1; break;
+		}
+		if (shortcut != -1) {
+			// update selected_item
+			for (selected_item = 0; selected_item < (int)components.size() && shortcut > 0; ++selected_item)
+				if (components[selected_item]->canBeEnabled())
+					--shortcut;
 		}
 	}
 	if (selected_item >= static_cast<int>(components.size()))
@@ -230,6 +249,11 @@ int Menu::total_height() const {
 }
 
 
+int Spacer::height() const {
+	return space * line_h / 10;
+}
+
+
 void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 	if (h < minHeight())
 		return;
@@ -276,7 +300,14 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 	x += 2 * char_w;
 	nAssert(!options.empty());
 	nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
+	if (active && selected > 0)
+		drawKeySymbol(buffer, x, y, "<");
+	x += 2 * char_w;
 	textout_ex(buffer, font, options[selected].c_str(), x, y, col_value, -1);
+	if (active && selected + 1 < (int)options.size()) {
+		x += (options[selected].length() + 1) * char_w;
+		drawKeySymbol(buffer, x, y, ">");
+	}
 }
 
 int SelectBase::width() const {
@@ -284,7 +315,7 @@ int SelectBase::width() const {
 	for (vector<string>::const_iterator si = options.begin(); si != options.end(); ++si)
 		if (si->length() > maxSelLength)
 			maxSelLength = si->length();
-	return (caption.length() + 2 + maxSelLength) * char_w;
+	return (caption.length() + 2 + 2 + maxSelLength + 2) * char_w;
 }
 
 int SelectBase::height() const {
@@ -311,32 +342,22 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 	x += (caption.length()) * char_w;
 	textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
 	x += 2 * char_w;
-	if (active) {	// plus "button"
-		hline(buffer, x - 4, y - 1, x + char_w + 3, makecol(0xEE, 0xEE, 0xEE));
-		vline(buffer, x - 4, y - 1, y + 8, makecol(0xEE, 0xEE, 0xEE));
-		hline(buffer, x - 4, y + 8, x + char_w + 3, makecol(0x22, 0x22, 0x22));
-		vline(buffer, x + char_w + 3, y - 1, y + 8, makecol(0x22, 0x22, 0x22));
-		rectfill(buffer, x - 3, y, x + char_w + 2, y + 7, makecol(0x99, 0x99, 0x99));
-		textout_ex(buffer, font, "+", x, y, 0, -1);
-	}
+	if (active)
+		drawKeySymbol(buffer, x, y, "+");
 	x += 2 * char_w;
 	nAssert(!options.empty());
 	nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
 	const int bw = 10;
 	const int bh = 15;
-	for (int i = 0; i < static_cast<int>(options.size()); i++) {
+	for (int i = 0; i < static_cast<int>(options.size()); i++)
 		rectfill(buffer, x + (bw + 2) * i + 2, y - 2, x + (bw + 2) * i + bw - 2, y + bh - 6, graphics->player_color(options[i]));
-		if (selected == i)
-			rect(buffer, x + (bw + 2) * i, y - 4, x + (bw + 2) * i + bw, y + bh - 4, captionColor(active));
+	if (active) {	// mark selection
+		const int i = selected;
+		rect    (buffer, x + (bw + 2) * i    , y - 4, x + (bw + 2) * i + bw    , y + bh - 4, captionColor(active));
 	}
-	if (active) {	// minus "button"
+	if (active) {
 		x += options.size() * (bw + 2) + bw - 2;
-		hline(buffer, x - 4, y - 1, x + char_w + 3, makecol(0xEE, 0xEE, 0xEE));
-		vline(buffer, x - 4, y - 1, y + 8, makecol(0xEE, 0xEE, 0xEE));
-		hline(buffer, x - 4, y + 8, x + char_w + 3, makecol(0x22, 0x22, 0x22));
-		vline(buffer, x + char_w + 3, y - 1, y + 8, makecol(0x22, 0x22, 0x22));
-		rectfill(buffer, x - 3, y, x + char_w + 2, y + 7, makecol(0x99, 0x99, 0x99));
-		textout_ex(buffer, font, "-", x, y, 0, -1);
+		drawKeySymbol(buffer, x, y, "-");
 	}
 }
 
@@ -395,8 +416,17 @@ bool Checkbox::handleKey(char scan, unsigned char chr) {
 }
 
 
+void Slider::boundSet(int value) {
+	val = bound(value, vmin, vmax);
+}
+
 int Slider::width() const {
-	return char_w * (caption.length() + 20);	// arbitrary bar length
+	if (graphic)
+		return char_w * (caption.length() + 20);	// arbitrary bar length
+	else {
+		const float maxAbs = max(abs(vmin) * (vmin < 0 ? 10 : 1), abs(vmax));	// multiply by 10 to add one to width to make room for '-'
+		return char_w * static_cast<int>(ceil(std::log10(maxAbs)));
+	}
 }
 
 int Slider::height() const {
@@ -408,19 +438,39 @@ void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 		return;
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 	const int x0 = x + (caption.length() + 1) * char_w;
-	const int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
-	y -= 4;
-	rect(buffer, x0, y, x + width() - 1, y + height() - 1, captionColor(active));
-	if (barLength)
-		rectfill(buffer, x0 + 1, y + 1, x0 + barLength, y + height() - 2, col_value);
+	if (graphic) {
+		const int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
+		y -= 4;
+		rect(buffer, x0, y, x + width() - 1, y + height() - 1, captionColor(active));
+		if (barLength)
+			rectfill(buffer, x0 + 1, y + 1, x0 + barLength, y + height() - 2, col_value);
+	}
+	else
+		textprintf_ex(buffer, font, x0, y, col_value, -1, "%d", val);
 }
 
 bool Slider::handleKey(char scan, unsigned char chr) {
 	(void)chr;
-	if (scan == KEY_LEFT && val > vmin)
-		--val;
-	else if (scan == KEY_RIGHT && val < vmax)
-		++val;
+	if ((scan == KEY_LEFT || chr == '-') && val > vmin) {
+		if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '-')
+			--val;
+		else if (step == 0)	// logarithmic
+			val -= (val - vmin) / 11 + 1;	// /11 to have ++,-- or --,++ result in the original value; it's magic ;)
+		else
+			val -= step;
+		if (val < vmin)
+			val = vmin;
+	}
+	else if ((scan == KEY_RIGHT || chr == '+') && val < vmax) {
+		if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '+')
+			++val;
+		else if (step == 0)	// logarithmic
+			val += (val - vmin) / 10 + 1;
+		else
+			val += step;
+		if (val > vmax)
+			val = vmax;
+	}
 	else
 		return false;
 	callHook(*this);

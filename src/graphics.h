@@ -59,7 +59,8 @@ public:
 	Graphics(LogSet logs);
 	~Graphics();
 
-	std::vector<ScreenMode> getResolutions(int depth) const;	// returns a sorted list of unique resolutions
+	bool depthAvailable(int depth) const;
+	std::vector<ScreenMode> getResolutions(int depth, bool forceTryIfNothing = true) const;	// returns a sorted list of unique resolutions
 	bool init(int width, int height, int depth, bool windowed, bool tryFlipping);
 
 	void startDraw();	// call endDraw for each startDraw

@@ -128,6 +128,41 @@ string date_and_time() {
 	return time_str;
 }
 
+string approxTime(int seconds) {
+	int time = seconds;
+	const char* timeUnit;
+	if (time == 0 || (time % 60 != 0 && time <= 200))
+		timeUnit = "second";
+	else {
+		time = (time + 40) / 60;	// 40 chosen because rounding up is favored
+		if (time % 60 != 0 && time <= 200)
+			timeUnit = "minute";
+		else {
+			time = (time + 40) / 60;
+			if (time % 24 != 0 && time <= 100)
+				timeUnit = "hour";
+			else {
+				time = (time + 16) / 24;
+				// because a year isn't an integral amount of weeks, it must be handled separately
+				if (time % 365 == 0 || time >= 7 * 100) {	// show more than 100 weeks in years
+					time = (time + 250) / 365;
+					timeUnit = "year";
+				}
+				else if (time % 7 != 0 && time <= 50)
+					timeUnit = "day";
+				else {
+					time = (time + 5) / 7;
+					timeUnit = "week";
+				}
+			}
+		}
+	}
+	string str = itoa(time) + ' ' + timeUnit;
+	if (time != 1)
+		str += 's';
+	return str;
+}
+
 void threadRandomize() {	// declared in thread.h
 	srand(time(0));
 }

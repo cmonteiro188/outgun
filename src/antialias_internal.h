@@ -8,11 +8,12 @@
 //#define DEBUG_SPLIT
 //#define DEBUG_OVERLAP
 //#define DEBUG_RENDER
-/*
-#define CERR_DEBUG
+//#define CERR_DEBUG
+
+#ifdef CERR_DEBUG
 #include <iostream>
 using std::cerr;
-//*/
+#endif
 
 // INTERSECTION_TRESHOLD	is how much inside a segment an intersection is allowed (must allow for rounding errors)
 // SPLIT_TRESHOLD			is how much y-borders are allowed to deviate (must exceed the precision of the given y coords)
@@ -199,12 +200,13 @@ class FlagmarkerTexturizer {
 	Texturizer& host;
 	int color;
 	float markRadius;
+	float intensityMul;
 	float cx, cy;
 	float dy, dy2;
 	float dx;
 
 public:
-	FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td) : host(host_), color(td.color), markRadius(td.radius), cx(td.cx), cy(td.cy) { }
+	FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td);
 
 	void setLine(int y);
 	void nextLine();

@@ -24,7 +24,7 @@ class NameAuthorizationDatabase {
 		NLaddress address;
 		time_t endTime;
 
-		BanEntry(const std::string& n, NLaddress a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
+		BanEntry(const std::string& n, const NLaddress& a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
 	};
 
 	std::vector<NameEntry> names;
@@ -42,7 +42,8 @@ public:
 	bool save() const;
 
 	int identifyName(const std::string& name) const;
-	bool NameAuthorizationDatabase::checkNamePassword(const std::string& name, const std::string& password) const;
+	bool checkNamePassword(const std::string& name, const std::string& password) const;
+	bool isAdmin(const std::string& name) const;
 
 	bool isBanned(NLaddress addr) const;
 	void ban(NLaddress addr, const std::string& name, int minutes);

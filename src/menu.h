@@ -12,6 +12,7 @@ class Graphics;
 class BITMAP;
 
 void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
+void drawKeySymbol(BITMAP* buffer, int x, int y, const std::string& text);
 
 // Base class of menu components
 class Component {
@@ -23,6 +24,7 @@ public:
 
 	void setEnable(bool state) { enabled = state; }
 
+	virtual bool canBeEnabled() const { return true; }
 	virtual bool isEnabled() const { return enabled; }
 	virtual bool needsNumberKeys() const { return false; }
 
@@ -125,6 +127,21 @@ private:
 	std::stack<Menu*> st;
 };
 
+class Spacer : public Component {
+public:
+	Spacer(int space_) : Component(""), space(space_) { }	// space in tenths of line height
+
+	// inherited interface
+	bool canBeEnabled() const { return false; }
+	bool isEnabled() const { return false; }
+	void draw(BITMAP*, int, int, int, bool) const { }
+	int width() const { return 0; }
+	int height() const;
+
+private:
+	int space;
+};
+
 class Textfield : public Component, public MenuHookable<Textfield> {
 public:
 	Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0): Component(caption_), value(init_text), maxlen(fieldLength), maskChar(mask) { }
@@ -147,9 +164,12 @@ private:
 class SelectBase : public Component {
 public:
 	virtual ~SelectBase() { }
-	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+	int size() const { return options.size(); }
+
+	// inherited interface
 	int width() const;
 	int height() const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 	virtual void virtualCallHook() = 0;
@@ -218,9 +238,13 @@ private:
 
 class Slider : public Component, public MenuHookable<Slider> {
 public:
-	Slider(const std::string caption_, int vmin_, int vmax_) : Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_) { }
-	Slider(const std::string caption_, int vmin_, int vmax_, int init_value) : Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value) { }
-	void set(int value) { val = value; }
+	Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_)
+		: Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_), step(1), graphic(graphic_) { }
+	Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_, int init_value, int step_ = 1)	// a step of 0 results in a logarithmic behavior
+		: Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value), step(step_), graphic(graphic_) { }
+
+	void set(int value) { nAssert(val >= vmin && val <= vmax); val = value; }
+	void boundSet(int value);
 	int operator()() const { return val; }
 
 	// inherited interface
@@ -230,7 +254,8 @@ public:
 	bool handleKey(char scan, unsigned char chr);
 
 private:
-	int vmin, vmax, val;
+	int vmin, vmax, val, step;
+	bool graphic;
 };
 
 class Textarea : public Component, public MenuHookable<Textarea>, public KeyHookable<Textarea> {

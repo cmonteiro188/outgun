@@ -1,7 +1,7 @@
 #ifndef SERVNET_H_INC
 #define SERVNET_H_INC
 
-#include "protocol.h"
+#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "thread.h"
 
 #include <map>
@@ -69,7 +69,6 @@ class ServerNetworking {
 	volatile int	mjob_count;
 	pthread_mutex_t	mjob_mutex;				//mutex for socket list
 
-	float			max_world_score;
 	int				max_world_rank;
 
 	ClientTransferData fileTransfer[MAX_PLAYERS];

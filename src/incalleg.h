@@ -21,7 +21,9 @@ inline void set_close_button_callback(void (*fn)()) {
 #endif	// ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 
 #if ALLEGRO_VERSION == 4 && (ALLEGRO_SUB_VERSION == 0 || (ALLEGRO_SUB_VERSION == 1 && ALLEGRO_WIP_VERSION <= 11))
-#define set_clip_rect set_clip
+inline void set_clip_rect(BITMAP* bitmap, int x1, int y1, int x2, int y2) {
+	set_clip(bitmap, x1, y1, x2, y2);
+}
 #endif
 
 #endif	// INCALLEG_H_INC

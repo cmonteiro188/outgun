@@ -41,22 +41,21 @@ bool NameAuthorizationDatabase::load() {
 		log.error("Can't read auth.txt");
 		return false;
 	}
+	bool bansChanged = false;
 	for (;;) {
 		string line;
-		getline_smart(in, line);
-		if (!in)
-			return true;
-		if (line[0]==';')
-			continue;
+		if (!getline_skip_comments(in, line))
+			break;
 		istringstream strl(line);
 		string command, name, data;
 		strl >> command;
+		strl.ignore();	// useful especially when the separator is a tab
 		getline(strl, name, '\t');
-		if (!strl) {
-			log.error("Invalid line \"%s\" in auth.txt", line.c_str());
+		name = makeComparable(name);
+		if (!strl || name.empty()) {
+			log.error("Invalid line (no name) in auth.txt: \"%s\"", line.c_str());
 			continue;
 		}
-		name = makeComparable(name);
 		strl >> data;
 		bool dataRead = strl;
 		command = toupper(command);
@@ -82,13 +81,19 @@ bool NameAuthorizationDatabase::load() {
 				strl >> endTime;
 				if (!strl)
 					bans.push_back(BanEntry(name, addr));
-				else if (endTime > time(0))	// if the ban isn't in effect any more, don't bother loading
+				else if (endTime > time(0))
 					bans.push_back(BanEntry(name, addr, endTime));
+				else	// if the ban isn't in effect any more, remove from the list
+					bansChanged = true;
 			}
 		}
 		else
 			log.error("Unrecognized command \"%s\" in auth.txt", command.c_str());
 	}
+	if (bansChanged)
+		return save();
+	else
+		return true;
 }
 
 bool NameAuthorizationDatabase::save() const {
@@ -104,7 +109,8 @@ bool NameAuthorizationDatabase::save() const {
 		<< "; Passwordless admins need to authenticate by logging in to the tournament\n"
 		<< '\n';
 	for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
-		out << "ban\t" << bi->name << '\t' << addressToString(bi->address) << '\t' << bi->endTime << '\n';
+		if (bi->endTime > time(0))	// if the ban isn't in effect any more, don't save
+			out << "ban\t" << bi->name << '\t' << addressToString(bi->address) << '\t' << bi->endTime << '\n';
 	for (vector<NameEntry>::const_iterator ni = names.begin(); ni != names.end(); ++ni)
 		out << (ni->admin ? "admin" : "name") << '\t' << ni->name << '\t' << ni->password << '\n';
 	return true;
@@ -121,6 +127,11 @@ int NameAuthorizationDatabase::identifyName(const string& name) const {
 bool NameAuthorizationDatabase::checkNamePassword(const std::string& name, const std::string& password) const {
 	int idx = identifyName(name);
 	return (idx == -1 || names[idx].password == password);
+}
+
+bool NameAuthorizationDatabase::isAdmin(const std::string& name) const {
+	int idx = identifyName(name);
+	return (idx != -1 && names[idx].admin);
 }
 
 bool NameAuthorizationDatabase::isBanned(NLaddress addr) const {

@@ -10,17 +10,15 @@
 #include "commont.h"
 #include "world.h"
 #include "nassert.h"
+#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET
 #include "utility.h"
 
-#define PHYS_VECTOR_ACC
-#define PHYS_VECTOR_ACC_TEST
+static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;	// for touch checks, mostly
 
 const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
 const float minimum_grab_to_capture_time = 6.0;
-
-//#define ALWAYS_FRICTION
 
 using std::ifstream;
 using std::istream;
@@ -298,10 +296,8 @@ bool Map::parse_file(LogSet& log, istream& in) {
 	// read lines to vectors
 	while (1) {
 		string line;
-		if (!getline_smart(in, line))
+		if (!getline_skip_comments(in, line))
 			break;
-		if (line[0] == ';')				// comment
-			continue;
 		if (line[0] == ':')	{			// new label
 			const string label = line.substr(1);
 			for (vector<pair<string, vector<string> > >::const_iterator li = label_lines.begin(); li != label_lines.end(); ++li)
@@ -325,16 +321,28 @@ bool Map::parse_file(LogSet& log, istream& in) {
 		log.error("Map is missing a width, height or title.");
 		return false;
 	}
-	// Check that spawn points are not on the walls.
-	for (int t = 0; t < 2; t++)
+	// Check that flags and spawn points are not on the walls.
+	bool wallError = false;
+	for (int t = 0; t < 3; t++) {
+		const vector<spoint_t>& flags = (t == 2 ? wild_flags : tinfo[t].flags);
+		for (int i = 0; i < static_cast<int>(flags.size()); ++i) {
+			const spoint_t& point = flags[i];
+			if (fall_on_wall(point.px, point.py, point.x, point.y, FLAG_RADIUS)) {
+				log.error("Team %d, flag %d on the wall.", t, i);
+				wallError = true;
+			}
+		}
+		if (t == 2)	// wild flags only; no spawn points to check
+			continue;
 		for (int i = 0; i < static_cast<int>(tinfo[t].spawn.size()); i++) {
 			const spoint_t& point = tinfo[t].spawn[i];
 			if (fall_on_wall(point.px, point.py, point.x, point.y, PLAYER_RADIUS)) {
 				log.error("Team %d, spawn point %d on the wall.", t, i);
-				return false;
+				wallError = true;
 			}
 		}
-	return true;
+	}
+	return !wallError;
 }
 
 bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, vector<string> > >& label_lines,
@@ -627,6 +635,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 	talk_hotness = 1.0;
 	cid = _cid;
 	waitnametime = get_time() - 666.0;	//can change name right now
+	localIP = false;
 
 	lastClientFrame = 0;
 	#ifdef SEND_FRAMEOFFSET
@@ -1012,14 +1021,6 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	float xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
 	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
 
-	#ifdef PHYS_VECTOR_ACC
-
-	// a more physically correct model
-
-	#ifdef PHYS_VECTOR_ACC_TEST
-
-	// model 1 by Huntta
-
 	float player_accel = physics.accel;
 	if (h->item_speed)
 		player_accel *= physics.turbo_mul;
@@ -1048,77 +1049,6 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 		h->sx += xAcc * player_accel;
 		h->sy += yAcc * player_accel;
 	}
-
- 	#else
-
-	// model 2 by Nix
-
-	// new correcting coefficients : reduce friction and total acceleration
-	player_maxspeed *= 1.2;
-	player_friction *=  .5;
-	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
-
-	// acceleration
-	if (!deathbringer_affected) {
-		float mul = player_accel;
-		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
-			mul /= sqrt(2.);
-
-		h->sx += float(xAcc)*mul;
-		h->sy += float(yAcc)*mul;
-	}
-
-	// friction
-	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
-	if (spd > 0) {
-		float mul;
-		if (spd <= player_friction)
-			mul = 0.;
-		else
-			mul = 1. - player_friction/spd;
-		h->sx *= mul;
-		h->sy *= mul;
-		spd *= mul;
-		if (spd > player_maxspeed) {	// artificial "friction" forcing a reverse acceleration to settle too great speeds
-			if (spd > player_maxspeed + player_accel)
-				mul = 1. - player_accel / spd;
-			else
-				mul = player_maxspeed / spd;
-			h->sx *= mul;
-			h->sy *= mul;
-		}
-	}
-
-	#endif	// PHYS_VECTOR_ACC_TEST
-
-	#else	// PHYS_VECTOR_ACC
-
-	// this is the original weird physics model only re-written
-
-	// friction
-	float absx=fabs(h->sx), absy=fabs(h->sy);
-	if (!xAcc || absx >= player_maxspeed || deathbringer_affected) {
-		if (absx > player_friction)
-			h->sx *= 1. - player_friction/absx;
-		else
-			h->sx = 0.;
-	}
-	if (!yAcc || absy >= player_maxspeed || deathbringer_affected) {
-		if (absy > player_friction)
-			h->sy *= 1. - player_friction/absy;
-		else
-			h->sy = 0.;
-	}
-
-	// acceleration
-	if (!deathbringer_affected) {
-		if (fabs(h->sx) < player_maxspeed)
-			h->sx += float(xAcc)*player_accel;
-		if (fabs(h->sy) < player_maxspeed)
-			h->sy += float(yAcc)*player_accel;
-	}
-
-	#endif	// PHYS_VECTOR_ACC else
 }
 
 void WorldBase::returnAllFlags() {
@@ -1177,8 +1107,9 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 		}
 	}
 
-	r->sx = cos(deg) * ROCKET_SPEED;
-	r->sy = sin(deg) * ROCKET_SPEED;
+	const float rocketSpeed = 50.0;	//in pixels/0.1s
+	r->sx = cos(deg) * rocketSpeed;
+	r->sy = sin(deg) * rocketSpeed;
 	const double advance = .5 + double(frameAdvance);
 	const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 	if (wallTime <= advance) {
@@ -1461,7 +1392,7 @@ void ServerWorld::reset() {
 
 void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	// server uptime
-	const unsigned long uptime = frame/10/60;	// minutes
+	const unsigned long uptime = frame / 10 / 60;	// minutes
 	const int days = uptime / 60 / 24;
 	ostringstream server_time;
 	server_time << "The server has been up for ";
@@ -1566,7 +1497,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	teams[pid / TSIZE].add_flag_drop();
 	if (purpose) {
 		net->broadcast_flag_drop(player[pid]);	// If player dies, clients know the flag is dropped.
-		player[pid].stats().take_frag();
+		host->score_frag(pid, -1);	// undo the bonus from taking the flag
 	}
 	return true;
 }
@@ -1670,15 +1601,11 @@ bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, int x, int 
 	if (flag.carried() || flag.position().px != px || flag.position().py != py)
 		return false;
 
-	const int fx = flag.position().x;
-	const int fy = flag.position().y;
+	const int dx = flag.position().x - x;
+	const int dy = flag.position().y - y;
+	const int touchRadius = PLAYER_RADIUS + FLAG_RADIUS;
 
-	if (fx > x - (PLAYER_RADIUS + 15) &&
-		fx < x + (PLAYER_RADIUS + 15) &&
-		fy > y - (PLAYER_RADIUS + 15) &&
-		fy < y + (PLAYER_RADIUS + 15))
-			return true;	//touch
-	return false;
+	return (dx * dx + dy * dy < touchRadius * touchRadius);
 }
 
 // drop shield, turbo, shadow, power or weapon power-up if player has some of them
@@ -1750,11 +1677,11 @@ void ServerWorld::respawn_pickup(int p) {
 		//find a suitable coordinate -- middle square
 		//itemx = plw / 8 + rand() % (3 * plw / 4);
 		//itemy = plh / 8 + rand() % (3 * plh / 4);
-		itemx = 16 + rand() % (plw - 32);
-		itemy = 16 + rand() % (plh - 32);
+		itemx = PICKUP_RADIUS + rand() % (plw - 2 * PICKUP_RADIUS);
+		itemy = PICKUP_RADIUS + rand() % (plh - 2 * PICKUP_RADIUS);
 
 		//do a check for walls, maybe retrying another screen if hits a wall
-		hit = map.fall_on_wall(px, py, itemx - 16, itemy - 16, itemx + 16, itemy + 16);
+		hit = map.fall_on_wall(px, py, itemx, itemy, PICKUP_RADIUS);
 		if (!hit)
 			break;
 		if (--runaway < 0) {
@@ -2051,7 +1978,7 @@ void ServerWorld::suicide(int pid) {
 	if (player[pid].health > 0) {
 		bool flag = player[pid].flag();
 		killPlayer(pid, true);
-		player[pid].stats().take_frag();
+		host->score_frag(pid, -1);
 		player[pid].stats().add_suicide(static_cast<int>(get_time()));
 		teams[pid / TSIZE].add_suicide();
 		net->broadcast_suicide(player[pid], flag);
@@ -2625,6 +2552,7 @@ void ServerWorld::simulateFrame() {
 			}
 		}
 		//lose health & energy if running
+		const int MIN_HEALTH_FOR_RUN_PENALTY = 40;
 		if (h->controls.isRun()) {
 			if (player[i].energy <= 0) {
 				if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {
@@ -2696,22 +2624,14 @@ void ServerWorld::simulateFrame() {
 		int enemyteam = 1 - myteam;
 
 		// --> ITEM PICKUP
-		//
-		int prad = 10;	//pickup item radius
+		const int touchRadius = PICKUP_RADIUS + PLAYER_RADIUS;
 
-		for (int k=0;k<MAX_PICKUPS;k++)
-			if (item[k].kind != Powerup::pup_unused)
-			if (item[k].kind != Powerup::pup_respawning)
-			if (item[k].px == player[i].roomx)		// player's screen
-			if (item[k].py == player[i].roomy)
-			//x,y == center of powerup!
-			if (item[k].x + prad > player[i].lx - PLAYER_RADIUS)
-			if (item[k].x - prad < player[i].lx + PLAYER_RADIUS)
-			if (item[k].y + prad > player[i].ly - PLAYER_RADIUS)
-			if (item[k].y - prad < player[i].ly + PLAYER_RADIUS)
-			{
-				//pick pickup
-				game_touch_pickup(i, k);		//COOL!
+		for (int k = 0; k < MAX_PICKUPS; k++)
+			if (item[k].kind <= Powerup::pup_last_real && item[k].px == player[i].roomx && item[k].py == player[i].roomy) {
+				const double dx = item[k].x - player[i].lx;
+				const double dy = item[k].y - player[i].ly;
+				if (dx * dx + dy * dy < touchRadius * touchRadius)
+					game_touch_pickup(i, k);
 			}
 
 		// Flag steal - touch other team's flag or wild flag
@@ -2828,13 +2748,18 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 }
 
 void ServerWorld::player_captures_flag(int pid, int team, int flag) {
-	const Flag& capt_flag = team == 2 ? wild_flags[flag] : teams[team].flag(flag);
+	const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
 	const int myteam = pid / TSIZE;
-	if (map.valid_for_scoring && get_time() - capt_flag.grab_time() <= minimum_grab_to_capture_time) {
-		// this map is too small, ignore all scoring for it
-		map.valid_for_scoring = false;
-		net->broadcast_message(msg_warning, "This map is too small. Scoring for World Ranking disabled.");
-		host->clearWorldRankingDeltas();
+	double timeDiff = get_time() - capt_flag.grab_time();
+	if (host->tournament_active() && timeDiff <= minimum_grab_to_capture_time) {	// can't capture yet
+		if (timeDiff <= .1) {	// being able to capture flags without moving is a too easy way to cheat
+			log.error("This map is invalid: instant flag capture is possible");
+			host->score_frag(pid, -10);
+			killPlayer(pid, true);
+			returnFlag(team, flag);
+			net->bprintf(msg_warning, "This map is broken. There is an instantly capturable flag. Avoid it.");
+		}
+		return;
 	}
 	// add frags to all players of the team and
 	// penalise every player of the other team
@@ -3055,6 +2980,7 @@ void Statistics::add_death(bool deathbringer, double time) {
 	current_consecutive_kills = 0;
 	if (deathbringer)
 		++total_deathbringer_deaths;
+	nAssert(!dead);
 	dead = true;
 	total_lifetime += time - last_spawn_time;
 }
@@ -3065,28 +2991,35 @@ void Statistics::add_suicide(double time) {
 }
 
 void Statistics::add_capture(double time) {
+	nAssert(flag);
 	flag = false;
 	++total_captures;
 	total_flag_carrying_time += time - flag_taking_time;
 }
 
 void Statistics::add_flag_take(double time) {
+	nAssert(!flag);
 	flag = true;
 	++total_flags_taken;
 	flag_taking_time = time;
 }
 
 void Statistics::add_flag_drop(double time) {
+	nAssert(flag);
 	flag = false;
 	++total_flags_dropped;
 	total_flag_carrying_time += time - flag_taking_time;
 }
 
 void Statistics::finish_stats(double time) {
-	dead = true;
-	total_lifetime += time - last_spawn_time;
-	flag = false;
-	total_flag_carrying_time += time - flag_taking_time;
+	if (!dead) {
+		dead = true;
+		total_lifetime += time - last_spawn_time;
+	}
+	if (flag) {
+		flag = false;
+		total_flag_carrying_time += time - flag_taking_time;
+	}
 }
 
 float Statistics::accuracy() const {

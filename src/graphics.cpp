@@ -15,17 +15,16 @@
 #include "client.h"
 #include "graphics.h"
 
-//#define TEST_FALL_ON_WALL
+const bool TEST_FALL_ON_WALL = false;
 
-// macros for allegro video mode
-// look at Allegro's documentation for alternate values; changing these will especially help on Linux
+// Video driver selection: Look at Allegro's documentation for alternate values; changing these will especially help on Linux
 
-//#define WINMODE GFX_DIRECTX_ACCEL
-//#define FULLMODE GFX_DIRECTX_ACCEL
-#define WINMODE GFX_AUTODETECT_WINDOWED
-#define FULLMODE GFX_AUTODETECT
+//const int WINMODE = GFX_DIRECTX_ACCEL;
+//const int FULLMODE = GFX_DIRECTX_ACCEL;
+const int WINMODE = GFX_AUTODETECT_WINDOWED;
+const int FULLMODE = GFX_AUTODETECT;
 
-//#define SWITCH_PAUSE_CLIENT
+const bool SWITCH_PAUSE_CLIENT = false;
 
 using std::ifstream;
 using std::istringstream;
@@ -69,14 +68,18 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool tryFli
 	if (tryFlipping) {
 		vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
 		vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
+		background = create_video_bitmap(SCREEN_W, SCREEN_H);
 	}
-	if (!vidpage1 || !vidpage2) {
+	if (!vidpage1 || !vidpage2 || !background) {
 		if (tryFlipping)
 			log("Not enough video memory. Can't use page flipping.");
 		vidpage1.free();
 		vidpage2.free();
+		background.free();
 		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
 		nAssert(backbuf);
+		background = create_bitmap(SCREEN_W, SCREEN_H);
+		nAssert(background);
 
 		drawbuf = backbuf;
 		page_flipping = false;
@@ -96,8 +99,6 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool tryFli
 	pup_sprite.resize(Powerup::pup_last_real + 1);
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
-	background = create_bitmap(SCREEN_W, SCREEN_H);
-	nAssert(background);
 	roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
 	minimap_w = minimap_place_w = SCREEN_W - roombg->w;
 	minimap_h = minimap_place_h = scale(100);
@@ -116,6 +117,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool tryFli
 	setColors();
 	if (!no_theme)
 		load_pictures(theme_path);
+
 	return true;
 }
 
@@ -246,8 +248,13 @@ void Graphics::clear() {
 	clear_to_color(drawbuf, 0);
 }
 
-vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sorted list of unique resolutions
+bool Graphics::depthAvailable(int depth) const {
+	return !getResolutions(depth, false).empty();	//#opt: no need to go through all modes or create a vector
+}
+
+vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) const {	// returns a sorted list of unique resolutions
 	vector<ScreenMode> mvec;
+
 	#ifdef ALLEGRO_WINDOWS
 	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
 	if (modes) {
@@ -262,10 +269,11 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 	if (mvec.empty())
 		log("No usable %d-bit DirectX fullscreen modes autodetected.", depth);
 	#endif
-	FileReader resFile(wheregamedir + "config" + directory_separator + "gfxmodes.txt");
+
+	ifstream resFile((wheregamedir + "config" + directory_separator + "gfxmodes.txt").c_str());
 	for (;;) {
-		string line = resFile.readLine();
-		if (line.empty())
+		string line;
+		if (!getline_skip_comments(resFile, line))
 			break;
 		istringstream ss(line);
 		int width, height, bits;
@@ -285,8 +293,10 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 		if (bits == depth)
 			mvec.push_back(ScreenMode(width, height));
 	}
-	if (mvec.empty())
+
+	if (mvec.empty() && forceTryIfNothing)
 		mvec.push_back(ScreenMode(640, 480));	// just try something
+
 	sort(mvec.begin(), mvec.end());
 	mvec.erase(std::unique(mvec.begin(), mvec.end()), mvec.end());
 	return mvec;
@@ -308,23 +318,29 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 			return false;
 	}
 
-	#ifndef SWITCH_PAUSE_CLIENT
-	if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
-		if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) { // allow running in the background
-			log("Client cannot run in the background!");
-			return false; // FATAL
+	if (!SWITCH_PAUSE_CLIENT) {
+		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
+			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) { // allow running in the background
+				log("Client cannot run in the background!");
+				return false; // FATAL
+			}
+			else
+				log("Switch_background set ok.");
 		}
 		else
-			log("Switch_background set ok.");
+			log("Switch_backamnesia set ok.");
 	}
-	else
-		log("Switch_backamnesia set ok.");
-	#endif
+
+	log("Testing. If Outgun hangs here, restarting Windows should help. To avoid the problem, don't run Outgun with certain programs that use overlays (e.g. TV software).");
+	acquire_screen();
+	release_screen();
+	log("Hang test complete, no problems.");
 
 	return true;
 }
 
 void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags, const vector< pair<int, const spoint_t*> >& spawns, bool grid) {
+	acquire_bitmap(background);
 	clear_to_color(background, 0);
 	if (antialiasing == AA_both) {
 		SceneAntialiaser scene;
@@ -416,12 +432,12 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 		for (int x = 1; x < 16; ++x)
 			vline(roombg, scale(plw * x / 16.), 0, scale(plh), x == 8 ? col[COLYELLOW] : col[COLWHITE]);
 	}
-	#ifdef TEST_FALL_ON_WALL
-	for (int y = 0; y < plh; y += 2)
-		for (int x = 0; x < plw; x += 2)
-			putpixel(roombg, scale(x), scale(y), room.fall_on_wall(x, y, 15) ? makecol(255, 0, 0) : makecol(255, 255, 255));
-	#endif
+	if (TEST_FALL_ON_WALL)
+		for (int y = 0; y < plh; y += 2)
+			for (int x = 0; x < plw; x += 2)
+				putpixel(roombg, scale(x), scale(y), room.fall_on_wall(x, y, 15) ? makecol(255, 0, 0) : makecol(255, 255, 255));
 	draw_minimap_background();
+	release_bitmap(background);
 }
 
 void Graphics::draw_empty_background() {
@@ -680,26 +696,26 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	// Calculate new minimap size.
 	if (map.w * 4 * minimap_place_h > map.h * 3 * minimap_place_w) {
 		minimap_w = minimap_place_w;
-		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 2) * map.h * 3) / map.w / 4 + 2.);	// important not to round
+		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 1) * map.h * 3) / map.w / 4. + 1.);	// important not to round
 	}
 	else {
 		minimap_h = minimap_place_h;
-		minimap_w = static_cast<int>(static_cast<float>((minimap_h - 2) * map.w * 4) / map.h / 3 + 2.);	// important not to round
+		minimap_w = static_cast<int>(static_cast<float>((minimap_h - 1) * map.w * 4) / map.h / 3. + 1.);	// important not to round
 	}
 
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
-	const float room_w = float(minimap_w - 2) / map.w;
-	const float room_h = float(minimap_h - 2) / map.h;
+	const float room_w = float(minimap_w - 1.) / map.w;	// use -1. (not 2) to have half a pixel under the green border on every edge; this is to compensate for error in the value of minimap_? so there's no gap
+	const float room_h = float(minimap_h - 1.) / map.h;
 	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
 	const double maxx = plw * map.w;
 	const double maxy = plh * map.h;
-	float xmul = float(minimap_w - 2) / maxx, ymul = float(minimap_h - 2) / maxy;
+	float xmul = float(minimap_w - 1.) / maxx, ymul = float(minimap_h - 1.) / maxy;
 
 	if (antialiasing != AA_none) {
 		SceneAntialiaser scene;
-		scene.setScaling(minimap_start_x + 1, minimap_start_y + 1, xmul);
+		scene.setScaling(minimap_start_x + .5, minimap_start_y + .5, xmul);
 
 		// add background
 		scene.addRectangle(0, 0, maxx, maxy, 0);
@@ -713,9 +729,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 		// add walls
 		for (int y = 0; y < map.h; y++) {
-			const float by = minimap_start_y + 1 + y * plh * xmul;
+			const float by = minimap_start_y + .5 + y * plh * xmul;
 			for (int x = 0; x < map.w; x++) {
-				const float bx = minimap_start_x + 1 + x * plw * xmul;
+				const float bx = minimap_start_x + .5 + x * plw * xmul;
 				scene.setScaling(bx, by, xmul);
 				scene.setClipping(0, 0, plw, plh);
 				const Room& room = map.room[x][y];
@@ -1465,7 +1481,8 @@ void Graphics::team_statistics(const Team* teams) {
 }
 
 void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) {
-	const int num_lines = maxplayers + 3 + 2 * 3;	// line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
+	// line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
+	const int num_lines = maxplayers + 3 + 2 * 3;
 	const int line_h = min(12, SCREEN_H / num_lines);	// Preferred line height is 12.
 	const int h = num_lines * line_h;
 	const int w = 540;
@@ -2116,9 +2133,8 @@ void Graphics::load_theme(const string& dirname) {
 	theme_path = wheregamedir + "graphics" + directory_separator + dirname + directory_separator;
 	load_pictures(theme_path);
 
-	FileReader fr(theme_path + "theme.txt");
-	theme_name = fr.readLine();
-	if (theme_name.empty())
+	ifstream file((theme_path + "theme.txt").c_str());
+	if (!getline_skip_comments(file, theme_name))
 		theme_name = "(unnamed theme)";
 
 	log("Loaded graphics theme '%s'.", dirname.c_str());

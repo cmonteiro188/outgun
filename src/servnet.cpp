@@ -17,7 +17,7 @@
 #include "nassert.h"
 #include "network.h"
 #include "server.h"
-#include "protocol.h"
+#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "servnet.h"
 #include "thread.h"
 
@@ -104,7 +104,7 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 	if (!strcmp(ftype, "map")) {
 		if (strpbrk(fname, "./:\\")!=NULL) {
 			log.security("Illegal file download attempt: map \"%s\"", fname);
-			return -1;	//#should also kick their butt for that
+			return -1;
 		}
 
 		string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
@@ -187,7 +187,6 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 	writeLong(lebuf, count, (NLulong)clid.score);
 	writeLong(lebuf, count, (NLulong)clid.neg_score);
 	writeLong(lebuf, count, (NLulong)max_world_rank);
-	writeFloat(lebuf, count, max_world_score);
 
 	server->send_message(cid, lebuf, count);
 }
@@ -668,7 +667,7 @@ bool ServerNetworking::start() {
 		ctop[i]=-1;
 	player_count = 0;
 
-	max_world_score = max_world_rank = 0;
+	max_world_rank = 0;
 
 	ping_send_client = 0;
 	for (int i = 0; i < MAX_PLAYERS; ++i)
@@ -776,6 +775,7 @@ int ServerNetworking::client_connected(int id) {
 			ctop[cid]=i;
 
 			world.player[i].clear(true, i, cid, "", i / TSIZE);
+			world.player[i].localIP = isLocalIP(get_client_address(cid));
 			player_count++;
 
 			myself = i;
@@ -958,14 +958,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 	NLubyte clFrame;
 	readByte(data, count, clFrame);
 	ServerPlayer& pl = world.player[pid];
-	#ifdef WATCH_CONNECTION
-	if (pl.lastClientFrame != clFrame) {
+	if (WATCH_CONNECTION && pl.lastClientFrame != clFrame) {
 		if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) < 128)
 			plprintf(pid, msg_warning, "C>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
 		else if (static_cast<NLubyte>(pl.lastClientFrame + 1) != clFrame)
 			plprintf(pid, msg_warning, "C>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
 	}
-	#endif
 	if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) {	// this frame is very likely newer or the same as the previous one
 		#ifdef SEND_FRAMEOFFSET
 		if (clFrame != pl.lastClientFrame)
@@ -1018,9 +1016,8 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			int count = 0;
 			NLubyte code;
 			readByte(msg, count, code);
-			#ifdef LOG_MESSAGE_TRAFFIC
-			log("Message from client, code=%i", code);
-			#endif
+			if (LOG_MESSAGE_TRAFFIC)
+				log("Message from client, code=%i", code);
 			if (code == data_name_update) {
 				string name, password;
 				readStr(msg, count, name);
@@ -1092,9 +1089,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					fileTransfer[id].serving_udp_file = true;
 					char buffy[65536];		//buffy is our friend buffer
 					int fsize = get_download_file((char *)buffy, ftype, fname);
-					//error: can't read file FIXME: DISCONNECT THE CLIENT
 					if (fsize == -1) {
 						// Can't read the file client is asking for; already logged
+						host->disconnectPlayer(pid, disconnect_client_misbehavior);
 					}
 					else {
 						fileTransfer[id].data = new char[fsize];	//allocated to fit!
@@ -1551,7 +1548,8 @@ double ServerNetworking::getTraffic() {
 }
 
 void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
-	log("run_masterjob_thread() ID = %d", pthread_self());
+	if (LOG_THREAD_IDS)
+		log("run_masterjob_thread() ID = %d", pthread_self());
 
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
 
@@ -1640,10 +1638,10 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		++cPos;	// point to the control character after @
 		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// success; ranking data follows
 			++cPos;
-			float v[5];
+			float v[4];
 			char termChar;
-			int num = sscanf(response.c_str() + cPos, "%f#%f#%f#%f#%f%c", &v[0], &v[1], &v[2], &v[3], &v[4], &termChar);
-			if (num != 6 || termChar != '#') {
+			int num = sscanf(response.c_str() + cPos, "%f#%f#%f#%*[^#]#%f%c", &v[0], &v[1], &v[2], &v[3], &termChar);	// max_world_score that bugs is ignored
+			if (num != 5 || termChar != '#') {
 				log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
 				continue;
 			}
@@ -1665,8 +1663,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 				clid.score		= static_cast<int>(v[0]);
 				clid.neg_score	= static_cast<int>(v[1]);
 				clid.rank		= static_cast<int>(v[2]);
-				max_world_score	=                  v[3] ;
-				max_world_rank	= static_cast<int>(v[4]);
+				max_world_rank	= static_cast<int>(v[3]);
 				broadcast_player_crap(pid);
 			}
 			break;	// request complete
@@ -1699,15 +1696,19 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	--mjob_count;
 	pthread_mutex_unlock(&mjob_mutex);
 	delete job;
+
+	if (LOG_THREAD_IDS)
+		log("exiting: run_masterjob_thread() ID = %d", pthread_self());
 }
 
 void ServerNetworking::run_mastertalker_thread() {
-	log("run_mastertalker_thread() ID = %d", pthread_self());
+	if (LOG_THREAD_IDS)
+		log("run_mastertalker_thread() ID = %d", pthread_self());
 
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string line;
 	string master_script;
-	if (!getline_smart(in, line) || !getline_smart(in, line) || !getline_smart(in, line) || !getline_smart(in, master_script))
+	if (!getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, master_script))
 		master_script = "/janir/outgun/submit.php";
 	in.close();
 
@@ -1828,7 +1829,8 @@ void ServerNetworking::run_mastertalker_thread() {
 }
 
 void ServerNetworking::run_website_thread() {
-	log("run_website_thread() ID = %d", pthread_self());
+	if (LOG_THREAD_IDS)
+		log("run_website_thread() ID = %d", pthread_self());
 
 	string localAddress;
 	if (host->config().force_ip)
@@ -1853,9 +1855,7 @@ void ServerNetworking::run_website_thread() {
 		return;
 	}
 	string line;
-	while (getline_smart(in, line)) {
-		if (line[0] == ';')
-			continue;
+	while (getline_skip_comments(in, line)) {
 		istringstream ist(line);
 		string key, value;
 		ist >> key;
@@ -1948,8 +1948,7 @@ void ServerNetworking::run_website_thread() {
 		int web_port = nlGetPortFromAddr(&website_address);
 		if (!web_port) {
 			web_port = 80;
-			if (nlSetAddrPort(&website_address, web_port) == NL_FALSE)
-				log("Website thread: Can't set port for the address. Reason: %s", getNlErrorString());
+			nAssert(nlSetAddrPort(&website_address, web_port));
 		}
 		if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
 			log.error("Website thread: Server can't connect to the web server! Reason: %s", getNlErrorString());
@@ -2135,6 +2134,9 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread(int port) {
+	if (LOG_THREAD_IDS)
+		log("run_shellmaster_thread() ID = %d", pthread_self());
+
 	Thread slaveThread;
 	volatile bool slaveRunning = false;	// the slave thread will modify this flag when quitting
 
@@ -2226,10 +2228,14 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 	log("Admin shell master thread quitting");
 	if (slaveThread.isRunning())
 		slaveThread.join();
+
+	if (LOG_THREAD_IDS)
+		log("exiting: run_shellmaster_thread() ID = %d", pthread_self());
 }
 
 void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// sets *runningFlag = true when quitting
-	log("Admin shell slave thread running");
+	if (LOG_THREAD_IDS)
+		log("run_shellslave_thread() ID = %d", pthread_self());
 
 	while (!file_threads_quit) {
 		char rbuf[256];
@@ -2338,7 +2344,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 				break;
 			}
 			case ATS_GET_PINGS:
-				for (int p=0; p<maxplayers; ++p)
+				for (int p = 0; p < maxplayers; ++p)
 					if (world.player[p].used) {
 						writeLong(answer, ansLen, STA_PLAYER_PING);
 						writeLong(answer, ansLen, world.player[p].cid);
@@ -2351,13 +2357,14 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 			case ATS_KICK_PLAYER:
 				host->kickPlayer(pid, -1);
 				break;
-			#ifdef SV_NAME_AUTHORIZATION
 			case ATS_BAN_PLAYER:
-				host->banPlayer(pid, -1);
+				host->banPlayer(pid, -1, 60 * 24 * 365);	// ban for a year; this can be later adjusted in auth.txt
 				break;
-			#endif
 			case ATS_RESET_SETTINGS:
 				host->reset_settings(true);
+				for (int p = 0; p < maxplayers; ++p)
+					if (world.player[p].used)
+						world.player[p].current_map_list_item = 0;	// restart sending map info, because list may have changed
 				break;
 		}
 
@@ -2377,6 +2384,9 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 	shellssock = NL_INVALID;	// not in use
 	*runningFlag = false;
 	log("Admin shell slave thread quitting");
+
+	if (LOG_THREAD_IDS)
+		log("exiting: run_shellslave_thread() ID = %d", pthread_self());
 }
 
 void ServerNetworking::stop() {
@@ -2575,12 +2585,10 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 			temp << "Server is full. (" << player_count << " players)";
 			writeStr(res->customData, res->customDataLength, temp.str());
 		}
-		#ifdef SV_NAME_AUTHORIZATION
 		else if (host->isBanned(client_id)) {
 			res->accepted = false;
 			writeString(res->customData, res->customDataLength, "You are banned");
 		}
-		#endif
 		else {
 			string name;
 			if (length - count > 0)

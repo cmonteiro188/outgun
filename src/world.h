@@ -1,15 +1,14 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
-#include "protocol.h"	//#fix: needed for possible definition of SEND_FRAMEOFFSET
-#include "nassert.h"
 #include <vector>
 #include <list>
 #include <string>
 #include <algorithm>
 #include "commont.h"
+#include "nassert.h"
+#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET
 #include "utility.h"
-#include "debug.h"
 
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
@@ -120,7 +119,6 @@ class Map {
 					int& crx, int& cry, float& scalex, float& scaley, bool label_block = false);
 
 public:
-	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?
 	teaminfo_t tinfo[2];	//team information for red=0 and blue=1 teams
 	std::vector<spoint_t> wild_flags;
 	std::vector< std::vector<Room> > room;	// accessed by [x][y]
@@ -131,7 +129,7 @@ public:
 	int w, h;	// width height
 	NLushort crc;	//map's 16bit CRC
 
-	Map() : valid_for_scoring(true), ver(-1), w(0), h(0), crc(0) { }
+	Map() : ver(-1), w(0), h(0), crc(0) { }
 
 	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
 if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track why these are given sometimes
@@ -200,8 +198,6 @@ public:
 	void add_movement(double amount) { total_movement += amount; }
 
 	void finish_stats(double time);
-
-	void take_frag(int n = 1) { total_frags -= n; }
 
 	void save_speed(double time) { saved_speed = speed(time); }
 
@@ -345,6 +341,7 @@ public:
 	float frameOffset;	// at what time within the frame the client's packet arrived
 	#endif
 	double waitnametime;
+	bool localIP;
 	int oldfrags;	// last value informed to clients
 	int megabonus;
 
@@ -627,7 +624,6 @@ public:
 
 	void setMaxPlayers(int num) { maxplayers = num; }
 
-PointerLeakBuffer<32> buf1;
 	Map map;
 
 	int maxplayers;	// actual
@@ -640,7 +636,6 @@ PointerLeakBuffer<32> buf1;
 	Powerup item[MAX_PICKUPS];
 
 	PhysicalSettings physics;
-PointerLeakBuffer<32> buf2;
 
 	virtual ~WorldBase() { }
 
@@ -716,13 +711,11 @@ class ServerNetworking;
 class gameserver_c;	//#fix: get rid of non-networking callbacks?
 
 class ServerWorld : public WorldBase {
-PointerLeakBuffer<32> buf1;
 	gameserver_c* host;
 	ServerNetworking* net;
 	PowerupSettings pupConfig;
 	WorldSettings config;
 	LogSet log;
-PointerLeakBuffer<32> buf2;
 
 	NLubyte getFreeRocket();	// may give an existing rocket to overwrite if the table is full
 	void drop_pickup(const ServerPlayer& player);
@@ -792,7 +785,6 @@ public:
 
 class ClientWorld : public WorldBase {
 public:
-PointerLeakBuffer<32> buf1;
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
 	double frame;
 

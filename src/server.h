@@ -1,16 +1,9 @@
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
 
-#define SV_NAME_AUTHORIZATION   // enable player IP based filtering : name authorization and ban
-#define SV_NO_PUP_SWITCHING // disable the changing of power-ups lying on the ground
-#define SV_VOTE_ANNOUNCE_INTERVAL 5 // in seconds, how often a changing voting status will be announced
-
-#ifdef SV_NAME_AUTHORIZATION
-#include "nameauth.h"
-#endif
-
 #include "gameserver_interface.h"
 #include "log.h"
+#include "nameauth.h"
 #include "servnet.h"
 #include "utility.h"
 #include "world.h"
@@ -100,10 +93,7 @@ class gameserver_c {
 	std::vector<MapInfo> maprot;
 	int currmap;		// current map in maprot
 	bool random_maprot;
-	#ifdef SV_NAME_AUTHORIZATION
 	NameAuthorizationDatabase authorizations;
-	std::vector<std::string> admins;	// names of the admins of this server
-	#endif
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
 	std::string server_website_url;	// the URL of the server website to be sent to master server
 
@@ -128,12 +118,10 @@ public:
 
 	int get_player_count() const { return network.get_player_count(); }
 	void mutePlayer(int pid, int mode, int admin);
-	void kickPlayer(int pid, int admin, bool ban=false);
-	#ifdef SV_NAME_AUTHORIZATION
-	void banPlayer(int pid, int admin);
+	void kickPlayer(int pid, int admin, int minutes = 0);	// if minutes > 0, it's really a ban
+	void banPlayer(int pid, int admin, int minutes);
 	bool isBanned(int cid) const { return authorizations.isBanned(network.get_client_address(cid)); }
 	bool check_name_password(const std::string& name, const std::string& password) const;
-	#endif
 	void disconnectPlayer(int pid, Disconnect_reason reason);
 	void sendMessage(int pid, Message_type type, const std::string& msg);
 
@@ -158,7 +146,6 @@ public:
 	      ClientData& getClientData(int cid)       { return client[cid]; }
 	bool changeRegistration(int id, const std::string& token);	// returns true if the token is different from before and non-empty
 	void resetPlayer(int cid) { client[cid].reset(); }
-	void clearWorldRankingDeltas();
 	void refresh_team_score_modifiers();
 	void check_map_exit();
 	void score_frag(int p, int amount);

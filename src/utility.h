@@ -16,6 +16,9 @@ int iround(double value);
 // Returns the current time in the standard format.
 std::string date_and_time();
 
+// Get a verbal approximation of the given time interval
+std::string approxTime(int seconds);
+
 // Convert string to uppercase.
 std::string toupper(std::string str);
 

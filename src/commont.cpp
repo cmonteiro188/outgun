@@ -6,6 +6,7 @@
 #include "incalleg.h"
 #include "utility.h"
 #include "commont.h"
+#include "nassert.h"
 
 using std::cout;
 using std::istream;
@@ -82,6 +83,13 @@ istream& getline_smart(istream& in, string& str) {
 	}
 }
 
+istream& getline_skip_comments(istream& in, string& str) {
+	while (getline_smart(in, str))
+    	if (str[0] != ';')	// str is never empty when getline_smart succeeds
+        	return in;
+	return in;
+}
+
 bool check_name(const std::string& name) {
 	if (name.length() > 15)
 		return false;
@@ -93,17 +101,3 @@ bool check_name(const std::string& name) {
 		return false;
 	return true;
 }
-
-FileReader::FileReader(const string& filename) {
-	file.open(filename.c_str());
-}
-
-//#fix: some error handling?
-string FileReader::readLine() {	// returns an empty string at end of file
-	string s;
-	do {
-		getline_smart(file, s);
-	} while (file && !s.empty() && s[0] == ';');
-	return s;
-}
-

@@ -9,21 +9,15 @@
 #include "menu.h"
 #include "mutex.h"
 #include "names.h"
-#include "protocol.h"
+#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET
 #include "sounds.h"
 #include "thread.h"
 #include "world.h"
 
-#define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
-#define CL_SHOW_FLAGPOS // show a flag position marker on the ground
-
-// size of udp download queue (only 1 should be needed but...)
-#define MAX_UDPDQ 16
-
 //server record
 struct gamespy_t {
 	NLaddress	addr;
-	std::string	address;  //IP-address typein buffer
+	std::string	address;
 	bool		refreshed;
 	bool		noresponse;
 	int			ping;
@@ -177,6 +171,7 @@ class gameclient_c {
 
 	pthread_mutex_t udpdq_mutex;
 	int udpdq_size;
+	enum { MAX_UDPDQ = 16 };	//#fix
 	download_runes_t *udpdq[MAX_UDPDQ];	//the udp download queue
 	int udpdq_ptr;	//current download. if -1, no current downloads
 	int ud_fp;	//file pointer for read/write
@@ -185,7 +180,6 @@ class gameclient_c {
 	TournamentPasswordManager tournamentPassword;
 
 	NLulong fdp, fdp_max;
-	float max_world_score;
 	NLulong max_world_rank;
 
 	pthread_mutex_t mapInfoMutex;
@@ -206,10 +200,10 @@ class gameclient_c {
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
 	Menu_text m_serverInfo;
-	Menu_help m_help;
 
 	MenuStack openMenus;
 
+	bool quitCommand;
 	Menu_selection menusel;	// a special screen rather than menu: maplist, stats
 	bool gameshow;
 	double FPS;
@@ -269,6 +263,7 @@ class gameclient_c {
 	void MCF_disconnect();
 	void MCF_startServer();
 	void MCF_stopServer();
+	void MCF_exitOutgun();
 	void MCF_prepareMainMenu();
 	void MCF_prepareNameMenu();
 	void MCF_prepareDrawNameMenu();

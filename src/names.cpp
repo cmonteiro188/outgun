@@ -1,5 +1,6 @@
 #include <string>
 #include "names.h"
+#include "utility.h"
 
 using std::string;
 
@@ -249,6 +250,6 @@ string RandomName(int npal)
 		nome += Palavra() + ' ';
 	nome += Palavra();
 
-	return nome.substr(0, 15);
+	return trim(nome.substr(0, 15));
 }
 

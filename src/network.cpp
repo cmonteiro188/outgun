@@ -56,6 +56,21 @@ string getPublicIP(LogSet& log) {
 	return string();
 }
 
+bool isLocalIP(NLaddress address) {	// local doesn't mean private
+	nlSetAddrPort(&address, 0);
+	NLaddress loopback;
+	nAssert(nlStringToAddr("127.0.0.1", &loopback));
+	if (nlAddrCompare(&address, &loopback))
+		return true;
+	NLaddress* locals;
+	NLint nLocals;
+	locals = nlGetAllLocalAddr(&nLocals);
+	for (int i = 0; i < nLocals; ++i)
+		if (nlAddrCompare(&address, &locals[i]))
+			return true;
+	return false;
+}
+
 string addressToString(const NLaddress& address) {
 	char buf[NL_MAX_STRING_LENGTH];
 	nlAddrToString(&address, buf);

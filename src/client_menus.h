@@ -23,10 +23,10 @@ class Menu_serverList {
 	std::vector<std::pair<std::string, Textarea> > servers;	// address and server info
 
 public:
-	Checkbox		favorites;
-	Textarea		refreshStatus;
 	Textarea		update;
 	Textarea		refresh;
+	Textarea		refreshStatus;
+	Checkbox		favorites;
 	Menu_addServer	addServer;
 	Textarea		caption;
 
@@ -58,7 +58,6 @@ public:
 
 class Menu_game {
 public:
-	Checkbox	showNames;
 	Colorselect	favoriteColors;
 	Checkbox	lagPrediction;
 	Slider		lagPredictionAmount;
@@ -77,24 +76,27 @@ class Menu_graphics {
 	int oldDepth;
 	bool oldWin, oldFlip;
 
+	void reloadChoices(const Graphics& gfx);
+
 public:
-	Checkbox			windowed;
 	Select<int>			colorDepth;
 	Textarea			desktopDepth;
 	Select<ScreenMode>	resolution;
+	Checkbox			windowed;
 	Checkbox			flipping;
-	Slider				fpsLimit;
 	Textarea			refreshRate;
 	Textarea			apply;
 	Select<std::string>	theme;
 	Select<Graphics::Antialiasing_mode> antialiasing;
 	Slider				statsBgAlpha;
+	Slider				fpsLimit;
+	Checkbox			showNames;
 	Checkbox			mapInfoMode;
 
 	Menu menu;
 
 	Menu_graphics();
-	void init(const Graphics& gfx);
+	void init(const Graphics& gfx);	// call just once, before calling update
 	void update(const Graphics& gfx);	// tries to keep the selected resolution and theme
 	bool newMode();	// returns true if the current selection differs from the one at last call
 
@@ -129,6 +131,21 @@ public:
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
+class Menu_help {
+	std::vector<std::string> lines;
+
+public:
+	Textobject text;
+
+	Menu menu;
+
+	Menu_help();
+	void clear() { lines.clear(); }
+	void addLine(const std::string& line);
+
+		void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
+};
+
 class Menu_main {
 public:
 	Menu_serverList	connect;
@@ -136,6 +153,8 @@ public:
 	Menu_options	options;
 	Textarea		startServer;
 	Textarea		stopServer;
+	Menu_help		help;
+	Textarea		exitOutgun;
 
 	Menu menu;
 
@@ -157,6 +176,8 @@ public:
 	void clear() { lines.clear(); }
 	void addLine(const std::string& line, bool cancelable = false);
 	void addLine(const std::string& caption, const std::string& value, bool cancelable = false);
+
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_playerPassword {
@@ -177,19 +198,6 @@ public:
 	Menu menu;
 
 	Menu_serverPassword();
-};
-
-class Menu_help {
-	std::vector<std::string> lines;
-
-public:
-	Textobject text;
-
-	Menu menu;
-
-	Menu_help();
-	void clear() { lines.clear(); }
-	void addLine(const std::string& line);
 };
 
 #endif	// CLIENT_MENUS_H_INC

@@ -55,7 +55,7 @@ void Sounds::select_theme(const string& dir) {
 	string path = wheregamedir + "sound" + directory_separator + dir + directory_separator;
 
 	ifstream in((path + "theme.txt").c_str());
-	if (!getline_smart(in, themename))
+	if (!getline_skip_comments(in, themename))
 		themename = "(unnamed theme)";
 
 	if (enabled) {
@@ -156,7 +156,7 @@ SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int 
 		ifstream in(textName.c_str());
 		if (in) {
 			string redir_name;
-			getline_smart(in, redir_name);
+			getline_skip_comments(in, redir_name);
 			in.close();
 
 			return load_outgun_sample(path, redir_name.c_str(), slot, false);	// no more redirections (avoid endless loops)
