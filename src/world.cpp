@@ -1324,7 +1324,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 	//send "item removed" message to all players on the current screen
 	//
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 16);		//"item removed"
+	writeByte(lebuf, count, data_pup_picked);
 	writeByte(lebuf, count, (NLubyte)pk);	//what item id
 	net->broadcast_screen_message(it->px, it->py, lebuf, count);
 

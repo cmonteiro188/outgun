@@ -251,4 +251,41 @@ struct gamespy_t {
     char info[128];
 };
 
+enum Network_data_codes {
+	data_name_update = 1,
+	data_text_message = 2,
+	data_first_packet = 3,
+	data_frags_update = 4,
+	data_flag_update = 6,
+	data_rocket_fire,
+	data_rocket_delete,
+	data_score_update,
+	data_sound = 14,
+	data_pup_visible,
+	data_pup_picked,
+	data_pup_timer,
+	data_weapon_change,
+	data_map_change = 20,
+	data_gameover_show = 24,
+	data_gameover_hide = 25,
+	data_deathbringer,
+	data_file_request,
+	data_file_download,
+	data_file_ack,
+	data_registration_token,
+	data_registration_response,
+	data_crap_update,
+	data_map_time = 35,
+	data_fire_on = 5,
+	data_fire_off = 11,
+	data_suicide = 10,
+	data_drop_flag = 34,
+	data_stop_drop_flag = 36,
+	data_change_team_on = 12,
+	data_change_team_off = 13,
+	data_map_exit_on = 22,
+	data_map_exit_off = 23,
+	data_client_ready = 21
+};
+
 #endif

@@ -74,7 +74,7 @@ void ServerNetworking::upload_next_file_chunk(int i) {
 
 	//send
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 28);		//28 = next file chunk 4 u....
+	writeByte(lebuf, count, data_file_download);		//28 = next file chunk 4 u....
 	writeByte(lebuf, count, islast);
 	writeLong(lebuf, count, fileTransfer[i].dp );
 	writeShort(lebuf, count, ((NLushort)chunksize) );
@@ -129,7 +129,7 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 void ServerNetworking::send_me_packet(int pid) {
 	int count = 0;
 	char lebuf[1024];
-	writeByte(lebuf, count, 3); // "3" = first-packet information
+	writeByte(lebuf, count, data_first_packet);
 	writeByte(lebuf, count, ((NLubyte)pid) );		// who am I
 	writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
 	writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
@@ -154,7 +154,7 @@ void ServerNetworking::send_me_packet(int pid) {
 void ServerNetworking::send_player_name_update(int cid, int pid) {
 
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 1);	// "1" = player name update
+	writeByte(lebuf, count, data_name_update);
 	writeByte(lebuf, count, pid);		// what player id
 	writeStr(lebuf, count, world.player[pid].name);
 	server->send_message(cid, lebuf, count);
@@ -181,7 +181,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 	const ClientData& clid = host->getClientData(cid);
 
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 32);	// "32" = player CRAP update
+	writeByte(lebuf, count, data_crap_update);
 
 	// --- RECALC CRAP ---
 	//reg_status char:
@@ -228,7 +228,7 @@ void ServerNetworking::move_update_player(int a) {
 		//v0.4.4 : tentativa de conserto
 		//broadcast frags update
 		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 4);	//"4" = frags update
+		writeByte(lebuf, count, data_frags_update);
 		writeByte(lebuf, count, a);		// what player id
 		writeLong(lebuf, count, world.player[a].frags);
 		server->broadcast_message(lebuf, count);
@@ -248,7 +248,7 @@ void ServerNetworking::move_update_player(int a) {
 void ServerNetworking::broadcast_sample(int code) {
 
 	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, 14);		// sample play
+	writeByte(lebuf, count, data_sound);
 	writeByte(lebuf, count, (NLubyte)code);		// the sample code
 	server->broadcast_message(lebuf, count);
 }
@@ -256,7 +256,7 @@ void ServerNetworking::broadcast_sample(int code) {
 //play a sample to a player's screen audience
 void ServerNetworking::broadcast_screen_sample(int p, int code) {
 	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, 14);		// sample play
+	writeByte(lebuf, count, data_sound);
 	writeByte(lebuf, count, (NLubyte)code);		// the sample code
 	broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
 }
@@ -268,7 +268,7 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
 	if (!server) return;
 
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 6);	// 6 = flag status update
+	writeByte(lebuf, count, data_flag_update);
 
 	NLubyte te = (NLubyte)team;
 	writeByte(lebuf, count, te);	//what team
@@ -309,7 +309,7 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
 //update team scores
 void ServerNetworking::ctf_update_teamscore(int t) {
 	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, 9);		// CTF teamscore update
+	writeByte(lebuf, count, data_score_update);
 	writeByte(lebuf, count, ((NLubyte)t));		// the team
 	writeByte(lebuf, count, ((NLubyte)world.flag[t].score));	//the score
 	server->broadcast_message(lebuf, count);
@@ -321,7 +321,7 @@ void ServerNetworking::send_map_time(int cid) {
 		return;
 	const NLulong time_left = max(0, world.getTimeLeft()) / 10;
 	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, 35);	// 35 = map time left
+	writeByte(lebuf, count, data_map_time);
 	writeLong(lebuf, count, time_left);
 	if (cid == -1)
 		server->broadcast_message(lebuf, count);
@@ -341,7 +341,7 @@ void ServerNetworking::client_report_status(int id) {
 	//submit-- create job
 	masterjob_c *job = new masterjob_c();
 	job->cid = id;
-	job->code = 2;
+	job->code = 2;		// probably a code for mastejob thread
 
 	//V0.4.8: envia POS e NEG deltascore
 	sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\n\n", TK1_VERSION_STRING, clid.delta_score, clid.neg_delta_score, world.player[ ctop [id] ].name.c_str(), clid.token);
@@ -372,7 +372,7 @@ void ServerNetworking::client_report_status(int id) {
 void ServerNetworking::broadcast_team_message(int team, char *text) {
 
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 2);
+	writeByte(lebuf, count, data_text_message);
 	writeString(lebuf, count, text);
 
 	// send message only to teammates
@@ -414,7 +414,7 @@ void ServerNetworking::bprintf(const char *fs, ...) {
 }
 void ServerNetworking::plprintf(int pid, const char* fmt, ...) {	// bprintf for a single player
 	char buf[16385];
-	buf[0]=2;	// server text
+	buf[0] = data_text_message;	// message type
 	va_list argptr;
 	va_start(argptr, fmt);
 	vsprintf(buf+1, fmt, argptr);
@@ -425,7 +425,7 @@ void ServerNetworking::plprintf(int pid, const char* fmt, ...) {	// bprintf for 
 //send a single message player-printf
 void ServerNetworking::player_message(int pid, const char *text) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 2);
+	writeByte(lebuf, count, data_text_message);
 	writeString(lebuf, count, text);
 	if (world.player[pid].used)
 		server->send_message(world.player[pid].cid, lebuf, count);
@@ -434,7 +434,7 @@ void ServerNetworking::player_message(int pid, const char *text) {
 //broadcast message to all
 void ServerNetworking::broadcast_message(const char *text) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 2);
+	writeByte(lebuf, count, data_text_message);
 	writeString(lebuf, count, text);
 	for (int i=0;i<maxplayers;i++)
 		if (world.player[i].used)
@@ -453,9 +453,9 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 
 	char lebuf[256];
 	int count = 0;
-	writeByte(lebuf, count, 20);	// 20 = map change
+	writeByte(lebuf, count, data_map_change);
 
-	writeByte(lebuf, count, 2);		// 2 = custom map message
+	writeByte(lebuf, count, data_text_message);
 	writeShort(lebuf, count, world.map.crc);
 	writeString(lebuf, count, mapname);
 	server->send_message(world.player[pid].cid, lebuf, count);
@@ -465,9 +465,8 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 
 	//send a show gameover plaque message, if that is the case
 	if (reason != NEXTMAP_NONE) {
-
 		count = 0;
-		writeByte(lebuf, count, 24);	// 24 = gameover plaque
+		writeByte(lebuf, count, data_gameover_show);
 		writeByte(lebuf, count, ((NLubyte)reason));		//capture limit plaque or vote exit plaque
 		if ((reason == NEXTMAP_CAPTURE_LIMIT) || (reason == NEXTMAP_VOTE_EXIT)) {
 			//informacoes para mostrar apos o jogo (time vencedor, most valuable player, etc.)
@@ -702,7 +701,7 @@ int ServerNetworking::client_connected(int id) {
 
 		//frags update
 		count = 0;
-		writeByte(lebuf, count, 4);	//"4" = frags update
+		writeByte(lebuf, count, data_frags_update);
 		writeByte(lebuf, count, i);		// what player id
 		writeLong(lebuf, count, world.player[i].frags);
 		server->send_message(id, lebuf, count);
@@ -885,28 +884,29 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			int count = 0;
 			NLubyte code;
 			readByte(msg, count, code);
-			if (code == 1) {
+			LOG1("MESSAGE FROM CLIENT, CODE=%i\n", code);
+			if (code == data_name_update) {
 				string name;
 				readStr(msg, count, name);
 				host->nameChange(id, pid, name);
 			}
-			else if (code == 2) {
+			else if (code == data_text_message) {
 				host->chat(id, pid, msg+1);
 			}
 			//+attack
-			else if (code == 5) {
+			else if (code == data_fire_on) {
 				world.player[pid].attack = true;
 			}
 			//SUICIDE!!
-			else if (code == 10) {
+			else if (code == data_suicide) {
 				world.suicide(pid);
 			}
 			//-attack
-			else if (code == 11) {
+			else if (code == data_fire_off) {
 				world.player[pid].attack = false;
 			}
 			// want changeteams on
-			else if (code == 12) {
+			else if (code == data_change_team_on) {
 				if (!world.player[pid].want_change_teams) {
 					world.player[pid].want_change_teams = true;
 					//network.broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], world.player[pid].name.c_str());
@@ -915,7 +915,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				}
 			}
 			// want changeteams off
-			else if (code == 13) {
+			else if (code == data_change_team_off) {
 				if (world.player[pid].want_change_teams) {
 					world.player[pid].want_change_teams = false;
 					world.player[pid].team_change_pending = false; //so pra garantir
@@ -923,26 +923,26 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				}
 			}
 			// "client ready" message
-			else if (code == 21) {
+			else if (code == data_client_ready) {
 				//client is ready to play now
 				world.player[pid].awaiting_client_ready = false;
 			}
 			// want change map
-			else if (code == 22) {
+			else if (code == data_map_exit_on) {
 				if (world.player[pid].want_map_exit == false) {
 					world.player[pid].want_map_exit = true;
 					host->check_map_exit();
 				}
 			}
 			// dont' want change map
-			else if (code == 23) {
+			else if (code == data_map_exit_off) {
 				if (world.player[pid].want_map_exit == true) {
 					world.player[pid].want_map_exit = false;
 					host->check_map_exit();
 				}
 			}
 			// v0.4.4: UDP DOWNLOAD of files - request
-			else if (code == 27) {
+			else if (code == data_file_request) {
 				char ftype[64];
 				char fname[256];
 				readString(msg, count, ftype);
@@ -971,8 +971,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				}
 			}
 			// v0.4.4: UDP DOWNLOAD of files - the ack
-			else if (code == 29) {
-
+			else if (code == data_file_ack) {
 				//check expected ack
 				NLulong ackpos;
 				readLong(msg, count, ackpos);
@@ -994,7 +993,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				}
 			}
 			// v0.4.4 : client is telling his newest token
-			else if (code == 30) {
+			else if (code == data_registration_token) {
 				string tok;
 				readStr(msg, count, tok);
 				if (host->changeRegistration(id, tok)) {
@@ -1022,13 +1021,13 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				}
 			}
 			// drop flag
-			else if (code == 34) {
+			else if (code == data_drop_flag) {
 				world.player[pid].drop_key = true;
 				world.player[pid].dropped_flag = true;
 				world.dropFlagIfAny(pid, true);
 			}
 			// stop dropping flag
-			else if (code == 36)
+			else if (code == data_stop_drop_flag)
 				world.player[pid].drop_key = false;
 			else {
 				//ERROR: unknown message from client
@@ -1044,7 +1043,7 @@ void ServerNetworking::disconnect_client(int cid, int timeout) {
 
 void ServerNetworking::sendEndGameover() {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 25);		//end of gameover plaque
+	writeByte(lebuf, count, data_gameover_hide);
 	server->broadcast_message(lebuf, count);
 }
 
@@ -1472,7 +1471,7 @@ void ServerNetworking::master_job_response(masterjob_c *j) {
 
 					//OK!
 					char lebuf[128]; int count = 0;
-					writeByte(lebuf, count, 31);		//31 = registration NAME,TOKEN response
+					writeByte(lebuf, count, data_registration_response);
 					writeByte(lebuf, count, 1);		// OK!
 					server->send_message(j->cid, lebuf, count);
 
@@ -1554,7 +1553,7 @@ void ServerNetworking::master_job_response(masterjob_c *j) {
 				else if (j->lebuf[i] == 'F') {
 					//FAILED!
 					char lebuf[128]; int count = 0;
-					writeByte(lebuf, count, 31);		//31 = registration NAME,TOKEN response
+					writeByte(lebuf, count, data_registration_response);
 					writeByte(lebuf, count, 0);		// FAILED!
 					server->send_message(j->cid, lebuf, count);
 
@@ -2915,7 +2914,7 @@ void ServerNetworking::stop() {
 
 void ServerNetworking::sendWeaponPower(int pid) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 18);		//player power change
+	writeByte(lebuf, count, data_weapon_change);
 	writeByte(lebuf, count, ((NLubyte)world.player[pid].weapon) );
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
@@ -2923,7 +2922,7 @@ void ServerNetworking::sendWeaponPower(int pid) {
 void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power,
 												int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
+	writeByte(lebuf, count, data_rocket_fire);
 	//NLubyte  powerdir;		//bits 0..4 = power bits 5..8=dir
 	//powerdir = NLubyte(shots) | NLubyte(gundir<<4);
 	//writeByte(lebuf, count, powerdir);	// power and dir
@@ -2947,7 +2946,7 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) {
 	//assembly rocket delete message
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 8);		// 8 = rocket deletion
+	writeByte(lebuf, count, data_rocket_delete);
 	NLubyte byt = (NLubyte)rid;
 	writeByte(lebuf, count, byt);		// rocket-object id
 	byt = (NLubyte)targ;
@@ -2965,7 +2964,7 @@ void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx
 
 void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 26);	//26==deathbringer
+	writeByte(lebuf, count, data_deathbringer);
 	writeByte(lebuf, count, ((NLubyte)pid));	//team/target player
 	writeLong(lebuf, count, world.frame);		//frame # of the bringer shot (message can be delayed)
 	writeByte(lebuf, count, ((NLubyte)ply.roomx));
@@ -2978,7 +2977,7 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
 
 void ServerNetworking::sendPickupVisible(int pid, int pup_id, const pickup_c& it) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 15);		//"item update"
+	writeByte(lebuf, count, data_pup_visible);
 	writeByte(lebuf, count, (NLubyte)pup_id);	//what item
 	writeByte(lebuf, count, (NLubyte)it.kind);	//kind
 	writeByte(lebuf, count, (NLubyte)it.px);		//screen
@@ -2990,7 +2989,7 @@ void ServerNetworking::sendPickupVisible(int pid, int pup_id, const pickup_c& it
 
 void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 17);		//powerup time indicator
+	writeByte(lebuf, count, data_pup_timer);
 	writeByte(lebuf, count, pupType);
 	writeShort(lebuf, count, (NLushort)timeLeft);
 	server->send_message(world.player[pid].cid, lebuf, count);
@@ -2998,7 +2997,7 @@ void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
 
 void ServerNetworking::sendFragUpdate(int pid, NLulong frags) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 4);	//"4" = frags update
+	writeByte(lebuf, count, data_frags_update);
 	writeByte(lebuf, count, pid);		// what player id
 	writeLong(lebuf, count, frags);
 	server->broadcast_message(lebuf, count);

@@ -206,7 +206,7 @@ bool gameclient_c::start() {
 //send "client ready" message to server (when map load and/or download completes)
 void gameclient_c::send_client_ready() {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 21);		// 21 = "client ready"
+	writeByte(lebuf, count, data_client_ready);
 	client->send_message(lebuf, count);		// bem curtinha a mensagem mesmo...
 }
 
@@ -574,7 +574,7 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 
 	//send the reply
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 29);		//29 = file chunk ACK
+	writeByte(lebuf, count, data_file_ack);
 	writeLong(lebuf, count, pos);		// acked pos (just to be sure...)
 	client->send_message(lebuf, count);
 
@@ -635,7 +635,7 @@ void gameclient_c::client_udp_setup_download() {
 
 	//request the file and wait...
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 27);		//27= request file
+	writeByte(lebuf, count, data_file_request);
 	writeString(lebuf, count, r->type);
 	writeString(lebuf, count, r->name);
 	client->send_message(lebuf, count);
@@ -1236,7 +1236,7 @@ void gameclient_c::connect_command() {
 void gameclient_c::send_player_token() {
 	if (player_token_set) {
 		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 30);	// 30 = pass registration token to server
+		writeByte(lebuf, count, data_registration_token);
 		writeString(lebuf, count, player_token);
 		client->send_message(lebuf, count);
 	}
@@ -1246,7 +1246,7 @@ void gameclient_c::send_player_token() {
 void gameclient_c::issue_change_name_command() {
 	//regular change name
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 1);		// "1" = client request name change
+	writeByte(lebuf, count, data_name_update);
 	if (playername.length() > 16)
 		playername.erase(15);			//truncate player name, max 16 chars
 	writeStr(lebuf, count, playername);	// the name
@@ -1591,18 +1591,20 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//get msg code
 			readByte(msg, count, code);
 
+			LOG1("SERVER MESSAGE CODE = %i\n", code);
+
 			//parse rest of message
-			switch (code) {
+			switch (static_cast<Network_data_codes>(code)) {
 
 			// name update
-			case 1:
+			case data_name_update:
 				readByte(msg, count, pid);
 				readStr(msg, count, fx.player[pid].name);
 				update_scoreboard();		//tentando consertar bug change teams
 				break;
 
 			//text message
-			case 2: {
+			case data_text_message: {
 				chatmsg = &(msg[1]);		//avoid a useless readString...
 				print_message(chatmsg);		//print it to the "console"
 				if (message_logging) {
@@ -1628,7 +1630,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			}
 
 			//"hello" one-time server information ("first packet")
-			case 3:
+			case data_first_packet:
 				readByte(msg, count, pid);	//"who am I"
 
 				//DEBUG msg
@@ -1686,7 +1688,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//frags update
-			case 4:
+			case data_frags_update:
 				readByte(msg, count, pid);	// what player
 				readLong(msg, count, fragz);	// new frag value
 				fx.player[pid].frags = fragz;
@@ -1694,7 +1696,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//CTF flag update
-			case 6:
+			case data_flag_update:
 				readByte(msg, count, team);	// team of the flag
 				readByte(msg, count, carried); // 0==not carried 1==carried
 				if (carried == 0) {
@@ -1720,7 +1722,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//rocket fire notification
-			case 7: {
+			case data_rocket_fire: {
 				// add to clientside rocket objects list
 				//
 				//readByte(lebuf, count, rpowdir);	// rocket powerdir
@@ -1754,7 +1756,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			}
 
 			//rocket deletion notification
-			case 8:
+			case data_rocket_delete:
 				readByte(lebuf, count, rockid);	// rocket object id
 				readByte(lebuf, count, abyte);	// target player
 				//hit position
@@ -1770,20 +1772,20 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//CTF team score update
-			case 9:
+			case data_score_update:
 				readByte(lebuf, count, abyte);		//team
 				readByte(lebuf, count, rockid);		//new score
 				fx.flag[abyte].score = rockid;	// update the score
 				break;
 
 			//sound event
-			case 14:
+			case data_sound:
 				readByte(lebuf, count, abyte);		// sample #
 				client_sounds.play(abyte);
 				break;
 
 			//pickup visible
-			case 15:
+			case data_pup_visible:
 				//print_message("POWERUP_VISIBLE!!!");
 				readByte(lebuf, count, iid);		// item id
 				readByte(lebuf, count, abyte);		// kind
@@ -1799,13 +1801,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//pickup picked
-			case 16:
+			case data_pup_picked:
 				readByte(lebuf, count, iid);
 				fx.item[iid].kind = 0;		// no more!
 				break;
 
 			//powerup clientside timer set
-			case 17:
+			case data_pup_timer:
 				readByte(lebuf, count, iid);	//kind
 				readShort(lebuf, count, usho);	//amount of time
 				if (me >= 0) {
@@ -1819,7 +1821,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//my weapon notify change
-			case 18:
+			case data_weapon_change:
 				readByte(lebuf, count, abyte);	// weapon level
 				if (me >= 0) {
 					fx.player[me].weapon = abyte;
@@ -1827,7 +1829,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//server commands client to change map
-			case 20:
+			case data_map_change:
 				map_ready = false;	// map NOT ready anymore: must load/change
 				want_map_exit =false;		// and player does not want to exit the map anymore
 				readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
@@ -1846,7 +1848,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//server shows gameover plaque
-			case 24:
+			case data_gameover_show:
 				readByte(lebuf, count, abyte);
 				gameover_plaque = abyte;		// kind of plaque (capture limit or vote exit)
 				if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
@@ -1860,12 +1862,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//server hides gameover plaque
-			case 25:
+			case data_gameover_hide:
 				gameover_plaque = NEXTMAP_NONE;		//hide
 				break;
 
 			//deathbringer shot
-			case 26:
+			case data_deathbringer:
 				//print_message("DEATHBRINGER!!!");
 				readByte(lebuf, count, abyte);	//what player
 				readLong(lebuf, count, frameno);		// start time
@@ -1899,7 +1901,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//v0.4.4: UDP FILE DOWNLOAD: incoming chunk
-			case 28:
+			case data_file_download:
 				readByte(lebuf, count, abyte);		//"last chunk"?
 				readLong(lebuf, count, frameno);	//absolute pos of the chunk on file
 				readShort(lebuf, count, usho);		//chunk size
@@ -1908,7 +1910,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//v0.4.4: registration response from server
-			case 31:
+			case data_registration_response:
 				readByte(lebuf, count, abyte);
 				if (abyte == 1) {
 					//success!
@@ -1928,7 +1930,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
-			case 32:
+			case data_crap_update:
 				readByte(lebuf, count, pid);			//waht player slot
 				readByte(lebuf, count, abyte);		//reg char
 				readLong(lebuf, count, prank);		//ranking#
@@ -1944,7 +1946,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			// map time left
-			case 35: {
+			case data_map_time: {
 				int time_left;
 				readLong(lebuf, count, time_left);
 				map_end_time = (int)get_time() + time_left;
@@ -1997,7 +1999,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 //send chat message
 void gameclient_c::send_chat(char *msg) {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 2);	//want to chat!
+	writeByte(lebuf, count, data_text_message);
 	writeString(lebuf, count, msg);	// the message
 	client->send_message(lebuf, count);
 }
@@ -2630,7 +2632,7 @@ void gameclient_c::loop() {
 
 						//"fire" message (+ATTACK)
 						char lebuf[16]; int count = 0;
-						writeByte(lebuf, count, 5);	// 5 = +attack (fire button down)
+						writeByte(lebuf, count, data_fire_on);
 						client->send_message(lebuf, count);
 
 						//send early keys packet
@@ -2643,7 +2645,7 @@ void gameclient_c::loop() {
 
 						//"un-fire" message (-ATTACK)
 						char lebuf[16]; int count = 0;
-						writeByte(lebuf, count, 11);	// 11 = -attack (fire button up)
+						writeByte(lebuf, count, data_fire_off);
 						client->send_message(lebuf, count);
 
 						//send early keys packet
@@ -2659,7 +2661,7 @@ void gameclient_c::loop() {
 
 						//"suicide" message
 						char lebuf[16]; int count = 0;
-						writeByte(lebuf, count, 10);	// 10 = suicide!!
+						writeByte(lebuf, count, data_suicide);
 						client->send_message(lebuf, count);
 					}
 				}
@@ -2670,14 +2672,14 @@ void gameclient_c::loop() {
 					if (!key_drop_flag) {
 						key_drop_flag = true;
 						char lebuf[16]; int count = 0;
-						writeByte(lebuf, count, 34);	// 34 = drop flag
+						writeByte(lebuf, count, data_drop_flag);
 						client->send_message(lebuf, count);
 					}
 				}
 				else if (key_drop_flag) {
 					key_drop_flag = false;
 					char lebuf[16]; int count = 0;
-					writeByte(lebuf, count, 36);		// 36 = stop dropping flag
+					writeByte(lebuf, count, data_stop_drop_flag);
 					client->send_message(lebuf, count);
 				}
 
@@ -2693,9 +2695,9 @@ void gameclient_c::loop() {
 						//want to swap/dont want  message
 						char lebuf[16]; int count = 0;
 						if (want_change_teams)
-							writeByte(lebuf, count, 12);	// 12 -- want
+							writeByte(lebuf, count, data_change_team_on);
 						else
-							writeByte(lebuf, count, 13);	// 13 -- dont want
+							writeByte(lebuf, count, data_change_team_off);
 						client->send_message(lebuf, count);
 					}
 				}
@@ -2713,9 +2715,9 @@ void gameclient_c::loop() {
 						//want to swap/dont want  message
 						char lebuf[16]; int count = 0;
 						if (want_map_exit)
-							writeByte(lebuf, count, 22);	// 22 -- want
+							writeByte(lebuf, count, data_map_exit_on);
 						else
-							writeByte(lebuf, count, 23);	// 23 -- dont want
+							writeByte(lebuf, count, data_map_exit_off);
 						client->send_message(lebuf, count);
 					}
 				}
