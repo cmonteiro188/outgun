@@ -2791,10 +2791,11 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 	teams[myteam].add_score(getMapTime(), player[pid].name);
 	returnFlag(team, flag);
 
-	string one_more;
+	ostringstream msg;
+	msg << player[pid].name << " CAPTURED THE " << getTeamName(team) << " FLAG!";
 	if (teams[myteam].score() == config.getCaptureLimit() - 1)
-		one_more = " One more to win!";
-	net->bprintf(msg_info, "%s CAPTURED THE %s FLAG!%s", player[pid].name.c_str(), getTeamName(team).c_str(), one_more.c_str());
+		msg << " One more to win!";
+	net->broadcast_message(msg_info, msg.str());
 	net->broadcast_capture(player[pid]);
 
 	net->ctf_update_teamscore(myteam);		// this function can decide to restart the game
