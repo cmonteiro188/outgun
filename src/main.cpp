@@ -5,25 +5,18 @@
 
 void increment_time_counter() {
 	time_counter++;
-}
-END_OF_FUNCTION(increment_time_counter);
+} END_OF_FUNCTION(increment_time_counter);
 
-void increment_speed_counter()
-{
+void increment_speed_counter() {
 	speed_counter++;
-}
-END_OF_FUNCTION(increment_speed_counter);
+} END_OF_FUNCTION(increment_speed_counter);
 
-void increment_server_speed_counter()
-{
+void increment_server_speed_counter() {
 	server_speed_counter++;
-}
-END_OF_FUNCTION(increment_server_speed_counter);
+} END_OF_FUNCTION(increment_server_speed_counter);
 
 // this simple task is turning into a major headache...
-//
 bool set_shitty_mode() {
-
 	//V0.5.0 : -text  flag
 	if (textserver)
 		return true;
@@ -49,21 +42,27 @@ bool set_shitty_mode() {
 		if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
 			LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 2 with %i", DTC)
 		else
-			return true;	// OK
+			return true;
 	}
 
-	// the last hope. WARNING: this can be buggy for multiple dedicated servers.
-	//
+	// WARNING: this can be buggy for multiple dedicated servers.
 	DTC = 8;
 
 	set_color_depth( DTC );
 
 	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0)) {
 		LOG1("ERROR: could not set gfx mode 320x240 windowed.. tried with %i", DTC);
-		return false;	//GIVE UP
 	}
 	else
-		return true;	// OK AT LAST!!!
+		return true;
+
+	// try safe mode
+	if (set_gfx_mode(GFX_SAFE, 320, 240, 0, 0)) {
+		LOG("ERROR: could not set a safe gfx mode.");
+		return false;
+	}
+	else
+		return true;
 }
 
 int main(int argc, char *argv[]) {
