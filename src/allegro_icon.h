@@ -1,5 +1,10 @@
-#include <allegro.h>
-/* XPM */
+#ifndef ALLEGRO_ICON_H_INC
+#define ALLEGRO_ICON_H_INC
+
+#include "incalleg.h"
+
+#ifdef ALLEGRO_WITH_XWINDOWS
+
 static const char *allegico_xpm[] = {
 /* columns rows colors chars-per-pixel */
 "32 32 10 1",
@@ -47,11 +52,17 @@ static const char *allegico_xpm[] = {
 "%%%%%  %%%%%%%% + %%%%%%%%  %%%%",
 "%%%%%%%%%%%%%%%  %%%%%%%%%%%%%%%"
 };
-#if defined ALLEGRO_WITH_XWINDOWS && defined ALLEGRO_USE_CONSTRUCTOR
 extern void *allegro_icon;
-CONSTRUCTOR_FUNCTION(static void _set_allegro_icon(void));
-static void _set_allegro_icon(void)
-{
+
+inline void setAllegroIcon() {
     allegro_icon = allegico_xpm;
 }
+
+#else   // ALLEGRO_WITH_XWINDOWS
+
+inline void setAllegroIcon() {
+}
+
+#endif  // ALLEGRO_WITH_XWINDOWS
+
 #endif

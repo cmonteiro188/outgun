@@ -732,7 +732,7 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) {
         numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
         const TextureData::TexdataUnion& data = texTab[texid].data();
         switch (texTab[texid].type()) {
-            break; case TextureData::T_solid: {
+        /*break;*/ case TextureData::T_solid: {
                 SolidTexturizer tex(*this, data.s);
                 renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
             }
@@ -751,7 +751,7 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) {
             numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
             const TextureData::TexdataUnion& data = texTab[texid].data();
             switch (texTab[texid].type()) {
-                break; case TextureData::T_solid:      tex.addLayer(new SolidPixelSource(data.s));
+            /*break;*/ case TextureData::T_solid:      tex.addLayer(new SolidPixelSource(data.s));
                 break; case TextureData::T_texture:    tex.addLayer(new TexturePixelSource(data.t));
                 break; case TextureData::T_flagmarker: tex.addLayer(new FlagmarkerPixelSource(data.f));
                 break; default: nAssert(0);

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -79,7 +79,7 @@ void Sounds::select_theme(const string& dir) {
         return;
     }
 
-    string path = wheregamedir + "sound" + directory_separator + dir + directory_separator;
+    const string path = wheregamedir + "sound" + directory_separator + dir + directory_separator;
 
     ifstream in((path + "theme.txt").c_str());
     if (!getline_skip_comments(in, themename))
@@ -105,6 +105,8 @@ bool Sounds::setEnable(bool enable) {
     else {
         unload_samples();
         enabled = false;
+        remove_sound();
+        allegroSoundInitialized = false;
     }
     return true;
 }
@@ -177,12 +179,12 @@ void Sounds::load_samples(const string& path) {
 }
 
 SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) {
-    string fileName = path + fname + ".wav";
+    const string fileName = path + fname + ".wav";
 
     SAMPLE* ret = sample[slot] = load_sample(fileName.c_str());
 
     if (try_redirect && ret == 0) { // if not found, look for .txt redirect
-        string textName = path + fname + ".txt";
+        const string textName = path + fname + ".txt";
 
         ifstream in(textName.c_str());
         if (in) {

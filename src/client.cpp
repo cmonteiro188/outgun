@@ -296,7 +296,7 @@ void TournamentPasswordManager::changeData(const string& newName, const string& 
 
 string TournamentPasswordManager::statusAsString() const {
     switch (status()) {
-        break; case PS_noPassword:      return _("No password set");
+    /*break;*/ case PS_noPassword:      return _("No password set");
         break; case PS_starting:        return _("Initializing...");
         break; case PS_socketError:     return _("Socket error");
         break; case PS_sending:         return _("Sending login...");
@@ -563,7 +563,7 @@ TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int lengt
 
 void TM_ConnectionUpdate::execute(Client* cl) const {
     switch (code) {
-        break; case 0: cl->client_connected(data, length);
+    /*break;*/ case 0: cl->client_connected(data, length);
         break; case 1: cl->client_disconnected(data, length);
         break; case 2: cl->connect_failed_denied(data, length);
         break; case 3: cl->connect_failed_unreachable();
@@ -730,7 +730,7 @@ bool Client::start() {
         getline(command, args); // this might fail, but that only means there is an empty string
         switch (static_cast<ClientCfgSetting>(settingId)) {
             // name menu
-            break; case CCS_PlayerName:            if (check_name(args)) playername = args;
+        /*break;*/ case CCS_PlayerName:            if (check_name(args)) playername = args;
             break; case CCS_Tournament:            menu.options.name.tournament.set(args == "1");
 
             // connect menu
@@ -1138,7 +1138,7 @@ void Client::client_disconnected(const char* data, int length) {
 
     if (length == 1)
         switch (data[0]) {
-            break; case server_c::disconnect_client_initiated: // user knows why, so no description
+        /*break;*/ case server_c::disconnect_client_initiated: // user knows why, so no description
             break; case server_c::disconnect_server_shutdown:  description = _("Server was shut down.");
             break; case server_c::disconnect_timeout:          description = _("Connection timed out.");
             break; case disconnect_kick:                       description = _("You were kicked.");
@@ -1183,28 +1183,28 @@ void Client::connect_failed_denied(const char* data, int length) {
         else {
             Connect_rejection_reason reason = static_cast<Connect_rejection_reason>(rb);
             switch (reason) {
-            break; case reject_server_full:
-                message = _("The server is full.");
-            break; case reject_banned:
-                message = _("You are banned from this server.");
-            break; case reject_player_password_needed:
-                openMenus.close(&m_connectProgress.menu);
-                m_playerPassword.setup(playername, false);
-                showMenu(m_playerPassword);
-                userHandled = true;
-                message = "Asking for player password."; // just for logging
-            break; case reject_wrong_player_password:
-                message = _("Wrong player password.");
-                remove_player_password(playername, addressToString(serverIP));
-            break; case reject_server_password_needed:
-                openMenus.close(&m_connectProgress.menu);
-                showMenu(m_serverPassword);
-                userHandled = true;
-                message = "Asking for server password."; // just for logging
-            break; case reject_wrong_server_password:
-                message = _("Wrong server password.");
-                m_serverPassword.password.set("");
-            break; default: nAssert(0);
+            /*break;*/ case reject_server_full:
+                    message = _("The server is full.");
+                break; case reject_banned:
+                    message = _("You are banned from this server.");
+                break; case reject_player_password_needed:
+                    openMenus.close(&m_connectProgress.menu);
+                    m_playerPassword.setup(playername, false);
+                    showMenu(m_playerPassword);
+                    userHandled = true;
+                    message = "Asking for player password."; // just for logging
+                break; case reject_wrong_player_password:
+                    message = _("Wrong player password.");
+                    remove_player_password(playername, addressToString(serverIP));
+                break; case reject_server_password_needed:
+                    openMenus.close(&m_connectProgress.menu);
+                    showMenu(m_serverPassword);
+                    userHandled = true;
+                    message = "Asking for server password."; // just for logging
+                break; case reject_wrong_server_password:
+                    message = _("Wrong server password.");
+                    m_serverPassword.password.set("");
+                break; default: nAssert(0);
             }
         }
     }
@@ -1591,6 +1591,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 //read who,x,y
                 NLubyte who,whox,whoy;
                 readByte(data, count, who);
+                if (who == 255)
+                    continue;
                 readByte(data, count, whox);
                 readByte(data, count, whoy);
 
@@ -1645,7 +1647,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
         //parse rest of message
         switch (static_cast<Network_data_code>(code)) {
-            break; case data_name_update: {
+        /*break;*/ case data_name_update: {
                 NLubyte pid;
                 string name;
                 readByte(lebuf, count, pid);
@@ -2151,7 +2153,7 @@ void Client::process_incoming_data(const char* data, int length) {
             break; case data_stats_ready: {
                 if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
                     switch (menu.options.game.showStats()) {
-                        break; case Menu_game::SS_teams:   menusel = menu_teams;
+                    /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
                         break; case Menu_game::SS_players: menusel = menu_players;
                         break; default: nAssert(0);
                     }
@@ -2767,7 +2769,7 @@ void Client::handlePendingThreadMessages() {    // should only be called by the 
 
 string Client::refreshStatusAsString() const {
     switch (refreshStatus) {
-        break; case RS_none:       return _("Inactive");
+    /*break;*/ case RS_none:       return _("Inactive");
         break; case RS_running:    return _("Running");
         break; case RS_failed:     return _("Failed");
         break; case RS_contacting: return _("Contacting the servers...");
@@ -3079,7 +3081,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     // handle global keys first
     bool handled = true;
     switch (sc) {   // if the key isn't handled, set handled = false
-        break; case KEY_ESC:
+    /*break;*/ case KEY_ESC:
             if (!talkbuffer.empty()) // cancel chat
                 talkbuffer.clear();
             else if (!openMenus.empty())
@@ -3124,7 +3126,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     }
     handled = true;
     switch (sc) {
-        break; case KEY_F2:
+    /*break;*/ case KEY_F2:
             menusel = (menusel == menu_maps ? menu_none : menu_maps);
             stats_autoshowing = false;
         break; case KEY_F3:
@@ -3159,9 +3161,9 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
     if (menu.options.controls.arrowKeysInStats() != Menu_controls::AS_useMenu && (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_LEFT || sc == KEY_RIGHT))
         return false;
     switch (menusel) {
-        break; case menu_maps:
+    /*break;*/ case menu_maps:
             switch (sc) {
-                break; case KEY_UP:     client_graphics.map_list_prev();
+            /*break;*/ case KEY_UP:     client_graphics.map_list_prev();
                 break; case KEY_DOWN:   client_graphics.map_list_next();
                 break; case KEY_PGUP:   client_graphics.map_list_prev_page();
                 break; case KEY_PGDN:   client_graphics.map_list_next_page();
@@ -3218,7 +3220,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
 
 void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
     switch (sc) {
-        break; case KEY_HOME:   // change colours
+    /*break;*/ case KEY_HOME:   // change colours
             if (withControl)
                 client_graphics.reset_playground_colors();
             else
@@ -3800,8 +3802,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - 20) {
-                    static const int max_time      = 20; // frames
-                    static const int start_fadeout = 10; // frames
+                    static const int max_time = 20; // frames
+                    static const int start_fadeout = 10;   // frames
                     int alpha;
                     if (fx.frame > pl.posUpdated + start_fadeout)
                         alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
@@ -3998,7 +4000,7 @@ void Client::draw_player(int pid) {
 //draws the game menu
 void Client::draw_game_menu() {
     switch (menusel) {
-        break; case menu_maps: {
+    /*break;*/ case menu_maps: {
             MutexDebug md("mapInfoMutex", __LINE__, log);
             MutexLock ml(mapInfoMutex);
             client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
@@ -4256,7 +4258,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
             break;
         }
         switch (nTry) { // try in order: [switch flip], switch windowed, [switch flip]
-            break; case 0:
+        /*break;*/ case 0:
                 if (!win()) {
                     flip.set(!flip());
                     break;
@@ -4393,7 +4395,7 @@ void Client::MCF_acceptBugReporting() {
     ofstream os(main_cfg_file.c_str());
     if (os) {
         switch (g_autoBugReporting) {
-            break; case ABR_disabled: os << "autobugreporting disabled";
+        /*break;*/ case ABR_disabled: os << "autobugreporting disabled";
             break; case ABR_minimal:  os << "autobugreporting minimal" ;
             break; case ABR_withDump: os << "autobugreporting complete";
             break; default: nAssert(0);
@@ -4651,7 +4653,7 @@ void Client::loadSplashScreen() {
             "so it is recommended to also send an e-mail with more details.",
             "",
             "Choose the preferred mode below with left and right arrow keys, and close",
-            "the menu with Enter or ESC. After the first time of starting Outgun, you",
+            "the menu with Enter or Esc. After the first time of starting Outgun, you",
             "can find this screen from the Options menu.",
             "",
             0
@@ -4702,4 +4704,3 @@ int Client::cfunc_server_data(client_runes_t *arg) {
     gameclient->process_incoming_data(arg->data, arg->length);
     return 0;
 }
-

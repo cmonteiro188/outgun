@@ -585,10 +585,11 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 return false;
             }
             ist >> w;
-            if (!ist || (ist >> nullc) || w < 1) {
+            if (!ist || (ist >> nullc) || w < 1 || w > 255) {
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
+            
             room.resize(w);
             for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
                 ri->resize(h);
@@ -599,7 +600,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 return false;
             }
             ist >> h;
-            if (!ist || (ist >> nullc) || h < 1) {
+            if (!ist || (ist >> nullc) || h < 1 || h > 255) {
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
@@ -1733,7 +1734,7 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
     ServerPlayer& pl = player[pid];
 
     switch (it.kind) {
-        break; case Powerup::pup_shield: {
+    /*break;*/ case Powerup::pup_shield: {
             pl.item_shield = true;
 
             //increase health to minimum of 100
@@ -3303,4 +3304,3 @@ double Statistics::flag_carrying_time(double time) const {
     else
         return total_flag_carrying_time + (time - flag_taking_time);
 }
-

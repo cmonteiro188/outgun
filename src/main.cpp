@@ -28,6 +28,7 @@
 #include <string>
 
 #include "incalleg.h"
+#include "allegro_icon.h"
 #include "client.h"
 #include "commont.h"
 #include "debug.h"
@@ -150,6 +151,8 @@ int main(int argc, const char* argv[]) {
     // Set the text encoding format for Allegro as 8 bit Ascii
     set_uformat(U_ASCII);
 
+    // APbuild messes up the automation -> call by hand
+    setAllegroIcon();
     allegro_init();
     install_keyboard();
     install_timer();

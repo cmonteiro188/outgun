@@ -152,7 +152,7 @@ string formatForLogging(const string& str) {
         if (is_nonprintable_char(*s)) {
             result << '\\';
             switch (*s) {
-                break; case '\n': result << 'n';
+            /*break;*/ case '\n': result << 'n';
                 break; case '\r': result << 'r';
                 break; case '\t': result << 't';
                 break; case '\v': result << 'v';
@@ -242,7 +242,7 @@ void errorMessage(const string& heading, MemoryLog& errorLog, const string& foot
 
 bool is_keypad(int sc) {
     switch (sc) {
-        break; case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
+    /*break;*/ case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
         break; default: return false;
     }
 }

@@ -798,7 +798,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     minimap_start_y = (minimap_place_h - minimap_h) / 2;
 
     const double actual_start_x = minimap_start_x + .005;   // .005 is a safety to make sure we stay within the bitmap even with small calculation errors
-    const double actual_start_y = minimap_start_y + .005;
+    const double actual_start_y = minimap_start_y + .005 * map.h / map.w;   // in proportion, because scale (below) is calculated from x axis, and affects y in a different amount of pixels
 
     const double maxx = plw * map.w;
     const double maxy = plh * map.h;
@@ -976,7 +976,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     // gun direction
     int xg, yg;
     switch (gundir) {
-        break; case 0: xg = 40; yg =  0;
+    /*break;*/ case 0: xg = 40; yg =  0;
         break; case 1: xg = 28; yg = 28;
         break; case 2: xg =  0; yg = 40;
         break; case 3: xg =-28; yg = 28;
@@ -990,7 +990,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     yg = scale(yg * 0.7);
     // draw the gun
     switch (gundir) {
-        break; case 0: case 4:
+    /*break;*/ case 0: case 4:
             rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
         break; case 2: case 6:
             rectfill(drawbuf, plx + x + xg - 1, ply + y + yg / 2, plx + x + xg + 1, ply + y + yg, pc1);
@@ -1253,7 +1253,7 @@ void Graphics::draw_pup(const Powerup& pup, double time) {
         draw_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
     else
         switch (pup.kind) {
-            break; case Powerup::pup_shield:       draw_pup_shield      (pup.x, pup.y      );
+        /*break;*/ case Powerup::pup_shield:       draw_pup_shield      (pup.x, pup.y      );
             break; case Powerup::pup_turbo:        draw_pup_turbo       (pup.x, pup.y      );
             break; case Powerup::pup_shadow:       draw_pup_shadow      (pup.x, pup.y, time);
             break; case Powerup::pup_power:        draw_pup_power       (pup.x, pup.y, time);
@@ -1309,7 +1309,7 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
         // choose colour
         int c;
         switch (b) {
-            break; case 0: c = col[COLGREEN ];
+        /*break;*/ case 0: c = col[COLGREEN ];
             break; case 1: c = col[COLBLUE  ];
             break; case 2: c = col[COLRED   ];
             break; case 3: c = col[COLYELLOW];
@@ -1359,7 +1359,7 @@ void Graphics::draw_loading_map_message(const string& text) {
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
     int c;
     switch (team) {
-        break; case 0: case 1: c = teamlcol[team];
+    /*break;*/ case 0: case 1: c = teamlcol[team];
         break; default: c = col[COLMENUGRAY];
     }
     textout_centre_ex(drawbuf, font,                                           text.c_str(), plx + scale(plw / 2), ply + scale(plh / 2 - 40), c, -1);
@@ -1575,7 +1575,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     string caption1, caption2;
     switch (page) {
         // max length:              |........................................|
-        break; case 0: caption1 = _("     Frags    total/in-row/most");
+    /*break;*/ case 0: caption1 = _("     Frags    total/in-row/most");
                        caption2 = _("Ping     Capt Kills      Deaths Suicides");
                        //           |0000  000 00 000/00/00  000/00/00   00  |
         break; case 1: caption1 = _("         Flags          Carriers  Carry");
@@ -1620,7 +1620,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
     stats << left << setw(17) << player.name << right;
     const Statistics& st = player.stats();
     switch (page) {
-        break; case 0:
+    /*break;*/ case 0:
             //       Frags    total/in-row/most
             //  Ping     Capt Kills      Deaths Suicides
             // |0000  000 00 000/00/00  000/00/00   00  |
@@ -1884,7 +1884,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
 void Graphics::print_chat_message(Message_type type, const string& message, int x, int y) {
     int c;
     switch (type) {
-        break; case msg_warning: c = col[COLLRED];
+    /*break;*/ case msg_warning: c = col[COLLRED];
         break; case msg_team: c = col[COLYELLOW];
         break; case msg_info: c = col[COLGREEN];
         break; case msg_header: c = makecol(0xAA, 0xFF, 0xFF);
@@ -2064,7 +2064,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
         }
         const double delta = time - fx->time;
         switch (fx->type) {
-            break; case FX_GUN_EXPLOSION:
+        /*break;*/ case FX_GUN_EXPLOSION:
                 if (delta > 0.4)
                     fx = cfx.erase(fx);
                 else {

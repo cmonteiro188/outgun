@@ -244,7 +244,7 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
         int shortcut;
         if (chr == 0)   // with alt
             switch (scan) {
-                break; case KEY_1: shortcut = 0;
+            /*break;*/ case KEY_1: shortcut = 0;
                 break; case KEY_2: shortcut = 1;
                 break; case KEY_3: shortcut = 2;
                 break; case KEY_4: shortcut = 3;

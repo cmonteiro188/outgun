@@ -1555,16 +1555,20 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     int shadowIters[2][2];  // [team][number]
     for (int round = 0; round < 2; ++round)
         for (int t = 0; t < 2; ++t) {
-            if (normalView[t] == 0) // no players in this team -> no need for these either
-                continue;
-            do {
-                if (++normalViewI[t] == maxplayers)
-                    normalViewI[t] = 0;
-            } while (!(normalView[t] & (1 << normalViewI[t])));
-            do {
-                if (++shadowViewI[t] == maxplayers)
-                    shadowViewI[t] = 0;
-            } while (!(shadowView[t] & (1 << shadowViewI[t])));
+            if (normalView[t] == 0) // no visible players
+                normalViewI[t] = -1;
+            else
+                do {
+                    if (++normalViewI[t] == maxplayers)
+                        normalViewI[t] = 0;
+                } while (!(normalView[t] & (1 << normalViewI[t])));
+            if (shadowView[t] == 0) // no visible players
+                shadowViewI[t] = -1;
+            else
+                do {
+                    if (++shadowViewI[t] == maxplayers)
+                        shadowViewI[t] = 0;
+                } while (!(shadowView[t] & (1 << shadowViewI[t])));
             normalIters[t][round] = normalViewI[t];
             shadowIters[t][round] = shadowViewI[t];
         }
@@ -1671,18 +1675,20 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             writeLong(lebuf, p_on_count, players_onscreen);
 
             for (int round = 0; round < 2; ++round) {
-                NLubyte who;
+                int who;
                 if (world.player[i].item_shadow())
-                    who = static_cast<NLubyte>(shadowIters[i / TSIZE][round]);
+                    who = shadowIters[i / TSIZE][round];
                 else
-                    who = static_cast<NLubyte>(normalIters[i / TSIZE][round]);
-                writeByte(lebuf, lecount, who);
-
-                const NLubyte mx = static_cast<NLubyte>((world.player[who].lx + world.player[who].roomx * plw) / (world.map.w * plw) * 255.0);
-                writeByte(lebuf, lecount, mx);
-
-                const NLubyte my = static_cast<NLubyte>((world.player[who].ly + world.player[who].roomy * plh) / (world.map.h * plh) * 255.0);
-                writeByte(lebuf, lecount, my);
+                    who = normalIters[i / TSIZE][round];
+                if (who == -1)
+                    writeByte(lebuf, lecount, 255);
+                else {
+                    const NLubyte mx = static_cast<NLubyte>((world.player[who].lx + world.player[who].roomx * plw) / (world.map.w * plw) * 255.0);
+                    const NLubyte my = static_cast<NLubyte>((world.player[who].ly + world.player[who].roomy * plh) / (world.map.h * plh) * 255.0);
+                    writeByte(lebuf, lecount, static_cast<NLubyte>(who));
+                    writeByte(lebuf, lecount, mx);
+                    writeByte(lebuf, lecount, my);
+                }
             }
 
             // send 8 bits of player's health
@@ -2420,7 +2426,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         int ansLen = 0;
         bool error = false;
         switch (code) {
-            break; case ATS_GET_PLAYER_FRAGS:
+        /*break;*/ case ATS_GET_PLAYER_FRAGS:
                 writeLong(answer, ansLen, STA_PLAYER_FRAGS);
                 writeLong(answer, ansLen, cid);
                 writeLong(answer, ansLen, world.player[pid].stats().frags());
@@ -2789,4 +2795,3 @@ void ServerNetworking::set_web_refresh(int refresh) {
     nAssert(refresh >= 1);
     web_refresh = refresh;
 }
-
