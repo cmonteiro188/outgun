@@ -136,6 +136,7 @@ public:
 	void send_player_crap_update(int cid, int pid);
 	void broadcast_player_crap(int pid);
 
+	void broadcast_stats_ready() const;
 	void broadcast_capture(const ServerPlayer& player) const;
 	void broadcast_flag_take(const ServerPlayer& player) const;
 	void broadcast_flag_return(const ServerPlayer& player) const;

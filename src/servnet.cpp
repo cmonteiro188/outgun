@@ -289,6 +289,14 @@ void ServerNetworking::ctf_update_teamscore(int t) {
 	server->broadcast_message(lebuf, count);
 }
 
+// Tell that stats are ready for saving.
+void ServerNetworking::broadcast_stats_ready() const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_stats_ready);
+	server->broadcast_message(lebuf, count);
+}
+
 void ServerNetworking::broadcast_capture(const ServerPlayer& player) const {
 	char lebuf[64];
 	int count = 0;
@@ -661,15 +669,16 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 
 	//send a show gameover plaque message, if that is the case
 	if (reason != NEXTMAP_NONE) {
-		count = 0;
+		int count = 0;
 		writeByte(lebuf, count, data_gameover_show);
-		writeByte(lebuf, count, ((NLubyte)reason));		//capture limit plaque or vote exit plaque
+		writeByte(lebuf, count, static_cast<NLubyte>(reason));		//capture limit plaque or vote exit plaque
 		if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
-			//informacoes para mostrar apos o jogo (time vencedor, most valuable player, etc.)
 			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));	//RED team final score
 			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));	//BLUE team final score
 		}
 		server->send_message(world.player[pid].cid, lebuf, count);
+		send_movements_and_shots(world.player[pid]);
+		send_team_movements_and_shots(world.player[pid]);
 	}
 }
 

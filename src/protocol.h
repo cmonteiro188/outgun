@@ -62,8 +62,9 @@ enum Network_data_code {
 	data_fav_colors,
 	data_name_authorization_request,
 	data_server_settings,
+	data_stats_ready,
 	data_reserved_range_first,	// reserve some codes for extensions that are otherwise protocol compatible
-	data_reserved_range_last = data_server_settings + 20	// make sure you don't use more!
+	data_reserved_range_last = data_stats_ready + 20	// make sure you don't use more!
 };
 
 enum Disconnect_reason {
