@@ -4,7 +4,14 @@
 #include <ctime>
 #include "incalleg.h"
 
+#ifndef DISABLE_ENHANCED_NASSERT
+#include "commont.h"
+#include "utility.h"
+#endif
+
 #include "nassert.h"
+
+unsigned long* stackGuardHackPtr;
 
 void stackDump(FILE* dst) {	// makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
 	unsigned long unused;
@@ -21,17 +28,16 @@ void nasprintf(const char* expr, ...) {
 	va_start(argptr, expr);
 	vfprintf(stderr, expr, argptr);
 	va_end(argptr);
+	#ifndef DISABLE_ENHANCED_NASSERT
 	// save to assert.log
-	FILE* asfile = fopen("assert.log", "at");
+	FILE* asfile = fopen((wheregamedir + "log" + directory_separator + "assert.log").c_str(), "at");
 	if (asfile) {
-		time_t tt=time(0);
-		struct tm* tmb=localtime(&tt);
-		fprintf(asfile, "%d-%02d-%02d %02d:%02d:%02d  ", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
+		fprintf(asfile, "%s  ", date_and_time().c_str());
 		va_start(argptr, expr);
 		vfprintf(asfile, expr, argptr);
 		va_end(argptr);
 		fclose(asfile);
-		FILE* stdump = fopen("stackdump.bin", "wb");
+		FILE* stdump = fopen((wheregamedir + "log" + directory_separator + "stackdump.bin").c_str(), "wb");
 		if (stdump) {
 			stackDump(stdump);
 			fclose(stdump);
@@ -42,7 +48,8 @@ void nasprintf(const char* expr, ...) {
 	char buf[10000];
 	_vsnprintf(buf, 10000, expr, argptr);
 	va_end(argptr);
-	allegro_message("%s\nTo help us fix this, please send assert.log and stackdump.bin and describe what you were doing to npr1@suomi24.fi", buf);
+	allegro_message("%s\nTo help us fix this, please send assert.log and stackdump.bin from the log directory and describe what you were doing to npr1@suomi24.fi", buf);
+	#endif // DISABLE_ENHANCED_NASSERT
 }
 
 #define ARGP(num) const char* name##num, int val##num

@@ -39,7 +39,7 @@ OBJS = antialias.o world.o servnet.o server.o graphics.o commont.o \
 	leetnet/rudp.o leetnet/server.o leetnet/timefunc.o \
 	leetnet/Time.o leetnet/Timer.o leetnet/dlog.o
 
-MON_OBJS = srvmonit.o nassert.o
+MON_OBJS = srvmonit.o nassert_mon.o
 
 ifdef MINGW
  EXTRA_OBJS = icon.res
@@ -65,6 +65,9 @@ OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 LEETNETCOMPILE = $(OBJCOMPILE)
 
 include Makefile.dependencies
+
+nassert_mon.o : nassert.o
+	g++ $(CFLAGS) $(EXTRA_CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
 
 PHONY: clean
 

@@ -4,6 +4,7 @@
 // stack guard is a magic number that should be somewhere on the stack to prevent the stack dump from going further and making a page fault
 // you should have a local variable unsigned long stackGuard = STACK_GUARD; in main() and all thread entry functions
 static const unsigned long STACK_GUARD = 0x39D1209E;
+extern unsigned long* stackGuardHackPtr;	// set stackGuardHackPtr = &stackGuard to make sure the stackGuard variable isn't optimized away
 
 #ifdef NDEBUG
  #define nAssert(expr) ((void)0)
