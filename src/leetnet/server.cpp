@@ -858,7 +858,7 @@ public:
 				{
 
 					//LOG1("CALLING SFUNC CALLBACK LEN = %i\n", len);
-					HelloResult res;
+					ServerHelloResult res;
 					res.accepted = false;
 					res.customDataLength = 0;
 					helloCallback(customp, cid, &data[16], len-16, &res);

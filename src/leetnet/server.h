@@ -28,16 +28,16 @@
 struct _NLaddress;
 typedef struct _NLaddress NLaddress;
 
+struct ServerHelloResult {
+	bool accepted;
+	char customData[512];
+	int customDataLength;
+};
+
 // server class interface
 class server_c {
 public:
-	struct HelloResult {
-		bool accepted;
-		char customData[512];
-		int customDataLength;
-	};
-
-	typedef void helloCallbackT			(void* customp, int client_id, char* data, int length, HelloResult* res);
+	typedef void helloCallbackT			(void* customp, int client_id, char* data, int length, ServerHelloResult* res);
 	typedef void connectedCallbackT		(void* customp, int client_id);
 	typedef void disconnectedCallbackT	(void* customp, int client_id);
 	typedef void dataCallbackT			(void* customp, int client_id, char* data, int length);
