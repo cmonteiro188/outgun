@@ -178,9 +178,9 @@ int main(int argc, char *argv[]) {
 			Mappic mappic;
 			try {
 				mappic.run();
-				allegro_message("Saved map pictures to screens directory.");
+				allegro_message("Saved map pictures to mappic directory.");
 			} catch (const Mappic::Save_error& s) {
-				allegro_message("Error: Could not save map pictures to screens directory!");
+				allegro_message("Error: Could not save map pictures to mappic directory!");
 			}
 			return 0;
 		}
