@@ -48,11 +48,11 @@ function downandinstall {
 		} fi
 		if [ -f "$filename" ]; then {
 			rm -rf "$subdir"
-			if [ "`tar -zxf "$filename" 2>&1`" == "" ]; then {
+			if [ "`tar -zxf "$filename" 2>&1`" = "" ]; then {
 				cd $subdir
 				if { $compile1 && $compile2; } then {
 					if [ `whoami` = 'root' ]; then {
-						if ! $install; then {
+						if ! ( $install && /sbin/ldconfig ); then {
 							echo
 							echo "Problem installing $name."
 							exit 1
@@ -81,7 +81,7 @@ function downandinstall {
 			else {
 				echo
 				echo "Problems uncompressing $name. Trying again may help."
-				rm -fr "$filename"
+				rm -f "$filename"
 			} fi
 		}
 		else {
@@ -105,8 +105,8 @@ function clean {
 
 echo
 echo ===============================================================================
-echo "This script will try to compile Outgun and compile and install its dependecies"
-echo "if needed."
+echo "This script will try to compile Outgun, compiling and installing its
+echo "dependecies if needed."
 echo "It's released under the GPL. Read docs for more info."
 echo "WARNING: This script is still a BETA version. Please, report any errors to the"
 echo "FORUM at outgun.sf.net or by email at: thommy@globo.com"
@@ -234,6 +234,7 @@ if [ -f "../outgun" ]; then {
 	echo "Outgun compiled fine. You should run now by typing ./outgun"
 	echo
 	echo "Have a nice play!"
+	echo
 	clean
 }
 else {
