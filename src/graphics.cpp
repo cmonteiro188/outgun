@@ -1056,15 +1056,15 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
 	rectfill(drawbuf, x1, y1, x2, y2, 0);
 	//solid_mode();
 
-	const int line_height = 10;
+	const int line_height = 12;
 
 	// frags and ping work, other stats are just layout testing
 	const string text = "      Frags Ping Cap Kil Dea  Acc   Dist Time";
 	const string red = string("Red Team  ") + text;
 	const string blue = string("Blue Team ") + text;
-	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height + 2, teamdcol[0]);
+	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, teamdcol[0]);
 	textout_ex(drawbuf, font, red.c_str(), x_left, y1 + line_height, col[COLWHITE], -1);
-	rectfill(drawbuf, x1, y1 + h / 2 + line_height - 4, x2, y1 + h / 2 + 2 * line_height + 2, teamdcol[1]);
+	rectfill(drawbuf, x1, y1 + h / 2 + line_height - 4, x2, y1 + h / 2 + 2 * line_height, teamdcol[1]);
 	textout_ex(drawbuf, font, blue.c_str(), x_left, y1 + h / 2 + line_height, col[COLWHITE], -1);
 
 	int i = 0;
@@ -1112,11 +1112,11 @@ void Graphics::map_list(const vector<gameserver_c::MapInfo>& maps, int current) 
 
 	const int line_height = 12;
 
-	// frags and ping work, other stats are just layout testing
+	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, makecol(0x00, 0x99, 0x00));
+	textout_centre_ex(drawbuf, font, "SERVER MAP LIST", mx, y1 + line_height, col[COLWHITE], -1);
+
 	ostringstream caption;
 	caption << left << "Nr Vo " << setw(20) << "Title" << ' ' << setw(5) << "Size" << " Author";
-	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height + 2, makecol(0x00, 0x99, 0x00));
-	textout_centre_ex(drawbuf, font, "SERVER MAP LIST", mx, y1 + line_height, col[COLWHITE], -1);
 	textout_ex(drawbuf, font, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
 
 	int i = 0;
