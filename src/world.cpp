@@ -1512,7 +1512,6 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     }
 
     //if was killed or map spawn point places player over a wall
-    //if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x - PLAYER_RADIUS, pos.y - PLAYER_RADIUS, pos.x + PLAYER_RADIUS, pos.y + PLAYER_RADIUS)) {
     if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS)) {
         // generate a random spot for respawn:
         // - unnocupied screen
@@ -1535,13 +1534,10 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
             pos.py = ridx / map.w;
 
             //find suitable coordinates
-            //pos.x = plw / 8 + rand() % (3 * plw / 4);
-            //pos.y = plh / 8 + rand() % (3 * plh / 4);
             pos.x = PLAYER_RADIUS + rand() % (plw - 2 * PLAYER_RADIUS);
             pos.y = PLAYER_RADIUS + rand() % (plh - 2 * PLAYER_RADIUS);
 
             //do a check for walls, maybe retrying another screen if hits a wall
-            //if (!map.fall_on_wall(pos.px, pos.py, pos.x - PLAYER_RADIUS, pos.y - PLAYER_RADIUS, pos.x + PLAYER_RADIUS, pos.y + PLAYER_RADIUS))
             if (!map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS))
                 break;  //success!
 
