@@ -6,7 +6,7 @@
 
 
 ; Language of the translation, in the target language.
-Português (Brasil) BETA 2
+Português (Brasil) BETA 3
 
 
 ; You should not modify en.txt, it is the English reference file. Outgun uses
@@ -63,10 +63,12 @@ $1 min
 OK
 Cancelar
 desconhecido
+Privativo
+Inválido
 nenhum
 ligado
 desligado
-
+Especial
 
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
 ;
@@ -168,7 +170,7 @@ Servidor local (rodando)
 Servidor local
 Adicionar a lista pública de servidores
 Porta do servidor
-Detectar endereço
+Autodetectar IP
 Iniciar servidor
 Jogar no servidor
 Parar servidor
@@ -350,6 +352,9 @@ $1 foi morto pelo amigo $2.
 $1 foi morto pelo $2.
 $1 levou choque.
 $1 levou choque do amigo $2.
+$1 recebeu um impacto mortal."
+$1 recebeu um impacto mortal do parceiro $2."
+$1 recebeu um impacto mortal de $2."
 $1 levou choque do $2.
 $1 defendeu o carregador vermelho.
 $1 defendeu o carregador azul.
@@ -552,10 +557,10 @@ Lista de mapas do servidor
 ;00 00 * <--------20--------> 00×00 <-----------26----------->|
 
 ; Used as a prompt in the map list dialog (F2). Can be quite long.
-Vote map number
+Votar no número do mapa
 
 ; Used in the player stats screen (F4) page 4.
-$1 players in the tournament.
+$1 jogadores estão no torneio.
 
 ; Used in the debug panel (F9).
 Joystick axes
@@ -569,19 +574,19 @@ in $1 B/s, out $2 B/s
 ; No length restrictions.
 
 ; The message printed by the -info command line option.
-Information
-Possible thread priorities (-prio <val>):
-* Minimum: $1
-* Maximum: $1
-* System default (use -defaultprio): $1
-* Outgun default: $1
-IP addresses:
+Informações
+Possíveis prioridades de thread (-prio <val>):
+* Mínimo: $1
+* Máximo: $1
+* Padrão do sistema (use -defaultprio): $1
+* Padrão do Outgun: $1
+Endereços de IP:
 
 ; Used as a window title.
-Outgun - Saving map pictures
+Outgun - Salvando figuras do mapa
 
 ; Used in an external dialog message.
-Saved map pictures to the directory 'mappic'.
+Figuras do mapa salvas no diretório 'mappic'.
 
 
 ; - - - - - - - - - - - - - - - error messages  - - - - - - - - - - - - - - -
@@ -635,6 +640,7 @@ Não é possível alterar $1 para '$2' - Esperado $3.
 0 ou 1
 $1 ou $2
 um entre no, balance e shuffle
+um entre no, normal, e special
 um número inteiro e ímpar entre 2 e $1
 um número inteiro
 um número inteiro, maior que $1
@@ -699,7 +705,7 @@ Sem mapas para rotação.
 Não foi possível iniciar HawkNL. $1
 Sem rede de IP.
 Admin shell: Não foi possível abrir o soquete na porta $1.
-Admin shell: Não foi possível alterar o soquete para o modo de escuta.
+Admin shell: Não foi possível alterar o soquete para o modo de escuta..
 Admin shell: leitura falhou. Motivo: $1
 Admin shell: Falhou enviando resposta. Motivo: $1
 Não foi possível conectar no servidor mestre. $1
@@ -717,9 +723,9 @@ Website thread: (Sair) Não foi possível abrir o soquete para o servidor do websi
 
 ; Rare external network errors. These may happen but there's rarely anything
 ; the user can do to fix them.
-Incorrect data received from master server.
-Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.
-Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.
+Dado incorreto recebido do servidor mestre.
+Comunicador mestre: (Sair) Ocorreu um erro inesperado enquanto enviando para lista ao servidor mestre. Veja log/master.log.
+Comunicador mestre: Ocorreu um erro inesperado enquanto enviando para lista ao servidor mestre. Veja log/master.log. Para retirar esse erro, faça um servidor privado usando o argumento -priv.
 
 ; File writing errors. These should be quite rare.
 Não foi possível abrir $1 para gravação.
@@ -738,13 +744,13 @@ O diretório '$1' não foi encontrado e não pode ser criado.
 
 ; Server shutdown messages. These are briefly shown as the window title while
 ; the server is shutting down. In rare cases they take longer to disappear.
-Shutdown: ABORTING $1 tournament updates
-Shutdown: admin shell threads
-Shutdown: main thread
-Shutdown: master talker thread
-Shutdown: net server
-Shutdown: waiting for $1 tournament updates
-Shutdown: website thread
+Desligando: ABORTANDO $1 atualizações do torneio
+Desligando: threads do admin shell
+Desligando: thread principal
+Desligando: thread do comunicador mestre
+Desligando: servidor da net
+Desligando: esperando por $1 atualizações do torneio
+Desligando: thread do website
 
 ; Comment written to auth.txt. It may be sensible to translate this in case
 ; you're translating the entire Outgun distribution with other configuration
