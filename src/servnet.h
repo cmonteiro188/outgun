@@ -62,6 +62,7 @@ class ServerNetworking {
 	NLint post_http_data(const std::string& script, std::string parameters, const std::string& auth) const;
 	void save_http_response(std::ostream& out) const;
 	void url_encode(char c, std::ostream& out) const;
+	bool is_url_safe(char c) const;
 	std::string base64_encode(const std::string& data) const;
 
 	gameserver_c*	host;

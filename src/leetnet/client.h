@@ -68,7 +68,7 @@ public:
 	virtual void set_callback(int callback_id, client_callback_t callback_function) = 0;	
 	
 	//set the server's address. call before connect()
-	virtual void set_server_address(char *address) = 0;
+	virtual void set_server_address(const char *address) = 0;
 
 	//set the custom data sent with every connection packet
 	//gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback

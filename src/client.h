@@ -60,7 +60,7 @@ class gameclient_c {
 	bool player_token_new;	//TRUE if first call to token servlet
 	bool player_token_set;
 	char player_token[64];
-	char player_password[16];
+	std::string player_password;
 	pthread_t passthread;
 
 	NLulong fdp, fdp_max;
@@ -90,18 +90,17 @@ class gameclient_c {
 	gamespy_t gamespy[MAX_GAMESPY];
 	int gi;	//what game entry
 	gamespy_t mgamespy[MAX_GAMESPY];	//gamespy of masterserver
-	char playername[256];	//the player's name (max name len = 16)
-	char namestatus[64];	// v0.4.4: NAME STATUS (unregistered, registering..., registered!)
-	char editplayername[256];
-	char address[256];	//server IP address
+	std::string playername;	//the player's name (max name len = 16)
+	std::string namestatus;	// v0.4.4: NAME STATUS (unregistered, registering..., registered!)
+	std::string editplayername;
+	std::string address;	//server IP address
 	char dialogmessage[256];
 	char dialogmessage2[256];
 	char talkbuffer[256];
 	char chatbuffer[CHAT_SIZE][256];
 	double chaterasetime;
-	char editplayerpass[64];
-	char namecursor[2];
-	char passcursor[2];
+	std::string editplayerpass;
+	bool name_selected;
 	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 	Graphics client_graphics;
 	bool screenshot;

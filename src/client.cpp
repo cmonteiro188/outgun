@@ -64,10 +64,6 @@ bool gameclient_c::start() {
 	//LOG3("TURBO    fri %.1f acc %.1f mxs %.1f\n", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
 	//LOG3("TURBORUN fri %.1f acc %.1f mxs %.1f\n", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
 
-	//cursors: default at name
-	strcpy(namecursor, "_");
-	strcpy(passcursor, "");
-
 	//clear UDPDQ
 	for (int uq=0;uq<MAX_UDPDQ;uq++) udpdq[uq] = 0;
 	udpdq_ptr = -1;
@@ -106,7 +102,6 @@ bool gameclient_c::start() {
 	//init gamespy/adresses
 	first_fav_refresh = false;
 	showmaster = true;
-	address[0]=0;
 	gi = 0;
 	for (int i=0;i<MAX_GAMESPY;i++) {
 		gamespy[i].address[0]=0;
@@ -121,9 +116,7 @@ bool gameclient_c::start() {
 	//assume no password
 	player_token_set = false;			//no token
 	player_password_set = false;	//no password
-	player_password[0]=0;
-	editplayerpass[0]=0;
-	strcpy(namestatus, "NO PASSWORD SET");
+	namestatus = "NO PASSWORD SET";
 	namestatus_code = 0;
 
 	//try to load the client's password
@@ -150,8 +143,8 @@ bool gameclient_c::start() {
 				pas[d] = (char)rot;
 			}
 			//get the password
-			pas[8]=0;
-			strcpy(editplayerpass, pas);
+			pas[8] = 0;
+			editplayerpass = pas;
 			//copy to editpass and simulate pressing ENTER on the name/pass screen...
 			check_change_pass_command();
 		}
@@ -175,7 +168,7 @@ bool gameclient_c::start() {
 
 		//read graphics theme directory name
 		if (getline(cfg, dir)) {
-			//client_graphics.set_themedir(dir);
+			client_graphics.set_themedir(dir);
 			LOG1("Graphics theme directory default = %s\n", dir.c_str());
 		}
 
@@ -183,25 +176,23 @@ bool gameclient_c::start() {
 		string name;
 		if (getline(cfg, name)) {
 			randomname = false;
-			strncpy(playername, name.c_str(), 15);
+			playername = name;
 		}
 
 		//read addresses
 		for (int i = 0; i < MAX_GAMESPY; i++) {
-			string address;
-			if (getline(cfg, address)) {
-				strncpy(gamespy[i].address, address.c_str(), 127);
-				strncpy(mgamespy[i].address, address.c_str(), 127); //copy to master list too!
+			string addr;
+			if (getline(cfg, addr)) {
+				strncpy(gamespy[i].address, addr.c_str(), 127);
+				strncpy(mgamespy[i].address, addr.c_str(), 127); //copy to master list too!
 			}
 		}
 		cfg.close();
 	}
 
 	//give a random name
-	if (randomname) {
-		string nome_tri_legal = RandomName();
-		strcpy(playername, nome_tri_legal.c_str() );
-	}
+	if (randomname)
+		playername = RandomName();
 
 	client_sounds.search_themes();
 	client_graphics.search_themes();
@@ -224,11 +215,6 @@ void gameclient_c::send_client_ready() {
 // if YES: send a new request to the master server
 // V0.4.6 : always re-log client if ENTER pressed! (if player doesn't want to log again, should press ESC instead)
 void gameclient_c::check_change_pass_command() {
-
-	//password changed
-	// V0.4.6: check removed
-	//if (strcmp(editplayerpass, player_password))
-
 	//player_password_set = false is a flag for the token retrieve thread
 	//join with it
 	if (player_password_set) {
@@ -240,17 +226,16 @@ void gameclient_c::check_change_pass_command() {
 	player_token_set = false;
 
 	//empty?
-	if (editplayerpass[0] == 0) {
-
-		strcpy(namestatus, "NO PASSWORD SET");
+	if (editplayerpass.empty()) {
+		namestatus = "NO PASSWORD SET";
 		namestatus_code = 0;
-		player_password[0]=0;
+		player_password = "";
 
 	}
 	else {
 		//non-empty! copy stuff
-		strcpy(namestatus, "STARTING LOGIN...");
-		strcpy(player_password, editplayerpass);
+		namestatus = "STARTING LOGIN...";
+		player_password = editplayerpass;
 
 		//setup stuff for the new thread
 		player_password_set = true;	//don't quit the thread
@@ -274,7 +259,7 @@ void gameclient_c::client_password_thread(void *) {
 		sock = nlOpen(0, NL_RELIABLE);
 		if (sock == NL_INVALID) {
 			//show "cant open socket to master" error
-			strcpy(namestatus, "SOCKET ERROR. RETRYING...");
+			namestatus = "SOCKET ERROR. RETRYING...";
 			MS_SLEEP(3000);	//five secs
 			continue;				//again...
 		}
@@ -285,15 +270,15 @@ void gameclient_c::client_password_thread(void *) {
 		//build query
 		char blux[1024];
 		if (player_token_new)
-			sprintf(blux, "GET /servlet/fcecin.tk1/index.html?%s&new&name=%s&password=%s\n\n", TK1_VERSION_STRING, playername, player_password);
+			sprintf(blux, "GET /servlet/fcecin.tk1/index.html?%s&new&name=%s&password=%s\n\n", TK1_VERSION_STRING, playername.c_str(), player_password.c_str());
 		else
-			sprintf(blux, "GET /servlet/fcecin.tk1/index.html?%s&old&name=%s&password=%s\n\n", TK1_VERSION_STRING, playername, player_password);
+			sprintf(blux, "GET /servlet/fcecin.tk1/index.html?%s&old&name=%s&password=%s\n\n", TK1_VERSION_STRING, playername.c_str(), player_password.c_str());
 
 		char querybuf[1024]; int qcount = 0;
 		writeString(querybuf, qcount, blux);
 		qcount--;	//take the zero out
 
-		strcpy(namestatus, "SENDING LOGIN...");
+		namestatus = "SENDING LOGIN...";
 
 		//keep trying to write the query.
 		NLint result;
@@ -311,7 +296,7 @@ void gameclient_c::client_password_thread(void *) {
 		if (player_password_set == false)
 			continue;
 
-		strcpy(namestatus, "WAITING RESPONSE...");
+		namestatus = "WAITING RESPONSE...";
 
 		//try to read the reply
 		//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
@@ -340,7 +325,7 @@ void gameclient_c::client_password_thread(void *) {
 						lebuf[0] = 0;
 						nlClose(sock);
 						sock = NL_INVALID;
-						strcpy(namestatus, "NO RESPONSE. RETRYING...");
+						namestatus = "NO RESPONSE. RETRYING...";
 						MS_SLEEP(3000);
 						break;
 					}
@@ -359,7 +344,7 @@ void gameclient_c::client_password_thread(void *) {
 				//error: try again
 				nlClose(sock);
 				sock = NL_INVALID;
-				strcpy(namestatus, "ERROR. RETRYING...");
+				namestatus = "ERROR. RETRYING...";
 				MS_SLEEP(3000);
 				break;
 			}
@@ -422,7 +407,7 @@ void gameclient_c::client_password_thread(void *) {
 			//  to send a new token request
 			//if FAILED then update the status and quit
 
-			strcpy(namestatus, "RECEIVED RESPONSE!");
+			namestatus = "RECEIVED RESPONSE!";
 
 			bool ok = false, wrongid = false, unavailable = false;
 			LOG1("RECV RESPONSE n = %i\n", n);
@@ -498,9 +483,9 @@ void gameclient_c::client_password_thread(void *) {
 
 			//OK?
 			if (ok) {
-				strcpy(namestatus, "LOGGED (");
-				strcat(namestatus, player_token);
-				strcat(namestatus, ")");
+				namestatus = "LOGGED (";
+				namestatus += player_token;
+				namestatus += ")";
 				namestatus_code = 1;
 
 				//OK!
@@ -520,7 +505,7 @@ void gameclient_c::client_password_thread(void *) {
 			}
 			//WRONG ID?
 			else if (wrongid) {
-				strcpy(namestatus, "ERROR: WRONG ID!");
+				namestatus = "ERROR: WRONG ID!";
 				namestatus_code = 2;
 				LOG2("ERROR WRONG ID. QUERY='''%s''' LEBUF='''%s'''\n", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
@@ -532,7 +517,7 @@ void gameclient_c::client_password_thread(void *) {
 			}
 			//UNAVAILABLE?
 			else if (unavailable) {
-				strcpy(namestatus, "SERVER UNAVAILABLE");
+				namestatus = "SERVER UNAVAILABLE";
 				namestatus_code = 2;
 				LOG2("ERROR UNKNOWN!!! QUERY='''%s''' LEBUF='''%s'''\n", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
@@ -544,7 +529,7 @@ void gameclient_c::client_password_thread(void *) {
 			}
 			//WHAT???
 			else {
-				strcpy(namestatus, "UNKNOWN ERROR!");
+				namestatus = "UNKNOWN ERROR!";
 				namestatus_code = 2;
 				LOG2("ERROR UNKNOWN!!! QUERY='''%s''' LEBUF='''%s'''\n", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
@@ -865,9 +850,9 @@ void gameclient_c::client_connected(char *data, int length) {
 	strlen_hostname = strlen(hostname);	//for drawing
 
 	//set window title: the hostname
-	char lecaption[256];
-	sprintf(lecaption, "Connected to: %s (%s)", hostname, address);
-	server_status_string(lecaption);
+	ostringstream caption;
+	caption << "Connected to: " << hostname << " (" << address << ')';
+	server_status_string(caption.str());
 
 	//default scoreboard state
 	for (int i = 0; i < MAX_PLAYERS; i++)
@@ -958,14 +943,14 @@ void gameclient_c::client_disconnected() {
 
 	//namestatus
 	if (namestatus_code == 0)
-		strcpy(namestatus, "NO PASSWORD SET?");
+		namestatus = "NO PASSWORD SET?";
 	else if ((namestatus_code == 1) || (namestatus_code == 3)) {
-		strcpy(namestatus, "LOGGED (");
-		strcat(namestatus, player_token);
-		strcat(namestatus, ")");
+		namestatus = "LOGGED (";
+		namestatus += player_token;
+		namestatus += ")";
 	}
 	else if (namestatus_code == 2) {
-		strcpy(namestatus, "ERROR: WRONG ID?");
+		namestatus = "ERROR: WRONG ID?";
 	}
 
 }
@@ -1210,28 +1195,27 @@ void gameclient_c::connect_command() {
 	// copy gamespy address
 	//
 	if (showmaster)
-		strcpy(address, mgamespy[gi].address);
+		address = mgamespy[gi].address;
 	else
-		strcpy(address, gamespy[gi].address);
+		address = gamespy[gi].address;
 
 	// start connecting to specified IP/port
 	// connection results will come through the CFUNC_CONNECTION_UPDATE callback
-	if (address[0] == '\0')	{ //empty address == my own ip
+	if (address.empty()) {	//empty address == my own ip
 		NLaddress myadr;
 		get_self_IP(&myadr);
 		nlSetAddrPort(&myadr, port);
-		nlAddrToString(&myadr, address);
-/*
-		if (showmaster)
-			strcpy(mgamespy[gi].address, address);	//copy to gamespy
-		else
-			strcpy(gamespy[gi].address, address);	//copy to gamespy
-*/
+		char addr[256];
+		nlAddrToString(&myadr, addr);
+		address = addr;
 	}
-	else if (strchr(address, ':')==NULL)
-		strcat(address, ":25000");
+	else if (address.find(':') == string::npos) {	// no port, use default
+		ostringstream port;
+		port << ':' << DEFAULT_UDP_PORT;
+		address += port.str();
+	}
 
-	client->set_server_address(address);
+	client->set_server_address(address.c_str());
 
 	//set connect-data (goes in every connect packet): outgun game name and version strings
 	char lebuf[256]; int count = 0;
@@ -1260,12 +1244,12 @@ void gameclient_c::send_player_token() {
 
 //issue change name command
 void gameclient_c::issue_change_name_command() {
-
 	//regular change name
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 1);		// "1" = client request name change
-	playername[15] = 0;	//truncate player name, max 16 chars
-	writeString(lebuf, count, playername);	// the name
+	if (playername.length() > 16)
+		playername.erase(15);			//truncate player name, max 16 chars
+	writeStr(lebuf, count, playername);	// the name
 	client->send_message(lebuf, count);
 
 	//name changed:
@@ -1277,7 +1261,7 @@ void gameclient_c::issue_change_name_command() {
 
 	//FIXME: code == 2 (?)
 	if ((namestatus_code == 1) || (namestatus_code == 3))
-		strcpy(namestatus, "NAME CHANGED...");
+		namestatus = "NAME CHANGED...";
 	else
 		namestatus_code = 0;						//take the "*" out of the name
 
@@ -1291,14 +1275,13 @@ void gameclient_c::issue_change_name_command() {
 //change name command
 void gameclient_c::change_name_command() {
 	//set new name, close menu
-	strcpy(playername, editplayername);
+	playername = editplayername;
 	if (menushow)
 		set_menu(0);
 
 	//send reliable net message with the name
-	if (connected) {
+	if (connected)
 		issue_change_name_command();
-	}
 }
 
 //send the client's frame to server (keypresses)
@@ -1929,17 +1912,17 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readByte(lebuf, count, abyte);
 				if (abyte == 1) {
 					//success!
-					strcpy(namestatus, "RECORDING (");
-					strcat(namestatus, player_token);
-					strcat(namestatus, ")");
+					namestatus = "RECORDING (";
+					namestatus += player_token;
+					namestatus += ")";
 					//code
 					namestatus_code = 3;
 				}
 				else {
 					//fail
-					strcpy(namestatus, "REJECTED (");
-					strcat(namestatus, player_token);
-					strcat(namestatus, ")");
+					namestatus = "REJECTED (";
+					namestatus += player_token;
+					namestatus += ")";
 				}
 
 				break;
@@ -2479,24 +2462,22 @@ void gameclient_c::loop() {
 					switch (menu) {
 					//main menu
 					case 0:
-						if ((key[KEY_SPACE]) && (sc == KEY_F8)) {
+						if (key[KEY_SPACE] && sc == KEY_F8) {
 							port++;
-							if (port > 25005)
-								port = 25000;
+							if (port > DEFAULT_UDP_PORT + 5)
+								port = DEFAULT_UDP_PORT;
 						}
 						else if (sc == KEY_F10) {
-							lerud_abloxon = RandomName();
-							strcpy(editplayername, lerud_abloxon.c_str());
+							editplayername = RandomName();
 							change_name_command();
 						}
 						switch (ch) {
 							case '1': set_menu(1); break;
 							case '2': disconnect_command(); break;
 							case '3':
-								strcpy(editplayername, playername);
-								strcpy(editplayerpass, player_password);
-								strcpy(namecursor, "_");
-								strcpy(passcursor, "");
+								editplayername = playername;
+								editplayerpass = player_password;
+								name_selected = true;
 								set_menu(3);
 								break;
 							case '4': // start/stop listenserver
@@ -2592,35 +2573,32 @@ void gameclient_c::loop() {
 					//change name screen
 					case 3:
 
-						if (namecursor[0]=='_')
-							i = strlen(editplayername);
+						if (name_selected)
+							i = editplayername.length();
 						else
-							i = strlen(editplayerpass);
+							i = editplayerpass.length();
 
 						if (((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) || (ch == '-') || (ch == '_')) {
 
-							if (namecursor[0]=='_') {
+							if (name_selected) {
 								if (i < 15) {
-									editplayername[i] = (char)ch;
-									editplayername[i+1] = 0;
-									editplayerpass[0]=0; //reset password after editing name
+									editplayername += static_cast<char>(ch);
+									editplayerpass = ""; //reset password after editing name
 								}
 							}
 							else {
-								if (i < 8) {
-									editplayerpass[i] = (char)ch;
-									editplayerpass[i+1] = 0;
-								}
+								if (i < 8)
+									editplayerpass += static_cast<char>(ch);
 							}
 						}
 						else if (sc == KEY_BACKSPACE) {
 							if (i > 0) {
-								if (namecursor[0]=='_') {
-									editplayername[i-1] = 0;
-									editplayerpass[0]=0; //reset password after editing name
+								if (name_selected) {
+									editplayername.erase(editplayername.end() - 1);
+									editplayerpass = ""; //reset password after editing name
 								}
 								else
-									editplayerpass[i-1] = 0;
+									editplayerpass.erase(editplayerpass.end() - 1);
 							}
 						}
 						else if (sc == KEY_ENTER) {
@@ -2629,17 +2607,8 @@ void gameclient_c::loop() {
 							//conectado...
 							check_change_pass_command();
 						}
-						else if (sc == KEY_TAB) {
-							//switch fields
-							if (namecursor[0]==0) {
-								strcpy(namecursor, "_");
-								strcpy(passcursor, "");
-							}
-							else {
-								strcpy(namecursor, "");
-								strcpy(passcursor, "_");
-							}
-						}
+						else if (sc == KEY_TAB)		// switch fields
+							name_selected = !name_selected;
 						break;
 					//wtf?
 					default:;
@@ -2788,8 +2757,7 @@ void gameclient_c::loop() {
 					// ins == change name
 					//
 					if (sc == KEY_F10) {
-						string lerud_abloxon = RandomName();
-						strcpy(editplayername, lerud_abloxon.c_str());
+						editplayername = RandomName();
 						change_name_command();
 					}
 					else if (sc == KEY_F3) {
@@ -2984,7 +2952,7 @@ void gameclient_c::stop() {
 		else
 			cfg << client_graphics.theme_dir() << '\n';
 
-		if (playername[0] != '\0')
+		if (!playername.empty())
 			cfg << playername << '\n';
 		else
 			cfg << "Unnamed_Bastard\n";
@@ -3004,7 +2972,7 @@ void gameclient_c::stop() {
 
 		char cha;
 		for (int c=0;c<PASSBUFFER;c++) {
-			if (c < (int)strlen(player_password)) {
+			if (c < static_cast<int>(player_password.length())) {
 				//write toggling bits
 				int rot = player_password[c];
 				rot = 255 - rot;
@@ -3035,6 +3003,7 @@ void gameclient_c::stop() {
 
 //ctor
 gameclient_c::gameclient_c():
+	name_selected(true),
 	screenshot(false)
 {
 
@@ -3080,10 +3049,6 @@ gameclient_c::gameclient_c():
 	//connect screen, my "mini-gamespy"
 	gi=0;	//what game entry
 
-	playername[0]=0; //the player's name (max name len = 16)
-	namestatus[0]=0;
-	editplayername[0]=0; //the player's name edit buffer
-	address[0]=0;		//server IP address
 	dialogmessage[0]=0;	//dialog message
 	dialogmessage2[0]=0;	//dialog message line 2
 	talkbuffer[0]=0;			// chat input buffer
@@ -3743,10 +3708,9 @@ void gameclient_c::draw_game_frame() {
 
 //draws the game menu
 void gameclient_c::draw_game_menu() {
-	if (menu == 0) {
+	if (menu == 0)
 		client_graphics.main_menu(connected, address, playername, namestatus,
 			listen_server_running, listen_port_running, client_sounds);
-	}
 	else if (menu == 1) {
 		if (showmaster) {
 			vector<gamespy_t> servers(mgamespy, mgamespy + MAX_GAMESPY);
@@ -3760,7 +3724,7 @@ void gameclient_c::draw_game_menu() {
 	else if (menu == 2)
 		client_graphics.dialog(dialogmessage, dialogmessage2);
 	else if (menu == 3)
-		client_graphics.name_password_menu(editplayername, strlen(editplayerpass), namecursor[0] != '\0', namestatus);
+		client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
 	else
 		nAssert(0);
 }

@@ -104,7 +104,7 @@ public:
 	}
 	
 	//set the server's address. call before connect()
-	virtual void set_server_address(char *address) {
+	virtual void set_server_address(const char *address) {
 		nlStringToAddr(address, &serveraddr);
 	}
 

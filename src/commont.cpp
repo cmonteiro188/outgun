@@ -77,11 +77,11 @@ volatile bool force_exit = false;	// this is set true when the user tries to clo
 
 void closeButtonCallback() { force_exit = true; }
 
-void server_status_string(char *str) {
+void server_status_string(const string& str) {
 	if (textserver)
-		printf("%s\n",str);
+		cout << str << '\n';
 	else
-		set_window_title(str);
+		set_window_title(str.c_str());
 }
 
 //server timer (10Hz)

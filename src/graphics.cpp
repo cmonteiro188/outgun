@@ -1709,10 +1709,10 @@ void Graphics::search_themes() {
 	char themepath[512];
 	make_theme_path(themepath, themedir.c_str());
 
-	LOG1("\nGraphics theme searching '%s'\n", themepath);
+	LOG1("Graphics theme searching '%s'\n", themepath);
 
 	if (0 == al_findfirst(themepath, &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY))
-		set_theme_dir(0);	// OK: load ; 0 = no change
+		set_theme_dir("");	// OK: load ; 0 = no change
 	else {
 		// graphics theme not found. find the first one
 		make_theme_path(themepath, "*.*");
@@ -1825,5 +1825,7 @@ void Graphics::unload_pictures() {
 
 void Graphics::set_themedir(const string& dir) {
 	themedir = dir;
+	if (dir == "-")
+		no_theme = true;
 }
 

@@ -538,7 +538,7 @@ bool ServerNetworking::start() {
 
 	//shell socket
 	//v0.4.2 : new port
-	int tcp_shell_port = 24500 + (port - 25000);
+	int tcp_shell_port = port - 500;
 
 	shellmsock = nlOpen((NLushort)tcp_shell_port, NL_RELIABLE);
 	if (shellmsock == NL_INVALID) {
@@ -2222,22 +2222,29 @@ void ServerNetworking::run_website_thread() {
 				LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO SERVER WEBSITE!\n");
 				continue;
 			}
-			nlGetAddrFromName(site_name.c_str(), &website_address);
+			if (!nlGetAddrFromName(site_name.c_str(), &website_address)) {
+				const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
+				LOG2("Can't get IP address for %s! Reason: %s\n", site_name.c_str(), reason);
+			}
 			int web_port = nlGetPortFromAddr(&website_address);
-			if (!web_port)
+			if (!web_port) {
 				web_port = 80;
-			nlSetAddrPort(&website_address, web_port);
-			if (nlConnect(websock, &website_address) == NL_FALSE) {		// connect
-				LOG2("SERVER CAN'T CONNECT TO %s:%d! Trying by IP address.\n", site_name.c_str(), web_port);
+				nlSetAddrPort(&website_address, web_port);
+			}
+			if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
+				const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
+				LOG3("SERVER CAN'T CONNECT TO %s:%d! Reason: %s\n", site_name.c_str(), web_port, reason);
 				nlStringToAddr(site_ip.c_str(), &website_address);
 				web_port = nlGetPortFromAddr(&website_address);
-				if (!web_port)
+				if (!web_port) {
 					web_port = 80;
-				nlSetAddrPort(&website_address, web_port);
+					nlSetAddrPort(&website_address, web_port);
+				}
 				if (nlConnect(websock, &website_address) == NL_FALSE) {	// connect to IP address
+					const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
+					LOG2("Server can't connect to %s! Reason: %s\n", site_ip.c_str(), reason);
 					nlClose(websock);
 					websock = NL_INVALID;
-					LOG2("SERVER CAN'T CONNECT TO %s:%d!\n", site_ip.c_str(), web_port);
 					continue;
 				}
 				else {	// save new name for web server
@@ -2314,7 +2321,7 @@ void ServerNetworking::run_website_thread() {
 
 	//connect
 	if (nlConnect(websock, &website_address) == NL_FALSE) {		//connect
-		LOG1("(QUIT) SERVER CAN'T CONNECT TO %s:80!\n", site_name.c_str());
+		LOG1("(QUIT) SERVER CAN'T CONNECT TO %s!\n", site_name.c_str());
 		nlClose(websock);
 		websock = NL_INVALID;
 		website_exiting_ok = true;
@@ -2377,7 +2384,6 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 	// URL encode parameter values
 	ostringstream param_line;
 	for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
-		//param_line << i->first << '=';
 		for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
 			url_encode(*s, param_line);
 		param_line << '=';
@@ -2426,6 +2432,17 @@ void ServerNetworking::url_encode(char c, ostream& out) const {
 		out << '+';
 	else				// encode unsafe characters to %xx
 		out << '%' << hex << setw(2) << setfill('0') << static_cast<int>(static_cast<unsigned char>(c));
+}
+
+bool ServerNetworking::is_url_safe(char c) const {
+	if (c >= 'a' && c <= 'z')
+		return true;
+	else if (c >= 'A' && c <= 'Z')
+		return true;
+	else if (c >= '0' && c <= '9')
+		return true;
+	const string safe_characters = "$-_.+!*'(),";
+	return safe_characters.find(c) != string::npos;
 }
 
 string ServerNetworking::base64_encode(const string& data) const {
@@ -3115,17 +3132,5 @@ void* ServerNetworking::thread_masterjob_f(void* arg) {
 void* ServerNetworking::thread_website_f(void* arg) {
 	((ServerNetworking*)arg)->run_website_thread();
 	return 0;
-}
-
-
-bool is_url_safe(char c) {
-	if (c >= 'a' && c <= 'z')
-		return true;
-	else if (c >= 'A' && c <= 'Z')
-		return true;
-	else if (c >= '0' && c <= '9')
-		return true;
-	const string safe_characters = "$-_.+!*'(),";
-	return safe_characters.find(c) != string::npos;
 }
 

@@ -117,7 +117,7 @@ inline void writeStr(char* buf, int& count, const string& src) {
 //************************************************************
 
 //the default game port
-#define DEFAULT_UDP_PORT 25000
+const NLushort DEFAULT_UDP_PORT = 25000;
 
 //the master server address (www.mycgiserver.com:80)
 extern NLaddress        master_address;
@@ -167,7 +167,7 @@ extern volatile bool force_exit;	// this is set true when the user tries to clos
 
 void closeButtonCallback();
 
-void server_status_string(char *str);
+void server_status_string(const std::string& str);
 double get_time();
 
 extern volatile int server_speed_counter;

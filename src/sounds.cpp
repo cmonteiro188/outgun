@@ -32,7 +32,7 @@ void Sounds::search_themes() {
 	char themepath[512];
 	make_sfx_theme_path(themepath, sfxthemedir.c_str());
 
-	LOG1("\ntheme searching '%s'\n", themepath);
+	LOG1("theme searching '%s'\n", themepath);
 
 	if (0==al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY))
 		set_theme_dir(0);	// OK: load ; 0 = no change
@@ -42,7 +42,7 @@ void Sounds::search_themes() {
 
 		int result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
 		for (; result==0; result = al_findnext(&sfxthemeffblk))
-			if ((sfxthemeffblk.attrib&FA_DIREC) && strcmp(sfxthemeffblk.name, ".")!=0 && strcmp(sfxthemeffblk.name, "..")!=0) {
+			if ((sfxthemeffblk.attrib & FA_DIREC) && strcmp(sfxthemeffblk.name, ".") != 0 && strcmp(sfxthemeffblk.name, "..") != 0) {
 				set_theme_dir(sfxthemeffblk.name);
 				break;
 			}
@@ -67,7 +67,8 @@ void Sounds::next_sfx_theme() {
 				validtheme = false;
 				return;
 			}
-			no_theme = !no_theme;
+			else
+				no_theme = !no_theme;
 			if (no_theme) {
 				unload_samples();
 				return;
@@ -140,8 +141,8 @@ void Sounds::set_theme_dir(char *dirname) {
 	this->sfxthemename = sfxthemename;
 
 	//play a sample
-	play(rand() % NUM_OF_SAMPLES);
-
+	if (!no_theme)
+		play(rand() % NUM_OF_SAMPLES);
 }
 
 //append the correct path
@@ -171,8 +172,7 @@ SAMPLE* Sounds::load_outgun_sample(const char *fname, int slot, bool try_redirec
 	LOG4("load_sample[%i]: '%s' = %p  rev = %i\n", slot, dest, ret, sample_reverse[slot]);
 
 	//V0.3.10: if not found, look for .txt redirect
-	if (try_redirect)	// don't go into endless loop
-	if (ret == 0) {
+	if (try_redirect && ret == 0) {	// don't go into endless loop
 
 		//txt filename
 		strcpy(soundname, "sound");
