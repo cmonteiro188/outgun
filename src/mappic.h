@@ -31,21 +31,21 @@
 class Map;
 
 class Mappic {
-	mutable LogSet log;
+    mutable LogSet log;
 
-	std::vector<std::string> smaps;	// server maps
+    std::vector<std::string> smaps; // server maps
 
-	std::vector<std::string> load_maps(const std::string& dir);
+    std::vector<std::string> load_maps(const std::string& dir);
 
-	void find_maps();
-	void save_pictures() const;
+    void find_maps();
+    void save_pictures() const;
 
 public:
-	Mappic(LogSet logs) : log(logs) { }
+    Mappic(LogSet logs) : log(logs) { }
 
-	void run();
+    void run();
 
-	class Save_error { };
+    class Save_error { };
 };
 
 #endif // MAPPIC_H_INC

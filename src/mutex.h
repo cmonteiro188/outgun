@@ -25,53 +25,53 @@
 #define MUTEX_H_INC
 
 #include <pthread.h>
-#include "debugconfig.h"	// for LOG_MUTEX_LOCKUNLOCK
+#include "debugconfig.h"    // for LOG_MUTEX_LOCKUNLOCK
 #include "nassert.h"
 #include "utility.h"
 
 class MutexHolder {
-	pthread_mutex_t mutex;
+    pthread_mutex_t mutex;
 
 public:
-	MutexHolder()  { nAssert(0 == pthread_mutex_init(&mutex, 0)); }
-	~MutexHolder() { nAssert(0 == pthread_mutex_destroy(&mutex)); }
-	void lock()    { logAction('L'); nAssert(0 == pthread_mutex_lock(&mutex)); logAction('G'); }
-	void unlock()  { logAction('U'); nAssert(0 == pthread_mutex_unlock(&mutex)); }
+    MutexHolder()  { nAssert(0 == pthread_mutex_init(&mutex, 0)); }
+    ~MutexHolder() { nAssert(0 == pthread_mutex_destroy(&mutex)); }
+    void lock()    { logAction('L'); nAssert(0 == pthread_mutex_lock(&mutex)); logAction('G'); }
+    void unlock()  { logAction('U'); nAssert(0 == pthread_mutex_unlock(&mutex)); }
 
 private:
-	void doLogAction(char operation);	// defined in debug.cpp
-	void logAction(char operation) {
-		if (LOG_MUTEX_LOCKUNLOCK)
-			doLogAction(operation);
-	}
+    void doLogAction(char operation);   // defined in debug.cpp
+    void logAction(char operation) {
+        if (LOG_MUTEX_LOCKUNLOCK)
+            doLogAction(operation);
+    }
 };
 
 class MutexLock {
-	MutexHolder& mutex;
+    MutexHolder& mutex;
 
 public:
-	MutexLock(MutexHolder& mutex_) : mutex(mutex_) { mutex.lock(); }
-	~MutexLock() { mutex.unlock(); }
+    MutexLock(MutexHolder& mutex_) : mutex(mutex_) { mutex.lock(); }
+    ~MutexLock() { mutex.unlock(); }
 };
 
 // Threadsafe: Wrapper of an object of type ObjT providing a thread safe very limited interface.
 template<class ObjT>
 class Threadsafe {
-	mutable MutexHolder mutex;
-	volatile ObjT obj;
+    mutable MutexHolder mutex;
+    volatile ObjT obj;
 
 public:
-	Threadsafe() { }
-	Threadsafe(const ObjT& o) : obj(o) { }
+    Threadsafe() { }
+    Threadsafe(const ObjT& o) : obj(o) { }
 
-	Threadsafe& operator=(const ObjT& o) { mutex.lock(); volatile_ref_cast<ObjT>(obj) = o; mutex.unlock(); return *this; }
-	ObjT read() const { mutex.lock(); ObjT o = volatile_ref_cast<const ObjT>(obj); mutex.unlock(); return o; }	// Get a *copy* of the object
+    Threadsafe& operator=(const ObjT& o) { mutex.lock(); volatile_ref_cast<ObjT>(obj) = o; mutex.unlock(); return *this; }
+    ObjT read() const { mutex.lock(); ObjT o = volatile_ref_cast<const ObjT>(obj); mutex.unlock(); return o; }  // Get a *copy* of the object
 
-	// for more complex operations, use lock(), access() and unlock()
-	void lock() const { mutex.lock(); }
-	void unlock() const { mutex.unlock(); }
-	      ObjT& access()       { return obj; }	// use obj only between lock() and unlock()
-	const ObjT& access() const { return obj; }	// use obj only between lock() and unlock()
+    // for more complex operations, use lock(), access() and unlock()
+    void lock() const { mutex.lock(); }
+    void unlock() const { mutex.unlock(); }
+          ObjT& access()       { return obj; }  // use obj only between lock() and unlock()
+    const ObjT& access() const { return obj; }  // use obj only between lock() and unlock()
 };
 
 extern MutexHolder nlOpenMutex;

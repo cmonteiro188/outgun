@@ -37,7 +37,7 @@ int atoi(const std::string& str);
 std::string itoa(int val);
 std::string fcvt(double val);
 int iround(double value);
-int numberWidth(int num);	// how many characters num takes when printed
+int numberWidth(int num);   // how many characters num takes when printed
 
 // Returns the current time in the standard format.
 std::string date_and_time();
@@ -66,22 +66,22 @@ const char* strspnp(const char* str, const char* charset);
 
 class Log;
 class LogSet {
-	// the objects aren't owned by this class
-	Log* normalLog;
-	Log* errorLog;
-	Log* securityLog;
+    // the objects aren't owned by this class
+    Log* normalLog;
+    Log* errorLog;
+    Log* securityLog;
 
 public:
-	LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }	// null pointers are allowed
-	~LogSet() { }
+    LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }  // null pointers are allowed
+    ~LogSet() { }
 
-	void operator()(const char* fmt, ...);
-	void error(const char* fmt, ...);
-	void security(const char* fmt, ...);
+    void operator()(const char* fmt, ...);
+    void error(const char* fmt, ...);
+    void security(const char* fmt, ...);
 
-	Log* accessNormal() { return normalLog; }
-	Log* accessError() { return errorLog; }
-	Log* accessSecurity() { return securityLog; }
+    Log* accessNormal() { return normalLog; }
+    Log* accessError() { return errorLog; }
+    Log* accessSecurity() { return securityLog; }
 };
 
 class MemoryLog;
@@ -89,11 +89,11 @@ void errorMessage(const std::string& heading, MemoryLog& errorLog);
 
 class LineReceiver {
 protected:
-	LineReceiver() { }
-	virtual ~LineReceiver() { }
+    LineReceiver() { }
+    virtual ~LineReceiver() { }
 
 public:
-	virtual LineReceiver& operator()(const std::string& str) =0;
+    virtual LineReceiver& operator()(const std::string& str) =0;
 };
 
 bool is_keypad(int sc);

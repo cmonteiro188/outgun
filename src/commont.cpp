@@ -38,113 +38,113 @@ using std::istream;
 using std::string;
 
 void ClientControls::fromKeyboard(bool use_pad) {
-	data = 0;
-	if (key[KEY_UP] || (key[KEY_8_PAD] && use_pad))
-		data |= up;
-	if (key[KEY_DOWN] || (key[KEY_2_PAD] && use_pad))
-		data |= down;
-	if (key[KEY_LEFT] || (key[KEY_4_PAD] && use_pad))
-		data |= left;
-	if (key[KEY_RIGHT] || (key[KEY_6_PAD] && use_pad))
-		data |= right;
-	if (use_pad) {
-		if (key[KEY_7_PAD])
-			data |= up | left;
-		if (key[KEY_9_PAD])
-			data |= up | right;
-		if (key[KEY_1_PAD])
-			data |= down | left;
-		if (key[KEY_3_PAD])
-			data |= down | right;
-	}
-	if (key[KEY_LSHIFT] || key[KEY_RSHIFT])
-		data |= run;
-	if (key[KEY_ALT] || key[KEY_ALTGR])
-		data |= strafe;
+    data = 0;
+    if (key[KEY_UP] || (key[KEY_8_PAD] && use_pad))
+        data |= up;
+    if (key[KEY_DOWN] || (key[KEY_2_PAD] && use_pad))
+        data |= down;
+    if (key[KEY_LEFT] || (key[KEY_4_PAD] && use_pad))
+        data |= left;
+    if (key[KEY_RIGHT] || (key[KEY_6_PAD] && use_pad))
+        data |= right;
+    if (use_pad) {
+        if (key[KEY_7_PAD])
+            data |= up | left;
+        if (key[KEY_9_PAD])
+            data |= up | right;
+        if (key[KEY_1_PAD])
+            data |= down | left;
+        if (key[KEY_3_PAD])
+            data |= down | right;
+    }
+    if (key[KEY_LSHIFT] || key[KEY_RSHIFT])
+        data |= run;
+    if (key[KEY_ALT] || key[KEY_ALTGR])
+        data |= strafe;
 }
 
 void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_button) {
-	if (poll_joystick())
-		return;		// failure
-	// Do not reset data because keyboard controls should remain.
-	const JOYSTICK_INFO& joystick = joy[0];
-	if (joystick.num_sticks > moving_stick) {
-		if (joystick.stick[moving_stick].num_axis >= 2) {
-			if (joystick.stick[moving_stick].axis[0].d1)
-				data |= left;
-			if (joystick.stick[moving_stick].axis[0].d2)
-				data |= right;
-			if (joystick.stick[moving_stick].axis[1].d1)
-				data |= up;
-			if (joystick.stick[moving_stick].axis[1].d2)
-				data |= down;
-		}
-	}
-	if (run_button != -1 && joystick.num_buttons > run_button && joystick.button[run_button].b)
-		data |= run;
-	if (strafe_button != -1 && joystick.num_buttons > strafe_button && joystick.button[strafe_button].b)
-		data |= strafe;
+    if (poll_joystick())
+        return;     // failure
+    // Do not reset data because keyboard controls should remain.
+    const JOYSTICK_INFO& joystick = joy[0];
+    if (joystick.num_sticks > moving_stick) {
+        if (joystick.stick[moving_stick].num_axis >= 2) {
+            if (joystick.stick[moving_stick].axis[0].d1)
+                data |= left;
+            if (joystick.stick[moving_stick].axis[0].d2)
+                data |= right;
+            if (joystick.stick[moving_stick].axis[1].d1)
+                data |= up;
+            if (joystick.stick[moving_stick].axis[1].d2)
+                data |= down;
+        }
+    }
+    if (run_button != -1 && joystick.num_buttons > run_button && joystick.button[run_button].b)
+        data |= run;
+    if (strafe_button != -1 && joystick.num_buttons > strafe_button && joystick.button[strafe_button].b)
+        data |= strafe;
 }
 
 NLaddress master_address;
 
 istream& getline_smart(istream& in, string& str) {
-	str.clear();
-	while (1) {
-		const char c = in.get();
-		if (!in) {
-			if (!str.empty())
-				in.clear();
-			return in;
-		}
-		if (c == '\n' || c == '\r') {
-			if (str.empty())
-				continue;
-			else
-				return in;
-		}
-		str += c;
-	}
+    str.clear();
+    while (1) {
+        const char c = in.get();
+        if (!in) {
+            if (!str.empty())
+                in.clear();
+            return in;
+        }
+        if (c == '\n' || c == '\r') {
+            if (str.empty())
+                continue;
+            else
+                return in;
+        }
+        str += c;
+    }
 }
 
 istream& getline_skip_comments(istream& in, string& str) {
-	while (getline_smart(in, str))
-    	if (str[0] != ';')	// str is never empty when getline_smart succeeds
-        	return in;
-	return in;
+    while (getline_smart(in, str))
+        if (str[0] != ';')  // str is never empty when getline_smart succeeds
+            return in;
+    return in;
 }
 
 bool check_name(const std::string& name) {
-	if (name.length() > 15)
-		return false;
-	if (name.find_first_not_of(" \xA0") == string::npos)	// Name with only spaces and no-brake spaces not allowed.
-		return false;
-	if (find_nonprintable_char(name))
-		return false;
-	if (name.find_first_of(" \xA0") == 0 || name.find_last_of(" \xA0") == name.length() - 1)
-		return false;
-	return true;
+    if (name.length() > 15)
+        return false;
+    if (name.find_first_not_of(" \xA0") == string::npos)    // Name with only spaces and no-brake spaces not allowed.
+        return false;
+    if (find_nonprintable_char(name))
+        return false;
+    if (name.find_first_of(" \xA0") == 0 || name.find_last_of(" \xA0") == name.length() - 1)
+        return false;
+    return true;
 }
 
 volatile bool GlobalDisplaySwitchHook::flag = false;
 
 void GlobalDisplaySwitchHook__callback() {
-	GlobalDisplaySwitchHook::flag = true;
+    GlobalDisplaySwitchHook::flag = true;
 } END_OF_FUNCTION(GlobalDisplaySwitchHook__callback);
 
 void GlobalDisplaySwitchHook::init() {
-	LOCK_VARIABLE(flag);
-	LOCK_FUNCTION(GlobalDisplaySwitchHook__callback);
-	flag = false;
+    LOCK_VARIABLE(flag);
+    LOCK_FUNCTION(GlobalDisplaySwitchHook__callback);
+    flag = false;
 }
 
 void GlobalDisplaySwitchHook::install() {
-	set_display_switch_callback(SWITCH_IN, GlobalDisplaySwitchHook__callback);
+    set_display_switch_callback(SWITCH_IN, GlobalDisplaySwitchHook__callback);
 }
 
 bool GlobalDisplaySwitchHook::readAndClear() {
-	bool f = flag;
-	if (f)
-		flag = false;
-	return f;
+    bool f = flag;
+    if (f)
+        flag = false;
+    return f;
 }

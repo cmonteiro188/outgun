@@ -27,7 +27,7 @@
 // stack guard is a magic number that should be somewhere on the stack to prevent the stack dump from going further and making a page fault
 // you should have a local variable unsigned long stackGuard = STACK_GUARD; in main() and all thread entry functions
 static const unsigned long STACK_GUARD = 0x39D1209E;
-extern unsigned long* stackGuardHackPtr;	// set stackGuardHackPtr = &stackGuard to make sure the stackGuard variable isn't optimized away
+extern unsigned long* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to make sure the stackGuard variable isn't optimized away
 
 #ifdef NDEBUG
  #define nAssert(expr) ((void)0)
@@ -43,11 +43,11 @@ extern unsigned long* stackGuardHackPtr;	// set stackGuardHackPtr = &stackGuard 
  void nAssertFail(const char* expr, ARGP, ARGP, ARGP, const char* file, int line);
  void nAssertFail(const char* expr, ARGP, ARGP, ARGP, ARGP, const char* file, int line);
  #undef ARGP
- #define nAssert(expr)						((expr)?(void)0:nAssertFail(#expr, __FILE__, __LINE__))
- #define numAssert(expr, v1)				((expr)?(void)0:nAssertFail(#expr, #v1, v1, __FILE__, __LINE__))
- #define numAssert2(expr, v1, v2)			((expr)?(void)0:nAssertFail(#expr, #v1, v1, #v2, v2, __FILE__, __LINE__))
- #define numAssert3(expr, v1, v2, v3)		((expr)?(void)0:nAssertFail(#expr, #v1, v1, #v2, v2, #v3, v3, __FILE__, __LINE__))
- #define numAssert4(expr, v1, v2, v3, v4)	((expr)?(void)0:nAssertFail(#expr, #v1, v1, #v2, v2, #v3, v3, #v4, v4, __FILE__, __LINE__))
+ #define nAssert(expr)                      ((expr)?(void)0:nAssertFail(#expr, __FILE__, __LINE__))
+ #define numAssert(expr, v1)                ((expr)?(void)0:nAssertFail(#expr, #v1, v1, __FILE__, __LINE__))
+ #define numAssert2(expr, v1, v2)           ((expr)?(void)0:nAssertFail(#expr, #v1, v1, #v2, v2, __FILE__, __LINE__))
+ #define numAssert3(expr, v1, v2, v3)       ((expr)?(void)0:nAssertFail(#expr, #v1, v1, #v2, v2, #v3, v3, __FILE__, __LINE__))
+ #define numAssert4(expr, v1, v2, v3, v4)   ((expr)?(void)0:nAssertFail(#expr, #v1, v1, #v2, v2, #v3, v3, #v4, v4, __FILE__, __LINE__))
 #endif // NDEBUG
 
 #undef assert

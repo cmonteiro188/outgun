@@ -35,33 +35,33 @@ class LogSet;
 
 class ServerExternalSettings {
 public:
-	bool dedserver;		// dedicated server? only affects what's told to master and asking players
-	int port;			// the server port
-	bool privateserver;	// private server?
-	std::string force_ip_name;	//force IP to what?	
-	// forced means set from the outside so that the server should not change them according to lesser priority requests
-	bool portForced;
-	bool privSettingForced;
-	bool ipForced;
-	int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
-	int lowerPriority, priority, networkPriority;	// lower is used for non-timecritical background threads
+    bool dedserver;     // dedicated server? only affects what's told to master and asking players
+    int port;           // the server port
+    bool privateserver; // private server?
+    std::string force_ip_name;  //force IP to what? 
+    // forced means set from the outside so that the server should not change them according to lesser priority requests
+    bool portForced;
+    bool privSettingForced;
+    bool ipForced;
+    int server_maxplayers;  //maxplayers for the local server, given on the command line (don't use anywhere new)
+    int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
 
-	typedef void StatusOutputFnT(const std::string& str);
-	StatusOutputFnT* statusOutput;	// must be set properly (non-null) when used
+    typedef void StatusOutputFnT(const std::string& str);
+    StatusOutputFnT* statusOutput;  // must be set properly (non-null) when used
 
-	ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), privateserver(false),
-		portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), statusOutput(0) { }
+    ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), privateserver(false),
+        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), statusOutput(0) { }
 };
 
 class GameserverInterface {
-	Server* host;
+    Server* host;
 
 public:
-	GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings);
-	~GameserverInterface();
-	bool start(int maxplayers);
-	void loop(volatile bool *quitFlag, bool quitOnEsc);
-	void stop();
+    GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings);
+    ~GameserverInterface();
+    bool start(int maxplayers);
+    void loop(volatile bool *quitFlag, bool quitOnEsc);
+    void stop();
 };
 
 // implementation is in server.cpp

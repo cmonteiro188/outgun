@@ -33,8 +33,8 @@
 #include <cctype>
 
 #include "leetnet/server.h"
-#include "leetnet/rudp.h"	// get_self_IP
-#include "leetnet/sleep.h"	// sleep util
+#include "leetnet/rudp.h"   // get_self_IP
+#include "leetnet/sleep.h"  // sleep util
 #include "admshell.h"
 #include "commont.h"
 #include "debug.h"
@@ -44,7 +44,7 @@
 #include "network.h"
 #include "server.h"
 #include "platform.h"
-#include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
+#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "servnet.h"
 #include "thread.h"
 
@@ -68,2617 +68,2617 @@ using std::vector;
 // tournament thread job struct
 class MasterQuery {
 public:
-	string request;
-	enum JobType { JT_score, JT_login };
-	JobType code;
-	int cid;
+    string request;
+    enum JobType { JT_score, JT_login };
+    JobType code;
+    int cid;
 };
 
 ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs) :
-	host(hostp),
-	world(w),
-	log(logs),
-	hostname("Anonymous host"),
-	player_count(0),
-	localPlayers(0),
-	maplist_revision(0),
-	web_refresh(0)
+    host(hostp),
+    world(w),
+    log(logs),
+    hostname("Anonymous host"),
+    player_count(0),
+    localPlayers(0),
+    maplist_revision(0),
+    web_refresh(0)
 {
-	server = 0;
-	#ifdef SEND_FRAMEOFFSET
-	frameSentTime = 0;	// no meaning
-	#endif
+    server = 0;
+    #ifdef SEND_FRAMEOFFSET
+    frameSentTime = 0;  // no meaning
+    #endif
 }
 
 ServerNetworking::~ServerNetworking() {
-	if (server) {
-		delete server;
-		server = 0;
-	}
+    if (server) {
+        delete server;
+        server = 0;
+    }
 }
 
 void ServerNetworking::upload_next_file_chunk(int i) {
-	const int max_chunksize = 128;		// the max chunk size in bytes
+    const int max_chunksize = 128;      // the max chunk size in bytes
 
-	//actual size sent
-	int chunksize = fileTransfer[i].fsize - fileTransfer[i].dp;		//attempt to send remaining...
-	if (chunksize > max_chunksize)							//...but there is the maximum
-		chunksize = max_chunksize;
+    //actual size sent
+    int chunksize = fileTransfer[i].fsize - fileTransfer[i].dp;     //attempt to send remaining...
+    if (chunksize > max_chunksize)                          //...but there is the maximum
+        chunksize = max_chunksize;
 
-	//check if will be last
-	NLubyte islast = 0;	//default:no
-	if (fileTransfer[i].dp + chunksize == fileTransfer[i].fsize) //maybe yes?
-		islast = 1;		//yes.
+    //check if will be last
+    NLubyte islast = 0; //default:no
+    if (fileTransfer[i].dp + chunksize == fileTransfer[i].fsize) //maybe yes?
+        islast = 1;     //yes.
 
-	//send
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_file_download);
-	writeShort(lebuf, count, static_cast<NLushort>(chunksize));
-	writeByte(lebuf, count, islast);
-	writeBlock(lebuf, count, &(fileTransfer[i].data[fileTransfer[i].dp]), chunksize);
-	server->send_message(i, lebuf, count);
+    //send
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_file_download);
+    writeShort(lebuf, count, static_cast<NLushort>(chunksize));
+    writeByte(lebuf, count, islast);
+    writeBlock(lebuf, count, &(fileTransfer[i].data[fileTransfer[i].dp]), chunksize);
+    server->send_message(i, lebuf, count);
 
-	//save old dp for the ack
-	fileTransfer[i].old_dp = fileTransfer[i].dp;
+    //save old dp for the ack
+    fileTransfer[i].old_dp = fileTransfer[i].dp;
 
-	//inc dp
-	fileTransfer[i].dp += chunksize;
+    //inc dp
+    fileTransfer[i].dp += chunksize;
 }
 
 //load file from disk. puts file of type/name into the given buffer, returns filesize
 int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
-	//map file type
-	if (!strcmp(ftype, "map")) {
-		if (strpbrk(fname, "./:\\")) {
-			log("Illegal file download attempt: map \"%s\"", fname);
-			return -1;
-		}
+    //map file type
+    if (!strcmp(ftype, "map")) {
+        if (strpbrk(fname, "./:\\")) {
+            log("Illegal file download attempt: map \"%s\"", fname);
+            return -1;
+        }
 
-		string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
+        string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
 
-		FILE *fmap = fopen(fileName.c_str(), "rb");
-		if (fmap) {
-			int amount = fread(lebuf, 1, 65536, fmap);
-			fclose(fmap);
-			log("Uploading map \"%s\"", fname);
-			return amount;
-		}
-		else {
-			log("Nonexisting map download attempt: map \"%s\"", fname);
-			return -1;
-		}
-	}
-	else {
-		log("Unknown download type \"%s\"", ftype);
-		return -1;
-	}
+        FILE *fmap = fopen(fileName.c_str(), "rb");
+        if (fmap) {
+            int amount = fread(lebuf, 1, 65536, fmap);
+            fclose(fmap);
+            log("Uploading map \"%s\"", fname);
+            return amount;
+        }
+        else {
+            log("Nonexisting map download attempt: map \"%s\"", fname);
+            return -1;
+        }
+    }
+    else {
+        log("Unknown download type \"%s\"", ftype);
+        return -1;
+    }
 }
 
 void ServerNetworking::send_me_packet(int pid) {
-	int count = 0;
-	char lebuf[1024];
-	writeByte(lebuf, count, data_first_packet);
-	writeByte(lebuf, count, ((NLubyte)pid));					// who am I
-	writeByte(lebuf, count, ((NLubyte)world.player[pid].color()));
-	writeByte(lebuf, count, ((NLubyte)host->current_map_nr()));	// current map
-	writeByte(lebuf, count, ((NLubyte)world.teams[0].score()));	// team 0 current score
-	writeByte(lebuf, count, ((NLubyte)world.teams[1].score()));	// team 1 current score
-	world.physics.write(lebuf, count);
-	server->send_message(world.player[pid].cid, lebuf, count);
+    int count = 0;
+    char lebuf[1024];
+    writeByte(lebuf, count, data_first_packet);
+    writeByte(lebuf, count, ((NLubyte)pid));                    // who am I
+    writeByte(lebuf, count, ((NLubyte)world.player[pid].color()));
+    writeByte(lebuf, count, ((NLubyte)host->current_map_nr())); // current map
+    writeByte(lebuf, count, ((NLubyte)world.teams[0].score())); // team 0 current score
+    writeByte(lebuf, count, ((NLubyte)world.teams[1].score())); // team 1 current score
+    world.physics.write(lebuf, count);
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 //send a player name update to a client
 void ServerNetworking::send_player_name_update(int cid, int pid) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_name_update);
-	writeByte(lebuf, count, pid);		// what player id
-	writeStr(lebuf, count, world.player[pid].name);
-	server->send_message(cid, lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_name_update);
+    writeByte(lebuf, count, pid);       // what player id
+    writeStr(lebuf, count, world.player[pid].name);
+    server->send_message(cid, lebuf, count);
 }
 
 //broadcast new player name
 void ServerNetworking::broadcast_player_name(int pid) {
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			send_player_name_update(world.player[i].cid, pid);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            send_player_name_update(world.player[i].cid, pid);
 
-	//update the ADMIN SHELL
-	if (shellssock != NL_INVALID) {
-		char lebuf[256]; int count = 0;
-		writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-		writeLong(lebuf, count, world.player[pid].cid);
-		writeStr(lebuf, count, world.player[pid].name);
-		nlWrite(shellssock, lebuf, count);
-	}
+    //update the ADMIN SHELL
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+        writeLong(lebuf, count, world.player[pid].cid);
+        writeStr(lebuf, count, world.player[pid].name);
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 //send a player crap update to a client
 void ServerNetworking::send_player_crap_update(int cid, int pid) {
-	const ClientData& clid = host->getClientData(world.player[pid].cid);
+    const ClientData& clid = host->getClientData(world.player[pid].cid);
 
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_crap_update);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_crap_update);
 
-	// --- RECALC CRAP ---
-	ClientLoginStatus st;
-	st.setToken(clid.token_have);
-	st.setMasterAuth(clid.token_have && clid.token_valid);
-	st.setTournament(host->tournament_active() && clid.token_have && clid.current_participation);
-	st.setLocalAuth(host->isLocallyAuthorized(pid));
-	st.setAdmin(host->isAdmin(pid));
-	world.player[pid].reg_status = st;
+    // --- RECALC CRAP ---
+    ClientLoginStatus st;
+    st.setToken(clid.token_have);
+    st.setMasterAuth(clid.token_have && clid.token_valid);
+    st.setTournament(host->tournament_active() && clid.token_have && clid.current_participation);
+    st.setLocalAuth(host->isLocallyAuthorized(pid));
+    st.setAdmin(host->isAdmin(pid));
+    world.player[pid].reg_status = st;
 
-	writeByte(lebuf, count, (NLubyte)pid);
-	writeByte(lebuf, count, (NLubyte)world.player[pid].color());
-	writeByte(lebuf, count,          world.player[pid].reg_status.toNetwork());
-	writeLong(lebuf, count, (NLulong)clid.rank);
-	writeLong(lebuf, count, (NLulong)clid.score);
-	writeLong(lebuf, count, (NLulong)clid.neg_score);
-	writeLong(lebuf, count, (NLulong)max_world_rank);
+    writeByte(lebuf, count, (NLubyte)pid);
+    writeByte(lebuf, count, (NLubyte)world.player[pid].color());
+    writeByte(lebuf, count,          world.player[pid].reg_status.toNetwork());
+    writeLong(lebuf, count, (NLulong)clid.rank);
+    writeLong(lebuf, count, (NLulong)clid.score);
+    writeLong(lebuf, count, (NLulong)clid.neg_score);
+    writeLong(lebuf, count, (NLulong)max_world_rank);
 
-	server->send_message(cid, lebuf, count);
+    server->send_message(cid, lebuf, count);
 }
 
 //v0.4.5: broadcast player crap
 void ServerNetworking::broadcast_player_crap(int pid) {
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			send_player_crap_update(world.player[i].cid, pid);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            send_player_crap_update(world.player[i].cid, pid);
 }
 
 // messages to update moved players (players/clients with new clients/players)
 void ServerNetworking::move_update_player(int a, bool silent) {
-	if (!world.player[a].used)
-		return;
+    if (!world.player[a].used)
+        return;
 
-	ctop[world.player[a].cid] = a;
+    ctop[world.player[a].cid] = a;
 
-	world.player[a].stats().finish_stats(get_time());
+    world.player[a].stats().finish_stats(get_time());
 
-	broadcast_player_name(a);
-	send_me_packet(a);
+    broadcast_player_name(a);
+    send_me_packet(a);
 
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_frags_update);
-	writeByte(lebuf, count, a);		// what player id
-	writeLong(lebuf, count, world.player[a].stats().frags());
-	server->broadcast_message(lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_frags_update);
+    writeByte(lebuf, count, a);     // what player id
+    writeLong(lebuf, count, world.player[a].stats().frags());
+    server->broadcast_message(lebuf, count);
 
-	broadcast_player_crap(a);
-	broadcast_stats(world.player[a]);
-	broadcast_movements_and_shots(world.player[a]);
+    broadcast_player_crap(a);
+    broadcast_stats(world.player[a]);
+    broadcast_movements_and_shots(world.player[a]);
 
-	//message
-	if (!silent)
-		bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
+    //message
+    if (!silent)
+        bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
 }
 
 //broadcast a sample
 void ServerNetworking::broadcast_sample(int code) {
-	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, data_sound);
-	writeByte(lebuf, count, (NLubyte)code);		// the sample code
-	server->broadcast_message(lebuf, count);
+    char lebuf[64]; int count = 0;
+    writeByte(lebuf, count, data_sound);
+    writeByte(lebuf, count, (NLubyte)code);     // the sample code
+    server->broadcast_message(lebuf, count);
 }
 
 //play a sample to a player's screen audience
 void ServerNetworking::broadcast_screen_sample(int p, int code) {
-	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, data_sound);
-	writeByte(lebuf, count, (NLubyte)code);		// the sample code
-	broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
+    char lebuf[64]; int count = 0;
+    writeByte(lebuf, count, data_sound);
+    writeByte(lebuf, count, (NLubyte)code);     // the sample code
+    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
 }
 
 //send current flag status (cid == -1 : broadcast)
 void ServerNetworking::ctf_net_flag_status(int cid, int team) {
-	//just resetting server state -- no update needed
-	if (!server)
-		return;
+    //just resetting server state -- no update needed
+    if (!server)
+        return;
 
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_flag_update);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_flag_update);
 
-	writeByte(lebuf, count, static_cast<NLubyte>(team));	//what team
+    writeByte(lebuf, count, static_cast<NLubyte>(team));    //what team
 
-	// how many flags
-	NLubyte size;
-	if (team == 2)
-		size = static_cast<NLubyte>(world.wild_flags.size());
-	else
-		size = static_cast<NLubyte>(world.teams[team].flags().size());
-	writeByte(lebuf, count, size);
+    // how many flags
+    NLubyte size;
+    if (team == 2)
+        size = static_cast<NLubyte>(world.wild_flags.size());
+    else
+        size = static_cast<NLubyte>(world.teams[team].flags().size());
+    writeByte(lebuf, count, size);
 
-	const vector<Flag>& flags = team == 2 ? world.wild_flags : world.teams[team].flags();
-	for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-		if (fi->carried())	{
-			writeByte(lebuf, count, 1);	// carried
-			//new flag carrier
-			writeByte(lebuf, count, static_cast<NLubyte>(fi->carrier()));	//player who took it
-		}
-		else {
-			writeByte(lebuf, count, 0);	// not carried
-			//new flag position
-			writeByte(lebuf, count, static_cast<NLubyte>(fi->position().px));
-			writeByte(lebuf, count, static_cast<NLubyte>(fi->position().py));
-			writeShort(lebuf, count, static_cast<NLshort>(fi->position().x));
-			writeShort(lebuf, count, static_cast<NLshort>(fi->position().y));
-		}
+    const vector<Flag>& flags = team == 2 ? world.wild_flags : world.teams[team].flags();
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+        if (fi->carried())  {
+            writeByte(lebuf, count, 1); // carried
+            //new flag carrier
+            writeByte(lebuf, count, static_cast<NLubyte>(fi->carrier()));   //player who took it
+        }
+        else {
+            writeByte(lebuf, count, 0); // not carried
+            //new flag position
+            writeByte(lebuf, count, static_cast<NLubyte>(fi->position().px));
+            writeByte(lebuf, count, static_cast<NLubyte>(fi->position().py));
+            writeShort(lebuf, count, static_cast<NLshort>(fi->position().x));
+            writeShort(lebuf, count, static_cast<NLshort>(fi->position().y));
+        }
 
-	if (cid == -1)
-		server->broadcast_message(lebuf, count);
-	else
-		server->send_message(cid, lebuf, count);
+    if (cid == -1)
+        server->broadcast_message(lebuf, count);
+    else
+        server->send_message(cid, lebuf, count);
 }
 
 //update team scores
 void ServerNetworking::ctf_update_teamscore(int t) {
-	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, data_score_update);
-	writeByte(lebuf, count, static_cast<NLubyte>(t));		// the team
-	writeByte(lebuf, count, static_cast<NLubyte>(world.teams[t].score()));	//the score
-	server->broadcast_message(lebuf, count);
+    char lebuf[64]; int count = 0;
+    writeByte(lebuf, count, data_score_update);
+    writeByte(lebuf, count, static_cast<NLubyte>(t));       // the team
+    writeByte(lebuf, count, static_cast<NLubyte>(world.teams[t].score()));  //the score
+    server->broadcast_message(lebuf, count);
 }
 
 // Tell that stats are ready for saving.
 void ServerNetworking::broadcast_stats_ready() const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_stats_ready);
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_stats_ready);
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_capture(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_capture);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_capture);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_flag_take(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_flag_take);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_flag_take);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_flag_return);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_flag_return);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    server->broadcast_message(lebuf, count);
 }
 
 // player dropped the flag on purpose
 void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_flag_drop);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_flag_drop);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_kill);
-	// first byte, deatbringer bit and attacker id
-	NLubyte att_db = attacker.id;
-	if (deathbringer)
-		att_db |= 0x80;
-	// second byte, flag bit and target id
-	NLubyte tar_flag = target.id;
-	if (flag)
-		tar_flag |= 0x80;
-	writeByte(lebuf, count, att_db);
-	writeByte(lebuf, count, tar_flag);
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_kill);
+    // first byte, deatbringer bit and attacker id
+    NLubyte att_db = attacker.id;
+    if (deathbringer)
+        att_db |= 0x80;
+    // second byte, flag bit and target id
+    NLubyte tar_flag = target.id;
+    if (flag)
+        tar_flag |= 0x80;
+    writeByte(lebuf, count, att_db);
+    writeByte(lebuf, count, tar_flag);
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_suicide);
-	NLubyte id_flag = player.id;
-	if (flag)
-		id_flag |= 0x80;
-	writeByte(lebuf, count, id_flag);
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_suicide);
+    NLubyte id_flag = player.id;
+    if (flag)
+        id_flag |= 0x80;
+    writeByte(lebuf, count, id_flag);
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_new_player);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_new_player);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_spawn);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_spawn);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    server->broadcast_message(lebuf, count);
 }
 
 // Send player's movement and shots to everyone.
 void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_movements_shots);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-	const Statistics& stats = player.stats();
-	writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
-	writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
-	writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
-	writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
-	server->broadcast_message(lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_movements_shots);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    const Statistics& stats = player.stats();
+    writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
+    writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
+    writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
+    writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
+    server->broadcast_message(lebuf, count);
 }
 
 // Send player's stats to everyone.
 void ServerNetworking::broadcast_stats(const ServerPlayer& player) const {
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			send_stats(player, world.player[i].cid);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            send_stats(player, world.player[i].cid);
 }
 
 // Send everyone's stats to player.
 void ServerNetworking::send_stats(const ServerPlayer& player) const {
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			send_stats(world.player[i], player.cid);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            send_stats(world.player[i], player.cid);
 }
 
 // Send player's stats to client cid.
 void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const {
-	char lebuf[64];
-	int count = 0;
-	writeByte(lebuf, count, data_stats);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.flag() ? 0x80 : 0x00) | (player.dead ? 0x40 : 0x00));
-	const Statistics& stats = player.stats();
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_kills()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_kills()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_deaths()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_deaths()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.suicides()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.captures()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_taken()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_dropped()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_returned()));
-	writeByte(lebuf, count, static_cast<NLubyte>(stats.carriers_killed()));
-	writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
-	writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
-	writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
-	server->send_message(cid, lebuf, count);
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_stats);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.flag() ? 0x80 : 0x00) | (player.dead ? 0x40 : 0x00));
+    const Statistics& stats = player.stats();
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_kills()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_kills()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_deaths()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_deaths()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.suicides()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.captures()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_taken()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_dropped()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_returned()));
+    writeByte(lebuf, count, static_cast<NLubyte>(stats.carriers_killed()));
+    writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
+    writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
+    writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
+    server->send_message(cid, lebuf, count);
 }
 
 void ServerNetworking::send_team_movements_and_shots(const ServerPlayer& player) const {
-	char lebuf[256];
-	int count = 0;
-	writeByte(lebuf, count, data_team_movements_shots);
-	for (int i = 0; i < 2; i++) {
-		const Team& team = world.teams[i];
-		writeLong(lebuf, count, static_cast<NLlong>(team.movement()));
-		writeShort(lebuf, count, static_cast<NLshort>(team.shots()));
-		writeShort(lebuf, count, static_cast<NLshort>(team.hits()));
-		writeShort(lebuf, count, static_cast<NLshort>(team.shots_taken()));
-	}
-	server->send_message(player.cid, lebuf, count);
+    char lebuf[256];
+    int count = 0;
+    writeByte(lebuf, count, data_team_movements_shots);
+    for (int i = 0; i < 2; i++) {
+        const Team& team = world.teams[i];
+        writeLong(lebuf, count, static_cast<NLlong>(team.movement()));
+        writeShort(lebuf, count, static_cast<NLshort>(team.shots()));
+        writeShort(lebuf, count, static_cast<NLshort>(team.hits()));
+        writeShort(lebuf, count, static_cast<NLshort>(team.shots_taken()));
+    }
+    server->send_message(player.cid, lebuf, count);
 }
 
 void ServerNetworking::send_team_stats(const ServerPlayer& player) const {
-	char lebuf[256];
-	int count = 0;
-	writeByte(lebuf, count, data_team_stats);
-	for (int i = 0; i < 2; i++) {
-		const Team& team = world.teams[i];
-		writeByte(lebuf, count, static_cast<NLubyte>(team.kills()));
-		writeByte(lebuf, count, static_cast<NLubyte>(team.deaths()));
-		writeByte(lebuf, count, static_cast<NLubyte>(team.suicides()));
-		writeByte(lebuf, count, static_cast<NLubyte>(team.flags_taken()));
-		writeByte(lebuf, count, static_cast<NLubyte>(team.flags_dropped()));
-		writeByte(lebuf, count, static_cast<NLubyte>(team.flags_returned()));
-	}
-	server->send_message(player.cid, lebuf, count);
+    char lebuf[256];
+    int count = 0;
+    writeByte(lebuf, count, data_team_stats);
+    for (int i = 0; i < 2; i++) {
+        const Team& team = world.teams[i];
+        writeByte(lebuf, count, static_cast<NLubyte>(team.kills()));
+        writeByte(lebuf, count, static_cast<NLubyte>(team.deaths()));
+        writeByte(lebuf, count, static_cast<NLubyte>(team.suicides()));
+        writeByte(lebuf, count, static_cast<NLubyte>(team.flags_taken()));
+        writeByte(lebuf, count, static_cast<NLubyte>(team.flags_dropped()));
+        writeByte(lebuf, count, static_cast<NLubyte>(team.flags_returned()));
+    }
+    server->send_message(player.cid, lebuf, count);
 }
 
 void ServerNetworking::send_map_info(const ServerPlayer& player) {
-	int count = 0;
-	char lebuf[256];
-	writeByte(lebuf, count, data_map_list);
-	const MapInfo& map = host->maplist()[player.current_map_list_item];
-	writeStr(lebuf, count, map.title);
-	writeStr(lebuf, count, map.author);
-	writeByte(lebuf, count, static_cast<NLchar>(map.width));
-	writeByte(lebuf, count, static_cast<NLchar>(map.height));
-	writeByte(lebuf, count, static_cast<NLchar>(map.votes));
-	server->send_message(player.cid, lebuf, count);
+    int count = 0;
+    char lebuf[256];
+    writeByte(lebuf, count, data_map_list);
+    const MapInfo& map = host->maplist()[player.current_map_list_item];
+    writeStr(lebuf, count, map.title);
+    writeStr(lebuf, count, map.author);
+    writeByte(lebuf, count, static_cast<NLchar>(map.width));
+    writeByte(lebuf, count, static_cast<NLchar>(map.height));
+    writeByte(lebuf, count, static_cast<NLchar>(map.votes));
+    server->send_message(player.cid, lebuf, count);
 }
 
 void ServerNetworking::broadcast_map_votes_update() {
-	// check changed votes
-	vector<pair<NLchar, NLchar> > votes;	// map number and votes
-	NLchar i = 0;
-	for (vector<MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
-		if (mi->votes_changed) {
-			votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
-			mi->votes_changed = false;
-		}
+    // check changed votes
+    vector<pair<NLchar, NLchar> > votes;    // map number and votes
+    NLchar i = 0;
+    for (vector<MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
+        if (mi->votes_changed) {
+            votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
+            mi->votes_changed = false;
+        }
 
-	// build packet
-	int count = 0;
-	char lebuf[256];
-	writeByte(lebuf, count, data_map_votes_update);
-	writeByte(lebuf, count, static_cast<NLchar>(votes.size()));
-	for (vector<pair<NLchar, NLchar> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
-		writeByte(lebuf, count, vi->first);
-		writeByte(lebuf, count, vi->second);
-	}
+    // build packet
+    int count = 0;
+    char lebuf[256];
+    writeByte(lebuf, count, data_map_votes_update);
+    writeByte(lebuf, count, static_cast<NLchar>(votes.size()));
+    for (vector<pair<NLchar, NLchar> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
+        writeByte(lebuf, count, vi->first);
+        writeByte(lebuf, count, vi->second);
+    }
 
-	// send packet
-	if (!votes.empty())
-		for (int i = 0; i < maxplayers; i++)
-			if (world.player[i].used)
-				server->send_message(world.player[i].cid, lebuf, count);
+    // send packet
+    if (!votes.empty())
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used)
+                server->send_message(world.player[i].cid, lebuf, count);
 }
 
 //send map time and time left
 void ServerNetworking::send_map_time(int cid) {
-	const NLulong current_time = world.getMapTime() / 10;
-	NLlong time_left;
-	if (world.getTimeLeft() <= 0) {
-		time_left = world.getExtraTimeLeft() / 10;
-		if (time_left < 0)
-			time_left = 0;
-	}
-	else
-		time_left = world.getTimeLeft() / 10;
-	char lebuf[64]; int count = 0;
-	writeByte(lebuf, count, data_map_time);
-	writeLong(lebuf, count, current_time);
-	writeLong(lebuf, count, time_left);
-	if (cid == -1)
-		server->broadcast_message(lebuf, count);
-	else
-		server->send_message(cid, lebuf, count);
+    const NLulong current_time = world.getMapTime() / 10;
+    NLlong time_left;
+    if (world.getTimeLeft() <= 0) {
+        time_left = world.getExtraTimeLeft() / 10;
+        if (time_left < 0)
+            time_left = 0;
+    }
+    else
+        time_left = world.getTimeLeft() / 10;
+    char lebuf[64]; int count = 0;
+    writeByte(lebuf, count, data_map_time);
+    writeLong(lebuf, count, current_time);
+    writeLong(lebuf, count, time_left);
+    if (cid == -1)
+        server->broadcast_message(lebuf, count);
+    else
+        server->send_message(cid, lebuf, count);
 }
 
 void ServerNetworking::send_server_settings(const ServerPlayer& player) {
-	int count = 0;
-	char lebuf[256];
-	const WorldSettings& config = world.getConfig();
-	const PowerupSettings& pupConfig = world.getPupConfig();
-	writeByte(lebuf, count, data_server_settings);
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 600));	// note: max time 255 mins ~ 4 hours
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 600));
-	NLubyte settings = 0;
-	int i = 0;
-	if (config.balanceTeams())
-		settings |= (1 << i);
-	i++;
-	if (pupConfig.pups_drop_at_death)
-		settings |= (1 << i);
-	i++;
-	if (config.getShadowMinimum() == 0)
-		settings |= (1 << i);
-	i++;
-	if (pupConfig.pup_deathbringer_switch)
-		settings |= (1 << i);
-	i++;
-	settings |= (pupConfig.pup_weapon_max << i);
-	writeByte(lebuf, count, settings);
-	server->send_message(player.cid, lebuf, count);
+    int count = 0;
+    char lebuf[256];
+    const WorldSettings& config = world.getConfig();
+    const PowerupSettings& pupConfig = world.getPupConfig();
+    writeByte(lebuf, count, data_server_settings);
+    writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
+    writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
+    writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 600));
+    NLubyte settings = 0;
+    int i = 0;
+    if (config.balanceTeams())
+        settings |= (1 << i);
+    i++;
+    if (pupConfig.pups_drop_at_death)
+        settings |= (1 << i);
+    i++;
+    if (config.getShadowMinimum() == 0)
+        settings |= (1 << i);
+    i++;
+    if (pupConfig.pup_deathbringer_switch)
+        settings |= (1 << i);
+    i++;
+    settings |= (pupConfig.pup_weapon_max << i);
+    writeByte(lebuf, count, settings);
+    server->send_message(player.cid, lebuf, count);
 }
 
 //enqueue a job to the master server to update a client's delta score
 void ServerNetworking::client_report_status(int id) {
-	ClientData& clid = host->getClientData(id);
+    ClientData& clid = host->getClientData(id);
 
-	if (!clid.token_have || !clid.token_valid)
-		return;
-	if (clid.delta_score == 0 && clid.neg_delta_score == 0)
-		return;
+    if (!clid.token_have || !clid.token_valid)
+        return;
+    if (clid.delta_score == 0 && clid.neg_delta_score == 0)
+        return;
 
-	//submit-- create job
-	MasterQuery* job = new MasterQuery();
-	job->cid = id;
-	job->code = MasterQuery::JT_score;
-	job->request = string() +
-		"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
-		"&dscp=" + itoa(clid.delta_score) +
-		"&dscn=" + itoa(clid.neg_delta_score) +
-		"&name=" + url_encode(world.player[ctop[id]].name) +
-		"&token=" + url_encode(clid.token) +
-		" HTTP/1.0\r\n\r\n";
+    //submit-- create job
+    MasterQuery* job = new MasterQuery();
+    job->cid = id;
+    job->code = MasterQuery::JT_score;
+    job->request = string() +
+        "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
+        "&dscp=" + itoa(clid.delta_score) +
+        "&dscn=" + itoa(clid.neg_delta_score) +
+        "&name=" + url_encode(world.player[ctop[id]].name) +
+        "&token=" + url_encode(clid.token) +
+        " HTTP/1.0\r\n\r\n";
 
-	{
-		MutexLock ml(mjob_mutex);
-		mjob_count++;
-	}
-	RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-	Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
+    {
+        MutexLock ml(mjob_mutex);
+        mjob_count++;
+    }
+    RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+    Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
 
-	clid.delta_score = 0;
-	clid.neg_delta_score = 0;
-	clid.fdp = 0.0;
-	clid.fdn = 0.0;
+    clid.delta_score = 0;
+    clid.neg_delta_score = 0;
+    clid.fdp = 0.0;
+    clid.fdn = 0.0;
 }
 
 void ServerNetworking::broadcast_team_message(int team, const string& text) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_text_message);
-	writeByte(lebuf, count, msg_team);
-	writeStr(lebuf, count, text);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_text_message);
+    writeByte(lebuf, count, msg_team);
+    writeStr(lebuf, count, text);
 
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used && i / TSIZE == team)	// only to teammates
-			server->send_message(world.player[i].cid, lebuf, count);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used && i / TSIZE == team)  // only to teammates
+            server->send_message(world.player[i].cid, lebuf, count);
 
-	//send to the admin shell
-	if (shellssock != NL_INVALID) {
-		count = 0;
-		writeLong(lebuf, count, STA_GAME_TEXT);
-		writeStr(lebuf, count, text);
-		nlWrite(shellssock, lebuf, count);
-	}
+    //send to the admin shell
+    if (shellssock != NL_INVALID) {
+        count = 0;
+        writeLong(lebuf, count, STA_GAME_TEXT);
+        writeStr(lebuf, count, text);
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 //broadcast message to all players in one screen
 void ServerNetworking::broadcast_screen_message(int px, int py, char* lebuf, int count) {
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
-			server->send_message(world.player[i].cid, lebuf, count);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
+            server->send_message(world.player[i].cid, lebuf, count);
 }
 
 // broadcast message with varargs
 void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
-	va_list argptr;
-	char msg[1000];
-	va_start(argptr, fs);
-	platVsnprintf(msg, 1000, fs, argptr);
-	va_end (argptr);
+    va_list argptr;
+    char msg[1000];
+    va_start(argptr, fs);
+    platVsnprintf(msg, 1000, fs, argptr);
+    va_end (argptr);
 
-	broadcast_message(type, msg);
+    broadcast_message(type, msg);
 }
 
-void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) {	// bprintf for a single player
-	char buf[1000];
-	buf[0] = data_text_message;
-	buf[1] = type;
-	va_list argptr;
-	va_start(argptr, fmt);
-	platVsnprintf(buf + 2, 1000, fmt, argptr);
-	va_end(argptr);
-	server->send_message(world.player[pid].cid, buf, 2 + strlen(buf + 2) + 1);
+void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) { // bprintf for a single player
+    char buf[1000];
+    buf[0] = data_text_message;
+    buf[1] = type;
+    va_list argptr;
+    va_start(argptr, fmt);
+    platVsnprintf(buf + 2, 1000, fmt, argptr);
+    va_end(argptr);
+    server->send_message(world.player[pid].cid, buf, 2 + strlen(buf + 2) + 1);
 }
 
 //send a single message player-printf
 void ServerNetworking::player_message(int pid, Message_type type, const string& text) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_text_message);
-	writeByte(lebuf, count, type);
-	writeStr(lebuf, count, text);
-	if (world.player[pid].used)
-		server->send_message(world.player[pid].cid, lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_text_message);
+    writeByte(lebuf, count, type);
+    writeStr(lebuf, count, text);
+    if (world.player[pid].used)
+        server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 void ServerNetworking::broadcast_message(Message_type type, const string& text) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_text_message);
-	writeByte(lebuf, count, type);
-	writeStr(lebuf, count, text);
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			server->send_message(world.player[i].cid, lebuf, count);
-	//send to the admin shell
-	if (shellssock != NL_INVALID) {
-		count = 0;
-		writeLong(lebuf, count, STA_GAME_TEXT);
-		writeStr(lebuf, count, text);
-		nlWrite(shellssock, lebuf, count);
-	}
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_text_message);
+    writeByte(lebuf, count, type);
+    writeStr(lebuf, count, text);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            server->send_message(world.player[i].cid, lebuf, count);
+    //send to the admin shell
+    if (shellssock != NL_INVALID) {
+        count = 0;
+        writeLong(lebuf, count, STA_GAME_TEXT);
+        writeStr(lebuf, count, text);
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) {
-	char lebuf[256];
-	int count = 0;
-	writeByte(lebuf, count, data_map_change);
+    char lebuf[256];
+    int count = 0;
+    writeByte(lebuf, count, data_map_change);
 
-	writeShort(lebuf, count, world.map.crc);
-	writeString(lebuf, count, mapname);
-	writeByte(lebuf, count, static_cast<NLchar>(host->current_map_nr()));
-	server->send_message(world.player[pid].cid, lebuf, count);
+    writeShort(lebuf, count, world.map.crc);
+    writeString(lebuf, count, mapname);
+    writeByte(lebuf, count, static_cast<NLchar>(host->current_map_nr()));
+    server->send_message(world.player[pid].cid, lebuf, count);
 
-	//VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
-	world.player[pid].awaiting_client_ready = true;
+    //VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
+    world.player[pid].awaiting_client_ready = true;
 
-	//send a show gameover plaque message, if that is the case
-	if (reason != NEXTMAP_NONE) {
-		int count = 0;
-		writeByte(lebuf, count, data_gameover_show);
-		writeByte(lebuf, count, static_cast<NLubyte>(reason));		//capture limit plaque or vote exit plaque
-		if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
-			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));	//RED team final score
-			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));	//BLUE team final score
-		}
-		server->send_message(world.player[pid].cid, lebuf, count);
-	}
+    //send a show gameover plaque message, if that is the case
+    if (reason != NEXTMAP_NONE) {
+        int count = 0;
+        writeByte(lebuf, count, data_gameover_show);
+        writeByte(lebuf, count, static_cast<NLubyte>(reason));      //capture limit plaque or vote exit plaque
+        if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
+            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));  //RED team final score
+            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));  //BLUE team final score
+        }
+        server->send_message(world.player[pid].cid, lebuf, count);
+    }
 }
 
 bool ServerNetworking::start() {
-	file_threads_quit = false;
+    file_threads_quit = false;
 
-	for (int i = 0; i < 256; ++i)
-		ctop[i] = -1;
-	player_count = 0;
+    for (int i = 0; i < 256; ++i)
+        ctop[i] = -1;
+    player_count = 0;
 
-	max_world_rank = 0;
+    max_world_rank = 0;
 
-	ping_send_client = 0;
-	for (int i = 0; i < MAX_PLAYERS; ++i)
-		fileTransfer[i].reset();
+    ping_send_client = 0;
+    for (int i = 0; i < MAX_PLAYERS; ++i)
+        fileTransfer[i].reset();
 
-	// start server
-	server = new_server_c(host->config().networkPriority);
+    // start server
+    server = new_server_c(host->config().networkPriority);
 
-	server->setHelloCallback(sfunc_client_hello);
-	server->setConnectedCallback(sfunc_client_connected);
-	server->setDisconnectedCallback(sfunc_client_disconnected);
-	server->setDataCallback(sfunc_client_data);
-	server->setLagStatusCallback(sfunc_client_lag_status);
-	server->setPingResultCallback(sfunc_client_ping_result);
+    server->setHelloCallback(sfunc_client_hello);
+    server->setConnectedCallback(sfunc_client_connected);
+    server->setDisconnectedCallback(sfunc_client_disconnected);
+    server->setDataCallback(sfunc_client_data);
+    server->setLagStatusCallback(sfunc_client_lag_status);
+    server->setPingResultCallback(sfunc_client_ping_result);
 
-	server->setCallbackCustomPointer(this);
+    server->setCallbackCustomPointer(this);
 
-	server->set_client_timeout(5, 10);
+    server->set_client_timeout(5, 10);
 
-	if (!server->start(host->config().port))
-		return false;
+    if (!server->start(host->config().port))
+        return false;
 
-	//v0.4.4 reset master jobs count
-	mjob_count = 0;
-	mjob_exit = false;				//flag for all pending master jobs to quit now
-	mjob_fastretry = false;		//flag for all pending master jobs to stop waiting and retry immediately
+    //v0.4.4 reset master jobs count
+    mjob_count = 0;
+    mjob_exit = false;              //flag for all pending master jobs to quit now
+    mjob_fastretry = false;     //flag for all pending master jobs to stop waiting and retry immediately
 
-	shellssock = NL_INVALID;	// not in use
+    shellssock = NL_INVALID;    // not in use
 
-	//start TCP shell master thread in the port number 500 less than server UDP port
-	shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500, host->config().lowerPriority);
+    //start TCP shell master thread in the port number 500 less than server UDP port
+    shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500, host->config().lowerPriority);
 
-	//start TCP thread for talking with master server
-	if (!host->config().privateserver)
-		mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), host->config().lowerPriority);
+    //start TCP thread for talking with master server
+    if (!host->config().privateserver)
+        mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), host->config().lowerPriority);
 
-	//start website thread
-	webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
+    //start website thread
+    webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
 
-	return true;
+    return true;
 }
 
 //reload hostname
 void ServerNetworking::set_hostname(const string& name) {
-	if (name.empty())
-		hostname = "Anonymous host";
-	else
-		hostname = name;
-	log("Hostname: %s", hostname.c_str());
+    if (name.empty())
+        hostname = "Anonymous host";
+    else
+        hostname = name;
+    log("Hostname: %s", hostname.c_str());
 }
 
 //update serverinfo
 void ServerNetworking::update_serverinfo() {
-	//v0.4.8 UGLY FIX : count all players again, check for discrepancy
-	int pc = 0;
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			pc++;
-	nAssert(pc == player_count);
+    //v0.4.8 UGLY FIX : count all players again, check for discrepancy
+    int pc = 0;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            pc++;
+    nAssert(pc == player_count);
 
-	ostringstream info;
-	if (host->config().dedserver)
-		info << "D ";
-	else
-		info << "  ";
-	info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
-	server->set_server_info(info.str().c_str());
+    ostringstream info;
+    if (host->config().dedserver)
+        info << "D ";
+    else
+        info << "  ";
+    info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
+    server->set_server_info(info.str().c_str());
 }
 
 int ServerNetworking::client_connected(int id) {
-	//2TEAM: check wich team to put player
-	int t1 = 0;		//red team count
-	int t2 = 0;		//blue team count
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used) {
-			if (i / TSIZE == 0)
-				t1++;
-			else
-				t2++;
-		}
+    //2TEAM: check wich team to put player
+    int t1 = 0;     //red team count
+    int t2 = 0;     //blue team count
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used) {
+            if (i / TSIZE == 0)
+                t1++;
+            else
+                t2++;
+        }
 
-	// put on red team, blue team, or randomize if same # of players in both teams
-	int targ;
-	if (t1 < t2)
-		targ = 0;
-	else if (t1 > t2)
-		targ = TSIZE;
-	else {
-		host->refresh_team_score_modifiers();
-		targ = TSIZE * host->getLessScoredTeam();
-	}
+    // put on red team, blue team, or randomize if same # of players in both teams
+    int targ;
+    if (t1 < t2)
+        targ = 0;
+    else if (t1 > t2)
+        targ = TSIZE;
+    else {
+        host->refresh_team_score_modifiers();
+        targ = TSIZE * host->getLessScoredTeam();
+    }
 
-	// alloc new player : scans only slots of the team (up from targ)
-	int myself = -1;
+    // alloc new player : scans only slots of the team (up from targ)
+    int myself = -1;
 
-	for (int i = targ; i < targ + TSIZE; i++)
-		if (!world.player[i].used) {
-			// init player
-			const int cid = id;
-			ctop[cid] = i;
-			myself = i;
+    for (int i = targ; i < targ + TSIZE; i++)
+        if (!world.player[i].used) {
+            // init player
+            const int cid = id;
+            ctop[cid] = i;
+            myself = i;
 
-			world.player[i].clear(true, i, cid, "", i / TSIZE);
-			world.player[i].localIP = isLocalIP(get_client_address(cid));
-			player_count++;
+            world.player[i].clear(true, i, cid, "", i / TSIZE);
+            world.player[i].localIP = isLocalIP(get_client_address(cid));
+            player_count++;
 
-			world.player[i].controls = ClientControls();	// reset keypresses
-			world.check_pickup_creation(false);				// check pickup creation
-			break;
-		}
-	nAssert(myself != -1);
+            world.player[i].controls = ClientControls();    // reset keypresses
+            world.check_pickup_creation(false);             // check pickup creation
+            break;
+        }
+    nAssert(myself != -1);
 
-	if (world.player[myself].localIP)
-		++localPlayers;
-	else {
-		NLaddress ip = get_client_address(id);
-		nlSetAddrPort(&ip, 0);
-		vector< pair<NLaddress, int> >::iterator pi;
-		for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
-			if (nlAddrCompare(&pi->first, &ip)) {
-				++pi->second;
-				break;
-			}
-		if (pi == distinctRemotePlayers.end())
-			distinctRemotePlayers.push_back(pair<NLaddress, int>(ip, 1));
-	}
+    if (world.player[myself].localIP)
+        ++localPlayers;
+    else {
+        NLaddress ip = get_client_address(id);
+        nlSetAddrPort(&ip, 0);
+        vector< pair<NLaddress, int> >::iterator pi;
+        for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
+            if (nlAddrCompare(&pi->first, &ip)) {
+                ++pi->second;
+                break;
+            }
+        if (pi == distinctRemotePlayers.end())
+            distinctRemotePlayers.push_back(pair<NLaddress, int>(ip, 1));
+    }
 
-	send_map_change_message(myself, NEXTMAP_NONE, host->getCurrentMapFile().c_str());
+    send_map_change_message(myself, NEXTMAP_NONE, host->getCurrentMapFile().c_str());
 
-	// can't abort from this point on... anything that can abort should be above
+    // can't abort from this point on... anything that can abort should be above
 
-	broadcast_new_player(world.player[myself]);
+    broadcast_new_player(world.player[myself]);
 
-	world.player[myself].respawn_to_base = true;
-	world.respawnPlayer(myself);	// move to a spawn spot to wait for the game
-	world.resetPlayer(myself, -1e10);	// kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
-	world.player[myself].respawn_to_base = true;	// New players always spawn in the base.
-	// don't actually spawn until the client has loaded the map and is in the game
+    world.player[myself].respawn_to_base = true;
+    world.respawnPlayer(myself);    // move to a spawn spot to wait for the game
+    world.resetPlayer(myself, -1e10);   // kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
+    world.player[myself].respawn_to_base = true;    // New players always spawn in the base.
+    // don't actually spawn until the client has loaded the map and is in the game
 
-	if (player_count == 2) {
-		host->ctf_game_restart();
-		world.reset_time();
-		sendStartGame();
-	}
+    if (player_count == 2) {
+        host->ctf_game_restart();
+        world.reset_time();
+        sendStartGame();
+    }
 
-	host->resetPlayer(id);
-	world.player[myself].stats().set_lifetime(0);
+    host->resetPlayer(id);
+    world.player[myself].stats().set_lifetime(0);
 
-	//first update the ADMIN SHELL
-	if (shellssock != NL_INVALID) {
-		char lebuf[256]; int count = 0;
-		writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-		writeLong(lebuf, count, world.player[myself].cid);
-		nlWrite(shellssock, lebuf, count);
-	}
+    //first update the ADMIN SHELL
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_PLAYER_CONNECTED);
+        writeLong(lebuf, count, world.player[myself].cid);
+        nlWrite(shellssock, lebuf, count);
+    }
 
-	host->check_fav_colors(myself);
+    host->check_fav_colors(myself);
 
-	//update the player with world information
+    //update the player with world information
 
-	//	- who is he (player #)
-	send_me_packet(myself);
+    //  - who is he (player #)
+    send_me_packet(myself);
 
-	// - world ctf flags information
-	ctf_net_flag_status(id, 0);
-	ctf_net_flag_status(id, 1);
-	ctf_net_flag_status(id, 2);
+    // - world ctf flags information
+    ctf_net_flag_status(id, 0);
+    ctf_net_flag_status(id, 1);
+    ctf_net_flag_status(id, 2);
 
-	// - all other player's names
-	// - all other player's frags
+    // - all other player's names
+    // - all other player's frags
 
-	for (int i = 0; i < maxplayers; i++) {
-		if (!world.player[i].used)
-			continue;
-		if (i == myself)
-			continue;
+    for (int i = 0; i < maxplayers; i++) {
+        if (!world.player[i].used)
+            continue;
+        if (i == myself)
+            continue;
 
-		send_player_name_update(id, i);
+        send_player_name_update(id, i);
 
-		//frags update
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, data_frags_update);
-		writeByte(lebuf, count, static_cast<NLubyte>(i));		// what player id
-		writeLong(lebuf, count, world.player[i].stats().frags());
-		server->send_message(id, lebuf, count);
+        //frags update
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, data_frags_update);
+        writeByte(lebuf, count, static_cast<NLubyte>(i));       // what player id
+        writeLong(lebuf, count, world.player[i].stats().frags());
+        server->send_message(id, lebuf, count);
 
-		send_player_crap_update(id, i);
-	}
+        send_player_crap_update(id, i);
+    }
 
-	const vector<string>& welcome_message = host->getWelcomeMessage();
-	for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
-		player_message(myself, msg_info, *line);
+    const vector<string>& welcome_message = host->getWelcomeMessage();
+    for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
+        player_message(myself, msg_info, *line);
 
-	host->check_team_changes();
-	update_serverinfo();
-	send_server_settings(world.player[myself]);
-	send_map_time(id);
-	send_stats(world.player[myself]);
-	send_team_stats(world.player[myself]);
-	world.player[myself].current_map_list_item = 0;	// the first map info to be sent
-	return myself;
+    host->check_team_changes();
+    update_serverinfo();
+    send_server_settings(world.player[myself]);
+    send_map_time(id);
+    send_stats(world.player[myself]);
+    send_team_stats(world.player[myself]);
+    world.player[myself].current_map_list_item = 0; // the first map info to be sent
+    return myself;
 }
 
 void ServerNetworking::client_disconnected(int id) {
-	if (ctop[id] == -1)
-		return;
+    if (ctop[id] == -1)
+        return;
 
-	//what player
-	const int pid = ctop[id];
+    //what player
+    const int pid = ctop[id];
 
-	//first update the ADMIN SHELL
-	if (shellssock != NL_INVALID) {
-		char lebuf[256]; int count;
-		count = 0;
-		writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
-		writeLong(lebuf, count, world.player[pid].cid);
-		nlWrite(shellssock, lebuf, count);
-	}
+    //first update the ADMIN SHELL
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count;
+        count = 0;
+        writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
+        writeLong(lebuf, count, world.player[pid].cid);
+        nlWrite(shellssock, lebuf, count);
+    }
 
-	bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].stats().frags());
-	broadcast_sample(SAMPLE_LEFTGAME);
+    bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].stats().frags());
+    broadcast_sample(SAMPLE_LEFTGAME);
 
-	//report the latest player achievements to the master server
-	client_report_status(id);
+    //report the latest player achievements to the master server
+    client_report_status(id);
 
-	if (world.player[pid].localIP)
-		--localPlayers;
-	else {
-		NLaddress ip = get_client_address(id);
-		nlSetAddrPort(&ip, 0);
-		vector< pair<NLaddress, int> >::iterator pi;
-		for (pi = distinctRemotePlayers.begin(); !nlAddrCompare(&pi->first, &ip); ++pi)
-			nAssert(pi != distinctRemotePlayers.end());
-		--pi->second;
-		if (pi->second == 0)
-			distinctRemotePlayers.erase(pi);
-	}
+    if (world.player[pid].localIP)
+        --localPlayers;
+    else {
+        NLaddress ip = get_client_address(id);
+        nlSetAddrPort(&ip, 0);
+        vector< pair<NLaddress, int> >::iterator pi;
+        for (pi = distinctRemotePlayers.begin(); !nlAddrCompare(&pi->first, &ip); ++pi)
+            nAssert(pi != distinctRemotePlayers.end());
+        --pi->second;
+        if (pi->second == 0)
+            distinctRemotePlayers.erase(pi);
+    }
 
-	fileTransfer[id].reset();
-	host->game_remove_player(pid, true);
-	//less one...
-	player_count--;
+    fileTransfer[id].reset();
+    host->game_remove_player(pid, true);
+    //less one...
+    player_count--;
 
-	host->check_team_changes();
-	host->check_map_exit();
+    host->check_team_changes();
+    host->check_map_exit();
 
-	//update serverinfo
-	update_serverinfo();
+    //update serverinfo
+    update_serverinfo();
 }
 
 //client ping result
 void ServerNetworking::ping_result(int client_id, int ping_time) {
-	if (ctop[client_id] == -1)
-		return;
-	world.player[ctop[client_id]].ping = ping_time;
+    if (ctop[client_id] == -1)
+        return;
+    world.player[ctop[client_id]].ping = ping_time;
 }
 
 void ServerNetworking::broadcast_new_player_notice(int pid) {
-	bprintf(msg_info, "%s entered the game", world.player[pid].name.c_str());
-	broadcast_sample(SAMPLE_ENTERGAME);
-	if (shellssock != NL_INVALID) {
-		char lebuf[256]; int count = 0;
-		writeLong(lebuf, count, STA_PLAYER_IP);
-		writeLong(lebuf, count, world.player[pid].cid);
-		NLaddress addr = get_client_address(world.player[pid].cid);
-		nlSetAddrPort(&addr, 0);
-		writeStr(lebuf, count, addressToString(addr));
-		nlWrite(shellssock, lebuf, count);
-	}
+    bprintf(msg_info, "%s entered the game", world.player[pid].name.c_str());
+    broadcast_sample(SAMPLE_ENTERGAME);
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_PLAYER_IP);
+        writeLong(lebuf, count, world.player[pid].cid);
+        NLaddress addr = get_client_address(world.player[pid].cid);
+        nlSetAddrPort(&addr, 0);
+        writeStr(lebuf, count, addressToString(addr));
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 void ServerNetworking::forwardSayadminMessage(int cid, const string& message) {
-	if (shellssock == NL_INVALID)
-		return;
-	char lebuf[256];
-	int count = 0;
-	writeLong(lebuf, count, STA_ADMIN_MESSAGE);
-	writeLong(lebuf, count, cid);
-	writeStr(lebuf, count, message);
-	nlWrite(shellssock, lebuf, count);
+    if (shellssock == NL_INVALID)
+        return;
+    char lebuf[256];
+    int count = 0;
+    writeLong(lebuf, count, STA_ADMIN_MESSAGE);
+    writeLong(lebuf, count, cid);
+    writeStr(lebuf, count, message);
+    nlWrite(shellssock, lebuf, count);
 }
 
 //process incoming client data (callback function)
 void ServerNetworking::incoming_client_data(int id, char *data, int length) {
-	(void)length;
-	if (ctop[id] == -1)
-		return;
+    (void)length;
+    if (ctop[id] == -1)
+        return;
 
-	//player id
-	int pid = ctop[id];
+    //player id
+    int pid = ctop[id];
 
-	//1. process client's frame data
-	int count = 0;
+    //1. process client's frame data
+    int count = 0;
 
-	NLubyte clFrame;
-	readByte(data, count, clFrame);
-	ServerPlayer& pl = world.player[pid];
-	if (WATCH_CONNECTION && pl.lastClientFrame != clFrame) {
-		if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) < 128)
-			plprintf(pid, msg_warning, "C>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
-		else if (static_cast<NLubyte>(pl.lastClientFrame + 1) != clFrame)
-			plprintf(pid, msg_warning, "C>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
-	}
-	if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) {	// this frame is very likely newer or the same as the previous one
-		#ifdef SEND_FRAMEOFFSET
-		if (clFrame != pl.lastClientFrame)
-			pl.frameOffset = 10. * (get_time() - frameSentTime);
-		#endif
-		pl.lastClientFrame = clFrame;
+    NLubyte clFrame;
+    readByte(data, count, clFrame);
+    ServerPlayer& pl = world.player[pid];
+    if (WATCH_CONNECTION && pl.lastClientFrame != clFrame) {
+        if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) < 128)
+            plprintf(pid, msg_warning, "C>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
+        else if (static_cast<NLubyte>(pl.lastClientFrame + 1) != clFrame)
+            plprintf(pid, msg_warning, "C>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
+    }
+    if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) { // this frame is very likely newer or the same as the previous one
+        #ifdef SEND_FRAMEOFFSET
+        if (clFrame != pl.lastClientFrame)
+            pl.frameOffset = 10. * (get_time() - frameSentTime);
+        #endif
+        pl.lastClientFrame = clFrame;
 
-		NLubyte ccb;
-		readByte(data, count, ccb);
-		pl.controls.fromNetwork(ccb, false);
+        NLubyte ccb;
+        readByte(data, count, ccb);
+        pl.controls.fromNetwork(ccb, false);
 
-		const ClientControls& ctrl = pl.controls;
-		//if not strafing, update direction
-		if (!ctrl.isStrafe() && !pl.dead) {
-			// left
-			if (ctrl.isLeft() && !ctrl.isRight()) {
-				if (ctrl.isUp() && !ctrl.isDown())	// + up
-					pl.gundir = 5;
-				else if (!ctrl.isUp() && ctrl.isDown()) // + down
-					pl.gundir = 3;
-				else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
-					pl.gundir = 4;
-			}
-			// right
-			else if (!ctrl.isLeft() && ctrl.isRight()) {
-				if (ctrl.isUp() && !ctrl.isDown())	// + up
-					pl.gundir = 7;
-				else if (!ctrl.isUp() && ctrl.isDown()) // + down
-					pl.gundir = 1;
-				else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
-					pl.gundir = 0;
-			}
-			//!right !left
-			else if (!ctrl.isLeft() && !ctrl.isRight()) {
-				if (ctrl.isUp() && !ctrl.isDown())	// + up
-					pl.gundir = 6;
-				else if (!ctrl.isUp() && ctrl.isDown()) // + down
-					pl.gundir = 2;
-			}
-		}
-	}
+        const ClientControls& ctrl = pl.controls;
+        //if not strafing, update direction
+        if (!ctrl.isStrafe() && !pl.dead) {
+            // left
+            if (ctrl.isLeft() && !ctrl.isRight()) {
+                if (ctrl.isUp() && !ctrl.isDown())  // + up
+                    pl.gundir = 5;
+                else if (!ctrl.isUp() && ctrl.isDown()) // + down
+                    pl.gundir = 3;
+                else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
+                    pl.gundir = 4;
+            }
+            // right
+            else if (!ctrl.isLeft() && ctrl.isRight()) {
+                if (ctrl.isUp() && !ctrl.isDown())  // + up
+                    pl.gundir = 7;
+                else if (!ctrl.isUp() && ctrl.isDown()) // + down
+                    pl.gundir = 1;
+                else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
+                    pl.gundir = 0;
+            }
+            //!right !left
+            else if (!ctrl.isLeft() && !ctrl.isRight()) {
+                if (ctrl.isUp() && !ctrl.isDown())  // + up
+                    pl.gundir = 6;
+                else if (!ctrl.isUp() && ctrl.isDown()) // + down
+                    pl.gundir = 2;
+            }
+        }
+    }
 
-	//2. process messages
-	char *msg;
-	int msglen;
-	do {
-		msg = server->receive_message(id, &msglen);
-		if (msg != 0) {
-			// process a client's message
-			int count = 0;
-			NLubyte code;
-			readByte(msg, count, code);
-			if (LOG_MESSAGE_TRAFFIC)
-				log("Message from client, code = %i", code);
-			if (code == data_name_update) {
-				string name, password;
-				readStr(msg, count, name);
-				readStr(msg, count, password);
-				host->nameChange(id, pid, name, password);
-			}
-			else if (code == data_text_message) {
-				if (find_nonprintable_char(msg + 1)) {
-					log("Kicked player %d for client misbehavior: sent unprintable characters", pid);
-					host->disconnectPlayer(pid, disconnect_client_misbehavior);
-				}
-				else
-					host->chat(pid, msg + 1);
-			}
-			else if (code == data_fire_on)
-				world.player[pid].attack = true;
-			else if (code == data_fire_off)
-				world.player[pid].attack = false;
-			else if (code == data_suicide)
-				world.suicide(pid);
-			else if (code == data_change_team_on) {
-				if (!world.player[pid].want_change_teams) {
-					world.player[pid].want_change_teams = true;
-					host->check_team_changes();
-					pid = ctop[id];
-				}
-			}
-			else if (code == data_change_team_off) {
-				if (world.player[pid].want_change_teams) {
-					world.player[pid].want_change_teams = false;
-					world.player[pid].team_change_pending = false; //so pra garantir
-				}
-			}
-			else if (code == data_client_ready)
-				world.player[pid].awaiting_client_ready = false;
-			else if (code == data_map_exit_on) {
-				if (world.player[pid].want_map_exit == false) {
-					world.player[pid].want_map_exit = true;
-					host->check_map_exit();
-				}
-			}
-			else if (code == data_map_exit_off) {
-				if (world.player[pid].want_map_exit == true) {
-					world.player[pid].want_map_exit = false;
-					host->check_map_exit();
-				}
-			}
-			else if (code == data_file_request) {
-				char ftype[64];
-				char fname[256];
-				readString(msg, count, ftype);
-				readString(msg, count, fname);
-				if (fileTransfer[id].serving_udp_file) {
-					log("Kicked player %d for client misbehavior: already downloading", pid);
-					host->disconnectPlayer(pid, disconnect_client_misbehavior);
-					break;	// don't process the rest of the messages
-				}
-				else {
-					//alloc to download
-					fileTransfer[id].serving_udp_file = true;
-					char buffy[65536];		//buffy is our friend buffer
-					int fsize = get_download_file((char *)buffy, ftype, fname);
-					if (fsize == -1) {
-						log("Kicked player %d for client misbehavior: invalid download attempt", pid);
-						host->disconnectPlayer(pid, disconnect_client_misbehavior);	// don't process the rest of the messages
-					}
-					else {
-						fileTransfer[id].data = new char[fsize];	//allocated to fit!
-						memcpy(fileTransfer[id].data, buffy, fsize);	//copy from buffy to the client's buffer
-						fileTransfer[id].dp = 0;	//RESET FILE POINTER: important
-						fileTransfer[id].fsize = fsize;
-						//send a chunk
-						upload_next_file_chunk(id);
-					}
-				}
-			}
-			else if (code == data_file_ack) {
-				if (fileTransfer[id].dp >= fileTransfer[id].fsize) {
-					//no more data, this was the last ack. close stuff
-					fileTransfer[id].reset();	//reset the download data structs
-									//the client will carry on from here
-				}
-				else {
-					//send next
-					upload_next_file_chunk(id);
-				}
-			}
-			else if (code == data_registration_token) {
-				string tok;
-				readStr(msg, count, tok);
-				if (host->changeRegistration(id, tok)) {
-					MasterQuery *job = new MasterQuery();
-					job->cid = id;
-					job->code = MasterQuery::JT_login;
-					job->request = string() +
-						"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
-						"&chktk" +
-						"&name=" + url_encode(world.player[ctop[id]].name) +
-						"&token=" + url_encode(tok) +
-						" HTTP/1.0\r\n\r\n";
+    //2. process messages
+    char *msg;
+    int msglen;
+    do {
+        msg = server->receive_message(id, &msglen);
+        if (msg != 0) {
+            // process a client's message
+            int count = 0;
+            NLubyte code;
+            readByte(msg, count, code);
+            if (LOG_MESSAGE_TRAFFIC)
+                log("Message from client, code = %i", code);
+            if (code == data_name_update) {
+                string name, password;
+                readStr(msg, count, name);
+                readStr(msg, count, password);
+                host->nameChange(id, pid, name, password);
+            }
+            else if (code == data_text_message) {
+                if (find_nonprintable_char(msg + 1)) {
+                    log("Kicked player %d for client misbehavior: sent unprintable characters", pid);
+                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                }
+                else
+                    host->chat(pid, msg + 1);
+            }
+            else if (code == data_fire_on)
+                world.player[pid].attack = true;
+            else if (code == data_fire_off)
+                world.player[pid].attack = false;
+            else if (code == data_suicide)
+                world.suicide(pid);
+            else if (code == data_change_team_on) {
+                if (!world.player[pid].want_change_teams) {
+                    world.player[pid].want_change_teams = true;
+                    host->check_team_changes();
+                    pid = ctop[id];
+                }
+            }
+            else if (code == data_change_team_off) {
+                if (world.player[pid].want_change_teams) {
+                    world.player[pid].want_change_teams = false;
+                    world.player[pid].team_change_pending = false; //so pra garantir
+                }
+            }
+            else if (code == data_client_ready)
+                world.player[pid].awaiting_client_ready = false;
+            else if (code == data_map_exit_on) {
+                if (world.player[pid].want_map_exit == false) {
+                    world.player[pid].want_map_exit = true;
+                    host->check_map_exit();
+                }
+            }
+            else if (code == data_map_exit_off) {
+                if (world.player[pid].want_map_exit == true) {
+                    world.player[pid].want_map_exit = false;
+                    host->check_map_exit();
+                }
+            }
+            else if (code == data_file_request) {
+                char ftype[64];
+                char fname[256];
+                readString(msg, count, ftype);
+                readString(msg, count, fname);
+                if (fileTransfer[id].serving_udp_file) {
+                    log("Kicked player %d for client misbehavior: already downloading", pid);
+                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                    break;  // don't process the rest of the messages
+                }
+                else {
+                    //alloc to download
+                    fileTransfer[id].serving_udp_file = true;
+                    char buffy[65536];      //buffy is our friend buffer
+                    int fsize = get_download_file((char *)buffy, ftype, fname);
+                    if (fsize == -1) {
+                        log("Kicked player %d for client misbehavior: invalid download attempt", pid);
+                        host->disconnectPlayer(pid, disconnect_client_misbehavior); // don't process the rest of the messages
+                    }
+                    else {
+                        fileTransfer[id].data = new char[fsize];    //allocated to fit!
+                        memcpy(fileTransfer[id].data, buffy, fsize);    //copy from buffy to the client's buffer
+                        fileTransfer[id].dp = 0;    //RESET FILE POINTER: important
+                        fileTransfer[id].fsize = fsize;
+                        //send a chunk
+                        upload_next_file_chunk(id);
+                    }
+                }
+            }
+            else if (code == data_file_ack) {
+                if (fileTransfer[id].dp >= fileTransfer[id].fsize) {
+                    //no more data, this was the last ack. close stuff
+                    fileTransfer[id].reset();   //reset the download data structs
+                                    //the client will carry on from here
+                }
+                else {
+                    //send next
+                    upload_next_file_chunk(id);
+                }
+            }
+            else if (code == data_registration_token) {
+                string tok;
+                readStr(msg, count, tok);
+                if (host->changeRegistration(id, tok)) {
+                    MasterQuery *job = new MasterQuery();
+                    job->cid = id;
+                    job->code = MasterQuery::JT_login;
+                    job->request = string() +
+                        "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
+                        "&chktk" +
+                        "&name=" + url_encode(world.player[ctop[id]].name) +
+                        "&token=" + url_encode(tok) +
+                        " HTTP/1.0\r\n\r\n";
 
-					{
-						MutexLock ml(mjob_mutex);
-						mjob_count++;
-					}
+                    {
+                        MutexLock ml(mjob_mutex);
+                        mjob_count++;
+                    }
 
-					RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-					Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
-				}
-			}
-			else if (code == data_tournament_participation) {
-				NLubyte data;
-				readByte(msg, count, data);
-				ClientData& clid = host->getClientData(world.player[pid].cid);
-				clid.next_participation = data;
-				if (!clid.participation_info_received) {
-					clid.current_participation = clid.next_participation;
-					clid.participation_info_received = true;
-					broadcast_player_crap(pid);
-				}
-			}
-			else if (code == data_drop_flag) {
-				world.player[pid].drop_key = true;
-				world.player[pid].dropped_flag = true;
-				world.dropFlagIfAny(pid, true);
-			}
-			else if (code == data_stop_drop_flag)
-				world.player[pid].drop_key = false;
-			else if (code == data_map_vote) {
-				NLbyte vote;
-				readByte(msg, count, vote);
-				if (world.player[pid].mapVote != vote) {
-					if (world.player[pid].mapVote >= 0 && world.player[pid].mapVote < static_cast<int>(host->maplist().size()))
-						host->maplist()[world.player[pid].mapVote].votes_changed = true;
-					if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
-						host->maplist()[vote].votes_changed = true;
-					world.player[pid].mapVote = vote;
-					host->check_map_exit();
-				}
-			}
-			else if (code == data_fav_colors) {
-				NLbyte size;
-				readByte(msg, count, size);
-				vector<char> fav_colors;
-				// two colours in a byte
-				for (int i = 0; i < size; i++) {
-					NLubyte col;
-					readByte(msg, count, col);
-					int c = (col & 0x0F);
-					if (c >= 0 && c < 16)
-						fav_colors.push_back(c);
-					c = (col >> 4);
-					if (++i < size && c >= 0 && c < 16)
-						fav_colors.push_back(c);
-				}
-				host->set_fav_colors(pid, fav_colors);
-				host->check_fav_colors(pid);
-			}
-			else {
-				if (code < data_reserved_range_first || code > data_reserved_range_last) {
-					log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i", pid, code, msglen);
-					host->disconnectPlayer(pid, disconnect_client_misbehavior);
-					break;	// don't process the rest of the messages
-				}
-				// just ignore commands in reserved range: they're probably some extension we don't have to care about
-			}
-		}
-	} while (msg != 0);
+                    RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+                    Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
+                }
+            }
+            else if (code == data_tournament_participation) {
+                NLubyte data;
+                readByte(msg, count, data);
+                ClientData& clid = host->getClientData(world.player[pid].cid);
+                clid.next_participation = data;
+                if (!clid.participation_info_received) {
+                    clid.current_participation = clid.next_participation;
+                    clid.participation_info_received = true;
+                    broadcast_player_crap(pid);
+                }
+            }
+            else if (code == data_drop_flag) {
+                world.player[pid].drop_key = true;
+                world.player[pid].dropped_flag = true;
+                world.dropFlagIfAny(pid, true);
+            }
+            else if (code == data_stop_drop_flag)
+                world.player[pid].drop_key = false;
+            else if (code == data_map_vote) {
+                NLbyte vote;
+                readByte(msg, count, vote);
+                if (world.player[pid].mapVote != vote) {
+                    if (world.player[pid].mapVote >= 0 && world.player[pid].mapVote < static_cast<int>(host->maplist().size()))
+                        host->maplist()[world.player[pid].mapVote].votes_changed = true;
+                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
+                        host->maplist()[vote].votes_changed = true;
+                    world.player[pid].mapVote = vote;
+                    host->check_map_exit();
+                }
+            }
+            else if (code == data_fav_colors) {
+                NLbyte size;
+                readByte(msg, count, size);
+                vector<char> fav_colors;
+                // two colours in a byte
+                for (int i = 0; i < size; i++) {
+                    NLubyte col;
+                    readByte(msg, count, col);
+                    int c = (col & 0x0F);
+                    if (c >= 0 && c < 16)
+                        fav_colors.push_back(c);
+                    c = (col >> 4);
+                    if (++i < size && c >= 0 && c < 16)
+                        fav_colors.push_back(c);
+                }
+                host->set_fav_colors(pid, fav_colors);
+                host->check_fav_colors(pid);
+            }
+            else {
+                if (code < data_reserved_range_first || code > data_reserved_range_last) {
+                    log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i", pid, code, msglen);
+                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                    break;  // don't process the rest of the messages
+                }
+                // just ignore commands in reserved range: they're probably some extension we don't have to care about
+            }
+        }
+    } while (msg != 0);
 }
 
-void ServerNetworking::removePlayer(int pid) {	// call only when moving players around; this actually does close to nothing
-	ctop[world.player[pid].cid] = -1;
+void ServerNetworking::removePlayer(int pid) {  // call only when moving players around; this actually does close to nothing
+    ctop[world.player[pid].cid] = -1;
 }
 
 void ServerNetworking::disconnect_client(int cid, int timeout, Disconnect_reason reason) {
-	server->disconnect_client(cid, timeout, reason);
+    server->disconnect_client(cid, timeout, reason);
 }
 
 void ServerNetworking::sendWorldReset() {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_world_reset);
-	server->broadcast_message(lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_world_reset);
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::sendStartGame() {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_start_game);
-	server->broadcast_message(lebuf, count);
-	send_map_time(-1);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_start_game);
+    server->broadcast_message(lebuf, count);
+    send_map_time(-1);
 }
 
 //simulate and broadcast frame
 void ServerNetworking::broadcast_frame(bool gameRunning) {
-	// (2)  broadcast the frame
-	//
-	//		o pacote nao eh o mesmo pra todo mundo, entao nao eh broadcast
-	//		m uma parte que depende do player (tipo, qual o health do cara)
-	//
-	// server frame format:  (protocolo v0.4.1)
-	//
-	//  --- PRIMEIRA PARTE : igual pra todo mundo ----
-	//
-	//    LONG  frame
-	//		LONG  players present (bits 0..31 dizendo quais players[] sao validos)
-	//
-	// --- SEGUNDA PARTE : varia p/ cada cliente -----
-	//
-	//		BYTE xtra   (bitfield)
-	//       0  health extra bit (+256)
-	//       1  energy extra bit (+256)
-	//       2  SKIP FRAME : no more frame data (depois desse byte)
-	//       3..7   "me" (0..31)
-	//    BYTE player screen(room) x
-	//    BYTE player screen(room) y
-	//    LONG players onscreen (bits 0..31 dizendo quais players[] estao na mesma room que eu)
-	//
-	//    ** E PARA CADA "PLAYER ONSCREEN", na ordem do bitfield, de 0 a 31:
-	//       3 BYTES   x e y
-	//       2 BYTES   sx e sy
-	//       BYTE   extra (bitfield)
-	//         0   player dead?
-	//         1   has deathbringer?
-	//         2   affected by deathbringer?
-	//         3   has shield?
-	//         4   has speed?
-	//         5   has quad?
-	//         6..7   FREE BITS
-	//       BYTE   keys (aceleracao/bitfield)
-	//           0   left?
-	//           1   right?
-	//           2   up?
-	//           3   down?
-	//           4   running? (SHIFT)
-	//           5..7   gundir  (direcao em que esta mirando)
-	//       BYTE   shadow alpha level
-	//
-	//    SHORT inimigos visiveis (0..15)  (bitfield)
-	//    BYTE  indice "V" do jogador que eu vou ficar sabendo agora (0-31)
-	//    BYTE  minimap x do player V
-	//    BYTE  minimap y do player V
-	//    BYTE  health base do jogador (primeiros 8 bits)
-	//    BYTE  energy base do jogador (primeiros 8 bits)
-	//    SHORT ping do jogador : world.player[frame % maxplayers].ping;
-	//
+    // (2)  broadcast the frame
+    //
+    //      o pacote nao eh o mesmo pra todo mundo, entao nao eh broadcast
+    //      m uma parte que depende do player (tipo, qual o health do cara)
+    //
+    // server frame format:  (protocolo v0.4.1)
+    //
+    //  --- PRIMEIRA PARTE : igual pra todo mundo ----
+    //
+    //    LONG  frame
+    //      LONG  players present (bits 0..31 dizendo quais players[] sao validos)
+    //
+    // --- SEGUNDA PARTE : varia p/ cada cliente -----
+    //
+    //      BYTE xtra   (bitfield)
+    //       0  health extra bit (+256)
+    //       1  energy extra bit (+256)
+    //       2  SKIP FRAME : no more frame data (depois desse byte)
+    //       3..7   "me" (0..31)
+    //    BYTE player screen(room) x
+    //    BYTE player screen(room) y
+    //    LONG players onscreen (bits 0..31 dizendo quais players[] estao na mesma room que eu)
+    //
+    //    ** E PARA CADA "PLAYER ONSCREEN", na ordem do bitfield, de 0 a 31:
+    //       3 BYTES   x e y
+    //       2 BYTES   sx e sy
+    //       BYTE   extra (bitfield)
+    //         0   player dead?
+    //         1   has deathbringer?
+    //         2   affected by deathbringer?
+    //         3   has shield?
+    //         4   has speed?
+    //         5   has quad?
+    //         6..7   FREE BITS
+    //       BYTE   keys (aceleracao/bitfield)
+    //           0   left?
+    //           1   right?
+    //           2   up?
+    //           3   down?
+    //           4   running? (SHIFT)
+    //           5..7   gundir  (direcao em que esta mirando)
+    //       BYTE   shadow alpha level
+    //
+    //    SHORT inimigos visiveis (0..15)  (bitfield)
+    //    BYTE  indice "V" do jogador que eu vou ficar sabendo agora (0-31)
+    //    BYTE  minimap x do player V
+    //    BYTE  minimap y do player V
+    //    BYTE  health base do jogador (primeiros 8 bits)
+    //    BYTE  energy base do jogador (primeiros 8 bits)
+    //    SHORT ping do jogador : world.player[frame % maxplayers].ping;
+    //
 
-	//RECALC PLAYERS PRESENT EVERY TIME
-	NLulong players_present = 0;
-	for (int pp = 0; pp < maxplayers; pp++)
-		if (world.player[pp].used)
-			players_present += (1 << pp);
+    //RECALC PLAYERS PRESENT EVERY TIME
+    NLulong players_present = 0;
+    for (int pp = 0; pp < maxplayers; pp++)
+        if (world.player[pp].used)
+            players_present += (1 << pp);
 
-	// ============================
-	//   build common data buffer
-	// ============================
-	char lebuf[4096];		//common frame data
-	int count = 0;
+    // ============================
+    //   build common data buffer
+    // ============================
+    char lebuf[4096];       //common frame data
+    int count = 0;
 
-	//frame
-	writeLong(lebuf, count, world.frame);
+    //frame
+    writeLong(lebuf, count, world.frame);
 
-	//players present NEW: LONG
-	writeLong(lebuf, count, players_present);
+    //players present NEW: LONG
+    writeLong(lebuf, count, players_present);
 
-	//===============================
-	//  build packet for each client
-	//		with custom data
-	//===============================
-	int lecount;	//count after "count"
+    //===============================
+    //  build packet for each client
+    //      with custom data
+    //===============================
+    int lecount;    //count after "count"
 
-	//stuff for minimap update: my team's enemy team view
-	static int tviter[2] = { 0, 0 };
-	static int helmiter = 0;		// HELM ITERATOR : manda todo mundo!
-	bool tview[2][MAX_PLAYERS / 2];	//[time][inimigo# visto? 1-8]
-	NLushort tview_bits[2];			//enemy view SHORT (bitfield for the 8 enemies of each team(0,1))
+    //stuff for minimap update: my team's enemy team view
+    static int tviter[2] = { 0, 0 };
+    static int helmiter = 0;        // HELM ITERATOR : manda todo mundo!
+    bool tview[2][MAX_PLAYERS / 2]; //[time][inimigo# visto? 1-8]
+    NLushort tview_bits[2];         //enemy view SHORT (bitfield for the 8 enemies of each team(0,1))
 
-	//HELM PATCH: the "helm view" bytes for both teams - if somebody has helm, he will se
-	//  helmview[] for his team
-	NLushort helmview[2];
+    //HELM PATCH: the "helm view" bytes for both teams - if somebody has helm, he will se
+    //  helmview[] for his team
+    NLushort helmview[2];
 
-	//atualiza HELM ITERATOR - para em um player valido ou entao qualquer um
-	int runaway = maxplayers + 1;
-	do {
-		helmiter++;
-		if (helmiter > maxplayers - 1)
-			helmiter = 0;
-		if (world.player[helmiter].used && !world.player[helmiter].item_helm() || world.player[helmiter].flag())
-			break;
-	} while (runaway-- > 0);
+    //atualiza HELM ITERATOR - para em um player valido ou entao qualquer um
+    int runaway = maxplayers + 1;
+    do {
+        helmiter++;
+        if (helmiter > maxplayers - 1)
+            helmiter = 0;
+        if (world.player[helmiter].used && !world.player[helmiter].item_helm() || world.player[helmiter].flag())
+            break;
+    } while (runaway-- > 0);
 
-	//atualiza tview E HELMVIEW
-	for (int t = 0; t < 2; t++) {
-		tview_bits[t] = 0;
-		helmview[t] = 0;		//default zero
+    //atualiza tview E HELMVIEW
+    for (int t = 0; t < 2; t++) {
+        tview_bits[t] = 0;
+        helmview[t] = 0;        //default zero
 
-		for (int i = 0; i < maxplayers; i++)			// p/ cada inimigo desse time
-			if (i / TSIZE == 1 - t && world.player[i].used) {
-				// ---- helmview -----
-				// mostra se NAO TEM HELM ou SE TA COM FLAG
-				if (!world.player[i].item_helm() || world.player[i].flag())
-					helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
+        for (int i = 0; i < maxplayers; i++)            // p/ cada inimigo desse time
+            if (i / TSIZE == 1 - t && world.player[i].used) {
+                // ---- helmview -----
+                // mostra se NAO TEM HELM ou SE TA COM FLAG
+                if (!world.player[i].item_helm() || world.player[i].flag())
+                    helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
 
-				// ---- tview -----
-				tview[t][i % TSIZE] = false;		// invisible
+                // ---- tview -----
+                tview[t][i % TSIZE] = false;        // invisible
 
-				for (int j = 0; j < maxplayers; j++)
-					if (j / TSIZE == t && world.player[j].used)
-						if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)
-							if (world.player[i].visibility > 10 || world.player[i].flag()) { // visible
-								tview[t][i % TSIZE] = true;
-								tview_bits[t] |= (1 << (i % TSIZE));	// set visibility bit
-								break;
-							}
-		}
+                for (int j = 0; j < maxplayers; j++)
+                    if (j / TSIZE == t && world.player[j].used)
+                        if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)
+                            if (world.player[i].visibility > 10 || world.player[i].flag()) { // visible
+                                tview[t][i % TSIZE] = true;
+                                tview_bits[t] |= (1 << (i % TSIZE));    // set visibility bit
+                                break;
+                            }
+        }
 
-		//avanca tviter do time p/ escolher alguem
-		int runaway = maxplayers + 3;
-		do {
-			//avanca proximo candidato a envio
-			tviter[t]++;
-			if (tviter[t] >= maxplayers)
-				tviter[t] = 0;
+        //avanca tviter do time p/ escolher alguem
+        int runaway = maxplayers + 3;
+        do {
+            //avanca proximo candidato a envio
+            tviter[t]++;
+            if (tviter[t] >= maxplayers)
+                tviter[t] = 0;
 
-			//testa se o candidato se aplica ao visor minimap do time
-			//testa apenas used players
-			if (world.player[tviter[t]].used) {
-				// same team, OK
-				if (tviter[t] / TSIZE == t)
-					break;
-				// enemy team, check if visible
-				if (tviter[t] / TSIZE == 1 - t && tview[t][tviter[t] % TSIZE])
-					break;
-			}
-		} while (runaway-- > 0);
-	}
+            //testa se o candidato se aplica ao visor minimap do time
+            //testa apenas used players
+            if (world.player[tviter[t]].used) {
+                // same team, OK
+                if (tviter[t] / TSIZE == t)
+                    break;
+                // enemy team, check if visible
+                if (tviter[t] / TSIZE == 1 - t && tview[t][tviter[t] % TSIZE])
+                    break;
+            }
+        } while (runaway-- > 0);
+    }
 
-	// ==================================================================
-	//   BUILD AND SEND EVERY DAMN PACKET
-	// ==================================================================
-	for (int i = 0; i < maxplayers; i++) {
-		if (!world.player[i].used)
-			continue;
+    // ==================================================================
+    //   BUILD AND SEND EVERY DAMN PACKET
+    // ==================================================================
+    for (int i = 0; i < maxplayers; i++) {
+        if (!world.player[i].used)
+            continue;
 
-		// start writing at end of common data
-		lecount = count;
+        // start writing at end of common data
+        lecount = count;
 
-		// first send client prediction synchronization data
-		NLubyte clFrame = world.player[i].lastClientFrame;
-		writeByte(lebuf, lecount, clFrame);
-		#ifdef SEND_FRAMEOFFSET
-		NLubyte fo = static_cast<NLubyte>(bound<double>(world.player[i].frameOffset, 0., .999) * 256.);
-		writeByte(lebuf, lecount, fo);
-		#endif
+        // first send client prediction synchronization data
+        NLubyte clFrame = world.player[i].lastClientFrame;
+        writeByte(lebuf, lecount, clFrame);
+        #ifdef SEND_FRAMEOFFSET
+        NLubyte fo = static_cast<NLubyte>(bound<double>(world.player[i].frameOffset, 0., .999) * 256.);
+        writeByte(lebuf, lecount, fo);
+        #endif
 
-		const bool skip_frame = world.player[i].awaiting_client_ready || !gameRunning;
+        const bool skip_frame = world.player[i].awaiting_client_ready || !gameRunning;
 
-		// first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
-		NLubyte xtra = i << 3;
-		if (world.player[i].health & 256)
-			xtra |= 1;
-		if (world.player[i].energy & 256)
-			xtra |= 2;
-		if (skip_frame)
-			xtra |= 4;
-		writeByte(lebuf, lecount, xtra);
+        // first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
+        NLubyte xtra = i << 3;
+        if (world.player[i].health & 256)
+            xtra |= 1;
+        if (world.player[i].energy & 256)
+            xtra |= 2;
+        if (skip_frame)
+            xtra |= 4;
+        writeByte(lebuf, lecount, xtra);
 
-		// send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
-		if (!skip_frame) {
-			// 2 bytes with the screen of self
-			NLubyte scr;
-			scr = static_cast<NLubyte>(world.player[i].roomx);
-			writeByte(lebuf, lecount, scr);
-			scr = static_cast<NLubyte>(world.player[i].roomy);
-			writeByte(lebuf, lecount, scr);
+        // send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
+        if (!skip_frame) {
+            // 2 bytes with the screen of self
+            NLubyte scr;
+            scr = static_cast<NLubyte>(world.player[i].roomx);
+            writeByte(lebuf, lecount, scr);
+            scr = static_cast<NLubyte>(world.player[i].roomy);
+            writeByte(lebuf, lecount, scr);
 
-			// player data field to indicate which players are on screen (and therefore sent on the frame)
-			NLulong players_onscreen = 0;
+            // player data field to indicate which players are on screen (and therefore sent on the frame)
+            NLulong players_onscreen = 0;
 
-			// players_onscreen will be written here in the end
-			int p_on_count = lecount;
-			writeLong(lebuf, lecount, 0);
+            // players_onscreen will be written here in the end
+            int p_on_count = lecount;
+            writeLong(lebuf, lecount, 0);
 
-			for (int j = 0; j < maxplayers; j++) {
-				// player j exists, in same room, visible or in same team or has a flag
-				if (world.player[j].used && world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-						(world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].flag())) {
-					players_onscreen |= (1 << j);
+            for (int j = 0; j < maxplayers; j++) {
+                // player j exists, in same room, visible or in same team or has a flag
+                if (world.player[j].used && world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
+                        (world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].flag())) {
+                    players_onscreen |= (1 << j);
 
-					const ServerPlayer& h = world.player[j];
+                    const ServerPlayer& h = world.player[j];
 
-					// position in 3 bytes
-					NLubyte xy;
-					NLushort hx,hy;
-					hx = static_cast<NLushort>(h.lx * (double(0xFFF) / plw) + .5);
-					hy = static_cast<NLushort>(h.ly * (double(0xFFF) / plh) + .5);
-					xy = static_cast<NLubyte>(hx & 0x0FF);
-					writeByte(lebuf, lecount, xy);
-					xy = static_cast<NLubyte>(hy & 0x0FF);
-					writeByte(lebuf, lecount, xy);
-					xy = static_cast<NLubyte>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
-					writeByte(lebuf, lecount, xy);
+                    // position in 3 bytes
+                    NLubyte xy;
+                    NLushort hx,hy;
+                    hx = static_cast<NLushort>(h.lx * (double(0xFFF) / plw) + .5);
+                    hy = static_cast<NLushort>(h.ly * (double(0xFFF) / plh) + .5);
+                    xy = static_cast<NLubyte>(hx & 0x0FF);
+                    writeByte(lebuf, lecount, xy);
+                    xy = static_cast<NLubyte>(hy & 0x0FF);
+                    writeByte(lebuf, lecount, xy);
+                    xy = static_cast<NLubyte>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
+                    writeByte(lebuf, lecount, xy);
 
-					// speed in 2 bytes
-					NLbyte sxy;
-					sxy = static_cast<NLbyte>(h.sx * 2);	// * 2 gives a half pixel resolution with range from -63 to +63
-					writeByte(lebuf, lecount, sxy);
-					sxy = static_cast<NLbyte>(h.sy * 2);
-					writeByte(lebuf, lecount, sxy);
+                    // speed in 2 bytes
+                    NLbyte sxy;
+                    sxy = static_cast<NLbyte>(h.sx * 2);    // * 2 gives a half pixel resolution with range from -63 to +63
+                    writeByte(lebuf, lecount, sxy);
+                    sxy = static_cast<NLbyte>(h.sy * 2);
+                    writeByte(lebuf, lecount, sxy);
 
-					// flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
-					NLubyte extra = 0;
-					if (world.player[j].health <= 0)
-						extra |= 1;
-					if (world.player[j].item_deathbringer)
-						extra |= 2;
-					if (world.player[j].deathbringer_end > get_time())
-						extra |= 4;
-					if (world.player[j].item_shield)
-						extra |= 8;
-					if (world.player[j].item_speed)
-						extra |= 16;
-					if (world.player[j].item_quad)
-						extra |= 32;
-					writeByte(lebuf, lecount, extra);
+                    // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
+                    NLubyte extra = 0;
+                    if (world.player[j].health <= 0)
+                        extra |= 1;
+                    if (world.player[j].item_deathbringer)
+                        extra |= 2;
+                    if (world.player[j].deathbringer_end > get_time())
+                        extra |= 4;
+                    if (world.player[j].item_shield)
+                        extra |= 8;
+                    if (world.player[j].item_speed)
+                        extra |= 16;
+                    if (world.player[j].item_quad)
+                        extra |= 32;
+                    writeByte(lebuf, lecount, extra);
 
-					// controls and gundirection in 1 byte
-					NLubyte ccb;
-					if (world.player[j].health > 0)	// if dead player, don't send keys
-						ccb = world.player[j].controls.toNetwork(true);
-					else
-						ccb = ClientControls().toNetwork(true);
-					ccb |= h.gundir << 5;
-					writeByte(lebuf, lecount, ccb);
+                    // controls and gundirection in 1 byte
+                    NLubyte ccb;
+                    if (world.player[j].health > 0) // if dead player, don't send keys
+                        ccb = world.player[j].controls.toNetwork(true);
+                    else
+                        ccb = ClientControls().toNetwork(true);
+                    ccb |= h.gundir << 5;
+                    writeByte(lebuf, lecount, ccb);
 
-					// visibility in 1 byte
-					writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
-				}
-			}
+                    // visibility in 1 byte
+                    writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
+                }
+            }
 
-			// write players_onscreen in its place (reserved before the above loop)
-			writeLong(lebuf, p_on_count, players_onscreen);
+            // write players_onscreen in its place (reserved before the above loop)
+            writeLong(lebuf, p_on_count, players_onscreen);
 
-			NLubyte who;
-			if (world.player[i].item_helm()) {
-				writeShort(lebuf, lecount, helmview[i/TSIZE] | tview_bits[i/TSIZE]);
-				who = (NLubyte)helmiter;
-				writeByte(lebuf, lecount, who);
-			}
-			else {
-				writeShort(lebuf, lecount, tview_bits[i/TSIZE]);
-				who = (NLubyte)tviter[i/TSIZE];
-				writeByte(lebuf, lecount, who);
-			}
+            NLubyte who;
+            if (world.player[i].item_helm()) {
+                writeShort(lebuf, lecount, helmview[i/TSIZE] | tview_bits[i/TSIZE]);
+                who = (NLubyte)helmiter;
+                writeByte(lebuf, lecount, who);
+            }
+            else {
+                writeShort(lebuf, lecount, tview_bits[i/TSIZE]);
+                who = (NLubyte)tviter[i/TSIZE];
+                writeByte(lebuf, lecount, who);
+            }
 
-			NLubyte mx = (NLubyte)(((world.player[who].lx + ((double)(world.player[who].roomx * plw))) / (world.map.w*plw)) * 255.0);
-			writeByte(lebuf, lecount, mx);
+            NLubyte mx = (NLubyte)(((world.player[who].lx + ((double)(world.player[who].roomx * plw))) / (world.map.w*plw)) * 255.0);
+            writeByte(lebuf, lecount, mx);
 
-			NLubyte my = (NLubyte)(((world.player[who].ly + ((double)(world.player[who].roomy * plh))) / (world.map.h*plh)) * 255.0);
-			writeByte(lebuf, lecount, my);
+            NLubyte my = (NLubyte)(((world.player[who].ly + ((double)(world.player[who].roomy * plh))) / (world.map.h*plh)) * 255.0);
+            writeByte(lebuf, lecount, my);
 
-			// send 8 bits of player's health
-			if (world.player[i].health < 0)
-				world.player[i].health = 0;
-			writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].health & 255));
+            // send 8 bits of player's health
+            if (world.player[i].health < 0)
+                world.player[i].health = 0;
+            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].health & 255));
 
-			// send 8 bits of player's energy
-			if (world.player[i].energy < 0)
-				world.player[i].energy = 0;
-			writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].energy & 255));
+            // send 8 bits of player's energy
+            if (world.player[i].energy < 0)
+                world.player[i].energy = 0;
+            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].energy & 255));
 
-			// ping of player frame# % MAXPLAYERS
-			NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
-			writeShort(lebuf, lecount, theping);
-		}
+            // ping of player frame# % MAXPLAYERS
+            NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
+            writeShort(lebuf, lecount, theping);
+        }
 
-		//send the packet
-		server->send_frame(world.player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
+        //send the packet
+        server->send_frame(world.player[i].cid, lebuf, lecount);    //use client id of the player, and LEcount
 
-		//send server map list if not sent yet
-		if (world.player[i].current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
-			send_map_info(world.player[i]);
-			++world.player[i].current_map_list_item;
-		}
-	}
+        //send server map list if not sent yet
+        if (world.player[i].current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
+            send_map_info(world.player[i]);
+            ++world.player[i].current_map_list_item;
+        }
+    }
 
-	// map votes update
-	if (world.frame % 10 == 0)
-		broadcast_map_votes_update();
+    // map votes update
+    if (world.frame % 10 == 0)
+        broadcast_map_votes_update();
 
-	// stats update
-	if (gameRunning && world.frame / MAX_PLAYERS % 5 == 0) {
-		const int pid = world.frame % MAX_PLAYERS;
-		if (world.player[pid].used) {
-			broadcast_movements_and_shots(world.player[pid]);	// player's stats to everyone
-			send_team_movements_and_shots(world.player[pid]);	// team stats to player
-		}
-	}
+    // stats update
+    if (gameRunning && world.frame / MAX_PLAYERS % 5 == 0) {
+        const int pid = world.frame % MAX_PLAYERS;
+        if (world.player[pid].used) {
+            broadcast_movements_and_shots(world.player[pid]);   // player's stats to everyone
+            send_team_movements_and_shots(world.player[pid]);   // team stats to player
+        }
+    }
 
-	// PING: v0.4.1
-	// envia um ping a cada frame, faz revezamento entre todos os players
-	ping_send_client++;		//next player
-	if (ping_send_client >= maxplayers)
-		ping_send_client = 0;
-	if (world.player[ping_send_client].used) // valid player?
-		server->ping_client(world.player[ping_send_client].cid); //ping
+    // PING: v0.4.1
+    // envia um ping a cada frame, faz revezamento entre todos os players
+    ping_send_client++;     //next player
+    if (ping_send_client >= maxplayers)
+        ping_send_client = 0;
+    if (world.player[ping_send_client].used) // valid player?
+        server->ping_client(world.player[ping_send_client].cid); //ping
 
-	#ifdef SEND_FRAMEOFFSET
-	frameSentTime = get_time();
-	#endif
+    #ifdef SEND_FRAMEOFFSET
+    frameSentTime = get_time();
+    #endif
 }
 
 double ServerNetworking::getTraffic() {
-	return ( server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT) ) / 1024.;
+    return ( server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT) ) / 1024.;
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
-	logThreadStart("run_masterjob_thread", log);
+    logThreadStart("run_masterjob_thread", log);
 
-	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
+    int delay = 0;  // given a value in MS before each continue: this time will be waited before next round
 
-	while (!mjob_exit) {
-		if (delay > 0) {
-			MS_SLEEP(500);
-			delay -= 500;
-			if (!mjob_fastretry)
-				continue;
-		}
-		delay = 60000;	// default to one minute
+    while (!mjob_exit) {
+        if (delay > 0) {
+            MS_SLEEP(500);
+            delay -= 500;
+            if (!mjob_fastretry)
+                continue;
+        }
+        delay = 60000;  // default to one minute
 
-		nlOpenMutex.lock();
-		nlDisable(NL_BLOCKING_IO);
-		NLsocket sock = nlOpen(0, NL_RELIABLE);
-		nlOpenMutex.unlock();
-		if (sock == NL_INVALID) {
-			log("Tournament thread: Can't open socket. %s", getNlErrorString());
-			delay = 10000;
-			continue;
-		}
+        nlOpenMutex.lock();
+        nlDisable(NL_BLOCKING_IO);
+        NLsocket sock = nlOpen(0, NL_RELIABLE);
+        nlOpenMutex.unlock();
+        if (sock == NL_INVALID) {
+            log("Tournament thread: Can't open socket. %s", getNlErrorString());
+            delay = 10000;
+            continue;
+        }
 
-		NLaddress tournamentServer;
-		if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
-			nlStringToAddr("69.57.148.55", &tournamentServer);
+        NLaddress tournamentServer;
+        if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
+            nlStringToAddr("69.57.148.55", &tournamentServer);
 
-		nlSetAddrPort(&tournamentServer, 80);
-		nlConnect(sock, &tournamentServer);
+        nlSetAddrPort(&tournamentServer, 80);
+        nlConnect(sock, &tournamentServer);
 
-		const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
-		if (result != NR_ok) {
-			nlClose(sock);
-			if (mjob_exit)
-				break;
-			log("Tournament thread: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-			continue;
-		}
+        const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
+        if (result != NR_ok) {
+            nlClose(sock);
+            if (mjob_exit)
+                break;
+            log("Tournament thread: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+            continue;
+        }
 
-		string response;
-		{
-			ostringstream respStream;
-			const NetworkResult result = save_http_response(sock, respStream, &mjob_exit, 30000);
-			nlClose(sock);
-			if (result != NR_ok) {
-				if (mjob_exit)
-					break;
-				log("Tournament thread: Error receiving response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-				continue;
-			}
-			string fullResponse = respStream.str();
+        string response;
+        {
+            ostringstream respStream;
+            const NetworkResult result = save_http_response(sock, respStream, &mjob_exit, 30000);
+            nlClose(sock);
+            if (result != NR_ok) {
+                if (mjob_exit)
+                    break;
+                log("Tournament thread: Error receiving response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+                continue;
+            }
+            string fullResponse = respStream.str();
 
-			// find the start and end of the body: after the last "<html>" and before the last "</html>"
-			// the original code uses full case insensivity so response.find_last_of() can't be used
-			int startPos, endPos;
-			for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)	// start at length - 7 because "</html>" must fit after that
-				if (!platStricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
-					break;
-			for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
-				if (!platStricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
-					break;
-			if (startPos < 6 || endPos < startPos) {
-				log("Tournament thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
-				continue;
-			}
-			response = fullResponse.substr(startPos, endPos - startPos);
-		}
+            // find the start and end of the body: after the last "<html>" and before the last "</html>"
+            // the original code uses full case insensivity so response.find_last_of() can't be used
+            int startPos, endPos;
+            for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)   // start at length - 7 because "</html>" must fit after that
+                if (!platStricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
+                    break;
+            for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
+                if (!platStricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
+                    break;
+            if (startPos < 6 || endPos < startPos) {
+                log("Tournament thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
+                continue;
+            }
+            response = fullResponse.substr(startPos, endPos - startPos);
+        }
 
-		// parse the response
-		bool unavailable = false;
-		for (string::size_type i = 0; i < response.length(); ++i)
-			if (!platStricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
-				log("Tournament thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
-				unavailable = true;
-				break;
-			}
-		if (unavailable)
-			continue;
-		log("Tournament thread: Received response: \"%s\"", formatForLogging(response).c_str());
-		string::size_type cPos = response.find_first_of('@');
-		if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
-			log("Tournament thread: Invalid response (expecting one @-code)");
-			continue;
-		}
-		++cPos;	// point to the control character after @
-		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// success; ranking data follows
-			++cPos;
-			double v[4];
-			char termChar;
-			const int num = sscanf(response.c_str() + cPos, "%lf#%lf#%lf#%*[^#]#%lf%c", &v[0], &v[1], &v[2], &v[3], &termChar);	// max_world_score that bugs is ignored
-			if (num != 5 || termChar != '#') {
-				log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
-				continue;
-			}
-			const int pid = ctop[job->cid];
-			if (pid != -1) {	// the player is still in the game
-				ClientData& clid = host->getClientData(job->cid);	//#fix: thread safety
-				if (job->code == MasterQuery::JT_login) {
-					log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
-					char lebuf[128]; int count = 0;
-					writeByte(lebuf, count, data_registration_response);
-					writeByte(lebuf, count, 1);	// registration ok
-					server->send_message(job->cid, lebuf, count);
-					clid.token_valid = true;
-				}
-				else if (job->code == MasterQuery::JT_score)
-					log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
-				else
-					nAssert(0);
-				clid.score		= static_cast<int>(v[0]);
-				clid.neg_score	= static_cast<int>(v[1]);
-				clid.rank		= static_cast<int>(v[2]);
-				max_world_rank	= static_cast<int>(v[3]);
-				broadcast_player_crap(pid);
-			}
-			break;	// request complete
-		}
-		else if (response[cPos] == 'E' || response[cPos] == 'F') {
-			const int pid = ctop[job->cid];
-			if (pid != -1) {
-				if (job->code == MasterQuery::JT_login)	{
-					log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
-								world.player[pid].name.c_str(), get_client_address(job->cid), formatForLogging(job->request).c_str());
-					char lebuf[128]; int count = 0;
-					writeByte(lebuf, count, data_registration_response);
-					writeByte(lebuf, count, 0);	// registration failed
-					server->send_message(job->cid, lebuf, count);
-				}
-				else if (job->code == MasterQuery::JT_score) {
-					plprintf(pid, msg_warning, "Updating your tournament score failed!");
-					log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
-				}
-				else
-					nAssert(0);
-			}
-			else if (job->code == MasterQuery::JT_score)
-				log("Tournament thread: Score update lost for a player who has left the server");
-			break;	// request complete
-		}
-		else
-			log("Tournament thread: Invalid response (bad @-code)");
-	}
-	{
-		MutexLock ml(mjob_mutex);
-		--mjob_count;
-	}
-	delete job;
+        // parse the response
+        bool unavailable = false;
+        for (string::size_type i = 0; i < response.length(); ++i)
+            if (!platStricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
+                log("Tournament thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
+                unavailable = true;
+                break;
+            }
+        if (unavailable)
+            continue;
+        log("Tournament thread: Received response: \"%s\"", formatForLogging(response).c_str());
+        string::size_type cPos = response.find_first_of('@');
+        if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
+            log("Tournament thread: Invalid response (expecting one @-code)");
+            continue;
+        }
+        ++cPos; // point to the control character after @
+        if (response[cPos] == 'K' && cPos + 1 < response.length()) {    // success; ranking data follows
+            ++cPos;
+            double v[4];
+            char termChar;
+            const int num = sscanf(response.c_str() + cPos, "%lf#%lf#%lf#%*[^#]#%lf%c", &v[0], &v[1], &v[2], &v[3], &termChar); // max_world_score that bugs is ignored
+            if (num != 5 || termChar != '#') {
+                log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
+                continue;
+            }
+            const int pid = ctop[job->cid];
+            if (pid != -1) {    // the player is still in the game
+                ClientData& clid = host->getClientData(job->cid);   //#fix: thread safety
+                if (job->code == MasterQuery::JT_login) {
+                    log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
+                    char lebuf[128]; int count = 0;
+                    writeByte(lebuf, count, data_registration_response);
+                    writeByte(lebuf, count, 1); // registration ok
+                    server->send_message(job->cid, lebuf, count);
+                    clid.token_valid = true;
+                }
+                else if (job->code == MasterQuery::JT_score)
+                    log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
+                else
+                    nAssert(0);
+                clid.score      = static_cast<int>(v[0]);
+                clid.neg_score  = static_cast<int>(v[1]);
+                clid.rank       = static_cast<int>(v[2]);
+                max_world_rank  = static_cast<int>(v[3]);
+                broadcast_player_crap(pid);
+            }
+            break;  // request complete
+        }
+        else if (response[cPos] == 'E' || response[cPos] == 'F') {
+            const int pid = ctop[job->cid];
+            if (pid != -1) {
+                if (job->code == MasterQuery::JT_login) {
+                    log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
+                                world.player[pid].name.c_str(), get_client_address(job->cid), formatForLogging(job->request).c_str());
+                    char lebuf[128]; int count = 0;
+                    writeByte(lebuf, count, data_registration_response);
+                    writeByte(lebuf, count, 0); // registration failed
+                    server->send_message(job->cid, lebuf, count);
+                }
+                else if (job->code == MasterQuery::JT_score) {
+                    plprintf(pid, msg_warning, "Updating your tournament score failed!");
+                    log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
+                }
+                else
+                    nAssert(0);
+            }
+            else if (job->code == MasterQuery::JT_score)
+                log("Tournament thread: Score update lost for a player who has left the server");
+            break;  // request complete
+        }
+        else
+            log("Tournament thread: Invalid response (bad @-code)");
+    }
+    {
+        MutexLock ml(mjob_mutex);
+        --mjob_count;
+    }
+    delete job;
 
-	logThreadExit("run_masterjob_thread", log);
+    logThreadExit("run_masterjob_thread", log);
 }
 
 void ServerNetworking::run_mastertalker_thread() {
-	logThreadStart("run_mastertalker_thread", log);
+    logThreadStart("run_mastertalker_thread", log);
 
-	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
-	string line;
-	string master_script;
-	if (!getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, master_script))
-		master_script = "/outgun/servers/submit.php";
-	in.close();
+    ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
+    string line;
+    string master_script;
+    if (!getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, master_script))
+        master_script = "/outgun/servers/submit.php";
+    in.close();
 
-	// determine the public IP to send to master
-	string localAddress;
-	if (!host->config().force_ip_name.empty()) {	// use IP manually given to the program
-		if (check_private_IP(host->config().force_ip_name)) {
-			log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
-			return;
-		}
-		log("Master talker: Forcing IP to %s", host->config().force_ip_name.c_str());
+    // determine the public IP to send to master
+    string localAddress;
+    if (!host->config().force_ip_name.empty()) {    // use IP manually given to the program
+        if (check_private_IP(host->config().force_ip_name)) {
+            log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
+            return;
+        }
+        log("Master talker: Forcing IP to %s", host->config().force_ip_name.c_str());
 
-		localAddress = host->config().force_ip_name;
-	}
-	else {
-		localAddress = getPublicIP(log);
-		if (localAddress.empty()) {
-			log("Master talker: No public IP address. Not talking to master server.");
-			return;
-		}
-	}
+        localAddress = host->config().force_ip_name;
+    }
+    else {
+        localAddress = getPublicIP(log);
+        if (localAddress.empty()) {
+            log("Master talker: No public IP address. Not talking to master server.");
+            return;
+        }
+    }
 
-	bool master_never_talked = true;
-	double master_talk_time = get_time() + delay_to_report_server;	//give it a break
+    bool master_never_talked = true;
+    double master_talk_time = get_time() + delay_to_report_server;  //give it a break
 
-	while (!file_threads_quit) {
-		MS_SLEEP(500);
+    while (!file_threads_quit) {
+        MS_SLEEP(500);
 
-		if (get_time() < master_talk_time)
-			continue;
+        if (get_time() < master_talk_time)
+            continue;
 
-		master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
+        master_talk_time = get_time() + 3 * 60.0 ;      //3 minutes
 
-		// note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
+        // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-		//open socket
-		nlOpenMutex.lock();
-		nlDisable(NL_BLOCKING_IO);
-		NLsocket msock = nlOpen(0, NL_RELIABLE);
-		nlOpenMutex.unlock();
-		if (msock == NL_INVALID) {
-			log.error("Master talker: Server can't open socket to connect to master server.");
-			continue;
-		}
+        //open socket
+        nlOpenMutex.lock();
+        nlDisable(NL_BLOCKING_IO);
+        NLsocket msock = nlOpen(0, NL_RELIABLE);
+        nlOpenMutex.unlock();
+        if (msock == NL_INVALID) {
+            log.error("Master talker: Server can't open socket to connect to master server.");
+            continue;
+        }
 
-		if (nlConnect(msock, &master_address) == NL_FALSE) {
-			log.error("Master talker: Server can't connect to master server.");
-			nlClose(msock);
-			continue;
-		}
+        if (nlConnect(msock, &master_address) == NL_FALSE) {
+            log.error("Master talker: Server can't connect to master server.");
+            nlClose(msock);
+            continue;
+        }
 
-		//now we have talked
-		master_never_talked = false;
+        //now we have talked
+        master_never_talked = false;
 
-		// build and send data
-		map<string, string> parameters = master_parameters(localAddress);
-		const string data = build_http_data(parameters);
-		NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
-		if (result != NR_ok)
-			log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-		else {
-			std::stringstream response;
-			result = save_http_response(msock, response, &file_threads_quit, 30000);
-			if (result == NR_ok) {
-				// save transaction to a file
-				ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-				out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
-				out << "--- Query ---\n";
-				out << data << "\n";
-				out << "\n--- Response ---\n";
-				out << response.str();
-				out.close();
-				if (response.str().find("VERSION ERROR") != string::npos) {
-					log.error("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update.");
-					nlClose(msock);
-					return;
-				}
-				if (response.str().find("[OK]") == string::npos)
-					log.error("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.");
-			}
-			else {
-				log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-				master_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
-			}
-		}
+        // build and send data
+        map<string, string> parameters = master_parameters(localAddress);
+        const string data = build_http_data(parameters);
+        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
+        if (result != NR_ok)
+            log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+        else {
+            std::stringstream response;
+            result = save_http_response(msock, response, &file_threads_quit, 30000);
+            if (result == NR_ok) {
+                // save transaction to a file
+                ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+                out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+                out << "--- Query ---\n";
+                out << data << "\n";
+                out << "\n--- Response ---\n";
+                out << response.str();
+                out.close();
+                if (response.str().find("VERSION ERROR") != string::npos) {
+                    log.error("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update.");
+                    nlClose(msock);
+                    return;
+                }
+                if (response.str().find("[OK]") == string::npos)
+                    log.error("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.");
+            }
+            else {
+                log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+                master_talk_time = get_time() + 30.0;   // faster retry: in 30 seconds
+            }
+        }
 
-		//close socket
-		nlClose(msock);
-	}
+        //close socket
+        nlClose(msock);
+    }
 
-	log("Master talker: time to say goodbye.");
+    log("Master talker: time to say goodbye.");
 
-	if (master_never_talked)
-		return;
+    if (master_never_talked)
+        return;
 
-	//quitting: delete my IP from master so clients won't see it
-	//open socket
-	nlOpenMutex.lock();
-	nlDisable(NL_BLOCKING_IO);
-	NLsocket msock = nlOpen(0, NL_RELIABLE);
-	nlOpenMutex.unlock();
+    //quitting: delete my IP from master so clients won't see it
+    //open socket
+    nlOpenMutex.lock();
+    nlDisable(NL_BLOCKING_IO);
+    NLsocket msock = nlOpen(0, NL_RELIABLE);
+    nlOpenMutex.unlock();
 
-	if (msock == NL_INVALID) {
-		log.error("Master talker: (Quit) Server can't open socket to connect to master server.");
-		return;
-	}
+    if (msock == NL_INVALID) {
+        log.error("Master talker: (Quit) Server can't open socket to connect to master server.");
+        return;
+    }
 
-	//connect
-	if (nlConnect(msock, &master_address) == NL_FALSE) {
-		log.error("Master talker: (Quit) Server can't connect to master server.");
-		nlClose(msock);
-		return;
-	}
+    //connect
+    if (nlConnect(msock, &master_address) == NL_FALSE) {
+        log.error("Master talker: (Quit) Server can't connect to master server.");
+        nlClose(msock);
+        return;
+    }
 
-	// send quit message
-	map<string, string> parameters = master_parameters(localAddress, true);	// true = quitting
-	const string data = build_http_data(parameters);
-	NetworkResult result = post_http_data(msock, 0, 5000, master_script, data);	// only 5 seconds allowed; it's not so crucial
-	if (result != NR_ok)
-		log("Master talker: (Quit) Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-	else {
-		std::stringstream response;
-		result = save_http_response(msock, response, 0, 5000);	// only 5 seconds allowed; it's not so crucial
-		if (result == NR_ok) {
-			// save transaction to a file
-			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-			out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
-			out << "--- Query ---\n";
-			out << data << "\n";
-			out << "\n--- Response ---\n";
-			out << response.str();
-			out.close();
-			if (response.str().find("[OK]") == string::npos)
-				log.error("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.");
-		}
-		else
-			log("Master talker: (Quit) Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-	}
+    // send quit message
+    map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
+    const string data = build_http_data(parameters);
+    NetworkResult result = post_http_data(msock, 0, 5000, master_script, data); // only 5 seconds allowed; it's not so crucial
+    if (result != NR_ok)
+        log("Master talker: (Quit) Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+    else {
+        std::stringstream response;
+        result = save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+        if (result == NR_ok) {
+            // save transaction to a file
+            ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+            out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+            out << "--- Query ---\n";
+            out << data << "\n";
+            out << "\n--- Response ---\n";
+            out << response.str();
+            out.close();
+            if (response.str().find("[OK]") == string::npos)
+                log.error("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.");
+        }
+        else
+            log("Master talker: (Quit) Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+    }
 
-	nlClose(msock);
+    nlClose(msock);
 }
 
 void ServerNetworking::run_website_thread() {
-	logThreadStart("run_website_thread", log);
+    logThreadStart("run_website_thread", log);
 
-	if (web_servers.empty() || web_script.empty())
-		return;
+    if (web_servers.empty() || web_script.empty())
+        return;
 
-	string localAddress;
-	if (!host->config().force_ip_name.empty())
-		localAddress = host->config().force_ip_name;
-	else {
-		localAddress = getPublicIP(log);
-		if (localAddress.empty()) {
-			NLaddress myadr;
-			get_self_IP(&myadr);
-			localAddress = addressToString(myadr);
-		}
-	}
+    string localAddress;
+    if (!host->config().force_ip_name.empty())
+        localAddress = host->config().force_ip_name;
+    else {
+        localAddress = getPublicIP(log);
+        if (localAddress.empty()) {
+            NLaddress myadr;
+            get_self_IP(&myadr);
+            localAddress = addressToString(myadr);
+        }
+    }
 
-	NLaddress website_address;
-	double website_talk_time = 0.0;
-	bool first_connection = true;
-	int sent_maplist_revision = -1;
+    NLaddress website_address;
+    double website_talk_time = 0.0;
+    bool first_connection = true;
+    int sent_maplist_revision = -1;
 
-	while (!file_threads_quit) {
-		MS_SLEEP(500);
+    while (!file_threads_quit) {
+        MS_SLEEP(500);
 
-		if (get_time() < website_talk_time)
-			continue;
+        if (get_time() < website_talk_time)
+            continue;
 
-		website_talk_time = get_time() + web_refresh * 60.0;
+        website_talk_time = get_time() + web_refresh * 60.0;
 
-		// note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
+        // note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-		log("Website thread: Start sending information to server website.");
+        log("Website thread: Start sending information to server website.");
 
-		nlOpenMutex.lock();
-		nlDisable(NL_BLOCKING_IO);
-		NLsocket websock = nlOpen(0, NL_RELIABLE);
-		nlOpenMutex.unlock();
-		if (websock == NL_INVALID) {
-			log.error("Website thread: Server can't open socket to connect to server website.");
-			continue;
-		}
-		bool success = false;
-		for (vector<string>::const_iterator addri = web_servers.begin(); addri != web_servers.end(); ++addri)
-			if (nlGetAddrFromName(addri->c_str(), &website_address)) {
-				log("Website thread: Address %s works.", addri->c_str());
-				success = true;
-				break;
-			}
-			else
-				log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), getNlErrorString());
-		if (!success) {
-			log("Website thread: Can't get any address from the list!");
-			continue;
-		}
-		int web_port = nlGetPortFromAddr(&website_address);
-		if (!web_port) {
-			web_port = 80;
-			nAssert(nlSetAddrPort(&website_address, web_port));
-		}
-		if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
-			log.error("Website thread: Server can't connect to the web server! Reason: %s", getNlErrorString());
-			nlClose(websock);
-			continue;
-		}
+        nlOpenMutex.lock();
+        nlDisable(NL_BLOCKING_IO);
+        NLsocket websock = nlOpen(0, NL_RELIABLE);
+        nlOpenMutex.unlock();
+        if (websock == NL_INVALID) {
+            log.error("Website thread: Server can't open socket to connect to server website.");
+            continue;
+        }
+        bool success = false;
+        for (vector<string>::const_iterator addri = web_servers.begin(); addri != web_servers.end(); ++addri)
+            if (nlGetAddrFromName(addri->c_str(), &website_address)) {
+                log("Website thread: Address %s works.", addri->c_str());
+                success = true;
+                break;
+            }
+            else
+                log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), getNlErrorString());
+        if (!success) {
+            log("Website thread: Can't get any address from the list!");
+            continue;
+        }
+        int web_port = nlGetPortFromAddr(&website_address);
+        if (!web_port) {
+            web_port = 80;
+            nAssert(nlSetAddrPort(&website_address, web_port));
+        }
+        if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {       // connect
+            log.error("Website thread: Server can't connect to the web server! Reason: %s", getNlErrorString());
+            nlClose(websock);
+            continue;
+        }
 
-		// build and send data
-		map<string, string> parameters = website_parameters(localAddress);
-		const int sending_maplist_revision = maplist_revision;
-		if (first_connection || sending_maplist_revision != sent_maplist_revision) {
-			parameters["maplist"] = website_maplist();
-			first_connection = false;
-		}
-		const string data = build_http_data(parameters);
-		NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, web_script, data, web_auth);
-		log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(data).c_str(), result);
-		if (result == NR_ok) {
-			// save response to a file
-			ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-			result = save_http_response(websock, out, &file_threads_quit, 30000);
-		}
-		if (result != NR_ok)
-			website_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
-		else
-			sent_maplist_revision = sending_maplist_revision;
+        // build and send data
+        map<string, string> parameters = website_parameters(localAddress);
+        const int sending_maplist_revision = maplist_revision;
+        if (first_connection || sending_maplist_revision != sent_maplist_revision) {
+            parameters["maplist"] = website_maplist();
+            first_connection = false;
+        }
+        const string data = build_http_data(parameters);
+        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, web_script, data, web_auth);
+        log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(data).c_str(), result);
+        if (result == NR_ok) {
+            // save response to a file
+            ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
+            result = save_http_response(websock, out, &file_threads_quit, 30000);
+        }
+        if (result != NR_ok)
+            website_talk_time = get_time() + 30.0;  // faster retry: in 30 seconds
+        else
+            sent_maplist_revision = sending_maplist_revision;
 
-		//close socket
-		nlClose(websock);
-	}
+        //close socket
+        nlClose(websock);
+    }
 
-	log("Website thread: time to say goodbye");
+    log("Website thread: time to say goodbye");
 
-	if (first_connection)	// not send anything
-		return;
+    if (first_connection)   // not send anything
+        return;
 
-	//quitting: send server shutdown message to web script
-	//open socket
-	nlOpenMutex.lock();
-	nlDisable(NL_BLOCKING_IO);
-	NLsocket websock = nlOpen(0, NL_RELIABLE);
-	nlOpenMutex.unlock();
+    //quitting: send server shutdown message to web script
+    //open socket
+    nlOpenMutex.lock();
+    nlDisable(NL_BLOCKING_IO);
+    NLsocket websock = nlOpen(0, NL_RELIABLE);
+    nlOpenMutex.unlock();
 
-	if (websock == NL_INVALID) {
-		log.error("Website thread: (Quit) Server can't open socket to connect to server website.");
-		return;
-	}
+    if (websock == NL_INVALID) {
+        log.error("Website thread: (Quit) Server can't open socket to connect to server website.");
+        return;
+    }
 
-	//connect
-	if (nlConnect(websock, &website_address) == NL_FALSE) {
-		log.error("Website thread: (Quit) Server can't connect to the web server.");
-		nlClose(websock);
-		return;
-	}
+    //connect
+    if (nlConnect(websock, &website_address) == NL_FALSE) {
+        log.error("Website thread: (Quit) Server can't connect to the web server.");
+        nlClose(websock);
+        return;
+    }
 
-	// send quit message
-	const string quit = "quit=1\r\n";
-	const NetworkResult result = post_http_data(websock, 0, 5000, web_script, quit, web_auth);	// only 5 seconds allowed; it's not so crucial
-	log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
+    // send quit message
+    const string quit = "quit=1\r\n";
+    const NetworkResult result = post_http_data(websock, 0, 5000, web_script, quit, web_auth);  // only 5 seconds allowed; it's not so crucial
+    log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
-	if (result == NR_ok) {
-		// save response to a file
-		ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-		save_http_response(websock, out, 0, 5000);	// only 5 seconds allowed; it's not so crucial
-	}
+    if (result == NR_ok) {
+        // save response to a file
+        ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
+        save_http_response(websock, out, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+    }
 
-	nlClose(websock);
+    nlClose(websock);
 }
 
 map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const {
-	map<string, string> parameters;
-	parameters["ip"] = address;
-	ostringstream p;
-	p << host->config().port;
-	parameters["port"] = p.str();
-	if (quitting)
-		parameters["quit"] = "1";
-	else {
-		parameters["name"] = hostname;
-		ostringstream pc;
-		pc << player_count;
-		parameters["players"] = pc.str();
-		if (host->config().dedserver)
-			parameters["dedicated"] = "1";
-		ostringstream mpc;
-		mpc << maxplayers;
-		parameters["max_players"] = mpc.str();
-		parameters["version"] = GAME_VERSION;
-		parameters["protocol"] = GAME_PROTOCOL;
-		ostringstream upt;
-		upt << world.frame / 10;
-		parameters["uptime"] = upt.str();
-		parameters["map"] = host->current_map().title;
-		parameters["link"] = host->server_website();
-	}
-	return parameters;
+    map<string, string> parameters;
+    parameters["ip"] = address;
+    ostringstream p;
+    p << host->config().port;
+    parameters["port"] = p.str();
+    if (quitting)
+        parameters["quit"] = "1";
+    else {
+        parameters["name"] = hostname;
+        ostringstream pc;
+        pc << player_count;
+        parameters["players"] = pc.str();
+        if (host->config().dedserver)
+            parameters["dedicated"] = "1";
+        ostringstream mpc;
+        mpc << maxplayers;
+        parameters["max_players"] = mpc.str();
+        parameters["version"] = GAME_VERSION;
+        parameters["protocol"] = GAME_PROTOCOL;
+        ostringstream upt;
+        upt << world.frame / 10;
+        parameters["uptime"] = upt.str();
+        parameters["map"] = host->current_map().title;
+        parameters["link"] = host->server_website();
+    }
+    return parameters;
 }
 
 map<string, string> ServerNetworking::website_parameters(const string& address) const {
-	map<string, string> parameters;
-	parameters["name"] = hostname;
-	parameters["ip"] = address;
-	ostringstream p;
-	p << host->config().port;
-	parameters["port"] = p.str();
-	ostringstream pc;
-	pc << player_count;
-	parameters["players"] = pc.str();
-	if (host->config().dedserver)
-		parameters["dedicated"] = "1";
-	ostringstream mpc;
-	mpc << maxplayers;
-	parameters["max_players"] = mpc.str();
-	parameters["version"] = GAME_VERSION;
-	ostringstream upt;
-	upt << world.frame / 10;
-	parameters["uptime"] = upt.str();
-	parameters["map"] = host->current_map().title;
-	parameters["mapfile"] = host->getCurrentMapFile();
-	ostringstream players;
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used) {
-			if (!players.str().empty())
-				players << '\n';
-			players << world.player[i].name << '\t' << i / TSIZE;
-		}
-	parameters["playerlist"] = players.str();
-	return parameters;
+    map<string, string> parameters;
+    parameters["name"] = hostname;
+    parameters["ip"] = address;
+    ostringstream p;
+    p << host->config().port;
+    parameters["port"] = p.str();
+    ostringstream pc;
+    pc << player_count;
+    parameters["players"] = pc.str();
+    if (host->config().dedserver)
+        parameters["dedicated"] = "1";
+    ostringstream mpc;
+    mpc << maxplayers;
+    parameters["max_players"] = mpc.str();
+    parameters["version"] = GAME_VERSION;
+    ostringstream upt;
+    upt << world.frame / 10;
+    parameters["uptime"] = upt.str();
+    parameters["map"] = host->current_map().title;
+    parameters["mapfile"] = host->getCurrentMapFile();
+    ostringstream players;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used) {
+            if (!players.str().empty())
+                players << '\n';
+            players << world.player[i].name << '\t' << i / TSIZE;
+        }
+    parameters["playerlist"] = players.str();
+    return parameters;
 }
 
 string ServerNetworking::website_maplist() const {
-	ostringstream maps;
-	for (vector<MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
-		if (m != host->maplist().begin())
-			maps << '\n';
-		maps << m->title;
-	}
-	return maps.str();
+    ostringstream maps;
+    for (vector<MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
+        if (m != host->maplist().begin())
+            maps << '\n';
+        maps << m->title;
+    }
+    return maps.str();
 }
 
 string ServerNetworking::build_http_data(const map<string, string>& parameters) const {
-	// URL encode parameter values
-	ostringstream param_line;
-	for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
-		if (i != parameters.begin())
-			param_line << '&';
-		for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
-			url_encode(*s, param_line);
-		param_line << '=';
-		for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
-			url_encode(*s, param_line);
-	}
-	return param_line.str();
+    // URL encode parameter values
+    ostringstream param_line;
+    for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
+        if (i != parameters.begin())
+            param_line << '&';
+        for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
+            url_encode(*s, param_line);
+        param_line << '=';
+        for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
+            url_encode(*s, param_line);
+    }
+    return param_line.str();
 }
 
 NetworkResult ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
-											const string& script, const string& parameters, const string& auth) const {
-	ostringstream data;
-	data << "POST " << script << " HTTP/1.0\r\n";
-	data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
-	if (!auth.empty())
-		data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
-	data << "Connection: close\r\n";
-	data << "Content-Type: application/x-www-form-urlencoded\r\n";
-	data << "Content-Length: " << parameters.length() << "\r\n\r\n";
-	data << parameters;
-	const string& str = data.str();
-	return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
+                                            const string& script, const string& parameters, const string& auth) const {
+    ostringstream data;
+    data << "POST " << script << " HTTP/1.0\r\n";
+    data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
+    if (!auth.empty())
+        data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
+    data << "Connection: close\r\n";
+    data << "Content-Type: application/x-www-form-urlencoded\r\n";
+    data << "Content-Length: " << parameters.length() << "\r\n\r\n";
+    data << parameters;
+    const string& str = data.str();
+    return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
 }
 
 NetworkResult ServerNetworking::save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) const {
-	return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
+    return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
 bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
-	for (;;) {
-		NLint result = nlRead(sock, buf, 1);
-		if (result != 1)	// message not completely received
-			return false;
-		if (*buf == '\0')
-			return true;
-		++buf;
-	}
+    for (;;) {
+        NLint result = nlRead(sock, buf, 1);
+        if (result != 1)    // message not completely received
+            return false;
+        if (*buf == '\0')
+            return true;
+        ++buf;
+    }
 }
 
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread(int port) {
-	logThreadStart("run_shellmaster_thread", log);
+    logThreadStart("run_shellmaster_thread", log);
 
-	Thread slaveThread;
-	volatile bool slaveRunning = false;	// the slave thread will modify this flag when quitting
+    Thread slaveThread;
+    volatile bool slaveRunning = false; // the slave thread will modify this flag when quitting
 
-	log("Admin shell master thread running");
+    log("Admin shell master thread running");
 
-	nlOpenMutex.lock();
-	nlDisable(NL_BLOCKING_IO);
-	NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
-	nlOpenMutex.unlock();
-	if (shellmsock == NL_INVALID) {
-		log.error("Admin shell: Can't open socket on port %i", port);
-		return;
-	}
-	if (!nlListen(shellmsock)) {
-		log.error("Admin shell: Can't set socket to listen mode");
-		return;
-	}
+    nlOpenMutex.lock();
+    nlDisable(NL_BLOCKING_IO);
+    NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
+    nlOpenMutex.unlock();
+    if (shellmsock == NL_INVALID) {
+        log.error("Admin shell: Can't open socket on port %i", port);
+        return;
+    }
+    if (!nlListen(shellmsock)) {
+        log.error("Admin shell: Can't set socket to listen mode");
+        return;
+    }
 
-	while (!file_threads_quit) {
-		MS_SLEEP(1000);	// this thread definitely is no priority
+    while (!file_threads_quit) {
+        MS_SLEEP(1000); // this thread definitely is no priority
 
-		//accept one connection
-		nlOpenMutex.lock();
-		nlDisable(NL_BLOCKING_IO);
-		NLsocket newSock = nlAcceptConnection(shellmsock);
-		nlOpenMutex.unlock();
+        //accept one connection
+        nlOpenMutex.lock();
+        nlDisable(NL_BLOCKING_IO);
+        NLsocket newSock = nlAcceptConnection(shellmsock);
+        nlOpenMutex.unlock();
 
-		if (newSock == NL_INVALID) {
-			nAssert(nlGetError() == NL_NO_PENDING);
-			continue;
-		}
+        if (newSock == NL_INVALID) {
+            nAssert(nlGetError() == NL_NO_PENDING);
+            continue;
+        }
 
-		log("Incoming admin shell connection");
+        log("Incoming admin shell connection");
 
-		//accept connections only from localhost
-		NLaddress addr, c1, c2;
-		nlGetRemoteAddr(newSock, &addr);
-		nlStringToAddr("127.0.0.1", &c1);
-		get_self_IP(&c2);
-		nlSetAddrPort(&addr, 0);
-		nlSetAddrPort(&c1, 0);
-		nlSetAddrPort(&c2, 0);
+        //accept connections only from localhost
+        NLaddress addr, c1, c2;
+        nlGetRemoteAddr(newSock, &addr);
+        nlStringToAddr("127.0.0.1", &c1);
+        get_self_IP(&c2);
+        nlSetAddrPort(&addr, 0);
+        nlSetAddrPort(&c1, 0);
+        nlSetAddrPort(&c2, 0);
 
-		if (nlAddrCompare(&addr, &c1) == NL_FALSE && nlAddrCompare(&addr, &c2) == NL_FALSE) {
-			log("Attempt to connect a remote admin shell blocked.");
-			nlClose(newSock);
-			continue;
-		}
+        if (nlAddrCompare(&addr, &c1) == NL_FALSE && nlAddrCompare(&addr, &c2) == NL_FALSE) {
+            log("Attempt to connect a remote admin shell blocked.");
+            nlClose(newSock);
+            continue;
+        }
 
-		if (slaveRunning) {	// if already connected, skip
-			log("Attempt to connect two simultaneous admin shells blocked.");
-			nlClose(newSock);
-			continue;
-		}
+        if (slaveRunning) { // if already connected, skip
+            log("Attempt to connect two simultaneous admin shells blocked.");
+            nlClose(newSock);
+            continue;
+        }
 
-		log("Admin shell connection accepted");
+        log("Admin shell connection accepted");
 
-		// tell about the current situation
-		char lebuf[4096];
-		int count = 0;
-		for (int i = 0; i < maxplayers; i++)
-			if (world.player[i].used) {
-				writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-				writeLong(lebuf, count, world.player[i].cid);
+        // tell about the current situation
+        char lebuf[4096];
+        int count = 0;
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used) {
+                writeLong(lebuf, count, STA_PLAYER_CONNECTED);
+                writeLong(lebuf, count, world.player[i].cid);
 
-				writeLong(lebuf, count, STA_PLAYER_FRAGS);
-				writeLong(lebuf, count, world.player[i].cid);
-				writeLong(lebuf, count, world.player[i].stats().frags());
+                writeLong(lebuf, count, STA_PLAYER_FRAGS);
+                writeLong(lebuf, count, world.player[i].cid);
+                writeLong(lebuf, count, world.player[i].stats().frags());
 
-				writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-				writeLong(lebuf, count, world.player[i].cid);
-				writeStr(lebuf, count, world.player[i].name);
+                writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+                writeLong(lebuf, count, world.player[i].cid);
+                writeStr(lebuf, count, world.player[i].name);
 
-				writeLong(lebuf, count, STA_PLAYER_IP);
-				writeLong(lebuf, count, world.player[i].cid);
-				NLaddress addr = get_client_address(world.player[i].cid);
-				nlSetAddrPort(&addr, 0);
-				writeStr(lebuf, count, addressToString(addr));
-			}
-		nlWrite(newSock, lebuf, count);
+                writeLong(lebuf, count, STA_PLAYER_IP);
+                writeLong(lebuf, count, world.player[i].cid);
+                NLaddress addr = get_client_address(world.player[i].cid);
+                nlSetAddrPort(&addr, 0);
+                writeStr(lebuf, count, addressToString(addr));
+            }
+        nlWrite(newSock, lebuf, count);
 
-		if (slaveThread.isRunning())
-			slaveThread.join();
-		slaveRunning = true;	// slave will set it false when exiting
-		shellssock = newSock;
-		slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning, host->config().lowerPriority);
-	}
-	nlClose(shellmsock);
-	log("Admin shell master thread quitting");
-	if (slaveThread.isRunning())
-		slaveThread.join();
+        if (slaveThread.isRunning())
+            slaveThread.join();
+        slaveRunning = true;    // slave will set it false when exiting
+        shellssock = newSock;
+        slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning, host->config().lowerPriority);
+    }
+    nlClose(shellmsock);
+    log("Admin shell master thread quitting");
+    if (slaveThread.isRunning())
+        slaveThread.join();
 
-	logThreadExit("run_shellmaster_thread", log);
+    logThreadExit("run_shellmaster_thread", log);
 }
 
-void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// sets *runningFlag = true when quitting
-	logThreadStart("run_shellslave_thread", log);
+void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // sets *runningFlag = true when quitting
+    logThreadStart("run_shellslave_thread", log);
 
-	while (!file_threads_quit) {
-		char rbuf[256];
-		int rcount = 0;
+    while (!file_threads_quit) {
+        char rbuf[256];
+        int rcount = 0;
 
-		//read request code
-		NLint result = nlRead(shellssock, rbuf, 4);
+        //read request code
+        NLint result = nlRead(shellssock, rbuf, 4);
 
-		if (result == NL_INVALID) {
-			log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
-			break;
-		}
+        if (result == NL_INVALID) {
+            log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
+            break;
+        }
 
-		if (result == 0) {
-			MS_SLEEP(500);	// no need to be more responsive
-			continue;
-		}
+        if (result == 0) {
+            MS_SLEEP(500);  // no need to be more responsive
+            continue;
+        }
 
-		if (result != 4) {
-			log.error("Admin shell: bad data length");
-			break;
-		}
+        if (result != 4) {
+            log.error("Admin shell: bad data length");
+            break;
+        }
 
-		NLulong code;
-		readLong(rbuf, rcount, code);
+        NLulong code;
+        readLong(rbuf, rcount, code);
 
-		// parse the code
-		if (code >= NUMBER_OF_ATS) {
-			log.error("Admin shell: invalid command %d", code);
-			break;
-		}
+        // parse the code
+        if (code >= NUMBER_OF_ATS) {
+            log.error("Admin shell: invalid command %d", code);
+            break;
+        }
 
-		if (code == ATS_QUIT) {
-			log("Admin shell: received quit command");
-			break;
-		}
+        if (code == ATS_QUIT) {
+            log("Admin shell: received quit command");
+            break;
+        }
 
-		NLulong cid = 0;
-		int pid = 0;	// pid and cid set if argPid[code]
-		NLulong dwArg = 0;	// set if argDw[code]
-		//                               noop, get-functions,ch,qu,pi,kckbanmte,reset
-		static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
-		static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
-		const int argsLen = (argPid[code] + argDw[code]) * 4;
+        NLulong cid = 0;
+        int pid = 0;    // pid and cid set if argPid[code]
+        NLulong dwArg = 0;  // set if argDw[code]
+        //                               noop, get-functions,ch,qu,pi,kckbanmte,reset
+        static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
+        static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+        const int argsLen = (argPid[code] + argDw[code]) * 4;
 
-		if (argsLen) {
-			result = nlRead(shellssock, rbuf, argsLen);
-			if (result != argsLen) {
-				if (result == NL_INVALID)
-					log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
-				else
-					log.error("Admin shell: bad data length (args: %d/%d)", result, argsLen);
-				break;
-			}
-			rcount = 0;
-			if (argPid[code]) {
-				readLong(rbuf, rcount, cid);
-				if (cid > 255) {
-					log.error("Admin shell: bad client id");
-					break;
-				}
-				pid = ctop[cid];
-				if (pid == -1 || !world.player[pid].used)	// player not in the game; just ignore the command
-					continue;
-			}
-			if (argDw[code])
-				readLong(rbuf, rcount, dwArg);
-		}
+        if (argsLen) {
+            result = nlRead(shellssock, rbuf, argsLen);
+            if (result != argsLen) {
+                if (result == NL_INVALID)
+                    log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
+                else
+                    log.error("Admin shell: bad data length (args: %d/%d)", result, argsLen);
+                break;
+            }
+            rcount = 0;
+            if (argPid[code]) {
+                readLong(rbuf, rcount, cid);
+                if (cid > 255) {
+                    log.error("Admin shell: bad client id");
+                    break;
+                }
+                pid = ctop[cid];
+                if (pid == -1 || !world.player[pid].used)   // player not in the game; just ignore the command
+                    continue;
+            }
+            if (argDw[code])
+                readLong(rbuf, rcount, dwArg);
+        }
 
-		char answer[1000];
-		int ansLen = 0;
-		bool error = false;
-		switch (code) {
-			case ATS_GET_PLAYER_FRAGS:
-				writeLong(answer, ansLen, STA_PLAYER_FRAGS);
-				writeLong(answer, ansLen, cid);
-				writeLong(answer, ansLen, world.player[pid].stats().frags());
-				break;
-			case ATS_GET_PLAYER_TOTAL_TIME:
-				writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
-				writeLong(answer, ansLen, cid);
-				writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
-				break;
-			case ATS_GET_PLAYER_TOTAL_KILLS:
-				writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
-				writeLong(answer, ansLen, cid);
-				writeLong(answer, ansLen, world.player[pid].stats().kills());
-				break;
-			case ATS_GET_PLAYER_TOTAL_DEATHS:
-				writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
-				writeLong(answer, ansLen, cid);
-				writeLong(answer, ansLen, world.player[pid].stats().deaths());
-				break;
-			case ATS_GET_PLAYER_TOTAL_CAPTURES:
-				writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
-				writeLong(answer, ansLen, cid);
-				writeLong(answer, ansLen, world.player[pid].stats().captures());
-				break;
-			case ATS_SERVER_CHAT: {
-				char buf[500];
-				if (!read_string_from_TCP(shellssock, buf)) {
-					log.error("Admin shell: unterminated string");
-					error = true;
-				}
-				else {
-					if (find_nonprintable_char(buf))
-						log.error("Admin shell: unprintable characters, message ignored");
-					else
-						bprintf(msg_normal, "ADMIN: %s", buf);
-				}
-				break;
-			}
-			case ATS_GET_PINGS:
-				for (int p = 0; p < maxplayers; ++p)
-					if (world.player[p].used) {
-						writeLong(answer, ansLen, STA_PLAYER_PING);
-						writeLong(answer, ansLen, world.player[p].cid);
-						writeLong(answer, ansLen, world.player[p].ping);
-					}
-				break;
-			case ATS_MUTE_PLAYER:
-				host->mutePlayer(pid, dwArg, -1);
-				break;
-			case ATS_KICK_PLAYER:
-				host->kickPlayer(pid, -1);
-				break;
-			case ATS_BAN_PLAYER:
-				host->banPlayer(pid, -1, 60 * 24 * 365);	// ban for a year; this can be later adjusted in auth.txt
-				break;
-			case ATS_RESET_SETTINGS: {
-				host->reset_settings(true);
-				++maplist_revision;
-				char lebuf[16]; int count = 0;
-				writeByte(lebuf, count, data_reset_map_list);
-				server->broadcast_message(lebuf, count);
-				for (int p = 0; p < maxplayers; ++p)
-					if (world.player[p].used) {
-						world.player[p].current_map_list_item = 0;	// restart sending map info, because list may have changed
-						send_server_settings(world.player[p]);
-					}
-				break;
-			}
-		}
+        char answer[1000];
+        int ansLen = 0;
+        bool error = false;
+        switch (code) {
+            case ATS_GET_PLAYER_FRAGS:
+                writeLong(answer, ansLen, STA_PLAYER_FRAGS);
+                writeLong(answer, ansLen, cid);
+                writeLong(answer, ansLen, world.player[pid].stats().frags());
+                break;
+            case ATS_GET_PLAYER_TOTAL_TIME:
+                writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
+                writeLong(answer, ansLen, cid);
+                writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
+                break;
+            case ATS_GET_PLAYER_TOTAL_KILLS:
+                writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
+                writeLong(answer, ansLen, cid);
+                writeLong(answer, ansLen, world.player[pid].stats().kills());
+                break;
+            case ATS_GET_PLAYER_TOTAL_DEATHS:
+                writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
+                writeLong(answer, ansLen, cid);
+                writeLong(answer, ansLen, world.player[pid].stats().deaths());
+                break;
+            case ATS_GET_PLAYER_TOTAL_CAPTURES:
+                writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
+                writeLong(answer, ansLen, cid);
+                writeLong(answer, ansLen, world.player[pid].stats().captures());
+                break;
+            case ATS_SERVER_CHAT: {
+                char buf[500];
+                if (!read_string_from_TCP(shellssock, buf)) {
+                    log.error("Admin shell: unterminated string");
+                    error = true;
+                }
+                else {
+                    if (find_nonprintable_char(buf))
+                        log.error("Admin shell: unprintable characters, message ignored");
+                    else
+                        bprintf(msg_normal, "ADMIN: %s", buf);
+                }
+                break;
+            }
+            case ATS_GET_PINGS:
+                for (int p = 0; p < maxplayers; ++p)
+                    if (world.player[p].used) {
+                        writeLong(answer, ansLen, STA_PLAYER_PING);
+                        writeLong(answer, ansLen, world.player[p].cid);
+                        writeLong(answer, ansLen, world.player[p].ping);
+                    }
+                break;
+            case ATS_MUTE_PLAYER:
+                host->mutePlayer(pid, dwArg, -1);
+                break;
+            case ATS_KICK_PLAYER:
+                host->kickPlayer(pid, -1);
+                break;
+            case ATS_BAN_PLAYER:
+                host->banPlayer(pid, -1, 60 * 24 * 365);    // ban for a year; this can be later adjusted in auth.txt
+                break;
+            case ATS_RESET_SETTINGS: {
+                host->reset_settings(true);
+                ++maplist_revision;
+                char lebuf[16]; int count = 0;
+                writeByte(lebuf, count, data_reset_map_list);
+                server->broadcast_message(lebuf, count);
+                for (int p = 0; p < maxplayers; ++p)
+                    if (world.player[p].used) {
+                        world.player[p].current_map_list_item = 0;  // restart sending map info, because list may have changed
+                        send_server_settings(world.player[p]);
+                    }
+                break;
+            }
+        }
 
-		if (error)
-			break;
+        if (error)
+            break;
 
-		if (ansLen) {
-			result = nlWrite(shellssock, answer, ansLen);
-			if (result != ansLen) {
-				log.error("Admin shell: sending response failed. Reason: %s", getNlErrorString());
-				break;
-			}
-		}
-	}
+        if (ansLen) {
+            result = nlWrite(shellssock, answer, ansLen);
+            if (result != ansLen) {
+                log.error("Admin shell: sending response failed. Reason: %s", getNlErrorString());
+                break;
+            }
+        }
+    }
 
-	nlClose(shellssock);
-	shellssock = NL_INVALID;	// not in use
-	*runningFlag = false;
-	log("Admin shell slave thread quitting");
+    nlClose(shellssock);
+    shellssock = NL_INVALID;    // not in use
+    *runningFlag = false;
+    log("Admin shell slave thread quitting");
 
-	logThreadExit("run_shellslave_thread", log);
+    logThreadExit("run_shellslave_thread", log);
 }
 
 void ServerNetworking::stop() {
-	//submit all pending player reports
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			client_report_status(world.player[i].cid);
+    //submit all pending player reports
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            client_report_status(world.player[i].cid);
 
-	//v0.4.4 : flag master job threads to start trying to resolve themselves quickly
-	mjob_fastretry = true;
-	const double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
+    //v0.4.4 : flag master job threads to start trying to resolve themselves quickly
+    mjob_fastretry = true;
+    const double mjmaxtime = get_time() + 30.0;     //timeout : 30 seconds
 
-	host->config().statusOutput("Shutdown: net server");
+    host->config().statusOutput("Shutdown: net server");
 
-	if (server)
-		server->stop(3);
-	else
-		nAssert(0);
+    if (server)
+        server->stop(3);
+    else
+        nAssert(0);
 
-	//reset client_c struct (closes files...)
-	for (int i = 0; i < MAX_PLAYERS; i++)
-		fileTransfer[i].reset();
+    //reset client_c struct (closes files...)
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        fileTransfer[i].reset();
 
-	file_threads_quit = true;	// flag so threads will quit themselves
+    file_threads_quit = true;   // flag so threads will quit themselves
 
-	//close TCP connection with the server admin shell
-	host->config().statusOutput("Shutdown: admin shell threads");
-	shellmthread.join();
+    //close TCP connection with the server admin shell
+    host->config().statusOutput("Shutdown: admin shell threads");
+    shellmthread.join();
 
-	//wait for all master jobs to complete nicely
-	while (mjob_count > 0 && get_time() < mjmaxtime) {
-		char lix[200];
-		platSnprintf(lix, 200, "Shutdown: waiting for %d tournament updates", mjob_count);
-		host->config().statusOutput(lix);
-		MS_SLEEP(100);
-	}
+    //wait for all master jobs to complete nicely
+    while (mjob_count > 0 && get_time() < mjmaxtime) {
+        char lix[200];
+        platSnprintf(lix, 200, "Shutdown: waiting for %d tournament updates", mjob_count);
+        host->config().statusOutput(lix);
+        MS_SLEEP(100);
+    }
 
-	//clean up jobs
-	mjob_exit = true;		//MUST terminate -- abort
-	while (mjob_count > 0) {
-		char lix[200];
-		platSnprintf(lix, 200, "Shutdown: ABORTING %d tournament updates", mjob_count);
-		host->config().statusOutput(lix);
-		MS_SLEEP(100);
-	}
+    //clean up jobs
+    mjob_exit = true;       //MUST terminate -- abort
+    while (mjob_count > 0) {
+        char lix[200];
+        platSnprintf(lix, 200, "Shutdown: ABORTING %d tournament updates", mjob_count);
+        host->config().statusOutput(lix);
+        MS_SLEEP(100);
+    }
 
-	if (!host->config().privateserver) {
-		host->config().statusOutput("Shutdown: master talker thread");
-		mthread.join();
-	}
+    if (!host->config().privateserver) {
+        host->config().statusOutput("Shutdown: master talker thread");
+        mthread.join();
+    }
 
-	host->config().statusOutput("Shutdown: website thread");
-	webthread.join();
+    host->config().statusOutput("Shutdown: website thread");
+    webthread.join();
 
-	host->config().statusOutput("Shutdown: main thread");
+    host->config().statusOutput("Shutdown: main thread");
 }
 
 void ServerNetworking::sendWeaponPower(int pid) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_weapon_change);
-	writeByte(lebuf, count, static_cast<NLubyte>(world.player[pid].weapon));
-	server->send_message(world.player[pid].cid, lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_weapon_change);
+    writeByte(lebuf, count, static_cast<NLubyte>(world.player[pid].weapon));
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power,
-												int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_rocket_fire);
-	writeByte(lebuf, count, shots);			// power and dir
-	writeByte(lebuf, count, gundir);		// power and dir
-	for (int i = 0; i < shots; i++)
-		writeByte(lebuf, count, sid[i]);	// rocket-object id (needed because client-side rockets can be deleted by the server)
-	writeLong(lebuf, count, world.frame);	// time of shot of the rocket: current (last simulated) frame
-	const NLubyte shotType = (team << 1) | power;
-	writeByte(lebuf, count, static_cast<NLubyte>(shotType));	// owner of all rockets
-	writeByte(lebuf, count, static_cast<NLubyte>(px));	//coord
-	writeByte(lebuf, count, static_cast<NLubyte>(py));
-	writeShort(lebuf, count, static_cast<NLshort>(x));
-	writeShort(lebuf, count, static_cast<NLshort>(y));
+                                                int px, int py, int x, int y) { // sid = shot-id; array of NLubyte[shots]
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_rocket_fire);
+    writeByte(lebuf, count, shots);         // power and dir
+    writeByte(lebuf, count, gundir);        // power and dir
+    for (int i = 0; i < shots; i++)
+        writeByte(lebuf, count, sid[i]);    // rocket-object id (needed because client-side rockets can be deleted by the server)
+    writeLong(lebuf, count, world.frame);   // time of shot of the rocket: current (last simulated) frame
+    const NLubyte shotType = (team << 1) | power;
+    writeByte(lebuf, count, static_cast<NLubyte>(shotType));    // owner of all rockets
+    writeByte(lebuf, count, static_cast<NLubyte>(px));  //coord
+    writeByte(lebuf, count, static_cast<NLubyte>(py));
+    writeShort(lebuf, count, static_cast<NLshort>(x));
+    writeShort(lebuf, count, static_cast<NLshort>(y));
 
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
-			server->send_message(world.player[i].cid, lebuf, count);
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
+            server->send_message(world.player[i].cid, lebuf, count);
 }
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) {
-	char lebuf[256]; int count = 0;
-	const NLubyte shotType = (rocket.team << 1) | rocket.power;
-	writeByte(lebuf, count, data_old_rocket_visible);
-	writeByte(lebuf, count, static_cast<NLubyte>(rid));
-	writeByte(lebuf, count, rocket.direction);
-	writeLong(lebuf, count, world.frame);
-	writeByte(lebuf, count, shotType);
-	writeByte(lebuf, count, rocket.px);
-	writeByte(lebuf, count, rocket.py);
-	writeShort(lebuf, count, static_cast<NLshort>(rocket.x));
-	writeShort(lebuf, count, static_cast<NLshort>(rocket.y));
+    char lebuf[256]; int count = 0;
+    const NLubyte shotType = (rocket.team << 1) | rocket.power;
+    writeByte(lebuf, count, data_old_rocket_visible);
+    writeByte(lebuf, count, static_cast<NLubyte>(rid));
+    writeByte(lebuf, count, rocket.direction);
+    writeLong(lebuf, count, world.frame);
+    writeByte(lebuf, count, shotType);
+    writeByte(lebuf, count, rocket.px);
+    writeByte(lebuf, count, rocket.py);
+    writeShort(lebuf, count, static_cast<NLshort>(rocket.x));
+    writeShort(lebuf, count, static_cast<NLshort>(rocket.y));
 
-	server->send_message(world.player[pid].cid, lebuf, count);
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) {
-	//assembly rocket delete message
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_rocket_delete);
-	writeByte(lebuf, count, static_cast<NLubyte>(rid));		// rocket-object id
-	writeByte(lebuf, count, static_cast<NLubyte>(targ));		// player-target. if 255, no player in particular was hit
+    //assembly rocket delete message
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_rocket_delete);
+    writeByte(lebuf, count, static_cast<NLubyte>(rid));     // rocket-object id
+    writeByte(lebuf, count, static_cast<NLubyte>(targ));        // player-target. if 255, no player in particular was hit
 
-	writeShort(lebuf, count, hitx);		// HIT X,Y OF ROCKET
-	writeShort(lebuf, count, hity);
+    writeShort(lebuf, count, hitx);     // HIT X,Y OF ROCKET
+    writeShort(lebuf, count, hity);
 
-	//send message to players that received the rocket
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
-			if (plymask & (1 << i))
-				server->send_message(world.player[i].cid, lebuf, count);
+    //send message to players that received the rocket
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            if (plymask & (1 << i))
+                server->send_message(world.player[i].cid, lebuf, count);
 }
 
 void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_deathbringer);
-	writeByte(lebuf, count, static_cast<NLubyte>(pid));	//team/target player
-	writeLong(lebuf, count, world.frame);		//frame # of the bringer shot (message can be delayed)
-	writeByte(lebuf, count, static_cast<NLubyte>(ply.roomx));
-	writeByte(lebuf, count, static_cast<NLubyte>(ply.roomy));
-	writeShort(lebuf, count, static_cast<NLushort>(ply.lx));
-	writeShort(lebuf, count, static_cast<NLushort>(ply.ly));
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_deathbringer);
+    writeByte(lebuf, count, static_cast<NLubyte>(pid)); //team/target player
+    writeLong(lebuf, count, world.frame);       //frame # of the bringer shot (message can be delayed)
+    writeByte(lebuf, count, static_cast<NLubyte>(ply.roomx));
+    writeByte(lebuf, count, static_cast<NLubyte>(ply.roomy));
+    writeShort(lebuf, count, static_cast<NLushort>(ply.lx));
+    writeShort(lebuf, count, static_cast<NLushort>(ply.ly));
 
-	server->broadcast_message(lebuf, count);
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_pup_visible);
-	writeByte(lebuf, count, static_cast<NLubyte>(pup_id));	//what item
-	writeByte(lebuf, count, static_cast<NLubyte>(it.kind));	//kind
-	writeByte(lebuf, count, static_cast<NLubyte>(it.px));		//screen
-	writeByte(lebuf, count, static_cast<NLubyte>(it.py));
-	writeShort(lebuf, count, static_cast<NLushort>(it.x));	//pos in screen
-	writeShort(lebuf, count, static_cast<NLushort>(it.y));
-	server->send_message(world.player[pid].cid, lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_pup_visible);
+    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));  //what item
+    writeByte(lebuf, count, static_cast<NLubyte>(it.kind)); //kind
+    writeByte(lebuf, count, static_cast<NLubyte>(it.px));       //screen
+    writeByte(lebuf, count, static_cast<NLubyte>(it.py));
+    writeShort(lebuf, count, static_cast<NLushort>(it.x));  //pos in screen
+    writeShort(lebuf, count, static_cast<NLushort>(it.y));
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_pup_timer);
-	writeByte(lebuf, count, pupType);
-	writeShort(lebuf, count, static_cast<NLushort>(timeLeft));
-	server->send_message(world.player[pid].cid, lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_pup_timer);
+    writeByte(lebuf, count, pupType);
+    writeShort(lebuf, count, static_cast<NLushort>(timeLeft));
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 void ServerNetworking::sendFragUpdate(int pid, NLulong frags) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_frags_update);
-	writeByte(lebuf, count, pid);		// what player id
-	writeLong(lebuf, count, frags);
-	server->broadcast_message(lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_frags_update);
+    writeByte(lebuf, count, pid);       // what player id
+    writeLong(lebuf, count, frags);
+    server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::sendNameAuthorizationRequest(int pid) {
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_name_authorization_request);
-	server->send_message(world.player[pid].cid, lebuf, count);
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_name_authorization_request);
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 NLaddress ServerNetworking::get_client_address(int cid) const {
-	return server->get_client_address(cid);
+    return server->get_client_address(cid);
 }
 
 void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) {
-	res->customDataLength = 0;
+    res->customDataLength = 0;
 
-	//check versions
-	string stri;
-	ostringstream temp;
-	int count = 0;
+    //check versions
+    string stri;
+    ostringstream temp;
+    int count = 0;
 
-	if (length > 0)
-		readStr(data, count, stri);	//read gamestring
+    if (length > 0)
+        readStr(data, count, stri); //read gamestring
 
-	if (stri != GAME_STRING) {
-		log("Rejected a client because game strings don't match: Server '%s' and player '%s'", GAME_STRING, stri.c_str());
-		res->accepted = false;		// not accepted
+    if (stri != GAME_STRING) {
+        log("Rejected a client because game strings don't match: Server '%s' and player '%s'", GAME_STRING, stri.c_str());
+        res->accepted = false;      // not accepted
 
-		temp << "Different game: '" << stri.c_str() << '\'';
-		writeStr(res->customData, res->customDataLength, temp.str());
-	}
-	else {
-		readStr(data, count, stri);	//read protocol string
-		if (stri != GAME_PROTOCOL) {
-			log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'", GAME_PROTOCOL, stri.c_str());
-			res->accepted = false;
+        temp << "Different game: '" << stri.c_str() << '\'';
+        writeStr(res->customData, res->customDataLength, temp.str());
+    }
+    else {
+        readStr(data, count, stri); //read protocol string
+        if (stri != GAME_PROTOCOL) {
+            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'", GAME_PROTOCOL, stri.c_str());
+            res->accepted = false;
 
-			temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri;
-			writeStr(res->customData, res->customDataLength, temp.str());
-		}
-		else if (player_count >= maxplayers) {		//server full!
-			log("Rejected a client because the server is full");
-			res->accepted = false;
+            temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri;
+            writeStr(res->customData, res->customDataLength, temp.str());
+        }
+        else if (player_count >= maxplayers) {      //server full!
+            log("Rejected a client because the server is full");
+            res->accepted = false;
 
-			temp << "Server is full. (" << player_count << " players)";
-			writeStr(res->customData, res->customDataLength, temp.str());
-		}
-		else if (host->isBanned(client_id)) {
-			log("Rejected a client because their IP is banned (%s)", addressToString(get_client_address(client_id)).c_str());
-			res->accepted = false;
-			writeString(res->customData, res->customDataLength, "You are banned from this server");
-		}
-		else {
-			string name;
-			readStr(data, count, name);	//read player's name
-			string password;
-			readStr(data, count, password);
-			if (!check_name(name)) {
-				res->accepted = false;
-				// no need to explain, the client must not allow this
-			}
-			else if (password == server_password) {
-				string player_password;
-				readStr(data, count, player_password);
-				if (host->check_name_password(name, player_password)) {
-					res->accepted = true;
-					writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
-					writeStr(res->customData, res->customDataLength, hostname);
-				}
-				else {
-					res->accepted = false;
-					if (player_password.empty())
-						writeStr(res->customData, res->customDataLength, "PLAYER PASSWORD");
-					else {
-						log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-								name.c_str(), player_password.c_str(), addressToString(get_client_address(client_id)).c_str());
-						writeStr(res->customData, res->customDataLength, "Wrong player password");
-					}
-				}
-			}
-			else {
-				res->accepted = false;
-				if (password.empty())
-					writeStr(res->customData, res->customDataLength, "SERVER PASSWORD");
-				else {
-					log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
-							password.c_str(), addressToString(get_client_address(client_id)).c_str(), name.c_str());
-					writeStr(res->customData, res->customDataLength, "Wrong server password");
-				}
-			}
-		}
-	}
+            temp << "Server is full. (" << player_count << " players)";
+            writeStr(res->customData, res->customDataLength, temp.str());
+        }
+        else if (host->isBanned(client_id)) {
+            log("Rejected a client because their IP is banned (%s)", addressToString(get_client_address(client_id)).c_str());
+            res->accepted = false;
+            writeString(res->customData, res->customDataLength, "You are banned from this server");
+        }
+        else {
+            string name;
+            readStr(data, count, name); //read player's name
+            string password;
+            readStr(data, count, password);
+            if (!check_name(name)) {
+                res->accepted = false;
+                // no need to explain, the client must not allow this
+            }
+            else if (password == server_password) {
+                string player_password;
+                readStr(data, count, player_password);
+                if (host->check_name_password(name, player_password)) {
+                    res->accepted = true;
+                    writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
+                    writeStr(res->customData, res->customDataLength, hostname);
+                }
+                else {
+                    res->accepted = false;
+                    if (player_password.empty())
+                        writeStr(res->customData, res->customDataLength, "PLAYER PASSWORD");
+                    else {
+                        log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
+                                name.c_str(), player_password.c_str(), addressToString(get_client_address(client_id)).c_str());
+                        writeStr(res->customData, res->customDataLength, "Wrong player password");
+                    }
+                }
+            }
+            else {
+                res->accepted = false;
+                if (password.empty())
+                    writeStr(res->customData, res->customDataLength, "SERVER PASSWORD");
+                else {
+                    log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
+                            password.c_str(), addressToString(get_client_address(client_id)).c_str(), name.c_str());
+                    writeStr(res->customData, res->customDataLength, "Wrong server password");
+                }
+            }
+        }
+    }
 }
 
 void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* data, int length, ServerHelloResult* res) {
-	((ServerNetworking*)customp)->clientHello(client_id, data, length, res);
+    ((ServerNetworking*)customp)->clientHello(client_id, data, length, res);
 }
 
 void ServerNetworking::sfunc_client_connected(void* customp, int client_id) {
-	((ServerNetworking*)customp)->client_connected(client_id);
+    ((ServerNetworking*)customp)->client_connected(client_id);
 }
 
 void ServerNetworking::sfunc_client_disconnected(void* customp, int client_id) {
-	((ServerNetworking*)customp)->client_disconnected(client_id);
+    ((ServerNetworking*)customp)->client_disconnected(client_id);
 }
 
 void ServerNetworking::sfunc_client_lag_status(void* customp, int client_id, int status) {
-	(void)(customp && client_id && status);
+    (void)(customp && client_id && status);
 }
 
 void ServerNetworking::sfunc_client_data(void* customp, int client_id, char* data, int length) {
-	((ServerNetworking*)customp)->incoming_client_data(client_id, data, length);
+    ((ServerNetworking*)customp)->incoming_client_data(client_id, data, length);
 }
 
 void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, int pingtime) {
-	((ServerNetworking*)customp)->ping_result(client_id, pingtime);
+    ((ServerNetworking*)customp)->ping_result(client_id, pingtime);
 }
 
 bool ServerNetworking::set_web_refresh(int refresh) {
-	if (refresh >= 1) {
-		web_refresh = refresh;
-		return true;
-	}
-	return false;
+    if (refresh >= 1) {
+        web_refresh = refresh;
+        return true;
+    }
+    return false;
 }
 

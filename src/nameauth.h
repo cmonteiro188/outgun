@@ -32,44 +32,44 @@
 
 #include <nl.h>
 
-#include "utility.h"	// for LogSet
+#include "utility.h"    // for LogSet
 
 class NameAuthorizationDatabase {
-	struct NameEntry {
-		std::string name;
-		std::string password;
-		bool admin;
+    struct NameEntry {
+        std::string name;
+        std::string password;
+        bool admin;
 
-		NameEntry(const std::string& n, const std::string& p, bool a) : name(n), password(p), admin(a) { }
-	};
-	struct BanEntry {
-		std::string name;
-		NLaddress address;
-		time_t endTime;
+        NameEntry(const std::string& n, const std::string& p, bool a) : name(n), password(p), admin(a) { }
+    };
+    struct BanEntry {
+        std::string name;
+        NLaddress address;
+        time_t endTime;
 
-		BanEntry(const std::string& n, const NLaddress& a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
-	};
+        BanEntry(const std::string& n, const NLaddress& a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
+    };
 
-	std::vector<NameEntry> names;
-	std::vector<BanEntry> bans;
+    std::vector<NameEntry> names;
+    std::vector<BanEntry> bans;
 
-	mutable LogSet log;
+    mutable LogSet log;
 
-	static std::string makeComparable(const std::string& name);
+    static std::string makeComparable(const std::string& name);
 
 public:
-	NameAuthorizationDatabase(LogSet logs) : log(logs) { }
+    NameAuthorizationDatabase(LogSet logs) : log(logs) { }
 
-	void clear();
-	bool load();
-	bool save() const;
+    void clear();
+    bool load();
+    bool save() const;
 
-	int identifyName(const std::string& name) const;
-	bool checkNamePassword(const std::string& name, const std::string& password) const;
-	bool isAdmin(const std::string& name) const;
+    int identifyName(const std::string& name) const;
+    bool checkNamePassword(const std::string& name, const std::string& password) const;
+    bool isAdmin(const std::string& name) const;
 
-	bool isBanned(NLaddress addr) const;
-	void ban(NLaddress addr, const std::string& name, int minutes);
+    bool isBanned(NLaddress addr) const;
+    void ban(NLaddress addr, const std::string& name, int minutes);
 };
 
 #endif

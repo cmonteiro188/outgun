@@ -15,8 +15,8 @@ public:
     std::string code() const { return lang_code; }
 
 private:
-	std::map<std::string, std::string> texts;
-	std::string lang_code;
+    std::map<std::string, std::string> texts;
+    std::string lang_code;
 };
 
 extern Language language;

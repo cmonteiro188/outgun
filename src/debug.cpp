@@ -30,26 +30,26 @@
 #include "thread.h"
 #include "utility.h"
 
-void MutexHolder::doLogAction(char operation) {	// from mutex.h
-	static MutexHolder logMutex;	// used to simplify its creation; using lock() or unlock() would lead in endless recursion
-	nAssert(0 == pthread_mutex_lock(&logMutex.mutex));
-	FILE* logFile = fopen("mutexlog.bin", "ab");
-	if (logFile) {
-		int threadId = int(pthread_self());
-		int mutexId = int(&mutex);
-		fwrite(&operation, sizeof(char), 1, logFile);
-		fwrite(&threadId, sizeof(int), 1, logFile);
-		fwrite(&mutexId, sizeof(int), 1, logFile);
-		fclose(logFile);
-	}
-	nAssert(0 == pthread_mutex_unlock(&logMutex.mutex));
+void MutexHolder::doLogAction(char operation) { // from mutex.h
+    static MutexHolder logMutex;    // used to simplify its creation; using lock() or unlock() would lead in endless recursion
+    nAssert(0 == pthread_mutex_lock(&logMutex.mutex));
+    FILE* logFile = fopen("mutexlog.bin", "ab");
+    if (logFile) {
+        int threadId = int(pthread_self());
+        int mutexId = int(&mutex);
+        fwrite(&operation, sizeof(char), 1, logFile);
+        fwrite(&threadId, sizeof(int), 1, logFile);
+        fwrite(&mutexId, sizeof(int), 1, logFile);
+        fclose(logFile);
+    }
+    nAssert(0 == pthread_mutex_unlock(&logMutex.mutex));
 }
 
 void logThreadEvent(bool exit, const char* function, Log& log) {
-	if (LOG_THREAD_IDS)
-		log("%s%s() ID = %d, prio = %d", exit ? "exiting: " : "", function, pthread_self(), Thread::getCallerPriority());
+    if (LOG_THREAD_IDS)
+        log("%s%s() ID = %d, prio = %d", exit ? "exiting: " : "", function, pthread_self(), Thread::getCallerPriority());
 }
 
 void logThreadEvent(bool exit, const char* function, LogSet& log) {
-	logThreadEvent(exit, function, *log.accessNormal());
+    logThreadEvent(exit, function, *log.accessNormal());
 }

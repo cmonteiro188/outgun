@@ -23,7 +23,7 @@
 
 #include <cstdio>
 #include <cstdarg>
-#include <cstdlib>	// exit
+#include <cstdlib>  // exit
 #include <ctime>
 #include "incalleg.h"
 
@@ -37,78 +37,78 @@
 
 unsigned long* stackGuardHackPtr;
 
-void stackDump(FILE* dst) {	// makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
-	unsigned long unused;
-	for (unsigned long* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
-		unsigned long value = *stackPtr;
-		fwrite(&stackPtr, sizeof(stackPtr), 1, dst);
-		fwrite(&value, sizeof(value), 1, dst);
-	}
+void stackDump(FILE* dst) { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
+    unsigned long unused;
+    for (unsigned long* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
+        unsigned long value = *stackPtr;
+        fwrite(&stackPtr, sizeof(stackPtr), 1, dst);
+        fwrite(&value, sizeof(value), 1, dst);
+    }
 }
 
 void nasprintf(const char* expr, ...) {
-	// display to console (should be safest, but rarely visible on Windows)
-	va_list argptr;
-	va_start(argptr, expr);
-	vfprintf(stderr, expr, argptr);
-	va_end(argptr);
-	#ifndef DISABLE_ENHANCED_NASSERT
-	// save to assert.log
-	FILE* asfile = fopen((wheregamedir + "log" + directory_separator + "assert.log").c_str(), "at");
-	if (asfile) {
-		fprintf(asfile, "%s  %s  ", date_and_time().c_str(), GAME_SHORT_VERSION);
-		va_start(argptr, expr);
-		vfprintf(asfile, expr, argptr);
-		va_end(argptr);
-		fclose(asfile);
-		FILE* stdump = fopen((wheregamedir + "log" + directory_separator + "stackdump.bin").c_str(), "wb");
-		if (stdump) {
-			stackDump(stdump);
-			fclose(stdump);
-		}
-	}
-	// display using allegro_message
-	#ifdef ALLEGRO_WINDOWS
-	va_start(argptr, expr);
-	char buf[10000];
-	platVsnprintf(buf, 10000, expr, argptr);
-	va_end(argptr);
-	#else
-	// this is because in Linux, allegro_message prints to the console and the already printed message would be duplicated
-	char buf[] = "";
-	#endif
-	allegro_message("%s\nThis results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi", buf);
-	#endif // DISABLE_ENHANCED_NASSERT
+    // display to console (should be safest, but rarely visible on Windows)
+    va_list argptr;
+    va_start(argptr, expr);
+    vfprintf(stderr, expr, argptr);
+    va_end(argptr);
+    #ifndef DISABLE_ENHANCED_NASSERT
+    // save to assert.log
+    FILE* asfile = fopen((wheregamedir + "log" + directory_separator + "assert.log").c_str(), "at");
+    if (asfile) {
+        fprintf(asfile, "%s  %s  ", date_and_time().c_str(), GAME_SHORT_VERSION);
+        va_start(argptr, expr);
+        vfprintf(asfile, expr, argptr);
+        va_end(argptr);
+        fclose(asfile);
+        FILE* stdump = fopen((wheregamedir + "log" + directory_separator + "stackdump.bin").c_str(), "wb");
+        if (stdump) {
+            stackDump(stdump);
+            fclose(stdump);
+        }
+    }
+    // display using allegro_message
+    #ifdef ALLEGRO_WINDOWS
+    va_start(argptr, expr);
+    char buf[10000];
+    platVsnprintf(buf, 10000, expr, argptr);
+    va_end(argptr);
+    #else
+    // this is because in Linux, allegro_message prints to the console and the already printed message would be duplicated
+    char buf[] = "";
+    #endif
+    allegro_message("%s\nThis results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi", buf);
+    #endif // DISABLE_ENHANCED_NASSERT
 }
 
 #define ARGP(num) const char* name##num, int val##num
 
 void nAssertFail(const char* expr, const char* file, int line) {
-	nasprintf("Assertion failed: %s, file %s, line %d\n", expr, file, line);
-	exit(-1);
+    nasprintf("Assertion failed: %s, file %s, line %d\n", expr, file, line);
+    exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), const char* file, int line) {
-	nasprintf("Assertion failed: %s (%s==%d), file %s, line %d\n", expr, name1, val1, file, line);
-	exit(-1);
+    nasprintf("Assertion failed: %s (%s==%d), file %s, line %d\n", expr, name1, val1, file, line);
+    exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), const char* file, int line) {
-	nasprintf("Assertion failed: %s (%s==%d, %s==%d), file %s, line %d\n",
-												expr, name1, val1, name2, val2, file, line);
-	exit(-1);
+    nasprintf("Assertion failed: %s (%s==%d, %s==%d), file %s, line %d\n",
+                                                expr, name1, val1, name2, val2, file, line);
+    exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), const char* file, int line) {
-	nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d), file %s, line %d\n",
-									expr, name1, val1, name2, val2, name3, val3, file, line);
-	exit(-1);
+    nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d), file %s, line %d\n",
+                                    expr, name1, val1, name2, val2, name3, val3, file, line);
+    exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const char* file, int line) {
-	nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d, %s==%d), file %s, line %d\n",
-									expr, name1, val1, name2, val2, name3, val3, name4, val4, file, line);
-	exit(-1);
+    nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d, %s==%d), file %s, line %d\n",
+                                    expr, name1, val1, name2, val2, name3, val3, name4, val4, file, line);
+    exit(-1);
 }
 
 #undef ARGP

@@ -39,14 +39,14 @@ void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text
 void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg);
 
 inline void set_close_button_callback(void (*fn)()) {
-	set_window_close_hook(fn);
+    set_window_close_hook(fn);
 }
-#endif	// ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+#endif  // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 
 #if ALLEGRO_VERSION == 4 && (ALLEGRO_SUB_VERSION == 0 || (ALLEGRO_SUB_VERSION == 1 && ALLEGRO_WIP_VERSION <= 11))
 inline void set_clip_rect(BITMAP* bitmap, int x1, int y1, int x2, int y2) {
-	set_clip(bitmap, x1, y1, x2, y2);
+    set_clip(bitmap, x1, y1, x2, y2);
 }
 #endif
 
-#endif	// INCALLEG_H_INC
+#endif  // INCALLEG_H_INC

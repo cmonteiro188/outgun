@@ -21,31 +21,31 @@
 #ifndef DLOG_H_INC
 #define DLOG_H_INC
 
-#include "../debugconfig.h"	// for LEETNET_ACTIVITY_LOG
+#include "../debugconfig.h" // for LEETNET_ACTIVITY_LOG
 
 #ifndef LEETNET_ACTIVITY_LOG
 
 class DLOG_Scope {
 public:
-	DLOG_Scope(const char*) { }
-	~DLOG_Scope() { }
+    DLOG_Scope(const char*) { }
+    ~DLOG_Scope() { }
 };
 
 class DLOG_ScopeNeg {
 public:
-	DLOG_ScopeNeg(const char*) { }
-	~DLOG_ScopeNeg() { }
+    DLOG_ScopeNeg(const char*) { }
+    ~DLOG_ScopeNeg() { }
 };
 
 class DLOG_ScopeNegStart {
 public:
-	DLOG_ScopeNegStart(const char*) { }
-	~DLOG_ScopeNegStart() { }
+    DLOG_ScopeNegStart(const char*) { }
+    ~DLOG_ScopeNegStart() { }
 };
 
 class DLOG_Main { };
 
-#else	// LEETNET_ACTIVITY_LOG
+#else   // LEETNET_ACTIVITY_LOG
 
 #include <stdio.h>
 #include "../mutex.h"
@@ -55,45 +55,45 @@ class DLOG_Main { };
 #include "Timer.h"
 
 class DLOG_Main {
-	FILE* fp;
-	MutexHolder writeMutex;
+    FILE* fp;
+    MutexHolder writeMutex;
 
 public:
-	DLOG_Main() { fp = fopen("lnetdlog.bin", "wb"); nAssert(fp); }
-	~DLOG_Main() { fclose(fp); }
-	void operator()(const char* str, char mode) {
-		int t = GNE::Timer::getCurrentTime().getTotaluSec();
-		MutexLock ml(writeMutex);
-		fwrite(&t, sizeof(int), 1, fp);
-		fwrite(&mode, sizeof(char), 1, fp);
-		fwrite(str, sizeof(char), 7, fp);
-	}
+    DLOG_Main() { fp = fopen("lnetdlog.bin", "wb"); nAssert(fp); }
+    ~DLOG_Main() { fclose(fp); }
+    void operator()(const char* str, char mode) {
+        int t = GNE::Timer::getCurrentTime().getTotaluSec();
+        MutexLock ml(writeMutex);
+        fwrite(&t, sizeof(int), 1, fp);
+        fwrite(&mode, sizeof(char), 1, fp);
+        fwrite(str, sizeof(char), 7, fp);
+    }
 };
 
 extern DLOG_Main G_DLOG;
 
 class DLOG_Scope {
-	const char* n;
+    const char* n;
 
 public:
-	DLOG_Scope(const char* scopeName) : n(scopeName) { G_DLOG(n, '+'); }
-	~DLOG_Scope() { G_DLOG(n, '-'); }
+    DLOG_Scope(const char* scopeName) : n(scopeName) { G_DLOG(n, '+'); }
+    ~DLOG_Scope() { G_DLOG(n, '-'); }
 };
 
 class DLOG_ScopeNeg {
-	const char* n;
+    const char* n;
 
 public:
-	DLOG_ScopeNeg(const char* scopeName) : n(scopeName) { G_DLOG(n, '-'); }
-	~DLOG_ScopeNeg() { G_DLOG(n, '+'); }
+    DLOG_ScopeNeg(const char* scopeName) : n(scopeName) { G_DLOG(n, '-'); }
+    ~DLOG_ScopeNeg() { G_DLOG(n, '+'); }
 };
 
 class DLOG_ScopeNegStart {
 public:
-	DLOG_ScopeNegStart(const char* n) { G_DLOG(n, '+'); }
+    DLOG_ScopeNegStart(const char* n) { G_DLOG(n, '+'); }
 };
 
-#endif	// LEETNET_ACTIVITY_LOG
+#endif  // LEETNET_ACTIVITY_LOG
 
-#endif	// DLOG_H_INC
+#endif  // DLOG_H_INC
 
