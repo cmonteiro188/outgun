@@ -3025,6 +3025,7 @@ void Client::stop() {
 
 	//save configuration file
 	string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
+	log("Saving client configuration in %s", fileName.c_str());
 	ofstream cfg(fileName.c_str());
 	if (cfg) {
 		// save name menu settings
@@ -3073,6 +3074,9 @@ void Client::stop() {
 
 		cfg.close();
 	}
+	else
+		log("Can't open %s for writing", fileName.c_str());
+	log("Client configuration saved");
 	fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
 	ofstream fav(fileName.c_str());
 	if (fav) {
