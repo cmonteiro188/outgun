@@ -1603,7 +1603,7 @@ void ServerWorld::respawnPlayer(int pid) {
 
 	player[pid].dead = false;
 
-	player[pid].stats().set_spawn_time(get_time());
+	player[pid].stats().spawn(get_time());
 
 	net->broadcast_spawn(player[pid]);
 
