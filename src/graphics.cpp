@@ -545,8 +545,7 @@ void Graphics::draw_player_name(const string& name, int x, int y, int team) {
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
-	// power
-	/*if (rocket.power) {
+	if (rocket.power) {	// powered rocket
 		//draw rocket shadow
 		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, 6, 3, col[COLSHADOW]);
 		//draw the rocket
@@ -555,7 +554,7 @@ void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 		else
 			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y - 15, 4, teamlcol[rocket.team]); //y-12??
 	}
-	else*/ {
+	else {				// normal rocket
 		//draw rocket shadow
 		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, 4, 2, col[COLSHADOW]);
 		//draw the rocket

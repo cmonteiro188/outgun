@@ -1510,7 +1510,7 @@ void gameclient_c::calc_game_frame() {
 					if (rx->px == fx.player[me].roomx)
 					if (rx->py == fx.player[me].roomy) {
 						//then SPAWN a client-side hit-wall FX for the rocket
-						if (fx.player[rx->owner].item_quad)
+						if (rx->power)
 							cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
 						else
 							cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
@@ -2033,7 +2033,7 @@ void gameclient_c::send_frame() {
 }
 
 //helper do helper: reconstitui 1 rocket
-void gameclient_c::client_set_rocket(int id, int dir, NLulong frameno, int owner, int px, int py, int x, int y, int xdelta) {
+void gameclient_c::client_set_rocket(int id, int dir, NLulong frameno, int team, bool power, int px, int py, int x, int y, int xdelta) {
 
 	rocket_c  *rock = &fx.rock[id];
 
@@ -2045,9 +2045,10 @@ void gameclient_c::client_set_rocket(int id, int dir, NLulong frameno, int owner
 	rock->cl_time = (double)frameno - 0.5;	// "meio frame" atras, isto, e o tiro adianta
 																					//porque foi atirado mais antes
 
-	rock->owner = owner;
+	rock->owner = 0;
 	rock->dontdraw = false;		//DO draw...
-	rock->team = owner/TSIZE;
+	rock->team = team;
+	rock->power = power;
 	rock->x = x;
 	rock->y = y;
 	rock->px = px;
@@ -2057,78 +2058,70 @@ void gameclient_c::client_set_rocket(int id, int dir, NLulong frameno, int owner
 }
 
 //helper: reconstitui varios rockets de uma mensagem "7" tipo rocket fire.
-void gameclient_c::client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int owner, int px, int py, int x, int y) {
-
-	//char lix[2000];
-	//sprintf(lix, "rids = %i %i %i", rids[0], rids[1], rids[2]);
-	//print_message(lix);
-
+void gameclient_c::client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int team, bool power, int px, int py, int x, int y) {
 	switch (pow) {
 	case 1:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
 		break;
 	case 2:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
 		break;
 	case 3:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX * 2);
-		// V0.4.8 : NEW TRIPEL SHOT
-		//client_set_rocket(rids[1], dir+1,frameno,owner,px,py,x,y, 0);
-		//client_set_rocket(rids[2], dir-1,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX * 2);
+		client_set_rocket(rids[2], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX * 2);
 		break;
 	case 4:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-		client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
+		client_set_rocket(rids[2], dir+1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[3], dir-1,frameno,team,power,px,py,x,y, 0);
 		break;
 	case 5:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX * 2);
-		client_set_rocket(rids[3], dir+2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir-2,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,px,power,py,x,y, 0);
+		client_set_rocket(rids[1], dir,frameno,team,px,power,py,x,y, - SHOT_DELTAX * 2);
+		client_set_rocket(rids[2], dir,frameno,team,px,power,py,x,y, + SHOT_DELTAX * 2);
+		client_set_rocket(rids[3], dir+2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[4], dir-2,frameno,team,power,px,py,x,y, 0);
 		break;
 	case 6:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-		client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir+2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir-2,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
+		client_set_rocket(rids[2], dir+1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[3], dir-1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[4], dir+2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[5], dir-2,frameno,team,power,px,py,x,y, 0);
 		break;
 	case 7:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX * 2);
-		client_set_rocket(rids[3], dir+2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir-2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir+3,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[6], dir-3,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX * 2);
+		client_set_rocket(rids[2], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX * 2);
+		client_set_rocket(rids[3], dir+2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[4], dir-2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[5], dir+3,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[6], dir-3,frameno,team,power,px,py,x,y, 0);
 		break;
 	case 8:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX);
-		client_set_rocket(rids[2], dir+1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[3], dir-1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir+2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir-2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[6], dir+3,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[7], dir-3,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
+		client_set_rocket(rids[2], dir+1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[3], dir-1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[4], dir+2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[5], dir-2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[6], dir+3,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[7], dir-3,frameno,team,power,px,py,x,y, 0);
 		break;
 	case 9:
-		client_set_rocket(rids[0], dir,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,owner,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,owner,px,py,x,y, + SHOT_DELTAX * 2);
-		client_set_rocket(rids[3], dir+1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir-1,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir+2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[6], dir-2,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[7], dir+3,frameno,owner,px,py,x,y, 0);
-		client_set_rocket(rids[8], dir-3,frameno,owner,px,py,x,y, 0);
+		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX * 2);
+		client_set_rocket(rids[2], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX * 2);
+		client_set_rocket(rids[3], dir+1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[4], dir-1,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[5], dir+2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[6], dir-2,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[7], dir+3,frameno,team,power,px,py,x,y, 0);
+		client_set_rocket(rids[8], dir-3,frameno,team,power,px,py,x,y, 0);
 		break;
 	}
 }
@@ -2400,7 +2393,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//switch tempvars
 			char mapname[128];
 			int rids[16]; //rocket ids pra msg 7
-			NLubyte rowner, rpx, rpy, code, pid, team, carried, abyte, rockid, iid, rpow, rdir, sx, sy;
+			NLubyte rteampower, rpx, rpy, code, pid, team, carried, abyte, rockid, iid, rpow, rdir, sx, sy;
 			NLshort   rokx, roky;	//rocket hit msg 8
 			NLushort	usho, hx, hy;
 			NLulong frameno, prank, pscore, nscore;	//v0.4.8 NEG SCORE
@@ -2538,7 +2531,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//rocket fire notification
-			case 7:
+			case 7: {
 
 				// add to clientside rocket objects list
 				//
@@ -2553,32 +2546,26 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				readLong(lebuf, count, frameno);	// frame # of shot
-				readByte(lebuf, count, rowner);	// owner
+				readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
+
+				bool power = ((rteampower & 1) != 0);
+				int team = (rteampower & 2) >> 1;
 				readByte(lebuf, count, rpx); //px
 				readByte(lebuf, count, rpy); //py
 				readShort(lebuf, count, rx); //x
 				readShort(lebuf, count, ry); //y
 
 				//rebuild client-side shot
-				client_rebuild_shot(rpow, rdir, rids, frameno, rowner, rpx, rpy, rx, ry);
+				client_rebuild_shot(rpow, rdir, rids, frameno, team, power, rpx, rpy, rx, ry);
 
 				//play sound if rocket on screen
-				if (me >= 0)
-				if (rpx == fx.player[me].roomx)
-				if (rpy == fx.player[me].roomy) {
-
-					//fir sound
-					sound(SAMPLE_FIRE);
-
-					//if owner is quaded, play quad sound
-					if (fx.player[rowner].item_quad) {
-						if (get_time() > fx.player[rowner].quad_sound_finished) {
-							sound(SAMPLE_QUAD_FIRE);
-							fx.player[rowner].quad_sound_finished = get_time() + 0.1;		//0.3.9 : quad_sound disabled, play always
-						}
-					}
-				}
+				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
+					if (power)	//if rocket is powered, play quad sound
+						sound(SAMPLE_QUAD_FIRE);
+					else		// normal sound
+						sound(SAMPLE_FIRE);
 				break;
+			}
 
 			//rocket deletion notification
 			case 8:
@@ -4008,6 +3995,7 @@ void gameclient_c::draw_game_frame() {
 		for (i = 0; i < MAX_ROCKETS; i++)
 			if (fx.rock[i].owner != -1 && !fx.rock[i].dontdraw && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
 				fd.rock[i].team = fx.rock[i].team;
+				fd.rock[i].power = fx.rock[i].power;
 				client_graphics.draw_rocket(fd.rock[i], get_time());
 			}
 
@@ -4310,8 +4298,6 @@ void gameclient_c::draw_game_frame() {
 				//draw
 				else {
 					// show name
-					if (i / TSIZE)
-						LOG1("Sininen joukkue: y = %d\n", what_y);
 					client_graphics.draw_scoreboard_name(what_y, i % TSIZE, fx.player[i]);
 
 					// show ping or frags

@@ -178,8 +178,8 @@ public:
     void issue_change_name_command();
     void change_name_command();
     void send_frame();
-    void client_set_rocket(int id, int dir, NLulong frameno, int owner, int px, int py, int x, int y, int xdelta);
-    void client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int owner, int px, int py, int x, int y);
+    void client_set_rocket(int id, int dir, NLulong frameno, int team, bool power, int px, int py, int x, int y, int xdelta);
+    void client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int team, bool power, int px, int py, int x, int y);
     void process_incoming_data(char *data, int length);
     void send_chat(char *msg);
     void erase_first_message();
