@@ -1985,10 +1985,12 @@ void Client::process_incoming_data(const char* data, int length) {
 				readLong(lebuf, count, current_time);
 				readLong(lebuf, count, time_left);
 				map_start_time = static_cast<int>(get_time()) - current_time;
-				if (time_left >= 0) {
+				if (time_left > 0) {
 					map_end_time = static_cast<int>(get_time()) + time_left;
 					map_time_limit = true;
 				}
+				else
+					map_time_limit = false;
 				if (LOG_MESSAGE_TRAFFIC)
 					log("Map time received. Time left %d seconds.", time_left);
 				break;
