@@ -6,6 +6,8 @@
 #include "network.h"
 #include "thread.h"
 #include "log.h"
+#include "menu.h"
+#include "client_menus.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
@@ -24,7 +26,7 @@ struct download_runes_t {
 	char dest[512];	//full destination path+name for downloaded file
 };
 
-enum Menu_selection {
+enum Menu_selection {	//#fix: get rid
 	menu_none,
 	menu_main,
 	menu_dialog,
@@ -125,11 +127,15 @@ class gameclient_c {
 	NLulong map_end_time;
 
 	// GUI
+	Menu_main menu;
+	MenuStack openMenus;
+//#fix: get rid
 	bool menushow;
 	//int menu;	//menu screen #
-	Menu_selection menu;
+	Menu_selection menusel;
 	bool gameshow;
 	bool helpshow;
+//#
 	double FPS;
 	int framecount, totalframecount;
 	double frameCountStartTime;
@@ -154,8 +160,7 @@ class gameclient_c {
 	bool save_pl_password;
 	bool save_password_selected;
 	std::string password_file;
-	bool autoconnect;
-	
+
 	std::string dialogmessage;
 	std::string dialogmessage2;
 	std::string talkbuffer;
@@ -175,6 +180,26 @@ class gameclient_c {
 
 	static bool force_exit;
 	static void close_button_callback();
+
+	void initMenus();
+
+	// menu callback functions
+	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
+	void MCF_connect(Textarea&) { connect_command(); }
+	void MCF_disconnect(Textarea&) { disconnect_command(); }
+	void MCF_startServer(Textarea&) { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
+	void MCF_stopServer(Textarea&) { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
+	void MCF_prepareMainMenu(Menu&);
+	void MCF_removePasswords(Textarea&) { }	//#fix: action!
+	void MCF_favoriteColors(Textarea&) { }	//#fix: action!
+	void MCF_screenModeChange(Textarea&) { screenModeChange(); }
+	void MCF_gfxThemeChange(Select&) { }	//#fix: action!
+	void MCF_prepareGfxMenu(Menu&) { }	//#fix: action!
+	void MCF_screenModeChange(Menu&) { screenModeChange(); }
+	void MCF_sndThemeChange(Select&) { }	//#fix: action!
+	void MCF_prepareSndMenu(Menu&) { }	//#fix: action!
+
+	void screenModeChange() { }	//#fix: action!
 
 public:
 	bool message_logging;
@@ -239,7 +264,6 @@ public:
 	void draw_player(int pid);
 	void draw_game_menu();
 	void update_scoreboard();
-	void set_menu(Menu_selection menumber);
 };
 
 extern gameclient_c *gameclient;

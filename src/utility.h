@@ -41,6 +41,7 @@ void errorMessage(const std::string& heading, MemoryLog& errorLog);
 class LineReceiver {
 protected:
 	LineReceiver() { }
+	virtual ~LineReceiver() { }
 
 public:
 	virtual LineReceiver& operator()(const std::string& str) =0;
@@ -54,6 +55,67 @@ class RedirectToMemFun {
 public:
 	RedirectToMemFun(HostClass* h, ReturnT (HostClass::*memFun)()) : host(h), function(memFun) { }
 	ReturnT operator()() { return (host->*function)(); }
+};
+
+template<class HostClass, class ReturnT, class Arg1T>
+class RedirectToMemFun1 {
+	HostClass* host;
+	ReturnT (HostClass::*function)(Arg1T);
+
+public:
+	RedirectToMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T)) : host(h), function(memFun) { }
+	ReturnT operator()(Arg1T arg) { return (host->*function)(arg); }
+};
+
+template<class HostClass, class ReturnT, class Arg1T, class Arg2T>
+class RedirectToMemFun2 {
+	HostClass* host;
+	ReturnT (HostClass::*function)(Arg1T, Arg2T);
+
+public:
+	RedirectToMemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T)) : host(h), function(memFun) { }
+	ReturnT operator()(Arg1T arg1, Arg2T arg2) { return (host->*function)(arg1, arg2); }
+};
+
+template<class ArgT>
+class HookFunctionBase {	// base class for functions used with class Hook
+public:
+	virtual ~HookFunctionBase() { }
+	virtual void operator()(ArgT&) = 0;
+	virtual HookFunctionBase* clone() = 0;
+};
+
+template<class ArgT>
+class Hook {
+public:
+	typedef HookFunctionBase<ArgT> FunctionT;
+
+	Hook() : hookFn(0) { }
+	~Hook() { free(); }
+	void set(FunctionT* fn) { free(); hookFn = fn; }	// the ownership is transferred
+	bool active() const { return hookFn != 0; }
+	void call(ArgT& obj) { if (hookFn) (*hookFn)(obj); }
+
+private:
+	void free() { if (hookFn) delete hookFn; }
+
+	FunctionT* hookFn;
+};
+
+template<class ArgT>
+class Hookable {
+public:
+	typedef typename Hook<ArgT>::FunctionT HookFunctionT;
+
+	virtual ~Hookable() { }
+	void setHook(HookFunctionT* fn) { hook.set(fn); }	// the ownership is transferred
+	bool isHooked() const { return hook.active(); }
+
+protected:
+	void callHook(ArgT& obj) { hook.call(obj); }
+
+private:
+	Hook<ArgT> hook;
 };
 
 inline void readStr(const char* buf, int& count, std::string& dst) {

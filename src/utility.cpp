@@ -80,3 +80,47 @@ double get_time() {
 	return ((double)time_counter) / 200.0;
 }
 
+// definitions for incalleg.h
+
+#if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+	text_mode(bg);
+	va_list argptr;
+	char xbuf[16384];
+	va_start(argptr, format);
+	vsprintf(xbuf, format, argptr);
+	va_end(argptr);
+	textout(bmp, f, xbuf, x, y, color);
+}
+void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+	text_mode(bg);
+	va_list argptr;
+	char xbuf[16384];
+	va_start(argptr, format);
+	vsprintf(xbuf, format, argptr);
+	va_end(argptr);
+	textout_centre(bmp, f, xbuf, x, y, color);
+}
+void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+	text_mode(bg);
+	va_list argptr;
+	char xbuf[16384];
+	va_start(argptr, format);
+	vsprintf(xbuf, format, argptr);
+	va_end(argptr);
+	textout_right(bmp, f, xbuf, x, y, color);
+}
+void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+	text_mode(bg);
+	textout(bmp, f, text, x, y, color);
+}
+void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+	text_mode(bg);
+	textout_centre(bmp, f, text, x, y, color);
+}
+void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+	text_mode(bg);
+	textout_right(bmp, f, text, x, y, color);
+}
+#endif	// ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+
