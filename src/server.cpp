@@ -947,15 +947,17 @@ void Server::chat(int pid, const char* sbuf) {
 					network.player_message(pid, msg_normal, buf);
 			}
 		}
-		else if ((!strcmp(cbuf, "kick") || !strcmp(cbuf, "ban") || !strcmp(cbuf, "mute")
-					|| !strcmp(cbuf, "smute") || !strcmp(cbuf, "unmute")) && admin) {
+		else if (admin && (!strcmp(cbuf, "kick") || !strcmp(cbuf, "ban") ||
+					!strcmp(cbuf, "mute") || !strcmp(cbuf, "smute") || !strcmp(cbuf, "unmute"))) {
 			istringstream command(pCommand);
 			int ppid;
-			int time = 60;	// used only for bans; default: 1 hour
+			int time;	// used only for bans
 			command >> ppid;
 			bool ok = command;
 			command >> time;
 			if (!strcmp(cbuf, "ban")) {
+				if (!command)
+					time = 60;	// default: 60 minutes
 				if (! (command || command.eof()))
 					ok = false;
 			}
@@ -965,13 +967,15 @@ void Server::chat(int pid, const char* sbuf) {
 				network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", cbuf, !strcmp(cbuf, "ban") ? " [minutes]" : "");
 			else if (ppid < 0 || ppid >= MAX_PLAYERS || !world.player[ppid].used)
 				network.player_message(pid, msg_warning, "No such player. Type /list for a list of IDs.");
-			else if (time <= 0 || time > 60 * 24 * 7)	// allow at most a weeks ban (a bit over 10000 minutes)
-				network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week)");
 			else {	// syntax OK
 				if (!strcmp(cbuf, "kick"))
 					kickPlayer(ppid, pid);
-				else if (!strcmp(cbuf, "ban"))
-					banPlayer(ppid, pid, time);
+				else if (!strcmp(cbuf, "ban")) {
+					if (time <= 0 || time > 60 * 24 * 7)	// allow at most a weeks ban (a bit over 10000 minutes)
+						network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week)");
+					else
+						banPlayer(ppid, pid, time);
+				}
 				else if (!strcmp(cbuf, "mute"))
 					mutePlayer(ppid, 1, pid);
 				else if (!strcmp(cbuf, "smute"))
