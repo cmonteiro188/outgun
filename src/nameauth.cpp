@@ -36,9 +36,10 @@ void NameAuthorizationDatabase::clear() {
 
 bool NameAuthorizationDatabase::load() {
 	clear();
-	ifstream in((wheregamedir + "config" + directory_separator + "auth.txt").c_str());
+	const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
+	ifstream in(filename.c_str());
 	if (!in) {
-		log.error("Can't read auth.txt");
+		log.error("Can't read '%s'", filename.c_str());
 		return false;
 	}
 	bool bansChanged = false;
@@ -97,11 +98,14 @@ bool NameAuthorizationDatabase::load() {
 }
 
 bool NameAuthorizationDatabase::save() const {
-	ofstream out((wheregamedir + "config" + directory_separator + "auth.txt").c_str());
+	const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
+	ofstream out(filename.c_str());
 	if (!out) {
-		log.error("Can't write auth.txt");
+		log.error("Can't write '%s'", filename.c_str());
 		return false;
 	}
+	else
+		log("Writing '%s'", filename.c_str());
 	out << "; This file is automatically rewritten whenever the ban list changes.\n"
 		<< "; To reserve a name add a row:\n"
 		<< "; user <name> <tab> <password>  or  admin <name> [<tab> <password>]\n"

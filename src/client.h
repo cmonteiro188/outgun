@@ -41,6 +41,30 @@ enum Menu_selection {	// screens that aren't quite menus //#fix: get rid
 	menu_teams
 };
 
+enum ClientCfgSetting {
+	CCS_PlayerName,
+	CCS_Tournament,
+	CCS_Favorites,
+	CCS_FavoriteColors,
+	CCS_LagPrediction,
+	CCS_LagPredictionAmount,
+	CCS_Joystick,
+	CCS_MessageLogging,
+	CCS_SaveStats,
+	CCS_Windowed,
+	CCS_GFXMode,
+	CCS_Flipping,
+	CCS_FPSLimit,
+	CCS_GFXTheme,
+	CCS_Antialiasing,
+	CCS_StatsBgAlpha,
+	CCS_ShowNames,
+	CCS_SoundEnabled,
+	CCS_Volume,
+	CCS_SoundTheme,
+	CCS_MaxCommand = CCS_SoundTheme
+};
+
 class ServerThreadOwner {
 	LogSet log;
 	bool threadFlag, quitFlag;	// threadFlag is true whenever the thread hasn't been joined, quitFlag false only when the server is successfully running
@@ -130,7 +154,7 @@ class client_runes_t;
 class gameclient_c {
 	FileLog normalLog;
 	SupplementaryLog<MemoryLog> errorLog;
-	SupplementaryLog<FileLog> securityLog;
+	// currently not in use:	SupplementaryLog<FileLog> securityLog;
 	mutable LogSet log;
 
 	std::vector<std::vector<std::string> > load_all_player_passwords() const;
@@ -148,7 +172,7 @@ class gameclient_c {
 	ClientWorld fd, fx;	//#fix: two maps, etc.
 	std::vector<ClientPlayer*> players_sb;	// player pointers for scoreboard
 	int me;
-	pthread_mutex_t frame_mutex;
+	MutexHolder frame_mutex;
 	int maxplayers;
 
 	// network
@@ -169,7 +193,7 @@ class gameclient_c {
 	std::string old_map;
 	char servermap[64]; //last map command from server
 
-	pthread_mutex_t udpdq_mutex;
+	MutexHolder udpdq_mutex;
 	int udpdq_size;
 	enum { MAX_UDPDQ = 16 };	//#fix
 	download_runes_t *udpdq[MAX_UDPDQ];	//the udp download queue
@@ -182,7 +206,7 @@ class gameclient_c {
 	NLulong fdp, fdp_max;
 	NLulong max_world_rank;
 
-	pthread_mutex_t mapInfoMutex;
+	MutexHolder mapInfoMutex;
 	std::vector<MapInfo> maps;
 	int current_map;
 	int map_vote;
@@ -234,6 +258,7 @@ class gameclient_c {
 	bool show_all_messages;
 	Graphics client_graphics;
 	bool screenshot;
+	volatile bool mapChanged, predrawNeeded;
 	Sounds client_sounds;
 
 	std::ofstream message_log;
@@ -244,10 +269,10 @@ class gameclient_c {
 	class GFXMode {
 	public:
 		int width, height, depth;
-		bool windowed;
+		bool windowed, flipping;
 
 		GFXMode() : width(-1) { }
-		GFXMode(int w, int h, int d, bool win) : width(w), height(h), depth(d), windowed(win) { }
+		GFXMode(int w, int h, int d, bool win, int flip) : width(w), height(h), depth(d), windowed(win), flipping(flip) { }
 		bool used() const { return width != -1; }
 	};
 

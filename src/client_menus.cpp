@@ -40,6 +40,8 @@ Menu_serverList::Menu_serverList() :
 	favorites		("Show favorite servers"),
 	addServer		(),
 
+	keyHelp			("Ins = add to favorites          Del = remove server"),
+
 	caption			("IP address           Ping D Players Vers. Host name"),
 
 	menu			("Server list")
@@ -61,6 +63,8 @@ void Menu_serverList::reset() {
 	menu.add_component(&favorites);
 	menu.add_component(&addServer.menu);
 	ins_space();
+//	menu.add_component(&keyHelp);
+//	ins_space();
 	menu.add_component(&caption);
 }
 
@@ -307,9 +311,9 @@ void Menu_text::addLine(const string& line, bool cancelable) {
 }
 
 void Menu_text::addLine(const string& caption, const string& value, bool cancelable) {
-	lines.push_back(Textarea(caption, value));
+	lines.push_back(StaticText(caption, value));
 	menu.clear_components();
-	for (vector<Textarea>::iterator li = lines.begin(); li != lines.end(); ++li)
+	for (vector<StaticText>::iterator li = lines.begin(); li != lines.end(); ++li)
 		menu.add_component(&*li);
 	ins_space();
 	if (cancelable)

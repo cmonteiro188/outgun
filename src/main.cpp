@@ -132,16 +132,16 @@ int main(int argc, char *argv[]) {
 	delete[] path;
 
 	if (!check_dir("log")) {
-		allegro_message("ERROR: Directory 'log' not found.\n\nPlease create this directory.\n\nThe game cannot run without it.");
+		allegro_message("Error: Directory 'log' not found.\nPlease create this directory.\nThe game cannot run without it.");
 		return 0;
 	}
 	if (!check_dir("config"))
-		allegro_message("ERROR: Make directory 'config' if you\nwant to save game or server setups.");
+		allegro_message("Error: Directory 'config' not found.\nCreate it to be able to save the configuration\nor customize your server.");
 
 	FileLog logFile(wheregamedir + "log" + directory_separator + "log.txt", true);
 	LogSet log(&logFile, &logFile, &logFile);
 
-	log("Outgun log file. Game string: %s, protocol: %s, version: %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
+	log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 	if (LOG_THREAD_IDS)
 		log("main() ID = %d", pthread_self());
 
@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
 		}
 		else if (!strcmp(argv[i], "-mappic")) {
 			if (!check_dir("mappic")) {
-				allegro_message("ERROR: Directory 'mappic' not found.\nMake this directory.");
+				allegro_message("Error: Directory 'mappic' not found.\nMake this directory.");
 				return 0;
 			}
 			log("Saving map pictures");
@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
 				mappic.run();
 				allegro_message("Saved map pictures to mappic directory.");
 			} catch (const Mappic::Save_error& s) {
-				allegro_message("ERROR: Could not save map pictures to mappic directory!");
+				allegro_message("Error: Could not save map pictures to mappic directory. See the logs.");
 			}
 			return 0;
 		}
@@ -236,11 +236,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (nlInit() == NL_FALSE) {
-		allegro_message("ERROR: cannot init HawkNL!");
+		allegro_message("Error: Can't init HawkNL.\n%s", getNlErrorString());
 		return 0;
 	}
 	if (nlSelectNetwork(NL_IP) == NL_FALSE) {
-		allegro_message("ERROR: no IP network!");
+		allegro_message("Error: No IP network.");
 		return 0;
 	}
 
@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
 	nlEnable(NL_SOCKET_STATS);
 
 	// resolve master server address
-	log("resolving master server address...");
+	log("Resolving master server address...");
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string name, address;
 	if (!getline_skip_comments(in, name))
@@ -259,15 +259,13 @@ int main(int argc, char *argv[]) {
 	try {
 		nlGetAddrFromName(name.c_str(), &master_address);
 	} catch (...) {
-		log("caught exception probably on nlGetAddrFromNameAsync()");
+		log("Caught exception probably on nlGetAddrFromNameAsync()");
 		master_address.valid = NL_FALSE;
 	}
 
 	if (master_address.valid == NL_FALSE) {
-		log("can't resolve master server address to IP.");
+		log("Can't resolve master server address to IP.");
 		nlStringToAddr(address.c_str(), &master_address);
-	} else if (master_address.valid == NL_TRUE) {
-		log("address resolved sucessfully.");
 	}
 
 	if (!nlGetPortFromAddr(&master_address))
@@ -305,7 +303,16 @@ int main(int argc, char *argv[]) {
 		locals = nlGetAllLocalAddr(&locsize);
 
 		char infobuf[2048];
-		sprintf(infobuf, "Information:\n\nThread priorities for -prio <val> parameter:\n* Minimum -prio <val> : %i\n* Maximum -prio <val> : %i\n* System default (use -defaultprio) : %i\n\nLocal addresses:\n", pmin, pmax, pdef);
+		sprintf(infobuf,
+			"Information:\n"
+			"\n"
+			"Thread priorities for -prio <val> parameter:\n"
+			"* Minimum -prio <val> : %i\n"
+			"* Maximum -prio <val> : %i\n"
+			"* System default (use -defaultprio) : %i\n"
+			"\n"
+			"Local addresses:\n",
+				pmin, pmax, pdef);
 
 		for (int z=0;z<locsize;z++) {
 			strcat(infobuf, addressToString(locals[z]).c_str());
@@ -330,40 +337,39 @@ int main(int argc, char *argv[]) {
 		}
 
 		// dedicated server - set process priority (all threads) to a higher value
-		//		--> threads filhas estao com as priorities certas? LOGAR pra  ver. senao mudar p/ INHERIT
 		if (!defaultprio) {
 			int ptarg;
 			if (!targetprio_specified) {	//if -prio parameter is unspecified
 				//guess one below system maximum (wich usually means realtime and should never be used really)
-				if (pmin < pmax)
-					ptarg = pmax - 1;
-				else
-					ptarg = pmax + 1;
+				ptarg = pmax - 1;
 			}
 			else
 				ptarg = targetprio;
 
-			param.sched_priority = ptarg;
-			policy = SCHED_OTHER;
-			pthread_setschedparam(tme, policy, &param);
-			log("NEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i", ptarg);
+			if (ptarg >= pmin && ptarg <= pmax) {
+				param.sched_priority = ptarg;
+				policy = SCHED_OTHER;
+				pthread_setschedparam(tme, policy, &param);
+				log("Priority set for dedicated server: %i", ptarg);
+			}
+			else
+				log("Skipped setting priority: %d doesn't fit on the scale", ptarg);
 		}
 		else
 			log("-defaultprio: Leaving thread priorities on their default values");
 
 		// gfx init
-		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) // allow running in the background
-		{
-			log("can't set SWITCH_BACKAMNESIA for SERVER");
+		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
 			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) {
-				allegro_message("ERROR: server window cannot run in the background!");
+				log.error("Switch_backamnesia and switch_background failed: server window can't run in the background.");
+				allegro_message("Error: server window can't run in the background.");
 				return 0;
 			}
 			else
-				log("set SWITCH_BACKGROUND for SERVER");
+				log("Switch_background set ok.");
 		}
 		else
-			log("set SWITCH_BACKAMNESIA for SERVER");
+			log("Switch_backamnesia set ok.");
 
 		// run server
 		GameserverInterface* gameserver = new GameserverInterface(log, serverCfg);
@@ -372,13 +378,13 @@ int main(int argc, char *argv[]) {
 			gameserver->stop();
 		}
 		else
-			allegro_message("ERROR: cannot start gameserver!");
+			allegro_message("Error: can't start server. See the logs.");
 		delete gameserver;
 	}
 	// run client
 	else {
 		if (!check_dir(CLIENT_MAPS_DIR)) {
-			allegro_message("ERROR: directory '%s' not found.\n\nPlease create this directory.\n\nThe game cannot run without it.", CLIENT_MAPS_DIR);
+			allegro_message("Error: directory '%s' not found.\nPlease create this directory.\nThe game can't run without it.", CLIENT_MAPS_DIR);
 			return 0;
 		}
 		if (!check_dir("stats"))
@@ -393,7 +399,7 @@ int main(int argc, char *argv[]) {
 			gameclient->stop();
 		}
 		else
-			allegro_message("ERROR: cannot start gameclient!");
+			allegro_message("Error: can't start client. See the logs.");
 		delete gameclient;
 	}
 

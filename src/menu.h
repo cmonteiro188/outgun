@@ -276,6 +276,22 @@ private:
 	std::string text;
 };
 
+class StaticText : public Component {
+public:
+	StaticText(const std::string& caption_, const std::string& text_ = std::string()) : Component(caption_), text(text_) { }
+	void set(const std::string& val) { text = val; }
+
+	// inherited interface
+	bool canBeEnabled() const { return false; }
+	bool isEnabled() const { return false; }
+	int width() const;
+	int height() const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+
+private:
+	std::string text;
+};
+
 class Textobject : public Component, public MenuHookable<Textobject> {
 public:
 	Textobject(): Component(""), start(0) { }

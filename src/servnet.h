@@ -9,6 +9,7 @@
 class gameserver_c;
 class masterjob_c;
 class Powerup;
+class rocket_c;
 class server_c;
 class ServerHelloResult;
 class ServerPlayer;
@@ -152,6 +153,7 @@ public:
 	void sendEndGameover();
 	void sendWeaponPower(int pid);
 	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id: array of NLubyte[shots]
+	void sendOldRocketVisible(int pid, int rid, const rocket_c& rocket);
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 	void sendDeathbringer(int pid, const ServerPlayer& ply);
 	void sendPickupVisible(int pid, int pup_id, const Powerup& it);

@@ -14,6 +14,7 @@ enum Network_data_code {
 	data_frags_update,
 	data_flag_update,
 	data_rocket_fire,
+	data_old_rocket_visible,
 	data_rocket_delete,
 	data_score_update,
 	data_sound,
@@ -59,7 +60,9 @@ enum Network_data_code {
 	data_team_movements_shots,
 	data_fav_colors,
 	data_name_authorization_request,
-	data_server_settings
+	data_server_settings,
+	data_reserved_range_first,	// reserve some codes for extensions that are otherwise protocol compatible
+	data_reserved_range_last = data_server_settings + 20	// make sure you don't use more!
 };
 
 enum Disconnect_reason {

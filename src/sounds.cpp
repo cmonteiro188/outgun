@@ -85,11 +85,11 @@ bool Sounds::try_init() {
 	if (allegroSoundInitialized)
 		return true;
 	if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
-		log("INSTALL_SOUND failed. no sound.");
+		log("Install_sound failed. Sound disabled.");
 		return false;
 	}
 	else {
-		log("INSTALL_SOUND ok.");
+		log("Install_sound ok.");
 		allegroSoundInitialized = true;
 		return true;
 	}

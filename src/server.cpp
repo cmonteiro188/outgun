@@ -698,7 +698,7 @@ void gameserver_c::load_game_mod() {
 		in.close();
 	}
 	else
-		log.error("Can't open game mod file gamemod.txt!");
+		log.error("Can't open game mod file: '%s'", filename.c_str());
 	world.setConfig(worldConfig, pupConfig);
 }
 
@@ -1287,7 +1287,7 @@ void gameserver_c::server_think_after_broadcast() {
 
 void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 	nAssert(quitFlag);
-	log("GAMESERVER::LOOP()");
+	log("at gameserver::loop()");
 
 	world.frame = 0;	//frame to generate next
 
@@ -1310,6 +1310,9 @@ void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 		if (world.frame % 10 == 0) {
 			//update bar
 			ostringstream status;
+			int errors = errorLog.size();
+			if (errors)
+				status << "ERRORS:" << errors << "  ";
 			status << network.get_player_count() << '/' << maxplayers << "p ";
 			status << setprecision(1) << std::fixed << network.getTraffic() << "k/s v" << GAME_VERSION;
 			status << " port:" << extConfig.port;
@@ -1331,7 +1334,7 @@ void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 			break;
 	}
 
-	log("GAMESERVER::LOOP() (EXITING!)");
+	log("exiting gameserver::loop()");
 }
 
 //stop server

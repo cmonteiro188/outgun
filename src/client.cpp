@@ -88,17 +88,16 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 
 	GameserverInterface gameserver(log, config);
 	if (!gameserver.start(config.server_maxplayers)) {
-		log.error("cannot start LISTEN GAME SERVER!!!");
+		log.error("Can't start listen server");
 		quitFlag = true;
 		return;
 	}
 
+	log("Listen server running");
 	gameserver.loop(&quitFlag, false);
 	quitFlag = true;
-
-	log("GAMESERVER STOPPING");
 	gameserver.stop();
-	log("GAMESERVER STOPPED");
+	log("Listen server stopped");
 
 	//restore client's windowtitle
 	config.statusOutput("Outgun client");	// note: this is the server's statusOutput not client's
@@ -112,7 +111,6 @@ void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
 	runPort = port;
 	quitFlag = false;
 	threadFlag = true;
-	log("listen_start()");
 	RedirectToMemFun1<ServerThreadOwner, void, const ServerExternalSettings&> rmf(this, &ServerThreadOwner::threadFn);
 	serverThread.start_assert(rmf, config);
 }
@@ -121,7 +119,6 @@ void ServerThreadOwner::stop() {
 	nAssert(threadFlag);
 	quitFlag = true;
 	threadFlag = false;
-	log("listen_stop()");
 	serverThread.join();
 }
 
@@ -267,7 +264,7 @@ void TournamentPasswordManager::threadFn() {
 				if (!stricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
 					break;
 			if (startPos < 6 || endPos < startPos) {
-				log("Password thread: Invalid response (no <html>...</html>)");
+				log("Password thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
 				passStatus = PS_invalidResponse;
 				continue;
 			}
@@ -279,14 +276,14 @@ void TournamentPasswordManager::threadFn() {
 			if (response[i] < 32)
 				response[i] = '+';	// for readability in the log
 			if (!stricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
-				log("Password thread: Service unavailable (\"can't contact servlet runner\")");
+				log("Password thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
 				passStatus = PS_unavailable;
 				break;
 			}
 		}
 		if (passStatus == PS_unavailable)
 			continue;
-		log("Password thread: Received response: \"%s\"", response.c_str());
+		log("Password thread: Received response: \"%s\"", formatForLogging(response).c_str());
 		string::size_type cPos = response.find_first_of('@');
 		if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
 			log("Password thread: Invalid response (expecting one @-code)");
@@ -327,8 +324,8 @@ void TournamentPasswordManager::threadFn() {
 gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
-	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
-	log(&normalLog, &errorLog, &securityLog),
+	//securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
+	log(&normalLog, &errorLog, 0),
 	listenServer(log),
 	tournamentPassword(log, new RedirectToMemFun1<gameclient_c, void, string>(this, &gameclient_c::CB_tournamentToken)),
 	current_map(-1),
@@ -339,6 +336,8 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 	password_file(wheregamedir + "config" + directory_separator + "passwd"),
 	client_graphics(log),
 	screenshot(false),
+	mapChanged(false),
+	predrawNeeded(false),
 	client_sounds(log),
 	extConfig(config),
 	serverExtConfig(serverConfig)
@@ -379,9 +378,6 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 	//connected? (that is, "connection accepted")
 	connected = false;
 
-	pthread_mutex_init(&frame_mutex, 0);
-	pthread_mutex_init(&mapInfoMutex, 0);
-	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 	udpdq_size = 0;
 }
 
@@ -395,9 +391,6 @@ gameclient_c::~gameclient_c() {
 	}
 	while (refreshStatus != RS_none && refreshStatus != RS_failed)	// wait for a possible refresh thread to abort itself
 		MS_SLEEP(50);
-	pthread_mutex_destroy(&frame_mutex);
-	pthread_mutex_destroy(&mapInfoMutex);
-	pthread_mutex_destroy(&udpdq_mutex);
 
 	errorMessage("Client had these errors: (see clientlog.txt)", errorLog);
 
@@ -455,103 +448,97 @@ bool gameclient_c::start() {
 	}
 
 	//try to load client configuration
-	// defaults
-	bool randomname = true;
-	bool soundsEnabled = menu.options.sounds.enabled();	// default value specified in client_menus.cpp
 	vector<int> fav_colors;
-	client_graphics.select_theme("<no theme>");
-
-	if (extConfig.winclient != -1)
-		menu.options.graphics.windowed.set(extConfig.winclient);
-	if (extConfig.trypageflip != -1)
-		menu.options.graphics.flipping.set(extConfig.trypageflip);
+	playername = RandomName();
 
 	fileName = wheregamedir + "config" + directory_separator + "client.cfg";
-
 	ifstream cfg(fileName.c_str());
-	if (cfg) {
+	for (;;) {
 		string line;
+		if (!getline_skip_comments(cfg, line))
+			break;
 
-		// read gameclient_c internal settings
-		if (getline_smart(cfg, line) && check_name(line)) {
-			randomname = false;
-			playername = line;
+		istringstream command(line);
+
+		int settingId;
+		string args;
+		command >> settingId;
+		command.ignore();	// eat separator (space)
+		getline(command, args);
+		if (!command || settingId < 0) {
+			log.error("Invalid syntax in client.cfg (\"%s\")", line.c_str());
+			continue;
 		}
-
-		// read name menu settings
-		if (getline_smart(cfg, line))
-			menu.options.name.tournament.set(line == "1");
-
-		// read connect menu settings
-		if (getline_smart(cfg, line))
-			menu.connect.favorites.set(line == "1");
-
-		// read game menu settings
-		if (getline_smart(cfg, line)) {
-			istringstream ist(line);
-			int col;
-			while (ist >> col)
-				if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
-					fav_colors.push_back(col);
+		if (settingId > CCS_MaxCommand) {
+			log.error("Unknown data in client.cfg (\"%s\")", line.c_str());
+			continue;
 		}
-		if (getline_smart(cfg, line))
-			menu.options.game.lagPrediction.set(line == "1");
-		if (getline_smart(cfg, line))
-			menu.options.game.lagPredictionAmount.boundSet(atoi(line));
-		if (getline_smart(cfg, line))
-			menu.options.game.joystick.set(line == "1");
-		if (getline_smart(cfg, line))
-			menu.options.game.messageLogging.set(line == "1");
-		if (getline_smart(cfg, line))
-			menu.options.game.saveStats.set(line == "1");
+		switch (static_cast<ClientCfgSetting>(settingId)) {
+			// name menu
+			case CCS_PlayerName:			if (check_name(args)) playername = args; break;
+			case CCS_Tournament:			menu.options.name.tournament.set(args == "1"); break;
 
-		// read graphics menu settings
-		if (getline_smart(cfg, line) && extConfig.winclient == -1)
-			menu.options.graphics.windowed.set(line == "1");
-		if (getline_smart(cfg, line)) {	// depth and resolution
-			istringstream is(line);
-			int width, height, depth;
-			is >> width >> height >> depth;
-			bool ok = is;
-			char nullc;
-			is >> nullc;
-			if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
-				log("Bad screen mode in client.cfg");
-			else {
-				nAssert(menu.options.graphics.colorDepth.set(depth));
-				menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
-				if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
-					log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
+			// connect menu
+			case CCS_Favorites:				menu.connect.favorites.set(args == "1"); break;
+
+			// game menu
+			case CCS_FavoriteColors: {
+				istringstream ist(args);
+				int col;
+				while (ist >> col)
+					if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
+						fav_colors.push_back(col);
+				break;
 			}
-		}
-		if (getline_smart(cfg, line) && extConfig.trypageflip == -1)
-			menu.options.graphics.flipping.set(line == "1");
-		if (getline_smart(cfg, line))
-			menu.options.graphics.fpsLimit.boundSet(atoi(line));
-		if (getline_smart(cfg, line))
-			menu.options.graphics.theme.set(line);	// ignore error
-		if (getline_smart(cfg, line)) {	// antialiasing
-			int modei = atoi(line);
-			if (modei < 0 || modei > 2)
-				modei = 0;
-			Graphics::Antialiasing_mode mode = static_cast<Graphics::Antialiasing_mode>(modei);
-			menu.options.graphics.antialiasing.set(mode);
-		}
-		if (getline_smart(cfg, line))	// stats screen background translucency
-			menu.options.graphics.statsBgAlpha.boundSet(atoi(line));
-		if (getline_smart(cfg, line))
-			menu.options.graphics.showNames.set(line == "1");
+			case CCS_LagPrediction:			menu.options.game.lagPrediction.set(args == "1"); break;
+			case CCS_LagPredictionAmount:	menu.options.game.lagPredictionAmount.boundSet(atoi(args)); break;
+			case CCS_Joystick:				menu.options.game.joystick.set(args == "1"); break;
+			case CCS_MessageLogging:		menu.options.game.messageLogging.set(args == "1"); break;
+			case CCS_SaveStats:				menu.options.game.saveStats.set(args == "1"); break;
 
-		// read sound menu settings
-		if (getline_smart(cfg, line))
-			soundsEnabled = (line == "1");
-		if (getline_smart(cfg, line))
-			menu.options.sounds.volume.boundSet(atoi(line));
-		if (getline_smart(cfg, line))
-			menu.options.sounds.theme.set(line);	// ignore error
+			// graphics menu
+			case CCS_Windowed:				menu.options.graphics.windowed.set(args == "1"); break;
+			case CCS_GFXMode: {
+				istringstream is(args);
+				int width, height, depth;
+				is >> width >> height >> depth;
+				bool ok = is;
+				char nullc;
+				is >> nullc;
+				if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
+					log("Bad screen mode in client.cfg");
+				else {
+					nAssert(menu.options.graphics.colorDepth.set(depth));
+					menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
+					if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
+						log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
+				}
+				break;
+			}
+			case CCS_Flipping:				menu.options.graphics.flipping.set(args == "1"); break;
+			case CCS_FPSLimit:				menu.options.graphics.fpsLimit.boundSet(atoi(args)); break;
+			case CCS_GFXTheme:				menu.options.graphics.theme.set(args); break;	// ignore error
+			case CCS_Antialiasing: {
+				int modei = atoi(args);
+				if (modei < 0 || modei > 2)
+					modei = 0;
+				Graphics::Antialiasing_mode mode = static_cast<Graphics::Antialiasing_mode>(modei);
+				menu.options.graphics.antialiasing.set(mode);
+				break;
+			}
+			case CCS_StatsBgAlpha:			menu.options.graphics.statsBgAlpha.boundSet(atoi(args)); break;
+			case CCS_ShowNames:				menu.options.graphics.showNames.set(args == "1"); break;
 
-		cfg.close();
+			// sound menu
+			case CCS_SoundEnabled:			menu.options.sounds.enabled.set(args == "1"); break;
+			case CCS_Volume:				menu.options.sounds.volume.boundSet(atoi(args)); break;
+			case CCS_SoundTheme:			menu.options.sounds.theme.set(args); break;	// ignore error
+
+			default:	nAssert(0);	// must handle all values up to the highest known
+		}
 	}
+	cfg.close();
+
 	fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
 	ifstream fav(fileName.c_str());
 	if (fav) {
@@ -571,8 +558,6 @@ bool gameclient_c::start() {
 	// finalize and apply the settings
 
 	// name
-	if (randomname)
-		playername = RandomName();
 	tournamentPassword.changeData(playername, menu.options.name.password());
 
 	// game
@@ -587,18 +572,21 @@ bool gameclient_c::start() {
 		menu.options.game.favoriteColors.addOption(*col);
 
 	// graphics
+	if (extConfig.winclient != -1)
+		menu.options.graphics.windowed.set(extConfig.winclient);
+	if (extConfig.trypageflip != -1)
+		menu.options.graphics.flipping.set(extConfig.trypageflip);
+	if (extConfig.targetfps != -1)
+		menu.options.graphics.fpsLimit.set(extConfig.targetfps);
 	client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
 	MCF_statsBgChange();
 	client_graphics.select_theme(menu.options.graphics.theme());
 	if (!screenModeChange())
 		return false;
-	if (extConfig.targetfps != -1)
-		menu.options.graphics.fpsLimit.set(extConfig.targetfps);
 
 	// sounds
 	if (extConfig.nosound)
-		soundsEnabled = false;
-	menu.options.sounds.enabled.set(soundsEnabled);
+		menu.options.sounds.enabled.set(false);
 	MCF_sndEnableChange();
 	client_sounds.setVolume(menu.options.sounds.volume());
 	client_sounds.select_theme(menu.options.sounds.theme());
@@ -625,10 +613,16 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 	fseek(ud_fout, pos, 0);		//0 == "SEEK_SET" ??
 	int amount = fwrite(buf, 1, len, ud_fout);
 
-	//this is bad! but will never happen.
 	if (amount != len) {
-		log.error("BAD BAD ERROR! process_udp_download_chunk can't fwrite len %i amount %i !!!", len, amount);
-		// FIXME: better handling
+		log.error("Error writing to map file.");
+		disconnect_command();
+		// terminate current download, don't start the next (this might cause problems but having this problem at allshould be extremely rare)
+		MutexLock ml(udpdq_mutex);
+		delete udpdq[udpdq_ptr];
+		udpdq[udpdq_ptr] = 0;
+		udpdq_size--;
+		udpdq_ptr = -1;
+		return;
 	}
 
 	//send the reply
@@ -641,7 +635,7 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 	// - take out of queue
 	// - notify app
 	if (last) {
-		pthread_mutex_lock ( &udpdq_mutex );
+		MutexLock ml(udpdq_mutex);
 
 		//close the file
 		fclose(ud_fout);
@@ -665,27 +659,21 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 				client_udp_setup_download();
 				break;
 			}
-
-		pthread_mutex_unlock ( &udpdq_mutex );
 	}
 }
 
 //do the download setup
 //must be called with udpdq_mutex locked
 void gameclient_c::client_udp_setup_download() {
-
 	//to simplify things...
 	download_runes_t  *r = udpdq[udpdq_ptr];
 
 	//open dest file for output (ud_fout)
 	ud_fout = fopen(r->dest, "wb");
-	if (ud_fout) {
-		log("UDP client_download_thread() file '%s' opened", r->dest);
-	}
-	else {
-		//do something if can't write to the file (disconnect player/whatever)
-		log.error("UDP client_download_thread() can't write output file!! (%s)", r->dest);
-		disconnect_command();		//FIXME make it better
+	if (!ud_fout) {
+		log.error("File download: Can't open '%s' for writing.", r->dest);
+		disconnect_command();
+		//#fix: some cleanup needed?
 		return;
 	}
 
@@ -702,11 +690,10 @@ void gameclient_c::client_udp_setup_download() {
 
 //add to UDP DOWNLOAD QUEUE
 void gameclient_c::client_udp_download(download_runes_t  *rune) {
-	pthread_mutex_lock(&udpdq_mutex);
+	MutexLock ml(udpdq_mutex);
 
 	for (int i=0;i<MAX_UDPDQ;i++)
 		if (udpdq[i] == 0) {
-
 			//add to empty pos on queue
 			udpdq[i] = rune;		//copy to "queue"
 			udpdq_size++;				//another one
@@ -719,20 +706,18 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 			}
 
 			//anyway, we're done
-			pthread_mutex_unlock(&udpdq_mutex);
 			return;
 		}
 
 	//error that will never happen even in a million years
-	log.error("BAD BAD **ERROR** : UDPDQ IS FULL");
-	nAssert(0);	//BAD ERROR
-
-	pthread_mutex_unlock(&udpdq_mutex);
+	log.error("Download queue is full.");
+	disconnect_command();
+	delete rune;
 }
 
 //file download complete
 void gameclient_c::download_file_complete(download_runes_t  *r) {
-	log("download_file_complete '%s' '%s' '%s'", r->type, r->name, r->dest);
+	log("Download complete: '%s' '%s' '%s'", r->type, r->name, r->dest);
 
 	//map complete
 	if (!strcmp(r->type, "map")) {
@@ -740,19 +725,18 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 		if (!strcmp(r->name, servermap)) {
 			bool ok = fd.load_map(log, CLIENT_MAPS_DIR, r->name) && fx.load_map(log, CLIENT_MAPS_DIR, r->name);	//#fix
 			if (!ok)
-				log.error("AFTER DOWNLOAD: MAP '%s' NOT FOUND", r->name);
+				log.error("After download: map '%s' not found", r->name);
 			else {
-				log("AFTER DOWNLOAD: MAP '%s' LOADED SUCCESSFULLY!", r->name);
+				log("After download: map '%s' loaded successfully", r->name);
 
-				//load ok!  (FIXME: tell server)
-				//
-				client_graphics.update_minimap_background(fx.map);	// recalc minimap
-				predraw();
-				map_ready = true;								// map ready to show
-				send_client_ready();				//send "client ready" to server
+				mapChanged = true;
+				map_ready = true;
+				send_client_ready();
 			}
 		}
 	}
+	else
+		nAssert(0);
 
 	//delete the download record
 	delete r; r = 0;
@@ -760,6 +744,14 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 
 //start downloading a server file
 void gameclient_c::download_server_file(const char *type, const char *name, const char *dest) {
+	if (!strcmp(type, "map"))
+		return;
+	if (strpbrk(name, "./:\\")!=NULL) {
+		log.error("Illegal file download request: map \"%s\"", name);
+		disconnect_command();
+		return;
+	}
+
 	//new download request
 	download_runes_t	*rune = new download_runes_t();
 	strcpy(rune->type, type);
@@ -773,24 +765,24 @@ void gameclient_c::download_server_file(const char *type, const char *name, cons
 // client must attempt to load map from "cmaps" dir
 // if map file not there, or the CRC's don't match, ask to download the map from the server
 void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) {
-	log("CLIENT: server_map_command : '%s'", mapname);
+	log("Received map change: '%s'", mapname);
 
 	strcpy(servermap, mapname);
 
 	//try to load the map. will fail if not found
-	bool ok = fd.load_map(log, CLIENT_MAPS_DIR, mapname) && fx.load_map(log, CLIENT_MAPS_DIR, mapname);	//#fix
+	LogSet noLogSet(0, 0, 0);	// if there's an error with the map, don't log it
+	bool ok = fd.load_map(noLogSet, CLIENT_MAPS_DIR, mapname) && fx.load_map(noLogSet, CLIENT_MAPS_DIR, mapname);	//#fix
 
 	if (!ok)
-		log("MAP '%s' NOT FOUND", mapname);
+		log("Map '%s' not found", mapname);
 	else if (fx.map.crc != server_crc)
-		log("MAP '%s' FOUND BUT ITS CRC %i DIFFERS FROM SERVER MAP CRC %i", mapname, fx.map.crc, server_crc);
+		log("Map '%s' found but it's CRC %i differs from server map CRC %i", mapname, fx.map.crc, server_crc);
 	else {
-		log("MAP '%s' LOADED SUCCESSFULLY!", mapname);
+		log("Map '%s' loaded successfully", mapname);
 
 		//load ok!  (FIXME: tell server)
 		//
-		client_graphics.update_minimap_background(fx.map);  // recalc minimap
-		predraw();
+		mapChanged = true;
 		map_ready = true;  // map ready to show
 		send_client_ready();				//send "client ready" to server
 	}
@@ -798,20 +790,16 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	// download map from server (ask file)
 	if (!ok || fx.map.crc != server_crc) {
 		char lix[256];
-		sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
+		sprintf(lix, "Downloading map '%s' (CRC %i)...", mapname, server_crc);
 		print_message(msg_info, lix);
 
 		log("%s", lix);
 
-		// MAKE DOWNLOAD -- ASK FILE
 		const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + mapname + ".txt";
-
-		//download server file -- opens new thread and TCP conection
 		download_server_file("map", mapname, fileName.c_str());
 	}
 }
 
-//disconnect command
 void gameclient_c::disconnect_command() {
 	//disconnect the client here if was connected, else does nothing
 	client->connect(false);
@@ -831,7 +819,6 @@ void gameclient_c::client_connected(char *data, int length) {
 	setMaxPlayers(maxpl);
 
 	readStr(data, count, hostname);
-	hostname = hostname.substr(0, 32);	//truncate at 32 chars
 	m_serverInfo.clear();
 
 	if (!menu.options.game.favoriteColors.values().empty()) {
@@ -853,7 +840,7 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//set window title: the hostname
 	ostringstream caption;
-	caption << "Connected to: " << hostname << " (" << address << ')';
+	caption << "Connected to: " << hostname.substr(0, 32) << " (" << address << ')';
 	extConfig.statusOutput(caption.str());
 
 	//don't want to change teams by default
@@ -883,6 +870,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	talkbuffer.clear();
 	chatbuffer.clear();
 
+	frame_mutex.lock();
+
 	//reset world data
 	// teams
 	for (int i = 0; i < 2; i++) {
@@ -896,6 +885,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	// powerups
 	for (int i = 0; i < MAX_PICKUPS; ++i)
 		fx.item[i].kind = Powerup::pup_unused;
+
+	frame_mutex.unlock();
 
 	//reset FPS count vars
 	framecount = 0;
@@ -919,7 +910,9 @@ void gameclient_c::client_connected(char *data, int length) {
 	map_ready = false;
 	servermap[0] = 0;
 
+	mapInfoMutex.lock();
 	maps.clear();
+	mapInfoMutex.unlock();
 
 	//not showing gameover plaque
 	gameover_plaque = NEXTMAP_NONE;
@@ -1218,7 +1211,6 @@ void gameclient_c::connect_command(bool loadPassword) {
 	client->set_connect_data(lebuf, count);
 
 	client->connect(true);
-	log("client->connect(true)");
 
 	m_connectProgress.clear();
 	m_connectProgress.addLine("Trying to connect...", true);
@@ -1278,15 +1270,12 @@ void gameclient_c::send_frame(bool newFrame) {
 
 //process incoming data
 void gameclient_c::process_incoming_data(char *data, int length) {
+	MutexLock ml(frame_mutex);
+
 	(void)length;
 
 	//this is a HACK:
 	int whatme = 0;
-
-	//lock frame mutex
-	//log("locking INCOMING");
-	pthread_mutex_lock(&frame_mutex);
-	//log("locked! INCOMING");
 
 	// (0) update lastpackettime
 	lastpackettime = get_time();
@@ -1367,20 +1356,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		//if (xtra & 1) player[me].health += 256;
 		//if (xtra & 2) player[me].energy += 256;
 
-		bool empty_frame_cause_not_ready_yet;
-		if (xtra & 4)
-			empty_frame_cause_not_ready_yet = true;
-		else
-			empty_frame_cause_not_ready_yet = false;
+		const bool empty_frame_cause_not_ready_yet = ((xtra & 4) != 0);
 
 		//read "me" (v0.3.9 tentando espantar bug com tiro de canhao!)
 		// BITS 3..8 == what player id
-		whatme = 0;
-		if (xtra & 8)   whatme += 1;
-		if (xtra & 16)  whatme += 2;
-		if (xtra & 32)  whatme += 4;
-		if (xtra & 64)  whatme += 8;
-		if (xtra & 128) whatme += 16;
+		whatme = xtra >> 3;
 
 		// v0.4.1: ISSO AQUI TAVA FALTANDO. como que tu vai ler um monte de coisa
 		//	dependente do "me" sem ter ele definido??????
@@ -1388,17 +1368,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		me = whatme;
 
 		//EMPTY FRAME? if yes, do something about it, if not, parse it
-		if (empty_frame_cause_not_ready_yet) {
-
-			//an empty frame
-
-			// mark somewhere that the frame (fx) should not be read/simulated?
-			//					hmm...
+		if (empty_frame_cause_not_ready_yet)
 			fx.skipped = true;
-
-		}
 		else {
-
 			//a regular frame
 			fx.skipped = false;
 
@@ -1551,7 +1523,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			readByte(msg, count, code);
 
 			if (LOG_MESSAGE_TRAFFIC)
-				log("SERVER MESSAGE CODE = %i", code);
+				log("Message from server, code = %i", code);
 
 			//parse rest of message
 			switch (static_cast<Network_data_code>(code)) {
@@ -1574,8 +1546,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					const Message_type type = static_cast<Message_type>(byte);
 					string chatmsg;
 					readStr(msg, count, chatmsg);
-					if (find_nonprintable_char(chatmsg))
-						log.error("Server sent non-printable characters.");
+					if (find_nonprintable_char(chatmsg)) {
+						log.error("Server sent non-printable characters in a message.");
+						disconnect_command();
+					}
 					else {
 						print_message(type, chatmsg);		//print it to the "console"
 						if (menu.options.game.messageLogging())
@@ -1680,28 +1654,26 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//rocket fire notification
 				case data_rocket_fire: {
-					// add to clientside rocket objects list
-					//
-					//readByte(lebuf, count, rpowdir);	// rocket powerdir
 					readByte(lebuf, count, rpow);	// rocket powerdir
 					readByte(lebuf, count, rdir);	// rocket powerdir
 
 					NLubyte rids[16];
-					for (k=0;k<rpow;k++)
+					for (k = 0; k < rpow; k++)
 						readByte(lebuf, count, rids[k]);
 
 					readLong(lebuf, count, frameno);	// frame # of shot
-					readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
 
+					readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
 					bool power = ((rteampower & 1) != 0);
 					int team = (rteampower & 2) >> 1;
+
 					readByte(lebuf, count, rpx);
 					readByte(lebuf, count, rpy);
 					readShort(lebuf, count, rx);
 					readShort(lebuf, count, ry);
 
 					ClientPhysicsCallbacks cb(*this);
-					fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame-frameno), team, power, rpx, rpy, rx, ry);
+					fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 
 					//play sound if rocket on screen
 					if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
@@ -1710,6 +1682,25 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						else
 							client_sounds.play(SAMPLE_FIRE);
 					break;
+				}
+
+				case data_old_rocket_visible: {
+					readByte(lebuf, count, rockid);
+					readByte(lebuf, count, rdir);
+					readLong(lebuf, count, frameno);
+
+					readByte(lebuf, count, rteampower);
+					bool power = ((rteampower & 1) != 0);
+					int team = (rteampower & 2) >> 1;
+
+					readByte(lebuf, count, rpx);
+					readByte(lebuf, count, rpy);
+					readShort(lebuf, count, rx);
+					readShort(lebuf, count, ry);
+
+					ClientPhysicsCallbacks cb(*this);
+					fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+					// no sound
 				}
 
 				//rocket deletion notification
@@ -1723,7 +1714,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					if (abyte != 255) {	// hit player
 						if (abyte < 250)	// blink player if not hit shield (252)
 							fx.player[abyte].hitfx = get_time() + .3;
-						client_graphics.create_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
+						client_graphics.queue_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
 						client_sounds.play(SAMPLE_HIT);
 					}
 					break;
@@ -1856,7 +1847,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, sy);
 					readShort(lebuf, count, hx);
 					readShort(lebuf, count, hy);
-					client_graphics.create_deathbringer(abyte/TSIZE, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
+					client_graphics.queue_deathbringer(abyte/TSIZE, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
 					client_sounds.play(SAMPLE_USEDEATHBRINGER);
 					break;
 
@@ -1959,15 +1950,15 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					mapinfo.width = width;
 					mapinfo.height = height;
 					mapinfo.votes = votes;
-					pthread_mutex_lock(&mapInfoMutex);
+					MutexLock ml(mapInfoMutex);
 					maps.push_back(mapinfo);
-					pthread_mutex_unlock(&mapInfoMutex);
 					break;
 				}
 
 				case data_map_votes_update: {
 					NLchar total, map_nr, votes;
 					readByte(lebuf, count, total);
+					MutexLock ml(mapInfoMutex);
 					for (int i = 0; i < total; i++) {
 						readByte(lebuf, count, map_nr);
 						readByte(lebuf, count, votes);
@@ -2215,7 +2206,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				default:
-					log.security("Unknown server message code: %i!", code);
+					if (code < data_reserved_range_first || code > data_reserved_range_last) {
+						log.error("Server sent an unknown message code: %i, length %i", code, msglen);
+						disconnect_command();
+						return;	// don't process the rest of the messages
+					}
+					// just ignore commands in reserved range: they're probably some extension we don't have to care about
 					break;
 			}
 		}
@@ -2242,16 +2238,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		fx.player[me].oldy = fx.player[me].roomy;
 
 		// predraw new room
-		predraw();
+		predrawNeeded = true;
 	}
 
 	//this is a HACK:
 	me = whatme;
-
-	//unlock frame mutex
-	//log("unlocking INCOMING");
-	pthread_mutex_unlock(&frame_mutex);
-	//log("unlocked! INCOMING");
 }
 
 //send chat message
@@ -2501,68 +2492,32 @@ bool gameclient_c::getServerList() {
 	in.close();
 
 	//build query
-	char querybuf[1024]; int count = 0;
 	ostringstream request;
 	request << "GET " << master_script << "?simple&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
 	request << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
 	request << "Connection: close\r\n\r\n";
-	writeStr(querybuf, count, request.str()); count--;
 
-	NLint result;
-	double timeout = get_time() + 30.0;
-	do {
-		result = nlWrite(sock, querybuf, count);
-		MS_SLEEP(50);
-		if (get_time() > timeout) {
-			log("Client can't connect to master server. Timed out.");
-			nlClose(sock);
-			return false;
-		}
-		if (abortThreads) {
-			log("Getting the server list aborted: client exiting.");
-			nlClose(sock);
-			return false;
-		}
-	} while (result == NL_INVALID && nlGetError() == NL_CON_PENDING);
-
-	//check bogus
-	if (result == NL_INVALID) {
-		log("Client can't connect to master server. %s", getNlErrorString());
+	if (!writeToUnblockingTCP(sock, request.str().data(), request.str().length(), &abortThreads, 30000)) {
 		nlClose(sock);
+		if (!abortThreads)
+			log("Client can't connect to master server. Timeout or %s", getNlErrorString());	//#fix
 		return false;
 	}
 
 	refreshStatus = RS_receiving;
 
-	log("Query to master '%s', result = %i, count = %i", querybuf, result, count);
+	log("Successfully sent query to master: '%s'", formatForLogging(request.str()).c_str());
 
-	// Try to read the reply until the end or when user presses ESC.
-	// Parse the response (should be one IP and port per line).
-	timeout = get_time() + 30.0;
-	const int buffer_size = 511;
-	char lebuf[buffer_size + 1];
 	std::stringstream response;
-	for (;;) {
-		result = nlRead(sock, lebuf, buffer_size);
-		if (result == NL_INVALID)
-			break;
-		lebuf[result] = '\0';
-		// save
-		response << lebuf;
-		MS_SLEEP(50);
-		if (get_time() > timeout) {
-			log("No response from master server. Timeout.");
-			nlClose(sock);
-			return false;
-		}
-		if (abortThreads) {
-			log("Getting the server list aborted: client exiting.");
-			nlClose(sock);
-			return false;
-		}
-	}
+	bool result = saveAllFromUnblockingTCP(sock, response, &abortThreads, 30000);
 	nlClose(sock);
-	sock = NL_INVALID;
+	if (!result) {
+		if (!abortThreads)
+			log("Error receiving server list from master. Timeout or %s", getNlErrorString());	//#fix
+		return false;
+	}
+
+	log("Full response: '%s'", formatForLogging(response.str()).c_str());
 
 	MutexLock ml(serverListMutex);
 
@@ -2580,7 +2535,6 @@ bool gameclient_c::getServerList() {
 	getline_smart(response, line);
 	if (line.empty()) {
 		log.error("Incorrect data received from master server.");
-		serverListMutex.unlock();
 		return false;
 	}
 	const int total_servers = atoi(line);
@@ -2604,7 +2558,6 @@ bool gameclient_c::getServerList() {
 	return true;
 }
 
-//loop
 void gameclient_c::loop(volatile bool* quitFlag) {
 	nAssert(quitFlag);
 	quitCommand = false;
@@ -2841,8 +2794,7 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 							client_graphics.reset_playground_colors();
 						else
 							client_graphics.random_playground_colors();
-						// predraw new colours
-						predraw();
+						predrawNeeded = true;
 					}
 
 					// Insert: show more messages
@@ -2942,7 +2894,8 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 			nextClientFrameF = nextClientFrameI = time_counter;
 
 		if (gameshow) {
-			pthread_mutex_lock(&frame_mutex);
+			MutexLock ml(frame_mutex);
+
 			ClientPhysicsCallbacks cb(*this);
 			if (menu.options.game.lagPrediction()) {
 				const float lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.);	// lagPredictionAmount() is in range [0, 10]
@@ -2964,6 +2917,16 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 			else
 				fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
 
+			if (mapChanged) {
+				mapChanged = false;	// once in a million years this will overwrite a true value; this will be fixed when the thread model is reworked
+				client_graphics.update_minimap_background(fx.map);
+				predrawNeeded = true;
+			}
+			if (predrawNeeded) {
+				predrawNeeded = false;	// once in a million years this will overwrite a true value; this will be fixed when the thread model is reworked
+				predraw();
+			}
+
 			client_graphics.startDraw();
 			draw_game_frame();
 
@@ -2971,8 +2934,6 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 			if (benchmarkRuns >= 500)
 				quitCommand = true;
 			#endif
-
-			pthread_mutex_unlock(&frame_mutex);
 		} else {
 			client_graphics.startDraw();
 			client_graphics.clear();
@@ -3014,18 +2975,16 @@ void gameclient_c::stop() {
 	string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
 	ofstream cfg(fileName.c_str());
 	if (cfg) {
-		// save gameclient_c internal settings
-		nAssert(!playername.empty());
-		cfg << playername << '\n';
-
 		// save name menu settings
-		cfg << (menu.options.name.tournament() ? 1 : 0) << '\n';
+		cfg << CCS_PlayerName			<< ' ' << playername << '\n';
+		cfg << CCS_Tournament			<< ' ' << (menu.options.name.tournament() ? 1 : 0) << '\n';
 
 		// save connect menu settings
-		cfg << (menu.connect.favorites() ? 1 : 0) << '\n';
+		cfg << CCS_Favorites			<< ' ' << (menu.connect.favorites() ? 1 : 0) << '\n';
 
 		// save game menu settings
 		{	// favorite colors
+			cfg << CCS_FavoriteColors	<< ' ';
 			if (menu.options.game.favoriteColors.values().empty())
 				cfg << -1;
 			else {
@@ -3035,27 +2994,27 @@ void gameclient_c::stop() {
 			}
 			cfg << '\n';
 		}
-		cfg << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
-		cfg << menu.options.game.lagPredictionAmount() << '\n';
-		cfg << (menu.options.game.joystick() ? 1 : 0) << '\n';
-		cfg << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
-		cfg << (menu.options.game.saveStats() ? 1 : 0) << '\n';
+		cfg << CCS_LagPrediction		<< ' ' << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
+		cfg << CCS_LagPredictionAmount	<< ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
+		cfg << CCS_Joystick				<< ' ' << (menu.options.game.joystick() ? 1 : 0) << '\n';
+		cfg << CCS_MessageLogging		<< ' ' << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
+		cfg << CCS_SaveStats			<< ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
 
 		// save graphics menu settings
-		cfg << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
+		cfg << CCS_Windowed				<< ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
 		ScreenMode mode = menu.options.graphics.resolution();
-		cfg << mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
-		cfg << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
-		cfg << menu.options.graphics.fpsLimit() << '\n';
-		cfg << menu.options.graphics.theme() << '\n';
-		cfg << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
-		cfg << menu.options.graphics.statsBgAlpha() << '\n';
-		cfg << (menu.options.graphics.showNames() ? 1 : 0) << '\n';
+		cfg << CCS_GFXMode				<< ' ' << mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
+		cfg << CCS_Flipping				<< ' ' << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
+		cfg << CCS_FPSLimit				<< ' ' << menu.options.graphics.fpsLimit() << '\n';
+		cfg << CCS_GFXTheme				<< ' ' << menu.options.graphics.theme() << '\n';
+		cfg << CCS_Antialiasing			<< ' ' << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
+		cfg << CCS_StatsBgAlpha			<< ' ' << menu.options.graphics.statsBgAlpha() << '\n';
+		cfg << CCS_ShowNames			<< ' ' << (menu.options.graphics.showNames() ? 1 : 0) << '\n';
 
 		// save sound menu settings
-		cfg << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
-		cfg << menu.options.sounds.volume() << '\n';
-		cfg << menu.options.sounds.theme() << '\n';
+		cfg << CCS_SoundEnabled			<< ' ' << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
+		cfg << CCS_Volume				<< ' ' << menu.options.sounds.volume() << '\n';
+		cfg << CCS_SoundTheme			<< ' ' << menu.options.sounds.theme() << '\n';
 
 		cfg.close();
 	}
@@ -3237,7 +3196,7 @@ void gameclient_c::draw_game_frame() {
 
 		// draw any rockets
 		for (int i = 0; i < MAX_ROCKETS; i++)
-			if (fx.rock[i].owner != -1 && fd.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
+			if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
 				fd.rock[i].team = fx.rock[i].team;
 				fd.rock[i].power = fx.rock[i].power;
 				client_graphics.draw_rocket(fd.rock[i], get_time());
@@ -3493,11 +3452,11 @@ void gameclient_c::draw_player(int pid) {
 //draws the game menu
 void gameclient_c::draw_game_menu() {
 	switch (menusel) {
-		case menu_maps:
-			pthread_mutex_lock(&mapInfoMutex);
+		case menu_maps: {
+			MutexLock ml(mapInfoMutex);
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
-			pthread_mutex_unlock(&mapInfoMutex);
 			break;
+		}
 		case menu_players:
 			client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
 			break;
@@ -3690,7 +3649,7 @@ void gameclient_c::MCF_prepareDrawGfxMenu() {
 
 void gameclient_c::MCF_gfxThemeChange() {
 	client_graphics.select_theme(menu.options.graphics.theme());
-	predraw();
+	predrawNeeded = true;
 }
 
 void gameclient_c::MCF_screenDepthChange() {
@@ -3704,37 +3663,56 @@ void gameclient_c::MCF_screenModeChange() {	// used to lose the return value
 bool gameclient_c::screenModeChange() {	// returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
 	if (!menu.options.graphics.newMode())
 		return true;
+
 	ScreenMode res = menu.options.graphics.resolution();
-	int ow = res.width, oh = res.height, depth = menu.options.graphics.colorDepth();
-	bool owin = menu.options.graphics.windowed();
+	int depth = menu.options.graphics.colorDepth();
+
+	Checkbox& win  = menu.options.graphics.windowed;
+	Checkbox& flip = menu.options.graphics.flipping;
+	bool owin = win(), oflip = flip();
+
 	for (int nTry = 0;; ++nTry) {
-		if (client_graphics.init(res.width, res.height, depth, menu.options.graphics.windowed(), menu.options.graphics.flipping())) {
+		if (client_graphics.init(res.width, res.height, depth, win(), flip())) {
 			if (nTry != 0)
-				log.error("Couldn't set screen mode %d×%d×%d %s; reverted to 640×480 %s", ow, oh, depth, owin?"windowed":"fullscreen", menu.options.graphics.windowed()?"windowed":"fullscreen");
+				log.error("Couldn't initialize resolution %d×%d×%d in %s mode; reverted to %s",
+						res.width, res.height, depth,
+						owin  ? "windowed" : (oflip  ? "flipped fullscreen" : "backbuffered fullscreen"),
+						win() ? "windowed" : (flip() ? "flipped fullscreen" : "backbuffered fullscreen"));
 			break;
 		}
-		switch (nTry) {
+		switch (nTry) {	// try in order: [switch flip], switch windowed, [switch flip]
 			case 0:
-				res.width = 640;
-				res.height = 480;
-				if (!menu.options.graphics.resolution.set(res)) {
-					if (workingGfxMode.used())
-						return client_graphics.init(workingGfxMode.width, workingGfxMode.height, workingGfxMode.depth, workingGfxMode.windowed, menu.options.graphics.flipping());
-					return false;
+				if (!win()) {
+					flip.set(!flip());
+					break;
 				}
-				break;
+				nTry = 1;	// no point in changing flipping when windowed, skip round
 			case 1:
-				menu.options.graphics.windowed.set(!owin);
+				win.set(!win());
 				break;
 			case 2:
-				if (workingGfxMode.used())
-					return client_graphics.init(workingGfxMode.width, workingGfxMode.height, workingGfxMode.depth, workingGfxMode.windowed, menu.options.graphics.flipping());
+				if (!win()) {
+					flip.set(!flip());
+					break;
+				}
+				nTry = 3;	// no point in changing flipping when windowed, skip round
+			case 3:
+				log.error("Couldn't initialize resolution %d×%d×%d in any mode", res.width, res.height, depth);
+				if (workingGfxMode.used()) {	// revert to working mode
+					const GFXMode& wm = workingGfxMode;
+					nAssert(menu.options.graphics.colorDepth.set(wm.depth));
+					menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
+					menu.options.graphics.resolution.set(ScreenMode(wm.width, wm.height));	// ignore potential error here; we couldn't do anything about it anyway
+					win.set(wm.windowed);
+					flip.set(wm.flipping);
+					return client_graphics.init(wm.width, wm.height, wm.depth, wm.windowed, wm.flipping);
+				}
 				return false;
 		}
 	}
-	workingGfxMode = GFXMode(res.width, res.height, depth, menu.options.graphics.windowed());
+	workingGfxMode = GFXMode(res.width, res.height, depth, win(), flip());
 	client_graphics.update_minimap_background(fx.map);
-	predraw();
+	predrawNeeded = true;
 	const int rate = get_refresh_rate();
 	ostringstream ost;
 	if (rate == 0)
@@ -3748,7 +3726,7 @@ bool gameclient_c::screenModeChange() {	// returns true whenever Graphics is usa
 void gameclient_c::MCF_antialiasChange() {
 	client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
 	client_graphics.update_minimap_background(fx.map);
-	predraw();
+	predrawNeeded = true;
 }
 
 void gameclient_c::MCF_statsBgChange() {
@@ -3971,8 +3949,7 @@ void gameclient_c::connection_update(client_runes_t *arg) {
 		connect_failed_denied(lebuf, count);
 		break;
 	default:
-		log.security("WARNING: client connection update unknown code = %i", arg->connect_result);
-		break;
+		nAssert(0);
 	}
 }
 

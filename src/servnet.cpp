@@ -103,7 +103,7 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 	//map file type
 	if (!strcmp(ftype, "map")) {
 		if (strpbrk(fname, "./:\\")!=NULL) {
-			log.security("Illegal file download attempt: map \"%s\"", fname);
+			log("Illegal file download attempt: map \"%s\"", fname);
 			return -1;
 		}
 
@@ -114,16 +114,17 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 			int amount = fread(lebuf, 1, 65536, fmap);
 			fclose(fmap);
 			log("Uploading map \"%s\"", fname);
-			return amount;	//size read!
+			return amount;
 		}
 		else {
-			log.security("Nonexisting map download attempt: map \"%s\"", fname);
-			return -1;	//can't read!
+			log("Nonexisting map download attempt: map \"%s\"", fname);
+			return -1;
 		}
 	}
-
-	// don't know type!
-	return -1;
+	else {
+		log("Unknown download type \"%s\"", ftype);
+		return -1;
+	}
 }
 
 void ServerNetworking::send_me_packet(int pid) {
@@ -764,7 +765,7 @@ int ServerNetworking::client_connected(int id) {
 	// alloc new player : scans only slots of the team (up from targ)
 	int myself = -1;
 
-	for (i = targ; i < targ + TSIZE; i++) {
+	for (i = targ; i < targ + TSIZE; i++)
 		if (!world.player[i].used) {
 			// add player to players_present
 			//players_present = players_present | (1 << i);
@@ -788,15 +789,12 @@ int ServerNetworking::client_connected(int id) {
 
 			break;
 		}
-	}
 
 	send_map_change_message(myself, NEXTMAP_NONE, host->getCurrentMapFile().c_str());
 
-	// internal error can be detected if no player is free (used == false)
-	//0.4.7: normal behavior (bots...)
 	if (myself == -1) {
-		//LOG("ERROR: BAD BAD BAD INTERNAL GAMESERVER ERROR myself == -1 !!! client_connected()...");
-		return myself;	//-1...
+		log.error("Couldn't find a slot for an incoming player even though server wasn't supposed to be full.");
+		return -1;
 	}
 
 	// spawn player
@@ -1017,7 +1015,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			NLubyte code;
 			readByte(msg, count, code);
 			if (LOG_MESSAGE_TRAFFIC)
-				log("Message from client, code=%i", code);
+				log("Message from client, code = %i", code);
 			if (code == data_name_update) {
 				string name, password;
 				readStr(msg, count, name);
@@ -1082,7 +1080,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				readString(msg, count, fname);
 				if (fileTransfer[id].serving_udp_file) {
 					// FIXME: ERROR: this client is already downloading a file
-					log.security("Client %i already downloading a file!", id);
+					log("Client %i already downloading a file!", id);
+					host->disconnectPlayer(pid, disconnect_client_misbehavior);
+					break;	// don't process the rest of the messages
 				}
 				else {
 					//alloc to download
@@ -1091,7 +1091,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					int fsize = get_download_file((char *)buffy, ftype, fname);
 					if (fsize == -1) {
 						// Can't read the file client is asking for; already logged
-						host->disconnectPlayer(pid, disconnect_client_misbehavior);
+						host->disconnectPlayer(pid, disconnect_client_misbehavior);	// don't process the rest of the messages
 					}
 					else {
 						fileTransfer[id].data = new char[fsize];	//allocated to fit!
@@ -1195,8 +1195,14 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				host->set_fav_colors(pid, fav_colors);
 				host->check_fav_colors(pid);
 			}
-			else
-				log.security("Unknown message from client %i code=%i length=%i", id, code, msglen);
+			else {
+				if (code < data_reserved_range_first || code > data_reserved_range_last) {
+					log("Client %i sent an unknown message code: %i, length %i", id, code, msglen);
+					host->disconnectPlayer(pid, disconnect_client_misbehavior);
+					break;	// don't process the rest of the messages
+				}
+				// just ignore commands in reserved range: they're probably some extension we don't have to care about
+			}
 		}
 	} while (msg != 0);
 }
@@ -1610,7 +1616,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 				if (!stricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
 					break;
 			if (startPos < 6 || endPos < startPos) {
-				log("Tournament thread: Invalid response (no <html>...</html>)");
+				log("Tournament thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
 				continue;
 			}
 			response = fullResponse.substr(startPos, endPos - startPos);
@@ -1618,18 +1624,15 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 
 		// parse the response
 		bool unavailable = false;
-		for (string::size_type i = 0; i < response.length(); ++i) {
-			if (response[i] < 32)
-				response[i] = '+';	// for readability in the log
+		for (string::size_type i = 0; i < response.length(); ++i)
 			if (!stricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
-				log("Tournament thread: Service unavailable (\"can't contact servlet runner\")");
+				log("Tournament thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
 				unavailable = true;
 				break;
 			}
-		}
 		if (unavailable)
 			continue;
-		log("Tournament thread: Received response: \"%s\"", response.c_str());
+		log("Tournament thread: Received response: \"%s\"", formatForLogging(response).c_str());
 		string::size_type cPos = response.find_first_of('@');
 		if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
 			log("Tournament thread: Invalid response (expecting one @-code)");
@@ -1672,7 +1675,8 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 			int pid = ctop[job->cid];
 			if (pid != -1) {
 				if (job->code == masterjob_c::JT_login)	{
-					log.security("Tournament thread: Login failed for player %s", world.player[pid].name.c_str());
+					log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
+								world.player[pid].name.c_str(), get_client_address(job->cid), formatForLogging(job->request).c_str());
 					char lebuf[128]; int count = 0;
 					writeByte(lebuf, count, data_registration_response);
 					writeByte(lebuf, count, 0);	// registration failed
@@ -1772,9 +1776,7 @@ void ServerNetworking::run_mastertalker_thread() {
 		const string data = build_http_data(parameters);
 		bool result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
 
-		log("Master talker: Sent information to master server:");
-		log("%s", data.c_str());
-		log("Result: %i", result);
+		log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(data).c_str(), result);
 		if (result) {
 			// save response to a file
 			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
@@ -1815,9 +1817,7 @@ void ServerNetworking::run_mastertalker_thread() {
 	ostringstream quit;
 	quit << "ip=" << localAddress << "&port=" << host->config().port << "&quit=1\r\n";
 	bool result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
-	log("Master talker: Sent information to master server:");
-	log("%s", quit.str().c_str());
-	log("Result: %i", result);
+	log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(quit.str()).c_str(), result);
 
 	if (result) {
 		// save response to a file
@@ -1964,9 +1964,7 @@ void ServerNetworking::run_website_thread() {
 		}
 		const string data = build_http_data(parameters);
 		bool result = post_http_data(websock, &file_threads_quit, 30000, site_script, data, site_auth);
-		log("Website thread: Sent information to server website:");
-		log("%s", data.c_str());
-		log("Result: %i", result);
+		log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(data).c_str(), result);
 		if (result) {
 			// save response to a file
 			ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
@@ -2006,9 +2004,7 @@ void ServerNetworking::run_website_thread() {
 	// send quit message
 	const string quit = "quit=1\r\n";
 	bool result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
-	log("Website thread: Sent information to server website:");
-	log("%s", quit.c_str());
-	log("Result: %i", result);
+	log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
 	if (result) {
 		// save response to a file
@@ -2181,13 +2177,13 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 		nlSetAddrPort(&c2, 0);
 
 		if (nlAddrCompare(&addr, &c1) == NL_FALSE && nlAddrCompare(&addr, &c2) == NL_FALSE) {
-			log.security("Attempt to connect a remote admin shell blocked.");
+			log("Attempt to connect a remote admin shell blocked.");
 			nlClose(newSock);
 			continue;
 		}
 
 		if (slaveRunning) {	// if already connected, skip
-			log.security("Attempt to connect two simultaneous admin shells blocked.");
+			log("Attempt to connect two simultaneous admin shells blocked.");
 			nlClose(newSock);
 			continue;
 		}
@@ -2475,6 +2471,22 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 			server->send_message(world.player[p].cid, lebuf, count);
 }
 
+void ServerNetworking::sendOldRocketVisible(int pid, int rid, const rocket_c& rocket) {
+	char lebuf[256]; int count = 0;
+	NLubyte shotType = (rocket.team << 1) | rocket.power;
+	writeByte(lebuf, count, data_old_rocket_visible);
+	writeByte(lebuf, count, static_cast<NLubyte>(rid));
+	writeByte(lebuf, count, rocket.direction);
+	writeLong(lebuf, count, world.frame);
+	writeByte(lebuf, count, shotType);
+	writeByte(lebuf, count, rocket.px);
+	writeByte(lebuf, count, rocket.py);
+	writeShort(lebuf, count, static_cast<NLshort>(rocket.x));
+	writeShort(lebuf, count, static_cast<NLshort>(rocket.y));
+
+	server->send_message(world.player[pid].cid, lebuf, count);
+}
+
 void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) {
 	//assembly rocket delete message
 	char lebuf[256]; int count = 0;
@@ -2548,8 +2560,6 @@ NLaddress ServerNetworking::get_client_address(int cid) const {
 void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) {
 	res->customDataLength = 0;
 
-	//log("hello client %i!", arg->client_id);
-
 	//check versions
 	string stri;
 	ostringstream temp;
@@ -2559,7 +2569,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		readStr(data, count, stri);	//read gamestring
 
 	if (stri != GAME_STRING) {
-		log("Game strings don't match! Server '%s' and player '%s'", GAME_STRING, stri.c_str());
+		log("Rejected a client because game strings don't match: Server '%s' and player '%s'", GAME_STRING, stri.c_str());
 		res->accepted = false;		// not accepted
 
 		temp << "Different game: '" << stri.c_str() << '\'';
@@ -2572,20 +2582,21 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 			stri.clear();
 
 		if (stri != GAME_PROTOCOL) {
-			log("GAME PROTOCOL STRINGS DONT MATCH: %s and %s", GAME_PROTOCOL, stri.c_str());
+			log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'", GAME_PROTOCOL, stri.c_str());
 			res->accepted = false;
 
 			temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri;
 			writeStr(res->customData, res->customDataLength, temp.str());
 		}
 		else if (player_count >= maxplayers) {		//server full!
-			log("....unfortunatelly the server is FULL! hello rejected");
+			log("Rejected a client because the server is full");
 			res->accepted = false;
 
 			temp << "Server is full. (" << player_count << " players)";
 			writeStr(res->customData, res->customDataLength, temp.str());
 		}
 		else if (host->isBanned(client_id)) {
+			log("Rejected a client because their IP is banned (%s)", addressToString(get_client_address(client_id)).c_str());
 			res->accepted = false;
 			writeString(res->customData, res->customDataLength, "You are banned");
 		}
@@ -2596,9 +2607,9 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 			string password;
 			if (!server_password.empty() && length - count > 0)
 				readStr(data, count, password);
-			if (name.find_first_not_of(' ') == string::npos) {
+			if (!check_name(name)) {
 				res->accepted = false;
-				// no need to explain since the client musn't allow empty names
+				// no need to explain, the client musn't allow this
 			}
 			else if (password == server_password) {
 				string player_password;
@@ -2613,16 +2624,22 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 					res->accepted = false;
 					if (player_password.empty())
 						writeStr(res->customData, res->customDataLength, "PLAYER PASSWORD");
-					else
+					else {
+						log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
+								name.c_str(), player_password.c_str(), addressToString(get_client_address(client_id)).c_str());
 						writeStr(res->customData, res->customDataLength, "Wrong player password");
+					}
 				}
 			}
 			else {
 				res->accepted = false;
 				if (password.empty())
 					writeStr(res->customData, res->customDataLength, "SERVER PASSWORD");
-				else
+				else {
+					log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
+							password.c_str(), addressToString(get_client_address(client_id)).c_str(), name.c_str());
 					writeStr(res->customData, res->customDataLength, "Wrong server password");
+				}
 			}
 		}
 	}

@@ -59,34 +59,33 @@ Graphics::~Graphics() {
 	unload_bitmaps();
 }
 
-bool Graphics::init(int width, int height, int depth, bool windowed, bool tryFlipping) {
+bool Graphics::init(int width, int height, int depth, bool windowed, bool flipping) {
 	unload_bitmaps();
 
 	if (!reset_video_mode(width, height, depth, windowed))
 		return false;
 
-	if (tryFlipping) {
+	page_flipping = (flipping && !windowed);
+	if (page_flipping) {
 		vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
 		vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
 		background = create_video_bitmap(SCREEN_W, SCREEN_H);
-	}
-	if (!vidpage1 || !vidpage2 || !background) {
-		if (tryFlipping)
+		if (!vidpage1 || !vidpage2 || !background) {
 			log("Not enough video memory. Can't use page flipping.");
-		vidpage1.free();
-		vidpage2.free();
-		background.free();
+			// free those that _were_ allocated
+			vidpage1.free();
+			vidpage2.free();
+			background.free();
+			return false;
+		}
+		drawbuf = vidpage1;
+	}
+	else {
 		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
 		nAssert(backbuf);
 		background = create_bitmap(SCREEN_W, SCREEN_H);
 		nAssert(background);
-
 		drawbuf = backbuf;
-		page_flipping = false;
-	}
-	else {
-		drawbuf = vidpage1;
-		page_flipping = true;
 	}
 
 	scr_mul = static_cast<double>(SCREEN_W) / 640;
@@ -320,9 +319,9 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 
 	if (!SWITCH_PAUSE_CLIENT) {
 		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
-			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) { // allow running in the background
+			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) {
 				log("Client cannot run in the background!");
-				return false; // FATAL
+				return false;
 			}
 			else
 				log("Switch_background set ok.");
@@ -331,10 +330,12 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 			log("Switch_backamnesia set ok.");
 	}
 
+	#ifdef ALLEGRO_WINDOWS
 	log("Testing. If Outgun hangs here, restarting Windows should help. To avoid the problem, don't run Outgun with certain programs that use overlays (e.g. TV software).");
 	acquire_screen();
 	release_screen();
 	log("Hang test complete, no problems.");
+	#endif
 
 	return true;
 }
@@ -1923,21 +1924,6 @@ void Graphics::create_quadwallexplo(int x, int y, int px, int py) {
 	cfx.push_back(fx);
 }
 
-//create deathbringer explosion fx
-void Graphics::create_deathbringer(int team, double start_time, int x, int y, int px, int py) {
-	clientfx_t fx;
-
-	fx.team = team;
-	fx.type = FX_DEATHBRINGER_EXPLOSION;
-	fx.x = x;
-	fx.y = y;
-	fx.time = start_time;
-	fx.px = px;
-	fx.py = py;
-
-	cfx.push_back(fx);
-}
-
 // Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
 void Graphics::create_smoke(int x, int y, int px, int py) {
 	if (!pup_sprite[Powerup::pup_deathbringer])
@@ -1955,20 +1941,6 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py) {
 	fx.py = py;
 	fx.time = get_time();
 	fx.col1 = 0;	// black
-
-	cfx.push_back(fx);
-}
-
-//create explosion fx
-void Graphics::create_gunexplo(int x, int y, int px, int py) {
-	clientfx_t fx;
-
-	fx.type = FX_GUN_EXPLOSION;
-	fx.x = x;
-	fx.y = y;
-	fx.time = get_time();
-	fx.px = px;
-	fx.py = py;
 
 	cfx.push_back(fx);
 }
@@ -1991,7 +1963,44 @@ void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, 
 	cfx.push_back(fx);
 }
 
+//create deathbringer explosion fx
+void Graphics::queue_deathbringer(int team, double start_time, int x, int y, int px, int py) {
+	clientfx_t fx;
+
+	fx.team = team;
+	fx.type = FX_DEATHBRINGER_EXPLOSION;
+	fx.x = x;
+	fx.y = y;
+	fx.time = start_time;
+	fx.px = px;
+	fx.py = py;
+
+	cfx_queue_mutex.lock();
+	cfx_queue.push_back(fx);
+	cfx_queue_mutex.unlock();
+}
+
+//create explosion fx
+void Graphics::queue_gunexplo(int x, int y, int px, int py) {
+	clientfx_t fx;
+
+	fx.type = FX_GUN_EXPLOSION;
+	fx.x = x;
+	fx.y = y;
+	fx.time = get_time();
+	fx.px = px;
+	fx.py = py;
+
+	cfx_queue_mutex.lock();
+	cfx_queue.push_back(fx);
+	cfx_queue_mutex.unlock();
+}
+
 void Graphics::draw_effects(int room_x, int room_y, double time) {
+	cfx_queue_mutex.lock();
+	copy(cfx_queue.begin(), cfx_queue.end(), back_inserter(cfx));
+	cfx_queue.clear();
+	cfx_queue_mutex.unlock();
 	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
 		if (fx->px != room_x || fx->py != room_y) {	// different room
 			++fx;

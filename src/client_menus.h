@@ -25,10 +25,11 @@ class Menu_serverList {
 public:
 	Textarea		update;
 	Textarea		refresh;
-	Textarea		refreshStatus;
+	StaticText		refreshStatus;
 	Checkbox		favorites;
 	Menu_addServer	addServer;
-	Textarea		caption;
+	StaticText		keyHelp;
+	StaticText		caption;
 
 	Menu menu;
 
@@ -46,7 +47,7 @@ public:
 	Textfield	name;
 	Textarea	randomName;
 	Textfield	password;
-	Textarea	namestatus;
+	StaticText	namestatus;
 	Checkbox	tournament;
 	Textarea	removePasswords;
 
@@ -80,11 +81,11 @@ class Menu_graphics {
 
 public:
 	Select<int>			colorDepth;
-	Textarea			desktopDepth;
+	StaticText			desktopDepth;
 	Select<ScreenMode>	resolution;
 	Checkbox			windowed;
 	Checkbox			flipping;
-	Textarea			refreshRate;
+	StaticText			refreshRate;
 	Textarea			apply;
 	Select<std::string>	theme;
 	Select<Graphics::Antialiasing_mode> antialiasing;
@@ -143,7 +144,7 @@ public:
 	void clear() { lines.clear(); }
 	void addLine(const std::string& line);
 
-		void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_main {
@@ -163,7 +164,7 @@ public:
 };
 
 class Menu_text {
-	std::vector<Textarea>	lines;
+	std::vector<StaticText>	lines;
 
 public:
 	Textarea				accept;

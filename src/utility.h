@@ -28,6 +28,9 @@ std::string trim(std::string str);
 bool find_nonprintable_char(const std::string& str);
 bool is_nonprintable_char(unsigned char c);
 
+// Replace control characters with their C escape sequences (note: for readability, it doesn't convert \ to \\ so the result might be ambiguous)
+std::string formatForLogging(const std::string& str);
+
 // strspnp: (Watcom definition) find from str the first char not in charset
 char* strspnp(char* str, const char* charset);
 const char* strspnp(const char* str, const char* charset);
@@ -40,7 +43,7 @@ class LogSet {
 	Log* securityLog;
 
 public:
-	LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }
+	LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }	// null pointers are allowed
 	~LogSet() { }
 
 	void operator()(const char* fmt, ...);

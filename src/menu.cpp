@@ -228,7 +228,7 @@ void Menu::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 
 bool Menu::handleKey(char scan, unsigned char chr) {
 	(void)chr;
-	if (!(scan == KEY_ENTER || scan == KEY_ENTER_PAD))
+	if (!(scan == KEY_ENTER || scan == KEY_ENTER_PAD || scan == KEY_SPACE))
 		return false;
 	callHook(*this);
 	return true;
@@ -407,7 +407,7 @@ int Checkbox::height() const {
 
 bool Checkbox::handleKey(char scan, unsigned char chr) {
 	(void)chr;
-	if (scan == KEY_SPACE)
+	if (scan == KEY_SPACE || scan == KEY_X)
 		toggle();
 	else
 		return false;
@@ -500,15 +500,35 @@ void Textarea::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 
 bool Textarea::handleKey(char scan, unsigned char chr) {
 	(void)chr;
-	if (scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
+	if (scan == KEY_ENTER || scan == KEY_ENTER_PAD || scan == KEY_SPACE) {
 		callHook(*this);
 		return true;
 	}
-	else if (callKeyHook(*this, scan, chr)) {
-		//callHook(*this);
+	else if (callKeyHook(*this, scan, chr))
 		return true;
-	}
 	return false;
+}
+
+
+int StaticText::width() const {
+	int len = caption.length() + text.length();
+	if (!caption.empty() && !text.empty())
+		++len;
+	return len * char_w;
+}
+
+int StaticText::height() const {
+	return line_h;
+}
+
+void StaticText::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
+	active = false;	// don't draw as active even if caller thinks this should be active
+	if (h < minHeight())
+		return;
+	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
+	if (!caption.empty())
+		x += (caption.length() + 1) * char_w;
+	textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 
 

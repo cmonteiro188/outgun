@@ -61,6 +61,33 @@ bool is_nonprintable_char(unsigned char c) {
 	return c < 32 || (c >= 128 && c <= 159);
 }
 
+string formatForLogging(const string& str) {
+	string result;
+	result.reserve(str.size());
+	for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
+		if (is_nonprintable_char(*s)) {
+			result += '\\';
+			switch (*s) {
+				case '\n': result += 'n'; break;
+				case '\r': result += 'r'; break;
+				case '\t': result += 't'; break;
+				case '\v': result += 'v'; break;
+				case '\b': result += 'b'; break;
+				case '\f': result += 'f'; break;
+				default:
+					result += 'x';
+					if (*s < 16)
+						result += '0';
+					result += itoa(*s, 16);
+					break;
+			}
+		}
+		else
+			result += *s;
+	}
+	return result;
+}
+
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)
@@ -72,9 +99,9 @@ const char* strspnp(const char* str, const char* charset) {
 	return strspnp(const_cast<char*>(str), charset);
 }
 
-void LogSet::operator()(const char* fmt, ...) { va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
-void LogSet::error(const char* fmt, ...)      { va_list args; va_start(args, fmt); (*   errorLog)(fmt, args); va_end(args); }
-void LogSet::security(const char* fmt, ...)   { va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
+void LogSet::operator()(const char* fmt, ...) { if (!  normalLog) return; va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
+void LogSet::error(const char* fmt, ...)      { if (!   errorLog) return; va_list args; va_start(args, fmt); (*   errorLog)(fmt, args); va_end(args); }
+void LogSet::security(const char* fmt, ...)   { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
 
 void errorMessage(const string& heading, MemoryLog& errorLog) {
 	int errors = errorLog.size();

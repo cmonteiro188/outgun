@@ -1559,7 +1559,6 @@ void ServerWorld::respawnPlayer(int pid) {
 	}
 
 	//put player there
-	//log("SPAWN %i %i  %i %i", pos.px, pos.py, pos.x, pos.y);
 	player[pid].roomx = pos.px;	//screen
 	player[pid].roomy = pos.py;
 	player[pid].lx = pos.x;	//screen position
@@ -1588,7 +1587,8 @@ void ServerWorld::respawnPlayer(int pid) {
 	player[pid].respawn_to_base = false;
 
 	player[pid].dead = false;
-	
+	player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
+
 	net->broadcast_spawn(player[pid]);
 
 	//for all effects, player screen changed
@@ -1843,6 +1843,12 @@ void ServerWorld::game_player_screen_change(int p) {
 			it.px == player[p].roomx && it.py == player[p].roomy)
 				net->sendPickupVisible(p, i, item[i]);
 	}
+	// check for rockets in the new room
+	for (int i = 0; i < MAX_ROCKETS; ++i)
+		if (rock[i].owner != -1 && rock[i].px == player[p].roomx && rock[i].py == player[p].roomy && !(rock[i].vislist & (1 << p))) {
+			rock[i].vislist |= (1 << p);
+			net->sendOldRocketVisible(p, i, rock[i]);
+		}
 }
 
 void ServerWorld::resetPlayer(int target, float time_penalty) {	// take the player out of the game
@@ -2750,12 +2756,12 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 	const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
 	const int myteam = pid / TSIZE;
-	double timeDiff = get_time() - capt_flag.grab_time();
+	const double timeDiff = get_time() - capt_flag.grab_time();
 	if (host->tournament_active() && timeDiff <= minimum_grab_to_capture_time) {	// can't capture yet
 		if (timeDiff <= .1) {	// being able to capture flags without moving is a too easy way to cheat
 			log.error("This map is invalid: instant flag capture is possible");
 			host->score_frag(pid, -10);
-			killPlayer(pid, true);
+			suicide(pid);
 			returnFlag(team, flag);
 			net->bprintf(msg_warning, "This map is broken. There is an instantly capturable flag. Avoid it.");
 		}
