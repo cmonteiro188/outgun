@@ -429,7 +429,6 @@ bool Map::parse_file(LogSet& log, istream& in) {
 
 bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, vector<string> > >& label_lines,
                                                         int& crx, int& cry, double& scalex, double& scaley, bool label_block) {
-    char nullc; // to be used to make sure there is nothing extra on the line
     istringstream ist(line);
     string command;
     ist >> command;
@@ -437,15 +436,15 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         double x1, y1, x2, y2;
         int texid, alpha;
         ist >> x1 >> y1 >> x2 >> y2;
-        bool ok = ist;
-        ist >> texid;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> texid;
+        else
             texid = 0;
-        ist >> alpha;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> alpha;
+        else
             alpha = 255;
-        ist >> nullc;
-        if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
+        if (!ist || !ist.eof() || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -453,7 +452,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         y1 *= plh / scaley; y2 *= plh / scaley;
         Room& rm = room[crx][cry];
         RectWall* wall = new RectWall(x1, y1, x2, y2, texid, alpha);
-        if (line[0] == 'W')
+        if (command == "W")
             rm.addWall(wall);
         else
             rm.addGround(wall);
@@ -463,15 +462,15 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         double x1, y1, x2, y2, x3, y3;
         int texid, alpha;
         ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
-        const bool ok = ist;
-        ist >> texid;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> texid;
+        else
             texid = 0;
-        ist >> alpha;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> alpha;
+        else
             alpha = 255;
-        ist >> nullc;
-        if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
+        if (!ist || !ist.eof() || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -489,32 +488,27 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         double x, y, ro, ri, a1, a2;
         int texid, alpha;
         ist >> type >> x >> y >> ro;
-        bool ok = ist;
-        ist >> ri;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> ri;
+        else
             ri = a1 = a2 = 0;
-        else {
-            ist >> a1;
-            if (!ist)
-                a1 = a2 = 0;
-            else {
-                ist >> a2;
-                if (!ist)
-                    ok = false;
-            }
-        }
-        ist >> texid;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> a1 >> a2;
+        else
+            a1 = a2 = 0;
+        if (ist && !ist.eof())
+            ist >> texid;
+        else
             texid = 0;
-        ist >> alpha;
-        if (!ist)
+        if (ist && !ist.eof())
+            ist >> alpha;
+        else
             alpha = 255;
         if (a1 < 0)
             a1 += 360;
         if (a2 < 0)
             a2 += 360;
-        ist >> nullc;
-        if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid > 7) {
+        if (!ist || !ist.eof() || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -535,7 +529,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             return false;
         }
         ist >> crx >> cry;
-        if (!ist || (ist >> nullc) || crx < 0 || crx >= w || cry < 0 || cry >= h) {
+        if (!ist || !ist.eof() || crx < 0 || crx >= w || cry < 0 || cry >= h) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -548,13 +542,13 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         string nextlabel;
         int rx1, ry1, rx2, ry2;
         ist >> nextlabel >> rx1 >> ry1;
-        const bool ok = ist;
-        ist >> rx2 >> ry2;
-        if (ok && !ist) {   // one room only
+        if (ist && !ist.eof())
+            ist >> rx2 >> ry2;
+        else {  // one room only
             rx2 = rx1;
             ry2 = ry1;
         }
-        else if (!ist || (ist >> nullc) || rx1 < 0 || rx2 >= w || rx2 < rx1 || ry1 < 0 || ry2 >= h || ry2 < ry1) {
+        if (!ist || !ist.eof() || rx1 < 0 || rx2 >= w || rx2 < rx1 || ry1 < 0 || ry2 >= h || ry2 < ry1) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -582,7 +576,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 return false;
             }
             ist >> w;
-            if (!ist || (ist >> nullc) || w < 1 || w > 255) {
+            if (!ist || !ist.eof() || w < 1 || w > 255) {
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
@@ -596,7 +590,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 return false;
             }
             ist >> h;
-            if (!ist || (ist >> nullc) || h < 1 || h > 255) {
+            if (!ist || !ist.eof() || h < 1 || h > 255) {
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
@@ -610,6 +604,10 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             }
             getline(ist, title);
             title = trim(title);
+            if (title.empty()) {
+                log.error(_("Empty title."));
+                return false;
+            }
         }
         else if (name == "author") {    // P author text : set map author to text
             if (!author.empty()) {
@@ -618,6 +616,10 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             }
             getline(ist, author);
             author = trim(author);
+            if (author.empty()) {
+                log.error(_("Empty author."));
+                return false;
+            }
         }
         else {
             log.error(_("Unrecognized map line: $1", line));
@@ -628,28 +630,24 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         int team, rx, ry;
         double x, y;
         ist >> team >> rx >> ry >> x >> y;
-        if (!ist || (ist >> nullc) || team < 0 || team > 1 || rx < 0 || rx >= w ||
-                        ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
+        if (!ist || !ist.eof() || team < 0 || team > 1 || rx < 0 || rx >= w ||
+                    ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
-        WorldCoords spot;
-        spot.px = rx;
-        spot.py = ry;
-        spot.x = static_cast<int>(x * plw / scalex);
-        spot.y = static_cast<int>(y * plh / scaley);
+        const WorldCoords spot(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
         tinfo[team].spawn.push_back(spot);
     }
     else if (command == "flag") {   // flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
         int team, rx, ry;
         double x, y;
         ist >> team >> rx >> ry >> x >> y;
-        if (!ist || (ist >> nullc) || team < 0 || team > 2 || rx < 0 || rx >= w ||
-                        ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
+        if (!ist || !ist.eof() || team < 0 || team > 2 || rx < 0 || rx >= w ||
+                    ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
-        WorldCoords flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
+        const WorldCoords flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
         if (team < 2)
             tinfo[team].flags.push_back(flag);
         else
@@ -660,7 +658,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     }
     else if (command == "S") {  // S x y : set map scale
         ist >> scalex >> scaley;
-        if (!ist || (ist >> nullc) || scalex <= 0 || scaley <= 0) {
+        if (!ist || !ist.eof() || scalex <= 0 || scaley <= 0) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
