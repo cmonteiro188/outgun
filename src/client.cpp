@@ -162,13 +162,13 @@ bool gameclient_c::start() {
 		string dir;
 		//read sound theme directory name
 		if (getline(cfg, dir)) {
-			client_sounds.set_themedir(dir);
+			client_sounds.set_theme_dir(dir);
 			LOG1("Sound theme directory default = %s\n", dir.c_str());
 		}
 
 		//read graphics theme directory name
 		if (getline(cfg, dir)) {
-			client_graphics.set_themedir(dir);
+			client_graphics.set_theme_dir(dir);
 			LOG1("Graphics theme directory default = %s\n", dir.c_str());
 		}
 
@@ -2489,8 +2489,10 @@ void gameclient_c::loop() {
 							case '5':
 								winclient = !winclient;
 								client_graphics.reset_video_mode();
+								client_graphics.update_minimap_background(fx.map);
+								predraw();
 								break;
-							case '6': client_sounds.next_sfx_theme(); break;
+							case '6': client_sounds.next_theme(); break;
 							case '7':
 								client_graphics.next_theme();
 								predraw();
@@ -2712,7 +2714,6 @@ void gameclient_c::loop() {
 				else key_votexit = false;
 
 				// l,r,u,d,fire game keys
-				//
 				if ((key[KEY_UP]    != key_up)    ||
 					(key[KEY_DOWN]  != key_down)  ||
 					(key[KEY_LEFT]  != key_left)  ||
@@ -2726,25 +2727,24 @@ void gameclient_c::loop() {
 					sendnow = true;
 				}
 
-				//send client's input packet now
+				// send client's input packet now
 				if (sendnow)
 					send_frame(false);
 
 				// keypresses to talk prompt
-				//
 				while (keypressed()) {
 					//get key
 					int ch = readkey();
-					int sc = ch >> 8;	//scancode
-					ch = ch & 0xff;			//char
+					int sc = ch >> 8;	// scancode
+					ch = ch & 0xff;		// char
 
 					i = strlen(talkbuffer);
 
-					//toggle help
+					// toggle help
 					if (sc == KEY_F1)
 						toggle_help();
 
-					//change colours
+					// change colours
 					if (sc == KEY_HOME) {
 						if (key[KEY_LCONTROL] || key[KEY_RCONTROL])
 							client_graphics.reset_playground_colors();
@@ -2754,8 +2754,7 @@ void gameclient_c::loop() {
 						predraw();
 					}
 
-					// ins == change name
-					//
+					// Insert: change name
 					if (sc == KEY_F10) {
 						editplayername = RandomName();
 						change_name_command();
@@ -2763,25 +2762,25 @@ void gameclient_c::loop() {
 					else if (sc == KEY_F3) {
 						option_show_names = !option_show_names;
 					}
-					// F11:screenshot
+					// F11: screenshot
 					else if (sc == KEY_F11) {
 						screenshot = true;
 					}
-					//backspace erase one
+					// Backspace: erase one character
 					else if (sc == KEY_BACKSPACE) {
 						if (i>0) talkbuffer[i-1] = 0;
 					}
-					//enter key: submit text
+					// Enter: send text
 					else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
 						if (i > 0) {
 							send_chat(talkbuffer);
 							talkbuffer[0]=0;
 						}
 					}
-					//else text add keys. max text length = 60
+					// Add character to text, max text length 60 chars.
 					else if (i < 60 && ch >= 32) {
-						talkbuffer[i] = (char)ch;
-						talkbuffer[i+1] = 0;
+						talkbuffer[i] = static_cast<char>(ch);
+						talkbuffer[i + 1] = 0;
 					}
 				}
 			}
@@ -3325,8 +3324,7 @@ void gameclient_c::draw_game_frame() {
 			if (!fx.flag[f].carried)
 				client_graphics.draw_mini_flag(f, fx.flag[f], fx.map);
 
-		vector<bool> roomvis;
-		roomvis.resize(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm > 0) ? true : false);
+		vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm > 0) ? true : false);
 
 		// draw all teammates and enemies on screens where there are teammates
 		//draw all the players - put a pixel where they are
@@ -3337,11 +3335,11 @@ void gameclient_c::draw_game_frame() {
 					roomvis[fx.player[i].roomy * fx.map.w + fx.player[i].roomx] = true;
 
 					// coord on minimap
-					double px, py;
+					/*double px, py;
 					px = ((double)fx.player[i].roomx * (double)plw + fx.player[i].lx) / ((double)plw * fx.map.w);
 					py = ((double)fx.player[i].roomy * (double)plh + fx.player[i].ly) / ((double)plh * fx.map.h);
 					int pix = int(mmx + 1 + px * (client_graphics.minimap_width() - 2));
-					int piy = int(mmy + 1 + py * (client_graphics.minimap_height() - 2));
+					int piy = int(mmy + 1 + py * (client_graphics.minimap_height() - 2));*/
 
 					//verifica se o jogador a ser desenhado é um carrier de flag inimiga
 					int enemyteam = 1-i/TSIZE;
@@ -3357,9 +3355,9 @@ void gameclient_c::draw_game_frame() {
 					}
 
 					if (i != me)
-						client_graphics.draw_minimap_player(pix, piy, i / TSIZE, i % TSIZE);
+						client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, i % TSIZE);
 					else // myself: draw differently
-						client_graphics.draw_minimap_me(pix, piy, i / TSIZE, get_time());
+						client_graphics.draw_minimap_me(fx.map, fx.player[i], i / TSIZE, get_time());
 				}
 
 		// paint fog of war in all invisible rooms
@@ -3386,6 +3384,8 @@ void gameclient_c::draw_game_frame() {
 		blue << "Blue Team:   " << setw(2) << fx.flag[1].score << " capt";
 		client_graphics.draw_scoreboard_caption(1, blue.str());
 	}
+	/*vector<ClientPlayer> plrs(fx.player, fx.player + MAX_PLAYERS);
+	client_graphics.draw_scoreboard(plrs);*/
 	int pix[2]; pix[0]=pix[1]=0;
 	for (int fw=0;fw<2;fw++)		//first count, then draw
 	{

@@ -48,6 +48,8 @@ using std::vector;
 using std::list;
 
 Graphics::Graphics(int scr_w, int scr_h):
+	/*plx(0),
+	ply(90),*/
 	minimap_start_x(0),
 	minimap_start_y(0),
 	flagpos_ready(false),
@@ -56,7 +58,6 @@ Graphics::Graphics(int scr_w, int scr_h):
 	vidpage1(0),
 	vidpage2(0),
 	backbuf(0),
-	valid_theme(false),
 	no_theme(false)
 {
 	reset_video_mode();
@@ -177,6 +178,14 @@ void Graphics::clear() {
 bool Graphics::reset_video_mode() {
 	string err[4];
 
+	// save playground colours
+	int ground_r = getr(col[COLGROUND]);
+	int ground_g = getg(col[COLGROUND]);
+	int ground_b = getb(col[COLGROUND]);
+	int wall_r = getr(col[COLWALL]);
+	int wall_g = getg(col[COLWALL]);
+	int wall_b = getb(col[COLWALL]);
+
 	//un-show any video bitmaps?
 	//show_video_bitmap(screen);
 
@@ -294,7 +303,14 @@ bool Graphics::reset_video_mode() {
 		page_flipping = true;
 	}
 	setcolors();
+
+	// restore playground colours
+	col[COLGROUND] = makecol(ground_r, ground_g, ground_b);
+	col[COLWALL] = makecol(wall_r, wall_g, wall_b);
+
 	flagpos_ready = false;
+	
+	load_pictures();
 
 	return true; //ok
 }
@@ -494,24 +510,32 @@ void Graphics::draw_mini_flag(int team, const ctflag_t& flag, const Map& map) {
 	rectfill(drawbuf, pix + 1, piy - 5, pix + 5, piy - 2, teamcol[team]);
 }
 
-void Graphics::draw_minimap_player(int x, int y, int team, int player) {
-	x += minimap_start_x;
-	y += minimap_start_y;
-	putpixel(drawbuf, x + 0, y + 0, teamcol[team]);	//3 pixel teamcol
-	putpixel(drawbuf, x + 1, y + 0, teamcol[team]);	//3 pixel teamcol
-	putpixel(drawbuf, x + 0, y + 1, teamcol[team]);	//3 pixel teamcol
-	putpixel(drawbuf, x + 1, y + 1, col[player]);	// 1 pixel personal-color
+void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player, int team, int pc) {
+	const pair<int, int> coords = calculate_minimap_coordinates(map, player);
+	// 3 pixels for team colour
+	putpixel(drawbuf, coords.first + 0, coords.second + 0, teamcol[team]);
+	putpixel(drawbuf, coords.first + 1, coords.second + 0, teamcol[team]);
+	putpixel(drawbuf, coords.first + 0, coords.second + 1, teamcol[team]);
+	// 1 pixel for personal colour
+	putpixel(drawbuf, coords.first + 1, coords.second + 1, col[pc]);
 }
 
-void Graphics::draw_minimap_me(int x, int y, int team, double time) {
-	x += minimap_start_x;
-	y += minimap_start_y;
+void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, int team, double time) {
+	const pair<int, int> coords = calculate_minimap_coordinates(map, player);
 	if ((int)(time * 15) % 3 > 0) {
-		circlefill(drawbuf, x, y, 2, col[COLYELLOW]);
-		circlefill(drawbuf, x, y, 1, teamlcol[team]);
+		circlefill(drawbuf, coords.first, coords.second, 2, col[COLYELLOW]);
+		circlefill(drawbuf, coords.first, coords.second, 1, teamlcol[team]);
 	}
 	else
-		circlefill(drawbuf, x, y, 2, 0);
+		circlefill(drawbuf, coords.first, coords.second, 2, 0);
+}
+
+pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const {
+	const double px = (player.roomx * plw + player.lx) / static_cast<double>(plw * map.w);
+	const double py = (player.roomy * plh + player.ly) / static_cast<double>(plh * map.h);
+	const int x = static_cast<int>(mmx + 1 + px * (minimap_w - 2)) + minimap_start_x;
+	const int y = static_cast<int>(mmy + 1 + py * (minimap_h - 2)) + minimap_start_y;
+	return pair<int, int>(x, y);
 }
 
 void Graphics::draw_minimap_room(const Map& map, int rx, int ry) {
@@ -578,16 +602,16 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 					float roomx = float(x + 1 - xmin) / float(room_w) * plw;
 					float xdist_r2 = pow(map.tinfo[0].flag.x - roomx, 2);
 					float xdist_b2 = pow(map.tinfo[1].flag.x - roomx, 2);
-					int color = (xdist_r2 + ydist_r2 < xdist_b2 + ydist_b2) ? col[COLBRED] : col[COLBBLUE];
+					int color = (xdist_r2 + ydist_r2 < xdist_b2 + ydist_b2) ? teamdcol[0] : teamdcol[1];
 					putpixel(buffer, x, y, color);
 				}
 			}
 		}
 		else {
 			rectfill(buffer, int(minimap_start_x + 2 + room_w * red_rx),  int(minimap_start_y + 2 + room_h * red_ry),
-					 int(minimap_start_x + room_w * (red_rx + 1)),  int(minimap_start_y + room_h * (red_ry + 1)),  col[COLBRED]);
+					 int(minimap_start_x + room_w * (red_rx + 1)),  int(minimap_start_y + room_h * (red_ry + 1)),  teamdcol[0]);
 			rectfill(buffer, int(minimap_start_x + 2 + room_w * blue_rx), int(minimap_start_y + 2 + room_h * blue_ry),
-					 int(minimap_start_x + room_w * (blue_rx + 1)), int(minimap_start_y + room_h * (blue_ry + 1)), col[COLBBLUE]);
+					 int(minimap_start_x + room_w * (blue_rx + 1)), int(minimap_start_y + room_h * (blue_ry + 1)), teamdcol[1]);
 		}
 	}
 
@@ -615,13 +639,13 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 			update_minimap_background(buffer, map, true);	// restart with basic painting
 			return;
 		}
-		floodfill(buffer, red_px, red_py, col[COLBRED]);
+		floodfill(buffer, red_px, red_py, teamdcol[0]);
 
 		if (getpixel(buffer, blue_px, blue_py) != 0) {	// is painted with any color (including by previous red floodfill)
 			update_minimap_background(buffer, map, true);	// restart with basic painting
 			return;
 		}
-		floodfill(buffer, blue_px, blue_py, col[COLBBLUE]);
+		floodfill(buffer, blue_px, blue_py, teamdcol[1]);
 	}
 	if (save_map_pic) {
 		//draw flagpoles
@@ -632,8 +656,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 		rectfill(buffer, blue_px + 1, blue_py - 5, blue_px + 5, blue_py - 2, teamcol[1]);
 	}
 	else {
-		circle(buffer,  red_px,  red_py, 3, col[COLRED ]);
-		circle(buffer, blue_px, blue_py, 3, col[COLBLUE]);
+		circle(buffer,  red_px,  red_py, 3, teamcol[0]);
+		circle(buffer, blue_px, blue_py, 3, teamcol[1]);
 	}
 }
 
@@ -641,6 +665,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_quad, int alpha, double time) {
 	int pc1 = teamcol[team];
 	int pc2 = col[pli];
+	// test different colours:
+	//int pc2 = col[pli + (int)time / 2 % 16];
 	//blink player when hit
 	double deltafx = hitfx - time;
 	if (deltafx > 0) {
@@ -670,19 +696,9 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	xg = (int)((double)xg * 0.7);
 	yg = (int)((double)yg * 0.7);
 
-	xg += x;
-	yg += y;
-
 	if (alpha < 255) {
 		set_trans_blender(0, 0, 0, alpha);
 		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	}
-
-	//desenha arma antes se dir 5,6,7
-	if (gundir >= 5) {
-		line(drawbuf, 0 + plx + x, 0 + ply + y, 0 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 0 + ply + y, 1 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 1 + ply + y, 1 + plx + xg, 1 + ply + yg, pc1);
 	}
 
 #ifdef PATTERNED_PLAYER
@@ -693,24 +709,14 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	const int g2 = getg(pc2);
 	const int b2 = getb(pc2);
 	int r = r1, g = g1, b = b1;
-	const int diff = 20;
+	const int r_diff = (r2 - r1) / PLAYER_RADIUS + 1;
+	const int g_diff = (g2 - g1) / PLAYER_RADIUS + 1;
+	const int b_diff = (b2 - b1) / PLAYER_RADIUS + 1;
 	for (int i = PLAYER_RADIUS; i >= 0; i--) {
 		circlefill(drawbuf, plx + x, ply + y, i, makecol(r, g, b));
-		if (r2 < r1)
-			r -= diff;
-		else if (r2 > r1)
-			r += diff;
-		if (g2 < g1)
-			g -= diff;
-		else if (g2 > g1)
-			g += diff;
-		if (b2 < b1)
-			b -= diff;
-		else if (b2 > b1)
-			b += diff;
-		r = max(0, min(r, 255));
-		g = max(0, min(g, 255));
-		b = max(0, min(b, 255));
+		r = max(0, min(r + r_diff, 255));
+		g = max(0, min(g + g_diff, 255));
+		b = max(0, min(b + b_diff, 255));
 	}
 #else
 	// outer color: team color
@@ -719,11 +725,24 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS*2/3, pc2);
 #endif
 
-	//desenha arma depois se dir 0,1,2,3,4
-	if (gundir < 5) {
-		line(drawbuf, 0 + plx + x, 0 + ply + y, 0 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 0 + ply + y, 1 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 1 + ply + y, 1 + plx + xg, 1 + ply + yg, pc1);
+	// draw player's gun
+	switch (gundir) {
+		case 0: case 4:
+			rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
+			break;
+		case 2: case 6:
+			rectfill(drawbuf, plx + x + xg - 1, ply + y + yg / 2, plx + x + xg + 1, ply + y + yg, pc1);
+			break;
+		case 1: case 5:
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg - 1, pc1);
+			break;
+		case 3: case 7:
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 - 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 1, pc1);
+			break;
 	}
 
 	if (alpha < 255)
@@ -983,12 +1002,27 @@ void Graphics::draw_loading_map_message(const string& text) {
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
 	int c;
 	switch (team) {
-		case 0: c = col[COLLRED]; break;
-		case 1: c = col[COLLBLUE]; break;
+		case 0: case 1: c = teamlcol[team]; break;
 		default: c = col[COLMENUGRAY]; break;
 	}
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 40, c, -1, "%s", text.c_str());
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
+}
+
+void Graphics::draw_scoreboard(const vector<ClientPlayer>& players) {
+	int i = 0;
+	for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
+		if (!player->used)
+			continue;
+		ostringstream line;
+		line << player->reg_status;
+		line << left << setw(15) << player->name << right;
+		const int tcol = teamlcol[player->team()];
+		const int pcol = col[player->color()];
+		textout_ex(drawbuf, font, line.str().c_str(), sbx + 4, sby + 8 + i * 12, pcol, -1);
+		textprintf_ex(drawbuf, font, sbx + 4 + 16 * 8, sby + 8 + i * 12, tcol, -1, "%4d", player->frags);
+		++i;
+	}
 }
 
 void Graphics::draw_scoreboard_caption(int team, const string& caption) {
@@ -1005,8 +1039,8 @@ void Graphics::draw_scoreboard_points(int y, int team, int points) {
 }
 
 void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
-	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	set_trans_blender(0, 0, 0, 180);
+	//drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	//set_trans_blender(0, 0, 0, 180);
 
 	int w = 540;
 	int h = 420;
@@ -1016,11 +1050,10 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
 	int y1 = my - h / 2;
 	int x2 = mx + w / 2;
 	int y2 = my + h / 2;
-	//int xc = (x1 + x2) / 2;
 	const int x_left = x1 + 40;
 
 	rectfill(drawbuf, x1, y1, x2, y2, 0);
-	solid_mode();
+	//solid_mode();
 
 	int line_height = 10;
 
@@ -1387,26 +1420,18 @@ void Graphics::main_menu(bool connected, const string& address, const string& pl
 		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme:");
 		textprintf_centre_ex(drawbuf, font, 150+180, 298-DELY, col[COLGREEN], -1, "sounds off");
 	}
-	else if (sounds.valid()) {
+	else {
 		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme: (%s)", sounds.theme_dir().c_str());
 		textprintf_centre_ex(drawbuf, font, 150+180, 298-DELY, col[COLGREEN], -1, "'%s'", sounds.theme_name().c_str());
-	}
-	else {
-		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme:");
-		textprintf_ex(drawbuf, font, 150, 298-DELY, col[COLGREEN], -1, "          no sfx themes found.");
 	}
 
 	if (no_theme) {
 		textprintf_ex(drawbuf, font, 150, 312-DELY, col[COLWHITE], -1, "  [ 7 ]   Change graphics theme:");
 		textprintf_centre_ex(drawbuf, font, 150+180, 324-DELY, col[COLGREEN], -1, "basic graphics");
 	}
-	else if (valid_theme) {
+	else {
 		textprintf_ex(drawbuf, font, 150, 312-DELY, col[COLWHITE], -1, "  [ 7 ]   Change graphics theme: (%s)", themedir.c_str());
 		textprintf_centre_ex(drawbuf, font, 150+180, 324-DELY, col[COLGREEN], -1, "'%s'", theme_name.c_str());
-	}
-	else {
-		textprintf_ex(drawbuf, font, 150, 312-DELY, col[COLWHITE], -1, "  [ 7 ]   Change graphics theme:");
-		textprintf_ex(drawbuf, font, 150, 324-DELY, col[COLGREEN], -1, "          no gfx themes found.");
 	}
 
 	textprintf_ex(drawbuf, font, 150, 354-DELY, col[COLWHITE], -1, "Hit CTRL+F12 to EXIT THE GAME");
@@ -1439,12 +1464,16 @@ void Graphics::name_password_menu(const string& name, int password_len, bool nam
 	textprintf_ex(drawbuf, font, 150, 220, col[COLWHITE], -1, "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
 	textprintf_ex(drawbuf, font, 150, 260, col[COLGREEN], -1, "NAME:     %s%c", name.c_str(), namecursor);
 
-	//password field: '********'
+	// password field: '********'
 	const string password(password_len, '*');
 
 	textprintf_ex(drawbuf, font, 150, 285, col[COLGREEN], -1, "PASSWORD: %s%c", password.c_str(), passcursor);
 
 	textprintf_ex(drawbuf, font, 150, 350, col[COLWHITE], -1, "Registration status: %s", namestatus.c_str());
+
+	// favourite colours
+	/*for (int i = 0; i < 10; i++)
+		draw_player(130 + 37 * i, 230, 1, i, 7, 0., 0, 255, 0.);*/
 }
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
@@ -1705,65 +1734,48 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 // Theme functions
 
 void Graphics::search_themes() {
-	//try the last theme directory first
-	char themepath[512];
-	make_theme_path(themepath, themedir.c_str());
+	if (no_theme)
+		return;
 
-	LOG1("Graphics theme searching '%s'\n", themepath);
+	const string themepath = make_theme_path("*.*");
 
-	if (0 == al_findfirst(themepath, &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY))
-		set_theme_dir("");	// OK: load ; 0 = no change
-	else {
-		// graphics theme not found. find the first one
-		make_theme_path(themepath, "*.*");
+	LOG1("Graphics theme searching '%s'\n", themepath.c_str());
 
-		int result = al_findfirst(themepath, &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-		for (; result == 0; result = al_findnext(&themeffblk))
-			if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, "..")) {
-				set_theme_dir(themeffblk.name);
-				break;
-			}
+	int error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
+
+	while (!error) {
+		if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") &&
+		  strcmp(themeffblk.name, "..") && themedir == themeffblk.name) {
+			load_theme(themedir);
+			return;
+		}
+		error = al_findnext(&themeffblk);
 	}
+	no_theme = true;
+	LOG("No graphics theme selected.\n");
 }
 
 void Graphics::next_theme() {
-	char themepath[512];
-	// no valid theme, just give up...
-	//no_theme = false;
-	if (!valid_theme)
-		return;
-	bool round1 = true;
-	make_theme_path(themepath, themedir.c_str());
-	while (1) {
-		int result = al_findnext(&themeffblk);
-		if (result) {
-			// not found, select no theme
-			if (!round1) {
-				valid_theme = false;
-				no_theme = false;
-				return;
-			}
-			no_theme = !no_theme;
-			if (no_theme) {
-				unload_pictures();
-				return;
-			}
-			round1 = false;
-			make_theme_path(themepath, "*.*");
-			result = al_findfirst(themepath, &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-			if (result) {
-				valid_theme = false;
-				return;
-			}
-		}
-		if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, "..")) {
-			set_theme_dir(themeffblk.name);
-			break;
-		}
+	int error;
+	if (no_theme) {
+		no_theme = false;
+		const string themepath = make_theme_path("*.*");
+		error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
 	}
+	else
+		error = al_findnext(&themeffblk);
+	if (error) {
+		no_theme = true;
+		unload_pictures();
+		LOG("No graphics theme selected.\n");
+	}
+	else if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, ".."))
+		load_theme(themeffblk.name);
+	else
+		next_theme();
 }
 
-void Graphics::make_theme_path(char* path, const string& dir) {
+string Graphics::make_theme_path(const string& dir) {
 	string picture_name = "graphics";
 	picture_name += directory_separator;
 	picture_name += dir;
@@ -1771,16 +1783,14 @@ void Graphics::make_theme_path(char* path, const string& dir) {
 	char dest[WHERE_PATH_SIZE];
 	append_filename(dest, wheregamedir, picture_name.c_str(), WHERE_PATH_SIZE);
 
-	strcpy(path, dest);
-
-	LOG1("Graphics theme path is '%s'.\n", path);
+	LOG1("Graphics theme path is '%s'.\n", dest);
+	
+	return dest;
 }
 
-void Graphics::set_theme_dir(const string& dirname) {
+void Graphics::load_theme(const string& dirname) {
 	if (!dirname.empty())
 		themedir = dirname;
-
-	valid_theme = true;
 
 	load_pictures();			//load new
 
@@ -1802,6 +1812,7 @@ void Graphics::set_theme_dir(const string& dirname) {
 		in.close();
 	}
 	theme_name = name;
+	LOG1("Loaded graphics theme from '%s'.\n", des_file.c_str());
 }
 
 void Graphics::load_pictures() {
@@ -1823,7 +1834,7 @@ void Graphics::unload_pictures() {
 	wall_texture = 0;
 }
 
-void Graphics::set_themedir(const string& dir) {
+void Graphics::set_theme_dir(const string& dir) {
 	themedir = dir;
 	if (dir == "-")
 		no_theme = true;

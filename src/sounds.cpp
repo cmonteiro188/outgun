@@ -3,7 +3,6 @@
 using std::string;
 
 Sounds::Sounds():
-	validtheme(false),
 	no_theme(false)
 {
 	//no samples loaded -- important so unload_samples don't crash
@@ -15,130 +14,95 @@ Sounds::~Sounds() {
 	unload_samples();
 }
 
-bool Sounds::valid() const {
-	return validtheme;
-}
-
 const string& Sounds::theme_name() const {
-	return sfxthemename;
+	return themename;
 }
 
 const string& Sounds::theme_dir() const {
-	return sfxthemedir;
+	return themedir;
 }
 
 void Sounds::search_themes() {
-	//try the last theme directory first
-	char themepath[512];
-	make_sfx_theme_path(themepath, sfxthemedir.c_str());
-
-	LOG1("theme searching '%s'\n", themepath);
-
-	if (0==al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY))
-		set_theme_dir(0);	// OK: load ; 0 = no change
-	else {
-		// sound theme not found. find the first one
-		make_sfx_theme_path(themepath, "*.*");
-
-		int result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
-		for (; result==0; result = al_findnext(&sfxthemeffblk))
-			if ((sfxthemeffblk.attrib & FA_DIREC) && strcmp(sfxthemeffblk.name, ".") != 0 && strcmp(sfxthemeffblk.name, "..") != 0) {
-				set_theme_dir(sfxthemeffblk.name);
-				break;
-			}
-	}
-}
-
-void Sounds::next_sfx_theme() {
-	char themepath[512];
-
-	//no valid theme, just give up...
-	if (!validtheme)
+	if (no_theme)
 		return;
+	//try the last theme directory first
+	const string themepath = make_theme_path("*.*");
 
-	bool round1 = true;
+	LOG1("theme searching '%s'\n", themepath.c_str());
 
-	make_sfx_theme_path(themepath, sfxthemedir.c_str());
-	while (1) {
-		int result = al_findnext(&sfxthemeffblk);
-		if (result) {
-			//not found, go back to first ones...
-			if (!round1) {
-				validtheme = false;
-				return;
-			}
-			else
-				no_theme = !no_theme;
-			if (no_theme) {
-				unload_samples();
-				return;
-			}
-			round1 = false;
-			make_sfx_theme_path(themepath, "*.*");
-			result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
-			if (result) {
-				validtheme = false;
-				return;
-			}
+	int error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
+
+	while (!error) {
+		if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") &&
+		  strcmp(themeffblk.name, "..") && themedir == themeffblk.name) {
+			load_theme(themedir);
+			return;
 		}
-		if ((sfxthemeffblk.attrib&FA_DIREC) && strcmp(sfxthemeffblk.name, ".")!=0 && strcmp(sfxthemeffblk.name, "..")!=0) {
-			set_theme_dir(sfxthemeffblk.name);
-			break;
-		}
+		error = al_findnext(&themeffblk);
 	}
+	no_theme = true;
+	LOG("No sound theme selected.\n");
 }
 
-void Sounds::make_sfx_theme_path(char* themepath, const char* themedir) {
-	char soundname[1024];
-
-	strcpy(soundname, "sound");  //sound/
-	put_backslash(soundname);
-	strcat(soundname, themedir);  //theme dir name
-
-	char dest[1024];
-	append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
-
-	strcpy(themepath, dest);
-
-	LOG1("make sfx theme path = '%s'\n", themepath);
+void Sounds::next_theme() {
+	int error;
+	if (no_theme) {
+		no_theme = false;
+		const string themepath = make_theme_path("*.*");
+		error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
+	}
+	else
+		error = al_findnext(&themeffblk);
+	if (error) {
+		no_theme = true;
+		unload_samples();
+		LOG("No theme selected.\n");
+	}
+	else if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, ".."))
+		load_theme(themeffblk.name);
+	else
+		next_theme();
 }
 
-void Sounds::set_theme_dir(char *dirname) {
+string Sounds::make_theme_path(const string& dir) {
+	string sound_name = "sound";
+	sound_name += directory_separator;
+	sound_name += dir;
 
-	if (dirname)
-		sfxthemedir = dirname;
+	char dest[WHERE_PATH_SIZE];
+	append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
 
-	validtheme = true;
+	LOG1("Sound theme path is '%s'.\n", dest);
+
+	return dest;
+}
+
+void Sounds::load_theme(const string& dir) {
+	if (!dir.empty())
+		themedir = dir;
 
 	unload_samples();		//unload old (if any)
-
 	load_samples();			//load new
 
 	// load sfx theme description
-	//
-	char soundname[256];
-	strcpy(soundname, "sound");
-
-	put_backslash(soundname);
-	strcat(soundname, sfxthemedir.c_str());
-
-	put_backslash(soundname);
-	strcat(soundname, "theme.txt");
+	string des_file = "sound";
+	des_file += directory_separator;
+	des_file += themedir;
+	des_file += directory_separator;
+	des_file += "theme.txt";
 
 	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
+	append_filename(dest, wheregamedir, des_file.c_str(), WHERE_PATH_SIZE);
 
-	char sfxthemename[256];
-	FILE *theme = fopen(dest, "r");
-	if (theme) {
-		if (fgets(sfxthemename, 256, theme)) {
-			sfxthemename[strlen(sfxthemename)-1] =0;
-		}
-		else
-			strcpy(sfxthemename, "(unnamed theme)");
-		fclose(theme);
+	string name;
+	ifstream in(dest);
+	if (in) {
+		if (!getline(in, name))
+			name = "(unnamed theme)";
+		in.close();
 	}
-	this->sfxthemename = sfxthemename;
+	themename = name;
+	LOG1("Loaded sound theme from '%s'.\n", des_file.c_str());
 
 	//play a sample
 	if (!no_theme)
@@ -146,22 +110,18 @@ void Sounds::set_theme_dir(char *dirname) {
 }
 
 //append the correct path
-SAMPLE* Sounds::load_outgun_sample(const char *fname, int slot, bool try_redirect, bool reverse) {
+SAMPLE* Sounds::load_outgun_sample(const string& fname, int slot, bool try_redirect, bool reverse) {
 	//soundname: add "sound/" to the filename
-	char soundname[256];
-	strcpy(soundname, "sound");
-
-	//additional: sfx theme dir name
-	put_backslash(soundname);
-	strcat(soundname, sfxthemedir.c_str());
-
-	put_backslash(soundname);
-	strcat(soundname, fname);
-	strcat(soundname, ".wav");
+	string sound_name = "sound";
+	sound_name += directory_separator;
+	sound_name += themedir;
+	sound_name += directory_separator;
+	sound_name += fname;
+	sound_name += ".wav";
 
 	//add soundname to where game dir
 	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
+	append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
 
 	//try load
 	SAMPLE* ret = sample[slot] = load_sample(dest);
@@ -173,26 +133,25 @@ SAMPLE* Sounds::load_outgun_sample(const char *fname, int slot, bool try_redirec
 
 	//V0.3.10: if not found, look for .txt redirect
 	if (try_redirect && ret == 0) {	// don't go into endless loop
-
 		//txt filename
-		strcpy(soundname, "sound");
-		put_backslash(soundname);
-		strcat(soundname, sfxthemedir.c_str());
-		put_backslash(soundname);
-		strcat(soundname, fname);
-		strcat(soundname, ".txt");
-		append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
+		sound_name = "sound";
+		sound_name += directory_separator;
+		sound_name += themedir;
+		sound_name += directory_separator;
+		sound_name += fname;
+		sound_name += ".txt";
+		append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
 
-		FILE *f = fopen(dest, "r");
-		if (f) {
-			char redirwavname[256];
-			fscanf(f, "%s", redirwavname);
+		ifstream in(dest);
+		if (in) {
+			string redir_name;
+			getline(in, redir_name);
+			in.close();
+
 			bool is_reversed = false;
 
-			fclose(f);
-
 			//retry once ("false": don't try redirect again if fails)
-			return load_outgun_sample(redirwavname, slot, false, is_reversed);
+			return load_outgun_sample(redir_name.c_str(), slot, false, is_reversed);
 		}
 	}
 
@@ -262,8 +221,8 @@ void Sounds::play(int s) const {
 	}
 }
 
-void Sounds::set_themedir(const string& dir) {
-	sfxthemedir = dir;
+void Sounds::set_theme_dir(const string& dir) {
+	themedir = dir;
 	if (dir == "-")
 		no_theme = true;
 }

@@ -71,8 +71,8 @@ public:
 	void draw_mini_flag(int team, const ctflag_t& flag, const Map& map);
 	void draw_minimap_background();
 	void update_minimap_background(const Map& map);
-	void draw_minimap_player(int x, int y, int team, int player);
-	void draw_minimap_me(int x, int y, int team, double time);
+	void draw_minimap_player(const Map& map, const ClientPlayer& player, int team, int pc);
+	void draw_minimap_me(const Map& map, const ClientPlayer& player, int team, double time);
 	void draw_minimap_room(const Map& map, int rx, int ry);
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
@@ -102,6 +102,7 @@ public:
 	void print_chat_message(int line, const std::string& message, MESSAGE_TYPE type);
 	void print_chat_input(int line, const std::string& message);
 
+	void draw_scoreboard(const std::vector<ClientPlayer>& players);
 	void draw_scoreboard_caption(int team, const std::string& caption);
 	void draw_scoreboard_name(int y, int pcol, const ClientPlayer& player);
 	void draw_scoreboard_points(int y, int team, int points);
@@ -155,13 +156,15 @@ public:
 
 	void search_themes();
 	void next_theme();
-	void set_themedir(const std::string& dir);
+	void set_theme_dir(const std::string& dir);
 	const std::string& theme_dir() const { return themedir; }
 	bool basic() const { return no_theme; }
 
 private:
 	void build_flagpos_marks();
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
+
+	std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
 	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
 	void menu_caption();
@@ -171,8 +174,8 @@ private:
 
 	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 
-	void make_theme_path(char* theme_path, const std::string& theme_dir);
-	void set_theme_dir(const string& dirname);
+	std::string make_theme_path(const std::string& theme_dir);
+	void load_theme(const std::string& dirname = "");
 	void load_pictures();
 	void unload_pictures();
 

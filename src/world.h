@@ -142,6 +142,8 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 class PlayerBase {
 protected:
 	PlayerBase() { }
+	
+	int team_nr;
 
 public:
 	bool item_deathbringer;
@@ -184,7 +186,10 @@ public:
 		neg_score = 0;
 		rank = 0;
 		used = enable;
+		team_nr = 0;
 	}
+	int team() const { return team_nr; }
+	int color() const { return id; }
 	virtual bool under_deathbringer_effect(double curr_time) const =0;
 };
 

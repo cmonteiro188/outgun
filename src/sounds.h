@@ -3,21 +3,6 @@
 #include "commont.h"
 
 class Sounds {
-	SAMPLE* sample[NUM_OF_SAMPLES];
-	bool sample_reverse[NUM_OF_SAMPLES];
-	string sfxthemedir;
-	string sfxthemename;
-	al_ffblk sfxthemeffblk;	//for al_find*
-	bool validtheme;		// if sfxthemedir points to valid dir
-	bool no_theme;
-
-	void make_sfx_theme_path(char* themepath, const char* themedir);
-	void set_theme_dir(char* dirname);
-
-	void load_samples();
-	void unload_samples();
-	SAMPLE *load_outgun_sample(const char* fname, int slot, bool try_redirect = true, bool reverse = false);
-
 public:
 	Sounds::Sounds();
 	Sounds::~Sounds();
@@ -31,9 +16,25 @@ public:
 	void play(int s) const;
 
 	void search_themes();
-	void next_sfx_theme();
+	void next_theme();
 
-	void set_themedir(const std::string& dir);
+	void set_theme_dir(const std::string& dir);
+
+private:
+	std::string make_theme_path(const std::string& dir);
+	void load_theme(const std::string& dir);
+
+	void load_samples();
+	void unload_samples();
+	SAMPLE *load_outgun_sample(const std::string& fname, int slot, bool try_redirect = true, bool reverse = false);
+
+	SAMPLE* sample[NUM_OF_SAMPLES];
+	bool sample_reverse[NUM_OF_SAMPLES];
+	std::string themedir;
+	std::string themename;
+	al_ffblk themeffblk;	// for al_find*
+	bool no_theme;
+
 };
 
 #endif // SOUNDS_H_INC

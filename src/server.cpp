@@ -97,7 +97,6 @@ void gameserver_c::ctf_game_restart() {
 
 //check if team change requests can be satisfied
 void gameserver_c::check_team_changes() {
-
 	// check players in random order
 	//
 	for (int i=0;i<maxplayers;i++) check[i]=0;
@@ -115,7 +114,6 @@ void gameserver_c::check_team_changes() {
 
 //check if a player wants to change teams and if yes, try to fullfill the wish
 void gameserver_c::check_player_change_teams(int pid) {
-
 	//valid players that want to change teams only
 	if (!world.player[pid].used) return;
 	if (!world.player[pid].want_change_teams) return;
