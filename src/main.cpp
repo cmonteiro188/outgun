@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
 
 	log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 	if (LOG_THREAD_IDS)
-		log("main() ID = %d", pthread_self());
+		log("main() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	bool textserver = false;
 	bool showinfo = false;

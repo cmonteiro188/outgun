@@ -77,17 +77,17 @@ string addressToString(const NLaddress& address) {
 	return buf;
 }
 
-bool writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
 	int at = 0;
 	int tries = 0;
 	while (at < length) {
 		if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-			return false;
+			return NR_timeout;
 
 		NLint written = nlWrite(socket, data + at, length - at);
 		if (written == NL_INVALID) {
 			if (nlGetError() != NL_CON_PENDING)
-				return false;
+				return NR_nlError;
 		}
 		else
 			at += written;
@@ -95,22 +95,22 @@ bool writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const 
 		MS_SLEEP(roundDelay);
 		++tries;
 	}
-	return true;
+	return NR_ok;
 }
 
-bool saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
 	const int buffer_size = 511;
 	char lebuf[buffer_size + 1];
 
 	int tries = 0;
 	for (;;) {
 		if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-			return false;
+			return NR_timeout;
 
 		NLint read = nlRead(socket, lebuf, buffer_size);
 		if (read == NL_INVALID) {
 			if (nlGetError() != NL_CON_PENDING)
-				return nlGetError() == NL_MESSAGE_END;
+				return (nlGetError() == NL_MESSAGE_END) ? NR_ok : NR_nlError;
 		}
 		else {
 			lebuf[read] = '\0';

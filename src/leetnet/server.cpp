@@ -42,6 +42,7 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 #include <sched.h>
 #include <nl.h>
 #include <stdio.h>
+#include "../commont.h"	// for LOG_THREAD_IDS
 #include "../mutex.h"
 #include "../thread.h"
 #include "../log.h"
@@ -1072,7 +1073,7 @@ DLOG_Scope s("PCD_Sp");
 	//ctor
 	server_ci() :
 		#ifdef LEETNET_LOG
-		log("leetserverlog.txt", true)
+		log((wheregamedir + "log" + directory_separator + "leetserverlog.txt").c_str(), true)
 		#else
 		log()
 		#endif
@@ -1111,6 +1112,8 @@ DLOG_Scope s("PCD_Sp");
 void thread_master_f(server_ci* server)
 {
 DLOG_ScopeNegStart("TMF");
+	if (LOG_THREAD_IDS)
+		server->log("Leet server thread_master_f() ID = %d", pthread_self());
 	//get socket to read from
 	NLsocket servsock = server->get_server_socket();
 
@@ -1163,6 +1166,8 @@ DLOG_ScopeNegStart("TMF");
 			server->process_incoming_datagram(buffer, amount);
 		}
 	}
+	if (LOG_THREAD_IDS)
+		server->log("exiting: Leet server thread_master_f() ID = %d", pthread_self());
 }
 
 //client message processor (slave) thread - one for each client
@@ -1171,6 +1176,9 @@ void thread_slave_f(client_t* mydata)
 {
 	//server
 	server_ci *server = mydata->server;
+
+	if (LOG_THREAD_IDS)
+		server->log("Leet server thread_slave_f() ID = %d", pthread_self());
 
 	//my id
 	int myid = mydata->id;
@@ -1211,6 +1219,8 @@ DLOG_Scope s(TSFS[myid]);
 			//pthread_mutex_unlock( &mydata->station_mutex );
 		}
 	}
+	if (LOG_THREAD_IDS)
+		server->log("exiting: Leet server thread_slave_f() ID = %d", pthread_self());
 }
 
 //client disconnector auxiliary thread. bombards
@@ -1218,6 +1228,9 @@ DLOG_Scope s(TSFS[myid]);
 void thread_disconnector_f(client_t* mydata) {
 	//server
 	server_ci *server = mydata->server;
+
+	if (LOG_THREAD_IDS)
+		server->log("Leet server thread_disconnector_f() ID = %d", pthread_self());
 
 	//loop
 	while (1) {
@@ -1229,6 +1242,9 @@ void thread_disconnector_f(client_t* mydata) {
 		//sleep a bit
 		MS_SLEEP(100);    //*** NO CPU PROBLEM HERE ***
 	}
+
+	if (LOG_THREAD_IDS)
+		server->log("exiting: Leet server thread_disconnector_f() ID = %d", pthread_self());
 }
 
 

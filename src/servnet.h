@@ -1,6 +1,7 @@
 #ifndef SERVNET_H_INC
 #define SERVNET_H_INC
 
+#include "network.h"	// for NetworkResult
 #include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "thread.h"
 
@@ -49,9 +50,9 @@ class ServerNetworking {
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string website_maplist() const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
-	bool post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+	NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
 							const std::string& script, const std::string& parameters, const std::string& auth = "") const;	// timeout in ms
-	bool save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
+	NetworkResult save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
 
 	gameserver_c*	host;
 	ServerWorld&	world;

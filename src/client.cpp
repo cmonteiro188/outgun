@@ -80,7 +80,7 @@ int cfunc_server_data(client_runes_t *arg);
 
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 	if (LOG_THREAD_IDS)
-		log("ServerThreadOwner::threadFn() ID = %d", pthread_self());
+		log("ServerThreadOwner::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	GameserverInterface gameserver(log, config);
 	if (!gameserver.start(config.server_maxplayers)) {
@@ -99,7 +99,7 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 	config.statusOutput("Outgun client");	// note: this is the server's statusOutput not client's
 
 	if (LOG_THREAD_IDS)
-		log("exiting: ServerThreadOwner::threadFn() ID = %d", pthread_self());
+		log("exiting: ServerThreadOwner::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
@@ -185,7 +185,7 @@ const char* TournamentPasswordManager::statusAsString() const {
 
 void TournamentPasswordManager::threadFn() {
 	if (LOG_THREAD_IDS)
-		log("TournamentPasswordManager::threadFn() ID = %d", pthread_self());
+		log("TournamentPasswordManager::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	bool newToken = true;
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
@@ -226,11 +226,12 @@ void TournamentPasswordManager::threadFn() {
 		passStatus = PS_sending;
 		if (newToken)
 			log("Password thread: Sending login");
-		if (!writeToUnblockingTCP(sock, query.data(), query.length(), &quitThread, 30000)) {
+		NetworkResult result = writeToUnblockingTCP(sock, query.data(), query.length(), &quitThread, 30000);
+		if (result != NR_ok) {
 			nlClose(sock);
 			if (quitThread)
 				break;
-			log("Password thread: Error sending login: timeout or %s", getNlErrorString());	//#fix
+			log("Password thread: Error sending login: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 			passStatus = PS_sendError;
 			continue;
 		}
@@ -239,12 +240,12 @@ void TournamentPasswordManager::threadFn() {
 		string response;
 		{
 			ostringstream respStream;
-			bool result = saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000);
+			NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000);
 			nlClose(sock);
-			if (!result) {
+			if (result != NR_ok) {
 				if (quitThread)
 					break;
-				log("Password thread: Error receiving response: timeout or %s", getNlErrorString());	//#fix
+				log("Password thread: Error receiving response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 				passStatus = PS_recvError;
 				continue;
 			}
@@ -314,7 +315,7 @@ void TournamentPasswordManager::threadFn() {
 	}
 
 	if (LOG_THREAD_IDS)
-		log("exiting: TournamentPasswordManager::threadFn() ID = %d", pthread_self());
+		log("exiting: TournamentPasswordManager::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
@@ -2223,7 +2224,7 @@ const char* gameclient_c::refreshStatusAsString() const {
 
 void gameclient_c::getServerListThread() {
 	if (LOG_THREAD_IDS)
-		log("getServerListThread() ID = %d", pthread_self());
+		log("getServerListThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	nAssert(refreshStatus == RS_running);
 
@@ -2234,19 +2235,19 @@ void gameclient_c::getServerListThread() {
 			ok = false;
 
 	if (LOG_THREAD_IDS)
-		log("exiting: getServerListThread() ID = %d", pthread_self());
+		log("exiting: getServerListThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
 void gameclient_c::refreshThread() {
 	if (LOG_THREAD_IDS)
-		log("refreshThread() ID = %d", pthread_self());
+		log("refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	nAssert(refreshStatus == RS_running);
 	bool ok = refresh_all_servers();
 
 	if (LOG_THREAD_IDS)
-		log("exiting: refreshThread() ID = %d", pthread_self());
+		log("exiting: refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
@@ -2415,10 +2416,11 @@ bool gameclient_c::getServerList() {
 	request << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
 	request << "Connection: close\r\n\r\n";
 
-	if (!writeToUnblockingTCP(sock, request.str().data(), request.str().length(), &abortThreads, 30000)) {
+	NetworkResult result = writeToUnblockingTCP(sock, request.str().data(), request.str().length(), &abortThreads, 30000);
+	if (result != NR_ok) {
 		nlClose(sock);
 		if (!abortThreads)
-			log("Client can't connect to master server. Timeout or %s", getNlErrorString());	//#fix
+			log("Client can't connect to master server. %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 		return false;
 	}
 
@@ -2427,11 +2429,11 @@ bool gameclient_c::getServerList() {
 	log("Successfully sent query to master: '%s'", formatForLogging(request.str()).c_str());
 
 	std::stringstream response;
-	bool result = saveAllFromUnblockingTCP(sock, response, &abortThreads, 30000);
+	result = saveAllFromUnblockingTCP(sock, response, &abortThreads, 30000);
 	nlClose(sock);
-	if (!result) {
+	if (result != NR_ok) {
 		if (!abortThreads)
-			log("Error receiving server list from master. Timeout or %s", getNlErrorString());	//#fix
+			log("Error receiving server list from master. %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 		return false;
 	}
 

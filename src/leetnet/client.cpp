@@ -49,6 +49,8 @@
 
 #include "../log.h"
 
+#include "../commont.h"	// for LOG_THREAD_IDS
+
 class client_ci;
 
 //connector thread function
@@ -596,7 +598,7 @@ DLOG_Scope s("CPIDg");
 	//ctor
 	client_ci() :
 		#ifdef LEETNET_LOG
-		log("leetclientlog.txt", true)
+		log((wheregamedir + "log" + directory_separator + "leetclientlog.txt").c_str(), true)
 		#else
 		log()
 		#endif
@@ -634,7 +636,8 @@ DLOG_Scope s("CPIDg");
 
 //connector thread function
 void thread_connect_f(client_ci* client) {
-	client->log("THREAD CONNECT STARTED");
+	if (LOG_THREAD_IDS)
+		client->log("Leet client thread_connect_f() ID = %d", pthread_self());
 
 	//repeat
 	bool stop = false;
@@ -648,12 +651,14 @@ void thread_connect_f(client_ci* client) {
 	}
 
 	--client->connect_threads_running;
-	client->log("THREAD CONNECT QUITTING");
+	if (LOG_THREAD_IDS)
+		client->log("exiting: Leet client thread_connect_f() ID = %d", pthread_self());
 }
 
 //disconnector thread function
 void thread_disconnect_f(client_ci* client) {
-	client->log("THREAD DISCONNECT STARTED");
+	if (LOG_THREAD_IDS)
+		client->log("Leet client thread_disconnect_f() ID = %d", pthread_self());
 
 	//repeat
 	bool stop = false;
@@ -669,14 +674,16 @@ void thread_disconnect_f(client_ci* client) {
 	//nice disconnect done
 	client->nice_disconnect_done(server_c::disconnect_client_initiated);
 
-	client->log("THREAD DISCONNECT QUITTING");
+	if (LOG_THREAD_IDS)
+		client->log("exiting: Leet client thread_disconnect_f() ID = %d", pthread_self());
 }
 
 //reader thread function
 #define THREAD_READER_BUFSIZE 8192
 void thread_reader_f(client_ci* client) {
 DLOG_ScopeNegStart("CTR");
-	client->log("READER_STARTED");
+	if (LOG_THREAD_IDS)
+		client->log("Leet client thread_reader_f() ID = %d", pthread_self());
 
 	//read buffer
 	char	buffer[THREAD_READER_BUFSIZE];
@@ -711,7 +718,8 @@ DLOG_ScopeNeg s("CTR");
 		}
 	}
 
-	client->log("READER QUITTING!!!!");
+	if (LOG_THREAD_IDS)
+		client->log("exiting: Leet client thread_reader_f() ID = %d", pthread_self());
 }
 
 

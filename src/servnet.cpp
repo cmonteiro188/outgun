@@ -1519,7 +1519,7 @@ double ServerNetworking::getTraffic() {
 
 void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	if (LOG_THREAD_IDS)
-		log("run_masterjob_thread() ID = %d", pthread_self());
+		log("run_masterjob_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
 
@@ -1549,23 +1549,24 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		nlSetAddrPort(&tournamentServer, 80);
 		nlConnect(sock, &tournamentServer);
 
-		if (!writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000)) {
+		NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
+		if (result != NR_ok) {
 			nlClose(sock);
 			if (mjob_exit)
 				break;
-			log("Tournament thread: Error sending info: timeout or %s", getNlErrorString());	//#fix
+			log("Tournament thread: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 			continue;
 		}
 
 		string response;
 		{
 			ostringstream respStream;
-			bool result = saveAllFromUnblockingTCP(sock, respStream, &mjob_exit, 30000);
+			NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &mjob_exit, 30000);
 			nlClose(sock);
-			if (!result) {
+			if (result != NR_ok) {
 				if (mjob_exit)
 					break;
-				log("Tournament thread: Error receiving response: timeout or %s", getNlErrorString());	//#fix
+				log("Tournament thread: Error receiving response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 				continue;
 			}
 			string fullResponse = respStream.str();
@@ -1666,12 +1667,12 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	delete job;
 
 	if (LOG_THREAD_IDS)
-		log("exiting: run_masterjob_thread() ID = %d", pthread_self());
+		log("exiting: run_masterjob_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 void ServerNetworking::run_mastertalker_thread() {
 	if (LOG_THREAD_IDS)
-		log("run_mastertalker_thread() ID = %d", pthread_self());
+		log("run_mastertalker_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string line;
@@ -1738,15 +1739,15 @@ void ServerNetworking::run_mastertalker_thread() {
 		// build and send data
 		map<string, string> parameters = master_parameters(localAddress);
 		const string data = build_http_data(parameters);
-		bool result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
+		NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
 
 		log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(data).c_str(), result);
-		if (result) {
+		if (result == NR_ok) {
 			// save response to a file
 			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
 			result = save_http_response(msock, out, &file_threads_quit, 30000);
 		}
-		if (!result)
+		if (result != NR_ok)
 			master_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
 
 		//close socket
@@ -1780,10 +1781,10 @@ void ServerNetworking::run_mastertalker_thread() {
 	// send quit message
 	ostringstream quit;
 	quit << "ip=" << localAddress << "&port=" << host->config().port << "&quit=1\r\n";
-	bool result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
+	NetworkResult result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
 	log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(quit.str()).c_str(), result);
 
-	if (result) {
+	if (result == NR_ok) {
 		// save response to a file
 		ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
 		save_http_response(msock, out, 0, 5000);	// only 5 seconds allowed; it's not so crucial
@@ -1794,7 +1795,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 void ServerNetworking::run_website_thread() {
 	if (LOG_THREAD_IDS)
-		log("run_website_thread() ID = %d", pthread_self());
+		log("run_website_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	string localAddress;
 	if (host->config().force_ip)
@@ -1929,14 +1930,14 @@ void ServerNetworking::run_website_thread() {
 			first_connection = false;
 		}
 		const string data = build_http_data(parameters);
-		bool result = post_http_data(websock, &file_threads_quit, 30000, site_script, data, site_auth);
+		NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, site_script, data, site_auth);
 		log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(data).c_str(), result);
-		if (result) {
+		if (result == NR_ok) {
 			// save response to a file
 			ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
 			result = save_http_response(websock, out, &file_threads_quit, 30000);
 		}
-		if (!result)
+		if (result != NR_ok)
 			website_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
 
 		//close socket
@@ -1969,10 +1970,10 @@ void ServerNetworking::run_website_thread() {
 
 	// send quit message
 	const string quit = "quit=1\r\n";
-	bool result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
+	NetworkResult result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
 	log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
-	if (result) {
+	if (result == NR_ok) {
 		// save response to a file
 		ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
 		save_http_response(websock, out, 0, 5000);	// only 5 seconds allowed; it's not so crucial
@@ -2063,7 +2064,7 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 	return param_line.str();
 }
 
-bool ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+NetworkResult ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
 											const string& script, const string& parameters, const string& auth) const {
 	ostringstream data;
 	data << "POST " << script << " HTTP/1.0\r\n";
@@ -2078,7 +2079,7 @@ bool ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abo
 	return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
 }
 
-bool ServerNetworking::save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) const {
+NetworkResult ServerNetworking::save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) const {
 	return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 
@@ -2097,7 +2098,7 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread(int port) {
 	if (LOG_THREAD_IDS)
-		log("run_shellmaster_thread() ID = %d", pthread_self());
+		log("run_shellmaster_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	Thread slaveThread;
 	volatile bool slaveRunning = false;	// the slave thread will modify this flag when quitting
@@ -2192,12 +2193,12 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 		slaveThread.join();
 
 	if (LOG_THREAD_IDS)
-		log("exiting: run_shellmaster_thread() ID = %d", pthread_self());
+		log("exiting: run_shellmaster_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// sets *runningFlag = true when quitting
 	if (LOG_THREAD_IDS)
-		log("run_shellslave_thread() ID = %d", pthread_self());
+		log("run_shellslave_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	while (!file_threads_quit) {
 		char rbuf[256];
@@ -2348,7 +2349,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 	log("Admin shell slave thread quitting");
 
 	if (LOG_THREAD_IDS)
-		log("exiting: run_shellslave_thread() ID = %d", pthread_self());
+		log("exiting: run_shellslave_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 void ServerNetworking::stop() {

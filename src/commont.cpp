@@ -8,6 +8,8 @@
 #include "commont.h"
 #include "nassert.h"
 
+#include <pthread.h>	// must include _after_ incalleg.h
+
 using std::cout;
 using std::istream;
 using std::string;
@@ -102,3 +104,9 @@ bool check_name(const std::string& name) {
 	return true;
 }
 
+int threadPriority() {
+	int policy;
+	sched_param param;
+	pthread_getschedparam(pthread_self(), &policy, &param);
+	return param.sched_priority;
+}

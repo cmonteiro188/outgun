@@ -88,7 +88,10 @@ private:
 	NLubyte data;
 };
 
-static const bool LOG_THREAD_IDS = false;
+int threadPriority();	// debug help
+
+//static const bool LOG_THREAD_IDS = false;
+static const bool LOG_THREAD_IDS = true;//#@
 
 static const int plw = 472, plh = 354;	// play area width/height
 
