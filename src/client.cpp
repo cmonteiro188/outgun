@@ -9,6 +9,7 @@
 #include "network.h"
 #include "nassert.h"
 
+using std::endl;
 using std::find;
 using std::ifstream;
 using std::ios;
@@ -27,7 +28,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-#define CLIENT_PREDICTION
+//#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
@@ -69,6 +70,76 @@ void *thread_clientpassword_f(void *arg);
 
 bool gameclient_c::force_exit = false;
 const size_t gameclient_c::chat_size = 32;
+
+gameclient_c::gameclient_c():
+	current_map(-1),
+	map_vote(-1),
+	player_stats_page(0),
+	save_pl_password(false),
+	save_password_selected(false),
+	password_file("passwd.txt"),
+	autoconnect(false),
+	name_selected(true),
+	screenshot(false)
+{
+	//net client
+	client = 0;
+
+	//not showing
+	option_show_names = false;
+
+	//all the players to show including me
+	//player_t player[MAX_PLAYERS];
+	for (int p = 0; p < MAX_PLAYERS; p++)
+		fx.player[p].used = false;
+
+	//wich player I am
+	me = -1;
+
+	//time of last packet received
+	lastpackettime = 0;
+
+	//menu showing?
+	menu = menu_main;		//menu screen #
+
+	//game showing?
+	gameshow = false;
+
+	//frames and seconds for FPS counter
+	FPS=0;
+	framecount = 0;
+	totalframecount = 0;
+	frameCountStartTime = 0;
+
+	//if player wants to changeteams
+	want_change_teams = false;
+
+	//trying connection? if true, ESC cancels it
+	trying_connection = false;
+
+	//connected? (that is, "connection accepted")
+	connected = false;
+
+	//connect screen, my "mini-gamespy"
+	gi = 0;	//what game entry
+
+	pthread_mutex_init(&frame_mutex, 0);
+	pthread_mutex_init(&mapInfoMutex, 0);
+	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
+	udpdq_size = 0;
+	message_logging = false;
+}
+
+gameclient_c::~gameclient_c() {
+	if (client) {
+		delete client;
+		client = 0;
+	}
+
+	pthread_mutex_destroy(&frame_mutex);
+	pthread_mutex_destroy(&mapInfoMutex);
+	pthread_mutex_destroy(&udpdq_mutex);
+}
 
 bool gameclient_c::start() {
 	// gfx init
@@ -210,7 +281,8 @@ bool gameclient_c::start() {
 			istringstream ist(line);
 			int col;
 			while (ist >> col)
-				fav_colors.push_back(col);
+				if (col >= 0 && col < 16)
+					fav_colors.push_back(col);
 		}
 
 		//read player name
@@ -1807,7 +1879,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 							<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
 							<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
 						// message
-						message_log << chatmsg << '\n';
+						message_log << chatmsg << endl;
 					}
 
 					//talk sound
@@ -3399,8 +3471,11 @@ void gameclient_c::stop() {
 			cfg << client_graphics.theme_dir() << '\n';
 		cfg << client_graphics.antialiasing_mode() << '\n';
 
-		for (vector<char>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
-			cfg << static_cast<int>(*col) << ' ';
+		if (fav_colors.empty())
+			cfg << -1;
+		else
+			for (vector<char>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
+				cfg << static_cast<int>(*col) << ' ';
 		cfg << '\n';
 
 		if (!playername.empty())
@@ -3450,79 +3525,6 @@ void gameclient_c::stop() {
 
 	// stop listenserver if it was running
 	listen_stop();
-}
-
-//ctor
-gameclient_c::gameclient_c():
-	current_map(-1),
-	map_vote(-1),
-	player_stats_page(0),
-	save_pl_password(false),
-	save_password_selected(false),
-	password_file("passwd.txt"),
-	autoconnect(false),
-	name_selected(true),
-	screenshot(false)
-{
-	//net client
-	client = 0;
-
-	//not showing
-	option_show_names = false;
-
-	//all the players to show including me
-	//player_t player[MAX_PLAYERS];
-	for (int p = 0; p < MAX_PLAYERS; p++)
-		fx.player[p].used = false;
-
-	//wich player I am
-	me = -1;
-
-	//time of last packet received
-	lastpackettime=0;
-
-	//menu showing?
-	menu = menu_main;		//menu screen #
-
-	//game showing?
-	gameshow = false;
-
-	//frames and seconds for FPS counter
-	FPS=0;
-	framecount = 0;
-	totalframecount = 0;
-	frameCountStartTime = 0;
-
-	//if player wants to changeteams
-	want_change_teams = false;
-
-	//trying connection? if true, ESC cancels it
-	trying_connection = false;
-
-	//connected? (that is, "connection accepted")
-	connected = false;
-
-	//connect screen, my "mini-gamespy"
-	gi=0;	//what game entry
-
-	pthread_mutex_init(&frame_mutex, 0);
-	pthread_mutex_init(&mapInfoMutex, 0);
-	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
-	udpdq_size = 0;
-	message_logging = false;
-}
-
-//dtor
-gameclient_c::~gameclient_c() {
-
-	if (client) {
-		delete client;
-		client = 0;
-	}
-
-	pthread_mutex_destroy(&frame_mutex);
-	pthread_mutex_destroy(&mapInfoMutex);
-	pthread_mutex_destroy(&udpdq_mutex);
 }
 
 void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
