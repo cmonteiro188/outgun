@@ -23,6 +23,7 @@ void send(NLsocket sock, void* data, int len) {
 
 class IdleFunction {
 public:
+	virtual ~IdleFunction() { }
 	virtual void operator()() =0;
 };
 

@@ -235,7 +235,7 @@ private:
 class PlayerBase {
 protected:
 	PlayerBase() { }
-	
+
 	int team_nr;
 	int personal_color;
 	Statistics player_stats;
@@ -526,6 +526,7 @@ public:
 
 class PhysicsCallbacksBase {
 public:
+	virtual ~PhysicsCallbacksBase() { }
 	virtual bool collideToRockets() const =0;	// should player to rocket collisions be checked at all
 	virtual bool gatherMovementDistance() const =0;	// should addMovementDistance be called with player movements
 	virtual bool allowRoomChange() const =0;
