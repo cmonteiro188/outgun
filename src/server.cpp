@@ -1260,7 +1260,7 @@ void gameserver_c::loop(volatile bool *running_flag) {
 			//update bar
 			ostringstream status;
 			status << network.get_player_count() << '/' << maxplayers << "p ";
-			status << setprecision(1) << network.getTraffic() << "k/s v" << GAME_VERSION;
+			status << setprecision(1) << std::fixed << network.getTraffic() << "k/s v" << GAME_VERSION;
 			status << " port:" << port;
 			if (dedserver)
 				status << " ESC:quit";
