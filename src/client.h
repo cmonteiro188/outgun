@@ -292,6 +292,7 @@ class Client {
 
     MutexHolder mapInfoMutex;
     std::vector<MapInfo> maps;
+    std::vector<std::string> fav_maps;
     int current_map;
     int map_vote;
     bool want_change_teams;
@@ -299,6 +300,7 @@ class Client {
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
+    NLbyte flags;
 
     // GUI
     Menu_main menu;
@@ -416,6 +418,8 @@ class Client {
     void MCF_playServer();
     void MCF_stopServer();
 
+    void load_fav_maps();
+
     void loadHelp();
     void loadSplashScreen();
     void openMessageLog();
@@ -433,6 +437,8 @@ class Client {
     void playerHitWallCallback(int pid);
     void playerHitPlayerCallback(int pid1, int pid2);
     bool shouldApplyPhysicsToPlayerCallback(int pid);
+
+    void remove_useless_flags();
 
     // network
     void connect_command(bool loadPassword);    // call with frameMutex locked

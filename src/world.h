@@ -186,6 +186,8 @@ public:
     std::string title, author, file;
     int width, height;
     int votes, sentVotes;
+    NLulong last_game;  // last game in the map (frame #)
+    bool highlight;     // for the map list in the client
 
     MapInfo();
     bool load(LogSet& log, const std::string& mapName);
@@ -679,6 +681,8 @@ public:
 
     void setMaxPlayers(int num) { maxplayers = num; }
 
+    void remove_team_flags(int t);
+
     Map map;
 
     int maxplayers; // actual
@@ -745,6 +749,11 @@ public:
     bool sudden_death;
     int capture_limit;
     Team_balance balance_teams;
+
+    bool lock_team_flags;
+    bool lock_wild_flags;
+    bool capture_on_own_flag;
+    bool capture_on_wild_flag;
 
     static const int shadow_minimum_normal;
 

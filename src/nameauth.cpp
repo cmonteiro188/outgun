@@ -48,7 +48,7 @@ string NameAuthorizationDatabase::makeComparable(const string& name) {
         else if (!nameUpr.empty())
             nameUpr += '.';
     }
-    string::size_type endi = nameUpr.find_last_not_of('.');
+    const string::size_type endi = nameUpr.find_last_not_of('.');
     if (endi == string::npos)
         return string();
     return nameUpr.substr(0, endi + 1);
@@ -83,7 +83,7 @@ bool NameAuthorizationDatabase::load() {
             continue;
         }
         strl >> data;
-        bool dataRead = strl;
+        const bool dataRead = strl;
         command = toupper(command);
         if (command == "USER") {
             if (!dataRead)
@@ -148,7 +148,7 @@ bool NameAuthorizationDatabase::save() const {
 }
 
 int NameAuthorizationDatabase::identifyName(const string& name) const {
-    string nameUpr = makeComparable(name);
+    const string nameUpr = makeComparable(name);
     for (int idx = 0; idx < (int)names.size(); ++idx)
         if (nameUpr == names[idx].name)
             return idx;

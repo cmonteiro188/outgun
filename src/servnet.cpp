@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -843,6 +843,12 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     writeStr(lebuf, count, world.map.title);
     writeByte(lebuf, count, static_cast<NLubyte>(host->current_map_nr()));
     writeByte(lebuf, count, static_cast<NLubyte>(host->maplist().size()));
+
+    NLbyte flags = 0;
+    flags |= (!world.map.tinfo[0].flags.empty() ? 0x01 : 0);
+    flags |= (!world.map.tinfo[1].flags.empty() ? 0x02 : 0);
+    flags |= (!world.map.wild_flags    .empty() ? 0x04 : 0);
+    writeByte(lebuf, count, flags);
 
     if (pid < 0)
         broadcast_message(lebuf, count);

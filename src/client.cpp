@@ -882,6 +882,8 @@ bool Client::start() {
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
 
+    load_fav_maps();
+
     return true;
 }
 
@@ -917,6 +919,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
         if (dl.fileType == "map") {
             if (dl.shortName == servermap) {
                 const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
+                remove_useless_flags();
                 if (!ok) {
                     log.error("After download: map '" + dl.shortName + "' not found");
                     addThreadMessage(new TM_DoDisconnect());
@@ -990,6 +993,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         log("Map '%s' found but it's CRC %i differs from server map CRC %i", mapname.c_str(), fx.map.crc, server_crc);
     else {
         log("Map '%s' loaded successfully", mapname.c_str());
+        remove_useless_flags();
         mapChanged = true;
         map_ready = true;
         ++clientReadiesWaiting;
@@ -1991,6 +1995,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[me].oldx = -1;
                 fx.player[me].oldy = -1;
                 old_map = fx.map.title;
+                if (count > 0)
+                    readByte(lebuf, count, flags);
                 addThreadMessage(new TM_MapChange(mapname, crc));
                 const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
                 addThreadMessage(new TM_Text(msg_info, msg));
@@ -2188,6 +2194,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 mapinfo.width = width;
                 mapinfo.height = height;
                 mapinfo.votes = votes;
+                const vector<string>::const_iterator mi = find(fav_maps.begin(), fav_maps.end(), mapinfo.title);
+                if (mi != fav_maps.end())
+                    mapinfo.highlight = true;
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.push_back(mapinfo);
@@ -3699,6 +3708,14 @@ bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
     return fx.player[pid].onscreen && !fx.player[pid].dead;
 }
 
+void Client::remove_useless_flags() {
+    for (int i = 0; i < 3; i++)
+        if (!(flags & (0x01 << i))) {
+            fx.remove_team_flags(i);
+            fd.remove_team_flags(i);
+        }
+}
+
 void Client::predraw() {
     if (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
             fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
@@ -4699,6 +4716,15 @@ void Client::MCF_playServer() {
 void Client::MCF_stopServer() {
     if (listenServer.running())
         listenServer.stop();
+}
+
+void Client::load_fav_maps() {
+    fav_maps.clear();
+    const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
+    ifstream in(configFile.c_str());
+    string line;
+    while (getline_skip_comments(in, line))
+        fav_maps.push_back(line);
 }
 
 void Client::loadHelp() {

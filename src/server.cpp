@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -186,7 +186,7 @@ void Server::check_team_changes() {
         check[i] = 0;
     checount = maxplayers;
     while (checount > 0) {
-        int p = rand() % maxplayers;
+        const int p = rand() % maxplayers;
         if (!check[p]) {
             check[p] = 1;
             checount--;
@@ -498,6 +498,10 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("sudden_death",            &worldConfig.sudden_death)),
         PT(new GS_Int       ("game_end_delay",          &game_end_delay, 0)),
         PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
+        PT(new GS_Boolean   ("lock_team_flags",         &worldConfig.lock_team_flags)),
+        PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
+        PT(new GS_Boolean   ("capture_on_own_flag",     &worldConfig.capture_on_own_flag)),
+        PT(new GS_Boolean   ("capture_on_wild_flag",    &worldConfig.capture_on_wild_flag)),
         PT(new GS_Balance   ("balance_teams",           &worldConfig.balance_teams)),
         PT(new GS_ForwardStr("server_name",             setHostname)),
         PT(new GS_CheckForwardInt("max_players",        _("an even integer between 2 and $1", itoa(MAX_PLAYERS)), checkMaxplayer, tryMaxplayer)),
@@ -582,6 +586,16 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
+    // Check the flag settings and remove the useless flags (only if there are three kind of flags).
+    if (world.wild_flags.empty() || world.teams[0].flags().empty() || world.teams[1].flags().empty())
+        return true;
+    const bool remove_all = worldConfig.lock_team_flags && worldConfig.lock_wild_flags;
+    if (remove_all || (worldConfig.lock_team_flags && !worldConfig.capture_on_own_flag)) {
+        world.remove_team_flags(0);
+        world.remove_team_flags(1);
+    }
+    if (remove_all || (worldConfig.lock_wild_flags && !worldConfig.capture_on_wild_flag))
+        world.remove_team_flags(2);
     return true;
 }
 
@@ -598,12 +612,20 @@ bool Server::server_next_map(int reason) {
 
     vector<int> winners;
     int maxVotes = 0;
+    NLulong longest_time = world.frame;
     for (int m = 0; m < static_cast<int>(maprot.size()); ++m) {
         if (maprot[m].votes < maxVotes)
             continue;
         if (maprot[m].votes > maxVotes) {
             maxVotes = maprot[m].votes;
             winners.clear();
+            longest_time = maprot[m].last_game;
+        }
+        if (maprot[m].last_game > longest_time)
+            continue;
+        if (maprot[m].last_game < longest_time) {
+            winners.clear();
+            longest_time = maprot[m].last_game;
         }
         winners.push_back(m);
     }
@@ -626,6 +648,7 @@ bool Server::server_next_map(int reason) {
     maprot[currmap].votes = 0;
     last_vote_announce_votes = last_vote_announce_needed = 0;
     next_vote_announce_frame = 0;   // let a new announcement be made as soon as someone votes
+    maprot[currmap].last_game = world.frame;
 
     if (!load_rotation_map(currmap))
         return reset_settings(true);    // re-initialize map-list (and other settings as a side-effect); it calls back this function so the end-part has already executed

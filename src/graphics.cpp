@@ -358,6 +358,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
 }
 
 bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed, int pages) {
+    (void)pages;
     log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed ? "windowed" : "fullscreen");
     set_color_depth(depth);
 
@@ -1830,7 +1831,14 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         mapline << setw(2) << map.width << '×' << setw(2) << left << map.height << right << ' ';
         mapline << map.author.substr(0, 27);
         const int y = y1 + 5 * line_height + line_height * (i - map_list_start);
-        textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, (i == current) ? col[COLYELLOW] : col[COLWHITE], -1);
+        int c;
+        if (i == current)
+            c = col[COLYELLOW];
+        else if (map.highlight)
+            c = col[COLGREEN];
+        else
+            c = col[COLWHITE];
+        textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, c, -1);
     }
     // draw scrollbar if there are more maps than visible on the screen
     if (map_list_size < static_cast<int>(maps.size())) {
