@@ -756,4 +756,3 @@ bool Textobject::handleKey(char scan, unsigned char chr) {
         return false;
     return true;
 }
-

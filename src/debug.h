@@ -111,4 +111,3 @@ template<int size> class PointerLeakBuffer : private ValidityChecker {
 #endif  // NDEBUG
 
 #endif  // DEBUG_H_INC
-

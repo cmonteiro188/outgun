@@ -160,4 +160,3 @@ void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const cha
 }
 
 #undef ARGP
-

@@ -3800,8 +3800,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - 20) {
-                    static const int max_time = 20; // frames
-                    static const int start_fadeout = 10;   // frames
+                    static const int max_time      = 20; // frames
+                    static const int start_fadeout = 10; // frames
                     int alpha;
                     if (fx.frame > pl.posUpdated + start_fadeout)
                         alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));

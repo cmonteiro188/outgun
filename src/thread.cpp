@@ -77,4 +77,3 @@ void Thread::detach() {
     running = false;
     nAssert(0 == pthread_detach(thread));
 }
-

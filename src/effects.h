@@ -52,4 +52,3 @@ struct GraphicsEffect {
 };
 
 #endif // EFFECTS_H_INC
-

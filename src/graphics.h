@@ -406,4 +406,3 @@ private:
 };
 
 #endif // GRAPHICS_H_INC
-

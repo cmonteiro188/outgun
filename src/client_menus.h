@@ -318,4 +318,3 @@ public:
 };
 
 #endif  // CLIENT_MENUS_H_INC
-

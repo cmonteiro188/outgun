@@ -81,4 +81,3 @@ void Mappic::save_pictures() const {
         }
     }
 }
-

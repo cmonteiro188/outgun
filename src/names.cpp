@@ -278,4 +278,3 @@ string RandomName(int npal)
 
     return trim(nome.substr(0, 15));
 }
-

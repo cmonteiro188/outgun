@@ -2468,4 +2468,3 @@ void Graphics::unload_pup_sprites() {
 inline int Graphics::scale(double value) const {
     return static_cast<int>(scr_mul * value + 0.5);
 }
-

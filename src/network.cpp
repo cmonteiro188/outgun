@@ -227,4 +227,3 @@ string base64_encode(const string& data) {
     }
     return result;
 }
-

@@ -177,4 +177,3 @@ void NameAuthorizationDatabase::ban(NLaddress addr, const string& name, int minu
     nlSetAddrPort(&addr, 0);
     bans.push_back(BanEntry(name, addr, time(0) + minutes * 60));
 }
-

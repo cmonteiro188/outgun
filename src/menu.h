@@ -440,4 +440,3 @@ bool Select<ValueT>::set(const ValueT& value) {
 }
 
 #endif // MENU_H_INC
-
