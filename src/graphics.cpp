@@ -346,7 +346,11 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			scene.addCircWall(*cwi, cwi->texture());
 
 		// add flag markers as overlays
-//#@
+		const float fr = flagpos_radius;
+		for (int fi = 0; fi < static_cast<int>(flags.size()); ++fi) {
+			const float fx = flags[fi].second->x, fy = flags[fi].second->y;
+			scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size(), true);
+		}
 
 		// add walls
 		const int texShift = floor_texture.size();
@@ -361,8 +365,9 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 		scene.clipAll();
 
 		// prepare the textures
-		//#fix: optimize from here down in the case of no texturing
-		vector<BITMAP*> textures, tempTex;	//#fix: these tables should be pre-created at texture load time
+		//#fix: optimize from here down in the case of no texturing AND no flag markers on screen
+		vector<OffsetedTexture> textures;
+		vector<BITMAP*> tempTex;	//#fix: these tables should be pre-created at texture load time
 		BITMAP* backupTexture = floor_texture.front();
 		if (!backupTexture) {
 			backupTexture = create_bitmap(1, 1);
@@ -379,6 +384,30 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 		}
 		for (vector<BITMAP*>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti)
 			textures.push_back(*ti ? *ti : backupTexture);
+		if (!flags.empty()) {
+			BITMAP* flagTex[2];
+			for (int team = 0; team < 2; ++team) {
+				flagTex[team] = create_bitmap(2 * flagpos_radius, 2 * flagpos_radius);
+				const float step = 300 / flagpos_radius / 255.;
+				const float br = getr(teamcol[team]), bg = getg(teamcol[team]), bb = getb(teamcol[team]);
+				for (int y = -flagpos_radius; y < flagpos_radius; y++)
+					for (int x = -flagpos_radius; x < flagpos_radius; x++) {
+						const float dist = sqrt(static_cast<float>(x * x + y * y));
+						if (dist >= flagpos_radius)
+							putpixel(flagTex[team], x + flagpos_radius, y + flagpos_radius, 0);
+						else {
+							const float alpha = step * (flagpos_radius - dist);
+							int r = min(255, static_cast<int>(br * alpha));
+							int g = min(255, static_cast<int>(bg * alpha));
+							int b = min(255, static_cast<int>(bb * alpha));
+							putpixel(flagTex[team], x + flagpos_radius, y + flagpos_radius, makecol(r, g, b));
+						}
+					}
+				tempTex.push_back(flagTex[team]);
+			}
+			for (vector< pair<int, const spoint_t*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+				textures.push_back(OffsetedTexture(flagTex[fi->first], fi->second->x - flagpos_radius, fi->second->y - flagpos_radius));
+		}
 
 		// draw
 		PlainTexTexturizer tex(roombg, 0, 0, textures);
@@ -494,19 +523,19 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		// quarters             3 4
 		float ang1 = angle[0];
 		float ang2 = angle[1];
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 1
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 1
 			rectfill(cbuff, int(scale * ro), 0, int(scale * 2 * ro), int(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 2
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 2
 			rectfill(cbuff, 0, 0, int(scale * ro), int(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 3
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 3
 			rectfill(cbuff, 0, int(scale * ro), int(scale * ro), int(scale * 2 * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 4
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 4
 			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
 		// remove the rest unnecessary sectors of the circle
 		const float k = 1.5;

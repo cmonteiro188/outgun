@@ -8,7 +8,7 @@
 
 class PartialPixelSegment {
 public:
-	enum { scale = 23 };	// scale alphas by 1 << scale ((1 << scale) / 2 equals half transparent)
+	enum { scale = 20 };	// scale alphas by 1 << scale ((1 << scale) / 2 equals half transparent)
 
 	PartialPixelSegment(int x0) : startx(x0) { }
 	int x0() const { return startx; }
@@ -68,7 +68,34 @@ private:
 			return makecol((r + scaleVal / 2) >> scale, (g + scaleVal / 2) >> scale, (b + scaleVal / 2) >> scale);
 		}
 		int flexColor() const {	// allows more than 1 alphaTotal, with a cut on high intensities
-			return makecol(min(255, (r + scaleVal / 2) >> scale), min(255, (g + scaleVal / 2) >> scale), min(255, (b + scaleVal / 2) >> scale));
+			int rc, gc, bc;
+			if (alphaTotal >= scaleVal) {
+				rc = (r + scaleVal / 2) / alphaTotal;
+				gc = (g + scaleVal / 2) / alphaTotal;
+				bc = (b + scaleVal / 2) / alphaTotal;
+			}
+			else {
+				rc = (r + scaleVal / 2) >> scale;
+				gc = (g + scaleVal / 2) >> scale;
+				bc = (b + scaleVal / 2) >> scale;
+			}
+/*
+			int rc = min(255, (r + scaleVal / 2) >> scale);
+			int gc = min(255, (g + scaleVal / 2) >> scale);
+			int bc = min(255, (b + scaleVal / 2) >> scale);
+*/
+/*
+			int rc = (r + scaleVal / 2) >> scale;
+			int gc = (g + scaleVal / 2) >> scale;
+			int bc = (b + scaleVal / 2) >> scale;
+			if (alphaTotal >= scaleVal && (rc > 255 || gc > 255 || bc > 255)) {	// the alphaTotal check is an optimization
+				int cut = max(max(rc, gc), bc) - 255;
+				rc = max(0, rc - cut);
+				gc = max(0, gc - cut);
+				bc = max(0, bc - cut);
+			}
+*/
+			return makecol(rc, gc, bc);
 		}
 	};
 
@@ -91,20 +118,31 @@ struct WallBorderSegment {
 
 struct ObjectSource {
 	int texid;
+	bool overlay;
 	std::vector<WallBorderSegment> borders;
 };
 
 // // // // public interface
 
+struct OffsetedTexture {
+	BITMAP* image;
+	int x0, y0;
+
+	OffsetedTexture(BITMAP* texture, int x0_ = 0, int y0_ = 0) : image(texture), x0(x0_), y0(y0_) { }
+};
+
 class PlainTexTexturizer {
 public:
-	PlainTexTexturizer(BITMAP* buffer, int x0, int y0, vector<BITMAP*>& textures) : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
-	void setTex(int texid) { numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size()); tex = texTab[texid]; }
+	// caution: because of Allegro's limitations, textures used as non-overlays must have their width and height a power of two; this is not checked!
+	// also, textures (overlay or not) may not be used in areas where x < tex.x0 || y < tex.y0 ; by selecting x0 and y0 < 0 you can avoid this problem
+	PlainTexTexturizer(BITMAP* buffer, int x0, int y0, const vector<OffsetedTexture>& textures)
+					: buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
+	void setTex(int texid) { numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size()); texi = texid; tex = texTab[texid].image; }
 
 	void setLine(int y);
 	void nextLine();
 
-	void putSpan(int x0, int x1, double alpha);	// fills the range [x0,x1[
+	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
 	void startPixSpan(int x);
 	void putPix(double alpha);	// draws at current x coord and increases it
 
@@ -112,13 +150,15 @@ public:
 
 private:
 	void doPutPix(int iAlpha);
+	void putPixCore(int color, int iAlpha);
 
 	BITMAP* buf;
 	int bx0, by0;	// buffer pixel offset
 	int bx, by;	// active pixel in buf
-	BITMAP* tex;
+	int texi;
+	BITMAP* tex;	// can't set const because it can be fed to Allegro
 	int tx, ty;	// active pixel in tex
-	std::vector<BITMAP*>& texTab;
+	const std::vector<OffsetedTexture>& texTab;
 	std::vector< std::list<PartialPixelSegment> > partials;
 	PartialPixelSegment* partSpan;
 	int spanIndex;	// index in partSpan
@@ -133,7 +173,7 @@ public:
 	void setLine(int y);
 	void nextLine();
 
-	void putSpan(int x0, int x1, double alpha);	// fills the range [x0,x1[
+	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
 	void startPixSpan(int x);
 	void putPix(double alpha);	// draws at current x coord and increases it
 
@@ -160,7 +200,7 @@ public:
 
 	void setScaling(float x0_ = 0, float y0_ = 0, float scale_ = 1.);	// call before add*
 
-	void addRectangle(float x1, float y1, float x2, float y2, int texture);
+	void addRectangle(float x1, float y1, float x2, float y2, int texture, bool overlay = false);
 	void addRectWall(const RectWall& wall, int texture);
 	void addTriWall (const  TriWall& wall, int texture);
 	void addCircWall(const CircWall& wall, int texture);

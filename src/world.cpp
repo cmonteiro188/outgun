@@ -174,7 +174,7 @@ bool Map::load(const char *mapdir, const string& mapname) {
 
 	//append all that to the root dir of the game
 	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
-	FILE *fmap = fopen(dest, "r");	// FIXME: r or rb ??
+	FILE *fmap = fopen(dest, "rb");
 	if (fmap) {
 		*this = Map();
 		NLubyte lebigbuf[65536];
@@ -291,13 +291,12 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		ist >> type >> x >> y >> ro;
 		bool ok = ist;
 		ist >> ri;
-		if (!ist) {
+		if (!ist)
 			ri = a1 = a2 = 0;
-		}
 		else {
 			ist >> a1;
 			if (!ist)
-				a1 = 0;
+				a1 = a2 = 0;
 			else {
 				ist >> a2;
 				if (!ist)
@@ -2497,6 +2496,7 @@ void ServerWorld::simulateFrame() {
 					if (teams[myteam].score() >= config.getCaptureLimit()) {
 						host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 						host->ctf_game_restart();
+						return;
 					}
 				}
 		}

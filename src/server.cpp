@@ -15,21 +15,27 @@ gameserver_c::gameserver_c() : world(this, &network), network(this, world) {
 gameserver_c::~gameserver_c() {
 }
 
-void gameserver_c::mutePlayer(int pid, int mode) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
+void gameserver_c::mutePlayer(int pid, int mode, int admin) {    // 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
+	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
 	if (mode==0 && world.player[pid].muted!=2)
 		network.plprintf(pid, "@WYou have been unmuted (you can send messages again)");
-	else if (mode == 1)
+	else if (mode == 1) {
 		network.plprintf(pid, "@WYou have been muted (you can't send messages)");
+		if (admin != -1)
+			network.plprintf(pid, "@IThe administrator responsible is %s.", adminName);
+	}
 	for (int i=0; i<MAX_PLAYERS; ++i)
 		if (world.player[i].used && i!=pid) {
 			if (mode == 0)
-				network.plprintf(i, "@IThe admin has unmuted %s", world.player[pid].name.c_str());
+				network.plprintf(i, "@I%s has unmuted %s", adminName, world.player[pid].name.c_str());
 			else
-				network.plprintf(i, "@IThe admin has muted %s", world.player[pid].name.c_str());
+				network.plprintf(i, "@I%s has muted %s", adminName, world.player[pid].name.c_str());
 		}
 	world.player[pid].muted = mode;
 }
-void gameserver_c::kickPlayer(int pid, bool ban) {
+
+void gameserver_c::kickPlayer(int pid, int admin, bool ban) {
+	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
 	world.player[pid].delayedMessages.clear();
 	if (ban)
 		network.plprintf(pid, "@WYou are now BANNED from this server! Have a nice life...");
@@ -37,17 +43,20 @@ void gameserver_c::kickPlayer(int pid, bool ban) {
 		network.plprintf(pid, "@WYou are being kicked from this server!");
 		network.plprintf(pid, "@WWarning: you can get permanently banned for behaving badly!");
 	}
+	if (admin != -1)
+		network.plprintf(pid, "@IThe administrator responsible is %s.", adminName);
 	for (int i=0; i<MAX_PLAYERS; ++i)
 		if (world.player[i].used && i!=pid)
-			network.plprintf(i, "@IThe admin has %s %s (disconnect in 10 seconds)", ban?"banned":"kicked", world.player[pid].name.c_str());
+			network.plprintf(i, "@I%s has %s %s (disconnect in 10 seconds)", adminName, ban?"banned":"kicked", world.player[pid].name.c_str());
 	world.player[pid].kickTimer = 10*10;
 }
 
 #ifdef SV_NAME_AUTHORIZATION
-void gameserver_c::banPlayer(int pid) {
-	authorizations.ban(network.get_client_address(world.player[pid].cid));
+void gameserver_c::banPlayer(int pid, int admin) {
+	authorizations.load();
+	authorizations.ban(network.get_client_address(world.player[pid].cid), admin == -1);	// allow hard bans only to 'hard' admin because of the required IP tracking
 	authorizations.save();
-	kickPlayer(pid, true);
+	kickPlayer(pid, admin, true);
 }
 #endif
 
@@ -715,6 +724,21 @@ bool gameserver_c::start(int target_maxplayers) {
 
 	#ifdef SV_NAME_AUTHORIZATION
 	authorizations.load();
+
+	// read the admins file
+	ifstream is("admins.txt");
+	if (is) {
+		for (;;) {
+			string line;
+			getline_smart(is, line);
+			if (!is)
+				break;
+			admins.push_back(line);
+		}
+		LOG1("Loaded %ud administrator names\n", admins.size());
+	}
+	else
+		LOG("Couldn't load administrator names: no admins.txt\n");
 	#endif
 
 	int i;
@@ -805,6 +829,7 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname) {
 		else {
 			world.player[pid].queue_printf("@WThe name %s is reserved on this server.", authorizations.getName(nid).c_str());
 			world.player[pid].queue_printf("@ITo authorize, type /auth %s,pass where pass is your password.", authorizations.getName(nid).c_str());
+			world.player[pid].queue_printf("@IUse /authadd instead if you want to keep your previous addresses authorized.");
 		}
 		#else
 		world.player[pid].name = tempname;
@@ -830,6 +855,13 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 	}
 	world.player[pid].reset_message_queue_timing();
 	if (sbuf[0]=='/') {
+		bool admin = false;
+		if (world.player[pid].reg_status == '*' || authorizations.identifyName(world.player[pid].name) != -1) {
+			// the player surely is who his name implies, authorized either by the tournament master or the local authorization database
+			if (find(admins.begin(), admins.end(), world.player[pid].name) != admins.end())
+				admin = true;
+		}
+
 		const char* pCommand=sbuf+1;
 		char cbuf[30];
 		int ci;
@@ -862,6 +894,16 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 				if (sayadmin_comment.length())
 					ostr << " (" << sayadmin_comment << ')';
 				world.player[pid].add_to_queue(ostr.str());
+			}
+			if (admin) {
+				world.player[pid].queue_printf("@TAdmin commands:");
+				world.player[pid].queue_printf("/list       get a list of player ID's");
+				world.player[pid].queue_printf("/kick n     kick player with ID n");
+				world.player[pid].queue_printf("/ban n      ban player with ID n");
+				world.player[pid].queue_printf("/mute n     mute player with ID n");
+				world.player[pid].queue_printf("/smute n    silently mute player with ID n (crude!)");
+				world.player[pid].queue_printf("/unmute n   cancel muting of player with ID n");
+				world.player[pid].queue_printf("/forcemap   restart the game and change map if you've used votemap");
 			}
 		}
 		else if (!strcmp(cbuf, "info") && !info_message.empty()) {
@@ -949,24 +991,77 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 			// Add more stats: flag carrying time, etc.
 		}
 		#ifdef SV_NAME_AUTHORIZATION
-		else if (!strcmp(cbuf, "auth")) {
+		else if (!strcmp(cbuf, "auth") || !strcmp(cbuf, "authadd")) {
 			string nameUpr;
 			for (; *pCommand && *pCommand!=','; ++pCommand)
 				nameUpr+=toupper(*pCommand);
 			if (*pCommand==',') {
 				string pwd(pCommand+1);
+				authorizations.load();
+				if (strcmp(cbuf, "authadd"))
+					authorizations.clearIPs(nameUpr, pwd);
 				if (authorizations.addIP(nameUpr, pwd, network.get_client_address(id))) {
 					authorizations.save();
-					world.player[pid].queue_printf("@WOK: authorized your IP address to use %s", nameUpr.c_str());
-					world.player[pid].queue_printf("@WYou may change your name now");
+					ostringstream line;
+					line << "@WOK: authorized your IP address ";
+					if (!strcmp(cbuf, "authadd"))
+						line << "also ";
+					line << "to use " << nameUpr;
+					world.player[pid].add_to_queue(line.str());
+					world.player[pid].add_to_queue("@WYou may change your name now");
 				}
 				else
-					world.player[pid].queue_printf("@WAuthorization failed");
+					world.player[pid].add_to_queue("@WAuthorization failed");
 			}
 			else
-				world.player[pid].queue_printf("@WInvalid auth command");
+				world.player[pid].add_to_queue("@WInvalid auth command");
 		}
 		#endif
+		else if (!strcmp(cbuf, "list") && admin) {
+			world.player[pid].queue_printf("@TPlayers on server: ID, name");
+			for (int ppid = 0; ppid < MAX_PLAYERS; ) {
+				char buf[100];
+				int bufi = 0;
+				for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
+					if (world.player[ppid].used) {
+						sprintf(buf+bufi, "%2d %c%-22s", ppid, world.player[ppid].reg_status, world.player[ppid].name.c_str());
+						bufi+=26;
+						++onrow;
+					}
+				if (bufi > 0)
+					world.player[pid].add_to_queue(buf);
+			}
+		}
+		else if ((!strcmp(cbuf, "kick") || !strcmp(cbuf, "ban") || !strcmp(cbuf, "mute")
+					|| !strcmp(cbuf, "smute") || !strcmp(cbuf, "unmute")) && admin) {
+			int ppid = atoi(pCommand);
+			if (*pCommand != '\0' && ppid >= 0 && ppid < MAX_PLAYERS && world.player[ppid].used && pCommand[strspn(pCommand, "0123456789")]=='\0') {
+				if (!strcmp(cbuf, "kick"))
+					kickPlayer(ppid, pid);
+				else if (!strcmp(cbuf, "ban"))
+					banPlayer(ppid, pid);
+				else if (!strcmp(cbuf, "mute"))
+					mutePlayer(ppid, 1, pid);
+				else if (!strcmp(cbuf, "smute"))
+					mutePlayer(ppid, 2, pid);
+				else if (!strcmp(cbuf, "unmute"))
+					mutePlayer(ppid, 0, pid);
+				else
+					nAssert(0);
+			}
+			else
+				world.player[pid].queue_printf("@WNo such player. Type /list for a list of IDs.");
+		}
+		else if (!strcmp(cbuf, "forcemap") && admin) {
+			if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
+				network.bprintf("@I%s decided it's time for a map change", world.player[pid].name.c_str());
+				maprot[world.player[pid].mapVote].votes = 99;
+				server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
+			}
+			else
+				network.bprintf("@I%s decided it's time for a restart", world.player[pid].name.c_str());
+			ctf_game_restart();
+		}
 		else
 			world.player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
 	}

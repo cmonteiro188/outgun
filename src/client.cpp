@@ -732,6 +732,8 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 	LOG1("CLIENT: server_map_command : '%s'\n", mapname);
 
+	strcpy(servermap, mapname);
+
 	//try to load the map. will fail if not found
 	bool ok = fd.load_map(CLIENT_MAPS_DIR, mapname) && fx.load_map(CLIENT_MAPS_DIR, mapname);	//#fix
 
@@ -769,9 +771,6 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 		char dest[1024];	//full destination path for file
 		append_filename(dest, wheregamedir, fname, WHERE_PATH_SIZE);
-
-		//copy to name of map waiting -- for when download_server_file completes
-		strcpy(servermap, mapname);
 
 		//download server file -- opens new thread and TCP conection
 		download_server_file("map", mapname, dest);
@@ -1607,7 +1606,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//get msg code
 			readByte(msg, count, code);
 
+			#ifdef LOG_MESSAGE_TRAFFIC
 			LOG1("SERVER MESSAGE CODE = %i\n", code);
+			#endif
 
 			//parse rest of message
 			switch (static_cast<Network_data_codes>(code)) {
@@ -2006,7 +2007,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					mapinfo.width = width;
 					mapinfo.height = height;
 					mapinfo.votes = votes;
+					pthread_mutex_lock(&mapInfoMutex);
 					maps.push_back(mapinfo);
+					pthread_mutex_unlock(&mapInfoMutex);
 					break;
 				}
 
@@ -2622,8 +2625,6 @@ void gameclient_c::loop() {
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
 			else if (menu != menu_none) {
 				while (keypressed()) {
-					string lerud_abloxon;
-
 					//get key
 					int ch = readkey();
 					int sc = ch >> 8;	//scancode
@@ -3297,7 +3298,7 @@ gameclient_c::gameclient_c():
 	chaterasetime = 0;				// time to erase a chat message from the list
 
 	pthread_mutex_init(&frame_mutex, 0);
-
+	pthread_mutex_init(&mapInfoMutex, 0);
 	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 	udpdq_size = 0;
 	message_logging = false;
@@ -3312,7 +3313,7 @@ gameclient_c::~gameclient_c() {
 	}
 
 	pthread_mutex_destroy(&frame_mutex);
-
+	pthread_mutex_destroy(&mapInfoMutex);
 	pthread_mutex_destroy(&udpdq_mutex);
 }
 
@@ -3918,7 +3919,9 @@ void gameclient_c::draw_game_menu() {
 			client_graphics.server_password_menu(edit_server_password.length());
 			break;
 		case menu_maps:
+			pthread_mutex_lock(&mapInfoMutex);
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
+			pthread_mutex_unlock(&mapInfoMutex);
 			break;
 		case menu_players:
 			client_graphics.draw_statistics(fx.player, player_stats_page, static_cast<int>(get_time()));
