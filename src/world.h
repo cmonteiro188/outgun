@@ -102,15 +102,17 @@ struct Room {
 
 //entity locale
 struct spoint_t {
+	spoint_t(int px_, int py_, int x_, int y_): px(px_), py(py_), x(x_), y(y_) { }
+	spoint_t() { }
 	int px, py;	//screen (if px == -1, unused)
 	int x, y;	//relative (to screen) X,Y position
 };
 
 //team info
 struct teaminfo_t {
-	spoint_t flag;	//flag position
-	vector<spoint_t> spawn;	//team spawn points
-	unsigned int lastspawn;	//last team spawn point used
+	std::vector<spoint_t> flags;	//flag positions
+	std::vector<spoint_t> spawn;	//team spawn points
+	unsigned int lastspawn;			//last team spawn point used
 
 	teaminfo_t() : lastspawn(0) { }
 };
@@ -415,25 +417,62 @@ public:
 	void move(double fraction) { x += sx*fraction; y += sy*fraction; }
 };
 
-struct ctflag_t {
+class Flag {
+public:
+	Flag(const spoint_t& pos_);
 
-	//carried? else dropped somewhere
-	bool			carried;
+	void take(int carr);
+	void take(int carr, double time);
+	void return_to_base();
+	void drop();
+	void move(const spoint_t& new_pos) { pos = new_pos; }
 
-	//if not carried, dropped at base?
-	bool			atbase;
+	bool carried() const { return status == status_carried; }
+	bool at_base() const { return status == status_at_base; }
 
-	//who owns it if carried
-	int				carrier;
+	int carrier() const { return carrier_id; }
+	double grab_time() const { return grab_t; }
 
-	//score of the "flag" (team score)
-	int				score;
+	const spoint_t& position() const { return pos; }
+	const spoint_t& home_position() const { return home_pos; }
 
-	//0.4.7 tempo em que adversario pegou a flag do estande na base
-	double		grab_time;
+private:
+	enum Status { status_at_base, status_carried, status_dropped };
 
-	//where is it if dropped
-	spoint_t	pos;
+	Status status;
+	int carrier_id;
+	double grab_t;
+	spoint_t home_pos;
+	spoint_t pos;
+};
+
+class Team {
+public:
+	Team(): points(0) { }
+
+	void set_score(int s) { points = s; }
+	void add_score() { ++points; }
+	void clear_score() { points = 0; }
+
+	void add_flag(const spoint_t& pos);
+	void remove_flags();
+
+	void steal_flag(int n, int carrier);
+	void steal_flag(int n, int carrier, double time);
+
+	void return_all_flags();
+	void return_flag(int n);
+	void drop_flag(int n, const spoint_t& pos);
+	void move_flag(int n, const spoint_t& pos);
+
+	int score() const { return points; }
+
+	const Flag& flag(int n) const { return team_flags[n]; }
+	const std::vector<Flag>& flags() const { return team_flags; }
+
+private:
+	int points;
+	std::vector<Flag> team_flags;
 };
 
 //pickups
@@ -501,7 +540,7 @@ public:
 	Map map;
 
 	PointerContainer<PlayerBase> player[MAX_PLAYERS];
-	ctflag_t flag[2];
+	Team teams[2];
 	rocket_c rock[MAX_ROCKETS];
 	pickup_c item[MAX_PICKUPS];
 
@@ -512,9 +551,10 @@ public:
 
 	void run_server_player_physics(int pid);
 	virtual bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
-	virtual void returnFlag(int team);
-	virtual void dropFlag(int team, int roomx, int roomy, int lx, int ly);
-	virtual void stealFlag(int team, int carrier);
+	virtual void returnAllFlags();
+	virtual void returnFlag(int team, int flag);
+	virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
+	virtual void stealFlag(int team, int flag, int carrier);
 };
 
 class PowerupSettings {
@@ -576,10 +616,11 @@ public:
 	void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
 
 	// common (virtual in base) extended functions
-	bool load_map(const char *mapdir, const string& mapname) { map_start_time = frame; return WorldBase::load_map(mapdir, mapname); }
-	void returnFlag(int team);
-	void dropFlag(int team, int roomx, int roomy, int lx, int ly);
-	void stealFlag(int team, int carrier);
+	bool load_map(const char *mapdir, const string& mapname);
+	void returnAllFlags();
+	void returnFlag(int team, int flag);
+	void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
+	void stealFlag(int team, int flag, int carrier);
 	int getMapTime() const { return frame - map_start_time; }
 	bool isTimeLimit() const { return config.getTimeLimit() > 0; }
 	int getTimeLeft() const { return config.getTimeLimit() - getMapTime(); }
@@ -597,7 +638,7 @@ public:
 	void respawn_pickup(int p);
 	void check_pickup_creation(bool instant);
 	void game_touch_pickup(int p, int pk);
-	bool check_flag_touch(int px, int py, int x, int y, int t);
+	bool check_flag_touch(const Flag& flag, int px, int py, int x, int y);
 	void game_player_screen_change(int p);
 
 	bool dropFlagIfAny(int pid, bool purpose = false);

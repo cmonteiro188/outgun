@@ -132,8 +132,8 @@ void ServerNetworking::send_me_packet(int pid) {
 	writeByte(lebuf, count, data_first_packet);
 	writeByte(lebuf, count, ((NLubyte)pid) );					// who am I
 	writeByte(lebuf, count, ((NLubyte)host->current_map_nr()));	// current map
-	writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );	// team 0 current score
-	writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );	// team 1 current score
+	writeByte(lebuf, count, ((NLubyte)world.teams[0].score()));	// team 0 current score
+	writeByte(lebuf, count, ((NLubyte)world.teams[1].score()));	// team 1 current score
 	//server physics parameters
 	writeFloat(lebuf, count, ((NLfloat)svp_fric) );
 	writeFloat(lebuf, count, ((NLfloat)svp_accel) );
@@ -264,42 +264,32 @@ void ServerNetworking::broadcast_screen_sample(int p, int code) {
 
 //send current flag status (cid == -1 : broadcast)
 void ServerNetworking::ctf_net_flag_status(int cid, int team) {
-
 	//just resetting server state -- no update needed
-	if (!server) return;
+	if (!server)
+		return;
 
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_flag_update);
 
-	NLubyte te = (NLubyte)team;
-	writeByte(lebuf, count, te);	//what team
+	writeByte(lebuf, count, static_cast<NLubyte>(team));	//what team
 
-	if (world.flag[team].carried)	{ //carried?
+	// how many flags
+	writeByte(lebuf, count, static_cast<NLubyte>(world.teams[team].flags().size()));
 
-		writeByte(lebuf, count, 1);	//TRUE
-
-		//new flag carrier
-		NLubyte thecarrier = ((NLubyte)world.flag[team].carrier);
-		writeByte(lebuf, count, thecarrier);	//player who took it
-	}
-	else {
-		NLubyte	p; NLshort sh;
-
-		writeByte(lebuf, count, 0);	//FALSE
-
-		//new flag position
-		p = (NLubyte)world.flag[team].pos.px;		//px
-		writeByte(lebuf, count, p);
-
-		p = (NLubyte)world.flag[team].pos.py;		//py
-		writeByte(lebuf, count, p);
-
-		sh = (NLshort)world.flag[team].pos.x;		//x  FIXED v0.5.0
-		writeShort(lebuf, count, sh);
-
-		sh = (NLshort)world.flag[team].pos.y;		//y  FIXED v0.5.0
-		writeShort(lebuf, count, sh);
-	}
+	for (vector<Flag>::const_iterator fi = world.teams[team].flags().begin(); fi != world.teams[team].flags().end(); ++fi)
+		if (fi->carried())	{ 			//carried?
+			writeByte(lebuf, count, 1);	//TRUE
+			//new flag carrier
+			writeByte(lebuf, count, static_cast<NLubyte>(fi->carrier()));	//player who took it
+		}
+		else {
+			writeByte(lebuf, count, 0);	//FALSE
+			//new flag position
+			writeByte(lebuf, count, static_cast<NLubyte>(fi->position().px));
+			writeByte(lebuf, count, static_cast<NLubyte>(fi->position().py));
+			writeShort(lebuf, count, static_cast<NLshort>(fi->position().x));
+			writeShort(lebuf, count, static_cast<NLshort>(fi->position().y));
+		}
 
 	if (cid == -1)
 		server->broadcast_message(lebuf, count);
@@ -311,8 +301,8 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
 void ServerNetworking::ctf_update_teamscore(int t) {
 	char lebuf[64]; int count = 0;
 	writeByte(lebuf, count, data_score_update);
-	writeByte(lebuf, count, ((NLubyte)t));		// the team
-	writeByte(lebuf, count, ((NLubyte)world.flag[t].score));	//the score
+	writeByte(lebuf, count, static_cast<NLubyte>(t));		// the team
+	writeByte(lebuf, count, static_cast<NLubyte>(world.teams[t].score()));	//the score
 	server->broadcast_message(lebuf, count);
 }
 
@@ -512,9 +502,8 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 		writeByte(lebuf, count, ((NLubyte)reason));		//capture limit plaque or vote exit plaque
 		if ((reason == NEXTMAP_CAPTURE_LIMIT) || (reason == NEXTMAP_VOTE_EXIT)) {
 			//informacoes para mostrar apos o jogo (time vencedor, most valuable player, etc.)
-
-			writeByte(lebuf, count, (NLubyte)world.flag[0].score);	//RED team final score
-			writeByte(lebuf, count, (NLubyte)world.flag[1].score);	//BLUE team final score
+			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));	//RED team final score
+			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));	//BLUE team final score
 		}
 		server->send_message(world.player[pid].cid, lebuf, count);
 	}
@@ -1188,11 +1177,19 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		helmiter++;
 		if (helmiter > maxplayers - 1)
 			helmiter = 0;
-		if (world.player[helmiter].used)
+		if (world.player[helmiter].used) {
 			//fix: helm nao enxerga outros helms, a nao ser com a flag
 			//ou seja: so mostra (break) se:  NAO TEM HELM   ou   TEM FLAG
-			if (!world.player[helmiter].item_helm() || (world.flag[1 - helmiter / TSIZE].carried && world.flag[1 - helmiter / TSIZE].carrier == helmiter))
+			const Team& team = world.teams[1 - helmiter / TSIZE];
+			bool out = false;
+			for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
+				if (!world.player[helmiter].item_helm() || fi->carrier() == helmiter) {
+					out = true;
+					break;
+				}
+			if (out)
 				break;
+		}
 	} while (runaway-- > 0);
 
 	int t;
@@ -1208,31 +1205,33 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		if (i / TSIZE == 1 - t && world.player[i].used) {
 			// ---- helmview -----
 			// mostra se NAO TEM HELM ou SE TA COM FLAG
-			if (!world.player[i].item_helm() || (world.flag[1 - i / TSIZE].carried && world.flag[1 - i / TSIZE].carrier == i)) {
-				//adiciona bit
-				helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
-			}
+			const Team& team = world.teams[1 - i / TSIZE];
+			for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
+				if (!world.player[i].item_helm() || fi->carrier() == i) {
+					//adiciona bit
+					helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
+				}
 
 			// ---- tview -----
 			tview[t][i] = 0;		// default = nao visto
 
-			for (int j=0;j<maxplayers;j++)			// verifica se ele esta no campo de visao (tela) de alguem do meu time
-			if (j/TSIZE == t)
-			if (world.player[j].used)
-			{
-				if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)	{
-					//se o cara tem helm E NAO TEM FLAG, nao aparece!!
-					if (world.player[i].visibility == 0 && (world.flag[1 - i / TSIZE].carried == false || world.flag[1 - i / TSIZE].carrier != i)) {
-						//invisible
-					}
-					else {
-						//visible
-						tview[t][i % TSIZE] = 1;	//visto!
-						tview_bits[t] += static_cast<NLushort>(1 << (i % TSIZE));		//seta bit de "visto"
-						break;
+			for (int j = 0; j < maxplayers; j++)
+				if (j / TSIZE == t && world.player[j].used) {
+					if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)	{
+						//se o cara tem helm E NAO TEM FLAG, nao aparece!!
+						const Team& team = world.teams[1 - i / TSIZE];
+						for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
+							if (world.player[i].visibility == 0 && fi->carrier() != i) {
+								//invisible
+							}
+							else {
+								//visible
+								tview[t][i % TSIZE] = 1;	//visto!
+								tview_bits[t] += static_cast<NLushort>(1 << (i % TSIZE));		//seta bit de "visto"
+								break;
+							}
 					}
 				}
-			}
 		}
 
 		//avanca tviter do time p/ escolher alguem
@@ -1318,80 +1317,81 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			int p_on_count = lecount;
 			writeLong(lebuf, lecount, 0);
 
-			for (int j=0;j<maxplayers;j++)
-			if ((players_present & (1 << j)) != 0)		//player j exists
-			// j is on same screen than i (the viewer)
-			// AND
-			//   ((j helm != 1)  ||  (j/TSIZE == i/TSIZE))  // nao-totalmente invisivel OU e do mesmo time OU j com flag
-			if (
-					(world.player[j].roomx == world.player[i].roomx)
-					&&
-					(world.player[j].roomy == world.player[i].roomy)
-					&&
-					(world.player[j].visibility > 0 || i/TSIZE == j/TSIZE ||
-							(world.flag[1-j/TSIZE].carried && world.flag[1-j/TSIZE].carrier == j)) ) {
-				//add to players_onscreen
-				players_onscreen += (1 << j);
-
-				const ServerPlayer& h = world.player[j];
-
-//					NLshort sho;
-
-				//V0.3.9: took out screen from here
-
-				//V0.3.9 : transmissao x,y de 4 bytes para 3
-				NLubyte xy;
-				NLushort hx,hy;
-				hx = (NLushort)h.lx;
-				hy = (NLushort)h.ly;
-
-				xy = (NLubyte) (hx & 255);
-				writeByte(lebuf, lecount, xy);		//first 8 bits x
-				xy = (NLubyte) (hy & 255);
-				writeByte(lebuf, lecount, xy);		//first 8 bits y
-				//256+512+1024+2048 = 3840    last 4 bits mask
-				xy = (NLubyte) ( ((hx & 0xF00) >> 8) + ((hy & 0xF00) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
-				writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
-
-				//sho = ((NLshort)h.x);
-				//writeShort(lebuf, lecount, sho);	//x
-				//sho = ((NLshort)h.y);
-				//writeShort(lebuf, lecount, sho);	//y
-
-				//speed em bytes - xinelao mesmo
-				NLbyte sxy;
-				sxy = ((NLbyte)(h.sx * 2));
-				writeByte(lebuf, lecount, sxy);
-				sxy = ((NLbyte)(h.sy * 2));
-				writeByte(lebuf, lecount, sxy);
-
-				//sho = ((NLshort)(h.sx * 100));
-				//writeShort(lebuf, lecount, sho );	//sx  30.283482345634... = 30283 = 30.283(depois)
-				//sho = ((NLshort)(h.sy * 100));
-				//writeShort(lebuf, lecount, sho );	//sy
-
-				// EXTRA BYTE (ex- zframe)  bit 0 : player dead  bit 1 : has deathbringer  bit 2 : deathbringer-affected
-				NLubyte extra = 0;
-				if (world.player[j].health <= 0) extra += 1; //deadflag
-				if (world.player[j].item_deathbringer) extra += 2; //has deathbringer
-				if (world.player[j].deathbringer_end > get_time()) extra += 4;		//deathbringer-affected
-				// ITEMS: moved to this byte
-				if (world.player[j].item_shield)		extra += 8;
-				if (world.player[j].item_speed)			extra += 16;
-				if (world.player[j].item_quad)			extra += 32;
-
-				//write extra byte
-				writeByte(lebuf, lecount, extra);
-
-				NLubyte ccb;
-				if (world.player[j].health > 0)	// if dead player, don't send keys
-					ccb = world.player[j].controls.toNetwork(true);
+			for (int j = 0; j < maxplayers; j++) {
+				bool visible = false;
+				// player j exists
+				if ((players_present & (1 << j)) != 0 &&
+					world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
+					(world.player[j].visibility > 0 || i / TSIZE == j / TSIZE))
+						visible = true;
 				else
-					ccb = 0;
-				ccb |= h.gundir << 5;
-				writeByte(lebuf, lecount, ccb);
+					for (vector<Flag>::const_iterator fi = world.teams[1 - j / TSIZE].flags().begin(); fi != world.teams[1 - j / TSIZE].flags().end(); ++fi)
+						if (fi->carrier() == j)
+							visible = true;
+				if (visible) {
+					//add to players_onscreen
+					players_onscreen += (1 << j);
 
-				writeByte(lebuf, lecount, (NLubyte)world.player[j].visibility);
+					const ServerPlayer& h = world.player[j];
+
+	//					NLshort sho;
+
+					//V0.3.9: took out screen from here
+
+					//V0.3.9 : transmissao x,y de 4 bytes para 3
+					NLubyte xy;
+					NLushort hx,hy;
+					hx = (NLushort)h.lx;
+					hy = (NLushort)h.ly;
+
+					xy = (NLubyte) (hx & 255);
+					writeByte(lebuf, lecount, xy);		//first 8 bits x
+					xy = (NLubyte) (hy & 255);
+					writeByte(lebuf, lecount, xy);		//first 8 bits y
+					//256+512+1024+2048 = 3840    last 4 bits mask
+					xy = (NLubyte) ( ((hx & 0xF00) >> 8) + ((hy & 0xF00) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
+					writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
+
+					//sho = ((NLshort)h.x);
+					//writeShort(lebuf, lecount, sho);	//x
+					//sho = ((NLshort)h.y);
+					//writeShort(lebuf, lecount, sho);	//y
+
+					//speed em bytes - xinelao mesmo
+					NLbyte sxy;
+					sxy = ((NLbyte)(h.sx * 2));
+					writeByte(lebuf, lecount, sxy);
+					sxy = ((NLbyte)(h.sy * 2));
+					writeByte(lebuf, lecount, sxy);
+
+					//sho = ((NLshort)(h.sx * 100));
+					//writeShort(lebuf, lecount, sho );	//sx  30.283482345634... = 30283 = 30.283(depois)
+					//sho = ((NLshort)(h.sy * 100));
+					//writeShort(lebuf, lecount, sho );	//sy
+
+					// EXTRA BYTE (ex- zframe)  bit 0 : player dead  bit 1 : has deathbringer  bit 2 : deathbringer-affected
+					NLubyte extra = 0;
+					if (world.player[j].health <= 0) extra += 1; //deadflag
+					if (world.player[j].item_deathbringer) extra += 2; //has deathbringer
+					if (world.player[j].deathbringer_end > get_time()) extra += 4;		//deathbringer-affected
+					// ITEMS: moved to this byte
+					if (world.player[j].item_shield)		extra += 8;
+					if (world.player[j].item_speed)			extra += 16;
+					if (world.player[j].item_quad)			extra += 32;
+
+					//write extra byte
+					writeByte(lebuf, lecount, extra);
+
+					NLubyte ccb;
+					if (world.player[j].health > 0)	// if dead player, don't send keys
+						ccb = world.player[j].controls.toNetwork(true);
+					else
+						ccb = 0;
+					ccb |= h.gundir << 5;
+					writeByte(lebuf, lecount, ccb);
+
+					writeByte(lebuf, lecount, (NLubyte)world.player[j].visibility);
+				}
 			}
 
 			//update players_onscreen (it's before the players on screen data (above))
@@ -2240,18 +2240,21 @@ void ServerNetworking::run_website_thread() {
 	// load web script location
 	ifstream in(web_settings.c_str());
 	if (!in) {
-		LOG1("Can not open %s.\n", web_settings.c_str());
+		LOG1("Website thread: Can not open %s. Quit.\n", web_settings.c_str());
+		website_exiting_ok = true;
 		return;
 	}
 	string site_name, site_ip, site_script, site_auth;
 	if (!getline(in, site_name) || !getline(in, site_ip) || !getline(in, site_script)) {
-		LOG1("No valid format in %s.\n", web_settings.c_str());
+		LOG1("Website thread: No valid format in %s. Quit.\n", web_settings.c_str());
+		website_exiting_ok = true;
 		return;
 	}
 	getline(in, site_auth);
 	in.close();
 	if (site_script.empty() || (site_name.empty() && site_ip.empty())) {
-		LOG1("No script or site location in %s.\n", web_settings.c_str());
+		LOG1("Website thread: No script or site location in %s. Quit.\n", web_settings.c_str());
+		website_exiting_ok = true;
 		return;
 	}
 
@@ -2262,17 +2265,17 @@ void ServerNetworking::run_website_thread() {
 	do {
 		if (get_time() > website_talk_time) {
 			website_talk_time = get_time() + 2 * 60.0;		// 2 minutes
-			LOG("Start sending information to server website.\n");
+			LOG("Website thread: Start sending information to server website.\n");
 			nlEnable(NL_BLOCKING_IO);
 			websock = nlOpen(0, NL_RELIABLE);
 			nlDisable(NL_BLOCKING_IO);
 			if (websock == NL_INVALID) {
-				LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO SERVER WEBSITE!\n");
+				LOG("Website thread: Server can't open socket to connect to server website!\n");
 				continue;
 			}
 			if (!nlGetAddrFromName(site_name.c_str(), &website_address)) {
 				const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
-				LOG2("Can't get IP address for %s! Reason: %s\n", site_name.c_str(), reason);
+				LOG2("Website thread: Can't get IP address for %s! Reason: %s\n", site_name.c_str(), reason);
 			}
 			int web_port = nlGetPortFromAddr(&website_address);
 			if (!web_port) {
@@ -2281,7 +2284,7 @@ void ServerNetworking::run_website_thread() {
 			}
 			if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
 				const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
-				LOG3("SERVER CAN'T CONNECT TO %s:%d! Reason: %s\n", site_name.c_str(), web_port, reason);
+				LOG3("Website thread: Server can't connect to %s:%d! Reason: %s\n", site_name.c_str(), web_port, reason);
 				nlStringToAddr(site_ip.c_str(), &website_address);
 				web_port = nlGetPortFromAddr(&website_address);
 				if (!web_port) {
@@ -2290,7 +2293,7 @@ void ServerNetworking::run_website_thread() {
 				}
 				if (nlConnect(websock, &website_address) == NL_FALSE) {	// connect to IP address
 					const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
-					LOG2("Server can't connect to %s! Reason: %s\n", site_ip.c_str(), reason);
+					LOG2("Website thread: Server can't connect to %s! Reason: %s\n", site_ip.c_str(), reason);
 					nlClose(websock);
 					websock = NL_INVALID;
 					continue;
@@ -2302,7 +2305,7 @@ void ServerNetworking::run_website_thread() {
 						ofstream out(web_settings.c_str());
 						out << new_name << '\n' << site_ip << '\n' << site_script << '\n' << site_auth << '\n';
 						out.close();
-						LOG2("Saved new name (%s) for IP address %s.\n", new_name, site_ip.c_str());
+						LOG2("Website thread: Saved new name (%s) for IP address %s.\n", new_name, site_ip.c_str());
 					}
 				}
 			}
@@ -2313,7 +2316,7 @@ void ServerNetworking::run_website_thread() {
 					ofstream out(web_settings.c_str());
 					out << site_name << '\n' << new_address << '\n' << site_script << '\n' << site_auth << '\n';
 					out.close();
-					LOG2("Saved new IP address (%s) for %s.\n", new_address, site_name.c_str());
+					LOG2("Website thread: Saved new IP address (%s) for %s.\n", new_address, site_name.c_str());
 				}
 			}
 
@@ -2325,9 +2328,9 @@ void ServerNetworking::run_website_thread() {
 			}
 			const string data = build_http_data(parameters);
 			NLint result = post_http_data(site_script, data, site_auth);
-			LOG("Sent information to server website:\n");
-			LOG1("%s", data.c_str());
-			LOG1("Result: %i\n", result);
+			LOG("Website thread: Sent information to server website:\n");
+			LOG1("\t%s", data.c_str());
+			LOG1("\tResult: %i\n", result);
 			if (result == -1)
 				website_talk_time = get_time() + 15.0;		// 15 seconds
 
@@ -2362,14 +2365,14 @@ void ServerNetworking::run_website_thread() {
 	nlDisable(NL_BLOCKING_IO);
 
 	if (websock == NL_INVALID) {
-		LOG("(QUIT) SERVER CAN'T OPEN SOCKET TO CONNECT TO SERVER WEBSITE!\n");
+		LOG("Website thread: (Quite) Server can't open socket to connect to server website!\n");
 		website_exiting_ok = true;
 		return;
 	}
 
 	//connect
 	if (nlConnect(websock, &website_address) == NL_FALSE) {		//connect
-		LOG1("(QUIT) SERVER CAN'T CONNECT TO %s!\n", site_name.c_str());
+		LOG1("Website thread: (Quit) Server can't connect to %s!\n", site_name.c_str());
 		nlClose(websock);
 		websock = NL_INVALID;
 		website_exiting_ok = true;
@@ -2379,9 +2382,9 @@ void ServerNetworking::run_website_thread() {
 	// send quit message
 	const string quit = "quit=1\r\n";
 	NLint result = post_http_data(site_script, quit, site_auth);
-	LOG("Sent information to server website:\n");
-	LOG1("%s", quit.c_str());
-	LOG1("Result: %i\n", result);
+	LOG("Website thread: Sent information to server website:\n");
+	LOG1("\t%s", quit.c_str());
+	LOG1("\tResult: %i\n", result);
 
 	// save response to a file
 	ofstream out("web.log");
@@ -2879,7 +2882,7 @@ void ServerNetworking::stop() {
 	//thread for website interface
 	for (int waitcount = 0; !website_exiting_ok; waitcount++) {
 		if (waitcount > 30) {		// 30 * 100ms = 3 seconds
-			LOG("TIRED OF WAITING...\n");
+			LOG("Tired of waiting for website thread...\n");
 			//kill the socket
 			server_status_string("Shutdown: Website Socket");
 			nlClose(websock);		//close AGAIN (it's a different one)

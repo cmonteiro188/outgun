@@ -77,7 +77,7 @@ void gameserver_c::ctf_game_restart() {
 			network.client_report_status(world.player[i].cid);
 
 	char lix[256];
-	sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
+	sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.teams[0].score(), world.teams[1].score());
 	network.broadcast_message(lix);
 
 	if (worldConfig.getTimeLimit() == 0)

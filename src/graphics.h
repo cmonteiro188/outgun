@@ -52,24 +52,17 @@ public:
 	void reset_playground_colors();
 	void random_playground_colors();
 
-	void load_floor_texture(const std::string& filename);
-	void load_wall_texture(const std::string& filename);
-
 	void draw_playground();
 
 	void draw_background();
 	void draw_empty_background();
 
-	void predraw_room(const Room& room);
-
-	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
-	void draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, bool texture);
-	void draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, bool texture);
-	void draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, bool texture);
+	void predraw_room_ground(const Room& room);
+	void predraw_room_walls(const Room& room);
 
 	void draw_flag(int team, int x, int y);
 	void draw_flagpos_mark(int team, int flag_x, int flag_y);
-	void draw_mini_flag(int team, const ctflag_t& flag, const Map& map);
+	void draw_mini_flag(int team, const Flag& flag, const Map& map);
 	void draw_minimap_background();
 	void update_minimap_background(const Map& map);
 	void draw_minimap_player(const Map& map, const ClientPlayer& player, int team, int pc);
@@ -166,7 +159,15 @@ public:
 
 private:
 	void build_flagpos_marks();
-	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
+	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
+
+	// texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
+	void draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, BITMAP* texture);
+	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, BITMAP* texture);
+
+	void draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
+	void draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
+	void draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
 
 	std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
@@ -182,6 +183,11 @@ private:
 	void load_theme(const std::string& dirname = "");
 	void load_pictures();
 	void unload_pictures();
+
+	void load_floor_texture(const std::string& filename);
+	void load_wall_texture(const std::string& filename);
+	void load_player_sprite(const std::string& filename_team, const std::string& filename_personal);
+	void unload_player_sprites();
 
 	BITMAP* drawbuf;	// main draw buffer
 	BITMAP* background;	// draw buffer for floor, walls and minimap
@@ -200,6 +206,7 @@ private:
 
 	BITMAP* floor_texture;
 	BITMAP* wall_texture;
+	vector<BITMAP*> player_sprite[2];
 
 	// drawing screens
 	BITMAP* vidpage1;

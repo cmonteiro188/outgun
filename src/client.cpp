@@ -483,9 +483,9 @@ void gameclient_c::client_password_thread(void *) {
 
 			//OK?
 			if (ok) {
-				namestatus = "LOGGED (";
+				namestatus = "LOGGED [";
 				namestatus += player_token;
-				namestatus += ")";
+				namestatus += "]";
 				namestatus_code = 1;
 
 				//OK!
@@ -691,6 +691,7 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 				//load ok!  (FIXME: tell server)
 				//
 				client_graphics.update_minimap_background(fx.map);	// recalc minimap
+				predraw();
 				map_ready = true;								// map ready to show
 				send_client_ready();				//send "client ready" to server
 			}
@@ -733,6 +734,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 		//load ok!  (FIXME: tell server)
 		//
 		client_graphics.update_minimap_background(fx.map);  // recalc minimap
+		predraw();
 		map_ready = true;  // map ready to show
 		send_client_ready();				//send "client ready" to server
 	}
@@ -1646,9 +1648,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				want_change_teams = false;
 
 				readByte(msg, count, abyte);	//team 0 score
-				fx.flag[0].score = abyte;
+				fx.teams[0].set_score(abyte);
 				readByte(msg, count, abyte);	//team 1 score
-				fx.flag[1].score = abyte;
+				fx.teams[1].set_score(abyte);
 
 				//server physics parameters
 				readFloat(msg, count, aflo);
@@ -1697,30 +1699,36 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//CTF flag update
-			case data_flag_update:
-				readByte(msg, count, team);	// team of the flag
-				readByte(msg, count, carried); // 0==not carried 1==carried
-				if (carried == 0) {
-					fx.flag[team].carried = false;
-					//not carried: update position
-					readByte(msg, count, abyte);		//px
-					fx.flag[team].pos.px = abyte;
-					readByte(msg, count, abyte);		//py
-					fx.flag[team].pos.py = abyte;
-					readShort(msg, count, ashort);	//x
-					fx.flag[team].pos.x = ashort;
-					readShort(msg, count, ashort);	//y
-					fx.flag[team].pos.y = ashort;
-				}
-				else {
-					fx.flag[team].carried = true;
-					//carried: get carrier
-					readByte(msg, count, abyte);	//carrier
-					fx.flag[team].carrier = abyte;
-
-					client_sounds.play(SAMPLE_CTF_GOT);
+			case data_flag_update: {
+				NLbyte flags;
+				readByte(msg, count, team);		// team of the flag
+				readByte(msg, count, flags);	// how many flags
+				LOG1("Flag message, %d flags.\n", flags);
+				for (int i = 0; i < flags; i++) {
+					if (i >= static_cast<int>(fx.teams[team].flags().size()))
+						fx.teams[team].add_flag(spoint_t());
+					readByte(msg, count, carried);	// 0==not carried 1==carried
+					if (carried == 0) {
+						//not carried: update position
+						readByte(msg, count, abyte);		//px
+						const int px = abyte;
+						readByte(msg, count, abyte);		//py
+						const int py = abyte;
+						readShort(msg, count, ashort);		//x
+						const int x = ashort;
+						readShort(msg, count, ashort);		//y
+						const int y = ashort;
+						fx.teams[team].drop_flag(i, spoint_t(px, py, x, y));
+					}
+					else {
+						//carried: get carrier
+						readByte(msg, count, abyte);	//carrier
+						fx.teams[team].steal_flag(i, abyte);
+						client_sounds.play(SAMPLE_CTF_GOT);
+					}
 				}
 				break;
+			}
 
 			//rocket fire notification
 			case data_rocket_fire: {
@@ -1776,7 +1784,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			case data_score_update:
 				readByte(lebuf, count, abyte);		//team
 				readByte(lebuf, count, rockid);		//new score
-				fx.flag[abyte].score = rockid;	// update the score
+				fx.teams[abyte].set_score(rockid);	// update the score
 				break;
 
 			//sound event
@@ -1833,6 +1841,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			case data_map_change:
 				map_ready = false;	// map NOT ready anymore: must load/change
 				want_map_exit = false;		// and player does not want to exit the map anymore
+				fx.teams[0].remove_flags();
+				fx.teams[1].remove_flags();
 				readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
 				if (abyte == 2) {
 					readShort(lebuf, count, usho);				//read CRC16 of map
@@ -1998,8 +2008,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	//
 
 	//detect screen changes / clear powerup fx's
-	if (me >= 0)
-	if ((fx.player[me].roomx != fx.player[me].oldx) || (fx.player[me].roomy != fx.player[me].oldy)) {
+	if (me >= 0 && (fx.player[me].roomx != fx.player[me].oldx) || (fx.player[me].roomy != fx.player[me].oldy)) {
 		//screen changed.
 
 		//V0.4.7: now, why would I want to do that??
@@ -2488,9 +2497,9 @@ void gameclient_c::loop() {
 					//toggle help
 					if (sc == KEY_F1)
 						toggle_help();
-					else if (sc == KEY_F2)
+					else if (menu != menu_name_password && sc == KEY_F2)
 						menu = (menu == menu_maps ? menu_none : menu_maps);
-					else if (sc == KEY_TAB)
+					else if (menu != menu_name_password && sc == KEY_TAB)
 						menu = (menu == menu_players ? menu_none : menu_players);
 
 					//test key
@@ -3147,14 +3156,19 @@ bool gameclient_c::shouldApplyPhysicsToPlayerCallback(int pid) {
 
 void gameclient_c::predraw() {
 	client_graphics.draw_playground();
-	// draw flag position mark
-	for (int team = 0; team < 2; team++)
-		if (fx.player[me].roomx == fx.map.tinfo[team].flag.px && fx.player[me].roomy == fx.map.tinfo[team].flag.py)
-			client_graphics.draw_flagpos_mark(team, fx.map.tinfo[team].flag.x, fx.map.tinfo[team].flag.y);
 	// draw walls
 	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
 		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.h)
-			client_graphics.predraw_room(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+			client_graphics.predraw_room_ground(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+	// draw flag position mark
+	for (int team = 0; team < 2; team++)
+		for (vector<spoint_t>::const_iterator pi = fx.map.tinfo[team].flags.begin(); pi != fx.map.tinfo[team].flags.end(); ++pi)
+			if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
+				client_graphics.draw_flagpos_mark(team, pi->x, pi->y);
+	// draw walls
+	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
+		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.h)
+			client_graphics.predraw_room_walls(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
 	client_graphics.draw_minimap_background();
 }
 
@@ -3223,9 +3237,10 @@ void gameclient_c::draw_game_frame() {
 		// draw any dropped flags (use fx since flags don't move)
 		//
 		for (int t = 0; t < 2; t++)
-			// not carried, on same screen
-			if (!fx.flag[t].carried && fx.flag[t].pos.px == fx.player[me].roomx && fx.flag[t].pos.py == fx.player[me].roomy)
-				client_graphics.draw_flag(t, fx.flag[t].pos.x, fx.flag[t].pos.y);
+			for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+				// not carried, on same screen
+				if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy)
+					client_graphics.draw_flag(t, fi->position().x, fi->position().y);
 
 		// FIXME: y-ordering of draw not maintained
 		// draw any rockets
@@ -3289,8 +3304,9 @@ void gameclient_c::draw_game_frame() {
 				client_graphics.draw_player_shadow(fx.player[i], alpha);	//#fix? fx -> fd to make shadow not jump
 				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
 				for (int t = 0; t < 2; t++)
-					if (fx.flag[t].carried && fx.flag[t].carrier == i)
-						client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
+					for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+						if (fi->carrier() == i)
+							client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
 				if (fx.player[i].dead) {
 					if ((fx.player[i].frags >= 10) && (fx.player[i].frags % 10 == 0))
 						client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);
@@ -3356,9 +3372,10 @@ void gameclient_c::draw_game_frame() {
 
 		//draw the miniflags
 		// - qualquer flag no chao (na base ou nao, carried == false)
-		for (int f = 0; f < 2; f++)
-			if (!fx.flag[f].carried)
-				client_graphics.draw_mini_flag(f, fx.flag[f], fx.map);
+		for (int t = 0; t < 2; t++)
+			for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+				if (!fi->carried())
+					client_graphics.draw_mini_flag(t, *fi, fx.map);
 
 		vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm()) ? true : false);
 
@@ -3378,17 +3395,17 @@ void gameclient_c::draw_game_frame() {
 					int piy = int(mmy + 1 + py * (client_graphics.minimap_height() - 2));*/
 
 					//verifica se o jogador a ser desenhado é um carrier de flag inimiga
-					int enemyteam = 1-i/TSIZE;
-					if (fx.flag[enemyteam].carried && fx.flag[enemyteam].carrier == i) {
-						// update flag position for draw
-						fx.flag[enemyteam].pos.px = fx.player[i].roomx;
-						fx.flag[enemyteam].pos.py = fx.player[i].roomy;
-						fx.flag[enemyteam].pos.x = (int)fx.player[i].lx;
-						fx.flag[enemyteam].pos.y = (int)fx.player[i].ly;
+					const int enemy = 1 - i / TSIZE;
+					int f = 0;
+					for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
+						if (fi->carrier() == i) {
+							// update flag position for draw
+							fx.teams[enemy].move_flag(f, spoint_t(fx.player[i].roomx, fx.player[i].roomy,
+								static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
 
-						// draw the miniflag here
-						client_graphics.draw_mini_flag(enemyteam, fx.flag[enemyteam], fx.map);
-					}
+							// draw the miniflag here
+							client_graphics.draw_mini_flag(enemy, *fi, fx.map);
+						}
 
 					if (i != me)
 						client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, i % TSIZE);
@@ -3414,10 +3431,10 @@ void gameclient_c::draw_game_frame() {
 	}
 	else {
 		ostringstream red;
-		red << "Red Team:    " << setw(2) << fx.flag[0].score << " capt";
+		red << "Red Team:    " << setw(2) << fx.teams[0].score() << " capt";
 		client_graphics.draw_scoreboard_caption(0, red.str());
 		ostringstream blue;
-		blue << "Blue Team:   " << setw(2) << fx.flag[1].score << " capt";
+		blue << "Blue Team:   " << setw(2) << fx.teams[1].score() << " capt";
 		client_graphics.draw_scoreboard_caption(1, blue.str());
 	}
 	/*vector<ClientPlayer> plrs(fx.player, fx.player + MAX_PLAYERS);

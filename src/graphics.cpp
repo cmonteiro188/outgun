@@ -72,6 +72,8 @@ Graphics::Graphics(int scr_w, int scr_h):
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
 	setcolors();
 	reset_playground_colors();
+	for (int t = 0; t < 2; t++)
+		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
 }
 
 Graphics::~Graphics() {
@@ -80,10 +82,7 @@ Graphics::~Graphics() {
 	destroy_bitmap(minibg);
 	destroy_bitmap(flagpos_buf[0]);
 	destroy_bitmap(flagpos_buf[1]);
-	if (wall_texture)
-		destroy_bitmap(wall_texture);
-	if (floor_texture)
-		destroy_bitmap(floor_texture);
+	unload_pictures();
 }
 
 void Graphics::draw_screen() const {
@@ -158,18 +157,6 @@ void Graphics::random_playground_colors() {
 	col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	flagpos_ready = false;
-}
-
-void Graphics::load_floor_texture(const string& filename) {
-	if (floor_texture)
-		destroy_bitmap(floor_texture);
-	floor_texture = load_bitmap(filename.c_str(), NULL);
-}
-
-void Graphics::load_wall_texture(const string& filename) {
-	if (wall_texture)
-		destroy_bitmap(wall_texture);
-	wall_texture = load_bitmap(filename.c_str(), NULL);
 }
 
 void Graphics::clear() {
@@ -335,11 +322,24 @@ void Graphics::draw_background() {
 	blit(background, drawbuf, 0, 0, 0, 0, background->w, background->h);
 }
 
-void Graphics::predraw_room(const Room& room) {
+void Graphics::predraw_room_ground(const Room& room) {
+	draw_room_ground(roombg, room, 0, 0, 1., col[COLWALL], wall_texture);
+}
+
+void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, BITMAP* texture) {
+	for (vector<RectWall>::const_iterator rwi = room.rground.begin(); rwi != room.rground.end(); ++rwi)
+		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture);
+	for (vector<TriWall>::const_iterator twi = room.tground.begin(); twi != room.tground.end(); ++twi)
+		draw_tri_wall(buffer, *twi, x, y, scale, color, texture);
+	for (vector<CircWall>::const_iterator cwi = room.cground.begin(); cwi != room.cground.end(); ++cwi)
+		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture);
+}
+
+void Graphics::predraw_room_walls(const Room& room) {
 	draw_room_walls(roombg, room, 0, 0, 1., col[COLWALL], wall_texture);
 }
 
-void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
+void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, BITMAP* texture) {
 	for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
 		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture);
 	for (vector<TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
@@ -348,18 +348,18 @@ void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float 
 		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture);
 }
 
-void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, bool texture) {
+void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, 0, 0);
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 	rectfill(buffer, int(x0 + scale * wall.x1()), int(y0 + scale * wall.y1()),
 					 int(x0 + scale * wall.x2()), int(y0 + scale * wall.y2()), color);
 	if (texture)
 		solid_mode();
 }
 
-void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, bool texture) {
+void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, 0, 0);
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 	triangle(buffer,
 		int(x0 + scale * wall.x1()), int(y0 + scale * wall.y1()),
 		int(x0 + scale * wall.x2()), int(y0 + scale * wall.y2()),
@@ -368,7 +368,7 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, floa
 		solid_mode();
 }
 
-void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, bool texture) {
+void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
 	const int x = wall.X();
 	const int y = wall.Y();
 	const int ro = wall.radius();
@@ -376,7 +376,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 	const float* const angle = wall.angles();
 	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
 		if (texture)
-			drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, 0, 0);
+			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 		circlefill(buffer, int(x0 + scale * x), int(y0 + scale * y), int(scale * ro), color);
 		if (texture)
 			solid_mode();
@@ -387,7 +387,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, int(scale * (ro - x)), int(scale * (ro - y)));
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, int(scale * (ro - x)), int(scale * (ro - y)));
 	circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ro), color);
 	if (texture)
 		solid_mode();
@@ -455,7 +455,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		}
 		// draw back removed lines at n·90°
 		if (texture)
-			drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, int(scale * (ro - x)), int(scale * (ro - y)));
+			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, int(scale * (ro - x)), int(scale * (ro - y)));
 		for (int i = 0; i < 2; i++) {
 			if (angle[i] == 0)
 				vline(cbuff, int(scale * ro), int(scale * (ro - ri)), 0, color);
@@ -500,9 +500,9 @@ void Graphics::draw_flag(int team, int x, int y) {
 
 // Minimap functions
 
-void Graphics::draw_mini_flag(int team, const ctflag_t& flag, const Map& map) {
-	const double px = ((double)flag.pos.px * (double)plw + flag.pos.x) / ((double)plw * map.w);
-	const double py = ((double)flag.pos.py * (double)plh + flag.pos.y) / ((double)plh * map.h);
+void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
+	const double px = ((double)flag.position().px * (double)plw + flag.position().x) / ((double)plw * map.w);
+	const double py = ((double)flag.position().py * (double)plh + flag.position().y) / ((double)plh * map.h);
 	const int pix = int(mmx + minimap_start_x + 1 + px * (minimap_w - 2));
 	const int piy = int(mmy + minimap_start_y + 1 + py * (minimap_h - 2));
 	//draw flagpole
@@ -555,10 +555,10 @@ void Graphics::draw_minimap_background() {
 }
 
 void Graphics::update_minimap_background(const Map& map) {
-	update_minimap_background(minibg, map, false);
+	update_minimap_background(minibg, map);
 }
 
-void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic) {
+void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) {
 	//black background
 	clear_to_color(buffer, col[COLSHADOW]);
 
@@ -586,36 +586,6 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
 
-	//draw bases
-	if (flagPaintSimple) {
-		int  red_rx = map.tinfo[0].flag.px,  red_ry = map.tinfo[0].flag.py;
-		int blue_rx = map.tinfo[1].flag.px, blue_ry = map.tinfo[1].flag.py;
-		if (red_rx == blue_rx && red_ry == blue_ry) {
-			// for lack of mathematical enthusiasm, the half-way line is not calculated analytically; instead, determine each pixel individually (slow)
-			// this is OK since this function is called once per map instead of every frame
-			int xmin = int(minimap_start_x + 2 + room_w * red_rx), xmax = int(minimap_start_x + room_w * (red_rx + 1));
-			int ymin = int(minimap_start_y + 2 + room_h * red_ry), ymax = int(minimap_start_y + room_h * (red_ry + 1));
-			for (int y = ymin; y <= ymax; ++y) {
-				float roomy = float(y + 1 - ymin) / float(room_h) * plh;
-				float ydist_r2 = pow(map.tinfo[0].flag.y - roomy, 2);
-				float ydist_b2 = pow(map.tinfo[1].flag.y - roomy, 2);
-				for (int x = xmin; x <= xmax; ++x) {
-					float roomx = float(x + 1 - xmin) / float(room_w) * plw;
-					float xdist_r2 = pow(map.tinfo[0].flag.x - roomx, 2);
-					float xdist_b2 = pow(map.tinfo[1].flag.x - roomx, 2);
-					int color = (xdist_r2 + ydist_r2 < xdist_b2 + ydist_b2) ? teamdcol[0] : teamdcol[1];
-					putpixel(buffer, x, y, color);
-				}
-			}
-		}
-		else {
-			rectfill(buffer, int(minimap_start_x + 2 + room_w * red_rx),  int(minimap_start_y + 2 + room_h * red_ry),
-					 int(minimap_start_x + room_w * (red_rx + 1)),  int(minimap_start_y + room_h * (red_ry + 1)),  teamdcol[0]);
-			rectfill(buffer, int(minimap_start_x + 2 + room_w * blue_rx), int(minimap_start_y + 2 + room_h * blue_ry),
-					 int(minimap_start_x + room_w * (blue_rx + 1)), int(minimap_start_y + room_h * (blue_ry + 1)), teamdcol[1]);
-		}
-	}
-
 	//draw solid walls
 	float xmul = float(minimap_w - 2) / maxx, ymul = float(minimap_h - 2) / maxy;
 	for (int y = 0; y < map.h; y++) {
@@ -631,35 +601,107 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	//green border
 	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);
 
-	int  red_px = int(minimap_start_x + 1 + (map.tinfo[0].flag.px * plw + map.tinfo[0].flag.x) / maxx * (minimap_w - 2));
-	int  red_py = int(minimap_start_y + 1 + (map.tinfo[0].flag.py * plh + map.tinfo[0].flag.y) / maxy * (minimap_h - 2));
-	int blue_px = int(minimap_start_x + 1 + (map.tinfo[1].flag.px * plw + map.tinfo[1].flag.x) / maxx * (minimap_w - 2));
-	int blue_py = int(minimap_start_y + 1 + (map.tinfo[1].flag.py * plh + map.tinfo[1].flag.y) / maxy * (minimap_h - 2));
-	if (!flagPaintSimple) {
-		if (getpixel(buffer, red_px, red_py) != 0) {	// is painted with any color
-			update_minimap_background(buffer, map, true);	// restart with basic painting
-			return;
-		}
-		floodfill(buffer, red_px, red_py, teamdcol[0]);
+	// draw bases
+	BITMAP* backup = create_bitmap(minimap_place_w, minimap_place_w);
 
-		if (getpixel(buffer, blue_px, blue_py) != 0) {	// is painted with any color (including by previous red floodfill)
-			update_minimap_background(buffer, map, true);	// restart with basic painting
-			return;
+	for (int ry = 0; ry < map.h; ++ry)
+		for (int rx = 0; rx < map.w; ++rx) {
+			// save map
+			blit(buffer, backup, 0, 0, 0, 0, minibg->w, minibg->h);
+			bool flag[] = { false, false };
+			for (int t = 0; t < 2; ++t)
+				for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi)
+					if (fi->px == rx && fi->py == ry) {
+						flag[t] = true;
+						break;
+					}
+			vector<spoint_t> failure[2];
+			if (flag[0] ^ flag[1]) {		// only one team's flags in the room
+				const int t = flag[0] ? 0 : 1;
+				for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
+					if (fi->px != rx || fi->py != ry)
+						continue;
+					int px = int(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
+					int py = int(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
+					const int c = getpixel(buffer, px, py);
+					if (c == 0)
+						floodfill(buffer, px, py, teamdcol[t]);
+					else if (c != teamdcol[t])
+						failure[t].push_back(*fi);
+				}
+			}
+			else if (flag[0] && flag[1]) {	// both team's flags in the room
+				for (int t = 0; t < 2; ++t)
+					for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
+						if (fi->px != rx || fi->py != ry)
+							continue;
+						int px = int(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
+						int py = int(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
+						const int c = getpixel(buffer, px, py);
+						bool successful = true;
+						if (c == 0)
+							floodfill(buffer, px, py, teamdcol[t]);
+						else if (c != teamdcol[t]) {
+							failure[t].push_back(*fi);
+							successful = false;
+						}
+						for (vector<spoint_t>::const_iterator fj = map.tinfo[1 - t].flags.begin(); successful && fj != map.tinfo[1 - t].flags.end(); ++fj) {
+							if (fj->px != rx || fj->py != ry)
+								continue;
+							int px = int(minimap_start_x + 1 + (fj->px * plw + fj->x) / maxx * (minimap_w - 2));
+							int py = int(minimap_start_y + 1 + (fj->py * plh + fj->y) / maxy * (minimap_h - 2));
+							const int c = getpixel(buffer, px, py);
+							if (c == teamdcol[t]) {
+								failure[t].push_back(*fi);
+								//failure[1 - t].push_back(*fj);
+								successful = false;
+								// restore map
+								blit(backup, buffer, 0, 0, 0, 0, minibg->w, minibg->h);
+								break;
+							}
+						}
+						if (successful)	// save map
+							blit(buffer, backup, 0, 0, 0, 0, minibg->w, minibg->h);
+					}
+			}
+			if (failure[0].empty() && failure[1].empty())
+				continue;
+			const int xmin = int(minimap_start_x + 2 + room_w * rx), xmax = int(minimap_start_x + room_w * (rx + 1));
+			const int ymin = int(minimap_start_y + 2 + room_h * ry), ymax = int(minimap_start_y + room_h * (ry + 1));
+			for (int y = ymin; y <= ymax; ++y) {
+				const float roomy = float(y + 1 - ymin) / float(room_h) * plh;
+				for (int x = xmin; x <= xmax; ++x) {
+					if (getpixel(buffer, x, y) != 0)
+						continue;
+					const float roomx = float(x + 1 - xmin) / float(room_w) * plw;
+					float dist_r2 = INT_MAX;
+					for (vector<spoint_t>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
+						dist_r2 = min(dist_r2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
+					float dist_b2 = INT_MAX;
+					for (vector<spoint_t>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
+						dist_b2 = min(dist_b2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
+					const int color = (dist_r2 < dist_b2) ? teamdcol[0] : teamdcol[1];
+					putpixel(buffer, x, y, color);
+				}
+			}
 		}
-		floodfill(buffer, blue_px, blue_py, teamdcol[1]);
-	}
-	if (save_map_pic) {
-		//draw flagpoles
-		rectfill(buffer,  red_px,  red_py - 5,  red_px,  red_py, col[COLYELLOW]);
-		rectfill(buffer, blue_px, blue_py - 5, blue_px, blue_py, col[COLYELLOW]);
-		//draw the flags
-		rectfill(buffer,  red_px + 1,  red_py - 5,  red_px + 5,  red_py - 2, teamcol[0]);
-		rectfill(buffer, blue_px + 1, blue_py - 5, blue_px + 5, blue_py - 2, teamcol[1]);
-	}
-	else {
-		circle(buffer,  red_px,  red_py, 3, teamcol[0]);
-		circle(buffer, blue_px, blue_py, 3, teamcol[1]);
-	}
+
+	destroy_bitmap(backup);
+
+	//draw circles (or flags) to flag positions
+	for (int t = 0; t < 2; ++t)
+		for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
+			int px = int(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
+			int py = int(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
+			if (save_map_pic) {
+				//draw the flagpole
+				rectfill(buffer, px, py - 5, px, py, col[COLYELLOW]);
+				//draw the flag
+				rectfill(buffer, px + 1, py - 5, px + 5, py - 2, teamcol[t]);
+			}
+			else
+				circle(buffer, px, py, 3, teamcol[t]);
+		}
 }
 
 //draws a basic player object
@@ -713,12 +755,15 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	const int r_diff = (r2 - r1) / PLAYER_RADIUS + 1;
 	const int g_diff = (g2 - g1) / PLAYER_RADIUS + 1;
 	const int b_diff = (b2 - b1) / PLAYER_RADIUS + 1;
-	for (int i = PLAYER_RADIUS; i >= 0; i--) {
-		circlefill(drawbuf, plx + x, ply + y, i, makecol(r, g, b));
-		r = max(0, min(r + r_diff, 255));
-		g = max(0, min(g + g_diff, 255));
-		b = max(0, min(b + b_diff, 255));
-	}
+	if (player_sprite[team][pli])
+		masked_blit(player_sprite[team][pli], drawbuf, 0, 0, plx + x - PLAYER_RADIUS, ply + y - PLAYER_RADIUS, player_sprite[team][pli]->w, player_sprite[team][pli]->h);
+	else
+		for (int i = PLAYER_RADIUS; i >= 0; i--) {
+			circlefill(drawbuf, plx + x, ply + y, i, makecol(r, g, b));
+			r = max(0, min(r + r_diff, 255));
+			g = max(0, min(g + g_diff, 255));
+			b = max(0, min(b + b_diff, 255));
+		}
 #else
 	// outer color: team color
 	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS, pc1);
@@ -1765,7 +1810,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	minimap_place_w *= 2;
 	minimap_place_h *= 2;
 	BITMAP* buffer = create_bitmap(minimap_place_w, minimap_place_h);
-	update_minimap_background(buffer, map, false, true);
+	update_minimap_background(buffer, map, true);
 	BITMAP* clip = create_sub_bitmap(buffer, minimap_start_x, minimap_start_y, minimap_w, minimap_h);
 	PALETTE pal;
 	get_palette(pal);
@@ -1866,15 +1911,75 @@ void Graphics::load_pictures() {
 
 	load_floor_texture(path + "floor.pcx");
 	load_wall_texture(path + "wall.pcx");
+	load_player_sprite(path + "team.pcx", path + "personal.pcx");
+}
+
+void Graphics::load_floor_texture(const string& filename) {
+	if (floor_texture)
+		destroy_bitmap(floor_texture);
+	floor_texture = load_bitmap(filename.c_str(), NULL);
+}
+
+void Graphics::load_wall_texture(const string& filename) {
+	if (wall_texture)
+		destroy_bitmap(wall_texture);
+	wall_texture = load_bitmap(filename.c_str(), NULL);
+}
+
+void Graphics::load_player_sprite(const string& filename_team, const string& filename_personal) {
+	unload_player_sprites();
+	BITMAP* team = load_bitmap(filename_team.c_str(), NULL);
+	BITMAP* personal = load_bitmap(filename_personal.c_str(), NULL);
+	const int transparent = bitmap_mask_color(drawbuf);
+	if (team && personal)
+		for (int t = 0; t < 2; t++)
+			for (int p = 0; p < MAX_PLAYERS / 2; p++) {
+				player_sprite[t][p] = create_bitmap(2 * PLAYER_RADIUS, 2 * PLAYER_RADIUS);
+				clear_to_color(player_sprite[t][p], transparent);
+				for (int y = 0; y < player_sprite[t][p]->h; y++)
+					for (int x = 0; x < player_sprite[t][p]->w; x++) {
+						const int team_alpha = getr(getpixel(team,
+							static_cast<int>(static_cast<double>(x * team->w) / player_sprite[t][p]->w + 0.5),
+							static_cast<int>(static_cast<double>(y * team->h) / player_sprite[t][p]->h + 0.5)));
+						const int personal_alpha = getr(getpixel(personal,
+							static_cast<int>(static_cast<double>(x * personal->w) / player_sprite[t][p]->w + 0.5),
+							static_cast<int>(static_cast<double>(y * personal->h) / player_sprite[t][p]->h + 0.5)));
+						if (team_alpha == 0 && personal_alpha == 0)
+							putpixel(player_sprite[t][p], x, y, transparent);
+						else {
+							drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+							set_trans_blender(0, 0, 0, personal_alpha);
+							putpixel(player_sprite[t][p], x, y, col[p]);
+							set_trans_blender(0, 0, 0, team_alpha);
+							putpixel(player_sprite[t][p], x, y, teamcol[t]);
+							solid_mode();
+						}
+					}
+			}
+	if (team)
+		destroy_bitmap(team);
+	if (personal)
+		destroy_bitmap(personal);
 }
 
 void Graphics::unload_pictures() {
-	if (floor_texture)
+	if (floor_texture) {
 		destroy_bitmap(floor_texture);
-	floor_texture = 0;
-	if (wall_texture)
+		floor_texture = 0;
+	}
+	if (wall_texture) {
 		destroy_bitmap(wall_texture);
-	wall_texture = 0;
+		wall_texture = 0;
+	}
+}
+
+void Graphics::unload_player_sprites() {
+	for (int t = 0; t < 2; t++)
+		for (vector<BITMAP*>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
+			if (*pl) {
+				destroy_bitmap(*pl);
+				*pl = 0;
+			}
 }
 
 void Graphics::set_theme_dir(const string& dir) {
