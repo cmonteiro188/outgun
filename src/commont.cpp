@@ -4,16 +4,55 @@ using std::cout;
 using std::istream;
 using std::string;
 
+int atoi (const string& str) {
+	return atoi(str.c_str());
+}
+
 void ClientControls::fromKeyboard() {
+	const int up     =  1;
+	const int down   =  2;
+	const int left   =  4;
+	const int right  =  8;
+	const int run    = 16;
+	const int strafe = 32;
 	data = 0;
-	if (key[KEY_UP   ]) data |= 1;
-	if (key[KEY_DOWN ]) data |= 2;
-	if (key[KEY_LEFT ]) data |= 4;
-	if (key[KEY_RIGHT]) data |= 8;
-	if (key[KEY_LSHIFT] || key[KEY_RSHIFT])	// run
-		data |= 16;
-	if (key[KEY_ALT] || key[KEY_ALTGR])	// strafe
-		data |= 32;
+	if (key[KEY_UP] || key[KEY_8_PAD])
+		data |= up;
+	if (key[KEY_DOWN] || key[KEY_2_PAD])
+		data |= down;
+	if (key[KEY_LEFT] || key[KEY_4_PAD])
+		data |= left;
+	if (key[KEY_RIGHT] || key[KEY_6_PAD])
+		data |= right;
+	if (key[KEY_7_PAD])
+		data |= up | left;
+	if (key[KEY_9_PAD])
+		data |= up | right;
+	if (key[KEY_1_PAD])
+		data |= down | left;
+	if (key[KEY_3_PAD])
+		data |= down | right;
+	if (key[KEY_LSHIFT] || key[KEY_RSHIFT])
+		data |= run;
+	if (key[KEY_ALT] || key[KEY_ALTGR])
+		data |= strafe;
+}
+
+bool is_keypad(int sc) {
+	switch (sc) {
+		case KEY_1_PAD:
+		case KEY_2_PAD:
+		case KEY_3_PAD:
+		case KEY_4_PAD:
+		//case KEY_5_PAD:
+		case KEY_6_PAD:
+		case KEY_7_PAD:
+		case KEY_8_PAD:
+		case KEY_9_PAD:
+			return true;
+		default:
+			return false;
+	}
 }
 
 void rotate_angle(float& angle, float shift) {

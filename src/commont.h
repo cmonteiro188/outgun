@@ -31,6 +31,9 @@
 #include "leetnet/log.h"
 extern FILE *game_log;
 
+extern "C" int atoi(const char*);
+int atoi (const std::string& str);
+
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
 
 class ClientControls {
@@ -48,6 +51,8 @@ public:
 	bool    isRun() const { return (data&16)!=0; }
 	bool isStrafe() const { return (data&32)!=0; }
 };
+
+bool is_keypad(int sc);
 
 void rotate_angle(float& angle, float shift);
 

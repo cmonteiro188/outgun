@@ -79,7 +79,7 @@ using std::vector;
 Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	minimap_start_x(0),
 	minimap_start_y(0),
-	scr_mul(static_cast<double>(RESOL_X) / 640),
+	scr_mul(static_cast<double>(scr_w) / 640),
 	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
@@ -204,12 +204,12 @@ bool Graphics::reset_video_mode() {
 	string err[4];
 
 	// save playground colours
-	int ground_r = getr(col[COLGROUND]);
-	int ground_g = getg(col[COLGROUND]);
-	int ground_b = getb(col[COLGROUND]);
-	int wall_r = getr(col[COLWALL]);
-	int wall_g = getg(col[COLWALL]);
-	int wall_b = getb(col[COLWALL]);
+	const int ground_r = getr(col[COLGROUND]);
+	const int ground_g = getg(col[COLGROUND]);
+	const int ground_b = getb(col[COLGROUND]);
+	const int wall_r = getr(col[COLWALL]);
+	const int wall_g = getg(col[COLWALL]);
+	const int wall_b = getb(col[COLWALL]);
 
 	//un-show any video bitmaps?
 	//show_video_bitmap(screen);
@@ -218,6 +218,18 @@ bool Graphics::reset_video_mode() {
 	if (vidpage1) { LOG("destroying vidpage1\n"); destroy_bitmap(vidpage1); vidpage1 = 0; }
 	if (vidpage2) { LOG("destroying vidpage2\n"); destroy_bitmap(vidpage2); vidpage2 = 0; }
 	if (backbuf) { LOG("destroying backbuf\n"); destroy_bitmap(backbuf); backbuf = 0; }
+
+	// Test
+	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
+	if (modes) {
+		LOG("Available graphics modes:\n");
+		for (int i = 0; i < modes->num_modes; i++)
+			LOG3("%d×%d×%d\n", modes->mode[i].width, modes->mode[i].height, modes->mode[i].bpp);
+		destroy_gfx_mode_list(modes);
+	}
+	else {
+		LOG("No possible graphics modes found.\n");
+	}
 
 	int notok;
 
@@ -1060,26 +1072,30 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
 	set_clip(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
 	//darken ground
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	for (int r = scale(50); r > 0; r -= 5) {
-		set_trans_blender(0, 0, 0, 50 - static_cast<int>(r / scr_mul));
+	for (int r = scale(50); r >= 0; r -= 5) {
+		set_trans_blender(0, 0, 0, max(50 - static_cast<int>(r / scr_mul), 0));
 		circlefill(drawbuf, plx + x, ply + y, r, 0);
 	}
 	solid_mode();
 	set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 }
 
-void Graphics::draw_shield(int x, int y, int r, int alpha) {
+void Graphics::draw_shield(int x, int y, int r, int alpha, int team) {
 	x = scale(x);
 	y = scale(y);
 	r = scale(r);
-	const int v1 = scale(3);
-	const int v2 = scale(5);
-	const int v3 = scale(9);
+	const int v[] = { scale(3), scale(5), scale(9) };
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
-	ellipse(drawbuf, plx + x, ply + y, r + rand() % v1, r + rand() % v1, makecol(rand() % 256, rand() % 256, rand() % 256));
-	ellipse(drawbuf, plx + x, ply + y, r + rand() % v2, r + rand() % v2, makecol(rand() % 256, rand() % 256, rand() % 256));
-	ellipse(drawbuf, plx + x, ply + y, r + rand() % v3, r + rand() % v3, makecol(rand() % 256, rand() % 256, rand() % 256));
+	if (team == 0)
+		for (int i = 0, c = rand() % 256; i < 3; i++)
+			ellipse(drawbuf, plx + x, ply + y, r + rand() % v[i], r + rand() % v[i], makecol(255, c, c));
+	else if (team == 1)
+		for (int i = 0, c = rand() % 256; i < 3; i++)
+			ellipse(drawbuf, plx + x, ply + y, r + rand() % v[i], r + rand() % v[i], makecol(c, c, 255));
+	else
+		for (int i = 0; i < 3; i++)
+			ellipse(drawbuf, plx + x, ply + y, r + rand() % v[i], r + rand() % v[i], makecol(rand() % 256, rand() % 256, rand() % 256));
 	solid_mode();
 }
 
@@ -1479,11 +1495,11 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
 }
 
 void Graphics::map_time(int seconds) {
-	textprintf_right_ex(drawbuf, font, plx + plw - 2, ply + plh + 5, col[COLGREEN], -1, "%4d:%02d", seconds / 60, seconds % 60);
+	textprintf_right_ex(drawbuf, font, plx + scale(plw) - 2, SCREEN_H - 30, col[COLGREEN], -1, "%4d:%02d", seconds / 60, seconds % 60);
 }
 
 void Graphics::draw_fps(double fps) {
-	textprintf_ex(drawbuf, font, plx + 10, ply + plh - 14, 0, -1, "FPS:%3.0f", fps);
+	textprintf_right_ex(drawbuf, font, SCREEN_W - 2, SCREEN_H - 10, col[COLMENUGRAY], -1, "FPS:%3.0f", fps);
 }
 
 void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
@@ -1552,6 +1568,22 @@ void Graphics::map_list_prev() {
 
 void Graphics::map_list_next() {
 	++map_list_start;
+}
+
+void Graphics::map_list_prev_page() {
+	map_list_start -= map_list_size;
+}
+
+void Graphics::map_list_next_page() {
+	map_list_start += map_list_size;
+}
+
+void Graphics::map_list_begin() {
+	map_list_start = 0;
+}
+
+void Graphics::map_list_end() {
+	map_list_start = INT_MAX;
 }
 
 void Graphics::team_captures_prev() {
@@ -1720,7 +1752,7 @@ void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col
 }
 
 void Graphics::show_not_responding_message() {
-	rect(drawbuf,  194,  199, 444, 279, col[COLMENUWHITE]);
+	rect(drawbuf, 194, 199, 444, 279, col[COLMENUWHITE]);
 	rect(drawbuf, 196, 201, 446, 281, col[COLMENUBLACK]);
 	rectfill(drawbuf, 195, 200, 445, 280, col[COLMENUGRAY]);
 	textprintf_ex(drawbuf, font, 220, 220, col[COLWHITE], -1, "SERVER NOT RESPONDING...");
@@ -1728,7 +1760,7 @@ void Graphics::show_not_responding_message() {
 	textprintf_ex(drawbuf, font, 220, 255, col[COLWHITE], -1, "or the server disconnected");
 }
 
-// draw help
+// draw help ### FIXME: read help from a text file
 void Graphics::game_help() {
 	clear_to_color(drawbuf, col[COLMENUGRAY]);
 
@@ -2009,7 +2041,7 @@ void Graphics::password_menu_save(const string& caption, int password_len, bool 
 	const int y = 250;
 	textout_ex(drawbuf, font, "[ ] Save password", x, y, col[COLWHITE], -1);
 	if (save_password)
-		textout_ex(drawbuf, font, "X", x + 8, y, col[COLGREEN], -1);
+		textout_ex(drawbuf, font, "×", x + 8, y, col[COLGREEN], -1);
 	if (pw_selected)
 		textout_ex(drawbuf, font, "_", x + 8, y, col[COLGREEN], -1);
 }
@@ -2376,14 +2408,15 @@ void Graphics::load_player_sprite(const string& filename_team, const string& fil
 	BITMAP* team = load_bitmap(filename_team.c_str(), NULL);
 	BITMAP* personal = load_bitmap(filename_personal.c_str(), NULL);
 	const int transparent = bitmap_mask_color(drawbuf);
+	const int size = 2 * scale(PLAYER_RADIUS);
 	if (team && personal) {
 		for (int t = 0; t < 2; t++)
 			for (int p = 0; p < MAX_PLAYERS / 2; p++) {
-				player_sprite[t][p] = create_bitmap(2 * PLAYER_RADIUS, 2 * PLAYER_RADIUS);
+				player_sprite[t][p] = create_bitmap(size, size);
 				clear_to_color(player_sprite[t][p], transparent);
 				create_player_sprite(player_sprite[t][p], team, personal, teamcol[t], col[p]);
 			}
-		player_sprite_power = create_bitmap(2 * PLAYER_RADIUS, 2 * PLAYER_RADIUS);
+		player_sprite_power = create_bitmap(size, size);
 		clear_to_color(player_sprite_power, transparent);
 		create_player_sprite(player_sprite_power, team, personal, col[COLWHITE], col[COLCYAN]);
 	}

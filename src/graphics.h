@@ -85,7 +85,7 @@ public:
 
 	void draw_deathbringer_affected(int x, int y, int team);
 	void draw_deathbringer_carrier_effect(int x, int y);
-	void draw_shield(int x, int y, int r, int alpha = 255);
+	void draw_shield(int x, int y, int r, int alpha = 255, int team = -1);
 
 	void draw_virou_sorvete(int x, int y);
 
@@ -108,6 +108,10 @@ public:
 
 	void map_list_prev();
 	void map_list_next();
+	void map_list_prev_page();
+	void map_list_next_page();
+	void map_list_begin();
+	void map_list_end();
 
 	void team_captures_prev();
 	void team_captures_next();

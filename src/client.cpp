@@ -846,8 +846,8 @@ void gameclient_c::set_menu(Menu_selection menumber) {
 
 //disconnect command
 void gameclient_c::disconnect_command() {
-
 	//disconnect the client here if was connected, else does nothing
+	LOG("disconnect_command()\n");
 	client->connect(false);
 
 	//dialogz
@@ -1305,6 +1305,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 //connect command
 void gameclient_c::connect_command() {
 	// disconnect
+	LOG("connect_command()\n");
 	client->connect(false);
 
 	// copy gamespy address
@@ -2866,7 +2867,7 @@ void gameclient_c::loop() {
 								showmaster = !showmaster;
 
 								//make the first refresh of favorites when showing it
-								if ((!showmaster) && (first_fav_refresh == false)) {
+								if (!showmaster && first_fav_refresh == false) {
 									first_fav_refresh = true;
 									refresh_command();
 								}
@@ -2886,7 +2887,8 @@ void gameclient_c::loop() {
 							else
 								i = editplayerpass.length();
 
-							if (((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) || (ch == '-') || (ch == '_')) {
+							// ### FIXME: allow more characters
+							if (isalnum(ch) || ch == '-' || ch == '_') {
 								if (name_selected) {
 									if (i < 15) {
 										editplayername += static_cast<char>(ch);
@@ -2927,22 +2929,34 @@ void gameclient_c::loop() {
 								edit_server_password += static_cast<char>(ch);
 							break;
 						case menu_player_password:
-							if (sc == KEY_BACKSPACE && !edit_player_password.empty())
-								edit_player_password.erase(edit_player_password.end() - 1);
-							else if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty())
+							if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty())
 								connect_command();
 							else if (sc == KEY_TAB)
 								save_password_selected = !save_password_selected;
-							else if (save_password_selected && sc == KEY_SPACE)
-								save_pl_password = !save_pl_password;
-							else if (ch >= 32)
-								edit_player_password += static_cast<char>(ch);
+							else if (save_password_selected) {
+								if (sc == KEY_SPACE)
+									save_pl_password = !save_pl_password;
+							}
+							else {
+								if (sc == KEY_BACKSPACE && !edit_player_password.empty())
+									edit_player_password.erase(edit_player_password.end() - 1);
+								else if (ch >= 32)
+									edit_player_password += static_cast<char>(ch);
+							}
 							break;
 						case menu_maps:
 							if (key[KEY_UP])
 								client_graphics.map_list_prev();
 							if (key[KEY_DOWN])
 								client_graphics.map_list_next();
+							if (key[KEY_PGUP])
+								client_graphics.map_list_prev_page();
+							if (key[KEY_PGDN])
+								client_graphics.map_list_next_page();
+							if (key[KEY_HOME])
+								client_graphics.map_list_begin();
+							if (key[KEY_END])
+								client_graphics.map_list_end();
 							if (isdigit(ch) && edit_map_vote.size() < 3)
 								edit_map_vote += ch;
 							else if (sc == KEY_BACKSPACE) {
@@ -2950,7 +2964,7 @@ void gameclient_c::loop() {
 									edit_map_vote.erase(edit_map_vote.end() - 1);
 							}
 							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-								int new_vote = atoi(edit_map_vote.c_str()) - 1;
+								int new_vote = atoi(edit_map_vote) - 1;
 								edit_map_vote.clear();
 								if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
 									map_vote = new_vote;
@@ -2964,9 +2978,9 @@ void gameclient_c::loop() {
 							}
 							break;
 						case menu_players:
-							if (key[KEY_UP] || key[KEY_LEFT])
+							if (key[KEY_UP] || key[KEY_LEFT] || key[KEY_PGUP])
 								player_stats_page = max(0, player_stats_page - 1);
-							if (key[KEY_DOWN] || key[KEY_RIGHT])
+							if (key[KEY_DOWN] || key[KEY_RIGHT] || key[KEY_PGDN])
 								player_stats_page = min(3, player_stats_page + 1);
 							break;
 						case menu_teams:
@@ -3136,7 +3150,7 @@ void gameclient_c::loop() {
 						}
 					}
 					// Add character to text, max text length 60 chars.
-					else if (talkbuffer.length() < 60 && ch >= 32)
+					else if (talkbuffer.length() < 60 && ch >= 32 && !is_keypad(sc))
 						talkbuffer += static_cast<char>(ch);
 				}
 			}
@@ -3172,6 +3186,7 @@ void gameclient_c::loop() {
 						trying_connection = false;	//not anymore
 
 						//this cancels the attempt to connect
+						LOG("loop()\n");
 						client->connect(false);
 						//go back to main screen
 						set_menu(menu_main);
@@ -3667,10 +3682,10 @@ void gameclient_c::draw_game_frame() {
 					}
 					// draw deathbringer affected effect
 					if (fx.player[i].deathbringer_affected)
-						client_graphics.draw_deathbringer_affected((int)fd.player[i].lx, (int)fd.player[i].ly, i / TSIZE);
+						client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE);
 					// shield
 					if (fx.player[i].item_shield)
-						client_graphics.draw_shield((int)fd.player[i].lx, (int)fd.player[i].ly, SHIELD_RADIUS, alpha);
+						client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, fx.player[i].team());
 				}
 			}
 
