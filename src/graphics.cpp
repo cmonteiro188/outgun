@@ -1404,14 +1404,16 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     int line[2] = { 1, 1 };
     for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi) {
         const ClientPlayer& player = **pi;
-        ostringstream name;
-        name << player.name.substr(0, 15);
         const int pcol = col[player.color()];
         const int x = sbx;
         const int y = teamy[player.team()] + line[player.team()] * line_h;
         const bool underline = (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth());
-        draw_scoreboard_name(name.str(), x, y, pcol, underline);
+        draw_scoreboard_name(player.name.substr(0, 15), x + 8, y, pcol, underline);
         draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
+        if (player.stats().has_flag()) {
+            vline(drawbuf, x, y, y + 7, col[COLYELLOW]);
+            rectfill(drawbuf, x + 1, y, x + 5, y + 4, teamcol[player.team()]);
+        }
         line[player.team()]++;
     }
 }
@@ -1570,7 +1572,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     // space for (w - 2 * margin) / char_w == 62 characters per line; 4 + 1 + 16 + 1 used for login and name with spacing; 40 characters for stats
     string caption1, caption2;
     switch (page) {
-        // max length:       |........................................|
+        // max length:              |........................................|
         break; case 0: caption1 = _("     Frags    total/in-row/most");
                        caption2 = _("Ping     Capt Kills      Deaths Suicides");
                        //           |0000  000 00 000/00/00  000/00/00   00  |

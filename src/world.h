@@ -266,11 +266,12 @@ public:
     double average_lifetime(double time) const; // in seconds
     double playtime(double time) const;         // in seconds
     double movement() const;                    // in Outgun units
-    double speed(double time) const;                // in Outgun units per second
+    double speed(double time) const;            // in Outgun units per second
     double old_speed() const { return saved_speed; }
     double start_time() const { return starttime; }
     double flag_carrying_time(double time) const;
     double flag_take_time() const { return flag_taking_time; }
+    bool has_flag() const { return flag; }
 
 private:
     int total_frags;

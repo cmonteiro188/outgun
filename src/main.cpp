@@ -51,19 +51,17 @@ void increment_server_speed_counter() {
     server_speed_counter++;
 } END_OF_FUNCTION(increment_server_speed_counter);
 
-// this simple task is turning into a major headache...
 bool set_shitty_mode(LogSet log) {
     int DTC = desktop_color_depth();
 
     set_color_depth(DTC);
 
     if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
-        log("Could not set gfx mode 320x240 windowed.. try 1 with %i", DTC);
+        log("Could not set gfx mode 320×240 windowed. Try 1 with %i.", DTC);
     else
-        return true;    // OK
+        return true;
 
     if (DTC == 16 || DTC == 15) {
-
         if (DTC == 15)
             DTC = 16;
         else
@@ -72,7 +70,7 @@ bool set_shitty_mode(LogSet log) {
         set_color_depth(DTC);
 
         if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
-            log("Could not set gfx mode 320x240 windowed.. try 2 with %i", DTC);
+            log("Could not set gfx mode 320×240 windowed. Try 2 with %i.", DTC);
         else
             return true;
     }
@@ -82,9 +80,8 @@ bool set_shitty_mode(LogSet log) {
 
     set_color_depth(DTC);
 
-    if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0)) {
-        log("Could not set gfx mode 320x240 windowed.. tried with %i", DTC);
-    }
+    if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
+        log("Could not set gfx mode 320×240 windowed. Tried with %i.", DTC);
     else
         return true;
 
@@ -163,7 +160,7 @@ int main(int argc, const char* argv[]) {
     directory_separator = stuff[0];
 
     // find out where we are
-    char *path = new char[2048];
+    char* path = new char[2048];
     get_executable_name(path, 2048);
     replace_filename(path, path, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
     wheregamedir = path;

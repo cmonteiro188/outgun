@@ -158,7 +158,7 @@ void GlobalDisplaySwitchHook::install() {
 }
 
 bool GlobalDisplaySwitchHook::readAndClear() {
-    bool f = flag;
+    const bool f = flag;
     if (f)
         flag = false;
     return f;
