@@ -16,6 +16,9 @@
 ; sayadmin_enabled, tournament, save_stats: 1 to enable, 0 to disable
 ;   defaults: sayadmin_enabled 0, tournament 1, save_stats 0
 ; idlekick_time: seconds, 10 or more, or 0 to disable, default: 120
+; server_port: 1 to 65535, default: 25000 or from arguments
+; server_ip: default: none or from arguments
+; private_server: 1 to enable, 0 to disable, default: 0 or from arguments
 
 server_name Anonymous host
 ;max_players 16
@@ -27,6 +30,9 @@ sayadmin_enabled 0
 tournament 1
 save_stats 0
 idlekick_time 120
+;server_port 25000
+;server_ip ip
+;private_server 0
 ;server_website http://www.example.net/foo/
 
 ; -----------------
@@ -68,7 +74,7 @@ vote_block_time 0
 ; sudden_death: 1 to enable, 0 to disable, default: 0
 ; game_end_delay: seconds (allows 0), default: 5
 ; balance_teams: no, balance or shuffle, default: no
-; friendly_fire, friendly_deathbringer: 1 to enable, 0 to disable, default: 0
+; friendly_fire, friendly_deathbringer: (float or %) multiplier, default: 0
 ; respawn_time: (float) seconds, default: 2.0
 ; waiting_time_deathbringer: (float) seconds, default: 4.0
 ; rocket_damage: amount of energy, default: 70
@@ -127,17 +133,22 @@ pup_chance_deathbringer 11
 ;  PHYSICS
 ; ---------
 
-; friction, drag, acceleration: (float) defaults: 0.09, 0.09, 1.44
+; friction, drag, acceleration: (float) defaults: 0.20, 0.16, 2.60
+; brake_acceleration, turn_acceleration: (float)
+;   multipliers to acceleration, defaults: 0.10, 0.50
 ; run_acceleration, turbo_acceleration, flag_acceleration: (float)
-;   multipliers to acceleration, defaults: 1.77, 1.45, 0.90
+;   multipliers to acceleration, defaults: 1.75, 1.45, 0.91
 ; player_collisions: 1 to enable, 0 to disable, default: 0
 
-friction     0.09
-drag         0.09
-acceleration 1.44
+friction     0.20
+drag         0.16
+acceleration 2.60
 
-run_acceleration   1.77
+brake_acceleration 0.10
+turn_acceleration  0.50
+
+run_acceleration   1.75
 turbo_acceleration 1.45
-flag_acceleration  0.90
+flag_acceleration  0.91
 
 player_collisions 0
