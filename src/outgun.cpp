@@ -19,7 +19,7 @@
 
 #define CL_MINIMAP_FLAGPOS
 #define CL_SHOW_FLAGPOS
-#define CL_SMOOTH_FLAGPOS
+#define FLAGPOS_RAD 30
 //#define CL_SHOW_TIME_LEFT
 
 // ----
@@ -1531,6 +1531,8 @@ struct player_t {
 	bool	dead;		//dead? zframe byte == 255  clientside only
 	bool	old_dead;		// to detect time to play death sound
 
+	bool	dropped_flag;   // Has player dropped the flag?
+
 	double	next_shoot_time;		// minimum time for next shoot
 
 	double	respawn_time;				// time for respawn
@@ -1634,6 +1636,7 @@ struct player_t {
 		drawptr=drawused=0;
 		health=energy=megabonus=0;
 		dead=old_dead=false;
+		dropped_flag=false;
 		respawn_time=0;
 		respawn_to_base=false;
 
@@ -3479,6 +3482,7 @@ public:
 			//drop the flag
 			ctf_drop_flag(enemyteam, player[pid].x, player[pid].y, (int)world.hero[pid].x, (int)world.hero[pid].y);
 
+			player[pid].dropped_flag = true;
 			player[pid].total_flags_dropped++;
 
 			return true;
@@ -3654,7 +3658,7 @@ public:
 			if (player[attacker].item_quad)
 			if (attacker != target)		// do not apply quaddamage into self
 			{
-				damage *= 4;
+				damage *= 2;
 			}
 			// if no attacker quad, shield absorbs at least 1 shot
 			//else
@@ -6290,6 +6294,9 @@ public:
 						player[pid].total_suicides++;
 						//frag penalty
 						player[pid].frags--;
+						//delay respawn if player does not have deathbringer (there is another delay for that)
+						if (!player[pid].item_deathbringer)
+							player[pid].respawn_time += waiting_time_deathbringer;
 					}
 				}
 				//-attack
@@ -6475,6 +6482,9 @@ public:
 						//broadcast his crap
 						broadcast_player_crap( ctop[id] );
 				}
+				// drop flag
+				else if (code == 34)
+					ctf_drop_flag_if_any(pid);
 				else {
 					//ERROR: unknown message from client
 					LOG3("ERROR: UNKNOWN MESSAGE FROM CLIENT %i CODE=%i LENGTH=%i\n", id, code, msglen);
@@ -6642,8 +6652,8 @@ public:
 			//
 			if (player[i].item_helm > 0) {
 				player[i].item_helm -= 10;		//slowly fades....
-				if (player[i].item_helm < 7)		// minimum
-					player[i].item_helm = 7;
+				if (player[i].item_helm < 0)	// minimum
+					player[i].item_helm = 1;
 			}
 
 			// check deathbringer effect
@@ -7090,26 +7100,31 @@ public:
 
 				// --> CTF FLAG STEAL touch other team's flag
 				//
-				if (!world.flag[enemyteam].carried)	// enemy flag dropped (at base or somewhere)
-				if (check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, enemyteam))  // and I touch it
+				if (!world.flag[enemyteam].carried &&	// enemy flag dropped (at base or somewhere)
+					check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, enemyteam))  // and I touch it
 				{
-					//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
-					if (world.flag[enemyteam].atbase)
-						world.flag[enemyteam].grab_time = get_time();
+					// Has player just dropped the flag or not?
+					if (!player[i].dropped_flag) {
+						//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
+						if (world.flag[enemyteam].atbase)
+							world.flag[enemyteam].grab_time = get_time();
 
-					//FLAG STOLEN!
-					score_frag(i, 1);	// just add some frags
+						//FLAG STOLEN!
+						score_frag(i, 1);	// just add some frags
 					
-					player[i].total_flags_taken++;
+						player[i].total_flags_taken++;
 
-					bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
+						bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
 
-					ctf_steal_flag(enemyteam, i);  //flag stolen!
+						ctf_steal_flag(enemyteam, i);  //flag stolen!
 
-					//HELM powerup: show player
-					if (player[i].item_helm > 0)
-						player[i].item_helm = 255;
+						//HELM powerup: show player
+						if (player[i].item_helm > 0)
+							player[i].item_helm = 255;
+					}
 				}
+				else	// Player has removed away from the flag.
+					player[i].dropped_flag = false;
 
 				// --> CTF FLAG RETURN
 				//
@@ -9501,6 +9516,10 @@ public:
 	//bitmap for minimap background (level walls, screen grid)
 	BITMAP *minibg;
 
+	// bitmap for flag position marks
+	BITMAP* flagpos_buf[2];
+	bool flagpos_ready;
+
 	//flag if map valid or not ready yet
 	bool map_ready;
 	char servermap[64];	//last map command from server
@@ -9517,6 +9536,8 @@ public:
 	char    hostadname[128];
 
 	ofstream message_log;
+
+	void check_flagpos_marks();
 
 	//start
 	bool start() {
@@ -9554,6 +9575,10 @@ public:
 		//load_default_map(&map);
 		map_ready = false;		// NO map change commands from server yet
 		servermap[0]=0;
+
+		flagpos_buf[0] = 0;
+		flagpos_buf[1] = 0;
+		flagpos_ready = false;
 
 		//not showing gameover plaque
 		gameover_plaque = NEXTMAP_NONE;
@@ -11309,39 +11334,20 @@ public:
 			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 			// place of flag
-			set_trans_blender(0, 0, 0, 128);
-			if (player[me].x==map.tinfo[0].flag.px && player[me].y==map.tinfo[0].flag.py) {
-			#ifdef CL_SMOOTH_FLAGPOS
-				int r = getr(col[COLGROUND]);
-				const int g = getg(col[COLGROUND]);
-				const int b = getb(col[COLGROUND]);
-				for (int i = 30; i >= 0; i--) {
-					r = min(r + 10, 255);
-					int c = makecol(r, g, b);
-					circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, i, c);
+			for (int team = 0; team < 2; team++)
+				if (player[me].x == map.tinfo[team].flag.px && player[me].y == map.tinfo[team].flag.py) {
+					check_flagpos_marks();
+					int flag_x = map.tinfo[team].flag.x;
+					int flag_y = map.tinfo[team].flag.y;
+					int x1 = max(0, FLAGPOS_RAD - flag_x);
+					int y1 = max(0, FLAGPOS_RAD - flag_y);
+					int x2 = min(2 * FLAGPOS_RAD, plw - flag_x + FLAGPOS_RAD + 1);
+					int y2 = min(2 * FLAGPOS_RAD, plh - flag_y + FLAGPOS_RAD + 1);
+					blit(flagpos_buf[team], drawbuf, x1, y1,
+						plx + flag_x - FLAGPOS_RAD + x1, ply + flag_y - FLAGPOS_RAD + y1, x2 - x1, y2 - y1);
 				}
-			#else
-				circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, 20, col[COLBRED]);
-			#endif
-			}
-			if (player[me].x==map.tinfo[1].flag.px && player[me].y==map.tinfo[1].flag.py) {
-			#ifdef CL_SMOOTH_FLAGPOS
-				const int r = getr(col[COLGROUND]);
-				const int g = getg(col[COLGROUND]);
-				int b = getb(col[COLGROUND]);
-				for (int i = 30; i >= 0; i--) {
-					b = min(b + 10, 255);
-					int c = makecol(r, g, b);
-					circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, i, c);
-				}
-			#else
-				circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, 20, col[COLBBLUE]);
-			#endif
-			}
-			solid_mode();
 
 			// map walls
-			//
 			if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < map.w && player[me].y < map.h)
 				map.room[player[me].x][player[me].y].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
 		}
@@ -11580,7 +11586,7 @@ public:
 					int alpha = 255;
 					if (player[i].item_helm > 0) {
 						drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-						alpha = player[i].item_helm - 1;
+						alpha = player[i].item_helm;
 						if (me >= 0)
 						if (i/TSIZE == me/TSIZE)	// teammate or myself
 						if (alpha < MIN_ALPHA_FRIENDS) alpha = MIN_ALPHA_FRIENDS;
@@ -14636,6 +14642,14 @@ public:
 					}
 					else key_kill = false;
 
+					// page down == drop flag
+					//
+					if (key[KEY_PGDN]) {
+						char lebuf[16]; int count = 0;
+						writeByte(lebuf, count, 34);	// 34 = drop flag
+						client->send_message(lebuf, count);
+					}
+
 					// end == want/don't want swap team
 					//
 					if (key[KEY_END]) {
@@ -14716,6 +14730,7 @@ public:
 
 						//change colours
 						if (sc == KEY_HOME) {
+							flagpos_ready = false;	// flag position mark colour not right anymore
 							if (key[KEY_LCONTROL] || key[KEY_RCONTROL]) {
 								col[COLGROUND] = makecol(0x10, 0x40, 0);
 								col[COLWALL] = makecol(0x30, 0xC0, 0);
@@ -14962,6 +14977,9 @@ public:
 		//clear all samples
 		unload_samples();
 
+		for (int i = 0; i < 2; i++)
+			destroy_bitmap(flagpos_buf[i]);
+
 		//save configuration file
 		//try to load client configuration
 		char dest[WHERE_PATH_SIZE];
@@ -15108,6 +15126,33 @@ public:
 	}
 
 };
+
+
+void gameclient_c::check_flagpos_marks() {
+	if (!flagpos_ready) {
+		const int radius = FLAGPOS_RAD;
+		for (int i = 0; i < 2; i++) {
+			if (!flagpos_buf[i])
+  				flagpos_buf[i] = create_bitmap(2 * radius, 2 * radius);
+			clear_to_color(flagpos_buf[i], col[COLGROUND]);
+		}
+		int r1, r2;
+		int b1, b2;
+		r1 = r2 = getr(col[COLGROUND]);
+		const int g = getg(col[COLGROUND]);
+		b1 = b2 = getb(col[COLGROUND]);
+		const int step = 10;
+		for (int i = radius; i >= 0; i--) {
+			// red flag
+			r1 = min(r1 + step, 255);
+			circlefill(flagpos_buf[0], radius, radius, i, makecol(r1, g, b1));
+			// blue flag
+			b2 = min(b2 + step, 255);
+			circlefill(flagpos_buf[1], radius, radius, i, makecol(r2, g, b2));
+		}
+		flagpos_ready = true;
+	}
+}
 
 // gameclient instance
 gameclient_c *gameclient;
