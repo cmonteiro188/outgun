@@ -31,15 +31,6 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-#define CLIENT_PREDICTION
-const float lagWanted = .5;
-
-#if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-void set_close_button_callback(void (*fn)()) {
-	set_window_close_hook(fn);
-}
-#endif
-
 #ifdef ROOM_CHANGE_BENCHMARK
 int benchmarkRuns = 0;
 #endif
@@ -124,10 +115,7 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
-	save_pl_password(false),
-	save_password_selected(false),
 	password_file("passwd.txt"),
-	name_selected(true),
 	client_graphics(log),
 	screenshot(false),
 	client_sounds(log)
@@ -136,9 +124,6 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 
 	//net client
 	client = 0;
-
-	//not showing
-	option_show_names = false;
 
 	//all the players to show including me
 	//player_t player[MAX_PLAYERS];
@@ -152,8 +137,8 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	lastpackettime = 0;
 
 	initMenus();
-	//menu showing?
-	menusel = menu_main;
+	showMenu(menu);
+	menusel = menu_none;
 
 	//game showing?
 	gameshow = false;
@@ -265,7 +250,7 @@ bool gameclient_c::start() {
 	//assume no password
 	player_token_set = false;			//no token
 	player_password_set = false;	//no password
-	namestatus = "NO PASSWORD SET";
+	menu.options.name.namestatus.set("NO PASSWORD SET");
 	namestatus_code = 0;
 	fav_colors.clear();
 
@@ -294,7 +279,7 @@ bool gameclient_c::start() {
 			}
 			//get the password
 			pas[8] = 0;
-			editplayerpass = pas;
+			menu.options.name.password.set(pas);
 			//copy to editpass and simulate pressing ENTER on the name/pass screen...
 			check_change_pass_command();
 		}
@@ -383,6 +368,10 @@ void gameclient_c::send_client_ready() {
 // if YES: send a new request to the master server
 // V0.4.6 : always re-log client if ENTER pressed! (if player doesn't want to log again, should press ESC instead)
 void gameclient_c::check_change_pass_command() {
+	const string& newPass = menu.options.name.password();
+	if (newPass == player_password)
+		return;
+
 	//player_password_set = false is a flag for the token retrieve thread
 	//join with it
 	if (player_password_set) {
@@ -393,17 +382,13 @@ void gameclient_c::check_change_pass_command() {
 	//NO TOKEN, not anymore...
 	player_token_set = false;
 
-	//empty?
-	if (editplayerpass.empty()) {
-		namestatus = "NO PASSWORD SET";
+	player_password = newPass;
+	if (player_password.empty()) {
+		menu.options.name.namestatus.set("NO PASSWORD SET");
 		namestatus_code = 0;
-		player_password = "";
-
 	}
 	else {
-		//non-empty! copy stuff
-		namestatus = "STARTING LOGIN...";
-		player_password = editplayerpass;
+		menu.options.name.namestatus.set("STARTING LOGIN...");
 
 		//setup stuff for the new thread
 		player_password_set = true;	//don't quit the thread
@@ -429,7 +414,7 @@ void gameclient_c::client_password_thread(void *) {
 		nlOpenMutex.unlock();
 		if (sock == NL_INVALID) {
 			//show "cant open socket to master" error
-			namestatus = "SOCKET ERROR. RETRYING...";
+			menu.options.name.namestatus.set("SOCKET ERROR. RETRYING...");
 			MS_SLEEP(3000);	//five secs
 			continue;				//again...
 		}
@@ -448,7 +433,7 @@ void gameclient_c::client_password_thread(void *) {
 		writeString(querybuf, qcount, blux);
 		qcount--;	//take the zero out
 
-		namestatus = "SENDING LOGIN...";
+		menu.options.name.namestatus.set("SENDING LOGIN...");
 
 		//keep trying to write the query.
 		NLint result;
@@ -466,7 +451,7 @@ void gameclient_c::client_password_thread(void *) {
 		if (player_password_set == false)
 			continue;
 
-		namestatus = "WAITING RESPONSE...";
+		menu.options.name.namestatus.set("WAITING RESPONSE...");
 
 		//try to read the reply
 		//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
@@ -495,7 +480,7 @@ void gameclient_c::client_password_thread(void *) {
 						lebuf[0] = 0;
 						nlClose(sock);
 						sock = NL_INVALID;
-						namestatus = "NO RESPONSE. RETRYING...";
+						menu.options.name.namestatus.set("NO RESPONSE. RETRYING...");
 						MS_SLEEP(3000);
 						break;
 					}
@@ -514,7 +499,7 @@ void gameclient_c::client_password_thread(void *) {
 				//error: try again
 				nlClose(sock);
 				sock = NL_INVALID;
-				namestatus = "ERROR. RETRYING...";
+				menu.options.name.namestatus.set("ERROR. RETRYING...");
 				MS_SLEEP(3000);
 				break;
 			}
@@ -577,7 +562,7 @@ void gameclient_c::client_password_thread(void *) {
 			//  to send a new token request
 			//if FAILED then update the status and quit
 
-			namestatus = "RECEIVED RESPONSE!";
+			menu.options.name.namestatus.set("RECEIVED RESPONSE!");
 
 			bool ok = false, wrongid = false, unavailable = false;
 			log("RECV RESPONSE n = %i", n);
@@ -653,9 +638,7 @@ void gameclient_c::client_password_thread(void *) {
 
 			//OK?
 			if (ok) {
-				namestatus = "LOGGED [";
-				namestatus += player_token;
-				namestatus += "]";
+				menu.options.name.namestatus.set(string() + "LOGGED [" + player_token + "]");
 				namestatus_code = 1;
 
 				//OK!
@@ -675,7 +658,7 @@ void gameclient_c::client_password_thread(void *) {
 			}
 			//WRONG ID?
 			else if (wrongid) {
-				namestatus = "ERROR: WRONG ID!";
+				menu.options.name.namestatus.set("ERROR: WRONG ID!");
 				namestatus_code = 2;
 				log.error("WRONG ID. QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
@@ -687,7 +670,7 @@ void gameclient_c::client_password_thread(void *) {
 			}
 			//UNAVAILABLE?
 			else if (unavailable) {
-				namestatus = "SERVER UNAVAILABLE";
+				menu.options.name.namestatus.set("SERVER UNAVAILABLE");
 				namestatus_code = 2;
 				log.error("UNKNOWN ERROR!!! QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
@@ -699,7 +682,7 @@ void gameclient_c::client_password_thread(void *) {
 			}
 			//WHAT???
 			else {
-				namestatus = "UNKNOWN ERROR!";
+				menu.options.name.namestatus.set("UNKNOWN ERROR!");
 				namestatus_code = 2;
 				log.error("UNKNOWN ERROR!!! QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
 				//wait xxx minutes to send again	//*2 == halfsecond
@@ -988,10 +971,7 @@ void gameclient_c::disconnect_command() {
 	//disconnect the client here if was connected, else does nothing
 	client->connect(false);
 
-	//dialogz
-	dialogmessage = "You are disconnected. Press ESC.";
-	dialogmessage2.clear();
-	menusel = menu_dialog;
+	showDialog("You are disconnected. Press ESC.");
 }
 
 void gameclient_c::client_connected(char *data, int length) {
@@ -1054,7 +1034,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	// reset gamestate?
 	connected = true;
 	gameshow = true;
-	menusel = menu_none;
+	openMenus.clear();
 	fx.frame = fd.frame = 0;
 	fx.skipped = fd.skipped = true;
 	me = -1;	//don't know who am I
@@ -1111,7 +1091,6 @@ void gameclient_c::client_connected(char *data, int length) {
 }
 
 void gameclient_c::client_disconnected(const char* data, int length) {
-
 	//restore window title
 	server_status_string("Outgun client - CTRL+F12 to quit");
 
@@ -1119,33 +1098,26 @@ void gameclient_c::client_disconnected(const char* data, int length) {
 	connected = false;
 	gameshow = false;
 
-	// show a message
-	dialogmessage = "You have been disconnected. Press ESC.";
-	dialogmessage2.clear();
+	string description;
+
 	if (length == 1)
 		switch (data[0]) {
 			case server_c::disconnect_client_initiated: break;
-			case server_c::disconnect_server_shutdown:	dialogmessage2 = "Server was shut down."; break;
-			case server_c::disconnect_timeout: 			dialogmessage2 = "Connection timed out."; break;
-			case disconnect_kick:						dialogmessage2 = "You were kicked."; break;
-			case disconnect_idlekick:					dialogmessage2 = "You were kicked for being idle."; break;
-			case disconnect_client_misbehavior:			dialogmessage2 = "Internal error (client misbehaved)."; break;
+			case server_c::disconnect_server_shutdown:	description = "Server was shut down."; break;
+			case server_c::disconnect_timeout: 			description = "Connection timed out."; break;
+			case disconnect_kick:						description = "You were kicked."; break;
+			case disconnect_idlekick:					description = "You were kicked for being idle."; break;
+			case disconnect_client_misbehavior:			description = "Internal error (client misbehaved)."; break;
 			default:	break;
 		}
-	menusel = menu_dialog;
+	showDialog("You have been disconnected. Press ESC.", description);
 
-	//namestatus
 	if (namestatus_code == 0)
-		namestatus = "NO PASSWORD SET?";
-	else if ((namestatus_code == 1) || (namestatus_code == 3)) {
-		namestatus = "LOGGED (";
-		namestatus += player_token;
-		namestatus += ")";
-	}
-	else if (namestatus_code == 2) {
-		namestatus = "ERROR: WRONG ID?";
-	}
-
+		menu.options.name.namestatus.set("NO PASSWORD SET?");
+	else if ((namestatus_code == 1) || (namestatus_code == 3))
+		menu.options.name.namestatus.set(string() + "LOGGED (" + player_token + ")");
+	else if (namestatus_code == 2)
+		menu.options.name.namestatus.set("ERROR: WRONG ID?");
 }
 
 void gameclient_c::connect_failed_denied(char *data, int length) {
@@ -1161,30 +1133,28 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 	else
 		message = "no reason given.";
 
-	// show a message
-	dialogmessage = "Connection refused. Press ESC.";
-	dialogmessage2 = message;
-
 	if (message == "SERVER PASSWORD")
-		menusel = menu_server_password;
+		showMenu(m_serverPassword);
 	else if (message == "PLAYER PASSWORD") {
 		string newPass = load_player_password(playername, address);
-		if (!newPass.empty() && newPass != edit_player_password) {
-			edit_player_password = newPass;
+		if (!newPass.empty() && newPass != m_playerPassword.password()) {
+			m_playerPassword.password.set(newPass);
 			connect_command();
 		}
 		else {
-			menusel = menu_player_password;
-			save_password_selected = false;
+			if (openMenus.top() == &m_dialog.menu)
+				openMenus.close();
+			m_playerPassword.setup(playername, false);
+			showMenu(m_playerPassword);
 		}
 	}
 	else {
-		menusel = menu_dialog;
+		showDialog("Connection refused. Press ESC.", message);
 		if (message == "Wrong player password")
 			remove_player_password(playername, address);
 		// clear passwords to avoid sending them everywhere
-		edit_server_password.clear();
-		edit_player_password.clear();
+		m_serverPassword.password.set("");
+		m_playerPassword.password.set("");
 	}
 }
 
@@ -1192,10 +1162,7 @@ void gameclient_c::connect_failed_unreachable() {
 	//not trying anymore
 	trying_connection = false;
 
-	// show a message
-	dialogmessage = "No response from server. Press ESC.";
-	dialogmessage2.clear();
-	menusel = menu_dialog;
+	showDialog("No response from server. Press ESC.");
 }
 
 string gameclient_c::load_player_password(const string& name, const string& address) const {
@@ -1513,12 +1480,12 @@ void gameclient_c::connect_command() {
 	writeString(lebuf, count, GAME_STRING);
 	writeString(lebuf, count, GAME_PROTOCOL);
 	writeStr(lebuf, count, playername);
-	if (!edit_server_password.empty())
-		writeStr(lebuf, count, edit_server_password);
-	if (!edit_player_password.empty()) {
-		writeStr(lebuf, count, edit_player_password);
-		if (save_pl_password)
-			save_player_password(playername, address, edit_player_password);
+	if (!m_serverPassword.password().empty())
+		writeStr(lebuf, count, m_serverPassword.password());
+	if (!m_playerPassword.password().empty()) {
+		writeStr(lebuf, count, m_playerPassword.password());
+		if (m_playerPassword.save())
+			save_player_password(playername, address, m_playerPassword.password());
 		else
 			remove_player_password(playername, address);
 	}
@@ -1527,11 +1494,8 @@ void gameclient_c::connect_command() {
 
 	client->connect(true);
 
-	// set flags, show dialog...
 	trying_connection = true;
-	dialogmessage = "Trying to connect... ESC = cancel";
-	dialogmessage2.clear();
-	menusel = menu_dialog;
+	showDialog("Trying to connect... ESC = cancel");
 }
 
 //send player token message
@@ -1552,7 +1516,7 @@ void gameclient_c::issue_change_name_command() {
 	if (playername.length() > 16)
 		playername.erase(15);			//truncate player name, max 16 chars
 	writeStr(lebuf, count, playername);	// the name
-	writeStr(lebuf, count, edit_player_password);	// empty or not, it's needed
+	writeStr(lebuf, count, m_playerPassword.password());	// empty or not, it's needed
 	client->send_message(lebuf, count);
 
 	//name changed:
@@ -1564,7 +1528,7 @@ void gameclient_c::issue_change_name_command() {
 
 	//FIXME: code == 2 (?)
 	if ((namestatus_code == 1) || (namestatus_code == 3))
-		namestatus = "NAME CHANGED...";
+		menu.options.name.namestatus.set("NAME CHANGED...");
 	else
 		namestatus_code = 0;						//take the "*" out of the name
 
@@ -1578,15 +1542,17 @@ void gameclient_c::issue_change_name_command() {
 //change name command
 void gameclient_c::change_name_command() {
 	//set new name, close menu
-	if (editplayername.find_first_not_of(' ') == string::npos)
+	const string& newName = menu.options.name.name();
+	if (newName.find_first_not_of(' ') == string::npos)
 		return;
-	playername = editplayername;
-	if (menusel != menu_none)
-		menusel = menu_main;
+	if (openMenus.top() == &menu.options.name.menu)
+		openMenus.close();
 
-	//send reliable net message with the name
-	if (connected)
-		issue_change_name_command();
+	if (playername != newName) {
+		playername = newName;
+		if (connected)
+			issue_change_name_command();
+	}
 }
 
 //send the client's frame to server (keypresses)
@@ -2239,17 +2205,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, abyte);
 					if (abyte == 1) {
 						//success!
-						namestatus = "RECORDING (";
-						namestatus += player_token;
-						namestatus += ")";
-						//code
+						menu.options.name.namestatus.set(string() + "RECORDING (" + player_token + ")");
 						namestatus_code = 3;
 					}
 					else {
 						//fail
-						namestatus = "REJECTED (";
-						namestatus += player_token;
-						namestatus += ")";
+						menu.options.name.namestatus.set(string() + "REJECTED (" + player_token + ")");
 					}
 
 					break;
@@ -2443,12 +2404,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_name_authorization_request: {
-					string oldPassword = edit_player_password;
-					edit_player_password = load_player_password(playername, address);
-					if (edit_player_password == oldPassword || edit_player_password.empty()) {
-						menusel = menu_player_password;
-						save_password_selected = false;
-					}
+					string oldPassword = m_playerPassword.password();
+					m_playerPassword.password.set(load_player_password(playername, address));
+					if (m_playerPassword.password() == oldPassword || m_playerPassword.password().empty())
+						showMenu(m_playerPassword);
 					else
 						issue_change_name_command();
 					break;
@@ -2540,6 +2499,11 @@ void gameclient_c::toggle_help() {
 		client_sounds.play(SAMPLE_WEAPON_UP);
 	else
 		client_sounds.play(SAMPLE_FIRE);
+}
+
+void gameclient_c::showDialog(const string row1, const string row2) {
+	m_dialog.setup(row1, row2);
+	showMenu(m_dialog);
 }
 
 //show progress / press any key / dialog
@@ -2658,12 +2622,6 @@ void gameclient_c::get_servers_from_master() {
 				break;
 
 			log.error("MASTER CLIENT QUERY ERROR READING RESPONSE result = %i", result);
-			//show 'some problem occured try later'
-			/*
-			sprintf(dialogmessage, "Problem connecting! Try later. (2)");//%i %s %i %s", nlGetError(), nlGetErrorStr(nlGetError()), nlGetSystemError(), nlGetSystemErrorStr(nlGetSystemError()));
-			strcpy(dialogmessage2, "Press ESC");
-			menusel = (2);	//dialog menu
-			*/
 			nlClose(sock);
 			show_dialog("Problem connecting to master server (2).", "Try again later.", "Press any key.", 0, makecol(0xff,0x88,0x88));
 			return;
@@ -2863,8 +2821,8 @@ void gameclient_c::loop() {
 
 	bool notquit = true;
 
-	//show menu and not game yet
-	menusel = menu_main;
+	openMenus.clear();
+	showMenu(menu);
 	gameshow = false;
 
 	//reset speed counter
@@ -2874,7 +2832,6 @@ void gameclient_c::loop() {
 	//loop
 	bool key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
-	int i;
 	while (notquit && !force_exit) {
 		//log("** another loop()...");
 
@@ -2924,7 +2881,7 @@ void gameclient_c::loop() {
 				}
 			}
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
-			else if (menusel != menu_none) {
+			else if (menusel != menu_none || !openMenus.empty()) {
 				while (keypressed()) {
 					//get key
 					int ch = readkey();
@@ -2949,55 +2906,7 @@ void gameclient_c::loop() {
 
 					//test key
 					switch (menusel) {
-						//main menu
-						case menu_main:
-							if (key[KEY_SPACE] && sc == KEY_F8 && !listenServer.running()) {
-								port++;
-								if (port > DEFAULT_UDP_PORT + 5)
-									port = DEFAULT_UDP_PORT;
-							}
-							else if (sc == KEY_F10) {
-								change_name_command();
-							}
-							switch (ch) {
-								case '1': menusel = menu_server_list; break;
-								case '2': disconnect_command(); break;
-								case '3':
-									editplayername = playername;
-									editplayerpass = player_password;
-									name_selected = true;
-									menusel = menu_name_password;
-									break;
-								case '4': // start/stop listenserver
-									if (listenServer.running())
-										listenServer.stop();
-									else
-										listenServer.start(port);
-									break;
-								case '5':
-									winclient = !winclient;
-									client_graphics.reset_video_mode();
-									client_graphics.update_minimap_background(fx.map);
-									predraw();
-									break;
-								case '6': client_sounds.next_theme(); break;
-								case '7':
-									client_graphics.next_theme();
-									predraw();
-									break;
-								case '8':
-									client_graphics.toggle_antialiasing();
-									client_graphics.update_minimap_background(fx.map);
-									predraw();
-									break;
-								case '9':
-									menusel = menu_display_settings;
-									break;
-								default:;
-							}
-							break;
-						//connect screen
-						case menu_server_list:
+/*						case menu_server_list:
 							if (showmaster)
 								i = strlen(mgamespy[gi].address);
 							else
@@ -3041,8 +2950,8 @@ void gameclient_c::loop() {
 								}
 							}
 							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-								edit_server_password.clear();
-								edit_player_password.clear();
+//								edit_server_password.clear();
+//								edit_player_password.clear();
 								connect_command();
 							}
 							else if (sc == KEY_TAB) {
@@ -3058,91 +2967,7 @@ void gameclient_c::loop() {
 								//update from master
 								get_servers_from_master();
 							}
-							break;
-						//dialog screen : just ESC
-						case menu_dialog:
-							break;
-						//change name screen
-						case menu_name_password:
-							if (name_selected)
-								i = editplayername.length();
-							else
-								i = editplayerpass.length();
-
-							// ### FIXME: allow more characters
-							if (isalnum(ch) || ch == '-' || ch == '_') {
-								if (name_selected) {
-									if (i < 15) {
-										editplayername += static_cast<char>(ch);
-										editplayerpass.clear(); //reset password after editing name
-									}
-								}
-								else {
-									if (i < 8)
-										editplayerpass += static_cast<char>(ch);
-								}
-							}
-							else if (sc == KEY_BACKSPACE) {
-								if (i > 0) {
-									if (name_selected) {
-										editplayername.erase(editplayername.end() - 1);
-										editplayerpass.clear(); //reset password after editing name
-									}
-									else
-										editplayerpass.erase(editplayerpass.end() - 1);
-								}
-							}
-							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-								change_name_command();
-								//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
-								//conectado...
-								check_change_pass_command();
-							}
-							else if (sc == KEY_TAB)		// switch fields
-								name_selected = !name_selected;
-							break;
-						case menu_display_settings:
-							if (key[KEY_LEFT])
-								client_graphics.resolution_prev();
-							if (key[KEY_RIGHT])
-								client_graphics.resolution_next();
-							if (sc == KEY_ENTER) {
-								client_graphics.init();
-								client_graphics.update_minimap_background(fx.map);
-								predraw();
-								menusel = menu_main;
-							}
-						// server and player password requesting dialogs
-						case menu_server_password:
-							if (sc == KEY_BACKSPACE && !edit_server_password.empty())
-								edit_server_password.erase(edit_server_password.end() - 1);
-							else if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_server_password.empty())
-								connect_command();
-							else if (ch >= 32)
-								edit_server_password += static_cast<char>(ch);
-							break;
-						case menu_player_password:
-							if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty()) {
-								if (connected) {
-									issue_change_name_command();
-									menusel = menu_none;
-								}
-								else
-									connect_command();
-							}
-							else if (sc == KEY_TAB)
-								save_password_selected = !save_password_selected;
-							else if (save_password_selected) {
-								if (sc == KEY_SPACE)
-									save_pl_password = !save_pl_password;
-							}
-							else {
-								if (sc == KEY_BACKSPACE && !edit_player_password.empty())
-									edit_player_password.erase(edit_player_password.end() - 1);
-								else if (ch >= 32)
-									edit_player_password += static_cast<char>(ch);
-							}
-							break;
+							break;*/
 						case menu_maps:
 							if (key[KEY_UP])
 								client_graphics.map_list_prev();
@@ -3187,7 +3012,12 @@ void gameclient_c::loop() {
 								client_graphics.team_captures_prev();
 							if (key[KEY_DOWN])
 								client_graphics.team_captures_next();
-						default:;
+						case menu_none:
+							if (!openMenus.empty())
+								openMenus.handleKeypress(sc, ch);
+							break;
+						default:
+							nAssert(0);
 					}
 				}
 			}
@@ -3326,11 +3156,11 @@ void gameclient_c::loop() {
 
 					// F10: change name
 					if (sc == KEY_F10) {
-						editplayername = RandomName();
+						menu.options.name.name.set(RandomName());
 						change_name_command();
 					}
 					else if (sc == KEY_F3) {
-						option_show_names = !option_show_names;
+						menu.options.game.showNames.toggle();
 					}
 					// F11: screenshot
 					else if (sc == KEY_F11) {
@@ -3355,7 +3185,7 @@ void gameclient_c::loop() {
 			}
 
 			// F4 == want/don't want to exit map
-			if ((menusel == menu_none || menusel == menu_maps) && key[KEY_F4]) {
+			if (openMenus.empty() && (menusel == menu_none || menusel == menu_maps) && key[KEY_F4]) {
 				if (!key_votexit) {
 					key_votexit = true;
 
@@ -3381,26 +3211,20 @@ void gameclient_c::loop() {
 					kesc = true;
 					if (!talkbuffer.empty()) // cancel chat
 						talkbuffer.clear();
-					else if (trying_connection) {		//trying connection
-						trying_connection = false;	//not anymore
-
-						//this cancels the attempt to connect
-						client->connect(false);
-						//go back to main screen
-						menusel = menu_main;
-					}
-					//se mostrando help, quita
 					else if (helpshow)
 						toggle_help();
-					else if (menusel == menu_none)		// no menu, show
-						menusel = menu_main;
-					else {		// menu
-						if (menusel == menu_dialog || menusel == menu_name_password || menusel == menu_server_list ||
-											menusel == menu_server_password || menusel == menu_player_password ||
-											menusel == menu_display_settings)
-							menusel = menu_main;	// go back one screen
-						else if (gameshow || menusel != menu_main)
-							menusel = menu_none;	// hide menu
+					else {
+						if (trying_connection) {
+							trying_connection = false;
+							client->connect(false);
+						}
+						if (openMenus.empty())
+							showMenu(menu);
+						else {
+							openMenus.close();
+							if (!gameshow && openMenus.empty())
+								showMenu(menu);
+						}
 					}
 				}
 			}
@@ -3431,24 +3255,25 @@ void gameclient_c::loop() {
 		if (gameshow) {
 			pthread_mutex_lock( &frame_mutex );
 			ClientPhysicsCallbacks cb(*this);
-			#ifdef CLIENT_PREDICTION
-			float timeDelta = max<float>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
-			NLubyte firstFrame, lastFrame;
-			if (clFrameSent == clFrameWorld)
-				firstFrame = lastFrame = clFrameWorld;
-			else {
-				firstFrame = lastFrame = clFrameWorld + 1;
-				while (lastFrame != clFrameSent && timeDelta > 1.) {
-					++lastFrame;
-					timeDelta -= 1.;
+			if (menu.options.game.lagPrediction()) {
+				const float lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.);	// lagPredictionAmount() is in range [0, 10]
+				float timeDelta = max<float>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
+				NLubyte firstFrame, lastFrame;
+				if (clFrameSent == clFrameWorld)
+					firstFrame = lastFrame = clFrameWorld;
+				else {
+					firstFrame = lastFrame = clFrameWorld + 1;
+					while (lastFrame != clFrameSent && timeDelta > 1.) {
+						++lastFrame;
+						timeDelta -= 1.;
+					}
 				}
+				if (timeDelta > 3.)
+					timeDelta = 3.;
+				fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
 			}
-			if (timeDelta > 3.)
-				timeDelta = 3.;
-			fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
-			#else
-			fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
-			#endif
+			else
+				fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
 			pthread_mutex_unlock( &frame_mutex );
 		}
 
@@ -3479,7 +3304,7 @@ void gameclient_c::loop() {
 
 		if (helpshow)
 			client_graphics.game_help();
-		else if (menusel != menu_none)
+		else if (menusel != menu_none || !openMenus.empty())
 			draw_game_menu();
 
 		//if (page_flipping) {
@@ -3746,7 +3571,7 @@ void gameclient_c::draw_game_frame() {
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
-			if (option_show_names && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
+			if (menu.options.game.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
 				fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
 				int ttx = (int)fd.player[i].lx;
 				int tty = (int)fd.player[i].ly;
@@ -4166,11 +3991,7 @@ void gameclient_c::draw_player(int i) {
 //draws the game menu
 void gameclient_c::draw_game_menu() {
 	switch (menusel) {
-		case menu_main:
-			client_graphics.main_menu(connected, address, playername, namestatus,
-				listenServer.running(), listenServer.port(), client_sounds);
-			break;
-		case menu_server_list:
+/*		case menu_server_list:
 			if (showmaster) {
 				vector<gamespy_t> servers(mgamespy, mgamespy + MAX_GAMESPY);
 				client_graphics.public_servers(servers, gi);
@@ -4179,22 +4000,7 @@ void gameclient_c::draw_game_menu() {
 				vector<gamespy_t> servers(gamespy, gamespy + MAX_GAMESPY);
 				client_graphics.favourite_servers(servers, gi);
 			}
-			break;
-		case menu_dialog:
-			client_graphics.dialog(dialogmessage, dialogmessage2);
-			break;
-		case menu_name_password:
-			client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
-			break;
-		case menu_display_settings:
-			client_graphics.display_menu();
-			break;
-		case menu_server_password:
-			client_graphics.password_menu("Server password", edit_server_password.length());
-			break;
-		case menu_player_password:
-			client_graphics.password_menu_save("Player password for " + playername, edit_player_password.length(), save_pl_password, save_password_selected);
-			break;
+			break;*/
 		case menu_maps:
 			pthread_mutex_lock(&mapInfoMutex);
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
@@ -4206,7 +4012,12 @@ void gameclient_c::draw_game_menu() {
 		case menu_teams:
 			client_graphics.team_statistics(fx.teams);
 			break;
-		default: ;
+		case menu_none:
+			if (!openMenus.empty())
+				openMenus.draw(client_graphics.drawbuffer());
+			break;
+		default:
+			numAssert(0, menusel);
 	}
 }
 
@@ -4225,23 +4036,36 @@ private:
 void gameclient_c::initMenus() {
 	menu.recursiveSetMenuOpener					(new ClientCallback<Menu,		&gameclient_c::MCF_menuOpener		>(this));
 
+	menu.menu						.setDrawHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareMainMenu	>(this));
+
 	menu.connect						.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_connect			>(this));
 	menu.disconnect						.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_disconnect		>(this));
 	menu.startServer					.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_startServer		>(this));
 	menu.stopServer						.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_stopServer		>(this));
-	menu.menu						.setDrawHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareMainMenu	>(this));
 
+	menu.options.menu				  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
+
+	menu.options.name.menu			.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareNameMenu	>(this));
+	menu.options.name.menu		   .setCloseHook(new ClientCallback<Menu,		&gameclient_c::MCF_nameMenuClose	>(this));
+	menu.options.name.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.name.name				.setHook(new ClientCallback<Textfield,	&gameclient_c::MCF_nameChange		>(this));
 	menu.options.name.removePasswords	.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_removePasswords	>(this));
 
+	menu.options.game.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.game.favoriteColors	.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_favoriteColors	>(this));
 
-	menu.options.graphics.apply			.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.theme			.setHook(new ClientCallback<Select,		&gameclient_c::MCF_gfxThemeChange	>(this));
 	menu.options.graphics.menu		.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareGfxMenu	>(this));
 	menu.options.graphics.menu	   .setCloseHook(new ClientCallback<Menu,		&gameclient_c::MCF_screenModeChange	>(this));
+	menu.options.graphics.menu		  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.graphics.apply			.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_screenModeChange	>(this));
+	menu.options.graphics.theme			.setHook(new ClientCallback<Select,		&gameclient_c::MCF_gfxThemeChange	>(this));
 
-	menu.options.sounds.theme			.setHook(new ClientCallback<Select,		&gameclient_c::MCF_sndThemeChange	>(this));
 	menu.options.sounds.menu		.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareSndMenu	>(this));
+	menu.options.sounds.menu		  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.sounds.theme			.setHook(new ClientCallback<Select,		&gameclient_c::MCF_sndThemeChange	>(this));
+
+	m_playerPassword.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_connect			>(this));
+	m_serverPassword.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_connect			>(this));
 }
 
 void gameclient_c::MCF_prepareMainMenu(Menu&) {
@@ -4253,7 +4077,34 @@ void gameclient_c::MCF_prepareMainMenu(Menu&) {
 		menu.startServer.setEnable(true);
 		menu.stopServer.setEnable(false);
 	}
+	menu.disconnect.setEnable(connected);
 }
+
+void gameclient_c::MCF_prepareNameMenu(Menu&) {
+	menu.options.name.name.set(playername);
+	menu.options.name.password.set(player_password);
+}
+
+void gameclient_c::MCF_nameMenuClose(Menu&) {
+	change_name_command();
+	check_change_pass_command();
+}
+
+void gameclient_c::MCF_prepareGfxMenu(Menu&) {
+	Menu_graphics& gfxmenu = menu.options.graphics;
+	//#fix: needs support from graphics and theme subsystems
+	gfxmenu.resolution.addOption("<res>");
+	gfxmenu.colorDepth.addOption("<depth>");
+	gfxmenu.theme.addOption("<theme>");
+}
+
+
+/*
+a)	client_graphics.reset_video_mode();
+b)	client_graphics.init();
+	client_graphics.update_minimap_background(fx.map);
+	predraw();
+*/
 
 void gameclient_c::close_button_callback() {
 	force_exit = true;

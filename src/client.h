@@ -26,18 +26,11 @@ struct download_runes_t {
 	char dest[512];	//full destination path+name for downloaded file
 };
 
-enum Menu_selection {	//#fix: get rid
+enum Menu_selection {	// screens that aren't quite menus //#fix: get rid
 	menu_none,
-	menu_main,
-	menu_dialog,
-	menu_server_list,
-	menu_name_password,
 	menu_maps,
 	menu_players,
-	menu_teams,
-	menu_server_password,
-	menu_player_password,
-	menu_display_settings
+	menu_teams
 };
 
 class ServerThreadOwner {
@@ -121,21 +114,21 @@ class gameclient_c {
 	int player_stats_page;
 	bool want_change_teams;
 	bool want_map_exit;
-	bool option_show_names;
 	bool map_time_limit;
 	NLulong map_start_time;
 	NLulong map_end_time;
 
 	// GUI
 	Menu_main menu;
+	Menu_dialog m_dialog;
+	Menu_playerPassword m_playerPassword;
+	Menu_serverPassword m_serverPassword;
 	MenuStack openMenus;
 //#fix: get rid
 	bool menushow;
-	//int menu;	//menu screen #
 	Menu_selection menusel;
 	bool gameshow;
 	bool helpshow;
-//#
 	double FPS;
 	int framecount, totalframecount;
 	double frameCountStartTime;
@@ -144,6 +137,7 @@ class gameclient_c {
 	int scoreboard[MAX_PLAYERS];
 	std::string hostname;
 	int strlen_hostname;
+//#fix: get rid
 	bool showmaster;	//showing master screen (opposite: showing favourites screen)
 	bool first_fav_refresh;	//first refresh of favorites page already done?
 	gamespy_t gamespy[MAX_GAMESPY];
@@ -151,25 +145,15 @@ class gameclient_c {
 	gamespy_t mgamespy[MAX_GAMESPY];	//gamespy of masterserver
 
 	std::string playername;	//the player's name (max name len = 16)
-	std::string namestatus;	// v0.4.4: NAME STATUS (unregistered, registering..., registered!)
-	std::string editplayername;
 	std::string address;	//server IP address
+	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 
-	std::string edit_server_password;
-	std::string edit_player_password;
-	bool save_pl_password;
-	bool save_password_selected;
 	std::string password_file;
 
-	std::string dialogmessage;
-	std::string dialogmessage2;
 	std::string talkbuffer;
 	std::list<Message> chatbuffer;
 	static const std::size_t chat_size;
 	std::size_t chat_visible;
-	std::string editplayerpass;
-	bool name_selected;
-	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 	Graphics client_graphics;
 	bool screenshot;
 	Sounds client_sounds;
@@ -185,16 +169,20 @@ class gameclient_c {
 
 	// menu callback functions
 	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
-	void MCF_connect(Textarea&) { connect_command(); }
+	void MCF_menuCloser(Menu&) { openMenus.close(); }
+	template<class ArgT> void MCF_connect(ArgT&) { openMenus.clear(); connect_command(); }
 	void MCF_disconnect(Textarea&) { disconnect_command(); }
 	void MCF_startServer(Textarea&) { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
 	void MCF_stopServer(Textarea&) { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
 	void MCF_prepareMainMenu(Menu&);
+	void MCF_prepareNameMenu(Menu&);
+	void MCF_nameMenuClose(Menu&);
+	void MCF_nameChange(Textfield&) { menu.options.name.password.set(""); check_change_pass_command(); }
 	void MCF_removePasswords(Textarea&) { }	//#fix: action!
 	void MCF_favoriteColors(Textarea&) { }	//#fix: action!
 	void MCF_screenModeChange(Textarea&) { screenModeChange(); }
 	void MCF_gfxThemeChange(Select&) { }	//#fix: action!
-	void MCF_prepareGfxMenu(Menu&) { }	//#fix: action!
+	void MCF_prepareGfxMenu(Menu&);
 	void MCF_screenModeChange(Menu&) { screenModeChange(); }
 	void MCF_sndThemeChange(Select&) { }	//#fix: action!
 	void MCF_prepareSndMenu(Menu&) { }	//#fix: action!
@@ -259,6 +247,8 @@ public:
 	void toggle_help();
 	void show_progress(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
 	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
+	void showDialog(const std::string row1, const std::string row2 = std::string());
+	template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
 	void predraw();
 	void draw_game_frame();
 	void draw_player(int pid);

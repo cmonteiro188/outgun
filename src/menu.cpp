@@ -12,53 +12,70 @@ using std::vector;
 const int char_w = 8;
 const int line_h = 12;
 
-const int col_background = makecol(0x99, 0x99, 0x99);
-const int col_caption = makecol(0xC0, 0xFF, 0xC0);
-const int col_active = makecol(0xFF, 0xFF, 0xFF);
-const int col_disabled = makecol(0x40, 0x40, 0x40);
-const int col_value = makecol(0x00, 0xFF, 0x00);
+int col_background	= makecol(0x30, 0x30, 0x30);
+int col_caption		= makecol(0x30, 0xFF, 0x30);
+int col_active		= makecol(0x80, 0xFF, 0x80);
+int col_disabled	= makecol(0x30, 0x70, 0x30);
+int col_value		= makecol(0x30, 0xA0, 0x30);
 
 int Component::captionColor(bool active) const {
-	if (!isEnabled()) {
-		nAssert(!active);
+	if (!isEnabled())
 		return col_disabled;
-	}
 	if (active)
 		return col_active;
 	return col_caption;
 }
 
-void Menu::prev() {
+void Menu::home() {
+	for (selected_item = 0; !components[selected_item]->isEnabled(); ++selected_item)
+		if (selected_item >= static_cast<int>(components.size())) {
+			selected_item = 0;	// maybe this isn't needed
+			return;
+		}
+}
+
+bool Menu::prev() {
 	int original = selected_item;
 	do {
 		--selected_item;
 		if (selected_item < 0) {
 			selected_item = original;
-			return;
+			return false;
 		}
 	} while (!components[selected_item]->isEnabled());
+	return true;
 }
 
-void Menu::next() {
+bool Menu::next() {
 	int original = selected_item;
 	do {
 		++selected_item;
 		if (selected_item >= static_cast<int>(components.size())) {
 			selected_item = original;
-			return;
+			return false;
 		}
 	} while (!components[selected_item]->isEnabled());
+	return true;
 }
 
 void Menu::draw(BITMAP* buffer) {
+col_background	= makecol(0x30, 0x30, 0x30);
+col_caption		= makecol(0x30, 0xFF, 0x30);
+col_active		= makecol(0x80, 0xFF, 0x80);
+col_disabled	= makecol(0x30, 0x70, 0x30);
+col_value		= makecol(0x30, 0xA0, 0x30);
 	drawHook.call(*this);
 
+	if (!components[selected_item]->isEnabled())	// a disabled component can not be active
+		if (!next())	// try moving down first - feels intuitive
+			prev();	// if it fails, so be it
+
 	// calculate menu width and height
-	const int padding = 4;
+	const int padding = 12;
 	const int max_width = buffer->w;
-	const int min_width = total_width() + padding;
+	const int min_width = total_width() + padding * 2;
 	const int max_height = buffer->h;
-	const int min_height = total_height() + padding;
+	const int min_height = total_height() + padding * 2;
 	const int w = min(max_width, min_width);
 	const int h = min(max_height, min_height);
 	const int mx = max_width / 2;
@@ -70,17 +87,18 @@ void Menu::draw(BITMAP* buffer) {
 
 	rectfill(buffer, x1, y1, x2, y2, col_background);
 
-	int line = 1;
+	int y = y1 + padding;
 
 	// draw caption
-	textout_centre_ex(buffer, font, caption.c_str(), mx, y1 + line++ * line_h, col_caption, -1);
-	line++;
+	textout_centre_ex(buffer, font, caption.c_str(), mx, y, col_caption, -1);
+	y += 2 * line_h;
 
 	// draw components
 	for (int compi = 0; compi < static_cast<int>(components.size()); ++compi) {
+		Component* component = components[compi];
 		//#todo: show shortcut numbers if the active component doesn't needNumberKeys()
-		components[compi]->draw(buffer, x1 + padding, y1 + line * line_h, compi == selected_item);
-		line++;
+		component->draw(buffer, x1 + padding, y, compi == selected_item);
+		y += component->height();
 	}
 }
 
@@ -90,10 +108,10 @@ void Menu::handleKeypress(char scan, char chr) {
 	else if (scan == KEY_DOWN)
 		next();
 	//#todo: handle number shortcuts if the active component doesn't needNumberKeys()
-	if (components[selected_item]->handleKey(scan, chr))
+	if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
 		return;
 	if (scan == KEY_ENTER || scan == KEY_ENTER_PAD)
-		callHook(*this);
+		okHook.call(*this);
 }
 
 int Menu::width() const {
@@ -108,25 +126,36 @@ void Menu::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 }
 
+bool Menu::handleKey(char scan, char chr) {
+	(void)chr;
+	if (!(scan == KEY_ENTER || scan == KEY_ENTER_PAD))
+		return false;
+	callHook(*this);
+	return true;
+}
+
 int Menu::total_width() const {
-	int min_width = 0;
+	int min_width = caption.length() * char_w;
 	for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
 		min_width = max(min_width, (*comp)->width());
 	return min_width;	//#todo: leave space for shortcut numbers
 }
 
 int Menu::total_height() const {
-	int min_height = line_h;	// for caption
+	int height = 2 * line_h;	// for caption
 	for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
-		min_height += (*comp)->height();
-	return min_height;
+		height += (*comp)->height();
+	return height;
 }
 
 
 void Textfield::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 	x += (caption.length() + 1) * char_w;
-	textout_ex(buffer, font, value.c_str(), x, y, col_value, -1);
+	if (maskChar)
+		textout_ex(buffer, font, string(value.length(), maskChar).c_str(), x, y, col_value, -1);
+	else
+		textout_ex(buffer, font, value.c_str(), x, y, col_value, -1);
 }
 
 int Textfield::width() const {
@@ -152,6 +181,7 @@ bool Textfield::handleKey(char scan, char chr) {
 void Select::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 	x += (caption.length() + 1) * char_w;
+	nAssert(!options.empty());
 	nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
 	textout_ex(buffer, font, options[selected].c_str(), x, y, col_value, -1);
 }
@@ -218,9 +248,10 @@ int Slider::height() const {
 void Slider::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 	int x0 = x + (caption.length() + 1) * char_w;
-	int barLength = (x + width() - x0) * (val - vmin) / (vmax - vmin);
+	int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
 	rect(buffer, x0, y, x + width() - 1, y + height() - 1, captionColor(active));
-	rectfill(buffer, x0 + 1, y + 1, x0 + barLength - 2, y + height() - 2, col_value);
+	if (barLength)
+		rectfill(buffer, x0 + 1, y + 1, x0 + barLength, y + height() - 2, col_value);
 }
 
 bool Slider::handleKey(char scan, char chr) {
@@ -237,7 +268,10 @@ bool Slider::handleKey(char scan, char chr) {
 
 
 int Textarea::width() const {
-	return text.length() * char_w;
+	int len = caption.length() + text.length();
+	if (!caption.empty() && !text.empty())
+		++len;
+	return len * char_w;
 }
 
 int Textarea::height() const {
@@ -246,6 +280,9 @@ int Textarea::height() const {
 
 void Textarea::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
+	if (!caption.empty())
+		x += (caption.length() + 1) * char_w;
+	textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 
 bool Textarea::handleKey(char scan, char chr) {

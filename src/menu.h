@@ -9,7 +9,7 @@
 // Base class of menu components
 class Component {
 public:
-	Component(const std::string& caption_): caption(caption_) { }
+	Component(const std::string& caption_): caption(caption_), enabled(true) { }
 	virtual ~Component() { };
 
 	void setCaption(const std::string& text) { caption = text; }
@@ -41,37 +41,43 @@ public:
 	void open() { openHook.call(*this); }
 	void close() { closeHook.call(*this); }
 
+	void home();	// moves the cursor to topmost selectable item
 	void draw(BITMAP* buffer);	// no const because drawHook might modify the menu
 	void handleKeypress(char scan, char chr);
 
-	void  setDrawHook(Hook<Menu>::FunctionT* fn) {  drawHook.set(fn); }
-	void  setOpenHook(Hook<Menu>::FunctionT* fn) {  openHook.set(fn); }
-	void setCloseHook(Hook<Menu>::FunctionT* fn) { closeHook.set(fn); }
+	void  setDrawHook(Hook<Menu>::FunctionT* fn) {  drawHook.set(fn); }	// called before drawing
+	void  setOpenHook(Hook<Menu>::FunctionT* fn) {  openHook.set(fn); }	// called by open()
+	void setCloseHook(Hook<Menu>::FunctionT* fn) { closeHook.set(fn); }	// called by close()
+	void    setOkHook(Hook<Menu>::FunctionT* fn) {    okHook.set(fn); }	// called when enter is pressed (and not handled by active entry)
 
 	// inherited interface
 	int width() const;
 	int height() const;
 	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	bool handleKey(char, char);
 
 private:
 	int total_width() const;
 	int total_height() const;
 
-	void prev();
-	void next();
+	bool prev();
+	bool next();
 
 	std::vector<Component*> components;
 	int selected_item;
 
-	Hook<Menu> drawHook, openHook, closeHook;
+	Hook<Menu> drawHook, openHook, closeHook, okHook;
 };
-
+#include <iostream>
 class MenuStack {
 public:
 	bool empty() const { return st.empty(); }
+	Menu* top() const { return st.top(); }
 	void open(Menu* menu) { menu->open(); st.push(menu); }
 	void close() { nAssert(!empty()); Menu* menu = st.top(); st.pop(); menu->close(); }
+	void clear() { while (!empty()) close(); }
 	void draw(BITMAP* buf) { nAssert(!empty()); st.top()->draw(buf); }
+	void handleKeypress(char scan, char chr) { nAssert(!empty()); st.top()->handleKeypress(scan, chr); }
 
 private:
 	std::stack<Menu*> st;
@@ -79,7 +85,7 @@ private:
 
 class Textfield : public Component, public Hookable<Textfield> {
 public:
-	Textfield(const std::string& caption_, const std::string& init_text, int fieldLength): Component(caption), value(init_text), maxlen(fieldLength) { }
+	Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0): Component(caption_), value(init_text), maxlen(fieldLength), maskChar(mask) { }
 	void set(const std::string& text) { value = text; }
 	std::string operator()() const { return value; }
 
@@ -93,11 +99,12 @@ public:
 private:
 	std::string value;
 	int maxlen;
+	char maskChar;	// 0 for no masking
 };
 
 class Select : public Component, public Hookable<Select> {
 public:
-	Select(const std::string caption_): Component(caption), selected(0) { }
+	Select(const std::string caption_): Component(caption_), selected(0) { }
 	void clearOptions() { options.clear(); selected = 0; }
 	void addOption(const std::string& text) { options.push_back(text); }
 	void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
@@ -117,7 +124,8 @@ private:
 
 class Checkbox : public Component, public Hookable<Checkbox> {
 public:
-	Checkbox(const std::string& caption_, bool init_value = false): Component(caption), selected(init_value) { }
+	Checkbox(const std::string& caption_, bool init_value = false): Component(caption_), selected(init_value) { }
+	void toggle() { selected = !selected; }
 	void set(bool value) { selected = value; }
 	bool operator()() const { return selected; }
 
@@ -133,7 +141,7 @@ private:
 
 class Slider : public Component, public Hookable<Slider> {
 public:
-	Slider(const std::string caption, int vmin_, int vmax_) : Component(caption), vmin(vmin_), vmax(vmax_), val(vmin_) { }
+	Slider(const std::string caption_, int vmin_, int vmax_) : Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_) { }
 	void set(int value) { val = value; }
 	int operator()() const { return val; }
 
@@ -149,7 +157,8 @@ private:
 
 class Textarea : public Component, public Hookable<Textarea> {
 public:
-	Textarea(const std::string& caption_, const std::string& text_ = std::string()): Component(caption), text(text_) { }
+	Textarea(const std::string& caption_, const std::string& text_ = std::string()): Component(caption_), text(text_) { }
+	void set(const std::string& val) { text = val; }
 
 	// inherited interface
 	int width() const;

@@ -14,6 +14,10 @@ void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int
 void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg);
 void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg);
 void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg);
+
+inline void set_close_button_callback(void (*fn)()) {
+	set_window_close_hook(fn);
+}
 #endif	// ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 
 #endif	// INCALLEG_H_INC

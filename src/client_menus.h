@@ -7,19 +7,22 @@ class Menu_name {
 public:
 	Textfield name;
 	Textfield password;
+	Textarea namestatus;
 	Textarea removePasswords;
 
 	Menu menu;
 
 	Menu_name() :
 		name			("Name", "", 15),
-		password		("Password", "", 15),
-		removePasswords	("Remove player passwords"),
+		password		("Password", "", 15, '*'),
+		namestatus		("Registration status"),
+		removePasswords	("Remove server-specific player passwords"),
 
 		menu			("Name and password")
 	{
 		menu.add_component(&name);
 		menu.add_component(&password);
+		menu.add_component(&namestatus);
 		menu.add_component(&removePasswords);
 	}
 	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
@@ -45,10 +48,10 @@ public:
 		menu				("Game options")
 	{
 		menu.add_component(&showNames);
-		menu.add_component(&favoriteColors);
+//defunct		menu.add_component(&favoriteColors);
 		menu.add_component(&lagPrediction);
 		menu.add_component(&lagPredictionAmount);
-		menu.add_component(&joystick);
+//defunct		menu.add_component(&joystick);
 	}
 	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
@@ -74,6 +77,9 @@ public:
 
 		menu		("Graphic options")
 	{
+		antialiasing.addOption("On");
+		antialiasing.addOption("Map");
+		antialiasing.addOption("Off");
 		menu.add_component(&windowed);
 		menu.add_component(&resolution);
 		menu.add_component(&colorDepth);
@@ -162,6 +168,62 @@ public:
 	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) {
 		menu.setHook(opener);
 		options.recursiveSetMenuOpener(opener->clone());
+	}
+};
+
+class Menu_dialog {
+public:
+	Textarea line1;
+	Textarea line2;
+
+	Menu menu;
+
+	Menu_dialog() :
+		line1	(std::string()),
+		line2	(std::string()),
+
+		menu	("Outgun")
+	{
+		menu.add_component(&line1);
+		menu.add_component(&line2);
+	}
+	void setup(std::string line1_, std::string line2_) { line1.setCaption(line1_); line2.setCaption(line2_); }
+};
+
+class Menu_playerPassword {
+public:
+	Textfield password;
+	Checkbox save;
+
+	Menu menu;
+
+	Menu_playerPassword() :
+		password	("Password", "", 15, '*'),
+		save		("Save password"),
+
+		menu		(std::string())
+	{
+		menu.add_component(&password);
+		menu.add_component(&save);
+	}
+	void setup(std::string plyName, bool saveChecked) {
+		menu.setCaption("Player password for " + plyName);
+		save.set(saveChecked);
+	}
+};
+
+class Menu_serverPassword {
+public:
+	Textfield password;
+
+	Menu menu;
+
+	Menu_serverPassword() :
+		password	("Password", "", 15, '*'),
+
+		menu		("Server password")
+	{
+		menu.add_component(&password);
 	}
 };
 
