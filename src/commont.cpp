@@ -62,34 +62,6 @@ void ClientControls::fromJoystick() {
 
 NLaddress master_address;
 string wheregamedir;
-double svp_fric, svp_accel, svp_maxspeed;
-double svp_fric_run, svp_accel_run, svp_maxspeed_run;
-double svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
-double svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun;
-double svp_flag_penalty;
-bool   svp_friendly_fire, svp_friendly_db;
-bool   svp_player_collisions;
-
-void set_default_physics() {
-	svp_fric = 1.5;
-	svp_accel = 2.0;
-	svp_maxspeed = 12.0;
-	svp_fric_run = 1.5;
-	svp_accel_run = 2.0;
-	svp_maxspeed_run = 22.0;
-	svp_fric_turbo = 3.0;
-	svp_accel_turbo = 4.0;
-	svp_maxspeed_turbo = 18.0;
-	svp_fric_turborun = 3.0;
-	svp_accel_turborun = 4.0;
-	svp_maxspeed_turborun = 33.0;
-	svp_flag_penalty = 3.0;
-	svp_friendly_fire = false;
-	svp_friendly_db = false;
-	svp_player_collisions = false;
-}
-
-int maxplayers = MAX_PLAYERS;		// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
 
 bool dedserver = false;		//dedicated server? -ded
 bool textserver = false;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)

@@ -51,6 +51,7 @@ class ServerNetworking {
 
 	gameserver_c*	host;
 	ServerWorld&	world;
+	int				maxplayers;
 
 	server_c*		server;
 
@@ -105,6 +106,7 @@ class ServerNetworking {
 public:
 	ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs);
 	~ServerNetworking();
+	void setMaxPlayers(int num) { maxplayers = num; }
 
 	bool start();
 	void stop();

@@ -141,6 +141,7 @@ class gameclient_c {
 	std::vector<ClientPlayer*> players_sb;	// player pointers for scoreboard
 	int me;
 	pthread_mutex_t frame_mutex;
+	int maxplayers;
 
 	// network
 	client_c *client;
@@ -273,6 +274,8 @@ class gameclient_c {
 	void CB_tournamentToken(std::string token);	// callback called by tournamentPassword from another thread
 
 	bool screenModeChange();	// the return value should be tested at the first call
+
+	void setMaxPlayers(int num) { maxplayers = num; fx.setMaxPlayers(num); fd.setMaxPlayers(num); }
 
 public:
 	gameclient_c(LogSet hostLogs);

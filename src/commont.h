@@ -29,13 +29,13 @@ public:
 	void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
 	void fromKeyboard();
 	void fromJoystick();
-	bool     isUp() const { return (data& 1)!=0; }
-	bool   isDown() const { return (data& 2)!=0; }
-	bool   isLeft() const { return (data& 4)!=0; }
-	bool  isRight() const { return (data& 8)!=0; }
-	bool    isRun() const { return (data&16)!=0; }
-	bool isStrafe() const { return (data&32)!=0; }
-	bool     idle() const { return  data    ==0; }
+	bool     isUp() const { return (data&up    ) != 0; }
+	bool   isDown() const { return (data&down  ) != 0; }
+	bool   isLeft() const { return (data&left  ) != 0; }
+	bool  isRight() const { return (data&right ) != 0; }
+	bool    isRun() const { return (data&run   ) != 0; }
+	bool isStrafe() const { return (data&strafe) != 0; }
+	bool     idle() const { return  data         == 0; }
 
 private:
 	NLubyte data;
@@ -101,21 +101,9 @@ extern char directory_separator;
 //root path (game executable path)
 extern std::string wheregamedir;
 
-// server game phisics parameters
-extern double svp_fric, svp_accel, svp_maxspeed;
-extern double svp_fric_run, svp_accel_run, svp_maxspeed_run;
-extern double svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
-extern double svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun;
-extern double svp_flag_penalty;
-extern bool   svp_friendly_fire, svp_friendly_db;
-extern bool   svp_player_collisions;
-
-void set_default_physics();
-
 // number-of-players
 #define MAX_PLAYERS 32	// the MAXIMUM MAXIMUM number of players EVER
-extern int maxplayers;	// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
-#define TSIZE (maxplayers/2)	// CTF TEAM SIZE
+#define TSIZE (maxplayers/2)	// CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessable, the variable in question will vary by place of use
 
 #define MAX_ROCKETS 256	// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
@@ -129,7 +117,7 @@ extern bool trypageflip;	//try page flipping? -flip / -dbuf
 extern bool nosound;		//disable sound? -nosound
 extern int targetfps;		//target (MAX) frames-per-second
 extern int port;			//the server port
-extern int server_maxplayers;	//default maxplayers of the server
+extern int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
 extern bool force_ip;		//force IP?
 extern char force_ip_name[32];	//force IP to what?
 

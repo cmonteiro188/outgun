@@ -1292,7 +1292,7 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
 }
 
-void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams) {
+void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers) {
 	if (!show_scoreboard)
 		return;
 
@@ -1437,7 +1437,7 @@ void Graphics::team_statistics(const Team* teams) {
 	}
 }
 
-void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, int time) {
+void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, int time, int maxplayers) {
 	// Preferred line height is 12.
 	// Lines needed: every player, 3 captions, 4 empty lines and page number.
 	const int h = min(12 * (maxplayers + 8), SCREEN_H);
@@ -1914,10 +1914,10 @@ void Graphics::create_quadwallexplo(int x, int y, int px, int py) {
 }
 
 //create deathbringer explosion fx
-void Graphics::create_deathbringer(int owner, double start_time, int x, int y, int px, int py) {
+void Graphics::create_deathbringer(int team, double start_time, int x, int y, int px, int py) {
 	clientfx_t fx;
 
-	fx.owner = owner;	//deathbringer owner
+	fx.team = team;
 	fx.type = FX_DEATHBRINGER_EXPLOSION;
 	fx.x = x;
 	fx.y = y;
@@ -1945,7 +1945,6 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py, int team) {
 	fx.py = py;
 	fx.time = get_time();
 
-	//owner: set color
 	int r = rand() %100;
 	if (team) {
 		if (r < 50)
@@ -2047,7 +2046,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
 					if (delta > 3.0)
 						fx = cfx.erase(fx);
 					else
-						draw_deathbringer(fx->x, fx->y, fx->owner / TSIZE, delta);
+						draw_deathbringer(fx->x, fx->y, fx->team, delta);
 					break;
 
 				case FX_DEATHCARRIER_SMOKE:

@@ -1,4 +1,4 @@
-#include <fstream>
+	#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -134,29 +134,7 @@ void ServerNetworking::send_me_packet(int pid) {
 	writeByte(lebuf, count, ((NLubyte)host->current_map_nr()));	// current map
 	writeByte(lebuf, count, ((NLubyte)world.teams[0].score()));	// team 0 current score
 	writeByte(lebuf, count, ((NLubyte)world.teams[1].score()));	// team 1 current score
-	//server physics parameters
-	writeFloat(lebuf, count, ((NLfloat)svp_fric) );
-	writeFloat(lebuf, count, ((NLfloat)svp_accel) );
-	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed) );
-	writeFloat(lebuf, count, ((NLfloat)svp_fric_run) );
-	writeFloat(lebuf, count, ((NLfloat)svp_accel_run) );
-	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_run) );
-	writeFloat(lebuf, count, ((NLfloat)svp_fric_turbo) );
-	writeFloat(lebuf, count, ((NLfloat)svp_accel_turbo) );
-	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turbo) );
-	writeFloat(lebuf, count, ((NLfloat)svp_fric_turborun) );
-	writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
-	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
-	writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
-	// friendly fire, friendly deathbringer and player collisions
-	NLubyte ff_db_pc = 0;
-	if (svp_friendly_fire)
-		ff_db_pc |= 0x01;
-	if (svp_friendly_db)
-		ff_db_pc |= 0x02;
-	if (svp_player_collisions)
-		ff_db_pc |= 0x04;
-	writeByte(lebuf, count, ff_db_pc);
+	world.physics.write(lebuf, count);
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
@@ -539,7 +517,7 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 	if (config.balanceTeams())
 		settings |= (1 << i);
 	i++;
-	if (svp_friendly_fire)
+	if (world.physics.friendly_fire)
 		settings |= (1 << i);
 	i++;
 	if (pupConfig.pups_drop_at_death)
@@ -2261,7 +2239,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 
 		NLulong cid = 0;
 		int pid = 0;	// pid and cid set if argPid[code]
-		NLulong dwArg;	// set if argDw[code]
+		NLulong dwArg = 0;	// set if argDw[code]
 		//                         noop, get-functions,ch,qu,pi,kckbanmte,reset
 		int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
 		int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };

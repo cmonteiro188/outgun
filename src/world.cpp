@@ -964,33 +964,18 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 
 	//select effective physics vars for the player
 	float player_accel, player_friction, player_maxspeed;
-	if (h->controls.isRun()) {
-		if (turbo) {
-			player_accel    = svp_accel_turborun;
-			player_friction = svp_fric_turborun;
-			player_maxspeed = svp_maxspeed_turborun;
-		}
-		else {
-			player_accel    = svp_accel_run;
-			player_friction = svp_fric_run;
-			player_maxspeed = svp_maxspeed_run;
-		}
-	}
-	else {
-		if (turbo) {
-			player_accel    = svp_accel_turbo;
-			player_friction = svp_fric_turbo;
-			player_maxspeed = svp_maxspeed_turbo;
-		}
-		else {
-			player_accel    = svp_accel;
-			player_friction = svp_fric;
-			player_maxspeed = svp_maxspeed;
-		}
-	}
+	PhysicalSettings::Movement* moveParms;
+	if (h->controls.isRun())
+		moveParms = turbo ? &physics.turboRun : &physics.run;
+	else
+		moveParms = turbo ? &physics.turboWalk : &physics.walk;
+	player_accel = moveParms->accel;
+	player_friction = moveParms->fric;
+	player_maxspeed = moveParms->maxSpeed;
+
 	//flag carrier disadvantage when running
 	if (h->controls.isRun() && carryFlag)
-		player_maxspeed -= svp_flag_penalty;
+		player_maxspeed -= physics.flag_penalty;
 
 	float xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
 	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
@@ -1213,6 +1198,68 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
 		addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + *dirp, 0, frameAdvance, cb);
 }
 
+void PhysicalSettings::Movement::read(char* lebuf, int& count) {
+	readFloat(lebuf, count, fric);
+	readFloat(lebuf, count, accel);
+	readFloat(lebuf, count, maxSpeed);
+}
+
+void PhysicalSettings::Movement::write(char* lebuf, int& count) const {
+	writeFloat(lebuf, count, fric);
+	writeFloat(lebuf, count, accel);
+	writeFloat(lebuf, count, maxSpeed);
+}
+
+PhysicalSettings::PhysicalSettings() :
+	walk		(1.5, 2.0, 12.0),
+	run			(1.5, 2.0, 22.0),
+	turboWalk	(3.0, 4.0, 18.0),
+	turboRun	(3.0, 4.0, 33.0),
+	flag_penalty(3.0),
+	friendly_fire(false),
+	friendly_db(false),
+	player_collisions(false)
+{
+}
+
+void PhysicalSettings::read(char* lebuf, int& count) {
+	walk		.read(lebuf, count);
+	run			.read(lebuf, count);
+	turboWalk	.read(lebuf, count);
+	turboRun	.read(lebuf, count);
+	readFloat(lebuf, count, flag_penalty);
+
+	NLubyte ff_db_pc = 0;
+	readByte(lebuf, count, ff_db_pc);
+	friendly_fire		= (ff_db_pc & 0x01) != 0;
+	friendly_db			= (ff_db_pc & 0x02) != 0;
+	player_collisions	= (ff_db_pc & 0x04) != 0;
+}
+
+void PhysicalSettings::write(char* lebuf, int& count) const {
+	walk		.write(lebuf, count);
+	run			.write(lebuf, count);
+	turboWalk	.write(lebuf, count);
+	turboRun	.write(lebuf, count);
+	writeFloat(lebuf, count, flag_penalty);
+
+	NLubyte ff_db_pc = 0;
+	if (friendly_fire)
+		ff_db_pc |= 0x01;
+	if (friendly_db)
+		ff_db_pc |= 0x02;
+	if (player_collisions)
+		ff_db_pc |= 0x04;
+	writeByte(lebuf, count, ff_db_pc);
+}
+
+void PhysicalSettings::print(LineReceiver& printer) const {
+	if (friendly_fire)
+		printer("- Friendly fire is on.");
+	if (player_collisions)
+		printer("- Players can collide with each other.");
+}
+
 void PowerupSettings::reset() {
 	pup_add_time = 60;
 	pup_max_time = 180;
@@ -1340,10 +1387,6 @@ void WorldSettings::print(LineReceiver& printer) const {
 	}
 	if (balance_teams)
 		printer("- Teams will be balanced at the start of each round.");
-	if (svp_friendly_fire)
-		printer("- Friendly fire is on.");
-	if (svp_player_collisions)
-		printer("- Players can collide with each other.");
 	if (shadow_minimum == 0)
 		printer("- A player using the shadow power-up gets totally invisible.");
 }
@@ -2212,7 +2255,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				const int pid = rply[pi];
 				for (uint ri=0; ri<rrock.size(); ++ri) {
 					const int rid = rrock[ri];
-					if (rock[rid].team == pid / TSIZE && (!svp_friendly_fire || rock[rid].owner == pid))	// friendly rocket
+					if (rock[rid].team == pid / TSIZE && (!physics.friendly_fire || rock[rid].owner == pid))	// friendly rocket
 						continue;
 					double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
 					if (time < minCollision && time < rockMoveMax[ri]) {
@@ -2231,7 +2274,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		// find out next player-player collision
 		double minPlyCollision = fraction + 1;	// at what time the first player-player collision occurs (forward time: 1-subFrame is end of frame)
 		int pcPly=0, pcPlyI=-1, pcTarg=0, pcTargI=-1;	// which players they are, pid and room-table-indices
-		if (svp_player_collisions) {
+		if (physics.player_collisions) {
 			for (uint pi = 0; pi < rply.size(); ++pi) {
 				const int pid = rply[pi];
 				for (uint ti = pi + 1; ti < rply.size(); ++ti) {
@@ -2462,7 +2505,7 @@ void ServerWorld::simulateFrame() {
 			// the donut radius...radius-50
 			for (int v = 0; v < maxplayers; v++)
 				//enemy players only if friendly fire is off
-				if ((v/TSIZE != i/TSIZE || svp_friendly_db) && player[v].used && player[v].health > 0 &&
+				if ((v/TSIZE != i/TSIZE || physics.friendly_db) && player[v].used && player[v].health > 0 &&
 								player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
 								player[v].deathbringer_end < get_time()) {
 					//calculate player distance to the deathbringer core

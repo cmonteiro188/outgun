@@ -24,8 +24,8 @@ struct clientfx_t {
 	//speed fx
 	int col1, col2, gundir;
 
-	//deathbringer owner
-	int owner;
+	//deathbringer color
+	int team;
 };
 
 #endif // EFFECTS_H_INC

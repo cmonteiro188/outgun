@@ -77,6 +77,7 @@ class gameserver_c {
 	ServerWorld		world;
 	bool			gameover;
 	double			gameover_time;		//timeout for gameover plaque
+	int				maxplayers;
 
 	// networking
 	ServerNetworking network;
@@ -94,6 +95,8 @@ class gameserver_c {
 	#endif
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
 	std::string server_website_url;	// the URL of the server website to be sent to master server
+
+	void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
 
 	// copying not allowed
 	gameserver_c(const gameserver_c& o);

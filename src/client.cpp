@@ -326,6 +326,7 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	//net client
 	client = 0;
 
+	setMaxPlayers(MAX_PLAYERS);
 	//all the players to show including me
 	//player_t player[MAX_PLAYERS];
 	for (int p = 0; p < MAX_PLAYERS; p++)
@@ -829,7 +830,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	int count = 0;
 	NLubyte maxpl;
 	readByte(data, count, maxpl);
-	maxplayers = maxpl;
+	setMaxPlayers(maxpl);
 
 	readStr(data, count, hostname);
 	hostname = hostname.substr(0, 32);	//truncate at 32 chars
@@ -1556,7 +1557,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			NLshort   rokx, roky;	//rocket hit msg 8
 			NLushort	usho, hx, hy;
 			NLulong frameno, prank, pscore, nscore;	//v0.4.8 NEG SCORE
-			NLfloat aflo;
 			char debuf[666]; debuf[0]=0;
 			NLshort	ashort, rx, ry;
 			int k = 0;
@@ -1621,36 +1621,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.teams[1].set_base_score(abyte);
 
 					//server physics parameters
-					readFloat(msg, count, aflo);
-					svp_fric = aflo;
-					readFloat(msg, count, aflo);
-					svp_accel = aflo;
-					readFloat(msg, count, aflo);
-					svp_maxspeed = aflo;
-					readFloat(msg, count, aflo);
-					svp_fric_run = aflo;
-					readFloat(msg, count, aflo);
-					svp_accel_run = aflo;
-					readFloat(msg, count, aflo);
-					svp_maxspeed_run = aflo;
-					readFloat(msg, count, aflo);
-					svp_fric_turbo = aflo;
-					readFloat(msg, count, aflo);
-					svp_accel_turbo = aflo;
-					readFloat(msg, count, aflo);
-					svp_maxspeed_turbo = aflo;
-					readFloat(msg, count, aflo);
-					svp_fric_turborun = aflo;
-					readFloat(msg, count, aflo);
-					svp_accel_turborun = aflo;
-					readFloat(msg, count, aflo);
-					svp_maxspeed_turborun = aflo;
-					readFloat(msg, count, aflo);
-					svp_flag_penalty = aflo;
-					readByte(msg, count, abyte);
-					svp_friendly_fire		= (abyte & 0x01) ? true : false;
-					svp_friendly_db			= (abyte & 0x02) ? true : false;
-					svp_player_collisions	= (abyte & 0x04) ? true : false;
+					fx.physics.read(msg, count);
+					fd.physics = fx.physics;
 
 					// room is probably changed
 					fx.player[me].oldx = -1;
@@ -1882,7 +1854,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, sy);
 					readShort(lebuf, count, hx);
 					readShort(lebuf, count, hy);
-					client_graphics.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
+					client_graphics.create_deathbringer(abyte/TSIZE, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
 					client_sounds.play(SAMPLE_USEDEATHBRINGER);
 					break;
 
@@ -3293,7 +3265,7 @@ void gameclient_c::draw_game_frame() {
 	blue << "Blue Team:   " << setw(2) << fx.teams[1].score() << " capt";
 	client_graphics.draw_scoreboard_caption(1, blue.str());*/
 
-	client_graphics.draw_scoreboard(players_sb, fx.teams);
+	client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers);
 	/*int pix[2]; pix[0]=pix[1]=0;
 	for (int fw=0;fw<2;fw++)		//first count, then draw
 	{
@@ -3487,7 +3459,7 @@ void gameclient_c::draw_player(int i) {
 	else {
 		if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {	// Check because the server may have sent invalid colour.
 			// turbo effect
-			if (player.item_speed && (fabs(player.sx) > svp_maxspeed || fabs(player.sy) > svp_maxspeed) &&
+			if (player.item_speed && (fabs(player.sx) > fx.physics.walk.maxSpeed || fabs(player.sy) > fx.physics.walk.maxSpeed) &&
 						get_time() > player.speed_drop_time) {
 				fx.player[i].speed_drop_time = get_time() + 0.05;
 					client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, player.color(), player.gundir);
@@ -3521,7 +3493,7 @@ void gameclient_c::draw_game_menu() {
 			pthread_mutex_unlock(&mapInfoMutex);
 			break;
 		case menu_players:
-			client_graphics.draw_statistics(fx.player, player_stats_page, static_cast<int>(get_time()));
+			client_graphics.draw_statistics(fx.player, player_stats_page, static_cast<int>(get_time()), maxplayers);
 			break;
 		case menu_teams:
 			client_graphics.team_statistics(fx.teams);

@@ -44,6 +44,7 @@ gameserver_c::gameserver_c(LogSet& hostLogs) :
 	authorizations(log)
 {
 	hostLogs("See serverlog.txt for server's log messages");
+	setMaxPlayers(MAX_PLAYERS);
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 	fav_colors[0].resize(16, false);
@@ -466,46 +467,46 @@ void gameserver_c::load_game_mod() {
 				int ival = atoi(line.c_str());
 
 				if (cmd == "friction")
-					svp_fric = val;
+					world.physics.walk.fric = val;
 				else if (cmd == "accel")
-					svp_accel = val;
+					world.physics.walk.accel = val;
 				else if (cmd == "maxspeed")
-					svp_maxspeed = val;
+					world.physics.walk.maxSpeed = val;
 				else if (cmd == "friction_run")
-					svp_fric_run = val;
+					world.physics.run.fric = val;
 				else if (cmd == "accel_run")
-					svp_accel_run = val;
+					world.physics.run.accel = val;
 				else if (cmd == "maxspeed_run")
-					svp_maxspeed_run = val;
+					world.physics.run.maxSpeed = val;
 				else if (cmd == "friction_turbo")
-					svp_fric_turbo = val;
+					world.physics.turboWalk.fric = val;
 				else if (cmd == "accel_turbo")
-					svp_accel_turbo = val;
+					world.physics.turboWalk.accel = val;
 				else if (cmd == "maxspeed_turbo")
-					svp_maxspeed_turbo = val;
+					world.physics.turboWalk.maxSpeed = val;
 				else if (cmd == "friction_turborun")
-					svp_fric_turborun = val;
+					world.physics.turboRun.fric = val;
 				else if (cmd == "accel_turborun")
-					svp_accel_turborun = val;
+					world.physics.turboRun.accel = val;
 				else if (cmd == "maxspeed_turborun")
-					svp_maxspeed_turborun = val;
+					world.physics.turboRun.maxSpeed = val;
 				else if (cmd == "flag_penalty")
-					svp_flag_penalty = val;
+					world.physics.flag_penalty = val;
 				else if (cmd == "player_collisions") {
 					if (ival == 0 || ival == 1)
-						svp_player_collisions = ival == 1 ? true : false;
+						world.physics.player_collisions = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "friendly_fire") {
 					if (ival == 0 || ival == 1)
-						svp_friendly_fire = ival == 1 ? true : false;
+						world.physics.friendly_fire = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "friendly_deathbringer") {
 					if (ival == 0 || ival == 1)
-						svp_friendly_db = ival == 1 ? true : false;
+						world.physics.friendly_db = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -585,7 +586,7 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "sudden_death") {
 					if (ival == 0 || ival == 1)
-						worldConfig.sudden_death = ival == 1 ? true : false;
+						worldConfig.sudden_death = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -603,15 +604,17 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "balance_teams") {
 					if (ival == 0 || ival == 1)
-						worldConfig.balance_teams = ival == 1 ? true : false;
+						worldConfig.balance_teams = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "server_name")
 					network.set_hostname(line);
 				else if (cmd == "max_players") {
-					if (ival >= 2 && ival <= MAX_PLAYERS && ival % 2 == 0)
-						maxplayers = ival;
+					if (ival != maxplayers && network.get_player_count() != 0)
+						log.error("Can't change max_players while players are connected");
+					else if (ival >= 2 && ival <= MAX_PLAYERS && ival % 2 == 0)
+						setMaxPlayers(ival);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -635,7 +638,7 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "pup_deathbringer_switch") {
 					if (ival == 0 || ival == 1)
-						pupConfig.pup_deathbringer_switch = ival == 1 ? true : false;
+						pupConfig.pup_deathbringer_switch = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -647,7 +650,7 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "pups_drop_at_death") {
 					if (ival == 0 || ival == 1)
-						pupConfig.pups_drop_at_death = ival == 1 ? true : false;
+						pupConfig.pups_drop_at_death = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -671,7 +674,7 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "random_maprot") {
 					if (ival == 0 || ival == 1)
-						random_maprot = ival == 1 ? true : false;
+						random_maprot = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -713,7 +716,7 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "sayadmin_enabled") {
 					if (ival == 0 || ival == 1)
-						sayadmin_enabled = ival == 1 ? true : false;
+						sayadmin_enabled = (ival == 1);
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -834,7 +837,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	if (keepMap)
 		currMapFile = maprot[currmap].file;
 
-	set_default_physics();
+	world.physics = PhysicalSettings();	// default values
 
 	pupConfig.reset();
 	worldConfig.reset();
@@ -939,7 +942,7 @@ bool gameserver_c::start(int target_maxplayers) {
 		return false;
 
 	// Set maxplayers, could be reset by gamemod setting.
-	maxplayers = target_maxplayers;
+	setMaxPlayers(target_maxplayers);
 
 	//reset client_c struct (closes files...)
 	for (int i = 0; i < MAX_PLAYERS; i++)
@@ -1114,6 +1117,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			network.player_message(pid, msg_header, "Current server settings:");
 			PlayerMessager pm(*this, pid, msg_normal);
 			worldConfig.print(pm);
+			world.physics.print(pm);
 			pupConfig.print(pm);
 		}
 		else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {

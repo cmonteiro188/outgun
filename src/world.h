@@ -570,11 +570,34 @@ template<class Type> class PointerContainer {	// doesn't delete the objects!
 public:
 	PointerContainer() : ptr(0) { }
 	PointerContainer(Type* p) : ptr(p) { }
-	void setPtr(Type* p) { ptr=p; }
+
+	void setPtr(Type* p) { ptr = p; }
+
 	      Type* getPtr()       { return ptr; }
 	const Type* getPtr() const { return ptr; }
+
 	operator       Type&()       { nAssert(ptr); return *ptr; }
 	operator const Type&() const { nAssert(ptr); return *ptr; }
+};
+
+class PhysicalSettings {
+public:
+	class Movement {
+	public:
+		float fric, accel, maxSpeed;
+		Movement(float friction, float acceleration, float maxSpeed_) : fric(friction), accel(acceleration), maxSpeed(maxSpeed_) { }
+		void read(char* lebuf, int& count);
+		void write(char* lebuf, int& count) const;
+	};
+	Movement walk, run, turboWalk, turboRun;
+	float flag_penalty;
+	bool friendly_fire, friendly_db;
+	bool player_collisions;
+
+	PhysicalSettings();
+	void read(char* lebuf, int& count);
+	void write(char* lebuf, int& count) const;
+	void print(LineReceiver& printer) const;
 };
 
 class PhysicsCallbacksBase {
@@ -613,9 +636,12 @@ public:
 	void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 	void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback);
 
+	void setMaxPlayers(int num) { maxplayers = num; }
+
 PointerLeakBuffer<32> buf1;
 	Map map;
 
+	int maxplayers;	// actual
 	PointerContainer<PlayerBase> player[MAX_PLAYERS];
 	Team teams[2];
 
@@ -623,6 +649,8 @@ PointerLeakBuffer<32> buf1;
 
 	rocket_c rock[MAX_ROCKETS];
 	Powerup item[MAX_PICKUPS];
+
+	PhysicalSettings physics;
 PointerLeakBuffer<32> buf2;
 
 	virtual ~WorldBase() { }
@@ -778,7 +806,11 @@ PointerLeakBuffer<32> buf1;
 	double frame;
 
 	std::vector<ClientPlayer> player;
-	ClientWorld() : skipped(true), player(MAX_PLAYERS) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+
+	ClientWorld() : skipped(true), player(MAX_PLAYERS) {
+		for (int i=0; i<MAX_PLAYERS; ++i)
+			WorldBase::player[i].setPtr(&player[i]);
+	}
 	// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 	void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
 						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter);

@@ -114,10 +114,10 @@ public:
 	void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
 							 const std::string& talkbuffer);
 
-	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams);
+	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers);
 
 	void team_statistics(const Team* teams);
-	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
+	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time, int maxplayers);
 	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
 					 const std::vector<std::vector<std::pair<int, int> > >& sticks, const std::vector<int>& buttons);
 
@@ -161,7 +161,7 @@ public:
 
 	void create_wallexplo(int x, int y, int px, int py);
 	void create_quadwallexplo(int x, int y, int px, int py);
-	void create_deathbringer(int owner, double start_time, int x, int y, int px, int py);
+	void create_deathbringer(int team, double start_time, int x, int y, int px, int py);
 	void create_smoke(int x, int y, int px, int py, int team);
 	void create_deathcarrier(int x, int y, int px, int py, int team);
 	void create_gunexplo(int x, int y, int px, int py);
