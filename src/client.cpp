@@ -288,8 +288,10 @@ void gameclient_c::client_password_thread(void *) {
 	while (player_password_set == true) {
 
 		//open a nonblocking socket
+		pthread_mutex_lock(&nlOpenMutex);
 		nlDisable(NL_BLOCKING_IO);
 		sock = nlOpen(0, NL_RELIABLE);
+		pthread_mutex_unlock(&nlOpenMutex);
 		if (sock == NL_INVALID) {
 			//show "cant open socket to master" error
 			namestatus = "SOCKET ERROR. RETRYING...";
@@ -855,7 +857,6 @@ void gameclient_c::set_menu(Menu_selection menumber) {
 //disconnect command
 void gameclient_c::disconnect_command() {
 	//disconnect the client here if was connected, else does nothing
-	LOG("disconnect_command()\n");
 	client->connect(false);
 
 	//dialogz
@@ -920,7 +921,6 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//reset world data
 	// players
-
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		fx.player[i].clear(false, i, "(name unknown)", i / TSIZE);
 	players_sb.clear();
@@ -1134,7 +1134,10 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 	client_graphics.show_progress("", "Refreshing servers...", "");
 
+	pthread_mutex_lock(&nlOpenMutex);
+	nlDisable(NL_BLOCKING_IO);
 	NLsocket sock = nlOpen(0, NL_UNRELIABLE);
+	pthread_mutex_unlock(&nlOpenMutex);
 
 	if (sock == NL_INVALID) {
 		LOG2("LIXAO!!!!!! %s %s\n", nlGetErrorStr(nlGetError()), nlGetSystemErrorStr(nlGetSystemError()) );
@@ -1320,7 +1323,6 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 //connect command
 void gameclient_c::connect_command() {
 	// disconnect
-	LOG("connect_command()\n");
 	client->connect(false);
 	
 	autoconnect = false;
@@ -2397,8 +2399,10 @@ void gameclient_c::get_servers_from_master() {
 	NLsocket sock;
 
 	//open a nonblocking socket
+	pthread_mutex_lock(&nlOpenMutex);
 	nlDisable(NL_BLOCKING_IO);
 	sock = nlOpen(0, NL_RELIABLE);
+	pthread_mutex_unlock(&nlOpenMutex);
 	if (sock == NL_INVALID) {
 		//show "cant open socket to master" error
 		show_dialog("ERROR", "Can't open socket!", "Press any key.", 0,makecol(0xff,0xaa,0xaa));
@@ -3530,7 +3534,7 @@ void gameclient_c::draw_game_frame() {
 
 	// hiding stuff?
 	// v0.4.1 : hide stuff if frame skipped
-	bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me > maxplayers;
+	bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
 	// the playground: border, walls and pits
 	if (hide_game) {
@@ -3546,10 +3550,11 @@ void gameclient_c::draw_game_frame() {
 				client_graphics.draw_scores("GAME TIED", -1, blue_final_score, red_final_score);
 		}
 		else
-			client_graphics.draw_one_line_message("Connecting...");
+			client_graphics.draw_one_line_message("Connecting...");	//#fix: if the map download is pending, "Connecting..." is a wrong word
 
-		client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
-		if (!map_ready) {
+		if (map_ready)
+			client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
+		else {
 			ostringstream text;
 			text << "Loading map: " << fdp << " bytes";
 			client_graphics.draw_loading_map_message(text.str());
@@ -3613,7 +3618,7 @@ void gameclient_c::draw_game_frame() {
 
 		// the PLAY AREA: the players!
 		for (int k = 0; k < maxplayers; k++) {
-			const int i = (me / TSIZE == 0 ? k : maxplayers - k - 1);
+			const int i = (me / TSIZE == 0 ? k : maxplayers - k - 1);	// own team first
 
 			//HACK REMENDEX: predict item_helm
 			if (fd.player[i].item_helm()) {

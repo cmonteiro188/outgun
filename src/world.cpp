@@ -2071,7 +2071,9 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	#ifndef NDEBUG
 	int round = 0;
 	#endif
+numAssert(rrock.size() < 40, rrock.size());
 	for (;;) {	//#fix: optimize this loop, esp. for client
+numAssert(rrock.size() < 40, rrock.size());
 		nAssert(++round < 200);
 		// find out next player-wall collision
 		double minBounce = fraction + 1;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
@@ -2179,6 +2181,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				}
 				else
 					plyChanged = cPlyI;
+numAssert2(cRockI >= 0 && cRockI < (int)rrock.size(), cRockI, rrock.size());
 				rrock.erase(rrock.begin() + cRockI);
 				rockMoveMax.erase(rockMoveMax.begin() + cRockI);
 			}
@@ -2200,6 +2203,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 			plyMoveMax[plyChanged].first += subFrame;	// keep the table in absolute frame time
 		}
 	}
+numAssert(rrock.size() < 40, rrock.size());
 	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri) {
 		const rocket_c& r = rock[*ri];
 		if (r.x<0 || r.x>plw || r.y<0 || r.y>plh)

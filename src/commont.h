@@ -3,6 +3,63 @@
 #ifndef COMMONT_H_INC
 #define COMMONT_H_INC
 
+#include "nassert.h"
+#include <stdio.h>
+// ----------------------
+
+// Validity checker:
+
+typedef unsigned long ulong;
+
+class ValidityChecker {
+  #ifdef BWNOVALIDITYCHECKS
+  public:
+  	void checkValidity() const { }
+  #else
+    int check;
+
+  public:
+    ValidityChecker() : check(0xC044EC7) { }
+    void checkValidity() const
+                      { numAssert((ulong)this>0x10000 && (ulong)this<0xFFFF0000, (int)this); nAssert(check!=0xDE7E7ED); nAssert(check==0xC044EC7); }
+    ~ValidityChecker() { checkValidity(); check=0xDE7E7ED; }
+  #endif
+};
+
+
+// ----------------------
+
+// Pointer leak information gatherer
+
+#pragma pack(push, 1)
+template<int size> class PointerLeakBuffer : private ValidityChecker {
+    char buffer[size];
+
+  public:
+    PointerLeakBuffer() {
+        for (int i=0; i<size; i++)
+            buffer[i]=0x11;
+    }
+    void checkValidity() const {
+        for (int i=0; i<size; i++)
+            if (buffer[i]!=0x11) {
+                printf("Leak buffer (@%p-%p) changed at %d (%p), data: ", &buffer[0], &buffer[size-1], i, &buffer[i]);
+                for (int x=i; x<size && buffer[x]!=0x11; x++)
+                    printf("%02X ", buffer[x]);
+                printf("\nas string: ");
+                for (; i<size && buffer[i]!=0x11; i++)
+                    printf("%c", buffer[i]);
+                printf("\n\n");
+            }
+        ValidityChecker::checkValidity();
+    }
+    ~PointerLeakBuffer() {
+        checkValidity();
+    }
+};
+#pragma pack(pop)
+////////////////////////////////////////////////////////
+
 #include <allegro.h>
 #ifdef ALLEGRO_WINDOWS
 #include <winalleg.h>
@@ -199,6 +256,15 @@ public:
 	~Profiler() { *sump += time_counter - start; }
 };
 
+class MutexHolder {
+	pthread_mutex_t mutex;
+
+public:
+	MutexHolder() { pthread_mutex_init(&mutex, 0); }
+	~MutexHolder() { pthread_mutex_destroy(&mutex); }
+	pthread_mutex_t* operator&() { return &mutex; }
+};
+
 //server_next_map() reasons
 enum {
     NEXTMAP_NONE,
@@ -282,5 +348,7 @@ std::istream& getline_smart(std::istream& in, std::string& str);
 
 // Convert string to uppercase.
 std::string toupper(std::string str);
+
+extern MutexHolder nlOpenMutex;
 
 #endif

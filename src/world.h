@@ -581,6 +581,7 @@ public:
 	void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 	void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback);
 
+PointerLeakBuffer<32> buf1;
 	Map map;
 
 	PointerContainer<PlayerBase> player[MAX_PLAYERS];
@@ -590,6 +591,7 @@ public:
 
 	rocket_c rock[MAX_ROCKETS];
 	Powerup item[MAX_PICKUPS];
+PointerLeakBuffer<32> buf2;
 
 	virtual ~WorldBase() { }
 
@@ -647,10 +649,12 @@ class ServerNetworking;
 class gameserver_c;	//#fix: get rid of non-networking callbacks?
 
 class ServerWorld : public WorldBase {
+PointerLeakBuffer<32> buf1;
 	gameserver_c* host;
 	ServerNetworking* net;
 	PowerupSettings pupConfig;
 	WorldSettings config;
+PointerLeakBuffer<32> buf2;
 
 	NLubyte getFreeRocket();	// may give an existing rocket to overwrite if the table is full
 	void drop_pickup(const ServerPlayer& player);
@@ -711,6 +715,7 @@ public:
 
 class ClientWorld : public WorldBase {
 public:
+PointerLeakBuffer<32> buf1;
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
 	double frame;
 

@@ -408,13 +408,13 @@ void gameserver_c::load_game_mod() {
 					if (ival == 0 || ival == 1)
 						svp_friendly_fire = ival == 1 ? true : false;
 					else
-						LOG1("Can't set friendly_fire to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "friendly_deathbringer") {
 					if (ival == 0 || ival == 1)
 						svp_friendly_db = ival == 1 ? true : false;
 					else
-						LOG1("Can't set friendly_deathbringer to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "map") {
 					MapInfo mi;
@@ -481,10 +481,14 @@ void gameserver_c::load_game_mod() {
 				else if (cmd == "time_limit") {
 					if (ival >= 0)
 						worldConfig.time_limit = 60 * 10 * ival; // minutes to frames
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "capture_limit") {
 					if (ival > 0)
 						worldConfig.capture_limit = ival;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "welcome_message")
 					welcome_message.push_back(line);
@@ -496,64 +500,70 @@ void gameserver_c::load_game_mod() {
 					if (ival > 0 && ival < 1000)
 						pupConfig.pup_add_time = ival;
 					else
-						LOG1("Can't set pup_add_time to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_max_time") {
 					if (ival > 0 && ival < 1000)
 						pupConfig.pup_max_time = ival;
 					else
-						LOG1("Can't set pup_max_time to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_deathbringer_switch") {
 					if (ival == 0 || ival == 1)
 						pupConfig.pup_deathbringer_switch = ival == 1 ? true : false;
 					else
-						LOG1("Can't set pup_deathbringer_switch to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "pups_drop_at_death") {
 					if (ival == 0 || ival == 1)
 						pupConfig.pups_drop_at_death = ival == 1 ? true : false;
 					else
-						LOG1("Can't set pups_drop_at_death to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "random_maprot") {
 					if (ival == 0 || ival == 1)
 						random_maprot = ival == 1 ? true : false;
 					else
-						LOG1("Can't set random_maprot to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "vote_block_time") {
 					if (ival >= 0)
 						vote_block_time = 60 * 10 * ival;	// minutes to frames
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "idlekick_time") {
 					if (ival >= 10 || ival == 0)
 						idlekick_time = ival * 10;	// seconds to frames
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "respawn_time") {
 					if (val >= 0)
 						worldConfig.respawn_time = val;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "waiting_time_deathbringer") {
 					if (val >= 0)
 						worldConfig.waiting_time_deathbringer = val;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "pup_shadow_invisibility") {
 					if (ival == 0 || ival == 1)
 						worldConfig.shadow_minimum = ival == 1 ? 0 : SV_SHADOW_MINIMUM_NORMAL;
 					else
-						LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "sayadmin_enabled") {
 					if (ival == 0 || ival == 1)
 						sayadmin_enabled = ival == 1 ? true : false;
 					else
-						LOG1("Can't set sayadmin_enabled to %d\n", ival);
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "sayadmin_comment")
 					sayadmin_comment = line;
-				/*else if (cmd == "idle_kick_time")
-					idle_kick_time = 60 * 10 * val;		// minutes to frames*/
 				else
 					LOG1("*** Bad command in gamemod: %s\n", cmd.c_str());
 			}

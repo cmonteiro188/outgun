@@ -147,6 +147,8 @@ double get_time() {
 
 char teamname[3][5];
 
+MutexHolder nlOpenMutex;
+
 int iround(double value) {
 	return static_cast<int>(value + 0.5);
 }

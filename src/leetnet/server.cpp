@@ -36,34 +36,29 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 
 */
 
+#define _log_h_
+#include "../commont.h"	// for nlOpenMutex
 #include "pthread.h"
-
 #include "sched.h"
-
 #include "leetnet.h"
-
 #include "server.h"
-
 #include "nl.h"
-
 #include "rudp.h"
-
 #include "stdio.h"
-
 #include "timefunc.h"
-
 #include "Timer.h"
-
 #include "sleep.h"
-
 #include "ConditionVariable.h"
 using namespace GNE;
-
 
 // max (absolute) clients that can connect to a server
 // change this to meet your needs
 #define  MAX_CLIENTS 32
 
+#undef LOG_NOLOG
+#undef LOG_EXPR
+#undef LOG_TIMEFUNC
+#undef _log_h_
 
 #define LOG_NOLOG  //enable this to comment out logging to server_c.log
 #define LOG_EXPR server_c_log
@@ -219,7 +214,10 @@ public:
 		set_client_timeout(5, 10);
 
 		//open the server socket
+		pthread_mutex_lock(&nlOpenMutex);
+		nlDisable(NL_BLOCKING_IO);
 		servsock = nlOpen((NLushort)port, NL_UNRELIABLE);
+		pthread_mutex_unlock(&nlOpenMutex);
 
 		if (servsock == NL_INVALID) {
 			LOG("server_ci::start(): cannot nlOpen server socket!\n");

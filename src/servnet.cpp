@@ -699,7 +699,10 @@ bool ServerNetworking::start() {
 	//v0.4.2 : new port
 	int tcp_shell_port = port - 500;
 
+	pthread_mutex_lock(&nlOpenMutex);
+	nlDisable(NL_BLOCKING_IO);
 	shellmsock = nlOpen((NLushort)tcp_shell_port, NL_RELIABLE);
+	pthread_mutex_unlock(&nlOpenMutex);
 	if (shellmsock == NL_INVALID) {
 		LOG1("CAN'T OPEN THE SHELL SOCKET ON PORT %i\n", tcp_shell_port);
 		return false; //oh no
@@ -1793,8 +1796,10 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	while (mjob_exit == false) {
 
 		//open a nonblocking socket
+		pthread_mutex_lock(&nlOpenMutex);
 		nlDisable(NL_BLOCKING_IO);
 		sock = nlOpen(0, NL_RELIABLE);
+		pthread_mutex_unlock(&nlOpenMutex);
 		if (sock == NL_INVALID) {
 			//FIXME show "cant open socket to master" error
 			for (w=0;w<60*2*2;w++) { if (mjob_exit) break; if (mjob_fastretry) break; MS_SLEEP(500); }
@@ -2054,9 +2059,11 @@ void ServerNetworking::run_mastertalker_thread() {
 			master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
 
 			//open socket
+			pthread_mutex_lock(&nlOpenMutex);
 			nlEnable(NL_BLOCKING_IO);
 			msock = nlOpen(0, NL_RELIABLE);
 			nlDisable(NL_BLOCKING_IO);
+			pthread_mutex_unlock(&nlOpenMutex);
 			if (msock == NL_INVALID) {
 				LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO MASTER SERVER!!\n");
 				continue;
@@ -2181,8 +2188,10 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	//quitting: delete my IP from master so clients won't see it
 	//open socket
+	pthread_mutex_lock(&nlOpenMutex);
 	nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
 	msock = nlOpen(0, NL_RELIABLE);
+	pthread_mutex_unlock(&nlOpenMutex);
 
 	if (msock == NL_INVALID) {
 		LOG("(QUIT) SERVER CAN'T OPEN SOCKET TO CONNECT TO MASTER SERVER!!\n");
@@ -2331,9 +2340,11 @@ void ServerNetworking::run_website_thread() {
 		if (get_time() > website_talk_time) {
 			website_talk_time = get_time() + 2 * 60.0;		// 2 minutes
 			LOG("Website thread: Start sending information to server website.\n");
+			pthread_mutex_lock(&nlOpenMutex);
 			nlEnable(NL_BLOCKING_IO);
 			websock = nlOpen(0, NL_RELIABLE);
 			nlDisable(NL_BLOCKING_IO);
+			pthread_mutex_unlock(&nlOpenMutex);
 			if (websock == NL_INVALID) {
 				LOG("Website thread: Server can't open socket to connect to server website!\n");
 				continue;
@@ -2425,9 +2436,11 @@ void ServerNetworking::run_website_thread() {
 	//quitting: send server shutdown message to web script
 	//open socket
 	//nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
+	pthread_mutex_lock(&nlOpenMutex);
 	nlEnable(NL_BLOCKING_IO);
 	websock = nlOpen(0, NL_RELIABLE);
 	nlDisable(NL_BLOCKING_IO);
+	pthread_mutex_unlock(&nlOpenMutex);
 
 	if (websock == NL_INVALID) {
 		LOG("Website thread: (Quite) Server can't open socket to connect to server website!\n");
@@ -2616,9 +2629,11 @@ void ServerNetworking::run_shellmaster_thread() {
 
 	while (1) {
 		//accept one connection
+		pthread_mutex_lock(&nlOpenMutex);
 		nlEnable(NL_BLOCKING_IO);
 		NLsocket pidaosock = nlAcceptConnection(shellmsock);
 		nlDisable(NL_BLOCKING_IO);
+		pthread_mutex_unlock(&nlOpenMutex);
 
 		//valid socket?
 		if (pidaosock != NL_INVALID) {

@@ -7,6 +7,7 @@
 // // // // internal definitions
 
 class PartialPixelSegment {
+PointerLeakBuffer<32> buf1;
 public:
 	enum { scale = 20 };	// scale alphas by 1 << scale ((1 << scale) / 2 equals half transparent)
 
@@ -87,6 +88,7 @@ private:
 
 	int startx;
 	std::vector<PartPix> pixels;
+PointerLeakBuffer<32> buf2;
 };
 
 class RectWall;
@@ -97,6 +99,7 @@ class LineFunction;
 class DrawElement;
 
 struct WallBorderSegment {
+PointerLeakBuffer<32> buf1;
 	BorderFunctionBase* fn;
 	double y0, y1;
 	WallBorderSegment() { }
@@ -129,6 +132,7 @@ struct FlagmarkerTexdata {
 };
 
 class TextureData {
+PointerLeakBuffer<32> buf1;
 public:
 	void setSolid(int color) { t = T_solid; d.s = color; }
 	void setTexture(BITMAP* texture, int x0 = 0, int y0 = 0) { t = T_texture; d.t.set(texture, x0, y0); }
@@ -174,6 +178,7 @@ public:
 	inline int getby0() const { return by0; }
 
 private:
+PointerLeakBuffer<32> buf1;
 	BITMAP* buf;
 	int bx, by;	// active pixel in buf
 	int bx0, by0;	// buffer pixel offset
@@ -184,6 +189,7 @@ private:
 	PartialPixelSegment* partSpan;
 	int spanIndex;	// index in partSpan
 	int spanEnd;	// when we must move to the next segment to continue adding pixels
+PointerLeakBuffer<32> buf2;
 };
 
 class SceneAntialiaser {
@@ -215,12 +221,14 @@ private:
 	void clip(int i0);
 	template<class Texturizer> void renderTemplate(Texturizer& tex) const;
 
+PointerLeakBuffer<32> buf1;
 	std::vector<BorderFunctionBase*> bfns;
 	std::vector<ObjectSource> objects;
 	LineFunction* clipLeft, * clipRight;
 	bool clipFunctionsValid;
 	float x0, y0, scale;
 	float clipx1, clipy1, clipx2, clipy2;
+PointerLeakBuffer<32> buf2;
 };
 
 #endif	// ANTIALIAS_H_INC
