@@ -4,6 +4,7 @@
 #include "sounds.h"
 #include "world.h"
 #include "network.h"
+#include "server.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
@@ -66,6 +67,8 @@ class gameclient_c {
 	NLulong fdp, fdp_max;
 	NLulong max_world_score, max_world_rank;
 
+	std::vector<gameserver_c::MapInfo> maps;
+	int current_map;
 	bool want_change_teams;
 	bool want_map_exit;
 	bool option_show_names;

@@ -130,9 +130,10 @@ void ServerNetworking::send_me_packet(int pid) {
 	int count = 0;
 	char lebuf[1024];
 	writeByte(lebuf, count, data_first_packet);
-	writeByte(lebuf, count, ((NLubyte)pid) );		// who am I
-	writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
-	writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
+	writeByte(lebuf, count, ((NLubyte)pid) );					// who am I
+	writeByte(lebuf, count, ((NLubyte)host->current_map_nr()));	// current map
+	writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );	// team 0 current score
+	writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );	// team 1 current score
 	//server physics parameters
 	writeFloat(lebuf, count, ((NLfloat)svp_fric) );
 	writeFloat(lebuf, count, ((NLfloat)svp_accel) );
@@ -315,6 +316,46 @@ void ServerNetworking::ctf_update_teamscore(int t) {
 	server->broadcast_message(lebuf, count);
 }
 
+void ServerNetworking::send_map_info(const ServerPlayer& player) {
+	int count = 0;
+	char lebuf[256];
+	writeByte(lebuf, count, data_map_list);
+	const vector<gameserver_c::MapInfo>::const_iterator mi = host->maplist().begin() + player.current_map_list_item;
+	writeStr(lebuf, count, mi->title);
+	writeStr(lebuf, count, mi->author);
+	writeByte(lebuf, count, static_cast<NLchar>(mi->width));
+	writeByte(lebuf, count, static_cast<NLchar>(mi->height));
+	writeByte(lebuf, count, static_cast<NLchar>(mi->votes));
+	server->send_message(player.cid, lebuf, count);
+}
+
+void ServerNetworking::broadcast_map_votes_update() {
+	vector<pair<NLchar, NLchar> > votes;	// map number and votes
+	NLchar i = 0;
+	for (vector<gameserver_c::MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
+		if (mi->votes_changed || i % 3 == 4) {
+			votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
+			mi->votes_changed = false;
+		}
+
+	if (!votes.empty())
+		for (int i = 0; i < maxplayers; i++)
+			if (world.player[i].used)
+				send_map_votes_update(world.player[i], votes);
+}
+
+void ServerNetworking::send_map_votes_update(const ServerPlayer& player, const vector<pair<NLchar, NLchar> >& votes) {
+	int count = 0;
+	char lebuf[256];
+	writeByte(lebuf, count, data_map_votes_update);
+	writeByte(lebuf, count, static_cast<NLchar>(votes.size()));
+	for (vector<pair<NLchar, NLchar> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
+		writeByte(lebuf, count, vi->first);
+		writeByte(lebuf, count, vi->second);
+	}
+	server->send_message(player.cid, lebuf, count);
+}
+
 //send map time left
 void ServerNetworking::send_map_time(int cid) {
 	if (!world.isTimeLimit())
@@ -455,9 +496,10 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 	int count = 0;
 	writeByte(lebuf, count, data_map_change);
 
-	writeByte(lebuf, count, data_text_message);
+	writeByte(lebuf, count, 2);   // file map format
 	writeShort(lebuf, count, world.map.crc);
 	writeString(lebuf, count, mapname);
+	writeByte(lebuf, count, static_cast<NLchar>(host->current_map_nr()));
 	server->send_message(world.player[pid].cid, lebuf, count);
 
 	//VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
@@ -722,6 +764,9 @@ int ServerNetworking::client_connected(int id) {
 
 	//send map time left if there is a time limit
 	send_map_time(id);
+
+	//the first map info to be sent
+	world.player[myself].current_map_list_item = 0;
 
 	// spawn player
 	world.player[myself].respawn_to_base = true;
@@ -1412,8 +1457,19 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			writeShort(lebuf, lecount, theping);
 
 		}//!world.player[i].awaiting_client_ready
+
 		//send the packet
 		server->send_frame(world.player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
+
+		//send server map list if not sent yet
+		if (world.player[i].current_map_list_item < host->maplist().size()) {
+			send_map_info(world.player[i]);
+			++world.player[i].current_map_list_item;
+		}
+	}
+
+	if (world.frame % 10 == 0) {
+		broadcast_map_votes_update();
 	}
 
 	// PING: v0.4.1

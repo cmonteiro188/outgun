@@ -8,7 +8,7 @@
 #include "network.h"
 #include "nassert.h"
 
-#define CLIENT_PREDICTION
+//#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #ifdef NIX
@@ -917,6 +917,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	map_ready = false;		// NO map change commands from server yet
 	servermap[0]=0;
 
+	maps.clear();
+
 	//not showing gameover plaque
 	gameover_plaque = NEXTMAP_NONE;
 
@@ -1630,7 +1632,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			}
 
 			//"hello" one-time server information ("first packet")
-			case data_first_packet:
+			case data_first_packet: {
+				NLchar map_nr;
 				readByte(msg, count, pid);	//"who am I"
 
 				//DEBUG msg
@@ -1641,6 +1644,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				me = pid;
+
+				readByte(msg, count, map_nr);	//current map number
+				current_map = map_nr;
 
 				//reset want-change-teams: this message is send when players are swapped also
 				want_change_teams = false;
@@ -1686,6 +1692,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				update_scoreboard();
 
 				break;
+			}
 
 			//frags update
 			case data_frags_update:
@@ -1831,12 +1838,15 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//server commands client to change map
 			case data_map_change:
 				map_ready = false;	// map NOT ready anymore: must load/change
-				want_map_exit =false;		// and player does not want to exit the map anymore
+				want_map_exit = false;		// and player does not want to exit the map anymore
 				readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
 				if (abyte == 2) {
 					readShort(lebuf, count, usho);				//read CRC16 of map
 					readString(lebuf, count, mapname);		//read map name
 					server_map_command(mapname, usho);
+					NLchar map_nr;
+					readByte(lebuf, count, map_nr);
+					current_map = map_nr;
 				}
 				else {
 					//FIXME: unknown map kind
@@ -1952,6 +1962,34 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				map_end_time = (int)get_time() + time_left;
 				map_time_limit = true;
 				LOG("Map time left received.\n");
+				break;
+			}
+
+			// server map list
+			case data_map_list: {
+				NLchar width, height, votes;
+				gameserver_c::MapInfo mapinfo;
+				readStr(lebuf, count, mapinfo.title);
+				readStr(lebuf, count, mapinfo.author);
+				readByte(lebuf, count, width);
+				readByte(lebuf, count, height);
+				readByte(lebuf, count, votes);
+				mapinfo.width = width;
+				mapinfo.height = height;
+				mapinfo.votes = votes;
+				maps.push_back(mapinfo);
+				break;
+			}
+
+			case data_map_votes_update: {
+				NLchar total, map_nr, votes;
+				readByte(lebuf, count, total);
+				for (int i = 0; i < total; i++) {
+					readByte(lebuf, count, map_nr);
+					readByte(lebuf, count, votes);
+					if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
+						maps[map_nr].votes = votes;
+				}
 				break;
 			}
 
@@ -3070,6 +3108,8 @@ gameclient_c::gameclient_c():
 	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 	udpdq_size = 0;
 	message_logging = false;
+
+	current_map = -1;
 }
 
 //dtor
@@ -3557,11 +3597,12 @@ void gameclient_c::draw_game_frame() {
 	if (get_time() > lastpackettime + 1.0)
 		client_graphics.show_not_responding_message();
 
-	// V0.4.4 : player scores overlay
 	if (key[KEY_TAB]) {
 		vector<ClientPlayer> players(fx.player, fx.player + MAX_PLAYERS);
 		client_graphics.draw_statistics(players);
 	}
+	else if (key[KEY_F2])
+		client_graphics.map_list(maps, current_map);
 	/*if (key[KEY_TAB]) {
 		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 		set_trans_blender(0,0,0,150);

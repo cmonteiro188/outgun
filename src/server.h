@@ -81,6 +81,7 @@ public:
 		string title, author, file;
 		int width, height;
 		int votes;
+		bool votes_changed;
 		MapInfo();
 		bool load(string mapName);
 	};
@@ -139,8 +140,10 @@ public:
 	bool load_rotation_map(int pos);
 	bool server_next_map(int reason);
 	const MapInfo& current_map() const { return maprot[currmap]; }
+	int current_map_nr() const { return currmap; }
 	const string& getCurrentMapFile() const { return maprot[currmap].file; }
 	const vector<MapInfo>& maplist() const { return maprot; }
+	vector<MapInfo>& maplist() { return maprot; }
 
 	const vector<string>& getWelcomeMessage() const { return welcome_message; }
 

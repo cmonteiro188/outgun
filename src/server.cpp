@@ -7,7 +7,7 @@
 //#define DEBUG_RANKING
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
 
-gameserver_c::MapInfo::MapInfo() : votes(0) { }
+gameserver_c::MapInfo::MapInfo() : votes(0), votes_changed(false) { }
 
 bool gameserver_c::MapInfo::load(string mapName) {
 	Map map;
@@ -20,6 +20,7 @@ bool gameserver_c::MapInfo::load(string mapName) {
 	width = map.w;
 	height = map.h;
 	votes = 0;
+	votes_changed = false;
 	return true;
 }
 
@@ -976,60 +977,36 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 				world.player[pid].queue_printf("@IThis map is %s (%s)", maprot[currmap].title.c_str(), maprot[currmap].author.c_str());
 				world.player[pid].queue_printf("@I%s.txt, size %d×%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
 			}
-			world.player[pid].queue_printf("@IType /votemap to see a list of all maps");
 		}
 		else if (!strcmp(cbuf, "votemap")) {
-			string status;
-			bool err=false;
-			if (*pCommand!='\0') {
-				int mid=atoi(pCommand)-1;
-				if (mid>=-1 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
-					if (world.player[pid].mapVote==mid)
-						status="no changes";
+			ostringstream status;
+			if (*pCommand != '\0') {
+				int mid = atoi(pCommand) - 1;
+				if (mid >= -1 && mid < static_cast<int>(maprot.size()) && pCommand[strspn(pCommand, "0123456789")] == '\0') {
+					if (world.player[pid].mapVote == mid)
+						status << "No changes.";
 					else {
-						if (world.player[pid].mapVote==-1)
-							status="vote added";
-						else if (mid==-1)
-							status="vote removed";
+						if (world.player[pid].mapVote == -1)
+							status << "Vote added for map " << mid + 1 << '.';
+						else if (mid == -1)
+							status << "Vote removed.";
 						else
-							status="vote updated";
-						world.player[pid].mapVote=mid;
+							status << "Vote updated for map " << mid + 1 << '.';
+						if (world.player[pid].mapVote != -1)
+							maprot[world.player[pid].mapVote].votes_changed = true;
+						if (mid != -1)
+							maprot[mid].votes_changed = true;
+						world.player[pid].mapVote = mid;
 						check_map_exit();
 					}
 					if (!world.player[pid].want_map_exit)
-						world.player[pid].queue_printf("@TPress F4 to actually vote for a mapchange");
+						world.player[pid].queue_printf("@T%s Press F4 to actually vote for a mapchange.", status.str().c_str());
 				}
-				else {
+				else
 					world.player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprot.size());
-					err=true;
-				}
 			}
 			else
-				world.player[pid].queue_printf("@TFor example to vote for map 1, type /votemap 1");
-			if (!err) {
-				if (status.length())
-					world.player[pid].queue_printf("@T(%s) Maps on this server: ID, votes, description", status.c_str());
-				else
-					world.player[pid].queue_printf("@TMaps on this server: ID, votes, description");
-				// 26 chars usable for entry, to fit three on a line
-				char buf[200]; int bufi=0;
-				int rows=(maprot.size()+2)/3;
-				for (int row=0; row<rows; ++row) {
-					for (int col=0; col<3; ++col) {
-						int mid=col*rows+row;
-						if (mid>=(int)maprot.size())
-							continue;
-						sprintf(buf+bufi, "%2d %2d %-18s", mid+1, maprot[mid].votes, maprot[mid].title.c_str());
-						if (strlen(buf+bufi)>24)
-							strcpy(buf+bufi+23, ".. ");
-						else
-							strcpy(buf+bufi+24, "  ");
-						bufi+=26;
-					}
-					world.player[pid].queue_printf("%s", buf);
-					bufi=0;
-				}
-			}
+				world.player[pid].queue_printf("@TFor example to vote for map 1, type /votemap 1.");
 		}
 		else if (!strcmp(cbuf, "time")) {
 			PlayerQueueAdder pqa(world.player[pid]);

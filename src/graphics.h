@@ -3,6 +3,7 @@
 
 #include <string>
 #include <list>
+#include "server.h"
 
 // ---- client screen layout ----
 
@@ -109,6 +110,9 @@ public:
 
 	void draw_statistics(const std::vector<ClientPlayer>& players);
 	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y);
+
+	void map_list(const vector<gameserver_c::MapInfo>& maps) { map_list(maps, -1); }
+	void map_list(const vector<gameserver_c::MapInfo>& maps, int current);
 
 	void draw_player_power(double val);
 	void draw_player_turbo(double val);

@@ -212,6 +212,8 @@ public:
 	bool awaiting_client_ready;
 	bool want_map_exit;
 
+	size_t current_map_list_item;
+
 	int mapVote;
 	typedef list< pair<int, string> > DMQueueT;
 	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one

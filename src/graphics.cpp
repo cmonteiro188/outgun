@@ -2,6 +2,7 @@
 #include "world.h"
 #include "effects.h"
 #include "sounds.h"
+#include "server.h"
 #include "graphics.h"
 
 #define PATTERNED_PLAYER
@@ -1055,7 +1056,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
 	rectfill(drawbuf, x1, y1, x2, y2, 0);
 	//solid_mode();
 
-	int line_height = 10;
+	const int line_height = 10;
 
 	// frags and ping work, other stats are just layout testing
 	const string text = "      Frags Ping Cap Kil Dea  Acc   Dist Time";
@@ -1085,11 +1086,53 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 }
 
 void Graphics::map_time(int seconds) {
-	textprintf_ex(drawbuf, font, plx + 10, ply + 6, 0, -1, "TIME:%4d:%02d", seconds / 60, seconds % 60);
+	textprintf_right_ex(drawbuf, font, plx + plw - 2, ply + plh + 5, col[COLGREEN], -1, "%4d:%02d", seconds / 60, seconds % 60);
 }
 
 void Graphics::draw_fps(double fps) {
 	textprintf_ex(drawbuf, font, plx + 10, ply + plh - 14, 0, -1, "FPS:%3.0f", fps);
+}
+
+void Graphics::map_list(const vector<gameserver_c::MapInfo>& maps, int current) {
+	//drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	//set_trans_blender(0, 0, 0, 180);
+
+	int w = 540;
+	int h = 420;
+	int mx = SCREEN_W / 2;
+	int my = SCREEN_H / 2;
+	int x1 = mx - w / 2;
+	int y1 = my - h / 2;
+	int x2 = mx + w / 2;
+	int y2 = my + h / 2;
+	const int x_left = x1 + 40;
+
+	rectfill(drawbuf, x1, y1, x2, y2, 0);
+	//solid_mode();
+
+	const int line_height = 12;
+
+	// frags and ping work, other stats are just layout testing
+	ostringstream caption;
+	caption << left << "Nr Vo " << setw(20) << "Title" << ' ' << setw(5) << "Size" << " Author";
+	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height + 2, makecol(0x00, 0x99, 0x00));
+	textout_centre_ex(drawbuf, font, "SERVER MAP LIST", mx, y1 + line_height, col[COLWHITE], -1);
+	textout_ex(drawbuf, font, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
+
+	int i = 0;
+	for (vector<gameserver_c::MapInfo>::const_iterator mi = maps.begin(); mi != maps.end(); ++mi, ++i) {
+		ostringstream mapline;
+		mapline << setw(2) << i + 1 << ' ' << setw(2);
+		if (mi->votes > 0)
+			mapline << mi->votes;
+		else
+			mapline << '-';
+		mapline << ' ' << setw(20) << left << mi->title << right << ' ';
+		mapline << setw(2) << mi->width << '×' << setw(2) << left << mi->height << right << ' ';
+		mapline << mi->author;
+		const int y = y1 + 5 * line_height + line_height * i;
+		textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, i == current ? col[COLYELLOW] : col[COLWHITE], -1);
+	}
 }
 
 void Graphics::draw_player_power(double val) {
