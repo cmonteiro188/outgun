@@ -426,7 +426,7 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 			spoint_t spot;
 			spot.px = bound(rx, 0, w-1);
 			spot.py = bound(ry, 0, h-1);
-			spot.x = (int)(x * (double)plw / scaley);
+			spot.x = (int)(x * (double)plw / scalex);
 			spot.y = (int)(y * (double)plh / scaley);
 			tinfo[team].spawn.push_back(spot);
 			continue;
