@@ -1,3 +1,6 @@
+#include <cstdlib>
+#include <ctime>
+#include <cerrno>
 #include <pthread.h>
 #include "thread.h"
 
