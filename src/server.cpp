@@ -583,6 +583,7 @@ bool Server::server_next_map(int reason) {
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			network.send_map_change_message(i, reason, maprot[currmap].file.c_str());
+	network.broadcast_stats_ready();
 
 	//important: server is showing gameover plaque. nobody should move or receive world frames
 	gameover = true;

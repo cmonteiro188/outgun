@@ -1906,12 +1906,6 @@ void Client::process_incoming_data(const char* data, int length) {
 					blue_final_score = score;
 					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
 						pi->stats().finish_stats(get_time());
-					if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
-						menusel = menu_teams;
-						stats_autoshowing = true;
-					}
-					if (gameover_plaque == NEXTMAP_NONE && menu.options.game.saveStats())
-						fx.save_stats("client_stats", old_map);
 					gameover_plaque = plaque;
 				}
 				else {
@@ -2077,6 +2071,16 @@ void Client::process_incoming_data(const char* data, int length) {
 					if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
 						maps[map_nr].votes = votes;
 				}
+				break;
+			}
+
+			case data_stats_ready: {
+				if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
+					menusel = menu_teams;
+					stats_autoshowing = true;
+				}
+				if (menu.options.game.saveStats())
+					fx.save_stats("client_stats", old_map);
 				break;
 			}
 
