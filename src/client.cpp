@@ -2115,6 +2115,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				fx.player[pid].stats().clear();
 				fx.player[pid].stats().set_start_time(get_time());
 				fx.player[pid].stats().set_lifetime(0);
+				break;
 			}
 
 			case data_spawn: {
