@@ -3,10 +3,10 @@
 #define AL_INLINE_DEPRECATED AL_INLINE
 
 #include "commont.h"
-#include <allegro.h>
 #include "graphics.h"
 
 using std::string;
+using std::vector;
 
 Graphics::Graphics(int scr_w, int scr_h):
 	flagpos_ready(false)
@@ -28,20 +28,20 @@ Graphics::~Graphics() {
 
 void Graphics::draw_screen() const {
 	acquire_screen();
-	blit(drawbuf, screen, 0,0, 0,0, SCREEN_W,SCREEN_H);
+	blit(drawbuf, screen, 0, 0, 0, 0, SCREEN_W, SCREEN_H);
 	release_screen();
 }
 
 void Graphics::setcolors() {
 	//the first 8 colors are player's colors
-	col[COLGREEN] = makecol(0,0xff,0);
-	col[COLYELLOW] = makecol(0xff,0xff,0);
-	col[COLWHITE] = makecol(0xff,0xff,0xff);
-	col[COLMAG]	= makecol(0xff, 0, 0xff);
-	col[COLCYAN] = makecol(0, 0xff, 0xff);
-	col[COLORA]	= makecol(0xff, 0xb0, 0);
-	col[COLLRED] = makecol(0xff,0x55,0x44);
-	col[COLLBLUE] = makecol(0x44,0x55,0xff);
+	col[COLGREEN] = makecol(0x00, 0xFF, 0x00);
+	col[COLYELLOW] = makecol(0xFF, 0xFF, 0x00);
+	col[COLWHITE] = makecol(0xFF, 0xFF, 0xFF);
+	col[COLMAG]	= makecol(0xFF, 0x00, 0xFF);
+	col[COLCYAN] = makecol(0, 0xFF, 0xFF);
+	col[COLORA]	= makecol(0xFF, 0xB0, 0x00);
+	col[COLLRED] = makecol(0xFF, 0x55, 0x44);
+	col[COLLBLUE] = makecol(0x44, 0x55, 0xFF);
 	//MORE player colors
 	col[COL9] = makecol(242, 158, 224);
 	col[COL10] = makecol(134, 143, 57);
@@ -50,28 +50,28 @@ void Graphics::setcolors() {
 	col[COL13] = makecol(100, 100, 100);
 	col[COL14] = makecol(166, 166, 166);
 	col[COL15] = makecol(202, 1, 56);	//wine
-	col[COL16] = makecol(0xbf, 0x70, 0);	//darkora
+	col[COL16] = makecol(0xBF, 0x70, 0);	//darkora
 
 	// team solid colors
-	col[COLBLUE] = makecol(0,0,0xff);
-	col[COLRED] = makecol(0xff,0,0);
+	col[COLBLUE] = makecol(0, 0, 0xFF);
+	col[COLRED] = makecol(0xFF, 0, 0);
 
 	// base minimap background colors
-	col[COLBBLUE] = makecol(0,0,0x66);
-	col[COLBRED] = makecol(0x66,0,0);
+	col[COLBBLUE] = makecol(0, 0, 0x66);
+	col[COLBRED] = makecol(0x66, 0, 0);
 
 	//other
-	col[COLFOGOFWAR] = makecol(0xff, 0xff, 0xff);
-	col[COLMENUWHITE] = makecol(0xc0,0xc0,0xc0);
+	col[COLFOGOFWAR] = makecol(0xFF, 0xFF, 0xFF);
+	col[COLMENUWHITE] = makecol(0xC0, 0xC0, 0xC0);
 	col[COLMENUGRAY] = makecol(0x68,0x68,0x68);
 	col[COLMENUBLACK] = makecol(0x40,0x40,0x40);
 	col[COLGROUND_DEF] = col[COLGROUND] = makecol(0x10, 0x40, 0);
 	col[COLWALL_DEF] = col[COLWALL] = makecol(0x30, 0xC0, 0);
-	col[COLNOLIFE] = makecol(0,0,0);
+	col[COLNOLIFE] = makecol(0, 0, 0);
 	col[COLDARKGRAY] = makecol(0x30, 0x30, 0x30);
-	col[COLSHADOW] = makecol(0x18,0x18,0x18);
+	col[COLSHADOW] = makecol(0x18, 0x18, 0x18);
 	col[COLLIMBO] = makecol(0x10, 0x10, 0x10);
-	col[COLDARKORA]	= makecol(0xbf, 0x70, 0);
+	col[COLDARKORA]	= makecol(0xBF, 0x70, 0x00);
 	col[COLINFO] = col[COLDARKORA];		//color of statusbar non-game info (hostname, IP, net traffic)
 	col[COLENER3] = makecol(125, 100, 255);
 
@@ -98,6 +98,10 @@ void Graphics::random_playground_colors() {
 	col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	flagpos_ready = false;
+}
+
+void Graphics::clear() {
+	clear_to_color(drawbuf, 0);
 }
 
 bool Graphics::reset_video_mode() {
@@ -826,7 +830,7 @@ void Graphics::show_not_responding_message() {
 }
 
 // draw help
-void Graphics::draw_game_help() {
+void Graphics::game_help() {
 	clear_to_color(drawbuf, col[COLMENUGRAY]);
 
 	int x = -40;
@@ -878,204 +882,196 @@ void Graphics::draw_game_help() {
 	textprintf(drawbuf, font, x+100, y+510, col[COLWHITE], " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
 }
 
-/*
-//draws the game menu
-void Graphics::draw_game_menu(int menu) {
-	//"3d" menu
-	if (menu != 1) {
-		rect(drawbuf,  99,  69, 539, 409, col[COLMENUWHITE]);
-		rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
-		rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
-		textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
-		textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
-	}
-	if (menu == 0) {
-		static int DELY = 10;
+void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool showmaster) {
+	const int xi = 50 - 8 * 2;
 
-		textprintf(drawbuf, font, 150, 185-DELY, col[COLWHITE], "  [ 1 ]   Connect");
-		textprintf(drawbuf, font, 150, 200-DELY, col[COLWHITE], "  [ 2 ]   Disconnect");
-		if (connected)
-			textprintf(drawbuf, font, 150+22*8, 200-DELY, col[COLGREEN], "(%s)", address);
-		textprintf(drawbuf, font, 150, 215-DELY, col[COLWHITE], "  [ 3 ]   Change Player Name & Password");
-		textprintf(drawbuf, font, 150, 227-DELY, col[COLGREEN], "          '%s' (%s)", playername, namestatus);
-		textprintf(drawbuf, font, 150, 243-DELY, col[COLWHITE], "  [ 4 ]   Start/stop local server");
-		if (listen_server_running)
-			textprintf(drawbuf, font, 150, 255-DELY, col[COLGREEN], "          SERVER RUNNING ON PORT %i", listen_port_running);
-		textprintf(drawbuf, font, 150, 271-DELY, col[COLWHITE], "  [ 5 ]   Toggle fullscreen/windowed mode");
+	textprintf(drawbuf, font, xi, 105, col[COLWHITE], "IP Address             Ping #P Version/Hostname");
 
-		if (validtheme) {
-			textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme: (%s)", sfxthemedir);
-			textprintf_centre(drawbuf, font, 150+180, 300-DELY, col[COLGREEN], "'%s'", sfxthemename);
-		}
-		else {
-			textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme:");
-			textprintf(drawbuf, font, 150, 300-DELY, col[COLGREEN], "          no sfx themes found.");
-		}
-		textprintf(drawbuf, font, 150, 340-DELY, col[COLWHITE], "Hit CTRL+F12 to EXIT THE GAME");
-		textprintf(drawbuf, font, 150, 355-DELY, col[COLWHITE], "Hit ESC to HIDE OR SHOW THIS MENU");
-		textprintf(drawbuf, font, 150, 370-DELY, col[COLORA], "Hit F1 to SHOW THE HELP SCREEN");
-	}
-	else if (menu == 1) {
+	char blinkchar[2];
 
-		//Big F Menu
-		rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
-		rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
+	int line = 0;
+	for (vector<gamespy_t>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+		const int yi = 120 + line * 13;
 
-		int lotext = makecol(0x99, 0x99, 0x99);
-
-
-		if (showmaster) {
-
-			int hi = makecol(0x68, 0x68, 0x88); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
-			int lo = makecol(0x68,0x48,0x48);
-			//hilight all
-			rectfill(drawbuf, 20, 20, 620, 460, hi);
-			//first bar hi vs lo
-			rectfill(drawbuf, 20, 20, 320, 50, hi);
-			rectfill(drawbuf, 320, 19, 621, 50, 0);
-			rectfill(drawbuf, 320, 24, 616, 50, lo);
-			vline(drawbuf, 320, 20, 50, col[COLMENUBLACK]);
-			hline(drawbuf, 320, 50, 621, col[COLMENUWHITE]);
-			hline(drawbuf, 320, 24, 616, lotext);
-			vline(drawbuf, 616, 24, 49, col[COLMENUBLACK]);
-			textprintf_centre(drawbuf, font, 170, 35, col[COLWHITE], "INTERNET SEARCH");
-			textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
-			//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing INTERNET LISTING page (TAB = FAVORITES)");
-
-			if ((int)time % 2)
-				textprintf_centre(drawbuf, font, 320, 65, col[COLGREEN], "F2 = UPDATE LIST OF SERVERS");
+		// selection
+		if (selection == line) {
+			rectfill(drawbuf, xi - 3, yi - 3, xi + 550 + 8 * 3, yi + 12, col[COLSHADOW]);
+			//blink cursor
+			if ((int)(get_time() * 4) % 2)
+				blinkchar[0] = ' ';
 			else
-				textprintf_centre(drawbuf, font, 320, 65, col[COLYELLOW], "F2 = UPDATE LIST OF SERVERS");
-
-			textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
-			//textprintf_centre_x(drawbuf, font, 320, 75, col[COLGREEN], 0, "TAB = Change to FAVORITES page");
-
-			//textprintf_centre(drawbuf, font, 320, 115, col[COLWHITE], "ARROWS:Select - ENTER:Connect - ESC:Cancel - SPACE:Refresh");
-
-			textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+				blinkchar[0] = '<';
+			blinkchar[1] = 0;
 		}
-		else {
+		else
+			blinkchar[0] = 0;
 
-			int hi = makecol(0x88, 0x68, 0x68); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
-			int lo = makecol(0x48,0x48,0x68);
-			//hilight all
-			rectfill(drawbuf, 20, 20, 620, 460, hi);
-			//first bar lo vs hi
-			rectfill(drawbuf, 320, 20, 620, 50, hi);
-			rectfill(drawbuf, 19, 19, 320, 50, 0);
-			rectfill(drawbuf, 24, 24, 320, 50, lo);
-			vline(drawbuf, 320, 19, 50, col[COLMENUWHITE]);//?
-			hline(drawbuf, 19, 50, 320, col[COLMENUWHITE]);
-			hline(drawbuf, 24, 24, 320, lotext);
-			vline(drawbuf, 24, 24, 49, col[COLMENUWHITE]);
-			textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
-			textprintf_centre(drawbuf, font, 470, 35, col[COLWHITE], "FAVORITES");
+		//server edit prompt
+		textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s", server->address, blinkchar);
+		//favs watermarks
+		if (showmaster && server->favs)
+			textprintf(drawbuf, font, xi - 12, yi, col[COLGREEN], "*");
 
-			//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing FAVORITES page (TAB = INTERNET LISTING)");
-			textprintf_centre(drawbuf, font, 320, 65, col[COLWHITE], "Type the IP address of the server and hit ENTER");
-			textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
-			//textprintf_centre_x(drawbuf, font, 320, 75, col[COLYELLOW], 0, "TAB = Change to INTERNET LISTING page");
+		//draw gamespy entry
+		bool refreshed, invalid, noresponse;
+		refreshed  = server->refreshed;
+		invalid    = server->invalid;
+		noresponse = server->noresponse;
 
-			textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+		if (!refreshed) { // not refreshed
+			//server info
+			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "press SPACEBAR to refresh...");
 		}
-
-		int xi = 50 - 8*2;
-
-		textprintf(drawbuf, font, xi, 105, col[COLWHITE], "IP Address             Ping #P Version/Hostname");
-
-		char blinkchar[2];
-
-		int yi;
-
-		for (int i=0;i<MAX_GAMESPY;i++) {
-
-			yi = 120 + i*13;
-
-			//selectr
-			if (gi == i) {
-				rectfill(drawbuf, xi-3,yi-3,xi+550+8*3,yi+12,col[COLSHADOW]);
-
-				//blink cursor
-				if ((int)(time * 4) % 2)
-					blinkchar[0]=' ';
-				else
-					blinkchar[0]='<';
-				blinkchar[1]=0;
-			}
-			else
-				blinkchar[0]=0;
-
-			//server edit prompt
-			if (showmaster) {
-				textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",mgamespy[i].address, blinkchar);
-
-				//favs watermarks
-				if (mgamespy[i].favs)
-					textprintf(drawbuf, font, xi - 12, yi, makecol(0x99,0x78,0x78), "*");
-			}
-			else
-				textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",gamespy[i].address, blinkchar);
-
-			//draw gamespy entry
-			bool refreshed, invalid, noresponse;
-			if (showmaster) {
-				refreshed  = mgamespy[i].refreshed;
-				invalid    = mgamespy[i].invalid;
-				noresponse = mgamespy[i].noresponse;
-			}
-			else {
-				refreshed  = gamespy[i].refreshed;
-				invalid    = gamespy[i].invalid;
-				noresponse = gamespy[i].noresponse;
-			}
-
-			if (!refreshed) { // not refreshed
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "press SPACEBAR to refresh...");
-			}
-			else if (invalid) {	//refreshed, invalid
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "---");
-			}
-			else if (noresponse) {	//refreshed, no response
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "no response.");
-			}
-			else {  //refreshed, valid
-				//server info
-				if (showmaster)
-					textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], "%s", mgamespy[i].info);
-				else
-					textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], "%s", gamespy[i].info);
-			}
+		else if (invalid) {	//refreshed, invalid
+			//server info
+			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "---");
 		}
-	}
-	else if (menu == 2) {
-		textprintf(drawbuf, font, 150, 230, col[COLWHITE], dialogmessage);
-		textprintf(drawbuf, font, 150, 250, col[COLWHITE], dialogmessage2);
-	}
-	else if (menu == 3) {
-		textprintf(drawbuf, font, 150, 170, col[COLWHITE], "Type in your player name. If you have");
-		textprintf(drawbuf, font, 150, 185, col[COLWHITE], "registered your name on the Outgun");
-		textprintf(drawbuf, font, 150, 200, col[COLWHITE], "website, then type in your password!");
-
-		textprintf(drawbuf, font, 150, 220, col[COLWHITE], "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
-		textprintf(drawbuf, font, 150, 260, col[COLGREEN], "NAME     :%s%s", editplayername, namecursor);
-
-		//password field: '********'
-		char starpass[32]; int c=0;
-		for (; editplayerpass[c]; c++) starpass[c] = '*';
-		starpass[c] = 0;
-
-		textprintf(drawbuf, font, 150, 285, col[COLGREEN], "PASSWORD :%s%s", starpass, passcursor);
-
-		textprintf(drawbuf, font, 150, 350, col[COLWHITE], "Registration status: %s", namestatus);
-	}
-	else {
-		textprintf(drawbuf, font, 150, 150, col[COLRED], "unknown menu %i", menu);
+		else if (noresponse) {	//refreshed, no response
+			//server info
+			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "no response.");
+		}
+		else	//refreshed, valid, show server info
+			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], "%s", server->info);
+		line++;
 	}
 }
-*/
+
+void Graphics::public_servers(const vector<gamespy_t>& servers, int selection) {
+	//Big F Menu
+	rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
+	rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
+
+	const int lotext = makecol(0x99, 0x99, 0x99);
+
+	const int hi = makecol(0x68, 0x68, 0x88);
+	const int lo = makecol(0x68,0x48,0x48);
+	//hilight all
+	rectfill(drawbuf, 20, 20, 620, 460, hi);
+	//first bar hi vs lo
+	rectfill(drawbuf, 20, 20, 320, 50, hi);
+	rectfill(drawbuf, 320, 19, 621, 50, 0);
+	rectfill(drawbuf, 320, 24, 616, 50, lo);
+	vline(drawbuf, 320, 20, 50, col[COLMENUBLACK]);
+	hline(drawbuf, 320, 50, 621, col[COLMENUWHITE]);
+	hline(drawbuf, 320, 24, 616, lotext);
+	vline(drawbuf, 616, 24, 49, col[COLMENUBLACK]);
+	textprintf_centre(drawbuf, font, 170, 35, col[COLWHITE], "INTERNET SEARCH");
+	textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
+
+	if (((int)(get_time() * 1)) % 2)
+		textprintf_centre(drawbuf, font, 320, 65, col[COLGREEN], "F2 = UPDATE LIST OF SERVERS");
+	else
+		textprintf_centre(drawbuf, font, 320, 65, col[COLYELLOW], "F2 = UPDATE LIST OF SERVERS");
+
+	textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
+	textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+
+	// show the servers
+	server_list(servers, selection, true);
+}
+
+void Graphics::favourite_servers(const vector<gamespy_t>& servers, int selection) {
+	//Big F Menu
+	rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
+	rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
+
+	const int lotext = makecol(0x99, 0x99, 0x99);
+
+	const int hi = makecol(0x88, 0x68, 0x68);
+	const int lo = makecol(0x48,0x48,0x68);
+	//hilight all
+	rectfill(drawbuf, 20, 20, 620, 460, hi);
+	//first bar lo vs hi
+	rectfill(drawbuf, 320, 20, 620, 50, hi);
+	rectfill(drawbuf, 19, 19, 320, 50, 0);
+	rectfill(drawbuf, 24, 24, 320, 50, lo);
+	vline(drawbuf, 320, 19, 50, col[COLMENUWHITE]);
+	hline(drawbuf, 19, 50, 320, col[COLMENUWHITE]);
+	hline(drawbuf, 24, 24, 320, lotext);
+	vline(drawbuf, 24, 24, 49, col[COLMENUWHITE]);
+	textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
+	textprintf_centre(drawbuf, font, 470, 35, col[COLWHITE], "FAVORITES");
+
+	textprintf_centre(drawbuf, font, 320, 65, col[COLWHITE], "Type the IP address of the server and hit ENTER");
+	textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
+	textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+
+	// show the servers
+	server_list(servers, selection, false);
+}
+
+//draw the menu caption
+void Graphics::menu_caption() {
+	//"3d" menu
+	rect(drawbuf,  99,  69, 539, 409, col[COLMENUWHITE]);
+	rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
+	rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
+	textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
+	textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
+}
+
+//draw the main menu
+void Graphics::main_menu(bool connected, const string& address, const string& playername, const string& namestatus,
+						 bool listen_server_running, int listen_port_running, const Sounds& sounds)
+{
+	menu_caption();
+	int DELY = 10;
+	textprintf(drawbuf, font, 150, 185-DELY, col[COLWHITE], "  [ 1 ]   Connect");
+	textprintf(drawbuf, font, 150, 200-DELY, col[COLWHITE], "  [ 2 ]   Disconnect");
+	if (connected)
+		textprintf(drawbuf, font, 150+22*8, 200-DELY, col[COLGREEN], "(%s)", address.c_str());
+	textprintf(drawbuf, font, 150, 215-DELY, col[COLWHITE], "  [ 3 ]   Change Player Name & Password");
+	textprintf(drawbuf, font, 150, 227-DELY, col[COLGREEN], "          '%s' (%s)", playername.c_str(), namestatus.c_str());
+	textprintf(drawbuf, font, 150, 243-DELY, col[COLWHITE], "  [ 4 ]   Start/stop local server");
+	if (listen_server_running)
+		textprintf(drawbuf, font, 150, 255-DELY, col[COLGREEN], "          SERVER RUNNING ON PORT %i", listen_port_running);
+	textprintf(drawbuf, font, 150, 271-DELY, col[COLWHITE], "  [ 5 ]   Toggle fullscreen/windowed mode");
+
+	if (sounds.valid()) {
+		textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme: (%s)", sounds.theme_dir().c_str());
+		textprintf_centre(drawbuf, font, 150+180, 300-DELY, col[COLGREEN], "'%s'", sounds.theme_name().c_str());
+	}
+	else {
+		textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme:");
+		textprintf(drawbuf, font, 150, 300-DELY, col[COLGREEN], "          no sfx themes found.");
+	}
+	textprintf(drawbuf, font, 150, 340-DELY, col[COLWHITE], "Hit CTRL+F12 to EXIT THE GAME");
+	textprintf(drawbuf, font, 150, 355-DELY, col[COLWHITE], "Hit ESC to HIDE OR SHOW THIS MENU");
+	textprintf(drawbuf, font, 150, 370-DELY, col[COLORA], "Hit F1 to SHOW THE HELP SCREEN");
+}
+
+// show two-line message
+void Graphics::dialog(const string& t1, const string& t2) {
+	menu_caption();
+	textprintf(drawbuf, font, 150, 230, col[COLWHITE], t1.c_str());
+	textprintf(drawbuf, font, 150, 250, col[COLWHITE], t2.c_str());
+}
+
+//draw the name and password menu
+void Graphics::name_password_menu(const string& name, int password_len, bool name_selected, const string& namestatus) {
+	menu_caption();
+
+	char namecursor = ' ';
+	char passcursor = ' ';
+	if (name_selected)
+		namecursor = '_';
+	else
+		passcursor = '_';
+
+	textprintf(drawbuf, font, 150, 170, col[COLWHITE], "Type in your player name. If you have");
+	textprintf(drawbuf, font, 150, 185, col[COLWHITE], "registered your name on the Outgun");
+	textprintf(drawbuf, font, 150, 200, col[COLWHITE], "website, then type in your password!");
+
+	textprintf(drawbuf, font, 150, 220, col[COLWHITE], "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
+	textprintf(drawbuf, font, 150, 260, col[COLGREEN], "NAME:     %s%c", name.c_str(), namecursor);
+
+	//password field: '********'
+	const string password(password_len, '*');
+
+	textprintf(drawbuf, font, 150, 285, col[COLGREEN], "PASSWORD: %s%c", password.c_str(), passcursor);
+
+	textprintf(drawbuf, font, 150, 350, col[COLWHITE], "Registration status: %s", namestatus.c_str());
+}
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
 void Graphics::show_progress(const string& t1, const string& t2, const string& t3, int fg, int bg) {
@@ -1116,5 +1112,16 @@ void Graphics::build_flagpos_marks() {
 		}
 		flagpos_ready = true;
 	}
+}
+
+//save screenshot
+bool Graphics::save_screenshot(const string& filename) const {
+	BITMAP *bmp;
+	PALETTE pal;
+	get_palette(pal);
+	bmp = create_sub_bitmap(screen, 0, 0, SCREEN_W, SCREEN_H);
+	int failure = save_bitmap(filename.c_str(), bmp, pal);
+	destroy_bitmap(bmp);
+	return !failure;
 }
 

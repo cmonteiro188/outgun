@@ -515,6 +515,7 @@ public:
 	bool dropFlagIfAny(int pid);
 	void shootRockets(int pid, int numshots);
 	void deleteRocket(int r, NLshort hitx, NLshort hity, int targ);
+	void changeRocketsOwner(int source, int target);
 
 	void simulateFrame();
 	void ctf_game_restart();

@@ -3,6 +3,7 @@
 
 #include <string>
 #include "world.h"
+#include "sounds.h"
 
 // ---- client screen layout ----
 
@@ -95,6 +96,9 @@ class Graphics {
 	void build_flagpos_marks();
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple);
 
+	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
+	void menu_caption();
+
 public:
 	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y);
 	~Graphics();
@@ -102,8 +106,10 @@ public:
 	BITMAP* drawbuffer() const { return drawbuf; }
 
 	void draw_screen() const;
+	bool save_screenshot(const string& filename) const;
 
 	bool reset_video_mode();
+	void clear();
 
 	void setcolors();
 	void reset_playground_colors();
@@ -127,7 +133,7 @@ public:
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
 	void draw_player_shadow(const ClientPlayer& player, int alpha);
-	void draw_player_name(const string& name, int x, int y, int c);
+	void draw_player_name(const std::string& name, int x, int y, int c);
 	void draw_rocket(const rocket_c& rocket, double time);
 	void draw_gun_explosion(int x, int y, int rad);
 	void draw_deathbringer_smoke(int x, int y, double time);
@@ -155,11 +161,6 @@ public:
 	void draw_scoreboard_name(int y, int pcol, const ClientPlayer& player);
 	void draw_scoreboard_points(int y, int team, int points);
 
-	void draw_game_frame();
-	void draw_game_help();
-	void draw_game_menu(int menu);
-	void show_progress(const string& t1, const string& t2, const string& t3, int fg = -1, int bg = 0);
-
 	void draw_player_power(double val);
 	void draw_player_turbo(double val);
 	void draw_player_shadow(double val);
@@ -177,6 +178,16 @@ public:
 	void draw_pup_weapon(int x, int y, double time);
 	void draw_pup_health(int x, int y, double time);
 	void draw_pup_deathbringer(int x, int y);
+
+	// menus
+	void main_menu(bool connected, const std::string& address, const std::string& playername, const std::string& namestatus,
+				   bool listen_server_running, int listen_port_running, const Sounds& sounds);
+	void public_servers(const std::vector<gamespy_t>& servers, int selection);
+	void favourite_servers(const std::vector<gamespy_t>& servers, int selection);
+	void name_password_menu(const std::string& name, int password_len, bool name_selected, const std::string& namestatus);
+	void game_help();
+	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
+	void dialog(const std::string& t1, const std::string& t2);
 };
 
 #endif // GRAPHICS_H_INC

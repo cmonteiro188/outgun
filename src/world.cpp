@@ -1639,6 +1639,12 @@ void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
 	r->owner = -1;
 }
 
+void ServerWorld::changeRocketsOwner(int source, int target) {
+	for (int i = 0; i < MAX_ROCKETS; i++)
+		if (rock[i].owner == source)
+			rock[i].owner = target;
+}
+
 void ServerWorld::simulateFrame() {
 	// (-1) check powerup respawn
 	double thetime = get_time();
@@ -2233,9 +2239,9 @@ void ClientWorld::extrapolate(ClientWorld& source, double currTime, gameclient_c
 			if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
 			#endif
 				if (rx->power)
-					host->cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
+					host->eff().create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py, host->sounds());	//quad hit wall
 				else
-					host->cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
+					host->eff().create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py, host->sounds());		//normal hit wall
 				rx->owner = -1;	// erase from clientside simulation
 			}
 			else if ((rd->x < 0) || (rd->y < 5) || (rd->x > plw) || (rd->y > plh))

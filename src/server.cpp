@@ -653,6 +653,9 @@ void gameserver_c::move_player(int f, int t) {
 	//copy to t
 	world.player[t] = world.player[f];
 
+	//change rockets owner from f to t
+	world.changeRocketsOwner(f, t);
+
 	//remove f
 	game_remove_player(f);
 

@@ -1,6 +1,8 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
 #include "graphics.h"
+#include "sounds.h"
+#include "effects.h"
 #include "world.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
@@ -10,34 +12,11 @@
 // number of chat messages in the buffer
 #define CHAT_SIZE 8
 
-// size of clientside visual fx array
-#define MAX_CLIENTFX 128
-
 // size of connect screen
 #define MAX_GAMESPY 24
 
 // size of udp download queue (only 1 should be needed but...)
 #define MAX_UDPDQ 16
-
-//explosion clientside fx
-struct clientfx_t {
-
-    bool        used;       //used record?
-
-    int         type;       // type of fx   0==gun explosion
-    int         px,py;  // screen where it spawned. if changed when time to redraw, delete it
-    double time;        // start time
-
-    //fx specific vars
-    int x;                  // screen x  of fx
-    int y;                  // screen y  of fx
-
-    //speed fx
-    int col1, col2, gundir;
-
-    //deathbringer owner
-    int owner;
-};
 
 struct download_runes_t {
 
@@ -47,17 +26,6 @@ struct download_runes_t {
     char name[256]; //name of file to download
     char dest[512]; //full destination path+name for downloaded file
 
-};
-
-//server record
-struct gamespy_t {
-    NLaddress addr;
-    char address[128];  //IP-address typein buffer
-    bool invalid;
-    bool noresponse;
-    bool favs;  //hack
-    bool refreshed; //if data below is valid -------------
-    char info[128];
 };
 
 class gameclient_c {
@@ -96,14 +64,6 @@ class gameclient_c {
     bool want_map_exit;
     bool option_show_names;
 
-	// sounds
-    SAMPLE *sample[NUM_OF_SAMPLES];
-    bool sample_reverse[NUM_OF_SAMPLES];
-    char sfxthemedir[256];
-    char sfxthemename[256];
-    al_ffblk sfxthemeffblk;	//for al_find*
-    bool validtheme;	// if sfxthemedir points to valid dir
-
 	// GUI
     bool menushow;
     int menu;	//menu screen #
@@ -137,6 +97,8 @@ class gameclient_c {
     int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
     clientfx_t cfx[MAX_CLIENTFX];
     Graphics client_graphics;
+    Sounds client_sounds;
+    Effects effects;
 
     ofstream message_log;
 
@@ -178,24 +140,12 @@ public:
     void client_download_thread(void *arg);
     void server_map_command(const char *mapname, NLushort server_crc);
 
-	// sounds
-    void next_sfx_theme();
-    void make_sfx_theme_path(char *themepath, char *themedir);
-    void set_theme_dir(char *dirname);
-    SAMPLE *load_outgun_sample(char *fname, int slot, bool try_redirect = true, bool reverse = false);
-    void load_samples();
-    void unload_samples();
-    void sound(int s);
+    // sounds
+    void sound(int s) const;
+    Sounds& sounds() { return client_sounds; }
 
 	// GUI
-    void clear_fx();
-    int get_new_cfx();
-    void cfx_create_wallexplo(int x, int y, int px, int py);
-    void cfx_create_quadwallexplo(int x, int y, int px, int py);
-    void cfx_create_deathbringer(int owner, double start_time, int x, int y, int px, int py);
-    void cfx_create_deathcarrier(int x, int y, int px, int py, int team);
-    void cfx_create_gunexplo(int x, int y, int px, int py);
-    void cfx_create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
+	Effects& eff() { return effects; }
 
     void erase_first_message();
     void print_message(const char *msg);

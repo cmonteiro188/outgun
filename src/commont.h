@@ -262,4 +262,15 @@ extern pthread_t	listen_server_thread;
 void listen_start();
 void listen_stop();
 
+//server record
+struct gamespy_t {
+    NLaddress addr;
+    char address[128];  //IP-address typein buffer
+    bool invalid;
+    bool noresponse;
+    bool favs;  //hack
+    bool refreshed; //if data below is valid -------------
+    char info[128];
+};
+
 #endif

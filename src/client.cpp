@@ -57,9 +57,6 @@ bool gameclient_c::start() {
 	//not showing gameover plaque
 	gameover_plaque = NEXTMAP_NONE;
 
-	//clear fx
-	clear_fx();
-
 	trying_connection = false;
 	connected = false;
 
@@ -133,11 +130,13 @@ bool gameclient_c::start() {
 		char lebuf[4096];
 
 		//read starting directory name
+		char sfxthemedir[256];
 		sfxthemedir[0]=0;
 		if (fgets(sfxthemedir, 256, cfg)) { // load sucessful
 			//ok
 			sfxthemedir[strlen(sfxthemedir) - 1] = 0;
-			LOG1("sfxthemedir default = %s\n", sfxthemedir);
+			client_sounds.set_themedir(sfxthemedir);
+			LOG1("sfxthemedir default = %s\n", client_sounds.theme_dir().c_str());
 		}
 
 		//read name
@@ -170,32 +169,7 @@ bool gameclient_c::start() {
 		strcpy(playername, nome_tri_legal.c_str() );
 	}
 
-	//no themes set yet
-	validtheme = false;
-
-	//no samples loaded -- important so unload_samples don't crash
-	for (int n=0;n<NUM_OF_SAMPLES;n++)
-		sample[n] = 0;
-
-	//try the last theme directory first
-	char themepath[512];
-	make_sfx_theme_path(themepath, sfxthemedir);
-
-	LOG1("\ntheme searching '%s'\n", themepath);
-
-	if (0==al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY))
-		set_theme_dir(0);	// OK: load ; 0 = no change
-	else {
-		// sound theme not found. find the first one
-		make_sfx_theme_path(themepath, "*.*");
-
-		int result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
-		for (; result==0; result = al_findnext(&sfxthemeffblk))
-			if ((sfxthemeffblk.attrib&FA_DIREC) && strcmp(sfxthemeffblk.name, ".")!=0 && strcmp(sfxthemeffblk.name, "..")!=0) {
-				set_theme_dir(sfxthemeffblk.name);
-				break;
-			}
-	}
+	client_sounds.search_themes();
 
 	//refresh master!
 	get_servers_from_master();
@@ -963,378 +937,9 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	}
 }
 
-void gameclient_c::next_sfx_theme() {
-	char themepath[512];
-
-	//no valid theme, just give up...
-	if (!validtheme)
-		return;
-
-	bool round1 = true;
-
-	make_sfx_theme_path(themepath, sfxthemedir);
-	for (;;) {
-		int result = al_findnext(&sfxthemeffblk);
-		if (result) {
-			//not found, go back to first ones...
-			if (!round1) {
-				validtheme = false;
-				return;
-			}
-			round1 = false;
-			make_sfx_theme_path(themepath, "*.*");
-			result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
-			if (result) {
-				validtheme = false;
-				return;
-			}
-		}
-		if ((sfxthemeffblk.attrib&FA_DIREC) && strcmp(sfxthemeffblk.name, ".")!=0 && strcmp(sfxthemeffblk.name, "..")!=0) {
-			set_theme_dir(sfxthemeffblk.name);
-			break;
-		}
-	}
-}
-
-void gameclient_c::make_sfx_theme_path(char *themepath, char *themedir) {
-
-	char soundname[1024];
-
-	strcpy(soundname, "sound");  //sound/
-	put_backslash(soundname);
-	strcat(soundname, themedir);  //theme dir name
-
-	char dest[1024];
-	append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
-
-	strcpy(themepath, dest);
-
-	LOG1("make sfx theme path = '%s'\n", themepath);
-}
-
-void gameclient_c::set_theme_dir(char *dirname) {
-
-	if (dirname)
-		strcpy(sfxthemedir, dirname);
-
-	validtheme = true;
-
-	unload_samples();		//unload old (if any)
-
-	load_samples();			//load new
-
-	// load sfx theme description
-	//
-	char soundname[256];
-	strcpy(soundname, "sound");
-
-	put_backslash(soundname);
-	strcat(soundname, sfxthemedir);
-
-	put_backslash(soundname);
-	strcat(soundname, "theme.txt");
-
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
-
-	FILE *theme = fopen(dest, "r");
-	if (theme) {
-		if (fgets(sfxthemename, 256, theme)) {
-			sfxthemename[strlen(sfxthemename)-1] =0;
-		}
-		else
-			strcpy(sfxthemename, "(unnamed theme)");
-		fclose(theme);
-	}
-
-	//play a sample
-	sound( rand() % NUM_OF_SAMPLES );
-
-}
-
-//append the correct path
-SAMPLE* gameclient_c::load_outgun_sample(char *fname, int slot, bool try_redirect, bool reverse) {
-
-	//soundname: add "sound/" to the filename
-	char soundname[256];
-	strcpy(soundname, "sound");
-
-	//additional: sfx theme dir name
-	put_backslash(soundname);
-	strcat(soundname, sfxthemedir);
-
-	put_backslash(soundname);
-	strcat(soundname, fname);
-	strcat(soundname, ".wav");
-
-	//add soundname to where game dir
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
-
-	//try load
-	SAMPLE* ret = sample[slot] = load_sample(dest);
-
-	//sample must be played in reverse?
-	sample_reverse[slot] = reverse;
-
-	LOG4("load_sample[%i]: '%s' = %p  rev = %i\n", slot, dest, ret, sample_reverse[slot]);
-
-	//V0.3.10: if not found, look for .txt redirect
-	if (try_redirect)	// don't go into endless loop
-	if (ret == 0) {
-
-		//txt filename
-		strcpy(soundname, "sound");
-		put_backslash(soundname);
-		strcat(soundname, sfxthemedir);
-		put_backslash(soundname);
-		strcat(soundname, fname);
-		strcat(soundname, ".txt");
-		append_filename(dest, wheregamedir, soundname, WHERE_PATH_SIZE);
-
-		FILE *f = fopen(dest, "r");
-		if (f) {
-			char redirwavname[256];
-			fscanf(f, "%s", redirwavname);
-			bool is_reversed = false;
-
-			// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-			// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-			// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-			//if (!strcmp("REVERSE", redirwavname)) {
-			//	is_reversed = true;	//want reversed
-			//	fscanf(f, "%s", redirwavname);		//scan again the name of the wav
-			//}
-
-			fclose(f);
-
-			//retry once ("false": don't try redirect again if fails)
-			return load_outgun_sample(redirwavname, slot, false, is_reversed);
-		}
-	}
-
-	return ret;
-}
-
-//sample try loads
-void gameclient_c::load_samples() {
-
-	if (!sound_inited) return;
-	load_outgun_sample("fire", SAMPLE_FIRE);
-	load_outgun_sample("hit", SAMPLE_HIT);
-	load_outgun_sample("wallhit", SAMPLE_WALLHIT);	//new 0.3.9
-	load_outgun_sample("qwallhit", SAMPLE_QUADWALLHIT);	//new 0.3.9
-
-	load_outgun_sample("getdb", SAMPLE_GETDEATHBRINGER);	// new! v0.3.9 -- get deathbringer powerup (voz sinistra)
-	load_outgun_sample("usedb", SAMPLE_USEDEATHBRINGER);	// new! v0.3.9 -- use deathbringer powerup (carrier dies) ("GRRRAAWWKKLLLL!!")
-	load_outgun_sample("hitdb", SAMPLE_HITDEATHBRINGER);	// new! v0.3.9 -- target is hit by the deathbringer ("PWRRLLW!")
-	load_outgun_sample("diedb", SAMPLE_DIEDEATHBRINGER);	// new! v0.3.9 -- target dies by the deathbringer		("HaHaHaHa!")
-
-	load_outgun_sample("death1", SAMPLE_DEATH);
-	load_outgun_sample("death2", SAMPLE_DEATH_2);
-	//sample[SAMPLE_RESPAWN] = load_outgun_sample("respawn");
-	load_outgun_sample("entergam", SAMPLE_ENTERGAME);
-	load_outgun_sample("leftgam", SAMPLE_LEFTGAME);
-	load_outgun_sample("chanteam", SAMPLE_CHANGETEAM);
-	load_outgun_sample("talk", SAMPLE_TALK);
-	load_outgun_sample("wabounce", SAMPLE_WALLBOUNCE);
-
-	load_outgun_sample("weaponup", SAMPLE_WEAPON_UP);  //new
-	load_outgun_sample("megaheal", SAMPLE_MEGAHEALTH); // new
-	load_outgun_sample("shieldp", SAMPLE_SHIELD_PICKUP);
-	load_outgun_sample("shieldd", SAMPLE_SHIELD_DAMAGE);
-	load_outgun_sample("shieldl", SAMPLE_SHIELD_LOST);
-	load_outgun_sample("speedon", SAMPLE_BOOTS_ON);
-	load_outgun_sample("speedoff", SAMPLE_BOOTS_OFF);
-	load_outgun_sample("quadon", SAMPLE_QUAD_ON);
-	load_outgun_sample("quadfire", SAMPLE_QUAD_FIRE);
-	load_outgun_sample("quadoff", SAMPLE_QUAD_OFF);
-	load_outgun_sample("helmon", SAMPLE_HELM_ON);
-	load_outgun_sample("helmoff", SAMPLE_HELM_OFF);
-
-	load_outgun_sample("got", SAMPLE_CTF_GOT);
-	load_outgun_sample("lost", SAMPLE_CTF_LOST);
-	load_outgun_sample("return", SAMPLE_CTF_RETURN);
-	load_outgun_sample("capture", SAMPLE_CTF_CAPTURE);
-	load_outgun_sample("gameover", SAMPLE_CTF_GAMEOVER);
-}
-
-//unload samples
-void gameclient_c::unload_samples() {
-	if (!sound_inited) return;
-	for (int i=0;i<NUM_OF_SAMPLES;i++)
-		if (sample[i])
-			destroy_sample(sample[i]);
-}
-
-//play sample
-void gameclient_c::sound(int s) {
-	if (sound_enabled)
-	if (sample[s]) {
-
-		//kill any voice playing that sample
-		stop_sample(sample[s]);
-
-		// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-		// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-		// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-		/*
-		if (sample_reverse[s]) {
-
-			//play_sample(sample[s], 255, 127, 1000, false);		//reversed play
-
-			//allocate new voice
-			int v = allocate_voice(sample[s]);
-
-			//set up to play backwards
-			voice_set_playmode(v, PLAYMODE_BACKWARD);
-
-
-			//go!
-			voice_start(v);
-		}
-		else
-		*/
-			//regular play
-			play_sample(sample[s], 255, 127, 1000, false);		//regular play
-	}
-}
-
-//clear clientside fx's
-void gameclient_c::clear_fx() {
-	for (int i=0;i<MAX_CLIENTFX;i++)
-		cfx[i].used = false;
-}
-
-//find new clientside fx
-int gameclient_c::get_new_cfx() {
-	for (int i=0;i<MAX_CLIENTFX;i++)
-	if (!cfx[i].used)
-		return i;
-	//print_message("overflow");
-	return rand() % MAX_CLIENTFX;	//overwrite algum sorteado....
-}
-
-//create wall explosion fx
-void gameclient_c::cfx_create_wallexplo(int x, int y, int px, int py) {
-
-	int f = get_new_cfx();
-
-	cfx[f].used = true;
-	cfx[f].type = 2;		// WALL EXPLOSION
-	cfx[f].x = x;
-	cfx[f].y = y;
-	cfx[f].time = get_time();
-	cfx[f].px = px;
-	cfx[f].py = py;
-
-	//sound
-	sound(SAMPLE_WALLHIT);
-}
-
-//create quad wall explosion fx
-void gameclient_c::cfx_create_quadwallexplo(int x, int y, int px, int py) {
-
-	int f = get_new_cfx();
-
-	cfx[f].used = true;
-	cfx[f].type = 3;		// QUAD WALL EXPLOSION
-	cfx[f].x = x;
-	cfx[f].y = y;
-	cfx[f].time = get_time();
-	cfx[f].px = px;
-	cfx[f].py = py;
-
-	//sound
-	sound(SAMPLE_QUADWALLHIT);
-}
-
-//create deathbringer explosion fx
-void gameclient_c::cfx_create_deathbringer(int owner, double start_time, int x, int y, int px, int py) {
-
-	int f = get_new_cfx();
-
-	cfx[f].used = true;
-	cfx[f].owner = owner;		//deathbringer owner
-	cfx[f].type = 4;		// DEATHBRINGER EXPLOSION
-	cfx[f].x = x;
-	cfx[f].y = y;
-	cfx[f].time = start_time;
-	cfx[f].px = px;
-	cfx[f].py = py;
-
-	//sound
-	sound(SAMPLE_USEDEATHBRINGER);
-}
-
-//create deathbringer carrier trail fx
-void gameclient_c::cfx_create_deathcarrier(int x, int y, int px, int py, int team) {
-
-	int f = get_new_cfx();
-
-	cfx[f].used = true;
-	cfx[f].type = 5;	//death carrier cloud fx
-	cfx[f].x = x;
-	cfx[f].y = y;
-	cfx[f].px = px;
-	cfx[f].py = py;
-	cfx[f].time = get_time();
-
-	//owner: set color
-	int r = rand() %100;
-	if (team) {
-		if (r < 50)
-			cfx[f].col1 = makecol(0,0,0xff);
-		else if (r < 75)
-			cfx[f].col1 = makecol(0,0xff,0);
-		else
-			cfx[f].col1 = 0;
-	} else {
-		if (r < 50)
-			cfx[f].col1 = makecol(0xff,0,0);
-		else if (r < 75)
-			cfx[f].col1 = makecol(0,0xff,0);
-		else
-			cfx[f].col1 = 0;
-	}
-
-	//JUST BLACK
-	cfx[f].col1 = 0;
-}
-
-//create explosion fx
-void gameclient_c::cfx_create_gunexplo(int x, int y, int px, int py) {
-
-	int f = get_new_cfx();
-
-	cfx[f].used = true;
-	cfx[f].type = 0;		// GUN EXPLOSION
-	cfx[f].x = x;
-	cfx[f].y = y;
-	cfx[f].time = get_time();
-	cfx[f].px = px;
-	cfx[f].py = py;
-
-	//sound
-	sound(SAMPLE_HIT);
-}
-
-//create speed bolinha fx
-void gameclient_c::cfx_create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir) {
-
-	int f = get_new_cfx();
-
-	cfx[f].used = true;
-	cfx[f].type = 1;	//speed fx
-	cfx[f].x = x;
-	cfx[f].y = y;
-	cfx[f].px = px;
-	cfx[f].py = py;
-	cfx[f].time = get_time();
-
-	cfx[f].col1 = col1;
-	cfx[f].col2 = col2;
-	cfx[f].gundir = gundir;
+// sounds
+void gameclient_c::sound(int s) const {
+	client_sounds.play(s);
 }
 
 //update the scoreboard
@@ -1392,7 +997,7 @@ void gameclient_c::disconnect_command() {
 	client->connect(false);
 
 	//dialogz
-	strcpy(dialogmessage, "You are disconnected. Press ESC");
+	strcpy(dialogmessage, "You are disconnected. Press ESC.");
 	strcpy(dialogmessage2, "");
 	menushow = true;
 	set_menu(2);	//dialog menu
@@ -1486,7 +1091,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	gameover_plaque = NEXTMAP_NONE;
 
 	//clear fx
-	clear_fx();
+	effects.clear_fx();
 }
 
 void gameclient_c::client_disconnected() {
@@ -1499,7 +1104,7 @@ void gameclient_c::client_disconnected() {
 	gameshow = false;
 
 	// show a message
-	strcpy(dialogmessage, "You have been disconnected. Press ESC");
+	strcpy(dialogmessage, "You have been disconnected. Press ESC.");
 	strcpy(dialogmessage2, "");
 	menushow = true;
 	set_menu(2);	//dialog menu
@@ -1533,7 +1138,7 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 		strcpy(message, "no reason given.");
 
 	// show a message
-	strcpy(dialogmessage, "Connection refused     (press ESC)");
+	strcpy(dialogmessage, "Connection refused. Press ESC.");
 	strcpy(dialogmessage2, message);
 	menushow = true;
 	set_menu(2);	//dialog menu
@@ -1545,7 +1150,7 @@ void gameclient_c::connect_failed_unreachable() {
 	trying_connection = false;
 
 	// show a message
-	strcpy(dialogmessage, "No response from server. Press ESC");
+	strcpy(dialogmessage, "No response from server. Press ESC.");
 	strcpy(dialogmessage2, "");
 	menushow = true;
 	set_menu(2);	//dialog menu
@@ -1795,7 +1400,7 @@ void gameclient_c::connect_command() {
 
 	// set flags, show dialog...
 	trying_connection = true;
-	sprintf(dialogmessage, "trying to connect... ESC=CANCEL");
+	sprintf(dialogmessage, "Trying to connect... ESC = cancel");
 	dialogmessage2[0]='\0';
 	set_menu(2);	// dialog
 }
@@ -2322,7 +1927,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				if (abyte != 255) {	// hit player
 					if (abyte < 250)	// blink player if not hit shield (252)
 						fx.player[abyte].hitfx = get_time() + .3;
-					cfx_create_gunexplo((int)rokx, (int)roky - 10, fx.rock[rockid].px, fx.rock[rockid].py);
+					effects.create_gunexplo((int)rokx, (int)roky - 10, fx.rock[rockid].px, fx.rock[rockid].py, client_sounds);
 				}
 				break;
 
@@ -2428,7 +2033,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readByte(lebuf, count, sy);
 				readShort(lebuf, count, hx);
 				readShort(lebuf, count, hy);
-				cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
+				effects.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy, client_sounds);
 
 				//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.player[abyte].x, (int)fx.player[abyte].y, player[abyte].x, player[abyte].y);
 				//if (player[abyte].x == player[me].x)
@@ -2563,29 +2168,28 @@ void gameclient_c::print_message(const char *msg) {
 
 //save screenshot
 void gameclient_c::save_screenshot() {
-
+	// FIXME: check also if outgxxx.tga directories exist
+	// FIXME: save all screenshots to a subdirectory
+	// FIXME: taking a screenshot causes about one second delay in the game
+	// FIXME: make screenshots possible everywhere in the game
 	// find the filename
-	char fname[256];
-	int i = 0;
-	do {
-		if (i<10) sprintf(fname, "outgun0%i.tga", i); else sprintf(fname, "outgun%i.tga", i);
-		if (!exists(fname))
+	string filename;
+	for (int i = 0; i < 1000; i++) {
+		ostringstream fname;
+		fname << "outg" << setfill('0') << setw(3) << i << ".tga";
+		if (!exists(fname.str().c_str())) {
+			filename = fname.str();
 			break;
-		i++;
-	} while (i < 99);
+		}
+	}
 
-	//dump
-BITMAP *bmp;
-PALETTE pal;
-get_palette(pal);
-bmp = create_sub_bitmap(screen, 0, 0, SCREEN_W, SCREEN_H);
-save_bitmap(fname, bmp, pal);
-destroy_bitmap(bmp);
-
-	//nice message
-	char lixox[256];
-	sprintf(lixox, "saved screenshot to %s.", fname);
-	print_message(lixox);
+	// nice message
+	ostringstream message;
+	if (client_graphics.save_screenshot(filename))
+		message << "Saved screenshot to " << filename << '.';
+	else
+		message << "Could not save screenshot to " << filename << '.';
+	print_message(message.str().c_str());
 }
 
 //toggle help screen
@@ -2665,7 +2269,7 @@ void gameclient_c::get_servers_from_master() {
 	//log ok
 	LOG3("QUERY TO MASTER '%s', result = %i, count = %i\n", querybuf, result, qcount);
 
-	//FIXME: show 'request sent... waiting reply'
+	client_graphics.show_progress("Request sent.", "Waiting a reply...", "Press ESC to cancel");
 
 	//try to read the reply or until user presses ESC
 	//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
@@ -2980,6 +2584,9 @@ void gameclient_c::loop() {
 					//toggle help
 					if (sc == KEY_F1)
 						toggle_help();
+					//screenshot
+					else if (sc == KEY_F11)
+						save_screenshot();
 				}
 			}
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
@@ -2993,9 +2600,8 @@ void gameclient_c::loop() {
 					ch = ch & 0xff;			//char
 
 					//screenshot
-					if (sc == KEY_F11) {
+					if (sc == KEY_F11)
 						save_screenshot();
-					}
 
 					//toggle help
 					if (sc == KEY_F1)
@@ -3035,7 +2641,7 @@ void gameclient_c::loop() {
 							winclient = !winclient;
 							client_graphics.reset_video_mode();
 							break;
-						case '6': next_sfx_theme(); break;
+						case '6': client_sounds.next_sfx_theme(); break;
 						default:;
 						}
 						break;
@@ -3430,22 +3036,19 @@ void gameclient_c::loop() {
 			//LOG("draw_game_frame()\n");
 			draw_game_frame(); // draw game frame
 			//LOG("exit draw_game_frame()\n");
-		} /*else {
-			clear_to_color(drawbuf, 0);	// clear buffer
-			int co = makecol(0x22, 0x22, 0x22);
-			textprintf(drawbuf, font, 0, 0, co, "page-flipping = %i", page_flipping);
-			textprintf(drawbuf, font, 0, 10, co, "port = %i", port);
-		}*/
-
-		//force menu open if no game
-		if (!gameshow)
+		} else {
+			client_graphics.clear();
+			//int co = makecol(0x22, 0x22, 0x22);
+			//textprintf(drawbuf, font, 0, 0, co, "page-flipping = %i", page_flipping);
+			//textprintf(drawbuf, font, 0, 10, co, "port = %i", port);
 			menushow = true;
+		}
 
 		if (menushow)
 			draw_game_menu();	// draw the game menu
 
 		if (helpshow)
-			client_graphics.draw_game_help();	// draw help
+			client_graphics.game_help();	// draw help
 
 		//if (page_flipping) {
 			//LOG("** releasing bitmap...");
@@ -3483,9 +3086,6 @@ void gameclient_c::stop() {
 		pthread_join( passthread, 0 );
 	}
 
-	//clear all samples
-	unload_samples();
-
 	//save configuration file
 	//try to load client configuration
 	char dest[WHERE_PATH_SIZE];
@@ -3496,8 +3096,8 @@ void gameclient_c::stop() {
 	if (cfg) {
 
 		//0.4.7: no theme dir?
-		if (validtheme)
-			fprintf(cfg, "%s\n", sfxthemedir);
+		if (client_sounds.valid())
+			fprintf(cfg, "%s\n", client_sounds.theme_dir().c_str());
 		else
 			fprintf(cfg, "NO_SFX_THEME_DIR\n");
 
@@ -3562,19 +3162,11 @@ gameclient_c::gameclient_c() {
 	for (int p=0;p<MAX_PLAYERS;p++)
 		fx.player[p].used=false;
 
-	//explosion fx's
-	for (int x=0;x<MAX_CLIENTFX;x++)
-		cfx[x].used = false;
-
 	//wich player I am
 	me = -1;
 
 	//time of last packet received
 	lastpackettime=0;
-
-	//audio samples
-	for (int s=0;s<NUM_OF_SAMPLES;s++)
-		sample[s]=0;
 
 	//menu showing?
 	menushow = false;
@@ -3703,26 +3295,12 @@ void gameclient_c::draw_game_frame() {
 					client_graphics.draw_pup(fx.item[i], get_time());
 					//deathbringer
 					if (fx.item[i].kind == 7)
-						cfx_create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
+						effects.create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
       						fx.item[i].px, fx.item[i].py, 0);
 				}
 
 		// draw clientside fx -- efeitos ATRAS das coisas
-		for (i = 0; i < MAX_CLIENTFX; i++)
-			//fx used, on same screen
-			if (cfx[i].used && cfx[i].px == fx.player[me].roomx && cfx[i].py == fx.player[me].roomy) {
-				double tim = get_time();
-				//speed rastro
-				if (cfx[i].type == 1) {
-					double delta = tim - cfx[i].time;
-					if (delta > 0.3)
-						cfx[i].used = false;
-					else {
-						int alpha = 90 - ((int)(delta * 300.0));
-						client_graphics.draw_player(cfx[i].x, cfx[i].y, cfx[i].col1, cfx[i].col2, cfx[i].gundir, get_time(), false, alpha, get_time());
-					}
-				}
-			}
+		effects.draw_speedfx(client_graphics, fx.player[me].roomx, fx.player[me].roomy, get_time());
 
 		// FIXME: y-ordering of draw not maintained
 		// draw any dropped flags (use fx since flags don't move)
@@ -3815,7 +3393,7 @@ void gameclient_c::draw_game_frame() {
 						//tempo minimo pra soltar outra bolinha fade
 						fx.player[i].speed_drop_time = get_time() + 0.05;
 						//solta a bolinha
-						cfx_create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
+						effects.create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
 					}
 
 					//draw player
@@ -3828,8 +3406,8 @@ void gameclient_c::draw_game_frame() {
 							//tempo p/ proximo efeito
 							fx.player[i].death_drop_time = get_time() + 0.01;
 							//drop it
-							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							effects.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							effects.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
 						}
 					}
 					// draw deathbringer affected effect
@@ -3856,65 +3434,7 @@ void gameclient_c::draw_game_frame() {
 			fx.player[i].onscreen && fx.player[i].item_deathbringer)
 				client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
 
-	// draw clientside fx apos players
-	//
-	if (me >= 0)	// where am I?
-	for (int i = 0; i < MAX_CLIENTFX; i++)
-	if (cfx[i].used && cfx[i].px == fx.player[me].roomx && cfx[i].py == fx.player[me].roomy) {
-		double tim = get_time();
-		//gun explosion
-		if (cfx[i].type == 0) {
-			double delta = tim - cfx[i].time;
-			if (delta > 0.4)
-				cfx[i].used = false;
-			else {
-				for (int e=0;e<3;e++) {
-					int rad = 4 + e + (int)(delta * 40);
-					client_graphics.draw_gun_explosion(cfx[i].x, cfx[i].y, rad);
-				}
-			}
-		}
-		//wall explosion
-		else if (cfx[i].type == 2) {
-			double delta = tim - cfx[i].time;
-			if (delta > 0.2)
-				cfx[i].used = false;
-			else {
-				for (int e=0;e<2;e++) {
-					int rad = 4 + e + (int)(delta * 40);
-					client_graphics.draw_gun_explosion(cfx[i].x, cfx[i].y, rad);
-				}
-			}
-		}
-		//quad wall explosion
-		else if (cfx[i].type == 3) {
-			double delta = tim - cfx[i].time;
-			if (delta > 0.2)
-				cfx[i].used = false;
-			else {
-				for (int e=0;e<3;e++) {
-					int rad = 4 + e + (int)(delta * 60);
-					client_graphics.draw_gun_explosion(cfx[i].x, cfx[i].y, rad);
-				}
-			}
-		}
-		// deathcarrier smoke
-		else if (cfx[i].type == 5) {
-			double delta = tim - cfx[i].time;
-			if (delta > 0.6)
-				cfx[i].used = false;
-			else
-				client_graphics.draw_deathbringer_smoke(cfx[i].x, cfx[i].y, delta);
-		}
-		//the deathbringer
-		else if (cfx[i].type == 4) {
-			double delta = tim - cfx[i].time;
-			if (delta > 3.0)
-				cfx[i].used = false;
-			else
-				client_graphics.draw_deathbringer(cfx[i].x, cfx[i].y, cfx[i].owner / TSIZE, delta);
-		}
-	}
+	effects.draw(client_graphics, fx.player[me].roomx, fx.player[me].roomy, get_time());
 
 	//do not draw stuff below if map not ready to show
 	if (!hide_game) {
@@ -4310,208 +3830,24 @@ void gameclient_c::draw_game_frame() {
 
 //draws the game menu
 void gameclient_c::draw_game_menu() {
-	BITMAP* drawbuf = client_graphics.drawbuffer();
-	const int
-		COLMENUWHITE = makecol(0xc0, 0xc0, 0xc0),
-		COLMENUBLACK = makecol(0x40, 0x40, 0x40),
-		COLMENUGRAY  = makecol(0x68, 0x68, 0x68),
-		COLGREEN     = makecol(0x00, 0xff, 0x00),
-		COLWHITE     = makecol(0xff, 0xff, 0xff),
-		COLYELLOW    = makecol(0xff, 0xff, 0x00),
-		COLORA       = makecol(0xff, 0xb0, 0x00),
-		COLSHADOW    = makecol(0x18, 0x18, 0x18);
-
-	//"3d" menu
-	if (menu != 1) {
-		rect(drawbuf,  99,  69, 539, 409, COLMENUWHITE);
-		rect(drawbuf, 101, 71, 541, 411, COLMENUBLACK);
-		rectfill(drawbuf, 100, 70, 540, 410, COLMENUGRAY);
-		textprintf(drawbuf, font, 150, 120, COLWHITE, "Outgun         version %s", GAME_VERSION);
-		textprintf(drawbuf, font, 150, 135, COLGREEN, "http://koti.mbnet.fi/npr/outgun/");
-	}
-
 	if (menu == 0) {
-		static int DELY = 10;
-
-		textprintf(drawbuf, font, 150, 185-DELY, COLWHITE, "  [ 1 ]   Connect");
-		textprintf(drawbuf, font, 150, 200-DELY, COLWHITE, "  [ 2 ]   Disconnect");
-		if (connected)
-			textprintf(drawbuf, font, 150+22*8, 200-DELY, COLGREEN, "(%s)", address);
-		textprintf(drawbuf, font, 150, 215-DELY, COLWHITE, "  [ 3 ]   Change Player Name & Password");
-		textprintf(drawbuf, font, 150, 227-DELY, COLGREEN, "          '%s' (%s)", playername, namestatus);
-		textprintf(drawbuf, font, 150, 243-DELY, COLWHITE, "  [ 4 ]   Start/stop local server");
-		if (listen_server_running)
-			textprintf(drawbuf, font, 150, 255-DELY, COLGREEN, "          SERVER RUNNING ON PORT %i", listen_port_running);
-		textprintf(drawbuf, font, 150, 271-DELY, COLWHITE, "  [ 5 ]   Toggle fullscreen/windowed mode");
-
-		if (validtheme) {
-			textprintf(drawbuf, font, 150, 286-DELY, COLWHITE, "  [ 6 ]   Change sound theme: (%s)", sfxthemedir);
-			textprintf_centre(drawbuf, font, 150+180, 300-DELY, COLGREEN, "'%s'", sfxthemename);
-		}
-		else {
-			textprintf(drawbuf, font, 150, 286-DELY, COLWHITE, "  [ 6 ]   Change sound theme:");
-			textprintf(drawbuf, font, 150, 300-DELY, COLGREEN, "          no sfx themes found.");
-		}
-		textprintf(drawbuf, font, 150, 340-DELY, COLWHITE, "Hit CTRL+F12 to EXIT THE GAME");
-		textprintf(drawbuf, font, 150, 355-DELY, COLWHITE, "Hit ESC to HIDE OR SHOW THIS MENU");
-		textprintf(drawbuf, font, 150, 370-DELY, COLORA, "Hit F1 to SHOW THE HELP SCREEN");
+		client_graphics.main_menu(connected, address, playername, namestatus,
+			listen_server_running, listen_port_running, client_sounds);
 	}
 	else if (menu == 1) {
-
-		//Big F Menu
-		rect(drawbuf,  19,  19, 620, 460, COLMENUWHITE);
-		rect(drawbuf,  21,  21, 621, 461, COLMENUBLACK);
-
-		int lotext = makecol(0x99, 0x99, 0x99);
-
-
 		if (showmaster) {
-
-			int hi = makecol(0x68, 0x68, 0x88); //COLMENUGRAY]; //makecol(0x99,0x99,0x99);
-			int lo = makecol(0x68,0x48,0x48);
-			//hilight all
-			rectfill(drawbuf, 20, 20, 620, 460, hi);
-			//first bar hi vs lo
-			rectfill(drawbuf, 20, 20, 320, 50, hi);
-			rectfill(drawbuf, 320, 19, 621, 50, 0);
-			rectfill(drawbuf, 320, 24, 616, 50, lo);
-			vline(drawbuf, 320, 20, 50, COLMENUBLACK);
-			hline(drawbuf, 320, 50, 621, COLMENUWHITE);
-			hline(drawbuf, 320, 24, 616, lotext);
-			vline(drawbuf, 616, 24, 49, COLMENUBLACK);
-			textprintf_centre(drawbuf, font, 170, 35, COLWHITE, "INTERNET SEARCH");
-			textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
-			//textprintf_centre(drawbuf, font, 320, 40, COLWHITE, "Showing INTERNET LISTING page (TAB = FAVORITES)");
-
-			if (((int)(get_time() * 1)) % 2)
-				textprintf_centre(drawbuf, font, 320, 65, COLGREEN, "F2 = UPDATE LIST OF SERVERS");
-			else
-				textprintf_centre(drawbuf, font, 320, 65, COLYELLOW, "F2 = UPDATE LIST OF SERVERS");
-
-			textprintf_centre(drawbuf, font, 320, 80, COLWHITE, "Press SPACE to refresh the servers");
-			//textprintf_centre_x(drawbuf, font, 320, 75, COLGREEN, 0, "TAB = Change to FAVORITES page");
-
-			//textprintf_centre(drawbuf, font, 320, 115, COLWHITE, "ARROWS:Select - ENTER:Connect - ESC:Cancel - SPACE:Refresh");
-
-			textprintf_centre(drawbuf, font, 320, 440, COLWHITE, "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+			vector<gamespy_t> servers(mgamespy, mgamespy + MAX_GAMESPY);
+			client_graphics.public_servers(servers, gi);
 		}
 		else {
-
-			int hi = makecol(0x88, 0x68, 0x68); //COLMENUGRAY; //makecol(0x99,0x99,0x99);
-			int lo = makecol(0x48,0x48,0x68);
-			//hilight all
-			rectfill(drawbuf, 20, 20, 620, 460, hi);
-			//first bar lo vs hi
-			rectfill(drawbuf, 320, 20, 620, 50, hi);
-			rectfill(drawbuf, 19, 19, 320, 50, 0);
-			rectfill(drawbuf, 24, 24, 320, 50, lo);
-			vline(drawbuf, 320, 19, 50, COLMENUWHITE);//?
-			hline(drawbuf, 19, 50, 320, COLMENUWHITE);
-			hline(drawbuf, 24, 24, 320, lotext);
-			vline(drawbuf, 24, 24, 49, COLMENUWHITE);
-			textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
-			textprintf_centre(drawbuf, font, 470, 35, COLWHITE, "FAVORITES");
-
-			//textprintf_centre(drawbuf, font, 320, 40, COLWHITE, "Showing FAVORITES page (TAB = INTERNET LISTING)");
-			textprintf_centre(drawbuf, font, 320, 65, COLWHITE, "Type the IP address of the server and hit ENTER");
-			textprintf_centre(drawbuf, font, 320, 80, COLWHITE, "Press SPACE to refresh the servers");
-			//textprintf_centre_x(drawbuf, font, 320, 75, COLYELLOW, 0, "TAB = Change to INTERNET LISTING page");
-
-			textprintf_centre(drawbuf, font, 320, 440, COLWHITE, "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
-		}
-
-		int xi = 50 - 8*2;
-
-		textprintf(drawbuf, font, xi, 105, COLWHITE, "IP Address             Ping #P Version/Hostname");
-
-		char blinkchar[2];
-
-		int yi;
-
-		for (int i=0;i<MAX_GAMESPY;i++) {
-
-			yi = 120 + i*13;
-
-			//selectr
-			if (gi == i) {
-				rectfill(drawbuf, xi-3,yi-3,xi+550+8*3,yi+12,COLSHADOW);
-
-				//blink cursor
-				if ((int)(get_time() * 4) % 2)
-					blinkchar[0]=' ';
-				else
-					blinkchar[0]='<';
-				blinkchar[1]=0;
-			}
-			else
-				blinkchar[0]=0;
-
-			//server edit prompt
-			if (showmaster) {
-				textprintf(drawbuf, font, xi, yi, COLGREEN, ":%s%s",mgamespy[i].address, blinkchar);
-
-				//favs watermarks
-				if (mgamespy[i].favs)
-					textprintf(drawbuf, font, xi - 12, yi, makecol(0x99,0x78,0x78), "*");
-			}
-			else
-				textprintf(drawbuf, font, xi, yi, COLGREEN, ":%s%s",gamespy[i].address, blinkchar);
-
-			//draw gamespy entry
-			bool refreshed, invalid, noresponse;
-			if (showmaster) {
-				refreshed  = mgamespy[i].refreshed;
-				invalid    = mgamespy[i].invalid;
-				noresponse = mgamespy[i].noresponse;
-			}
-			else {
-				refreshed  = gamespy[i].refreshed;
-				invalid    = gamespy[i].invalid;
-				noresponse = gamespy[i].noresponse;
-			}
-
-			if (!refreshed) { // not refreshed
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, COLWHITE, "press SPACEBAR to refresh...");
-			}
-			else if (invalid) {	//refreshed, invalid
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, COLWHITE, "---");
-			}
-			else if (noresponse) {	//refreshed, no response
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, COLWHITE, "no response.");
-			}
-			else {  //refreshed, valid
-				//server info
-				if (showmaster)
-					textprintf(drawbuf, font, xi + (18+5)*8, yi, COLGREEN, "%s", mgamespy[i].info);
-				else
-					textprintf(drawbuf, font, xi + (18+5)*8, yi, COLGREEN, "%s", gamespy[i].info);
-			}
+			vector<gamespy_t> servers(gamespy, gamespy + MAX_GAMESPY);
+			client_graphics.favourite_servers(servers, gi);
 		}
 	}
-	else if (menu == 2) {
-		textprintf(drawbuf, font, 150, 230, COLWHITE, dialogmessage);
-		textprintf(drawbuf, font, 150, 250, COLWHITE, dialogmessage2);
-	}
-	else if (menu == 3) {
-		textprintf(drawbuf, font, 150, 170, COLWHITE, "Type in your player name. If you have");
-		textprintf(drawbuf, font, 150, 185, COLWHITE, "registered your name on the Outgun");
-		textprintf(drawbuf, font, 150, 200, COLWHITE, "website, then type in your password!");
-
-		textprintf(drawbuf, font, 150, 220, COLWHITE, "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
-		textprintf(drawbuf, font, 150, 260, COLGREEN, "NAME     :%s%s", editplayername, namecursor);
-
-		//password field: '********'
-		char starpass[32]; int c=0;
-		for (; editplayerpass[c]; c++) starpass[c] = '*';
-		starpass[c] = 0;
-
-		textprintf(drawbuf, font, 150, 285, COLGREEN, "PASSWORD :%s%s", starpass, passcursor);
-
-		textprintf(drawbuf, font, 150, 350, COLWHITE, "Registration status: %s", namestatus);
-	}
+	else if (menu == 2)
+		client_graphics.dialog(dialogmessage, dialogmessage2);
+	else if (menu == 3)
+		client_graphics.name_password_menu(editplayername, strlen(editplayerpass), namecursor[0] != '\0', namestatus);
 	else
 		assert(0);
 }
