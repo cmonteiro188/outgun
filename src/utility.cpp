@@ -1,11 +1,12 @@
 #include "incalleg.h"
 #include <cstdarg>
 #include <string>
-#include <strstream>
+#include <sstream>
 #include "log.h"
 #include "commont.h"	// for time_counter
 #include "utility.h"
 
+using std::min;
 using std::string;
 
 int atoi(const string& str) {

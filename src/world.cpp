@@ -20,6 +20,7 @@
 using std::ifstream;
 using std::istream;
 using std::istringstream;
+using std::max;
 using std::min;
 using std::ostringstream;
 using std::pair;
