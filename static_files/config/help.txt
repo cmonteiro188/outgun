@@ -8,7 +8,7 @@ Controls
  Move               Arrow keys or keypad
  Shoot              Control
  Run                Shift
- Strafe             Alt
+ Strafe             Alt or AltGr
  
 Other keys
  
@@ -20,6 +20,7 @@ Other keys
  Map list           F2
  Team stats         F3
  Player stats       F4
+ Server info        F5
  Vote map change    F8
  Screenshot         F11
  Show more messages Insert
