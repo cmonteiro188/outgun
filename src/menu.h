@@ -326,18 +326,19 @@ private:
 
 class Textobject : public Component {
 public:
-	Textobject(): Component(""), start(0), visible_lines(0) { }
+	Textobject(): Component(""), line_h(12), start(0), visible_lines(0) { }
 	void addLine(const std::string& text) { lines.push_back(text); }
 
 	// inherited interface
 	int width() const;
 	int height() const;
-	int minHeight() const { return 12; }	// one line
+	int minHeight() const { return line_h; }	// one line
 	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 private:
 	std::vector<std::string> lines;
+	int line_h;
 	mutable int start;			// these may change in drawing
 	mutable int visible_lines;
 };
