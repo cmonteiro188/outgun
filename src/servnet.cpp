@@ -41,7 +41,9 @@ public:
 ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w) : host(hostp), world(w) {
 	hostname[0] = 0;
 	server = 0;
+	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = 0;	// no meaning
+	#endif
 	pthread_mutex_init(&fslavesock_mutex, 0);
 	pthread_mutex_init(&mjob_mutex, 0);
 }
@@ -824,7 +826,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 	ServerPlayer& pl = world.player[pid];
 	if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) >= 128) {	// this frame is very likely newer than the previous one
 		pl.lastClientFrame = clFrame;
+		#ifdef SEND_FRAMEOFFSET
 		pl.frameOffset = 10. * (get_time() - frameSentTime);
+		#endif
 
 		NLubyte ccb;
 		readByte(data, count, ccb);
@@ -1224,8 +1228,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
 		NLubyte clFrame = world.player[i].lastClientFrame;
 		writeByte(lebuf, lecount, clFrame);
+		#ifdef SEND_FRAMEOFFSET
 		NLubyte fo = static_cast<NLubyte>( bound<float>(world.player[i].frameOffset, 0., .999) * 256. );
 		writeByte(lebuf, lecount, fo);
+		#endif
 
 		//extra byte of information
 		// BIT 0: extra health
@@ -1406,7 +1412,9 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	if (world.player[ping_send_client].used) // valid player?
 		server->ping_client(world.player[ping_send_client].cid); //ping
 
+	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = get_time();
+	#endif
 }
 
 double ServerNetworking::getTraffic() {

@@ -1368,9 +1368,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		//----- PLAYER SPECIFIC DATA -----
 
 		readByte(data, count, clFrameWorld);
+		#ifdef SEND_FRAMEOFFSET
 		NLubyte fo;
 		readByte(data, count, fo);
 		serverFrameOffset = fo / 256.;
+		#endif
 
 		//extra byte of information
 		// BIT 0: extra health
@@ -2849,7 +2851,7 @@ void gameclient_c::loop() {
 			pthread_mutex_lock( &frame_mutex );
 			ClientPhysicsCallbacks cb(*this);
 			#ifdef CLIENT_PREDICTION
-			float subFrame = (get_time() - lastSendTime) * 10. + serverFrameOffset;
+			float subFrame = (get_time() - lastSendTime) * 10.;// + serverFrameOffset;
 			NLubyte firstFrame;
 			if (clFrameSent == clFrameWorld) {
 				firstFrame = clFrameWorld;

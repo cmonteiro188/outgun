@@ -65,7 +65,9 @@ class ServerNetworking {
 
 	server_c*		server;
 
+	#ifdef SEND_FRAMEOFFSET
 	double			frameSentTime;	// at what time the last frame was sent
+	#endif
 
 	NLsocket		msock;
 	pthread_t		mthread;

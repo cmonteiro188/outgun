@@ -214,7 +214,9 @@ public:
 
 	int cid;	// client id (network identity)
 	NLubyte lastClientFrame;	// client set frame identifier of the latest data received
+	#ifdef SEND_FRAMEOFFSET
 	float frameOffset;	// at what time within the frame the client's packet arrived
+	#endif
 	double waitnametime;
 	int oldfrags;	// last value informed to clients
 	int megabonus;
@@ -312,7 +314,9 @@ public:
 		lifetime = 0;
 
 		lastClientFrame = 0;
+		#ifdef SEND_FRAMEOFFSET
 		frameOffset = 0;
+		#endif
 		awaiting_client_ready = false;
 		item_deathbringer_time = 0;
 		deathbringer_end = 0;

@@ -36,7 +36,9 @@ class gameclient_c {
 	client_c *client;
 	double lastpackettime;
 	NLubyte clFrameSent, clFrameWorld;
+	#ifdef SEND_FRAMEOFFSET
 	float serverFrameOffset;	// at what time within the frame our packets are currently arriving on the server (reported by the server)
+	#endif
 	double lastSendTime;
 	ClientControls controlHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
 	volatile bool trying_connection;

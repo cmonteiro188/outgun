@@ -40,6 +40,8 @@ extern FILE *game_log;
 #include <conio.h>
 #endif
 
+//#define SEND_FRAMEOFFSET
+
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
 
 class ClientControls {
