@@ -58,13 +58,19 @@ public:
     void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
     void fromKeyboard(bool use_pad, bool use_cursor_keys);
     void fromJoystick(int moving_stick, int run_button, int strafe_button); // uses pseudo button ids like readJoystickButton
-    bool     isUp() const { return (data & up    ) != 0; }
-    bool   isDown() const { return (data & down  ) != 0; }
-    bool   isLeft() const { return (data & left  ) != 0; }
-    bool  isRight() const { return (data & right ) != 0; }
-    bool    isRun() const { return (data & run   ) != 0; }
+    bool isUp    () const { return (data & up    ) != 0; }
+    bool isDown  () const { return (data & down  ) != 0; }
+    bool isLeft  () const { return (data & left  ) != 0; }
+    bool isRight () const { return (data & right ) != 0; }
+    bool isRun   () const { return (data & run   ) != 0; }
     bool isStrafe() const { return (data & strafe) != 0; }
-    bool     idle() const { return  data           == 0; }
+    bool idle    () const { return  data           == 0; }
+
+    bool isUpDown   () const { return isUp  () != isDown (); }
+    bool isLeftRight() const { return isLeft() != isRight(); }
+
+    bool operator==(const ClientControls& o) { return data == o.data; }
+    bool operator!=(const ClientControls& o) { return data != o.data; }
 
 private:
     NLubyte data;

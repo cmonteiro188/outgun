@@ -316,6 +316,7 @@ class Client {
     std::string hostname;
     std::string edit_map_vote;
     int player_stats_page;
+    double lastAltEnterTime;
 
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
@@ -441,7 +442,7 @@ class Client {
     void change_name_command();
     void send_client_ready();
     void send_chat(const std::string& msg);
-    void send_frame(bool newFrame);
+    void send_frame(bool newFrame, bool forceSend);
     void process_incoming_data(const char* data, int length);
 
     std::string refreshStatusAsString() const;

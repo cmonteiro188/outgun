@@ -587,6 +587,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     current_map(-1),
     map_vote(-1),
     player_stats_page(0),
+    lastAltEnterTime(0),
     abortThreads(false),
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
@@ -1115,7 +1116,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     //clear client side effects
     client_graphics.clear_fx();
 
-    send_frame(true);
+    send_frame(true, true);
 }
 
 void Client::send_tournament_participation() {
@@ -1397,22 +1398,51 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
 }
 
 //send the client's frame to server (keypresses)
-void Client::send_frame(bool newFrame) {
-    char lebuf[256]; int count = 0;
+void Client::send_frame(bool newFrame, bool forceSend) {
+    static ClientControls sentControls;
+    static double keyFilterTimeout = 0;
 
-    ClientControls currCtrl;
+    ClientControls currentControls;
     if (openMenus.empty())  // don't move at all when a real menu is open
-        currCtrl = readControls(menusel != menu_maps, menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
+        currentControls = readControls(menusel != menu_maps, menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
+
+    if (!forceSend && currentControls == sentControls)
+        return;
+
+    bool filtered;
+    // filtering is applied when first going diagonally and then one of the directions is dropped
+    if (sentControls.isUpDown() && sentControls.isLeftRight() && currentControls.isUpDown() != currentControls.isLeftRight()) {
+        if (keyFilterTimeout == 0) {
+            filtered = true;
+            keyFilterTimeout = get_time() + .02;
+        }
+        else if (get_time() < keyFilterTimeout)
+            filtered = true;
+        else {
+            filtered = false;
+            keyFilterTimeout = 0;
+        }
+    }
+    else {
+        filtered = false;
+        keyFilterTimeout = 0;
+    }
+
+    if (filtered && !forceSend)
+        return;
+
+    if (!filtered)
+        sentControls = currentControls;
 
     if (newFrame) {
         ++clFrameSent;
-        controlHistory[clFrameSent] = currCtrl;
+        controlHistory[clFrameSent] = sentControls;
         svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
     }
 
+    char lebuf[256]; int count = 0;
     writeByte(lebuf, count, clFrameSent);
-    writeByte(lebuf, count, currCtrl.toNetwork(false));
-
+    writeByte(lebuf, count, sentControls.toNetwork(false));
     client->send_frame(lebuf, count);
 }
 
@@ -3109,8 +3139,11 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
                 handled = false;
         break; case KEY_ENTER:
             if (ch == 0) {  // Alt+Enter
-                menu.options.graphics.windowed.toggle();
-                screenModeChange(); // ignore error
+                if (get_time() > lastAltEnterTime + .5) {
+                    menu.options.graphics.windowed.toggle();
+                    screenModeChange(); // ignore error
+                    lastAltEnterTime = get_time();
+                }
             }
             else
                 handled = false;
@@ -3277,7 +3310,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     double nextClientFrameF = nextClientFrameI;
 
     bool prevFire = false, prevDropFlag = false;
-    char key_up = 0, key_down = 0, key_left = 0, key_right = 0;
     while (!quitCommand && !*quitFlag) {
         // (1) loop doing input/sleep before next simulation/draw time
         for (;;) {
@@ -3336,23 +3368,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                     }
                 }
 
-                // l,r,u,d,fire game keys
-                if ((key[KEY_UP]    != key_up)    ||
-                    (key[KEY_DOWN]  != key_down)  ||
-                    (key[KEY_LEFT]  != key_left)  ||
-                    (key[KEY_RIGHT] != key_right)) {
-                    //keys changed
-                    key_up    = key[KEY_UP];
-                    key_down  = key[KEY_DOWN];
-                    key_left  = key[KEY_LEFT];
-                    key_right = key[KEY_RIGHT];
-                    //send early keys packet
-                    sendnow = true;
-                }
-
-                // send client's input packet now
-                if (sendnow)
-                    send_frame(false);
+                send_frame(false, sendnow);
             }
 
             // process messages from network that have been collected
@@ -3382,7 +3398,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             #endif
             if (time_counter > nextSendFrame)   // don't accumulate lag
                 nextSendFrame = time_counter;
-            send_frame(true);
+            send_frame(true, true);
         }
 
         if (time_counter < nextClientFrameI)
@@ -3802,8 +3818,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - 20) {
-                    static const int max_time = 20; // frames
-                    static const int start_fadeout = 10;   // frames
+                    static const int max_time      = 20; // frames
+                    static const int start_fadeout = 10; // frames
                     int alpha;
                     if (fx.frame > pl.posUpdated + start_fadeout)
                         alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
