@@ -2166,20 +2166,22 @@ void ServerNetworking::run_website_thread() {
 		address = addr;
 	}
 
+	const string web_settings("website.txt");
 	// load web script location
-	ifstream in("website.txt");
+	ifstream in(web_settings.c_str());
 	if (!in) {
-		LOG("Can not open website.txt.\n");
+		LOG1("Can not open %s.\n", web_settings.c_str());
 		return;
 	}
-	string site_name, site_ip, site_script;
+	string site_name, site_ip, site_script, site_auth;
 	if (!getline(in, site_name) || !getline(in, site_ip) || !getline(in, site_script)) {
-		LOG("No valid format in website.txt.\n");
+		LOG1("No valid format in %s.\n", web_settings.c_str());
 		return;
 	}
+	getline(in, site_auth);
 	in.close();
 	if (site_script.empty() || (site_name.empty() && site_ip.empty())) {
-		LOG("No script or site location in website.txt.\n");
+		LOG1("No script or site location in %s.\n", web_settings.c_str());
 		return;
 	}
 
@@ -2219,8 +2221,8 @@ void ServerNetworking::run_website_thread() {
 					NLchar new_name[NL_MAX_STRING_LENGTH];
 					nlGetNameFromAddr(&website_address, new_name);
 					if (new_name && site_name != new_name) {
-						ofstream out("website.txt");
-						out << new_name << '\n' << site_ip << '\n' << site_script << '\n';
+						ofstream out(web_settings.c_str());
+						out << new_name << '\n' << site_ip << '\n' << site_script << '\n' << site_auth << '\n';
 						out.close();
 						LOG2("Saved new name (%s) for IP address %s.\n", new_name, site_ip.c_str());
 					}
@@ -2230,45 +2232,29 @@ void ServerNetworking::run_website_thread() {
 				NLchar new_address[NL_MAX_STRING_LENGTH];
 				nlAddrToString(&website_address, new_address);
 				if (site_ip != new_address) {
-					ofstream out("website.txt");
-					out << site_name << '\n' << new_address << '\n' << site_script << '\n';
+					ofstream out(web_settings.c_str());
+					out << site_name << '\n' << new_address << '\n' << site_script << '\n' << site_auth << '\n';
 					out.close();
 					LOG2("Saved new IP address (%s) for %s.\n", new_address, site_name.c_str());
 				}
 			}
-			// build parameters
-			// for simplicity, use only A-Z, a-z, 0-9 and characters $-_.+!*'(), in parameter names
-			// otherwise you have to URL encode them here
+
+			// build and send data
 			const map<string, string> parameters = website_parameters(address);
 			const string data = build_http_data(parameters);
-			NLint result = post_http_data(site_script, data);
+			NLint result = post_http_data(site_script, data, site_auth);
 			LOG("Sent information to server website:\n");
 			LOG1("%s", data.c_str());
 			LOG1("Result: %i\n", result);
+			if (result == -1)
+				website_talk_time = get_time() + 15.0;		// 15 seconds
 
 			// save response to a file
-			const double timeout = get_time() + 60.0;
 			ofstream out("web.log");
-			char lebuf[65536];
-			for (int n = 0; ; n++) {
-				// read
-				result = nlRead(websock, &(lebuf[n]), 1);
-				if (result != 1) {
-					LOG1("MASTER TALKER: ERROR r=%i\n", result);
-					break;
-				}
-				// save
-				out << static_cast<char>(lebuf[n]);
-
-				// quit if timeout
-				if (get_time() > timeout)
-					break;
-
-				// quit if told to
-				if (file_threads_quit)
-					break;
-			}
+			save_http_response(out);
 			out.close();
+
+			//close socket
 			nlClose(websock);
 			websock = NL_INVALID;
 		}
@@ -2310,29 +2296,15 @@ void ServerNetworking::run_website_thread() {
 
 	// send quit message
 	const string quit = "quit=1\r\n";
-	NLint result = post_http_data(site_script, quit);
+	NLint result = post_http_data(site_script, quit, site_auth);
 	LOG("Sent information to server website:\n");
 	LOG1("%s", quit.c_str());
 	LOG1("Result: %i\n", result);
 
 	// save response to a file
-	const double timeout = get_time() + 60.0;
 	ofstream out("web.log");
-	char lebuf[65536];
-	for (int n = 0; ; n++) {
-		// read
-		result = nlRead(websock, &(lebuf[n]), 1);
-		if (result != 1) {
-			LOG1("MASTER TALKER: ERROR r=%i\n", result);
-			break;
-		}
-		// save
-		out << static_cast<char>(lebuf[n]);
-
-		// quit if timeout
-		if (get_time() > timeout)
-			break;
-	}
+	save_http_response(out);
+	out.close();
 
 	//close socket
 	nlClose(websock);
@@ -2391,16 +2363,72 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 	return param_line.str();
 }
 
-NLint ServerNetworking::post_http_data(const string& script, const string& parameters) const {
+NLint ServerNetworking::post_http_data(const string& script, string parameters, const string& auth) const {
 	char lebuf[65536]; int count = 0;
 	ostringstream data;
+	//const string password = encode_base64("outgun:g0djku9k30u92f");
+	const string password = encode_base64(auth);
+	parameters += "passwd=";
+	parameters += password;
 	data << "POST " << script << " HTTP/1.0\r\n";
 	data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
+	data << "Authorization: Basic " << password << "\r\n";
 	data << "Content-Type: application/x-www-form-urlencoded\r\n";
 	data << "Content-Length: " << parameters.length() << "\r\n\r\n";
 	writeStr(lebuf, count, data.str()); count--;
 	writeStr(lebuf, count, parameters); count--;
 	return nlWrite(websock, lebuf, count);
+}
+
+void ServerNetworking::save_http_response(ostream& out) const {
+	const double timeout = get_time() + 60.0;
+	const int buffer_size = 511;
+	char lebuf[buffer_size + 1];
+	NLint result;
+	do {
+		// read
+		result = nlRead(websock, lebuf, buffer_size);
+		lebuf[result] = '\0';
+		// save
+		out << lebuf;
+	} while (result == buffer_size && get_time() <= timeout && !file_threads_quit);
+}
+
+string ServerNetworking::encode_base64(const string& data) const {
+	const string conversion_table("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+	const char padding = '=';
+	string result;
+	// Convert data to 6-bit sequences. Take characters for every sequence
+	// from the conversion table.
+	for (string::const_iterator s = data.begin(); s != data.end(); s++) {
+		// first encoded byte
+		char value = (*s >> 2) & 0x3F;
+		result += conversion_table[value];
+		// second encoded byte
+		value = (*s << 4) & 0x3F;
+		s++;
+		if (s != data.end())
+			value |= (*s >> 4) & 0x0F;
+		result += conversion_table[value];
+		// third encoded byte
+		if (s != data.end()) {
+			value = (*s << 2) & 0x3F;
+			s++;
+			if (s != data.end())
+				value |= (*s >> 6) & 0x03;
+			result += conversion_table[value];
+		}
+		else
+			result += padding;
+		// fourth encoded byte
+		if (s != data.end()) {
+			value = *s & 0x3F;
+			result += conversion_table[value];
+		}
+		else
+			result += padding;
+	}
+	return result;
 }
 
 //read a string from a blocking TCP stream, one char at a time

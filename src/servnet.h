@@ -56,7 +56,9 @@ class ServerNetworking {
 
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
-	NLint post_http_data(const std::string& script, const std::string& parameters) const;
+	NLint post_http_data(const std::string& script, std::string parameters, const std::string& auth) const;
+	void ServerNetworking::save_http_response(std::ostream& out) const;
+	std::string ServerNetworking::encode_base64(const std::string& data) const;
 
 	gameserver_c*	host;
 	ServerWorld&	world;
