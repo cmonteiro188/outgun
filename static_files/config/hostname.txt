@@ -1,0 +1,9 @@
+Annonymous Host
+
+
+
+;
+;  Change the first line of this file to a description of your server.
+;
+;  Mude a primeira linha deste arquivo para colocar a descricao do seu servidor.
+;

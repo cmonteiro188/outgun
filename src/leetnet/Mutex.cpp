@@ -20,13 +20,19 @@
 #include "gneintern.h"
 #include "Mutex.h"
 
+#include <pthread.h>
+
 namespace GNE {
 
 //##ModelId=3B075381014B
 Mutex::Mutex() {
   pthread_mutexattr_t attr;
   valassert(pthread_mutexattr_init(&attr), 0);
-  valassert(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE), 0);
+#ifdef LINUX
+//  valassert(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE_NP), 0);
+#else
+//  valassert(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE), 0);
+#endif
   valassert(pthread_mutex_init( &mutex, &attr ), 0);
   valassert(pthread_mutexattr_destroy(&attr), 0);
 }

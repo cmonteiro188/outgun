@@ -24,7 +24,7 @@
 
 // ***** FORTIFY !!! *****
 
-#include "../FORTFY22/FORTIFY.H"
+#include "../fortfy22/fortify.h"
 
 // ***** FORTIFY !!! *****
 

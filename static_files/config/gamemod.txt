@@ -1,0 +1,93 @@
+;
+; GAME MOD FILE
+;
+; syntax:
+;   command-line 
+;   parameter-line
+;   ....
+;
+;
+
+; ----------------
+;  SERVER MAP ROTATION
+; ----------------
+
+; leave this section blank to let the server use all maps in outgun/maps/
+;
+; else add maps to the map rotation list with:
+;   map
+;   <map_file_name WITHOUT .txt EXTENSION>
+;
+; ex:
+;   map
+;   level1
+;   map
+;   level2
+;
+; etc.
+;
+
+; by default, use only the default map
+map
+outgun1
+
+; ----------------
+;  GAME CONFIG
+; ----------------
+
+; minimum number of powerups in game (0..32)
+pups_min
+6
+
+; respawn time of powerups, in seconds (10..30)
+pups_respawn_time
+25
+
+; chance (%) of appearing a certain kind of powerup. (the sum of all chances
+;  need not be exactly 100)
+pup_chance_shield
+16
+pup_chance_turbo
+14
+pup_chance_shadow
+14
+pup_chance_power
+14
+pup_chance_weapon
+18
+pup_chance_megahealth
+13
+pup_chance_deathbringer
+11
+
+; ----------------
+;  SERVER PHYSICS
+; ----------------
+
+friction
+1.5
+accel
+2.0
+maxspeed
+12.0
+friction_run
+1.5
+accel_run
+2.0
+maxspeed_run
+22.0
+friction_turbo
+3.0
+accel_turbo
+4.0
+maxspeed_turbo
+18.0
+friction_turborun
+3.0
+accel_turborun
+4.0
+maxspeed_turborun
+33.0
+flag_penalty
+3.0
+

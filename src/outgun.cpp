@@ -133,19 +133,19 @@ versao 0.4.9
 ========================
 
 (AGORA FOI!) - ranking sem bug do * que vira ?
- - BUG: scoreboard TAB mostrando scores duplicados/errados
 
 versao 0.5.0
 ========================
 
- - client & server game console! (conalleg / console)
-
- - KICK do jogador se ele fica inativo (mostrar msg na tela pedindo pra ele se mexer)
-   OBS: NAO KICKAR QUEM ESTIVER __TECLANDO__ NO MENU (se ficar so com o menu aberto, kika)
+OK - BUG: mensagem de rede ctf_flag_status - typecast errado!
+ - opcao "-text" juntamente com opcao "-ded" para servidor dedicado modo texto printf do status...
 
 PROXIMAS VERSOES
 ========================
 
+ - BUG: scoreboard TAB mostrando scores duplicados/errados
+ - KICK do jogador se ele fica inativo (mostrar msg na tela pedindo pra ele se mexer)
+   OBS: NAO KICKAR QUEM ESTIVER __TECLANDO__ NO MENU (se ficar so com o menu aberto, kika)
  - animacao do "numero" de bonus que voce ganha quando fraga alguem
  - deletacao automatica da conta se 90 dias de inatividade
  
@@ -234,7 +234,7 @@ fica pro outgun II ...
 
 // ***** FORTIFY !!! *****
 
-#include "FORTFY22/FORTIFY.H"
+#include "fortfy22/fortify.h"
 
 // ***** FORTIFY !!! *****
 
@@ -253,7 +253,7 @@ fica pro outgun II ...
 //#define DEBUG_RANKING
 
 //TURN OFF BOTS?
-//#define NO_BOTS
+#define NO_BOTS
 
 //maximum BOTSIZE variable value, absolute
 #define MAX_BOTSIZE 8
@@ -301,7 +301,7 @@ fica pro outgun II ...
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "15"
+#define GAME_PROTOCOL "14"
 #define GAME_VERSION "0.5.0"
 
 #define TK1_VERSION_STRING "v048"
@@ -314,15 +314,14 @@ fica pro outgun II ...
 #include "windows.h"
 #endif
 
+#include <stdio.h>			// for -text (v0.5.0)
+
 #include "nl.h"				// HawkNL
 
 #include "leetnet/server.h"		// l33t server
 #include "leetnet/client.h"		// l33t client
 #include "leetnet/rudp.h"			// get_self_I
 #include "leetnet/sleep.h"		// sleep util
-
-//V0.5.0: console!
-#include "conalleg.h"
 
 #include "string.h"
 #include "math.h"
@@ -491,6 +490,7 @@ int			maxpickups;							// the maximum number of pickups (function of maxplayers
 
 //arg switches (+ default values)
 bool dedserver = false;		//dedicated server?  -ded
+bool textserver = false;		//textmode dedicated server for UNIX/LINUX (V0.5.0)  (WON'T WORK ON WINDOWS...)
 bool privateserver = false;	//private server? (will not publish)
 bool winclient = true;		//windowed client?	 -win / -fs
 bool trypageflip = false;	//try page flipping? -flip / -dbuf
@@ -508,9 +508,13 @@ bool no_tcp_download = true;		// V0.4.7: CHANGED DEFAULT : disable use of the TC
 bool force_ip = false;		//force IP?
 char force_ip_name[32];		//force IP to what?
 
-//console switches
-bool conshow = false;			//game-client console showing?
-bool player_talk_echo = false;				//player talk echo to server console
+//v0.5.0  -  set_window_title() frontend!
+void server_status_string(char *str) {
+	if (textserver)
+		printf("%s\n",str);
+	else
+		set_window_title(str);
+}
 
 //audio samples : codes
 enum {
@@ -2089,12 +2093,6 @@ public:
 		}
 	}
 
-	//host talk console command
-	void host_talk_command(char *talk) {
-
-		bprintf("@W[HOST] %s", talk);		
-	}
-
 	//v0.4.4 choose a kind from all chances
 	int choose_powerup_kind() {
 		
@@ -2772,10 +2770,10 @@ public:
 			p = (NLubyte)world.flag[team].pos.py;		//py
 			writeByte(lebuf, count, p);
 
-			sh = (NLubyte)world.flag[team].pos.x;		//x
+			sh = (NLshort)world.flag[team].pos.x;		//x  FIXED v0.5.0
 			writeShort(lebuf, count, sh);
 
-			sh = (NLubyte)world.flag[team].pos.y;		//y
+			sh = (NLshort)world.flag[team].pos.y;		//y	 FIXED v0.5.0
 			writeShort(lebuf, count, sh);
 		}
 
@@ -3540,7 +3538,7 @@ public:
 
 		//final score
 		char lix[256];
-		sprintf(lix, "@JCTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
+		sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
 		broadcast_message(lix);
 
 		//sound
@@ -4041,12 +4039,6 @@ public:
 			writeString(lebuf, count, text);
 			NLint result = nlWrite(shellssock, lebuf, count);
 		}
-
-		//console echo - important messages
-		if (strlen(text) > 2) 
-		if (text[0] == '@')
-		if (text[1] == 'J')
-			con->printf("%s\n", &text[2]);
 	}
 
 	// ---- GAME MOD -------
@@ -4290,7 +4282,7 @@ public:
 			//no map rotation - change to next built-in
 			load_default_map(&map);		// default map
 			builtin = true;
-			sprintf(lix, "@JServer changed map to: DEFAULT (0)");
+			sprintf(lix, "Server changed map to: DEFAULT (0)");
 		}
 		else {
 
@@ -4303,9 +4295,9 @@ public:
 			// attempts to load map from current position of rotation list
 			bool ok = load_rotation_map(currmap);
 			if (ok)
-				sprintf(lix, "@JServer changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
+				sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
 			else
-				sprintf(lix, "@JServer changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
+				sprintf(lix, "Server changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
 		}
 
 		// notify all players
@@ -5338,7 +5330,7 @@ public:
 			}
 
 			//broadcast a textual message "Player BLABLA left the game"
-			bprintf("@J%s left the game with %i frags", player[pid].name, player[pid].frags);
+			bprintf("@I%s left the game with %i frags", player[pid].name, player[pid].frags);
 
 			//sound
 			broadcast_sample(SAMPLE_LEFTGAME);
@@ -5475,7 +5467,7 @@ public:
 
 						//send entered-game message
 						if (entered_game) {
-							bprintf("@J%s entered the game", player[pid].name);
+							bprintf("@I%s entered the game", player[pid].name);
 							//sound
 							broadcast_sample(SAMPLE_ENTERGAME);
 						}
@@ -5521,17 +5513,11 @@ public:
 						if (msg[1] == '.') {
 							sprintf(talkmsg, "@T%s: %s", player[pid].name, &(msg[2]));
 							broadcast_team_message(pid/TSIZE, talkmsg);
-
-							if (player_talk_echo)
-								con->printf("(%s) %s: %s\n", teamname[pid/TSIZE], player[pid].name, &(msg[2]));
 						}
 						//regular msg
 						else {
 							sprintf(talkmsg, "%s: %s", player[pid].name, &(msg[1]));
 							broadcast_message(talkmsg);
-
-							if (player_talk_echo)
-								con->printf("%s: %s\n", player[pid].name, &(msg[1]));
 						}
 
 						// log
@@ -7054,7 +7040,9 @@ public:
 				fubie = 0;
 				char elbuf[128];
 				sprintf(elbuf, "%i/%ip %.1fk/s v%s port:%i ESC:quit", player_count, maxplayers, server_kbps_traffic, GAME_VERSION, port);
-				set_window_title(elbuf);
+
+				//V0.5.0 : -text  flag
+				server_status_string(elbuf);
 			}
 
 			// executa algo para todos os players
@@ -7080,14 +7068,6 @@ public:
 					bot_frame_think(bi);
 
 #endif
-
-			// input to console
-			con->read_keyboard();
-
-			// draw console
-			acquire_screen();
-			con->draw_page();
-			release_screen();
 
 			// sleep while not time to send again
 			while (server_speed_counter <= 0) {
@@ -8174,7 +8154,7 @@ public:
 		mjob_fastretry = true;
 		double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
 		
-		set_window_title("Shutdown: Net Server");
+		server_status_string("Shutdown: Net Server");
 
 		if (server)
 			server->stop(3);
@@ -8192,18 +8172,18 @@ public:
 
 		//close TCP connection with the server admin shell
 		//
-		set_window_title("Shutdown: MSHELL Thread");
+		server_status_string("Shutdown: MSHELL Thread");
 
 		LOG("GAMESERVER JOINING SHELL-MASTER THREAD...\n");
 		pthread_join( shellmthread, 0 );
 
-		set_window_title("Shutdown: SSHELL Socket");
+		server_status_string("Shutdown: SSHELL Socket");
 
 		LOG("GAMESERVER CLOSING SHELL-SLAVE SOCKET...\n");
 		if (shellssock != NL_INVALID)
 			nlClose( shellssock );
 
-		set_window_title("Shutdown: SSHELL Thread");
+		server_status_string("Shutdown: SSHELL Thread");
 
 		LOG("GAMESERVER JOINING SHELL-SLAVE THREAD...\n");
 		pthread_join( shellsthread, 0 );		
@@ -8220,12 +8200,12 @@ public:
 
 			LOG("GAMESERVER CLOSING FILEMASTER'S SOCKET...\n");
 
-			set_window_title("Shutdown: MFILE Socket");
+			server_status_string("Shutdown: MFILE Socket");
 
 			nlClose(filesock);
 			LOG("GAMESERVER STOP JOIN FILEMASTER...\n");
 
-			set_window_title("Shutdown: MFILE Thread");
+			server_status_string("Shutdown: MFILE Thread");
 
 			pthread_join( server_filemaster_thread , 0 );
 			LOG("OK!\n");
@@ -8234,10 +8214,10 @@ public:
 
 			for (i=0;i<MAX_PLAYERS;i++) 
 				if (fslavesock[i] != NL_INVALID) {
-					set_window_title("Shutdown: SFILE Socket");
+					server_status_string("Shutdown: SFILE Socket");
 					nlClose(fslavesock[i]);
 					LOG2("GAMESERVER STOP JOIN FILESLAVE %i %i...", i, fslavesock[i]);
-					set_window_title("Shutdown: SFILE Thread");
+					server_status_string("Shutdown: SFILE Thread");
 					if (fslavethr[i] != (pthread_t)-1)
 						pthread_join ( fslavethr[i] , 0 );
 					LOG("OK!\n");
@@ -8255,7 +8235,7 @@ public:
 			if (!master_pre_exiting_ok) {
 				if (msock != NL_INVALID) {
 					LOG("GAMESERVER CLOSING MASTER SERVER SOCKET...\n");
-					set_window_title("Shutdown: MASTER Socket 1");
+					server_status_string("Shutdown: MASTER Socket 1");
 					nlClose(msock);
 					msock = NL_INVALID;
 				}
@@ -8267,7 +8247,7 @@ public:
 
 			LOG("GAMESERVER JOINING MASTER SERVER THREAD...\n");
 
-			set_window_title("Shutdown: MASTER Thread");
+			server_status_string("Shutdown: MASTER Thread");
 
 			int waitcount = 0;
 			do {
@@ -8281,7 +8261,7 @@ public:
 				if (waitcount > 30) {		// 30 * 100ms = 3 seconds
 					LOG("TIRED OF WAITING...\n");
 					//kill the socket
-					set_window_title("Shutdown: MASTER Socket 2");
+					server_status_string("Shutdown: MASTER Socket 2");
 					nlClose(msock);		//close AGAIN (it's a different one)
 					msock = NL_INVALID;
 					break;
@@ -8293,7 +8273,7 @@ public:
 			while ( (mjob_count > 0) && ( get_time() < mjmaxtime )) {
 				char lix[200];
 				sprintf(lix, "Shutdown: MJOBS %i left", mjob_count);
-				set_window_title(lix);
+				server_status_string(lix);
 				MS_SLEEP(100);
 			}
 
@@ -8302,14 +8282,14 @@ public:
 			while (mjob_count > 0) {
 				char lix[200];
 				sprintf(lix, "Shutdown: MJOBS ABORT %i left", mjob_count);
-				set_window_title(lix);
+				server_status_string(lix);
 				MS_SLEEP(100);
 			}			
 			
 			//NOW one can join with the thread without fear
 			LOG("DE FACTO JOIN...\n");
 
-			set_window_title("(Kill this window if not closing)");
+			server_status_string("(Kill this window if not closing)");
 
 			pthread_join( mthread , 0 );
 		}
@@ -8562,7 +8542,7 @@ void *thread_listenserver_f(void *arg) {
 	gameserver = 0;
 
 	//restore client's windowtitle
-	set_window_title("Outgun client - CTRL+F12 to quit");
+	server_status_string("Outgun client - CTRL+F12 to quit");
 
 	return 0;
 }
@@ -8874,12 +8854,13 @@ public:
 
 		//try to load the client's password
 		char dest[WHERE_PATH_SIZE];
+		int c;
 		append_filename(dest, wheregamedir, "password.bin", WHERE_PATH_SIZE);
 		FILE *psf = fopen(dest, "rb");
 		if (psf) {
 
 			char pas[PASSBUFFER];
-			for (int c=0;c<PASSBUFFER;c++) {
+			for (c=0;c<PASSBUFFER;c++) {
 				int cha = fgetc(psf);
 				if (cha == EOF) break;
 				pas[c] = (char)cha;
@@ -11620,8 +11601,6 @@ public:
 					tcol = col[COLYELLOW];
 				else if (!strcmp(lix, "@I")) // I nformation
 					tcol = col[COLGREEN];
-				else if (!strcmp(lix, "@J")) // J = information too but more IMPORTANT
-					tcol = col[COLGREEN];
 				else if (!strcmp(lix, "@W")) // W warning
 					tcol = col[COLLRED];
 				else
@@ -12156,7 +12135,7 @@ public:
 		//set window title: the hostname
 		char lecaption[256];
 		sprintf(lecaption, "Connected to: %s (%s)", hostname, address);
-		set_window_title(lecaption);
+		server_status_string(lecaption);
 
 		int i;
 		//default scoreboard state
@@ -12237,7 +12216,7 @@ public:
 	void client_disconnected() {
 
 		//restore window title
-		set_window_title("Outgun client - CTRL+F12 to quit");
+		server_status_string("Outgun client - CTRL+F12 to quit");
 
 		// the gamestate?
 		connected = false;
@@ -13424,16 +13403,6 @@ public:
 
 		// time to erase
 		chaterasetime = get_time() + 10.0;
-
-		//V0.5.0 LOG INTO CONSOLE 
-		if (player_talk_echo) {
-			if (strlen(msg) > 1) {
-				if (msg[0] == '@')
-					con->printf("%s\n", &msg[2]);
-				else
-					con->printf("%s\n", msg);
-			}
-		}
 	}
 
 	//save screenshot
@@ -13873,38 +13842,8 @@ public:
 					break;
 				}
 
-				////V0.5.0 HOME key (console toggle)
-				static bool key_home = false;
-				bool home_press = false;
-				if (key[KEY_HOME]) {
-					if (key_home == false) {
-						key_home = true;
-						home_press = true;
-					}
-				}
-				else
-					key_home = false;
-
-				////V0.5.0 show console
-				if ((home_press) && (!conshow)) {
-					conshow = true;
-					home_press = false;
-				}
-
-				////V0.5.0 console showing
-				if (conshow) {
-
-					//read console keyboard
-					con->read_keyboard();
-
-					//V0.5.0 home: shut off console
-					if (home_press) {
-						conshow = false;
-						home_press = false;
-					}
-				}
 				//help showing
-				else if (helpshow) {
+				if (helpshow) {
 					
 					while (keypressed()) {
 						//get key
@@ -14235,15 +14174,7 @@ public:
 							toggle_help();
 
 						//xuta cor
-						//V0.5.0 : CONSOLE !
-						//if (sc == KEY_HOME) {
-
-
-
-							/*
-									
-										// lame color trick
-
+						if (sc == KEY_HOME) {
 							if (key[KEY_LCONTROL]) {
 								col[COLGROUND] = makecol(0x10, 0x40, 0);
 								col[COLWALL] = makecol(0x30, 0xC0, 0);
@@ -14254,9 +14185,21 @@ public:
 
 								col[COLGROUND] = makecol(rand(),rand(),rand());
 								col[COLWALL] = makecol(rand(),rand(),rand());
+
+								/*
+								int r,g,b;
+								r = rand() % 256;
+								g = rand() % 256;
+								b = rand() % 256;
+
+								col[COLGREEN] = makecol(r,g,b);
+
+								char mes[200];
+								sprintf(mes, "%3i %3i %3i", r,g,b);
+								print_message(mes);
+								*/
 							}
-							*/
-						//}
+						}
 
 						// ins == change name
 						//
@@ -14440,13 +14383,7 @@ public:
 				draw_game_menu();	// draw the game menu
 
 			if (helpshow)
-				draw_game_help();	// draw help
-
-			//V0.5.0 DRAW CONSOLE, if showing...
-			if (conshow) {
-				con->just_set_bitmap(drawbuf);
-				con->draw_page(true);
-			}
+				draw_game_help();	// draw help 
 
 			//if (page_flipping) {
 				//LOG("** releasing bitmap...");
@@ -14707,152 +14644,6 @@ void *thread_clientpassword_f(void *arg) {
 }
 
 //************************************************************
-//  conalleg :: console commands
-//************************************************************
-
-//the most rewritten function of history - get next token (cmd)
-// return: -1 syntax error, 0 empty string (no more tokens), >0 (a token extracted ok)
-// cmd: pointer to pointer to current token reading position in the command line (is modified)
-// buf: buffer for function return (the single token extracted)
-// aceitaaspas: if the command line must extract tokens with spaces but enclosed in doublequotes
-//							like:     "this is a single token"
-//
-int getcmd(char* &cmd, char *buf, bool aceitaaspas)
-{
-/*	- pula todos espacos e tabs
-	- se proximo é um " entao
-		varre até um " 
-		- se encontrar end-of-string (\0) da' erro de sintaxe
-		- se encontrar um \", traduz pra " no buf
-		- se depois do " nao tiver um espaco, tab, ou fim de string, da' erro de sintaxe tb
-	- senao
-		varre tudo ate' end-of-string ou espaco ou tab
-*/
-	int len = 0;
-   char bla;
-	bool slash = false, aspa = false;
-
-	// pula todos espacos e tabs
-   while ((*cmd==' ') || (*cmd=='\t'))	cmd++;
-
-	// se proximo e' uma aspas, entao eh string cte incluindo separadores ate' outro "
-	if (*cmd=='"')
-	{
-		// se nao aceita aspas como 1o caractere == syntax error
-		if (!aceitaaspas)	return -1;
-
-		// pula aspa inicial
-		cmd++;			
-
-		// enquanto nao acaba a string do comando
-		while (bla=*(cmd++))
-		{
-			len++;	// +1 char
-
-			if (bla=='\\')
-			{
-				if (slash) // adicao de 1 slash normal no buffer apenas
-				{
-					*(buf++)='\\';
-					slash = false;
-				}
-				else
-					slash = true;
-			}
-			else if (bla=='"') //break;
-			{
-				if (slash)	// slash: mata o \, adicao da aspa apenas
-				{
-					*(buf++)=bla;
-					slash = false;
-				}
-				else			// achou a " final
-				{
-					aspa = true;
-					break;
-				}
-			}
-			else // copia normal
-			{
-				if (slash) // "desempilha" o slash e poe ele antes do caractere
-				{
-					*(buf++)='\\';
-					slash = false;
-				}
-				*(buf++)=bla;
-			}
-		}
-		if (!aspa) // syntax error: fim de string sem "
-			return -1;  
-
-		// syntax error: " não-seguido de fim de string,
-		// espaco ou tab (letra grudada em aspa que fecha um parametro)
-		if ((*cmd != '\0') && (*cmd != ' ') && (*cmd != '\t'))
-			return -1;
-	}
-	// tudo até o separador, como era antes
-	else
-	{
-		// enquanto nao acaba a string do comando
-		while (bla=*cmd)
-		{
-			cmd++;
-			len++;	// +1 char
-			if ((bla==32) || (bla=='\t')) break;
-			*(buf++)=bla;
-		}
-	}
-	// termina string no buffer
-	*buf='\0';
-	// sucessful se nao eh cmd vazio
-	return len;
-}
-
-//careful: console may be running ontop of a client, a server, or a client/server (listen server)!
-//gameserver and gameclient pointers may be ==0, in any combination.
-void conalleg_c::interprete_command(char *cmdstr) {
-
-	char *scan = cmdstr; //command-line token cursor
-	char cmdbuf[1024];		// cmd buf
-	char *cmd = (char*)cmdbuf;
-
-	//not empty
-	if (getcmd(scan, cmd, false) > 0) {
-
-		//say : no slash
-		if (cmd[0] != '/') {
-			if (gameserver) {
-				//con->printf("[HOST] %s\n", cmdstr);
-				gameserver->host_talk_command(cmdstr);
-			}
-			else if (gameclient) {
-				//redirect as chat command...
-				gameclient->send_chat(cmdstr);				
-			}
-			else
-				printf("DOH!\n");
-		}
-		//help
-		else if ( (!strcmp(cmd, "/?")) || (!strcmp(cmd, "/help")) ) {
-			con->printf("commands:\n/toff: turn of player talk echo\n/ton: turn on player talk echo\n");
-		}
-		//toff : echo player talking to console off
-		else if (!strcmp(cmd, "/toff")) {
-			con->printf("player talk echo off\n");
-			player_talk_echo = false;
-		}
-		//ton : echo player talking to console on
-		else if (!strcmp(cmd, "/ton")) {
-			con->printf("player talk echo on\n");
-			player_talk_echo = true;
-		}
-	}
-	//help hint
-	else 
-		con->printf("For help, type '/?'\n");
-}
-
-//************************************************************
 //  mainloop
 //************************************************************
 
@@ -14900,9 +14691,6 @@ bool reset_video_mode() {
 */
 
 bool reset_video_mode() {
-
-	// turn off console
-	con->set_bitmap(0);
 
 		char err1[1024];
 		char err2[1024];
@@ -15031,10 +14819,7 @@ bool reset_video_mode() {
 			page_flipping = true;
 		}
 		setcolors();
-
-		//console bmp set
-		con->set_bitmap(drawbuf);
-
+			
 		return true; //ok
 }
 
@@ -15042,50 +14827,10 @@ bool reset_video_mode() {
 //
 bool set_shitty_mode() {
 
-	//  ======= TRY 640x480 first ===========
-	//
+	//V0.5.0 : -text  flag
+	if (textserver) return true;
 
 	int DTC = desktop_color_depth();
-	
-	set_color_depth( DTC );		
-
-	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 640, 480, 0, 0))
-		LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 1 with %i", DTC)
-	else
-		return true;	// OK
-
-	if ((DTC == 16) || (DTC == 15)) {
-		
-		if (DTC == 15) 
-			DTC = 16;
-		else
-			DTC = 15;
-
-		set_color_depth( DTC );	
-
-		if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 640, 480, 0, 0))
-			LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 2 with %i", DTC)
-		else
-			return true;	// OK
-	}
-
-	// the last hope. WARNING: this can be buggy for multiple dedicated servers.
-	//
-	DTC = 8;
-
-	set_color_depth( DTC );	
-
-	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 640, 480, 0, 0)) {
-		LOG1("ERROR: could not set gfx mode 320x240 windowed.. tried with %i", DTC);
-		//return false;	//GIVE UP
-	}
-	else
-		return true;	// OK AT LAST!!!
-
-	//  ======= TRY 320x240 then ===========
-	//
-
-	DTC = desktop_color_depth();
 	
 	set_color_depth( DTC );		
 
@@ -15177,6 +14922,8 @@ int main(int argc, char *argv[]) {
 	for (int i=1;i<argc;i++) {
 		if (!strcmp(argv[i], "-ded"))
 			dedserver = true;
+		else if (!strcmp(argv[i], "-text"))		//v0.5.0 UNIX TEXTMODE SERVER
+			textserver = true;
 		else if (!strcmp(argv[i], "-priv"))
 			privateserver = true;
 		else if (!strcmp(argv[i], "-info"))
@@ -15320,9 +15067,6 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	//create console
-	create_console();
-	
 	// run server
 	//
 	if (dedserver) {
@@ -15386,9 +15130,6 @@ int main(int argc, char *argv[]) {
 			LOG("set SWITCH_BACKAMNESIA for SERVER");			
 		setcolors();
 
-		//console bmp set
-		con->set_bitmap(screen);
-
 		// run server
 		//
 		gameserver = new gameserver_c();
@@ -15419,7 +15160,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		//window title
-		set_window_title("Outgun client - CTRL+F12 to quit");
+		server_status_string("Outgun client - CTRL+F12 to quit");
 
 		// log 
 		LOG_CLOSE();
@@ -15478,9 +15219,6 @@ int main(int argc, char *argv[]) {
 
 	// exit HawkNL
 	nlShutdown();
-
-	//finish console
-	delete_console();
 
 	// log close
 	LOG_CLOSE();
