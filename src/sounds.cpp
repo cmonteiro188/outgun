@@ -58,6 +58,7 @@ void Sounds::search_themes(LineReceiver& dst) const {
 	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
 		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
 			themes.push_back(ffblk.name);
+	al_findclose(&ffblk);
 	if (themes.empty()) {
 		dst("<no themes found>");
 		return;

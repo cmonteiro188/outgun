@@ -95,7 +95,7 @@ class ServerNetworking {
 	volatile bool	mjob_exit;				//flag for all pending master jobs to quit now
 	volatile bool	mjob_fastretry;			//flag for all pending master jobs to stop waiting and retry immediately
 	volatile int	mjob_count;
-	pthread_mutex_t	mjob_mutex;				//mutex for socket list
+	MutexHolder		mjob_mutex;				//mutex for socket list
 
 	int				max_world_rank;
 

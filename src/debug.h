@@ -71,7 +71,7 @@ class ValidityChecker {
 
 #pragma pack(push, 1)
 template<int size> class PointerLeakBuffer : private ValidityChecker {
-	char buffer[size];
+	unsigned char buffer[size];
 
   public:
 	PointerLeakBuffer() {

@@ -37,7 +37,7 @@ class Log {	// base class
 	virtual void add(const std::string& str) =0;
 
 protected:
-	// note: operator() locks the mutex automatically, so it is already locked on an add() call
+	// note: operator()() locks the mutex automatically, so it is already locked on an add() call
 	void lock() const { m.lock(); }
 	void unlock() const { m.unlock(); }
 
@@ -77,6 +77,7 @@ protected:
 
 public:
 	MemoryLog() { }
+	virtual ~MemoryLog() { }
 	int size() const { lock(); int sz = data.size(); unlock(); return sz; }
 	std::string pop();	// returns empty string when there's nothing more to pop
 };

@@ -56,6 +56,7 @@ vector<string> Mappic::load_maps(const string& dir) {
 		//try next
 		result = al_findnext(&mapffblk);
 	}
+	al_findclose(&mapffblk);
 	log("Map picture saver: %d maps found.", maps.size());
 	return maps;
 }

@@ -297,7 +297,7 @@ private:
 	Bitmap background;	// draw buffer for floor, walls and minimap
 	Bitmap minibg;		// minimap draw buffer
 
-	BITMAP* roombg;		// room background sub-bitmap
+	Bitmap roombg;		// room background sub-bitmap
 
 	int plx, ply;		// playground position on the screen
 	int mmx, mmy;		// minimap position

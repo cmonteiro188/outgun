@@ -98,9 +98,12 @@ bool check_dir(const string& dir) {
 	const string directory = wheregamedir + dir;
 	al_ffblk mapffblk;
 	const int result = al_findfirst(directory.c_str(), &mapffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-	if (result == 0 && (mapffblk.attrib & FA_DIREC))
-		return true;	// exists
-	return !platMkdir(directory.c_str());
+	bool exists = (result == 0 && (mapffblk.attrib & FA_DIREC));
+	al_findclose(&mapffblk);
+	if (exists)
+		return true;
+	else
+		return !platMkdir(directory.c_str());
 }
 
 class GlobalCloseButtonHook {

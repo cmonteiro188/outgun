@@ -464,6 +464,7 @@ void Server::load_game_mod(bool reload) {
 	}
 
 	typedef std::auto_ptr<GamemodSetting> PT;
+	PT hack(0);	// avoid GCC bug http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12883
 	PT settings[] = {
 		PT(portSetting),
 		PT(ipSetting),
@@ -732,6 +733,7 @@ bool Server::reset_settings(bool reload) {	// set reload if reset_settings has a
 			//try next
 			result = al_findnext(&mapffblk);
 		}
+		al_findclose(&mapffblk);
 	}
 
 	if (maprot.empty()) {

@@ -85,11 +85,9 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs) :
 	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = 0;	// no meaning
 	#endif
-	pthread_mutex_init(&mjob_mutex, 0);
 }
 
 ServerNetworking::~ServerNetworking() {
-	pthread_mutex_destroy(&mjob_mutex);
 	if (server) {
 		delete server;
 		server = 0;
@@ -596,9 +594,10 @@ void ServerNetworking::client_report_status(int id) {
 		"&token=" + url_encode(clid.token) +
 		" HTTP/1.0\r\n\r\n";
 
-	pthread_mutex_lock(&mjob_mutex);
-	mjob_count++;
-	pthread_mutex_unlock(&mjob_mutex);
+	{
+		MutexLock ml(mjob_mutex);
+		mjob_count++;
+	}
 	RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
 	Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
 
@@ -710,6 +709,8 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 }
 
 bool ServerNetworking::start() {
+	file_threads_quit = false;
+
 	for (int i = 0; i < 256; ++i)
 		ctop[i] = -1;
 	player_count = 0;
@@ -1147,9 +1148,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 						"&token=" + url_encode(tok) +
 						" HTTP/1.0\r\n\r\n";
 
-					pthread_mutex_lock(&mjob_mutex);
-					mjob_count++;
-					pthread_mutex_unlock(&mjob_mutex);
+					{
+						MutexLock ml(mjob_mutex);
+						mjob_count++;
+					}
 
 					RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
 					Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
@@ -1703,9 +1705,10 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 		else
 			log("Tournament thread: Invalid response (bad @-code)");
 	}
-	pthread_mutex_lock(&mjob_mutex);
-	--mjob_count;
-	pthread_mutex_unlock(&mjob_mutex);
+	{
+		MutexLock ml(mjob_mutex);
+		--mjob_count;
+	}
 	delete job;
 
 	if (LOG_THREAD_IDS)

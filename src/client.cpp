@@ -677,6 +677,7 @@ bool Client::start() {
 	framecount = 0;
 
 	clFrameSent = clFrameWorld = 0;
+	fx.frame = fd.frame = 0;
 	frameReceiveTime = 0;
 
 	#ifdef SEND_FRAMEOFFSET
@@ -684,6 +685,8 @@ bool Client::start() {
 	frameOffsetDeltaNum = 0;
 	#endif
 	averageLag = 0;
+
+	netsendAdjustment = 0;
 
 	// default map
 	//load_default_map(&map);
@@ -3392,7 +3395,7 @@ void Client::draw_game_frame() {
 			const int i = (me / TSIZE == 0 ? k : maxplayers - k - 1);	// own team first
 
 			//HACK REMENDEX: predict item_helm
-			if (fd.player[i].item_helm()) {
+			if (fx.player[i].onscreen && fx.player[i].item_helm()) {
 				const int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
 				fd.player[i].visibility = fx.player[i].visibility - hspd;
 				if (fd.player[i].visibility < 0)

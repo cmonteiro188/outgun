@@ -150,6 +150,7 @@ void Graphics::unload_bitmaps() {
 	vidpage2.free();
 	backbuf.free();
 	background.free();
+	roombg.free();
 	minibg.free();
 	unload_pictures();
 }
@@ -163,6 +164,7 @@ void Graphics::endDraw() {
 }
 
 void Graphics::draw_screen() {
+	acquire_screen();
 	if (page_flipping) {
 		show_video_bitmap(drawbuf);
 
@@ -173,6 +175,7 @@ void Graphics::draw_screen() {
 	}
 	else
 		blit(drawbuf, screen, 0, 0, 0, 0, SCREEN_W, SCREEN_H);
+	release_screen();
 }
 
 void Graphics::setColors() {
@@ -2119,6 +2122,7 @@ void Graphics::search_themes(LineReceiver& dst) const {
 	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
 		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
 			themes.push_back(ffblk.name);
+	al_findclose(&ffblk);
 
 	sort(themes.begin(), themes.end());
 	for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti)
