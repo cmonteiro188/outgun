@@ -791,7 +791,7 @@ int ServerNetworking::client_connected(int id) {
 
 	// New players always spawn in the base.
 	world.player[myself].respawn_to_base = true;	// don't actually spawn until the client has loaded the map and is in the game
-	world.resetPlayer(myself);
+	world.resetPlayer(myself, -1e10);	// negative delay to cancel default delay, so that the player spawns as soon as he is ready
 
 	if (player_count == 2) {
 		host->ctf_game_restart();
@@ -1188,7 +1188,6 @@ void ServerNetworking::sendStartGame() {
 
 //simulate and broadcast frame
 void ServerNetworking::broadcast_frame(bool gameRunning) {
-
 	// (2)  broadcast the frame
 	//
 	//		o pacote nao eh o mesmo pra todo mundo, entao nao eh broadcast
@@ -1244,9 +1243,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	//RECALC PLAYERS PRESENT EVERY TIME
 	NLulong players_present = 0;
 	for (int pp = 0; pp < maxplayers; pp++)
-		if (world.player[pp].used)
+		if (world.player[pp].used && !world.player[pp].awaiting_client_ready)
 			players_present += (1 << pp);
-
 
 	// ============================
 	//   build common data buffer
