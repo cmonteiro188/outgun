@@ -319,7 +319,6 @@ int main(int argc, char *argv[]) {
 		}
 		else
 			LOG("set SWITCH_BACKAMNESIA for SERVER");
-		setcolors();
 
 		// run server
 		//
@@ -376,11 +375,6 @@ int main(int argc, char *argv[]) {
 		}
 		else
 			LOG("SOUND DISABLED by command line option -nosound\n");
-
-		// gfx init
-		//
-		if (!reset_video_mode())		// fatal error
-			return 0;
 
 		// install client timer
 		//

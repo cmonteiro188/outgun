@@ -19,6 +19,8 @@
 #include <sstream>
 #include <iomanip>
 
+enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
+
 template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
 
 // strspnp: (Watcom definition) find from str the first char not in charset

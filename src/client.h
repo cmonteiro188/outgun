@@ -1,11 +1,10 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
-
+#include "graphics.h"
 #include "world.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
-#define CL_FLAGPOS_RAD 30   // the radius of the flag position marker
 //#define CL_SHOW_TIME_LEFT
 
 // number of chat messages in the buffer
@@ -19,13 +18,6 @@
 
 // size of udp download queue (only 1 should be needed but...)
 #define MAX_UDPDQ 16
-
-// drawing screens
-extern BITMAP *drawbuf, *vidpage1, *vidpage2, *backbuf;
-extern bool     page_flipping;
-
-bool reset_video_mode();
-void setcolors();
 
 //explosion clientside fx
 struct clientfx_t {
@@ -141,8 +133,8 @@ public:
     char    hostadname[128];
     bool message_logging;
     ofstream message_log;
+    Graphics client_graphics;
 
-    void check_flagpos_marks();
     bool start();
     void send_client_ready();
     void check_change_pass_command();
@@ -169,15 +161,10 @@ public:
     void cfx_create_deathcarrier(int x, int y, int px, int py, int team);
     void cfx_create_gunexplo(int x, int y, int px, int py);
     void cfx_create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
+    void draw_game_frame();
+    void draw_game_menu();
     void update_scoreboard();
     void calc_game_frame();
-    void draw_flag_at(BITMAP *drawbuf, int t, int x, int y);
-    void draw_mini_flag(BITMAP *drawbuf, int whatteam);
-    void update_minimap_background();
-    void draw_player(BITMAP *drawbuf, int x, int y, int gundir, int pc1, int pc2, int alpha);
-    void draw_game_frame(BITMAP *drawbuf);
-    void draw_game_help();
-    void draw_game_menu();
     void set_menu(int menumber);
     void disconnect_command();
     void client_connected(char *data, int length);

@@ -90,7 +90,6 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 		assert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
-	void draw_minimap(BITMAP* buffer, bool flagPaintSimple=false) const;
 	bool load(const char *mapdir, const string& mapname);
 };
 

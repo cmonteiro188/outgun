@@ -2,270 +2,7 @@
 #include "world.h"
 #include "client.h"
 
-//colors
-enum {
-	//player's colors
-	COLGREEN,
-	COLYELLOW,
-	COLWHITE,
-	COLMAG,
-	COLCYAN,
-	COLORA,
-	COLLRED,		// light red
-	COLLBLUE,		// light blue
-	//MORE player colors
-	COL9,
-	COL10,
-	COL11,
-	COL12,
-	COL13,
-	COL14,
-	COL15,
-	COL16,
-
-	//team colors
-	COLRED,			//team 1 (color 0)
-	COLBLUE,		//team 2 (color 1)
-
-	//base colors
-	COLBRED,			//team 1 (color 0)
-	COLBBLUE,		//team 2 (color 1)
-
-	//other
-	COLFOGOFWAR,
-	COLMENUWHITE,
-	COLMENUBLACK,
-	COLMENUGRAY,
-	COLGROUND,
-	COLWALL,
-	COLNOLIFE,
-	COLDARKGRAY,
-	COLSHADOW,
-	COLLIMBO,
-	COLDARKORA,
-	COLINFO,
-	COLENER3,
-	NUM_OF_COL
-};
-
-int teamcol[2];
-int teamlcol[2];	//light colours for statusbar
-int teamdcol[2];	//dark colours for player name
-
-int	col[NUM_OF_COL];
-
-void setcolors() {
-
-	//the first 8 colors are player's colors
-	col[COLGREEN] = makecol(0,0xff,0);
-	col[COLYELLOW] = makecol(0xff,0xff,0);
-	col[COLWHITE] = makecol(0xff,0xff,0xff);
-	col[COLMAG]	= makecol(0xff, 0, 0xff);
-	col[COLCYAN] = makecol(0, 0xff, 0xff);
-	col[COLORA]	= makecol(0xff, 0xb0, 0);
-	col[COLLRED] = makecol(0xff,0x55,0x44);
-	col[COLLBLUE] = makecol(0x44,0x55,0xff);
-	//MORE player colors
-	col[COL9] = makecol(242, 158, 224);
-	col[COL10] = makecol(134, 143, 57);
-	col[COL11] = makecol( 14, 148, 87);
-	col[COL12] = makecol( 33, 132, 137);
-	col[COL13] = makecol(100, 100, 100);
-	col[COL14] = makecol(166, 166, 166);
-	col[COL15] = makecol(202, 1, 56);	//wine
-	col[COL16] = makecol(0xbf, 0x70, 0);	//darkora
-
-	// team solid colors
-	col[COLBLUE] = makecol(0,0,0xff);
-	col[COLRED] = makecol(0xff,0,0);
-
-	// base minimap background colors
-	col[COLBBLUE] = makecol(0,0,0x66);
-	col[COLBRED] = makecol(0x66,0,0);
-
-	//other
-	col[COLFOGOFWAR] = makecol(0xff, 0xff, 0xff);
-	col[COLMENUWHITE] = makecol(0xc0,0xc0,0xc0);
-	col[COLMENUGRAY] = makecol(0x68,0x68,0x68);
-	col[COLMENUBLACK] = makecol(0x40,0x40,0x40);
-	col[COLGROUND] = makecol(0x10, 0x40, 0);
-	col[COLWALL] = makecol(0x30, 0xC0, 0);
-	col[COLNOLIFE] = makecol(0,0,0);
-	col[COLDARKGRAY] = makecol(0x30, 0x30, 0x30);
-	col[COLSHADOW] = makecol(0x18,0x18,0x18);
-	col[COLLIMBO] = makecol(0x10, 0x10, 0x10);
-	col[COLDARKORA]	= makecol(0xbf, 0x70, 0);
-	col[COLINFO] = col[COLDARKORA];		//color of statusbar non-game info (hostname, IP, net traffic)
-	col[COLENER3] = makecol(125, 100, 255);
-
-	//teams 0 & 1 (playernum(0..15) / 8) colors:
-	teamcol[0] = col[COLRED];
-	teamcol[1] = col[COLBLUE];
-
-	//light colours for text
-	teamlcol[0] = col[COLLRED];
-	teamlcol[1] = col[COLLBLUE];
-
-	//light colours for team text bg
-	teamdcol[0] = col[COLBRED];
-	teamdcol[1] = col[COLBBLUE];
-}
-
-// ---- client screen layout ----
-
-//resolution
-#define RESOL_X 640
-#define RESOL_Y 480
-
-//play area offset
-#define plx 0
-#define ply 90
-
-//minimap offset
-#define mmx (plx + plw + 16)    //push 8 to left
-#define mmy ply
-
-//scoreboard offset
-#define sbx (plx + plw)
-#define sby (mmy + 110)         // + XXX = minimap panel height
-
-bool reset_video_mode() {
-
-		char err1[1024];
-		char err2[1024];
-		char err3[1024];
-		char err4[1024];
-
-		//un-show any video bitmaps?
-		//show_video_bitmap(screen);
-
-		//destroy all old surfaces
-		if (vidpage1) { LOG("destroying vidpage1\n"); destroy_bitmap(vidpage1); vidpage1 = 0; }
-		if (vidpage2) { LOG("destroying vidpage2\n"); destroy_bitmap(vidpage2); vidpage2 = 0; }
-		if (backbuf) { LOG("destroying backbuf\n"); destroy_bitmap(backbuf); backbuf = 0; }
-
-		int notok;
-
-		set_color_depth(16); // hicolor
-		if (winclient) // set mode
-			notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
-		else
-			notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
-
-// ***** INICIO *******
-
-		if (notok < 0) {
-			LOG1("ERROR: cannot set 640x480x16 windowed?=%i graphics mode!\n", winclient);
-			LOG1("Allegro error: '%s'\n", allegro_error);
-			strcpy(err1, allegro_error);
-
-			//try again...
-			winclient = !winclient;
-			set_color_depth(16); // hicolor
-			if (winclient) // set mode
-				notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
-			else
-				notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
-
-			if (notok < 0) {
-				LOG1("ERROR: cannot set 640x480x16 windowed?=%i graphics mode!\n", winclient);
-				LOG1("Allegro error: '%s'\n", allegro_error);
-				strcpy(err2, allegro_error);
-
-				//try again...
-				winclient = !winclient;
-				set_color_depth(15); // ===> different color depth
-				if (winclient) // set mode
-					notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
-				else
-					notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
-
-				if (notok < 0) {
-
-					LOG1("ERROR: cannot set 640x480x15 windowed?=%i graphics mode!\n", winclient);
-					LOG1("Allegro error: '%s'\n", allegro_error);
-					strcpy(err3, allegro_error);
-
-					//AND try again.....
-					winclient = !winclient;
-					set_color_depth(15); // ===> different color depth
-					if (winclient) // set mode
-						notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
-					else
-						notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
-
-					if (notok < 0) {
-
-						LOG1("ERROR: cannot set 640x480x15 windowed?=%i graphics mode!\n", winclient);
-						LOG1("Allegro error: '%s'\n", allegro_error);
-						strcpy(err4, allegro_error);
-
-						char elmsg[4096];
-						sprintf(elmsg, "ERROR: cannot initialize graphics! reasons:\n1 = '%s'\n2 = '%s'\n3 = '%s'\n4 = '%s'", err1, err2, err3, err4);
-						allegro_message(elmsg);
-						return false;	// FATAL error
-					}
-
-				}
-			}
-		}
-
-// ***** FIM *******
-
-		text_mode(-1);	//transparent text
-
-#ifndef SWITCH_PAUSE_CLIENT
-		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
-			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) // allow running in the background
-			{
-				LOG("ERROR: client cannot run in the background!\n");
-				return false; // FATAL
-			}
-			else LOG("switch_background set ok.");
-		}
-		else LOG("switch_BACKAMNESIA set ok.");
-#endif
-
-		//attempt to create two video bitmaps, else use RAM backbuffer
-		if (trypageflip) {
-			vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
-			vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
-			LOG2("create vidpage1=%p vidpage2=%p\n", vidpage1, vidpage2);
-		}
-
-		//delete any partial video pages
-		if ((!vidpage1) || (!vidpage2)) {
-
-			if (trypageflip)
-				LOG("PAGE FLIPPING: not enought video memory. using bruteforce doublebuffering\n")
-			else
-				LOG("USING SAFE MODE VIDEO -- DOUBLE-BUFFERING (option -dbuf). for page flipping use -flip\n")
-
-			if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; LOG("destroyed vidpage1\n"); }
-			if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; LOG("destroyed vidpage2\n");}
-
-			//create RAM backbuffer
-			backbuf = create_bitmap(SCREEN_W, SCREEN_H);
-			if (!backbuf) {
-				LOG("ERROR: cannot create memory backbuffer!\n");
-				return false; // FATAL
-			}
-			drawbuf = backbuf;
-			page_flipping = false;
-		}
-		else {
-			drawbuf = vidpage1;
-			page_flipping = true;
-		}
-		setcolors();
-
-		return true; //ok
-}
-
 gameclient_c *gameclient;
-
-BITMAP *drawbuf, *vidpage1=0, *vidpage2=0, *backbuf=0;
-bool		page_flipping;
 
 // client callbacks
 int cfunc_connection_update(client_runes_t *arg);
@@ -278,6 +15,9 @@ void *thread_clientdownloader_f(void *arg);
 void *thread_clientpassword_f(void *arg);
 
 bool gameclient_c::start() {
+	// gfx init
+	if (!client_graphics.reset_video_mode())		// fatal error
+		return false;
 
 	//host ad
 	hostad = 0;
@@ -312,18 +52,10 @@ bool gameclient_c::start() {
 	// default map
 	//load_default_map(&map);
 	map_ready = false;		// NO map change commands from server yet
-	servermap[0]=0;
-
-	flagpos_buf[0] = 0;
-	flagpos_buf[1] = 0;
-	flagpos_ready = false;
+	servermap[0] = 0;
 
 	//not showing gameover plaque
 	gameover_plaque = NEXTMAP_NONE;
-
-	//update minimap background
-	minibg = create_bitmap(100, 100);
-	//update_minimap_background();
 
 	//clear fx
 	clear_fx();
@@ -965,7 +697,7 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 
 				//load ok!  (FIXME: tell server)
 				//
-				update_minimap_background();		// recalc minimap
+				client_graphics.update_minimap_background(fx.map);	// recalc minimap
 				map_ready = true;								// map ready to show
 				send_client_ready();				//send "client ready" to server
 			}
@@ -1198,7 +930,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 		//load ok!  (FIXME: tell server)
 		//
-		update_minimap_background();  // recalc minimap
+		client_graphics.update_minimap_background(fx.map);  // recalc minimap
 		map_ready = true;  // map ready to show
 		send_client_ready();				//send "client ready" to server
 	}
@@ -1801,1463 +1533,6 @@ void gameclient_c::calc_game_frame() {
 	pthread_mutex_unlock( &frame_mutex );
 }
 
-//draw a flag  t=team 0/1   x,y: coord relative to playarea
-void gameclient_c::draw_flag_at(BITMAP *drawbuf, int t, int x, int y) {
-	//draw shadow
-	ellipsefill(drawbuf,
-		plx + x,
-		ply + y,
-		12, 3, col[COLSHADOW]
-	);
-	//draw mastro
-	rectfill(drawbuf,
-		plx + x - 3,
-		ply + y - 40,
-		plx + x + 3,
-		ply + y,
-		col[COLYELLOW]
-	);
-	//draw bandeira
-	rectfill(drawbuf,
-		plx + x,
-		ply + y - 38,
-		plx + x + 20,
-		ply + y - 20,
-		teamcol[t]
-	);
-}
-
-//draw minimap flag
-void gameclient_c::draw_mini_flag(BITMAP *drawbuf, int whatteam) {
-
-	int f = whatteam;
-
-		double px, py;
-		px = ((double)fx.flag[f].pos.px * (double)plw + fx.flag[f].pos.x) / ((double)plw * fx.map.w);
-		py = ((double)fx.flag[f].pos.py * (double)plh + fx.flag[f].pos.y) / ((double)plh * fx.map.h);
-		int pix = mmx + 21 + ((int)(px*98));
-		int piy = mmy + 01 + ((int)(py*98));
-
-		//draw mastro
-		rectfill(drawbuf, pix, piy-5, pix, piy, col[COLYELLOW]);
-		//draw bandeira
-		rectfill(drawbuf, pix+1,piy-5,pix+5,piy-2,teamcol[f]);
-}
-
-//update the minimap background
-void gameclient_c::update_minimap_background() {
-	LOG2("update_minimap map.w = %i map.h = %i\n", fx.map.w, fx.map.h);
-	fx.map.draw_minimap(minibg);
-}
-
-//draws a player object
-void gameclient_c::draw_player(BITMAP *drawbuf, int x, int y, int gundir, int pc1, int pc2, int alpha) {
-
-	//draw the gun (direction facing)
-	int xg, yg;
-	switch (gundir) {
-		case 0: xg= 40; yg=  0; break;
-		case 1: xg= 28; yg= 28; break;
-		case 2: xg=  0; yg= 40; break;
-		case 3: xg=-28; yg= 28; break;
-		case 4: xg=-40; yg=  0; break;
-		case 5: xg=-28; yg=-28; break;
-		case 6: xg=  0; yg=-40; break;
-		case 7: xg= 28; yg=-28; break;
-		default: xg= 0; yg=  0; break;
-	}
-	xg = (int)( ((double)xg) * 0.7);
-	yg = (int)( ((double)yg) * 0.7);
-
-	xg += x;
-	yg += y - 15;
-
-	if (alpha < 255) {
-		set_trans_blender(0,0,0,alpha);
-		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-	}
-
-	//desenha arma antes se dir 5,6,7
-	if (gundir >= 5) {
-		line(drawbuf, 0+plx + x, 0+ply + y - 15, 0+plx + xg, 0+ply + yg, pc1);
-		line(drawbuf, 1+plx + x, 0+ply + y - 15, 1+plx + xg, 0+ply + yg, pc1);
-		line(drawbuf, 1+plx + x, 1+ply + y - 15, 1+plx + xg, 1+ply + yg, pc1);
-	}
-
-	// outer color: team color
-	circlefill(drawbuf, plx+x, ply+y-15, 15, pc1);
-	// inner color: self color
-	circlefill(drawbuf, plx+x, ply+y-15, 10, pc2);
-
-	//desenha arma depois se dir 0,1,2,3,4
-	if (gundir < 5) {
-		line(drawbuf, 0+plx + x, 0+ply + y - 15, 0+plx + xg, 0+ply + yg, pc1);
-		line(drawbuf, 1+plx + x, 0+ply + y - 15, 1+plx + xg, 0+ply + yg, pc1);
-		line(drawbuf, 1+plx + x, 1+ply + y - 15, 1+plx + xg, 1+ply + yg, pc1);
-	}
-
-	if (alpha < 255)
-		solid_mode();
-}
-
-//draw the whole game screen
-void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
-
-	//static int HOWMANY = 0;
-	//rectfill(drawbuf, 20, 20, 100, 40, makecol(rand(),rand(),rand()));
-	//textprintf(drawbuf,font, 25,25,makecol(rand(),rand(),rand()),"HOW=%i",++HOWMANY);
-
-	// erase old chat messages (this shouldn't be here really but wtf..)
-	//
-	if (chaterasetime < get_time())
-		erase_first_message();
-
-	//do not draw anything if "me" not known
-	if (me < 0)
-	if (me >= maxplayers) {
-		clear_to_color(drawbuf, col[COLYELLOW]);
-		return;
-	}
-
-	//lock frame mutex
-	//LOG1("locking HOW=%i",HOWMANY);
-	pthread_mutex_lock( &frame_mutex );
-	//LOG1("locked! HOW=%i",HOWMANY);
-
-	//SUPER USELESS MODE   //if (rand() % 10 < 2) SEEP(30);
-	//clear_to_color(drawbuf, makecol(rand(),0,0));	// clear buffer
-
-	// game screen background
-	//
-	clear_to_color(drawbuf, col[COLSHADOW]);
-
-	// hiding stuff?
-	// v0.4.1 : hide stuff if frame skipped
-	bool hide_game = ((!map_ready) || (gameover_plaque != NEXTMAP_NONE) || (fx.skipped));
-
-	// the PLAY AREA: border, walls and pits
-	//
-	if (hide_game) {
-
-		//draw THE PLAQUE
-		rectfill(drawbuf, plx, ply, plx + plw, ply + plh, 0);
-
-		//DEBUG FIXME REMOVEME:
-		//if (fx.skipped)
-		//	textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 80, col[COLDARKGRAY], "fx.skipped");
-
-		//qual mensagem
-		if ((gameover_plaque == NEXTMAP_CAPTURE_LIMIT) || (gameover_plaque == NEXTMAP_VOTE_EXIT)) {
-			if (red_final_score > blue_final_score) {
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 40, col[COLLRED], "RED TEAM WINS");
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 20, col[COLLRED], "SCORE: %i x %i", red_final_score, blue_final_score);
-			}
-			else if (blue_final_score > red_final_score) {
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 40, col[COLLBLUE], "BLUE TEAM WINS");
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 20, col[COLLBLUE], "SCORE: %i x %i", blue_final_score, red_final_score);
-			}
-			else {
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 40, col[COLMENUGRAY], "GAME TIED");
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 - 20, col[COLMENUGRAY], "SCORE: %i x %i", blue_final_score, red_final_score);
-			}
-		}
-		else {
-			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2, col[COLGREEN], "Connecting...");
-		}
-
-		if (map_ready) {
-			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "Waiting game start - next map is:");
-			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 50, col[COLORA], "%s", fx.map.title.c_str());
-		}
-		else
-			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "Loading map: %lu bytes", fdp);
-	}
-	else {
-		rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
-
-		// place of flag
-		for (int team = 0; team < 2; team++)
-			if (fx.player[me].roomx == fx.map.tinfo[team].flag.px && fx.player[me].roomy == fx.map.tinfo[team].flag.py) {
-				check_flagpos_marks();
-				int flag_x = fx.map.tinfo[team].flag.x;
-				int flag_y = fx.map.tinfo[team].flag.y;
-				int x1 = max(0, CL_FLAGPOS_RAD - flag_x);
-				int y1 = max(0, CL_FLAGPOS_RAD - flag_y);
-				int x2 = min(2 * CL_FLAGPOS_RAD, plw - flag_x + CL_FLAGPOS_RAD + 1);
-				int y2 = min(2 * CL_FLAGPOS_RAD, plh - flag_y + CL_FLAGPOS_RAD + 1);
-				blit(flagpos_buf[team], drawbuf, x1, y1,
-					plx + flag_x - CL_FLAGPOS_RAD + x1, ply + flag_y - CL_FLAGPOS_RAD + y1, x2 - x1, y2 - y1);
-			}
-
-		// map walls
-		if (fx.player[me].roomx >= 0 && fx.player[me].roomy >= 0 && fx.player[me].roomx < fx.map.w && fx.player[me].roomy < fx.map.h)
-			fx.map.room[fx.player[me].roomx][fx.player[me].roomy].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
-	}
-
-	// frame is valid?
-	if (!hide_game)		// do not draw if map not set yet
-	if (fd.frame >= 0) {
-
-		int i;
-
-		// FIXME: y-ordering of draw not maintained
-		// draw any item pickups
-		//
-		if (me >= 0)
-		for (i=0;i<MAX_PICKUPS;i++) {
-			pickup_c *it = &fx.item[i];
-
-			if (it->kind <= 0 || it->kind == 255)
-				continue;
-			if (it->px!=fx.player[me].roomx || it->py!=fx.player[me].roomy)
-				continue;
-
-			ellipsefill(drawbuf, plx + it->x, ply + it->y + 12, 12, 3, col[COLSHADOW]);
-
-			//shield
-			if (it->kind == 1) {
-
-				ellipse(drawbuf, plx + it->x, ply + it->y, 14+rand()%3, 14+rand()%3, makecol(rand(),rand(),rand()));
-				ellipse(drawbuf, plx + it->x, ply + it->y, 14+rand()%5, 14+rand()%5, makecol(rand(),rand(),rand()));
-				ellipse(drawbuf, plx + it->x, ply + it->y, 14+rand()%9, 14+rand()%9, makecol(rand(),rand(),rand()));
-
-				circlefill(drawbuf, plx + it->x, ply + it->y, 12, col[COLGREEN]);
-
-			}
-			//boots
-			else if (it->kind == 2) {
-
-				circlefill(drawbuf, plx + it->x + rand()%6-3, ply + it->y + rand()%6-3, 12, col[COLDARKORA]);
-				circlefill(drawbuf, plx + it->x + rand()%8-4, ply + it->y + rand()%8-4, 12, col[COLORA]);
-				circlefill(drawbuf, plx + it->x + rand()%12-6, ply + it->y + rand()%12-6, 12, col[COLYELLOW]);
-			}
-			//helm
-			else if (it->kind == 3) {
-
-				drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-				int alpha = ((int)(get_time() * 600.0)) % 400;
-				if (alpha > 200)
-					alpha = 400 - alpha;
-				set_trans_blender(0,0,0,55+alpha);
-				circlefill(drawbuf, plx + it->x, ply + it->y, 12, col[COLMAG]);
-				solid_mode();
-			}
-			//instant kill shots
-			else if (it->kind == 4) {
-
-				if (((int)(get_time() * 30)) % 2)
-					circlefill(drawbuf, plx + it->x, ply + it->y, 13, col[COLWHITE]);
-				else
-					circlefill(drawbuf, plx + it->x, ply + it->y, 11, col[COLCYAN]);
-			}
-			//weapon upgrade
-			else if (it->kind == 5) {
-
-				//graus de rotacao
-				for (int b=0;b<4;b++) {
-					//deg: 0..360
-					double deg = ((int) (get_time() * 1000.0)) % 1000;		//thousand ticker
-					deg = deg / 1000.0;		//0..1 inteiro
-					deg = deg * 6.2832;		// 0..1 vezes 2 pi (1 volta)
-					deg = deg + 1.5708 * b; //mais b's (90 grauses)
-
-					//pos
-					double dx = 10 * cos(deg);
-					double dy = 10 * sin(deg);
-
-					//draw a ball
-					switch (b) {
-					case 0: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLGREEN]); break;
-					case 1: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLBLUE]); break;
-					case 2: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLRED]); break;
-					case 3: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLYELLOW]); break;
-					}
-				}
-			}
-			//megahealth
-			else if (it->kind == 6) {
-
-				//caixa de saude pulsante
-				int varia = ((int)(get_time() * 15)) % 10;
-
-				if (varia > 5)
-					varia = 10 - varia;
-
-				int itemsize = 11 + varia;
-				int crossize = 8 + varia;
-				int crosslar = 3;//aria/2;
-
-				// health box black border
-				rectfill(drawbuf, plx + it->x - itemsize - 2, ply + it->y - itemsize - 2, plx + it->x + itemsize + 2, ply + it->y + itemsize + 2, 0);
-
-				// health box
-				rectfill(drawbuf, plx + it->x - itemsize, ply + it->y - itemsize, plx + it->x + itemsize, ply + it->y + itemsize, col[COLWHITE]);
-
-				// red cross
-				rectfill(drawbuf, plx + it->x - crossize, ply + it->y - crosslar, plx + it->x + crossize, ply + it->y + crosslar, col[COLRED]);
-				rectfill(drawbuf, plx + it->x - crosslar, ply + it->y - crossize, plx + it->x + crosslar, ply + it->y + crossize, col[COLRED]);
-			}
-			//deathbringer
-			else if (it->kind == 7) {
-
-				//bola preta
-				circlefill(drawbuf, plx + it->x, ply + it->y, 12, makecol(0x22,0x33,0x22));
-
-				//smoke da bola preta
-				cfx_create_deathcarrier(it->x + rand()%30-15, it->y + rand()%30-5, it->px, it->py, 0);
-			}
-		}
-
-		// draw clientside fx -- efeitos ATRAS das coisas
-		//
-		if (me >= 0)	// where am I?
-		for (i=0;i<MAX_CLIENTFX;i++)
-		if (cfx[i].used)	//fx used?
-		if (cfx[i].px == fx.player[me].roomx)	//on same screen?
-		if (cfx[i].py == fx.player[me].roomy)
-		{
-			double tim = get_time();
-
-			//speed rastro
-			if (cfx[i].type == 1) {
-
-				double delta = tim - cfx[i].time;
-				if (delta > 0.3) {
-					cfx[i].used = false;
-				}
-				else {
-					int alpha = 90 - ((int)(delta * 300.0));
-					draw_player(drawbuf, cfx[i].x, cfx[i].y, cfx[i].gundir, cfx[i].col1, cfx[i].col2, alpha);
-				}
-			}
-
-		}
-
-		// FIXME: y-ordering of draw not maintained
-		// draw any dropped flags (use fx since flags don't move)
-		//
-		for (int t=0;t<2;t++)
-			if (me >= 0)
-			if (fx.flag[t].carried == false)	// not carried == dropped
-			if (fx.flag[t].pos.px == fx.player[me].roomx)  // on same screen than me
-			if (fx.flag[t].pos.py == fx.player[me].roomy)  // on same screen than me
-			{
-				draw_flag_at(drawbuf, t, fx.flag[t].pos.x, fx.flag[t].pos.y);
-			}
-
-		// FIXME: y-ordering of draw not maintained
-		// draw any rockets
-		if (me >= 0)
-		for (i=0;i<MAX_ROCKETS;i++)
-		if (fx.rock[i].owner != -1)		// valid
-		if (fx.rock[i].dontdraw == false)	// DO draw?
-		if (fx.rock[i].px == fx.player[me].roomx)	//in same screen
-		if (fx.rock[i].py == fx.player[me].roomy)
-		{
-			rocket_c *r = &(fd.rock[i]);
-
-			//QUAD ROCKET!
-			if (fx.player[ fx.rock[i].owner ].item_quad) {
-				//draw rocket shadow
-				ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 6, 3, col[COLSHADOW]);
-				//draw the rocket
-				if (((int)(get_time() * 30)) % 2)
-					circlefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 6, col[COLWHITE]);	//y-12?
-				else
-					circlefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, teamlcol[fx.rock[i].team]); //y-12??
-			}
-			else {
-				//draw rocket shadow
-				ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 4, 2, col[COLSHADOW]);
-				//draw the rocket
-				circlefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, teamcol[fx.rock[i].team]); //y-10??
-			}
-		}
-
-		// sort order of drawing of the players
-		//
-		for (i=0;i<maxplayers;i++) {
-			fd.player[i].drawused = 0;
-			fd.player[i].drawptr = -1;
-		}
-
-		double miny;
-		int minyid;
-
-		for (i=0;i<maxplayers;i++) {
-			minyid = -1;
-			miny = 999999;
-
-			for (int j=0;j<maxplayers;j++)
-			if (fd.player[j].used)	{
-				if (fd.player[j].drawused == 0)
-				if (fd.player[j].ly < miny) {
-					miny = fd.player[j].ly;
-					minyid = j;
-				}
-			}
-
-			if (minyid == -1)
-				break;
-
-			fd.player[minyid].drawused = 1;
-			fd.player[i].drawptr = minyid;
-		}
-
-		// the PLAY AREA: the players!
-		//
-		for (int k=0;k<maxplayers;k++) {
-
-			//HACK REMENDEX: predict item_helm
-			if (fx.player[i].item_helm > 0) {
-				int hspd = (int) ((fd.time - fx.time) * 100.0);
-				fx.player[i].item_helm -= hspd;
-				if (fx.player[i].item_helm < 1)
-					fx.player[i].item_helm = 1;
-			}
-
-			//indirection: draw in y-order
-			int i;
-			i = fd.player[k].drawptr;
-
-			if (i >= 0)
-			if (fx.player[i].onscreen)		// draw only players on my screen
-			{
-				//calcula alfa do player
-				//
-				int alpha = 255;
-				if (fx.player[i].item_helm > 0) {
-					drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-					alpha = fx.player[i].item_helm;
-					if (me >= 0)
-					if (i/TSIZE == me/TSIZE)	// teammate or myself
-					if (alpha < MIN_ALPHA_FRIENDS) alpha = MIN_ALPHA_FRIENDS;
-					set_trans_blender(0,0,0,alpha);
-				}
-
-				// the player's shadow: showing last valid position
-				ellipsefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly, 15, 3, col[COLSHADOW]);
-
-				if (fx.player[i].item_helm > 0)
-					solid_mode();
-
-				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
-				for (int t=0; t<2; t++)
-					if (fx.flag[t].carried == true)
-					if (fx.flag[t].carrier == i)
-					{
-						draw_flag_at(drawbuf, t, (int)fd.player[i].lx, (int)fd.player[i].ly);
-					}
-
-				// se player morto, desenha poca de sangue
-				if (fx.player[i].dead) {
-
-					// FIXME: draw different deathbringer death (green stuff?)
-
-					// virou sorvete!
-					if ((fx.player[i].frags >= 10) && (fx.player[i].frags % 10 == 0)) {
-						ellipsefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly - 15, 6, 15, col[COLORA]);
-						circlefill(drawbuf, plx + (int)fx.player[i].lx - 8, ply + (int)fx.player[i].ly - 10-15, 8, col[COLBLUE]);
-						circlefill(drawbuf, plx + (int)fx.player[i].lx + 8, ply + (int)fx.player[i].ly - 10-15, 8, col[COLMAG]);
-						circlefill(drawbuf, plx + (int)fx.player[i].lx + 0, ply + (int)fx.player[i].ly - 20-15, 8, col[COLGREEN]);
-						textprintf_centre(drawbuf, font, plx + (int)fx.player[i].lx + 0, ply + (int)fx.player[i].ly - 20-43, col[COLWHITE], "VIROU");
-						textprintf_centre(drawbuf, font, plx + (int)fx.player[i].lx + 0, ply + (int)fx.player[i].ly - 20-33, col[COLWHITE], "SORVETE!");
-					}
-					else {
-						ellipsefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly, 20, 6, col[COLRED]);
-						circlefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly - 10, 12, col[COLRED]);
-					}
-				}
-				// desenha player vivo
-				else {
-
-					// verifica turbo drop efeitos
-					//
-					if (fx.player[i].item_speed)		// tem speed
-					if (
-							(fabs(fx.player[i].sx) > svp_maxspeed)		// ta rapído
-							||
-							(fabs(fx.player[i].sy) > svp_maxspeed)
-						)
-					if (get_time() > fx.player[i].speed_drop_time)		// intervalo entre drop de efeito bolinha
-					{
-						//tempo minimo pra soltar outra bolinha fade
-						fx.player[i].speed_drop_time = get_time() + 0.05;
-
-						//solta a bolinha
-						cfx_create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, teamcol[i/TSIZE], col[i%TSIZE], fx.player[i].gundir);
-					}
-
-					//blink player when hit
-					//
-					int pc1,pc2;
-					pc1 = teamcol[i/TSIZE];
-					pc2 = col[i%TSIZE];
-					double deltafx = fx.player[i].hitfx - get_time();
-					if (deltafx > 0) {
-						NLubyte rgb = (NLubyte) ( 70.0 + deltafx * 600.0 );  // var 180
-						pc1 = pc2 = makecol(rgb,rgb,rgb);
-					}
-					else if (fx.player[i].item_quad) {
-						//pisca branco
-						if ( ((int)(get_time() * 10)) % 2 ) {
-							pc1 = col[COLWHITE];
-							pc2 = col[COLCYAN];
-						}
-					}
-
-					//draw player
-					draw_player(drawbuf, (int)fd.player[i].lx, (int)fd.player[i].ly, fd.player[i].gundir, pc1, pc2, alpha);
-
-					//draw deathbringer carrier effect
-					if (fx.player[i].item_deathbringer) {
-						// intervalo entre drop de efeito
-						if (get_time() > fx.player[i].death_drop_time)
-						{
-							//tempo p/ proximo efeito
-							fx.player[i].death_drop_time = get_time() + 0.01;
-							//drop it
-							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-						}
-					}
-
-					//draw deathbringer affected effect
-					if (fx.player[i].deathbringer_affected) {
-						drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-						set_trans_blender(0,0,0,128);
-						int q,co;
-						if (i/TSIZE)
-							co = makecol(0xA0,0,0);
-						else
-							co = makecol(0,0,0xff);
-						for (q=0;q<5;q++)
-							circlefill(drawbuf, plx + (int)fd.player[i].lx+rand()%40-20, ply + (int)fd.player[i].ly+rand()%40-20 - 15, 15, co);
-						for (q=0;q<5;q++)
-							circlefill(drawbuf, plx + (int)fd.player[i].lx+rand()%40-20, ply + (int)fd.player[i].ly+rand()%40-20 - 15, 15, 0);
-						solid_mode();
-					}
-
-					// SHIELD FX!!
-					if (fx.player[i].item_shield) {
-						ellipse(drawbuf, plx + (int)fd.player[i].lx, ply + (int)fd.player[i].ly - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
-						ellipse(drawbuf, plx + (int)fd.player[i].lx, ply + (int)fd.player[i].ly - 15, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
-						ellipse(drawbuf, plx + (int)fd.player[i].lx, ply + (int)fd.player[i].ly - 15, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
-					}
-				}
-
-				//draw player's name -- nao interessa se vivo ou morto
-				if (option_show_names)
-				if (me >= 0)
-				if (me < maxplayers)
-				//NOT an invisible enemy
-				if (!((fx.player[i].item_helm) && (i/TSIZE != me/TSIZE))) {
-					int ttx = (int)fd.player[i].lx + plx;
-					int tty = (int)fd.player[i].ly + ply - 40;
-					int supercol = teamdcol[i/TSIZE];
-					int midcol = col[COLWHITE];
-
-					textprintf_centre(drawbuf, font, ttx-1, tty-1, supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx+1, tty-1, supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx-1, tty+1, supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx+1, tty+1, supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx-1, tty , supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx+1, tty , supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx, tty-1, supercol, "%s", fx.player[i].name);
-					textprintf_centre(drawbuf, font, ttx, tty+1, supercol, "%s", fx.player[i].name);
-
-					textprintf_centre(drawbuf, font, ttx, tty, midcol, "%s", fx.player[i].name);
-				}
-			}
-		}
-
-		// DEATHBRINGER: darken ground for carriers
-		//
-		for (int o=0;o<maxplayers;o++)
-		if (fx.player[o].used)	//valid
-		if (fx.player[o].roomx == fx.player[me].roomx)	//in visible screen
-		if (fx.player[o].roomy == fx.player[me].roomy)
-		if (fx.player[o].onscreen)						//REALLY in visible screen??
-		if (fx.player[o].item_deathbringer)		// has deathbringer
-		{
-			set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
-			//darken ground
-			drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-			for (int i=50;i>0;i -= 5) {
-				set_trans_blender(0,0,0,50-i);
-				circlefill(drawbuf, plx + (int)fd.player[o].lx, ply + (int)fd.player[o].ly - 10, i, 0);
-			}
-			solid_mode();
-			set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
-		}
-
-		// draw clientside fx apos players
-		//
-		if (me >= 0)	// where am I?
-		for (i=0;i<MAX_CLIENTFX;i++)
-		if (cfx[i].used)	//fx used?
-		if (cfx[i].px == fx.player[me].roomx)	//on same screen?
-		if (cfx[i].py == fx.player[me].roomy)
-		{
-			double tim = get_time();
-
-			//gun explosion
-			if (cfx[i].type == 0) {
-
-				double delta = tim - cfx[i].time;
-				if (delta > 0.4)
-					cfx[i].used = false;
-				else {
-					for (int e=0;e<3;e++) {
-						int rad = 4 + e + (int)(delta * 40);
-						circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, makecol(rand(),rand(),rand()));
-					}
-				}
-			}
-			//wall explosion
-			else if (cfx[i].type == 2) {
-
-				double delta = tim - cfx[i].time;
-				if (delta > 0.2)
-					cfx[i].used = false;
-				else {
-					for (int e=0;e<2;e++) {
-						int rad = 4 + e + (int)(delta * 40);
-						circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, makecol(rand(),rand(),rand()));
-					}
-				}
-			}
-			//quad wall explosion
-			else if (cfx[i].type == 3) {
-
-				double delta = tim - cfx[i].time;
-				if (delta > 0.2)
-					cfx[i].used = false;
-				else {
-					for (int e=0;e<3;e++) {
-						int rad = 4 + e + (int)(delta * 60);
-						circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, makecol(rand(),rand(),rand()));
-					}
-				}
-			}
-			// deathcarrier rastro
-			else if (cfx[i].type == 5) {
-
-				double delta = tim - cfx[i].time;
-				if (delta > 0.6) {
-					cfx[i].used = false;
-				}
-				else {
-					int alpha = 120 - ((int)(delta * 200.0));
-					drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-					set_trans_blender(0,0,0,alpha);
-					double drad = (3.0 + 9.0 * (0.6 - delta));
-					int rad = (int)drad;
-					int subdist = (int)( (96.0 - drad * 8.0) );
-					circlefill(drawbuf, plx + cfx[i].x, ply + cfx[i].y - subdist, rad, cfx[i].col1);
-					solid_mode();
-				}
-			}
-			//the deathbringer
-			else if (cfx[i].type == 4) {
-
-				double delta = tim - cfx[i].time;
-				if (delta > 3.0) {
-					cfx[i].used = false;
-				}
-				else {
-					//radius
-					int e,rad,co;
-					if (delta < 1.0)
-						rad = (int)(delta * 100);
-					else
-						rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
-					int maxxd = max(cfx[i].x, plw-cfx[i].x), maxyd = max(cfx[i].y, plh-cfx[i].y);
-					if (maxxd*maxxd + maxyd*maxyd >= rad*rad) {
-						set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
-						//brightening ring
-						for (e=0;e<30;e++) {
-							if (cfx[i].owner/TSIZE)
-								co = makecol(0,0,14+8*e);
-							else
-								co = makecol(14+8*e,0,0);
-							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
-							//ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
-							//ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
-							rad++;
-						}
-						//darkening ring
-						for (e=0;e<10;e++) {
-							if (cfx[i].owner/TSIZE)
-								co = makecol(0,0,255-14*e);
-							else
-								co = makecol(255-14*e,0,0);
-							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
-							circle(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, co);
-							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, co);
-							rad++;
-						}
-						set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
-					}
-				}
-			}
-		}
-	}
-
-	//do not draw stuff below if map not ready to show
-	if (!hide_game) {
-
-		// the MINIMAP
-		//
-		blit(minibg, drawbuf, 0, 0, mmx + 20, mmy, minibg->w, minibg->h);	// minimap bg
-
-		//draw the miniflags
-		// - qualquer flag no chao (na base ou nao, carried == false)
-		for (int f=0;f<2;f++)
-		if (fx.flag[f].carried == false)
-			draw_mini_flag(drawbuf, f);
-
-		vector<bool> roomvis;
-		roomvis.resize(fx.map.w*fx.map.h, (me>=0 && fx.player[me].item_helm>0)?true:false);
-
-		// draw all teammates and enemies on screens where there are teammates
-		//draw all the players - put a pixel where they are
-		if (me>=0 && fx.frame>=0)
-			for (int i=0;i<maxplayers;i++)
-				if (fx.player[i].used && fx.player[i].roomx>=0 && fx.player[i].roomy>=0 && fx.player[i].roomx<fx.map.w && fx.player[i].roomy<fx.map.h &&
-						(i/TSIZE == me/TSIZE || (fx.player[me].enemyvis & (1<<(i%TSIZE)) ))) {
-					roomvis[fx.player[i].roomy*fx.map.w+fx.player[i].roomx] = true;
-
-					// coord on minimap
-					double px, py;
-					px = ((double)fx.player[i].roomx * (double)plw + fx.player[i].lx) / ((double)plw * fx.map.w);
-					py = ((double)fx.player[i].roomy * (double)plh + fx.player[i].ly) / ((double)plh * fx.map.h);
-					int pix = mmx + 21 + ((int)(px*98));
-					int piy = mmy +  1 + ((int)(py*98));
-
-					//verifica se o jogador a ser desenhado é um carrier de flag inimiga
-					int enemyteam = 1-i/TSIZE;
-					if (fx.flag[enemyteam].carried)
-					if (fx.flag[enemyteam].carrier == i) {
-
-						// update flag position for draw
-						fx.flag[enemyteam].pos.px = fx.player[i].roomx;
-						fx.flag[enemyteam].pos.py = fx.player[i].roomy;
-						fx.flag[enemyteam].pos.x = (int)fx.player[i].lx;
-						fx.flag[enemyteam].pos.y = (int)fx.player[i].ly;
-
-						// draw the miniflag here
-						draw_mini_flag(drawbuf, enemyteam);
-					}
-
-					if (i != me) {
-						putpixel(drawbuf, pix+0, piy+0, teamcol[i/TSIZE]);	//3 pixel teamcol
-						putpixel(drawbuf, pix+1, piy+0, teamcol[i/TSIZE]);	//3 pixel teamcol
-						putpixel(drawbuf, pix+0, piy+1, teamcol[i/TSIZE]);	//3 pixel teamcol
-						putpixel(drawbuf, pix+1, piy+1, col[i%TSIZE]);		// 1 pixel personal-color
-					}
-					else {
-						//myself: draw differently
-						if ( (int(get_time() * 15)) % 3 > 0 ) {
-							circlefill(drawbuf, pix, piy, 2, col[COLYELLOW]);
-							circlefill(drawbuf, pix, piy, 1, teamlcol[i/TSIZE]);
-						}
-						else
-							circlefill(drawbuf, pix, piy, 2, 0);
-					}
-				}
-
-		// paint fog of war in all invisible rooms
-		//
-		for (int ry=0; ry<fx.map.h; ry++)
-			for (int rx=0; rx<fx.map.w; rx++)
-				if (!roomvis[ry*fx.map.w+rx]) {
-					drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-					set_trans_blender(0,0,0,0x38);
-					int a,b,c,d;
-					a = mmx+21 +  rx   *98/fx.map.w  ;
-					b = mmy+ 1 +  ry   *98/fx.map.h  ;
-					c = mmx+21 + (rx+1)*98/fx.map.w-1;
-					d = mmy+ 1 + (ry+1)*98/fx.map.h-1;
-					rectfill(drawbuf, a,b,c,d, col[COLFOGOFWAR]);
-				}
-		solid_mode();
-	}//!hide_game
-
-	//
-	// the SCOREBOARD
-	//
-	#define NAMEYDELTA_MIN 8
-	int NAMEYDELTA = 12;	//default value
-
-	if (key[KEY_TAB]) {
-		textprintf(drawbuf, font, sbx + 4, sby-4, teamlcol[0], "Red Team:   (PINGS)");
-		textprintf(drawbuf, font, sbx + 4, sby-4 + 18*NAMEYDELTA_MIN, teamlcol[1], "Blue Team:  (PINGS)");
-	}
-	else {
-		textprintf(drawbuf, font, sbx + 4, sby-4, teamlcol[0], "Red Team:    %2i capt", fx.flag[0].score);
-		textprintf(drawbuf, font, sbx + 4, sby-4 + 18*NAMEYDELTA_MIN, teamlcol[1], "Blue Team:   %2i capt", fx.flag[1].score);
-	}
-	int i;
-	int pix[2]; pix[0]=pix[1]=0;
-	for (int fw=0;fw<2;fw++)		//first count, then draw
-	{
-		if (fw == 1) {
-			//most players in a team
-			int thepix;
-			if (pix[0] > pix[1])
-				thepix = pix[1];
-			else
-				thepix = pix[0];
-			//calc the new NAMEYDELTA
-			while ( (thepix * NAMEYDELTA) > 16 * 8 - 8 - 2) {
-				if (NAMEYDELTA == NAMEYDELTA_MIN)
-					break;	//the minimum is the minimum...
-				NAMEYDELTA--;
-			}
-		}
-
-		for (int dp=0;dp<maxplayers;dp++)
-		{
-			// i = player #   dp = draw slot (0-7 = red team's  8-15 = blue team's)
-			i = scoreboard[dp];
-
-			//i = dp;
-
-			//draw it
-			if (i != -1)
-			if (fx.player[i].used)
-			{
-				// print player name
-				//textprintf(drawbuf, font, sbx + 4, sby + 2 +13 + dp * NAMEYDELTA + (dp/TSIZE)*(26-2), col[i%TSIZE], "%s", player[i].name);
-				int what_y;
-				if (i < TSIZE) {
-					what_y = sby + 8 + dp * NAMEYDELTA;
-				}
-				else {
-					what_y = sby + 19*NAMEYDELTA_MIN + (dp-TSIZE) * NAMEYDELTA;
-				}
-
-				//just count
-				if (fw == 0) {
-//						if (pix[i/TSIZE] < i%TSIZE)
-//							pix[i/TSIZE] = i%TSIZE;
-					if (pix[i/TSIZE] < dp%TSIZE)
-						pix[i/TSIZE] = dp%TSIZE;
-				}
-				//draw
-				else {
-
-					// show name
-					textprintf(drawbuf, font, sbx + 4, what_y, col[i%TSIZE], "%c%s", fx.player[i].reg_status, fx.player[i].name);
-
-					// show ping or frags
-					if (key[KEY_TAB]) {
-						if (fx.player[i].ping > 9999) fx.player[i].ping = 9999;			//fix ping if too big
-						textprintf(drawbuf, font, sbx + 4 + 16*8, what_y, teamlcol[i/TSIZE], "%4i", fx.player[i].ping);
-					}
-					else
-						textprintf(drawbuf, font, sbx + 4 + 16*8, what_y, teamlcol[i/TSIZE], "%4i", fx.player[i].frags);
-				}
-			}
-		}
-	}
-
-	// the STATUSBAR : traffic
-	//
-	//int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
-	//int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
-	//int bpstraffic = bpsin + bpsout;
-	//textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
-	//textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);
-
-	//FPS
-	textprintf(drawbuf, font, plx+10, ply+plh-14, 0, "FPS:%3.0f", FPS);
-
-#ifdef CL_SHOW_TIME_LEFT
-	// Time left if time limit is on.
-	if (time_limit > 0)
-		textprintf(drawbuf, font, plx+10, ply+6, 0, "TIME: %3d:%02d", seconds / 60, seconds % 60);
-#endif
-
-	// QUAD DAMAGE
-	if (me >= 0) {
-
-		double val;
-		if (fx.player[me].item_quad) {
-			val = fx.player[me].item_quad_time - get_time();
-			if (val < 0) val = 0;
-			textprintf(drawbuf, font, plx+244, ply+plh+5, col[COLCYAN], "POWER:  %2.0f", val);
-		}
-		if (fx.player[me].item_speed) {
-			val = fx.player[me].item_speed_time - get_time();
-			if (val < 0) val = 0;
-			textprintf(drawbuf, font, plx+244, ply+plh+15, col[COLYELLOW], "TURBO:  %2.0f", val);
-		}
-		if (fx.player[me].item_helm) {
-			val = fx.player[me].item_helm_time - get_time();
-			if (val < 0) val = 0;
-			textprintf(drawbuf, font, plx+244, ply+plh+25, col[COLMAG], "SHADOW: %2.0f", val);
-		}
-
-		//WEAPON LEVEL
-		textprintf(drawbuf, font, plx+340, ply+plh+5, col[COLWHITE], "WEAPON: %i", fx.player[me].weapon + 1);
-	}
-
-	//server hostname
-	//textprintf(drawbuf, font, plx+6*8+334+(32-strlen_hostname)*8, ply+plh+25, col[COLINFO], "%s", hostname);
-
-	//show "want change teams" flag if active
-	if (want_change_teams)
-	{
-		int c = col[COLWHITE];
-		if ( ( (int) (get_time() * 2.0) ) % 2 )	// blink!
-			c = col[COLRED];
-		textprintf(drawbuf, font, +0 + plx + plw - 6*8 - 10,     ply + plh - 18, c, "CHANGE");
-		textprintf(drawbuf, font, +0 + plx + plw - 6*8 - 10 + 4, ply + plh -  9, c, "TEAMS");
-	}
-	if (want_map_exit) {
-		int c = col[COLWHITE];
-		if ( ( (int) (get_time() * 2.0) ) % 2 )	// blink!
-			c = col[COLRED];
-		textprintf(drawbuf, font, -40 + plx + plw - 6*8 - 10,     ply + plh - 18, c, "EXIT");
-		textprintf(drawbuf, font, -40 + plx + plw - 6*8 - 10 + 4, ply + plh -  9, c, "MAP");
-	}
-
-	// the STATUSBAR : health energy, bars ....
-	//
-	if (me >= 0)
-		textprintf(drawbuf, font, 10, ply+plh+ 5, col[COLWHITE],  "Health: %4i  Energy: %4i", fx.player[me].health, fx.player[me].energy);
-
-	rectfill(drawbuf, 10, ply+plh+18, 10 + 100, ply+plh+18+10, col[COLNOLIFE]); //lifebar bg
-	rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + 100, ply+plh+18+10, col[COLNOLIFE]); // enerbar bg
-
-	if (me >= 0) {
-		if (fx.player[me].health > 0) {
-
-			//barra vermelha 0..100
-			int redtarg = fx.player[me].health;
-			if (redtarg > 100) redtarg = 100;
-			rectfill(drawbuf, 10, ply+plh+18, 10 + redtarg, ply+plh+18+10, col[COLRED]); //lifebar
-
-			//barra magenta 100..200
-			int magtarg = fx.player[me].health - 100;
-			if (magtarg > 100) magtarg = 100;
-			if (magtarg > 0)
-				rectfill(drawbuf, 10, ply+plh+18, 10 + magtarg, ply+plh+18+10, col[COLYELLOW]);
-
-			//barra 3o nivel
-			int targ3 = fx.player[me].health - 200;
-			if (targ3 > 100) targ3 = 100;
-			if (targ3 > 0)
-				rectfill(drawbuf, 10, ply+plh+18, 10 + targ3, ply+plh+18+10, col[COLMAG]);
-		}
-		if (fx.player[me].energy > 0) {
-
-			//barra azul 0..100
-			int bluetarg = fx.player[me].energy;
-			if (bluetarg > 100) bluetarg = 100;
-			rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + bluetarg, ply+plh+18+10, col[COLBLUE]); // enerbar
-
-			//barra verde 100..200
-			int magtarg = fx.player[me].energy - 100;
-			if (magtarg > 100) magtarg = 100;
-			if (magtarg > 0)
-				rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + magtarg, ply+plh+18+10, col[COLGREEN]); // enerbar
-
-			//barra 3o nivel
-			int targ3 = fx.player[me].energy - 200;
-			if (targ3 > 100) targ3 = 100;
-			if (targ3 > 0)
-				rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + targ3, ply+plh+18+10, col[COLENER3]);
-		}
-	}
-
-	// the HUD: message output
-	//
-	char lix[16];
-	char *themsg;
-	int top = 0;
-	for (i=0;i<CHAT_SIZE;i++)
-		if (chatbuffer[i][0] != '\0') {
-			//default text color (normal chat)
-			int tcol = col[COLORA];
-
-			//change color if team chat
-			strncpy(lix, chatbuffer[i], 2);	//2 primeiros chars da string
-			lix[2]=0;
-			themsg = &chatbuffer[i][2];
-			if (!strcmp(lix, "@T"))		// T eam message
-				tcol = col[COLYELLOW];
-			else if (!strcmp(lix, "@I")) // I nformation
-				tcol = col[COLGREEN];
-			else if (!strcmp(lix, "@W")) // W warning
-				tcol = col[COLLRED];
-			else
-				themsg = chatbuffer[i];	//don't discard 2 chars because there's no "@x" rpefix
-
-			//colorful text
-			textprintf(drawbuf, font, 3, 3+top*11, tcol, "%s", themsg);
-			top++;
-		}
-
-	// the HUD: input text on "top" of message output
-	//
-	if (talkbuffer[0] != 0) {
-
-		static char themsg[128];
-		sprintf(themsg, "Say: %s_", talkbuffer);
-
-		//nice border
-		textprintf(drawbuf, font, +1+3, +0+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, +1+3, +1+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, +0+3, +1+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, -1+3, +1+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, -1+3, +0+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, -1+3, -1+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, +0+3, -1+3+top*11, 0, "%s", themsg);
-		textprintf(drawbuf, font, +1+3, -1+3+top*11, 0, "%s", themsg);
-
-		// the prompt text
-		textprintf(drawbuf, font, 3, 3+top*11, col[COLWHITE], "%s", themsg);
-	}
-
-	//"server not responding... connection may have dropped" plaque
-	if (get_time() > lastpackettime + 1.0) {
-		rect(drawbuf,  194,  199, 444, 279, col[COLMENUWHITE]);
-		rect(drawbuf, 196, 201, 446, 281, col[COLMENUBLACK]);
-		rectfill(drawbuf, 195, 200, 445, 280, col[COLMENUGRAY]);
-		textprintf(drawbuf, font, 220, 220, col[COLWHITE], "SERVER NOT RESPONDING...");
-		textprintf(drawbuf, font, 220, 240, col[COLWHITE], "May be heavy packet loss,");
-		textprintf(drawbuf, font, 220, 255, col[COLWHITE], "or the server disconnected");
-	}
-
-	// V0.4.4 : player scores overlay
-	if (key[KEY_TAB]) {
-		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-		set_trans_blender(0,0,0,150);
-
-		int w = 440;
-		int h = 420;
-		int mx = SCREEN_W / 2;
-		int my = SCREEN_H / 2;
-		int x1 = mx - w/2;
-		int y1 = my - h/2;
-		int x2 = mx + w/2;
-		int y2 = my + h/2;
-		int xc = (x1+x2)/2;
-
-		rectfill(drawbuf, x1,y1,x2,y2, 0);
-
-		solid_mode();
-
-		int XLEFTPAD = x1+40;
-		int YDEL;
-		char sorry[256];
-		int p, redt = 0, bluet = 0;
-		double redpow = 0.0, bluepow = 0.0;
-
-		// FIXME: "max world score"? "max world rating"?
-		textprintf_centre(drawbuf, font, xc, y1+10, col[COLWHITE], "Ranking - %lu players", max_world_rank); //, max_world_score);
-
-		textprintf(drawbuf, font, XLEFTPAD, y1+45, col[COLWHITE], "Rank Power Score Name            Frags Ping");
-
-		YDEL = 60;
-
-		for (p=0;p<TSIZE;p++)
-		if (scoreboard[p] >= 0)
-		{
-			i = scoreboard[p];
-			redt++;
-
-			sorry[0]=0;
-			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
-				strcpy(sorry, " ");
-
-			if (sorry[0]==0) {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%4i %5.2f %5i %-15s %5i %4i",
-					fx.player[i].rank,
-					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
-					fx.player[i].score - fx.player[i].neg_score,
-					fx.player[i].name,
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				//V0.4.8
-				redpow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1));
-			}
-			else {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%16s %-15s %5i %4i",
-					sorry,
-					fx.player[i].name,
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				redpow += DEFAULT_PLAYER_RATE;//V0.4.8
-			}
-
-			//next
-			YDEL += 9;
-		}
-
-		textprintf(drawbuf, font, XLEFTPAD, y1+240, col[COLWHITE], "Rank Power Score Name            Frags Ping");
-
-		YDEL = 255;
-
-		for (p=TSIZE;p<maxplayers;p++)
-		if (scoreboard[p] >= 0)
-		{
-			bluet++;
-			i = scoreboard[p];
-
-			sorry[0]=0;
-			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
-				strcpy(sorry, " ");
-
-			if (sorry[0]==0) {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%4i %5.2f %5i %-15s %5i %4i",
-					fx.player[i].rank,
-					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
-					fx.player[i].score - fx.player[i].neg_score,
-					fx.player[i].name,
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				bluepow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1)); //V0.4.8
-			}
-			else {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%16s %-15s %5i %4i",
-					sorry,
-					fx.player[i].name,
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				bluepow += DEFAULT_PLAYER_RATE;	//V0.4.8
-			}
-
-			//next
-			YDEL += 9;
-		}
-
-		//calc powers
-		/*
-		double rtp, btp, rtpmean, btpmean;
-
-		if ((redt == 0) || (redt == redu))
-			rtp = 0;			//can't know...
-		else {
-			rtpmean = redpow / (redt - redu);
-			rtp = (rtpmean * redt) / 3000.0;
-		}
-
-		if ((bluet == 0) || (bluet == blueu))
-			btp = 0;			//can't know...
-		else {
-			btpmean = bluepow / (bluet - blueu);
-			btp = (btpmean * bluet) / 3000.0;
-		}
-		*/
-
-		//V0.4.8
-		textprintf_centre(drawbuf, font, xc, y1+30, col[COLLRED], "Red Team - Power %.2f", redpow);
-		textprintf_centre(drawbuf, font, xc, y1+225, col[COLLBLUE], "Blue Team - Power %.2f", bluepow);
-	}
-
-	// debug panel
-	if (key[KEY_F9]) {
-		clear_to_color(drawbuf, col[COLSHADOW]);
-
-		textprintf(drawbuf,font,0,0,col[COLWHITE], "me=%i ", me);
-
-		int p;
-		for (p=0;p<maxplayers;p++) {
-			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f",
-				p, fx.player[p].used, fx.player[p].onscreen, fx.player[p].enemyvis, fx.player[p].roomx, fx.player[p].roomy,
-
-				//					fx.player[p].x, fx.player[p].y, fx.player[p].sx, fx.player[p].sy,
-				fd.player[p].lx, fd.player[p].ly, fd.player[p].sx, fd.player[p].sy
-				);
-		}
-
-		int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
-		int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
-		int bpstraffic = bpsin + bpsout;
-		textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
-		textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);
-	}
-
-
-	//unlock frame mutex
-	//LOG1("unlocking HOW=%i",HOWMANY);
-	pthread_mutex_unlock( &frame_mutex );
-	//LOG1("unlocked! HOW=%i",HOWMANY);
-
-	// another frame, calc FPS...
-	//
-	totalframecount++;
-	framecount++;
-	double baixo = get_time() - starttime;
-	if (baixo > 0) {
-		if (baixo > 1.0) {
-			FPS = ((double)framecount) / baixo;
-			starttime = get_time();
-			framecount = 0;
-		}
-	}
-}
-
-// draw help
-void gameclient_c::draw_game_help() {
-	clear_to_color(drawbuf, col[COLMENUGRAY]);
-
-	int x = -40;
-	int y = -70;
-
-	textprintf(drawbuf, font, x+100, y+100, col[COLWHITE], "Outgun : HELP      --> Press ESC or F1 to go back. <--");
-
-	textprintf(drawbuf, font, x+100, y+120, col[COLWHITE], "For more information access these websites:");
-	textprintf(drawbuf, font, x+100, y+130, col[COLWHITE], "  the original Outgun website");
-	textprintf(drawbuf, font, x+364, y+130, col[COLGREEN], "http://www.amok.com.br/outgun/en/");
-	textprintf(drawbuf, font, x+100, y+140, col[COLWHITE], "  Nix's Outgun development page");
-	textprintf(drawbuf, font, x+364, y+140, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
-
-	textprintf(drawbuf, font, x+100, y+160, col[COLWHITE], "           MOVING            ARROW KEYS = MOVE");
-	textprintf(drawbuf, font, x+100, y+170, col[COLWHITE], "            YOUR             CONTROL    = SHOOT!");
-	textprintf(drawbuf, font, x+100, y+180, col[COLWHITE], "          CHARACTER:         ALT        = STRAFE");
-	textprintf(drawbuf, font, x+100, y+190, col[COLWHITE], "            >>>>>            SHIFT      = RUN");
-
-	textprintf(drawbuf, font, x+100, y+210, col[COLWHITE], "TALKING TO ALL PLAYERS: Just type your message and hit ENTER");
-
-	textprintf(drawbuf, font, x+100, y+230, col[COLWHITE], "TALKING JUST TO YOUR TEAM: Just place a dot ('.') at the very");
-	textprintf(drawbuf, font, x+100, y+240, col[COLWHITE], " beginning of your message (first char)");
-
-	textprintf(drawbuf, font, x+100, y+260, col[COLWHITE], "GAME CONCEPT: You are a member of a team, either RED or BLUE,");
-	textprintf(drawbuf, font, x+100, y+270, col[COLWHITE], " assigned to you at random when you connect. Your goal is to");
-	textprintf(drawbuf, font, x+100, y+280, col[COLWHITE], " help your team to win, by capturing 8 (default) times the enemy");
-	textprintf(drawbuf, font, x+100, y+290, col[COLWHITE], " flag. To capture the flag, a member of your team must steal");
-	textprintf(drawbuf, font, x+100, y+300, col[COLWHITE], " the enemy flag and bring it to your team's flag, provided your");
-	textprintf(drawbuf, font, x+100, y+310, col[COLWHITE], " flag has not been stolen already! Capiche?");
-
-	textprintf(drawbuf, font, x+100, y+330, col[COLWHITE], "HEALTH AND ENERGY: If your health reaches zero, you die. Energy");
-	textprintf(drawbuf, font, x+100, y+340, col[COLWHITE], " is used for running, shooting and health protection when you");
-	textprintf(drawbuf, font, x+100, y+350, col[COLWHITE], " have the SHIELD powerup (you'll know when you see it...).");
-	textprintf(drawbuf, font, x+100, y+360, col[COLWHITE], " Health and energy regenerate with time.");
-
-	textprintf(drawbuf, font, x+100, y+380, col[COLWHITE], "MINIMAP: On the upper-right corner of the screen is the minimap.");
-	textprintf(drawbuf, font, x+100, y+390, col[COLWHITE], " It shows the contents of all rooms of the map that have at least");
-	textprintf(drawbuf, font, x+100, y+400, col[COLWHITE], " one player of your team.");
-
-	textprintf(drawbuf, font, x+100, y+420, col[COLWHITE], "CHANGING TEAMS: Hit the END key to set whether you want to");
-	textprintf(drawbuf, font, x+100, y+430, col[COLWHITE], " change team or not. You will change team when appropriate.");
-
-	textprintf(drawbuf, font, x+100, y+450, col[COLWHITE], "POWERUPS: If you see an animated item lying on the ground, grab");
-	textprintf(drawbuf, font, x+100, y+460, col[COLWHITE], " it. It's a special power-up item.");
-
-	textprintf(drawbuf, font, x+100, y+480, col[COLWHITE], "ETC.: Hit DEL to kill yourself. Hold TAB to see other players'");
-	textprintf(drawbuf, font, x+100, y+490, col[COLWHITE], " ping times (in milliseconds) on the scoreboard.");
-	textprintf(drawbuf, font, x+100, y+500, col[COLWHITE], " Hit HOME to change world colors and CTRL+HOME to restore them.");
-	textprintf(drawbuf, font, x+100, y+510, col[COLWHITE], " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
-}
-
-//draws the game menu
-void gameclient_c::draw_game_menu() {
-
-	//"3d" menu
-	if (menu != 1) {
-		rect(drawbuf,  99,  69, 539, 409, col[COLMENUWHITE]);
-		rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
-		rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
-		textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
-		textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
-	}
-
-	if (menu == 0) {
-		static int DELY = 10;
-
-		textprintf(drawbuf, font, 150, 185-DELY, col[COLWHITE], "  [ 1 ]   Connect");
-		textprintf(drawbuf, font, 150, 200-DELY, col[COLWHITE], "  [ 2 ]   Disconnect");
-		if (connected)
-			textprintf(drawbuf, font, 150+22*8, 200-DELY, col[COLGREEN], "(%s)", address);
-		textprintf(drawbuf, font, 150, 215-DELY, col[COLWHITE], "  [ 3 ]   Change Player Name & Password");
-		textprintf(drawbuf, font, 150, 227-DELY, col[COLGREEN], "          '%s' (%s)", playername, namestatus);
-		textprintf(drawbuf, font, 150, 243-DELY, col[COLWHITE], "  [ 4 ]   Start/stop local server");
-		if (listen_server_running)
-			textprintf(drawbuf, font, 150, 255-DELY, col[COLGREEN], "          SERVER RUNNING ON PORT %i", listen_port_running);
-		textprintf(drawbuf, font, 150, 271-DELY, col[COLWHITE], "  [ 5 ]   Toggle fullscreen/windowed mode");
-
-		if (validtheme) {
-			textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme: (%s)", sfxthemedir);
-			textprintf_centre(drawbuf, font, 150+180, 300-DELY, col[COLGREEN], "'%s'", sfxthemename);
-		}
-		else {
-			textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme:");
-			textprintf(drawbuf, font, 150, 300-DELY, col[COLGREEN], "          no sfx themes found.");
-		}
-		textprintf(drawbuf, font, 150, 340-DELY, col[COLWHITE], "Hit CTRL+F12 to EXIT THE GAME");
-		textprintf(drawbuf, font, 150, 355-DELY, col[COLWHITE], "Hit ESC to HIDE OR SHOW THIS MENU");
-		textprintf(drawbuf, font, 150, 370-DELY, col[COLORA], "Hit F1 to SHOW THE HELP SCREEN");
-	}
-	else if (menu == 1) {
-
-		//Big F Menu
-		rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
-		rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
-
-		int lotext = makecol(0x99, 0x99, 0x99);
-
-
-		if (showmaster) {
-
-			int hi = makecol(0x68, 0x68, 0x88); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
-			int lo = makecol(0x68,0x48,0x48);
-			//hilight all
-			rectfill(drawbuf, 20, 20, 620, 460, hi);
-			//first bar hi vs lo
-			rectfill(drawbuf, 20, 20, 320, 50, hi);
-			rectfill(drawbuf, 320, 19, 621, 50, 0);
-			rectfill(drawbuf, 320, 24, 616, 50, lo);
-			vline(drawbuf, 320, 20, 50, col[COLMENUBLACK]);
-			hline(drawbuf, 320, 50, 621, col[COLMENUWHITE]);
-			hline(drawbuf, 320, 24, 616, lotext);
-			vline(drawbuf, 616, 24, 49, col[COLMENUBLACK]);
-			textprintf_centre(drawbuf, font, 170, 35, col[COLWHITE], "INTERNET SEARCH");
-			textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
-			//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing INTERNET LISTING page (TAB = FAVORITES)");
-
-			if (((int)(get_time() * 1)) % 2)
-				textprintf_centre(drawbuf, font, 320, 65, col[COLGREEN], "F2 = UPDATE LIST OF SERVERS");
-			else
-				textprintf_centre(drawbuf, font, 320, 65, col[COLYELLOW], "F2 = UPDATE LIST OF SERVERS");
-
-			textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
-			//textprintf_centre_x(drawbuf, font, 320, 75, col[COLGREEN], 0, "TAB = Change to FAVORITES page");
-
-			//textprintf_centre(drawbuf, font, 320, 115, col[COLWHITE], "ARROWS:Select - ENTER:Connect - ESC:Cancel - SPACE:Refresh");
-
-			textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
-		}
-		else {
-
-			int hi = makecol(0x88, 0x68, 0x68); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
-			int lo = makecol(0x48,0x48,0x68);
-			//hilight all
-			rectfill(drawbuf, 20, 20, 620, 460, hi);
-			//first bar lo vs hi
-			rectfill(drawbuf, 320, 20, 620, 50, hi);
-			rectfill(drawbuf, 19, 19, 320, 50, 0);
-			rectfill(drawbuf, 24, 24, 320, 50, lo);
-			vline(drawbuf, 320, 19, 50, col[COLMENUWHITE]);//?
-			hline(drawbuf, 19, 50, 320, col[COLMENUWHITE]);
-			hline(drawbuf, 24, 24, 320, lotext);
-			vline(drawbuf, 24, 24, 49, col[COLMENUWHITE]);
-			textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
-			textprintf_centre(drawbuf, font, 470, 35, col[COLWHITE], "FAVORITES");
-
-			//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing FAVORITES page (TAB = INTERNET LISTING)");
-			textprintf_centre(drawbuf, font, 320, 65, col[COLWHITE], "Type the IP address of the server and hit ENTER");
-			textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
-			//textprintf_centre_x(drawbuf, font, 320, 75, col[COLYELLOW], 0, "TAB = Change to INTERNET LISTING page");
-
-			textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
-		}
-
-		int xi = 50 - 8*2;
-
-		textprintf(drawbuf, font, xi, 105, col[COLWHITE], "IP Address             Ping #P Version/Hostname");
-
-		char blinkchar[2];
-
-		int yi;
-
-		for (int i=0;i<MAX_GAMESPY;i++) {
-
-			yi = 120 + i*13;
-
-			//selectr
-			if (gi == i) {
-				rectfill(drawbuf, xi-3,yi-3,xi+550+8*3,yi+12,col[COLSHADOW]);
-
-				//blink cursor
-				if (((int)(get_time() * 4)) % 2)
-					blinkchar[0]=' ';
-				else
-					blinkchar[0]='<';
-				blinkchar[1]=0;
-			}
-			else
-				blinkchar[0]=0;
-
-			//server edit prompt
-			if (showmaster) {
-				textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",mgamespy[i].address, blinkchar);
-
-				//favs watermarks
-				if (mgamespy[i].favs)
-					textprintf(drawbuf, font, xi - 12, yi, makecol(0x99,0x78,0x78), "*");
-			}
-			else
-				textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s",gamespy[i].address, blinkchar);
-
-			//draw gamespy entry
-			bool refreshed, invalid, noresponse;
-			if (showmaster) {
-				refreshed  = mgamespy[i].refreshed;
-				invalid    = mgamespy[i].invalid;
-				noresponse = mgamespy[i].noresponse;
-			}
-			else {
-				refreshed  = gamespy[i].refreshed;
-				invalid    = gamespy[i].invalid;
-				noresponse = gamespy[i].noresponse;
-			}
-
-			if (!refreshed) { // not refreshed
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "press SPACEBAR to refresh...");
-			}
-			else if (invalid) {	//refreshed, invalid
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "---");
-			}
-			else if (noresponse) {	//refreshed, no response
-				//server info
-				textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "no response.");
-			}
-			else {  //refreshed, valid
-				//server info
-				if (showmaster)
-					textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], "%s", mgamespy[i].info);
-				else
-					textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], "%s", gamespy[i].info);
-			}
-		}
-	}
-	else if (menu == 2) {
-		textprintf(drawbuf, font, 150, 230, col[COLWHITE], dialogmessage);
-		textprintf(drawbuf, font, 150, 250, col[COLWHITE], dialogmessage2);
-	}
-	else if (menu == 3) {
-		textprintf(drawbuf, font, 150, 170, col[COLWHITE], "Type in your player name. If you have");
-		textprintf(drawbuf, font, 150, 185, col[COLWHITE], "registered your name on the Outgun");
-		textprintf(drawbuf, font, 150, 200, col[COLWHITE], "website, then type in your password!");
-
-		textprintf(drawbuf, font, 150, 220, col[COLWHITE], "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
-		textprintf(drawbuf, font, 150, 260, col[COLGREEN], "NAME     :%s%s", editplayername, namecursor);
-
-		//password field: '********'
-		char starpass[32]; int c=0;
-		for (; editplayerpass[c]; c++) starpass[c] = '*';
-		starpass[c] = 0;
-
-		textprintf(drawbuf, font, 150, 285, col[COLGREEN], "PASSWORD :%s%s", starpass, passcursor);
-
-		textprintf(drawbuf, font, 150, 350, col[COLWHITE], "Registration status: %s", namestatus);
-	}
-	else {
-		textprintf(drawbuf, font, 150, 150, col[COLRED], "unknown menu %i", menu);
-	}
-}
-
 //show a specific menu screen
 void gameclient_c::set_menu(int menumber) {
 	menu = menumber;
@@ -3446,7 +1721,7 @@ void gameclient_c::refresh_command() {
 //refresh servers command
 void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
-	show_progress("", "Refreshing servers...", "");
+	client_graphics.show_progress("", "Refreshing servers...", "");
 
 	NLsocket sock = nlOpen(0, NL_UNRELIABLE);
 
@@ -4593,25 +2868,11 @@ void gameclient_c::toggle_help() {
 		sound(SAMPLE_FIRE);
 }
 
-//show progress (for tight loops that don't work with the regular screen flip loop)
-void gameclient_c::show_progress(char *t1, char *t2, char *t3, int fg, int bg) {
-	if (fg == -1) fg = col[COLWHITE];
-	vsync();
-	acquire_screen();
-	rect(screen, 320 - 200-1, 240 - 50-1, 320 + 200-1, 240 + 50-1, col[COLWHITE]);
-	rect(screen, 320 - 200+1, 240 - 50+1, 320 + 200+1, 240 + 50+1, col[COLDARKGRAY]);
-	rectfill(screen, 320 - 200, 240 - 50, 320 + 200, 240 + 50, bg);
-	textprintf_centre(screen, font, 320, 240 - 25, fg, t1);
-	textprintf_centre(screen, font, 320, 240     , fg, t2);
-	textprintf_centre(screen, font, 320, 240 + 25, fg, t3);
-	release_screen();
-}
-
 //show progress / press any key / dialog
 void gameclient_c::show_dialog(char *t1, char *t2, char *t3, int fg, int bg) {
 	clear_keybuf();
 	do {
-		show_progress(t1,t2,t3,fg,bg);
+		client_graphics.show_progress(t1, t2, t3, fg, bg);
 		if (keypressed())
 			break;
 		MS_SLEEP(50);
@@ -4644,7 +2905,7 @@ void gameclient_c::get_servers_from_master() {
 	writeString(querybuf, qcount, "GET /servlet/fcecin.m3/index.html?get=x\n\n");
 	qcount--;	//take the zero out
 
-	show_progress("Getting updated internet server list", "Contacting server...", "Press ESC to cancel");
+	client_graphics.show_progress("Getting updated internet server list", "Contacting server...", "Press ESC to cancel");
 
 	//keep trying to write the query until user presses ESC
 	NLint result;
@@ -4668,7 +2929,7 @@ void gameclient_c::get_servers_from_master() {
 		return;
 	}
 
-	show_progress("Getting updated internet server list", "Waiting response...", "Press ESC to cancel");
+	client_graphics.show_progress("Getting updated internet server list", "Waiting response...", "Press ESC to cancel");
 
 	//log ok
 	LOG3("QUERY TO MASTER '%s', result = %i, count = %i\n", querybuf, result, qcount);
@@ -5041,7 +3302,7 @@ void gameclient_c::loop() {
 							break;
 						case '5':
 							winclient = !winclient;
-							reset_video_mode();
+							client_graphics.reset_video_mode();
 							break;
 						case '6': next_sfx_theme(); break;
 						default:;
@@ -5313,29 +3574,10 @@ void gameclient_c::loop() {
 					//change colours
 					if (sc == KEY_HOME) {
 						flagpos_ready = false;	// flag position mark colour not right anymore
-						if (key[KEY_LCONTROL] || key[KEY_RCONTROL]) {
-							col[COLGROUND] = makecol(0x10, 0x40, 0);
-							col[COLWALL] = makecol(0x30, 0xC0, 0);
-
-							//col[COLGREEN] = makecol(0,0xff,0);
-						}
-						else {
-							col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
-							col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
-
-							/*
-							int r,g,b;
-							r = rand() % 256;
-							g = rand() % 256;
-							b = rand() % 256;
-
-							col[COLGREEN] = makecol(r,g,b);
-
-							char mes[200];
-							sprintf(mes, "%3i %3i %3i", r,g,b);
-							print_message(mes);
-							*/
-						}
+						if (key[KEY_LCONTROL] || key[KEY_RCONTROL])
+							client_graphics.reset_playground_colors();
+						else
+							client_graphics.random_playground_colors();
 					}
 
 					// ins == change name
@@ -5447,21 +3689,21 @@ void gameclient_c::loop() {
 		//
 		//if (page_flipping) {
 			//LOG1("acquire_bitmap/gs=%i...",gameshow);
-			acquire_bitmap(drawbuf);
+			//acquire_bitmap(drawbuf);
 			//LOG("OK\n");
 		//}
 
 		if (gameshow) {
 			//clear_to_color(drawbuf, makecol(rand(),0,0));	// clear buffer
 			//LOG("draw_game_frame()\n");
-			draw_game_frame(drawbuf); // draw game frame
+			draw_game_frame(); // draw game frame
 			//LOG("exit draw_game_frame()\n");
-		} else {
+		} /*else {
 			clear_to_color(drawbuf, 0);	// clear buffer
 			int co = makecol(0x22, 0x22, 0x22);
 			textprintf(drawbuf, font, 0, 0, co, "page-flipping = %i", page_flipping);
 			textprintf(drawbuf, font, 0, 10, co, "port = %i", port);
-		}
+		}*/
 
 		//force menu open if no game
 		if (!gameshow)
@@ -5471,17 +3713,17 @@ void gameclient_c::loop() {
 			draw_game_menu();	// draw the game menu
 
 		if (helpshow)
-			draw_game_help();	// draw help
+			client_graphics.draw_game_help();	// draw help
 
 		//if (page_flipping) {
 			//LOG("** releasing bitmap...");
-			release_bitmap(drawbuf);
+			//release_bitmap(drawbuf);
 			//LOG("OK!\n");
 		//}
 
 		// (4) flip or blt
 		//
-		if (page_flipping) {
+		/*if (page_flipping) {
 			show_video_bitmap(drawbuf);
 
 			if (drawbuf == vidpage1)
@@ -5489,11 +3731,8 @@ void gameclient_c::loop() {
 			else
 				drawbuf = vidpage1;
 		}
-		else {
-			acquire_screen();
-			blit(drawbuf, screen, 0,0, 0,0, SCREEN_W,SCREEN_H);
-			release_screen();
-		}
+		else*/
+			client_graphics.draw_screen();
 	}
 
 	//client exit cleanup: done at stop wich needs to be called after loop
@@ -5643,7 +3882,6 @@ gameclient_c::gameclient_c() {
 	for (int i=0;i<CHAT_SIZE;i++)	// last chat messages list
 		chatbuffer[i][0]=0;
 	chaterasetime = 0;				// time to erase a chat message from the list
-	minibg = 0;		//bitmap for minimap background (level walls, screen grid)
 
 	pthread_mutex_init(&frame_mutex, 0);
 
@@ -5665,29 +3903,868 @@ gameclient_c::~gameclient_c() {
 	pthread_mutex_destroy(&udpdq_mutex);
 }
 
-void gameclient_c::check_flagpos_marks() {
-	if (!flagpos_ready) {
-		const int radius = CL_FLAGPOS_RAD;
-		for (int i = 0; i < 2; i++) {
-			if (!flagpos_buf[i])
-  				flagpos_buf[i] = create_bitmap(2 * radius, 2 * radius);
-			clear_to_color(flagpos_buf[i], col[COLGROUND]);
+//draw the whole game screen
+void gameclient_c::draw_game_frame() {
+	// erase old chat messages (this shouldn't be here really but wtf..)
+	if (chaterasetime < get_time())
+		erase_first_message();
+
+	//lock frame mutex
+	pthread_mutex_lock( &frame_mutex );
+
+	// game screen background
+	client_graphics.draw_background();
+
+	// hiding stuff?
+	// v0.4.1 : hide stuff if frame skipped
+	bool hide_game = ((!map_ready) || (gameover_plaque != NEXTMAP_NONE) || (fx.skipped));
+
+	// the playground: border, walls and pits
+	if (hide_game) {
+		// draw playground
+		client_graphics.draw_empty_playground();
+
+		// game over message
+		if ((gameover_plaque == NEXTMAP_CAPTURE_LIMIT) || (gameover_plaque == NEXTMAP_VOTE_EXIT)) {
+			if (red_final_score > blue_final_score)
+				client_graphics.draw_scores("RED TEAM WINS", 0, red_final_score, blue_final_score);
+			else if (blue_final_score > red_final_score)
+				client_graphics.draw_scores("BLUE TEAM WINS", 1, blue_final_score, red_final_score);
+			else	// to consider: purple colour
+				client_graphics.draw_scores("GAME TIED", -1, blue_final_score, red_final_score);
 		}
-		int r1, r2;
-		int b1, b2;
-		r1 = r2 = getr(col[COLGROUND]);
-		const int g = getg(col[COLGROUND]);
-		b1 = b2 = getb(col[COLGROUND]);
-		const int step = 10;
-		for (int i = radius; i >= 0; i--) {
-			// red flag
-			r1 = min(r1 + step, 255);
-			circlefill(flagpos_buf[0], radius, radius, i, makecol(r1, g, b1));
-			// blue flag
-			b2 = min(b2 + step, 255);
-			circlefill(flagpos_buf[1], radius, radius, i, makecol(r2, g, b2));
+		else
+			client_graphics.draw_one_line_message("Connecting...");
+
+		if (map_ready)
+			client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
+		else {
+			ostringstream text;
+			text << "Loading map: " << fdp << " bytes";
+			client_graphics.draw_one_line_message(text.str());
 		}
-		flagpos_ready = true;
+	}
+	else {
+		client_graphics.draw_playground();
+
+		// place of flag
+		for (int team = 0; team < 2; team++)
+			if (fx.player[me].roomx == fx.map.tinfo[team].flag.px && fx.player[me].roomy == fx.map.tinfo[team].flag.py)
+				client_graphics.draw_flagpos_mark(team, fx.map.tinfo[team].flag.x, fx.map.tinfo[team].flag.y);
+
+		// map walls
+		if (fx.player[me].roomx >= 0 && fx.player[me].roomy >= 0 && fx.player[me].roomx < fx.map.w && fx.player[me].roomy < fx.map.h)
+			client_graphics.draw_walls(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+	}
+
+	// frame is valid?
+	if (!hide_game)		// do not draw if map not set yet
+	if (fd.frame >= 0) {
+
+		int i;
+
+		// FIXME: y-ordering of draw not maintained
+		// draw any item pickups
+		//
+		if (me >= 0)
+			for (i=0;i<MAX_PICKUPS;i++)
+				// used power-ups, not respawning, on my screen
+				if (fx.item[i].kind > 0 && fx.item[i].kind != 255 &&
+						fx.item[i].px == fx.player[me].roomx && fx.item[i].py == fx.player[me].roomy) {
+					client_graphics.draw_pup(fx.item[i], get_time());
+					//deathbringer
+					if (fx.item[i].kind == 7)
+						cfx_create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
+      						fx.item[i].px, fx.item[i].py, 0);
+				}
+
+		// draw clientside fx -- efeitos ATRAS das coisas
+		for (i = 0; i < MAX_CLIENTFX; i++)
+			//fx used, on same screen
+			if (cfx[i].used && cfx[i].px == fx.player[me].roomx && cfx[i].py == fx.player[me].roomy) {
+				double tim = get_time();
+				//speed rastro
+				if (cfx[i].type == 1) {
+					double delta = tim - cfx[i].time;
+					if (delta > 0.3)
+						cfx[i].used = false;
+					else {
+						int alpha = 90 - ((int)(delta * 300.0));
+						client_graphics.draw_player(cfx[i].x, cfx[i].y, cfx[i].col1, cfx[i].col2, cfx[i].gundir, get_time(), false, alpha, get_time());
+					}
+				}
+			}
+
+		// FIXME: y-ordering of draw not maintained
+		// draw any dropped flags (use fx since flags don't move)
+		//
+		for (int t=0;t<2;t++)
+			// not carried, on same screen
+			if (!fx.flag[t].carried && fx.flag[t].pos.px == fx.player[me].roomx && fx.flag[t].pos.py == fx.player[me].roomy)
+				client_graphics.draw_flag(t, fx.flag[t].pos.x, fx.flag[t].pos.y);
+
+		// FIXME: y-ordering of draw not maintained
+		// draw any rockets
+		for (i = 0; i < MAX_ROCKETS; i++)
+			if (fx.rock[i].owner != -1 && !fx.rock[i].dontdraw && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
+				fd.rock[i].team = fx.rock[i].team;
+				client_graphics.draw_rocket(fd.rock[i], get_time());
+			}
+
+		// sort order of drawing of the players
+		//
+		for (i=0;i<maxplayers;i++) {
+			fd.player[i].drawused = 0;
+			fd.player[i].drawptr = -1;
+		}
+
+		double miny;
+		int minyid;
+
+		for (i=0;i<maxplayers;i++) {
+			minyid = -1;
+			miny = 999999;
+
+			for (int j=0;j<maxplayers;j++)
+			if (fd.player[j].used)	{
+				if (fd.player[j].drawused == 0)
+				if (fd.player[j].ly < miny) {
+					miny = fd.player[j].ly;
+					minyid = j;
+				}
+			}
+
+			if (minyid == -1)
+				break;
+
+			fd.player[minyid].drawused = 1;
+			fd.player[i].drawptr = minyid;
+		}
+
+		// the PLAY AREA: the players!
+		//
+		for (int k=0;k<maxplayers;k++) {
+
+			//HACK REMENDEX: predict item_helm
+			if (fx.player[i].item_helm > 0) {
+				int hspd = (int) ((fd.time - fx.time) * 100.0);
+				fx.player[i].item_helm -= hspd;
+				if (fx.player[i].item_helm < 1)
+					fx.player[i].item_helm = 1;
+			}
+
+			//indirection: draw in y-order
+			int i;
+			i = fd.player[k].drawptr;
+
+			if (i >= 0 && fx.player[i].onscreen) {		// draw only players on my screen
+				//calcula alfa do player
+				int alpha = 255;
+				if (fx.player[i].item_helm > 0) {
+					alpha = fx.player[i].item_helm;
+					if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
+						alpha = MIN_ALPHA_FRIENDS;
+				}
+				client_graphics.draw_player_shadow(fx.player[i], alpha);
+				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
+				for (int t = 0; t < 2; t++)
+					if (fx.flag[t].carried && fx.flag[t].carrier == i)
+						client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly);
+				if (fx.player[i].dead) {
+					if ((fx.player[i].frags >= 10) && (fx.player[i].frags % 10 == 0))
+						client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);
+					else
+						client_graphics.draw_player_dead((int)fx.player[i].lx, (int)fx.player[i].ly);
+				}
+				// desenha player vivo
+				else {
+					// turbo effect
+					if (fx.player[i].item_speed && (fabs(fx.player[i].sx) > svp_maxspeed || fabs(fx.player[i].sy) > svp_maxspeed) &&
+						get_time() > fx.player[i].speed_drop_time)		// intervalo entre drop de efeito bolinha
+					{
+						//tempo minimo pra soltar outra bolinha fade
+						fx.player[i].speed_drop_time = get_time() + 0.05;
+						//solta a bolinha
+						cfx_create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
+					}
+
+					//draw player
+					client_graphics.draw_player((int)fd.player[i].lx, (int)fd.player[i].ly, i / TSIZE, i % TSIZE, fx.player[i].gundir, fx.player[i].hitfx, fx.player[i].item_quad, alpha, get_time());
+
+					//draw deathbringer carrier effect
+					if (fx.player[i].item_deathbringer) {
+						// intervalo entre drop de efeito
+						if (get_time() > fx.player[i].death_drop_time) {
+							//tempo p/ proximo efeito
+							fx.player[i].death_drop_time = get_time() + 0.01;
+							//drop it
+							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+						}
+					}
+					// draw deathbringer affected effect
+					if (fx.player[i].deathbringer_affected)
+						client_graphics.draw_deathbringer_affected((int)fd.player[i].lx, (int)fd.player[i].ly, i / TSIZE);
+					// shield
+					if (fx.player[i].item_shield)
+						client_graphics.draw_shield((int)fd.player[i].lx, (int)fd.player[i].ly - 15, 24, alpha);
+				}
+			}
+
+			//draw player's name -- nao interessa se vivo ou morto
+			//NOT an invisible enemy
+			if (option_show_names && !fx.player[i].item_helm && i / TSIZE != me / TSIZE) {
+				int ttx = (int)fd.player[i].lx + plx;
+				int tty = (int)fd.player[i].ly + ply - 40;
+				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
+			}
+		}
+	}
+
+	for (int i = 0; i < maxplayers; i++)
+		if (fx.player[i].used && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy &&
+			fx.player[i].onscreen && fx.player[i].item_deathbringer)
+				client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
+
+	// draw clientside fx apos players
+	//
+	if (me >= 0)	// where am I?
+	for (int i = 0; i < MAX_CLIENTFX; i++)
+	if (cfx[i].used && cfx[i].px == fx.player[me].roomx && cfx[i].py == fx.player[me].roomy) {
+		double tim = get_time();
+		//gun explosion
+		if (cfx[i].type == 0) {
+			double delta = tim - cfx[i].time;
+			if (delta > 0.4)
+				cfx[i].used = false;
+			else {
+				for (int e=0;e<3;e++) {
+					int rad = 4 + e + (int)(delta * 40);
+					client_graphics.draw_gun_explosion(cfx[i].x, cfx[i].y, rad);
+				}
+			}
+		}
+		//wall explosion
+		else if (cfx[i].type == 2) {
+			double delta = tim - cfx[i].time;
+			if (delta > 0.2)
+				cfx[i].used = false;
+			else {
+				for (int e=0;e<2;e++) {
+					int rad = 4 + e + (int)(delta * 40);
+					client_graphics.draw_gun_explosion(cfx[i].x, cfx[i].y, rad);
+				}
+			}
+		}
+		//quad wall explosion
+		else if (cfx[i].type == 3) {
+			double delta = tim - cfx[i].time;
+			if (delta > 0.2)
+				cfx[i].used = false;
+			else {
+				for (int e=0;e<3;e++) {
+					int rad = 4 + e + (int)(delta * 60);
+					client_graphics.draw_gun_explosion(cfx[i].x, cfx[i].y, rad);
+				}
+			}
+		}
+		// deathcarrier smoke
+		else if (cfx[i].type == 5) {
+			double delta = tim - cfx[i].time;
+			if (delta > 0.6)
+				cfx[i].used = false;
+			else
+				client_graphics.draw_deathbringer_smoke(cfx[i].x, cfx[i].y, delta);
+		}
+		//the deathbringer
+		else if (cfx[i].type == 4) {
+			double delta = tim - cfx[i].time;
+			if (delta > 3.0)
+				cfx[i].used = false;
+			else
+				client_graphics.draw_deathbringer(cfx[i].x, cfx[i].y, cfx[i].owner / TSIZE, delta);
+		}
+	}
+
+	//do not draw stuff below if map not ready to show
+	if (!hide_game) {
+		// the MINIMAP
+		client_graphics.draw_minimap_background();
+
+		//draw the miniflags
+		// - qualquer flag no chao (na base ou nao, carried == false)
+		for (int f = 0; f < 2; f++)
+			if (!fx.flag[f].carried)
+				client_graphics.draw_mini_flag(f, fx.flag[f], fx.map);
+
+		vector<bool> roomvis;
+		roomvis.resize(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm > 0) ? true : false);
+
+		// draw all teammates and enemies on screens where there are teammates
+		//draw all the players - put a pixel where they are
+		if (me >= 0 && fx.frame >= 0)
+			for (int i = 0; i < maxplayers; i++)
+				if (fx.player[i].used && fx.player[i].roomx >= 0 && fx.player[i].roomy >= 0 && fx.player[i].roomx < fx.map.w && fx.player[i].roomy < fx.map.h &&
+						(i / TSIZE == me / TSIZE || (fx.player[me].enemyvis & (1 << (i % TSIZE))))) {
+					roomvis[fx.player[i].roomy * fx.map.w + fx.player[i].roomx] = true;
+
+					// coord on minimap
+					double px, py;
+					px = ((double)fx.player[i].roomx * (double)plw + fx.player[i].lx) / ((double)plw * fx.map.w);
+					py = ((double)fx.player[i].roomy * (double)plh + fx.player[i].ly) / ((double)plh * fx.map.h);
+					int pix = mmx + 21 + ((int)(px*98));
+					int piy = mmy +  1 + ((int)(py*98));
+
+					//verifica se o jogador a ser desenhado é um carrier de flag inimiga
+					int enemyteam = 1-i/TSIZE;
+					if (fx.flag[enemyteam].carried && fx.flag[enemyteam].carrier == i) {
+						// update flag position for draw
+						fx.flag[enemyteam].pos.px = fx.player[i].roomx;
+						fx.flag[enemyteam].pos.py = fx.player[i].roomy;
+						fx.flag[enemyteam].pos.x = (int)fx.player[i].lx;
+						fx.flag[enemyteam].pos.y = (int)fx.player[i].ly;
+
+						// draw the miniflag here
+						client_graphics.draw_mini_flag(enemyteam, fx.flag[enemyteam], fx.map);
+					}
+
+					if (i != me)
+						client_graphics.draw_minimap_player(pix, piy, i / TSIZE, i % TSIZE);
+					else // myself: draw differently
+						client_graphics.draw_minimap_me(pix, piy, i / TSIZE, get_time());
+				}
+
+		// paint fog of war in all invisible rooms
+		//
+		for (int ry = 0; ry < fx.map.h; ry++)
+			for (int rx = 0; rx < fx.map.w; rx++)
+				if (!roomvis[ry * fx.map.w + rx]) {
+					int x1 = 21 + rx * 98 / fx.map.w;
+					int y1 = 1 + ry * 98 / fx.map.h;
+					int x2 = 21 + (rx + 1) * 98 / fx.map.w - 1;
+					int y2 = 1 + (ry + 1) * 98 / fx.map.h - 1;
+					client_graphics.draw_minimap_room(x1, y1, x2, y2);
+				}
+	}//!hide_game
+
+	//
+	// the SCOREBOARD
+	//
+
+	if (key[KEY_TAB]) {
+		client_graphics.draw_scoreboard_caption(0, "Red Team:    (PINGS)");
+		client_graphics.draw_scoreboard_caption(1, "Blue Team:   (PINGS)");
+	}
+	else {
+		ostringstream red;
+		red << "Red Team:    " << setw(2) << fx.flag[0].score << " capt";
+		client_graphics.draw_scoreboard_caption(0, red.str());
+		ostringstream blue;
+		blue << "Blue Team:   " << setw(2) << fx.flag[1].score << " capt";
+		client_graphics.draw_scoreboard_caption(1, blue.str());
+	}
+	int pix[2]; pix[0]=pix[1]=0;
+	for (int fw=0;fw<2;fw++)		//first count, then draw
+	{
+		const int NAMEYDELTA_MIN = 8;
+		int NAMEYDELTA = 12;	//default value
+		if (fw == 1) {
+			//most players in a team
+			int thepix;
+			if (pix[0] > pix[1])
+				thepix = pix[1];
+			else
+				thepix = pix[0];
+			//calc the new NAMEYDELTA
+			while (thepix * NAMEYDELTA > 16 * 8 - 8 - 2) {
+				if (NAMEYDELTA == NAMEYDELTA_MIN)
+					break;	//the minimum is the minimum...
+				NAMEYDELTA--;
+			}
+		}
+
+		for (int dp=0;dp<maxplayers;dp++)
+		{
+			// i = player #   dp = draw slot (0-7 = red team's  8-15 = blue team's)
+			int i = scoreboard[dp];
+
+			//i = dp;
+
+			//draw it
+			if (i != -1)
+			if (fx.player[i].used)
+			{
+				int what_y;
+				if (i < TSIZE)
+					what_y = sby + 8 + dp * NAMEYDELTA;
+				else
+					what_y = sby + 19 * NAMEYDELTA_MIN + (dp - TSIZE) * NAMEYDELTA;
+
+				//just count
+				if (fw == 0) {
+//						if (pix[i/TSIZE] < i%TSIZE)
+//							pix[i/TSIZE] = i%TSIZE;
+					if (pix[i/TSIZE] < dp%TSIZE)
+						pix[i/TSIZE] = dp%TSIZE;
+				}
+				//draw
+				else {
+					// show name
+					if (i / TSIZE)
+						LOG1("Sininen joukkue: y = %d\n", what_y);
+					client_graphics.draw_scoreboard_name(what_y, i % TSIZE, fx.player[i]);
+
+					// show ping or frags
+					if (key[KEY_TAB]) {
+						if (fx.player[i].ping > 9999)	// fix ping if too big
+      						fx.player[i].ping = 9999;
+						client_graphics.draw_scoreboard_points(what_y, i / TSIZE, fx.player[i].ping);
+					}
+					else
+						client_graphics.draw_scoreboard_points(what_y, i / TSIZE, fx.player[i].frags);
+				}
+			}
+		}
+	}
+
+	// the STATUSBAR : traffic
+	//
+	//int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
+	//int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
+	//int bpstraffic = bpsin + bpsout;
+	//textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
+	//textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);
+
+	//FPS
+	client_graphics.draw_fps(FPS);
+
+#ifdef CL_SHOW_TIME_LEFT
+	// Time left if time limit is on.
+	if (time_limit > 0)
+		textprintf(drawbuf, font, plx+10, ply+6, 0, "TIME: %3d:%02d", seconds / 60, seconds % 60);
+#endif
+
+	// QUAD DAMAGE
+	if (me >= 0) {
+
+		double val;
+		if (fx.player[me].item_quad) {
+			val = fx.player[me].item_quad_time - get_time();
+			if (val < 0) val = 0;
+			client_graphics.draw_player_power(val);
+		}
+		if (fx.player[me].item_speed) {
+			val = fx.player[me].item_speed_time - get_time();
+			if (val < 0) val = 0;
+			client_graphics.draw_player_turbo(val);
+		}
+		if (fx.player[me].item_helm) {
+			val = fx.player[me].item_helm_time - get_time();
+			if (val < 0) val = 0;
+			client_graphics.draw_player_shadow(val);
+		}
+
+		//WEAPON LEVEL
+		client_graphics.draw_player_weapon(fx.player[me].weapon + 1);
+	}
+
+	//server hostname
+	//textprintf(drawbuf, font, plx+6*8+334+(32-strlen_hostname)*8, ply+plh+25, col[COLINFO], "%s", hostname);
+
+	//show "want change teams" flag if active
+	if (want_change_teams)
+		client_graphics.draw_change_team_message(get_time());
+	//show "want change map" flag if active
+	if (want_map_exit)
+		client_graphics.draw_change_map_message(get_time());
+
+	// the STATUSBAR : health energy, bars ....
+	//
+	if (me >= 0) {
+		client_graphics.draw_player_health(fx.player[me].health);
+		client_graphics.draw_player_energy(fx.player[me].energy);
+	}
+
+	// the HUD: message output
+	//
+	char lix[16];
+	char *themsg;
+	int top = 0;
+	for (int i = 0; i < CHAT_SIZE; i++)
+		if (chatbuffer[i][0] != '\0') {
+			//default text color (normal chat)
+			MESSAGE_TYPE type = MSG_NORMAL;
+
+			//change color if team chat
+			strncpy(lix, chatbuffer[i], 2);	//2 primeiros chars da string
+			lix[2] = 0;
+			themsg = &chatbuffer[i][2];
+			if (!strcmp(lix, "@T"))		// T eam message
+				type = MSG_TEAM;
+			else if (!strcmp(lix, "@I")) // I nformation
+				type = MSG_INFO;
+			else if (!strcmp(lix, "@W")) // W warning
+				type = MSG_WARNING;
+			else
+				themsg = chatbuffer[i];	//don't discard 2 chars because there's no "@x" rpefix
+
+			//colorful text
+			client_graphics.print_chat_message(top, themsg, type);
+			top++;
+		}
+
+	// the HUD: input text on "top" of message output
+	//
+	if (talkbuffer[0] != 0) {
+		ostringstream message;
+		message << "Say: " << talkbuffer << '_';
+		client_graphics.print_chat_input(top, message.str());
+	}
+
+	//"server not responding... connection may have dropped" plaque
+	if (get_time() > lastpackettime + 1.0)
+		client_graphics.show_not_responding_message();
+
+	// V0.4.4 : player scores overlay
+	/*if (key[KEY_TAB]) {
+		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+		set_trans_blender(0,0,0,150);
+
+		int w = 440;
+		int h = 420;
+		int mx = SCREEN_W / 2;
+		int my = SCREEN_H / 2;
+		int x1 = mx - w/2;
+		int y1 = my - h/2;
+		int x2 = mx + w/2;
+		int y2 = my + h/2;
+		int xc = (x1+x2)/2;
+
+		rectfill(drawbuf, x1,y1,x2,y2, 0);
+
+		solid_mode();
+
+		int XLEFTPAD = x1+40;
+		int YDEL;
+		char sorry[256];
+		int p, redt = 0, bluet = 0;
+		double redpow = 0.0, bluepow = 0.0;
+
+		// FIXME: "max world score"? "max world rating"?
+		textprintf_centre(drawbuf, font, xc, y1+10, col[COLWHITE], "Ranking - %lu players", max_world_rank); //, max_world_score);
+
+		textprintf(drawbuf, font, XLEFTPAD, y1+45, col[COLWHITE], "Rank Power Score Name            Frags Ping");
+
+		YDEL = 60;
+
+		for (p=0;p<TSIZE;p++)
+		if (scoreboard[p] >= 0)
+		{
+			int i = scoreboard[p];
+			redt++;
+
+			sorry[0]=0;
+			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
+				strcpy(sorry, " ");
+
+			if (sorry[0]==0) {
+				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%4i %5.2f %5i %-15s %5i %4i",
+					fx.player[i].rank,
+					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
+					fx.player[i].score - fx.player[i].neg_score,
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
+				);
+				//V0.4.8
+				redpow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1));
+			}
+			else {
+				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%16s %-15s %5i %4i",
+					sorry,
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
+				);
+				redpow += DEFAULT_PLAYER_RATE;//V0.4.8
+			}
+
+			//next
+			YDEL += 9;
+		}
+
+		textprintf(drawbuf, font, XLEFTPAD, y1+240, col[COLWHITE], "Rank Power Score Name            Frags Ping");
+
+		YDEL = 255;
+
+		for (p=TSIZE;p<maxplayers;p++)
+		if (scoreboard[p] >= 0)
+		{
+			bluet++;
+			int i = scoreboard[p];
+
+			sorry[0]=0;
+			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
+				strcpy(sorry, " ");
+
+			if (sorry[0]==0) {
+				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%4i %5.2f %5i %-15s %5i %4i",
+					fx.player[i].rank,
+					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
+					fx.player[i].score - fx.player[i].neg_score,
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
+				);
+				bluepow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1)); //V0.4.8
+			}
+			else {
+				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%16s %-15s %5i %4i",
+					sorry,
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
+				);
+				bluepow += DEFAULT_PLAYER_RATE;	//V0.4.8
+			}
+
+			//next
+			YDEL += 9;
+		}
+
+		//V0.4.8
+		textprintf_centre(drawbuf, font, xc, y1+30, col[COLLRED], "Red Team - Power %.2f", redpow);
+		textprintf_centre(drawbuf, font, xc, y1+225, col[COLLBLUE], "Blue Team - Power %.2f", bluepow);
+	}*/
+
+	// debug panel
+	/*if (key[KEY_F9]) {
+		clear_to_color(drawbuf, col[COLSHADOW]);
+
+		textprintf(drawbuf,font,0,0,col[COLWHITE], "me=%i ", me);
+
+		int p;
+		for (p=0;p<maxplayers;p++) {
+			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f",
+				p, fx.player[p].used, fx.player[p].onscreen, fx.player[p].enemyvis, fx.player[p].roomx, fx.player[p].roomy,
+
+				//					fx.player[p].x, fx.player[p].y, fx.player[p].sx, fx.player[p].sy,
+				fd.player[p].lx, fd.player[p].ly, fd.player[p].sx, fd.player[p].sy
+				);
+		}
+
+		int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
+		int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
+		int bpstraffic = bpsin + bpsout;
+		textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
+		textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);
+	}*/
+
+
+	//unlock frame mutex
+	//LOG1("unlocking HOW=%i",HOWMANY);
+	pthread_mutex_unlock( &frame_mutex );
+	//LOG1("unlocked! HOW=%i",HOWMANY);
+
+	// another frame, calc FPS...
+	//
+	totalframecount++;
+	framecount++;
+	double baixo = get_time() - starttime;
+	if (baixo > 0) {
+		if (baixo > 1.0) {
+			FPS = ((double)framecount) / baixo;
+			starttime = get_time();
+			framecount = 0;
+		}
+	}
+}
+
+//draws the game menu
+void gameclient_c::draw_game_menu() {
+	BITMAP* drawbuf = client_graphics.drawbuffer();
+	const int c = makecol(255, 255, 255);
+	//"3d" menu
+	if (menu != 1) {
+		rect(drawbuf,  99,  69, 539, 409, c);
+		rect(drawbuf, 101, 71, 541, 411, c);
+		textprintf(drawbuf, font, 150, 120, c, "Outgun         version %s", GAME_VERSION);
+		textprintf(drawbuf, font, 150, 135, c, "http://koti.mbnet.fi/npr/outgun/");
+	}
+	if (menu == 0) {
+		static int DELY = 10;
+
+		textprintf(drawbuf, font, 150, 185-DELY, c, "  [ 1 ]   Connect");
+		textprintf(drawbuf, font, 150, 200-DELY, c, "  [ 2 ]   Disconnect");
+		if (connected)
+			textprintf(drawbuf, font, 150+22*8, 200-DELY, c, "(%s)", address);
+		textprintf(drawbuf, font, 150, 215-DELY, c, "  [ 3 ]   Change Player Name & Password");
+		textprintf(drawbuf, font, 150, 227-DELY, c, "          '%s' (%s)", playername, namestatus);
+		textprintf(drawbuf, font, 150, 243-DELY, c, "  [ 4 ]   Start/stop local server");
+		if (listen_server_running)
+			textprintf(drawbuf, font, 150, 255-DELY, c, "          SERVER RUNNING ON PORT %i", listen_port_running);
+		textprintf(drawbuf, font, 150, 271-DELY, c, "  [ 5 ]   Toggle fullscreen/windowed mode");
+
+		if (validtheme) {
+			textprintf(drawbuf, font, 150, 286-DELY, c, "  [ 6 ]   Change sound theme: (%s)", sfxthemedir);
+			textprintf_centre(drawbuf, font, 150+180, 300-DELY, c, "'%s'", sfxthemename);
+		}
+		else {
+			textprintf(drawbuf, font, 150, 286-DELY, c, "  [ 6 ]   Change sound theme:");
+			textprintf(drawbuf, font, 150, 300-DELY, c, "          no sfx themes found.");
+		}
+		textprintf(drawbuf, font, 150, 340-DELY, c, "Hit CTRL+F12 to EXIT THE GAME");
+		textprintf(drawbuf, font, 150, 355-DELY, c, "Hit ESC to HIDE OR SHOW THIS MENU");
+		textprintf(drawbuf, font, 150, 370-DELY, c, "Hit F1 to SHOW THE HELP SCREEN");
+	}
+	else if (menu == 1) {
+		clear_to_color(drawbuf, 0);
+		//Big F Menu
+		rect(drawbuf,  19,  19, 620, 460, c);
+		rect(drawbuf,  21,  21, 621, 461, c);
+
+		int lotext = makecol(0x99, 0x99, 0x99);
+
+
+		if (showmaster) {
+
+			vline(drawbuf, 320, 20, 50, c);
+			hline(drawbuf, 320, 50, 621, c);
+			hline(drawbuf, 320, 24, 616, lotext);
+			vline(drawbuf, 616, 24, 49, c);
+			textprintf_centre(drawbuf, font, 170, 35, c, "INTERNET SEARCH");
+			textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
+			//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing INTERNET LISTING page (TAB = FAVORITES)");
+
+			if ((int)time % 2)
+				textprintf_centre(drawbuf, font, 320, 65, c, "F2 = UPDATE LIST OF SERVERS");
+			else
+				textprintf_centre(drawbuf, font, 320, 65, c, "F2 = UPDATE LIST OF SERVERS");
+
+			textprintf_centre(drawbuf, font, 320, 80, c, "Press SPACE to refresh the servers");
+			//textprintf_centre_x(drawbuf, font, 320, 75, col[COLGREEN], 0, "TAB = Change to FAVORITES page");
+
+			//textprintf_centre(drawbuf, font, 320, 115, col[COLWHITE], "ARROWS:Select - ENTER:Connect - ESC:Cancel - SPACE:Refresh");
+
+			textprintf_centre(drawbuf, font, 320, 440, c, "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+		}
+		else {
+
+			int hi = makecol(0x88, 0x68, 0x68); //col[COLMENUGRAY]; //makecol(0x99,0x99,0x99);
+			int lo = makecol(0x48,0x48,0x68);
+			//hilight all
+			rectfill(drawbuf, 20, 20, 620, 460, hi);
+			//first bar lo vs hi
+			rectfill(drawbuf, 320, 20, 620, 50, hi);
+			rectfill(drawbuf, 19, 19, 320, 50, 0);
+			rectfill(drawbuf, 24, 24, 320, 50, lo);
+			vline(drawbuf, 320, 19, 50, c);//?
+			hline(drawbuf, 19, 50, 320, c);
+			hline(drawbuf, 24, 24, 320, lotext);
+			vline(drawbuf, 24, 24, 49, c);
+			textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
+			textprintf_centre(drawbuf, font, 470, 35, c, "FAVORITES");
+
+			//textprintf_centre(drawbuf, font, 320, 40, col[COLWHITE], "Showing FAVORITES page (TAB = INTERNET LISTING)");
+			textprintf_centre(drawbuf, font, 320, 65, c, "Type the IP address of the server and hit ENTER");
+			textprintf_centre(drawbuf, font, 320, 80, c, "Press SPACE to refresh the servers");
+			//textprintf_centre_x(drawbuf, font, 320, 75, col[COLYELLOW], 0, "TAB = Change to INTERNET LISTING page");
+
+			textprintf_centre(drawbuf, font, 320, 440, c, "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+		}
+
+		int xi = 50 - 8*2;
+
+		textprintf(drawbuf, font, xi, 105, c, "IP Address             Ping #P Version/Hostname");
+
+		char blinkchar[2];
+
+		int yi;
+
+		for (int i=0;i<MAX_GAMESPY;i++) {
+
+			yi = 120 + i*13;
+
+			//selectr
+			if (gi == i) {
+				//blink cursor
+				if ((int)(get_time() * 4) % 2)
+					blinkchar[0]=' ';
+				else
+					blinkchar[0]='<';
+				blinkchar[1]=0;
+			}
+			else
+				blinkchar[0]=0;
+
+			//server edit prompt
+			if (showmaster) {
+				textprintf(drawbuf, font, xi, yi, c, ":%s%s",mgamespy[i].address, blinkchar);
+
+				//favs watermarks
+				if (mgamespy[i].favs)
+					textprintf(drawbuf, font, xi - 12, yi, makecol(0x99,0x78,0x78), "*");
+			}
+			else
+				textprintf(drawbuf, font, xi, yi, c, ":%s%s",gamespy[i].address, blinkchar);
+
+			//draw gamespy entry
+			bool refreshed, invalid, noresponse;
+			if (showmaster) {
+				refreshed  = mgamespy[i].refreshed;
+				invalid    = mgamespy[i].invalid;
+				noresponse = mgamespy[i].noresponse;
+			}
+			else {
+				refreshed  = gamespy[i].refreshed;
+				invalid    = gamespy[i].invalid;
+				noresponse = gamespy[i].noresponse;
+			}
+
+			if (!refreshed) { // not refreshed
+				//server info
+				textprintf(drawbuf, font, xi + (18+5)*8, yi, c, "press SPACEBAR to refresh...");
+			}
+			else if (invalid) {	//refreshed, invalid
+				//server info
+				textprintf(drawbuf, font, xi + (18+5)*8, yi, c, "---");
+			}
+			else if (noresponse) {	//refreshed, no response
+				//server info
+				textprintf(drawbuf, font, xi + (18+5)*8, yi, c, "no response.");
+			}
+			else {  //refreshed, valid
+				//server info
+				if (showmaster)
+					textprintf(drawbuf, font, xi + (18+5)*8, yi, c, "%s", mgamespy[i].info);
+				else
+					textprintf(drawbuf, font, xi + (18+5)*8, yi, c, "%s", gamespy[i].info);
+			}
+		}
+	}
+	else if (menu == 2) {
+		textprintf(drawbuf, font, 150, 230, c, dialogmessage);
+		textprintf(drawbuf, font, 150, 250, c, dialogmessage2);
+	}
+	else if (menu == 3) {
+		textprintf(drawbuf, font, 150, 170, c, "Type in your player name. If you have");
+		textprintf(drawbuf, font, 150, 185, c, "registered your name on the Outgun");
+		textprintf(drawbuf, font, 150, 200, c, "website, then type in your password!");
+
+		textprintf(drawbuf, font, 150, 220, c, "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
+		textprintf(drawbuf, font, 150, 260, c, "NAME     :%s%s", editplayername, namecursor);
+
+		//password field: '********'
+		char starpass[32]; int c=0;
+		for (; editplayerpass[c]; c++) starpass[c] = '*';
+		starpass[c] = 0;
+
+		textprintf(drawbuf, font, 150, 285, c, "PASSWORD :%s%s", starpass, passcursor);
+
+		textprintf(drawbuf, font, 150, 350, c, "Registration status: %s", namestatus);
+	}
+	else {
+		textprintf(drawbuf, font, 150, 150, c, "unknown menu %i", menu);
 	}
 }
 
