@@ -345,7 +345,7 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoor
 	clear_to_color(background, 0);
 	if (antialiasing == AA_both) {
 		SceneAntialiaser scene;
-		scene.setScaling(0, 0, scr_mul);
+		scene.setScaling(.01, .01, scr_mul - .02 / plh);	// cut .01 pixels from both top and bottom edge, .01 from left and something from the right...
 
 		// add bottom ground to drawing system
 		scene.addRectangle(0, 0, plw, plh, 0);
@@ -1961,7 +1961,7 @@ void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, 
 }
 
 //create deathbringer explosion fx
-void Graphics::queue_deathbringer(int team, double start_time, int x, int y, int px, int py) {
+void Graphics::create_deathbringer(int team, double start_time, int x, int y, int px, int py) {
 	GraphicsEffect fx;
 
 	fx.team = team;
@@ -1972,13 +1972,11 @@ void Graphics::queue_deathbringer(int team, double start_time, int x, int y, int
 	fx.px = px;
 	fx.py = py;
 
-	cfx_queue_mutex.lock();
-	cfx_queue.push_back(fx);
-	cfx_queue_mutex.unlock();
+	cfx.push_back(fx);
 }
 
 //create explosion fx
-void Graphics::queue_gunexplo(int x, int y, int px, int py) {
+void Graphics::create_gunexplo(int x, int y, int px, int py) {
 	GraphicsEffect fx;
 
 	fx.type = FX_GUN_EXPLOSION;
@@ -1988,16 +1986,10 @@ void Graphics::queue_gunexplo(int x, int y, int px, int py) {
 	fx.px = px;
 	fx.py = py;
 
-	cfx_queue_mutex.lock();
-	cfx_queue.push_back(fx);
-	cfx_queue_mutex.unlock();
+	cfx.push_back(fx);
 }
 
 void Graphics::draw_effects(int room_x, int room_y, double time) {
-	cfx_queue_mutex.lock();
-	copy(cfx_queue.begin(), cfx_queue.end(), back_inserter(cfx));
-	cfx_queue.clear();
-	cfx_queue_mutex.unlock();
 	for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
 		if (fx->px != room_x || fx->py != room_y) {	// different room
 			++fx;

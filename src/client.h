@@ -167,11 +167,32 @@ public:
 	ClientExternalSettings() : winclient(-1), trypageflip(-1), nosound(false), targetfps(-1) { }
 };
 
+class Client;
 class client_c;	// of leetnet
 class client_runes_t;
 
+/* ThreadMessage represents a class of actions that can't be performed by callbacks within a network thread in a thread-safe way.
+ * These are queued for the main thread to execute.
+ * Note: they will be executed in order relative to each other but out of order relative to messages processed in the network thread.
+ * Handling anything that isn't protected by mutexes (frameMutex and downloadMutex) should be applied only through the ThreadMessage queue.
+ */
+class ThreadMessage {	// the subclasses (named starting with TM_) are direct property of the Client class and internally declared in client.cpp
+public:
+	virtual ~ThreadMessage() { }
+	virtual void execute(Client* cl) const = 0;
+};
+
 class Client {
 	friend class ClientPhysicsCallbacks;
+	friend class TM_DoDisconnect;
+	friend class TM_Text;
+	friend class TM_Sound;
+	friend class TM_MapChange;
+	friend class TM_NameAuthorizationRequest;
+	friend class TM_GunexploEffect;
+	friend class TM_Deathbringer;
+	friend class TM_ServerSettings;
+	friend class TM_ConnectionUpdate;
 
 	FileLog normalLog;
 	SupplementaryLog<MemoryLog> errorLog;
@@ -190,7 +211,7 @@ class Client {
 	ClientWorld fd, fx;	//#fix: two maps, etc.
 	std::vector<ClientPlayer*> players_sb;	// player pointers for scoreboard
 	int me;
-	MutexHolder frame_mutex;
+	MutexHolder frameMutex;
 	int maxplayers;
 
 	// network
@@ -210,6 +231,8 @@ class Client {
 	bool map_ready;
 	std::string old_map;
 	std::string servermap;	//last map command from server
+
+	std::deque<ThreadMessage*> messageQueue;	// access with frameMutex locked; delete the object when removing from the queue
 
 	MutexHolder downloadMutex;
 	std::list<FileDownload> downloads;
@@ -259,7 +282,6 @@ class Client {
 	std::string playername;	//the player's name (max name len = 16)
 	NLaddress serverIP;
 
-	volatile bool disconnectQueued;
 	volatile bool abortThreads;
 
 	enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
@@ -341,6 +363,7 @@ class Client {
 
 	bool screenModeChange();	// the return value should be tested at the first call
 
+	void addThreadMessage(ThreadMessage* msg) { messageQueue.push_back(msg); }
 	void setMaxPlayers(int num) { maxplayers = num; fx.setMaxPlayers(num); fd.setMaxPlayers(num); }
 
 	// world	//#fix: should these be moved to ClientWorld?
@@ -354,9 +377,9 @@ class Client {
 	void connect_command(bool loadPassword);
 	void disconnect_command();	// do not call from a network thread
 	void connection_update(client_runes_t *arg);
-	void client_connected(char* data, int length);
+	void client_connected(const char* data, int length);	// call with frameMutex locked
 	void client_disconnected(const char* data, int length);
-	void connect_failed_denied(char* data, int length);
+	void connect_failed_denied(const char* data, int length);
 	void connect_failed_unreachable();
 	void send_player_token();
 	void send_tournament_participation();
@@ -365,7 +388,7 @@ class Client {
 	void send_client_ready();
 	void send_chat(const std::string& msg);
 	void send_frame(bool newFrame);
-	void process_incoming_data(char* data, int length);
+	void process_incoming_data(const char* data, int length);
 
 	const char* refreshStatusAsString() const;
 	void getServerListThread();
@@ -389,7 +412,7 @@ class Client {
 
 	void save_screenshot();
 	void toggle_help();
-	template<class MenuT> void showMenu(MenuT& menu) { nAssert(openMenus.safeTop() != &m_connectProgress.menu); openMenus.open(&menu.menu); }
+	template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
 	void predraw();
 	void draw_game_frame();
 	void draw_player(int pid);

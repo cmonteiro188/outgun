@@ -24,6 +24,7 @@
 
 #include "client.h"
 
+using std::deque;
 using std::endl;
 using std::find;
 using std::ifstream;
@@ -71,6 +72,78 @@ public:
 	void playerHitPlayer(int pid1, int pid2) { c.playerHitPlayerCallback(pid1, pid2); }
 	void rocketOutOfBounds(int rid) { c.rocketOutOfBoundsCallback(rid); }
 	bool shouldApplyPhysicsToPlayer(int pid) { return c.shouldApplyPhysicsToPlayerCallback(pid); }
+};
+
+class TM_DoDisconnect : public ThreadMessage {
+public:
+	void execute(Client* cl) const { cl->disconnect_command(); }
+};
+
+class TM_Text : public ThreadMessage {
+	Message_type type;
+	string text;
+
+public:
+	TM_Text(Message_type type_, const string& text_) : type(type_), text(text_) { }
+	void execute(Client* cl) const { cl->print_message(type, text); }
+};
+
+class TM_Sound : public ThreadMessage {
+	int sample;
+
+public:
+	TM_Sound(int sample_) : sample(sample_) { }
+	void execute(Client* cl) const { cl->client_sounds.play(sample); }
+};
+
+class TM_MapChange : public ThreadMessage {
+	string name;
+	NLushort crc;
+
+public:
+	TM_MapChange(const string& name_, NLushort crc_) : name(name_), crc(crc_) { }
+	void execute(Client* cl) const { cl->old_map = cl->fx.map.title; cl->server_map_command(name, crc); }
+};
+
+class TM_NameAuthorizationRequest : public ThreadMessage {
+public:
+	void execute(Client* cl) const { cl->m_playerPassword.setup(cl->playername, false); cl->showMenu(cl->m_playerPassword); }
+};
+
+class TM_GunexploEffect : public ThreadMessage {
+	int rokx, roky, px, py;
+
+public:
+	TM_GunexploEffect(int rokx_, int roky_, int px_, int py_) : rokx(rokx_), roky(roky_), px(px_), py(py_) { }
+	void execute(Client* cl) const { cl->client_graphics.create_gunexplo(rokx, roky, px, py); }
+};
+
+class TM_Deathbringer : public ThreadMessage {
+	int team, hx, hy, sx, sy;
+	double time;
+
+public:
+	TM_Deathbringer(int team_, double time_, int hx_, int hy_, int sx_, int sy_) : team(team_), hx(hx_), hy(hy_), sx(sx_), sy(sy_), time(time_) { }
+	void execute(Client* cl) const { cl->client_graphics.create_deathbringer(team, time, hx, hy, sx, sy); }
+};
+
+class TM_ServerSettings : public ThreadMessage {
+	NLubyte caplimit, timelimit, extratime, misc1;
+
+public:
+	TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLubyte misc1_) : caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_) { }
+	void execute(Client* cl) const;
+};
+
+class TM_ConnectionUpdate : public ThreadMessage {
+	int code;
+	char* data;
+	int length;
+
+public:
+	TM_ConnectionUpdate(int code_, const void* data_, int length_);
+	~TM_ConnectionUpdate() { if (data) delete[] data; }
+	void execute(Client* cl) const;
 };
 
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
@@ -368,6 +441,99 @@ void FileDownload::finish() {
 	fp = 0;
 }
 
+void TM_ServerSettings::execute(Client* cl) const {
+	cl->m_serverInfo.menu.setCaption(cl->hostname);
+
+	ostringstream caption;
+	ostringstream value;
+	const int width = 22;
+
+	caption << setw(width) << "Capture limit: ";
+	if (caplimit == 0)
+		value << "none";
+	else
+		value << static_cast<int>(caplimit);
+	cl->m_serverInfo.addLine(caption.str(), value.str());
+	caption.str(""); value.str("");
+
+	caption << setw(width) << "Time limit: ";
+	if (timelimit == 0)
+		value << "none";
+	else
+		value << static_cast<int>(timelimit) << " min";
+	cl->m_serverInfo.addLine(caption.str(), value.str());
+	caption.str(""); value.str("");
+
+	caption << setw(width) << "Extra time: ";
+	if (extratime == 0)
+		value << "none";
+	else
+		value << static_cast<int>(extratime) << " min";
+	cl->m_serverInfo.addLine(caption.str(), value.str());
+	caption.str(""); value.str("");
+
+	caption << setw(width) << "Player collisions: ";
+	value << (cl->fx.physics.player_collisions ? "on" : "off");
+	cl->m_serverInfo.addLine(caption.str(), value.str());
+	caption.str(""); value.str("");
+
+	caption << setw(width) << "Friendly fire: ";
+	value << (cl->fx.physics.friendly_fire ? "on" : "off");
+	cl->m_serverInfo.addLine(caption.str(), value.str());
+	caption.str(""); value.str("");
+
+	const string caps[] = { "Balance teams", "Drop power-ups", "Invisible shadow", "Switch deathbringer" };
+	int i;
+	for (i = 0; i < 4; i++) {
+		caption << setw(width - 2) << caps[i] << ": ";
+		value << ((misc1 & (1 << i)) ? "on" : "off");
+		cl->m_serverInfo.addLine(caption.str(), value.str());
+		caption.str(""); value.str("");
+	}
+	caption << setw(width) << "Maximum weapon level: ";
+	value << (misc1 >> i) + 1;
+	cl->m_serverInfo.addLine(caption.str(), value.str());
+
+	if (cl->menu.options.game.showServerInfo())
+		cl->showMenu(cl->m_serverInfo);
+}
+
+TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int length_) :
+	code(code_),
+	length(length_)
+{
+	if (length) {
+		data = new char[length];
+		memcpy(data, data_, length);
+	}
+	else
+		data = 0;
+}
+
+void TM_ConnectionUpdate::execute(Client* cl) const {
+	switch (code) {
+		case 0:
+			cl->client_connected(data, length);
+			break;
+		case 1:
+			cl->client_disconnected(data, length);
+			break;
+		case 2:
+			cl->connect_failed_denied(data, length);
+			break;
+		case 3:
+			cl->connect_failed_unreachable();
+			break;
+		case 4: {
+			const string msg = "Server is full.";
+			cl->connect_failed_denied(msg.data(), msg.length());
+			break;
+		}
+		default:
+			nAssert(0);
+	}
+}
+
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
@@ -378,7 +544,6 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
-	disconnectQueued(false),
 	abortThreads(false),
 	refreshStatus(RS_none),
 	password_file(wheregamedir + "config" + directory_separator + "passwd"),
@@ -439,6 +604,9 @@ Client::~Client() {
 	}
 	while (refreshStatus != RS_none && refreshStatus != RS_failed)	// wait for a possible refresh thread to abort itself
 		MS_SLEEP(50);
+
+	for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
+		delete *mi;
 
 	errorMessage("Client had these errors: (see clientlog.txt)", errorLog);
 
@@ -650,13 +818,13 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
 	MutexLock ml(downloadMutex);
 	if (downloads.empty() || !downloads.front().isActive()) {
 		log.error("Server sent a file we aren't expecting");
-		disconnectQueued = true;
+		addThreadMessage(new TM_DoDisconnect());
 		return;
 	}
 	FileDownload& dl = downloads.front();
 	if (!dl.save(buf, len)) {
 		log.error("Error writing to %s.", dl.fullName.c_str());
-		disconnectQueued = true;
+		addThreadMessage(new TM_DoDisconnect());
 		return;
 	}
 	//send the reply
@@ -671,7 +839,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
 				const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName);	//#fix
 				if (!ok) {
 					log.error("After download: map '%s' not found", dl.shortName.c_str());
-					disconnectQueued = true;
+					addThreadMessage(new TM_DoDisconnect());
 					return;
 				}
 				log("Map '%s' downloaded successfully", dl.shortName.c_str());
@@ -698,7 +866,7 @@ void Client::check_download() {	// call with downloadMutex locked
 		return;
 	if (!dl.start()) {
 		log.error("File download: Can't open '%s' for writing.", dl.fullName.c_str());
-		disconnectQueued = true;
+		addThreadMessage(new TM_DoDisconnect());
 		return;
 	}
 	// request the file from server
@@ -713,7 +881,7 @@ void Client::download_server_file(const string& type, const string& name) {
 	nAssert(type == "map");
 	if (name.find_first_of("./:\\") != string::npos) {
 		log.error("Illegal file download request: map \"%s\"", name.c_str());
-		disconnectQueued = true;
+		addThreadMessage(new TM_DoDisconnect());
 		return;
 	}
 
@@ -761,7 +929,7 @@ void Client::disconnect_command() {	// do not call from a network thread
 	client->connect(false);
 }
 
-void Client::client_connected(char *data, int length) {
+void Client::client_connected(const char* data, int length) {	// call with frameMutex locked
 	log("Connection successful");
 
 	(void)length;
@@ -827,8 +995,6 @@ void Client::client_connected(char *data, int length) {
 	talkbuffer.clear();
 	chatbuffer.clear();
 
-	frame_mutex.lock();
-
 	//reset world data
 	// teams
 	for (int i = 0; i < 2; i++) {
@@ -842,8 +1008,6 @@ void Client::client_connected(char *data, int length) {
 	// powerups
 	for (int i = 0; i < MAX_PICKUPS; ++i)
 		fx.item[i].kind = Powerup::pup_unused;
-
-	frame_mutex.unlock();
 
 	//reset FPS count vars
 	framecount = 0;
@@ -920,7 +1084,7 @@ void Client::client_disconnected(const char* data, int length) {
 	tournamentPassword.disconnectedFromServer();
 }
 
-void Client::connect_failed_denied(char *data, int length) {
+void Client::connect_failed_denied(const char* data, int length) {
 	string message;
 	if (length > 0) {
 		int count = 0;
@@ -1137,14 +1301,13 @@ void Client::send_frame(bool newFrame) {
 	client->send_frame(lebuf, count);
 }
 
-//process incoming data
-void Client::process_incoming_data(char *data, int length) {
-	MutexLock ml(frame_mutex);
+void Client::process_incoming_data(const char* data, int length) {
+	MutexLock ml(frameMutex);
 
 	(void)length;
 
 	//this is a HACK:
-	int whatme = 0;
+	int whatme = 0;	//#fix: can this be removed?
 
 	// (0) update lastpackettime
 	lastpackettime = get_time();
@@ -1162,7 +1325,7 @@ void Client::process_incoming_data(char *data, int length) {
 			dstr << "S>C packet order: prev " << fx.frame << " this " << svframe;
 		else
 			dstr << "S>C packet lost : prev " << fx.frame << " this " << svframe;
-		print_message(msg_warning, dstr.str().c_str());
+		addThreadMessage(new TM_Text(msg_warning, dstr.str().c_str()));
 	}
 	//discard older frames
 	//overwrite always the newer frames
@@ -1258,69 +1421,67 @@ void Client::process_incoming_data(char *data, int length) {
 				//decode players_onscreen: sets if "player" record is there to be read
 				if (players_onscreen & (1 << i))
 					fx.player[i].onscreen = true;
-				else
+				else {
 					fx.player[i].onscreen = false;
-
-				//if player on screen, parse the data
-				if (fx.player[i].onscreen) {
-					ClientPlayer &h = fx.player[i];
-
-					//V0.3.9: took out screen reading, replacing for the same screen of "me"
-					// that is set above
-					h.roomx = fx.player[me].roomx;	//same screen since it's on the "players on same screen" vector
-					h.roomy = fx.player[me].roomy;
-
-					//coords & speeds
-					NLubyte xy;
-
-					NLushort hx, hy;
-					readByte(data, count, xy);		//first 8 bits x
-					hx = xy;
-					readByte(data, count, xy);
-					hy = xy;
-					readByte(data, count, xy);
-					hx += (xy & 0x0F) << 8;
-					hy += (xy & 0xF0) << 4;
-					h.lx = hx * (plw / float(0xFFF));
-					h.ly = hy * (plh / float(0xFFF));
-
-					//V0.3.9 speed em bytes, xinelao mesmo
-					NLbyte sxy;
-					readByte(data, count, sxy);	//sx
-					h.sx = static_cast<double>(sxy) / 2.0;
-					readByte(data, count, sxy);	//sy
-					h.sy = static_cast<double>(sxy) / 2.0;
-
-					//EXTRA BYTE
-					NLubyte byt, extra;
-					readByte(data, count, extra);			//extra byte
-
-					//FLAGS BYTE
-					//
-					h.dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
-					h.item_deathbringer = (extra & 2) != 0;		//deathbringer: extra bit 1
-					h.deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
-					// ITEMS: movido para este byte
-					h.item_shield = (extra & 8) != 0;
-					h.item_speed = (extra & 16) != 0;
-					h.item_quad = (extra & 32) != 0;
-
-					//verifica se acabou de morrer - play death sound
-					if (h.dead && !h.old_dead)
-						client_sounds.play(SAMPLE_DEATH + rand() % 2);
-					h.old_dead = h.dead;
-
-					NLubyte ccb;
-					readByte(data, count, ccb);
-					h.controls.fromNetwork(ccb, true);
-
-					//bits 5..7 : gundir= 0..7
-					h.gundir = ccb >> 5;
-
-					//read helm byte
-					readByte(data, count, byt);
-					h.visibility = byt;
+					continue;
 				}
+
+				ClientPlayer &h = fx.player[i];
+
+				//V0.3.9: took out screen reading, replacing for the same screen of "me"
+				// that is set above
+				h.roomx = fx.player[me].roomx;	//same screen since it's on the "players on same screen" vector
+				h.roomy = fx.player[me].roomy;
+
+				//coords & speeds
+				NLubyte xy;
+
+				NLushort hx, hy;
+				readByte(data, count, xy);		//first 8 bits x
+				hx = xy;
+				readByte(data, count, xy);
+				hy = xy;
+				readByte(data, count, xy);
+				hx += (xy & 0x0F) << 8;
+				hy += (xy & 0xF0) << 4;
+				h.lx = hx * (plw / float(0xFFF));
+				h.ly = hy * (plh / float(0xFFF));
+
+				//V0.3.9 speed em bytes, xinelao mesmo
+				NLbyte sxy;
+				readByte(data, count, sxy);	//sx
+				h.sx = static_cast<double>(sxy) / 2.0;
+				readByte(data, count, sxy);	//sy
+				h.sy = static_cast<double>(sxy) / 2.0;
+
+				//EXTRA BYTE
+				NLubyte byt, extra;
+				readByte(data, count, extra);			//extra byte
+
+				//FLAGS BYTE
+				h.dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
+				h.item_deathbringer = (extra & 2) != 0;		//deathbringer: extra bit 1
+				h.deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
+				// ITEMS: movido para este byte
+				h.item_shield = (extra & 8) != 0;
+				h.item_speed = (extra & 16) != 0;
+				h.item_quad = (extra & 32) != 0;
+
+				//verifica se acabou de morrer - play death sound
+				if (h.dead && !h.old_dead)
+					addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+				h.old_dead = h.dead;
+
+				NLubyte ccb;
+				readByte(data, count, ccb);
+				h.controls.fromNetwork(ccb, true);
+
+				//bits 5..7 : gundir= 0..7
+				h.gundir = ccb >> 5;
+
+				//read helm byte
+				readByte(data, count, byt);
+				h.visibility = byt;
 			}
 
 			//read "enemies on team vislist"
@@ -1367,787 +1528,728 @@ void Client::process_incoming_data(char *data, int length) {
 		}//frame not empty
 	}
 
-	//(2) process messages
-	//
-	char *msg;
-	char *lebuf;
-	int msglen;
+	//(2) process messages (update fx, and add the non frame-related messages to messageQueue)
+	for (;;) {
+		char* lebuf;
+		int msglen;
+		lebuf = client->receive_message(&msglen);
+		if (lebuf == 0)
+			break;
 
-	do {
-		lebuf = msg = client->receive_message(&msglen);
-		if (msg != 0) {
-			int count = 0;
-			NLubyte code;
-			readByte(msg, count, code);
+		int count = 0;
+		NLubyte code;
+		readByte(lebuf, count, code);
 
-			if (LOG_MESSAGE_TRAFFIC)
-				log("Message from server, code = %i", code);
+		if (LOG_MESSAGE_TRAFFIC)
+			log("Message from server, code = %i", code);
 
-			//parse rest of message
-			switch (static_cast<Network_data_code>(code)) {
-				// name update
-				case data_name_update: {
-					NLubyte pid;
-					string name;
-					readByte(msg, count, pid);
-					readStr(msg, count, name);
-					if (check_name(name))
-						fx.player[pid].name = name;
-					else
-						log.error("Invalid name for player %d.", pid);
-					break;
+		//parse rest of message
+		switch (static_cast<Network_data_code>(code)) {
+			// name update
+			case data_name_update: {
+				NLubyte pid;
+				string name;
+				readByte(lebuf, count, pid);
+				readStr(lebuf, count, name);
+				if (check_name(name))
+					fx.player[pid].name = name;
+				else
+					log.error("Invalid name for player %d.", pid);
+				break;
+			}
+
+			case data_text_message: {
+				char byte;
+				readByte(lebuf, count, byte);
+				const Message_type type = static_cast<Message_type>(byte);
+				string chatmsg;
+				readStr(lebuf, count, chatmsg);
+				if (find_nonprintable_char(chatmsg)) {
+					log.error("Server sent non-printable characters in a message.");
+					addThreadMessage(new TM_DoDisconnect());
+				}
+				else {
+					addThreadMessage(new TM_Text(type, chatmsg));
+					if (menu.options.game.messageLogging())
+						message_log << date_and_time() << "  " << chatmsg << endl;
 				}
 
-				case data_text_message: {
-					char byte;
-					readByte(msg, count, byte);
-					const Message_type type = static_cast<Message_type>(byte);
-					string chatmsg;
-					readStr(msg, count, chatmsg);
-					if (find_nonprintable_char(chatmsg)) {
-						log.error("Server sent non-printable characters in a message.");
-						disconnectQueued = true;
+				//talk sound
+				if (type != msg_info)
+					addThreadMessage(new TM_Sound(SAMPLE_TALK));
+				break;
+			}
+
+			case data_first_packet: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);	//"who am I"
+				me = pid;
+
+				NLubyte color;
+				readByte(lebuf, count, color);
+				if (color < MAX_PLAYERS / 2)
+					fx.player[pid].set_color(color);
+				else
+					log("Invalid colour (%d) for player %d (me).", color, pid);
+
+				NLubyte map_nr;
+				readByte(lebuf, count, map_nr);	//current map number
+				current_map = map_nr;
+
+				//reset want-change-teams: this message is send when players are swapped also
+				want_change_teams = false;
+
+				NLubyte score;
+				readByte(lebuf, count, score);
+				fx.teams[0].set_score(score);
+				if (fx.teams[0].captures().size() == 0)	// only if just joined the server
+					fx.teams[0].set_base_score(score);
+				readByte(lebuf, count, score);
+				fx.teams[1].set_score(score);
+				if (fx.teams[1].captures().size() == 0)	// only if just joined the server
+					fx.teams[1].set_base_score(score);
+
+				//server physics parameters
+				fx.physics.read(lebuf, count);
+				fd.physics = fx.physics;
+
+				// room is probably changed
+				fx.player[me].oldx = -1;
+				fx.player[me].oldy = -1;
+
+				break;
+			}
+
+			case data_frags_update: {
+				NLubyte pid;
+				NLulong frags;
+				readByte(lebuf, count, pid);
+				readLong(lebuf, count, frags);
+				fx.player[pid].stats().set_frags(frags);
+				stable_sort(players_sb.begin(), players_sb.end(), compare_players);
+				break;
+			}
+
+			case data_flag_update: {
+				NLubyte team;
+				NLbyte flags;
+				readByte(lebuf, count, team);		// team of the flag
+				readByte(lebuf, count, flags);	// how many flags
+				for (int i = 0; i < flags; i++) {
+					if (team == 2) {
+						if (i >= static_cast<int>(fx.wild_flags.size()))
+							fx.wild_flags.push_back(Flag(WorldCoords()));
 					}
-					else {
-						print_message(type, chatmsg);		//print it to the "console"
-						if (menu.options.game.messageLogging())
-							message_log << date_and_time() << "  " << chatmsg << endl;
-					}
-
-					//talk sound
-					if (type != msg_info)
-						client_sounds.play(SAMPLE_TALK);
-					break;
-				}
-
-				case data_first_packet: {
-					NLubyte pid;
-					readByte(msg, count, pid);	//"who am I"
-					me = pid;
-
-					NLubyte color;
-					readByte(msg, count, color);
-					if (color < MAX_PLAYERS / 2)
-						fx.player[pid].set_color(color);
-					else
-						log("Invalid colour (%d) for player %d (me).", color, pid);
-
-					NLubyte map_nr;
-					readByte(msg, count, map_nr);	//current map number
-					current_map = map_nr;
-
-					//reset want-change-teams: this message is send when players are swapped also
-					want_change_teams = false;
-
-					NLubyte score;
-					readByte(msg, count, score);
-					fx.teams[0].set_score(score);
-					if (fx.teams[0].captures().size() == 0)	// only if just joined the server
-						fx.teams[0].set_base_score(score);
-					readByte(msg, count, score);
-					fx.teams[1].set_score(score);
-					if (fx.teams[1].captures().size() == 0)	// only if just joined the server
-						fx.teams[1].set_base_score(score);
-
-					//server physics parameters
-					fx.physics.read(msg, count);
-					fd.physics = fx.physics;
-
-					// room is probably changed
-					fx.player[me].oldx = -1;
-					fx.player[me].oldy = -1;
-
-					break;
-				}
-
-				case data_frags_update: {
-					NLubyte pid;
-					NLulong frags;
-					readByte(msg, count, pid);
-					readLong(msg, count, frags);
-					fx.player[pid].stats().set_frags(frags);
-					stable_sort(players_sb.begin(), players_sb.end(), compare_players);
-					break;
-				}
-
-				case data_flag_update: {
-					NLubyte team;
-					NLbyte flags;
-					readByte(msg, count, team);		// team of the flag
-					readByte(msg, count, flags);	// how many flags
-					for (int i = 0; i < flags; i++) {
+					else if (i >= static_cast<int>(fx.teams[team].flags().size()))
+						fx.teams[team].add_flag(WorldCoords());
+					NLubyte carried;
+					readByte(lebuf, count, carried);	// 0==not carried 1==carried
+					if (carried == 0) {
+						//not carried: update position
+						NLubyte px, py;
+						NLshort x, y;
+						readByte(lebuf, count, px);
+						readByte(lebuf, count, py);
+						readShort(lebuf, count, x);
+						readShort(lebuf, count, y);
 						if (team == 2) {
-							if (i >= static_cast<int>(fx.wild_flags.size()))
-								fx.wild_flags.push_back(Flag(WorldCoords()));
+							fx.wild_flags[i].move(WorldCoords(px, py, x, y));
+							fx.wild_flags[i].drop();
 						}
-						else if (i >= static_cast<int>(fx.teams[team].flags().size()))
-							fx.teams[team].add_flag(WorldCoords());
-						NLubyte carried;
-						readByte(msg, count, carried);	// 0==not carried 1==carried
-						if (carried == 0) {
-							//not carried: update position
-							NLubyte px, py;
-							NLshort x, y;
-							readByte(msg, count, px);
-							readByte(msg, count, py);
-							readShort(msg, count, x);
-							readShort(msg, count, y);
-							if (team == 2) {
-								fx.wild_flags[i].move(WorldCoords(px, py, x, y));
-								fx.wild_flags[i].drop();
-							}
-							else
-								fx.teams[team].drop_flag(i, WorldCoords(px, py, x, y));
-						}
-						else {
-							//carried: get carrier
-							NLubyte carrier;
-							readByte(msg, count, carrier);
-							if (team == 2)
-								fx.wild_flags[i].take(carrier);
-							else
-								fx.teams[team].steal_flag(i, carrier);
-							client_sounds.play(SAMPLE_CTF_GOT);
-						}
-					}
-					break;
-				}
-
-				case data_rocket_fire: {
-					if (!map_ready)
-						break;
-
-					NLubyte rpow, rdir;
-					NLubyte rids[16];
-					NLulong frameno;
-					NLubyte rteampower;
-
-					readByte(lebuf, count, rpow);
-					readByte(lebuf, count, rdir);
-					for (int k = 0; k < rpow; k++)
-						readByte(lebuf, count, rids[k]);
-					readLong(lebuf, count, frameno);	// frame # of shot
-					readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
-					const bool power = ((rteampower & 1) != 0);
-					const int team = (rteampower & 2) >> 1;
-
-					NLubyte rpx, rpy;
-					NLshort rx, ry;
-					readByte(lebuf, count, rpx);
-					readByte(lebuf, count, rpy);
-					readShort(lebuf, count, rx);
-					readShort(lebuf, count, ry);
-
-					ClientPhysicsCallbacks cb(*this);
-					fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
-
-					//play sound if rocket on screen
-					if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
-						if (power)
-							client_sounds.play(SAMPLE_QUAD_FIRE);
 						else
-							client_sounds.play(SAMPLE_FIRE);
-					break;
-				}
-
-				case data_old_rocket_visible: {
-					if (!map_ready)
-						break;
-
-					NLubyte rockid, rdir;
-					NLulong frameno;
-					NLubyte rteampower;
-					readByte(lebuf, count, rockid);
-					readByte(lebuf, count, rdir);
-					readLong(lebuf, count, frameno);
-					readByte(lebuf, count, rteampower);
-					const bool power = ((rteampower & 1) != 0);
-					const int team = (rteampower & 2) >> 1;
-
-					NLubyte rpx, rpy;
-					readByte(lebuf, count, rpx);
-					readByte(lebuf, count, rpy);
-					NLshort rx, ry;
-					readShort(lebuf, count, rx);
-					readShort(lebuf, count, ry);
-
-					ClientPhysicsCallbacks cb(*this);
-					fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
-					// no sound
-					break;
-				}
-
-				case data_rocket_delete: {
-					if (!map_ready)
-						break;
-
-					NLubyte rockid, target;
-					readByte(lebuf, count, rockid);	// rocket object id
-					readByte(lebuf, count, target);	// target player
-					//hit position
-					NLshort rokx, roky;
-					readShort(lebuf, count, rokx);
-					readShort(lebuf, count, roky);
-					fx.rock[rockid].owner = -1;
-					if (target != 255) {	// hit player
-						if (target < 250)	// blink player if not hit shield (252)
-							fx.player[target].hitfx = get_time() + .3;
-						client_graphics.queue_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
-						client_sounds.play(SAMPLE_HIT);
-					}
-					break;
-				}
-				case data_score_update: {
-					NLubyte team;
-					NLubyte score;
-					readByte(lebuf, count, team);		//team
-					readByte(lebuf, count, score);		//new score
-					fx.teams[team].set_score(score);	// update the score
-					break;
-				}
-
-				case data_sound: {
-					NLubyte sample;
-					readByte(lebuf, count, sample);		// sample #
-					if (sample < NUM_OF_SAMPLES)
-						client_sounds.play(sample);
-					break;
-				}
-
-				case data_pup_visible: {
-					NLubyte iid, kind, spos;
-					readByte(lebuf, count, iid);		// item id
-					readByte(lebuf, count, kind);		// kind
-					fx.item[iid].kind = static_cast<Powerup::Pup_type>(kind);
-					readByte(lebuf, count, spos);		// screen x
-					fx.item[iid].px = spos;
-					readByte(lebuf, count, spos);		// screen y
-					fx.item[iid].py = spos;
-					NLushort coord;
-					readShort(lebuf, count, coord);		// pos x
-					fx.item[iid].x = coord;
-					readShort(lebuf, count, coord);		// pos y
-					fx.item[iid].y = coord;
-					break;
-				}
-
-				case data_pup_picked: {
-					NLubyte iid;
-					readByte(lebuf, count, iid);
-					fx.item[iid].kind = Powerup::pup_unused;		// no more!
-					break;
-				}
-
-				case data_pup_timer: {
-					NLubyte iid;
-					NLushort time;
-					readByte(lebuf, count, iid);	//kind
-					readShort(lebuf, count, time);	//amount of time
-					if (me >= 0) {
-						if (iid == Powerup::pup_turbo)
-							fx.player[me].item_speed_time = get_time() + time;
-						else if (iid == Powerup::pup_shadow)
-							fx.player[me].item_helm_time = get_time() + time;
-						else if (iid == Powerup::pup_power)
-							fx.player[me].item_quad_time = get_time() + time;
-					}
-					break;
-				}
-
-				case data_weapon_change: {
-					NLubyte level;
-					readByte(lebuf, count, level);	// weapon level
-					if (me >= 0)
-						fx.player[me].weapon = level;
-					break;
-				}
-
-				case data_map_change: {
-					old_map = fx.map.title;
-					map_ready = false;	// map NOT ready anymore: must load/change
-					want_map_exit = false;		// and player does not want to exit the map anymore
-					fx.teams[0].remove_flags();
-					fx.teams[1].remove_flags();
-					fx.wild_flags.clear();
-					NLushort crc;
-					readShort(lebuf, count, crc);
-					string mapname;
-					readStr(lebuf, count, mapname);
-					server_map_command(mapname, crc);
-					NLubyte map_nr;
-					readByte(lebuf, count, map_nr);
-					current_map = map_nr;
-					if (map_vote == current_map)
-						map_vote = -1;
-					fx.player[me].oldx = -1;
-					fx.player[me].oldy = -1;
-					break;
-				}
-
-				case data_world_reset:
-					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-						fx.item[iid].kind = Powerup::pup_unused;
-					break;
-
-				case data_gameover_show: {
-					NLubyte plaque;
-					readByte(lebuf, count, plaque);
-					if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
-						NLubyte score;
-						readByte(lebuf, count, score);	//RED team final score
-						red_final_score = score;
-						readByte(lebuf, count, score);  //BLUE team final score
-						blue_final_score = score;
-						for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-							pi->stats().finish_stats(get_time());
-						if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
-							menusel = menu_teams;
-							stats_autoshowing = true;
-						}
-						if (gameover_plaque == NEXTMAP_NONE && menu.options.game.saveStats())
-							fx.save_stats("client_stats", old_map);
-						gameover_plaque = plaque;
+							fx.teams[team].drop_flag(i, WorldCoords(px, py, x, y));
 					}
 					else {
-						gameover_plaque = NEXTMAP_NONE;
-						if (stats_autoshowing) {
-							menusel = menu_none;
-							stats_autoshowing = false;
-						}
+						//carried: get carrier
+						NLubyte carrier;
+						readByte(lebuf, count, carrier);
+						if (team == 2)
+							fx.wild_flags[i].take(carrier);
+						else
+							fx.teams[team].steal_flag(i, carrier);
+						addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
 					}
-					break;
 				}
+				break;
+			}
 
-				case data_start_game:
-					gameover_plaque = NEXTMAP_NONE;		//hide
-					fx.teams[0].clear_stats();
-					fx.teams[1].clear_stats();
+			case data_rocket_fire: {
+				if (!map_ready)
+					break;
+
+				NLubyte rpow, rdir;
+				NLubyte rids[16];
+				NLulong frameno;
+				NLubyte rteampower;
+
+				readByte(lebuf, count, rpow);
+				readByte(lebuf, count, rdir);
+				for (int k = 0; k < rpow; k++)
+					readByte(lebuf, count, rids[k]);
+				readLong(lebuf, count, frameno);	// frame # of shot
+				readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
+				const bool power = ((rteampower & 1) != 0);
+				const int team = (rteampower & 2) >> 1;
+
+				NLubyte rpx, rpy;
+				NLshort rx, ry;
+				readByte(lebuf, count, rpx);
+				readByte(lebuf, count, rpy);
+				readShort(lebuf, count, rx);
+				readShort(lebuf, count, ry);
+
+				ClientPhysicsCallbacks cb(*this);
+				fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+
+				//play sound if rocket on screen
+				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
+					if (power)
+						addThreadMessage(new TM_Sound(SAMPLE_QUAD_FIRE));
+					else
+						addThreadMessage(new TM_Sound(SAMPLE_FIRE));
+				break;
+			}
+
+			case data_old_rocket_visible: {
+				if (!map_ready)
+					break;
+
+				NLubyte rockid, rdir;
+				NLulong frameno;
+				NLubyte rteampower;
+				readByte(lebuf, count, rockid);
+				readByte(lebuf, count, rdir);
+				readLong(lebuf, count, frameno);
+				readByte(lebuf, count, rteampower);
+				const bool power = ((rteampower & 1) != 0);
+				const int team = (rteampower & 2) >> 1;
+
+				NLubyte rpx, rpy;
+				readByte(lebuf, count, rpx);
+				readByte(lebuf, count, rpy);
+				NLshort rx, ry;
+				readShort(lebuf, count, rx);
+				readShort(lebuf, count, ry);
+
+				ClientPhysicsCallbacks cb(*this);
+				fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+				// no sound
+				break;
+			}
+
+			case data_rocket_delete: {
+				if (!map_ready)
+					break;
+
+				NLubyte rockid, target;
+				readByte(lebuf, count, rockid);	// rocket object id
+				readByte(lebuf, count, target);	// target player
+				//hit position
+				NLshort rokx, roky;
+				readShort(lebuf, count, rokx);
+				readShort(lebuf, count, roky);
+				fx.rock[rockid].owner = -1;
+				if (target != 255) {	// hit player
+					if (target < 250)	// blink player if not hit shield (252)
+						fx.player[target].hitfx = get_time() + .3;
+					addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py));
+					addThreadMessage(new TM_Sound(SAMPLE_HIT));
+				}
+				break;
+			}
+
+			case data_score_update: {
+				NLubyte team;
+				NLubyte score;
+				readByte(lebuf, count, team);		//team
+				readByte(lebuf, count, score);		//new score
+				fx.teams[team].set_score(score);	// update the score
+				break;
+			}
+
+			case data_sound: {
+				NLubyte sample;
+				readByte(lebuf, count, sample);		// sample #
+				if (sample < NUM_OF_SAMPLES)
+					addThreadMessage(new TM_Sound(sample));
+				break;
+			}
+
+			case data_pup_visible: {
+				NLubyte iid, kind, spos;
+				readByte(lebuf, count, iid);		// item id
+				readByte(lebuf, count, kind);		// kind
+				fx.item[iid].kind = static_cast<Powerup::Pup_type>(kind);
+				readByte(lebuf, count, spos);		// screen x
+				fx.item[iid].px = spos;
+				readByte(lebuf, count, spos);		// screen y
+				fx.item[iid].py = spos;
+				NLushort coord;
+				readShort(lebuf, count, coord);		// pos x
+				fx.item[iid].x = coord;
+				readShort(lebuf, count, coord);		// pos y
+				fx.item[iid].y = coord;
+				break;
+			}
+
+			case data_pup_picked: {
+				NLubyte iid;
+				readByte(lebuf, count, iid);
+				fx.item[iid].kind = Powerup::pup_unused;		// no more!
+				break;
+			}
+
+			case data_pup_timer: {
+				NLubyte iid;
+				NLushort time;
+				readByte(lebuf, count, iid);	//kind
+				readShort(lebuf, count, time);	//amount of time
+				if (me >= 0) {
+					if (iid == Powerup::pup_turbo)
+						fx.player[me].item_speed_time = get_time() + time;
+					else if (iid == Powerup::pup_shadow)
+						fx.player[me].item_helm_time = get_time() + time;
+					else if (iid == Powerup::pup_power)
+						fx.player[me].item_quad_time = get_time() + time;
+				}
+				break;
+			}
+
+			case data_weapon_change: {
+				NLubyte level;
+				readByte(lebuf, count, level);	// weapon level
+				if (me >= 0)
+					fx.player[me].weapon = level;
+				break;
+			}
+
+			case data_map_change: {
+				map_ready = false;	// map NOT ready anymore: must load/change
+				want_map_exit = false;		// and player does not want to exit the map anymore
+				fx.teams[0].remove_flags();
+				fx.teams[1].remove_flags();
+				fx.wild_flags.clear();
+				NLushort crc;
+				readShort(lebuf, count, crc);
+				string mapname;
+				readStr(lebuf, count, mapname);
+				NLubyte map_nr;
+				readByte(lebuf, count, map_nr);
+				current_map = map_nr;
+				if (map_vote == current_map)
+					map_vote = -1;
+				fx.player[me].oldx = -1;
+				fx.player[me].oldy = -1;
+				addThreadMessage(new TM_MapChange(mapname, crc));
+				break;
+			}
+
+			case data_world_reset:
+				for (int iid = 0; iid < MAX_PICKUPS; ++iid)
+					fx.item[iid].kind = Powerup::pup_unused;
+				break;
+
+			case data_gameover_show: {
+				NLubyte plaque;
+				readByte(lebuf, count, plaque);
+				if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
+					NLubyte score;
+					readByte(lebuf, count, score);	//RED team final score
+					red_final_score = score;
+					readByte(lebuf, count, score);  //BLUE team final score
+					blue_final_score = score;
 					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-						pi->stats().clear();
+						pi->stats().finish_stats(get_time());
+					if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
+						menusel = menu_teams;
+						stats_autoshowing = true;
+					}
+					if (gameover_plaque == NEXTMAP_NONE && menu.options.game.saveStats())
+						fx.save_stats("client_stats", old_map);
+					gameover_plaque = plaque;
+				}
+				else {
+					gameover_plaque = NEXTMAP_NONE;
 					if (stats_autoshowing) {
 						menusel = menu_none;
 						stats_autoshowing = false;
 					}
-					break;
-
-				case data_deathbringer: {
-					NLubyte pid;
-					NLulong frameno;
-					NLubyte sx, sy;
-					readByte(lebuf, count, pid);	//what player
-					readLong(lebuf, count, frameno);		// start time
-					//spawn clientside fx at the owner's position
-					//V0.4.6: sending explicitly the screen/coord of the shot
-					readByte(lebuf, count, sx);
-					readByte(lebuf, count, sy);
-					NLushort hx, hy;
-					readShort(lebuf, count, hx);
-					readShort(lebuf, count, hy);
-					client_graphics.queue_deathbringer(pid/TSIZE, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
-					client_sounds.play(SAMPLE_USEDEATHBRINGER);
-					break;
 				}
+				break;
+			}
 
-				case data_file_download: {
-					NLubyte last;
-					NLushort chunkSize;
-					readShort(lebuf, count, chunkSize);		//chunk size
-					readByte(lebuf, count, last);		//"last chunk"?
-					process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
-					break;
+			case data_start_game:
+				gameover_plaque = NEXTMAP_NONE;		//hide
+				fx.teams[0].clear_stats();
+				fx.teams[1].clear_stats();
+				for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+					pi->stats().clear();
+				if (stats_autoshowing) {
+					menusel = menu_none;
+					stats_autoshowing = false;
 				}
+				break;
 
-				case data_registration_response: {
-					NLubyte response;
-					readByte(lebuf, count, response);
-					if (response == 1)	// success
-						tournamentPassword.serverAcceptsToken();
-					else
-						tournamentPassword.serverRejectsToken();
-					break;
-				}
+			case data_deathbringer: {
+				NLubyte pid;
+				NLulong frameno;
+				NLubyte sx, sy;
+				readByte(lebuf, count, pid);
+				readLong(lebuf, count, frameno);	// creation frame
+				readByte(lebuf, count, sx);
+				readByte(lebuf, count, sy);
+				NLushort hx, hy;
+				readShort(lebuf, count, hx);
+				readShort(lebuf, count, hy);
+				addThreadMessage(new TM_Deathbringer(pid / TSIZE, get_time() + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
+				addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
+				break;
+			}
 
-				case data_crap_update: {
-					NLubyte pid, color, regStatus;
-					NLulong prank, pscore, nscore;
-					readByte(lebuf, count, pid);
-					readByte(lebuf, count, color);
-					readByte(lebuf, count, regStatus);
-					readLong(lebuf, count, prank);		//ranking#
-					readLong(lebuf, count, pscore);		//score
-					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
-					readLong(lebuf, count, max_world_rank);		//world players count
-					if (color < MAX_PLAYERS / 2)
-						fx.player[pid].set_color(color);
-					else
-						log("Invalid colour (%d) for player %d.", color, pid);
-					ClientLoginStatus ls;
-					ls.fromNetwork(regStatus);
-					if (pid == me && fx.player[pid].reg_status != ls) {
-						ostringstream msg;
-						msg << "Status: ";	// 8
-						if (ls.token()) {
-							if (ls.masterAuth()) {
-								msg << "master authorized, ";
-								if (!ls.tournament())
-									msg << "not ";
-								msg << "recording";
-							}
-							else {
-								msg << "master auth pending, will ";	// + 26 = 34
-								if (!ls.tournament())
-									msg << "not ";	// + 4 = 38
-								msg << "record";	// + 6 = 44
-							}
+			case data_file_download: {
+				NLubyte last;
+				NLushort chunkSize;
+				readShort(lebuf, count, chunkSize);		//chunk size
+				readByte(lebuf, count, last);		//"last chunk"?
+				process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
+				break;
+			}
+
+			case data_registration_response: {
+				NLubyte response;
+				readByte(lebuf, count, response);
+				if (response == 1)	// success
+					tournamentPassword.serverAcceptsToken();
+				else
+					tournamentPassword.serverRejectsToken();
+				break;
+			}
+
+			case data_crap_update: {
+				NLubyte pid, color, regStatus;
+				NLulong prank, pscore, nscore;
+				readByte(lebuf, count, pid);
+				readByte(lebuf, count, color);
+				readByte(lebuf, count, regStatus);
+				readLong(lebuf, count, prank);		//ranking#
+				readLong(lebuf, count, pscore);		//score
+				readLong(lebuf, count, nscore);		//score	NEG v0.4.8
+				readLong(lebuf, count, max_world_rank);		//world players count
+				if (color < MAX_PLAYERS / 2)
+					fx.player[pid].set_color(color);
+				else
+					log("Invalid colour (%d) for player %d.", color, pid);
+				ClientLoginStatus ls;
+				ls.fromNetwork(regStatus);
+				if (pid == me && fx.player[pid].reg_status != ls) {
+					ostringstream msg;
+					msg << "Status: ";	// 8
+					if (ls.token()) {
+						if (ls.masterAuth()) {
+							msg << "master authorized, ";
+							if (!ls.tournament())
+								msg << "not ";
+							msg << "recording";
 						}
-						else
-							msg << "no tournament login";
-						if (ls.localAuth())
-							msg << "; locally authorized";	// + 20 = 64
-						if (ls.admin())
-							msg << "; administrator";	// + 15 = 79 (maximum length)
-						print_message(msg_info, msg.str());
+						else {
+							msg << "master auth pending, will ";	// + 26 = 34
+							if (!ls.tournament())
+								msg << "not ";	// + 4 = 38
+							msg << "record";	// + 6 = 44
+						}
 					}
-					fx.player[pid].reg_status = ls;
-					fx.player[pid].rank = static_cast<int>(prank);
-					fx.player[pid].score = static_cast<int>(pscore);
-					fx.player[pid].neg_score = static_cast<int>(nscore);
-					// update new team powers
-					float power[2] = { 0, 0 };
-					for (int i = 0; i < fx.maxplayers; i++)
-						if (fx.player[i].used)
-							power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
-					for (int t = 0; t < 2; t++)
-						fx.teams[t].set_power(power[t]);
-					break;
+					else
+						msg << "no tournament login";
+					if (ls.localAuth())
+						msg << "; locally authorized";	// + 20 = 64
+					if (ls.admin())
+						msg << "; administrator";	// + 15 = 79 (maximum length)
+					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
+				fx.player[pid].reg_status = ls;
+				fx.player[pid].rank = static_cast<int>(prank);
+				fx.player[pid].score = static_cast<int>(pscore);
+				fx.player[pid].neg_score = static_cast<int>(nscore);
+				// update new team powers
+				float power[2] = { 0, 0 };
+				for (int i = 0; i < fx.maxplayers; i++)
+					if (fx.player[i].used)
+						power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
+				for (int t = 0; t < 2; t++)
+					fx.teams[t].set_power(power[t]);
+				break;
+			}
 
-				case data_map_time: {
-					int current_time, time_left;
-					readLong(lebuf, count, current_time);
-					readLong(lebuf, count, time_left);
-					map_start_time = static_cast<int>(get_time()) - current_time;
-					if (time_left >= 0) {
-						map_end_time = static_cast<int>(get_time()) + time_left;
-						map_time_limit = true;
-					}
-					if (LOG_MESSAGE_TRAFFIC)
-						log("Map time received. Time left %d seconds.", time_left);
-					break;
+			case data_map_time: {
+				int current_time, time_left;
+				readLong(lebuf, count, current_time);
+				readLong(lebuf, count, time_left);
+				map_start_time = static_cast<int>(get_time()) - current_time;
+				if (time_left >= 0) {
+					map_end_time = static_cast<int>(get_time()) + time_left;
+					map_time_limit = true;
 				}
+				if (LOG_MESSAGE_TRAFFIC)
+					log("Map time received. Time left %d seconds.", time_left);
+				break;
+			}
 
-				case data_map_list: {
-					NLubyte width, height, votes;
-					MapInfo mapinfo;
-					readStr(lebuf, count, mapinfo.title);
-					readStr(lebuf, count, mapinfo.author);
-					readByte(lebuf, count, width);
-					readByte(lebuf, count, height);
+			case data_map_list: {
+				NLubyte width, height, votes;
+				MapInfo mapinfo;
+				readStr(lebuf, count, mapinfo.title);
+				readStr(lebuf, count, mapinfo.author);
+				readByte(lebuf, count, width);
+				readByte(lebuf, count, height);
+				readByte(lebuf, count, votes);
+				mapinfo.width = width;
+				mapinfo.height = height;
+				mapinfo.votes = votes;
+				MutexLock ml(mapInfoMutex);
+				maps.push_back(mapinfo);
+				break;
+			}
+
+			case data_map_votes_update: {
+				NLbyte total, map_nr, votes;
+				readByte(lebuf, count, total);
+				MutexLock ml(mapInfoMutex);
+				for (int i = 0; i < total; i++) {
+					readByte(lebuf, count, map_nr);
 					readByte(lebuf, count, votes);
-					mapinfo.width = width;
-					mapinfo.height = height;
-					mapinfo.votes = votes;
-					MutexLock ml(mapInfoMutex);
-					maps.push_back(mapinfo);
-					break;
+					if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
+						maps[map_nr].votes = votes;
 				}
+				break;
+			}
 
-				case data_map_votes_update: {
-					NLbyte total, map_nr, votes;
-					readByte(lebuf, count, total);
-					MutexLock ml(mapInfoMutex);
-					for (int i = 0; i < total; i++) {
-						readByte(lebuf, count, map_nr);
-						readByte(lebuf, count, votes);
-						if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
-							maps[map_nr].votes = votes;
-					}
-					break;
+			case data_capture: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_capture(get_time());
+				fx.teams[pid / TSIZE].add_score(get_time() - map_start_time, fx.player[pid].name);
+				break;
+			}
+
+			case data_kill: {
+				NLubyte attacker, target;
+				readByte(lebuf, count, attacker);
+				readByte(lebuf, count, target);
+				const bool deathbringer = attacker & 0x80;
+				attacker &= ~0x80;
+				const bool flag = target & 0x80;
+				target &= ~0x80;
+				if (fx.player[target].stats().current_cons_kills() >= 10) {
+					ostringstream msg;
+					msg << fx.player[target].name.c_str() << "'s killing spree was ended by " << fx.player[attacker].name.c_str() << '.';
+					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
-
-				case data_capture: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
-					fx.player[pid].stats().add_capture(get_time());
-					fx.teams[pid / TSIZE].add_score(get_time() - map_start_time, fx.player[pid].name);
-					break;
+				fx.player[attacker].stats().add_kill(deathbringer);
+				fx.teams[attacker / TSIZE].add_kill();
+				fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
+				fx.teams[target / TSIZE].add_death();
+				if (flag) {
+					fx.player[attacker].stats().add_carrier_kill();
+					fx.player[target].stats().add_flag_drop(get_time());
+					fx.teams[target / TSIZE].add_flag_drop();
 				}
-
-				case data_kill: {
-					NLubyte attacker, target;
-					readByte(lebuf, count, attacker);
-					readByte(lebuf, count, target);
-					const bool deathbringer = attacker & 0x80;
-					attacker &= ~0x80;
-					const bool flag = target & 0x80;
-					target &= ~0x80;
-					if (fx.player[target].stats().current_cons_kills() >= 10) {
-						ostringstream msg;
-						msg << fx.player[target].name.c_str() << "'s killing spree was ended by " << fx.player[attacker].name.c_str() << '.';
-						print_message(msg_info, msg.str());
-					}
-					fx.player[attacker].stats().add_kill(deathbringer);
-					fx.teams[attacker / TSIZE].add_kill();
-					fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
-					fx.teams[target / TSIZE].add_death();
-					if (flag) {
-						fx.player[attacker].stats().add_carrier_kill();
-						fx.player[target].stats().add_flag_drop(get_time());
-						fx.teams[target / TSIZE].add_flag_drop();
-					}
-					if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
-						if (attacker == me)
-							client_sounds.play(SAMPLE_KILLING_SPREE);
-						ostringstream msg;
-						msg << fx.player[attacker].name.c_str() << " is on a killing spree!";
-						print_message(msg_info, msg.str());
-					}
-					break;
+				if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
+					if (attacker == me)
+						addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
+					ostringstream msg;
+					msg << fx.player[attacker].name.c_str() << " is on a killing spree!";
+					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
+				break;
+			}
 
-				case data_flag_take: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
-					fx.player[pid].stats().add_flag_take(get_time());
-					fx.teams[pid / TSIZE].add_flag_take();
-					break;
+			case data_flag_take: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_flag_take(get_time());
+				fx.teams[pid / TSIZE].add_flag_take();
+				break;
+			}
+
+			case data_flag_return: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_flag_return();
+				fx.teams[pid / TSIZE].add_flag_return();
+				break;
+			}
+
+			case data_flag_drop: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_flag_drop(get_time());
+				fx.teams[pid / TSIZE].add_flag_drop();
+				break;
+			}
+
+			case data_suicide: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				const bool flag = pid & 0x80;
+				pid &= ~0x80;
+				if (fx.player[pid].stats().current_cons_kills() >= 10) {
+					ostringstream msg;
+					msg << fx.player[pid].name.c_str() << "'s killing spree was ended.";
+					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
-
-				case data_flag_return: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
-					fx.player[pid].stats().add_flag_return();
-					fx.teams[pid / TSIZE].add_flag_return();
-					break;
-				}
-
-				case data_flag_drop: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
+				fx.teams[pid / TSIZE].add_suicide();
+				if (flag) {
 					fx.player[pid].stats().add_flag_drop(get_time());
 					fx.teams[pid / TSIZE].add_flag_drop();
-					break;
 				}
+				break;
+			}
 
-				case data_suicide: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
-					const bool flag = pid & 0x80;
-					pid &= ~0x80;
-					if (fx.player[pid].stats().current_cons_kills() >= 10) {
-						ostringstream msg;
-						msg << fx.player[pid].name.c_str() << "'s killing spree was ended.";
-						print_message(msg_info, msg.str());
-					}
-					fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
-					fx.teams[pid / TSIZE].add_suicide();
-					if (flag) {
-						fx.player[pid].stats().add_flag_drop(get_time());
-						fx.teams[pid / TSIZE].add_flag_drop();
-					}
-					break;
-				}
+			case data_new_player: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().clear();
+				fx.player[pid].stats().set_start_time(get_time());
+				fx.player[pid].stats().set_lifetime(0);
+			}
 
-				case data_new_player: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
-					fx.player[pid].stats().clear();
-					fx.player[pid].stats().set_start_time(get_time());
-					fx.player[pid].stats().set_lifetime(0);
-				}
+			case data_spawn: {
+				NLubyte pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().set_spawn_time(get_time());
+				break;
+			}
 
-				case data_spawn: {
-					NLubyte pid;
-					readByte(lebuf, count, pid);
-					fx.player[pid].stats().set_spawn_time(get_time());
-					break;
-				}
-
-				case data_team_movements_shots: {
-					for (int i = 0; i < 2; i++) {
-						NLlong movement;
-						readLong(lebuf, count, movement);
-						fx.teams[i].set_movement(movement);
-						NLshort data;
-						readShort(lebuf, count, data);
-						fx.teams[i].set_shots(data);
-						readShort(lebuf, count, data);
-						fx.teams[i].set_hits(data);
-						readShort(lebuf, count, data);
-						fx.teams[i].set_shots_taken(data);
-					}
-					break;
-				}
-
-				case data_team_stats: {
-					for (int i = 0; i < 2; i++) {
-						NLubyte data;
-						readByte(lebuf, count, data);
-						fx.teams[i].set_kills(data);
-						readByte(lebuf, count, data);
-						fx.teams[i].set_deaths(data);
-						readByte(lebuf, count, data);
-						fx.teams[i].set_suicides(data);
-						readByte(lebuf, count, data);
-						fx.teams[i].set_flags_taken(data);
-						readByte(lebuf, count, data);
-						fx.teams[i].set_flags_dropped(data);
-						readByte(lebuf, count, data);
-						fx.teams[i].set_flags_returned(data);
-					}
-					break;
-				}
-
-				case data_movements_shots: {
-					NLubyte id;
-					readByte(lebuf, count, id);
-					// todo: check id
+			case data_team_movements_shots: {
+				for (int i = 0; i < 2; i++) {
 					NLlong movement;
 					readLong(lebuf, count, movement);
-					fx.player[id].stats().set_movement(movement);
-					fx.player[id].stats().save_speed(get_time());
+					fx.teams[i].set_movement(movement);
 					NLshort data;
 					readShort(lebuf, count, data);
-					fx.player[id].stats().set_shots(data);
+					fx.teams[i].set_shots(data);
 					readShort(lebuf, count, data);
-					fx.player[id].stats().set_hits(data);
+					fx.teams[i].set_hits(data);
 					readShort(lebuf, count, data);
-					fx.player[id].stats().set_shots_taken(data);
-					break;
+					fx.teams[i].set_shots_taken(data);
 				}
-
-				case data_stats: {
-					NLubyte id;
-					readByte(lebuf, count, id);
-					const bool flag = (id & 0x80);
-					id &= ~0x80;
-					// todo: check id
-					Statistics& stats = fx.player[id].stats();
-					if (flag)
-						stats.add_flag_take(get_time());
-					NLubyte data;
-					readByte(lebuf, count, data);
-					stats.set_kills(data);
-					readByte(lebuf, count, data);
-					stats.set_deaths(data);
-					readByte(lebuf, count, data);
-					stats.set_cons_kills(data);
-					readByte(lebuf, count, data);
-					stats.set_current_cons_kills(data);
-					readByte(lebuf, count, data);
-					stats.set_cons_deaths(data);
-					readByte(lebuf, count, data);
-					stats.set_current_cons_deaths(data);
-					readByte(lebuf, count, data);
-					stats.set_suicides(data);
-					readByte(lebuf, count, data);
-					stats.set_captures(data);
-					readByte(lebuf, count, data);
-					stats.set_flags_taken(data);
-					readByte(lebuf, count, data);
-					stats.set_flags_dropped(data);
-					readByte(lebuf, count, data);
-					stats.set_flags_returned(data);
-					readByte(lebuf, count, data);
-					stats.set_carriers_killed(data);
-					int ldata;
-					readLong(lebuf, count, ldata);
-					stats.set_start_time(get_time() - ldata);
-					readLong(lebuf, count, ldata);
-					stats.set_lifetime(ldata);
-					readLong(lebuf, count, ldata);
-					stats.set_flag_carrying_time(ldata);
-					break;
-				}
-
-				case data_name_authorization_request: {
-					m_playerPassword.setup(playername, false);
-					showMenu(m_playerPassword);
-					break;
-				}
-
-				case data_server_settings: {
-					m_serverInfo.menu.setCaption(hostname);
-
-					NLubyte data;
-					ostringstream caption;
-					ostringstream value;
-					const int width = 22;
-
-					readByte(lebuf, count, data);
-					caption << setw(width) << "Capture limit: ";
-					if (data == 0)
-						value << "none";
-					else
-						value << static_cast<int>(data);
-					m_serverInfo.addLine(caption.str(), value.str());
-					caption.str(""); value.str("");
-
-					readByte(lebuf, count, data);
-					caption << setw(width) << "Time limit: ";
-					if (data == 0)
-						value << "none";
-					else
-						value << static_cast<int>(data) << " min";
-					m_serverInfo.addLine(caption.str(), value.str());
-					caption.str(""); value.str("");
-
-					readByte(lebuf, count, data);
-					caption << setw(width) << "Extra time: ";
-					if (data == 0)
-						value << "none";
-					else
-						value << static_cast<int>(data) << " min";
-					m_serverInfo.addLine(caption.str(), value.str());
-					caption.str(""); value.str("");
-
-					caption << setw(width) << "Player collisions: ";
-					value << (fx.physics.player_collisions ? "on" : "off");
-					m_serverInfo.addLine(caption.str(), value.str());
-					caption.str(""); value.str("");
-
-					caption << setw(width) << "Friendly fire: ";
-					value << (fx.physics.friendly_fire ? "on" : "off");
-					m_serverInfo.addLine(caption.str(), value.str());
-					caption.str(""); value.str("");
-
-					readByte(lebuf, count, data);
-					const string caps[] = { "Balance teams", "Drop power-ups", "Invisible shadow", "Switch deathbringer" };
-					int i;
-					for (i = 0; i < 4; i++) {
-						caption << setw(width - 2) << caps[i] << ": ";
-						value << ((data & (1 << i)) ? "on" : "off");
-						m_serverInfo.addLine(caption.str(), value.str());
-						caption.str(""); value.str("");
-					}
-					caption << setw(width) << "Maximum weapon level: ";
-					value << (data >> i) + 1;
-					m_serverInfo.addLine(caption.str(), value.str());
-
-					if (menu.options.game.showServerInfo())
-						showMenu(m_serverInfo);
-					break;
-				}
-
-				default:
-					if (code < data_reserved_range_first || code > data_reserved_range_last) {
-						log.error("Server sent an unknown message code: %i, length %i", code, msglen);
-						disconnectQueued = true;
-						return;	// don't process the rest of the messages
-					}
-					// just ignore commands in reserved range: they're probably some extension we don't have to care about
-					break;
+				break;
 			}
+
+			case data_team_stats: {
+				for (int i = 0; i < 2; i++) {
+					NLubyte data;
+					readByte(lebuf, count, data);
+					fx.teams[i].set_kills(data);
+					readByte(lebuf, count, data);
+					fx.teams[i].set_deaths(data);
+					readByte(lebuf, count, data);
+					fx.teams[i].set_suicides(data);
+					readByte(lebuf, count, data);
+					fx.teams[i].set_flags_taken(data);
+					readByte(lebuf, count, data);
+					fx.teams[i].set_flags_dropped(data);
+					readByte(lebuf, count, data);
+					fx.teams[i].set_flags_returned(data);
+				}
+				break;
+			}
+
+			case data_movements_shots: {
+				NLubyte id;
+				readByte(lebuf, count, id);
+				// todo: check id
+				NLlong movement;
+				readLong(lebuf, count, movement);
+				fx.player[id].stats().set_movement(movement);
+				fx.player[id].stats().save_speed(get_time());
+				NLshort data;
+				readShort(lebuf, count, data);
+				fx.player[id].stats().set_shots(data);
+				readShort(lebuf, count, data);
+				fx.player[id].stats().set_hits(data);
+				readShort(lebuf, count, data);
+				fx.player[id].stats().set_shots_taken(data);
+				break;
+			}
+
+			case data_stats: {
+				NLubyte id;
+				readByte(lebuf, count, id);
+				const bool flag = (id & 0x80);
+				id &= ~0x80;
+				// todo: check id
+				Statistics& stats = fx.player[id].stats();
+				if (flag)
+					stats.add_flag_take(get_time());
+				NLubyte data;
+				readByte(lebuf, count, data);
+				stats.set_kills(data);
+				readByte(lebuf, count, data);
+				stats.set_deaths(data);
+				readByte(lebuf, count, data);
+				stats.set_cons_kills(data);
+				readByte(lebuf, count, data);
+				stats.set_current_cons_kills(data);
+				readByte(lebuf, count, data);
+				stats.set_cons_deaths(data);
+				readByte(lebuf, count, data);
+				stats.set_current_cons_deaths(data);
+				readByte(lebuf, count, data);
+				stats.set_suicides(data);
+				readByte(lebuf, count, data);
+				stats.set_captures(data);
+				readByte(lebuf, count, data);
+				stats.set_flags_taken(data);
+				readByte(lebuf, count, data);
+				stats.set_flags_dropped(data);
+				readByte(lebuf, count, data);
+				stats.set_flags_returned(data);
+				readByte(lebuf, count, data);
+				stats.set_carriers_killed(data);
+				int ldata;
+				readLong(lebuf, count, ldata);
+				stats.set_start_time(get_time() - ldata);
+				readLong(lebuf, count, ldata);
+				stats.set_lifetime(ldata);
+				readLong(lebuf, count, ldata);
+				stats.set_flag_carrying_time(ldata);
+				break;
+			}
+
+			case data_name_authorization_request: {
+				addThreadMessage(new TM_NameAuthorizationRequest());
+				break;
+			}
+
+			case data_server_settings: {
+				NLubyte caplimit, timelimit, extratime, misc1;
+				readByte(lebuf, count, caplimit);
+				readByte(lebuf, count, timelimit);
+				readByte(lebuf, count, extratime);
+				readByte(lebuf, count, misc1);
+				addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1));
+				break;
+			}
+
+			default:
+				if (code < data_reserved_range_first || code > data_reserved_range_last) {
+					log.error("Server sent an unknown message code: %i, length %i", code, msglen);
+					addThreadMessage(new TM_DoDisconnect());
+					return;	// don't process the rest of the messages
+				}
+				// just ignore commands in reserved range: they're probably some extension we don't have to care about
+				break;
 		}
-	} while (msg != 0);
+	}
 
 	//detect screen changes / clear powerup fx's
 	if (me >= 0 && (fx.player[me].roomx != fx.player[me].oldx) || (fx.player[me].roomy != fx.player[me].oldy)) {
-		for (int j=0;j<MAX_PICKUPS;j++)
-			if (fx.item[j].px==fx.player[me].oldx && fx.item[j].py==fx.player[me].oldy)
+		for (int j = 0; j < MAX_PICKUPS; j++)
+			if (fx.item[j].px == fx.player[me].oldx && fx.item[j].py == fx.player[me].oldy)
 				fx.item[j].kind = Powerup::pup_unused;	// erase
 
-		//set new old's
 		fx.player[me].oldx = fx.player[me].roomx;
 		fx.player[me].oldy = fx.player[me].roomy;
 
@@ -2363,11 +2465,12 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 	}
 
 	// mark those that got no responses
-	serverListMutex.lock();
-	for (int i = 0; i < nServers; i++)
-		if (tempd[i].received() == 0)
-			gamespy[i].noresponse = true;
-	serverListMutex.unlock();
+	{
+		MutexLock ml(serverListMutex);
+		for (int i = 0; i < nServers; i++)
+			if (tempd[i].received() == 0)
+				gamespy[i].noresponse = true;
+	}
 
 	nlClose(sock);
 	return true;
@@ -2497,11 +2600,6 @@ void Client::loop(volatile bool* quitFlag) {
 			if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
 				quitCommand = true;
 				break;
-			}
-
-			if (disconnectQueued) {
-				disconnectQueued = false;	// might lose a value very rarely; that should not be an extreme disaster
-				disconnect_command();
 			}
 
 			// menu keypresses; ESC is dealt with elsewhere
@@ -2805,6 +2903,17 @@ void Client::loop(volatile bool* quitFlag) {
 			else
 				kesc = false;
 
+			// process messages from network that have been collected
+			{
+				MutexLock ml(frameMutex);
+				while (!messageQueue.empty()) {
+					ThreadMessage* msg = messageQueue.front();
+					messageQueue.pop_front();
+					msg->execute(this);
+					delete msg;
+				}
+			}
+
 			if (time_counter >= nextSendFrame || time_counter >= nextClientFrameI)
 				break;
 
@@ -2837,7 +2946,7 @@ void Client::loop(volatile bool* quitFlag) {
 			nextClientFrameF = nextClientFrameI = time_counter;
 
 		if (gameshow) {
-			MutexLock ml(frame_mutex);
+			MutexLock ml(frameMutex);
 
 			ClientPhysicsCallbacks cb(*this);
 			if (menu.options.game.lagPrediction()) {
@@ -3880,30 +3989,10 @@ int Client::cfunc_connection_update(client_runes_t *arg) {
 }
 
 void Client::connection_update(client_runes_t *arg) {
-	int count;
-	char lebuf[256];
-
-	switch (arg->connect_result) {
-	case 0:
-		client_connected(arg->data, arg->length);
-		break;
-	case 1:
-		client_disconnected(arg->data, arg->length);
-		break;
-	case 2:
-		connect_failed_denied(arg->data, arg->length);
-		break;
-	case 3:
-		connect_failed_unreachable();
-		break;
-	case 4:
-		count = 0;
-		writeString(lebuf, count, "Server is full.");
-		connect_failed_denied(lebuf, count);
-		break;
-	default:
-		nAssert(0);
-	}
+	if (arg->connect_result < 3)
+		addThreadMessage(new TM_ConnectionUpdate(arg->connect_result, arg->data, arg->length));
+	else
+		addThreadMessage(new TM_ConnectionUpdate(arg->connect_result, 0, 0));
 }
 
 int Client::cfunc_server_data(client_runes_t *arg) {

@@ -168,8 +168,8 @@ public:
 	void create_smoke(int x, int y, int px, int py);
 	void create_deathcarrier(int x, int y, int px, int py);
 	void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
-	void queue_deathbringer(int team, double start_time, int x, int y, int px, int py);
-	void queue_gunexplo(int x, int y, int px, int py);
+	void create_deathbringer(int team, double start_time, int x, int y, int px, int py);
+	void create_gunexplo(int x, int y, int px, int py);
 
 	bool save_map_picture(const std::string& filename, const Map& map);
 
@@ -314,8 +314,7 @@ private:
 	int team_captures_size;
 	int team_captures_start;
 
-	std::list<GraphicsEffect> cfx, cfx_queue;
-	MutexHolder cfx_queue_mutex;
+	std::list<GraphicsEffect> cfx;
 
 	std::string theme_path;
 	std::string theme_name;
