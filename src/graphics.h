@@ -144,6 +144,7 @@ public:
 	void create_wallexplo(int x, int y, int px, int py);
 	void create_quadwallexplo(int x, int y, int px, int py);
 	void create_deathbringer(int owner, double start_time, int x, int y, int px, int py);
+	void create_smoke(int x, int y, int px, int py, int team);
 	void create_deathcarrier(int x, int y, int px, int py, int team);
 	void create_gunexplo(int x, int y, int px, int py);
 	void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
@@ -214,11 +215,11 @@ private:
 	BITMAP* get_floor_texture(int texid);
 	BITMAP* get_wall_texture(int texid);
 
-	void load_player_sprite(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
+	void load_player_sprites(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
 	void create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
 
-	void load_shield_sprite(const std::string& path);
-	void load_dead_sprite(const std::string& path);
+	void load_shield_sprites(const std::string& path);
+	void load_dead_sprites(const std::string& path);
 	void load_rocket_sprites(const std::string& path);
 	void load_pup_sprites(const std::string& path);
 
@@ -228,6 +229,7 @@ private:
 	void unload_floor_textures();
 	void unload_wall_textures();
 	void unload_player_sprites();
+	void unload_shield_sprites();
 	void unload_dead_sprites();
 	void unload_rocket_sprites();
 	void unload_pup_sprites();
@@ -264,12 +266,15 @@ private:
 
 	std::vector<BITMAP*> floor_texture;
 	std::vector<BITMAP*> wall_texture;
-	std::vector<BITMAP*> player_sprite[2];
 	BITMAP* player_sprite_power;
-	BITMAP* player_shield_sprite;
+
+	// Team specific sprites
+	std::vector<BITMAP*> player_sprite[2];
+	BITMAP* shield_sprite[2];
 	BITMAP* dead_sprite[2];
 	BITMAP* rocket_sprite[2];
 	BITMAP* power_rocket_sprite[2];
+
 	std::vector<BITMAP*> pup_sprite;
 
 	int map_list_size;

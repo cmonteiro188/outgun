@@ -54,7 +54,6 @@ Graphics::Graphics(LogSet logs):
 	show_scoreboard(true),
 	show_minimap(true),
 	player_sprite_power(0),
-	player_shield_sprite(0),
 	map_list_size(27),
 	map_list_start(0),
 	team_captures_size(16),
@@ -99,6 +98,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	wall_texture.resize(1, 0);
 	for (int t = 0; t < 2; t++) {
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
+		shield_sprite[t] = 0;
 		dead_sprite[t] = 0;
 		rocket_sprite[t] = 0;
 		power_rocket_sprite[t] = 0;
@@ -109,9 +109,9 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	background = create_bitmap(SCREEN_W, SCREEN_H);
 	nAssert(background);
 	roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
-	minimap_w = minimap_place_w = scale(160);
+	minimap_w = minimap_place_w = SCREEN_W - roombg->w;	// scale(160)
 	minimap_h = minimap_place_h = scale(100);
-	mmx = SCREEN_W - minimap_w - 4;
+	mmx = SCREEN_W - minimap_w;
 	if (mmx > 8 * 80)	// check if minimap fits to the right of chat messages
 		mmy = 2;
 	else
@@ -205,13 +205,15 @@ void Graphics::setColors() {
 	//teams 0 & 1 (playernum(0..15) / 8) colors:
 	teamcol[0] = col[COLRED];
 	teamcol[1] = col[COLBLUE];
+
+	// wild flag colour
 	teamcol[2] = col[COLGREEN];
 
 	//light colours for text
 	teamlcol[0] = col[COLLRED];
 	teamlcol[1] = col[COLLBLUE];
 
-	//light colours for team text bg
+	// dark colours for team text bg
 	teamdcol[0] = col[COLBRED];
 	teamdcol[1] = col[COLBBLUE];
 
@@ -261,7 +263,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 	if (mvec.empty())
 		log("No usable %d-bit DirectX fullscreen modes autodetected.", depth);
 	#endif
-	FileReader resFile("gfxmodes.txt");
+	FileReader resFile(wheregamedir + "config" + directory_separator + "gfxmodes.txt");
 	for (;;) {
 		string line = resFile.readLine();
 		if (line.empty())
@@ -277,7 +279,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 			break;
 		}
 		if (width < 640 || height < 400 || (bits != 16 && bits != 24 && bits != 32)) {
-			log.error("Unusable mode in gfxmodes.txt : %d×%d×%d (should be at least 640×480 with bits 16, 24 or 32)",
+			log.error("Unusable mode in gfxmodes.txt : %d×%d×%d (should be at least 640×400 with bits 16, 24 or 32)",
 							width, height, bits);
 			break;
 		}
@@ -661,14 +663,14 @@ void Graphics::update_minimap_background(const Map& map) {
 }
 
 void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) {
-	//black background
+	// black background
 	clear_to_color(buffer, 0);
 
 	if (map.w == 0 || map.h == 0)
 		return;
 
-	//calculate new minimap size (133×100 for maps with n×n rooms)
-	if (map.w > map.h) {
+	// Calculate new minimap size.
+	if (map.w * 4 * minimap_place_h > map.h * 3 * minimap_place_w) {
 		minimap_w = minimap_place_w;
 		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 2) * map.h * 3) / map.w / 4 + 2.);	// important not to round
 	}
@@ -880,21 +882,6 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 			pc2 = col[COLCYAN];
 		}
 	}
-	//draw the gun (direction facing)
-	int xg, yg;
-	switch (gundir) {
-		case 0: xg = 40; yg =  0; break;
-		case 1: xg = 28; yg = 28; break;
-		case 2: xg =  0; yg = 40; break;
-		case 3: xg =-28; yg = 28; break;
-		case 4: xg =-40; yg =  0; break;
-		case 5: xg =-28; yg =-28; break;
-		case 6: xg =  0; yg =-40; break;
-		case 7: xg = 28; yg =-28; break;
-		default: xg = 0; yg =  0; break;
-	}
-	xg = scale(xg * 0.7);
-	yg = scale(yg * 0.7);
 
 	if (alpha < 255) {
 		set_trans_blender(0, 0, 0, alpha);
@@ -903,7 +890,6 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 
 	const int player_radius = scale(PLAYER_RADIUS);
 
-#ifdef PATTERNED_PLAYER
 	BITMAP* sprite = 0;
 	if (item_quad && player_sprite_power && static_cast<int>(time * 10) % 2)
 		sprite = player_sprite_power;
@@ -911,11 +897,13 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		sprite = player_sprite[team][pli];
 	if (sprite) {
 		if (alpha < 255) {
-			BITMAP* buffer = create_bitmap(sprite->w, sprite->h);
+			const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
+			const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
+			BITMAP* buffer = create_bitmap(width, height);
 			nAssert(buffer);
 			const int transparent = bitmap_mask_color(drawbuf);
 			clear_to_color(buffer, transparent);
-			rotate_sprite(buffer, sprite, 0, 0, itofix(gundir * 32));
+			rotate_sprite(buffer, sprite, (buffer->w - sprite->w) / 2, (buffer->h - sprite->h) / 2, itofix(gundir * 32));
 			draw_trans_sprite(drawbuf, buffer, plx + x - buffer->w / 2, ply + y - buffer->h / 2);
 			destroy_bitmap(buffer);
 		}
@@ -923,34 +911,26 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 			rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(gundir * 32));
 	}
 	else {
-		const int r1 = getr(pc1);
-		const int g1 = getg(pc1);
-		const int b1 = getb(pc1);
-		const int r2 = getr(pc2);
-		const int g2 = getg(pc2);
-		const int b2 = getb(pc2);
-		for (int y1 = y - player_radius; y1 < y + player_radius; y1++)
-			for (int x1 = x - player_radius; x1 < x + player_radius; x1++) {
-				const int dx = x - x1;
-				const int dy = y - y1;
-				const float dist = sqrt(static_cast<float>(dx * dx + dy * dy));
-				if (dist > player_radius)
-					continue;
-				const int r = static_cast<int>((r2 * 255 * (player_radius - dist) / player_radius + r1 * 255 * dist / player_radius) / 255);
-				const int g = static_cast<int>((g2 * 255 * (player_radius - dist) / player_radius + g1 * 255 * dist / player_radius) / 255);
-				const int b = static_cast<int>((b2 * 255 * (player_radius - dist) / player_radius + b1 * 255 * dist / player_radius) / 255);
-				putpixel(drawbuf, plx + x1, ply + y1, makecol(r, g, b));
-			}
-	}
-#else
-	// outer color: team color
-	circlefill(drawbuf, plx + x, ply + y, player_radius, pc1);
-	// inner color: self color
-	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 2) / 3, pc2);
-#endif
-
-	// draw player's gun
-	if (!player_sprite[team][pli])
+		// outer color: team color
+		circlefill(drawbuf, plx + x, ply + y, player_radius, pc1);
+		// inner color: self color
+		circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 2) / 3, pc2);
+		// gun direction
+		int xg, yg;
+		switch (gundir) {
+			case 0: xg = 40; yg =  0; break;
+			case 1: xg = 28; yg = 28; break;
+			case 2: xg =  0; yg = 40; break;
+			case 3: xg =-28; yg = 28; break;
+			case 4: xg =-40; yg =  0; break;
+			case 5: xg =-28; yg =-28; break;
+			case 6: xg =  0; yg =-40; break;
+			case 7: xg = 28; yg =-28; break;
+			default: xg = 0; yg =  0; break;
+		}
+		xg = scale(xg * 0.7);
+		yg = scale(yg * 0.7);
+		// draw the gun
 		switch (gundir) {
 			case 0: case 4:
 				rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
@@ -969,6 +949,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 				line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 1, pc1);
 				break;
 		}
+	}
 
 	if (alpha < 255)
 		solid_mode();
@@ -998,7 +979,8 @@ void Graphics::draw_player_dead(const ClientPlayer& player) {
 	BITMAP* sprite = dead_sprite[player.team()];
 	if (sprite) {
 		set_alpha_blender();
-		draw_trans_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2);
+		rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(player.gundir * 32));
+		solid_mode();
 	}
 	else {
 		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -1098,18 +1080,24 @@ void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int directi
 	x = scale(x);
 	y = scale(y);
 	r = scale(r);
-	if (player_shield_sprite && (team == 0 || team == 1)) {
+	if ((team == 0 || team == 1) && shield_sprite[team]) {
+		BITMAP* sprite = shield_sprite[team];
 		if (alpha < 255) {
-			BITMAP* buffer = create_bitmap(player_shield_sprite->w, player_shield_sprite->h);
+			const int width  = direction % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
+			const int height = direction % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
+			BITMAP* buffer = create_bitmap(width, height);
 			nAssert(buffer);
 			const int transparent = bitmap_mask_color(drawbuf);
 			clear_to_color(buffer, transparent);
-			rotate_sprite(buffer, player_shield_sprite, 0, 0, itofix(direction * 32));
+			rotate_sprite(buffer, sprite, (buffer->w - sprite->w) / 2, (buffer->h - sprite->h) / 2, itofix(direction * 32));
+			drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+			set_trans_blender(0, 0, 0, alpha);
 			draw_trans_sprite(drawbuf, buffer, plx + x - buffer->w / 2, ply + y - buffer->h / 2);
+			solid_mode();
 			destroy_bitmap(buffer);
 		}
 		else
-			rotate_sprite(drawbuf, player_shield_sprite, plx + x - player_shield_sprite->w / 2, ply + y - player_shield_sprite->h / 2, itofix(direction * 32));
+			rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(direction * 32));
 		return;
 	}
 	const int v[] = { scale(3), scale(5), scale(9) };
@@ -1121,7 +1109,7 @@ void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int directi
 	else if (team == 1)
 		for (int i = 0, c = rand() % 256; i < 3; i++)
 			ellipse(drawbuf, plx + x, ply + y, r + rand() % v[i], r + rand() % v[i], makecol(c, c, 255));
-	else
+	else	// powerup lying on the ground
 		for (int i = 0; i < 3; i++)
 			ellipse(drawbuf, plx + x, ply + y, r + rand() % v[i], r + rand() % v[i], makecol(rand() % 256, rand() % 256, rand() % 256));
 	solid_mode();
@@ -1175,8 +1163,8 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 }
 
 void Graphics::draw_pup(const Powerup& pup, double time) {
-	nAssert(pup.kind > 0 && pup.kind <= static_cast<int>(pup_sprite.size()));
-	BITMAP* sprite = pup_sprite[pup.kind - 1];
+	nAssert(pup.kind >= 0 && pup.kind < static_cast<int>(pup_sprite.size()));
+	BITMAP* sprite = pup_sprite[pup.kind];
 	if (sprite)
 		masked_blit(sprite, drawbuf, 0, 0, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2, sprite->w, sprite->h);
 	else
@@ -1912,6 +1900,12 @@ void Graphics::create_deathbringer(int owner, double start_time, int x, int y, i
 	cfx.push_back(fx);
 }
 
+// Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
+void Graphics::create_smoke(int x, int y, int px, int py, int team) {
+	if (!pup_sprite[Powerup::pup_deathbringer])
+		create_deathcarrier(x, y, px, py, team);
+}
+
 //create deathbringer carrier trail fx
 void Graphics::create_deathcarrier(int x, int y, int px, int py, int team) {
 	clientfx_t fx;
@@ -2122,9 +2116,9 @@ void Graphics::load_pictures(const string& path) {
 		return;
 	load_floor_textures(path);
 	load_wall_textures(path);
-	load_player_sprite(path + "player.pcx", path + "team.pcx", path + "personal.pcx");
-	load_shield_sprite(path);
-	load_dead_sprite(path);
+	load_player_sprites(path + "player.pcx", path + "team.pcx", path + "personal.pcx");
+	load_shield_sprites(path);
+	load_dead_sprites(path);
 	load_rocket_sprites(path);
 	load_pup_sprites(path);
 }
@@ -2156,7 +2150,7 @@ BITMAP* Graphics::get_wall_texture(int texid) {
 		return wall_texture.front();
 }
 
-void Graphics::load_player_sprite(const string& filename_common, const string& filename_team, const string& filename_personal) {
+void Graphics::load_player_sprites(const string& filename_common, const string& filename_team, const string& filename_personal) {
 	unload_player_sprites();
 	// Load player images.
 	BITMAP* common_base = load_bitmap(filename_common.c_str(), NULL);
@@ -2212,13 +2206,23 @@ void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team
 		}
 }
 
-void Graphics::load_shield_sprite(const string& path) {
-	unload_bitmap(player_shield_sprite);
+void Graphics::load_shield_sprites(const string& path) {
+	unload_shield_sprites();
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
-	player_shield_sprite = scale_sprite(path + "player_shield.pcx", size, size);
+	BITMAP* picture = scale_sprite(path + "player_shield.pcx", size, size);
+	BITMAP* team = scale_sprite(path + "player_shield_team.pcx", size, size);
+	if (picture) {
+		for (int t = 0; t < 2; t++) {
+			shield_sprite[t] = create_bitmap_ex(32, size, size);
+			if (shield_sprite[t])
+				create_player_sprite(shield_sprite[t], picture, team, 0, teamcol[t], 0);
+		}
+	}
+	unload_bitmap(picture);
+	unload_bitmap(team);
 }
 
-void Graphics::load_dead_sprite(const string& path) {
+void Graphics::load_dead_sprites(const string& path) {
 	unload_dead_sprites();
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
 	BITMAP* picture = scale_sprite(path + "dead.pcx", size, size);
@@ -2275,23 +2279,24 @@ void Graphics::load_rocket_sprites(const string& path) {
 void Graphics::load_pup_sprites(const string& path) {
 	unload_pup_sprites();
 	const int size = scale(2 * PLAYER_RADIUS);
-	pup_sprite[Powerup::pup_shield - 1] = scale_sprite(path + "shield.pcx", size, size);
-	pup_sprite[Powerup::pup_turbo - 1] = scale_sprite(path + "turbo.pcx", size, size);
-	pup_sprite[Powerup::pup_shadow - 1] = scale_sprite(path + "shadow.pcx", size, size);
-	pup_sprite[Powerup::pup_power - 1] = scale_sprite(path + "power.pcx", size, size);
-	pup_sprite[Powerup::pup_weapon - 1] = scale_sprite(path + "weapon.pcx", size, size);
-	pup_sprite[Powerup::pup_health - 1] = scale_sprite(path + "health.pcx", size, size);
-	pup_sprite[Powerup::pup_deathbringer - 1] = scale_sprite(path + "deathbringer.pcx", size, size);
+	pup_sprite[Powerup::pup_shield] = scale_sprite(path + "shield.pcx", size, size);
+	pup_sprite[Powerup::pup_turbo] = scale_sprite(path + "turbo.pcx", size, size);
+	pup_sprite[Powerup::pup_shadow] = scale_sprite(path + "shadow.pcx", size, size);
+	pup_sprite[Powerup::pup_power] = scale_sprite(path + "power.pcx", size, size);
+	pup_sprite[Powerup::pup_weapon] = scale_sprite(path + "weapon.pcx", size, size);
+	pup_sprite[Powerup::pup_health] = scale_sprite(path + "health.pcx", size, size);
+	pup_sprite[Powerup::pup_deathbringer] = scale_sprite(path + "deathbringer.pcx", size, size);
 }
 
 BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) {
 	BITMAP* temp = load_bitmap(filename.c_str(), NULL);
 	if (!temp)
 		return 0;
-	BITMAP* target = create_bitmap(x, y);
+	BITMAP* target = create_bitmap_ex(bitmap_color_depth(temp), x, y);
 	nAssert(target);
 	clear_to_color(target, bitmap_mask_color(drawbuf));
 	stretch_sprite(target, temp, 0, 0, target->w, target->h);
+	destroy_bitmap(temp);
 	return target;
 }
 
@@ -2299,10 +2304,10 @@ void Graphics::unload_pictures() {
 	unload_floor_textures();
 	unload_wall_textures();
 	unload_player_sprites();
+	unload_shield_sprites();
 	unload_dead_sprites();
 	unload_rocket_sprites();
 	unload_pup_sprites();
-	unload_bitmap(player_shield_sprite);
 }
 
 void Graphics::unload_floor_textures() {
@@ -2320,6 +2325,11 @@ void Graphics::unload_player_sprites() {
 		for (vector<BITMAP*>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
 			unload_bitmap(*pl);
 	unload_bitmap(player_sprite_power);
+}
+
+void Graphics::unload_shield_sprites() {
+	for (int i = 0; i < 2; i++)
+		unload_bitmap(shield_sprite[i]);
 }
 
 void Graphics::unload_dead_sprites() {
@@ -2342,5 +2352,4 @@ void Graphics::unload_pup_sprites() {
 inline int Graphics::scale(double value) const {
 	return static_cast<int>(scr_mul * value + 0.5);
 }
-
 

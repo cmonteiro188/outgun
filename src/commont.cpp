@@ -134,8 +134,7 @@ istream& getline_smart(istream& in, string& str) {
 }
 
 FileReader::FileReader(const string& filename) {
-	string s = wheregamedir + filename;
-	file.open(s.c_str());
+	file.open(filename.c_str());
 }
 
 //#fix: some error handling?

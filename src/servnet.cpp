@@ -60,7 +60,7 @@ public:
 	}
 };
 
-ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs) : host(hostp), world(w), log(logs) {
+ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs) : host(hostp), world(w), log(logs), hostname("Anonymous host") {
 	server = 0;
 	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = 0;	// no meaning
@@ -722,16 +722,10 @@ bool ServerNetworking::start() {
 }
 
 //reload hostname
-void ServerNetworking::reload_hostname() {
-	FileReader fr("hostname.txt");
-	hostname = fr.readLine();
-	if (hostname.empty())
-		hostname = "Anonymous host";
-	else
-		log("Hostname is '%s'", hostname.c_str());
-
-	//update serverinfo
-	update_serverinfo();
+void ServerNetworking::set_hostname(const string& name) {
+	if (!hostname.empty())
+		hostname = name;
+	log("Hostname: %s", hostname.c_str());
 }
 
 //update serverinfo
@@ -989,7 +983,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 
 		const ClientControls& ctrl = pl.controls;
 		//if not strafing, update direction
-		if (!ctrl.isStrafe()) {
+		if (!ctrl.isStrafe() && !pl.dead) {
 			// left
 			if (ctrl.isLeft() && !ctrl.isRight()) {
 				if (ctrl.isUp() && !ctrl.isDown())	// + up
@@ -1982,7 +1976,7 @@ bool ServerNetworking::check_private_IP(const char *address) {
 void ServerNetworking::run_mastertalker_thread() {
 	log("run_mastertalker_thread()");
 
-	ifstream in("master.txt");
+	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string line;
 	string master_script;
 	if (!getline_smart(in, line) || !getline_smart(in, line) || !getline_smart(in, line) || !getline_smart(in, master_script))
@@ -2106,7 +2100,7 @@ void ServerNetworking::run_mastertalker_thread() {
 				master_talk_time = get_time() + 15.0;		// 15 seconds
 
 			// save response to a file
-			ofstream out("master.log");
+			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
 			save_http_response(msock, out);
 			out.close();
 
@@ -2171,7 +2165,7 @@ void ServerNetworking::run_mastertalker_thread() {
 	log("Result: %i", result);
 
 	// save response to a file
-	ofstream out("master.log");
+	ofstream out((wheregamedir + "config" + directory_separator + "master.log").c_str());
 	save_http_response(msock, out);
 	out.close();
 
@@ -2198,7 +2192,7 @@ void ServerNetworking::run_website_thread() {
 		address = addr;
 	}
 
-	const string web_settings("website.txt");
+	const string web_settings(wheregamedir + "config" + directory_separator + "website.txt");
 	// load web script location
 	ifstream in(web_settings.c_str());
 	if (!in) {
@@ -2299,7 +2293,7 @@ void ServerNetworking::run_website_thread() {
 				website_talk_time = get_time() + 15.0;		// 15 seconds
 
 			// save response to a file
-			ofstream out("web.log");
+			ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
 			save_http_response(websock, out);
 			out.close();
 
@@ -2353,7 +2347,7 @@ void ServerNetworking::run_website_thread() {
 	log("Result: %i", result);
 
 	// save response to a file
-	ofstream out("web.log");
+	ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
 	save_http_response(websock, out);
 	out.close();
 
@@ -2800,7 +2794,6 @@ void ServerNetworking::stop() {
 	file_threads_quit = true;	//quit stuff now
 
 	//close TCP connection with the server admin shell
-	//
 	server_status_string("Shutdown: MSHELL Thread");
 
 	log("GAMESERVER JOINING SHELL-MASTER THREAD...");

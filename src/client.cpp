@@ -117,9 +117,9 @@ bool gameclient_c::force_exit = false;
 const size_t gameclient_c::chat_size = 32;
 
 gameclient_c::gameclient_c(LogSet hostLogs):
-	normalLog("clientlog.txt", true),
+	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
-	securityLog(normalLog, "SECURITY WARNING: ", "client_securitylog.txt", false),
+	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
 	log(&normalLog, &errorLog, &securityLog),
 	listenServer(log),
 	current_map(-1),
@@ -127,7 +127,7 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	player_stats_page(0),
 	abortThreads(false),
 	refreshStatus(RS_none),
-	password_file("passwd.txt"),
+	password_file(wheregamedir + "config" + directory_separator + "passwd"),
 	client_graphics(log),
 	screenshot(false),
 	client_sounds(log)
@@ -264,7 +264,9 @@ bool gameclient_c::start() {
 	bool randomname = true;
 	client_graphics.select_theme("<no theme>");
 
-	fileName = wheregamedir + "clconfig.txt";
+	vector<int> fav_colors;
+
+	fileName = wheregamedir + "config" + directory_separator + "client.cfg";
 
 	ifstream cfg(fileName.c_str());
 	if (cfg) {
@@ -275,7 +277,6 @@ bool gameclient_c::start() {
 			randomname = false;
 			playername = line;
 		}
-		vector<int> fav_colors;
 		if (getline_smart(cfg, line)) {
 			istringstream ist(line);
 			int col;
@@ -283,11 +284,6 @@ bool gameclient_c::start() {
 				if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
 					fav_colors.push_back(col);
 		}
-		for (int i = 0; i < 16; i++)
-			if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
-				fav_colors.push_back(i);
-		for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
-			menu.options.game.favoriteColors.addOption(*col);
 
 		// read game menu settings
 		if (getline_smart(cfg, line))
@@ -316,7 +312,7 @@ bool gameclient_c::start() {
 			char nullc;
 			is >> nullc;
 			if (!ok || is || width < 640 || height < 480 || (depth != 16 && depth != 24 && depth != 32))
-				log("Bad screen mode in clconfig.txt");
+				log("Bad screen mode in client.cfg");
 			else {
 				nAssert(menu.options.graphics.colorDepth.set(depth));
 				menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
@@ -361,7 +357,7 @@ bool gameclient_c::start() {
 
 		cfg.close();
 	}
-	fileName = wheregamedir + "favorites.txt";
+	fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
 	ifstream fav(fileName.c_str());
 	if (fav) {
 		string addr;
@@ -381,12 +377,18 @@ bool gameclient_c::start() {
 		return false;
 	client_sounds.select_theme(menu.options.sounds.theme());
 
+	for (int i = 0; i < 16; i++)
+		if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
+			fav_colors.push_back(i);
+	for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
+		menu.options.game.favoriteColors.addOption(*col);
+
 	set_close_button_callback(gameclient_c::close_button_callback);
 
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
 	if (menu.options.game.messageLogging())
-		message_log.open("message.log", ios::app);
+		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	MCF_updateServers();
@@ -865,12 +867,10 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 
 //file download complete
 void gameclient_c::download_file_complete(download_runes_t  *r) {
-
 	log("download_file_complete '%s' '%s' '%s'", r->type, r->name, r->dest);
 
 	//map complete
 	if (!strcmp(r->type, "map")) {
-
 		//if expected map, change now
 		if (!strcmp(r->name, servermap)) {
 			bool ok = fd.load_map(log, CLIENT_MAPS_DIR, r->name) && fx.load_map(log, CLIENT_MAPS_DIR, r->name);	//#fix
@@ -895,7 +895,6 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 
 //start downloading a server file
 void gameclient_c::download_server_file(const char *type, const char *name, const char *dest) {
-
 	//new download request
 	download_runes_t	*rune = new download_runes_t();
 	strcpy(rune->type, type);
@@ -909,7 +908,6 @@ void gameclient_c::download_server_file(const char *type, const char *name, cons
 // client must attempt to load map from "cmaps" dir
 // if map file not there, or the CRC's don't match, ask to download the map from the server
 void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) {
-
 	log("CLIENT: server_map_command : '%s'", mapname);
 
 	strcpy(servermap, mapname);
@@ -934,7 +932,6 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 	// download map from server (ask file)
 	if (!ok || fx.map.crc != server_crc) {
-
 		char lix[256];
 		sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
 		print_message(msg_info, lix);
@@ -942,7 +939,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 		log("%s", lix);
 
 		// MAKE DOWNLOAD -- ASK FILE
-		string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + mapname + ".txt";
+		const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + mapname + ".txt";
 
 		//download server file -- opens new thread and TCP conection
 		download_server_file("map", mapname, fileName.c_str());
@@ -1938,12 +1935,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, iid);	//kind
 					readShort(lebuf, count, usho);	//amount of time
 					if (me >= 0) {
-						if (iid == 2)
-							fx.player[me].item_speed_time = get_time() + ((double)usho);
-						else if (iid == 3)
-							fx.player[me].item_helm_time = get_time() + ((double)usho);
-						else if (iid == 4)
-							fx.player[me].item_quad_time = get_time() + ((double)usho);
+						if (iid == Powerup::pup_turbo)
+							fx.player[me].item_speed_time = get_time() + usho;
+						else if (iid == Powerup::pup_shadow)
+							fx.player[me].item_helm_time = get_time() + usho;
+						else if (iid == Powerup::pup_power)
+							fx.player[me].item_quad_time = get_time() + usho;
 					}
 					break;
 
@@ -2291,12 +2288,11 @@ void gameclient_c::print_message(Message_type type, const string& msg) {
 }
 
 void gameclient_c::save_screenshot() {
-	// FIXME: make screenshots possible everywhere in the game
 	string filename;
 	for (int i = 0; i < 1000; i++) {
 		// filename: screens/outgxxx.pcx
 		ostringstream fname;
-		fname << "screens" << directory_separator;
+		fname << wheregamedir << "screens" << directory_separator;
 		fname << "outg" << setfill('0') << setw(3) << i << ".pcx";
 		if (!file_exists(fname.str().c_str(), FA_ARCH | FA_DIREC | FA_HIDDEN | FA_RDONLY | FA_SYSTEM, 0)) {
 			filename = fname.str();
@@ -2517,7 +2513,7 @@ bool gameclient_c::getServerList() {
 		return false;
 	}
 	
-	ifstream in("master.txt");
+	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string skip;
 	string master_script;
 	if (!getline_smart(in, skip) || !getline_smart(in, skip) || !getline_smart(in, master_script))
@@ -3065,7 +3061,7 @@ void gameclient_c::stop() {
 	}
 
 	//save configuration file
-	string fileName = wheregamedir + "clconfig.txt";
+	string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
 	ofstream cfg(fileName.c_str());
 	if (cfg) {
 		// save gameclient_c internal settings
@@ -3102,7 +3098,7 @@ void gameclient_c::stop() {
 
 		cfg.close();
 	}
-	fileName = wheregamedir + "favorites.txt";
+	fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
 	ofstream fav(fileName.c_str());
 	if (fav) {
 		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
@@ -3112,7 +3108,7 @@ void gameclient_c::stop() {
 
 	//save client's password
 	log("Saving password file...");
-	fileName = wheregamedir + "password.bin";
+	fileName = wheregamedir + "config" + directory_separator + "password.bin";
 	FILE *psf = fopen(fileName.c_str(), "wb");
 	if (psf) {
 		char cha;
@@ -3252,7 +3248,7 @@ void gameclient_c::draw_game_frame() {
 						fx.item[i].px == fx.player[me].roomx && fx.item[i].py == fx.player[me].roomy) {
 					client_graphics.draw_pup(fx.item[i], get_time());
 					if (fx.item[i].kind == Powerup::pup_deathbringer)
-						client_graphics.create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
+						client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
 							fx.item[i].px, fx.item[i].py, 0);
 				}
 
@@ -3852,7 +3848,7 @@ void gameclient_c::MCF_joystick() {
 void gameclient_c::MCF_messageLogging() {
 	if (menu.options.game.messageLogging()) {
 		message_log.clear();	// necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
-		message_log.open("message.log", ios::app);
+		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
 	}
 	else
 		message_log.close();

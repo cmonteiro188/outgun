@@ -35,9 +35,9 @@ using std::swap;
 using std::vector;
 
 gameserver_c::gameserver_c(LogSet hostLogs) :
-	normalLog("serverlog.txt", true),
+	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
-	securityLog(normalLog, "SECURITY WARNING: ", "server_securitylog.txt", false),
+	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
 	log(&normalLog, &errorLog, &securityLog),
 	world(this, &network, log),
 	network(this, world, log),
@@ -463,7 +463,7 @@ void gameserver_c::score_neg(int p, int amount) {
 void gameserver_c::load_game_mod() {
 	const int default_capture_limit = worldConfig.getCaptureLimit();
 
-	string filename = wheregamedir + "gamemod.txt";
+	string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
 	ifstream in(filename.c_str());
 	if (in) {
 		bool command = true;
@@ -611,6 +611,14 @@ void gameserver_c::load_game_mod() {
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
+				else if (cmd == "server_name")
+					network.set_hostname(line);
+				else if (cmd == "max_players") {
+					if (ival >= 2 && ival <= MAX_PLAYERS && ival % 2 == 0)
+						maxplayers = ival;
+					else
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
+				}
 				else if (cmd == "welcome_message")
 					welcome_message.push_back(line);
 				else if (cmd == "info_message")
@@ -725,7 +733,7 @@ void gameserver_c::load_game_mod() {
 			command = !command;
 		}
 
-		log("END OF GAME MOD FILE.");
+		log("Game mod file read.");
 
 		// game without capture and time limit is not allowed
 		if (worldConfig.getCaptureLimit() == 0 && worldConfig.getTimeLimit() == 0)
@@ -743,13 +751,12 @@ bool gameserver_c::load_rotation_map(int pos) {
 	bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
 	if (!ok)
 		return false;
-	log("load_rotation_map() maprot[%i] = '%s'", pos, maprot[pos].file.c_str());
+	log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
 	return true;
 }
 
 bool gameserver_c::server_next_map(int reason) {
-	//(re)load hostname
-	network.reload_hostname();
+	network.update_serverinfo();
 
 	nAssert(!maprot.empty());
 
@@ -915,7 +922,7 @@ bool gameserver_c::start(int target_maxplayers) {
 	authorizations.load();
 
 	// read the admins file
-	ifstream is("admins.txt");
+	ifstream is((wheregamedir + "config" + directory_separator + "admins.txt").c_str());
 	if (is) {
 		for (;;) {
 			string line;
@@ -938,7 +945,7 @@ bool gameserver_c::start(int target_maxplayers) {
 	if (target_maxplayers % 2 == 1)	//numero impar de jogadores
 		return false;
 
-	//set maxplayers
+	// Set maxplayers, could be reset by gamemod setting.
 	maxplayers = target_maxplayers;
 
 	//reset client_c struct (closes files...)
@@ -960,8 +967,7 @@ bool gameserver_c::start(int target_maxplayers) {
 	// reset game
 	ctf_game_restart();
 
-	//default serverinfo with reload hostname
-	network.reload_hostname();
+ 	network.update_serverinfo();
 
 	return true;
 }
@@ -1112,7 +1118,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		}
 		else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
 			if (strspnp(pCommand, " ")!=NULL) {
-				ofstream log("sayadmin.log", ios::out | ios::app);
+				ofstream log((wheregamedir + "log" + directory_separator + "sayadmin.log").c_str(), ios::out | ios::app);
 				log << date_and_time() << "  " << world.player[pid].name << ": " << pCommand << endl;
 				network.forwardSayadminMessage(world.player[pid].cid, pCommand);
 				network.player_message(pid, msg_info, "Your message has been logged. Thank you for your feedback!");

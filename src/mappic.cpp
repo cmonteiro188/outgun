@@ -18,7 +18,7 @@ void Mappic::find_maps() {
 vector<string> Mappic::load_maps(const string& dir) {
 	string searchPattern = wheregamedir + dir + directory_separator + "*.txt";
 
-	log("Map picture save: scanning for maps: '%s'", searchPattern.c_str());
+	log("Map picture saver: scanning for maps: '%s'.", searchPattern.c_str());
 
 	al_ffblk mapffblk;	//for al_find*
 
@@ -33,7 +33,7 @@ vector<string> Mappic::load_maps(const string& dir) {
 		//try next
 		result = al_findnext(&mapffblk);
 	}
-	log("%d maps found", maps.size());
+	log("Map picture saver: %d maps found.", maps.size());
 	return maps;
 }
 
@@ -41,17 +41,16 @@ void Mappic::save_pictures() const {
 	set_color_depth(16);
 	Graphics graphics(log);
 	graphics.setColors();
-	string dir("mappic");
-	dir += directory_separator;
+	const string dir(wheregamedir + "mappic" + directory_separator);
 	for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
 		string picture = dir + *name + ".pcx";
 		Map mp;
 		if (!mp.load(log, SERVER_MAPS_DIR, *name))
-			log.error("Map '%s' is not a valid map file.", picture.c_str());
+			log.error("Map picture saver: Map '%s' is not a valid map file.", picture.c_str());
 		else if (graphics.save_map_picture(picture, mp))
-			log("Saved map picture to '%s'.", picture.c_str());
+			log("Map picture saver: Saved map picture to '%s'.", picture.c_str());
 		else {
-			log.error("Can't save map picture to '%s'.", picture.c_str());
+			log.error("Map picture saver: Can't save map picture to '%s'.", picture.c_str());
 			throw Save_error();
 		}
 	}

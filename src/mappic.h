@@ -21,7 +21,7 @@ public:
 	Mappic(LogSet logs) : log(logs) { }
 
 	void run();
-	
+
 	class Save_error { };
 };
 

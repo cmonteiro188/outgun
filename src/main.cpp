@@ -73,11 +73,18 @@ bool set_shitty_mode(LogSet log) {
 		return true;
 }
 
+// Make directory if it does not already exist.
+bool check_dir(const string& dir) {
+	const string directory = wheregamedir + dir;
+	al_ffblk mapffblk;
+	const int result = al_findfirst(directory.c_str(), &mapffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
+	if (result == 0 && (mapffblk.attrib & FA_DIREC))
+		return true;	// exists
+	return !mkdir(directory.c_str());
+}
+
 int main(int argc, char *argv[]) {
 	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
-
-	FileLog logFile("log.txt", true);
-	LogSet log(&logFile, &logFile, &logFile);
 
 	srand((unsigned)time(0));
 
@@ -106,7 +113,17 @@ int main(int argc, char *argv[]) {
 	wheregamedir = path;
 	delete[] path;
 
-	log("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
+	if (!check_dir("log")) {
+		allegro_message("ERROR: Directory 'log' not found.\n\nPlease create this directory.\n\nThe game cannot run without it.");
+		return 0;
+	}
+	if (!check_dir("config"))
+		allegro_message("ERROR: Make directory 'config' if you\nwant to save game or server setups.");
+
+	FileLog logFile(wheregamedir + "log" + directory_separator + "log.txt", true);
+	LogSet log(&logFile, &logFile, &logFile);
+
+	log("Outgun log file. Game string: %s, protocol: %s, version: %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
 	bool message_logging = false;
 	bool showinfo = false;
@@ -176,6 +193,10 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-log"))
 			message_logging = true;
 		else if (!strcmp(argv[i], "-mappic")) {
+			if (!check_dir("mappic")) {
+				allegro_message("ERROR: Directory 'mappic' not found.\nMake this directory.");
+				return 0;
+			}
 			log("Saving map pictures");
 			set_window_title("Outgun map picture saver");
 			Mappic mappic(log);
@@ -210,7 +231,7 @@ int main(int argc, char *argv[]) {
 	// resolve master server address
 	// #FIXME: move master server resolving to connection menu
 	log("resolving master server address...");
-	ifstream in("master.txt");
+	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string name, address;
 	if (!getline_smart(in, name))
 		name = "koti.mbnet.fi";
@@ -333,11 +354,15 @@ int main(int argc, char *argv[]) {
 	}
 	// run client
 	else {
-		string mapPath = wheregamedir + CLIENT_MAPS_DIR;
+		/*const string mapPath = wheregamedir + CLIENT_MAPS_DIR;
 		al_ffblk mapffblk;	//for al_find*
 		int result = al_findfirst(mapPath.c_str(), &mapffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
 		if (result != 0 || !(mapffblk.attrib&FA_DIREC)) {
 			allegro_message("ERROR: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", mapPath.c_str());
+			return 0;
+		}*/
+		if (!check_dir(CLIENT_MAPS_DIR)) {
+			allegro_message("ERROR: directory '%s' not found.\n\nPlease create this directory.\n\nThe game cannot run without it.", CLIENT_MAPS_DIR);
 			return 0;
 		}
 

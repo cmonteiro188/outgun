@@ -21,9 +21,9 @@ using std::swap;
 using std::vector;
 
 gameserver_c::gameserver_c(LogSet hostLogs) :
-	normalLog("serverlog.txt", true),
+	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
-	securityLog(normalLog, "SECURITY WARNING: ", "server_securitylog.txt", false),
+	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
 	log(&normalLog, &errorLog, &securityLog),
 	world(this, &network, log),
 	network(this, world, log),

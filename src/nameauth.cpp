@@ -52,7 +52,7 @@ void NameAuthorizationDatabase::clear() {
 
 bool NameAuthorizationDatabase::load() {
 	clear();
-	ifstream in("auth.txt");
+	ifstream in((wheregamedir + "config" + directory_separator + "auth.txt").c_str());
 	if (!in) {
 		log.error("Can't read auth.txt");
 		return false;
@@ -98,7 +98,7 @@ bool NameAuthorizationDatabase::load() {
 }
 
 bool NameAuthorizationDatabase::save() const {
-	ofstream out("auth.txt");
+	ofstream out((wheregamedir + "config" + directory_separator + "auth.txt").c_str());
 	if (!out) {
 		log.error("Can't write auth.txt");
 		return false;

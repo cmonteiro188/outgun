@@ -12,9 +12,11 @@
 #include "nassert.h"
 #include "utility.h"
 
+#define PHYS_NEW
 #define PHYS_VECTOR_ACC
+#define PHYS_VECTOR_ACC_TEST
 
-//same as PLAYER RADIUS (15) + ROCKET RADIUS (3) - 1
+//same as PLAYER RADIUS (15) + ROCKETRADIUS (3) - 1
 const int shot_deltax = 17;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
@@ -927,49 +929,11 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	if (h->controls.isRun() && carryFlag)
 		player_maxspeed -= svp_flag_penalty;
 
-//	int xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
-
-	#ifdef PHYS_VECTOR_ACC
-
-	// this is a more physically correct model by Nix
-
-/*
-	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
-	player_maxspeed *= 1.2;
-	player_friction *= 1.2;
-	player_accel    *= 1.2;
-	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
-*/
-
 	float xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
 
-	player_friction = 0.1;
-	player_accel    = 1.5;
-
-	if (turbo)
-		if (h->controls.isRun())
-			player_accel *= 3.;
-		else
-			player_accel *= 2.;
-	else if (h->controls.isRun())
-		player_accel *= 1.25;
-
-	if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
-		xAcc /= sqrt(2.);
-		yAcc /= sqrt(2.);
-	}
-
-	h->sx -= player_friction * h->sx;
-	h->sy -= player_friction * h->sy;
-
-	if (!deathbringer_affected) {
-		h->sx += xAcc * player_accel;
-		h->sy += yAcc * player_accel;
-	}
-
-/*
+	#ifdef PHYS_VECTOR_ACC
 	// new correcting coefficients : reduce friction and total acceleration
-	player_maxspeed *= 1.2;
+	/*player_maxspeed *= 1.2;
 	player_friction *=  .5;
 	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
 
@@ -1005,7 +969,74 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			h->sy *= mul;
 		}
 	}
-*/
+	*/#ifdef PHYS_VECTOR_ACC_TEST
+
+	player_friction = 0.1;
+	player_accel    = 1.75; //1.5;
+
+	if (turbo)
+		if (h->controls.isRun())
+			player_accel *= 2.75;
+		else
+			player_accel *= 1.75;
+	else if (h->controls.isRun())
+		player_accel *= 1.25;
+
+	if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
+		xAcc /= sqrt(2.);
+		yAcc /= sqrt(2.);
+	}
+
+	h->sx -= player_friction * h->sx;
+	h->sy -= player_friction * h->sy;
+
+	if (!deathbringer_affected) {
+		h->sx += xAcc * player_accel;
+		h->sy += yAcc * player_accel;
+	}
+
+ 	#else
+
+	// this is a more physically correct model by Nix
+
+	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
+	player_maxspeed *= 1.2;
+	player_friction *= 1.2;
+	player_accel    *= 1.2;
+	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
+
+	// friction
+	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+	if (spd > 0) {
+		float mul;
+		if (spd <= player_friction)
+			mul = 0.;
+		else
+			mul = 1. - player_friction/spd;
+		h->sx *= mul;
+		h->sy *= mul;
+	}
+
+	// acceleration
+	if (!deathbringer_affected && spd<player_maxspeed) {
+		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
+		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
+		float mul = player_accel;
+		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
+			mul /= sqrt(2.);
+
+		h->sx += float(xAcc)*mul;
+		h->sy += float(yAcc)*mul;
+		spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+
+		if (spd > player_maxspeed) {
+			float mul = player_maxspeed/spd;
+			h->sx *= mul;
+			h->sy *= mul;
+		}
+	}
+
+	#endif	// PHYS_VECTOR_ACC_TEST
 	#else	// PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
@@ -1683,7 +1714,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			break;
 		}
 		case Powerup::pup_turbo: {
-			double itemTime = player[p].item_speed_time-get_time();
+			double itemTime = player[p].item_speed_time - get_time();
 			if (!player[p].item_speed || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
@@ -1890,6 +1921,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 }
 
 void ServerWorld::removePlayer(int pid) {
+	//remove all shots from this player
 	for (int r=0; r<MAX_ROCKETS; r++)
 		if (rock[r].owner == pid)
 			deleteRocket(r, 0, 0, 255);

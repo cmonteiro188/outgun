@@ -496,7 +496,6 @@ private:
 	std::vector<std::pair<int, std::string> > caps;	// time and player name
 };
 
-//powerups
 class Powerup {
 public:
 	enum Pup_type {
