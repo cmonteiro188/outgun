@@ -29,6 +29,10 @@ void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, in
 	va_end(argptr);
 	textout_centre(bmp, f, xbuf, x, y, color);
 }
+void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+	text_mode(bg);
+	textout(bmp, f, text, x, y, color);
+}
 #else
 #define WINMODE GFX_AUTODETECT_WINDOWED
 #endif
