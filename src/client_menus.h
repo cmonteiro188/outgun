@@ -79,8 +79,8 @@ class Menu_controls {
 public:
 	Checkbox	keypadMoving;
 	Checkbox	joystick;
-	StaticText	joyText;
 	Slider		joyMove;
+	StaticText	joyText;
 	Slider		joyShoot;
 	Slider		joyRun;
 	Slider		joyStrafe;

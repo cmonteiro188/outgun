@@ -144,9 +144,10 @@ Menu_game::Menu_game() :
 
 Menu_controls::Menu_controls() :
 	keypadMoving		("Use keypad for moving", true),
+
 	joystick			("Enable joystick control", false),
-	joyText				("Joystick buttons (0 = disabled)"),
 	joyMove				("Moving stick", false, 0, 5, 1),
+	joyText				("Joystick buttons (0 = disabled)"),
 	joyShoot			("Shoot ", false, 0, 16, 1),
 	joyRun				("Run   ", false, 0, 16, 2),
 	joyStrafe			("Strafe", false, 0, 16, 3),
