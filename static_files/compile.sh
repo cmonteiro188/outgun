@@ -105,7 +105,7 @@ function clean {
 
 echo
 echo ===============================================================================
-echo "This script will try to compile Outgun, compiling and installing its
+echo "This script will try to compile Outgun, compiling and installing its"
 echo "dependecies if needed."
 echo "It's released under the GPL. Read docs for more info."
 echo "WARNING: This script is still a BETA version. Please, report any errors to the"

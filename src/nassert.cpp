@@ -79,6 +79,7 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
         va_start(argptr, expr);
         vfprintf(asfile, expr, argptr);
         va_end(argptr);
+        fprintf(asfile, "\n");
         fclose(asfile);
         FILE* stdump = fopen((wheregamedir + "log" + directory_separator + "stackdump.bin").c_str(), "wb");
         if (stdump) {
