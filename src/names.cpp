@@ -181,8 +181,6 @@ string PosConsProl()
 		  return "t";
 		if (prob>=141 && prob<=143)
 		  return "v";
-		if (prob>=141 && prob<=143)
-		  return "v";
 		if (prob>=144 && prob<=154)
 		  return "w";
 		if (prob>=155 && prob<=156)
