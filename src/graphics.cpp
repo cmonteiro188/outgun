@@ -1,7 +1,3 @@
-#define AL_FUNC_DEPRECATED AL_FUNC
-#define AL_PRINTFUNC_DEPRECATED AL_PRINTFUNC
-#define AL_INLINE_DEPRECATED AL_INLINE
-
 #include "commont.h"
 #include "graphics.h"
 
@@ -195,8 +191,6 @@ bool Graphics::reset_video_mode() {
 
 // ***** FIM *******
 
-	text_mode(-1);	//transparent text
-
 #ifndef SWITCH_PAUSE_CLIENT
 	if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
 		if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) // allow running in the background
@@ -374,12 +368,16 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	int blue_px = int(1 + (map.tinfo[1].flag.px * plw + map.tinfo[1].flag.x) / maxx * 98.);
 	int blue_py = int(1 + (map.tinfo[1].flag.py * plh + map.tinfo[1].flag.y) / maxy * 98.);
 	if (!flagPaintSimple) {
-		if (getpixel(buffer, red_px, red_py) != 0)	// is painted with any color
-			return update_minimap_background(buffer, map, true);	// restart with basic painting
+		if (getpixel(buffer, red_px, red_py) != 0) {	// is painted with any color
+			update_minimap_background(buffer, map, true);	// restart with basic painting
+			return;
+		}
 		floodfill(buffer, red_px, red_py, col[COLBRED]);
 
-		if (getpixel(buffer, blue_px, blue_py) != 0)	// is painted with any color (including by previous red floodfill)
-			return update_minimap_background(buffer, map, true);	// restart with basic painting
+		if (getpixel(buffer, blue_px, blue_py) != 0) {	// is painted with any color (including by previous red floodfill)
+			update_minimap_background(buffer, map, true);	// restart with basic painting
+			return;
+		}
 		floodfill(buffer, blue_px, blue_py, col[COLBBLUE]);
 	}
 	circle(buffer,  red_px,  red_py, 3, col[COLRED ]);
@@ -462,8 +460,8 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 	circlefill(drawbuf, plx + x - 8, ply + y - 10-15, 8, col[COLBLUE]);
 	circlefill(drawbuf, plx + x + 8, ply + y - 10-15, 8, col[COLMAG]);
 	circlefill(drawbuf, plx + x + 0, ply + y - 20-15, 8, col[COLGREEN]);
-	textprintf_centre(drawbuf, font, plx + x + 0, ply + y - 20-43, col[COLWHITE], "VIROU");
-	textprintf_centre(drawbuf, font, plx + x + 0, ply + y - 20-33, col[COLWHITE], "SORVETE!");
+	textprintf_centre_ex(drawbuf, font, plx + x + 0, ply + y - 20-43, col[COLWHITE], -1, "VIROU");
+	textprintf_centre_ex(drawbuf, font, plx + x + 0, ply + y - 20-33, col[COLWHITE], -1, "SORVETE!");
 }
 
 void Graphics::draw_player_dead(int x, int y) {
@@ -553,17 +551,8 @@ void Graphics::draw_shield(int x, int y, int r, int alpha) {
 	solid_mode();
 }
 
-void Graphics::draw_player_name(const string& name, int x, int y, int team) {
-	int c = teamdcol[team];
-	textprintf_centre(drawbuf, font, x - 1, y - 1, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x + 1, y - 1, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x - 1, y + 1, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x + 1, y + 1, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x - 1, y, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x + 1, y, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x, y - 1, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x, y + 1, c, "%s", name.c_str());
-	textprintf_centre(drawbuf, font, x, y, col[COLWHITE], "%s", name.c_str());
+void Graphics::draw_player_name(const string name, int x, int y, int team) {
+	print_text_border_centre(name, x, y - 40, col[COLWHITE], teamdcol[team]);
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
@@ -703,12 +692,12 @@ void Graphics::draw_empty_playground() {
 }
 
 void Graphics::draw_one_line_message(const string& message) {
-	textprintf_centre(drawbuf, font, plx + plw / 2, ply + plh / 2, col[COLGREEN], message.c_str());
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2, col[COLGREEN], -1, "%s", message.c_str());
 }
 
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) {
-	textprintf_centre(drawbuf, font, plx + plw / 2, ply + plh / 2 + 20, col[COLGREEN], caption.c_str());
-	textprintf_centre(drawbuf, font, plx + plw / 2, ply + plh / 2 + 50, col[COLORA], map.c_str());
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 + 20, col[COLGREEN], -1, "%s", caption.c_str());
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 + 50, col[COLORA], -1, "%s", map.c_str());
 }
 
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
@@ -718,21 +707,21 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 		case 1: c = col[COLLBLUE]; break;
 		default: c = col[COLMENUGRAY]; break;
 	}
-	textprintf_centre(drawbuf, font, plx + plw / 2, ply + plh / 2 - 40, c, text.c_str());
-	textprintf_centre(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, "SCORE: %i - %i", score1, score2);
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 40, c, -1, "%s", text.c_str());
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
 }
 
 void Graphics::draw_scoreboard_caption(int team, const string& caption) {
 	const int nameydelta_min = 8;
-	textprintf(drawbuf, font, sbx + 4, sby - 4 + team * 18 * nameydelta_min, teamlcol[team], caption.c_str());
+	textprintf_ex(drawbuf, font, sbx + 4, sby - 4 + team * 18 * nameydelta_min, teamlcol[team], -1, "%s", caption.c_str());
 }
 
 void Graphics::draw_scoreboard_name(int y, int pcol, const ClientPlayer& player) {
-	textprintf(drawbuf, font, sbx + 4, y, col[pcol], "%c%s", player.reg_status, player.name.c_str());
+	textprintf_ex(drawbuf, font, sbx + 4, y, col[pcol], -1, "%c%s", player.reg_status, player.name.c_str());
 }
 
 void Graphics::draw_scoreboard_points(int y, int team, int points) {
-	textprintf(drawbuf, font, sbx + 4 + 16 * 8, y, teamlcol[team], "%4i", points);
+	textprintf_ex(drawbuf, font, sbx + 4 + 16 * 8, y, teamlcol[team], -1, "%4i", points);
 }
 
 void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
@@ -759,8 +748,6 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
 	string text = "      Frags Ping Cap Kil Dea  Acc   Dist Time";
 	print_text_border(string("Red Team  ") + text, x_left, y1 + line_height, teamlcol[0], teamdcol[0]);
 	print_text_border(string("Blue Team ") + text, x_left, y1 + h / 2 + line_height, teamlcol[1], teamdcol[1]);
-	//textprintf(drawbuf, font, x_left, y1 + line_height, teamlcol[0], "Red Team  %s", text.c_str());
-	//textprintf(drawbuf, font, x_left, y1 + h / 2 + line_height, teamlcol[1], "Blue Team %s", text.c_str());
 
 	int i = 0;
 	for (vector<ClientPlayer>::const_iterator p = players.begin(); p != players.end(); p++, i++) {
@@ -777,52 +764,52 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 	info << setw(4) << player.ping << ' ';
 	// layout testing
 	info << "  2  24  18  65%   4210  78 min";
-	textprintf(drawbuf, font, x, y, teamlcol[team], "%s", info.str().c_str());
+	textprintf_ex(drawbuf, font, x, y, teamlcol[team], -1, "%s", info.str().c_str());
 }
 
 void Graphics::map_time(int seconds) {
-	textprintf(drawbuf, font, plx + 10, ply + 6, 0, "TIME:%4d:%02d", seconds / 60, seconds % 60);
+	textprintf_ex(drawbuf, font, plx + 10, ply + 6, 0, -1, "TIME:%4d:%02d", seconds / 60, seconds % 60);
 }
 
 void Graphics::draw_fps(double fps) {
-	textprintf(drawbuf, font, plx + 10, ply + plh - 14, 0, "FPS:%3.0f", fps);
+	textprintf_ex(drawbuf, font, plx + 10, ply + plh - 14, 0, -1, "FPS:%3.0f", fps);
 }
 
 void Graphics::draw_player_power(double val) {
-	textprintf(drawbuf, font, plx + 244, ply + plh + 5, col[COLCYAN], "POWER:  %2.0f", val);
+	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 5, col[COLCYAN], -1, "POWER:  %2.0f", val);
 }
 
 void Graphics::draw_player_turbo(double val) {
-	textprintf(drawbuf, font, plx + 244, ply + plh + 15, col[COLYELLOW], "TURBO:  %2.0f", val);
+	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 15, col[COLYELLOW], -1, "TURBO:  %2.0f", val);
 }
 
 void Graphics::draw_player_shadow(double val) {
-	textprintf(drawbuf, font, plx + 244, ply + plh + 25, col[COLMAG], "SHADOW: %2.0f", val);
+	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 25, col[COLMAG], -1, "SHADOW: %2.0f", val);
 }
 
 void Graphics::draw_player_weapon(int level) {
-	textprintf(drawbuf, font, plx + 340, ply + plh + 5, col[COLWHITE], "WEAPON: %i", level);
+	textprintf_ex(drawbuf, font, plx + 340, ply + plh + 5, col[COLWHITE], -1, "WEAPON: %i", level);
 }
 
 void Graphics::draw_change_team_message(double time) {
 	int c = col[COLWHITE];
 	if ((int)(time * 2.0) % 2)	// blink!
 		c = col[COLRED];
-	textprintf(drawbuf, font, plx + plw - 6 * 8 - 10,     ply + plh - 18, c, "CHANGE");
-	textprintf(drawbuf, font, plx + plw - 6 * 8 - 10 + 4, ply + plh -  9, c, "TEAMS");
+	textprintf_ex(drawbuf, font, plx + plw - 6 * 8 - 10,     ply + plh - 18, c, -1, "CHANGE");
+	textprintf_ex(drawbuf, font, plx + plw - 6 * 8 - 10 + 4, ply + plh -  9, c, -1, "TEAMS");
 }
 
 void Graphics::draw_change_map_message(double time) {
 	int c = col[COLWHITE];
 	if ((int)(time * 2.0) % 2)	// blink!
 		c = col[COLRED];
-	textprintf(drawbuf, font, -40 + plx + plw - 6 * 8 - 10,     ply + plh - 18, c, "EXIT");
-	textprintf(drawbuf, font, -40 + plx + plw - 6 * 8 - 10 + 4, ply + plh -  9, c, "MAP");
+	textprintf_ex(drawbuf, font, -40 + plx + plw - 6 * 8 - 10,     ply + plh - 18, c, -1, "EXIT");
+	textprintf_ex(drawbuf, font, -40 + plx + plw - 6 * 8 - 10 + 4, ply + plh -  9, c, -1, "MAP");
 }
 
 void Graphics::draw_player_health(int health) {
 	// health value
-	textprintf(drawbuf, font, 10, ply + plh + 5, col[COLWHITE],  "Health: %4i", health);
+	textprintf_ex(drawbuf, font, 10, ply + plh + 5, col[COLWHITE], -1, "Health: %4i", health);
 	// health bar
 	rectfill(drawbuf, 10, ply + plh + 18, 10 + 100, ply + plh + 18 + 10, col[COLNOLIFE]);
 	// health 0...100
@@ -840,7 +827,7 @@ void Graphics::draw_player_health(int health) {
 
 void Graphics::draw_player_energy(int energy) {
 	// energy value
-	textprintf(drawbuf, font, 10 + 14 * 8, ply + plh + 5, col[COLWHITE],  "Energy: %4i", energy);
+	textprintf_ex(drawbuf, font, 10 + 14 * 8, ply + plh + 5, col[COLWHITE], -1, "Energy: %4i", energy);
 	// energy bar
 	rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + 100, ply + plh + 18 + 10, col[COLNOLIFE]);
 	//barra azul 0..100
@@ -864,7 +851,7 @@ void Graphics::print_chat_message(int line, const string& message, MESSAGE_TYPE 
 		case MSG_INFO: c = col[COLGREEN]; break;
 		default: c = col[COLORA];
 	}
-	textprintf(drawbuf, font, 3, 3 + line * 11, c, "%s", message.c_str());
+	textprintf_ex(drawbuf, font, 3, 3 + line * 11, c, -1, "%s", message.c_str());
 }
 
 void Graphics::print_chat_input(int line, const string& message) {
@@ -875,26 +862,39 @@ void Graphics::print_chat_input(int line, const string& message) {
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol) {
+	print_text_border(text, plx + x, ply + y, textcol, bordercol, false);
+}
+
+void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol) {
+	print_text_border(text, plx + x, ply + y, textcol, bordercol, true);
+}
+
+void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, bool centring) {
+	void (*print)(BITMAP*, const FONT*, int, int, int, int, const char*, ...);
+	if (centring)
+		print = textprintf_centre_ex;
+	else
+		print = textprintf_ex;
 	// nice border
-	textprintf(drawbuf, font, x + 1, y + 0, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x + 1, y + 1, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x + 0, y + 1, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x - 1, y + 1, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x - 1, y + 0, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x - 1, y - 1, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x + 0, y - 1, bordercol, "%s", text.c_str());
-	textprintf(drawbuf, font, x + 1, y - 1, bordercol, "%s", text.c_str());
+	print(drawbuf, font, x + 1, y + 0, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x + 1, y + 1, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x + 0, y + 1, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x - 1, y + 1, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x - 1, y + 0, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x - 1, y - 1, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x + 0, y - 1, bordercol, -1, "%s", text.c_str());
+	print(drawbuf, font, x + 1, y - 1, bordercol, -1, "%s", text.c_str());
 	// text itself
-	textprintf(drawbuf, font, x, y, textcol, "%s", text.c_str());
+	print(drawbuf, font, x, y, textcol, -1, "%s", text.c_str());
 }
 
 void Graphics::show_not_responding_message() {
 	rect(drawbuf,  194,  199, 444, 279, col[COLMENUWHITE]);
 	rect(drawbuf, 196, 201, 446, 281, col[COLMENUBLACK]);
 	rectfill(drawbuf, 195, 200, 445, 280, col[COLMENUGRAY]);
-	textprintf(drawbuf, font, 220, 220, col[COLWHITE], "SERVER NOT RESPONDING...");
-	textprintf(drawbuf, font, 220, 240, col[COLWHITE], "May be heavy packet loss,");
-	textprintf(drawbuf, font, 220, 255, col[COLWHITE], "or the server disconnected");
+	textprintf_ex(drawbuf, font, 220, 220, col[COLWHITE], -1, "SERVER NOT RESPONDING...");
+	textprintf_ex(drawbuf, font, 220, 240, col[COLWHITE], -1, "May be heavy packet loss,");
+	textprintf_ex(drawbuf, font, 220, 255, col[COLWHITE], -1, "or the server disconnected");
 }
 
 // draw help
@@ -904,56 +904,56 @@ void Graphics::game_help() {
 	int x = -40;
 	int y = -70;
 
-	textprintf(drawbuf, font, x+100, y+100, col[COLWHITE], "Outgun : HELP      --> Press ESC or F1 to go back. <--");
+	textprintf_ex(drawbuf, font, x+100, y+100, col[COLWHITE], -1, "Outgun : HELP      --> Press ESC or F1 to go back. <--");
 
-	textprintf(drawbuf, font, x+100, y+120, col[COLWHITE], "For more information access these websites:");
-	textprintf(drawbuf, font, x+100, y+130, col[COLWHITE], "  the original Outgun website");
-	textprintf(drawbuf, font, x+364, y+130, col[COLGREEN], "http://www.amok.com.br/outgun/en/");
-	textprintf(drawbuf, font, x+100, y+140, col[COLWHITE], "  Nix's Outgun development page");
-	textprintf(drawbuf, font, x+364, y+140, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
+	textprintf_ex(drawbuf, font, x+100, y+120, col[COLWHITE], -1, "For more information access these websites:");
+	textprintf_ex(drawbuf, font, x+100, y+130, col[COLWHITE], -1, "  the original Outgun website");
+	textprintf_ex(drawbuf, font, x+364, y+130, col[COLGREEN], -1, "http://www.amok.com.br/outgun/en/");
+	textprintf_ex(drawbuf, font, x+100, y+140, col[COLWHITE], -1, "  Nix's Outgun development page");
+	textprintf_ex(drawbuf, font, x+364, y+140, col[COLGREEN], -1, "http://koti.mbnet.fi/npr/outgun/");
 
-	textprintf(drawbuf, font, x+100, y+160, col[COLWHITE], "           MOVING            ARROW KEYS = MOVE");
-	textprintf(drawbuf, font, x+100, y+170, col[COLWHITE], "            YOUR             CONTROL    = SHOOT!");
-	textprintf(drawbuf, font, x+100, y+180, col[COLWHITE], "          CHARACTER:         ALT        = STRAFE");
-	textprintf(drawbuf, font, x+100, y+190, col[COLWHITE], "            >>>>>            SHIFT      = RUN");
+	textprintf_ex(drawbuf, font, x+100, y+160, col[COLWHITE], -1, "           MOVING            ARROW KEYS = MOVE");
+	textprintf_ex(drawbuf, font, x+100, y+170, col[COLWHITE], -1, "            YOUR             CONTROL    = SHOOT!");
+	textprintf_ex(drawbuf, font, x+100, y+180, col[COLWHITE], -1, "          CHARACTER:         ALT        = STRAFE");
+	textprintf_ex(drawbuf, font, x+100, y+190, col[COLWHITE], -1, "            >>>>>            SHIFT      = RUN");
 
-	textprintf(drawbuf, font, x+100, y+210, col[COLWHITE], "TALKING TO ALL PLAYERS: Just type your message and hit ENTER");
+	textprintf_ex(drawbuf, font, x+100, y+210, col[COLWHITE], -1, "TALKING TO ALL PLAYERS: Just type your message and hit ENTER");
 
-	textprintf(drawbuf, font, x+100, y+230, col[COLWHITE], "TALKING JUST TO YOUR TEAM: Just place a dot ('.') at the very");
-	textprintf(drawbuf, font, x+100, y+240, col[COLWHITE], " beginning of your message (first char)");
+	textprintf_ex(drawbuf, font, x+100, y+230, col[COLWHITE], -1, "TALKING JUST TO YOUR TEAM: Just place a dot ('.') at the very");
+	textprintf_ex(drawbuf, font, x+100, y+240, col[COLWHITE], -1, " beginning of your message (first char)");
 
-	textprintf(drawbuf, font, x+100, y+260, col[COLWHITE], "GAME CONCEPT: You are a member of a team, either RED or BLUE,");
-	textprintf(drawbuf, font, x+100, y+270, col[COLWHITE], " assigned to you at random when you connect. Your goal is to");
-	textprintf(drawbuf, font, x+100, y+280, col[COLWHITE], " help your team to win, by capturing 8 (default) times the enemy");
-	textprintf(drawbuf, font, x+100, y+290, col[COLWHITE], " flag. To capture the flag, a member of your team must steal");
-	textprintf(drawbuf, font, x+100, y+300, col[COLWHITE], " the enemy flag and bring it to your team's flag, provided your");
-	textprintf(drawbuf, font, x+100, y+310, col[COLWHITE], " flag has not been stolen already! Capiche?");
+	textprintf_ex(drawbuf, font, x+100, y+260, col[COLWHITE], -1, "GAME CONCEPT: You are a member of a team, either RED or BLUE,");
+	textprintf_ex(drawbuf, font, x+100, y+270, col[COLWHITE], -1, " assigned to you at random when you connect. Your goal is to");
+	textprintf_ex(drawbuf, font, x+100, y+280, col[COLWHITE], -1, " help your team to win, by capturing 8 (default) times the enemy");
+	textprintf_ex(drawbuf, font, x+100, y+290, col[COLWHITE], -1, " flag. To capture the flag, a member of your team must steal");
+	textprintf_ex(drawbuf, font, x+100, y+300, col[COLWHITE], -1, " the enemy flag and bring it to your team's flag, provided your");
+	textprintf_ex(drawbuf, font, x+100, y+310, col[COLWHITE], -1, " flag has not been stolen already! Capiche?");
 
-	textprintf(drawbuf, font, x+100, y+330, col[COLWHITE], "HEALTH AND ENERGY: If your health reaches zero, you die. Energy");
-	textprintf(drawbuf, font, x+100, y+340, col[COLWHITE], " is used for running, shooting and health protection when you");
-	textprintf(drawbuf, font, x+100, y+350, col[COLWHITE], " have the SHIELD powerup (you'll know when you see it...).");
-	textprintf(drawbuf, font, x+100, y+360, col[COLWHITE], " Health and energy regenerate with time.");
+	textprintf_ex(drawbuf, font, x+100, y+330, col[COLWHITE], -1, "HEALTH AND ENERGY: If your health reaches zero, you die. Energy");
+	textprintf_ex(drawbuf, font, x+100, y+340, col[COLWHITE], -1, " is used for running, shooting and health protection when you");
+	textprintf_ex(drawbuf, font, x+100, y+350, col[COLWHITE], -1, " have the SHIELD powerup (you'll know when you see it...).");
+	textprintf_ex(drawbuf, font, x+100, y+360, col[COLWHITE], -1, " Health and energy regenerate with time.");
 
-	textprintf(drawbuf, font, x+100, y+380, col[COLWHITE], "MINIMAP: On the upper-right corner of the screen is the minimap.");
-	textprintf(drawbuf, font, x+100, y+390, col[COLWHITE], " It shows the contents of all rooms of the map that have at least");
-	textprintf(drawbuf, font, x+100, y+400, col[COLWHITE], " one player of your team.");
+	textprintf_ex(drawbuf, font, x+100, y+380, col[COLWHITE], -1, "MINIMAP: On the upper-right corner of the screen is the minimap.");
+	textprintf_ex(drawbuf, font, x+100, y+390, col[COLWHITE], -1, " It shows the contents of all rooms of the map that have at least");
+	textprintf_ex(drawbuf, font, x+100, y+400, col[COLWHITE], -1, " one player of your team.");
 
-	textprintf(drawbuf, font, x+100, y+420, col[COLWHITE], "CHANGING TEAMS: Hit the END key to set whether you want to");
-	textprintf(drawbuf, font, x+100, y+430, col[COLWHITE], " change team or not. You will change team when appropriate.");
+	textprintf_ex(drawbuf, font, x+100, y+420, col[COLWHITE], -1, "CHANGING TEAMS: Hit the END key to set whether you want to");
+	textprintf_ex(drawbuf, font, x+100, y+430, col[COLWHITE], -1, " change team or not. You will change team when appropriate.");
 
-	textprintf(drawbuf, font, x+100, y+450, col[COLWHITE], "POWERUPS: If you see an animated item lying on the ground, grab");
-	textprintf(drawbuf, font, x+100, y+460, col[COLWHITE], " it. It's a special power-up item.");
+	textprintf_ex(drawbuf, font, x+100, y+450, col[COLWHITE], -1, "POWERUPS: If you see an animated item lying on the ground, grab");
+	textprintf_ex(drawbuf, font, x+100, y+460, col[COLWHITE], -1, " it. It's a special power-up item.");
 
-	textprintf(drawbuf, font, x+100, y+480, col[COLWHITE], "ETC.: Hit DEL to kill yourself. Hold TAB to see other players'");
-	textprintf(drawbuf, font, x+100, y+490, col[COLWHITE], " ping times (in milliseconds) on the scoreboard.");
-	textprintf(drawbuf, font, x+100, y+500, col[COLWHITE], " Hit HOME to change world colors and CTRL+HOME to restore them.");
-	textprintf(drawbuf, font, x+100, y+510, col[COLWHITE], " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
+	textprintf_ex(drawbuf, font, x+100, y+480, col[COLWHITE], -1, "ETC.: Hit DEL to kill yourself. Hold TAB to see other players'");
+	textprintf_ex(drawbuf, font, x+100, y+490, col[COLWHITE], -1, " ping times (in milliseconds) on the scoreboard.");
+	textprintf_ex(drawbuf, font, x+100, y+500, col[COLWHITE], -1, " Hit HOME to change world colors and CTRL+HOME to restore them.");
+	textprintf_ex(drawbuf, font, x+100, y+510, col[COLWHITE], -1, " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
 }
 
 void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool showmaster) {
 	const int xi = 50 - 8 * 2;
 
-	textprintf(drawbuf, font, xi, 105, col[COLWHITE], "IP Address             Ping #P Version/Hostname");
+	textprintf_ex(drawbuf, font, xi, 105, col[COLWHITE], -1, "IP Address             Ping #P Version/Hostname");
 
 	char blinkchar[2];
 
@@ -975,10 +975,10 @@ void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool
 			blinkchar[0] = 0;
 
 		//server edit prompt
-		textprintf(drawbuf, font, xi, yi, col[COLGREEN], ":%s%s", server->address, blinkchar);
+		textprintf_ex(drawbuf, font, xi, yi, col[COLGREEN], -1, ":%s%s", server->address, blinkchar);
 		//favs watermarks
 		if (showmaster && server->favs)
-			textprintf(drawbuf, font, xi - 12, yi, col[COLGREEN], "*");
+			textprintf_ex(drawbuf, font, xi - 12, yi, col[COLGREEN], -1, "*");
 
 		//draw gamespy entry
 		bool refreshed, invalid, noresponse;
@@ -988,18 +988,18 @@ void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool
 
 		if (!refreshed) { // not refreshed
 			//server info
-			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "press SPACEBAR to refresh...");
+			textprintf_ex(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], -1, "press SPACEBAR to refresh...");
 		}
 		else if (invalid) {	//refreshed, invalid
 			//server info
-			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "---");
+			textprintf_ex(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], -1, "---");
 		}
 		else if (noresponse) {	//refreshed, no response
 			//server info
-			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], "no response.");
+			textprintf_ex(drawbuf, font, xi + (18+5)*8, yi, col[COLWHITE], -1, "no response.");
 		}
 		else	//refreshed, valid, show server info
-			textprintf(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], "%s", server->info);
+			textprintf_ex(drawbuf, font, xi + (18+5)*8, yi, col[COLGREEN], -1, "%s", server->info);
 		line++;
 	}
 }
@@ -1023,16 +1023,16 @@ void Graphics::public_servers(const vector<gamespy_t>& servers, int selection) {
 	hline(drawbuf, 320, 50, 621, col[COLMENUWHITE]);
 	hline(drawbuf, 320, 24, 616, lotext);
 	vline(drawbuf, 616, 24, 49, col[COLMENUBLACK]);
-	textprintf_centre(drawbuf, font, 170, 35, col[COLWHITE], "INTERNET SEARCH");
-	textprintf_centre(drawbuf, font, 470, 35, lotext, "FAVORITES");
+	textprintf_centre_ex(drawbuf, font, 170, 35, col[COLWHITE], -1, "INTERNET SEARCH");
+	textprintf_centre_ex(drawbuf, font, 470, 35, lotext, -1, "FAVORITES");
 
 	if (((int)(get_time() * 1)) % 2)
-		textprintf_centre(drawbuf, font, 320, 65, col[COLGREEN], "F2 = UPDATE LIST OF SERVERS");
+		textprintf_centre_ex(drawbuf, font, 320, 65, col[COLGREEN], -1, "F2 = UPDATE LIST OF SERVERS");
 	else
-		textprintf_centre(drawbuf, font, 320, 65, col[COLYELLOW], "F2 = UPDATE LIST OF SERVERS");
+		textprintf_centre_ex(drawbuf, font, 320, 65, col[COLYELLOW], -1, "F2 = UPDATE LIST OF SERVERS");
 
-	textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
-	textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+	textprintf_centre_ex(drawbuf, font, 320, 80, col[COLWHITE], -1, "Press SPACE to refresh the servers");
+	textprintf_centre_ex(drawbuf, font, 320, 440, col[COLWHITE], -1, "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
 
 	// show the servers
 	server_list(servers, selection, true);
@@ -1057,12 +1057,12 @@ void Graphics::favourite_servers(const vector<gamespy_t>& servers, int selection
 	hline(drawbuf, 19, 50, 320, col[COLMENUWHITE]);
 	hline(drawbuf, 24, 24, 320, lotext);
 	vline(drawbuf, 24, 24, 49, col[COLMENUWHITE]);
-	textprintf_centre(drawbuf, font, 170, 35, lotext, "INTERNET SEARCH");
-	textprintf_centre(drawbuf, font, 470, 35, col[COLWHITE], "FAVORITES");
+	textprintf_centre_ex(drawbuf, font, 170, 35, lotext, -1, "INTERNET SEARCH");
+	textprintf_centre_ex(drawbuf, font, 470, 35, col[COLWHITE], -1, "FAVORITES");
 
-	textprintf_centre(drawbuf, font, 320, 65, col[COLWHITE], "Type the IP address of the server and hit ENTER");
-	textprintf_centre(drawbuf, font, 320, 80, col[COLWHITE], "Press SPACE to refresh the servers");
-	textprintf_centre(drawbuf, font, 320, 440, col[COLWHITE], "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
+	textprintf_centre_ex(drawbuf, font, 320, 65, col[COLWHITE], -1, "Type the IP address of the server and hit ENTER");
+	textprintf_centre_ex(drawbuf, font, 320, 80, col[COLWHITE], -1, "Press SPACE to refresh the servers");
+	textprintf_centre_ex(drawbuf, font, 320, 440, col[COLWHITE], -1, "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh");
 
 	// show the servers
 	server_list(servers, selection, false);
@@ -1074,8 +1074,8 @@ void Graphics::menu_caption() {
 	rect(drawbuf,  99,  69, 539, 409, col[COLMENUWHITE]);
 	rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
 	rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
-	textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
-	textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
+	textprintf_ex(drawbuf, font, 150, 120, col[COLWHITE], -1, "Outgun         version %s", GAME_VERSION);
+	textprintf_ex(drawbuf, font, 150, 135, col[COLGREEN], -1, "http://koti.mbnet.fi/npr/outgun/");
 }
 
 //draw the main menu
@@ -1084,35 +1084,35 @@ void Graphics::main_menu(bool connected, const string& address, const string& pl
 {
 	menu_caption();
 	int DELY = 10;
-	textprintf(drawbuf, font, 150, 185-DELY, col[COLWHITE], "  [ 1 ]   Connect");
-	textprintf(drawbuf, font, 150, 200-DELY, col[COLWHITE], "  [ 2 ]   Disconnect");
+	textprintf_ex(drawbuf, font, 150, 185-DELY, col[COLWHITE], -1, "  [ 1 ]   Connect");
+	textprintf_ex(drawbuf, font, 150, 200-DELY, col[COLWHITE], -1, "  [ 2 ]   Disconnect");
 	if (connected)
-		textprintf(drawbuf, font, 150+22*8, 200-DELY, col[COLGREEN], "(%s)", address.c_str());
-	textprintf(drawbuf, font, 150, 215-DELY, col[COLWHITE], "  [ 3 ]   Change Player Name & Password");
-	textprintf(drawbuf, font, 150, 227-DELY, col[COLGREEN], "          '%s' (%s)", playername.c_str(), namestatus.c_str());
-	textprintf(drawbuf, font, 150, 243-DELY, col[COLWHITE], "  [ 4 ]   Start/stop local server");
+		textprintf_ex(drawbuf, font, 150+22*8, 200-DELY, col[COLGREEN], -1, "(%s)", address.c_str());
+	textprintf_ex(drawbuf, font, 150, 215-DELY, col[COLWHITE], -1, "  [ 3 ]   Change Player Name & Password");
+	textprintf_ex(drawbuf, font, 150, 227-DELY, col[COLGREEN], -1, "          '%s' (%s)", playername.c_str(), namestatus.c_str());
+	textprintf_ex(drawbuf, font, 150, 243-DELY, col[COLWHITE], -1, "  [ 4 ]   Start/stop local server");
 	if (listen_server_running)
-		textprintf(drawbuf, font, 150, 255-DELY, col[COLGREEN], "          SERVER RUNNING ON PORT %i", listen_port_running);
-	textprintf(drawbuf, font, 150, 271-DELY, col[COLWHITE], "  [ 5 ]   Toggle fullscreen/windowed mode");
+		textprintf_ex(drawbuf, font, 150, 255-DELY, col[COLGREEN], -1, "          SERVER RUNNING ON PORT %i", listen_port_running);
+	textprintf_ex(drawbuf, font, 150, 271-DELY, col[COLWHITE], -1, "  [ 5 ]   Toggle fullscreen/windowed mode");
 
 	if (sounds.valid()) {
-		textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme: (%s)", sounds.theme_dir().c_str());
-		textprintf_centre(drawbuf, font, 150+180, 300-DELY, col[COLGREEN], "'%s'", sounds.theme_name().c_str());
+		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme: (%s)", sounds.theme_dir().c_str());
+		textprintf_centre_ex(drawbuf, font, 150+180, 300-DELY, col[COLGREEN], -1, "'%s'", sounds.theme_name().c_str());
 	}
 	else {
-		textprintf(drawbuf, font, 150, 286-DELY, col[COLWHITE], "  [ 6 ]   Change sound theme:");
-		textprintf(drawbuf, font, 150, 300-DELY, col[COLGREEN], "          no sfx themes found.");
+		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme:");
+		textprintf_ex(drawbuf, font, 150, 300-DELY, col[COLGREEN], -1, "          no sfx themes found.");
 	}
-	textprintf(drawbuf, font, 150, 340-DELY, col[COLWHITE], "Hit CTRL+F12 to EXIT THE GAME");
-	textprintf(drawbuf, font, 150, 355-DELY, col[COLWHITE], "Hit ESC to HIDE OR SHOW THIS MENU");
-	textprintf(drawbuf, font, 150, 370-DELY, col[COLORA], "Hit F1 to SHOW THE HELP SCREEN");
+	textprintf_ex(drawbuf, font, 150, 340-DELY, col[COLWHITE], -1, "Hit CTRL+F12 to EXIT THE GAME");
+	textprintf_ex(drawbuf, font, 150, 355-DELY, col[COLWHITE], -1, "Hit ESC to HIDE OR SHOW THIS MENU");
+	textprintf_ex(drawbuf, font, 150, 370-DELY, col[COLORA], -1, "Hit F1 to SHOW THE HELP SCREEN");
 }
 
 // show two-line message
 void Graphics::dialog(const string& t1, const string& t2) {
 	menu_caption();
-	textprintf(drawbuf, font, 150, 230, col[COLWHITE], t1.c_str());
-	textprintf(drawbuf, font, 150, 250, col[COLWHITE], t2.c_str());
+	textprintf_ex(drawbuf, font, 150, 230, col[COLWHITE], -1, "%s", t1.c_str());
+	textprintf_ex(drawbuf, font, 150, 250, col[COLWHITE], -1, "%s", t2.c_str());
 }
 
 //draw the name and password menu
@@ -1126,19 +1126,19 @@ void Graphics::name_password_menu(const string& name, int password_len, bool nam
 	else
 		passcursor = '_';
 
-	textprintf(drawbuf, font, 150, 170, col[COLWHITE], "Type in your player name. If you have");
-	textprintf(drawbuf, font, 150, 185, col[COLWHITE], "registered your name on the Outgun");
-	textprintf(drawbuf, font, 150, 200, col[COLWHITE], "website, then type in your password!");
+	textprintf_ex(drawbuf, font, 150, 170, col[COLWHITE], -1, "Type in your player name. If you have");
+	textprintf_ex(drawbuf, font, 150, 185, col[COLWHITE], -1, "registered your name on the Outgun");
+	textprintf_ex(drawbuf, font, 150, 200, col[COLWHITE], -1, "website, then type in your password!");
 
-	textprintf(drawbuf, font, 150, 220, col[COLWHITE], "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
-	textprintf(drawbuf, font, 150, 260, col[COLGREEN], "NAME:     %s%c", name.c_str(), namecursor);
+	textprintf_ex(drawbuf, font, 150, 220, col[COLWHITE], -1, "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD");
+	textprintf_ex(drawbuf, font, 150, 260, col[COLGREEN], -1, "NAME:     %s%c", name.c_str(), namecursor);
 
 	//password field: '********'
 	const string password(password_len, '*');
 
-	textprintf(drawbuf, font, 150, 285, col[COLGREEN], "PASSWORD: %s%c", password.c_str(), passcursor);
+	textprintf_ex(drawbuf, font, 150, 285, col[COLGREEN], -1, "PASSWORD: %s%c", password.c_str(), passcursor);
 
-	textprintf(drawbuf, font, 150, 350, col[COLWHITE], "Registration status: %s", namestatus.c_str());
+	textprintf_ex(drawbuf, font, 150, 350, col[COLWHITE], -1, "Registration status: %s", namestatus.c_str());
 }
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
@@ -1150,9 +1150,9 @@ void Graphics::show_progress(const string& t1, const string& t2, const string& t
 	rect(screen, 320 - 200-1, 240 - 50-1, 320 + 200-1, 240 + 50-1, col[COLWHITE]);
 	rect(screen, 320 - 200+1, 240 - 50+1, 320 + 200+1, 240 + 50+1, col[COLDARKGRAY]);
 	rectfill(screen, 320 - 200, 240 - 50, 320 + 200, 240 + 50, bg);
-	textprintf_centre(screen, font, 320, 240 - 25, fg, "%s", t1.c_str());
-	textprintf_centre(screen, font, 320, 240     , fg, "%s", t2.c_str());
-	textprintf_centre(screen, font, 320, 240 + 25, fg, "%s", t3.c_str());
+	textprintf_centre_ex(screen, font, 320, 240 - 25, fg, -1, "%s", t1.c_str());
+	textprintf_centre_ex(screen, font, 320, 240     , fg, -1, "%s", t2.c_str());
+	textprintf_centre_ex(screen, font, 320, 240 + 25, fg, -1, "%s", t3.c_str());
 	release_screen();
 }
 

@@ -104,6 +104,9 @@ class Graphics {
 	void menu_caption();
 
 	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol);
+	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol);
+
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, bool centring);
 
 public:
 	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y);
@@ -139,7 +142,7 @@ public:
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
 	void draw_player_shadow(const ClientPlayer& player, int alpha);
-	void draw_player_name(const std::string& name, int x, int y, int c);
+	void draw_player_name(const std::string name, int x, int y, int team);
 	void draw_rocket(const rocket_c& rocket, double time);
 	void draw_gun_explosion(int x, int y, int rad);
 	void draw_deathbringer_smoke(int x, int y, double time);

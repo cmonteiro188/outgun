@@ -1,7 +1,3 @@
-#define AL_FUNC_DEPRECATED AL_FUNC
-#define AL_PRINTFUNC_DEPRECATED AL_PRINTFUNC
-#define AL_INLINE_DEPRECATED AL_INLINE
-
 #include "commont.h"
 #include "world.h"
 #include "names.h"
@@ -3241,9 +3237,9 @@ void gameclient_c::draw_game_frame() {
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
-			if (option_show_names && !fx.player[i].item_helm && i / TSIZE != me / TSIZE) {
-				int ttx = (int)fd.player[i].lx + plx;
-				int tty = (int)fd.player[i].ly + ply - 40;
+			if (option_show_names && fx.player[i].used && !(fx.player[i].item_helm && i / TSIZE != me / TSIZE)) {
+				int ttx = (int)fd.player[i].lx;
+				int tty = (int)fd.player[i].ly;
 				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
 			}
 		}
