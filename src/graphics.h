@@ -113,7 +113,7 @@ public:
     void draw_mini_flag(int team, const Flag& flag, const Map& map);
     void draw_minimap_background();
     void update_minimap_background(const Map& map);
-    void draw_minimap_player(const Map& map, const ClientPlayer& player);
+    void draw_minimap_player(const Map& map, const ClientPlayer& player, double frame);
     void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
     void draw_minimap_room(const Map& map, int rx, int ry);
 

@@ -3778,11 +3778,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     //do not draw stuff below if map not ready to show
     if (!hide_game) {
-        // the MINIMAP
-        //client_graphics.draw_minimap_background();
-
-        //draw the miniflags
-        // - qualquer flag no chao (na base ou nao, carried == false)
+        // draw the miniflags (in the base, on the ground or carried)
         for (int t = 0; t < 2; t++)
             for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
                 if (!fi->carried())
@@ -3795,7 +3791,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? true : false);
 
         // draw all teammates and enemies on screens where there are teammates
-        //draw all the players - put a pixel where they are
         if (me >= 0 && fx.frame >= 0)
             for (int i = 0; i < maxplayers; i++)
                 if (fx.player[i].used && fx.player[i].roomx >= 0 && fx.player[i].roomy >= 0 && fx.player[i].roomx < fx.map.w && fx.player[i].roomy < fx.map.h &&
@@ -3810,7 +3805,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             fx.teams[enemy].move_flag(f, WorldCoords(fx.player[i].roomx, fx.player[i].roomy,
                                 static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
 
-                            // draw the miniflag here
                             client_graphics.draw_mini_flag(enemy, *fi, fx.map);
                         }
 
@@ -3820,13 +3814,12 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             fi->move(WorldCoords(fx.player[i].roomx, fx.player[i].roomy,
                                 static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
 
-                            // draw the miniflag here
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
                     if (i != me) {
                         if (fx.player[i].color() >= 0 && fx.player[i].color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                            client_graphics.draw_minimap_player(fx.map, fx.player[i]);
+                            client_graphics.draw_minimap_player(fx.map, fx.player[i], fx.frame);
                     }
                     else // myself: draw differently
                         client_graphics.draw_minimap_me(fx.map, fx.player[i], get_time());

@@ -680,12 +680,19 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
     rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, teamcol[team]);
 }
 
-void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
+void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player, double frame) {
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
     const int a = scale(1);
     const int b = a / 2;
+    const int start_fadeout = 10;   // frames
+    if (frame > player.posUpdated + start_fadeout) {
+        const int alpha = 255 - (frame - player.posUpdated - start_fadeout) * 255 / start_fadeout;
+        set_trans_blender(0, 0, 0, alpha);
+        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+    }
     rectfill(drawbuf, coords.first - a, coords.second - a, coords.first + a, coords.second + a, teamcol[player.team()]);
     rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
+    solid_mode();
 }
 
 void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
