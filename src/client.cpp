@@ -1991,8 +1991,12 @@ void gameclient_c::save_screenshot() {
 	string filename;
 	for (int i = 0; i < 1000; i++) {
 		ostringstream fname;
-		fname << "outg" << setfill('0') << setw(3) << i << ".tga";
-		if (!file_exists(fname.str().c_str(), FA_ARCH|FA_DIREC|FA_RDONLY|FA_HIDDEN|FA_SYSTEM, 0)) {
+		fname << "screens";
+		char a[2] = { 0 };
+		put_backslash(a);
+		fname << a;
+		fname << "outg" << setfill('0') << setw(3) << i << ".pcx";
+		if (!file_exists(fname.str().c_str(), FA_ARCH|FA_DIREC|FA_HIDDEN|FA_RDONLY|FA_SYSTEM, 0)) {
 			filename = fname.str();
 			break;
 		}
