@@ -51,7 +51,7 @@ const char* getNlErrorString() {
 bool isValidIP(const std::string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
 	unsigned int i1, i2, i3, i4, port;
 	char midChar, endChar;
-	int n = sscanf(address.c_str(), "%u.%u.%u.%u%c%u%c", &i1, &i2, &i3, &i4, &midChar, &port, &endChar);
+	const int n = sscanf(address.c_str(), "%u.%u.%u.%u%c%u%c", &i1, &i2, &i3, &i4, &midChar, &port, &endChar);
 	if (allowPort && (requirePort || n != 4)) {
 		if (n != 6 || midChar != ':' || port > 65535 || port < minimumPort)
 			return false;
@@ -65,7 +65,7 @@ bool isValidIP(const std::string& address, bool allowPort, unsigned int minimumP
 
 bool check_private_IP(const string& address, bool allowAnyExternal) {
 	int i1, i2;
-	int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
+	const int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
 	nAssert(n == 2);
 	if (n != 2)
 		return false;
@@ -83,12 +83,11 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
 }
 
 string getPublicIP(LogSet& log, bool allowAnyExternal) {
-	NLaddress* locals;
 	NLint nLocals;
-	locals = nlGetAllLocalAddr(&nLocals);
+	NLaddress* locals = nlGetAllLocalAddr(&nLocals);
 	for (int i = 0; i < nLocals; ++i) {
-		string addr = addressToString(locals[i]);
-		bool priv = check_private_IP(addr, allowAnyExternal);
+		const string addr = addressToString(locals[i]);
+		const bool priv = check_private_IP(addr);
 		if (priv)
 			log("Local address %s ignored", addr.c_str());
 		else {

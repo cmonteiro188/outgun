@@ -48,6 +48,7 @@
 #include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "utility.h"
 #include "world.h"
+#include "language.h"
 
 #include "client.h"
 
@@ -219,7 +220,7 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 	log("Listen server stopped");
 
 	//restore client's windowtitle
-	config.statusOutput("Outgun client");	// note: this is the server's statusOutput not client's
+	config.statusOutput(_("Outgun client"));	// note: this is the server's statusOutput not client's
 
 	logThreadExit("ServerThreadOwner::threadFn", log);
 }
@@ -286,22 +287,22 @@ void TournamentPasswordManager::changeData(const string& newName, const string& 
 	start();
 }
 
-const char* TournamentPasswordManager::statusAsString() const {
+string TournamentPasswordManager::statusAsString() const {
 	switch (status()) {
-		case PS_noPassword:			return "No password set";
-		case PS_starting:			return "Initializing...";
-		case PS_socketError:		return "Socket error";
-		case PS_sending:			return "Sending login...";
-		case PS_sendError:			return "Error sending";
-		case PS_receiving:			return "Waiting for response...";
-		case PS_recvError:			return "No response";
-		case PS_invalidResponse:	return "Invalid response received";
-		case PS_unavailable:		return "Master server unavailable";
-		case PS_tokenReceived:		return "Logged in";
-		case PS_badLogin:			return "Login failed: check password";
-		case PS_tokenSent:			return "Logged in; sent to server";
-		case PS_tokenAccepted:		return "Logged in; server accepted";
-		case PS_tokenRejected:		return "Error: server rejected";
+		case PS_noPassword:			return _("No password set");
+		case PS_starting:			return _("Initializing...");
+		case PS_socketError:		return _("Socket error");
+		case PS_sending:			return _("Sending login...");
+		case PS_sendError:			return _("Error sending");
+		case PS_receiving:			return _("Waiting for response...");
+		case PS_recvError:			return _("No response");
+		case PS_invalidResponse:	return _("Invalid response received");
+		case PS_unavailable:		return _("Master server unavailable");
+		case PS_tokenReceived:		return _("Logged in");
+		case PS_badLogin:			return _("Login failed: check password");
+		case PS_tokenSent:			return _("Logged in; sent to server");
+		case PS_tokenAccepted:		return _("Logged in; server accepted");
+		case PS_tokenRejected:		return _("Error: server rejected");
 		default: nAssert(0); return 0;
 	}
 }
@@ -500,54 +501,54 @@ void TM_ServerSettings::execute(Client* cl) const {
 
 	ostringstream caption;
 	ostringstream value;
-	const int width = 22;
+	const int width = 25;
 
-	caption << setw(width) << "Capture limit: ";
+	caption << setw(width) << _("Capture limit") << ':';
 	if (caplimit == 0)
-		value << "none";
+		value << _("none");
 	else
 		value << static_cast<int>(caplimit);
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 	caption.str(""); value.str("");
 
-	caption << setw(width) << "Time limit: ";
+	caption << setw(width) << _("Time limit") << ':';
 	if (timelimit == 0)
-		value << "none";
+		value << _("none");
 	else
 		value << static_cast<int>(timelimit) << " min";
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 	caption.str(""); value.str("");
 
-	caption << setw(width) << "Extra time: ";
+	caption << setw(width) << _("Extra time") << ':';
 	if (extratime == 0)
-		value << "none";
+		value << _("none");
 	else
 		value << static_cast<int>(extratime) << " min";
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 	caption.str(""); value.str("");
 
-	caption << setw(width) << "Player collisions: ";
-	value << (cl->fx.physics.player_collisions ? "on" : "off");
+	caption << setw(width) << _("Player collisions") << ':';
+	value << (cl->fx.physics.player_collisions ? _("on") : _("off"));
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 	caption.str(""); value.str("");
 
-	caption << setw(width) << "Friendly fire: ";
+	caption << setw(width) << _("Friendly fire") << ':';
 	if (cl->fx.physics.friendly_fire == 0.)
-		value << "off";
+		value << _("off");
 	else
 		value << std::fixed << std::setprecision(0) << 100. * cl->fx.physics.friendly_fire << '%';
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 	caption.str(""); value.str("");
 
-	const string caps[] = { "Balance teams", "Drop power-ups", "Invisible shadow", "Switch deathbringer" };
+	const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer") };
 	int i;
 	for (i = 0; i < 4; i++) {
-		caption << setw(width - 2) << caps[i] << ": ";
-		value << ((misc1 & (1 << i)) ? "on" : "off");
+		caption << setw(width) << caps[i] << ':';
+		value << ((misc1 & (1 << i)) ? _("on") : _("off"));
 		cl->m_serverInfo.addLine(caption.str(), value.str());
 		caption.str(""); value.str("");
 	}
-	caption << setw(width) << "Maximum weapon level: ";
+	caption << setw(width) << _("Maximum weapon level") << ':';
 	value << (misc1 >> i) + 1;
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 
@@ -582,7 +583,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
 			cl->connect_failed_unreachable();
 			break;
 		case 4: {
-			const string msg = "Server is full.";
+			const string msg = _("Server is full.");
 			cl->connect_failed_denied(msg.data(), msg.length());
 			break;
 		}
@@ -665,13 +666,13 @@ Client::~Client() {
 	for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
 		delete *mi;
 
-	errorMessage("Client had these errors: (see clientlog.txt)", errorLog);
+	errorMessage(_("Client had these errors: (see clientlog.txt)"), errorLog);
 
 	log("Exiting client: destructor exiting");
 }
 
 bool Client::start() {
-	extConfig.statusOutput("Outgun client");
+	extConfig.statusOutput(_("Outgun client"));
 
 	totalframecount = 0;
 	framecount = 0;
@@ -993,7 +994,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
 
 	// start download
 	ostringstream msg;
-	msg << "Downloading map '" << mapname << "' (CRC " << server_crc << ")...";
+	msg << _("Downloading map") << " \"" << mapname << "\" (CRC " << server_crc << ")...";
 	print_message(msg_info, msg.str());
 	log("%s", msg.str().c_str());
 
@@ -1041,7 +1042,7 @@ void Client::client_connected(const char* data, int length) {	// call with frame
 
 	//set window title: the hostname
 	ostringstream caption;
-	caption << "Connected to: " << hostname.substr(0, 32) << " (" << addressToString(serverIP) << ')';
+	caption << _("Connected to") << ' ' << hostname.substr(0, 32) << " (" << addressToString(serverIP) << ')';
 	extConfig.statusOutput(caption.str());
 
 	//don't want to change teams by default
@@ -1080,7 +1081,7 @@ void Client::client_connected(const char* data, int length) {	// call with frame
 	}
 	// players
 	for (int i = 0; i < MAX_PLAYERS; i++)
-		fx.player[i].clear(false, i, "(name unknown)", i / TSIZE);
+		fx.player[i].clear(false, i, _("(name unknown)"), i / TSIZE);
 	players_sb.clear();
 	// powerups
 	for (int i = 0; i < MAX_PICKUPS; ++i)
@@ -1132,7 +1133,7 @@ void Client::send_tournament_participation() {
 
 void Client::client_disconnected(const char* data, int length) {
 	//restore window title
-	extConfig.statusOutput("Outgun client");
+	extConfig.statusOutput(_("Outgun client"));
 
 	// the gamestate?
 	connected = false;
@@ -1143,15 +1144,15 @@ void Client::client_disconnected(const char* data, int length) {
 	if (length == 1)
 		switch (data[0]) {
 			case server_c::disconnect_client_initiated: break;
-			case server_c::disconnect_server_shutdown:	description = "Server was shut down."; break;
-			case server_c::disconnect_timeout: 			description = "Connection timed out."; break;
-			case disconnect_kick:						description = "You were kicked."; break;
-			case disconnect_idlekick:					description = "You were kicked for being idle."; break;
-			case disconnect_client_misbehavior:			description = "Internal error (client misbehaved)."; break;
+			case server_c::disconnect_server_shutdown:	description = _("Server was shut down."); break;
+			case server_c::disconnect_timeout: 			description = _("Connection timed out."); break;
+			case disconnect_kick:						description = _("You were kicked."); break;
+			case disconnect_idlekick:					description = _("You were kicked for being idle."); break;
+			case disconnect_client_misbehavior:			description = _("Internal error (client misbehaved)."); break;
 			default:	break;
 		}
 	m_connectProgress.clear();
-	m_connectProgress.addLine("You have been disconnected.");
+	m_connectProgress.addLine(_("You have been disconnected."));
 	if (!description.empty())
 		m_connectProgress.addLine(description);
 	showMenu(m_connectProgress);
@@ -1195,7 +1196,7 @@ void Client::connect_failed_denied(const char* data, int length) {
 
 void Client::connect_failed_unreachable() {
 	nAssert(openMenus.safeTop() == &m_connectProgress.menu);
-	m_connectProgress.addLine("No response from server.");
+	m_connectProgress.addLine(_("No response from server."));
 	log("Connecting failed: no response");
 }
 
@@ -1323,7 +1324,7 @@ void Client::connect_command(bool loadPassword) {
 	client->connect(true);
 
 	m_connectProgress.clear();
-	m_connectProgress.addLine("Trying to connect...", true);
+	m_connectProgress.addLine(_("Trying to connect..."), true);
 	if (openMenus.safeTop() != &m_connectProgress.menu)
 		showMenu(m_connectProgress);
 }
@@ -2023,7 +2024,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				ls.fromNetwork(regStatus);
 				if (pid == me && fx.player[pid].reg_status != ls) {
 					ostringstream msg;
-					msg << "Status: ";	// 8
+					msg << _("Status: ");	// 8
 					if (ls.token()) {
 						if (ls.masterAuth()) {
 							msg << "master authorized, ";
@@ -2142,7 +2143,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				target &= ~0x80;
 				if (fx.player[target].stats().current_cons_kills() >= 10) {
 					ostringstream msg;
-					msg << fx.player[target].name.c_str() << "'s killing spree was ended by " << fx.player[attacker].name.c_str() << '.';
+					msg << fx.player[target].name.c_str() << _("'s killing spree was ended by") << ' ' << fx.player[attacker].name.c_str() << '.';
 					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
 				fx.player[attacker].stats().add_kill(deathbringer);
@@ -2158,7 +2159,7 @@ void Client::process_incoming_data(const char* data, int length) {
 					if (attacker == me)
 						addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
 					ostringstream msg;
-					msg << fx.player[attacker].name.c_str() << " is on a killing spree!";
+					msg << fx.player[attacker].name.c_str() << _(" is on a killing spree!");
 					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
 				break;
@@ -2195,7 +2196,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				pid &= ~0x80;
 				if (fx.player[pid].stats().current_cons_kills() >= 10) {
 					ostringstream msg;
-					msg << fx.player[pid].name.c_str() << "'s killing spree was ended.";
+					msg << fx.player[pid].name.c_str() << _("'s killing spree was ended.");
 					addThreadMessage(new TM_Text(msg_info, msg.str()));
 				}
 				fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
@@ -2396,9 +2397,9 @@ void Client::save_screenshot() {
 
 	ostringstream message;
 	if (client_graphics.save_screenshot(filename))
-		message << "Saved screenshot to " << filename << '.';
+		message << _("Saved screenshot to ") << filename << '.';
 	else
-		message << "Could not save screenshot to " << filename << '.';
+		message << _("Could not save screenshot to ") << filename << '.';
 	print_message(msg_warning, message.str().c_str());
 }
 
@@ -2410,14 +2411,14 @@ void Client::toggle_help() {
 		showMenu(menu.help);
 }
 
-const char* Client::refreshStatusAsString() const {
+string Client::refreshStatusAsString() const {
 	switch (refreshStatus) {
-		case RS_none: 		return "Inactive";
-		case RS_running:	return "Running";
-		case RS_failed:		return "Failed";
-		case RS_contacting:	return "Contacting the servers...";
-		case RS_connecting:	return "Getting server list: connecting...";
-		case RS_receiving:	return "Getting server list: receiving...";
+		case RS_none: 		return _("Inactive");
+		case RS_running:	return _("Running");
+		case RS_failed:		return _("Failed");
+		case RS_contacting:	return _("Contacting the servers...");
+		case RS_connecting:	return _("Getting server list: connecting...");
+		case RS_receiving:	return _("Getting server list: receiving...");
 		default:	nAssert(0);
 	}
 	nAssert(0); return 0;
@@ -3343,23 +3344,23 @@ void Client::draw_game_frame() {
 		// game over message
 		if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
 			if (red_final_score > blue_final_score)
-				client_graphics.draw_scores("RED TEAM WINS", 0, red_final_score, blue_final_score);
+				client_graphics.draw_scores(_("RED TEAM WINS"), 0, red_final_score, blue_final_score);
 			else if (blue_final_score > red_final_score)
-				client_graphics.draw_scores("BLUE TEAM WINS", 1, blue_final_score, red_final_score);
+				client_graphics.draw_scores(_("BLUE TEAM WINS"), 1, blue_final_score, red_final_score);
 			else
-				client_graphics.draw_scores("GAME TIED", -1, blue_final_score, red_final_score);
+				client_graphics.draw_scores(_("GAME TIED"), -1, blue_final_score, red_final_score);
 		}
 		else
-			client_graphics.draw_one_line_message("Connecting...");	//#fix: if the map download is pending, "Connecting..." is a wrong word
+			client_graphics.draw_one_line_message(_("Connecting..."));	//#fix: if the map download is pending, "Connecting..." is a wrong word
 
 		if (map_ready)
-			client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
+			client_graphics.draw_waiting_map_message(_("Waiting game start - next map is"), fx.map.title);
 		else {
 			MutexDebug md("downloadMutex", __LINE__, log);
 			MutexLock ml(downloadMutex);
 			if (!downloads.empty() && downloads.front().isActive()) {
 				ostringstream text;
-				text << "Loading map: " << downloads.front().progress() << " bytes";
+				text << _("Loading map") << ": " << downloads.front().progress() << _(" bytes");
 				client_graphics.draw_loading_map_message(text.str());
 			}
 		}
@@ -3750,7 +3751,7 @@ void Client::initMenus() {
 	m_errors.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_clearErrors			>(this));	// cancel not used
 	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser				>(this));	// cancel not used
 
-	m_errors.menu.setCaption("Errors");
+	m_errors.menu.setCaption(_("Errors"));
 
 	loadHelp();
 
@@ -3823,9 +3824,9 @@ void Client::MCF_removePasswords() {
 	const int removed = remove_player_passwords(menu.options.name.name());
 	ostringstream dialog;
 	if (removed > 0)
-		dialog << removed << " password" << (removed > 1 ? "s" : "") << " removed.";
+		dialog << removed << ' ' << (removed == 1 ? _("password") : _("passwords")) << ' ' << _("removed") << '.';
 	else
-		dialog << "No passwords found.";
+		dialog << _("No passwords found.");
 	m_dialog.clear();
 	m_dialog.addLine(dialog.str());
 	showMenu(m_dialog);
@@ -3928,7 +3929,7 @@ bool Client::screenModeChange() {	// returns true whenever Graphics is usable (e
 	const int rate = get_refresh_rate();
 	ostringstream ost;
 	if (rate == 0)
-		ost << "unknown";
+		ost << _("unknown");
 	else
 		ost << rate << " Hz";
 	menu.options.graphics.refreshRate.set(ost.str());
@@ -4003,7 +4004,7 @@ void Client::MCF_prepareServerMenu() {
 			info << '?';
 		if (spy->refreshed) {
 			if (spy->noresponse)
-				info << " no response";
+				info << ' ' << _("no response");
 			else
 				info << ' ' << spy->info;
 		}
@@ -4022,7 +4023,7 @@ void Client::MCF_prepareServerMenu() {
 					info << '?';
 				if (spy->refreshed) {
 					if (spy->noresponse)
-						info << " no response";
+						info << ' ' << _("no response");
 					else
 						info << ' ' << spy->info;
 				}
@@ -4054,7 +4055,7 @@ void Client::MCF_addServer() {
 		ServerListEntry spy;
 		if (!spy.setAddress(menu.connect.addServer.address())) {
 			m_dialog.clear();
-			m_dialog.addLine("Invalid IP address.");
+			m_dialog.addLine(_("Invalid IP address."));
 			showMenu(m_dialog);
 			return;
 		}
@@ -4075,7 +4076,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
 	ServerListEntry spy;
 	if (!spy.setAddress(menu.connect.manualEntry())) {
 		m_dialog.clear();
-		m_dialog.addLine("Invalid IP address.");
+		m_dialog.addLine(_("Invalid IP address."));
 		showMenu(m_dialog);
 		return true;
 	}
@@ -4165,10 +4166,16 @@ void Client::MCF_stopServer() {
 
 void Client::loadHelp() {
 	menu.help.clear();
-	const string configFile = wheregamedir + "config" + directory_separator + "help.txt";
+	// First try to load the translated help.
+	string configFile = wheregamedir + "config" + directory_separator + "help." + language.code() + ".txt";
 	ifstream in(configFile.c_str());
+	if (!in) {	// If failed, try to load the default help file.
+		in.clear();		// necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
+		configFile = wheregamedir + "config" + directory_separator + "help.txt";
+		in.open(configFile.c_str());
+	}
 	if (!in) {
-		menu.help.addLine("No help found. It should be in");
+		menu.help.addLine(_("No help found. It should be in"));
 		menu.help.addLine(configFile);
 		return;
 	}

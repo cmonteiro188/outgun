@@ -1263,3 +1263,4 @@ void SceneAntialiaser::render(Texturizer& tex) const {
 			tex.render(ei->getBaseTex(), &*ei, false);
 	}
 }
+

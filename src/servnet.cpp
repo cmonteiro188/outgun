@@ -129,7 +129,7 @@ void ServerNetworking::upload_next_file_chunk(int i) {
 int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 	//map file type
 	if (!strcmp(ftype, "map")) {
-		if (strpbrk(fname, "./:\\")!=NULL) {
+		if (strpbrk(fname, "./:\\")) {
 			log("Illegal file download attempt: map \"%s\"", fname);
 			return -1;
 		}
@@ -1680,12 +1680,12 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 			++cPos;
 			double v[4];
 			char termChar;
-			int num = sscanf(response.c_str() + cPos, "%lf#%lf#%lf#%*[^#]#%lf%c", &v[0], &v[1], &v[2], &v[3], &termChar);	// max_world_score that bugs is ignored
+			const int num = sscanf(response.c_str() + cPos, "%lf#%lf#%lf#%*[^#]#%lf%c", &v[0], &v[1], &v[2], &v[3], &termChar);	// max_world_score that bugs is ignored
 			if (num != 5 || termChar != '#') {
 				log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
 				continue;
 			}
-			int pid = ctop[job->cid];
+			const int pid = ctop[job->cid];
 			if (pid != -1) {	// the player is still in the game
 				ClientData& clid = host->getClientData(job->cid);	//#fix: thread safety
 				if (job->code == MasterQuery::JT_login) {
@@ -1709,7 +1709,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 			break;	// request complete
 		}
 		else if (response[cPos] == 'E' || response[cPos] == 'F') {
-			int pid = ctop[job->cid];
+			const int pid = ctop[job->cid];
 			if (pid != -1) {
 				if (job->code == MasterQuery::JT_login)	{
 					log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
@@ -1960,7 +1960,7 @@ void ServerNetworking::run_website_thread() {
 
 		// build and send data
 		map<string, string> parameters = website_parameters(localAddress);
-		int sending_maplist_revision = maplist_revision;
+		const int sending_maplist_revision = maplist_revision;
 		if (first_connection || sending_maplist_revision != sent_maplist_revision) {
 			parameters["maplist"] = website_maplist();
 			first_connection = false;

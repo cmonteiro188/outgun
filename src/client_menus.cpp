@@ -31,6 +31,7 @@
 #include "utility.h"
 #include "graphics.h"
 #include "sounds.h"
+#include "language.h"
 #include "client_menus.h"
 
 using std::ostringstream;
@@ -52,29 +53,29 @@ Spacer g_menuSpace(5);
 #define ins_space() menu.add_component(&g_menuSpace);
 
 Menu_addServer::Menu_addServer() :
-	address		("IP address", "", 21),
-	save		("Add to favorite list"),
+	address		(_("IP address"), "", 21),
+	save		(_("Add to favorite list")),
 
-	menu		("Add server", false)
+	menu		(_("Add server"), false)
 {
 	menu.add_component(&address);
 	menu.add_component(&save);
 }
 
 Menu_serverList::Menu_serverList() :
-	update			("Update server list"),
-	refresh			("Refresh servers"),
-	refreshStatus	("Refresh status"),
+	update			(_("Update server list")),
+	refresh			(_("Refresh servers")),
+	refreshStatus	(_("Refresh status")),
 
-	favorites		("Show favorite servers"),
+	favorites		(_("Show favorite servers")),
 	addServer		(),
-	manualEntry		("Manually enter IP", "", 21),
+	manualEntry		(_("Manually enter IP"), "", 21),
 
-	keyHelp			("Ins = add to favorites          Del = remove server"),
+	keyHelp			(_("Insert = add to favorites    Delete = remove server")),
 
-	caption			("IP address           Ping D Players Vers. Host name"),
+	caption			(_("IP address           Ping D Players Vers. Host name")),
 
-	menu			("Server list", true)
+	menu			(_("Server list"), true)
 {
 	reset();
 }
@@ -94,8 +95,8 @@ void Menu_serverList::reset() {
 	menu.add_component(&addServer.menu);
 	menu.add_component(&manualEntry);
 	ins_space();
-//	menu.add_component(&keyHelp);
-//	ins_space();
+	menu.add_component(&keyHelp);
+	ins_space();
 	menu.add_component(&caption);
 }
 
@@ -124,16 +125,16 @@ void Menu_serverList::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* 
 }
 
 Menu_name::Menu_name() :
-	name			("Name", "", 15),
-	randomName		("Get random name"),
+	name			(_("Name"), "", 15),
+	randomName		(_("Get random name")),
 
-	password		("Tournament password", "", 15, '*'),
-	namestatus		("Registration status"),
-	tournament		("Take part in the tournament", true),
+	password		(_("Tournament password"), "", 15, '*'),
+	namestatus		(_("Registration status")),
+	tournament		(_("Take part in the tournament"), true),
 
-	removePasswords	("Remove server-specific player passwords"),
+	removePasswords	(_("Remove server-specific player passwords")),
 
-	menu			("Name and passwords", true)
+	menu			(_("Name and passwords"), true)
 {
 	menu.add_component(&name);
 	menu.add_component(&randomName);
@@ -146,21 +147,21 @@ Menu_name::Menu_name() :
 }
 
 Menu_game::Menu_game() :
-	showNames			("Show player names", false),
-	favoriteColors		("Favorite colors"),
-	lagPrediction		("Lag prediction", false),
-	lagPredictionAmount	("Lag prediction amount", true, 0, 10, 10),
+	showNames			(_("Show player names"), false),
+	favoriteColors		(_("Favorite colors")),
+	lagPrediction		(_("Lag prediction"), false),
+	lagPredictionAmount	(_("Lag prediction amount"), true, 0, 10, 10),
 
-	messageLogging		("Save chat messages", false),
-	saveStats			("Save game statistics", false),
-	showStats			("Show stats after the round", false),
-	showServerInfo		("Show server info when connected", false),
-	underlineMasterAuth	("Underline master-authenticated players", true),
-	underlineServerAuth	("Underline server-authenticated players", false),
+	messageLogging		(_("Save chat messages"), false),
+	saveStats			(_("Save game statistics"), false),
+	showStats			(_("Show stats after the round"), false),
+	showServerInfo		(_("Show server info when connected"), false),
+	underlineMasterAuth	(_("Underline master-authenticated players"), true),
+	underlineServerAuth	(_("Underline server-authenticated players"), false),
 
-	autoGetServerList	("Get server list at startup", true),
+	autoGetServerList	(_("Get server list at startup"), true),
 
-	menu				("Game options", true)
+	menu				(_("Game options"), true)
 {
 	menu.add_component(&showNames);
 	menu.add_component(&favoriteColors);
@@ -178,16 +179,16 @@ Menu_game::Menu_game() :
 }
 
 Menu_controls::Menu_controls() :
-	keypadMoving		("Use keypad for moving", true),
+	keypadMoving		(_("Use keypad for moving"), true),
 
-	joystick			("Enable joystick control", false),
-	joyMove				("Moving stick", false, 0, 5, 1),
-	joyText				("Joystick buttons (0 = disabled)"),
-	joyShoot			("Shoot ", false, 0, 16, 1),
-	joyRun				("Run   ", false, 0, 16, 2),
-	joyStrafe			("Strafe", false, 0, 16, 3),
+	joystick			(_("Enable joystick control"), false),
+	joyMove				(_("Moving stick"), false, 0, 5, 1),
+	joyText				(_("Joystick buttons (0 = disabled)")),
+	joyShoot			(_("Shoot "), false, 0, 16, 1),
+	joyRun				(_("Run   "), false, 0, 16, 2),
+	joyStrafe			(_("Strafe"), false, 0, 16, 3),
 
-	menu				("Controls", true)
+	menu				(_("Controls"), true)
 {
 	menu.add_component(&keypadMoving);
 	ins_space();
@@ -213,23 +214,23 @@ void Menu_graphics::reloadChoices(const Graphics& gfx) {
 Menu_graphics::Menu_graphics() :
 	oldMode(-1, -1),	// guarantees anything to be newMode()
 
-	colorDepth	("Color depth"),
-	desktopDepth(" desktop", itoa(desktop_color_depth()) + "-bit"),
-	resolution	("Screen size"),
-	windowed	("Windowed mode", true),
-	flipping	("Use page flipping", false),
-	refreshRate	("Current refresh rate"),
-	apply		("Apply changes"),
+	colorDepth	(_("Color depth")),
+	desktopDepth(_(" desktop"), itoa(desktop_color_depth()) + _("-bit")),
+	resolution	(_("Screen size")),
+	windowed	(_("Windowed mode"), true),
+	flipping	(_("Use page flipping"), false),
+	refreshRate	(_("Current refresh rate")),
+	apply		(_("Apply changes")),
 
-	theme		("Theme"),
-	antialiasing("Antialiasing", true),
-	contTextures("Continuous textures between rooms", false),
-	statsBgAlpha("Stats screen alpha", true, 0, 255, 255, 15),
+	theme		(_("Theme")),
+	antialiasing(_("Antialiasing"), true),
+	contTextures(_("Continuous textures between rooms"), false),
+	statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
 
-	fpsLimit	("FPS limit", false, 1, 10000, 60, 0),
-	mapInfoMode	("Map info mode", false),
+	fpsLimit	(_("FPS limit"), false, 1, 10000, 60, 0),
+	mapInfoMode	(_("Map info mode"), false),
 
-	menu		("Graphic options", true)
+	menu		(_("Graphic options"), true)
 {
 	menu.add_component(&colorDepth);
 	menu.add_component(&desktopDepth);
@@ -251,13 +252,13 @@ Menu_graphics::Menu_graphics() :
 void Menu_graphics::init(const Graphics& gfx) {	// call just once, before calling update
 	nAssert(colorDepth.size() == 0);
 	if (gfx.depthAvailable(16))
-		colorDepth.addOption("16-bit", 16);
+		colorDepth.addOption(_("16-bit"), 16);
 	if (gfx.depthAvailable(24))
-		colorDepth.addOption("24-bit", 24);
+		colorDepth.addOption(_("24-bit"), 24);
 	if (gfx.depthAvailable(32))
-		colorDepth.addOption("32-bit", 32);
+		colorDepth.addOption(_("32-bit"), 32);
 	if (colorDepth.size() == 0)
-		colorDepth.addOption("16-bit", 16);	// this will force Graphics to use a hope-this-works resolution
+		colorDepth.addOption(_("16-bit"), 16);	// this will force Graphics to use a hope-this-works resolution
 	colorDepth.set(desktop_color_depth());	// may fail (although it's unlikely); ignore
 	reloadChoices(gfx);
 	resolution.set(ScreenMode(640, 480));	// default resolution
@@ -283,11 +284,11 @@ bool Menu_graphics::newMode() {
 
 
 Menu_sounds::Menu_sounds() :
-	enabled	("Sounds enabled", true),
-	volume	("Volume", true, 0, 255, 128, 15),
-	theme	("Theme"),
+	enabled	(_("Sounds enabled"), true),
+	volume	(_("Volume"), true, 0, 255, 128, 15),
+	theme	(_("Theme")),
 
-	menu	("Sound options", true)
+	menu	(_("Sound options"), true)
 {
 	menu.add_component(&enabled);
 	menu.add_component(&volume);
@@ -313,7 +314,7 @@ Menu_options::Menu_options() :
 	graphics(),
 	sounds	(),
 
-	menu	("Options", true)
+	menu	(_("Options"), true)
 {
 	menu.add_component(&name.menu);
 	menu.add_component(&game.menu);
@@ -332,15 +333,15 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
 }
 
 Menu_ownServer::Menu_ownServer() :
-	pub		("Add to public serverlist", false),
-	port	("Server port", 1, 65535, DEFAULT_UDP_PORT),
-	address	("Detected address"),
+	pub		(_("Add to public serverlist"), false),
+	port	(_("Server port"), 1, 65535, DEFAULT_UDP_PORT),
+	address	(_("Detected address")),
 
-	start	("Start server"),
-	play	("Play on the server"),
-	stop	("Stop server"),
+	start	(_("Start server")),
+	play	(_("Play on the server")),
+	stop	(_("Stop server")),
 
-	menu	("Local server", true)
+	menu	(_("Local server"), true)
 {
 	menu.add_component(&pub);
 	menu.add_component(&port);
@@ -354,19 +355,19 @@ Menu_ownServer::Menu_ownServer() :
 void Menu_ownServer::init(const std::string& externalAddress, bool priv) {
 	privateIP = priv;
 	if (priv && !externalAddress.empty())
-		ip = string("(private) ") + externalAddress;
+		ip = _("(private)") + ' ' + externalAddress;
 	else
 		ip = externalAddress;	// the case of empty ip is handled specially in the drawing code
 }
 
 void Menu_ownServer::refreshCaption(bool serverRunning) {
 	if (serverRunning)
-		menu.setCaption("Local server (running)");
+		menu.setCaption(_("Local server (running)"));
 	else
-		menu.setCaption("Local server");
+		menu.setCaption(_("Local server"));
 	// this could be a separate function but it really doesn't hurt to update the address field here
 	if (ip.empty())
-		address.set("(unknown)");
+		address.set(_("(unknown)"));
 	else {
 		ostringstream os;
 		os << ip;
@@ -406,14 +407,14 @@ Menu_main::Menu_main() :
 	newVersion	(""),
 
 	connect		(),
-	disconnect	("Disconnect"),
+	disconnect	(_("Disconnect")),
 
 	options		(),
 
 	ownServer	(),
 
 	help		(),
-	exitOutgun	("Exit Outgun"),
+	exitOutgun	(_("Exit Outgun")),
 
 	menu		("Outgun " GAME_VERSION, true)
 {
@@ -438,8 +439,8 @@ void Menu_main::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener
 }
 
 Menu_text::Menu_text() :
-	accept	("OK"),
-	cancel	("Cancel"),
+	accept	(_("OK")),
+	cancel	(_("Cancel")),
 
 	menu	("Outgun " GAME_VERSION, false)
 { }
@@ -474,8 +475,8 @@ void Menu_text::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener
 }
 
 Menu_playerPassword::Menu_playerPassword() :
-	password	("Password", "", 15, '*'),
-	save		("Save password"),
+	password	(_("Password"), "", 15, '*'),
+	save		(_("Save password")),
 
 	menu		(string(), false)	// caption is set by setup()
 {
@@ -484,15 +485,15 @@ Menu_playerPassword::Menu_playerPassword() :
 }
 
 void Menu_playerPassword::setup(const string& plyName, bool saveChecked) {
-	menu.setCaption("Player password for " + plyName);
+	menu.setCaption(_("Player password for") + ' ' + plyName);
 	password.set("");
 	save.set(saveChecked);
 }
 
 Menu_serverPassword::Menu_serverPassword() :
-	password	("Password", "", 15, '*'),
+	password	(_("Password"), "", 15, '*'),
 
-	menu		("Server password", false)
+	menu		(_("Server password"), false)
 {
 	menu.add_component(&password);
 }
@@ -500,7 +501,7 @@ Menu_serverPassword::Menu_serverPassword() :
 Menu_help::Menu_help() :
 	text	(),
 
-	menu	("Help", false)
+	menu	(_("Help"), false)
 { }
 
 void Menu_help::addLine(const string& line) {

@@ -35,6 +35,7 @@
 #include "mappic.h"
 #include "network.h"
 #include "platform.h"	// platMkdir
+#include "language.h"
 
 using std::ifstream;
 using std::ostringstream;
@@ -176,7 +177,7 @@ int main(int argc, char *argv[]) {
 	delete[] path;
 
 	if (!check_dir("log"))
-		return mainError("Directory 'log' not found.\nPlease create this directory.\nThe game cannot run without it.");
+		return mainError("The directory 'log' not found.\nPlease create this directory.\nThe game cannot run without it.");
 	if (!check_dir("config"))
 		allegro_message("The directory 'config' was not found.\nCreate it to be able to save the configuration\nor customize your server.");
 
@@ -438,6 +439,19 @@ int main(int argc, char *argv[]) {
 	}
 	// run client
 	else {
+		const string lang_file = wheregamedir + "config" + directory_separator + "language.txt";
+		ifstream in(lang_file.c_str());
+		string lang_str;
+		if (getline_skip_comments(in, lang_str)) {
+			if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos) {
+                if (!language.load(lang_str))
+        			allegro_message("Language file not found for '%s'. Using English.", lang_str.c_str());
+            }
+			else
+				log.error("Invalid language '%s' in %s.", lang_str.c_str(), lang_file.c_str());
+		}
+		in.close();
+
 		if (!check_dir(CLIENT_MAPS_DIR))
 			return mainError("The directory '%s' was not found.\nPlease create this directory.\nThe game can't run without it.", CLIENT_MAPS_DIR);
 		if (!check_dir("screens"))
@@ -456,7 +470,7 @@ int main(int argc, char *argv[]) {
 			gameclient->stop();
 		}
 		else
-			allegro_message("Error: Can't start client. See the logs.");
+			allegro_message(_("Error: Can't start client. See the logs.").c_str());
 		delete gameclient;
 	}
 

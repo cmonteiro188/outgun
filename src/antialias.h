@@ -64,7 +64,7 @@ private:
 			if (alpha >= scaleVal)
 				r = g = b = alphaTotal = 0;
 			else {
-				double mul = (scaleVal - alpha) / static_cast<double>(scaleVal);
+				const double mul = (scaleVal - alpha) / static_cast<double>(scaleVal);
 				r = static_cast<int>(r * mul);
 				g = static_cast<int>(g * mul);
 				b = static_cast<int>(b * mul);

@@ -161,7 +161,7 @@ public:
 	void stop();
 	void changeData(const std::string& newName, const std::string& newPass);
 	PasswordStatus status() const { if (passStatus == PS_tokenReceived && servStatus != PS_noPassword) return servStatus; else return passStatus; }
-	const char* statusAsString() const;
+	std::string statusAsString() const;
 	std::string getToken() const { return token.read(); }
 
 	void serverProcessingToken()	{ servStatus = PS_tokenSent;		}
@@ -427,7 +427,7 @@ class Client {
 	void send_frame(bool newFrame);
 	void process_incoming_data(const char* data, int length);
 
-	const char* refreshStatusAsString() const;
+	std::string refreshStatusAsString() const;
 	void getServerListThread();
 	void refreshThread();
 	bool refresh_all_servers();

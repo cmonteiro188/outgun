@@ -213,7 +213,7 @@ double get_time() {
 }
 
 string date_and_time() {
-	time_t tt = time(0);
+	const time_t tt = time(0);
 	const tm* tmb = localtime(&tt);
 	const int time_w = 20;
 	char time_str[time_w + 1];
@@ -299,3 +299,4 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 	textout_right(bmp, f, text, x, y, color);
 }
 #endif	// ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+

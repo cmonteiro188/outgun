@@ -38,6 +38,7 @@
 #include "sounds.h"
 #include "antialias.h"
 #include "client.h"
+#include "language.h"
 #include "graphics.h"
 
 const bool TEST_FALL_ON_WALL = false;
@@ -1065,8 +1066,8 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 		circlefill(drawbuf, plx + x - 8, ply + y - 10, 8, col[COLBLUE]);
 		circlefill(drawbuf, plx + x + 8, ply + y - 10, 8, col[COLMAG]);
 		circlefill(drawbuf, plx + x + 0, ply + y - 20, 8, col[COLGREEN]);
-		textout_centre_ex(drawbuf, font, "VIROU", plx + x + 0, ply + y - 48, col[COLWHITE], -1);
-		textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
+		textout_centre_ex(drawbuf, font, _("VIROU").c_str(), plx + x + 0, ply + y - 48, col[COLWHITE], -1);
+		textout_centre_ex(drawbuf, font, _("SORVETE!").c_str(), plx + x + 0, ply + y - 38, col[COLWHITE], -1);
 	}
 }
 
@@ -1347,7 +1348,7 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 		default: c = col[COLMENUGRAY]; break;
 	}
 	textout_centre_ex(drawbuf, font, text.c_str(), plx + plw / 2, ply + plh / 2 - 40, c, -1);
-	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "%s %i - %i", _("SCORE").c_str(), score1, score2);
 }
 
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
@@ -1360,16 +1361,21 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 		line_h = 12;
 
 	// captions
+	const int caption_width = 20;
 	ostringstream red, blue;
-	red  << "Red Team:    ";
-	blue << "Blue Team:   ";
+	red  << _("Red Team");
+	blue << _("Blue Team");
 	if (pings) {
-		red  << "  pings";
-		blue << "  pings";
+		red  << setw(caption_width - red.str().length()) << _("pings");
+		blue << setw(caption_width - blue.str().length()) << _("pings");
 	}
 	else {
-		red  << setw(2) << teams[0].score() << " capt";
-		blue << setw(2) << teams[1].score() << " capt";
+		ostringstream points;
+		points << setw(2) << teams[0].score() << _(" capt");
+		red << setw(caption_width - red.str().length()) << points.str();
+		points.str("");
+		points << setw(2) << teams[1].score() << _(" capt");
+		blue << setw(caption_width - blue.str().length()) << points.str();
 	}
  	textout_ex(drawbuf, font, red.str().c_str(), sbx, sby, teamlcol[0], -1);
  	textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 1) * line_h, teamlcol[1], -1);
@@ -1400,7 +1406,7 @@ void Graphics::draw_scoreboard_points(int points, int x, int y, int team) {
 
 void Graphics::team_statistics(const Team* teams) {
 	const int line_height = 12;
-	const int w = 300;
+	const int w = 350;
 	const int h = min<int>(SCREEN_H - 40, (19 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
@@ -1423,23 +1429,23 @@ void Graphics::team_statistics(const Team* teams) {
 		solid_mode();
 	}
 
-	textout_centre_ex(drawbuf, font, "Team stats", mx, y1 + line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Red Team", (3 * x1 + x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Blue Team", (x1 + 3 * x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Team stats").c_str(), mx, y1 + line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Red Team").c_str(), (3 * x1 + x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Blue Team").c_str(), (x1 + 3 * x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
 
 	int line = 5;
-	textout_centre_ex(drawbuf, font, "Captures",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Kills",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Deaths",         mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Suicides",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags dropped",  mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags returned", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Shots",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Hit accuracy",   mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Shots taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Movement",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Power",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Captures").c_str(),       mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Kills").c_str(),          mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Deaths").c_str(),         mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Suicides").c_str(),       mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Flags taken").c_str(),    mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Flags dropped").c_str(),  mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Flags returned").c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Shots").c_str(),          mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Hit accuracy").c_str(),   mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Shots taken").c_str(),    mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Movement").c_str(),       mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Power").c_str(),          mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
 	for (int t = 0; t < 2; t++) {
 		const Team& team = teams[t];
@@ -1542,32 +1548,33 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
 	// space for (w - 2 * margin) / char_w == 62 characters per line; 4 + 1 + 16 + 1 used for login and name with spacing; 40 characters for stats
 	string caption1, caption2;
 	switch (page) {
-		// max length:     |........................................|
-		case 0: caption1 = "     Frags    total/in-row/most";
-				caption2 = "Ping     Capt Kills      Deaths Suicides";
-				//         |0000  000 00 000/00/00  000/00/00   00  |
+		// max length:       |........................................|
+		case 0: caption1 = _("     Frags    total/in-row/most");
+				caption2 = _("Ping     Capt Kills      Deaths Suicides");
+				//           |0000  000 00 000/00/00  000/00/00   00  |
 				break;
-		case 1: caption1 = "         Flags          Carriers  Carry";
-				caption2 = "taken dropped returned   killed    time";
-				//         |  00      00      00       00     00:00 |
+		case 1: caption1 = _("         Flags          Carriers  Carry");
+				caption2 = _("taken dropped returned   killed    time");
+				//           |  00      00      00       00     00:00 |
 				break;
-		case 2: caption1 = "   Accuracy";
-				caption2 = "Shots   | Taken  Movement     Speed";
-				//         |00000 100% 0000  000000 u  00.00 u/s    |
+		case 2: caption1 = _("   Accuracy");
+				caption2 = _("Shots   | Taken  Movement     Speed");
+				//           |00000 100% 0000  000000 u  00.00 u/s    |
 				break;
-		case 3: caption1 = "          Average        Tournament";
-				caption2 = "Playtime lifetime    rank  power  score";
-				//         |00000 min   00:00    0000  00.00 -00000  |
+		case 3: caption1 = _("          Average        Tournament");
+				caption2 = _("Playtime lifetime    rank  power  score");
+				//           |00000 min   00:00    0000  00.00 -00000  |
 				break;
 		default: nAssert(0);
 	}
-	const string red =  string("Red Team              ") + caption1;
-	const string blue = string("Blue Team             ") + caption1;
-	const string row2 = string("                      ") + caption2;
-	textout_ex(drawbuf, font,  red.c_str(), x_left, team1y         , col[COLWHITE], -1);
-	textout_ex(drawbuf, font, row2.c_str(), x_left, team1y + line_h, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, blue.c_str(), x_left, team2y         , col[COLWHITE], -1);
-	textout_ex(drawbuf, font, row2.c_str(), x_left, team2y + line_h, col[COLWHITE], -1);
+	ostringstream red, blue, row2;
+	red << left << setw(22) << _("Red Team") << caption1;
+	blue << left << setw(22) << _("Blue Team") << caption1;
+	row2 << setw(22) << " " << caption2;
+	textout_ex(drawbuf, font,  red.str().c_str(), x_left, team1y         , col[COLWHITE], -1);
+	textout_ex(drawbuf, font, row2.str().c_str(), x_left, team1y + line_h, col[COLWHITE], -1);
+	textout_ex(drawbuf, font, blue.str().c_str(), x_left, team2y         , col[COLWHITE], -1);
+	textout_ex(drawbuf, font, row2.str().c_str(), x_left, team2y + line_h, col[COLWHITE], -1);
 
 	int i = 0;
 	int teamLineY[2] = { team1y + 3 * line_h, team2y + 3 * line_h };
@@ -1578,7 +1585,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
 	}
 
 	if (page == 3 && max_world_rank > 0)
-		textprintf_ex(drawbuf, font, x_left, pageNumY, col[COLGREEN], -1, "%d players in the tournament", max_world_rank);
+		textprintf_ex(drawbuf, font, x_left, pageNumY, col[COLGREEN], -1, "%d %s", max_world_rank, _("players in the tournament").c_str());
 
 	ostringstream page_num;
 	page_num << page + 1 << '/' << 4;
@@ -1655,7 +1662,7 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
 	
 	line++;
 	ostringstream axis_info;
-	axis_info << "Joystick axes:";
+	axis_info << _("Joystick axes") << ':';
 	for (vector<vector<pair<int, int> > >::const_iterator stick = sticks.begin(); stick != sticks.end(); ++stick) {
 		axis_info << " [";
 		for (vector<pair<int, int> >::const_iterator axis = stick->begin(); axis != stick->end(); ++axis)
@@ -1666,15 +1673,15 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
 
 	line++;
 	ostringstream button_info;
-	button_info << "Joystick buttons:";
+	button_info << _("Joystick buttons") << ':';
 	for (vector<int>::const_iterator but = buttons.begin(); but != buttons.end(); ++but)
 		button_info << ' ' << *but;
 	textout_ex(drawbuf, font, button_info.str().c_str(), 0, line++ * line_h, col[COLINFO], -1);
 
 	line++;
 	const int bpstraffic = bpsin + bpsout;
-	textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "Traffic: %4i B/s", bpstraffic);
-	textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "in %4i B/s, out %4i B/s", bpsin, bpsout);
+	textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "%s: %4i B/s", _("Traffic").c_str(), bpstraffic);
+	textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "%s %4i B/s, %s %4i B/s", _("in").c_str(), bpsin, _("out").c_str(), bpsout);
 }
 
 void Graphics::map_time(int seconds) {
@@ -1708,10 +1715,10 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 		solid_mode();
 	}
 
-	textout_centre_ex(drawbuf, font, "Server map list", mx, y1 + line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, _("Server map list").c_str(), mx, y1 + line_height, col[COLWHITE], -1);
 
 	ostringstream caption;
-	caption << left << "Nr Vote " << setw(20) << "Title" << ' ' << setw(5) << "Size" << " Author";
+	caption << _(" Nr Vote Title                Size  Author");
 	textout_ex(drawbuf, font, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
 
 	if (map_list_start >= static_cast<int>(maps.size()) - map_list_size)
@@ -1747,25 +1754,25 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 		scrollbar(x, y, height, bar_y, bar_h, col[COLGREEN], col[COLDARKGREEN]);
 	}
 	ostringstream vote;
-	vote << "Vote map number: " << edit_vote << '_';
+	vote << _("Vote map number") << ": " << edit_vote << '_';
 	const int y = y1 + (5 + map_list_size + 1) * line_height;
 	textout_ex(drawbuf, font, vote.str().c_str(), x_left, y, col[COLGREEN], -1);
 }
 
 void Graphics::draw_player_power(double val) {
-	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "POWER: %3.0f", val);
+	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "%-7s%3.0f", _("Power").c_str(), val);
 }
 
 void Graphics::draw_player_turbo(double val) {
-	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "TURBO: %3.0f", val);
+	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "%-7s%3.0f", _("Turbo").c_str(), val);
 }
 
 void Graphics::draw_player_shadow(double val) {
-	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "SHADOW:%3.0f", val);
+	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "%-7s%3.0f", _("Shadow").c_str(), val);
 }
 
 void Graphics::draw_player_weapon(int level) {
-	textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "WEAPON: %i", level);
+	textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "%-8s%i", _("Weapon").c_str(), level);
 }
 
 void Graphics::draw_change_team_message(double time) {
@@ -1774,8 +1781,8 @@ void Graphics::draw_change_team_message(double time) {
 		c = col[COLRED];
 	else
 		c = col[COLWHITE];
-	textout_ex(drawbuf, font, "CHANGE", plx + scale(plw - 6 * 8 - 10),     ply + scale(plh - 18), c, -1);
-	textout_ex(drawbuf, font, "TEAMS",  plx + scale(plw - 6 * 8 - 10 + 4), ply + scale(plh -  9), c, -1);
+	textout_centre_ex(drawbuf, font, _("CHANGE").c_str(), plx + scale(plw - 6 * 8 + 10),     ply + scale(plh - 18), c, -1);
+	textout_centre_ex(drawbuf, font, _("TEAMS").c_str(),  plx + scale(plw - 6 * 8 + 10), ply + scale(plh -  9), c, -1);
 }
 
 void Graphics::draw_change_map_message(double time) {
@@ -1784,15 +1791,15 @@ void Graphics::draw_change_map_message(double time) {
 		c = col[COLRED];
 	else
 		c = col[COLWHITE];
-	textout_ex(drawbuf, font, "EXIT", plx + scale(plw - 40 - 6 * 8 - 10),     ply + scale(plh - 18), c, -1);
-	textout_ex(drawbuf, font, "MAP",  plx + scale(plw - 40 - 6 * 8 - 10 + 4), ply + scale(plh -  9), c, -1);
+	textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 70 - 6 * 8 + 6),     ply + scale(plh - 18), c, -1);
+	textout_centre_ex(drawbuf, font, _("MAP").c_str(),  plx + scale(plw - 70 - 6 * 8 + 6), ply + scale(plh -  9), c, -1);
 }
 
 void Graphics::draw_player_health(int health) {
 	const int x0 = indicators_x + 10;
 	const int y0 = indicators_y;
 	// health value
-	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "Health: %5i", health);
+	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-8s%5i", _("Health").c_str(), health);
 	// health bar
 	rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
 	if (health == 0)
@@ -1814,7 +1821,7 @@ void Graphics::draw_player_energy(int energy) {
 	const int x0 = indicators_x + 10 + 14 * 8;
 	const int y0 = indicators_y;
 	// energy value
-	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "Energy: %5i", energy);
+	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-8s%5i", _("Energy").c_str(), energy);
 	// energy bar
 	rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
 	if (energy == 0)
@@ -1847,7 +1854,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
 	}
 	if (!talkbuffer.empty()) {
 		ostringstream message;
-		message << "Say: " << talkbuffer << '_';
+		message << _("Say") << ": " << talkbuffer << '_';
 		print_chat_input(message.str(), marginal, marginal + line * line_height);
 	}
 }
@@ -1908,9 +1915,9 @@ void Graphics::show_not_responding_message() {
 	rect(drawbuf, 194, 199, 444, 279, col[COLMENUWHITE]);
 	rect(drawbuf, 196, 201, 446, 281, col[COLMENUBLACK]);
 	rectfill(drawbuf, 195, 200, 445, 280, col[COLMENUGRAY]);
-	textprintf_ex(drawbuf, font, 220, 220, col[COLWHITE], -1, "SERVER NOT RESPONDING...");
-	textprintf_ex(drawbuf, font, 220, 240, col[COLWHITE], -1, "May be heavy packet loss,");
-	textprintf_ex(drawbuf, font, 220, 255, col[COLWHITE], -1, "or the server disconnected");
+	textprintf_ex(drawbuf, font, 220, 220, col[COLWHITE], -1, _("SERVER NOT RESPONDING...").c_str());
+	textprintf_ex(drawbuf, font, 220, 240, col[COLWHITE], -1, _("May be heavy packet loss,").c_str());
+	textprintf_ex(drawbuf, font, 220, 255, col[COLWHITE], -1, _("or the server disconnected.").c_str());
 }
 
 bool Graphics::save_screenshot(const string& filename) const {
@@ -2130,7 +2137,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 // Theme functions
 
 void Graphics::search_themes(LineReceiver& dst) const {
-	dst("<no theme>");
+	dst(_("<no theme>"));
 
 	const string searchPattern = wheregamedir + "graphics" + directory_separator + "*.*";
 
@@ -2152,7 +2159,7 @@ void Graphics::search_themes(LineReceiver& dst) const {
 
 void Graphics::select_theme(const string& dir) {
 	unload_pictures();
-	if (dir == "<no theme>")
+	if (dir == _("<no theme>"))
 		no_theme = true;
 	else {
 		no_theme = false;
@@ -2166,7 +2173,7 @@ void Graphics::load_theme(const string& dirname) {
 
 	ifstream file((theme_path + "theme.txt").c_str());
 	if (!getline_skip_comments(file, theme_name))
-		theme_name = "(unnamed theme)";
+		theme_name = _("(unnamed theme)");
 
 	log("Loaded graphics theme '%s'.", dirname.c_str());
 }

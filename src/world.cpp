@@ -91,7 +91,7 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
 	}
 	else {
 		// solve lx(y) == rectx2 , where lx(y) = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1)
-		double intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
+		const double intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
 		if (lx2 > lx1) {	// the intersection is at y <= intersect_y
 			if (maxy > intersect_y)
 				maxy = intersect_y;
@@ -107,7 +107,7 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
 	if (rx1 == rx2)
 		return (rx1 >= rectx1);
 	else {
-		double intersect_y = (rectx1 - rx1) * (ry2 - ry1) / (rx2 - rx1) + ry1;
+		const double intersect_y = (rectx1 - rx1) * (ry2 - ry1) / (rx2 - rx1) + ry1;
 		if (rx2 > rx1) {	// the intersection is at y >= intersect_y
 			if (miny < intersect_y)
 				miny = intersect_y;
@@ -156,13 +156,13 @@ TriWall::TriWall(double x1, double y1, double x2, double y2, double x3, double y
  * a perfect intersects_circ would be possible, but the loss isn't so great in only testing the circle's bounding rectangle
  */
 bool TriWall::intersects_circ(double x, double y, double r) const {
-	return intersects_rect(x - r, y - r, x + r, y + r);
+    return intersects_rect(x - r, y - r, x + r, y + r);
 }
 
 bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) const {
-	nAssert(ry1<=ry2 && rx1<=rx2);
-	nAssert(p1y<=p2y && p2y<=p3y);
-	if (rx1>boundx2 || rx2<boundx1 || ry1>boundy2 || ry2<boundy1)
+	nAssert(ry1 <= ry2 && rx1 <= rx2);
+	nAssert(p1y <= p2y && p2y <= p3y);
+	if (rx1 > boundx2 || rx2 < boundx1 || ry1 > boundy2 || ry2 < boundy1)
 		return false;
 	/* idea: triangle is split in two triangles: y<=y2 and y>=y2
 	 * for both parts, the right and left edge are checked separately
@@ -269,7 +269,7 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const {
 bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const {
 	// more crude check against the wall's bounding rectangle would be: return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro;
 	const double rwr = (x2 - x1) / 2., rhr = (y2 - y1) / 2.;
-	return intersects_circ(x1 + rwr, y1 + rhr, sqrt( rwr*rwr + rhr*rhr ));
+	return intersects_circ(x1 + rwr, y1 + rhr, sqrt(rwr * rwr + rhr * rhr));
 }
 
 Room::~Room() {
@@ -317,7 +317,7 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
 		#endif
 	}
 
-	nAssert(bd.first>=0.);
+	nAssert(bd.first >= 0.);
 	return bd;
 }
 
@@ -963,6 +963,7 @@ void CircWall::tryBounce(BounceData* bd, double stx, double sty, double mx, doub
 }
 
 std::string WorldBase::getTeamName(int team) {
+    nAssert(team >= 0 && team <= 2);
 	const char* name[3] = { "RED", "BLUE", "WILD" };
 	return name[team];
 }
@@ -1047,12 +1048,12 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	h->sy -= h->sy * physics.drag;
 
 	// apply friction: v -= fric
-	double spd = sqrt(h->sx * h->sx + h->sy * h->sy);
+	const double spd = sqrt(h->sx * h->sx + h->sy * h->sy);
 	if (spd <= physics.fric || spd < .001)	// the test on .001 is because fric <= 0 is allowed but spd == 0 doesn't work in the formula below
 		h->sx = h->sy = 0;
 	else {
 		// v = v - fric
-		double mul = 1 - physics.fric / spd;
+		const double mul = 1 - physics.fric / spd;
 		h->sx *= mul;
 		h->sy *= mul;
 	}
@@ -1065,9 +1066,9 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 		if (fabs(h->sx) > .001 || fabs(h->sy) > .001) {	// the player is moving in some direction (otherwise, any direction is 'forward')
 			// handle different directions : scale braking component by brake_mul and turning component by turn_mul
 			// acceleration component parallel to v = par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
-			double par_mul = (xAcc * h->sx + yAcc * h->sy) / (h->sx * h->sx + h->sy * h->sy);
+			const double par_mul = (xAcc * h->sx + yAcc * h->sy) / (h->sx * h->sx + h->sy * h->sy);
 			double par_x = par_mul * h->sx, par_y = par_mul * h->sy;
-			double perp_x = xAcc - par_x, perp_y = yAcc - par_y;
+			const double perp_x = xAcc - par_x, perp_y = yAcc - par_y;
 			if (par_mul < 0) {	// par is opposite to v == braking
 				par_x *= physics.brake_mul;
 				par_y *= physics.brake_mul;
@@ -1278,18 +1279,16 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
 
 void PhysicalSettings::print(LineReceiver& printer) const {
 	ostringstream line;
-	if (friendly_fire > 0.) {
-		line << "- Friendly fire damage is " << std::fixed << std::setprecision(0) << 100. * friendly_fire << '%';
-		printer(line.str());
-		line.str("");
-	}
-	if (friendly_db > 0.) {
-		line << "- Friendly deathbringer damage is " << std::fixed << std::setprecision(0) << 100. * friendly_db << '%';
-		printer(line.str());
-		line.str("");
-	}
+	line << "- Friendly fire damage is " << std::fixed << std::setprecision(0) << 100. * friendly_fire << '%';
+	printer(line.str());
+	line.str("");
+	line << "- Friendly deathbringer damage is " << std::fixed << std::setprecision(0) << 100. * friendly_db << '%';
+	printer(line.str());
+	line.str("");
 	if (player_collisions)
 		printer("- Players can collide with each other.");
+    else
+		printer("- Players can't collide with each other.");
 }
 
 void PowerupSettings::reset() {
@@ -2471,12 +2470,12 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
 void ServerWorld::simulateFrame() {
 	// (-1) check powerup respawn
 	double thetime = get_time();
-	for (int i=0;i<MAX_PICKUPS;i++)
+	for (int i = 0; i < MAX_PICKUPS; i++)
 		if (item[i].kind == Powerup::pup_respawning && thetime > item[i].respawn_time)
 			respawn_pickup(i);
 
 	// (0) do stuff for every player
-	for (int i=0;i<maxplayers;i++) {
+	for (int i = 0; i < maxplayers; i++) {
 		if (!player[i].used)
 			continue;
 
@@ -2534,7 +2533,7 @@ void ServerWorld::simulateFrame() {
 		// check for a player's deathbringer to bring death
 		if (player[i].dead && player[i].item_deathbringer) {
 			//delta time since shoot
-			double delta = (frame - player[i].item_deathbringer_time) * 0.1;
+			const double delta = (frame - player[i].item_deathbringer_time) * 0.1;
 			//figure out new radius
 			int rad;
 			if (delta < 1.0)
@@ -2572,7 +2571,7 @@ void ServerWorld::simulateFrame() {
 
 						const double div = sqrt(tx * tx + ty * ty);
 						if (div != 0) {
-							double mul = 40. / div;	// set speed to 40
+							const double mul = 40. / div;	// set speed to 40
 							player[v].sx = tx * mul;
 							player[v].sy = ty * mul;
 						}
@@ -2629,7 +2628,7 @@ void ServerWorld::simulateFrame() {
 
 		// check don't regen because of deathbringer
 		//v0.4.0: do not regen if has deathbringer and both health/energy are at no less than 100
-		bool deathbringer_penalty =
+		const bool deathbringer_penalty =
 				((player[i].item_deathbringer) && (player[i].health >= 100) && (player[i].energy >= 100))			//rand() % 100 < 50
 				||
 				(player[i].deathbringer_end > get_time());
