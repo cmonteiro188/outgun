@@ -6151,7 +6151,7 @@ public:
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
-							player[pid].queue_printf("Distance travelled: %.0lf, average speed %.2lf/s.",
+							player[pid].queue_printf("Distance travelled: %.0lf units, average speed %.2lf units/s.",
 								player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
 								player[pid].total_movement/30./double(playing_time));
 							int lifetime = playing_time / (player[pid].total_deaths + 1);
@@ -6159,7 +6159,7 @@ public:
 								playing_time / 60,
 								lifetime / 60,
 								lifetime % 60);
-							// Add more stats: flag carrying time, travelled distance, average speed, etc.
+							// Add more stats: flag carrying time, etc.
 						}
 						#ifdef NR_NAME_AUTHORIZATION
 						else if (!strcmp(cbuf, "auth")) {
@@ -13145,7 +13145,7 @@ public:
 		if (svframe > fx.frame)
 		{
 			fx.frame = svframe;
-			fx.time  = get_time();	//#@		//hope it's good enough... needed 10ms clock (1/100 sec) at least.
+			fx.time  = get_time();		//hope it's good enough... needed 10ms clock (1/100 sec) at least.
 
 			NLulong	players_present;		//LONG players present (32 players max)
 			readLong(data, count, players_present);
