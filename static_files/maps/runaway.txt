@@ -1,13 +1,14 @@
 ;
 ; runaway.txt
 ;
-; By Juggis and Huntta (aka JR Oja)
+; By Juggis and Huntta (aka JR Oja) 2003
 ;
 
 V 1
 P width 5
 P height 5
-P title Runaway, By Juggis and Huntta 2003
+P title Runaway
+P author Juggis and Huntta
 
 ; punainen lippu ja syntymäpaikat
 flag  0 0 0 0.5 0.5

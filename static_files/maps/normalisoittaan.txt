@@ -1,13 +1,14 @@
 ;
-; pieni.txt
+; normalisoittaan.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja) 2003
 ;
 
 V 1
 P width 4
 P height 4
-P title Pieni, by JR Oja
+P title Normalisoittaan
+P author Huntta
 
 ; punainen lippu ja syntymäpaikat
 flag  0 0 0 0.5 0.5

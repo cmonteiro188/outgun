@@ -1,13 +1,14 @@
 ;
 ; mahoton.txt
 ;
-; By Huntta (aka JR Oja)
+; By Huntta (aka JR Oja) 2003
 ;
 
 V 1
 P width 4
 P height 4
-P title Mahoton, by Huntta 2003
+P title Mahoton
+P author Huntta
 
 ; punainen lippu ja syntymäpaikat
 flag  0 0 0 0.5 0.5

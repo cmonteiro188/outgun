@@ -10,7 +10,8 @@
 V 1
 P width 6
 P height 6
-P title Tropo, by Flyer
+P title Tropo
+P author Flyer
 
 flag 0 0 0 0.5 0.5
 spawn 0 0 0 0.3 0.4

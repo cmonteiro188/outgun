@@ -4,12 +4,12 @@
 ; v8.5 by EVILKAIOH--v5.0 by DEVIL
 ;  
 ; "X def 0 0 2 4" fixed by Nix
-;
 
 V 1
 P width 2
 P height 4
-P title ATTACK v8.5 by EVILKAIOH--v5.0 by DEVIL
+P title Attack
+P author EVILKAIOH & DEVIL
 
 flag 0 1 0 0.5 0.5
 spawn 0 0 3 0.1 0.3

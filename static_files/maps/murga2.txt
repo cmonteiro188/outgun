@@ -10,7 +10,8 @@
 V 1
 P width 5
 P height 6
-P title Murga2, by Flyer-DH
+P title Murga2
+P author Flyer-DH
 
 flag 0 0 1 0.5 0.5
 spawn 0 0 1 0.3 0.4

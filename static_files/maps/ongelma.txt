@@ -7,7 +7,8 @@
 V 1
 P width 5
 P height 5
-P title Ongelma, by Joonas
+P title Ongelma
+P author Joonas
 
 ; punainen lippu ja syntymäpaikat
 flag  0 2 2 0.25 0.5

@@ -1,13 +1,14 @@
 ;
-; ristikko.txt
+; reunaton.txt
 ;
-; By JR Oja & Jukkis
+; By Huntta (aka JR Oja) & Juggis 2003
 ;
 
 V 1
 P width 5
 P height 5
-P title Ristikko, by JR Oja & Jukkis 2003
+P title Reunaton
+P author Huntta and Juggis
 
 ; punainen lippu ja syntymäpaikat
 flag  0 2 2 0.25 0.25

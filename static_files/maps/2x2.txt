@@ -1,13 +1,14 @@
 ;
 ; 2x2.txt
 ;
-; By Huntta
+; By Huntta 2003
 ;
 
 V 1
 P width 2
 P height 2
-P title 2x2, by Huntta 2003
+P title 2x2
+P author Huntta
 
 ; punainen lippu ja syntymäpaikat
 flag  0 0 0 0.5 0.25

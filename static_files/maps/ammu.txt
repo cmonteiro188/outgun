@@ -7,7 +7,8 @@
 V 1
 P width 5
 P height 5
-P title aummu_tai_kuole, By Jakke
+P title Ammu tai kuole
+P author Jakke
 
 ;   0=joukkuetunnus  
 ; punainen lippu ja syntymäpaikat

@@ -9,7 +9,8 @@
 V 1
 P width 5
 P height 5
-P title The Box, by JoL-PHIN
+P title The Box
+P author JoL-PHIN
 
 flag 0 0 4 0.3 0.7
 spawn 0 0 4 0.7 0.2

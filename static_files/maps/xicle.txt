@@ -7,7 +7,8 @@
 V 1
 P width 6
 P height 6
-P title Xicle, by Flyer-DH
+P title Xicle
+P author Flyer-DH
 
 flag 0 2 2 0.5 0.5
 spawn 0 2 2 0.3 0.4

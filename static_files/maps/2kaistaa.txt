@@ -2,12 +2,13 @@
 ; 2kaistaa.txt
 ;
 ; The outgun own level
-; by Juggis and Huntta (aka JR Oja)
+; by Juggis and Huntta (aka JR Oja) 2003
 ;
 V 1
 P width 6
 P height 6
-P title 2 kaistaa, by Juggis and Huntta 2003
+P title 2 kaistaa
+P author Juggis and Huntta
 
 flag  0 0 0 0.5 0.5
 spawn 0 0 0 0.3 0.4
