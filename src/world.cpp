@@ -280,8 +280,8 @@ bool Map::load(LogSet& log, const char* mapdir, const string& mapname) {
 	if (fmap) {
 		*this = Map();
 		NLubyte lebigbuf[65536];
-		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
-		crc = nlGetCRC16((NLubyte*)lebigbuf, numread);
+		int numread = fread(lebigbuf, 1, 65536, fmap);
+		crc = nlGetCRC16(lebigbuf, numread);
 		fclose(fmap);
 		ifstream in(fileName.c_str());
 		if (in) {
@@ -1382,6 +1382,10 @@ void ServerWorld::reset() {
 	teams[0].clear_stats();
 	teams[1].clear_stats();
 
+	// remove powerups
+	for (int i = 0; i < MAX_PICKUPS; i++)
+		item[i].kind = Powerup::pup_unused;
+
 	for (int i = 0; i < maxplayers; i++)
 		if (player[i].used) {
 			player[i].stats().clear();
@@ -1397,9 +1401,7 @@ void ServerWorld::reset() {
 	for (int i = 0; i < MAX_ROCKETS; i++)
 		rock[i].owner = -1;
 
-	// remove and regenerate powerups
-	for (int i = 0; i < MAX_PICKUPS; i++)
-		item[i].kind = Powerup::pup_unused;
+	// regenerate powerups
 	check_pickup_creation(true);
 }
 
