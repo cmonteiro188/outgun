@@ -169,6 +169,58 @@ public:
 
 typedef std::list<YSegment> SegListT;
 
+class SolidTexturizer {
+	Texturizer& host;
+	int color;
+
+	void putPixI(int alpha) { host.putPix(color, alpha); }
+
+public:
+	SolidTexturizer(Texturizer& host_, const SolidTexdata& td) : host(host_), color(td) { }
+
+	void setLine(int y) { host.setLine(y); }
+	void nextLine() { host.nextLine(); }
+	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+	void startPixSpan(int x) { host.startPixSpan(x); }
+	void putPix(double alpha);	// draws at current x coord and increases it
+};
+
+class TextureTexturizer {
+	Texturizer& host;
+	BITMAP* tex;	// can't set const because it can be fed to Allegro
+	int tx0, ty0;
+	int tx, ty;	// active pixel in tex
+
+	void putPixI(int alpha);
+
+public:
+	TextureTexturizer(Texturizer& host_, const TextureTexdata& td) : host(host_), tex(td.image), tx0(td.x0), ty0(td.y0) { }
+
+	void setLine(int y);
+	void nextLine();
+	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+	void startPixSpan(int x);
+	void putPix(double alpha);	// draws at current x coord and increases it
+};
+
+class FlagmarkerTexturizer {
+	Texturizer& host;
+	int color;
+	float markRadius;
+	float cx, cy;
+	float dy, dy2;
+	float dx;
+
+public:
+	FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td) : host(host_), color(td.color), markRadius(td.radius), cx(td.cx), cy(td.cy) { }
+
+	void setLine(int y);
+	void nextLine();
+	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+	void startPixSpan(int x);
+	void putPix(double alpha);	// draws at current x coord and increases it
+};
+
 // // // //
 
 double CurveFunction::operator()(double y) const {
@@ -314,209 +366,6 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
 			y = *rcpi++; swap(rs);
 		}
 		numAssert(totalPixel >= -.0001 && totalPixel <= 1.0001, int(totalPixel*100000.));
-	}
-}
-
-void PartialPixelSegment::draw(BITMAP* buf, int y) const {
-	for (size_t i = 0; i < pixels.size(); ++i)
-		if (pixels[i].draw())
-			putpixel(buf, startx + i, y, pixels[i].flexColor());
-}
-
-void PlainTexTexturizer::setLine(int y) {
-	nAssert(y >= 0 && y < buf->h);
-	by = by0 + y;
-	ty = (y - texTab[texi].y0) % tex->h;
-}
-
-void PlainTexTexturizer::nextLine() {
-	++by;
-	nAssert(by < buf->h);
-	if (++ty == tex->h)
-		ty = 0;
-}
-
-void PlainTexTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
-	nAssert(x0 < x1);	// empty spans aren't tolerated
-	if (alpha >= .999 && !overlay) {
-		drawing_mode(DRAW_MODE_COPY_PATTERN, tex, texTab[texi].x0, texTab[texi].y0);
-		hline(buf, x0 + bx0, by, x1 + bx0 - 1, 0);
-		solid_mode();
-	}
-	else {
-		startPixSpan(x0);
-		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
-		for (int x = x0; x < x1; ++x)
-			doPutPix(iAlpha);
-	}
-}
-
-void PlainTexTexturizer::startPixSpan(int x) {
-	bx = bx0 + x;
-	tx = (x - texTab[texi].x0) % tex->w;
-	list<PartialPixelSegment>& row = partials[by];
-	for (list<PartialPixelSegment>::iterator si = row.begin();; ++si) {
-		if (si == row.end()) {
-			partSpan = &(*row.insert(row.end(), PartialPixelSegment(x)));
-			spanEnd = INT_MAX;
-			spanIndex = 0;
-			break;
-		}
-		spanIndex = x - si->x0();
-		if (spanIndex < 0) {
-			int nextStart = si->x0();
-			partSpan = &(*row.insert(si, PartialPixelSegment(x)));	// keep them sorted
-			spanEnd = nextStart - partSpan->x0();
-			spanIndex = 0;
-			break;
-		}
-		if (spanIndex > si->len())
-			continue;
-		if (spanIndex == si->len()) {
-			list<PartialPixelSegment>::iterator tsi = si;
-			++tsi;
-			if (tsi != row.end() && tsi->x0() == x)	// this means this pixel belongs to the next span; otherwise extend this one
-				continue;
-		}
-		partSpan = &(*si);
-		++si;
-		if (si == row.end())
-			spanEnd = INT_MAX;
-		else
-			spanEnd = si->x0() - partSpan->x0();
-		// spanIndex already set
-		break;
-	}
-}
-
-void PlainTexTexturizer::putPix(double alpha) {
-	doPutPix(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
-}
-
-void PlainTexTexturizer::doPutPix(int alpha) {
-	putPixCore(getpixel(tex, tx, ty), alpha);
-	if (++tx == tex->w)
-		tx = 0;
-}
-
-void PlainTexTexturizer::putPixCore(int color, int alpha) {
-	if (spanIndex == partSpan->len()) {
-		if (spanIndex < spanEnd)
-			partSpan->extend(color, alpha);
-		else {
-			nAssert(spanIndex == spanEnd);
-			startPixSpan(bx - bx0);
-			nAssert(spanIndex == 0);
-			nAssert(partSpan->len() > 0);
-			partSpan->add(0, color, alpha);	// this opt. is the main reason empty spans aren't tolerated
-		}
-	}
-	else {
-		nAssert(spanIndex >= 0 && spanIndex < partSpan->len());
-		partSpan->add(spanIndex, color, alpha);
-	}
-	++spanIndex;
-	++bx;
-}
-
-void PlainTexTexturizer::finalize() {
-	for (int y = 0; y < buf->h; ++y) {
-		list<PartialPixelSegment>& row = partials[y];
-		for (list<PartialPixelSegment>::const_iterator si = row.begin(); si != row.end(); ++si)
-			si->draw(buf, y);
-		row.clear();
-	}
-}
-
-void PlainColorTexturizer::setLine(int y) {
-	nAssert(y >= 0 && y < buf->h);
-	by = by0 + y;
-}
-
-void PlainColorTexturizer::nextLine() {
-	++by;
-	nAssert(by < buf->h);
-}
-
-void PlainColorTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
-	nAssert(x0 < x1);	// empty spans aren't tolerated
-	if (alpha >= .999 && !overlay)
-		hline(buf, x0 + bx0, by, x1 + bx0 - 1, color);
-	else {
-		startPixSpan(x0);
-		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
-		for (int x = x0; x < x1; ++x)
-			doPutPix(iAlpha);
-	}
-}
-
-void PlainColorTexturizer::startPixSpan(int x) {
-	bx = bx0 + x;
-	list<PartialPixelSegment>& row = partials[by];
-	for (list<PartialPixelSegment>::iterator si = row.begin();; ++si) {
-		if (si == row.end()) {
-			partSpan = &(*row.insert(row.end(), PartialPixelSegment(x)));
-			spanEnd = INT_MAX;
-			spanIndex = 0;
-			break;
-		}
-		spanIndex = x - si->x0();
-		if (spanIndex < 0) {
-			int nextStart = si->x0();
-			partSpan = &(*row.insert(si, PartialPixelSegment(x)));	// keep them sorted
-			spanEnd = nextStart - partSpan->x0();
-			spanIndex = 0;
-			break;
-		}
-		if (spanIndex > si->len())
-			continue;
-		if (spanIndex == si->len()) {
-			list<PartialPixelSegment>::iterator tsi = si;
-			++tsi;
-			if (tsi != row.end() && tsi->x0() == x)	// this means this pixel belongs to the next span; otherwise extend this one
-				continue;
-		}
-		partSpan = &(*si);
-		++si;
-		if (si == row.end())
-			spanEnd = INT_MAX;
-		else
-			spanEnd = si->x0() - partSpan->x0();
-		// spanIndex already set
-		break;
-	}
-}
-
-void PlainColorTexturizer::putPix(double alpha) {
-	doPutPix(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
-}
-
-void PlainColorTexturizer::doPutPix(int alpha) {
-	if (spanIndex == partSpan->len()) {
-		if (spanIndex < spanEnd)
-			partSpan->extend(color, alpha);
-		else {
-			nAssert(spanIndex == spanEnd);
-			startPixSpan(bx - bx0);
-			nAssert(spanIndex == 0);
-			nAssert(partSpan->len() > 0);
-			partSpan->add(0, color, alpha);	// this opt. is the main reason empty spans aren't tolerated
-		}
-	}
-	else {
-		nAssert(spanIndex >= 0 && spanIndex < partSpan->len());
-		partSpan->add(spanIndex, color, alpha);
-	}
-	++spanIndex;
-	++bx;
-}
-
-void PlainColorTexturizer::finalize() {
-	for (int y = 0; y < buf->h; ++y) {
-		list<PartialPixelSegment>& row = partials[y];
-		for (list<PartialPixelSegment>::const_iterator si = row.begin(); si != row.end(); ++si)
-			si->draw(buf, y);
-		row.clear();
 	}
 }
 
@@ -1056,6 +905,222 @@ vector<DrawElement> assembleScene(const vector<ObjectSource>& objects) {
 	return ret;
 }
 
+void PartialPixelSegment::draw(BITMAP* buf, int y) const {
+	for (size_t i = 0; i < pixels.size(); ++i)
+		if (pixels[i].draw())
+			putpixel(buf, startx + i, y, pixels[i].flexColor());
+}
+
+void Texturizer::render(int texid, const DrawElement* elp, bool overlay) {
+	numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
+	const TextureData::TexdataUnion& data = texTab[texid].data();
+	switch (texTab[texid].type()) {
+		case TextureData::T_solid: {
+			SolidTexturizer tex(*this, data.s);
+			renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex, overlay);
+			break;
+		}
+		case TextureData::T_texture: {
+			TextureTexturizer tex(*this, data.t);
+			renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex, overlay);
+			break;
+		}
+		case TextureData::T_flagmarker: {
+			FlagmarkerTexturizer tex(*this, data.f);
+			renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex, overlay);
+			break;
+		}
+	}
+}
+
+inline void Texturizer::setLine(int y) {
+	nAssert(y >= 0 && y < buf->h);
+	by = by0 + y;
+}
+
+inline void Texturizer::nextLine() {
+	++by;
+	nAssert(by < buf->h);
+}
+
+void Texturizer::startPixSpan(int x) {
+	bx = bx0 + x;
+	list<PartialPixelSegment>& row = partials[by];
+	for (list<PartialPixelSegment>::iterator si = row.begin();; ++si) {
+		if (si == row.end()) {
+			partSpan = &(*row.insert(row.end(), PartialPixelSegment(x)));
+			spanEnd = INT_MAX;
+			spanIndex = 0;
+			break;
+		}
+		spanIndex = x - si->x0();
+		if (spanIndex < 0) {
+			int nextStart = si->x0();
+			partSpan = &(*row.insert(si, PartialPixelSegment(x)));	// keep them sorted
+			spanEnd = nextStart - partSpan->x0();
+			spanIndex = 0;
+			break;
+		}
+		if (spanIndex > si->len())
+			continue;
+		if (spanIndex == si->len()) {
+			list<PartialPixelSegment>::iterator tsi = si;
+			++tsi;
+			if (tsi != row.end() && tsi->x0() == x)	// this means this pixel belongs to the next span; otherwise extend this one
+				continue;
+		}
+		partSpan = &(*si);
+		++si;
+		if (si == row.end())
+			spanEnd = INT_MAX;
+		else
+			spanEnd = si->x0() - partSpan->x0();
+		// spanIndex already set
+		break;
+	}
+}
+
+inline void Texturizer::putPix(int color, int alpha) {
+	if (spanIndex == partSpan->len()) {
+		if (spanIndex < spanEnd)
+			partSpan->extend(color, alpha);
+		else {
+			nAssert(spanIndex == spanEnd);
+			startPixSpan(bx - bx0);
+			nAssert(spanIndex == 0);
+			nAssert(partSpan->len() > 0);
+			partSpan->add(0, color, alpha);	// this opt. is the main reason empty spans aren't tolerated
+		}
+	}
+	else {
+		nAssert(spanIndex >= 0 && spanIndex < partSpan->len());
+		partSpan->add(spanIndex, color, alpha);
+	}
+	++spanIndex;
+	++bx;
+}
+
+void Texturizer::blendPix(int color, int alpha) {
+	if (spanIndex == partSpan->len()) {
+		if (spanIndex < spanEnd)
+			partSpan->extend(color, alpha);
+		else {
+			nAssert(spanIndex == spanEnd);
+			startPixSpan(bx - bx0);
+			nAssert(spanIndex == 0);
+			nAssert(partSpan->len() > 0);
+			partSpan->blend(0, color, alpha);	// this opt. is the main reason empty spans aren't tolerated
+		}
+	}
+	else {
+		nAssert(spanIndex >= 0 && spanIndex < partSpan->len());
+		partSpan->blend(spanIndex, color, alpha);
+	}
+	++spanIndex;
+	++bx;
+}
+
+void Texturizer::finalize() {
+	for (int y = 0; y < buf->h; ++y) {
+		list<PartialPixelSegment>& row = partials[y];
+		for (list<PartialPixelSegment>::const_iterator si = row.begin(); si != row.end(); ++si)
+			si->draw(buf, y);
+		row.clear();
+	}
+}
+
+void SolidTexturizer::putPix(double alpha) {
+	putPixI(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
+}
+
+void SolidTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+	nAssert(x0 < x1);	// empty spans aren't tolerated
+	if (alpha >= .999 && !overlay)
+		hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, color);
+	else {
+		startPixSpan(x0);
+		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
+		for (int x = x0; x < x1; ++x)
+			putPixI(iAlpha);
+	}
+}
+
+void TextureTexturizer::setLine(int y) {
+	host.setLine(y);
+	ty = (y - ty0) % tex->h;
+}
+
+void TextureTexturizer::nextLine() {
+	host.nextLine();
+	if (++ty == tex->h)
+		ty = 0;
+}
+
+void TextureTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+	nAssert(x0 < x1);	// empty spans aren't tolerated
+	if (alpha >= .999 && !overlay) {
+		drawing_mode(DRAW_MODE_COPY_PATTERN, tex, tx0, ty0);
+		hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, 0);
+		solid_mode();
+	}
+	else {
+		startPixSpan(x0);
+		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
+		for (int x = x0; x < x1; ++x)
+			putPixI(iAlpha);
+	}
+}
+
+void TextureTexturizer::startPixSpan(int x) {
+	host.startPixSpan(x);
+	tx = (x - tx0) % tex->w;
+}
+
+void TextureTexturizer::putPix(double alpha) {
+	putPixI(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
+}
+
+void TextureTexturizer::putPixI(int alpha) {
+	host.putPix(getpixel(tex, tx, ty), alpha);
+	if (++tx == tex->w)
+		tx = 0;
+}
+
+void FlagmarkerTexturizer::setLine(int y) {
+	host.setLine(y);
+	dy = y - cy;
+	dy2 = dy * dy;
+}
+
+void FlagmarkerTexturizer::nextLine() {
+	host.nextLine();
+	++dy;
+	dy2 = dy * dy;
+}
+
+void FlagmarkerTexturizer::putSpan(int x0, int x1, double alpha, bool) {	// fills the range [x0,x1[
+	startPixSpan(x0);
+	for (int x = x0; x < x1; ++x)
+		putPix(alpha);
+}
+
+void FlagmarkerTexturizer::startPixSpan(int x) {
+	host.startPixSpan(x);
+	dx = x - cx;
+}
+
+void FlagmarkerTexturizer::putPix(double alpha) {	// draws at current x coord and increases it
+	static const float mul = 300 / markRadius / 255. * (1 << PartialPixelSegment::scale);
+	float intensity = markRadius - sqrt(dx * dx + dy2);
+	if (intensity <= 0)
+		host.putPix(0, 0);
+	else {
+		int iAlpha = static_cast<int>(intensity * alpha * mul);
+		host.blendPix(color, iAlpha);
+	}
+	++dx;
+}
+
 SceneAntialiaser::~SceneAntialiaser() {
 	for (vector<BorderFunctionBase*>::iterator bi = bfns.begin(); bi != bfns.end(); ++bi)
 		delete *bi;
@@ -1329,8 +1394,7 @@ void SceneAntialiaser::addCircWallClipped(const CircWall& wall, int texture) {
 	clip(startNew);
 }
 
-template<class Texturizer>
-void SceneAntialiaser::renderTemplate(Texturizer& tex) const {
+void SceneAntialiaser::render(Texturizer& tex) const {
 	vector<DrawElement> drawEls = assembleScene(objects);
 	#ifdef DEBUG_RENDER
 	if (drawEls.size() < 50) {
@@ -1348,18 +1412,11 @@ void SceneAntialiaser::renderTemplate(Texturizer& tex) const {
 	for (vector<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei) {
 		const vector<int>& textures = ei->getAllTextures();
 		if (textures.size() > 1) {
-			for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
-				tex.setTex(*ti);
-				renderBlock(ei->getY0(), ei->getY1(), ei->getLeft(), ei->getRight(), tex, true);
-			}
+			for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti)
+				tex.render(*ti, &*ei, true);
 		}
-		else {
-			tex.setTex(ei->getBaseTex());
-			renderBlock(ei->getY0(), ei->getY1(), ei->getLeft(), ei->getRight(), tex, false);
-		}
+		else
+			tex.render(ei->getBaseTex(), &*ei, false);
 	}
 }
-
-void SceneAntialiaser::render(  PlainTexTexturizer& tex) const { renderTemplate(tex); }
-void SceneAntialiaser::render(PlainColorTexturizer& tex) const { renderTemplate(tex); }
 

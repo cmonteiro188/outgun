@@ -13,38 +13,12 @@ public:
 	PartialPixelSegment(int x0) : startx(x0) { }
 	int x0() const { return startx; }
 	int len() const { return pixels.size(); }
-	void add(int index, int color, int alpha) { pixels[index].add(color, alpha); }//double alpha) { pixels[index].add(color, alpha); }
-	void extend(int color, int alpha) { pixels.push_back(PartPix(color, alpha)); }//double alpha) { pixels.push_back(PartPix(color, alpha)); }
+	void add(int index, int color, int alpha) { pixels[index].add(color, alpha); }
+	void blend(int index, int color, int alpha) { pixels[index].blend(color, alpha); }
+	void extend(int color, int alpha) { pixels.push_back(PartPix(color, alpha)); }
 	void draw(BITMAP* buf, int y) const;
 
 private:
-/* original unscaled floating point version (slightly slower)
-	class PartPix {
-		float r, g, b, alphaTotal;
-
-	public:
-		PartPix(int color, double alpha) :
-			r(getr(color) * alpha),
-			g(getg(color) * alpha),
-			b(getb(color) * alpha),
-			alphaTotal(alpha) { }
-		void add(int color, double alpha) {
-			r += getr(color) * alpha;
-			g += getg(color) * alpha;
-			b += getb(color) * alpha;
-			alphaTotal += alpha;
-		}
-		bool draw() const { return alphaTotal >= .001; }
-		int color() const {
-			// this ensures that only whole pixels are written; enable if that's true:	numAssert(alphaTotal >= .999, int(alphaTotal * 10000.));
-			numAssert(alphaTotal <= 1.001, int(alphaTotal*10000));
-			return makecol(static_cast<int>(r + .5), static_cast<int>(g + .5), static_cast<int>(b + .5));
-		}
-		int flexColor() const {	// allows more than 1 alphaTotal, with a cut on high intensities
-			return makecol(min(255, static_cast<int>(r + .5)), min(255, static_cast<int>(g + .5)), min(255, static_cast<int>(b + .5)));
-		}
-	};
-*/
 	class PartPix {
 		int r, g, b, alphaTotal;
 		enum { scale = PartialPixelSegment::scale, scaleVal = 1 << PartialPixelSegment::scale };
@@ -61,6 +35,18 @@ private:
 			b += getb(color) * alpha;
 			alphaTotal += alpha;
 		}
+		void blend(int color, int alpha) {
+			if (alpha >= scaleVal)
+				r = g = b = alphaTotal = 0;
+			else {
+				float mul = (scaleVal - alpha) / static_cast<float>(scaleVal);
+				r = static_cast<int>(r * mul);
+				g = static_cast<int>(g * mul);
+				b = static_cast<int>(b * mul);
+				alphaTotal = static_cast<int>(alphaTotal * mul);
+			}
+			add(color, alpha);
+		}
 		bool draw() const { return alphaTotal >= scaleVal / 100; }
 		int color() const {
 			// this ensures that only whole pixels are written; enable if that's true:	numAssert(alphaTotal >= .999, int(alphaTotal * 10000.));
@@ -69,7 +55,7 @@ private:
 		}
 		int flexColor() const {	// allows more than 1 alphaTotal, with a cut on high intensities
 			int rc, gc, bc;
-			if (alphaTotal >= scaleVal) {
+			if (alphaTotal > scaleVal * 1.001) {
 				rc = (r + scaleVal / 2) / alphaTotal;
 				gc = (g + scaleVal / 2) / alphaTotal;
 				bc = (b + scaleVal / 2) / alphaTotal;
@@ -108,6 +94,7 @@ class TriWall;
 class CircWall;
 class BorderFunctionBase;
 class LineFunction;
+class DrawElement;
 
 struct WallBorderSegment {
 	BorderFunctionBase* fn;
@@ -124,69 +111,75 @@ struct ObjectSource {
 
 // // // // public interface
 
-struct OffsetedTexture {
+typedef int SolidTexdata;
+
+struct TextureTexdata {
 	BITMAP* image;
 	int x0, y0;
 
-	OffsetedTexture(BITMAP* texture, int x0_ = 0, int y0_ = 0) : image(texture), x0(x0_), y0(y0_) { }
+	void set(BITMAP* texture, int x0_ = 0, int y0_ = 0) { image = texture; x0 = x0_; y0 = y0_; }
 };
 
-class PlainTexTexturizer {
+struct FlagmarkerTexdata {
+	int color;
+	float cx, cy;
+	float radius;
+
+	void set(int color_, float cx_, float cy_, float r) { color = color_; cx = cx_; cy = cy_; radius = r; }
+};
+
+class TextureData {
+public:
+	void setSolid(int color) { t = T_solid; d.s = color; }
+	void setTexture(BITMAP* texture, int x0 = 0, int y0 = 0) { t = T_texture; d.t.set(texture, x0, y0); }
+	void setFlagmarker(int color, float cx, float cy, float r) { t = T_flagmarker; d.f.set(color, cx, cy, r); }
+
+	enum TexType { T_solid, T_texture, T_flagmarker };
+	typedef union {
+		SolidTexdata s;
+		TextureTexdata t;
+		FlagmarkerTexdata f;
+	} TexdataUnion;
+
+	TexType type() const { return t; }
+	const TexdataUnion& data() const { return d; }
+
+private:
+	TexType t;
+	TexdataUnion d;
+};
+
+class Texturizer {
 public:
 	// caution: because of Allegro's limitations, textures used as non-overlays must have their width and height a power of two; this is not checked!
 	// also, textures (overlay or not) may not be used in areas where x < tex.x0 || y < tex.y0 ; by selecting x0 and y0 < 0 you can avoid this problem
-	PlainTexTexturizer(BITMAP* buffer, int x0, int y0, const vector<OffsetedTexture>& textures)
+	Texturizer(BITMAP* buffer, int x0, int y0, const vector<TextureData>& textures)
 					: buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
-	void setTex(int texid) { numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size()); texi = texid; tex = texTab[texid].image; }
 
-	void setLine(int y);
-	void nextLine();
-
-	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
-	void startPixSpan(int x);
-	void putPix(double alpha);	// draws at current x coord and increases it
-
+	void render(int texid, const DrawElement* elp, bool overlay);
 	void finalize();	// draws all buffered pixels (use only when no longer drawing)
 
-private:
-	void doPutPix(int iAlpha);
-	void putPixCore(int color, int iAlpha);
-
-	BITMAP* buf;
-	int bx0, by0;	// buffer pixel offset
-	int bx, by;	// active pixel in buf
-	int texi;
-	BITMAP* tex;	// can't set const because it can be fed to Allegro
-	int tx, ty;	// active pixel in tex
-	const std::vector<OffsetedTexture>& texTab;
-	std::vector< std::list<PartialPixelSegment> > partials;
-	PartialPixelSegment* partSpan;
-	int spanIndex;	// index in partSpan
-	int spanEnd;	// when we must move to the next segment to continue adding pixels
-};
-
-class PlainColorTexturizer {
-public:
-	PlainColorTexturizer(BITMAP* buffer, int x0, int y0, vector<int>& colors) : buf(buffer), bx0(x0), by0(y0), colTab(colors), partials(buffer->h) { }
-	void setTex(int texid) { nAssert(texid >= 0 && texid < (int)colTab.size()); color = colTab[texid]; }
-
+// semi-private: for use by rendering functions called by render() only
 	void setLine(int y);
 	void nextLine();
 
-	void putSpan(int x0, int x1, double alpha, bool overlay);	// fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
-	void startPixSpan(int x);
-	void putPix(double alpha);	// draws at current x coord and increases it
+	inline void startPixSpan(int x);
+	inline void putPix(int color, int alpha);	// draws at current x coord and increases it
+	void blendPix(int color, int alpha);
 
-	void finalize();	// draws all buffered pixels (use only when everything has been drawn)
+	inline BITMAP* getBuf() { return buf; }
+	inline int getbx() const { return bx; }
+	inline int getby() const { return by; }
+	inline int getbx0() const { return bx0; }
+	inline int getby0() const { return by0; }
 
 private:
-	void doPutPix(int iAlpha);
-
 	BITMAP* buf;
-	int bx0, by0;	// buffer pixel offset
 	int bx, by;	// active pixel in buf
-	int color;
-	std::vector<int>& colTab;
+	int bx0, by0;	// buffer pixel offset
+
+	const std::vector<TextureData>& texTab;
+
 	std::vector< std::list<PartialPixelSegment> > partials;
 	PartialPixelSegment* partSpan;
 	int spanIndex;	// index in partSpan
@@ -211,8 +204,7 @@ public:
 	void addCircWallClipped(const CircWall& wall, int texture);
 	void clipAll() { clip(0); }	// clips all added objects to the current clipping rectangle
 
-	void render(PlainTexTexturizer& tex) const;
-	void render(PlainColorTexturizer& tex) const;
+	void render(Texturizer& tex) const;
 
 private:
 	// deny copying
