@@ -1138,6 +1138,10 @@ void PowerupSettings::reset() {
 	pup_chance_deathbringer = 11;
 
 	pup_deathbringer_switch = true;
+	pup_health_bonus = 160;
+	pup_power_damage = 2.0;
+	pup_weapon_max = 8;	// 8 means 9 rockets
+	pup_deathbringer_time = 5.0;
 }
 
 void PowerupSettings::print(LineReceiver& printer) const {
@@ -1203,13 +1207,18 @@ void WorldSettings::reset() {
 	respawn_time = 2.0;
 	waiting_time_deathbringer = 4.0;
 	shadow_minimum = SV_SHADOW_MINIMUM_NORMAL;
+	rocket_damage = 70;
 	time_limit = 0;	// no time limit
 	capture_limit = 8;
 }
 
 void WorldSettings::print(LineReceiver& printer) const {
 	ostringstream line;
-	line << "- Flag capture limit: " << capture_limit;
+	line << "- Flag capture limit: ";
+	if (capture_limit == 0)
+		line << "none";
+	else
+		line << capture_limit;
 	printer(line.str());
 	line.str("");
 	if (time_limit == 0)
@@ -1682,21 +1691,20 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			break;
 		}
 		case Powerup::pup_weapon: {
-			if (player[p].weapon < 8)	// test for max (shots=weapon+1, entao p/ shots max 9, weapon max = 8)
-				player[p].weapon++;	//increase weapon power
-
 			if (player[p].energy < 200) {
 				player[p].energy += 100;
 				if (player[p].energy > 200)
 					player[p].energy = 200;
 			}
-
-			net->sendWeaponPower(p);
+			if (player[p].weapon < pupConfig.pup_weapon_max) {
+				player[p].weapon++;
+				net->sendWeaponPower(p);
+			}
 			net->broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
 			break;
 		}
 		case Powerup::pup_health: {
-			player[p].megabonus += 160;
+			player[p].megabonus += pupConfig.pup_health_bonus;
 			net->broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
 			break;
 		}
@@ -1964,14 +1972,11 @@ void ServerWorld::rocketHitWallCallback(int rid) {
 
 bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 	//record wether the player had shield, if yes, will not blink him
-	bool had_shield = player[pid].item_shield;
+	const bool had_shield = player[pid].item_shield;
 
-	//default damage to the target: 70
-	int damage = 70;
-//	if (player[rock[rid].owner].item_deathbringer)
-//		damage = 50;
+	int damage = config.rocket_damage;
 	if (rock[rid].power)
-		damage *= 2;
+		damage = static_cast<int>(pupConfig.pup_power_damage * damage);
 
 	damagePlayer(pid, rock[rid].owner, damage, false);
 	player[rock[rid].owner].total_hits++;
@@ -1991,7 +1996,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 		deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, 252);		//do not blink
 	else
 		deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, pid);		//blink
-	return player[pid].health<=0;
+	return player[pid].health <= 0;
 }
 
 void ServerWorld::rocketOutOfBoundsCallback(int rid) {
@@ -2276,7 +2281,6 @@ void ServerWorld::simulateFrame() {
 		}
 
 		// check deathbringer effect
-		//
 		if (player[i].deathbringer_end > get_time()) {
 			//check if still alive
 			if (player[i].health > 0) {
@@ -2289,7 +2293,6 @@ void ServerWorld::simulateFrame() {
 		}
 
 		// check for a player's deathbringer to bring death
-		//
 		if (player[i].dead && player[i].item_deathbringer) {
 			//delta time since shoot
 			double delta = (frame - player[i].item_deathbringer_time) * 0.1;
@@ -2322,7 +2325,7 @@ void ServerWorld::simulateFrame() {
 
 						// time of effect ; also freeze his gun for this same amount of time
 						player[v].deathbringer_end = player[v].next_shoot_time =
-							get_time() + 4.5 + (rand() % 1000) / 1000.;
+							get_time() + pupConfig.pup_deathbringer_time - 0.5 + rand() % 1000 / 1000.;
 
 						// calc recoil:
 						const double tx = player[v].lx - player[i].lx;
@@ -2339,22 +2342,19 @@ void ServerWorld::simulateFrame() {
 		}
 
 		// check for player weapons fire time
-		//
-		if (player[i].attack)	// player holding attack button
-		if (player[i].health > 0)		// check if player alive
-		if (get_time() > player[i].next_shoot_time)  // check if time allowed to fire again
-		{
-			//gasta 7 + 2 * tiros energy, se tem energy
+		if (player[i].attack && player[i].health > 0 && get_time() > player[i].next_shoot_time) {
 			int numshots = 1;
-			player[i].energy -= 7;			//gasta normal
-			if (player[i].energy < 0)	//se ficou menor que zero, atira 1 so
+			player[i].energy -= 7;
+			if (player[i].energy < 0)
 				player[i].energy = 0;
 			else {
-				for (int k=1;k<player[i].weapon+1;k++) {
+				for (int k = 1; k < player[i].weapon + 1; k++) {
 					//try add one shot
-					player[i].energy -= 1;		//v0.4.7: diminuí METADE do gasto per shot!
-					if (player[i].energy < 0)
+					player[i].energy -= 1;
+					if (player[i].energy < 0) {
 						player[i].energy = 0;
+						break;
+					}
 					else
 						numshots++;
 				}
@@ -2416,42 +2416,42 @@ void ServerWorld::simulateFrame() {
 		//lose health & energy if running
 		if (h->controls.isRun()) {
 			if (player[i].energy <= 0) {
-				//if (!player[i].item_speed)	// se ta com SPEED, faz nao hurt
-				if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
+				if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {
 					if (frame % 2 == 0)
-						player[i].health -= 2;	//desconta 2 (o normal)
+						player[i].health -= 2;
 					else
-						player[i].health -= 1;	//desconta 1 (menos)
-					if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
+						player[i].health -= 1;
+					if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)
 						player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
 				}
-			} else {
+			}
+			else {
 				if (frame % 2 == 0)
-					player[i].energy -= 2; //desconta 2 (o normal)
+					player[i].energy -= 2;
 				else
-					player[i].energy -= 1; //desconta 1 (menos)
+					player[i].energy -= 1;
 				if (player[i].energy == -1) { // special case
 					player[i].energy++;
-					if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
+					if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {
 						player[i].health--;
-						if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
+						if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)
 							player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
 					}
 				}
 			}
 		}
 		//rot health to 100 if has deathbringer
-		if ((player[i].item_deathbringer) && (player[i].health > 100) && (frame % 4 == 0))
+		if (player[i].item_deathbringer && player[i].health > 100 && frame % 4 == 0)
 			player[i].health--;
 		//rot energy to 100 if has deathbringer
-		if ((player[i].item_deathbringer) && (player[i].energy > 100) && (frame % 4 == 0))
+		if (player[i].item_deathbringer && player[i].energy > 100 && frame % 4 == 0)
 			player[i].energy--;
 		//megahealth bonus:
 		if (player[i].megabonus > 0)
-		if ((player[i].health == 300) && (player[i].energy == 300))
-			player[i].megabonus--;	// realiza um certo "guardamento" de energia mas nao muito...
+		if (player[i].health == 300 && player[i].energy == 300)
+			player[i].megabonus--;
 		else
-			for (int mh=0;mh<5;mh++) {
+			for (int mh = 0; mh < 5; mh++) {
 				if (player[i].megabonus > 0 && player[i].health < 300) {
 					player[i].health++;
 					player[i].megabonus--;
@@ -2553,7 +2553,7 @@ void ServerWorld::simulateFrame() {
 			for (vector<Flag>::const_iterator fen = teams[enemyteam].flags().begin(); fen != teams[enemyteam].flags().end(); ++fen, ++f)
 				if (fen->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
 					player_captures_flag(i, enemyteam, f);
-					if (teams[myteam].score() >= config.getCaptureLimit()) {
+					if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
 						host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 						host->ctf_game_restart();
 						return;
@@ -2563,7 +2563,7 @@ void ServerWorld::simulateFrame() {
 			for (vector<Flag>::const_iterator fw = wild_flags.begin(); fw != wild_flags.end(); ++fw, ++f)
 				if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
 					player_captures_flag(i, 2, f);
-					if (teams[myteam].score() >= config.getCaptureLimit()) {
+					if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
 						host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 						host->ctf_game_restart();
 						return;

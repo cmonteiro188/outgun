@@ -611,11 +611,15 @@ class PowerupSettings {
 
 public:
 	int pups_min, pups_max, pups_respawn_time, pup_chance_shield, pup_chance_turbo, pup_chance_shadow,
-			pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
+		pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
 	bool pups_min_percentage, pups_max_percentage;
 	int pup_add_time, pup_max_time;
 	bool pup_deathbringer_switch;
+	float pup_deathbringer_time;
 	bool pups_drop_at_death;
+	int pup_health_bonus;
+	float pup_power_damage;
+	int pup_weapon_max;
 
 	void reset();
 	void print(LineReceiver& printer) const;
@@ -632,6 +636,7 @@ class WorldSettings {
 public:
 	double respawn_time, waiting_time_deathbringer;
 	int shadow_minimum;	// smallest alpha value allowed; 0 is when even the coordinates are not sent
+	int rocket_damage;
 	NLulong time_limit;
 	int capture_limit;
 

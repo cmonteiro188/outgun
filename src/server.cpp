@@ -90,8 +90,10 @@ void gameserver_c::ctf_game_restart() {
 
 	if (worldConfig.getTimeLimit() == 0)
 		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
-	else
+	else if (worldConfig.getCaptureLimit() > 0)
 		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", worldConfig.getCaptureLimit(), worldConfig.getTimeLimit() / 10 / 60);
+	else
+		sprintf(lix, "TIME LIMIT IS %lu MINUTES", worldConfig.getTimeLimit() / 10 / 60);
 	network.broadcast_message(msg_info, lix);
 
 	network.broadcast_sample(SAMPLE_CTF_GAMEOVER);
@@ -359,6 +361,7 @@ void gameserver_c::score_neg(int p, int amount) {
 }
 
 void gameserver_c::load_game_mod() {
+	const int default_capture_limit = worldConfig.getCaptureLimit();
 	char filename[WHERE_PATH_SIZE];
 	append_filename(filename, wheregamedir, "gamemod.txt", WHERE_PATH_SIZE);
 	ifstream in(filename);
@@ -485,7 +488,7 @@ void gameserver_c::load_game_mod() {
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
 				else if (cmd == "capture_limit") {
-					if (ival > 0)
+					if (ival >= 0)
 						worldConfig.capture_limit = ival;
 					else
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
@@ -514,9 +517,33 @@ void gameserver_c::load_game_mod() {
 					else
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
+				else if (cmd == "pup_deathbringer_time") {
+					if (val >= 1.0)
+						pupConfig.pup_deathbringer_time = val;
+					else
+						LOG2("Can't set %s to %f\n", cmd.c_str(), val);
+				}
 				else if (cmd == "pups_drop_at_death") {
 					if (ival == 0 || ival == 1)
 						pupConfig.pups_drop_at_death = ival == 1 ? true : false;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+				}
+				else if (cmd == "pup_health_bonus") {
+					if (ival >= 0)
+						pupConfig.pup_health_bonus = ival;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+				}
+				else if (cmd == "pup_power_damage") {
+					if (val > 0.)
+						pupConfig.pup_power_damage = val;
+					else
+						LOG2("Can't set %s to %f\n", cmd.c_str(), val);
+				}
+				else if (cmd == "pup_weapon_max") {
+					if (ival >= 1 && ival <= 9)
+						pupConfig.pup_weapon_max = ival - 1;
 					else
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
@@ -556,6 +583,12 @@ void gameserver_c::load_game_mod() {
 					else
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
+				else if (cmd == "rocket_damage") {
+					if (ival >= 0)
+						worldConfig.rocket_damage = ival;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+				}
 				else if (cmd == "sayadmin_enabled") {
 					if (ival == 0 || ival == 1)
 						sayadmin_enabled = ival == 1 ? true : false;
@@ -573,6 +606,10 @@ void gameserver_c::load_game_mod() {
 		}
 
 		LOG("END OF GAME MOD FILE.\n");
+
+		// game without capture and time limit is not allowed
+		if (worldConfig.getCaptureLimit() == 0 && worldConfig.getTimeLimit() == 0)
+			worldConfig.capture_limit = default_capture_limit;
 
 		in.close();
 	}
