@@ -1224,13 +1224,13 @@ void PhysicalSettings::print(LineReceiver& printer) const {
 }
 
 void PowerupSettings::reset() {
-	pup_add_time = 60;
-	pup_max_time = 180;
+	pup_add_time = 40;
+	pup_max_time = 100;
 
-	pups_min = 6;
-	pups_min_percentage = false;
-	pups_max = MAX_PICKUPS;
-	pups_max_percentage = false;
+	pups_min = 20;
+	pups_min_percentage = true;
+	pups_max = 80;
+	pups_max_percentage = true;
 	pups_respawn_time = 25;
 
 	pup_chance_shield = 16;

@@ -508,9 +508,9 @@ void Server::load_game_mod() {
 			}
 		}
 
-		const int max = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
+		const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
 						+ pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
-		if (max == 0)
+		if (chanceSum == 0)
 			pupConfig.pups_max = 0;
 
 		if ((pupConfig.pups_min_percentage == pupConfig.pups_max_percentage && pupConfig.pups_min > pupConfig.pups_max) ||
@@ -639,7 +639,7 @@ bool Server::reset_settings(bool keepMap) {
 	game_end_delay = 5;
 	random_maprot = false;
 	vote_block_time = 0;	// no limit
-	idlekick_time = 0;		// no limit
+	idlekick_time = 120;	// 2 minutes
 
 	welcome_message.clear();
 	info_message.clear();
