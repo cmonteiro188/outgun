@@ -4,7 +4,7 @@
 #include "leetnet/server.h"
 
 static const bool WATCH_CONNECTION = false;
-static const bool LOG_MESSAGE_TRAFFIC = false;
+static const bool LOG_MESSAGE_TRAFFIC = true;
 #define SEND_FRAMEOFFSET	// effects some structures -> must be a define
 
 enum Network_data_code {
@@ -25,7 +25,7 @@ enum Network_data_code {
 	data_map_change,
 	data_world_reset,
 	data_gameover_show,
-	data_gameover_hide,
+	data_start_game,
 	data_deathbringer,
 	data_file_request,
 	data_file_download,

@@ -2538,7 +2538,7 @@ void ServerWorld::simulateFrame() {
 
 		//check if dead/respawn
 		if (player[i].health <= 0) {
-			if (player[i].respawn_time < get_time())
+			if (player[i].respawn_time < get_time() && !player[i].awaiting_client_ready)
 				respawnPlayer(i);		//time to respawn player
 			else
 				continue;
@@ -2605,9 +2605,6 @@ void ServerWorld::simulateFrame() {
 			player[i].energy--;
 		//megahealth bonus:
 		if (player[i].megabonus > 0)
-		if (player[i].health == 300 && player[i].energy == 300)
-			player[i].megabonus--;
-		else
 			for (int mh = 0; mh < 5; mh++) {
 				if (player[i].megabonus > 0 && player[i].health < 300) {
 					player[i].health++;

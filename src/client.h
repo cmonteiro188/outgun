@@ -32,12 +32,20 @@ private:
 	NLaddress	addr;
 };
 
-struct download_runes_t {
-	int did;	//download id
+class FileDownload {
+public:
+	std::string fileType, shortName, fullName;
 
-	char type[64];	//type of file to download
-	char name[256];	//name of file to download
-	char dest[512];	//full destination path+name for downloaded file
+	FileDownload(const std::string& type, const std::string& name, const std::string& filename);
+	~FileDownload();
+	bool isActive() const { return (fp != 0); }
+	int progress() const;
+	bool start();
+	bool save(const char* buf, unsigned len);
+	void finish();
+
+private:
+	FILE* fp;
 };
 
 enum Menu_selection {	// screens that aren't quite menus //#fix: get rid
@@ -162,6 +170,8 @@ class client_c;	// of leetnet
 class client_runes_t;
 
 class gameclient_c {
+	friend class ClientPhysicsCallbacks;
+
 	FileLog normalLog;
 	SupplementaryLog<MemoryLog> errorLog;
 	// currently not in use:	SupplementaryLog<FileLog> securityLog;
@@ -198,19 +208,14 @@ class gameclient_c {
 	volatile bool connected;
 	bool map_ready;
 	std::string old_map;
-	char servermap[64]; //last map command from server
+	std::string servermap;	//last map command from server
 
-	MutexHolder udpdq_mutex;
-	int udpdq_size;
-	enum { MAX_UDPDQ = 16 };	//#fix
-	download_runes_t *udpdq[MAX_UDPDQ];	//the udp download queue
-	int udpdq_ptr;	//current download. if -1, no current downloads
-	int ud_fp;	//file pointer for read/write
-	FILE *ud_fout;	//input or output file
+	MutexHolder downloadMutex;
+	std::list<FileDownload> downloads;
 
 	TournamentPasswordManager tournamentPassword;
 
-	NLulong fdp, fdp_max;
+	NLulong fdp;
 	NLulong max_world_rank;
 
 	MutexHolder mapInfoMutex;
@@ -253,6 +258,7 @@ class gameclient_c {
 	std::string playername;	//the player's name (max name len = 16)
 	NLaddress serverIP;
 
+	volatile bool disconnectQueued;
 	volatile bool abortThreads;
 
 	enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
@@ -336,13 +342,6 @@ class gameclient_c {
 
 	void setMaxPlayers(int num) { maxplayers = num; fx.setMaxPlayers(num); fd.setMaxPlayers(num); }
 
-public:
-	gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig);
-	virtual ~gameclient_c();
-	bool start();
-	void loop(volatile bool* quitFlag);
-	void stop();
-
 	// world	//#fix: should these be moved to ClientWorld?
 	void rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy);
 	void rocketOutOfBoundsCallback(int rid);
@@ -352,7 +351,7 @@ public:
 
 	// network
 	void connect_command(bool loadPassword);
-	void disconnect_command();
+	void disconnect_command();	// do not call from a network thread
 	void connection_update(client_runes_t *arg);
 	void client_connected(char* data, int length);
 	void client_disconnected(const char* data, int length);
@@ -374,12 +373,14 @@ public:
 	bool refresh_servers(std::vector<gamespy_t>& gamespy);
 	bool getServerList();
 
-	void process_udp_download_chunk(int last, NLulong pos, int len, char* buf);
-	void client_udp_setup_download();
-	void client_udp_download(download_runes_t* rune);
-	void download_file_complete(download_runes_t* r);
-	void download_server_file(const char* type, const char* name, const char* dest);
-	void server_map_command(const char* mapname, NLushort server_crc);
+	void check_download();	// call with downloadMutex locked
+	void process_udp_download_chunk(const char* buf, int len, bool last);
+	void download_server_file(const std::string& type, const std::string& name);
+	void server_map_command(const std::string& mapname, NLushort server_crc);
+
+	//#fix: leetnet callbacks
+	static int cfunc_connection_update(client_runes_t *arg);
+	static int cfunc_server_data(client_runes_t *arg);
 
 	// GUI
 	void erase_first_message();
@@ -392,6 +393,13 @@ public:
 	void draw_game_frame();
 	void draw_player(int pid);
 	void draw_game_menu();
+
+public:
+	gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig);
+	~gameclient_c();
+	bool start();
+	void loop(volatile bool* quitFlag);
+	void stop();
 };
 
 extern gameclient_c *gameclient;

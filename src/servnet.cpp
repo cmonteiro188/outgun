@@ -85,11 +85,10 @@ void ServerNetworking::upload_next_file_chunk(int i) {
 
 	//send
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_file_download);		//28 = next file chunk 4 u....
+	writeByte(lebuf, count, data_file_download);
+	writeShort(lebuf, count, static_cast<NLushort>(chunksize));
 	writeByte(lebuf, count, islast);
-	writeLong(lebuf, count, fileTransfer[i].dp );
-	writeShort(lebuf, count, ((NLushort)chunksize) );
-	writeBlock(lebuf, count, &(fileTransfer[i].data[ fileTransfer[i].dp ] ), chunksize);
+	writeBlock(lebuf, count, &(fileTransfer[i].data[fileTransfer[i].dp]), chunksize);
 	server->send_message(i, lebuf, count);
 
 	//save old dp for the ack
@@ -781,19 +780,18 @@ int ServerNetworking::client_connected(int id) {
 	}
 
 	// New players always spawn in the base.
-	world.player[myself].respawn_to_base = true;
-	world.respawnPlayer(myself);
+	world.player[myself].respawn_to_base = true;	// but don't actually spawn until the client has loaded the map and is in the game
 
-	if (player_count == 2)
+	if (player_count == 2) {
 		host->ctf_game_restart();
-
-	char lebuf[256]; int count;
+		sendStartGame();
+	}
 
 	host->resetPlayer(id);
 
 	//first update the ADMIN SHELL
 	if (shellssock != NL_INVALID) {
-		count = 0;
+		char lebuf[256]; int count = 0;
 		writeLong(lebuf, count, STA_PLAYER_CONNECTED);
 		writeLong(lebuf, count, world.player[myself].cid);
 		nlWrite(shellssock, lebuf, count);
@@ -823,7 +821,7 @@ int ServerNetworking::client_connected(int id) {
 		send_player_name_update(id, i);
 
 		//frags update
-		count = 0;
+		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, data_frags_update);
 		writeByte(lebuf, count, static_cast<NLubyte>(i));		// what player id
 		writeLong(lebuf, count, world.player[i].stats().frags());
@@ -1063,23 +1061,14 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				}
 			}
 			else if (code == data_file_ack) {
-				//check expected ack
-				NLulong ackpos;
-				readLong(msg, count, ackpos);
-				if (fileTransfer[id].old_dp == ackpos) {
-					//check upload successful
-					if (fileTransfer[id].dp >= fileTransfer[id].fsize) {
-						//no more data, this was the last ack. close stuff
-						fileTransfer[id].reset();	//reset the download data structs
-										//the client will carry on from here
-					}
-					else {
-						//send next
-						upload_next_file_chunk(id);
-					}
+				if (fileTransfer[id].dp >= fileTransfer[id].fsize) {
+					//no more data, this was the last ack. close stuff
+					fileTransfer[id].reset();	//reset the download data structs
+									//the client will carry on from here
 				}
 				else {
-					//unexpected ack pos. should never happen and if it does ,just discard...
+					//send next
+					upload_next_file_chunk(id);
 				}
 			}
 			else if (code == data_registration_token) {
@@ -1178,9 +1167,9 @@ void ServerNetworking::sendWorldReset() {
 	server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::sendEndGameover() {
+void ServerNetworking::sendStartGame() {
 	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_gameover_hide);
+	writeByte(lebuf, count, data_start_game);
 	server->broadcast_message(lebuf, count);
 	send_map_time(-1);
 }
@@ -2563,4 +2552,3 @@ bool ServerNetworking::set_web_refresh(int refresh) {
 	}
 	return false;
 }
-

@@ -73,10 +73,6 @@ public:
 	bool shouldApplyPhysicsToPlayer(int pid) { return c.shouldApplyPhysicsToPlayerCallback(pid); }
 };
 
-// client callbacks
-int cfunc_connection_update(client_runes_t *arg);
-int cfunc_server_data(client_runes_t *arg);
-
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 	if (LOG_THREAD_IDS)
 		log("ServerThreadOwner::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
@@ -336,6 +332,42 @@ string gamespy_t::addressString() const {
 	}
 }
 
+FileDownload::FileDownload(const string& type, const string& name, const string& filename) :
+	fileType(type),
+	shortName(name),
+	fullName(filename),
+	fp(0)
+{ }
+
+FileDownload::~FileDownload() {
+	if (fp) {
+		fclose(fp);
+		remove(fullName.c_str());
+	}
+}
+
+int FileDownload::progress() const {
+	nAssert(fp);
+	return ftell(fp);
+}
+
+bool FileDownload::start() {
+	nAssert(!fp);
+	fp = fopen(fullName.c_str(), "wb");
+	return (fp != 0);
+}
+
+bool FileDownload::save(const char* buf, unsigned len) {
+	nAssert(fp);
+	return (fwrite(buf, sizeof(char), len, fp) == len);
+}
+
+void FileDownload::finish() {
+	nAssert(fp);
+	fclose(fp);
+	fp = 0;
+}
+
 gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
@@ -346,6 +378,7 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
+	disconnectQueued(false),
 	abortThreads(false),
 	refreshStatus(RS_none),
 	password_file(wheregamedir + "config" + directory_separator + "passwd"),
@@ -393,7 +426,10 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 	//connected? (that is, "connection accepted")
 	connected = false;
 
-	udpdq_size = 0;
+	{
+		MutexLock ml(downloadMutex);
+		downloads.clear();
+	}
 
 	Thread::setCallerPriority(config.priority);
 }
@@ -417,11 +453,6 @@ gameclient_c::~gameclient_c() {
 bool gameclient_c::start() {
 	extConfig.statusOutput("Outgun client");
 
-	//clear UDPDQ
-	for (int uq=0;uq<MAX_UDPDQ;uq++) udpdq[uq] = 0;
-	udpdq_ptr = -1;
-	udpdq_size = 0;
-
 	totalframecount = 0;
 	framecount = 0;
 
@@ -437,7 +468,6 @@ bool gameclient_c::start() {
 	// default map
 	//load_default_map(&map);
 	map_ready = false;		// NO map change commands from server yet
-	servermap[0] = 0;
 
 	//not showing gameover plaque
 	gameover_plaque = NEXTMAP_NONE;
@@ -620,202 +650,117 @@ void gameclient_c::send_client_ready() {
 }
 
 // incoming chunk of requested file by UDP
-void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, char* buf) {
-	//progress...
-	fdp = pos + len;
-
-	//write it
-	fseek(ud_fout, pos, 0);		//0 == "SEEK_SET" ??
-	const int amount = fwrite(buf, 1, len, ud_fout);
-
-	if (amount != len) {
-		log.error("Error writing to map file.");
-		disconnect_command();
-		// terminate current download, don't start the next (this might cause problems but having this problem at allshould be extremely rare)
-		MutexLock ml(udpdq_mutex);
-		delete udpdq[udpdq_ptr];
-		udpdq[udpdq_ptr] = 0;
-		udpdq_size--;
-		udpdq_ptr = -1;
+void gameclient_c::process_udp_download_chunk(const char* buf, int len, bool last) {
+	MutexLock ml(downloadMutex);
+	if (downloads.empty() || !downloads.front().isActive()) {
+		log.error("Server sent a file we aren't expecting");
+		disconnectQueued = true;
 		return;
 	}
-
+	FileDownload& dl = downloads.front();
+	if (!dl.save(buf, len)) {
+		log.error("Error writing to %s.", dl.fullName.c_str());
+		disconnectQueued = true;
+		return;
+	}
 	//send the reply
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_file_ack);
-	writeLong(lebuf, count, pos);		// acked pos (just to be sure...)
 	client->send_message(lebuf, count);
-
-	//if done, then we're done!
-	// - take out of queue
-	// - notify app
 	if (last) {
-		MutexLock ml(udpdq_mutex);
-
-		//close the file
-		fclose(ud_fout);
-
-		// THANK GOD I DON'T HAVE TO REWRITE THIS!!
-		download_file_complete(udpdq[udpdq_ptr]);
-
-		// remove from queue - record deleted by download_file_complete() call above
-		udpdq[udpdq_ptr] = 0;
-		udpdq_size--;		//less one
-
-		// no download
-		udpdq_ptr = -1;
-
-		// readily check for next download, if any on the queue
-		//
-		for (int i=0;i<MAX_UDPDQ;i++)
-			if (udpdq[i] != 0) {
-				//found: start the new download right now
-				udpdq_ptr = i;
-				client_udp_setup_download();
-				break;
-			}
-	}
-}
-
-//do the download setup
-//must be called with udpdq_mutex locked
-void gameclient_c::client_udp_setup_download() {
-	//to simplify things...
-	download_runes_t  *r = udpdq[udpdq_ptr];
-
-	//open dest file for output (ud_fout)
-	ud_fout = fopen(r->dest, "wb");
-	if (!ud_fout) {
-		log.error("File download: Can't open '%s' for writing.", r->dest);
-		disconnect_command();
-		//#fix: some cleanup needed?
-		return;
-	}
-
-	//reset ud_fp
-	ud_fp = 0;			//file pointer (progress...)
-
-	//request the file and wait...
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, data_file_request);
-	writeString(lebuf, count, r->type);
-	writeString(lebuf, count, r->name);
-	client->send_message(lebuf, count);
-}
-
-//add to UDP DOWNLOAD QUEUE
-void gameclient_c::client_udp_download(download_runes_t  *rune) {
-	MutexLock ml(udpdq_mutex);
-
-	for (int i=0;i<MAX_UDPDQ;i++)
-		if (udpdq[i] == 0) {
-			//add to empty pos on queue
-			udpdq[i] = rune;		//copy to "queue"
-			udpdq_size++;				//another one
-
-			//setup ptr to download, if ptr free
-			if (udpdq_ptr == -1) {
-				udpdq_ptr = i;
-				//check download
-				client_udp_setup_download();
-			}
-
-			//anyway, we're done
-			return;
-		}
-
-	//error that will never happen even in a million years
-	log.error("Download queue is full.");
-	disconnect_command();
-	delete rune;
-}
-
-//file download complete
-void gameclient_c::download_file_complete(download_runes_t* r) {
-	log("Download complete: '%s' '%s' '%s'", r->type, r->name, r->dest);
-
-	//map complete
-	if (!strcmp(r->type, "map")) {
-		//if expected map, change now
-		if (!strcmp(r->name, servermap)) {
-			const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, r->name) && fx.load_map(log, CLIENT_MAPS_DIR, r->name);	//#fix
-			if (!ok)
-				log.error("After download: map '%s' not found", r->name);
-			else {
-				log("After download: map '%s' loaded successfully", r->name);
-
+		dl.finish();
+		log("Download complete: %s '%s' to %s", dl.fileType.c_str(), dl.shortName.c_str(), dl.fullName.c_str());
+		if (dl.fileType == "map") {
+			if (dl.shortName == servermap) {
+				const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName);	//#fix
+				if (!ok) {
+					log.error("After download: map '%s' not found", dl.shortName.c_str());
+					disconnectQueued = true;
+					return;
+				}
+				log("Map '%s' downloaded successfully", dl.shortName.c_str());
 				mapChanged = true;
 				map_ready = true;
 				send_client_ready();
 			}
 		}
+		else
+			nAssert(0);
+		downloads.pop_front();
+		check_download();
 	}
-	else
-		nAssert(0);
-
-	//delete the download record
-	delete r; r = 0;
 }
 
-//start downloading a server file
-void gameclient_c::download_server_file(const char *type, const char *name, const char *dest) {
-	if (!strcmp(type, "map"))
+/* check_download: if there is a download pending, and nothing is downloading, activate it
+ * call with downloadMutex locked
+ */
+void gameclient_c::check_download() {	// call with downloadMutex locked
+	if (downloads.empty())
 		return;
-	if (strpbrk(name, "./:\\")!=NULL) {
-		log.error("Illegal file download request: map \"%s\"", name);
-		disconnect_command();
+	FileDownload& dl = downloads.front();
+	if (dl.isActive())
+		return;
+	if (!dl.start()) {
+		log.error("File download: Can't open '%s' for writing.", dl.fullName.c_str());
+		disconnectQueued = true;
+		return;
+	}
+	// request the file from server
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, data_file_request);
+	writeStr(lebuf, count, dl.fileType);
+	writeStr(lebuf, count, dl.shortName);
+	client->send_message(lebuf, count);
+}
+
+void gameclient_c::download_server_file(const string& type, const string& name) {
+	nAssert(type == "map");
+	if (name.find_first_of("./:\\") != string::npos) {
+		log.error("Illegal file download request: map \"%s\"", name.c_str());
+		disconnectQueued = true;
 		return;
 	}
 
-	//new download request
-	download_runes_t* rune = new download_runes_t();
-	strcpy(rune->type, type);
-	strcpy(rune->name, name);
-	strcpy(rune->dest, dest);
-
-	client_udp_download(rune);
+	MutexLock ml(downloadMutex);
+	const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + name + ".txt";
+	downloads.push_back(FileDownload(type, name, fileName));
+	check_download();
 }
 
 //server tells client of current map / map change
 // client must attempt to load map from "cmaps" dir
 // if map file not there, or the CRC's don't match, ask to download the map from the server
-void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) {
-	log("Received map change: '%s'", mapname);
+void gameclient_c::server_map_command(const string& mapname, NLushort server_crc) {
+	log("Received map change: '%s'", mapname.c_str());
 
-	strcpy(servermap, mapname);
+	servermap = mapname;
 
-	//try to load the map. will fail if not found
+	// try to load the map, in case it's already downloaded
 	LogSet noLogSet(0, 0, 0);	// if there's an error with the map, don't log it
 	const bool ok = fd.load_map(noLogSet, CLIENT_MAPS_DIR, mapname) && fx.load_map(noLogSet, CLIENT_MAPS_DIR, mapname);	//#fix
 
 	if (!ok)
-		log("Map '%s' not found", mapname);
+		log("Map '%s' not found", mapname.c_str());
 	else if (fx.map.crc != server_crc)
-		log("Map '%s' found but it's CRC %i differs from server map CRC %i", mapname, fx.map.crc, server_crc);
+		log("Map '%s' found but it's CRC %i differs from server map CRC %i", mapname.c_str(), fx.map.crc, server_crc);
 	else {
-		log("Map '%s' loaded successfully", mapname);
-
-		//load ok!  (FIXME: tell server)
-		//
+		log("Map '%s' loaded successfully", mapname.c_str());
 		mapChanged = true;
-		map_ready = true;  // map ready to show
-		send_client_ready();				//send "client ready" to server
+		map_ready = true;
+		send_client_ready();
+		return;
 	}
 
-	// download map from server (ask file)
-	if (!ok || fx.map.crc != server_crc) {
-		char lix[256];
-		snprintf(lix, 256, "Downloading map '%s' (CRC %i)...", mapname, server_crc);
-		print_message(msg_info, lix);
+	// start download
+	ostringstream msg;
+	msg << "Downloading map '" << mapname << "' (CRC " << server_crc << ")...";
+	print_message(msg_info, msg.str());
+	log("%s", msg.str().c_str());
 
-		log("%s", lix);
-
-		const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + mapname + ".txt";
-		download_server_file("map", mapname, fileName.c_str());
-	}
+	download_server_file("map", mapname);
 }
 
-void gameclient_c::disconnect_command() {
+void gameclient_c::disconnect_command() {	// do not call from a network thread
 	//disconnect the client here if was connected, else does nothing
 	client->connect(false);
 }
@@ -924,7 +869,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	send_tournament_participation();
 
 	map_ready = false;
-	servermap[0] = 0;
+	servermap.clear();
 
 	mapInfoMutex.lock();
 	maps.clear();
@@ -1435,17 +1380,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	do {
 		lebuf = msg = client->receive_message(&msglen);
 		if (msg != 0) {
-			//switch tempvars
-			char mapname[128];
-			NLubyte rteampower, rpx, rpy, code, pid, team, carried, abyte, rockid, iid, rpow, rdir, sx, sy;
-			NLshort   rokx, roky;	//rocket hit msg 8
-			NLushort	usho, hx, hy;
-			NLulong frameno, prank, pscore, nscore;	//v0.4.8 NEG SCORE
-			char debuf[666]; debuf[0]=0;
-			NLshort	ashort, rx, ry;
-			int k = 0;
 			int count = 0;
-			//get msg code
+			NLubyte code;
 			readByte(msg, count, code);
 
 			if (LOG_MESSAGE_TRAFFIC)
@@ -1455,8 +1391,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			switch (static_cast<Network_data_code>(code)) {
 				// name update
 				case data_name_update: {
-					readByte(msg, count, pid);
+					NLubyte pid;
 					string name;
+					readByte(msg, count, pid);
 					readStr(msg, count, name);
 					if (check_name(name))
 						fx.player[pid].name = name;
@@ -1473,7 +1410,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readStr(msg, count, chatmsg);
 					if (find_nonprintable_char(chatmsg)) {
 						log.error("Server sent non-printable characters in a message.");
-						disconnect_command();
+						disconnectQueued = true;
 					}
 					else {
 						print_message(type, chatmsg);		//print it to the "console"
@@ -1488,6 +1425,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_first_packet: {
+					NLubyte pid;
 					readByte(msg, count, pid);	//"who am I"
 					me = pid;
 
@@ -1505,14 +1443,15 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//reset want-change-teams: this message is send when players are swapped also
 					want_change_teams = false;
 
-					readByte(msg, count, abyte);
-					fx.teams[0].set_score(abyte);
+					NLubyte score;
+					readByte(msg, count, score);
+					fx.teams[0].set_score(score);
 					if (fx.teams[0].captures().size() == 0)	// only if just joined the server
-						fx.teams[0].set_base_score(abyte);
-					readByte(msg, count, abyte);
-					fx.teams[1].set_score(abyte);
+						fx.teams[0].set_base_score(score);
+					readByte(msg, count, score);
+					fx.teams[1].set_score(score);
 					if (fx.teams[1].captures().size() == 0)	// only if just joined the server
-						fx.teams[1].set_base_score(abyte);
+						fx.teams[1].set_base_score(score);
 
 					//server physics parameters
 					fx.physics.read(msg, count);
@@ -1526,8 +1465,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_frags_update: {
-					readByte(msg, count, pid);
+					NLubyte pid;
 					NLulong frags;
+					readByte(msg, count, pid);
 					readLong(msg, count, frags);
 					fx.player[pid].stats().set_frags(frags);
 					stable_sort(players_sb.begin(), players_sb.end(), compare_players);
@@ -1535,6 +1475,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_flag_update: {
+					NLubyte team;
 					NLbyte flags;
 					readByte(msg, count, team);		// team of the flag
 					readByte(msg, count, flags);	// how many flags
@@ -1545,17 +1486,16 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						}
 						else if (i >= static_cast<int>(fx.teams[team].flags().size()))
 							fx.teams[team].add_flag(spoint_t());
+						NLubyte carried;
 						readByte(msg, count, carried);	// 0==not carried 1==carried
 						if (carried == 0) {
 							//not carried: update position
-							readByte(msg, count, abyte);		//px
-							const int px = abyte;
-							readByte(msg, count, abyte);		//py
-							const int py = abyte;
-							readShort(msg, count, ashort);		//x
-							const int x = ashort;
-							readShort(msg, count, ashort);		//y
-							const int y = ashort;
+							NLubyte px, py;
+							NLshort x, y;
+							readByte(msg, count, px);
+							readByte(msg, count, py);
+							readShort(msg, count, x);
+							readShort(msg, count, y);
 							if (team == 2) {
 								fx.wild_flags[i].move(spoint_t(px, py, x, y));
 								fx.wild_flags[i].drop();
@@ -1565,11 +1505,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						}
 						else {
 							//carried: get carrier
-							readByte(msg, count, abyte);	//carrier
+							NLubyte carrier;
+							readByte(msg, count, carrier);
 							if (team == 2)
-								fx.wild_flags[i].take(abyte);
+								fx.wild_flags[i].take(carrier);
 							else
-								fx.teams[team].steal_flag(i, abyte);
+								fx.teams[team].steal_flag(i, carrier);
 							client_sounds.play(SAMPLE_CTF_GOT);
 						}
 					}
@@ -1577,19 +1518,25 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_rocket_fire: {
-					readByte(lebuf, count, rpow);	// rocket powerdir
-					readByte(lebuf, count, rdir);	// rocket powerdir
+					if (!map_ready)
+						break;
 
+					NLubyte rpow, rdir;
 					NLubyte rids[16];
-					for (k = 0; k < rpow; k++)
+					NLulong frameno;
+					NLubyte rteampower;
+
+					readByte(lebuf, count, rpow);
+					readByte(lebuf, count, rdir);
+					for (int k = 0; k < rpow; k++)
 						readByte(lebuf, count, rids[k]);
-
 					readLong(lebuf, count, frameno);	// frame # of shot
-
 					readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
 					const bool power = ((rteampower & 1) != 0);
 					const int team = (rteampower & 2) >> 1;
 
+					NLubyte rpx, rpy;
+					NLshort rx, ry;
 					readByte(lebuf, count, rpx);
 					readByte(lebuf, count, rpy);
 					readShort(lebuf, count, rx);
@@ -1608,100 +1555,128 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_old_rocket_visible: {
+					if (!map_ready)
+						break;
+
+					NLubyte rockid, rdir;
+					NLulong frameno;
+					NLubyte rteampower;
 					readByte(lebuf, count, rockid);
 					readByte(lebuf, count, rdir);
 					readLong(lebuf, count, frameno);
-
 					readByte(lebuf, count, rteampower);
 					const bool power = ((rteampower & 1) != 0);
 					const int team = (rteampower & 2) >> 1;
 
+					NLubyte rpx, rpy;
 					readByte(lebuf, count, rpx);
 					readByte(lebuf, count, rpy);
+					NLshort rx, ry;
 					readShort(lebuf, count, rx);
 					readShort(lebuf, count, ry);
 
 					ClientPhysicsCallbacks cb(*this);
 					fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 					// no sound
+					break;
 				}
 
-				case data_rocket_delete:
+				case data_rocket_delete: {
+					if (!map_ready)
+						break;
+
+					NLubyte rockid, target;
 					readByte(lebuf, count, rockid);	// rocket object id
-					readByte(lebuf, count, abyte);	// target player
+					readByte(lebuf, count, target);	// target player
 					//hit position
+					NLshort rokx, roky;
 					readShort(lebuf, count, rokx);
 					readShort(lebuf, count, roky);
 					fx.rock[rockid].owner = -1;
-					if (abyte != 255) {	// hit player
-						if (abyte < 250)	// blink player if not hit shield (252)
-							fx.player[abyte].hitfx = get_time() + .3;
+					if (target != 255) {	// hit player
+						if (target < 250)	// blink player if not hit shield (252)
+							fx.player[target].hitfx = get_time() + .3;
 						client_graphics.queue_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
 						client_sounds.play(SAMPLE_HIT);
 					}
 					break;
-
+				}
 				case data_score_update: {
+					NLubyte team;
 					NLubyte score;
-					readByte(lebuf, count, abyte);		//team
+					readByte(lebuf, count, team);		//team
 					readByte(lebuf, count, score);		//new score
-					fx.teams[abyte].set_score(score);	// update the score
+					fx.teams[team].set_score(score);	// update the score
 					break;
 				}
 
-				case data_sound:
-					readByte(lebuf, count, abyte);		// sample #
-					client_sounds.play(abyte);
+				case data_sound: {
+					NLubyte sample;
+					readByte(lebuf, count, sample);		// sample #
+					client_sounds.play(sample);
 					break;
+				}
 
-				case data_pup_visible:
+				case data_pup_visible: {
+					NLubyte iid, kind, spos;
 					readByte(lebuf, count, iid);		// item id
-					readByte(lebuf, count, abyte);		// kind
-					fx.item[iid].kind = static_cast<Powerup::Pup_type>(abyte);
-					readByte(lebuf, count, abyte);		// screen x
-					fx.item[iid].px = abyte;
-					readByte(lebuf, count, abyte);		// screen y
-					fx.item[iid].py = abyte;
-					readShort(lebuf, count, usho);		// pos x
-					fx.item[iid].x = usho;
-					readShort(lebuf, count, usho);		// pos y
-					fx.item[iid].y = usho;
+					readByte(lebuf, count, kind);		// kind
+					fx.item[iid].kind = static_cast<Powerup::Pup_type>(kind);
+					readByte(lebuf, count, spos);		// screen x
+					fx.item[iid].px = spos;
+					readByte(lebuf, count, spos);		// screen y
+					fx.item[iid].py = spos;
+					NLushort coord;
+					readShort(lebuf, count, coord);		// pos x
+					fx.item[iid].x = coord;
+					readShort(lebuf, count, coord);		// pos y
+					fx.item[iid].y = coord;
 					break;
+				}
 
-				case data_pup_picked:
+				case data_pup_picked: {
+					NLubyte iid;
 					readByte(lebuf, count, iid);
 					fx.item[iid].kind = Powerup::pup_unused;		// no more!
 					break;
+				}
 
-				case data_pup_timer:
+				case data_pup_timer: {
+					NLubyte iid;
+					NLushort time;
 					readByte(lebuf, count, iid);	//kind
-					readShort(lebuf, count, usho);	//amount of time
+					readShort(lebuf, count, time);	//amount of time
 					if (me >= 0) {
 						if (iid == Powerup::pup_turbo)
-							fx.player[me].item_speed_time = get_time() + usho;
+							fx.player[me].item_speed_time = get_time() + time;
 						else if (iid == Powerup::pup_shadow)
-							fx.player[me].item_helm_time = get_time() + usho;
+							fx.player[me].item_helm_time = get_time() + time;
 						else if (iid == Powerup::pup_power)
-							fx.player[me].item_quad_time = get_time() + usho;
+							fx.player[me].item_quad_time = get_time() + time;
 					}
 					break;
+				}
 
-				case data_weapon_change:
-					readByte(lebuf, count, abyte);	// weapon level
+				case data_weapon_change: {
+					NLubyte level;
+					readByte(lebuf, count, level);	// weapon level
 					if (me >= 0)
-						fx.player[me].weapon = abyte;
+						fx.player[me].weapon = level;
 					break;
+				}
 
-				case data_map_change:
+				case data_map_change: {
 					old_map = fx.map.title;
 					map_ready = false;	// map NOT ready anymore: must load/change
 					want_map_exit = false;		// and player does not want to exit the map anymore
 					fx.teams[0].remove_flags();
 					fx.teams[1].remove_flags();
 					fx.wild_flags.clear();
-					readShort(lebuf, count, usho);			//read CRC16 of map
-					readString(lebuf, count, mapname);		//read map name
-					server_map_command(mapname, usho);
+					NLushort crc;
+					readShort(lebuf, count, crc);
+					string mapname;
+					readStr(lebuf, count, mapname);
+					server_map_command(mapname, crc);
 					NLubyte map_nr;
 					readByte(lebuf, count, map_nr);
 					current_map = map_nr;
@@ -1710,6 +1685,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.player[me].oldx = -1;
 					fx.player[me].oldy = -1;
 					break;
+				}
 
 				case data_world_reset:
 					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
@@ -1720,10 +1696,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					NLubyte plaque;
 					readByte(lebuf, count, plaque);
 					if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
-						readByte(lebuf, count, abyte);	//RED team final score
-						red_final_score = abyte;
-						readByte(lebuf, count, abyte);  //BLUE team final score
-						blue_final_score = abyte;
+						NLubyte score;
+						readByte(lebuf, count, score);	//RED team final score
+						red_final_score = score;
+						readByte(lebuf, count, score);  //BLUE team final score
+						blue_final_score = score;
 						for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
 							pi->stats().finish_stats(get_time());
 						if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
@@ -1744,7 +1721,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				case data_gameover_hide:
+				case data_start_game:
 					gameover_plaque = NEXTMAP_NONE;		//hide
 					fx.teams[0].clear_stats();
 					fx.teams[1].clear_stats();
@@ -1756,40 +1733,49 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					}
 					break;
 
-				case data_deathbringer:
-					readByte(lebuf, count, abyte);	//what player
+				case data_deathbringer: {
+					NLubyte pid;
+					NLulong frameno;
+					NLubyte sx, sy;
+					readByte(lebuf, count, pid);	//what player
 					readLong(lebuf, count, frameno);		// start time
 					//spawn clientside fx at the owner's position
 					//V0.4.6: sending explicitly the screen/coord of the shot
 					readByte(lebuf, count, sx);
 					readByte(lebuf, count, sy);
+					NLushort hx, hy;
 					readShort(lebuf, count, hx);
 					readShort(lebuf, count, hy);
-					client_graphics.queue_deathbringer(abyte/TSIZE, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
+					client_graphics.queue_deathbringer(pid/TSIZE, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
 					client_sounds.play(SAMPLE_USEDEATHBRINGER);
 					break;
+				}
 
-				case data_file_download:
-					readByte(lebuf, count, abyte);		//"last chunk"?
-					readLong(lebuf, count, frameno);	//absolute pos of the chunk on file
-					readShort(lebuf, count, usho);		//chunk size
-					//PROCESS IT
-					process_udp_download_chunk(abyte, frameno, usho, &(lebuf[count]));
+				case data_file_download: {
+					NLubyte last;
+					NLushort chunkSize;
+					readShort(lebuf, count, chunkSize);		//chunk size
+					readByte(lebuf, count, last);		//"last chunk"?
+					process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
 					break;
+				}
 
-				case data_registration_response:
-					readByte(lebuf, count, abyte);
-					if (abyte == 1)	// success
+				case data_registration_response: {
+					NLubyte response;
+					readByte(lebuf, count, response);
+					if (response == 1)	// success
 						tournamentPassword.serverAcceptsToken();
 					else
 						tournamentPassword.serverRejectsToken();
 					break;
+				}
 
 				case data_crap_update: {
-					NLubyte color;
-					readByte(lebuf, count, pid);			//waht player slot
+					NLubyte pid, color, regStatus;
+					NLulong prank, pscore, nscore;
+					readByte(lebuf, count, pid);
 					readByte(lebuf, count, color);
-					readByte(lebuf, count, abyte);		//reg char
+					readByte(lebuf, count, regStatus);
 					readLong(lebuf, count, prank);		//ranking#
 					readLong(lebuf, count, pscore);		//score
 					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
@@ -1799,7 +1785,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					else
 						log("Invalid colour (%d) for player %d.", color, pid);
 					ClientLoginStatus ls;
-					ls.fromNetwork(abyte);
+					ls.fromNetwork(regStatus);
 					if (pid == me && fx.player[pid].reg_status != ls) {
 						ostringstream msg;
 						msg << "Status: ";	// 8
@@ -2126,7 +2112,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				default:
 					if (code < data_reserved_range_first || code > data_reserved_range_last) {
 						log.error("Server sent an unknown message code: %i, length %i", code, msglen);
-						disconnect_command();
+						disconnectQueued = true;
 						return;	// don't process the rest of the messages
 					}
 					// just ignore commands in reserved range: they're probably some extension we don't have to care about
@@ -2491,6 +2477,11 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 			if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
 				quitCommand = true;
 				break;
+			}
+
+			if (disconnectQueued) {
+				disconnectQueued = false;	// might lose a value very rarely; that should not be an extreme disaster
+				disconnect_command();
 			}
 
 			// menu keypresses; ESC is dealt with elsewhere
@@ -2981,12 +2972,11 @@ void gameclient_c::stop() {
 	else
 		log.error("Can't open %s for writing", fileName.c_str());
 
-	//clear udpdq
-	for (int uq=0;uq<MAX_UDPDQ;uq++)
-		if (udpdq[uq] != 0) {
-			delete udpdq[uq];
-			udpdq[uq] = 0;
-		}
+	{
+		MutexLock ml(downloadMutex);
+		downloads.clear();
+	}
+
 	if (menu.options.game.messageLogging())
 		message_log.close();
 
@@ -3081,9 +3071,12 @@ void gameclient_c::draw_game_frame() {
 		if (map_ready)
 			client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
 		else {
-			ostringstream text;
-			text << "Loading map: " << fdp << " bytes";
-			client_graphics.draw_loading_map_message(text.str());
+			MutexLock ml(downloadMutex);
+			if (!downloads.empty() && downloads.front().isActive()) {
+				ostringstream text;
+				text << "Loading map: " << downloads.front().progress() << " bytes";
+				client_graphics.draw_loading_map_message(text.str());
+			}
 		}
 	}
 	else {
@@ -3864,7 +3857,7 @@ void gameclient_c::CB_tournamentToken(string token) {	// callback called by tour
 	}
 }
 
-int cfunc_connection_update(client_runes_t *arg) {
+int gameclient_c::cfunc_connection_update(client_runes_t *arg) {
 	gameclient->connection_update(arg);
 	return 0;
 }
@@ -3896,7 +3889,7 @@ void gameclient_c::connection_update(client_runes_t *arg) {
 	}
 }
 
-int cfunc_server_data(client_runes_t *arg) {
+int gameclient_c::cfunc_server_data(client_runes_t *arg) {
 	gameclient->process_incoming_data(arg->data, arg->length);
 	return 0;
 }

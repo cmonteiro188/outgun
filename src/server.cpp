@@ -426,7 +426,7 @@ void gameserver_c::load_game_mod() {
 	RedirectToMemFun1<ServerNetworking, bool, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
 
 	typedef std::auto_ptr<GamemodSetting> PT;
-	static PT settings[] = {
+	PT settings[] = {
 		PT(new GS_Float		("friction",				&world.physics.fric)),
 		PT(new GS_Float		("drag",					&world.physics.drag)),
 		PT(new GS_Float		("acceleration",			&world.physics.accel)),
@@ -735,8 +735,8 @@ bool gameserver_c::start(int target_maxplayers) {
 	if (!network.start())	// this must be last, because network.stop() must always be called if start() succeeds
 		return false;
 
-	// reset game
 	ctf_game_restart();
+	network.sendStartGame();
 
  	network.update_serverinfo();
 
@@ -976,6 +976,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			else
 				network.bprintf(msg_info, "%s decided it's time for a restart", world.player[pid].name.c_str());
 			ctf_game_restart();
+			network.sendStartGame();
 		}
 		else
 			network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);
@@ -1049,7 +1050,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		if (gameover_time < get_time()) {
 			gameover = false;
 			world.reset_time();
-			network.sendEndGameover();
+			network.sendStartGame();
 		}
 	if (!gameover)
 		world.simulateFrame();
