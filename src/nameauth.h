@@ -17,14 +17,14 @@ class NameAuthorizationDatabase {
 		std::string password;
 		bool admin;
 
-		NameEntry(std::string n, std::string p, bool a) : name(n), password(p), admin(a) { }
+		NameEntry(const std::string& n, const std::string& p, bool a) : name(n), password(p), admin(a) { }
 	};
 	struct BanEntry {
 		std::string name;
 		NLaddress address;
 		time_t endTime;
 
-		BanEntry(std::string n, NLaddress a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
+		BanEntry(const std::string& n, NLaddress a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
 	};
 
 	std::vector<NameEntry> names;
@@ -45,7 +45,7 @@ public:
 	bool NameAuthorizationDatabase::checkNamePassword(const std::string& name, const std::string& password) const;
 
 	bool isBanned(NLaddress addr) const;
-	void ban(NLaddress addr, std::string name, int minutes);
+	void ban(NLaddress addr, const std::string& name, int minutes);
 };
 
 #endif

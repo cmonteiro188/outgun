@@ -98,11 +98,11 @@ bool NameAuthorizationDatabase::save() const {
 		return false;
 	}
 	out << "; This file is automatically rewritten whenever the ban list changes.\n"
-	    << "; To reserve a name add a row:\n"
-	    << "; user <name> <tab> <password>  or  admin <name> [<tab> <password>]\n"
-	    << "; where <tab> is a tabulator character.\n"
+		<< "; To reserve a name add a row:\n"
+		<< "; user <name> <tab> <password>  or  admin <name> [<tab> <password>]\n"
+		<< "; where <tab> is a tabulator character.\n"
 		<< "; Passwordless admins need to authenticate by logging in to the tournament\n"
-	    << "\n";
+		<< '\n';
 	for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
 		out << "ban\t" << bi->name << '\t' << addressToString(bi->address) << '\t' << bi->endTime << '\n';
 	for (vector<NameEntry>::const_iterator ni = names.begin(); ni != names.end(); ++ni)
@@ -131,7 +131,7 @@ bool NameAuthorizationDatabase::isBanned(NLaddress addr) const {
 	return false;
 }
 
-void NameAuthorizationDatabase::ban(NLaddress addr, string name, int minutes) {
+void NameAuthorizationDatabase::ban(NLaddress addr, const string& name, int minutes) {
 	nlSetAddrPort(&addr, 0);
 	bans.push_back(BanEntry(name, addr, time(0) + minutes * 60));
 }
