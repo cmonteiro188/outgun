@@ -1,0 +1,213 @@
+English
+Outgun client
+OK
+Cancel
+No password set
+Initializing...
+Socket error
+Sending login...
+Error sending
+Waiting for response...
+No response
+Invalid response received
+Master server unavailable
+Logged in
+Login failed: check password
+Logged in; sent to server
+Logged in; server accepted
+Error: server rejected
+none
+on
+off
+Capture limit
+Time limit
+Extra time
+Player collisions
+Friendly fire
+Balance teams
+Drop power-ups
+Invisible shadow
+Switch deathbringer
+Maximum weapon level
+Server is full.
+Client had these errors: (see clientlog.txt)
+Downloading map
+Connected to
+(name unknown)
+Server was shut down.
+Connection timed out.
+You were kicked.
+You were kicked for being idle.
+Internal error (client misbehaved).
+You have been disconnected.
+No response from server.
+Trying to connect...
+Status
+master authorized
+recording
+not recording
+master auth pending
+will record
+will not record
+no tournament login
+locally authorized
+administrator
+'s killing spree was ended by 
+ is on a killing spree!
+'s killing spree was ended.
+Saved screenshot to 
+Could not save screenshot to 
+Inactive
+Running
+Failed
+Contacting the servers...
+Getting server list: connecting...
+Getting server list: receiving...
+no response
+RED TEAM WINS
+BLUE TEAM WINS
+GAME TIED
+Connecting...
+Waiting game start - next map is
+Loading map
+ bytes
+Errors
+password
+passwords
+ removed.
+No passwords found.
+unknown
+no response
+Invalid IP address.
+No help found. It should be in
+VIROU
+SORVETE!
+SCORE
+Red Team
+Blue Team
+pings
+ capt
+Team stats
+Captures
+Kills
+Deaths
+Suicides
+Flags taken
+Flags dropped
+Flags returned
+Shots
+Hit accuracy
+Shots taken
+Movement
+Team power
+     Frags    total/in-row/most
+Ping     Capt Kills      Deaths Suicides
+         Flags          Carriers  Carry
+taken dropped returned   killed    time
+   Accuracy
+Shots   | Taken  Movement     Speed
+          Average        Tournament
+Playtime lifetime    rank  power  score
+Server map list
+ Nr Vote Title                Size  Author
+Vote map number
+Server list
+Disconnect
+Options
+Help
+Exit Outgun
+Update server list
+Refresh servers
+Refresh status
+Show favorite servers
+Manually enter IP
+Insert = add to favorites    Delete = remove server
+IP address
+Add to favorite list
+Add server
+IP address           Ping D Players Vers. Host name
+Name and passwords
+Name
+Get random name
+Tournament password
+Registration status
+Take part in the tournament
+Remove server-specific player passwords
+Game options
+Show player names
+Favorite colors
+Lag prediction
+Lag prediction amount
+Save chat messages
+Save game statistics
+Show stats after the round
+Show server info when connected
+Underline master-authenticated players
+Underline server-authenticated players
+Get server list at startup
+Controls
+Use keypad for moving
+Enable joystick control
+Moving stick
+Joystick buttons (0 = disabled)
+Shoot 
+Run   
+Strafe
+Graphic options
+Color depth
+ desktop
+-bit
+Screen size
+Windowed mode
+Use page flipping
+Current refresh rate
+Apply changes
+Theme
+Antialiasing
+Continuous textures between rooms
+Stats screen alpha
+FPS limit
+Map info mode
+16-bit
+24-bit
+32-bit
+Sound options
+Sounds enabled
+Volume
+players in the tournament
+Joystick axes:
+Joystick buttons:
+Traffic:
+in
+out
+Health
+Energy
+Power
+Turbo
+Shadow
+Weapon
+CHANGE
+TEAMS
+EXIT
+MAP
+Say
+SERVER NOT RESPONDING...
+May be heavy packet loss,
+or the server disconnected.
+<no theme>
+(unnamed theme)
+Password
+Save password
+Player password for
+Server password
+No help found. It should be in
+Local server (running)
+Local server
+Add to public serverlist
+Server port
+Detected address
+Start server
+Play on the server
+Stop server
+(unknown)
+Error: Can't start client. See the logs.

@@ -1,0 +1,213 @@
+suomi
+Outgun
+Selvä
+Peru
+Ei salasanaa
+Alustan...
+Socket-virhe
+Yhdistän...
+Virhe lähetyksessä
+Odotan vastausta
+Ei vastausta
+Virheellinen vastaus
+Ei yhteyttä pääpalvelimeen
+Olet kirjautunut sisään
+Kirjautuminen epäonnistui: tarkista salasana
+Kirjautuminen onnistui; lähetin palvelimelle
+Kirjautuminen onnistui; palvelin hyväksyi
+Virhe: palvelin ei hyväksynyt
+ei
+päällä
+pois
+Ryöstöraja
+Aikaraja
+Jatkoaika
+Pelaajien törmäykset
+Omien ampuminen
+Joukkueiden tasoitus
+Herkkujen pudotus
+Näkymätön varjo
+Savupommi päälle ja pois
+Aserajoitus
+Palvelin on täynnä.
+Seuraavia virheitä esiintyi: (katso clientlog.txt)
+Lataan karttaa
+Yhteydessä:
+(tuntematon)
+Palvelin sammutettiin.
+Aikakatkaisu.
+Sinut potkaistiin.
+Sinut potkaistiin, koska et tehnyt mitään vähään aikaan.
+Sisäinen virhe (asiakasohjelmassa).
+Yhteytesi on katkaistu.
+Palvelin ei vastannut.
+Yhdistän...
+Tila
+pääpalvelin tunnisti
+tallentaa
+ei tallenna
+pääpalvelin tunnistaa
+tallentaa
+ei tallenna
+ei turnaukseen osallistumista
+palvelin tunnistanut
+ylläpitäjä
+ - tappoputken päätti 
+ tappaa porukkaa ihan solkenaan!
+ - tappaminen loppui kuin seinään.
+Kuvankaappaus tallentui tiedostoon 
+Kuvankaappaus ei tallentunut tiedostoon 
+Ei päivitystä
+Päivitän
+Epäonnistui
+Yhdistän palvelimille...
+Haen palvelinlistaa: yhdistän...
+Haen palvelinlistaa: vastaanotan...
+ei vastausta
+PUNAINEN JOUKKUE VOITTI
+SININEN JOUKKUE VOITTI
+TASAPELI
+Yhdistän...
+Odotetaan pelin alkua - seuraava kartta on
+Lataan karttaa
+ tavua
+Virheet
+salasana
+salasanaa
+ poistettu.
+Salasanoja ei ole.
+tuntematon
+ei vastausta
+Virheellinen IP-osoite.
+Ohjetiedostoa ei ole. Sen pitäisi olla tiedostossa
+JÄÄTÄVÄÄ!
+ 
+PISTEET
+Punainen
+Sininen
+pingit
+ p
+Joukkuetilastot
+Ryöstöt
+Tapot
+Kuolemat
+Itsemurhat
+Otetut liput
+Pudotetut liput
+Palautetut liput
+Laukaukset
+Osumatarkkuus
+Saadut osumat
+Liike
+Joukkueen vahvuus
+    Pisteet   yht./peräkk./eniten
+Pingi  Ryöstöt Tapot   Kuolemat Itsemurhat
+         Liput          Tapetut   Kanto-
+otetut pudot. palaut.   kantajat   aika
+   Tarkkuus
+Lauk.     Saadut   Matka      Nopeus
+          Keskim.          Turnaus 
+Peliaika elinaika    sija vahvuus pist.
+Palvelimen karttalista
+Nro Äänet Nimi                Koko  Tekijä
+Äänestä karttaa nro
+Palvelinlista
+Katkaise yhteys
+Asetukset
+Ohjeita
+Sulje Outgun
+Päivitä palvelinlista
+Päivitä palvelimet
+Päivitystilanne
+Näytä suosikkipalvelimet
+Syötä IP-osoite
+Insert = lisää suosikkeihin    Delete = poista listalta
+IP-osoite
+Lisää suosikkilistaan
+Lisää palvelin
+IP-osoite           Viive D Pelaajat Vers. Palvelimen nimi
+Nimi ja salasanat
+Nimi
+Arvo satunnainen nimi
+Turnauksen salasana
+Rekisteröinnin tila
+Osallistu turnaukseen
+Poista palvelinkohtaiset pelaajasalasanat
+Peliasetukset
+Näytä pelaajien nimet
+Suosikkivärit
+Viiveen ennustus
+Viiveen ennustuksen suuruus
+Tallenna viestit
+Tallenna tilastot
+Näytä tilastot pelin jälkeen
+Näytä palvelimen tiedot yhdistämisen jälkeen
+Alleviivaa turnauspalvelimeen rekisteröityneet pelaajat
+Alleviivaa palvelimelle rekisteröityneet pelaajat
+Hae palvelinlista pelin käynnistyttyä
+Ohjaimet
+Käytä numeronäppäimistöä liikkumiseen
+Käytä peliohjainta
+Liikuttava sauva
+Napit (0 = ei käytössä)
+Ampuminen    
+Juokseminen  
+Sivusiirtymä 
+Grafiikka
+Värisyvyys
+ työpöytä
+ bittiä
+Ruudun koko
+Ikkunassa
+Käytä page flippingiä
+Virkistystaajuus
+Hyväksy asetukset
+Teema
+Reunanpehmennys
+Tekstuurit jatkuvat huoneesta toiseen
+Tilastoruudun taustan voimakkuus
+FPS-rajoitus
+Näytä 16×12-ruudukko ja pelaajien aloituspaikat
+16 bittiä
+24 bittiä
+32 bittiä
+Äänet
+Äänet päällä
+Voimakkuus
+pelaajaa turnauksessa
+Joystickin akselit
+Joystickin napit
+Liikenne
+sisään
+ulos
+Terveys
+Energia
+Power
+Turbo
+Varjo
+Ase
+VAIHDA
+JOUKKUETTA
+VAIHDA
+KARTTAA
+Sano
+PALVELIN EI VASTAA...
+Syynä saattaa olla pakettien putoilu,
+tai palvelin on katkaissut yhteyden.
+<ei teemaa>
+(nimetön teema)
+Salasana
+Tallenna salasana
+Pelaajasalasana - 
+Palvelimen salasana
+Ohjetta ei ole. Sen pitäisi olla tiedostossa
+Oma palvelin (käynnissä)
+Oma palvelin
+Lisää julkiseen palvelinlistaan
+Palvelimen portti
+Tunnistettu osoite
+Käynnistä palvelin
+Pelaa palvelimella
+Sulje palvelin
+(tuntematon)
+Virhe: Asiakasohjelma ei käynnisty. Katso lokitiedostot.

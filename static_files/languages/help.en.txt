@@ -1,14 +1,13 @@
-For more information access these resources:
- game documentation              directory 'doc'
- the original Outgun website     http://outgun.sf.net/en/
- development by Nix and Huntta   http://koti.mbnet.fi/outgun/
+For more information access these websites:
+ the original Outgun website      http://outgun.sf.net/en/
+ Nix's Outgun development page    http://koti.mbnet.fi/npr/outgun/
  
 Controls
  
  Move               Arrow keys or keypad
  Shoot              Control
  Run                Shift
- Strafe             Alt or AltGr
+ Strafe             Alt
  
 Other keys
  
@@ -20,7 +19,6 @@ Other keys
  Map list           F2
  Team stats         F3
  Player stats       F4
- Server info        F5
  Vote map change    F8
  Screenshot         F11
  Show more messages Insert
@@ -44,10 +42,9 @@ Health and energy
 Minimap
  
  On the upper-right corner of the screen is the minimap. It shows
- all the players you and your teammates can see (and more with
- the shadow powerup).
+ the contents of all rooms of the map that have your teammates.
  
 Powerups
  
  If you see an item lying on the ground, grab it. It's a special
- powerup item.
+ power-up item.

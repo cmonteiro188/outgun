@@ -1,0 +1,4 @@
+; Currently available languages:
+;    en    English
+;    fi    suomi - Finnish
+en
