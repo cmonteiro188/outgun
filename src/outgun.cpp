@@ -202,16 +202,19 @@ OK - BURRO! lancou o jogo com DEBUG POWERUPS !!! ARGHH!!!
 
 versao 0.3.0  (futura)
 ========================
- - bonus de friction e acceleration se player com boots OU se esta correndo (ou ambos)
- - fazer com que o servidor negocia com o cliente a velocidade do jogo, assim nao
-   precisa lancar uma nova versao sempre que eu fizer "tweak" disso (ver se tem outros
-	 parametros para mexer, como os frictions tambem.. parametrizar toda a fisica)
- - megahealth powerup. fazer que o client que nao souber desenhar um powerup novo, desenha
-   uma string com o nome do powerup, mas que ele mostre algo.
+OK - bonus de friction e acceleration se player com boots OU se esta correndo (ou ambos)
+OK - fazer com que o servidor negocia com o cliente a velocidade do jogo, assim nao
+     precisa lancar uma nova versao sempre que eu fizer "tweak" disso (ver se tem outros
+	   parametros para mexer, como os frictions tambem.. parametrizar toda a fisica)
+ - megahealth powerup: +100 health e +100 energy, ambos acumulaveis ate 300. se ja
+   estiver em 300 com um, passa pro outro
+ - novo esquema de quantities de powerup (configuravel)
   
 	 
 coisas p/ o futuro
 ========================
+ - bots, com as pessoas dizendo q tamanho de times minimo querem (de 0 a 8), pega a media
+   e buracos p/ atingir a media sao preenchidos com bots
  - mais built-in maps
  - vote-exit / vote-warp
  - configuracoes (parametros) do jogo (mais powerups... etc.)
@@ -244,6 +247,8 @@ coisas p/ o futuro
 
 #define   ROCKET_SPEED	50.0		//in pixels/0.1s
 
+#define   NUMBER_OF_POWERUP_KINDS   6    //quad shield shadow turbo weapon-up megahealth
+
 //#define  DEBUG_POWERUPS
 //#define  REALLY_DEBUG_POWERUPS		//define only if DEBUG_POWERUPS defined
 
@@ -257,8 +262,8 @@ coisas p/ o futuro
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "5"
-#define GAME_VERSION "0.2.3"
+#define GAME_PROTOCOL "6"
+#define GAME_VERSION "0.3.0"
 
 
 
@@ -344,8 +349,34 @@ bool reset_video_mode();
 #define CTF_NUMBER_OF_CAPTURES 8
 
 // server game phisics parameters
-double	sv_gravity, sv_frictionx, sv_frictiony, sv_accelx, sv_accely, sv_maxspeedx, sv_maxspeedy;
-double	sv_maxspeedrunx, sv_maxspeedruny, sv_flag_penalty_x, sv_flag_penalty_y;
+//double	sv_frictionx, sv_frictiony, sv_accelx, sv_accely, sv_maxspeedx, sv_maxspeedy;
+//double	sv_maxspeedrunx, sv_maxspeedruny, sv_flag_penalty_x, sv_flag_penalty_y;
+//double  sv_boots_top_bonus_x, sv_boots_top_bonus_y, sv_boots_accel_bonus, sv_run_accel_bonus;
+
+// NEW server game phisics parameters
+double  svp_fric, svp_accel, svp_maxspeed;
+double  svp_fric_run, svp_accel_run, svp_maxspeed_run;
+double  svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
+double  svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun;
+double  svp_flag_penalty;
+
+// set the default physics parameters
+void set_default_physics() {
+	svp_fric     = 1.5;
+	svp_accel    = 2.0;
+	svp_maxspeed = 12.0;
+	svp_fric_run     = svp_fric  * 1.25;
+	svp_accel_run    = svp_accel * 1.25;
+	svp_maxspeed_run = 20.0;
+	svp_fric_turbo     = svp_fric     * 1.5;
+	svp_accel_turbo    = svp_accel    * 1.5;
+	svp_maxspeed_turbo = 24.0;
+	svp_fric_turborun     = svp_fric  * 1.75;
+	svp_accel_turborun    = svp_accel * 1.75;
+	svp_maxspeed_turborun = 32.0;
+	svp_flag_penalty	= 3.0;
+}
+
 
 #define MAX_PLAYERS 16		// maximum number of players
 
@@ -371,8 +402,6 @@ bool sound_enabled = true;		// player wants sounds?
 enum {
 
 	SAMPLE_FIRE,			//ok
-	//SAMPLE_FIRE_2,		//ok
-	//SAMPLE_FIRE_3,		//ok
 	SAMPLE_HIT,				//ok
 	SAMPLE_DEATH,			//ok
 	SAMPLE_DEATH_2,		//ok
@@ -383,6 +412,8 @@ enum {
 	SAMPLE_WALLBOUNCE,
 
 	SAMPLE_WEAPON_UP,	// new! v0.1.2
+
+	SAMPLE_MEGAHEALTH, // new! v0.3.0
 
 	SAMPLE_SHIELD_PICKUP,
 	SAMPLE_SHIELD_DAMAGE,
@@ -465,6 +496,7 @@ enum {
 	COLLIMBO,
 	COLDARKORA,
 	COLINFO,
+	COLENER3,
 	NUM_OF_COL	
 };
 
@@ -503,6 +535,7 @@ void setcolors() {
 	col[COLLIMBO] = makecol(0x10, 0x10, 0x10);
 	col[COLDARKORA]	= makecol(0xbf, 0x70, 0);
 	col[COLINFO] = col[COLDARKORA];		//color of statusbar non-game info (hostname, IP, net traffic)
+	col[COLENER3] = makecol(125, 100, 255);
 
 	//teams 0 & 1 (playernum(0..15) / 8) colors:
 	teamcol[0] = col[COLRED];
@@ -602,16 +635,6 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 	if (py < 0) return false;
 	if (px >= WXMAX) return false;
 	if (py >= WYMAX) return false;
-	/*
-	if ((*x) < 0) return false;
-	if ((*y) < 0) return false;
-	if ((*x) > plw) return false;
-	if ((*y) > plh) return false;
-	if ((*ox) < 0) return false;
-	if ((*oy) < 0) return false;
-	if ((*ox) > plw) return false;
-	if ((*oy) > plh) return false;
-	*/
 
 	//delta old to new  (ok)
 
@@ -629,17 +652,6 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 		dx = 2*tx / fabs(ty);	// 0 <= val <= 1
 		dy = 2*ty / fabs(ty);	 // ==1.0
 	}
-
-	/*
-	if (fabs(sx) > fabs(sy)) {
-		dx = 2*sx / fabs(sx);  // module==1.0
-		dy = 2*sy / fabs(sx);
-	}
-	else {
-		dx = 2*sx / fabs(sy);
-		dy = 2*sy / fabs(sy);	 // module==1.0
-	}
-	*/
 
 	bool ever_had_wall_hit = false;
 	bool had_wall_hit; //keep pushing out until no wall hit
@@ -959,7 +971,7 @@ struct player_t {
 struct hero_t {
 
 	// position and speed
-	double    x, y, z, sx, sy, sz;
+	double    x, y, z, sx, sy;
 
 	// old coords: garantidamente NAO em paredes
 	double		ox, oy;
@@ -1329,16 +1341,6 @@ public:
 		//broadcast sound
 		broadcast_sample(SAMPLE_CHANGETEAM);
 
-		//PCUN 111padio 800 (DIRLI)
-		//padoi moved to blue team
-		
-		//char lixao[200];
-		//sprintf(lixao, "swapping player PCUN %i %i %i %s  ::  %i %i %i %s", 
-//			a, player[a].cid, player[a].used, player[a].name,
-//			b, player[b].cid, player[b].used, player[b].name
-//		);
-//		broadcast_message(lixao);
-
 		//mata quem nao tiver morto
 		if (player[a].health > 0)	game_damage_player(a, a, 333333);
 		if (player[b].health > 0)	game_damage_player(b, b, 333333);
@@ -1349,14 +1351,6 @@ public:
 		player[a] = player[b];
 		player[b] = ptemp;
 
-		//troca heroes inteiros
-		/*
-		hero_t	htemp;
-		htemp = world.hero[a];
-		world.hero[a] = world.hero[b];
-		world.hero[b] = htemp;
-		*/
-
 		//swap client id's
 		ctop[ player[a].cid ] = a;
 		ctop[ player[b].cid ] = b;
@@ -1365,30 +1359,6 @@ public:
 		player[a].want_change_teams = false;
 		player[b].want_change_teams = false;
 		
-		//swap used's
-		/*
-		bool btemp;
-		btemp = player[a].used;
-		player[a].used = player[b].used;
-		player[b].used = btemp;
-
-		//swap names
-		char stemp[256];
-		strcpy(stemp, player[a].name);
-		strcpy(player[a].name, player[b].name);
-		strcpy(player[b].name, stemp);
-
-		//swap frags
-		int temp;
-		temp = player[a].frags;
-		player[a].frags = player[b].frags;
-		player[b].frags = temp;
-		*/
-		/*
-		temp = player[a].cid;
-		player[a].cid = player[b].cid;
-		player[b].cid = temp;
-		*/
 		//send updates
 		move_update_player(a);
 		move_update_player(b);
@@ -1566,7 +1536,6 @@ public:
 		//reset speeds / z
 		world.hero[pid].sx = 0;
 		world.hero[pid].sy = 0;
-		world.hero[pid].sz = 0;
 
 		//reset player attributes
 		player[pid].health = 100;
@@ -1618,28 +1587,6 @@ public:
 		//server-side invalidate
 		rock->owner = -1;
 	}
-
-	//shoot a rocket
-	// team: team of the shot
-	// px,py,x,y: origin
-	// sx,sy: speed
-
-				// choose missle speed from gun direction
-				/*
-				double sx, sy;
-				double tsx = 50.0;
-				double tsy = 50.0;
-				switch (world.hero[i].gundir) {
-				case 0: default: sx = +tsx; sy =    0; break;
-				case 1: sx = +tsx; sy = +tsy; break;
-				case 2: sx =    0; sy = +tsy; break;
-				case 3: sx = -tsx; sy = +tsy; break;
-				case 4: sx = -tsx; sy =    0; break;
-				case 5: sx = -tsx; sy = -tsy; break;
-				case 6: sx =    0; sy = -tsy; break;
-				case 7: sx = +tsx; sy = -tsy; break;
-				}
-				*/
 
 	//shoot rocket to a certain direction
 	//deg: em radianos
@@ -1911,19 +1858,7 @@ public:
 			//QUAD!!!!!
 			// v0.2.2 : quad is just that: a quad damage
 			if (player[attacker].item_quad) {
-
 				damage *= 4;
-
-				//attacker's quad damage f00ks target's shield!	
-				/*
-				if (player[target].item_shield) {
-					player[target].energy = 0;
-					broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
-				}
-
-				//quad damage == INSTAKILL
-				player[target].health = 0;
-				*/
 			}
 			// if no attacker quad, shield absorbs at least 1 shot
 			//else 
@@ -1962,7 +1897,6 @@ public:
 			//stop all speed
 			world.hero[target].sx = 0;
 			world.hero[target].sy = 0;
-			world.hero[target].sz = 0;
 
 			int tateam = target/8;
 			int atteam = attacker/8;
@@ -2125,7 +2059,7 @@ public:
 #endif
 
 		//alloc powerup
-		world.item[p].kind = 1 + (rand() % 5);  //  % x   = x different items
+		world.item[p].kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
 		//world.item[p].respawning = false;
 		world.item[p].px = px;
 		world.item[p].py = py;
@@ -2140,7 +2074,41 @@ public:
 
 	// verifica powerups unused por jogadores presentes
 	void check_pickup_creation() {
+
+		int i, pc, ic;
+
+		//count number of players
+		pc = 0;
+		for (i=0;i<MAX_PLAYERS;i++)
+			if (player[i].used)
+				pc++;
+
+		//count number of items
+		ic = 0;
+		for (i=0;i<MAX_PICKUPS;i++)
+			if (player[i].used)
+				ic++;
+
+		//while number of players > number of pickups: create a pickup and ic++
+		for (i=0;i<MAX_PICKUPS;i++)
+#ifndef DEBUG_POWERUPS
+		if ((pc > ic) || (ic < 5))
+#endif
+		if (world.item[i].kind == 0)
+		{
+			world.item[i].kind = 255;
+			world.item[i].respawn_time = get_time() + 2.0;
+
+#ifdef REALLY_DEBUG_POWERUPS
+		char lixx[2000];
+		sprintf(lixx, "pickup %i creation RESPAWNING==TRUE KIND=0\n", i);
+		broadcast_message(lixx);
+#endif
+
+		}
 	
+
+	/*
 		for (int i=0;i<MAX_PLAYERS;i++)
 #ifdef DEBUG_POWERUPS
 #else
@@ -2158,6 +2126,7 @@ public:
 
 			world.item[i].respawn_time = get_time() + PICKUP_RESPAWN_TIME;
 		}
+		*/
 	}
 
 	// player i touches a pickup p!
@@ -2184,9 +2153,11 @@ public:
 				player[p].health = 100;		//full health
 
 			//increase energy +100
-			player[p].energy += 100;
-			if (player[p].energy > 200)
-				player[p].energy = 200;
+			if (player[p].energy < 200) {
+				player[p].energy += 100;
+				if (player[p].energy > 200)
+					player[p].energy = 200;
+			}
 
 			broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
 		}
@@ -2239,9 +2210,11 @@ public:
 				player[p].weapon++;	//increase weapon power
 
 			//increase energy +100
-			player[p].energy += 100;
-			if (player[p].energy > 200)
-				player[p].energy = 200;
+			if (player[p].energy < 200) {
+				player[p].energy += 100;
+				if (player[p].energy > 200)
+					player[p].energy = 200;
+			}
 
 			//notify player weapon power change
 			char lebuf[256]; int count = 0;
@@ -2250,6 +2223,21 @@ public:
 			server->send_message(player[p].cid, lebuf, count);
 
 			broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
+		}
+		//megahealth
+		else if (it->kind == 6) {
+
+			//increase energy +100, upto 300
+			player[p].energy += 100;
+			if (player[p].energy > 300)
+				player[p].energy = 300;
+
+			//increase health +100, upto 300
+			player[p].health += 100;
+			if (player[p].health > 300)
+				player[p].health = 300;
+
+			broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
 		}
 
 		// unused item
@@ -2304,7 +2292,7 @@ public:
 
 						//re-choose item type
 						if (non_satisfactory)	
-							it->kind = 1 + rand() % 5;
+							it->kind = 1 + rand() % NUMBER_OF_POWERUP_KINDS;
 
 					} while (non_satisfactory);
 
@@ -2376,6 +2364,117 @@ public:
 			server->send_message(player[i].cid, lebuf, count);
 	}
 
+	// ---- GAME MOD -------
+
+	void load_game_mod() {
+
+		char dest[WHERE_PATH_SIZE];
+		append_filename(dest, wheregamedir, "gamemod.txt", WHERE_PATH_SIZE);
+		FILE *fmod = fopen(dest, "r");
+		if (fmod) {
+
+			char s[1024];
+
+			bool command = true;
+			int cmd = 0;
+
+			LOG1("loading game mod from '%s'...\n", dest);
+
+			while (1) {
+				//char* fgets(char* s, int n, FILE* stream); 
+				//Copies characters from (input) stream stream to s, 
+				// stopping when n-1 characters copied, newline copied, end-of-file reached or error occurs. 
+				//If no error, s is NUL-terminated. Returns NULL on end-of-file or error, s otherwise. 
+
+				if (fgets((char*)s, 1024, fmod) == 0)
+					break;
+
+				s[ strlen(s) - 1] = 0;	//erase \n
+
+				LOG1("modline '%s'\n", s);
+
+				if (strlen(s) == 0)	//skip blank
+					continue;
+
+				if (s[0] == ';') // skip comment
+					continue;
+
+				if (command) {
+					if (!strcmp(s, "friction")) cmd = 1;
+					else if (!strcmp(s, "accel")) cmd = 2;
+					else if (!strcmp(s, "maxspeed")) cmd = 3;
+					else if (!strcmp(s, "friction_run")) cmd = 4;
+					else if (!strcmp(s, "accel_run")) cmd = 5;
+					else if (!strcmp(s, "maxspeed_run")) cmd = 6;
+					else if (!strcmp(s, "friction_turbo")) cmd = 7;
+					else if (!strcmp(s, "accel_turbo")) cmd = 8;
+					else if (!strcmp(s, "maxspeed_turbo")) cmd = 9;
+					else if (!strcmp(s, "friction_turborun")) cmd = 10;
+					else if (!strcmp(s, "accel_turborun")) cmd = 11;
+					else if (!strcmp(s, "maxspeed_turborun")) cmd = 12;
+					else if (!strcmp(s, "flag_penalty")) cmd = 13;
+					else 
+						cmd = 0;
+
+					LOG1("is command %i\n", cmd);
+				}
+				else {
+					double val = 1.0;
+					
+					if (cmd < 1000) {
+						sscanf(s, "%lf", &val);
+					}
+
+					LOG3("set cmd %i value to %f from '%s'\n", cmd, val, s);
+
+					if (cmd == 1) {
+						svp_fric = val;
+					}
+					else if (cmd == 2) {
+						svp_accel = val;
+					}
+					else if (cmd == 3) {
+						svp_maxspeed = val;
+					}
+					else if (cmd == 4) {
+						svp_fric_run = val;
+					}
+					else if (cmd == 5) {
+						svp_accel_run = val;
+					}
+					else if (cmd == 6) {
+						svp_maxspeed_run = val;
+					}
+					else if (cmd == 7) {
+						svp_fric_turbo = val;
+					}
+					else if (cmd == 8) {
+						svp_accel_turbo = val;
+					}
+					else if (cmd == 9) {
+						svp_maxspeed_turbo = val;
+					}
+					else if (cmd == 10) {
+						svp_fric_turborun = val;
+					}
+					else if (cmd == 11) {
+						svp_accel_turborun = val;
+					}
+					else if (cmd == 12) {
+						svp_maxspeed_turborun = val;
+					}
+					else if (cmd == 13) {
+						svp_flag_penalty = val;
+					}
+				}
+
+				//parameter
+				command = !command;
+			}
+
+			fclose(fmod);
+		}
+	}
 
 	//----- THE REST  ----------------
 
@@ -2384,6 +2483,11 @@ public:
 
 		ping_send_counter = 0;
 		ping_send_client = 0;
+
+		// server game phisics parameters
+		// DEFAULT VALUES...
+		//
+		set_default_physics();
 
 		// default map
 		load_default_map(&map);
@@ -2402,14 +2506,16 @@ public:
 		append_filename(dest, wheregamedir, "hostname.txt", WHERE_PATH_SIZE);
 		FILE *cfg = fopen(dest, "r");
 		if (cfg) {
-//char* fgets(char* s, int n, FILE* stream); 
-//Copies characters from (input) stream stream to s, stopping when n-1 characters copied, newline copied, end-of-file reached or error occurs. If no error, s is NUL-terminated. Returns NULL on end-of-file or error, s otherwise. 
 			fgets(hostname, 256, cfg);
 			hostname[ strlen(hostname) - 1 ] = 0;  //replace newline with \0
 			LOG1("HOSTNAME IS = '%s'\n", hostname);
+			fclose(cfg);
 		}
 		else
 			strcpy(hostname, "ANNONYMOUS HOST");
+
+		// load physics parameters from gamemod.txt
+		load_game_mod();		
 
 		// start server
 		server = new_server_c();
@@ -2539,6 +2645,20 @@ public:
 		writeByte(lebuf, count, ((NLubyte)myself) );		// who am I
 		writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
 		writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
+		//server physics parameters
+		writeFloat(lebuf, count, ((NLfloat)svp_fric) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed) );
+		writeFloat(lebuf, count, ((NLfloat)svp_fric_run) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel_run) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_run) );
+		writeFloat(lebuf, count, ((NLfloat)svp_fric_turbo) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel_turbo) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turbo) );
+		writeFloat(lebuf, count, ((NLfloat)svp_fric_turborun) );
+		writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
+		writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
+		writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
 		server->send_message(id, lebuf, count);
 
 		// - world ctf flags information
@@ -2795,10 +2915,10 @@ public:
 		int fx = world.flag[t].pos.x;
 		int fy = world.flag[t].pos.y;
 
-		if (fx > x - 20)
-		if (fx < x + 20)
-		if (fy > y - 20)
-		if (fy < y + 20) 
+		if (fx > x - 30)
+		if (fx < x + 30)
+		if (fy > y - 30)
+		if (fy < y + 30) 
 			return true;	//touch
 
 		return false;
@@ -2806,7 +2926,12 @@ public:
 
 	//simulate and broadcast frame
 	void simulate_and_broadcast_frame() { 
+	
 		int i;
+
+		//hack
+		static unsigned long ticker = 0;
+		ticker++;
 
 		// (-1) check powerup respawn
 		//
@@ -2893,13 +3018,6 @@ public:
 
 				player[i].next_shoot_time = get_time() + 0.5;		// add minimum interval (in secs)
 
-				//novidade 0.1.2 - checa power: atira 1 se gastou todo power, senao atira no maximo (weapon)
-				/*int numshots;
-				if (player[i].energy == 0)
-					numshots = 1;
-				else
-					numshots = player[i].weapon + 1;*/
-
 				//show helm
 				if (player[i].item_helm > 0)
 					player[i].item_helm = 255;
@@ -2913,16 +3031,6 @@ public:
 					(int)world.hero[i].x,		//x
 					(int)world.hero[i].y,		//y
 					world.hero[i].gundir);	//direction
-				
-				// shoot it
-				/*
-				game_shoot_rocket(i, 
-					  numshots,	//novidade 0.1.2
-						player[i].x, player[i].y, 
-						(int)world.hero[i].x, (int)world.hero[i].y, 
-						sx, sy
-						);
-				*/
 			}
 
 		}
@@ -2973,12 +3081,8 @@ public:
 					double ry = rock->y - 15.0;
 					double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
 
-					//20,20 = player's bounding box
-					//if (rock->x > world.hero[p].x - 20)
-					//if (rock->x < world.hero[p].x + 20)
-					//if (rock->y > world.hero[p].y - 20)
-					//if (rock->y < world.hero[p].y + 20)
-					if (dt <= 18.0)			//the number is the sum of the two balls bounding boxes radiuses (15 player + 3 rocket's)
+					//the number is the sum of the two balls bounding boxes radiuses (15 player + 3 rocket's)
+					if (dt <= 18.0)			
 					{
 						//damage the target: dano 70 = almost sure kill
 						game_damage_player(p, rock->owner, 70);
@@ -3046,6 +3150,36 @@ public:
 			// player alive: do stuff for alive players
       else {
 
+				//select effective physics vars for the player
+				//
+				double player_accel;
+				double player_friction;
+				double player_maxspeed;
+				if (h->run) {
+					if (player[i].item_speed) {
+						player_accel    = svp_accel_turborun;
+						player_friction = svp_fric_turborun;
+						player_maxspeed = svp_maxspeed_turborun;
+					}
+					else {
+						player_accel    = svp_accel_run;
+						player_friction = svp_fric_run;
+						player_maxspeed = svp_maxspeed_run;
+					}
+				}
+				else {
+					if (player[i].item_speed) {
+						player_accel    = svp_accel_turbo;
+						player_friction = svp_fric_turbo;
+						player_maxspeed = svp_maxspeed_turbo;
+					}
+					else {
+						player_accel    = svp_accel;
+						player_friction = svp_fric;
+						player_maxspeed = svp_maxspeed;
+					}
+				}
+/*
 				//max speed: running?
 				double max_speed_x, max_speed_y;
 				if (h->run) {
@@ -3056,33 +3190,44 @@ public:
 					max_speed_x = sv_maxspeedx;
 					max_speed_y = sv_maxspeedy;
 				}
+*/
 
 				//flag carrier disadvantage when running
 				if (h->run)
 				if (world.flag[1-(i/8)].carried)
-				if (world.flag[1-(i/8)].carrier == i) {
-					max_speed_x -= sv_flag_penalty_x;
-					max_speed_y -= sv_flag_penalty_y;
-				}
+				if (world.flag[1-(i/8)].carrier == i)
+					player_maxspeed -= svp_flag_penalty;
 
 				//powerup: boots bonus topspeed
+				/*
 				double boots_accel_bonus = 1.0;
 				if (player[i].item_speed) {
-					max_speed_x *= 1.5;
-					max_speed_y *= 1.5;
-					boots_accel_bonus = 2.0;
+					max_speed_x *= sv_boots_top_bonus_x;
+					max_speed_y *= sv_boots_top_bonus_y;
 				}
+				*/
+
+				//powerup boots / run: bonus accel
+				/*
+				if (player[i].item_speed)
+					boots_accel_bonus = sv_boots_accel_bonus;
+				else if (h->run)
+					boots_accel_bonus = sv_run_accel_bonus;
+				*/
 
 					//friction x - apply if l xor r
 #ifndef ALWAYS_FRICTION
-					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > max_speed_x) ) {
+//					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > max_speed_x) ) {
+					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
 #endif
 						if (h->sx > 0) {
-							h->sx -= sv_frictionx * boots_accel_bonus;
+							//h->sx -= sv_frictionx * boots_accel_bonus;
+							h->sx -= player_friction;
 							if (h->sx < 0) h->sx = 0;
 						}
 						else if (h->sx < 0) {
-							h->sx += sv_frictionx * boots_accel_bonus;
+							//h->sx += sv_frictionx * boots_accel_bonus;
+							h->sx += player_friction;
 							if (h->sx > 0) h->sx = 0;
 						}
 #ifndef ALWAYS_FRICTION
@@ -3091,48 +3236,47 @@ public:
 
 					//friction y
 #ifndef ALWAYS_FRICTION
-					if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > max_speed_y) ){
+					if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
 #endif
 						if (h->sy > 0) {
-							h->sy -= sv_frictiony * boots_accel_bonus;
+							//h->sy -= sv_frictiony * boots_accel_bonus;
+							h->sy -= player_friction;
 							if (h->sy < 0) h->sy = 0;
 						}
 						else if (h->sy < 0) {
-							h->sy += sv_frictiony * boots_accel_bonus;
+							//h->sy += sv_frictiony * boots_accel_bonus;
+							h->sy += player_friction;
 							if (h->sy > 0) h->sy = 0;
 						}
 #ifndef ALWAYS_FRICTION
 					}
 #endif
 				
+				/*
 				//accelerate x if not over maximum speed
 				if ((h->l) && (h->sx > -max_speed_x))
 					h->sx -= sv_accelx * boots_accel_bonus;
 				if ((h->r) && (h->sx < +max_speed_x))
 					h->sx += sv_accelx * boots_accel_bonus;
-				/*
-				if (h->l) h->sx -= sv_accelx * boots_accel_bonus;
-				if (h->r) h->sx += sv_accelx * boots_accel_bonus;
-				if (h->sx > max_speed_x) h->sx = max_speed_x;
-				else if (h->sx < -max_speed_x) h->sx = -max_speed_x;
-				*/
 
 				//accelerate y if not over maximum speed
 				if ((h->u) && (h->sy > -max_speed_y))
 					h->sy -= sv_accely * boots_accel_bonus;
 				if ((h->d) && (h->sy < +max_speed_y))
 					h->sy += sv_accely * boots_accel_bonus;
-				/*
-				if (h->u) h->sy -= sv_accely * boots_accel_bonus;
-				if (h->d) h->sy += sv_accely * boots_accel_bonus;
-				if (h->sy > max_speed_y) h->sy = max_speed_y;
-				else if (h->sy < -max_speed_y) h->sy = -max_speed_y;
 				*/
-		
-				//accelerate (gravity)
-				if (h->z > 0)
-					h->sz -= sv_gravity;
+				//accelerate x if not over maximum speed
+				if ((h->l) && (h->sx > -player_maxspeed))
+					h->sx -= player_accel;
+				if ((h->r) && (h->sx < +player_maxspeed))
+					h->sx += player_accel;
 
+				//accelerate y if not over maximum speed
+				if ((h->u) && (h->sy > -player_maxspeed))
+					h->sy -= player_accel;
+				if ((h->d) && (h->sy < +player_maxspeed))
+					h->sy += player_accel;
+		
 				//save ox,oy
 				h->ox = h->x;
 				h->oy = h->y;
@@ -3147,12 +3291,7 @@ public:
 				if (h->y < 0) h->y = 0;
 				else if (h->y > plh) h->y = plh;
 
-				//move z
-				h->z += h->sz;
-				if (h->z < 0) { h->z = 0; h->sz = 0; }
-
 				//wall collision correction
-				//wallcorrect(&map, &(h->x), &(h->y), h->sx, h->sy, player[i].x, player[i].y);
 				wallcorrect(i, &map, &(h->x), &(h->y), &(h->sx), &(h->sy), &h->ox, &h->oy, player[i].x, player[i].y);
 
 				//check room change x
@@ -3208,7 +3347,9 @@ public:
 					if (player[i].energy < 100)
 						player[i].energy++;
 					else if (player[i].energy < 200) {
-						if (frame % 3)
+						// 0.3.0: MAIS devagar
+						//if (frame % 3)
+						if (frame % 2)
 							player[i].energy++;
 					}
 					//MEGA health vagarosamente...
@@ -3219,49 +3360,49 @@ public:
 				// loose -2 energy or -2 health if running
 				if (h->run) {
 					
-					//speedboots reduce cost of running to 1
-					// mudanca 0.1.1 : speed gasta igual
-					/*
-					int run_cost;
-					if (player[i].item_speed)
-						run_cost = 1;
-					else
-						run_cost = 2;
-					*/
-
 					if (player[i].energy <= 0) {
 
 						//if (!player[i].item_speed)	// se ta com SPEED, faz nao hurt
 						if (player[i].health > 30) {	// se health > 30, desconta
-							player[i].health -= 2;	//desconta 2 (o normal)
-							if (player[i].health < 30)		// garante minimo 30
-								player[i].health = 30;	
+							
+							if (ticker % 2)
+								player[i].health -= 2;	//desconta 2 (o normal)
+							else
+								player[i].health -= 1;	//desconta 1 (menos)
+
+							if (player[i].health < 40)		// garante minimo 30
+								player[i].health = 40;	
 						}
 
 					} else {
-						player[i].energy -= 2; //desconta 2 (o normal)
+						
+						if (ticker % 2)
+							player[i].energy -= 2; //desconta 2 (o normal)
+						else
+							player[i].energy -= 1; //desconta 1 (menos)
+
 						if (player[i].energy == -1) { // special case
 							player[i].energy++;
-							if (player[i].health > 30) {	// se health > 30, desconta
+							if (player[i].health > 40) {	// se health > 30, desconta
 								player[i].health--;
-								if (player[i].health < 30)		// garante minimo 30
-									player[i].health = 30;	
+								if (player[i].health < 40)		// garante minimo 30
+									player[i].health = 40;	
 							}
 						}
 					}
 				}
 
-				//limit health 0 .. 200
+				//limit health 0 .. 300
 				if (player[i].health < 0)
 					player[i].health = 0;
-				else if (player[i].health > 200)
+				else if (player[i].health > 300)
 					player[i].health = 200;
 
-				//limit energy 0 .. 200
+				//limit energy 0 .. 300
 				if (player[i].energy < 0)
 					player[i].energy = 0;
-				else if (player[i].energy > 200)
-					player[i].energy = 200;
+				else if (player[i].energy > 300)
+					player[i].energy = 300;
 
 				//---------------------------------
 				// check game object collisions
@@ -3378,7 +3519,7 @@ public:
 		//
 		// player data field: (10 bytes per player)
 		//	  SHORT x,y,sx,sy     current position, and velocity for extrapolation
-		//		BYTE  zframe				short way of encoding z,sz (z position and z speed = jumps)
+		//		BYTE  zframe				OLD JUMP INFO, now reserved for misc use
 		//		BYTE	keys					bits 0..3: left,right,up,down  keys held (acceleration vectrs)
 		//														 5..7: 3bit direction
 		//	  BYTE  effects   SHIELD / SPEED / QUAD
@@ -3547,12 +3688,20 @@ public:
 				sho = ((NLshort)(h->sy * 100));
 				writeShort(lebuf, lecount, sho );	//sy
 
-				//REMENDO: se player morto, o byte do zframe == 255
-				if (player[j].health <= 0)
-					writeByte(lebuf, lecount, 255);
-				else
-					//zframe  FIXME: MAKE JUMPS
-					writeByte(lebuf, lecount, 0);		
+				/*
+				EXTRA BYTE (ex- zframe)
+
+	       bit 0 : player dead
+				 bit 1 : health extra bit
+				 bit 2 : energy extra bit
+				*/
+				NLubyte extra = 0;
+
+				//deadflag
+				if (player[j].health <= 0) extra += 1;
+
+				//write extra byte
+				writeByte(lebuf, lecount, extra);
 
 				//keys
 				keys = 0;
@@ -3618,13 +3767,21 @@ public:
 			NLubyte my = (NLubyte)(((world.hero[who].y + ((double)(player[who].y * plh))) / (WYMAX*plh)) * 255.0);
 			writeByte(lebuf, lecount, my);
 
-			//send player's health
+			//send player's BASE health (first 8 bits)
 			if (player[i].health < 0) player[i].health = 0;
-			writeByte(lebuf, lecount, ((NLubyte)player[i].health));
+			writeByte(lebuf, lecount, ((NLubyte)(player[i].health & 255)));
 
-			//send player's energy
+			//send player's BASE energy (first 8 bits)
 			if (player[i].energy < 0) player[i].energy = 0;
-			writeByte(lebuf, lecount, ((NLubyte)player[i].energy));
+			writeByte(lebuf, lecount, ((NLubyte)(player[i].energy & 255)));
+
+			//extra byte of information
+			// BIT 0: extra health
+			// BIT 1: extra energy
+			NLubyte xtra = 0;
+			if (player[i].health & 256) xtra += 1;
+			if (player[i].energy & 256) xtra += 2;
+			writeByte(lebuf, lecount, xtra);
 
 			//ping of player frame# % MAXPLAYERS
 			NLushort theping = player[frame % MAX_PLAYERS].ping;
@@ -4050,6 +4207,13 @@ public:
 	//start
 	bool start() {
 
+		//default physics parameters
+		//set_default_physics();
+		LOG3("\nNORMAL   fri %.1f acc %.1f mxs %.1f\n", svp_fric, svp_accel, svp_maxspeed);
+		  LOG3("RUN      fri %.1f acc %.1f mxs %.1f\n", svp_fric_run, svp_accel_run, svp_maxspeed_run);
+		  LOG3("TURBO    fri %.1f acc %.1f mxs %.1f\n", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
+		  LOG3("TURBORUN fri %.1f acc %.1f mxs %.1f\n", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
+
 		//hide helpscreen
 		helpshow = false;
 
@@ -4282,9 +4446,6 @@ public:
 	//append the correct path
 	SAMPLE *load_outgun_sample(char *fname) {
 
-//char *append_filename(char *dest, const char *path, const char *filename, int size);
-//Concatenates the specified filename onto the end of the specified path, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter. 		
-		
 		//soundname: add "sound/" to the filename
 		char soundname[256];
 		strcpy(soundname, "sound");
@@ -4326,7 +4487,8 @@ public:
 		sample[SAMPLE_TALK] = load_outgun_sample("talk.wav");
 		sample[SAMPLE_WALLBOUNCE] = load_outgun_sample("wabounce.wav");
 		
-		sample[SAMPLE_WEAPON_UP] = load_outgun_sample("weaponup.wav");
+		sample[SAMPLE_WEAPON_UP] = load_outgun_sample("weaponup.wav");  //new
+		sample[SAMPLE_MEGAHEALTH] = load_outgun_sample("megaheal.wav"); // new
 		sample[SAMPLE_SHIELD_PICKUP] = load_outgun_sample("shieldp.wav");
 		sample[SAMPLE_SHIELD_DAMAGE] = load_outgun_sample("shieldd.wav");
 		sample[SAMPLE_SHIELD_LOST] = load_outgun_sample("shieldl.wav");
@@ -4501,6 +4663,134 @@ public:
 					
 					//run physics
 
+
+				//select effective physics vars for the player
+				//
+				double player_accel;
+				double player_friction;
+				double player_maxspeed;
+				if (h->run) {
+					if (player[i].item_speed) {
+						player_accel    = svp_accel_turborun;
+						player_friction = svp_fric_turborun;
+						player_maxspeed = svp_maxspeed_turborun;
+					}
+					else {
+						player_accel    = svp_accel_run;
+						player_friction = svp_fric_run;
+						player_maxspeed = svp_maxspeed_run;
+					}
+				}
+				else {
+					if (player[i].item_speed) {
+						player_accel    = svp_accel_turbo;
+						player_friction = svp_fric_turbo;
+						player_maxspeed = svp_maxspeed_turbo;
+					}
+					else {
+						player_accel    = svp_accel;
+						player_friction = svp_fric;
+						player_maxspeed = svp_maxspeed;
+					}
+				}
+/*
+				//max speed: running?
+				double max_speed_x, max_speed_y;
+				if (h->run) {
+					max_speed_x = sv_maxspeedrunx;
+					max_speed_y = sv_maxspeedruny;
+				}
+				else {
+					max_speed_x = sv_maxspeedx;
+					max_speed_y = sv_maxspeedy;
+				}
+*/
+
+				//flag carrier disadvantage when running
+				if (h->run)
+				if (fx.flag[1-(i/8)].carried)
+				if (fx.flag[1-(i/8)].carrier == i)
+					player_maxspeed -= svp_flag_penalty;
+
+				//powerup: boots bonus topspeed
+				/*
+				double boots_accel_bonus = 1.0;
+				if (player[i].item_speed) {
+					max_speed_x *= sv_boots_top_bonus_x;
+					max_speed_y *= sv_boots_top_bonus_y;
+				}
+				*/
+
+				//powerup boots / run: bonus accel
+				/*
+				if (player[i].item_speed)
+					boots_accel_bonus = sv_boots_accel_bonus;
+				else if (h->run)
+					boots_accel_bonus = sv_run_accel_bonus;
+				*/
+
+					//friction x - apply if l xor r
+#ifndef ALWAYS_FRICTION
+					if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
+#endif
+						if (h->sx > 0) {
+							//h->sx -= sv_frictionx * boots_accel_bonus;
+							h->sx -= player_friction * f;
+							if (h->sx < 0) h->sx = 0;
+						}
+						else if (h->sx < 0) {
+							//h->sx += sv_frictionx * boots_accel_bonus;
+							h->sx += player_friction * f;
+							if (h->sx > 0) h->sx = 0;
+						}
+#ifndef ALWAYS_FRICTION
+					}
+#endif
+
+					//friction y
+#ifndef ALWAYS_FRICTION
+					if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
+#endif
+						if (h->sy > 0) {
+							//h->sy -= sv_frictiony * boots_accel_bonus;
+							h->sy -= player_friction * f;
+							if (h->sy < 0) h->sy = 0;
+						}
+						else if (h->sy < 0) {
+							//h->sy += sv_frictiony * boots_accel_bonus;
+							h->sy += player_friction * f;
+							if (h->sy > 0) h->sy = 0;
+						}
+#ifndef ALWAYS_FRICTION
+					}
+#endif
+				
+				/*
+				//accelerate x if not over maximum speed
+				if ((h->l) && (h->sx > -max_speed_x))
+					h->sx -= sv_accelx * boots_accel_bonus;
+				if ((h->r) && (h->sx < +max_speed_x))
+					h->sx += sv_accelx * boots_accel_bonus;
+
+				//accelerate y if not over maximum speed
+				if ((h->u) && (h->sy > -max_speed_y))
+					h->sy -= sv_accely * boots_accel_bonus;
+				if ((h->d) && (h->sy < +max_speed_y))
+					h->sy += sv_accely * boots_accel_bonus;
+				*/
+				//accelerate x if not over maximum speed
+				if ((h->l) && (h->sx > -player_maxspeed))
+					h->sx -= player_accel * f;
+				if ((h->r) && (h->sx < +player_maxspeed))
+					h->sx += player_accel * f;
+
+				//accelerate y if not over maximum speed
+				if ((h->u) && (h->sy > -player_maxspeed))
+					h->sy -= player_accel * f;
+				if ((h->d) && (h->sy < +player_maxspeed))
+					h->sy += player_accel * f;
+
+/*
 					//max speed: running?
 					double max_speed_x, max_speed_y;
 					if (h->run) {
@@ -4523,10 +4813,15 @@ public:
 					//powerup: boots bonus topspeed
 					double boots_accel_bonus = 1.0;
 					if (player[i].item_speed) {
-						max_speed_x *= 1.5;
-						max_speed_y *= 1.5;
-						boots_accel_bonus = 2.0;
+						max_speed_x *= sv_boots_top_bonus_x;
+						max_speed_y *= sv_boots_top_bonus_y;
 					}
+
+				  //powerup boots / run: bonus accel
+					if (player[i].item_speed)
+						boots_accel_bonus = sv_boots_accel_bonus;
+					else if (h->run)
+						boots_accel_bonus = sv_run_accel_bonus;
 
 					//friction x - apply if l xor r
 #ifndef ALWAYS_FRICTION
@@ -4571,11 +4866,8 @@ public:
 					h->sy -= sv_accely * boots_accel_bonus * f;
 				if ((h->d) && (h->sy < +max_speed_y))
 					h->sy += sv_accely * boots_accel_bonus * f;
-		
-					//accelerate (gravity)
-					if (h->z > 0)
-						h->sz -= sv_gravity * f;
-
+*/
+				
 					//save ox,oy
 					h->ox = h->x;
 					h->oy = h->y;
@@ -4590,11 +4882,6 @@ public:
 					if (h->y < 0) h->y = 0;
 					else if (h->y > plw) h->y = plw;
 
-					//move z
-					h->z += h->sz * f;
-					if (h->z < 0) { h->z = 0; h->sz = 0; }
-
-				
 					//wall collision correction
 					//wallcorrect(&map, &(h->x), &(h->y), h->sx, h->sy, player[i].x, player[i].y);
 					//LOG("wc: ");
@@ -4918,7 +5205,38 @@ public:
 						}
 					}
 				}
-			}
+				//megahealth
+				else if (it->kind == 6) {
+
+					//caixa de saude pulsante
+					int varia = ((int)(get_time() * 15)) % 12;
+
+					if (varia > 6)
+						varia = 12 - varia;
+
+					int itemsize = 11 + varia;
+					int crossize = 8 + varia;
+					int crosslar = 3;//aria/2;
+
+					// health box black border
+					rectfill(drawbuf, plx + it->x - itemsize - 2, ply + it->y - itemsize - 2,
+												    plx + it->x + itemsize + 2, ply + it->y + itemsize + 2,
+									 0);
+
+					// health box
+					rectfill(drawbuf, plx + it->x - itemsize, ply + it->y - itemsize,
+												    plx + it->x + itemsize, ply + it->y + itemsize,
+									 col[COLWHITE]);
+
+					// red cross
+					rectfill(drawbuf, plx + it->x - crossize, ply + it->y - crosslar,
+						                plx + it->x + crossize, ply + it->y + crosslar,
+														col[COLRED]);
+					rectfill(drawbuf, plx + it->x - crosslar, ply + it->y - crossize,
+						                plx + it->x + crosslar, ply + it->y + crossize,
+														col[COLRED]);
+				}
+			}	
 
 			// draw clientside fx -- efeitos ATRAS das coisas
 			//
@@ -5083,9 +5401,9 @@ public:
 						//
 						if (player[i].item_speed)		// tem speed
 						if (
-								 (fabs(fx.hero[i].sx) > sv_maxspeedx)		// ta rapído
+								 (fabs(fx.hero[i].sx) > svp_maxspeed)		// ta rapído
 								 ||
-								 (fabs(fx.hero[i].sy) > sv_maxspeedy)
+								 (fabs(fx.hero[i].sy) > svp_maxspeed)
 							 )
 						if (get_time() > player[i].speed_drop_time)		// intervalo entre drop de efeito bolinha
 						{
@@ -5119,9 +5437,9 @@ public:
 
 						// SHIELD FX!!
 						if (player[i].item_shield) {
-							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15 - fd.hero[i].z, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
-							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15 - fd.hero[i].z, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
-							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15 - fd.hero[i].z, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
+							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
+							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
+							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
 						}
 					}
 
@@ -5356,8 +5674,15 @@ public:
 
 				//barra magenta 100..200
 				int magtarg = player[me].health - 100;
+				if (magtarg > 100) magtarg = 100;
 				if (magtarg > 0)
-					rectfill(drawbuf, 10, ply+plh+18, 10 + magtarg, ply+plh+18+10, col[COLYELLOW]); // enerbar
+					rectfill(drawbuf, 10, ply+plh+18, 10 + magtarg, ply+plh+18+10, col[COLYELLOW]);
+
+				//barra 3o nivel
+				int targ3 = player[me].health - 200;
+				if (targ3 > 100) targ3 = 100;
+				if (targ3 > 0)
+					rectfill(drawbuf, 10, ply+plh+18, 10 + targ3, ply+plh+18+10, col[COLMAG]);
 			}
 			if (player[me].energy > 0) {
 				
@@ -5368,8 +5693,15 @@ public:
 
 				//barra verde 100..200
 				int magtarg = player[me].energy - 100;
+				if (magtarg > 100) magtarg = 100;
 				if (magtarg > 0)
 					rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + magtarg, ply+plh+18+10, col[COLGREEN]); // enerbar
+
+				//barra 3o nivel
+				int targ3 = player[me].energy - 200;
+				if (targ3 > 100) targ3 = 100;
+				if (targ3 > 0)
+					rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + targ3, ply+plh+18+10, col[COLENER3]);
 			}
 		}
 
@@ -5933,15 +6265,6 @@ public:
 			strcpy(gamespy[i].info, thelix);			
 		}
 
-
-		//DEBUG REMENDO
-		/*
-		strcpy(gamespy[19].info, dinfo);
-		gamespy[19].refreshed=true;
-		gamespy[19].invalid=false;
-		gamespy[19].noresponse=false;
-		*/
-
 		nlClose(sock);
 	}
 
@@ -6268,14 +6591,17 @@ public:
 					readShort(data, count, sho);		//sy
 					h->sy = ((double)sho) / 100.0;
 
-					//FIXME: read / recalc z, sz
-					NLubyte byt;
-					readByte(data, count, byt);			//zframe
+					//FIXME: read / recalc z
+					NLubyte byt, extra;
+					readByte(data, count, extra);			//zframe
 					h->z = 0;
-					h->sz = 0;
 
 					//remendo: (zframe == 255) ==  dead player
-					player[i].dead = (byt == 255);
+					//DEAD PLAYER = extra bit 0
+					if (extra & 1)
+						player[i].dead = true;
+					else
+						player[i].dead = false;
 
 					//verifica se acabou de morrer - play death sound
 					if ((player[i].dead) && (!player[i].old_dead))
@@ -6340,9 +6666,18 @@ public:
 			readByte(data, count, healt);
 			if (me >= 0)
 				player[me].health = healt;
+
 			readByte(data, count, energ);
 			if (me >= 0)
 				player[me].energy = energ;
+
+			//extra byte of information
+			// BIT 0: extra health
+			// BIT 1: extra energy
+			NLubyte xtra = 0;
+			readByte(data, count, xtra);
+			if (xtra & 1) player[me].health += 256;
+			if (xtra & 2) player[me].energy += 256;
 
 			//read ping of player frame % MAX_PLAYERS
 			NLushort daping;
@@ -6370,6 +6705,7 @@ public:
 				NLubyte rowner, rpx, rpy, code, pid, team, carried, abyte, rockid, timeleft, iid, rpow, rdir;
 				NLushort	usho;
 				NLulong frameno;
+				NLfloat aflo;
 				//rocket_c *rock;
 				NLshort	ashort, rx, ry;
 				int k = 0;
@@ -6423,6 +6759,40 @@ public:
 					fx.flag[0].score = abyte;
 					readByte(msg, count, abyte);	//team 1 score
 					fx.flag[1].score = abyte;
+
+					//server physics parameters
+					readFloat(msg, count, aflo);
+					svp_fric = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed = aflo;
+					readFloat(msg, count, aflo);
+					svp_fric_run = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel_run = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed_run = aflo;
+					readFloat(msg, count, aflo);
+					svp_fric_turbo = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel_turbo = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed_turbo = aflo;
+					readFloat(msg, count, aflo);
+					svp_fric_turborun = aflo;
+					readFloat(msg, count, aflo);
+					svp_accel_turborun = aflo;
+					readFloat(msg, count, aflo);
+					svp_maxspeed_turborun = aflo;
+					readFloat(msg, count, aflo);
+					svp_flag_penalty = aflo;
+
+					LOG("after server tell physics...");
+					LOG3("\nNORMAL   fri %.1f acc %.1f mxs %.1f\n", svp_fric, svp_accel, svp_maxspeed);
+					LOG3("RUN      fri %.1f acc %.1f mxs %.1f\n", svp_fric_run, svp_accel_run, svp_maxspeed_run);
+					LOG3("TURBO    fri %.1f acc %.1f mxs %.1f\n", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
+					LOG3("TURBORUN fri %.1f acc %.1f mxs %.1f\n", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
 
 					//update scoreboard!
 					update_scoreboard();
@@ -7025,7 +7395,10 @@ public:
 				if (key[KEY_ESC]) {
 					if (!kesc) {
 						kesc = true;
-						if (trying_connection) {		//trying connection
+						if (strlen(talkbuffer) > 0) { // cancel chat
+							talkbuffer[0]=0;
+						}
+						else if (trying_connection) {		//trying connection
 							trying_connection = false;	//not anymore
 							
 							//this cancels the attempt to connect
@@ -7496,7 +7869,7 @@ int main(int argc, char *argv[]) {
 
 	// server parameters. speeds are in pixels / 0.1 sec
 	//
-	sv_gravity = 0.2;
+	/*
 	sv_frictionx = 1.5;
 	sv_frictiony = 1.5;
 	sv_accelx = 2.0;
@@ -7507,6 +7880,27 @@ int main(int argc, char *argv[]) {
 	sv_maxspeedruny = 22.0;
 	sv_flag_penalty_x = 3.0;	//run-with-flag penalty
 	sv_flag_penalty_y = 3.0;
+	sv_boots_top_bonus_x = 1.5;
+	sv_boots_top_bonus_y = 1.5;
+	sv_boots_accel_bonus = 2.0;
+	sv_run_accel_bonus = 1.5;
+	*/
+	/*
+	sv_frictionx = 1.5;
+	sv_frictiony = 1.5;
+	sv_accelx = 4.0;
+	sv_accely = 4.0;
+	sv_maxspeedx = 12.0;
+	sv_maxspeedy = 12.0;
+	sv_maxspeedrunx = 22.0;
+	sv_maxspeedruny = 22.0;
+	sv_flag_penalty_x = 3.0;	//run-with-flag penalty
+	sv_flag_penalty_y = 3.0;
+	sv_boots_top_bonus_x = 1.5;
+	sv_boots_top_bonus_y = 1.5;
+	sv_boots_accel_bonus = 1.5;
+	sv_run_accel_bonus = 1.25;
+	*/
 
 	// general init
 	//
