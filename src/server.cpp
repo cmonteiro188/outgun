@@ -468,7 +468,7 @@ void Server::load_game_mod() {
 		PT(new GS_Int		("pup_weapon_max",			&pupConfig.pup_weapon_max, 1, 9, 1, -1)),	// decrease by 1 to end up with the internal setting
 		PT(new GS_Boolean	("random_maprot",			&random_maprot)),
 		PT(new GS_Int		("vote_block_time",			&vote_block_time, 0, GS_Int::lim::max(), 60 * 10)),	// convert minutes to frames
-		PT(new GS_Int		("idlekick_time",			&idlekick_time, 10, GS_Int::lim::max(), 1, 0, true)),	// special setting: allow 0 that is outside the normal range
+		PT(new GS_Int		("idlekick_time",			&idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),	// convert seconds to frames; special setting: allow 0 that is outside the normal range
 		PT(new GS_Double	("respawn_time",			&worldConfig.respawn_time, 0.)),
 		PT(new GS_Double	("waiting_time_deathbringer",	&worldConfig.waiting_time_deathbringer, 0.)),
 		PT(new GS_Int		("pup_shadow_invisibility",	&worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal)),	// 0->smn, 1->0
@@ -639,7 +639,7 @@ bool Server::reset_settings(bool keepMap) {
 	game_end_delay = 5;
 	random_maprot = false;
 	vote_block_time = 0;	// no limit
-	idlekick_time = 120;	// 2 minutes
+	idlekick_time = 120 * 10;	// 2 minutes in frames
 
 	welcome_message.clear();
 	info_message.clear();
