@@ -13,11 +13,50 @@
 #define PHYS_SHIFTY 0
 #endif
 
+#include "fortfy22/fortify.h"
+
+#include <allegro.h>    // Allegro
+
 #include <vector>
 #include <list>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <string>
+using namespace std;
+
+#include <cstdio>          // for -text (v0.5.0)
+#include <cstring>
+#include <cmath>
+
+//patching main / _main / WinMain link errors...
+#ifdef ALLEGRO_WINDOWS
+#include <winalleg.h>
+#include <windows.h>
+#endif
+
+#include <pthread.h>
+#include <sched.h>
+#include <nl.h>             // HawkNL
+
+#include "leetnet/server.h"	// l33t server
+#include "leetnet/client.h"	// l33t client
+#include "leetnet/rudp.h"	// get_self_I
+#include "leetnet/sleep.h"	// sleep util
+
+#include "names.h"
+#include "admshell.h"
+
+//log utils
+//#define LOG_NOLOG     // uncomment to disable logging
+#define LOG_EXPR game_log
+#define LOG_TIMEFUNC get_time()
+#include "leetnet/log.h"
+extern FILE *game_log;
+
+#if defined ALLEGRO_WINDOWS || WIN32 || WIN64
+#include <conio.h>
+#endif
 
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
 
@@ -27,15 +66,17 @@ template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val;
 char* strspnp(char* str, const char* charset);
 const char* strspnp(const char* str, const char* charset);
 
+class LineReceiver {
+protected:
+	LineReceiver() { }
+
+public:
+	virtual LineReceiver& operator()(const string& str) =0;
+};
+
 //play area width/height
 #define plw 472
 #define plh 354
-
-// ***** FORTIFY !!! *****
-
-#include "fortfy22/fortify.h"
-
-// ***** FORTIFY !!! *****
 
 //macros for allegro video mode
 
@@ -91,47 +132,6 @@ const char* strspnp(const char* str, const char* charset);
 #define GAME_VERSION "0.5.0-E"
 
 #define TK1_VERSION_STRING "v048"
-
-#include "allegro.h"    // Allegro
-
-//patching main / _main / WinMain link errors...
-#ifdef ALLEGRO_WINDOWS
-#include "winalleg.h"
-#include "windows.h"
-#endif
-
-#include <stdio.h>          // for -text (v0.5.0)
-
-#include "nl.h"             // HawkNL
-
-#include "leetnet/server.h"     // l33t server
-#include "leetnet/client.h"     // l33t client
-#include "leetnet/rudp.h"           // get_self_I
-#include "leetnet/sleep.h"      // sleep util
-
-#include "string.h"
-#include "math.h"
-
-#include "pthread.h"
-#include "sched.h"
-
-#include <string>
-using namespace std;
-#include "names.h"      //the COOLEST random-name generator by Renato Hentschke
-
-//admin shell protocol
-#include "admshell.h"
-
-//log utils
-//#define LOG_NOLOG     // uncomment to disable logging
-#define LOG_EXPR game_log
-#define LOG_TIMEFUNC get_time()
-#include "leetnet/log.h"
-extern FILE *game_log;
-
-#if defined ALLEGRO_WINDOWS || WIN32 || WIN64
-#include <conio.h>
-#endif
 
 //************************************************************
 //  common stuff

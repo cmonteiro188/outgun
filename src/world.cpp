@@ -838,8 +838,167 @@ void WorldBase::stealFlag(int team, int carrier) {
 	flag[team].atbase = false;		// not at base (not needed / paranoia)
 }
 
+void PowerupSettings::reset() {
+	pup_add_time = 60;
+	pup_max_time = 180;
+
+	pups_min = 6;
+	pups_min_percentage = false;
+	pups_max = MAX_PICKUPS;
+	pups_max_percentage = false;
+	pups_respawn_time = 25;
+
+	pup_chance_shield = 16;
+	pup_chance_turbo = 14;
+	pup_chance_shadow = 14;
+	pup_chance_power = 14;
+	pup_chance_weapon = 18;
+	pup_chance_megahealth = 13;
+	pup_chance_deathbringer = 11;
+
+	pup_deathbringer_switch = true;
+}
+
+void PowerupSettings::print(LineReceiver& printer) const {
+	ostringstream line;
+	if (pup_max_time > pup_add_time)
+		line << "- Power-ups add " << pup_add_time << " seconds to what's left, with a maximum of " << pup_max_time << " seconds";
+	else
+		line << "- Power-up time is " << pup_max_time << " seconds";
+	printer(line.str());
+	if (pup_deathbringer_switch) {
+		line.str("");
+		line << "- Picking up a second deathbringer power-up cancels the effect";
+		printer(line.str());
+	}
+	line.str("");
+	line << "- Base number of power-ups is " << pups_min; if (pups_min_percentage) line << '%';
+	line << " and upper limit " << pups_max; if (pups_max_percentage) line << '%';
+	if (pups_min_percentage || pups_max_percentage)
+		line << " (% of map size)";
+	printer(line.str());
+}
+
+int PowerupSettings::choose_powerup_kind() const {
+	int max = pup_chance_shield + pup_chance_turbo + pup_chance_shadow + pup_chance_power
+						+ pup_chance_weapon + pup_chance_megahealth + pup_chance_deathbringer;
+
+	int chance = 1 + rand() % max;		//1..100 por exemplo se max = 100
+
+	chance -= pup_chance_shield;
+	if (chance <= 0) return 1;
+	chance -= pup_chance_turbo;
+	if (chance <= 0) return 2;
+	chance -= pup_chance_shadow;
+	if (chance <= 0) return 3;
+	chance -= pup_chance_power;
+	if (chance <= 0) return 4;
+	chance -= pup_chance_weapon;
+	if (chance <= 0) return 5;
+	chance -= pup_chance_megahealth;
+	if (chance <= 0) return 6;
+	//chance -= pup_chance_deathbringer;
+	return 7;
+}
+
+int PowerupSettings::pups_by_percent(int percentage, const Map& map) const {
+	int result = (map.w*map.h*percentage+50) / 100;	// +50 to round properly
+	if (result==0 && percentage>0)
+		return 1;
+	if (result>MAX_PICKUPS)
+		return MAX_PICKUPS;
+	return result;
+}
+
 #include "server.h"
-//#fix: include needed for funny callback activities - get rid!
+//#fix: include needed for funny callback activities and SV_SHADOW_MINIMUM_NORMAL - get rid!
+
+//#@
+void WorldSettings::reset() {
+	respawn_time = 2.0;
+	waiting_time_deathbringer = 4.0;
+	shadow_minimum = SV_SHADOW_MINIMUM_NORMAL;
+	time_limit = 0;	// no time limit
+	capture_limit = 8;
+}
+
+void WorldSettings::print(LineReceiver& printer) const {
+	ostringstream line;
+	line << "- Flag capture limit: " << capture_limit;
+	printer(line.str());
+	line.str("");
+	if (time_limit == 0)
+		line << "- No map time limit.";
+	else
+		line << "- Map time limit: " << time_limit / 10 / 60 << " min";
+	printer(line.str());
+	if (shadow_minimum == 1)
+		printer("- A player using the shadow power-up gets totally invisible");
+}
+
+void ServerWorld::reset() {
+	// zero teamscores
+	returnFlag(0);
+	returnFlag(1);
+	flag[0].score = 0;
+	flag[1].score = 0;
+
+	for (int i=0;i<maxplayers;i++)
+		if (player[i].used) {
+			//kill - to respawn
+			player[i].respawn_to_base = true;
+			resetPlayer(i);
+			//zero score
+			player[i].frags = 0;
+		}
+
+	//zero all rockets
+	for (int i=0;i<MAX_ROCKETS;i++)
+		rock[i].owner = -1;
+
+	// remove and regenerate powerups
+	for (int i=0;i<MAX_PICKUPS;i++)
+		item[i].kind = 0;
+	check_pickup_creation(true);
+}
+
+void ServerWorld::printTimeStatus(LineReceiver& printer) {
+	// server uptime
+	unsigned long uptime = frame/10/60;	// minutes
+	int days = uptime / 60 / 24;
+	ostringstream server_time;
+	server_time << "@IThe server has been up for ";
+	if (days > 0)
+		server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
+	server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
+	if (days == 0)
+		server_time << " hours";
+	server_time << '.';
+	printer(server_time.str());
+	// map time
+	int seconds = getMapTime() / 10;
+	ostringstream map_time;
+	map_time << "@IMap time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
+	if (config.getTimeLimit() == 0)
+		map_time << " There is no time limit.";
+	else {
+		int remaining_seconds = (config.getTimeLimit() / 10 - seconds);
+		// time limit not very useful when only one player
+		int players = 0;
+		for (int i = 0; i < maxplayers; i++)
+			if (player[i].used)
+				players++;
+		if (players == 1)
+			map_time << " No time limit at the moment as you are the only player.";
+		else if (remaining_seconds < 0) // if time is out and game continues, it must be sudden death
+			map_time << " Sudden death.";
+		else {
+			map_time << " Time left: " << remaining_seconds / 60 << ':';
+			map_time << setfill('0') << setw(2) << remaining_seconds % 60 << '.';
+		}
+	}
+	printer(map_time.str());
+}
 
 void ServerWorld::returnFlag(int team) {
 	WorldBase::returnFlag(team);
@@ -953,7 +1112,426 @@ void ServerWorld::respawnPlayer(int pid) {
 	player[pid].dead = false;
 
 	//for all effects, player screen changed
-	host->game_player_screen_change(pid);
+	game_player_screen_change(pid);
+}
+
+//team t's flag touched by player #i?
+bool ServerWorld::check_flag_touch(int px, int py, int x, int y, int t) {
+	if (flag[t].carried) return false;	//carried can't touch
+	if (flag[t].pos.px != px) return false;	//screen x mismatch
+	if (flag[t].pos.py != py) return false;	//screen y mismatch
+
+	int fx = flag[t].pos.x;
+	int fy = flag[t].pos.y;
+
+	if (fx > x - 30)
+	if (fx < x + 30)
+	if (fy > y - 30)
+	if (fy < y + 30)
+		return true;	//touch
+
+	return false;
+}
+
+void ServerWorld::respawn_pickup(int p) {
+	item[p].kind = 0;
+
+	//find a screen with no players and no other powerups
+	int px, py, itemx, itemy, i;
+	for (int runaway=300;; --runaway) {
+		bool hit = false;
+		px = rand() % map.w;
+		py = rand() % map.h;
+
+		//check for players if not tried a 100 times yet
+
+		//check players
+		if (runaway>200)
+			for (i=0; i<maxplayers; i++)
+				if (player[i].used && player[i].roomx==px && player[i].roomy==py) {
+					hit = true;
+					break;
+				}
+		if (hit)
+			continue;
+
+		//check for items if not tried 200 times yet
+
+		//check items if no players found
+		if (runaway>100)
+			for (i=0;i<MAX_PICKUPS;i++)
+				if (item[i].kind!=0 && item[i].px==px && item[i].py==py) {
+					hit = true;
+					break;
+				}
+		if (hit)
+			continue;
+
+		//find a suitable coordinate -- middle square
+		itemx = plw / 8 + rand() % (3 * plw / 4);
+		itemy = plh / 8 + rand() % (3 * plh / 4);
+
+		//do a check for walls, maybe retrying another screen if hits a wall
+		hit = map.fall_on_wall(px, py, itemx - 20, itemy - 20, itemx + 20, itemy + 20);
+		if (!hit)
+			break;
+		if (--runaway < 0) {
+			host->broadcast_message("ITEM SPAWN RUNAWAY");
+			return;
+		}
+	}
+	//choose a powerup kind
+	//v0.4.4 : roulette kind
+	int kind = pupConfig.choose_powerup_kind(); //1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
+
+	//v0.4.0 chance to set deathbringer to something else
+	//if (kind == 7)
+	//if (rand() % 100 <= 50)
+	//kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
+
+	//alloc powerup
+	item[p].kind = (NLubyte)kind;
+
+	//item[p].respawning = false;
+	item[p].px = px;
+	item[p].py = py;
+	item[p].x = itemx;	//copy from randomized position
+	item[p].y = itemy;
+	//screen-change message of players in the screen the powerup arrived
+	//fixes "invisible powerup" problem, I hope
+	for (i=0;i<maxplayers;i++)
+		if (player[i].used && player[i].roomx==px && player[i].roomy==py)
+			host->sendPickupVisible(i, p, item[p]);
+}
+
+// verifica powerups unused por jogadores presentes
+void ServerWorld::check_pickup_creation(bool instant) {
+	int i, pc, ic;
+
+	//count number of players
+	pc = 0;
+	for (i=0;i<maxplayers;i++)
+		if (player[i].used)
+			pc++;
+
+	//count number of items
+	// TEST SERVER FUK : change "if" to :    if (player[i].used)
+	ic = 0;
+	for (i=0;i<MAX_PICKUPS;i++)
+		if (item[i].kind != 0)	//0=unused 255=respawning 1..6(?)=spawned/kind
+			ic++;
+
+	int real_min = pupConfig.getMinPups(map);
+	int real_max = pupConfig.getMaxPups(map);
+	if (pc > real_min)
+		real_min = pc;
+	if (real_min > real_max)
+		real_min = real_max;
+	if (ic >= real_min)
+		return;
+	//while number of players > number of pickups: create a pickup and ic++
+	for (i=0; i<MAX_PICKUPS; i++)
+		if (item[i].kind == 0) {
+			item[i].kind = 255;
+			if (instant)
+				respawn_pickup(i);
+			else
+				item[i].respawn_time = get_time() + pupConfig.getRespawnTime();
+			if (++ic>=real_min)
+				break;
+		}
+}
+
+// player i touches a pickup p!
+void ServerWorld::game_touch_pickup(int p, int pk) {
+	pickup_c *it = &item[pk];
+
+	//send "item removed" message to all players on the current screen
+	//
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 16);		//"item removed"
+	writeByte(lebuf, count, (NLubyte)pk);	//what item id
+	host->broadcast_screen_message(it->px, it->py, lebuf, count);
+
+	switch (it->kind) {
+		case 1: {	// shield
+			player[p].item_shield = true;
+
+			//increase health to minimum of 100
+			if (player[p].health < 100)
+				player[p].health = 100;		//full health
+
+			//increase energy +100
+			if (player[p].energy < 200) {
+				player[p].energy += 100;
+				if (player[p].energy > 200)
+					player[p].energy = 200;
+			}
+
+			host->broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
+			break;
+		}
+		case 2: {	// turbo
+			double itemTime = player[p].item_speed_time-get_time();
+			if (!player[p].item_speed || itemTime<0)
+				itemTime = 0;
+			itemTime = pupConfig.addTime(itemTime);
+
+			player[p].item_speed = true;
+			player[p].item_speed_time = get_time() + itemTime;
+
+			host->sendPupTime(p, it->kind, itemTime);
+			host->broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
+			break;
+		}
+		case 3:	{	// shadow
+			double itemTime = player[p].item_helm_time-get_time();
+			if (!player[p].item_helm || itemTime<0)
+				itemTime = 0;
+			itemTime = pupConfig.addTime(itemTime);
+
+			player[p].item_helm = 1;		//invis maximo de inicio
+			player[p].item_helm_time = get_time() + itemTime;
+
+			host->sendPupTime(p, it->kind, itemTime);
+			host->broadcast_screen_sample(p, SAMPLE_HELM_ON);
+			break;
+		}
+		case 4:	{	// power
+			double itemTime = player[p].item_quad_time-get_time();
+			if (!player[p].item_quad || itemTime<0)
+				itemTime = 0;
+			itemTime = pupConfig.addTime(itemTime);
+
+			player[p].item_quad = true;
+			player[p].item_quad_time = get_time() + itemTime;
+
+			host->sendPupTime(p, it->kind, itemTime);
+			host->broadcast_screen_sample(p, SAMPLE_QUAD_ON);
+			break;
+		}
+		case 5:	{	// weapon
+			if (player[p].weapon < 8)	// test for max (shots=weapon+1, entao p/ shots max 9, weapon max = 8)
+				player[p].weapon++;	//increase weapon power
+
+			if (player[p].energy < 200) {
+				player[p].energy += 100;
+				if (player[p].energy > 200)
+					player[p].energy = 200;
+			}
+
+			host->sendWeaponPower(p);
+			host->broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
+			break;
+		}
+		case 6:	{	// megahealth
+			player[p].megabonus += 160;
+			host->broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
+			break;
+		}
+		case 7: {	// deathbringer
+			if (pupConfig.getDeathbringerSwitch())
+				player[p].item_deathbringer = !player[p].item_deathbringer;
+			else
+				player[p].item_deathbringer = true;
+
+			host->broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
+			break;
+		}
+	}
+
+	// unused item
+	it->kind = 0;
+
+	// check pickup creation
+	check_pickup_creation(false);
+}
+
+//game player screen changed
+// --> send any pickups on screen
+void ServerWorld::game_player_screen_change(int p) {
+
+	//check for new pickups visible
+	for (int i=0;i<MAX_PICKUPS;i++) {
+		pickup_c *it = &item[i];
+		if (it->kind)		// item exists
+		if (it->kind != 255)		// item not respawning
+		if (it->px == player[p].roomx) // item on screen that player is entering
+		if (it->py == player[p].roomy) {
+
+			#ifndef SV_NO_PUP_SWITCHING
+			//broadcast_message("sending powerup update\n");
+
+			//v0.1.2: PRIMEIRO verifica se tem mais alguem nessa tela. se nao
+			//  tiver, verifica se nao seria interessante mudar o "kind" do item
+			//muda WHILE item alvo eh powerup cujo time do jogador eh > 30
+			bool temjog = false;
+			for (int j=0;j<maxplayers;j++)
+			if (j != p)
+			if (player[j].used)
+			if (player[j].roomx == player[p].roomx)
+			if (player[j].roomy == player[p].roomy) {
+				temjog = true;
+				break;
+			}
+
+			int original = it->kind;
+
+			if (!temjog) {
+				bool non_satisfactory;
+				do {
+					non_satisfactory = false;
+
+					if ((it->kind == 1) && (player[p].health >= 80) && (player[p].energy >= 30) && (player[p].item_shield))//hide if just using as extra battery or not seriously injured
+						non_satisfactory = true;
+					else if ((it->kind == 2) && (player[p].item_speed) && (player[p].item_speed_time - get_time() > 40.0))
+						non_satisfactory = true;
+					else if ((it->kind == 3) && (player[p].item_helm) && (player[p].item_helm_time - get_time() > 40.0))
+						non_satisfactory = true;
+					else if ((it->kind == 4) && (player[p].item_quad) && (player[p].item_quad_time - get_time() > 40.0))
+						non_satisfactory = true;
+					else if ((it->kind == 6) && (player[p].health + (rand() % 70) >= 300))//if 300 non-satisf. but if >200, less chance of seeing another one
+						non_satisfactory = true;
+					else if ((it->kind == 7) && (player[p].item_deathbringer))
+						non_satisfactory = true;
+
+					//re-choose item type
+					if (non_satisfactory)
+						it->kind = (NLubyte)choose_powerup_kind();
+
+				} while (non_satisfactory);
+
+				//if loop choosed "weapon" powerup (item 5) but you are at maximum, then keep the original choice
+				if ((it->kind == 5) && (player[p].weapon >= 8))
+					it->kind = (NLubyte)original;
+			}
+			#endif	// SV_NO_PUP_SWITCHING
+
+			host->sendPickupVisible(p, i, item[i]);
+		}
+	}
+}
+
+void ServerWorld::resetPlayer(int target, float time_penalty) {	// take the player out of the game
+	player[target].health = 0;
+
+	player[target].item_helm = 0;
+	player[target].item_quad = false;
+	player[target].item_speed = false;
+	// deathbringer is not removed until respawn because the flag is needed
+
+	//stop all speed
+	player[target].sx = 0;
+	player[target].sy = 0;
+
+	dropFlagIfAny(target);
+	player[target].respawn_time = get_time() + config.getRespawnTime() + time_penalty;
+	if (!player[target].dead) {
+		player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
+		player[target].dead = true;
+	}
+}
+
+void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
+	host->score_neg(target, 1);	// score neg points because of death
+	if (dropFlagIfAny(target))
+		host->score_neg(target, 1);	// score neg points because of losing the flag
+	player[target].total_deaths++;
+	if (++player[target].current_consecutive_deaths > player[target].most_consecutive_deaths)
+		player[target].most_consecutive_deaths = player[target].current_consecutive_deaths;
+	player[target].current_consecutive_kills = 0;
+
+	if (player[target].item_deathbringer) {
+		//record time to simulate the deathbringer explosion
+		player[target].item_deathbringer_time = frame;
+		host->sendDeathbringer(target, player[target]);
+	}
+
+	resetPlayer(target, (player[target].item_deathbringer || time_penalty)?config.getDeathbringerWaitingTime():0);
+}
+
+void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {	// inflict normal or deathbringer damage on target
+	//HELM powerup: show player
+	if (player[target].item_helm > 0)
+		player[target].item_helm = 255;
+
+	if (player[target].item_shield) {
+		player[target].energy -= damage;
+		if (player[target].energy <= 0) {
+			player[target].energy = 0;
+			player[target].item_shield = false;
+			if (!deathbringer)
+				host->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+		}
+		else if (!deathbringer)
+			host->broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+	}
+	//else do the regular body damage
+	else {
+		player[target].health -= damage;
+		//freeze target's gun
+		player[target].next_shoot_time = get_time() + 1.0;
+	}
+	if (player[target].health > 0)
+		return;
+
+	host->score_frag(attacker, 1);	//frag to attacker for the kill
+	player[attacker].total_kills++;
+	if (++player[attacker].current_consecutive_kills > player[attacker].most_consecutive_kills)
+		player[attacker].most_consecutive_kills = player[attacker].current_consecutive_kills;
+	player[attacker].current_consecutive_deaths = 0;
+
+	int tateam = target/TSIZE;
+	int atteam = attacker/TSIZE;
+
+	//check if the enemy flag is carried in this screen(target's) by somebody that is not me
+	if (flag[tateam].carried) {
+		int p = flag[tateam].carrier;
+		if (player[p].used && p!=attacker && player[p].roomx==player[target].roomx && player[p].roomy==player[target].roomy) {
+			host->bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
+			host->score_frag(attacker, 1);
+		}
+	}
+	if (!flag[atteam].carried && flag[atteam].pos.px==player[target].roomx && flag[atteam].pos.py==player[target].roomy) {
+		host->bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
+		host->score_frag(attacker, 1);
+	}
+	if (flag[atteam].carried && flag[atteam].carrier==target) {
+		host->score_frag(attacker, 1);	// extra frag for fragging a carrier
+		player[attacker].total_flag_carriers_killed++;
+	}
+
+	if (deathbringer) {
+		if (player[attacker].used)
+			host->bprintf("@I%s was choked by %s", player[target].name, player[attacker].name);
+		host->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
+	}
+	else
+		host->bprintf("@I%s was nailed by %s", player[target].name, player[attacker].name);
+
+	killPlayer(target, false);
+}
+
+//remove player from the game
+void ServerWorld::removePlayer(int pid) {
+	//remove all shots from this player
+	for (int r=0; r<MAX_ROCKETS; r++)
+		if (rock[r].owner == pid)
+			deleteRocket(r, 0, 0, 255);
+
+	dropFlagIfAny(pid);
+
+	//erase player
+	player[pid].delayedMessages.clear();
+	player[pid].used = false;
+}
+
+void ServerWorld::suicide(int pid) {
+	if (player[pid].health > 0) {
+		killPlayer(pid, true);
+		player[pid].frags--;                        
+		player[pid].total_suicides++;
+	}
 }
 
 void ServerWorld::make_damn_rocket(int i, int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta) {
@@ -1097,4 +1675,533 @@ void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
 	r->owner = -1;
 }
 
+void ServerWorld::simulateFrame() {
+	// (-1) check powerup respawn
+	double thetime = get_time();
+	for (int i=0;i<MAX_PICKUPS;i++)
+		if (item[i].kind == 255 && thetime > item[i].respawn_time)
+			respawn_pickup(i);
+
+	// (0) do stuff for every player
+	for (int i=0;i<maxplayers;i++) {
+		if (!player[i].used)
+			continue;
+
+		//dec talk flood protect counter
+		player[i].talk_temp -= 0.1;
+		if (player[i].talk_temp < 0.0)
+			player[i].talk_temp = 0.0;
+		player[i].talk_hotness -= 0.1;
+		if (player[i].talk_hotness < 1.0)
+			player[i].talk_hotness = 1.0;
+
+		//check frags changed
+		if (player[i].oldfrags != player[i].frags) {
+			//updated
+			player[i].oldfrags = player[i].frags;
+			host->sendFragUpdate(i, player[i].frags);
+		}
+
+		// check powerups expired
+		//
+		if (player[i].item_speed)
+			if (get_time() > player[i].item_speed_time) {
+				player[i].item_speed = false;
+				host->broadcast_screen_sample(i, SAMPLE_BOOTS_OFF);
+			}
+		if (player[i].item_quad)
+			if (get_time() > player[i].item_quad_time) {
+				player[i].item_quad = false;
+				host->broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
+			}
+		if (player[i].item_helm)
+			if (get_time() > player[i].item_helm_time) {
+				player[i].item_helm = 0;
+				host->broadcast_screen_sample(i, SAMPLE_HELM_OFF);
+			}
+
+		// helm alpha down
+		//
+		if (player[i].item_helm > 0) {
+			player[i].item_helm -= 10;		//slowly fades....
+			if (player[i].item_helm < config.getShadowMinimum())	// minimum
+				player[i].item_helm = config.getShadowMinimum();
+		}
+
+		// check deathbringer effect
+		//
+		if (player[i].deathbringer_end > get_time()) {
+			//check if still alive
+			if (player[i].health > 0) {
+				//has shield: do big damage to it, in order to remove the shield
+				if (player[i].item_shield)
+					damagePlayer(i, player[i].deathbringer_attacker, 12, true);
+				else
+					damagePlayer(i, player[i].deathbringer_attacker, 3, true); // 30 / s, 150 / 5 s
+			}
+		}
+
+		// check for a player's deathbringer to bring death
+		//
+		if (player[i].dead && player[i].item_deathbringer) {
+			//delta time since shoot
+			double delta = (frame - player[i].item_deathbringer_time) * 0.1;
+			//figure out new radius
+			int rad;
+			if (delta < 1.0)
+				rad = (int)(delta * 100);
+			else
+				rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
+
+			//check enemy players onscreen that are not hit by it yet and are inside
+			// the donut radius...radius-50
+			for (int v=0;v<maxplayers;v++)
+			if (v/TSIZE != i/TSIZE)		//enemy players only
+			if (player[v].used)	//used
+			if (player[v].health > 0)	//alive
+			if (player[v].roomx == player[i].roomx)	// in the same screen of the deathbringer
+			if (player[v].roomy == player[i].roomy)
+			if (player[v].deathbringer_end < get_time())		// deathbringer fx end time -- not already hit?
+			{
+				//calculate player distance to the deathbringer core
+				double ex = player[i].lx;
+				double ey = player[i].ly - 15;
+				double rx = player[v].lx;
+				double ry = player[v].ly - 15;
+				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
+
+				// hit distance: if dt == rad, hit, if rad
+				if ((rad <= dt + 20) && (rad >= dt - 60)) {
+					player[v].item_deathbringer = false;
+					host->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
+					player[v].deathbringer_attacker = i;
+					// time of effect ; also freeze his gun for this same amount of time
+					player[v].deathbringer_end = player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
+
+					// calc recoil:
+					double tx = player[v].lx - player[i].lx;
+					double ty = player[v].ly - player[i].ly;
+
+					double mul = 40. / sqrt( tx*tx + ty*ty );	// set speed to 40
+					player[v].sx = tx * mul;
+					player[v].sy = ty * mul;
+				}
+			}
+		}
+
+		// check for player weapons fire time
+		//
+		if (player[i].attack)	// player holding attack button
+		if (player[i].health > 0)		// check if player alive
+		if (get_time() > player[i].next_shoot_time)  // check if time allowed to fire again
+		{
+			//gasta 7 + 2 * tiros energy, se tem energy
+			int numshots = 1;
+			player[i].energy -= 7;			//gasta normal
+			if (player[i].energy < 0)	//se ficou menor que zero, atira 1 so
+				player[i].energy = 0;
+			else {
+				for (int k=1;k<player[i].weapon+1;k++) {
+					//try add one shot
+					player[i].energy -= 1;		//v0.4.7: diminuí METADE do gasto per shot!
+					if (player[i].energy < 0)
+						player[i].energy = 0;
+					else
+						numshots++;
+				}
+			}
+
+			player[i].next_shoot_time = get_time() + 0.5;		// add minimum interval (in secs)
+
+			//show helm
+			if (player[i].item_helm > 0)
+				player[i].item_helm = 255;
+
+			shootRockets(i, numshots);
+		}
+
+	}
+
+
+	// (1)  simulate (calculate) the next frame
+	//
+
+	// for each ROCKET, update position
+	//
+	for (int i=0;i<MAX_ROCKETS;i++) {
+		if (rock[i].owner == -1)
+			continue;
+
+		//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
+		int t;
+		for (t=0;t<10;t++)
+		{
+			//move-se
+			rock[i].x += rock[i].sx / 10.0;
+			rock[i].y += rock[i].sy / 10.0;
+
+			//out of bounds
+			if ((rock[i].x < -20) || (rock[i].y < -20) || (rock[i].x > plw + 20) || (rock[i].y > plh + 20)) {
+				rock[i].owner = -1;	//just remove it. clients will figure out the same
+
+				//broadcast_message("SE FOI");
+
+				//2-loop break
+				t=999;break;
+			}
+
+			//wall hit - remove
+			#if !defined(PHYS_NEW)
+			if (map.fall_on_wall(rock[i].px, rock[i].py, (int)rock[i].x, (int)rock[i].y, (int)rock[i].x, (int)rock[i].y)) {
+				rock[i].owner=-1;
+				t=999;break;
+			}
+			#endif
+			#ifdef PHYS_NEW
+			if (map.fall_on_wall(rock[i].px, rock[i].py, (int)rock[i].x-2, (int)rock[i].y-PHYS_SHIFTY-2, (int)rock[i].x+2, (int)rock[i].y-PHYS_SHIFTY+2)) {
+				rock[i].owner=-1;
+				t=999;
+				break;
+			}
+			#endif
+
+			// check if a player (alive) is hit by this rocket now
+			//
+			//sqrt( (ex - x)*(ex - x) + (ey - y)*(ey - y) ). Acho que é isto...
+
+			for (int p=0;p<maxplayers;p++)
+			if (player[p].used)
+			if (player[p].health > 0)		// alive
+			if (rock[i].team != (p/TSIZE)) // shot is from opposing team
+			if (rock[i].px == player[p].roomx) // in same screen
+			if (rock[i].py == player[p].roomy)
+			{
+				//calculate distance rocket<->target center
+				double ex = player[p].lx;
+				double ey = player[p].ly - 15.0;
+				double rx = rock[i].x;
+				double ry = rock[i].y - 15.0;
+				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
+
+				//the number is the sum of the two balls bounding boxes radiuses (15 player + 3 rocket's)
+				if (dt <= 18.0)
+				{
+					//record wether the player had shield, if yes, will not blink him
+					bool had_shield = player[p].item_shield;
+
+					//default damage to the target: 70
+					int damage = 70;
+
+/*					//v0.4.0: dano 50 se esta com o deathbringer
+					if (player[rock[i].owner].item_deathbringer)
+						damage = 50;*/
+
+					if (rock[i].power)
+						damage *= 2;
+
+					//do damage
+					damagePlayer(p, rock[i].owner, damage, false);
+
+					player[rock[i].owner].total_hits++;
+					player[p].total_shots_taken++;
+
+					//if player not dead, push him
+					if (player[p].health > 0) {
+						if (((player[p].sx > 0) && (rock[i].sx < 0)) || ((player[p].sx < 0) && (rock[i].sx > 0)))
+							player[p].sx = 0;
+						if (((player[p].sy > 0) && (rock[i].sy < 0)) || ((player[p].sy < 0) && (rock[i].sy > 0)))
+							player[p].sy = 0;
+						player[p].sx += rock[i].sx / 3.0;
+						player[p].sy += rock[i].sy / 3.0;
+					}
+
+					//delete shot
+					if (had_shield)
+						deleteRocket(i, (NLshort)rock[i].x, (NLshort)rock[i].y, 252);		//do not blink
+					else
+						deleteRocket(i, (NLshort)rock[i].x, (NLshort)rock[i].y, p);			//blink
+
+					//2-loop break
+					t=999;break;
+				}
+			}
+
+		}
+	}
+
+	// for each player, update positions & speeds
+	//
+
+	for (int i=0;i<maxplayers;i++) {
+		if (!player[i].used)
+			continue;
+
+		ServerPlayer* h = &(player[i]);
+
+		//check if dead/respawn
+		if (player[i].health <= 0) {
+			if (player[i].respawn_time < get_time())
+				respawnPlayer(i);		//time to respawn player
+			else
+				continue;
+		}
+		// player alive: do stuff for alive players
+		// IN : copia player screen p/ hero screen
+		int oldroomx = player[i].roomx;
+		int oldroomy = player[i].roomy;
+
+		// run server physics frame
+		run_server_player_physics(i);
+
+		//OUT : copy screen information from hero back to player
+		if (player[i].roomx!=oldroomx || player[i].roomy!=oldroomy) {
+			//player screen changed check
+			game_player_screen_change(i);
+		}
+
+		// check don't regen because of deathbringer
+		//v0.4.0: do not regen if has deathbringer and both health/energy are at no less than 100
+		bool deathbringer_penalty =
+				((player[i].item_deathbringer) && (player[i].health >= 100) && (player[i].energy >= 100))			//rand() % 100 < 50
+				||
+				(player[i].deathbringer_end > get_time());
+
+		// regen?
+		if (!deathbringer_penalty) {
+			// regenerate +1 health or +1 energy
+			if (player[i].health < 100)
+				player[i].health++;
+			else {
+				//caso energy > 100, regenera mais devagar (-33%)
+				if (player[i].energy < 100)
+					player[i].energy++;
+				else if (player[i].energy < 200) {
+					if (frame % 2)
+						player[i].energy++;
+				}
+				//MEGA health vagarosamente...
+				else if ((player[i].health < 200) && (frame % 10 == 0))
+					player[i].health++;
+			}
+		}
+		//lose health & energy if running
+		if (h->run) {
+			if (player[i].energy <= 0) {
+				//if (!player[i].item_speed)	// se ta com SPEED, faz nao hurt
+				if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
+					if (frame % 2 == 0)
+						player[i].health -= 2;	//desconta 2 (o normal)
+					else
+						player[i].health -= 1;	//desconta 1 (menos)
+					if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
+						player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
+				}
+			} else {
+				if (frame % 2 == 0)
+					player[i].energy -= 2; //desconta 2 (o normal)
+				else
+					player[i].energy -= 1; //desconta 1 (menos)
+				if (player[i].energy == -1) { // special case
+					player[i].energy++;
+					if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
+						player[i].health--;
+						if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
+							player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
+					}
+				}
+			}
+		}
+		//rot health to 100 if has deathbringer
+		if ((player[i].item_deathbringer) && (player[i].health > 100) && (frame % 4 == 0))
+			player[i].health--;
+		//rot energy to 100 if has deathbringer
+		if ((player[i].item_deathbringer) && (player[i].energy > 100) && (frame % 4 == 0))
+			player[i].energy--;
+		//megahealth bonus:
+		if (player[i].megabonus > 0)
+		if ((player[i].health == 300) && (player[i].energy == 300))
+			player[i].megabonus--;	// realiza um certo "guardamento" de energia mas nao muito...
+		else
+			for (int mh=0;mh<5;mh++) {
+				if (player[i].megabonus > 0 && player[i].health < 300) {
+					player[i].health++;
+					player[i].megabonus--;
+				}
+				if (player[i].megabonus > 0 && player[i].energy < 300) {
+					player[i].energy++;
+					player[i].megabonus--;
+				}
+			}
+		// new limit - don't store megabonuses
+		if (player[i].health == 300 && player[i].energy == 300)
+			player[i].megabonus = 0;
+
+		//limit health 0 .. 300
+		if (player[i].health < 0)
+			player[i].health = 0;
+		else if (player[i].health > 300)
+			player[i].health = 300;
+
+		//limit energy 0 .. 300
+		if (player[i].energy < 0)
+			player[i].energy = 0;
+		else if (player[i].energy > 300)
+			player[i].energy = 300;
+
+		//---------------------------------
+		// check game object collisions
+		//---------------------------------
+
+		int myteam = i/TSIZE;
+		int enemyteam = 1 - myteam;
+
+		// --> ITEM PICKUP
+		//
+		int prad = 10;	//pickup item radius
+
+		for (int k=0;k<MAX_PICKUPS;k++)
+			if (item[k].kind > 0)	//valid item
+			if (item[k].kind != 255) // not respawning
+			if (item[k].px == player[i].roomx)		// player's screen
+			if (item[k].py == player[i].roomy)
+			//x,y == center of powerup!
+			if (item[k].x + prad > player[i].lx - 20)
+			if (item[k].x - prad < player[i].lx + 20)
+			if (item[k].y + prad > player[i].ly - 20 - 10)
+			if (item[k].y - prad < player[i].ly + 20 - 10)
+			{
+				//pick pickup
+				game_touch_pickup(i, k);		//COOL!
+			}
+
+		// --> CTF FLAG STEAL touch other team's flag
+		//
+		if (!flag[enemyteam].carried &&	// enemy flag dropped (at base or somewhere)
+			check_flag_touch(player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly, enemyteam))  // and I touch it
+		{
+			// Has player just dropped the flag or not?
+			if (!player[i].dropped_flag) {
+				//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
+				if (flag[enemyteam].atbase)
+					flag[enemyteam].grab_time = get_time();
+				//FLAG STOLEN!
+				host->score_frag(i, 1);	// just add some frags
+				player[i].total_flags_taken++;
+				host->bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
+				stealFlag(enemyteam, i);  //flag stolen!
+				//HELM powerup: show player
+				if (player[i].item_helm > 0)
+					player[i].item_helm = 255;
+			}
+		}
+		else	// Player has removed away from the flag.
+			player[i].dropped_flag = false;
+
+		// --> CTF FLAG RETURN
+		//
+		if (!flag[myteam].carried)	// my flag dropped
+		if (!flag[myteam].atbase)	// not at base
+		if (check_flag_touch(player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly, myteam))  // and I touch it
+		{
+			//FLAG RETURNED!
+			host->score_frag(i, 1);	// just add some frags
+			player[i].total_flags_returned++;
+			host->bprintf("@I%s RETURNED THE %s FLAG!", player[i].name, teamname[myteam]);
+			returnFlag(myteam);  //flag returned
+			host->broadcast_sample(SAMPLE_CTF_RETURN);
+		}
+
+		// --> CTF FLAG CAPTURE
+		//
+		if (flag[enemyteam].carried)		// enemy flag carried
+		if (flag[enemyteam].carrier == i)	// by me
+		if (!flag[myteam].carried)	// my flag dropped
+		if (flag[myteam].atbase)	// at my base
+		if (check_flag_touch(player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly, myteam))		// I touch my flag
+		{
+			//v0.4.7: detect degenerated maps
+			if (map.valid_for_scoring)		//still valid?
+			if (get_time() - flag[enemyteam].grab_time <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
+				//this map is bogus, ignore all scoring for it.
+				map.valid_for_scoring = false;
+				host->broadcast_message("@WThis map is too small. Scoring for World Ranking disabled.");
+				host->clearWorldRankingDeltas();
+			}
+			//add frags to all players of the team
+			// V0.4.8: PENALIZE every player of the other team
+			for (int h=0;h<MAX_PLAYERS;h++)
+				if (player[h].used) {
+					if ((h/TSIZE) == myteam)
+						host->score_frag(h, 2);				//small two-frag bonus
+					else
+						host->score_neg(h, 1);		//v0.4.8 : small NEG POINT penalty for YOUR FLAG BEING CAPTURED
+				}
+			host->score_frag(i, 3);
+			player[i].total_captures++;
+			flag[myteam].score++;
+			returnFlag(enemyteam);
+
+			string one_more;
+			if (flag[myteam].score == config.getCaptureLimit() - 1) // points update later
+				one_more = " One more to win!";
+			host->bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name, teamname[enemyteam], one_more.c_str());
+
+			host->ctf_update_teamscore(myteam);		//this function can decide to restart the game . (?)
+			host->broadcast_sample(SAMPLE_CTF_CAPTURE);
+			if (flag[myteam].score >= config.getCaptureLimit()) {
+				host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
+				ctf_game_restart();
+			}
+		}
+	}
+
+	// check timelimit
+	int players = 0;
+	for (int i=0; i<maxplayers; ++i)
+		if (player[i].used)
+			++players;
+	NLulong time_limit = config.getTimeLimit();
+	if (players > 1 && time_limit > 0) {
+		int timeLeft = time_limit - getMapTime();
+		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
+			host->bprintf("@I*** Five minutes left in the game");
+		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
+			host->bprintf("@I*** One minute left in the game");
+		else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
+			host->bprintf("@I*** 30 seconds left in the game");
+		else if (timeLeft <= 0) {
+			host->bprintf("@I*** Time out - CTF game over");
+			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
+			ctf_game_restart();
+		}
+	}
+}
+
+void ServerWorld::ctf_game_restart() {
+	int i;
+
+	//submit all pending reports
+	for (i=0;i<maxplayers;i++)
+		if (player[i].used)
+			host->client_report_status(player[i].cid);
+
+	char lix[256];
+	sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", flag[0].score, flag[1].score);
+	host->broadcast_message(lix);
+
+	if (config.getTimeLimit() == 0)
+		sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME", config.getCaptureLimit());
+	else
+		sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", config.getCaptureLimit(), config.getTimeLimit() / 10 / 60);
+	host->broadcast_message(lix);
+
+	host->broadcast_sample(SAMPLE_CTF_GAMEOVER);
+
+	reset();
+
+	host->ctf_update_teamscore(0);
+	host->ctf_update_teamscore(1);
+
+	map_start_time = frame;
+}
 

@@ -1465,31 +1465,8 @@ void gameclient_c::calc_game_frame() {
 				rd->x = rx->hitx;	// hit coords
 				rd->y = rx->hity;
 
-				//quad-hit wall?
-				/*
-				FIXED 0.3.9 (2) : wall collision+explosion is totally clientside
-
-				if (rx->hit_target == 253) {
-
-					//spawn clientside fx
-					cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
-
-				}
-				//hit wall?
-				else if (rx->hit_target == 254) {
-
-					//spawn clientside fx
-					cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
-
-				}
-				*/
-				//just removing rocket == NOP
-				//else
-				if (rx->hit_target == 255) {
-				}
-				//hit player
-				else {
-
+				if (rx->hit_target != 255) {
+					//hit player
 					// blink player if not hit shield (252)
 					if (rx->hit_target < 250)
 						fx.player[rx->hit_target].hitfx = get_time() + 0.3;

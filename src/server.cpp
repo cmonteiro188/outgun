@@ -2,9 +2,9 @@
 #include "world.h"
 #include "server.h"
 
-//************************************************************
+// ************************************************************
 //  server stuff
-//************************************************************
+// ************************************************************
 
 //delay for the server contacting the master server, in seconds
 // it is good if this delay is set to a minute or so, since this will
@@ -58,7 +58,7 @@ bool gameserver_c::MapInfo::load(string mapName) {
 gameserver_c::gameserver_c() : world(this) {
 	server = 0;
 	hostname[0]=0;	//hostname
-	frame = 0;		// current frame count
+	world.frame = 0;		// current frame count
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 
@@ -122,30 +122,6 @@ void gameserver_c::banPlayer(int pid) {
 	kickPlayer(pid, true);
 }
 #endif
-
-//v0.4.4 choose a kind from all chances
-int gameserver_c::choose_powerup_kind() {
-
-	int max = pup_chance_shield + pup_chance_turbo + pup_chance_shadow + pup_chance_power
-						+ pup_chance_weapon + pup_chance_megahealth + pup_chance_deathbringer;
-
-	int chance = 1 + rand() % max;		//1..100 por exemplo se max = 100
-
-	chance -= pup_chance_shield;
-	if (chance <= 0) return 1;
-	chance -= pup_chance_turbo;
-	if (chance <= 0) return 2;
-	chance -= pup_chance_shadow;
-	if (chance <= 0) return 3;
-	chance -= pup_chance_power;
-	if (chance <= 0) return 4;
-	chance -= pup_chance_weapon;
-	if (chance <= 0) return 5;
-	chance -= pup_chance_megahealth;
-	if (chance <= 0) return 6;
-	//chance -= pup_chance_deathbringer;
-	return 7;
-}
 
 // ---- FILE DOWNLOADING TO CLIENTS VIA UDP -------
 
@@ -689,7 +665,7 @@ void gameserver_c::move_player(int f, int t) {
 
 	//kill t
 	if (world.player[t].health > 0)
-		game_reset_player(t);
+		world.resetPlayer(t);
 
 	//update t
 	move_update_player(t);
@@ -700,9 +676,9 @@ void gameserver_c::swap_players(int a, int b) {
 	broadcast_sample(SAMPLE_CHANGETEAM);
 
 	if (world.player[a].health > 0)
-		game_reset_player(a);
+		world.resetPlayer(a);
 	if (world.player[b].health > 0)
-		game_reset_player(b);
+		world.resetPlayer(b);
 
 	swap(world.player[a], world.player[b]);
 
@@ -785,18 +761,6 @@ void gameserver_c::ctf_net_flag_status(int cid, int team) {
 
 //update team scores
 void gameserver_c::ctf_update_teamscore(int t) {
-
-	if (world.flag[t].score == capture_limit) {
-
-		//change map!
-		server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
-
-		//maximum score reached -- restart game (reposiciona jogadores no novo mapa)
-		ctf_game_restart();
-
-		return;
-	}
-
 	char lebuf[64]; int count = 0;
 	writeByte(lebuf, count, 9);		// CTF teamscore update
 	writeByte(lebuf, count, ((NLubyte)t));		// the team
@@ -833,7 +797,6 @@ void gameserver_c::refresh_team_score_modifiers() {
 			team_smul[i] = 3.0;
 	}
 }
-
 
 //score!
 void gameserver_c::score_frag(int p, int amount) {
@@ -932,581 +895,6 @@ void gameserver_c::client_report_status(int id) {
 		client[id].fdn = 0.0;
 	}
 }
-
-void gameserver_c::game_reset_player(int target, float time_penalty) {	// take the player out of the game
-	world.player[target].health = 0;
-
-	world.player[target].item_helm = 0;
-	world.player[target].item_quad = false;
-	world.player[target].item_speed = false;
-	// deathbringer is not removed until respawn because the flag is needed
-
-	//stop all speed
-	world.player[target].sx = 0;
-	world.player[target].sy = 0;
-
-	world.dropFlagIfAny(target);
-	world.player[target].respawn_time = get_time() + respawn_time + time_penalty;
-	if (!world.player[target].dead) {
-		world.player[target].lifetime += (int)get_time() - world.player[target].last_spawn_time;
-		world.player[target].dead = true;
-	}
-}
-
-void gameserver_c::game_kill_player(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
-	score_neg(target, 1);	// score neg points because of death
-	if (world.dropFlagIfAny(target))
-		score_neg(target, 1);	// score neg points because of losing the flag
-	world.player[target].total_deaths++;
-	if (++world.player[target].current_consecutive_deaths > world.player[target].most_consecutive_deaths)
-		world.player[target].most_consecutive_deaths = world.player[target].current_consecutive_deaths;
-	world.player[target].current_consecutive_kills = 0;
-
-	if (world.player[target].item_deathbringer) {
-		//record time to simulate the deathbringer explosion
-		world.player[target].item_deathbringer_time = frame;
-
-		//deathbringer message
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 26);	//26==deathbringer
-		writeByte(lebuf, count, ((NLubyte)target));	//team/target player
-		writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
-		//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
-		//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
-		//  trying sending screen x,y and player x y
-		writeByte(lebuf, count, ((NLubyte)world.player[target].roomx));
-		writeByte(lebuf, count, ((NLubyte)world.player[target].roomy));
-		writeShort(lebuf, count, ((NLushort)world.player[target].lx));
-		writeShort(lebuf, count, ((NLushort)world.player[target].ly));
-
-		server->broadcast_message(lebuf, count);
-	}
-
-	game_reset_player(target, (world.player[target].item_deathbringer || time_penalty)?waiting_time_deathbringer:0);
-}
-
-void gameserver_c::game_damage_player(int target, int attacker, int damage, bool deathbringer) {	// inflict normal or deathbringer damage on target
-	//HELM powerup: show player
-	if (world.player[target].item_helm > 0)
-		world.player[target].item_helm = 255;
-
-	if (world.player[target].item_shield) {
-		world.player[target].energy -= damage;
-		if (world.player[target].energy <= 0) {
-			world.player[target].energy = 0;
-			world.player[target].item_shield = false;
-			if (!deathbringer)
-				broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
-		}
-		else if (!deathbringer)
-			broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
-	}
-	//else do the regular body damage
-	else {
-		world.player[target].health -= damage;
-		//freeze target's gun
-		world.player[target].next_shoot_time = get_time() + 1.0;
-	}
-	if (world.player[target].health > 0)
-		return;
-
-	score_frag(attacker, 1);	//frag to attacker for the kill
-	world.player[attacker].total_kills++;
-	if (++world.player[attacker].current_consecutive_kills > world.player[attacker].most_consecutive_kills)
-		world.player[attacker].most_consecutive_kills = world.player[attacker].current_consecutive_kills;
-	world.player[attacker].current_consecutive_deaths = 0;
-
-	int tateam = target/TSIZE;
-	int atteam = attacker/TSIZE;
-
-	//check if the enemy flag is carried in this screen(target's) by somebody that is not me
-	if (world.flag[tateam].carried) {
-		int p = world.flag[tateam].carrier;
-		if (world.player[p].used && p!=attacker && world.player[p].roomx==world.player[target].roomx && world.player[p].roomy==world.player[target].roomy) {
-			bprintf("@I%s DEFENDS THE %s CARRIER", world.player[attacker].name, teamname[atteam]);
-			score_frag(attacker, 1);
-		}
-	}
-	if (!world.flag[atteam].carried && world.flag[atteam].pos.px==world.player[target].roomx && world.flag[atteam].pos.py==world.player[target].roomy) {
-		bprintf("@I%s DEFENDS THE %s FLAG", world.player[attacker].name, teamname[atteam]);
-		score_frag(attacker, 1);
-	}
-	if (world.flag[atteam].carried && world.flag[atteam].carrier==target) {
-		score_frag(attacker, 1);	// extra frag for fragging a carrier
-		world.player[attacker].total_flag_carriers_killed++;
-	}
-
-	if (deathbringer) {
-		if (world.player[attacker].used)
-			bprintf("@I%s was choked by %s", world.player[target].name, world.player[attacker].name);
-		broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
-	}
-	else
-		bprintf("@I%s was nailed by %s", world.player[target].name, world.player[attacker].name);
-
-	//update the ADMIN SHELL
-	if (shellssock) {
-		char lebuf[256]; int count; NLint result;
-		count = 0;
-		writeLong(lebuf, count, STA_PLAYER_KILLS);
-		writeLong(lebuf, count, world.player[attacker].cid);
-		result = nlWrite(shellssock, lebuf, count);
-		count = 0;
-		writeLong(lebuf, count, STA_PLAYER_DIES);
-		writeLong(lebuf, count, world.player[target].cid);
-		result = nlWrite(shellssock, lebuf, count);
-	}
-
-	game_kill_player(target, false);
-}
-
-//remove player from the game
-void gameserver_c::game_remove_player(int pid) {
-	//remove all shots from this player
-	for (int r=0; r<MAX_ROCKETS; r++)
-		if (world.rock[r].owner == pid)
-			world.deleteRocket(r, 0, 0, 255);
-
-	world.dropFlagIfAny(pid);
-
-	//erase player
-	world.player[pid].delayedMessages.clear();
-	ctop[world.player[pid].cid] = -1;
-	world.player[pid].used = false;
-}
-
-//restart ctf game
-void gameserver_c::ctf_game_restart() {
-
-	int i,cid;
-
-	//submit all pending reports
-	for (i=0;i<maxplayers;i++)
-	if (world.player[i].used)
-	{
-		cid = world.player[i].cid;
-		client_report_status(cid);
-	}
-
-	//final score
-	char lix[256];
-	sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
-	broadcast_message(lix);
-
-	//tell players the capture and time limit
-	if (time_limit == 0)
-		sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME", capture_limit);
-	else
-		sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", capture_limit, time_limit / 10 / 60);
-	broadcast_message(lix);
-
-	//sound
-	broadcast_sample(SAMPLE_CTF_GAMEOVER);
-
-	// zero teamscores
-	world.flag[0].score = 0;
-	world.flag[1].score = 0;
-	ctf_update_teamscore(0);
-	ctf_update_teamscore(1);
-
-	// return all flags
-	world.returnFlag(0);
-	world.returnFlag(1);
-
-	// reset map start time
-	map_start_time = frame;
-
-	// zero all player frags and kill them
-	for (i=0;i<maxplayers;i++)
-	if (world.player[i].used)
-	{
-		//kill - to respawn
-		world.player[i].respawn_to_base = true;
-		game_reset_player(i);
-		//zero score
-		world.player[i].frags = 0;
-	}
-
-	//zero all rockets
-	for (i=0;i<MAX_ROCKETS;i++)
-		world.rock[i].owner = -1;
-
-	// remove and regenerate powerups
-	for (i=0;i<MAX_PICKUPS;i++)
-		world.item[i].kind = 0;
-	check_pickup_creation(true);
-
-	//update the ADMIN SHELL
-	if (shellssock) {
-		char lebuf[256]; int count = 0;
-		writeLong(lebuf, count, STA_GAME_OVER);
-		nlWrite(shellssock, lebuf, count);
-	}
-}
-
-//respawn a powerup
-// put in a screen where there are NO players and NO other powerups
-void gameserver_c::respawn_pickup(int p) {
-
-	//char lixox[200];
-	//broadcast_message("pickup respawned %s %s\n", itoa(p, lixox, 10), "hoo!");
-
-	//nullify
-	world.item[p].kind = 0;
-
-	//find a screen with no players and no other powerups
-	int px, py, itemx, itemy, i;
-	for (int runaway=300;; --runaway) {
-		bool hit = false;
-		px = rand() % world.map.w;
-		py = rand() % world.map.h;
-
-		//check for players if not tried a 100 times yet
-
-		//check players
-		if (runaway>200)
-			for (i=0; i<maxplayers; i++)
-				if (world.player[i].used && world.player[i].roomx==px && world.player[i].roomy==py) {
-					hit = true;
-					break;
-				}
-		if (hit)
-			continue;
-
-		//check for items if not tried 200 times yet
-
-		//check items if no players found
-		if (runaway>100)
-			for (i=0;i<MAX_PICKUPS;i++)
-				if (world.item[i].kind!=0 && world.item[i].px==px && world.item[i].py==py) {
-					hit = true;
-					break;
-				}
-		if (hit)
-			continue;
-
-		//find a suitable coordinate -- middle square
-		itemx = plw / 8 + rand() % (3 * plw / 4);
-		itemy = plh / 8 + rand() % (3 * plh / 4);
-
-		//do a check for walls, maybe retrying another screen if hits a wall
-		hit = world.map.fall_on_wall(px, py, itemx - 20, itemy - 20, itemx + 20, itemy + 20);
-		if (!hit)
-			break;
-		if (--runaway < 0) {
-			broadcast_message("ITEM SPAWN RUNAWAY");
-			return;
-		}
-	}
-	//choose a powerup kind
-	//v0.4.4 : roulette kind
-	int kind = choose_powerup_kind(); //1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
-
-	//v0.4.0 chance to set deathbringer to something else
-	//if (kind == 7)
-	//if (rand() % 100 <= 50)
-	//kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
-
-	//alloc powerup
-	world.item[p].kind = (NLubyte)kind;
-
-	//world.item[p].respawning = false;
-	world.item[p].px = px;
-	world.item[p].py = py;
-	world.item[p].x = itemx;	//copy from randomized position
-	world.item[p].y = itemy;
-	//screen-change message of players in the screen the powerup arrived
-	//fixes "invisible powerup" problem, I hope
-	for (i=0;i<maxplayers;i++)
-	if (world.player[i].used)		//valid
-	if (world.player[i].roomx == px)	//on the screen of the item
-	if (world.player[i].roomy == py)
-	{
-		pickup_c *it = &(world.item[p]);
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 15);		//"item update"
-		writeByte(lebuf, count, (NLubyte)p);	//what item
-		writeByte(lebuf, count, (NLubyte)it->kind);	//kind
-		writeByte(lebuf, count, (NLubyte)it->px);		//screen
-		writeByte(lebuf, count, (NLubyte)it->py);
-		writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
-		writeShort(lebuf, count, (NLushort)it->y);
-		server->send_message(world.player[i].cid, lebuf, count);
-	}
-}
-
-int gameserver_c::pups_by_percent(int percentage) const {
-	int result = (world.map.w*world.map.h*percentage+50) / 100;	// +50 to round properly
-	if (result==0 && percentage>0)
-		return 1;
-	if (result>MAX_PICKUPS)
-		return MAX_PICKUPS;
-	return result;
-}
-
-// verifica powerups unused por jogadores presentes
-void gameserver_c::check_pickup_creation(bool instant) {
-	int i, pc, ic;
-
-	//count number of players
-	pc = 0;
-	for (i=0;i<maxplayers;i++)
-		if (world.player[i].used)
-			pc++;
-
-	//count number of items
-	// TEST SERVER FUK : change "if" to :    if (world.player[i].used)
-	ic = 0;
-	for (i=0;i<MAX_PICKUPS;i++)
-		if (world.item[i].kind != 0)	//0=unused 255=respawning 1..6(?)=spawned/kind
-			ic++;
-
-	int real_min = pups_min_percentage?pups_by_percent(pups_min):pups_min;
-	int real_max = pups_max_percentage?pups_by_percent(pups_max):pups_max;
-	if (pc > real_min)
-		real_min = pc;
-	if (real_min > real_max)
-		real_min = real_max;
-	if (ic >= real_min)
-		return;
-	//while number of players > number of pickups: create a pickup and ic++
-	for (i=0; i<MAX_PICKUPS; i++)
-		if (world.item[i].kind == 0) {
-			world.item[i].kind = 255;
-			if (instant)
-				respawn_pickup(i);
-			else
-				world.item[i].respawn_time = get_time() + pups_respawn_time;
-			if (++ic>=real_min)
-				break;
-		}
-}
-
-// player i touches a pickup p!
-void gameserver_c::game_touch_pickup(int p, int pk) {
-
-	pickup_c *it = &world.item[pk];
-
-	//send "item removed" message to all players on the current screen
-	//
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 16);		//"item removed"
-	writeByte(lebuf, count, (NLubyte)pk);	//what item id
-	//server->send_message(world.player[j].cid, lebuf, count);
-	broadcast_screen_message(it->px, it->py, lebuf, count);
-
-	//player picked it! make fx
-	//shield
-	if (it->kind == 1) {
-
-		world.player[p].item_shield = true;
-
-		//increase health to minimum of 100
-		if (world.player[p].health < 100)
-			world.player[p].health = 100;		//full health
-
-		//increase energy +100
-		if (world.player[p].energy < 200) {
-			world.player[p].energy += 100;
-			if (world.player[p].energy > 200)
-				world.player[p].energy = 200;
-		}
-
-		broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
-	}
-	//boots
-	else if (it->kind == 2) {
-
-		double itemTime=world.player[p].item_speed_time-get_time();
-		if (!world.player[p].item_speed || itemTime<0)
-			itemTime = 0;
-		itemTime += pup_add_time;
-		if (itemTime > pup_max_time)
-			itemTime = pup_max_time;
-
-		world.player[p].item_speed = true;
-		world.player[p].item_speed_time = get_time() + itemTime;
-
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 17);		//powerup time indicator
-		writeByte(lebuf, count, it->kind);		//what kind
-		writeShort(lebuf, count, (NLushort)itemTime);		//time
-		server->send_message(world.player[p].cid, lebuf, count);
-
-		broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
-	}
-	//helm
-	else if (it->kind == 3) {
-
-		double itemTime=world.player[p].item_helm_time-get_time();
-		if (!world.player[p].item_helm || itemTime<0)
-			itemTime = 0;
-		itemTime += pup_add_time;
-		if (itemTime > pup_max_time)
-			itemTime = pup_max_time;
-
-		world.player[p].item_helm = 1;		//invis maximo de inicio
-		world.player[p].item_helm_time = get_time() + itemTime;
-
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 17);		//powerup time indicator
-		writeByte(lebuf, count, it->kind);		//what kind
-		writeShort(lebuf, count, (NLushort)itemTime);		//time
-		server->send_message(world.player[p].cid, lebuf, count);
-
-		broadcast_screen_sample(p, SAMPLE_HELM_ON);
-	}
-	//quad
-	else if (it->kind == 4) {
-
-		double itemTime=world.player[p].item_quad_time-get_time();
-		if (!world.player[p].item_quad || itemTime<0)
-			itemTime = 0;
-		itemTime += pup_add_time;
-		if (itemTime > pup_max_time)
-			itemTime = pup_max_time;
-
-		world.player[p].item_quad = true;
-		world.player[p].item_quad_time = get_time() + itemTime;
-
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 17);		//powerup time indicator
-		writeByte(lebuf, count, it->kind);		//what kind
-		writeShort(lebuf, count, (NLushort)itemTime);		//time
-		server->send_message(world.player[p].cid, lebuf, count);
-
-		broadcast_screen_sample(p, SAMPLE_QUAD_ON);
-	}
-	//weapon
-	else if (it->kind == 5) {
-
-		if (world.player[p].weapon < 8)	// test for max (shots=weapon+1, entao p/ shots max 9, weapon max = 8)
-			world.player[p].weapon++;	//increase weapon power
-
-		//increase energy +100
-		if (world.player[p].energy < 200) {
-			world.player[p].energy += 100;
-			if (world.player[p].energy > 200)
-				world.player[p].energy = 200;
-		}
-
-		//notify player weapon power change
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, 18);		//player power change
-		writeByte(lebuf, count, ((NLubyte)world.player[p].weapon) );
-		server->send_message(world.player[p].cid, lebuf, count);
-
-		broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
-	}
-	//megahealth
-	else if (it->kind == 6) {
-
-		//megabonus!
-		world.player[p].megabonus += 160;
-
-		//increase energy +100, upto 300
-		//world.player[p].energy += 100;
-		//if (world.player[p].energy > 300)
-		//	world.player[p].energy = 300;
-
-		//increase health +100, upto 300
-		//world.player[p].health += 100;
-		//if (world.player[p].health > 300)
-		//	world.player[p].health = 300;
-
-		broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
-	}
-	//deathbringer
-	else if (it->kind == 7) {
-		if (pup_deathbringer_switch)
-			world.player[p].item_deathbringer = !world.player[p].item_deathbringer;
-		else
-			world.player[p].item_deathbringer = true;
-
-		broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
-	}
-
-	// unused item
-	it->kind = 0;
-
-	// check pickup creation
-	check_pickup_creation(false);
-}
-
-//game player screen changed
-// --> send any pickups on screen
-void gameserver_c::game_player_screen_change(int p) {
-
-	//check for new pickups visible
-	for (int i=0;i<MAX_PICKUPS;i++) {
-		pickup_c *it = &world.item[i];
-		if (it->kind)		// item exists
-		if (it->kind != 255)		// item not respawning
-		if (it->px == world.player[p].roomx) // item on screen that player is entering
-		if (it->py == world.player[p].roomy) {
-
-			#ifndef SV_NO_PUP_SWITCHING
-			//broadcast_message("sending powerup update\n");
-
-			//v0.1.2: PRIMEIRO verifica se tem mais alguem nessa tela. se nao
-			//  tiver, verifica se nao seria interessante mudar o "kind" do item
-			//muda WHILE item alvo eh powerup cujo time do jogador eh > 30
-			bool temjog = false;
-			for (int j=0;j<maxplayers;j++)
-			if (j != p)
-			if (world.player[j].used)
-			if (world.player[j].roomx == world.player[p].roomx)
-			if (world.player[j].roomy == world.player[p].roomy) {
-				temjog = true;
-				break;
-			}
-
-			int original = it->kind;
-
-			if (!temjog) {
-				bool non_satisfactory;
-				do {
-					non_satisfactory = false;
-
-					if ((it->kind == 1) && (world.player[p].health >= 80) && (world.player[p].energy >= 30) && (world.player[p].item_shield))//hide if just using as extra battery or not seriously injured
-						non_satisfactory = true;
-					else if ((it->kind == 2) && (world.player[p].item_speed) && (world.player[p].item_speed_time - get_time() > 40.0))
-						non_satisfactory = true;
-					else if ((it->kind == 3) && (world.player[p].item_helm) && (world.player[p].item_helm_time - get_time() > 40.0))
-						non_satisfactory = true;
-					else if ((it->kind == 4) && (world.player[p].item_quad) && (world.player[p].item_quad_time - get_time() > 40.0))
-						non_satisfactory = true;
-					else if ((it->kind == 6) && (world.player[p].health + (rand() % 70) >= 300))//if 300 non-satisf. but if >200, less chance of seeing another one
-						non_satisfactory = true;
-					else if ((it->kind == 7) && (world.player[p].item_deathbringer))
-						non_satisfactory = true;
-
-					//re-choose item type
-					if (non_satisfactory)
-						it->kind = (NLubyte)choose_powerup_kind();
-
-				} while (non_satisfactory);
-
-				//if loop choosed "weapon" powerup (item 5) but you are at maximum, then keep the original choice
-				if ((it->kind == 5) && (world.player[p].weapon >= 8))
-					it->kind = (NLubyte)original;
-			}
-			#endif	// SV_NO_PUP_SWITCHING
-
-			//send a "item on the screen" message
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 15);		//"item update"
-			writeByte(lebuf, count, (NLubyte)i);	//what item
-			writeByte(lebuf, count, (NLubyte)it->kind);	//kind
-			writeByte(lebuf, count, (NLubyte)it->px);		//screen
-			writeByte(lebuf, count, (NLubyte)it->py);
-			writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
-			writeShort(lebuf, count, (NLushort)it->y);
-			server->send_message(world.player[p].cid, lebuf, count);
-		}
-	}
-}
-
 
 //broadcast team message
 void gameserver_c::broadcast_team_message(int team, char *text) {
@@ -1732,64 +1120,64 @@ void gameserver_c::load_game_mod() {
 				else if (cmd == 15) {
 					if (strchr(s, '%')) {
 						if (ival >= 0) {
-							pups_min = ival;
-							pups_min_percentage = true;
+							pupConfig.pups_min = ival;
+							pupConfig.pups_min_percentage = true;
 						}
 						else LOG1("Can't set pups_min to %d%%\n", ival);
 					}
 					else if (ival >= 0 && ival <= MAX_PICKUPS) {
-						pups_min = ival;
-						pups_min_percentage = false;
+						pupConfig.pups_min = ival;
+						pupConfig.pups_min_percentage = false;
 					}
 					else LOG1("Can't set pups_min to %d\n", ival);
 				}
 				else if (cmd == 28) {
 					if (strchr(s, '%')) {
 						if (ival >= 0) {
-							pups_max = ival;
-							pups_max_percentage = true;
+							pupConfig.pups_max = ival;
+							pupConfig.pups_max_percentage = true;
 						}
 						else LOG1("Can't set pups_max to %d%%\n", ival);
 					}
 					else if (ival>=0 && ival<=MAX_PICKUPS) {
-						pups_max = ival;
-						pups_max_percentage = false;
+						pupConfig.pups_max = ival;
+						pupConfig.pups_max_percentage = false;
 					}
 					else LOG1("Can't set pups_max to %d\n", ival);
 				}
 				else if (cmd == 16) {
 					if (ival >= 0 && ival <= 60)
-						pups_respawn_time = ival;
+						pupConfig.pups_respawn_time = ival;
 					else LOG1("Can't set pups_respawn_time to %d\n", ival);
 				}
 				else if (cmd == 17) {
-					pup_chance_shield = ival;
+					pupConfig.pup_chance_shield = ival;
 				}
 				else if (cmd == 18) {
-					pup_chance_turbo = ival;
+					pupConfig.pup_chance_turbo = ival;
 				}
 				else if (cmd == 19) {
-					pup_chance_shadow = ival;
+					pupConfig.pup_chance_shadow = ival;
 				}
 				else if (cmd == 20) {
-					pup_chance_power = ival;
+					pupConfig.pup_chance_power = ival;
 				}
 				else if (cmd == 21) {
-					pup_chance_weapon = ival;
+					pupConfig.pup_chance_weapon = ival;
 				}
 				else if (cmd == 22) {
-					pup_chance_megahealth = ival;
+					pupConfig.pup_chance_megahealth = ival;
 				}
 				else if (cmd == 23) {
-					pup_chance_deathbringer = ival;
+					pupConfig.pup_chance_deathbringer = ival;
 				}
 				else if (cmd == 24) {
 					if (ival >= 0)
-						time_limit = 60 * 10 * ival; // convert minutes to frames
+						worldConfig.time_limit = 60 * 10 * ival; // convert minutes to frames
 				}
 				else if (cmd == 25) {
 					if (ival > 0)
-						capture_limit = ival;
+						worldConfig.capture_limit = ival;
 				}
 				else if (cmd == 26) {
 					welcome_message.push_back(s);
@@ -1799,17 +1187,17 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == 29) {
 					if (ival > 0 && ival<1000)
-						pup_add_time = ival;
+						pupConfig.pup_add_time = ival;
 					else LOG1("Can't set pup_add_time to %d\n", ival);
 				}
 				else if (cmd == 30) {
 					if (ival > 0 && ival<1000)
-						pup_max_time = ival;
+						pupConfig.pup_max_time = ival;
 					else LOG1("Can't set pup_max_time to %d\n", ival);
 				}
 				else if (cmd == 31) {
 					if (ival == 0 || ival == 1)
-						pup_deathbringer_switch = ival==1?true:false;
+						pupConfig.pup_deathbringer_switch = ival==1?true:false;
 					else LOG1("Can't set pup_deathbringer_switch to %d\n", ival);
 				}
 				else if (cmd == 32) {
@@ -1823,15 +1211,15 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == 34) {
 					if (val >= 0)
-						respawn_time = val;
+						worldConfig.respawn_time = val;
 				}
 				else if (cmd == 35) {
 					if (val >= 0)
-						waiting_time_deathbringer = val;
+						worldConfig.waiting_time_deathbringer = val;
 				}
 				else if (cmd == 36) {
 					if (ival == 0 || ival == 1)
-						shadow_minimum = ival==1?1:SV_SHADOW_MINIMUM_NORMAL;
+						worldConfig.shadow_minimum = ival==1?1:SV_SHADOW_MINIMUM_NORMAL;
 					else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 				}
 				else if (cmd == 37) {
@@ -1852,6 +1240,7 @@ void gameserver_c::load_game_mod() {
 
 		fclose(fmod);
 	}
+	world.setConfig(worldConfig, pupConfig);
 }
 
 //load a map from the rotation list
@@ -1946,8 +1335,6 @@ bool gameserver_c::server_next_map(int reason) {
 	sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap].file.c_str(), currmap+1, maprot.size());
 	broadcast_message(lix);
 
-	// reset map start time
-	map_start_time = frame;
 	return true;
 }
 
@@ -1969,9 +1356,9 @@ void gameserver_c::check_map_exit() {
 		if (world.player[p].used && world.player[p].mapVote!=-1)
 			++maprot[world.player[p].mapVote].votes;
 
-	if ((map_start_time+vote_block_time<frame && num_for>num_against) || (num_against==0 && num_for)) {
+	if ((world.getMapTime()>=vote_block_time && num_for>num_against) || (num_against==0 && num_for)) {
 		server_next_map(NEXTMAP_VOTE_EXIT);	// ignore return value
-		ctf_game_restart();
+		world.ctf_game_restart();
 	}
 }
 
@@ -1980,34 +1367,8 @@ void gameserver_c::check_map_exit() {
 bool gameserver_c::reset_settings() {
 	set_default_physics();
 
-	//default configuration
-	//DEFAULT POWERUP CONFIG
-	pup_add_time = 60;
-	pup_max_time = 180;
-
-	pups_min = 6;
-	pups_min_percentage = false;
-	pups_max = MAX_PICKUPS;
-	pups_max_percentage = false;
-	pups_respawn_time = 25;
-
-	pup_chance_shield = 16;
-	pup_chance_turbo = 14;
-	pup_chance_shadow = 14;
-	pup_chance_power = 14;
-	pup_chance_weapon = 18;
-	pup_chance_megahealth = 13;
-	pup_chance_deathbringer = 11;
-
-	pup_deathbringer_switch = true;
-	shadow_minimum = SV_SHADOW_MINIMUM_NORMAL;
-
-	respawn_time = 2.0;
-	waiting_time_deathbringer = 4.0;
-
-	// default time and capture limits
-	time_limit = 0;	// no time limit
-	capture_limit = 8;
+	pupConfig.reset();
+	worldConfig.reset();
 
 	vote_block_time = 0;	// no limit
 
@@ -2197,7 +1558,7 @@ bool gameserver_c::start(int target_maxplayers) {
 	pthread_create(&shellsthread, 0, thread_shellslave_f, (void *)0);
 
 	// reset game
-	ctf_game_restart();
+	world.ctf_game_restart();
 
 	//default serverinfo with reload hostname
 	reload_hostname();
@@ -2313,7 +1674,7 @@ int gameserver_c::client_connected(int id) {
 			world.player[i].d = 0;
 
 			//check pickup creation
-			check_pickup_creation(false);
+			world.check_pickup_creation(false);
 
 			break;
 		}
@@ -2332,7 +1693,7 @@ int gameserver_c::client_connected(int id) {
 	// se o player_count ficou == 2, reseta partida
 	//
 	if (player_count == 2)
-		ctf_game_restart();
+		world.ctf_game_restart();
 
 	//char lelix[222];
 	//sprintf(lelix, "PCOUNT = %i BCOUNT = %i\n", player_count, bot_count);
@@ -2340,7 +1701,7 @@ int gameserver_c::client_connected(int id) {
 
 	char lebuf[256]; int count;
 
-	//**** V0.4.4 : init oneclient_c ****
+	// **** V0.4.4 : init oneclient_c ****
 	client[id].reset();
 	client[id].token_have = false;		// no token
 
@@ -2664,28 +2025,9 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 					}
 					else if (!strcmp(cbuf, "config")) {
 						world.player[pid].queue_printf("@TCurrent server settings:");
-						world.player[pid].queue_printf("- Flag capture limit: %i", capture_limit);
-						if (time_limit == 0)
-							world.player[pid].queue_printf("- No map time limit.");
-						else
-							world.player[pid].queue_printf("- Map time limit: %i min", time_limit / 10 / 60);
-						if (pup_max_time > pup_add_time)
-							world.player[pid].queue_printf("- Power-ups add %d seconds to what's left, with a maximum of %d seconds", pup_add_time, pup_max_time);
-						else
-							world.player[pid].queue_printf("- Power-up time is %d seconds", pup_max_time);
-						if (pup_deathbringer_switch)
-							world.player[pid].queue_printf("- Picking up a second deathbringer power-up cancels the effect");
-						if (shadow_minimum == 1)
-							world.player[pid].queue_printf("- A player using the shadow power-up gets totally invisible");
-						ostringstream pupstr;
-						pupstr << "- Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << '%';
-						pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << '%';
-						if (pups_min_percentage || pups_max_percentage)
-							pupstr << " (% of map size)";
-						world.player[pid].add_to_queue(pupstr.str());
-						#ifdef PHYS_NEW
-						world.player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
-						#endif
+						PlayerQueueAdder pqa(world.player[pid]);
+						worldConfig.print(pqa);
+						pupConfig.print(pqa);
 					}
 					else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
 						if (strspnp(pCommand, " ")!=NULL) {
@@ -2778,41 +2120,8 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 						}
 					}
 					else if (!strcmp(cbuf, "time")) {
-						// server uptime
-						unsigned long uptime = frame/10/60;	// minutes
-						int days = uptime / 60 / 24;
-						ostringstream server_time;
-						server_time << "@IThe server has been up for ";
-						if (days > 0)
-							server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
-						server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
-						if (days == 0)
-							server_time << " hours";
-						server_time << '.';
-						world.player[pid].add_to_queue(server_time.str());
-						// map time
-						int seconds = (frame - map_start_time) / 10;
-						int remaining_seconds = (time_limit / 10 - seconds);
-						ostringstream map_time;
-						map_time << "@IMap time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
-						if (time_limit == 0)
-							map_time << " There is no time limit.";
-						else {
-							// time limit not very useful when only one player
-							int players = 0;
-							for (int i = 0; i < maxplayers; i++)
-								if (world.player[i].used)
-									players++;
-							if (players == 1)
-								map_time << " No time limit at the moment as you are the only player.";
-							else if (remaining_seconds < 0) // if time is out and game continues, it must be sudden death
-								map_time << " Sudden death.";
-							else {
-								map_time << " Time left: " << remaining_seconds / 60 << ':';
-								map_time << setfill('0') << setw(2) << remaining_seconds % 60 << '.';
-							}
-						}
-						world.player[pid].add_to_queue(map_time.str());
+						PlayerQueueAdder pqa(world.player[pid]);
+						world.printTimeStatus(pqa);
 					}
 					else if (!strcmp(cbuf, "stats")) {
 						int playing_time = (int)get_time() - world.player[pid].start_time;  // seconds
@@ -2922,35 +2231,15 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			}
 			//+attack
 			else if (code == 5) {
-
-				//if attack was false, it's a fire event (fire false-->true)
-				bool fire_event = (world.player[pid].attack == false);
-
 				world.player[pid].attack = true;
-
-				if (fire_event) { // firing code moved to simulate/broadcast frame (world.player[id].attack is tested there)
-				}
-
 			}
 			//SUICIDE!!
 			else if (code == 10) {
-				//only if alive still
-				if (world.player[pid].health > 0) {
-					game_kill_player(pid, true);
-					world.player[pid].frags--;                        
-					world.player[pid].total_suicides++;
-				}
+				world.suicide(pid);
 			}
 			//-attack
 			else if (code == 11) {
-
-				//if attack was true, it's a fire event (fire false-->true)
-				bool unfire_event = (world.player[pid].attack == true);
-
 				world.player[pid].attack = false;
-
-				if (unfire_event) {
-				}
 			}
 			// want changeteams on
 			else if (code == 12) {
@@ -3123,591 +2412,13 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 	} while (msg != 0);
 }
 
-//team t's flag touched by player #i?
-bool gameserver_c::check_flag_touch(int px, int py, int x, int y, int t) {
-	if (world.flag[t].carried) return false;	//carried can't touch
-	if (world.flag[t].pos.px != px) return false;	//screen x mismatch
-	if (world.flag[t].pos.py != py) return false;	//screen y mismatch
-
-	int fx = world.flag[t].pos.x;
-	int fy = world.flag[t].pos.y;
-
-	if (fx > x - 30)
-	if (fx < x + 30)
-	if (fy > y - 30)
-	if (fy < y + 30)
-		return true;	//touch
-
-	return false;
-}
-
 //simulate and broadcast frame
 void gameserver_c::simulate_and_broadcast_frame() {
-
-	int i;
-
-	//hack
-	static unsigned long ticker = 0;
-	ticker++;
-
-	// (-1) check powerup respawn
-	//
-	double thetime = get_time();
-	for (i=0;i<MAX_PICKUPS;i++)
-	if (world.item[i].kind == 255)					//valid & respawning
-	//if (world.item[i].respawning)		//respawning
-	if (thetime > world.item[i].respawn_time)
-		respawn_pickup(i);
-
-	// (0) do stuff for every player
-	//
-	if (!gameover)		//skip if game over
-	for (i=0;i<maxplayers;i++)
-	if (world.player[i].used) {
-
-		//dec talk flood protect counter
-		world.player[i].talk_temp -= 0.1;
-		if (world.player[i].talk_temp < 0.0)
-			world.player[i].talk_temp = 0.0;
-		world.player[i].talk_hotness -= 0.1;
-		if (world.player[i].talk_hotness < 1.0)
-			world.player[i].talk_hotness = 1.0;
-
-		//check frags changed
-		if (world.player[i].oldfrags != world.player[i].frags) {
-			//updated
-			world.player[i].oldfrags = world.player[i].frags;
-
-			//send frag update
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 4);	//"4" = frags update
-			writeByte(lebuf, count, i);		// what player id
-			writeLong(lebuf, count, world.player[i].frags);
-			server->broadcast_message(lebuf, count);
-		}
-
-		// check powerups expired
-		//
-		if (world.player[i].item_speed)
-		if (get_time() > world.player[i].item_speed_time) {
-			world.player[i].item_speed = false;
-			broadcast_screen_sample(i, SAMPLE_BOOTS_OFF);
-		}
-		if (world.player[i].item_quad)
-		if (get_time() > world.player[i].item_quad_time) {
-			world.player[i].item_quad = false;
-			broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
-		}
-		if (world.player[i].item_helm)
-		if (get_time() > world.player[i].item_helm_time) {
-			world.player[i].item_helm = 0;
-			broadcast_screen_sample(i, SAMPLE_HELM_OFF);
-		}
-
-		// helm alpha down
-		//
-		if (world.player[i].item_helm > 0) {
-			world.player[i].item_helm -= 10;		//slowly fades....
-			if (world.player[i].item_helm < shadow_minimum)	// minimum
-				world.player[i].item_helm = shadow_minimum;
-		}
-
-		// check deathbringer effect
-		//
-		if (world.player[i].deathbringer_end > get_time()) {
-			//check if still alive
-			if (world.player[i].health > 0) {
-				//has shield: do big damage to it, in order to remove the shield
-				if (world.player[i].item_shield)
-					game_damage_player(i, world.player[i].deathbringer_attacker, 12, true);
-				else
-					game_damage_player(i, world.player[i].deathbringer_attacker, 3, true); // 30 / s, 150 / 5 s
-			}
-		}
-
-		// check for a player's deathbringer to bring death
-		//
-		if (world.player[i].health <= 0) //dead
-		if (world.player[i].item_deathbringer)		//with deathbringer
-		{
-			//delta time since shoot
-			double delta = (frame - world.player[i].item_deathbringer_time) * 0.1;
-			//figure out new radius
-			int rad;
-			if (delta < 1.0)
-				rad = (int)(delta * 100);
-			else
-				rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
-
-			//check enemy players onscreen that are not hit by it yet and are inside
-			// the donut radius...radius-50
-			for (int v=0;v<maxplayers;v++)
-			if (v/TSIZE != i/TSIZE)		//enemy players only
-			if (world.player[v].used)	//used
-			if (world.player[v].health > 0)	//alive
-			if (world.player[v].roomx == world.player[i].roomx)	// in the same screen of the deathbringer
-			if (world.player[v].roomy == world.player[i].roomy)
-			if (world.player[v].deathbringer_end < get_time())		// deathbringer fx end time -- not already hit?
-			{
-				//calculate player distance to the deathbringer core
-				double ex = world.player[i].lx;
-				double ey = world.player[i].ly - 15;
-				double rx = world.player[v].lx;
-				double ry = world.player[v].ly - 15;
-				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
-
-				// hit distance: if dt == rad, hit, if rad
-				if ((rad <= dt + 20) && (rad >= dt - 60)) {
-					world.player[v].item_deathbringer = false;
-					broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-					world.player[v].deathbringer_attacker = i;
-					// time of effect ; also freeze his gun for this same amount of time
-					world.player[v].deathbringer_end = world.player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
-
-					// calc recoil:
-					double tx = world.player[v].lx - world.player[i].lx;
-					double ty = world.player[v].ly - world.player[i].ly;
-
-					double mul = 40. / sqrt( tx*tx + ty*ty );	// set speed to 40
-					world.player[v].sx = tx * mul;
-					world.player[v].sy = ty * mul;
-				}
-			}
-		}
-
-		// check for player weapons fire time
-		//
-		if (world.player[i].attack)	// player holding attack button
-		if (world.player[i].health > 0)		// check if player alive
-		if (get_time() > world.player[i].next_shoot_time)  // check if time allowed to fire again
-		{
-			//gasta 7 + 2 * tiros energy, se tem energy
-			int numshots = 1;
-			world.player[i].energy -= 7;			//gasta normal
-			if (world.player[i].energy < 0)	//se ficou menor que zero, atira 1 so
-				world.player[i].energy = 0;
-			else {
-				for (int k=1;k<world.player[i].weapon+1;k++) {
-					//try add one shot
-					world.player[i].energy -= 1;		//v0.4.7: diminuí METADE do gasto per shot!
-					if (world.player[i].energy < 0)
-						world.player[i].energy = 0;
-					else
-						numshots++;
-				}
-			}
-
-			world.player[i].next_shoot_time = get_time() + 0.5;		// add minimum interval (in secs)
-
-			//show helm
-			if (world.player[i].item_helm > 0)
-				world.player[i].item_helm = 255;
-
-			world.shootRockets(i, numshots);
-		}
-
-	}
-
-
-	// (1)  simulate (calculate) the next frame
-	//
-
-	// for each ROCKET, update position
-	//
-	if (!gameover)		//skip if game over
-	for (i=0;i<MAX_ROCKETS;i++)
-	if (world.rock[i].owner != -1)	//exists
-	{
-		rocket_c *rock = &(world.rock[i]);
-
-		//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
-		int t;
-		for (t=0;t<10;t++)
-		{
-			//move-se
-			rock->x += rock->sx / 10.0;
-			rock->y += rock->sy / 10.0;
-
-			//out of bounds
-			if ((rock->x < -20) || (rock->y < -20) || (rock->x > plw + 20) || (rock->y > plh + 20)) {
-				rock->owner = -1;	//just remove it. clients will figure out the same
-
-				//broadcast_message("SE FOI");
-
-				//2-loop break
-				t=999;break;
-			}
-
-			//wall hit - remove
-			#if !defined(PHYS_NEW)
-			if (world.map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
-				rock->owner=-1;
-				t=999;break;
-			}
-			#endif
-			#ifdef PHYS_NEW
-			if (world.map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-PHYS_SHIFTY-2, (int)rock->x+2, (int)rock->y-PHYS_SHIFTY+2)) {
-				rock->owner=-1;
-				t=999;
-				break;
-			}
-			#endif
-
-			// check if a player (alive) is hit by this rocket now
-			//
-			//sqrt( (ex - x)*(ex - x) + (ey - y)*(ey - y) ). Acho que é isto...
-
-			for (int p=0;p<maxplayers;p++)
-			if (world.player[p].used)
-			if (world.player[p].health > 0)		// alive
-			if (rock->team != (p/TSIZE)) // shot is from opposing team
-			if (rock->px == world.player[p].roomx) // in same screen
-			if (rock->py == world.player[p].roomy)
-			{
-				//calculate distance rocket<->target center
-				double ex = world.player[p].lx;
-				double ey = world.player[p].ly - 15.0;
-				double rx = rock->x;
-				double ry = rock->y - 15.0;
-				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
-
-				//the number is the sum of the two balls bounding boxes radiuses (15 player + 3 rocket's)
-				if (dt <= 18.0)
-				{
-					//record wether the player had shield, if yes, will not blink him
-					bool had_shield = world.player[p].item_shield;
-
-					//default damage to the target: 70
-					int damage = 70;
-
-/*					//v0.4.0: dano 50 se esta com o deathbringer
-					if (world.player[rock->owner].item_deathbringer)
-						damage = 50;*/
-
-					if (rock->power)
-						damage *= 2;
-
-					//do damage
-					game_damage_player(p, rock->owner, damage, false);
-
-					world.player[rock->owner].total_hits++;
-					world.player[p].total_shots_taken++;
-
-					//if player not dead, push him
-					if (world.player[p].health > 0) {
-						if (((world.player[p].sx > 0) && (rock->sx < 0)) || ((world.player[p].sx < 0) && (rock->sx > 0)))
-							world.player[p].sx = 0;
-						if (((world.player[p].sy > 0) && (rock->sy < 0)) || ((world.player[p].sy < 0) && (rock->sy > 0)))
-							world.player[p].sy = 0;
-						world.player[p].sx += rock->sx / 3.0;
-						world.player[p].sy += rock->sy / 3.0;
-					}
-
-					//delete shot
-					if (had_shield)
-						world.deleteRocket(i, (NLshort)rock->x, (NLshort)rock->y, 252);		//do not blink
-					else
-						world.deleteRocket(i, (NLshort)rock->x, (NLshort)rock->y, p);			//blink
-
-					//2-loop break
-					t=999;break;
-				}
-			}
-
-		}
-	}
-
-	// for each player, update positions & speeds
-	//
-	ServerPlayer *h;
-
-	if (!gameover)		//skip if game over
-	for (i=0;i<maxplayers;i++)
-	if (world.player[i].used) {
-		h = &(world.player[i]);
-
-		//check if dead/respawn
-		if (world.player[i].health <= 0) {
-			if (world.player[i].respawn_time < get_time())
-				world.respawnPlayer(i);		//time to respawn player
-		}
-		// player alive: do stuff for alive players
-		else {
-
-			// IN : copia player screen p/ hero screen
-			int oldroomx = world.player[i].roomx;
-			int oldroomy = world.player[i].roomy;
-
-			// run server physics frame
-			world.run_server_player_physics(i);
-
-			//OUT : copy screen information from hero back to player
-			if (world.player[i].roomx!=oldroomx || world.player[i].roomy!=oldroomy) {
-				//player screen changed check
-				game_player_screen_change(i);
-			}
-
-
-			//---------------------------------
-			// player every-frame stuff
-			//---------------------------------
-
-			// check don't regen because of deathbringer
-			//v0.4.0: do not regen if has deathbringer and both health/energy are at no less than 100
-			bool deathbringer_penalty =
-					((world.player[i].item_deathbringer) && (world.player[i].health >= 100) && (world.player[i].energy >= 100))			//rand() % 100 < 50
-					||
-					(world.player[i].deathbringer_end > get_time());
-
-			// regen?
-			if (!deathbringer_penalty) {
-
-				// regenerate +1 health or +1 energy
-				if (world.player[i].health < 100)
-					world.player[i].health++;
-				else {
-
-					//caso energy > 100, regenera mais devagar (-33%)
-					if (world.player[i].energy < 100)
-						world.player[i].energy++;
-					else if (world.player[i].energy < 200) {
-						// 0.3.0: MAIS devagar
-						//if (frame % 3)
-						if (frame % 2)
-							world.player[i].energy++;
-					}
-					//MEGA health vagarosamente...
-					else if ((world.player[i].health < 200) && (frame %10 == 0))
-						world.player[i].health++;
-				}
-			}
-
-			//lose health & energy if running
-			if (h->run) {
-
-				if (world.player[i].energy <= 0) {
-
-					//if (!world.player[i].item_speed)	// se ta com SPEED, faz nao hurt
-					if (world.player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
-
-						if (ticker % 2)
-							world.player[i].health -= 2;	//desconta 2 (o normal)
-						else
-							world.player[i].health -= 1;	//desconta 1 (menos)
-
-						if (world.player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
-							world.player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
-					}
-
-				} else {
-
-					if (ticker % 2)
-						world.player[i].energy -= 2; //desconta 2 (o normal)
-					else
-						world.player[i].energy -= 1; //desconta 1 (menos)
-
-					if (world.player[i].energy == -1) { // special case
-
-						world.player[i].energy++;
-
-						if (world.player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
-
-							world.player[i].health--;
-
-							if (world.player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
-								world.player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
-						}
-					}
-				}
-			}
-
-			//rot health to 100 if has deathbringer
-			if ((world.player[i].item_deathbringer) && (world.player[i].health > 100) && (frame % 4 == 0))
-				world.player[i].health--;
-
-			//rot energy to 100 if has deathbringer
-			if ((world.player[i].item_deathbringer) && (world.player[i].energy > 100) && (frame % 4 == 0))
-				world.player[i].energy--;
-
-			//megahealth bonus:
-			if (world.player[i].megabonus > 0)
-			if ((world.player[i].health == 300) && (world.player[i].energy == 300))
-				world.player[i].megabonus--;	// realiza um certo "guardamento" de energia mas nao muito...
-			else
-			for (int mh=0;mh<5;mh++) {
-
-					//+health
-					if (world.player[i].megabonus > 0)
-					if (world.player[i].health < 300) {
-							world.player[i].health++;
-							world.player[i].megabonus--;
-					}
-
-					//+energy
-					if (world.player[i].megabonus > 0)
-					if (world.player[i].energy < 300) {
-							world.player[i].energy++;
-							world.player[i].megabonus--;
-					}
-			}
-
-
-			//limit health 0 .. 300
-			if (world.player[i].health < 0)
-				world.player[i].health = 0;
-			else if (world.player[i].health > 300)
-				world.player[i].health = 300;
-
-			//limit energy 0 .. 300
-			if (world.player[i].energy < 0)
-				world.player[i].energy = 0;
-			else if (world.player[i].energy > 300)
-				world.player[i].energy = 300;
-
-			//---------------------------------
-			// check game object collisions
-			//---------------------------------
-
-			int myteam = i/TSIZE;
-			int enemyteam = 1 - myteam;
-
-			// --> ITEM PICKUP
-			//
-			int prad = 10;	//pickup item radius
-
-			for (int k=0;k<MAX_PICKUPS;k++)
-			if (world.item[k].kind > 0)	//valid item
-			if (world.item[k].kind != 255) // not respawning
-			if (world.item[k].px == world.player[i].roomx)		// player's screen
-			if (world.item[k].py == world.player[i].roomy)
-			//x,y == center of powerup!
-			if (world.item[k].x + prad > world.player[i].lx - 20)
-			if (world.item[k].x - prad < world.player[i].lx + 20)
-			if (world.item[k].y + prad > world.player[i].ly - 20 - 10)
-			if (world.item[k].y - prad < world.player[i].ly + 20 - 10)
-			{
-				//pick pickup
-				game_touch_pickup(i, k);		//COOL!
-			}
-
-			// --> CTF FLAG STEAL touch other team's flag
-			//
-			if (!world.flag[enemyteam].carried &&	// enemy flag dropped (at base or somewhere)
-				check_flag_touch(world.player[i].roomx, world.player[i].roomy, (int)h->lx, (int)h->ly, enemyteam))  // and I touch it
-			{
-				// Has player just dropped the flag or not?
-				if (!world.player[i].dropped_flag) {
-					//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
-					if (world.flag[enemyteam].atbase)
-						world.flag[enemyteam].grab_time = get_time();
-
-					//FLAG STOLEN!
-					score_frag(i, 1);	// just add some frags
-
-					world.player[i].total_flags_taken++;
-
-					bprintf("@I%s GOT THE %s FLAG!", world.player[i].name, teamname[enemyteam]);
-
-					world.stealFlag(enemyteam, i);  //flag stolen!
-
-					//HELM powerup: show player
-					if (world.player[i].item_helm > 0)
-						world.player[i].item_helm = 255;
-				}
-			}
-			else	// Player has removed away from the flag.
-				world.player[i].dropped_flag = false;
-
-			// --> CTF FLAG RETURN
-			//
-			if (!world.flag[myteam].carried)	// my flag dropped
-			if (!world.flag[myteam].atbase)	// not at base
-			if (check_flag_touch(world.player[i].roomx, world.player[i].roomy, (int)h->lx, (int)h->ly, myteam))  // and I touch it
-			{
-				//FLAG RETURNED!
-				score_frag(i, 1);	// just add some frags
-				world.player[i].total_flags_returned++;
-
-				bprintf("@I%s RETURNED THE %s FLAG!", world.player[i].name, teamname[myteam]);
-
-				world.returnFlag(myteam);  //flag returned
-
-				//sound broadcast
-				broadcast_sample(SAMPLE_CTF_RETURN);
-			}
-
-			// --> CTF FLAG CAPTURE
-			//
-			if (world.flag[enemyteam].carried)		// enemy flag carried
-			if (world.flag[enemyteam].carrier == i)	// by me
-			if (!world.flag[myteam].carried)	// my flag dropped
-			if (world.flag[myteam].atbase)	// at my base
-			if (check_flag_touch(world.player[i].roomx, world.player[i].roomy, (int)h->lx, (int)h->ly, myteam))		// I touch my flag
-			{
-				//v0.4.7: detect degenerated maps
-				if (world.map.valid_for_scoring)		//still valid?
-				if (get_time() - world.flag[enemyteam].grab_time <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
-
-					//this map is bogus, ignore all scoring for it.
-					world.map.valid_for_scoring = false;
-					//tell people...
-					broadcast_message("@WThis map is too small. Scoring for World Ranking disabled.");
-					//zero all delta scores so far
-					for (int p=0;p<MAX_PLAYERS;p++) {
-						client[p].delta_score = 0;
-						client[p].neg_delta_score = 0;		//V0.4.8
-						client[p].fdp = 0.0;
-						client[p].fdn = 0.0;		//V0.4.8
-					}
-				}
-
-				//add frags to all players of the team
-
-				// V0.4.8: PENALIZE every player of the other team
-
-				for (int h=0;h<MAX_PLAYERS;h++)
-				if (world.player[h].used)
-				if ((h/TSIZE) == myteam)
-					score_frag(h, 2);				//small two-frag bonus
-				else
-					score_neg(h, 1);		//v0.4.8 : small NEG POINT penalty for YOUR FLAG BEING CAPTURED
-
-				//CHANGED 0.4.8: add +3 extra frags to the capturer (for a total of 5)
-				score_frag(i, 3);
-
-				//return enemy flag to their base
-				world.returnFlag(enemyteam);
-
-				//message
-				string one_more;
-				if (world.flag[myteam].score == capture_limit - 2) // points update later
-					one_more = " One more to win!";
-				bprintf("@I%s CAPTURED THE %s FLAG!%s", world.player[i].name, teamname[enemyteam], one_more.c_str());
-
-				//count
-				world.player[i].total_captures++;
-
-				//update the ADMIN SHELL
-				char lebuf[256]; int count; NLint result;
-				count = 0;
-				writeLong(lebuf, count, STA_PLAYER_CAPTURES);
-				writeLong(lebuf, count, world.player[i].cid);
-				result = nlWrite(shellssock, lebuf, count);
-
-				//CAPTURE (team count ++)
-				world.flag[myteam].score++;
-				ctf_update_teamscore(myteam);		//this function can decide to restart the game . (?)
-
-				//sound broadcast
-				broadcast_sample(SAMPLE_CTF_CAPTURE);
-			}
-
-		} // player.health > 0
-
-	}
+	if (!gameover)
+		world.simulateFrame();
 
 	// announce voting status
-	if (frame >= next_vote_announce_frame) {
+	if (world.frame >= next_vote_announce_frame) {
 		int votes=0, players=0;
 		for (int i=0; i<maxplayers; ++i)
 			if (world.player[i].used) {
@@ -3719,20 +2430,18 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		if (votes!=last_vote_announce_votes || (players!=last_vote_announce_needed && votes!=0)) {
 			last_vote_announce_votes=votes;
 			last_vote_announce_needed=players;
-			next_vote_announce_frame=frame+SV_VOTE_ANNOUNCE_INTERVAL*10;
+			next_vote_announce_frame=world.frame+SV_VOTE_ANNOUNCE_INTERVAL*10;
 			ostringstream voteinfo;
 			voteinfo << "@I*** " << votes << '/' << players << " votes for mapchange";
-			if (map_start_time+vote_block_time >= frame)
-				voteinfo << " (all players needed for " << (map_start_time+vote_block_time-frame+5)/10 << " more seconds)";
+			if (world.getMapTime() < vote_block_time)
+				voteinfo << " (all players needed for " << (vote_block_time-world.getMapTime()+5)/10 << " more seconds)";
 			broadcast_message(voteinfo.str().c_str());
 		}
+		else if (world.getMapTime() == vote_block_time)
+			check_map_exit();
 	}
-
-	// player maintenance (check delayed messages etc)
-	int players = 0;
 	for (int i=0; i<maxplayers; ++i)
 		if (world.player[i].used) {
-			++players;
 			if (world.player[i].kickTimer) {
 				--world.player[i].kickTimer;
 				if (world.player[i].kickTimer==0)
@@ -3748,21 +2457,6 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				}
 			}
 		}
-
-	// check timelimit
-	if (players > 1 && time_limit > 0) {
-		if (time_limit >= 10*60 * 10 && frame - map_start_time == time_limit - 5*60 * 10)
-			bprintf("@I*** Five minutes left in the game");
-		if (time_limit >= 2*60 * 10 && frame - map_start_time == time_limit - 60 * 10)
-			bprintf("@I*** One minute left in the game");
-		else if (time_limit >= 60 * 10 && frame - map_start_time == time_limit - 30 * 10)
-			bprintf("@I*** 30 seconds left in the game");
-		else if (frame - map_start_time > time_limit) {
-			bprintf("@I*** Time out - CTF game over");
-			server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
-			ctf_game_restart();
-		}
-	}
 
 	// (2)  broadcast the frame
 	//
@@ -3830,7 +2524,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	int count = 0;
 
 	//frame
-	writeLong(lebuf, count, frame);
+	writeLong(lebuf, count, world.frame);
 
 	//players present NEW: LONG
 	writeLong(lebuf, count, players_present);
@@ -3945,7 +2639,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	// ==================================================================
 	//   BUILD AND SEND EVERY DAMN PACKET
 	// ==================================================================
-	for (i=0;i<maxplayers;i++)
+	for (int i=0;i<maxplayers;i++)
 	if (world.player[i].used)			// player valido (used)
 	{
 		//rewrite past common data
@@ -3970,7 +2664,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		if (skip_frame) xtra += 4;		// VERY IMPORTANT
 		writeByte(lebuf, lecount, xtra);
 
-		//****** VERY IMPORTANT ******
+		// ****** VERY IMPORTANT ******
 		// send almost empty frame if client not ready (leave bandwidth for data transfer) OR IF
 		// server showing gameover plaque
 		if (!skip_frame) {
@@ -4005,7 +2699,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				//add to players_onscreen
 				players_onscreen += (1 << j);
 
-				h = &(world.player[j]);
+				ServerPlayer* h = &(world.player[j]);
 
 //					NLshort sho;
 
@@ -4042,13 +2736,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				//sho = ((NLshort)(h->sy * 100));
 				//writeShort(lebuf, lecount, sho );	//sy
 
-				/*
-				EXTRA BYTE (ex- zframe)
-
-				bit 0 : player dead
-				bit 1 : has deathbringer
-				bit 2 : deathbringer-affected
-				*/
+				// EXTRA BYTE (ex- zframe)  bit 0 : player dead  bit 1 : has deathbringer  bit 2 : deathbringer-affected
 				NLubyte extra = 0;
 				if (world.player[j].health <= 0) extra += 1; //deadflag
 				if (world.player[j].item_deathbringer) extra += 2; //has deathbringer
@@ -4123,11 +2811,10 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			writeByte(lebuf, lecount, ((NLubyte)(world.player[i].energy & 255)));
 
 			//ping of player frame# % MAXPLAYERS
-			NLushort theping = (NLushort) world.player[frame % maxplayers].ping;
+			NLushort theping = (NLushort) world.player[world.frame % maxplayers].ping;
 			writeShort(lebuf, lecount, theping);
 
 		}//!world.player[i].awaiting_client_ready
-
 		//send the packet
 		server->send_frame(world.player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
 	}
@@ -4138,7 +2825,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	if (ping_send_client >= maxplayers)
 		ping_send_client = 0;
 	if (world.player[ping_send_client].used) // valid player?
-	server->ping_client(world.player[ping_send_client].cid); //ping
+		server->ping_client(world.player[ping_send_client].cid); //ping
 }
 
 //run something after simulate_and_broadcast
@@ -4169,19 +2856,17 @@ void gameserver_c::loop(volatile bool *running_flag) {
 
 	LOG("GAMESERVER::LOOP()\n");
 
-	frame = 0;	//frame to generate next
+	world.frame = 0;	//frame to generate next
 
 	//sync with speed counter until it's time to generate one frame (== 1)
 	server_speed_counter = -3;
 	while (server_speed_counter < 1)
-		MS_SLEEP(1);		//*** NO CPU PROBLEM HERE ***
+		MS_SLEEP(1);		// *** NO CPU PROBLEM HERE ***
 
 	// no flag specified: esc quits
 	bool keep_running = true;
 	if (!running_flag)
 		running_flag = &keep_running;
-
-	static int fubie = 0;
 
 	LOG("GAMESERVER::LOOP() (2)\n");
 
@@ -4194,10 +2879,10 @@ void gameserver_c::loop(volatile bool *running_flag) {
 		server_speed_counter--;
 
 		// next frame
-		frame++;
+		world.frame++;
 
 		//update dedserver wintitle
-		if (fubie++ > 10) {
+		if (world.frame % 10 == 0) {
 
 			server_kbps_traffic =
 				server->get_socket_stat(NL_AVE_BYTES_RECEIVED) +
@@ -4205,7 +2890,6 @@ void gameserver_c::loop(volatile bool *running_flag) {
 			server_kbps_traffic /= 1024.0;
 
 			//update bar
-			fubie = 0;
 			char elbuf[128];
 			sprintf(elbuf, "%i/%ip %.1fk/s v%s port:%i ESC:quit", player_count, maxplayers, server_kbps_traffic, GAME_VERSION, port);
 
@@ -5469,7 +4153,7 @@ void gameserver_c::sendRocketMessage(int shots, int gundir, NLubyte* sid, int te
 	writeByte(lebuf, count, gundir);		// power and dir
 	for (int i=0;i<shots;i++) //MULTI ROCKETS!
 		writeByte(lebuf, count, sid[i]);		// rocket-object id (needed because client-side rockets can be deleted by the server)
-	writeLong(lebuf, count, frame);	// time of shot of the rocket: current (last simulated) frame
+	writeLong(lebuf, count, world.frame);	// time of shot of the rocket: current (last simulated) frame
 	NLubyte shotType = (team<<1) | power;
 	writeByte(lebuf, count, (NLubyte)shotType);	// owner of all rockets
 	writeByte(lebuf, count, (NLubyte)px);	//coord
@@ -5500,6 +4184,61 @@ void gameserver_c::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NL
 			if (plymask & (1<<p))
 				server->send_message(world.player[p].cid, lebuf, count);
 }
+
+void gameserver_c::sendDeathbringer(int pid, const ServerPlayer& ply) {
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 26);	//26==deathbringer
+	writeByte(lebuf, count, ((NLubyte)pid));	//team/target player
+	writeLong(lebuf, count, world.frame);		//frame # of the bringer shot (message can be delayed)
+	writeByte(lebuf, count, ((NLubyte)ply.roomx));
+	writeByte(lebuf, count, ((NLubyte)ply.roomy));
+	writeShort(lebuf, count, ((NLushort)ply.lx));
+	writeShort(lebuf, count, ((NLushort)ply.ly));
+
+	server->broadcast_message(lebuf, count);
+}
+
+void gameserver_c::sendPickupVisible(int pid, int pup_id, const pickup_c& it) {
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 15);		//"item update"
+	writeByte(lebuf, count, (NLubyte)pup_id);	//what item
+	writeByte(lebuf, count, (NLubyte)it.kind);	//kind
+	writeByte(lebuf, count, (NLubyte)it.px);		//screen
+	writeByte(lebuf, count, (NLubyte)it.py);
+	writeShort(lebuf, count, (NLushort)it.x);	//pos in screen
+	writeShort(lebuf, count, (NLushort)it.y);
+	server->send_message(world.player[pid].cid, lebuf, count);
+}
+
+void gameserver_c::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 17);		//powerup time indicator
+	writeByte(lebuf, count, pupType);
+	writeShort(lebuf, count, (NLushort)timeLeft);
+	server->send_message(world.player[pid].cid, lebuf, count);
+}
+
+void gameserver_c::sendFragUpdate(int pid, NLulong frags) {
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 4);	//"4" = frags update
+	writeByte(lebuf, count, pid);		// what player id
+	writeLong(lebuf, count, frags);
+	server->broadcast_message(lebuf, count);
+}
+
+void gameserver_c::clearWorldRankingDeltas() {
+	for (int p=0;p<MAX_PLAYERS;p++) {
+		if (!world.player[p].used)
+			continue;
+		int cid = world.player[p].cid;
+		client[cid].delta_score = 0;
+		client[cid].neg_delta_score = 0;		//V0.4.8
+		client[cid].fdp = 0.0;
+		client[cid].fdn = 0.0;		//V0.4.8
+	}
+}
+
+//#@
 
 //get hostname: for hello
 char* gameserver_c::get_hostname() {

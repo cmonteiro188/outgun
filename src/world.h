@@ -109,7 +109,6 @@ public:
 	bool l, r, u, d;	// left, right, up, down acceleration keys
 	bool run;
 	int gundir;	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
-	int weapon;
 
 // get rid of (or move elsewhere)
 	bool used;
@@ -126,7 +125,6 @@ public:
 	void clear(bool enable, int _pid, const char* _name) {
 		ping = 0;
 		frags = 0;
-		weapon = 0;
 		id = _pid;
 		strcpy(name, _name);	//the default name
 		item_deathbringer = item_shield = item_quad = item_speed = false;
@@ -150,6 +148,7 @@ public:
 	int health;
 	int energy;
 
+	int weapon;
 	bool attack;	// if player is holding attack button
 
 	double item_quad_time;
@@ -277,10 +276,19 @@ public:
 		item_quad_time = item_speed_time = item_helm_time = 0;
 		health = energy = 0;
 		megabonus = 0;
+		weapon = 0;
 		dropped_flag = false;
 		respawn_time = 0;
 		respawn_to_base = false;
 	}
+};
+
+class PlayerQueueAdder : public LineReceiver {
+	ServerPlayer& ply;
+
+public:
+	PlayerQueueAdder(ServerPlayer& player) : ply(player) { }
+	PlayerQueueAdder& operator()(const string& str) { ply.add_to_queue(str); return *this; }
 };
 
 class ClientPlayer : public PlayerBase {
@@ -303,6 +311,7 @@ public:
 	double item_helm_time;
 	int health;
 	int energy;
+	int weapon;
 
 	bool under_deathbringer_effect(double curr_time) const { (void)curr_time; return deathbringer_affected; }
 
@@ -311,6 +320,7 @@ public:
 
 		item_quad_time = item_speed_time = item_helm_time = 0;
 		health = energy = 0;
+		weapon = 0;
 
 		speed_drop_time = wall_sound_time = 0;
 		onscreen = false;
@@ -327,53 +337,24 @@ public:
 // a rocket-shot
 class rocket_c {
 public:
-
-	//owning player-id (-1 == unused)
-	int	owner;
+	int	owner;	//owning player-id (-1 == unused)
+	int team;
 	bool power;
 
-	//don't draw flag & remove schedule (CLIENT-SIDE): se dontdraw==true, nao desenha em client side e remove quando tempo >= clremove
-	bool dontdraw;
+	bool dontdraw;		// client side
 	double clremove;
 
-	//team/color
-	int team;
-
-	//power	(na verdade a partir da versao 0.1.2, cada rocket pode ser um multi-rocket!
-	//NLubyte		power;
-
-	//notification list (bitfield, bit0=player0, bit1=player1... etc.)
-	NLulong		vislist;
-
-	//hit position
-	NLshort hitx, hity;
-
-	//screen coords
-	int px, py;
-
-	//start position or current position
-	double x, y;
-
-	//v0.1.2 - how long it moved (in pixels) since creation
-	double d;
-
-	//v0.1.2 - em graus : direcao
-	double deg;
-
-	//speed
-	double sx, sy;
-
-	//time of shot or current time
-	NLulong time;
-
-	//time for effective calculation on clientside (not always integer)
-	double cl_time;
-
-	//time-of-hit do rocket clientside
-	double hit_time;
-
-	//hit_target. se ==255, ninguem em particular.  se ==254 hit wall
-	int hit_target;
+	NLulong vislist;	//notification list (bitfield, bit0=player0, bit1=player1... etc.)
+	NLshort hitx, hity;	//hit position
+	int px, py;			//screen coords
+	double x, y;		//start position or current position
+	double d;			//v0.1.2 - how long it moved (in pixels) since creation
+	double deg;			//v0.1.2 - em graus : direcao
+	double sx, sy;		//speed
+	NLulong time;		//time of shot or current time
+	double cl_time;		//time for effective calculation on clientside (not always integer)
+	double hit_time;	//time-of-hit do rocket clientside
+	int hit_target;		//hit_target. se ==255, ninguem em particular.  se ==254 hit wall
 
 	rocket_c() { owner = -1; }
 };
@@ -444,36 +425,99 @@ public:
 
 	virtual ~WorldBase() { }
 
-	bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
 	void run_server_player_physics(int pid);
+	virtual bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
 	virtual void returnFlag(int team);
 	virtual void dropFlag(int team, int roomx, int roomy, int lx, int ly);
 	virtual void stealFlag(int team, int carrier);
+};
+
+class PowerupSettings {
+	int pups_by_percent(int percentage, const Map& map) const;
+
+public:
+	int pups_min, pups_max, pups_respawn_time, pup_chance_shield, pup_chance_turbo, pup_chance_shadow,
+			pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
+	bool pups_min_percentage, pups_max_percentage;
+	int pup_add_time, pup_max_time;
+	bool pup_deathbringer_switch;
+
+	void reset();
+	void print(LineReceiver& printer) const;
+
+	int choose_powerup_kind() const;
+	int getMinPups(const Map& map) const { return pups_min_percentage?pups_by_percent(pups_min, map):pups_min; }
+	int getMaxPups(const Map& map) const { return pups_max_percentage?pups_by_percent(pups_max, map):pups_max; }
+	int getRespawnTime() const { return pups_respawn_time; }
+	bool getDeathbringerSwitch() const { return pup_deathbringer_switch; }
+	double addTime(double t) const { t += pup_add_time; if (t > pup_max_time) t = pup_max_time; return t; }
+};
+
+class WorldSettings {
+public:
+	double respawn_time, waiting_time_deathbringer;
+	int shadow_minimum;	// smallest alpha value allowed; 1 is when even the coordinates are not sent
+	NLulong time_limit;
+	int capture_limit;
+
+	void reset();
+	void print(LineReceiver& printer) const;
+
+	double getRespawnTime() const { return respawn_time; }
+	double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }
+	int getShadowMinimum() const { return shadow_minimum; }
+	int getCaptureLimit() const { return capture_limit; }
+	NLulong getTimeLimit() const { return time_limit; }
 };
 
 class gameserver_c;	//#fix: get rid of this callback system
 
 class ServerWorld : public WorldBase {
 	gameserver_c* host;
+	PowerupSettings pupConfig;
+	WorldSettings config;
 
 	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta);
 	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta);
 
 public:
+	NLulong frame;
+	NLulong map_start_time;	// frame #
 	ServerPlayer player[MAX_PLAYERS];
+
 	ServerWorld(gameserver_c* hostp) : host(hostp) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 
+	void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
+
 	// common (virtual in base) extended functions
+	bool load_map(const char *mapdir, const string& mapname) { map_start_time = frame; return WorldBase::load_map(mapdir, mapname); }
 	void returnFlag(int team);
 	void dropFlag(int team, int roomx, int roomy, int lx, int ly);
 	void stealFlag(int team, int carrier);
+	int getMapTime() const { return frame - map_start_time; }
 
 	// server specific functions
+	void reset();
 	void respawnPlayer(int pid);
+	void printTimeStatus(LineReceiver& printer);
+
+	void resetPlayer(int target, float time_penalty = 0.);
+	void killPlayer(int target, bool time_penalty);
+	void damagePlayer(int target, int attacker, int damage, bool deathbringer);
+	void removePlayer(int pid);
+	void suicide(int pid);
+	void respawn_pickup(int p);
+	void check_pickup_creation(bool instant);
+	void game_touch_pickup(int p, int pk);
+	bool check_flag_touch(int px, int py, int x, int y, int t);
+	void game_player_screen_change(int p);
 
 	bool dropFlagIfAny(int pid);
 	void shootRockets(int pid, int numshots);
 	void deleteRocket(int r, NLshort hitx, NLshort hity, int targ);
+
+	void simulateFrame();
+	void ctf_game_restart();
 };
 
 class ClientWorld : public WorldBase {
@@ -483,7 +527,7 @@ public:
 	double time;	// real time (clientside) of the frame
 
 	ClientPlayer player[MAX_PLAYERS];
-	ClientWorld() { frame = time = 0; for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+	ClientWorld() { time = 0; for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 };
 
 #endif

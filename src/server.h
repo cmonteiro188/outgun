@@ -138,15 +138,15 @@ class gameserver_c {
 	double			team_smul[2];
 	NLulong 		next_vote_announce_frame;
 	int				last_vote_announce_votes, last_vote_announce_needed;
-	NLulong			map_start_time;	// frame #
 
 	// pelimaailma
 	ServerWorld		world;
-	NLulong			frame;
 	bool			gameover;
 	double			gameover_time;		//timeout for gameover plaque
 
 	// asetukset
+	PowerupSettings pupConfig;
+	WorldSettings worldConfig;
 	struct MapInfo {
 		string title, file;
 		int width, height;
@@ -160,16 +160,7 @@ class gameserver_c {
 	#ifdef SV_NAME_AUTHORIZATION
 	NameAuthorizationDatabase authorizations;
 	#endif
-	NLulong time_limit;
-	int capture_limit;
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
-	int pups_min, pups_max, pups_respawn_time, pup_chance_shield, pup_chance_turbo, pup_chance_shadow,
-			pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
-	bool pups_min_percentage, pups_max_percentage;
-	int pup_add_time, pup_max_time;
-	bool pup_deathbringer_switch;
-	int shadow_minimum;	// smallest alpha value allowed; 1 is when even the coordinates are not sent
-	double respawn_time, waiting_time_deathbringer;
 
 public:
 
@@ -186,17 +177,23 @@ public:
 	void banPlayer(int pid);
 	bool isBanned(int cid) { return authorizations.isBanned(server->get_client_address(cid)); }
 	#endif
-	int check[MAX_PLAYERS];
-	int checount;
+
+   int check[MAX_PLAYERS];
+   int checount;
 	void check_team_changes();
 	void check_player_change_teams(int pid);
 	void move_update_player(int a);
 	void move_player(int f, int t);
 	void swap_players(int a, int b);
+	void game_remove_player(int pid) { ctop[world.player[pid].cid] = -1; world.removePlayer(pid); }
+
+	void clearWorldRankingDeltas();
 	void ctf_update_teamscore(int t);
 	void refresh_team_score_modifiers();
 	void client_report_status(int id);
 	void check_map_exit();
+	void score_frag(int p, int amount);
+	void score_neg(int p, int amount);
 
 	bool load_rotation_map(int pos);
 	void send_map_change_message(int pid, int reason, const char* mapname);
@@ -204,23 +201,30 @@ public:
 
 	// yhteydet verkkoon
 	void upload_next_file_chunk(int i);
-	int get_download_file(char *lebuf, char *ftype, char *fname);
+	int  get_download_file(char *lebuf, char *ftype, char *fname);
 	void run_filemaster_thread(void *);
 	void run_fileslave_thread(void *arg);
+
 	void update_serverinfo();
+	void server_think_after_broadcast();
+
 	void send_me_packet(int pid);
 	void send_player_name_update(int cid, int pid);
 	void broadcast_player_name(int pid);
 	void send_player_crap_update(int cid, int pid);
 	void broadcast_player_crap(int pid);
+
 	void ctf_net_flag_status(int cid, int team);
 	void sendWeaponPower(int pid);
 	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id; array of NLubyte[shots]
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
+	void sendDeathbringer(int pid, const ServerPlayer& ply);
+	void sendPickupVisible(int pid, int pup_id, const pickup_c& it);
+	void sendPupTime(int pid, NLubyte pupType, double timeLeft);
+	void sendFragUpdate(int pid, NLulong frags);
 
 	void broadcast_sample(int code);
 	void broadcast_screen_sample(int p, int code);
-	void game_player_screen_change(int p);
 	void broadcast_team_message(int team, char *text);
 	void broadcast_screen_message(int px, int py, char *lebuf, int count);
 	void bprintf(const char *fs, ...);
@@ -228,38 +232,22 @@ public:
 	void player_message(int pid, const char *text);
 	void broadcast_message(const char *text);
 
-	int client_connected(int id);
+	int  client_connected(int id);
 	void client_disconnected(int id);
 	void ping_result(int client_id, int ping_time);
 	void incoming_client_data(int id, char *data, int length);
+	char *get_hostname();
 
-	void simulate_and_broadcast_frame();
-	void server_think_after_broadcast();
 	void master_job_response(masterjob_c *j);
 	void run_masterjob_thread(void *arg);
 	bool check_private_IP(char *address);
 	void run_mastertalker_thread(void *);
+
 	bool read_string_from_TCP(NLsocket sock, char *buf);
 	void run_shellmaster_thread(void *);
 	void run_shellslave_thread(void *);
-	char *get_hostname();
 
-	// pelimaailma
-	int choose_powerup_kind();
-
-	void score_frag(int p, int amount);
-	void score_neg(int p, int amount);
-	void game_reset_player(int target, float time_penalty = 0.);
-	void game_kill_player(int target, bool time_penalty);
-	void game_damage_player(int target, int attacker, int damage, bool deathbringer);
-	void game_remove_player(int pid);
-	void respawn_pickup(int p);
-	int pups_by_percent(int percentage) const;
-	void check_pickup_creation(bool instant);
-	void game_touch_pickup(int p, int pk);
-	bool check_flag_touch(int px, int py, int x, int y, int t);
-
-	void ctf_game_restart();
+	void simulate_and_broadcast_frame();
 
 	// asetukset
 	void load_game_mod();
