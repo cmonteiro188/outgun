@@ -13,6 +13,10 @@ using std::vector;
 const int char_w = 8;
 const int line_h = 12;
 
+const int col_background = makecol(0x99, 0x99, 0x99);
+const int col_caption = makecol(0xFF, 0xFF, 0xFF);
+const int col_value = makecol(0x00, 0xFF, 0x00);
+
 void Menu::prev() {
 	--selected_item;
 	if (selected_item < 0)
@@ -51,7 +55,7 @@ void Menu::draw(BITMAP* buffer) const {
 
 	// draw components
 	for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp) {
-		comp->draw(buffer, x1 + padding, y1 + line * line_h);
+		(*comp)->draw(buffer, x1 + padding, y1 + line * line_h);
 		line++;
 	}
 }
@@ -63,7 +67,7 @@ int Menu::width() const {
 int Menu::total_width() const {
 	int min_width = 0;
 	for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
-		min_width = max(min_width, comp->width());
+		min_width = max(min_width, (*comp)->width());
 	return min_width;
 }
 
@@ -76,11 +80,22 @@ int Menu::total_height() const {
 
 void Textfield::draw(BITMAP* buffer, int x, int y) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, col_caption, -1);
-	x += caption.length() + 1;
+	x += (caption.length() + 1) * char_w;
 	textout_ex(buffer, font, value.c_str(), x, y, col_value, -1);
 }
 
 int Textfield::width() const {
 	return (caption.length() + 1 + value.length()) * char_w;
+}
+
+void Checkbox::draw(BITMAP* buffer, int x, int y) const {
+	const char selection = selected ? '×' : ' ';
+	textprintf_ex(buffer, font, x, y, col_value, -1, "[%c]", selection);
+	x += 4 * char_w;
+	textout_ex(buffer, font, caption.c_str(), x, y, col_caption, -1);
+}
+
+int Checkbox::width() const {
+	return (3 + 1 + caption.length()) * char_w;
 }
 

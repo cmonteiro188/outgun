@@ -49,27 +49,21 @@ private:
 	std::string value;
 };
 
-class Numberfield : public Component {
-public:
-	Numberfield(const std::string& caption_, int value_): Component(caption), value(value_) { }
-
-private:
-	int value;
-};
-
-template <typename T>
 class Select : public Component {
 public:
-	Select(): selected(0) { }
+	Select(const std::string caption_): Component(caption), selected(0) { }
 
 private:
-	std::vector<T> selections;
+	std::vector<std::string> selections;
 	int selected;
 };
 
 class Checkbox : public Component {
 public:
 	Checkbox(const std::string& caption_): Component(caption), selected(false) { }
+
+	void draw(BITMAP* buffer, int x, int y) const;
+	int width() const;
 
 private:
 	bool selected;
