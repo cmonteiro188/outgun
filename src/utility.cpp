@@ -152,15 +152,13 @@ string formatForLogging(const string& str) {
         if (is_nonprintable_char(*s)) {
             result << '\\';
             switch (*s) {
-                case '\n': result << 'n'; break;
-                case '\r': result << 'r'; break;
-                case '\t': result << 't'; break;
-                case '\v': result << 'v'; break;
-                case '\b': result << 'b'; break;
-                case '\f': result << 'f'; break;
-                default:
-                    result << 'x' << setw(2) << setfill('0') << hex << static_cast<unsigned char>(*s) << dec << setfill(' ');
-                    break;
+                break; case '\n': result << 'n';
+                break; case '\r': result << 'r';
+                break; case '\t': result << 't';
+                break; case '\v': result << 'v';
+                break; case '\b': result << 'b';
+                break; case '\f': result << 'f';
+                break; default: result << 'x' << setw(2) << setfill('0') << hex << static_cast<unsigned char>(*s) << dec << setfill(' ');
             }
         }
         else
@@ -244,18 +242,8 @@ void errorMessage(const string& heading, MemoryLog& errorLog, const string& foot
 
 bool is_keypad(int sc) {
     switch (sc) {
-        case KEY_1_PAD:
-        case KEY_2_PAD:
-        case KEY_3_PAD:
-        case KEY_4_PAD:
-        case KEY_5_PAD:
-        case KEY_6_PAD:
-        case KEY_7_PAD:
-        case KEY_8_PAD:
-        case KEY_9_PAD:
-            return true;
-        default:
-            return false;
+        break; case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
+        break; default: return false;
     }
 }
 

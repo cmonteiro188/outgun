@@ -472,6 +472,10 @@ class Client {
 
     ClientControls readControls();
 
+    void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
+    void handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey
+    void handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
+
 public:
     Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_);
     ~Client();

@@ -479,12 +479,7 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) {
         stop.setEnable(true);
     }
     else {
-        if (!isValidIP(address()) || check_private_IP(address())) {
-            pub.set(false);
-            pub.setEnable(false);
-        }
-        else
-            pub.setEnable(true);
+        pub.setEnable(true);
         port.setEnable(true);
         address.setEnable(!autoIP());
         autoIP.setEnable(true);

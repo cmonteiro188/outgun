@@ -732,20 +732,15 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) {
         numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
         const TextureData::TexdataUnion& data = texTab[texid].data();
         switch (texTab[texid].type()) {
-            case TextureData::T_solid: {
+            break; case TextureData::T_solid: {
                 SolidTexturizer tex(*this, data.s);
                 renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
-                break;
             }
-            case TextureData::T_texture: {
+            break; case TextureData::T_texture: {
                 TextureTexturizer tex(*this, data.t);
                 renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
-                break;
             }
-            case TextureData::T_flagmarker:
-            default:
-                nAssert(0);
-                break;
+            break; case TextureData::T_flagmarker: default: nAssert(0);
         }
     }
     else {
@@ -756,10 +751,10 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) {
             numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
             const TextureData::TexdataUnion& data = texTab[texid].data();
             switch (texTab[texid].type()) {
-                case TextureData::T_solid:      tex.addLayer(new SolidPixelSource(data.s));      break;
-                case TextureData::T_texture:    tex.addLayer(new TexturePixelSource(data.t));    break;
-                case TextureData::T_flagmarker: tex.addLayer(new FlagmarkerPixelSource(data.f)); break;
-                default: nAssert(0);
+                break; case TextureData::T_solid:      tex.addLayer(new SolidPixelSource(data.s));
+                break; case TextureData::T_texture:    tex.addLayer(new TexturePixelSource(data.t));
+                break; case TextureData::T_flagmarker: tex.addLayer(new FlagmarkerPixelSource(data.f));
+                break; default: nAssert(0);
             }
         }       
         renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);

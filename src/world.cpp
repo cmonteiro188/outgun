@@ -380,6 +380,9 @@ bool Map::parse_file(LogSet& log, istream& in) {
         string line;
         if (!getline_skip_comments(in, line))
             break;
+        line = trim(line);
+        if (line.empty())
+            continue;
         if (line[0] == ':') {           // new label
             const string label = line.substr(1);
             for (vector<pair<string, vector<string> > >::const_iterator li = label_lines.begin(); li != label_lines.end(); ++li)
@@ -735,6 +738,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     #endif
     awaiting_client_ready = true;
     item_deathbringer_time = 0;
+    deathbringer_team = 0;  // need not be valid yet
     deathbringer_end = 0;
     deathbringer_attacker = 0;
     item_power_time = item_turbo_time = item_shadow_time = 0;
@@ -1000,7 +1004,7 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock,
     const double dx = rock.x - pl.lx, dy = rock.y - pl.ly, r2 = collRadius * collRadius;
     if (dx * dx + dy * dy < r2)
         return 0;
-    const double mx = pl.sx-rock.sx, my = pl.sy - rock.sy;
+    const double mx = pl.sx - rock.sx, my = pl.sy - rock.sy;
 
     const double m2 = mx * mx + my * my;
     const double mdotd = mx * dx + my * dy;
@@ -1157,10 +1161,10 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
         }
     }
 
-    const double rocketSpeed = 50.0;    //in pixels/0.1s
-    r->sx = cos(deg) * rocketSpeed;
-    r->sy = sin(deg) * rocketSpeed;
-    const double advance = .5 + double(frameAdvance);
+    r->sx = cos(deg) * physics.rocket_speed;
+    r->sy = sin(deg) * physics.rocket_speed;
+    // advance 15 pixels before really shooting -> don't hit very close by players
+    const double advance = 15. / physics.rocket_speed + double(frameAdvance);
     const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
     if (wallTime <= advance) {
         r->move(wallTime);
@@ -1214,6 +1218,7 @@ PhysicalSettings::PhysicalSettings() :
     run_mul     (1.75),
     turbo_mul   (1.45),
     flag_mul    (0.91),
+    rocket_speed(50.),
     friendly_fire(0.),
     friendly_db(0.),
     player_collisions(PC_normal)
@@ -1236,15 +1241,11 @@ void PhysicalSettings::read(char* lebuf, int& count) {
     flag_mul        = safeReadFloat(lebuf, count);
     friendly_fire   = safeReadFloat(lebuf, count);
     friendly_db     = safeReadFloat(lebuf, count);
+    rocket_speed    = safeReadFloat(lebuf, count);
 
-    NLubyte collisions = 0;
+    NLubyte collisions;
     readByte(lebuf, count, collisions);
-    switch (collisions & 0x03) {
-        case 0: player_collisions = PC_none; break;
-        case 1: player_collisions = PC_normal; break;
-        case 3: player_collisions = PC_special; break; // 3 to keep protocol compatibility, where bit 0 means collisions on/off
-        default: nAssert(0);
-    }
+    player_collisions = static_cast<PlayerCollisions>(collisions & 0x03);
 
     calc_max_run_speed();
 }
@@ -1260,9 +1261,8 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
     safeWriteFloat(lebuf, count, flag_mul);
     safeWriteFloat(lebuf, count, friendly_fire);
     safeWriteFloat(lebuf, count, friendly_db);
-
-    const NLubyte collisions = (player_collisions == PC_none ? 0x00 : player_collisions == PC_normal ? 0x01 : 0x03);
-    writeByte(lebuf, count, collisions);
+    safeWriteFloat(lebuf, count, rocket_speed);
+    writeByte(lebuf, count, player_collisions);
 }
 
 void PowerupSettings::reset() {
@@ -1287,6 +1287,7 @@ void PowerupSettings::reset() {
     pup_health_bonus = 160;
     pup_power_damage = 2.0;
     pup_weapon_max = 9;
+    pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
 }
 
@@ -1736,7 +1737,7 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
     ServerPlayer& pl = player[pid];
 
     switch (it.kind) {
-        case Powerup::pup_shield: {
+        break; case Powerup::pup_shield: {
             pl.item_shield = true;
 
             //increase health to minimum of 100
@@ -1751,9 +1752,8 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
             }
 
             net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_PICKUP);
-            break;
         }
-        case Powerup::pup_turbo: {
+        break; case Powerup::pup_turbo: {
             double itemTime = pl.item_turbo_time - get_time();
             if (!pl.item_turbo || itemTime < 0)
                 itemTime = 0;
@@ -1764,9 +1764,8 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
             net->sendPupTime(pl.id, it.kind, itemTime);
             net->broadcast_screen_sample(pl.id, SAMPLE_TURBO_ON);
-            break;
         }
-        case Powerup::pup_shadow: {
+        break; case Powerup::pup_shadow: {
             double itemTime = pl.item_shadow_time - get_time();
             if (!pl.item_shadow() || itemTime < 0)
                 itemTime = 0;
@@ -1777,9 +1776,8 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
             net->sendPupTime(pl.id, it.kind, itemTime);
             net->broadcast_screen_sample(pl.id, SAMPLE_SHADOW_ON);
-            break;
         }
-        case Powerup::pup_power: {
+        break; case Powerup::pup_power: {
             double itemTime = pl.item_power_time - get_time();
             if (!pl.item_power || itemTime < 0)
                 itemTime = 0;
@@ -1790,9 +1788,8 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
             net->sendPupTime(pl.id, it.kind, itemTime);
             net->broadcast_screen_sample(pl.id, SAMPLE_POWER_ON);
-            break;
         }
-        case Powerup::pup_weapon: {
+        break; case Powerup::pup_weapon: {
             if (pl.energy < 200) {
                 pl.energy += 100;
                 if (pl.energy > 200)
@@ -1803,23 +1800,20 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
                 net->sendWeaponPower(pl.id);
             }
             net->broadcast_screen_sample(pl.id, SAMPLE_WEAPON_UP);
-            break;
         }
-        case Powerup::pup_health: {
+        break; case Powerup::pup_health: {
             pl.megabonus += pupConfig.pup_health_bonus;
             net->broadcast_screen_sample(pl.id, SAMPLE_MEGAHEALTH);
-            break;
         }
-        case Powerup::pup_deathbringer: {
+        break; case Powerup::pup_deathbringer: {
             if (pupConfig.getDeathbringerSwitch())
                 pl.item_deathbringer = !pl.item_deathbringer;
             else
                 pl.item_deathbringer = true;
 
             net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
-            break;
         }
-        default: nAssert(0);
+        break; default: nAssert(0);
     }
 
     // unused item
@@ -1873,6 +1867,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
     if (player[target].item_deathbringer) {
         //record time to simulate the deathbringer explosion
         player[target].item_deathbringer_time = frame;
+        player[target].deathbringer_team = player[target].team();
         net->sendDeathbringer(target, player[target]);
     }
 
@@ -1891,21 +1886,29 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
         player[target].visibility = maximum_shadow_visibility;
 
     if (player[target].item_shield) {
-        player[target].energy -= damage;
-        if (player[target].energy <= 0) {
-            player[target].energy = 0;
+        if (pupConfig.pup_shield_one_hit) {
             player[target].item_shield = false;
             if (type != DT_deathbringer)
                 net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
         }
-        else if (type != DT_deathbringer)
-            net->broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+        else {
+            player[target].energy -= damage;
+            if (player[target].energy <= 0) {
+                player[target].energy = 0;
+                player[target].item_shield = false;
+                if (type != DT_deathbringer)
+                    net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+            }
+            else if (type != DT_deathbringer)
+                net->broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+        }
     }
     //else do the regular body damage
     else {
         player[target].health -= damage;
         //freeze target's gun
-        player[target].next_shoot_time = get_time() + 1.0;
+        if (type != DT_collision)
+            player[target].next_shoot_time = get_time() + 1.0;
     }
     if (player[target].health > 0)
         return;
@@ -2096,6 +2099,8 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
     if (physics.player_collisions != PhysicalSettings::PC_special)
         return PhysicsCallbacksBase::PlayerHitResult(false, false, 1., 1.);
 
+    speed /= physics.max_run_speed; // make the speed -> damage relatively constant at top speed, regardless of the physics
+
     ServerPlayer& pl1 = player[pid1];
     ServerPlayer& pl2 = player[pid2];
 
@@ -2160,15 +2165,25 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         //  - S's shield is damaged by amount coldam (shield-hit / shield-down fx is played)
         //  - t is damaged by amount coldam and "tossed"
         // where coldam is proportional to the "strength" of the collision
-        const int shieldColdam = static_cast<int>(speed * 1.);
-        if (pl1.item_shield && pl1.deathbringer_end < get_time() && !pl2.item_deathbringer) {
+        const bool shieldHitBy1 = (pl1.item_shield && pl1.deathbringer_end < get_time() && !pl2.item_deathbringer);
+        const bool shieldHitBy2 = (pl2.item_shield && pl2.deathbringer_end < get_time() && !pl1.item_deathbringer);
+        const int shieldColdam = static_cast<int>(speed * 60);  // 60 at top running speed without turbo - this only applies to the shielded player
+        if (shieldHitBy1) {
             toss_b = true;
-
-            if (!pl2.item_shield) // if target is not shielded, make it blink and play hit sound 
-                net->broadcast_screen_power_collision(pid2);
-
-            // FIXME: these will play the shield hit/lost samples as needed, so maybe should get rid of the "bounce" sound that is generated by the caller of this callback
-            damagePlayer(pid1, pid2, shieldColdam, DT_collision);
+            pl2.next_shoot_time = get_time() + 1.0;
+            if (shieldHitBy2) {
+                toss_a = true;
+                pl1.next_shoot_time = get_time() + 1.0;
+                net->broadcast_screen_sample(pid1, SAMPLE_SHIELD_LOST); // applies to both players
+                pl1.energy = pl2.energy = 0;
+                pl1.item_shield = pl2.item_shield = 0;
+            }
+            else
+                damagePlayer(pid1, pid2, shieldColdam, DT_collision);   // damage to the shield
+        }
+        else if (shieldHitBy2) {
+            toss_a = true;
+            pl1.next_shoot_time = get_time() + 1.0;
             damagePlayer(pid2, pid1, shieldColdam, DT_collision);
         }
         // works both ways
@@ -2187,7 +2202,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         // non-shielded, non-deathbringer carrier, and non-quad-damage carrying will cause about the same effect as Y being hit by a non-quaded rocket fired by X 
         //  - blink target / freeze gun / do damage
         //  - play quad-rocket or rocket-hit sample
-        const int quadColdam = static_cast<int>(speed * 4.0);
+        const int quadColdam = static_cast<int>(speed * 80);    // 80 at top running speed without turbo
         if (pl1.item_power && !pl1.item_shield && pl1.deathbringer_end < get_time() && !pl2.item_deathbringer &&
                 !pl2.item_shield && !pl2.item_power) {
             damagePlayer(pid2, pid1, quadColdam, DT_collision);
@@ -2255,7 +2270,20 @@ pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, Phys
     pl2.sx = baseSpeedMul * (v2.first  - newk2 * ds.first  / r);
     pl2.sy = baseSpeedMul * (v2.second - newk2 * ds.second / r);
 
+    limitPlayerSpeed(pl1);  // required because baseSpeedMul and bounceStrengths can be set to physically incorrect values
+    limitPlayerSpeed(pl2);
+
     return res.deaths;
+}
+
+void WorldBase::limitPlayerSpeed(PlayerBase& pl) const {
+    const double playerSpeedHardLimit = physics.max_run_speed * physics.turbo_mul * 4.;
+    if (fabs(pl.sx) > playerSpeedHardLimit || fabs(pl.sy) > playerSpeedHardLimit) { // no need to be exact here; per-axis view is adequate
+        const double spd = sqrt(sqr(pl.sx) + sqr(pl.sy));
+        const double mul = playerSpeedHardLimit / spd;
+        pl.sx *= mul;
+        pl.sy *= mul;
+    }
 }
 
 void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction) {
@@ -2530,13 +2558,6 @@ void ServerWorld::simulateFrame() {
         if (player[i].talk_hotness < 1.0)
             player[i].talk_hotness = 1.0;
 
-        //check frags changed
-        if (player[i].oldfrags != player[i].stats().frags()) {
-            //updated
-            player[i].oldfrags = player[i].stats().frags();
-            net->sendFragUpdate(i, player[i].stats().frags());
-        }
-
         // check powerups expired
         if (player[i].item_turbo)
             if (get_time() > player[i].item_turbo_time) {
@@ -2575,6 +2596,7 @@ void ServerWorld::simulateFrame() {
 
         // check for a player's deathbringer to bring death
         if (player[i].dead && player[i].item_deathbringer) {
+            const bool dbTeam = player[i].deathbringer_team;
             //delta time since shoot
             const double delta = (frame - player[i].item_deathbringer_time) * 0.1;
             //figure out new radius
@@ -2588,7 +2610,7 @@ void ServerWorld::simulateFrame() {
             // the donut radius...radius-50
             for (int v = 0; v < maxplayers; v++)
                 //enemy players only if friendly deathbringer is off
-                if ((v/TSIZE != i/TSIZE || physics.friendly_db > 0.) && player[v].used && player[v].health > 0 &&
+                if ((v/TSIZE != dbTeam || physics.friendly_db > 0.) && player[v].used && player[v].health > 0 &&
                                 player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
                                 player[v].deathbringer_end < get_time()) {
                     //calculate player distance to the deathbringer core
@@ -2596,16 +2618,15 @@ void ServerWorld::simulateFrame() {
                     const double ey = player[i].ly;
                     const double rx = player[v].lx;
                     const double ry = player[v].ly;
-                    const double dt = sqrt((ex - rx) * (ex - rx) + (ey - ry) * (ey - ry));
+                    const double dt = sqrt(sqr(ex - rx) + sqr(ey - ry));
 
                     // hit distance: if dt == rad, hit, if rad
                     if (rad <= dt + 20 && rad >= dt - 60) {
-                        player[v].item_deathbringer = false;
                         net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
                         player[v].deathbringer_attacker = i;
 
                         // time of effect ; also freeze his gun for this same amount of time
-                        const double mul = (v / TSIZE == i / TSIZE ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
+                        const double mul = (v / TSIZE == dbTeam ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
                         player[v].deathbringer_end = player[v].next_shoot_time = get_time() + mul * pupConfig.pup_deathbringer_time;
 
                         // calc recoil:
@@ -2830,6 +2851,13 @@ void ServerWorld::simulateFrame() {
                 }
         }
     }
+
+    // check frags changed
+    for (int i = 0; i < maxplayers; ++i)
+        if (player[i].used && player[i].oldfrags != player[i].stats().frags()) {
+            player[i].oldfrags = player[i].stats().frags();
+            net->sendFragUpdate(i, player[i].stats().frags());
+        }
 
     // check time limit
     const NLulong time_limit = config.getTimeLimit();

@@ -364,6 +364,7 @@ public:
     double item_shadow_time;
 
     long item_deathbringer_time;    // explosion of this players deathbringer
+    int deathbringer_team;  // valid if own deathbringer has exploded (this is needed for when changing teams)
     double deathbringer_end;    // end of effect of another players deathbringer
     int deathbringer_attacker;  // whose deathbringer it is
 
@@ -622,6 +623,7 @@ class PhysicalSettings {
 public:
     double fric, drag, accel;
     double brake_mul, turn_mul, run_mul, turbo_mul, flag_mul;
+    double rocket_speed;
     double friendly_fire, friendly_db;
     enum PlayerCollisions { PC_none, PC_normal, PC_special } player_collisions;
 
@@ -661,8 +663,9 @@ class WorldBase {
 
     static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction);
     static double getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction);
-    static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
+    /*static*/ double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
+    void limitPlayerSpeed(PlayerBase& pl) const;  // hard limit to somewhat acceptable values; required to call when physically incorrect changes are made
     void applyPlayerAcceleration(int pid);
     void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const; // returns pair(p1-dead, p2-dead)
@@ -721,6 +724,7 @@ public:
     int pup_health_bonus;
     double pup_power_damage;
     int pup_weapon_max;
+    bool pup_shield_one_hit;
 
     void reset();
 

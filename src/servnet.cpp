@@ -646,7 +646,7 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) const {
     writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
     writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
     writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 600));
-    NLubyte settings = 0;
+    NLushort settings = 0;
     int i = 0;
     if (config.balanceTeams())
         settings |= (1 << i);
@@ -660,8 +660,13 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) const {
     if (pupConfig.pup_deathbringer_switch)
         settings |= (1 << i);
     i++;
+    if (pupConfig.pup_shield_one_hit)
+        settings |= (1 << i);
+    i++;
     settings |= (pupConfig.pup_weapon_max << i);
-    writeByte(lebuf, count, settings);
+    i += 4; // 4 bits are required to transfer pup_weapon_max, in range [0, 8]
+    nAssert(i <= 16);
+    writeShort(lebuf, count, settings);
     writeShort(lebuf, count, pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
     writeShort(lebuf, count, pupConfig.pups_max + (pupConfig.pups_max_percentage ? 100 : 0));
     writeShort(lebuf, count, pupConfig.pup_add_time);
@@ -1638,11 +1643,9 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                     writeByte(lebuf, lecount, xy);
 
                     // speed in 2 bytes
-                    NLbyte sxy;
-                    sxy = static_cast<NLbyte>(h.sx * 2);    // * 2 gives a half pixel resolution with range from -63 to +63
-                    writeByte(lebuf, lecount, sxy);
-                    sxy = static_cast<NLbyte>(h.sy * 2);
-                    writeByte(lebuf, lecount, sxy);
+                    typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                    writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
+                    writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
 
                     // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
                     NLubyte extra = 0;
@@ -1903,10 +1906,10 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 void ServerNetworking::run_mastertalker_thread() {
     logThreadStart("run_mastertalker_thread", log);
 
-    const string& localAddress = host->config().ipAddress;
+    string localAddress = host->config().ipAddress;
     if (!isValidIP(localAddress) || check_private_IP(localAddress)) {
-        log("Master talker: No public IP address. Not talking to master server.");
-        return;
+        log("Master talker: No public IP address. Letting the master server decide.");
+        localAddress.clear();
     }
 
     bool master_never_talked = true;
@@ -2151,27 +2154,20 @@ void ServerNetworking::run_website_thread() {
 
 map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const {
     map<string, string> parameters;
-    parameters["ip"] = address;
-    ostringstream p;
-    p << host->config().port;
-    parameters["port"] = p.str();
+    if (!address.empty())
+        parameters["ip"] = address;
+    parameters["port"] = itoa(host->config().port);
     if (quitting)
         parameters["quit"] = "1";
     else {
         parameters["name"] = hostname;
-        ostringstream pc;
-        pc << player_count;
-        parameters["players"] = pc.str();
+        parameters["players"] = itoa(player_count);
         if (host->config().dedserver)
             parameters["dedicated"] = "1";
-        ostringstream mpc;
-        mpc << maxplayers;
-        parameters["max_players"] = mpc.str();
+        parameters["max_players"] = itoa(maxplayers);
         parameters["version"] = GAME_VERSION;
         parameters["protocol"] = GAME_PROTOCOL;
-        ostringstream upt;
-        upt << world.frame / 10;
-        parameters["uptime"] = upt.str();
+        parameters["uptime"] = itoa(world.frame / 10);
         parameters["map"] = host->current_map().title;
         parameters["link"] = host->server_website();
     }
@@ -2182,31 +2178,23 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     map<string, string> parameters;
     parameters["name"] = hostname;
     parameters["ip"] = address;
-    ostringstream p;
-    p << host->config().port;
-    parameters["port"] = p.str();
-    ostringstream pc;
-    pc << player_count;
-    parameters["players"] = pc.str();
+    parameters["port"] = itoa(host->config().port);
+    parameters["players"] = itoa(player_count);
     if (host->config().dedserver)
         parameters["dedicated"] = "1";
-    ostringstream mpc;
-    mpc << maxplayers;
-    parameters["max_players"] = mpc.str();
+    parameters["max_players"] = itoa(maxplayers);
     parameters["version"] = GAME_VERSION;
-    ostringstream upt;
-    upt << world.frame / 10;
-    parameters["uptime"] = upt.str();
+    parameters["uptime"] = itoa(world.frame / 10);
     parameters["map"] = host->current_map().title;
     parameters["mapfile"] = host->getCurrentMapFile();
-    ostringstream players;
+    string players;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
-            if (!players.str().empty())
-                players << '\n';
-            players << world.player[i].name << '\t' << i / TSIZE;
+            if (!players.empty())
+                players += '\n';
+            players += world.player[i].name + '\t' + itoa(i / TSIZE);
         }
-    parameters["playerlist"] = players.str();
+    parameters["playerlist"] = players;
     return parameters;
 }
 
@@ -2443,32 +2431,27 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         int ansLen = 0;
         bool error = false;
         switch (code) {
-            case ATS_GET_PLAYER_FRAGS:
+            break; case ATS_GET_PLAYER_FRAGS:
                 writeLong(answer, ansLen, STA_PLAYER_FRAGS);
                 writeLong(answer, ansLen, cid);
                 writeLong(answer, ansLen, world.player[pid].stats().frags());
-                break;
-            case ATS_GET_PLAYER_TOTAL_TIME:
+            break; case ATS_GET_PLAYER_TOTAL_TIME:
                 writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
                 writeLong(answer, ansLen, cid);
                 writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
-                break;
-            case ATS_GET_PLAYER_TOTAL_KILLS:
+            break; case ATS_GET_PLAYER_TOTAL_KILLS:
                 writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
                 writeLong(answer, ansLen, cid);
                 writeLong(answer, ansLen, world.player[pid].stats().kills());
-                break;
-            case ATS_GET_PLAYER_TOTAL_DEATHS:
+            break; case ATS_GET_PLAYER_TOTAL_DEATHS:
                 writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
                 writeLong(answer, ansLen, cid);
                 writeLong(answer, ansLen, world.player[pid].stats().deaths());
-                break;
-            case ATS_GET_PLAYER_TOTAL_CAPTURES:
+            break; case ATS_GET_PLAYER_TOTAL_CAPTURES:
                 writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
                 writeLong(answer, ansLen, cid);
                 writeLong(answer, ansLen, world.player[pid].stats().captures());
-                break;
-            case ATS_SERVER_CHAT: {
+            break; case ATS_SERVER_CHAT: {
                 char buf[500];
                 if (!read_string_from_TCP(shellssock, buf)) {
                     log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
@@ -2480,29 +2463,24 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
                     else
                         bprintf(msg_normal, "ADMIN: %s", buf);
                 }
-                break;
             }
-            case ATS_GET_PINGS:
+            break; case ATS_GET_PINGS:
                 for (int p = 0; p < maxplayers; ++p)
                     if (world.player[p].used) {
                         writeLong(answer, ansLen, STA_PLAYER_PING);
                         writeLong(answer, ansLen, world.player[p].cid);
                         writeLong(answer, ansLen, world.player[p].ping);
                     }
-                break;
-            case ATS_MUTE_PLAYER:
+            break; case ATS_MUTE_PLAYER:
                 host->mutePlayer(pid, dwArg, -1);
-                break;
-            case ATS_KICK_PLAYER:
+            break; case ATS_KICK_PLAYER:
                 host->kickPlayer(pid, -1);
-                break;
-            case ATS_BAN_PLAYER:
+            break; case ATS_BAN_PLAYER:
                 host->banPlayer(pid, -1, 60 * 24 * 365);    // ban for a year; this can be later adjusted in auth.txt
-                break;
-            case ATS_RESET_SETTINGS: {
+            break; case ATS_RESET_SETTINGS:
                 host->reset_settings(true);
-                break;
-            }
+            break; default:
+                nAssert(0);
         }
 
         if (threadLock)

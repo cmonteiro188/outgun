@@ -186,13 +186,13 @@ public:
 };
 
 class TM_ServerSettings : public ThreadMessage {
-    NLubyte caplimit, timelimit, extratime, misc1;
-    NLushort pupMin, pupMax, pupAddTime, pupMaxTime;
+    NLubyte caplimit, timelimit, extratime;
+    NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
 
     void addLine(Client* cl, const std::string& caption, const std::string& value) const;
 
 public:
-    TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLubyte misc1_,
+    TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLushort misc1_,
                       NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_) :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_) { }
@@ -296,21 +296,21 @@ void TournamentPasswordManager::changeData(const string& newName, const string& 
 
 string TournamentPasswordManager::statusAsString() const {
     switch (status()) {
-        case PS_noPassword:         return _("No password set");
-        case PS_starting:           return _("Initializing...");
-        case PS_socketError:        return _("Socket error");
-        case PS_sending:            return _("Sending login...");
-        case PS_sendError:          return _("Error sending");
-        case PS_receiving:          return _("Waiting for response...");
-        case PS_recvError:          return _("No response");
-        case PS_invalidResponse:    return _("Invalid response received");
-        case PS_unavailable:        return _("Master server unavailable");
-        case PS_tokenReceived:      return _("Logged in");
-        case PS_badLogin:           return _("Login failed: check password");
-        case PS_tokenSent:          return _("Logged in; sent to server");
-        case PS_tokenAccepted:      return _("Logged in; server accepted");
-        case PS_tokenRejected:      return _("Error: server rejected");
-        default: nAssert(0); return 0;
+        break; case PS_noPassword:      return _("No password set");
+        break; case PS_starting:        return _("Initializing...");
+        break; case PS_socketError:     return _("Socket error");
+        break; case PS_sending:         return _("Sending login...");
+        break; case PS_sendError:       return _("Error sending");
+        break; case PS_receiving:       return _("Waiting for response...");
+        break; case PS_recvError:       return _("No response");
+        break; case PS_invalidResponse: return _("Invalid response received");
+        break; case PS_unavailable:     return _("Master server unavailable");
+        break; case PS_tokenReceived:   return _("Logged in");
+        break; case PS_badLogin:        return _("Login failed: check password");
+        break; case PS_tokenSent:       return _("Logged in; sent to server");
+        break; case PS_tokenAccepted:   return _("Logged in; server accepted");
+        break; case PS_tokenRejected:   return _("Error: server rejected");
+        break; default: nAssert(0); return 0;
     }
 }
 
@@ -520,12 +520,13 @@ void TM_ServerSettings::execute(Client* cl) const {
                                             cl->fx.physics.player_collisions == PhysicalSettings::PC_normal ? _("on") : _("special"));
     addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : (itoa(iround(100. * cl->fx.physics.friendly_fire)) + '%'));
 
-    const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer") };
+    const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer"), _("One hit shield") };
     int i;
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < 5; i++)
         addLine(cl, caps[i], (misc1 & (1 << i)) ? _("on") : _("off"));
 
-    addLine(cl, _("Maximum weapon level"), itoa(misc1 >> i));
+    addLine(cl, _("Maximum weapon level"), itoa((misc1 >> i) & 0x0F));
+    i += 4;
 
     const bool pupMinP = pupMin >= 100,
                pupMaxP = pupMax >= 100;
@@ -562,25 +563,15 @@ TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int lengt
 
 void TM_ConnectionUpdate::execute(Client* cl) const {
     switch (code) {
-        case 0:
-            cl->client_connected(data, length);
-            break;
-        case 1:
-            cl->client_disconnected(data, length);
-            break;
-        case 2:
-            cl->connect_failed_denied(data, length);
-            break;
-        case 3:
-            cl->connect_failed_unreachable();
-            break;
-        case 4: {
+        break; case 0: cl->client_connected(data, length);
+        break; case 1: cl->client_disconnected(data, length);
+        break; case 2: cl->connect_failed_denied(data, length);
+        break; case 3: cl->connect_failed_unreachable();
+        break; case 4: {
             const string msg = _("The server is full.");
             cl->connect_failed_denied(msg.data(), msg.length());
-            break;
         }
-        default:
-            nAssert(0);
+        break; default: nAssert(0);
     }
 }
 
@@ -738,49 +729,47 @@ bool Client::start() {
         getline(command, args); // this might fail, but that only means there is an empty string
         switch (static_cast<ClientCfgSetting>(settingId)) {
             // name menu
-            case CCS_PlayerName:            if (check_name(args)) playername = args; break;
-            case CCS_Tournament:            menu.options.name.tournament.set(args == "1"); break;
+            break; case CCS_PlayerName:            if (check_name(args)) playername = args;
+            break; case CCS_Tournament:            menu.options.name.tournament.set(args == "1");
 
             // connect menu
-            case CCS_Favorites:             menu.connect.favorites.set(args == "1"); break;
+            break; case CCS_Favorites:             menu.connect.favorites.set(args == "1");
 
             // game menu
-            case CCS_ShowNames:             menu.options.game.showNames.set(args == "1"); break;
-            case CCS_FavoriteColors: {
+            break; case CCS_ShowNames:             menu.options.game.showNames.set(args == "1");
+            break; case CCS_FavoriteColors: {
                 istringstream ist(args);
                 int col;
                 while (ist >> col)
                     if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
                         fav_colors.push_back(col);
-                break;
             }
-            case CCS_LagPrediction:         menu.options.game.lagPrediction.set(args == "1"); break;
-            case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args)); break;
-            case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none); break;
-            case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1"); break;
-            case CCS_ShowStats:             menu.options.game.showStats.set(args == "1"); break;
-            case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1"); break;
-            case CCS_UnderlineMasterAuth:   menu.options.game.underlineMasterAuth.set(args == "1"); break;
-            case CCS_UnderlineServerAuth:   menu.options.game.underlineServerAuth.set(args == "1"); break;
-            case CCS_AutoGetServerList:     menu.options.game.autoGetServerList.set(args == "1"); break;
+            break; case CCS_LagPrediction:         menu.options.game.lagPrediction.set(args == "1");
+            break; case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args));
+            break; case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none);
+            break; case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1");
+            break; case CCS_ShowStats:             menu.options.game.showStats.set(args == "1");
+            break; case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1");
+            break; case CCS_UnderlineMasterAuth:   menu.options.game.underlineMasterAuth.set(args == "1");
+            break; case CCS_UnderlineServerAuth:   menu.options.game.underlineServerAuth.set(args == "1");
+            break; case CCS_AutoGetServerList:     menu.options.game.autoGetServerList.set(args == "1");
 
             // controls menu
-            case CCS_KeyboardLayout:
+            break; case CCS_KeyboardLayout:
                 if (!menu.options.controls.keyboardLayout.set(args)) {  // it is possible to have a layout Outgun doesn't know about
                     menu.options.controls.keyboardLayout.addOption(_("unknown ($1)", args), args);
                     nAssert(menu.options.controls.keyboardLayout.set(args));
                 }
-                break;
-            case CCS_KeypadMoving:          menu.options.controls.keypadMoving.set(args == "1"); break;
-            case CCS_Joystick:              menu.options.controls.joystick.set(args == "1"); break;
-            case CCS_JoystickMove:          menu.options.controls.joyMove.boundSet(atoi(args)); break;
-            case CCS_JoystickShoot:         menu.options.controls.joyShoot.boundSet(atoi(args)); break;
-            case CCS_JoystickRun:           menu.options.controls.joyRun.boundSet(atoi(args)); break;
-            case CCS_JoystickStrafe:        menu.options.controls.joyStrafe.boundSet(atoi(args)); break;
+            break; case CCS_KeypadMoving:          menu.options.controls.keypadMoving.set(args == "1");
+            break; case CCS_Joystick:              menu.options.controls.joystick.set(args == "1");
+            break; case CCS_JoystickMove:          menu.options.controls.joyMove.boundSet(atoi(args));
+            break; case CCS_JoystickShoot:         menu.options.controls.joyShoot.boundSet(atoi(args));
+            break; case CCS_JoystickRun:           menu.options.controls.joyRun.boundSet(atoi(args));
+            break; case CCS_JoystickStrafe:        menu.options.controls.joyStrafe.boundSet(atoi(args));
 
             // graphics menu
-            case CCS_Windowed:              menu.options.graphics.windowed.set(args == "1"); break;
-            case CCS_GFXMode: {
+            break; case CCS_Windowed:              menu.options.graphics.windowed.set(args == "1");
+            break; case CCS_GFXMode: {
                 if (extConfig.forceDefaultGfxMode)
                     break;
                 istringstream is(args);
@@ -797,26 +786,25 @@ bool Client::start() {
                     if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
                 }
-                break;
             }
-            case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1"); break;
-            case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args)); break;
-            case CCS_GFXTheme:              menu.options.graphics.theme.set(args); break;   // ignore error
-            case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2"); break;
-            case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1"); break;
-            case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args)); break;
+            break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
+            break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
+            break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);   // ignore error
+            break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
+            break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
+            break; case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args));
 
             // sound menu
-            case CCS_SoundEnabled:          menu.options.sounds.enabled.set(args == "1"); break;
-            case CCS_Volume:                menu.options.sounds.volume.boundSet(atoi(args)); break;
-            case CCS_SoundTheme:            menu.options.sounds.theme.set(args); break; // ignore error
+            break; case CCS_SoundEnabled:          menu.options.sounds.enabled.set(args == "1");
+            break; case CCS_Volume:                menu.options.sounds.volume.boundSet(atoi(args));
+            break; case CCS_SoundTheme:            menu.options.sounds.theme.set(args); // ignore error
 
             // local server menu
-            case CCS_ServerPublic:          menu.ownServer.pub.set(args == "1"); break;
-            case CCS_ServerPort:            menu.ownServer.port.boundSet(atoi(args)); break;
-            case CCS_ServerAddress:         menu.ownServer.address.set(args); break;
-            case CCS_AutodetectAddress:     menu.ownServer.autoIP.set(args == "1"); break;
-            default:    nAssert(0); // must handle all values up to the highest known
+            break; case CCS_ServerPublic:          menu.ownServer.pub.set(args == "1");
+            break; case CCS_ServerPort:            menu.ownServer.port.boundSet(atoi(args));
+            break; case CCS_ServerAddress:         menu.ownServer.address.set(args);
+            break; case CCS_AutodetectAddress:     menu.ownServer.autoIP.set(args == "1");
+            break; default: nAssert(0); // must handle all values up to the highest known
         }
     }
     cfg.close();
@@ -1148,13 +1136,13 @@ void Client::client_disconnected(const char* data, int length) {
 
     if (length == 1)
         switch (data[0]) {
-            case server_c::disconnect_client_initiated: break;
-            case server_c::disconnect_server_shutdown:  description = _("Server was shut down."); break;
-            case server_c::disconnect_timeout:          description = _("Connection timed out."); break;
-            case disconnect_kick:                       description = _("You were kicked."); break;
-            case disconnect_idlekick:                   description = _("You were kicked for being idle."); break;
-            case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved)."); break;
-            default:    break;
+            break; case server_c::disconnect_client_initiated: // user knows why, so no description
+            break; case server_c::disconnect_server_shutdown:  description = _("Server was shut down.");
+            break; case server_c::disconnect_timeout:          description = _("Connection timed out.");
+            break; case disconnect_kick:                       description = _("You were kicked.");
+            break; case disconnect_idlekick:                   description = _("You were kicked for being idle.");
+            break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
+            break; default:;
         }
     m_connectProgress.clear();
     m_connectProgress.wrapLine(_("You have been disconnected."));
@@ -1193,34 +1181,28 @@ void Client::connect_failed_denied(const char* data, int length) {
         else {
             Connect_rejection_reason reason = static_cast<Connect_rejection_reason>(rb);
             switch (reason) {
-            case reject_server_full:
+            break; case reject_server_full:
                 message = _("The server is full.");
-                break;
-            case reject_banned:
+            break; case reject_banned:
                 message = _("You are banned from this server.");
-                break;
-            case reject_player_password_needed:
+            break; case reject_player_password_needed:
                 openMenus.close(&m_connectProgress.menu);
                 m_playerPassword.setup(playername, false);
                 showMenu(m_playerPassword);
                 userHandled = true;
                 message = "Asking for player password."; // just for logging
-                break;
-            case reject_wrong_player_password:
+            break; case reject_wrong_player_password:
                 message = _("Wrong player password.");
                 remove_player_password(playername, addressToString(serverIP));
-                break;
-            case reject_server_password_needed:
+            break; case reject_server_password_needed:
                 openMenus.close(&m_connectProgress.menu);
                 showMenu(m_serverPassword);
                 userHandled = true;
                 message = "Asking for server password."; // just for logging
-                break;
-            case reject_wrong_server_password:
+            break; case reject_wrong_server_password:
                 message = _("Wrong server password.");
                 m_serverPassword.password.set("");
-                break;
-            default: nAssert(0);
+            break; default: nAssert(0);
             }
         }
     }
@@ -1561,11 +1543,12 @@ void Client::process_incoming_data(const char* data, int length) {
                 h.ly = hy * (plh / double(0xFFF));
 
                 //V0.3.9 speed em bytes, xinelao mesmo
-                NLbyte sxy;
-                readByte(data, count, sxy); //sx
-                h.sx = static_cast<double>(sxy) / 2.0;
-                readByte(data, count, sxy); //sy
-                h.sy = static_cast<double>(sxy) / 2.0;
+                typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                NLubyte byte;
+                readByte(data, count, byte);
+                h.sx = SpeedType::toDouble(byte);
+                readByte(data, count, byte);
+                h.sy = SpeedType::toDouble(byte);
 
                 //EXTRA BYTE
                 NLubyte byt, extra;
@@ -1653,7 +1636,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
         //parse rest of message
         switch (static_cast<Network_data_code>(code)) {
-            case data_name_update: {
+            break; case data_name_update: {
                 NLubyte pid;
                 string name;
                 readByte(lebuf, count, pid);
@@ -1667,10 +1650,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 }
                 else
                     log.error("Invalid name for player " + itoa(pid) + '.');
-                break;
             }
 
-            case data_text_message: {
+            break; case data_text_message: {
                 char byte;
                 readByte(lebuf, count, byte);
                 const Message_type type = static_cast<Message_type>(byte);
@@ -1684,10 +1666,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 addThreadMessage(new TM_Text(type, chatmsg));
                 if (type == msg_team || type == msg_normal)
                     addThreadMessage(new TM_Sound(SAMPLE_TALK));
-                break;
             }
 
-            case data_first_packet: {
+            break; case data_first_packet: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);    //"who am I"
                 me = pid;
@@ -1716,21 +1697,18 @@ void Client::process_incoming_data(const char* data, int length) {
                 // room is probably changed
                 fx.player[me].oldx = -1;
                 fx.player[me].oldy = -1;
-
-                break;
             }
 
-            case data_frags_update: {
+            break; case data_frags_update: {
                 NLubyte pid;
                 NLulong frags;
                 readByte(lebuf, count, pid);
                 readLong(lebuf, count, frags);
                 fx.player[pid].stats().set_frags(frags);
                 stable_sort(players_sb.begin(), players_sb.end(), compare_players);
-                break;
             }
 
-            case data_flag_update: {
+            break; case data_flag_update: {
                 NLubyte team;
                 NLbyte flags;
                 readByte(lebuf, count, team);
@@ -1770,10 +1748,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
                     }
                 }
-                break;
             }
 
-            case data_rocket_fire: {
+            break; case data_rocket_fire: {
                 if (!map_ready)
                     break;
 
@@ -1808,10 +1785,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
                     else
                         addThreadMessage(new TM_Sound(SAMPLE_FIRE));
-                break;
             }
 
-            case data_old_rocket_visible: {
+            break; case data_old_rocket_visible: {
                 if (!map_ready)
                     break;
 
@@ -1836,10 +1812,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 ClientPhysicsCallbacks cb(*this);
                 fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
                 // no sound
-                break;
             }
 
-            case data_rocket_delete: {
+            break; case data_rocket_delete: {
                 if (!map_ready)
                     break;
 
@@ -1857,34 +1832,31 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py));
                     addThreadMessage(new TM_Sound(SAMPLE_HIT));
                 }
-                break;
             }
 
-            case data_power_collision: {
+            break; case data_power_collision: {
                 NLubyte target;
                 readByte(lebuf, count, target);
                 fx.player[target].hitfx = get_time() + .3;
                 addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
             }
 
-            case data_score_update: {
+            break; case data_score_update: {
                 NLubyte team;
                 NLubyte score;
                 readByte(lebuf, count, team);       //team
                 readByte(lebuf, count, score);      //new score
                 fx.teams[team].set_score(score);    // update the score
-                break;
             }
 
-            case data_sound: {
+            break; case data_sound: {
                 NLubyte sample;
                 readByte(lebuf, count, sample);     // sample #
                 if (sample < NUM_OF_SAMPLES)
                     addThreadMessage(new TM_Sound(sample));
-                break;
             }
 
-            case data_pup_visible: {
+            break; case data_pup_visible: {
                 NLubyte iid, kind, spos;
                 readByte(lebuf, count, iid);        // item id
                 readByte(lebuf, count, kind);       // kind
@@ -1898,17 +1870,15 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.item[iid].x = coord;
                 readShort(lebuf, count, coord);     // pos y
                 fx.item[iid].y = coord;
-                break;
             }
 
-            case data_pup_picked: {
+            break; case data_pup_picked: {
                 NLubyte iid;
                 readByte(lebuf, count, iid);
                 fx.item[iid].kind = Powerup::pup_unused;        // no more!
-                break;
             }
 
-            case data_pup_timer: {
+            break; case data_pup_timer: {
                 NLubyte iid;
                 NLushort time;
                 readByte(lebuf, count, iid);    //kind
@@ -1921,23 +1891,23 @@ void Client::process_incoming_data(const char* data, int length) {
                     else if (iid == Powerup::pup_power)
                         fx.player[me].item_power_time = get_time() + time;
                 }
-                break;
             }
 
-            case data_weapon_change: {
+            break; case data_weapon_change: {
                 NLubyte level;
                 readByte(lebuf, count, level);
                 if (me >= 0)
                     fx.player[me].weapon = level;
-                break;
             }
 
-            case data_map_change: {
+            break; case data_map_change: {
                 map_ready = false;  // map NOT ready anymore: must load/change
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 fx.teams[0].remove_flags();
                 fx.teams[1].remove_flags();
                 fx.wild_flags.clear();
+                for (int i = 0; i < MAX_ROCKETS; ++i)
+                    fx.rock[i].owner = -1;
                 NLushort crc;
                 readShort(lebuf, count, crc);
                 string mapname, maptitle;
@@ -1955,17 +1925,17 @@ void Client::process_incoming_data(const char* data, int length) {
                 addThreadMessage(new TM_MapChange(mapname, crc));
                 const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
                 addThreadMessage(new TM_Text(msg_info, msg));
-                break;
             }
 
-            case data_world_reset:
+            break; case data_world_reset:
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                     pi->stats().finish_stats(get_time());
                 for (int iid = 0; iid < MAX_PICKUPS; ++iid)
                     fx.item[iid].kind = Powerup::pup_unused;
-                break;
+                for (int i = 0; i < MAX_ROCKETS; ++i)
+                    fx.rock[i].owner = -1;
 
-            case data_gameover_show: {
+            break; case data_gameover_show: {
                 NLubyte plaque;
                 readByte(lebuf, count, plaque);
                 if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
@@ -2002,10 +1972,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         stats_autoshowing = false;
                     }
                 }
-                break;
             }
 
-            case data_start_game:
+            break; case data_start_game:
                 gameover_plaque = NEXTMAP_NONE;     //hide
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
@@ -2015,9 +1984,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     menusel = menu_none;
                     stats_autoshowing = false;
                 }
-                break;
 
-            case data_deathbringer: {
+            break; case data_deathbringer: {
                 NLubyte team;
                 NLulong frameno;
                 NLubyte sx, sy;
@@ -2030,29 +1998,26 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, hy);
                 addThreadMessage(new TM_Deathbringer(team, get_time() + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
                 addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
-                break;
             }
 
-            case data_file_download: {
+            break; case data_file_download: {
                 NLubyte last;
                 NLushort chunkSize;
                 readShort(lebuf, count, chunkSize);     //chunk size
                 readByte(lebuf, count, last);       //"last chunk"?
                 process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
-                break;
             }
 
-            case data_registration_response: {
+            break; case data_registration_response: {
                 NLubyte response;
                 readByte(lebuf, count, response);
                 if (response == 1)  // success
                     tournamentPassword.serverAcceptsToken();
                 else
                     tournamentPassword.serverRejectsToken();
-                break;
             }
 
-            case data_crap_update: {
+            break; case data_crap_update: {
                 NLubyte pid, color, regStatus;
                 NLulong prank, pscore, nscore;
                 readByte(lebuf, count, pid);
@@ -2113,10 +2078,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
                 for (int t = 0; t < 2; t++)
                     fx.teams[t].set_power(power[t]);
-                break;
             }
 
-            case data_map_time: {
+            break; case data_map_time: {
                 int current_time, time_left;
                 readLong(lebuf, count, current_time);
                 readLong(lebuf, count, time_left);
@@ -2129,18 +2093,16 @@ void Client::process_incoming_data(const char* data, int length) {
                     map_time_limit = false;
                 if (LOG_MESSAGE_TRAFFIC)
                     log("Map time received. Time left %d seconds.", time_left);
-                break;
             }
 
-            case data_reset_map_list: {
+            break; case data_reset_map_list: {
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.clear();
                 map_vote = -1;
-                break;
             }
 
-            case data_map_list: {
+            break; case data_map_list: {
                 NLubyte width, height, votes;
                 MapInfo mapinfo;
                 readStr(lebuf, count, mapinfo.title);
@@ -2154,16 +2116,15 @@ void Client::process_incoming_data(const char* data, int length) {
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.push_back(mapinfo);
-                break;
             }
 
-            case data_map_vote: {
+            break; case data_map_vote: {
                 NLbyte map_nr;
                 readByte(lebuf, count, map_nr);
                 map_vote = map_nr;
             }
 
-            case data_map_votes_update: {
+            break; case data_map_votes_update: {
                 NLbyte total, map_nr, votes;
                 readByte(lebuf, count, total);
                 MutexDebug md("mapInfoMutex", __LINE__, log);
@@ -2174,10 +2135,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
                         maps[map_nr].votes = votes;
                 }
-                break;
             }
 
-            case data_stats_ready: {
+            break; case data_stats_ready: {
                 if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
                     menusel = menu_teams;
                     stats_autoshowing = true;
@@ -2186,10 +2146,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     pi->stats().finish_stats(get_time());
                 if (menu.options.game.saveStats())
                     fx.save_stats("client_stats", old_map);
-                break;
             }
 
-            case data_capture: {
+            break; case data_capture: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 const bool wild_flag = pid & 0x80;
@@ -2206,10 +2165,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
-                break;
             }
 
-            case data_kill: {
+            break; case data_kill: {
                 NLubyte attacker, target;
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
@@ -2303,10 +2261,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 is on a killing spree!", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
-                break;
             }
 
-            case data_flag_take: {
+            break; case data_flag_take: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 const bool wild_flag = pid & 0x80;
@@ -2322,10 +2279,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
-                break;
             }
 
-            case data_flag_return: {
+            break; case data_flag_return: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().add_flag_return();
@@ -2337,10 +2293,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
-                break;
             }
 
-            case data_flag_drop: {
+            break; case data_flag_drop: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 const bool wild_flag = pid & 0x80;
@@ -2357,10 +2312,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-                break;
             }
 
-            case data_suicide: {
+            break; case data_suicide: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 const bool flag = pid & 0x80;
@@ -2387,10 +2341,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 }
                 addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-                break;
             }
 
-            case data_players_present: {    // this is only sent immediately after connecting to the server
+            break; case data_players_present: {    // this is only sent immediately after connecting to the server
                 NLulong pp;
                 readLong(lebuf, count, pp);
                 for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -2401,19 +2354,17 @@ void Client::process_incoming_data(const char* data, int length) {
                         players_sb.push_back(&fx.player[i]);
                     }
                 }
-                break;
             }
 
-            case data_new_player: {
+            break; case data_new_player: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 nAssert(!fx.player[pid].used);
                 fx.player[pid].clear(true, pid, "", pid / TSIZE);
                 players_sb.push_back(&fx.player[pid]);
-                break;
             }
 
-            case data_player_left: {
+            break; case data_player_left: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
@@ -2424,10 +2375,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 players_sb.erase(rm);
                 nAssert(fx.player[pid].used);
                 fx.player[pid].used = false;
-                break;
             }
             
-            case data_team_change: {
+            break; case data_team_change: {
                 NLubyte from, to, col1, col2;
                 readByte(lebuf, count, from);
                 readByte(lebuf, count, to);
@@ -2484,18 +2434,15 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.player[from].stats().kill(static_cast<int>(get_time()), true);
                     fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
                 }
-
-                break;
             }
 
-            case data_spawn: {
+            break; case data_spawn: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().spawn(get_time());
-                break;
             }
 
-            case data_team_movements_shots: {
+            break; case data_team_movements_shots: {
                 for (int i = 0; i < 2; i++) {
                     NLlong movement;
                     readLong(lebuf, count, movement);
@@ -2508,10 +2455,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     readShort(lebuf, count, data);
                     fx.teams[i].set_shots_taken(data);
                 }
-                break;
             }
 
-            case data_team_stats: {
+            break; case data_team_stats: {
                 for (int i = 0; i < 2; i++) {
                     NLubyte data;
                     readByte(lebuf, count, data);
@@ -2527,10 +2473,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     readByte(lebuf, count, data);
                     fx.teams[i].set_flags_returned(data);
                 }
-                break;
             }
 
-            case data_movements_shots: {
+            break; case data_movements_shots: {
                 NLubyte id;
                 readByte(lebuf, count, id);
                 // todo: check id
@@ -2545,10 +2490,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[id].stats().set_hits(data);
                 readShort(lebuf, count, data);
                 fx.player[id].stats().set_shots_taken(data);
-                break;
             }
 
-            case data_stats: {
+            break; case data_stats: {
                 NLubyte id;
                 readByte(lebuf, count, id);
                 const bool flag = (id & 0x80);
@@ -2593,21 +2537,18 @@ void Client::process_incoming_data(const char* data, int length) {
                 readLong(lebuf, count, ldata);
                 stats.set_flag_carrying_time(ldata);
                 stats.set_flag_take_time(get_time());
-                break;
             }
 
-            case data_name_authorization_request: {
+            break; case data_name_authorization_request:
                 addThreadMessage(new TM_NameAuthorizationRequest());
-                break;
-            }
 
-            case data_server_settings: {
+            break; case data_server_settings: {
                 NLubyte caplimit, timelimit, extratime, misc1;
                 NLushort pupMin, pupMax, pupAddTime, pupMaxTime;
                 readByte(lebuf, count, caplimit);
                 readByte(lebuf, count, timelimit);
                 readByte(lebuf, count, extratime);
-                readByte(lebuf, count, misc1);
+                readShort(lebuf, count, misc1);
                 readShort(lebuf, count, pupMin);
                 readShort(lebuf, count, pupMax);
                 readShort(lebuf, count, pupAddTime);
@@ -2615,47 +2556,35 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.physics.read(lebuf, count);
                 fd.physics = fx.physics;
                 addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
-                break;
             }
 
-            case data_5_min_left: {
+            break; case data_5_min_left:
                 addThreadMessage(new TM_Text(msg_info, _("*** Five minutes remaining")));
                 addThreadMessage(new TM_Sound(SAMPLE_5_MIN_LEFT));
-                break;
-            }
 
-            case data_1_min_left: {
+            break; case data_1_min_left:
                 addThreadMessage(new TM_Text(msg_info, _("*** One minute remaining")));
                 addThreadMessage(new TM_Sound(SAMPLE_1_MIN_LEFT));
-                break;
-            }
 
-            case data_30_s_left: {
+            break; case data_30_s_left:
                 addThreadMessage(new TM_Text(msg_info, _("*** 30 seconds remaining")));
-                break;
-            }
 
-            case data_time_out: {
+            break; case data_time_out:
                 addThreadMessage(new TM_Text(msg_info, _("*** Time out - CTF game over")));
-                break;
-            }
 
-            case data_extra_time_out: {
+            break; case data_extra_time_out:
                 addThreadMessage(new TM_Text(msg_info, _("*** Extra-time out - CTF game over")));
-                break;
-            }
 
-            case data_normal_time_out: {
+            break; case data_normal_time_out: {
                 NLubyte sudden_death;
                 readByte(lebuf, count, sudden_death);
                 string msg = _("*** Normal time out - extra-time started");
                 if (sudden_death & 0x01)
                     msg += " " + _("(sudden death)");
                 addThreadMessage(new TM_Text(msg_info, msg));
-                break;
             }
             
-            case data_map_change_info: {
+            break; case data_map_change_info: {
                 NLubyte votes, needed;
                 NLshort vote_block_time;
                 readByte(lebuf, count, votes);
@@ -2665,28 +2594,18 @@ void Client::process_incoming_data(const char* data, int length) {
                 if (vote_block_time > 0)
                     msg += ' ' + _("(All players needed for $1 more seconds.)", itoa(vote_block_time));
                 addThreadMessage(new TM_Text(msg_info, msg));
-                break;
             }
 
-            case data_too_much_talk: {
-                const string msg = _("Too much talk. Chill...");
-                addThreadMessage(new TM_Text(msg_warning, msg));
-                break;
-            }
+            break; case data_too_much_talk:
+                addThreadMessage(new TM_Text(msg_warning, _("Too much talk. Chill...")));
 
-            case data_mute_notification: {
-                const string msg = _("You are muted. You can't send messages.");
-                addThreadMessage(new TM_Text(msg_warning, msg));
-                break;
-            }
+            break; case data_mute_notification:
+                addThreadMessage(new TM_Text(msg_warning, _("You are muted. You can't send messages.")));
 
-            case data_tournament_update_failed: {
-                const string msg = _("Updating your tournament score failed!");
-                addThreadMessage(new TM_Text(msg_warning, msg));
-                break;
-            }
+            break; case data_tournament_update_failed:
+                addThreadMessage(new TM_Text(msg_warning, _("Updating your tournament score failed!")));
 
-            case data_player_mute: {
+            break; case data_player_mute: {
                 NLubyte pid, mode;
                 string admin;
                 readByte(lebuf, count, pid);
@@ -2712,10 +2631,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 has muted $2.", admin, fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
-                break;
             }
 
-            case data_player_kick: {
+            break; case data_player_kick: {
                 NLubyte pid;
                 NLlong minutes;
                 string admin;
@@ -2738,39 +2656,32 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
-                break;
             }
 
-            case data_disconnecting: {
+            break; case data_disconnecting: {
                 NLubyte time;
                 readByte(lebuf, count, time);
                 const string msg = _("Disconnecting in $1...", itoa(time));
                 addThreadMessage(new TM_Text(msg_warning, msg));
-                break;
             }
 
-            case data_idlekick_warning: {
+            break; case data_idlekick_warning: {
                 NLubyte time;
                 readByte(lebuf, count, time);
                 const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
                 addThreadMessage(new TM_Text(msg_warning, msg));
-                break;
             }
             
-            case data_broken_map: {
-                const string msg = _("This map is broken. There is an instantly capturable flag. Avoid it.");
-                addThreadMessage(new TM_Text(msg_warning, msg));
-                break;
-            }
+            break; case data_broken_map:
+                addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
 
-            default:
+            break; default:
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
                     log.error("Server sent an unknown message code: " + itoa(code) + ", length " + itoa(msglen));
                     addThreadMessage(new TM_DoDisconnect());
                     return; // don't process the rest of the messages
                 }
                 // just ignore commands in reserved range: they're probably some extension we don't have to care about
-                break;
         }
     }
 }
@@ -2830,13 +2741,13 @@ void Client::toggle_help() {
 
 string Client::refreshStatusAsString() const {
     switch (refreshStatus) {
-        case RS_none:       return _("Inactive");
-        case RS_running:    return _("Running");
-        case RS_failed:     return _("Failed");
-        case RS_contacting: return _("Contacting the servers...");
-        case RS_connecting: return _("Getting server list: connecting...");
-        case RS_receiving:  return _("Getting server list: receiving...");
-        default:    nAssert(0);
+        break; case RS_none:       return _("Inactive");
+        break; case RS_running:    return _("Running");
+        break; case RS_failed:     return _("Failed");
+        break; case RS_contacting: return _("Contacting the servers...");
+        break; case RS_connecting: return _("Getting server list: connecting...");
+        break; case RS_receiving:  return _("Getting server list: receiving...");
+        break; default: nAssert(0);
     }
     nAssert(0); return 0;
 }
@@ -3138,6 +3049,172 @@ bool Client::parseServerList(istream& response) {
     return (servers_read == total_servers);
 }
 
+void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+    // handle global keys first
+    bool handled = true;
+    switch (sc) {   // if the key isn't handled, set handled = false
+        break; case KEY_ESC:
+            if (!talkbuffer.empty()) // cancel chat
+                talkbuffer.clear();
+            else if (!openMenus.empty())
+                MCF_menuCloser();
+            else if (menusel != menu_none) {
+                menusel = menu_none;
+                stats_autoshowing = false;
+            }
+            else
+                showMenu(menu);
+        break; case KEY_F1:
+            toggle_help();
+        break; case KEY_F11:
+            screenshot = true;
+        break; case KEY_F5:
+            if (openMenus.safeTop() == &m_serverInfo.menu)
+                openMenus.close();
+            else if (connected)
+                showMenu(m_serverInfo);
+            stats_autoshowing = false;
+        break; case KEY_F3:
+            if (withControl)
+                menu.options.game.showNames.toggle();
+            else
+                handled = false;
+        break; case KEY_ENTER:
+            if (ch == 0) {  // Alt+Enter
+                menu.options.graphics.windowed.toggle();
+                screenModeChange(); // ignore error
+            }
+            else
+                handled = false;
+        break; default:
+            handled = false;
+    }
+    if (handled)
+        return;
+    if (!openMenus.empty()) {
+        MutexLock ml(frameMutex);   // some menus need access
+        openMenus.handleKeypress(sc, ch);
+        return;
+    }
+    handled = true;
+    switch (sc) {
+        break; case KEY_F2:
+            menusel = (menusel == menu_maps ? menu_none : menu_maps);
+            stats_autoshowing = false;
+        break; case KEY_F3:
+            menusel = (menusel == menu_teams ? menu_none : menu_teams);
+            stats_autoshowing = false;
+        break; case KEY_F4:
+            menusel = (menusel == menu_players ? menu_none : menu_players);
+            stats_autoshowing = false;
+        break; case KEY_F8: {
+            want_map_exit = !want_map_exit;
+
+            char lebuf[16]; int count = 0;
+            if (want_map_exit)
+                writeByte(lebuf, count, data_map_exit_on);
+            else
+                writeByte(lebuf, count, data_map_exit_off);
+            client->send_message(lebuf, count);
+        }
+        break; default:
+            handled = false;
+    }
+    if (handled)
+        return;
+    if (menusel != menu_none)
+        handleInfoScreenKeypress(sc, ch, withControl, alt_sequence);
+    else
+        handleGameKeypress(sc, ch, withControl, alt_sequence);
+}
+
+void Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+    (void)(withControl&alt_sequence);
+    switch (menusel) {
+        break; case menu_maps:
+            switch (sc) {
+                break; case KEY_UP:     client_graphics.map_list_prev();
+                break; case KEY_DOWN:   client_graphics.map_list_next();
+                break; case KEY_PGUP:   client_graphics.map_list_prev_page();
+                break; case KEY_PGDN:   client_graphics.map_list_next_page();
+                break; case KEY_HOME:   client_graphics.map_list_begin();
+                break; case KEY_END:    client_graphics.map_list_end();
+                break; case KEY_BACKSPACE:
+                    if (!edit_map_vote.empty())
+                        edit_map_vote.erase(edit_map_vote.end() - 1);
+                break; case KEY_ENTER: case KEY_ENTER_PAD: {
+                    const int new_vote = atoi(edit_map_vote) - 1;
+                    edit_map_vote.clear();
+                    if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
+                        map_vote = new_vote;
+                        // send map vote
+                        char lebuf[16];
+                        int count = 0;
+                        writeByte(lebuf, count, data_map_vote);
+                        writeByte(lebuf, count, map_vote);
+                        client->send_message(lebuf, count);
+                    }
+                }
+                break; default:
+                    if (isdigit(ch) && edit_map_vote.size() < 3)
+                        edit_map_vote += ch;
+            }
+        break; case menu_players:
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
+                player_stats_page = max(0, player_stats_page - 1);
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
+                player_stats_page = min(3, player_stats_page + 1);
+            else if (sc == KEY_TAB)
+                player_stats_page = (player_stats_page + 1) % 4;
+        break; case menu_teams:
+            if (sc == KEY_UP || sc == KEY_PGUP)
+                client_graphics.team_captures_prev();
+            if (sc == KEY_DOWN || sc == KEY_PGDN)
+                client_graphics.team_captures_next();
+        break; case menu_none: // regular menu, if any, handled elsewhere
+        break; default:
+            nAssert(0);
+    }
+}
+
+void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+    switch (sc) {
+        break; case KEY_HOME:   // change colours
+            if (withControl)
+                client_graphics.reset_playground_colors();
+            else
+                client_graphics.random_playground_colors();
+            predrawNeeded = true;
+        break; case KEY_INSERT:
+            show_all_messages = !show_all_messages;
+        break; case KEY_BACKSPACE:
+            if (!talkbuffer.empty())
+                talkbuffer.erase(talkbuffer.end() - 1);
+        break; case KEY_ENTER: case KEY_ENTER_PAD:
+            if (!talkbuffer.empty()) {
+                send_chat(talkbuffer);
+                talkbuffer.clear();
+            }
+        break; case KEY_DEL: {
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, data_suicide);
+            client->send_message(lebuf, count);
+        }
+        break; case KEY_END: {
+            want_change_teams = !want_change_teams;
+
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, want_change_teams ? data_change_team_on : data_change_team_off);
+            client->send_message(lebuf, count);
+        }
+        break; default:
+            // Add character to text
+            if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
+                    (!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence)))
+                talkbuffer += static_cast<char>(ch);
+    }
+}
+
 void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     nAssert(quitFlag);
     quitCommand = false;
@@ -3157,188 +3234,63 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     unsigned long nextClientFrameI = time_counter;
     double nextClientFrameF = nextClientFrameI;
 
-    bool key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
-    char key_up=0, key_down=0, key_left=0, key_right=0;
+    bool prevFire = false, prevDropFlag = false;
+    char key_up = 0, key_down = 0, key_left = 0, key_right = 0;
     while (!quitCommand && !*quitFlag) {
         // (1) loop doing input/sleep before next simulation/draw time
         for (;;) {
+            const bool controlPressed = (key[KEY_LCONTROL] || key[KEY_RCONTROL]);
+
             //quit key Control-F12
-            if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
+            if (controlPressed && key[KEY_F12]) {
                 quitCommand = true;
                 break;
             }
 
-            // menu keypresses; ESC is dealt with elsewhere
-            if (menusel != menu_none || !openMenus.empty()) {
-                while (keypressed()) {
-                    int ch = readkey();
-                    const int sc = ch >> 8; // scancode
-                    ch &= 0xFF;             // character
+            static bool alt_sequence = false;
 
-                    if (sc == KEY_F11)
-                        screenshot = true;
-                    else if (sc == KEY_F1)
-                        toggle_help();
-                    else if (sc == KEY_F5) {
-                        if (openMenus.safeTop() == &m_serverInfo.menu)
-                            openMenus.close();
-                        else if (connected)
-                            showMenu(m_serverInfo);
-                        stats_autoshowing = false;
-                    }
-                    else if (openMenus.empty() && (menusel == menu_maps || menusel == menu_players || menusel == menu_teams)) {
-                        if (sc == KEY_F2) {
-                            menusel = (menusel == menu_maps ? menu_none : menu_maps);
-                            stats_autoshowing = false;
-                        }
-                        else if (sc == KEY_F3) {
-                            menusel = (menusel == menu_teams ? menu_none : menu_teams);
-                            stats_autoshowing = false;
-                        }
-                        else if (sc == KEY_F4) {
-                            menusel = (menusel == menu_players ? menu_none : menu_players);
-                            stats_autoshowing = false;
-                        }
-                    }
+            if (keyboard_needs_poll())
+                poll_keyboard();    // ignore return value
 
-                    if (!openMenus.empty()) {
-                        MutexLock ml(frameMutex);   // some menus need access
-                        openMenus.handleKeypress(sc, ch);
-                    }
-                    else switch (menusel) {
-                        case menu_maps:
-                            if (key[KEY_UP])
-                                client_graphics.map_list_prev();
-                            if (key[KEY_DOWN])
-                                client_graphics.map_list_next();
-                            if (key[KEY_PGUP])
-                                client_graphics.map_list_prev_page();
-                            if (key[KEY_PGDN])
-                                client_graphics.map_list_next_page();
-                            if (key[KEY_HOME])
-                                client_graphics.map_list_begin();
-                            if (key[KEY_END])
-                                client_graphics.map_list_end();
-                            if (isdigit(ch) && edit_map_vote.size() < 3)
-                                edit_map_vote += ch;
-                            else if (sc == KEY_BACKSPACE) {
-                                if (!edit_map_vote.empty())
-                                    edit_map_vote.erase(edit_map_vote.end() - 1);
-                            }
-                            else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-                                const int new_vote = atoi(edit_map_vote) - 1;
-                                edit_map_vote.clear();
-                                if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
-                                    map_vote = new_vote;
-                                    // send map vote
-                                    char lebuf[16];
-                                    int count = 0;
-                                    writeByte(lebuf, count, data_map_vote);
-                                    writeByte(lebuf, count, map_vote);
-                                    client->send_message(lebuf, count);
-                                }
-                            }
-                            break;
-                        case menu_players:
-                            if (key[KEY_UP] || key[KEY_LEFT] || key[KEY_PGUP])
-                                player_stats_page = max(0, player_stats_page - 1);
-                            if (key[KEY_DOWN] || key[KEY_RIGHT] || key[KEY_PGDN])
-                                player_stats_page = min(3, player_stats_page + 1);
-                            break;
-                        case menu_teams:
-                            if (key[KEY_UP])
-                                client_graphics.team_captures_prev();
-                            if (key[KEY_DOWN])
-                                client_graphics.team_captures_next();
-                            break;
-                        case menu_none: // regular menu, if any, drawn above
-                            break;
-                        default:
-                            nAssert(0);
-                    }
-                }
+            if (menu.options.controls.keypadMoving()) {
+                // Check Alt+keypad sequences
+                if (key_shifts & KB_INALTSEQ_FLAG)
+                    alt_sequence = true;
             }
-            // menu not showing: send keypresses to the game
-            else {
+
+            // handle waiting keypresses
+            while (keypressed()) {
+                int ch = readkey();
+                handleKeypress(ch >> 8, ch & 0xFF, controlPressed, alt_sequence);
+            }
+
+            if (!(key_shifts & KB_INALTSEQ_FLAG))
+                alt_sequence = false;
+
+            // handle current keypresses (only used in game)
+            if (openMenus.empty() && menusel == menu_none) {
                 bool sendnow = false;
 
                 // control == fire
-                bool fire = key[KEY_LCONTROL] || key[KEY_RCONTROL];
-                if (!fire && menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot()))
-                    fire = true;
+                const bool fire = controlPressed || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot()));
+                if (fire != prevFire) {
+                    prevFire = fire;
 
-                if (fire) {
-                    if (!key_fire) {
-                        key_fire = true;
-
-                        //"fire" message (+ATTACK)
-                        char lebuf[16]; int count = 0;
-                        writeByte(lebuf, count, data_fire_on);
-                        client->send_message(lebuf, count);
-
-                        //send early keys packet
-                        sendnow = true;
-                    }
-                }
-                else {
-                    if (key_fire) {
-                        key_fire = false;
-
-                        //"un-fire" message (-ATTACK)
-                        char lebuf[16]; int count = 0;
-                        writeByte(lebuf, count, data_fire_off);
-                        client->send_message(lebuf, count);
-
-                        //send early keys packet
-                        sendnow = true;
-                    }
-                }
-
-                // del == suicide event
-                if (key[KEY_DEL]) {
-                    if (!key_kill) {
-                        key_kill = true;
-
-                        //"suicide" message
-                        char lebuf[16]; int count = 0;
-                        writeByte(lebuf, count, data_suicide);
-                        client->send_message(lebuf, count);
-                    }
-                }
-                else key_kill = false;
-
-                // page down == drop flag
-                if (key[KEY_PGDN]) {
-                    if (!key_drop_flag) {
-                        key_drop_flag = true;
-                        char lebuf[16]; int count = 0;
-                        writeByte(lebuf, count, data_drop_flag);
-                        client->send_message(lebuf, count);
-                    }
-                }
-                else if (key_drop_flag) {
-                    key_drop_flag = false;
                     char lebuf[16]; int count = 0;
-                    writeByte(lebuf, count, data_stop_drop_flag);
+                    writeByte(lebuf, count, fire ? data_fire_on : data_fire_off);
+                    client->send_message(lebuf, count);
+
+                    //send early keys packet
+                    sendnow = true;
+                }
+
+                const bool dropFlag = key[KEY_PGDN];
+                if (dropFlag != prevDropFlag) {
+                    prevDropFlag = dropFlag;
+                    char lebuf[16]; int count = 0;
+                    writeByte(lebuf, count, dropFlag ? data_drop_flag : data_stop_drop_flag);
                     client->send_message(lebuf, count);
                 }
-
-                // end == want/don't want to change team
-                if (key[KEY_END]) {
-                    if (!key_swap) {
-                        key_swap = true;
-
-                        want_change_teams = !want_change_teams;
-
-                        char lebuf[16]; int count = 0;
-                        if (want_change_teams)
-                            writeByte(lebuf, count, data_change_team_on);
-                        else
-                            writeByte(lebuf, count, data_change_team_off);
-                        client->send_message(lebuf, count);
-                    }
-                }
-                else key_swap = false;
 
                 // l,r,u,d,fire game keys
                 if ((key[KEY_UP]    != key_up)    ||
@@ -3357,123 +3309,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 // send client's input packet now
                 if (sendnow)
                     send_frame(false);
-
-                static bool alt_sequence = false;
-
-                if (menu.options.controls.keypadMoving()) {
-                    // Check Alt+keypad sequences
-                    if (keyboard_needs_poll())
-                        poll_keyboard();    // ignore return value
-                    if (key_shifts & KB_INALTSEQ_FLAG)
-                        alt_sequence = true;
-                }
-
-                // keypresses to talk prompt
-                while (keypressed()) {
-                    //get key
-                    int ch = readkey();
-                    const int sc = ch >> 8; // scancode
-                    ch &= 0xFF;             // character
-
-                    // toggle help
-                    if (sc == KEY_F1)
-                        toggle_help();
-                    else if (sc == KEY_F2) {
-                        menusel = menu_maps;
-                        stats_autoshowing = false;
-                    }
-                    else if (sc == KEY_F3) {
-                        menusel = menu_teams;
-                        stats_autoshowing = false;
-                    }
-                    else if (sc == KEY_F4) {
-                        menusel = menu_players;
-                        stats_autoshowing = false;
-                    }
-                    else if (sc == KEY_F5) {
-                        if (openMenus.safeTop() == &m_serverInfo.menu)
-                            openMenus.close();
-                        else
-                            showMenu(m_serverInfo);
-                        stats_autoshowing = false;
-                    }
-
-                    // change colours
-                    if (sc == KEY_HOME) {
-                        if (key[KEY_LCONTROL] || key[KEY_RCONTROL])
-                            client_graphics.reset_playground_colors();
-                        else
-                            client_graphics.random_playground_colors();
-                        predrawNeeded = true;
-                    }
-
-                    // Insert: show more messages
-                    if (sc == KEY_INSERT) {
-                        show_all_messages = !show_all_messages;
-                    }
-
-                    // F11: screenshot
-                    else if (sc == KEY_F11) {
-                        screenshot = true;
-                    }
-                    // Backspace: erase one character
-                    else if (sc == KEY_BACKSPACE) {
-                        if (!talkbuffer.empty())
-                            talkbuffer.erase(talkbuffer.end() - 1);
-                    }
-                    // Enter: send text
-                    else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-                        if (!talkbuffer.empty()) {
-                            send_chat(talkbuffer);
-                            talkbuffer.clear();
-                        }
-                    }
-                    // Add character to text
-                    else if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
-                        (!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence)))
-                            talkbuffer += static_cast<char>(ch);
-                }
-                if (!(key_shifts & KB_INALTSEQ_FLAG))
-                    alt_sequence = false;
             }
-
-            // F8 == want/don't want to exit map
-            if (openMenus.empty() && key[KEY_F8]) {
-                if (!key_votexit) {
-                    key_votexit = true;
-
-                    want_map_exit = !want_map_exit;
-
-                    char lebuf[16]; int count = 0;
-                    if (want_map_exit)
-                        writeByte(lebuf, count, data_map_exit_on);
-                    else
-                        writeByte(lebuf, count, data_map_exit_off);
-                    client->send_message(lebuf, count);
-                }
-            }
-            else
-                key_votexit = false;
-
-            //ESC = show/hide menu, go back menu (special key)
-            static bool kesc = false;
-            if (key[KEY_ESC]) {
-                if (!kesc) {
-                    kesc = true;
-                    if (!talkbuffer.empty()) // cancel chat
-                        talkbuffer.clear();
-                    else if (!openMenus.empty())
-                        MCF_menuCloser();
-                    else if (menusel != menu_none) {
-                        menusel = menu_none;
-                        stats_autoshowing = false;
-                    }
-                    else
-                        showMenu(menu);
-                }
-            }
-            else
-                kesc = false;
 
             // process messages from network that have been collected
             {
@@ -4115,21 +3951,17 @@ void Client::draw_player(int pid) {
 //draws the game menu
 void Client::draw_game_menu() {
     switch (menusel) {
-        case menu_maps: {
+        break; case menu_maps: {
             MutexDebug md("mapInfoMutex", __LINE__, log);
             MutexLock ml(mapInfoMutex);
             client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
-            break;
         }
-        case menu_players:
+        break; case menu_players:
             client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
-            break;
-        case menu_teams:
+        break; case menu_teams:
             client_graphics.team_statistics(fx.teams);
-            break;
-        case menu_none: // regular menus are drawn below, regardless of menusel
-            break;
-        default:
+        break; case menu_none: // regular menus are drawn below, regardless of menusel
+        break; default:
             numAssert(0, menusel);
     }
     if (!openMenus.empty())
@@ -4377,22 +4209,21 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
             break;
         }
         switch (nTry) { // try in order: [switch flip], switch windowed, [switch flip]
-            case 0:
+            break; case 0:
                 if (!win()) {
                     flip.set(!flip());
                     break;
                 }
                 nTry = 1;   // no point in changing flipping when windowed, skip round
-            case 1:
+            /*no break*/ case 1:
                 win.set(!win());
-                break;
-            case 2:
+            break; case 2:
                 if (!win()) {
                     flip.set(!flip());
                     break;
                 }
                 nTry = 3;   // no point in changing flipping when windowed, skip round
-            case 3:
+            /*no break*/ case 3:
                 log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
                 if (workingGfxMode.used()) {    // revert to working mode
                     const GFXMode& wm = workingGfxMode;
@@ -4515,10 +4346,10 @@ void Client::MCF_acceptBugReporting() {
     ofstream os(main_cfg_file.c_str());
     if (os) {
         switch (g_autoBugReporting) {
-            case ABR_disabled: os << "autobugreporting disabled"; break;
-            case ABR_minimal:  os << "autobugreporting minimal" ; break;
-            case ABR_withDump: os << "autobugreporting complete"; break;
-            default: nAssert(0);
+            break; case ABR_disabled: os << "autobugreporting disabled";
+            break; case ABR_minimal:  os << "autobugreporting minimal" ;
+            break; case ABR_withDump: os << "autobugreporting complete";
+            break; default: nAssert(0);
         }
         os << '\n';
     }

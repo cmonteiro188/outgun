@@ -261,6 +261,7 @@ void Server::move_player(int f, int t) {
     game_remove_player(f, false);
 
     world.player[t].id = t;
+    world.player[t].set_team(t / TSIZE);
 
     //I really don't want to change teams anymore.
     world.player[t].want_change_teams = false;
@@ -292,6 +293,8 @@ void Server::swap_players(int a, int b) {
 
     world.player[a].id = a;
     world.player[b].id = b;
+    world.player[a].set_team(a / TSIZE);
+    world.player[b].set_team(b / TSIZE);
 
     // either don't want to change teams anymore
     world.player[a].want_change_teams = false;
@@ -458,6 +461,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Double    ("run_acceleration",        &world.physics.run_mul)),
         PT(new GS_Double    ("turbo_acceleration",      &world.physics.turbo_mul)),
         PT(new GS_Double    ("flag_acceleration",       &world.physics.flag_mul)),
+        PT(new GS_Double    ("rocket_speed",            &world.physics.rocket_speed)),
         PT(new GS_Collisions("player_collisions",       &world.physics.player_collisions)),
         PT(new GS_Percentage("friendly_fire",           &world.physics.friendly_fire)),
         PT(new GS_Percentage("friendly_deathbringer",   &world.physics.friendly_db)),
@@ -491,6 +495,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
         PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
         PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9)),
+        PT(new GS_Boolean   ("pup_shield_one_hit",      &pupConfig.pup_shield_one_hit)),
         PT(new GS_ForwardInt("random_maprot",           setRandomMaprot, 0, 2)),
         PT(new GS_Int       ("vote_block_time",         &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)), // convert minutes to frames
         PT(new GS_Int       ("idlekick_time",           &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),  // convert seconds to frames; special setting: allow 0 that is outside the normal range
@@ -614,8 +619,14 @@ bool Server::server_next_map(int reason) {
             network.send_map_change_message(i, reason, maprot[currmap].file.c_str());
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {
-        network.broadcast_movements_and_shots(world.player[i]); // player's stats to everyone
-        network.send_team_movements_and_shots(world.player[i]); // team stats to player
+        const ServerPlayer& pl = world.player[i];
+        if (!pl.used)
+            continue;
+        if (pl.oldfrags != pl.stats().frags())
+            network.sendFragUpdate(i, pl.stats().frags());
+        // no need to update oldfrags, since the stats are next cleared
+        network.broadcast_movements_and_shots(pl); // player's stats to everyone
+        network.send_team_movements_and_shots(pl); // team stats to player
     }
     network.broadcast_stats_ready();
 

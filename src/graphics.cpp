@@ -140,7 +140,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
         sbx = scoreboardPlaceX + (scoreboardPlaceW - scoreboardW) / 2;
     else
         sbx = SCREEN_W - (scoreboardW + 4); // force on the playfield if it wouldn't fit otherwise (this shouldn't happen in 1.0.0, as things are forced a bit)
-    sby = mmy + minimap_place_h + 10;
+    sby = mmy + minimap_place_h;
     indicators_x = 0;
     indicators_y = SCREEN_H - 30;
     reset_playground_colors();
@@ -974,36 +974,32 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     // gun direction
     int xg, yg;
     switch (gundir) {
-        case 0: xg = 40; yg =  0; break;
-        case 1: xg = 28; yg = 28; break;
-        case 2: xg =  0; yg = 40; break;
-        case 3: xg =-28; yg = 28; break;
-        case 4: xg =-40; yg =  0; break;
-        case 5: xg =-28; yg =-28; break;
-        case 6: xg =  0; yg =-40; break;
-        case 7: xg = 28; yg =-28; break;
-        default: xg = 0; yg =  0; break;
+        break; case 0: xg = 40; yg =  0;
+        break; case 1: xg = 28; yg = 28;
+        break; case 2: xg =  0; yg = 40;
+        break; case 3: xg =-28; yg = 28;
+        break; case 4: xg =-40; yg =  0;
+        break; case 5: xg =-28; yg =-28;
+        break; case 6: xg =  0; yg =-40;
+        break; case 7: xg = 28; yg =-28;
+        break; default: xg = 0; yg =  0;
     }
     xg = scale(xg * 0.7);
     yg = scale(yg * 0.7);
     // draw the gun
     switch (gundir) {
-        case 0: case 4:
+        break; case 0: case 4:
             rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
-            break;
-        case 2: case 6:
+        break; case 2: case 6:
             rectfill(drawbuf, plx + x + xg - 1, ply + y + yg / 2, plx + x + xg + 1, ply + y + yg, pc1);
-            break;
-        case 1: case 5:
+        break; case 1: case 5:
             line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
             line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
             line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg - 1, pc1);
-            break;
-        case 3: case 7:
+        break; case 3: case 7:
             line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 - 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
             line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
             line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 1, pc1);
-            break;
     }
 
     solid_mode();
@@ -1255,14 +1251,14 @@ void Graphics::draw_pup(const Powerup& pup, double time) {
         draw_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
     else
         switch (pup.kind) {
-            case Powerup::pup_shield:       draw_pup_shield      (pup.x, pup.y      ); break;
-            case Powerup::pup_turbo:        draw_pup_turbo       (pup.x, pup.y      ); break;
-            case Powerup::pup_shadow:       draw_pup_shadow      (pup.x, pup.y, time); break;
-            case Powerup::pup_power:        draw_pup_power       (pup.x, pup.y, time); break;
-            case Powerup::pup_weapon:       draw_pup_weapon      (pup.x, pup.y, time); break;
-            case Powerup::pup_health:       draw_pup_health      (pup.x, pup.y, time); break;
-            case Powerup::pup_deathbringer: draw_pup_deathbringer(pup.x, pup.y      ); break;
-            default: nAssert(0);
+            break; case Powerup::pup_shield:       draw_pup_shield      (pup.x, pup.y      );
+            break; case Powerup::pup_turbo:        draw_pup_turbo       (pup.x, pup.y      );
+            break; case Powerup::pup_shadow:       draw_pup_shadow      (pup.x, pup.y, time);
+            break; case Powerup::pup_power:        draw_pup_power       (pup.x, pup.y, time);
+            break; case Powerup::pup_weapon:       draw_pup_weapon      (pup.x, pup.y, time);
+            break; case Powerup::pup_health:       draw_pup_health      (pup.x, pup.y, time);
+            break; case Powerup::pup_deathbringer: draw_pup_deathbringer(pup.x, pup.y      );
+            break; default: nAssert(0);
         }
 }
 
@@ -1311,11 +1307,11 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
         // choose colour
         int c;
         switch (b) {
-            case 0: c = col[COLGREEN ]; break;
-            case 1: c = col[COLBLUE  ]; break;
-            case 2: c = col[COLRED   ]; break;
-            case 3: c = col[COLYELLOW]; break;
-            default: c = 0; nAssert(0);
+            break; case 0: c = col[COLGREEN ];
+            break; case 1: c = col[COLBLUE  ];
+            break; case 2: c = col[COLRED   ];
+            break; case 3: c = col[COLYELLOW];
+            break; default: c = 0; nAssert(0);
         }
         // draw a ball
         circlefill(drawbuf, plx + scale(x + dx), ply + scale(y + dy), scale(4), c);
@@ -1361,8 +1357,8 @@ void Graphics::draw_loading_map_message(const string& text) {
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
     int c;
     switch (team) {
-        case 0: case 1: c = teamlcol[team]; break;
-        default: c = col[COLMENUGRAY]; break;
+        break; case 0: case 1: c = teamlcol[team];
+        break; default: c = col[COLMENUGRAY];
     }
     textout_centre_ex(drawbuf, font,                                           text.c_str(), plx + scale(plw / 2), ply + scale(plh / 2 - 40), c, -1);
     textout_centre_ex(drawbuf, font, _("SCORE $1 - $2", itoa(score1), itoa(score2)).c_str(), plx + scale(plw / 2), ply + scale(plh / 2 - 20), c, -1);
@@ -1373,25 +1369,37 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
         return;
 
     const int y_space = SCREEN_H - sby;
-    int line_h = y_space / (maxplayers + 2 + 2 + 1);    // players, 2 captions, 2 empty lines, FPS  //#fixme: could the room for FPS be reserved someplace else...
-    if (line_h > 12)
-        line_h = 12;
+    const int lines = 2 + maxplayers + 1;   // caption for each team, players, FPS  //#fixme: could the room for FPS be reserved someplace else...
+    const int nSpacers = 3;  // top, between teams, before FPS
+    int spacerHeight = 3;   // consider 3 a minimal spacing (we're lucky that with SCREEN_H = 480, 32 players at line_h = 8, spacerHeight = 3 fills ALL lines!)
+    // find optimal line height
+    int line_h = (y_space - nSpacers * spacerHeight) / lines;
+    if (line_h > 8) {
+        spacerHeight = 10;  // prefer this over extra line height
+        line_h = (y_space - nSpacers * spacerHeight) / lines;
+        if (line_h > 12)
+            line_h = 12;
+    }
+    // expand spacing if possible
+    const int extraSpace = y_space - nSpacers * spacerHeight - line_h * lines;
+    spacerHeight += extraSpace / nSpacers;
+    if (spacerHeight > 15)
+        spacerHeight = 15;
+
+    const int teamy[2] = { sby + spacerHeight, sby + spacerHeight + (1 + maxplayers / 2) * line_h + spacerHeight };
 
     // captions
     const int caption_width = 20;
-    ostringstream red, blue;
-    red  << _("Red Team");
-    blue << _("Blue Team");
-    if (pings) {
-        red  << setw(caption_width -  red.str().length()) << _("pings");
-        blue << setw(caption_width - blue.str().length()) << _("pings");
+    const string teamName[2] = { _("Red Team"), _("Blue Team") };
+    for (int team = 0; team < 2; ++team) {
+        ostringstream os;
+        os << teamName[team];
+        if (pings)
+            os << setw(caption_width - teamName[team].length()) << _("pings");
+        else
+            os << setw(caption_width - teamName[team].length()) << _("$1 capt", itoa_w(teams[team].score(), 3));
+        textout_ex(drawbuf, font, os.str().c_str(), sbx, teamy[team], teamlcol[team], -1);
     }
-    else {
-        red  << setw(caption_width -  red.str().length()) << _("$1 capt", itoa_w(teams[0].score(), 3));
-        blue << setw(caption_width - blue.str().length()) << _("$1 capt", itoa_w(teams[1].score(), 3));
-    }
-    textout_ex(drawbuf, font,  red.str().c_str(), sbx, sby                                , teamlcol[0], -1);
-    textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 2) * line_h, teamlcol[1], -1);
 
     int line[2] = { 1, 1 };
     for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi) {
@@ -1400,8 +1408,9 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
         name << player.name.substr(0, 15);
         const int pcol = col[player.color()];
         const int x = sbx;
-        const int y = sby + line[player.team()] * line_h + player.team() * (maxplayers / 2 + 2) * line_h;
-        draw_scoreboard_name(name.str(), x, y, pcol, (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth()));
+        const int y = teamy[player.team()] + line[player.team()] * line_h;
+        const bool underline = (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth());
+        draw_scoreboard_name(name.str(), x, y, pcol, underline);
         draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
         line[player.team()]++;
     }
@@ -1562,23 +1571,19 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     string caption1, caption2;
     switch (page) {
         // max length:       |........................................|
-        case 0: caption1 = _("     Frags    total/in-row/most");
-                caption2 = _("Ping     Capt Kills      Deaths Suicides");
-                //           |0000  000 00 000/00/00  000/00/00   00  |
-                break;
-        case 1: caption1 = _("         Flags          Carriers  Carry");
-                caption2 = _("taken dropped returned   killed    time");
-                //           |  00      00      00       00     00:00 |
-                break;
-        case 2: caption1 = _("   Accuracy");
-                caption2 = _("Shots   | Taken  Movement     Speed");
-                //           |00000 100% 0000  000000 u  00.00 u/s    |
-                break;
-        case 3: caption1 = _("          Average        Tournament");
-                caption2 = _("Playtime lifetime    rank  power  score");
-                //           |00000 min   00:00    0000  00.00 -00000 |
-                break;
-        default: nAssert(0);
+        break; case 0: caption1 = _("     Frags    total/in-row/most");
+                       caption2 = _("Ping     Capt Kills      Deaths Suicides");
+                       //           |0000  000 00 000/00/00  000/00/00   00  |
+        break; case 1: caption1 = _("         Flags          Carriers  Carry");
+                       caption2 = _("taken dropped returned   killed    time");
+                       //           |  00      00      00       00     00:00 |
+        break; case 2: caption1 = _("   Accuracy");
+                       caption2 = _("Shots   | Taken  Movement     Speed");
+                       //           |00000 100% 0000  000000 u  00.00 u/s    |
+        break; case 3: caption1 = _("          Average        Tournament");
+                       caption2 = _("Playtime lifetime    rank  power  score");
+                       //           |00000 min   00:00    0000  00.00 -00000 |
+        break; default: nAssert(0);
     }
     ostringstream red, blue, row2;
     red  << left << setw(22) << _("Red Team")  << caption1;
@@ -1611,7 +1616,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
     stats << left << setw(17) << player.name << right;
     const Statistics& st = player.stats();
     switch (page) {
-        case 0:
+        break; case 0:
             //       Frags    total/in-row/most
             //  Ping     Capt Kills      Deaths Suicides
             // |0000  000 00 000/00/00  000/00/00   00  |
@@ -1621,8 +1626,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
                   << setw(4) << st.kills()  << '/' << setw(2) << st.current_cons_kills()  << '/' << setw(2) << st.cons_kills()
                   << setw(5) << st.deaths() << '/' << setw(2) << st.current_cons_deaths() << '/' << setw(2) << st.cons_deaths()
                   << setw(5) << st.suicides();
-            break;
-        case 1:
+        break; case 1:
             //           Flags          Carriers  Carry
             //  taken dropped returned   killed    time
             // |  00      00      00       00     00:00 |
@@ -1632,8 +1636,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
                   << setw(9) << st.carriers_killed()
                   << setw(7) << static_cast<int>(st.flag_carrying_time(time)) / 60 << ':'
                   << setw(2) << setfill('0') << static_cast<int>(st.flag_carrying_time(time)) % 60 << setfill(' ');
-            break;
-        case 2:
+        break; case 2:
             //     Accuracy
             //  Shots   | Taken  Movement     Speed
             // |00000 100% 0000  000000 u  00.00 u/s    |
@@ -1642,8 +1645,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
                   << setw(5) << st.shots_taken()
                   << setw(8) << static_cast<int>(st.movement()) / (2 * PLAYER_RADIUS) << " u"
                   << setw(7) << setprecision(2) << std::fixed << st.old_speed() << " u/s";
-            break;
-        case 3:
+        break; case 3:
             //            Average        Tournament
             //  Playtime lifetime    rank  power  score
             // |00000 min   00:00    0000  00.00 -00000 |
@@ -1655,7 +1657,6 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
                       << setw(7) << setprecision(2) << std::fixed << (player.score + 1.0) / (player.neg_score + 1.0)
                       << setw(7) << player.score - player.neg_score;
             }
-            break;
     }
     textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[player.team()], -1);
 }
@@ -1879,12 +1880,12 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
 void Graphics::print_chat_message(Message_type type, const string& message, int x, int y) {
     int c;
     switch (type) {
-        case msg_warning: c = col[COLLRED]; break;
-        case msg_team: c = col[COLYELLOW]; break;
-        case msg_info: c = col[COLGREEN]; break;
-        case msg_header: c = makecol(0xAA, 0xFF, 0xFF); break;
-        case msg_server: c = col[COLCYAN]; break;
-        case msg_normal: default: c = col[COLORA];
+        break; case msg_warning: c = col[COLLRED];
+        break; case msg_team: c = col[COLYELLOW];
+        break; case msg_info: c = col[COLGREEN];
+        break; case msg_header: c = makecol(0xAA, 0xFF, 0xFF);
+        break; case msg_server: c = col[COLCYAN];
+        break; case msg_normal: default: c = col[COLORA];
     }
     print_text_border(message, x, y, c, 0, -1);
 }
@@ -2057,7 +2058,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
         }
         const double delta = time - fx->time;
         switch (fx->type) {
-            case FX_GUN_EXPLOSION:
+            break; case FX_GUN_EXPLOSION:
                 if (delta > 0.4)
                     fx = cfx.erase(fx);
                 else {
@@ -2067,13 +2068,9 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                     }
                     ++fx;
                 }
-                break;
-
-            case FX_TURBO:      // turbo effect, draw another time in another function
+            break; case FX_TURBO:      // turbo effect, draw another time in another function
                 ++fx;
-                break;
-
-            case FX_WALL_EXPLOSION:
+            break; case FX_WALL_EXPLOSION:
                 if (delta > 0.2)
                     fx = cfx.erase(fx);
                 else {
@@ -2083,9 +2080,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                     }
                     ++fx;
                 }
-                break;
-
-            case FX_POWER_WALL_EXPLOSION:
+            break; case FX_POWER_WALL_EXPLOSION:
                 if (delta > 0.2)
                     fx = cfx.erase(fx);
                 else {
@@ -2095,27 +2090,21 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                     }
                     ++fx;
                 }
-                break;
-
-            case FX_DEATHBRINGER_EXPLOSION:
+            break; case FX_DEATHBRINGER_EXPLOSION:
                 if (delta > 3.0)
                     fx = cfx.erase(fx);
                 else {
                     draw_deathbringer(fx->x, fx->y, fx->team, delta);
                     ++fx;
                 }
-                break;
-
-            case FX_DEATHCARRIER_SMOKE:
+            break; case FX_DEATHCARRIER_SMOKE:
                 if (delta > 0.6)
                     fx = cfx.erase(fx);
                 else {
                     draw_deathbringer_smoke(fx->x, fx->y, delta);
                     ++fx;
                 }
-                break;
-
-            default:
+            break; default:
                 nAssert(0);
         }
     }

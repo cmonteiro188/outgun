@@ -31,6 +31,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <cmath>
 #include <nl.h>
 
 // Reads a line, stops to \n or \r and skips empty lines.
@@ -150,6 +151,46 @@ public:
 
 extern MasterSettings g_masterSettings;
 
+template<int expBits, int expBias> class SignedByteFloat {
+public:
+    enum { mantissaBits = 8 - 1 - expBits,  // bits in byte - sign bit - exponent bits
+           mantissaLimit = 1 << mantissaBits };
+
+    static unsigned char toByte(double v) {
+        const unsigned char sign = (v < 0. ? 0x80 : 0);
+
+        int iVal = static_cast<int>(ldexp(fabs(v), -expBias) + .5);
+        if (iVal < mantissaLimit)   // we have a loss of precision; this is a special case without the implicit mantissa-bit
+            return sign | iVal; // mark it with exp = 0
+        int exp = 1;
+        while (iVal > 4 * mantissaLimit) {
+            iVal /= 2;
+            ++exp;
+        }
+        while (iVal >= 2 * mantissaLimit) { // it can be repeated once if the rounding bumps it to exactly 2 * mantissaLimit
+            iVal = (iVal + 1) / 2;  // round
+            ++exp;
+        }
+        if (exp >= (1 << expBits))  // can't be represented
+            return sign | 0x7F; // max exp, max mantissa to approximate
+        else
+            return sign | (exp << mantissaBits) | (iVal - mantissaLimit);
+    }
+    static double toDouble(unsigned char b) {
+        double val = b & (mantissaLimit - 1);   // use double so that val = -val makes 0 -> -0, it may be useful and otherwise byte 128 is redundant
+        const int exp = (b & 0x7F) >> (8 - 1 - expBits);
+        if (exp == 0) {
+            if (b & 0x80)
+                val = -val;
+            return ldexp(val, expBias);
+        }
+        val += mantissaLimit;
+        if (b & 0x80)
+            val = -val;
+        return ldexp(val, exp - 1 + expBias);
+    }
+};
+
 static const int plw = 472, plh = 354;  // play area width/height
 
 static const int PLAYER_RADIUS = 15;
@@ -158,9 +199,9 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 // Game specific strings
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "1.0.0b14"
-#define GAME_VERSION "1.0.0 beta 15"
-#define GAME_SHORT_VERSION "1.0.0b15"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
+#define GAME_PROTOCOL "1.0.0b16"
+#define GAME_VERSION "1.0.0 beta 16"
+#define GAME_SHORT_VERSION "1.0.0b16"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 #define GAME_BRANCH "base"  // this only affects the master server communications, to make it tell the correct newest version
 
 #define TK1_VERSION_STRING "v048"

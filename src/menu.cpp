@@ -244,17 +244,17 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
         int shortcut;
         if (chr == 0)   // with alt
             switch (scan) {
-                case KEY_1: shortcut = 0; break;
-                case KEY_2: shortcut = 1; break;
-                case KEY_3: shortcut = 2; break;
-                case KEY_4: shortcut = 3; break;
-                case KEY_5: shortcut = 4; break;
-                case KEY_6: shortcut = 5; break;
-                case KEY_7: shortcut = 6; break;
-                case KEY_8: shortcut = 7; break;
-                case KEY_9: shortcut = 8; break;
-                case KEY_0: shortcut = 9; break;
-                default: shortcut = -1; break;
+                break; case KEY_1: shortcut = 0;
+                break; case KEY_2: shortcut = 1;
+                break; case KEY_3: shortcut = 2;
+                break; case KEY_4: shortcut = 3;
+                break; case KEY_5: shortcut = 4;
+                break; case KEY_6: shortcut = 5;
+                break; case KEY_7: shortcut = 6;
+                break; case KEY_8: shortcut = 7;
+                break; case KEY_9: shortcut = 8;
+                break; case KEY_0: shortcut = 9;
+                break; default: shortcut = -1;
             }
         else if (chr == '0')
             shortcut = 9;
