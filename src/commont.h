@@ -111,9 +111,9 @@ static const int ROCKET_RADIUS = 4, QUAD_ROCKET_RADIUS = 6;
 
 // Game specific strings
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "1.0.0b5"
-#define GAME_VERSION "1.0.0 beta 6"
-#define GAME_SHORT_VERSION "1.0.0b6"
+#define GAME_PROTOCOL "1.0.0b7"
+#define GAME_VERSION "1.0.0 beta 7"
+#define GAME_SHORT_VERSION "1.0.0b7"
 
 #define TK1_VERSION_STRING "v048"
 
