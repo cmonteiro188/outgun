@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdarg>
 #include <cstdlib>	// exit
+#include <ctime>
 
 void nasprintf(const char* expr, ...) {
 	va_list argptr;
@@ -11,6 +12,9 @@ void nasprintf(const char* expr, ...) {
 	va_end(argptr);
 	FILE* asfile = fopen("assert.log", "at");
 	if (asfile) {
+		time_t tt=time(0);
+		struct tm* tmb=localtime(&tt);
+		fprintf(asfile, "%d-%02d-%02d %02d:%02d:%02d  ", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
 		va_start(argptr, expr);
 		vfprintf(asfile, expr, argptr);
 		va_end(argptr);
