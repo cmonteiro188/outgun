@@ -366,9 +366,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	float room_w = float(minimap_w - 2) / map.w;
 	float room_h = float(minimap_h - 2) / map.h;
 	for (int i = 1; i < map.w; i++)
-		line(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, int(minimap_start_x + room_w * i), minimap_start_y + minimap_h, col[COLSHADOW]);
+		line(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, int(minimap_start_x + 1 + room_w * i), minimap_start_y + minimap_h, col[COLSHADOW]);
 	for (int i = 1; i < map.h; i++)
-		line(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, int(minimap_start_y + room_h * i), col[COLSHADOW]);
+		line(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, int(minimap_start_y + 1 + room_h * i), col[COLSHADOW]);
 
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
