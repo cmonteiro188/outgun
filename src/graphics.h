@@ -7,8 +7,8 @@
 // ---- client screen layout ----
 
 //resolution
-#define RESOL_X 640
-#define RESOL_Y 480
+//#define RESOL_X 640
+//#define RESOL_Y 480
 
 //play area offset
 //#define plx 0
@@ -36,9 +36,13 @@ class Message;
 
 class Graphics {
 public:
-	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y, bool reset_video = true);
+	Graphics();
 	~Graphics();
-	
+
+	bool init();
+
+	void load_resolutions();
+
 	BITMAP* drawbuffer() const { return drawbuf; }
 	
 	int minimap_width() const { return minimap_w; }
@@ -107,15 +111,15 @@ public:
 	void map_list(const std::vector<MapInfo>& maps, int current = -1,
 				  int own_vote = -1, const std::string& edit_vote = "");
 
-	void map_list_prev();
-	void map_list_next();
-	void map_list_prev_page();
-	void map_list_next_page();
-	void map_list_begin();
-	void map_list_end();
+	void map_list_prev() { --map_list_start; }
+	void map_list_next() { ++map_list_start; }
+	void map_list_prev_page() { map_list_start -= map_list_size; }
+	void map_list_next_page() { map_list_start += map_list_size; }
+	void map_list_begin() { map_list_start = 0; }
+	void map_list_end() { map_list_start = INT_MAX; }
 
-	void team_captures_prev();
-	void team_captures_next();
+	void team_captures_prev() { --team_captures_start; }
+	void team_captures_next() { ++team_captures_start; }
 
 	void draw_player_power(double val);
 	void draw_player_turbo(double val);
@@ -160,6 +164,7 @@ public:
 	void game_help();
 	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
 	void dialog(const std::string& t1, const std::string& t2);
+	void display_menu();
 
 	bool save_map_picture(const std::string& filename, const Map& map);
 
@@ -174,6 +179,9 @@ public:
 	Antialiasing_mode antialiasing_mode() const { return antialiasing; }
 	void toggle_antialiasing();
 	void set_antialiasing(Antialiasing_mode mode) { antialiasing = mode; }
+	
+	void resolution_prev();
+	void resolution_next();
 
 private:
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
@@ -236,6 +244,9 @@ private:
 	void line_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const;
 	void hline_sc(BITMAP* buff, double x1, double y, double x2, int color) const;
 	void vline_sc(BITMAP* buff, double x, double y1, double y2, int color) const;
+	
+	int res_x() const { return resolutions[sel_resol].first; }
+	int res_y() const { return resolutions[sel_resol].second; }
 
 	BITMAP* drawbuf;	// main draw buffer
 	BITMAP* background;	// draw buffer for floor, walls and minimap
@@ -280,6 +291,10 @@ private:
     bool no_theme;
 
 	Antialiasing_mode antialiasing;
+
+	std::vector<std::pair<int, int> > resolutions;
+	int sel_resol;
+	int col_depth;
 
 	//colors
 	enum {

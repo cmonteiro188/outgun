@@ -46,7 +46,8 @@ vector<string> Mappic::load_maps(const string& dir) {
 
 void Mappic::save_pictures() const {
 	set_color_depth(16);
-	Graphics graphics(640, 480, false);
+	Graphics graphics;
+	graphics.setcolors();
 	string dir("screens");
 	dir += directory_separator;
 	for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {

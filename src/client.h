@@ -32,7 +32,8 @@ enum Menu_selection {
 	menu_players,
 	menu_teams,
 	menu_server_password,
-	menu_player_password
+	menu_player_password,
+	menu_display_settings
 };
 
 class client_c;	// of leetnet

@@ -26,7 +26,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-#define CLIENT_PREDICTION
+//#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
@@ -71,7 +71,8 @@ const size_t gameclient_c::chat_size = 32;
 
 bool gameclient_c::start() {
 	// gfx init
-	if (!client_graphics.reset_video_mode())		// fatal error
+	client_graphics.load_resolutions();
+	if (!client_graphics.init())		// fatal error
 		return false;
 
 	set_close_button_callback(gameclient_c::close_button_callback);
@@ -2831,6 +2832,9 @@ void gameclient_c::loop() {
 									client_graphics.update_minimap_background(fx.map);
 									predraw();
 									break;
+								case '9':
+									set_menu(menu_display_settings);
+									break;
 								default:;
 							}
 							break;
@@ -2939,6 +2943,17 @@ void gameclient_c::loop() {
 							else if (sc == KEY_TAB)		// switch fields
 								name_selected = !name_selected;
 							break;
+						case menu_display_settings:
+							if (key[KEY_LEFT])
+								client_graphics.resolution_prev();
+							if (key[KEY_RIGHT])
+								client_graphics.resolution_next();
+							if (sc == KEY_ENTER) {
+								client_graphics.init();
+								client_graphics.update_minimap_background(fx.map);
+								predraw();
+								set_menu(menu_main);
+							}
 						// server and player password requesting dialogs
 						case menu_server_password:
 							if (sc == KEY_BACKSPACE && !edit_server_password.empty())
@@ -3217,7 +3232,8 @@ void gameclient_c::loop() {
 						set_menu(menu_main);
 					else {		// menu
 						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list ||
-											menu == menu_server_password || menu == menu_player_password)
+											menu == menu_server_password || menu == menu_player_password ||
+											menu == menu_display_settings)
 							set_menu(menu_main);	// go back one screen
 						else if (gameshow || menu != menu_main)
 							set_menu(menu_none);	// hide menu
@@ -3987,7 +4003,6 @@ void gameclient_c::draw_game_frame() {
 		textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);*/
 	}
 
-
 	//unlock frame mutex
 	//LOG1("unlocking HOW=%i\n",HOWMANY);
 	pthread_mutex_unlock( &frame_mutex );
@@ -4071,6 +4086,9 @@ void gameclient_c::draw_game_menu() {
 			break;
 		case menu_name_password:
 			client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
+			break;
+		case menu_display_settings:
+			client_graphics.display_menu();
 			break;
 		case menu_server_password:
 			client_graphics.password_menu("Server password", edit_server_password.length());

@@ -75,10 +75,7 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 }
 #endif
 
-Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
-	minimap_start_x(0),
-	minimap_start_y(0),
-	scr_mul(static_cast<double>(scr_w) / 640),
+Graphics::Graphics():
 	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
@@ -89,27 +86,32 @@ Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	backbuf(0),
 	no_theme(false),
 	antialiasing(AA_both)
-{
+{ }
+
+bool Graphics::init() {
+	scr_mul = static_cast<double>(res_x()) / 640;
 	floor_texture.resize(4, 0);
 	wall_texture.resize(1, 0);
 	for (int t = 0; t < 2; t++)
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
-	if (reset_video)
-		reset_video_mode();
+	if (!reset_video_mode())
+		return false;
 	plx = 0;
-	ply = scr_h - scale(plh) - 35;
-	drawbuf = create_bitmap(scr_w, scr_h);
-	background = create_bitmap(scr_w, scr_h);
-	roombg = create_sub_bitmap(background, plx, ply, scale(plw), scale(plh));
+	ply = SCREEN_H - scale(plh) - 35;
+	drawbuf = create_bitmap(SCREEN_W, SCREEN_H);
+	background = create_bitmap(SCREEN_W, SCREEN_H);
+	roombg = create_sub_bitmap(background, plx, ply,
+		static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
 	minimap_w = minimap_place_w = scale(160);
 	minimap_h = minimap_place_h = scale(100);
-	mmx = scr_w - minimap_w - 4;
+	mmx = SCREEN_W - minimap_w - 4;
 	mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
-	sbx = scr_w - 21 * 8 + 4;
+	sbx = SCREEN_W - 21 * 8 + 4;
 	sby = mmy + minimap_place_h + 10;
 	setcolors();
 	reset_playground_colors();
+	return true;
 }
 
 Graphics::~Graphics() {
@@ -200,6 +202,40 @@ void Graphics::clear() {
 	clear_to_color(drawbuf, 0);
 }
 
+void Graphics::load_resolutions() {
+	resolutions.clear();
+	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
+	if (modes) {
+		LOG("Available graphics modes:\n");
+		for (int i = 0; i < modes->num_modes; i++) {
+			const GFX_MODE& mode = modes->mode[i];
+			pair<int, int> res(mode.width, mode.height);
+			if ((resolutions.empty() || res != resolutions.back()) && mode.width >= 640 && mode.height >= 480) {
+				LOG3("%d×%d×%d\n", mode.width, mode.height, mode.bpp);
+				resolutions.push_back(res);
+			}
+		}
+		destroy_gfx_mode_list(modes);
+	}
+	else {
+		LOG("No possible graphics modes found for DirectX.\n");
+	}
+	if (resolutions.empty())	// just try something
+		resolutions.push_back(pair<int, int>(640, 480));
+	// Search resolutions for windowed DirectX, X, Linux, etc.
+	sel_resol = 0;
+}
+
+void Graphics::resolution_prev() {
+	if (--sel_resol < 0)
+		sel_resol = 0;
+}
+
+void Graphics::resolution_next() {
+	if (++sel_resol >= static_cast<int>(resolutions.size()))
+		sel_resol = resolutions.size() - 1;
+}
+
 bool Graphics::reset_video_mode() {
 	string err[4];
 
@@ -219,30 +255,18 @@ bool Graphics::reset_video_mode() {
 	if (vidpage2) { LOG("destroying vidpage2\n"); destroy_bitmap(vidpage2); vidpage2 = 0; }
 	if (backbuf) { LOG("destroying backbuf\n"); destroy_bitmap(backbuf); backbuf = 0; }
 
-	// Test
-	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
-	if (modes) {
-		LOG("Available graphics modes:\n");
-		for (int i = 0; i < modes->num_modes; i++)
-			LOG3("%d×%d×%d\n", modes->mode[i].width, modes->mode[i].height, modes->mode[i].bpp);
-		destroy_gfx_mode_list(modes);
-	}
-	else {
-		LOG("No possible graphics modes found.\n");
-	}
-
 	int notok;
 
 	set_color_depth(16); // hicolor
 	if (winclient) // set mode
-		notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
+		notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
 	else
-		notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
+		notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 // ***** INICIO *******
 
 	if (notok < 0) {
-		LOG1("ERROR: cannot set 640x480x16 windowed?=%i graphics mode!\n", winclient);
+		LOG3("ERROR: cannot set %d×%d×16 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
 		LOG1("Allegro error: '%s'\n", allegro_error);
 		err[0] = allegro_error;
 
@@ -250,12 +274,12 @@ bool Graphics::reset_video_mode() {
 		winclient = !winclient;
 		set_color_depth(16); // hicolor
 		if (winclient) // set mode
-			notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
+			notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
 		else
-			notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
+			notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 		if (notok < 0) {
-			LOG1("ERROR: cannot set 640x480x16 windowed?=%i graphics mode!\n", winclient);
+			LOG3("ERROR: cannot set %d×%d×16 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
 			LOG1("Allegro error: '%s'\n", allegro_error);
 			err[1] = allegro_error;
 
@@ -263,12 +287,12 @@ bool Graphics::reset_video_mode() {
 			winclient = !winclient;
 			set_color_depth(15); // ===> different color depth
 			if (winclient) // set mode
-				notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
+				notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
 			else
-				notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
+				notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 			if (notok < 0) {
-				LOG1("ERROR: cannot set 640x480x15 windowed?=%i graphics mode!\n", winclient);
+				LOG3("ERROR: cannot set %d×%d×15 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
 				LOG1("Allegro error: '%s'\n", allegro_error);
 				err[2] = allegro_error;
 
@@ -276,12 +300,12 @@ bool Graphics::reset_video_mode() {
 				winclient = !winclient;
 				set_color_depth(15); // ===> different color depth
 				if (winclient) // set mode
-					notok = set_gfx_mode(WINMODE, RESOL_X, RESOL_Y, 0, 0);
+					notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
 				else
-					notok = set_gfx_mode(FULLMODE, RESOL_X, RESOL_Y, 0, 0);
+					notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
 
 				if (notok < 0) {
-					LOG1("ERROR: cannot set 640x480x15 windowed?=%i graphics mode!\n", winclient);
+					LOG3("ERROR: cannot set %d×%d×15 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
 					LOG1("Allegro error: '%s'\n", allegro_error);
 					err[3] = allegro_error;
 
@@ -631,10 +655,12 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
 	const double py = ((double)flag.position().py * (double)plh + flag.position().y) / ((double)plh * map.h);
 	const int pix = int(mmx + minimap_start_x + 1 + px * (minimap_w - 2));
 	const int piy = int(mmy + minimap_start_y + 1 + py * (minimap_h - 2));
+	const int scl = minimap_place_w;
 	//draw flagpole
-	rectfill(drawbuf, pix, piy - 5, pix, piy, col[COLYELLOW]);
+	rectfill(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, col[COLYELLOW]);
 	//draw the flag itself
-	rectfill(drawbuf, pix + 1, piy - 5, pix + 5, piy - 2, teamcol[team]);
+	rectfill(drawbuf, pix + 1, piy - scl / 32,
+		pix + scl / 32, piy - scl / 80, teamcol[team]);
 }
 
 void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player, int team, int pc) {
@@ -694,21 +720,21 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	//calculate new minimap size (133×100 for maps with n×n rooms)
 	if (map.w > map.h) {
 		minimap_w = minimap_place_w;
-		minimap_h = static_cast<int>(static_cast<float>(minimap_w * map.h * 3) / map.w / 4 + 0.5);
+		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 2) * map.h * 3) / map.w / 4 + 2.);
 	}
 	else {
 		minimap_h = minimap_place_h;
-		minimap_w = static_cast<int>(static_cast<float>(minimap_h * map.w * 4) / map.h / 3 + 0.5);
+		minimap_w = static_cast<int>(static_cast<float>((minimap_h - 2) * map.w * 4) / map.h / 3 + 2.);
 	}
 
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
-	float room_w = float(minimap_w - 2) / map.w;
-	float room_h = float(minimap_h - 2) / map.h;
+	const float room_w = float(minimap_w - 2) / map.w;
+	const float room_h = float(minimap_h - 2) / map.h;
 	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
-	double maxx = plw * map.w;
-	double maxy = plh * map.h;
+	const double maxx = plw * map.w;
+	const double maxy = plh * map.h;
 	float xmul = float(minimap_w - 2) / maxx, ymul = float(minimap_h - 2) / maxy;
 
 	if (antialiasing != AA_none) {
@@ -869,12 +895,13 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			int py = int(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
 			if (save_map_pic) {
 				//draw the flagpole
-				rectfill(buffer, px, py - 5, px, py, col[COLYELLOW]);
+				rectfill(buffer, px, py - static_cast<int>(room_w / 12), px + static_cast<int>(room_w / 60) - 1, py, col[COLYELLOW]);
 				//draw the flag
-				rectfill(buffer, px + 1, py - 5, px + 5, py - 2, teamcol[t]);
+				rectfill(buffer, px + static_cast<int>(room_w / 60), py - static_cast<int>(room_w / 12),
+					px + static_cast<int>(room_w / 12), py - static_cast<int>(room_w / 30), teamcol[t]);
 			}
 			else
-				circle(buffer, px, py, 3, teamcol[t]);
+				circle(buffer, px, py, minimap_place_w / 50, teamcol[t]);
 		}
 	}
 }
@@ -1574,38 +1601,6 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 	textout_ex(drawbuf, font, vote.str().c_str(), x_left, y, col[COLGREEN], -1);
 }
 
-void Graphics::map_list_prev() {
-	--map_list_start;
-}
-
-void Graphics::map_list_next() {
-	++map_list_start;
-}
-
-void Graphics::map_list_prev_page() {
-	map_list_start -= map_list_size;
-}
-
-void Graphics::map_list_next_page() {
-	map_list_start += map_list_size;
-}
-
-void Graphics::map_list_begin() {
-	map_list_start = 0;
-}
-
-void Graphics::map_list_end() {
-	map_list_start = INT_MAX;
-}
-
-void Graphics::team_captures_prev() {
-	--team_captures_start;
-}
-
-void Graphics::team_captures_next() {
-	++team_captures_start;
-}
-
 void Graphics::draw_player_power(double val) {
 	textprintf_ex(drawbuf, font, 244, SCREEN_H - 30, col[COLCYAN], -1, "POWER: %3.0f", val);
 }
@@ -1982,6 +1977,7 @@ void Graphics::main_menu(bool connected, const string& address, const string& pl
 		textprintf_centre_ex(drawbuf, font, 150+180, 324-DELY, col[COLGREEN], -1, "'%s'", theme_name.c_str());
 	}
 	textprintf_ex(drawbuf, font, 150, 338-DELY, col[COLWHITE], -1, "  [ 8 ]   Toggle antialiasing: (%s)", antialiasing == AA_none ? "off" : antialiasing == AA_map ? "map" : "on");
+	textout_ex(drawbuf, font, "  [ 9 ]   Display settings", 150, 353 - DELY, col[COLWHITE], -1);
 
 /*#fix: change the menu system so that everything fits :)
 	textout_ex(drawbuf, font, "Hit CONTROL+F12 to EXIT THE GAME", 150, 354-DELY, col[COLWHITE], -1);
@@ -2049,6 +2045,21 @@ void Graphics::password_menu_save(const string& caption, int password_len, bool 
 		textout_ex(drawbuf, font, "×", x + 8, y, col[COLGREEN], -1);
 	if (pw_selected)
 		textout_ex(drawbuf, font, "_", x + 8, y, col[COLGREEN], -1);
+}
+
+void Graphics::display_menu() {
+	menu_caption();
+	const int x = 150;
+	const int y = 200;
+	int line = 0;
+	textout_ex(drawbuf, font, "Resolution   ", x, y + line * 12, col[COLWHITE], -1);
+	if (resolutions.empty())
+		textout_ex(drawbuf, font, "-", x + 13 * 8, y + line * 12, col[COLGREEN], -1);
+	else
+		textprintf_ex(drawbuf, font, x + 13 * 8, y + line * 12, col[COLGREEN], -1, "%d×%d", res_x(), res_y());
+	line++;
+	textout_ex(drawbuf, font, "Colour depth ", x, y + line * 12, col[COLWHITE], -1);
+	textprintf_ex(drawbuf, font, x + 13 * 8, y + line * 12, col[COLGREEN], -1, "%d bits", col_depth);
 }
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
@@ -2268,16 +2279,16 @@ void Graphics::draw_speedfx(int room_x, int room_y, double time) {
 bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	const int old_minimap_p_w = minimap_place_w;
 	const int old_minimap_p_h = minimap_place_h;
-	minimap_place_w *= 2;
-	minimap_place_h *= 2;
+	minimap_place_w = map.w * 40 + 2;
+	minimap_place_h = map.h * 30 + 2;
 	BITMAP* buffer = create_bitmap(minimap_place_w, minimap_place_h);
 	update_minimap_background(buffer, map, true);
-	BITMAP* clip = create_sub_bitmap(buffer, minimap_start_x, minimap_start_y, minimap_w, minimap_h);
+	//BITMAP* clip = create_sub_bitmap(buffer, minimap_start_x, minimap_start_y, minimap_w, minimap_h);
 	PALETTE pal;
 	get_palette(pal);
 	minimap_place_w = old_minimap_p_w;
 	minimap_place_h = old_minimap_p_h;
-	bool failure = !save_bitmap(filename.c_str(), clip, pal);
+	bool failure = !save_bitmap(filename.c_str(), buffer, pal);
 	destroy_bitmap(buffer);
 	return failure;
 }
@@ -2492,49 +2503,7 @@ void Graphics::set_theme_dir(const string& dir) {
 		no_theme = true;
 }
 
-// Scaleable functions for primitive drawing
-
 inline int Graphics::scale(double value) const {
 	return static_cast<int>(scr_mul * value + 0.5);
-}
-
-void Graphics::rectfill_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const {
-	rectfill(buff, scale(x1), scale(y1), scale(x2), scale(y2), color);
-}
-
-void Graphics::triangle_sc(BITMAP* buff, double x1, double y1, double x2, double y2, double x3, double y3, int color) const {
-	triangle(buff, scale(x1), scale(y1), scale(x2), scale(y2), scale(x3), scale(y3), color);
-}
-
-void Graphics::circle_sc(BITMAP* buff, double x, double y, double r, int color) const {
-	circle(buff, scale(x), scale(y), scale(r), color);
-}
-
-void Graphics::circlefill_sc(BITMAP* buff, double x, double y, double r, int color) const {
-	circlefill(buff, scale(x), scale(y), scale(r), color);
-}
-
-void Graphics::ellipse_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const {
-	ellipse(buff, scale(x), scale(y), scale(rx), scale(ry), color);
-}
-
-void Graphics::ellipsefill_sc(BITMAP* buff, double x, double y, double rx, double ry, int color) const {
-	ellipsefill(buff, scale(x), scale(y), scale(rx), scale(ry), color);
-}
-
-void Graphics::putpixel_sc(BITMAP* buff, double x, double y, int color) const {
-	putpixel(buff, scale(x), scale(y), color);
-}
-
-void Graphics::line_sc(BITMAP* buff, double x1, double y1, double x2, double y2, int color) const {
-	line(buff, scale(x1), scale(y1), scale(x2), scale(y2), color);
-}
-
-void Graphics::hline_sc(BITMAP* buff, double x1, double y, double x2, int color) const {
-	hline(buff, scale(x1), scale(y), scale(x2), color);
-}
-
-void Graphics::vline_sc(BITMAP* buff, double x, double y1, double y2, int color) const {
-	vline(buff, scale(x), scale(y1), scale(y2), color);
 }
 
