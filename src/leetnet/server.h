@@ -47,14 +47,14 @@ public:
 	typedef void pingResultCallbackT	(void* customp, int client_id, int pingtime);
 
 	//set a callback. you must set all the callbacks before calling start()
-	virtual void setHelloCallback(helloCallbackT* fn);
-	virtual void setConnectedCallback(connectedCallbackT* fn);
-	virtual void setDisconnectedCallback(disconnectedCallbackT* fn);
-	virtual void setDataCallback(dataCallbackT* fn);
-	virtual void setLagStatusCallback(lagStatusCallbackT* fn);
-	virtual void setPingResultCallback(pingResultCallbackT* fn);
+	virtual void setHelloCallback(helloCallbackT* fn) = 0;
+	virtual void setConnectedCallback(connectedCallbackT* fn) = 0;
+	virtual void setDisconnectedCallback(disconnectedCallbackT* fn) = 0;
+	virtual void setDataCallback(dataCallbackT* fn) = 0;
+	virtual void setLagStatusCallback(lagStatusCallbackT* fn) = 0;
+	virtual void setPingResultCallback(pingResultCallbackT* fn) = 0;
 
-	virtual void setCallbackCustomPointer(void* ptr);
+	virtual void setCallbackCustomPointer(void* ptr) = 0;
 
 	//set the client timeouts in seconds. lagtime = time in secs without receiving packets that generates
 	// SFUNC_CLIENT_LAG_STATUS callbacks. droptime = time in secs w/o recv. packets that before kicking the client
