@@ -1,3 +1,26 @@
+/*
+ *  antialias_internal.h
+ *
+ *  Copyright (C) 2004 - Niko Ritari
+ *
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Outgun is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+
 #ifndef ANTIALIAS_INTERNAL_H_INC
 #define ANTIALIAS_INTERNAL_H_INC
 
@@ -18,6 +41,7 @@ using std::cerr;
 // INTERSECTION_TRESHOLD	is how much inside a segment an intersection is allowed (must allow for rounding errors)
 // SPLIT_TRESHOLD			is how much y-borders are allowed to deviate (must exceed the precision of the given y coords)
 // FINAL_EXTREMECUT			is how much of each element is removed y-wise to protect from exceeding function range
+// X_EXTREMECUT				is how much of each pixel edge is removed x-wise to counter imprecision (a too little cut is not fatal but does trigger an assertion)
 // JOIN_TRESHOLD			is how much gap is allowed when joining two adjacent objects to one
 // all tresholds' unit is a pixel
 // these settings currently tune the module to work with values of y up to approximately +-1e8
@@ -25,6 +49,7 @@ using std::cerr;
 const double INTERSECTION_TRESHOLD = .0000001;	// roughly 2^-20
 const double SPLIT_TRESHOLD        = .0000002;
 const double FINAL_EXTREMECUT      = .000001;
+const double X_EXTREMECUT          = .000001;
 const double JOIN_TRESHOLD         = .001;
 
 struct ChangePoints {

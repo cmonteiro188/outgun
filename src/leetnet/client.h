@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- *  Modified by Niko Ritari 2003
+ *  Modified by Niko Ritari 2003, 2004
  */
 
 /*

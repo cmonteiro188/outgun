@@ -1,3 +1,26 @@
+/*
+ *  antialias.cpp
+ *
+ *  Copyright (C) 2004 - Niko Ritari
+ *
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Outgun is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+
 #include <vector>
 #include <list>
 #include <algorithm>
@@ -122,7 +145,7 @@ void LineFunction::debug() const {
 void swap(ChangePoints::Side& s) { s = (s == ChangePoints::S_Left) ? ChangePoints::S_Right : ChangePoints::S_Left; }
 
 double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFunctionBase& fn) {
-	const ChangePoints lc = fn.getChangePoints(x0), rc = fn.getChangePoints(x0+1.);
+	const ChangePoints lc = fn.getChangePoints(x0 + X_EXTREMECUT), rc = fn.getChangePoints(x0 + 1. - X_EXTREMECUT);	// leave outer edges off to make sure the result is within [0,1]
 	ChangePoints::Side ls = lc.startSide, rs = rc.startSide;
 	const double* lcpi = lc.points, * rcpi = rc.points;
 	double totalPixel = 0;
@@ -1218,4 +1241,3 @@ void SceneAntialiaser::render(Texturizer& tex) const {
 			tex.render(ei->getBaseTex(), &*ei, false);
 	}
 }
-

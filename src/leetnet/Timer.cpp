@@ -1,6 +1,6 @@
 /* GNE - Game Networking Engine, a portable multithreaded networking library.
  * Copyright (C) 2001 Jason Winnebeck (gillius@mail.rit.edu)
- * Modified (unneeded features stripped) by Niko Ritari 2003, 2004
+ * This file modified (unneeded features stripped) by Niko Ritari 2003, 2004
  * Project website: http://www.rit.edu/~jpw9607/
  *
  *  This library is free software; you can redistribute it and/or modify

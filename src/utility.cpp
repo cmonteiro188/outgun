@@ -1,3 +1,27 @@
+/*
+ *  utility.cpp
+ *
+ *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Outgun is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -177,7 +201,7 @@ void rotate_angle(float& angle, float shift) {
 }
 
 double get_time() {
-	return ((double)time_counter) / 200.0;
+	return time_counter / 200.0;
 }
 
 string date_and_time() {
@@ -267,4 +291,3 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 	textout_right(bmp, f, text, x, y, color);
 }
 #endif	// ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-

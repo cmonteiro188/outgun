@@ -1,5 +1,3 @@
-#include "dlog.h"
-
 /*
  *  This file is part of Outgun.
  *
@@ -18,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003 - Niko Ritari
+ *  Copyright (C) 2003, 2004 - Niko Ritari
  */
 
 /*
@@ -28,6 +26,8 @@
 	requires HawkNL from htpp://www.hawksoft.com/hawknl
 
 */
+
+#include "dlog.h"
 
 #include "../mutex.h"
 #include "../nassert.h"

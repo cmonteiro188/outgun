@@ -1,9 +1,3 @@
-#define LEETNET_LOG
-#define LEETNET_DATA_LOG
-
-#include "dlog.h"
-const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
-
 /*
  *  This file is part of Outgun.
  *
@@ -22,7 +16,7 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003 - Niko Ritari
+ *  Copyright (C) 2003, 2004 - Niko Ritari
  */
 
 /*
@@ -38,6 +32,12 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 	internal instance of server_c
 
 */
+
+#define LEETNET_LOG
+#define LEETNET_DATA_LOG
+
+#include "dlog.h"
+const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 
 #include <pthread.h>
 #include <sched.h>
