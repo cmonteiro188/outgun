@@ -129,7 +129,7 @@ void Sounds::load_samples(const string& path) {
     load_outgun_sample(path, "fire", SAMPLE_FIRE);
     load_outgun_sample(path, "hit", SAMPLE_HIT);
     load_outgun_sample(path, "wallhit", SAMPLE_WALLHIT);
-    load_outgun_sample(path, "qwallhit", SAMPLE_QUADWALLHIT);
+    load_outgun_sample(path, "qwallhit", SAMPLE_POWERWALLHIT);
 
     load_outgun_sample(path, "getdb", SAMPLE_GETDEATHBRINGER);
     load_outgun_sample(path, "usedb", SAMPLE_USEDEATHBRINGER);
@@ -151,13 +151,13 @@ void Sounds::load_samples(const string& path) {
     load_outgun_sample(path, "shieldp", SAMPLE_SHIELD_PICKUP);
     load_outgun_sample(path, "shieldd", SAMPLE_SHIELD_DAMAGE);
     load_outgun_sample(path, "shieldl", SAMPLE_SHIELD_LOST);
-    load_outgun_sample(path, "speedon", SAMPLE_BOOTS_ON);
-    load_outgun_sample(path, "speedoff", SAMPLE_BOOTS_OFF);
-    load_outgun_sample(path, "quadon", SAMPLE_QUAD_ON);
-    load_outgun_sample(path, "quadfire", SAMPLE_QUAD_FIRE);
-    load_outgun_sample(path, "quadoff", SAMPLE_QUAD_OFF);
-    load_outgun_sample(path, "helmon", SAMPLE_HELM_ON);
-    load_outgun_sample(path, "helmoff", SAMPLE_HELM_OFF);
+    load_outgun_sample(path, "speedon", SAMPLE_TURBO_ON);
+    load_outgun_sample(path, "speedoff", SAMPLE_TURBO_OFF);
+    load_outgun_sample(path, "quadon", SAMPLE_POWER_ON);
+    load_outgun_sample(path, "quadfire", SAMPLE_POWER_FIRE);
+    load_outgun_sample(path, "quadoff", SAMPLE_POWER_OFF);
+    load_outgun_sample(path, "helmon", SAMPLE_SHADOW_ON);
+    load_outgun_sample(path, "helmoff", SAMPLE_SHADOW_OFF);
 
     load_outgun_sample(path, "got", SAMPLE_CTF_GOT);
     load_outgun_sample(path, "lost", SAMPLE_CTF_LOST);

@@ -121,7 +121,7 @@ public:
     void draw_player_name(const std::string& name, int x, int y, int team);
     void draw_player_dead(const ClientPlayer& player);
 
-    void draw_rocket(const Rocket& rocket, double time);
+    void draw_rocket(const Rocket& rocket, bool shadow, double time);
     void draw_gun_explosion(int x, int y, int rad);
     void draw_deathbringer_smoke(int x, int y, double time);
     void draw_deathbringer(int x, int y, int team, double time);
@@ -189,7 +189,7 @@ public:
     void clear_fx();
 
     void create_wallexplo(int x, int y, int px, int py);
-    void create_quadwallexplo(int x, int y, int px, int py);
+    void create_powerwallexplo(int x, int y, int px, int py);
     void create_smoke(int x, int y, int px, int py);
     void create_deathcarrier(int x, int y, int px, int py);
     void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);

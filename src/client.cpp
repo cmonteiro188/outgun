@@ -1549,7 +1549,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 // ITEMS: movido para este byte
                 h.item_shield = (extra & 8) != 0;
                 h.item_speed = (extra & 16) != 0;
-                h.item_quad = (extra & 32) != 0;
+                h.item_power = (extra & 32) != 0;
 
                 //verifica se acabou de morrer - play death sound
                 if (h.dead && !h.old_dead)
@@ -1563,7 +1563,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 //bits 5..7 : gundir= 0..7
                 h.gundir = ccb >> 5;
 
-                //read helm byte
+                //read shadow byte
                 readByte(data, count, byt);
                 h.visibility = byt;
             }
@@ -1789,7 +1789,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 //play sound if rocket on screen
                 if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
                     if (power)
-                        addThreadMessage(new TM_Sound(SAMPLE_QUAD_FIRE));
+                        addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
                     else
                         addThreadMessage(new TM_Sound(SAMPLE_FIRE));
                 break;
@@ -1894,9 +1894,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (iid == Powerup::pup_turbo)
                         fx.player[me].item_speed_time = get_time() + time;
                     else if (iid == Powerup::pup_shadow)
-                        fx.player[me].item_helm_time = get_time() + time;
+                        fx.player[me].item_shadow_time = get_time() + time;
                     else if (iid == Powerup::pup_power)
-                        fx.player[me].item_quad_time = get_time() + time;
+                        fx.player[me].item_power_time = get_time() + time;
                 }
                 break;
             }
@@ -2024,27 +2024,29 @@ void Client::process_incoming_data(const char* data, int length) {
                 ls.fromNetwork(regStatus);
                 if (pid == me && fx.player[pid].reg_status != ls) {
                     ostringstream msg;
-                    msg << _("Status: ");   // 8
+                    msg << _("Status") << ": ";
                     if (ls.token()) {
                         if (ls.masterAuth()) {
-                            msg << "master authorized, ";
-                            if (!ls.tournament())
-                                msg << "not ";
-                            msg << "recording";
+                            msg << _("master authorized") << ", ";
+                            if (ls.tournament())
+                                msg << _("recording");
+                            else
+                                msg << _("not recording");
                         }
                         else {
-                            msg << "master auth pending, will ";    // + 26 = 34
-                            if (!ls.tournament())
-                                msg << "not ";  // + 4 = 38
-                            msg << "record";    // + 6 = 44
+                            msg << _("master auth pending") << ", ";
+                            if (ls.tournament())
+                                msg << _("will record");
+                            else
+                                msg << _("will not record");
                         }
                     }
                     else
-                        msg << "no tournament login";
+                        msg << _("no tournament login");
                     if (ls.localAuth())
-                        msg << "; locally authorized";  // + 20 = 64
+                        msg << "; " << _("locally authorized");
                     if (ls.admin())
-                        msg << "; administrator";   // + 15 = 79 (maximum length)
+                        msg << "; " << _("administrator");
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 fx.player[pid].reg_status = ls;
@@ -2376,10 +2378,13 @@ void Client::send_chat(const string& msg) {
 
 //print message to "console"
 void Client::print_message(Message_type type, const string& msg) {
-    if (static_cast<int>(chatbuffer.size()) == client_graphics.chat_max_lines())
+    const vector<string> lines = split_to_lines(msg, 79, 4);
+    while (chatbuffer.size() > client_graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
-    Message message(type, msg, static_cast<int>(get_time()));
-    chatbuffer.push_back(message);
+    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+        Message message(type, *li, static_cast<int>(get_time()));
+        chatbuffer.push_back(message);
+    }
 }
 
 void Client::save_screenshot() {
@@ -2983,8 +2988,8 @@ void Client::loop(volatile bool* quitFlag) {
                             talkbuffer.clear();
                         }
                     }
-                    // Add character to text, max text length 60 chars.
-                    else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) &&
+                    // Add character to text
+                    else if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
                         (!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence)))
                             talkbuffer += static_cast<char>(ch);
                 }
@@ -3266,8 +3271,8 @@ void Client::stop() {
 
 void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
     if (power) {
-        client_graphics.create_quadwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
-        client_sounds.play(SAMPLE_QUADWALLHIT);
+        client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
+        client_sounds.play(SAMPLE_POWERWALLHIT);
     }
     else {
         client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
@@ -3416,15 +3421,18 @@ void Client::draw_game_frame() {
             if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
                 fd.rock[i].team = fx.rock[i].team;
                 fd.rock[i].power = fx.rock[i].power;
-                client_graphics.draw_rocket(fd.rock[i], get_time());
+                const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
+                const bool shadow = !fd.map.room[fx.player[me].roomx][fx.player[me].roomy].fall_on_wall(
+                    static_cast<int>(fd.rock[i].x), static_cast<int>(fd.rock[i].y) + radius + 8, radius / 2);
+                client_graphics.draw_rocket(fd.rock[i], shadow, get_time());
             }
 
         // the PLAY AREA: the players!
         for (int k = 0; k < maxplayers; k++) {
             const int i = (me / TSIZE == 0 ? k : maxplayers - k - 1);   // own team first
 
-            //HACK REMENDEX: predict item_helm
-            if (fx.player[i].onscreen && fx.player[i].item_helm()) {
+            //HACK REMENDEX: predict item_shadow
+            if (fx.player[i].onscreen && fx.player[i].item_shadow()) {
                 const int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
                 fd.player[i].visibility = fx.player[i].visibility - hspd;
                 if (fd.player[i].visibility < 0)
@@ -3472,7 +3480,7 @@ void Client::draw_game_frame() {
             if (!fi->carried())
                 client_graphics.draw_mini_flag(2, *fi, fx.map);
 
-        vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm()) ? true : false);
+        vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? true : false);
 
         // draw all teammates and enemies on screens where there are teammates
         //draw all the players - put a pixel where they are
@@ -3533,8 +3541,8 @@ void Client::draw_game_frame() {
 
     // player's power-ups
     if (me >= 0) {
-        if (fx.player[me].item_quad) {
-            double val = fx.player[me].item_quad_time - get_time();
+        if (fx.player[me].item_power) {
+            double val = fx.player[me].item_power_time - get_time();
             if (val < 0) val = 0;
             client_graphics.draw_player_power(val);
         }
@@ -3543,8 +3551,8 @@ void Client::draw_game_frame() {
             if (val < 0) val = 0;
             client_graphics.draw_player_turbo(val);
         }
-        if (fx.player[me].item_helm()) {
-            double val = fx.player[me].item_helm_time - get_time();
+        if (fx.player[me].item_shadow()) {
+            double val = fx.player[me].item_shadow_time - get_time();
             if (val < 0) val = 0;
             client_graphics.draw_player_shadow(val);
         }
@@ -3643,7 +3651,7 @@ void Client::draw_player(int pid) {
             }
 
             //draw player
-            client_graphics.draw_player(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team(), player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
+            client_graphics.draw_player(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, get_time());
         }
 
         //draw deathbringer carrier effect
@@ -3956,7 +3964,7 @@ void Client::MCF_sndEnableChange() {
 
 void Client::MCF_sndVolumeChange() {
     client_sounds.setVolume(menu.options.sounds.volume());
-    client_sounds.play(SAMPLE_QUAD_FIRE);
+    client_sounds.play(SAMPLE_POWER_FIRE);
 }
 
 void Client::MCF_sndThemeChange() {

@@ -39,6 +39,10 @@ std::string fcvt(double val);
 int iround(double value);
 int numberWidth(int num);   // how many characters num takes when printed
 
+inline double sqr(double value) {  // the square of the given value (just to keep the code readable)
+    return value * value;
+}
+
 // Returns the current time in the standard format.
 std::string date_and_time();
 

@@ -914,7 +914,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 }
 
 //draws a basic player object
-void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_quad, int alpha, double time) {
+void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_power, int alpha, double time) {
     x = scale(x);
     y = scale(y);
     int pc1 = teamcol[team];
@@ -925,7 +925,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
         const int rgb = static_cast<int>(70.0 + deltafx * 600.0);  // var 180
         pc1 = pc2 = makecol(rgb, rgb, rgb);
     }
-    else if (item_quad) {
+    else if (item_power) {
         if (static_cast<int>(time * 10) % 2) {
             pc1 = col[COLWHITE];
             pc2 = col[COLCYAN];
@@ -935,7 +935,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     const int player_radius = scale(PLAYER_RADIUS);
 
     BITMAP* sprite = 0;
-    if (item_quad && player_sprite_power && static_cast<int>(time * 10) % 2)
+    if (item_power && player_sprite_power && static_cast<int>(time * 10) % 2)
         sprite = player_sprite_power;
     else {
         nAssert(team == 0 || team == 1);
@@ -1190,7 +1190,7 @@ void Graphics::draw_player_name(const string& name, int x, int y, int team) {
     print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), col[COLWHITE], teamdcol[team], -1);
 }
 
-void Graphics::draw_rocket(const Rocket& rocket, double time) {
+void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
     const int x = scale(rocket.x);
     const int y = scale(rocket.y);
     BITMAP* sprite = (rocket.power ? power_rocket_sprite[rocket.team] : rocket_sprite[rocket.team]);
@@ -1198,16 +1198,18 @@ void Graphics::draw_rocket(const Rocket& rocket, double time) {
         rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(rocket.direction * 32));
     else if (rocket.power) {
         //draw rocket shadow
-        ellipsefill(drawbuf, plx + x, ply + y + scale(QUAD_ROCKET_RADIUS + 8), scale(QUAD_ROCKET_RADIUS), scale(3), col[COLSHADOW]);
+        if (shadow)
+            ellipsefill(drawbuf, plx + x, ply + y + scale(POWER_ROCKET_RADIUS + 8), scale(POWER_ROCKET_RADIUS), scale(3), col[COLSHADOW]);
         //draw the rocket
         if (static_cast<int>(time * 30) % 2)
-            circlefill(drawbuf, plx + x, ply + y, scale(QUAD_ROCKET_RADIUS), col[COLWHITE]);    //y-12?
+            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), col[COLWHITE]);    //y-12?
         else
-            circlefill(drawbuf, plx + x, ply + y, scale(QUAD_ROCKET_RADIUS), teamlcol[rocket.team]); //y-12??
+            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), teamlcol[rocket.team]); //y-12??
     }
     else {
         //draw rocket shadow
-        ellipsefill(drawbuf, plx + x, ply + y + scale(ROCKET_RADIUS + 8), scale(ROCKET_RADIUS), scale(2), col[COLSHADOW]);
+        if (shadow)
+            ellipsefill(drawbuf, plx + x, ply + y + scale(ROCKET_RADIUS + 8), scale(ROCKET_RADIUS), scale(2), col[COLSHADOW]);
         //draw the rocket
         circlefill(drawbuf, plx + x, ply + y, scale(ROCKET_RADIUS), teamcol[rocket.team]); //y-10??
     }
@@ -1855,7 +1857,9 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     if (!talkbuffer.empty()) {
         ostringstream message;
         message << _("Say") << ": " << talkbuffer << '_';
-        print_chat_input(message.str(), marginal, marginal + line * line_height);
+        const vector<string> lines = split_to_lines(message.str(), 79, 0);
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line)
+            print_chat_input(*li, marginal, marginal + line * line_height);
     }
 }
 
@@ -1933,7 +1937,7 @@ void Graphics::clear_fx() {
     cfx.clear();
 }
 
-//create wall explosion fx
+//create rocket explosion fx
 void Graphics::create_wallexplo(int x, int y, int px, int py) {
     GraphicsEffect fx;
 
@@ -1947,8 +1951,8 @@ void Graphics::create_wallexplo(int x, int y, int px, int py) {
     cfx.push_back(fx);
 }
 
-//create quad wall explosion fx
-void Graphics::create_quadwallexplo(int x, int y, int px, int py) {
+//create power rocket explosion fx
+void Graphics::create_powerwallexplo(int x, int y, int px, int py) {
     GraphicsEffect fx;
 
     fx.type = FX_POWER_WALL_EXPLOSION;

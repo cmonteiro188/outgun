@@ -84,7 +84,7 @@ public:
     double y3() const { return p3y; }
 
     bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const; // perfect
-    bool intersects_circ(double x, double y, double r) const;   // very much imperfect (uses bounding rectangle)
+    bool intersects_circ(double x, double y, double r) const;                   // perfect
     void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
@@ -312,7 +312,7 @@ protected:
 public:
     bool item_deathbringer;
     bool item_shield;
-    bool item_quad;
+    bool item_power;
     bool item_speed;
     int visibility;     // alpha
 
@@ -342,7 +342,7 @@ public:
     const Statistics& stats() const { return player_stats; }
     Statistics& stats() { return player_stats; }
 
-    bool item_helm() const { return visibility < 255; }
+    bool item_shadow() const { return visibility < 255; }
     int team() const { return team_nr; }
     int color() const { return personal_color; }
     virtual bool under_deathbringer_effect(double curr_time) const =0;
@@ -358,9 +358,9 @@ public:
     int weapon;
     bool attack;    // if player is holding attack button
 
-    double item_quad_time;
+    double item_power_time;
     double item_speed_time;
-    double item_helm_time;
+    double item_shadow_time;
 
     long item_deathbringer_time;    // explosion of this players deathbringer
     double deathbringer_end;    // end of effect of another players deathbringer
@@ -431,9 +431,9 @@ public:
     int oldx, oldy; // detect room changes
 
     // get rid of these since they are only known for the local player
-    double item_quad_time;
+    double item_power_time;
     double item_speed_time;
-    double item_helm_time;
+    double item_shadow_time;
     int health;
     int energy;
     int weapon;

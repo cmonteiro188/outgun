@@ -1087,6 +1087,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     log("Kicked player %d for client misbehavior: sent unprintable characters", pid);
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
                 }
+                else if (string(msg + 1).length() > max_chat_message_length) {
+                    log("Kicked player %d for client misbehavior: sent too long message (%d characters)", pid, string(msg + 1).length());
+                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                }
                 else
                     host->chat(pid, msg + 1);
             }
@@ -1301,7 +1305,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     //         2   affected by deathbringer?
     //         3   has shield?
     //         4   has speed?
-    //         5   has quad?
+    //         5   has power?
     //         6..7   FREE BITS
     //       BYTE   keys (aceleracao/bitfield)
     //           0   left?
@@ -1361,7 +1365,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         helmiter++;
         if (helmiter > maxplayers - 1)
             helmiter = 0;
-        if (world.player[helmiter].used && !world.player[helmiter].item_helm() || world.player[helmiter].flag())
+        if (world.player[helmiter].used && !world.player[helmiter].item_shadow() || world.player[helmiter].flag())
             break;
     } while (runaway-- > 0);
 
@@ -1374,7 +1378,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             if (i / TSIZE == 1 - t && world.player[i].used) {
                 // ---- helmview -----
                 // mostra se NAO TEM HELM ou SE TA COM FLAG
-                if (!world.player[i].item_helm() || world.player[i].flag())
+                if (!world.player[i].item_shadow() || world.player[i].flag())
                     helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
 
                 // ---- tview -----
@@ -1496,7 +1500,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         extra |= 8;
                     if (world.player[j].item_speed)
                         extra |= 16;
-                    if (world.player[j].item_quad)
+                    if (world.player[j].item_power)
                         extra |= 32;
                     writeByte(lebuf, lecount, extra);
 
@@ -1518,21 +1522,21 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             writeLong(lebuf, p_on_count, players_onscreen);
 
             NLubyte who;
-            if (world.player[i].item_helm()) {
+            if (world.player[i].item_shadow()) {
                 writeShort(lebuf, lecount, helmview[i/TSIZE] | tview_bits[i/TSIZE]);
-                who = (NLubyte)helmiter;
+                who = static_cast<NLubyte>(helmiter);
                 writeByte(lebuf, lecount, who);
             }
             else {
                 writeShort(lebuf, lecount, tview_bits[i/TSIZE]);
-                who = (NLubyte)tviter[i/TSIZE];
+                who = static_cast<NLubyte>(tviter[i/TSIZE]);
                 writeByte(lebuf, lecount, who);
             }
 
-            NLubyte mx = (NLubyte)(((world.player[who].lx + ((double)(world.player[who].roomx * plw))) / (world.map.w*plw)) * 255.0);
+            const NLubyte mx = static_cast<NLubyte>((world.player[who].lx + world.player[who].roomx * plw) / (world.map.w * plw) * 255.0);
             writeByte(lebuf, lecount, mx);
 
-            NLubyte my = (NLubyte)(((world.player[who].ly + ((double)(world.player[who].roomy * plh))) / (world.map.h*plh)) * 255.0);
+            const NLubyte my = static_cast<NLubyte>((world.player[who].ly + world.player[who].roomy * plh) / (world.map.h * plh) * 255.0);
             writeByte(lebuf, lecount, my);
 
             // send 8 bits of player's health
@@ -1546,7 +1550,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].energy & 255));
 
             // ping of player frame# % MAXPLAYERS
-            NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
+            const NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
             writeShort(lebuf, lecount, theping);
         }
 

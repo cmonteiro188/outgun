@@ -44,6 +44,8 @@ bool check_name(const std::string& name);
 
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
 
+const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
+
 class ClientControls {
 public:
     ClientControls() : data(0) { }
@@ -127,7 +129,7 @@ static const int plw = 472, plh = 354;  // play area width/height
 
 static const int PLAYER_RADIUS = 15;
 static const int SHIELD_RADIUS_ADD = 9; // this is added to PLAYER_RADIUS
-static const int ROCKET_RADIUS = 4, QUAD_ROCKET_RADIUS = 6;
+static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 // Game specific strings
 #define GAME_STRING "Outgun"
@@ -186,7 +188,7 @@ enum {
     SAMPLE_HIT,
 
     SAMPLE_WALLHIT,
-    SAMPLE_QUADWALLHIT,
+    SAMPLE_POWERWALLHIT,
 
     SAMPLE_DEATH,
     SAMPLE_DEATH_2,
@@ -210,15 +212,15 @@ enum {
     SAMPLE_SHIELD_DAMAGE,
     SAMPLE_SHIELD_LOST,
 
-    SAMPLE_BOOTS_ON,
-    SAMPLE_BOOTS_OFF,
+    SAMPLE_TURBO_ON,
+    SAMPLE_TURBO_OFF,
 
-    SAMPLE_QUAD_ON,
-    SAMPLE_QUAD_FIRE,
-    SAMPLE_QUAD_OFF,
+    SAMPLE_POWER_ON,
+    SAMPLE_POWER_FIRE,
+    SAMPLE_POWER_OFF,
 
-    SAMPLE_HELM_ON,
-    SAMPLE_HELM_OFF,
+    SAMPLE_SHADOW_ON,
+    SAMPLE_SHADOW_OFF,
 
     SAMPLE_CTF_GOT,
     SAMPLE_CTF_LOST,

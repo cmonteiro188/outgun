@@ -151,12 +151,32 @@ TriWall::TriWall(double x1, double y1, double x2, double y2, double x3, double y
     boundx2 = max(p1x, max(p2x, p3x)), boundy2 = max(p1y, max(p2y, p3y));
 }
 
-/* TriWall::intersects_circ:
- * this function cheats a bit: it might return true even if they don't really intersect, but if it returns false, it's certain they don't intersect
- * a perfect intersects_circ would be possible, but the loss isn't so great in only testing the circle's bounding rectangle
- */
 bool TriWall::intersects_circ(double x, double y, double r) const {
-    return intersects_rect(x - r, y - r, x + r, y + r);
+    // A crude check first.
+    if (!intersects_rect(x - r, y - r, x + r, y + r))
+        return false;
+    // Check if the circle intersects with the triangle edges.
+    const double px[4] = { p1x, p2x, p3x, p1x };
+    const double py[4] = { p1y, p2y, p3y, p1y };
+    for (int i = 0; i < 3; i++) {
+        const double a = sqr(px[i + 1] - px[i]) + sqr(py[i + 1] - py[i]);
+        const double b = 2 * ((px[i + 1] - px[i]) * (px[i] - x) + (py[i + 1] - py[i]) * (py[i] - y));
+        const double c = x * x + y * y + px[i] * px[i] + py[i] * py[i] - 2 * (x * px[i] + y * py[i]) - r * r;
+        if (b * b - 4 * a * c >= 0.) {  // Check if the circle intersects with a line going by two triangle corners.
+            const double d = (x - px[i]) * (px[i + 1] - px[i]) + (y - py[i]) * (py[i + 1] - py[i]);
+            if (d / a >= 0 && d <= a || sqr(px[i] - x) + sqr(py[i] - y) <= r * r)   // Check the actual intersection.
+                return true;
+        }
+    }
+    // Check if the circle is inside the triangle though not intersecting with the edges.
+    const double bc = p2x * p3y - p2y * p3x;
+    const double ca = p3x * p1y - p3y * p1x;
+    const double ab = p1x * p2y - p1y * p2x;
+    const double ap = p1x * y   - p1y * x;
+    const double bp = p2x * y   - p2y * x;
+    const double cp = p3x * y   - p3y * x;
+    const double abc = (bc + ca + ab < 0 ? -1 : 1);
+    return abc * (bc - bp + cp) > 0 && abc * (ca - cp + ap) > 0 && abc * (ab - ap + bp) > 0;
 }
 
 bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) const {
@@ -669,7 +689,7 @@ void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team
     ping = 0;
     id = _pid;
     name = _name;
-    item_deathbringer = item_shield = item_quad = item_speed = false;
+    item_deathbringer = item_shield = item_power = item_speed = false;
     visibility = 255;
     roomx = roomy = 0;
     lx = ly = sx = sy = 0;
@@ -712,7 +732,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     item_deathbringer_time = 0;
     deathbringer_end = 0;
     deathbringer_attacker = 0;
-    item_quad_time = item_speed_time = item_helm_time = 0;
+    item_power_time = item_speed_time = item_shadow_time = 0;
     health = energy = 0;
     megabonus = 0;
     weapon = 0;
@@ -726,7 +746,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 }
 
 void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int team_id) {
-    item_quad_time = item_speed_time = item_helm_time = 0;
+    item_power_time = item_speed_time = item_shadow_time = 0;
     health = energy = 0;
     weapon = 0;
 
@@ -1662,7 +1682,7 @@ void ServerWorld::respawnPlayer(int pid) {
     net->sendWeaponPower(pid);
 
     player[pid].item_shield = false;
-    player[pid].item_quad = false;
+    player[pid].item_power = false;
     player[pid].item_speed = false;
     player[pid].visibility = 255;
     player[pid].item_deathbringer = false;
@@ -1700,9 +1720,9 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
         player_items.push_back(Powerup::pup_shield);
     if (player.item_speed && player.item_speed_time - get_time() >= pupConfig.pup_add_time / 2)
         player_items.push_back(Powerup::pup_turbo);
-    if (player.item_helm() && player.item_helm_time - get_time() >= pupConfig.pup_add_time / 2)
+    if (player.item_shadow() && player.item_shadow_time - get_time() >= pupConfig.pup_add_time / 2)
         player_items.push_back(Powerup::pup_shadow);
-    if (player.item_quad && player.item_quad_time - get_time() >= pupConfig.pup_add_time / 2)
+    if (player.item_power && player.item_power_time - get_time() >= pupConfig.pup_add_time / 2)
         player_items.push_back(Powerup::pup_power);
     if (player.weapon >= 1)         // 1 means double weapon
         player_items.push_back(Powerup::pup_weapon);
@@ -1854,33 +1874,33 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
             pl.item_speed_time = get_time() + itemTime;
 
             net->sendPupTime(pl.id, it.kind, itemTime);
-            net->broadcast_screen_sample(pl.id, SAMPLE_BOOTS_ON);
+            net->broadcast_screen_sample(pl.id, SAMPLE_TURBO_ON);
             break;
         }
         case Powerup::pup_shadow: {
-            double itemTime = pl.item_helm_time - get_time();
-            if (!pl.item_helm() || itemTime < 0)
+            double itemTime = pl.item_shadow_time - get_time();
+            if (!pl.item_shadow() || itemTime < 0)
                 itemTime = 0;
             itemTime = pupConfig.addTime(itemTime);
 
             pl.visibility = config.getShadowMinimum();
-            pl.item_helm_time = get_time() + itemTime;
+            pl.item_shadow_time = get_time() + itemTime;
 
             net->sendPupTime(pl.id, it.kind, itemTime);
-            net->broadcast_screen_sample(pl.id, SAMPLE_HELM_ON);
+            net->broadcast_screen_sample(pl.id, SAMPLE_SHADOW_ON);
             break;
         }
         case Powerup::pup_power: {
-            double itemTime = pl.item_quad_time - get_time();
-            if (!pl.item_quad || itemTime < 0)
+            double itemTime = pl.item_power_time - get_time();
+            if (!pl.item_power || itemTime < 0)
                 itemTime = 0;
             itemTime = pupConfig.addTime(itemTime);
 
-            pl.item_quad = true;
-            pl.item_quad_time = get_time() + itemTime;
+            pl.item_power = true;
+            pl.item_power_time = get_time() + itemTime;
 
             net->sendPupTime(pl.id, it.kind, itemTime);
-            net->broadcast_screen_sample(pl.id, SAMPLE_QUAD_ON);
+            net->broadcast_screen_sample(pl.id, SAMPLE_POWER_ON);
             break;
         }
         case Powerup::pup_weapon: {
@@ -1942,7 +1962,7 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
     player[target].health = 0;
 
     player[target].visibility = 255;
-    player[target].item_quad = false;
+    player[target].item_power = false;
     player[target].item_speed = false;
     // deathbringer is not removed until respawn because the flag is needed
 
@@ -1973,8 +1993,8 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
 }
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {   // inflict normal or deathbringer damage on target
-    //HELM powerup: show player
-    if (player[target].item_helm())
+    // shadow powerup: show player
+    if (player[target].item_shadow())
         player[target].visibility = 254;
 
     if (player[target].item_shield) {
@@ -2102,7 +2122,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
         sid[i] = getFreeRocket();
 
     ServerPhysicsCallbacks cb(*this);
-    WorldBase::shootRockets(cb, pid, shots, player[pid].gundir, sid, 0, pid/TSIZE, player[pid].item_quad, px, py, x, y);
+    WorldBase::shootRockets(cb, pid, shots, player[pid].gundir, sid, 0, pid/TSIZE, player[pid].item_power, px, py, x, y);
 
     //build people-that-know DOUBLE WORD (32bits == 32players max)
     //send message to players on the same screen
@@ -2115,7 +2135,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
     for (int k = 0; k < shots; k++)
         rock[sid[k]].vislist = vislist;
 
-    net->sendRocketMessage(shots, player[pid].gundir, sid, pid / TSIZE, player[pid].item_quad, px, py, x, y);
+    net->sendRocketMessage(shots, player[pid].gundir, sid, pid / TSIZE, player[pid].item_power, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
@@ -2500,21 +2520,21 @@ void ServerWorld::simulateFrame() {
         if (player[i].item_speed)
             if (get_time() > player[i].item_speed_time) {
                 player[i].item_speed = false;
-                net->broadcast_screen_sample(i, SAMPLE_BOOTS_OFF);
+                net->broadcast_screen_sample(i, SAMPLE_TURBO_OFF);
             }
-        if (player[i].item_quad)
-            if (get_time() > player[i].item_quad_time) {
-                player[i].item_quad = false;
-                net->broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
+        if (player[i].item_power)
+            if (get_time() > player[i].item_power_time) {
+                player[i].item_power = false;
+                net->broadcast_screen_sample(i, SAMPLE_POWER_OFF);
             }
-        if (player[i].item_helm())
-            if (get_time() > player[i].item_helm_time) {
+        if (player[i].item_shadow())
+            if (get_time() > player[i].item_shadow_time) {
                 player[i].visibility = 255;
-                net->broadcast_screen_sample(i, SAMPLE_HELM_OFF);
+                net->broadcast_screen_sample(i, SAMPLE_SHADOW_OFF);
             }
 
-        // helm alpha down
-        if (player[i].item_helm()) {
+        // shadow alpha down
+        if (player[i].item_shadow()) {
             player[i].visibility -= 10;     //slowly fades....
             if (player[i].visibility < config.getShadowMinimum())   // minimum
                 player[i].visibility = config.getShadowMinimum();
@@ -2602,8 +2622,8 @@ void ServerWorld::simulateFrame() {
 
             player[i].next_shoot_time = get_time() + 0.5;       // add minimum interval (in secs)
 
-            //show helm
-            if (player[i].item_helm())
+            //show shadow
+            if (player[i].item_shadow())
                 player[i].visibility = 254;
 
             shootRockets(i, numshots);
@@ -2842,7 +2862,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     stealFlag(team, flag, pid);
     player[pid].take_flag();
     // shadow powerup: show player
-    if (player[pid].item_helm())
+    if (player[pid].item_shadow())
         player[pid].visibility = 254;
 }
 
