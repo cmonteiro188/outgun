@@ -12,3 +12,5 @@ outgun
 
 .deps/
 Makefile.dependencies
+
+/src/Makefile
