@@ -130,13 +130,11 @@ void Graphics::unload_bitmaps() {
 }
 
 void Graphics::startDraw() {
-	if (page_flipping)
-		acquire_bitmap(drawbuf);
+	acquire_bitmap(drawbuf);
 }
 
 void Graphics::endDraw() {
-	if (page_flipping)
-		release_bitmap(drawbuf);
+	release_bitmap(drawbuf);
 }
 
 void Graphics::draw_screen() {
@@ -328,6 +326,7 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 		}
 		else
 			log("Switch_backamnesia set ok.");
+		GlobalDisplaySwitchHook::install();
 	}
 
 	#ifdef ALLEGRO_WINDOWS

@@ -109,3 +109,26 @@ int threadPriority() {
 	pthread_getschedparam(pthread_self(), &policy, &param);
 	return param.sched_priority;
 }
+
+volatile bool GlobalDisplaySwitchHook::flag = false;
+
+void GlobalDisplaySwitchHook__callback() {
+	GlobalDisplaySwitchHook::flag = true;
+} END_OF_FUNCTION(GlobalDisplaySwitchHook__callback);
+
+void GlobalDisplaySwitchHook::init() {
+	LOCK_VARIABLE(flag);
+	LOCK_FUNCTION(GlobalDisplaySwitchHook__callback);
+	flag = false;
+}
+
+void GlobalDisplaySwitchHook::install() {
+	set_display_switch_callback(SWITCH_IN, GlobalDisplaySwitchHook__callback);
+}
+
+bool GlobalDisplaySwitchHook::readAndClear() {
+	bool f = flag;
+	if (f)
+		flag = false;
+	return f;
+}

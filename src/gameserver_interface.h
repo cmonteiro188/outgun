@@ -16,7 +16,7 @@ public:
 	bool force_ip;		//force IP?
 	std::string force_ip_name;	//force IP to what?
 	int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
-	int lowerPriority, priority;	// lower is used for non-timecritical background threads
+	int lowerPriority, priority, networkPriority;	// lower is used for non-timecritical background threads
 
 	typedef void StatusOutputFnT(const std::string& str);
 	StatusOutputFnT* statusOutput;	// must be set properly (non-null) when used

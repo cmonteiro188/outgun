@@ -685,7 +685,7 @@ bool ServerNetworking::start() {
 		fileTransfer[i].reset();
 
 	// start server
-	server = new_server_c(host->config().priority);
+	server = new_server_c(host->config().networkPriority);
 
 	server->setHelloCallback(sfunc_client_hello);
 	server->setConnectedCallback(sfunc_client_connected);

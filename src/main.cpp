@@ -79,18 +79,22 @@ bool check_dir(const string& dir) {
 
 class GlobalCloseButtonHook {
 	static volatile bool flag;
-	static void closeCallback() { flag = true; } END_OF_STATIC_FUNCTION(closeCallback);
+	friend void GlobalCloseButtonHook__closeCallback();
 
 public:
 	static void install() {
 		LOCK_VARIABLE(flag);
-		LOCK_FUNCTION(closeCallback);
-		set_close_button_callback(closeCallback);
+		LOCK_FUNCTION(GlobalCloseButtonHook__closeCallback);
+		set_close_button_callback(GlobalCloseButtonHook__closeCallback);
 	}
 	static volatile bool* flagPtr() { return &flag; }
 };
 
 volatile bool GlobalCloseButtonHook::flag = false;
+
+void GlobalCloseButtonHook__closeCallback() {
+	GlobalCloseButtonHook::flag = true;
+} END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback);
 
 void statusOutputWindow(const string& str) {
 	set_window_title(str.c_str());
@@ -349,8 +353,10 @@ int main(int argc, char *argv[]) {
 		serverCfg.priority = pdef;
 		log("-defaultprio: Leaving thread priorities on their default values");
 	}
+	serverCfg.networkPriority = clientCfg.networkPriority = serverCfg.priority;
 
 	GlobalCloseButtonHook::install();
+	GlobalDisplaySwitchHook::init();
 
 	// run dedicated server
 	if (serverCfg.dedserver) {

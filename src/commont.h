@@ -90,6 +90,16 @@ private:
 
 int threadPriority();	// debug help
 
+class GlobalDisplaySwitchHook {
+	static volatile bool flag;
+	friend void GlobalDisplaySwitchHook__callback();
+
+public:
+	static void init();
+	static void install();
+	static bool readAndClear();
+};
+
 //static const bool LOG_THREAD_IDS = false;
 static const bool LOG_THREAD_IDS = true;//#@
 
@@ -102,8 +112,8 @@ static const int ROCKET_RADIUS = 4, QUAD_ROCKET_RADIUS = 6;
 // Game specific strings
 #define GAME_STRING "Outgun"
 #define GAME_PROTOCOL "1.0.0b1"
-#define GAME_VERSION "1.0.0 beta 3"
-#define GAME_SHORT_VERSION "1.0.0b3"
+#define GAME_VERSION "1.0.0 beta 4"
+#define GAME_SHORT_VERSION "1.0.0b4"
 
 #define TK1_VERSION_STRING "v048"
 

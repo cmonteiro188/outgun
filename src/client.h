@@ -164,7 +164,7 @@ public:
 	int trypageflip;	// try page flipping? ; -1 = undefined, 0 = false, 1 = true (-flip / -dbuf)
 	bool nosound;		// disable sound? -nosound
 	int targetfps;		// target (MAX) frames-per-second ; -1 = undefined
-	int lowerPriority, priority;	// lower is used for non-timecritical background threads
+	int lowerPriority, priority, networkPriority;	// lower is used for non-timecritical background threads
 
 	typedef void StatusOutputFnT(const std::string& str);
 	StatusOutputFnT* statusOutput;
