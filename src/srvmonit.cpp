@@ -213,7 +213,7 @@ void dualprintf(const char* fmt, ...) {
 string plyNames[32];
 const char* plyName(int idx) {
 	static char buf[50];
-	sprintf(buf, "%s (%d)", plyNames[idx].c_str(), idx);
+	snprintf(buf, 50, "%s (%d)", plyNames[idx].c_str(), idx);
 	return buf;
 }
 
@@ -294,7 +294,7 @@ bool runMonitor(int port, bool disableMessagebox) {
 			case STA_ADMIN_MESSAGE:
 			{
 				char cap[strBufLen+100];
-				sprintf(cap, "Sayadmin message from %s", plyNames[ival[0]].c_str());
+				snprintf(cap, strBufLen+100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
 				dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
 				if (!disableMessagebox)
 					MessageBox(NULL, strBuf, cap, MB_OK);

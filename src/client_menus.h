@@ -20,7 +20,7 @@ public:
 };
 
 class Menu_serverList {
-	std::vector<std::pair<std::string, Textarea> > servers;	// address and server info
+	std::vector<std::pair<NLaddress, Textarea> > servers;	// address and server info
 
 public:
 	Textarea		update;
@@ -34,10 +34,10 @@ public:
 	Menu menu;
 
 	Menu_serverList();
-	void add(const std::string& address, const std::string& serverInfo);
+	void add(const NLaddress& address, const std::string& serverInfo);
 	void reset();
 	void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook);
-	std::string getAddress(const Textarea& target);
+	NLaddress getAddress(const Textarea& target);
 
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
@@ -66,6 +66,7 @@ public:
 	Checkbox	messageLogging;
 	Checkbox	saveStats;
 	Checkbox	showStats;
+	Checkbox	autoGetServerList;
 
 	Menu menu;
 

@@ -1,0 +1,89 @@
+#include <sstream>
+#include <string>
+
+#include "server.h"
+#include "servnet.h"
+#include "world.h"
+
+// implements:
+#include "gamemod.h"
+
+using std::istream;
+using std::istringstream;
+using std::string;
+
+bool GamemodSetting::basicErrorMessage(LogSet& log, const string& value, const string& expect) {	// always returns false to provide easy returns
+	log.error("Can't set %s to '%s' - expecting %s", name.c_str(), value.c_str(), expect.c_str());
+	return false;
+}
+
+bool GS_Boolean::set(LogSet& log, const string& value) {
+	const string tval = trim(value);
+	if (tval == "1")
+		*var = true;
+	else if (tval == "0")
+		*var = false;
+	else
+		return basicErrorMessage(log, value, "0 or 1");
+	return true;
+}
+
+bool GS_ForwardInt::set(LogSet& log, const string& value) {
+	static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
+	istringstream rd(trim(value));
+	int val;
+	rd >> val;
+	if (!rd || rd.peek() != eof_ch || !checkValue(val))
+		return basicErrorMessage(log, value, expect);
+	return var(val);
+}
+
+bool GS_Map::set(LogSet& log, const string& value) {
+	MapInfo mi;
+	if (mi.load(log, trim(value))) {
+		var->push_back(mi);
+		log("Added '%s' to map rotation", value.c_str());
+		return true;
+	}
+	else {
+		log.error("Can't add '%s' to map rotation", value.c_str());
+		return false;
+	}
+}
+
+bool GS_PowerupNum::set(LogSet& log, const string& value) {
+	static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
+	istringstream rd(trim(value));
+	int val;
+	rd >> val;
+	if (rd && rd.peek() == eof_ch) {
+		if (val >= 0 && val <= MAX_PICKUPS) {
+			*var = val;
+			*percentFlag = false;
+			return true;
+		}
+	}
+	else {
+		char ch;
+		rd >> ch;
+		if (rd && ch == '%' && rd.peek() == eof_ch && val >= 0) {
+			*var = val;
+			*percentFlag = true;
+			return true;
+		}
+	}
+	return basicErrorMessage(log, value, string() + "an integer between 0 and " + itoa(MAX_PICKUPS) + ", or 'n %' with n 0 or greater");
+}
+
+bool GS_Balance::set(LogSet& log, const string& value) {
+	const string tval = trim(value);
+	if (tval == "no")
+		*var = WorldSettings::TB_disabled;
+	else if (tval == "balance")
+		*var = WorldSettings::TB_balance;
+	else if (tval == "shuffle")
+		*var = WorldSettings::TB_balance_and_shuffle;
+	else
+		return basicErrorMessage(log, value, "one of no, balance and shuffle");
+	return true;
+}

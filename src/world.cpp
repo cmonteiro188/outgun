@@ -700,14 +700,14 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
 BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r) {
-	const double m2 = mx*mx + my*my, r2 = r*r;
-	const double mdotd = mx*dx + my*dy;
-	const double d2 = dx*dx + dy*dy;
-	const double disc = mdotd*mdotd - m2*(d2-r2);
+	const double m2 = mx * mx + my * my, r2 = r * r;
+	const double mdotd = mx * dx + my * dy;
+	const double d2 = dx * dx + dy * dy;
+	const double disc = mdotd * mdotd - m2 * (d2 - r2);
 	if (disc >= 0) {	// there are real solutions
-		const double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
+		const double t = (mdotd - sqrt(disc)) / m2;	// the collision with smaller t (the larger t is when going away from the point)
 		if (t >= 0)
-			return BounceData(t, Coords(dx-t*mx, dy-t*my));
+			return BounceData(t, Coords(dx - t * mx, dy - t * my));
 	}
 	return BounceData(1e99, Coords());	// no collision
 }
@@ -1277,7 +1277,7 @@ Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
 	const int max = pup_chance_shield + pup_chance_turbo + pup_chance_shadow + pup_chance_power
 						+ pup_chance_weapon + pup_chance_megahealth + pup_chance_deathbringer;
 
-	int chance = 1 + rand() % max;		//1..100 por exemplo se max = 100
+	int chance = 1 + rand() % max;
 
 	chance -= pup_chance_shield;
 	if (chance <= 0) return Powerup::pup_shield;

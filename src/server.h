@@ -98,6 +98,7 @@ class gameserver_c {
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
 	std::string server_website_url;	// the URL of the server website to be sent to master server
 
+	bool trySetMaxplayers(int val);	// checks that no players are connected, if that fails, logs an error and returns false
 	void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
 
 	// copying not allowed

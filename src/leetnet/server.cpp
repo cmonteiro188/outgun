@@ -1,4 +1,4 @@
-//#define LEETNET_LOG
+#define LEETNET_LOG
 
 #include "dlog.h"
 const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
@@ -44,6 +44,7 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 #include <stdio.h>
 #include "../commont.h"	// for LOG_THREAD_IDS
 #include "../mutex.h"
+#include "../network.h"
 #include "../thread.h"
 #include "../log.h"
 #include "leetnet.h"
@@ -163,6 +164,8 @@ public:
 
 	void* customp;	// custom pointer passed back to callback functions
 
+	int threadPriority;
+
 	//------------------------
 	// GAME SERVER API
 	//------------------------
@@ -239,11 +242,11 @@ public:
 			client[i].in_lag	= false;			// not in lag
 									
 			// create the slave thread
-			client[i].thread.start_assert(thread_slave_f, &client[i]);
+			client[i].thread.start_assert(thread_slave_f, &client[i], threadPriority);
 		}
 
 		//create and start the master thread
-		reader_thread.start_assert(thread_master_f, this);
+		reader_thread.start_assert(thread_master_f, this, threadPriority);
 
 		//ok
 		return 1;
@@ -361,7 +364,7 @@ public:
 			client[client_id].discleft = 5;
 
 		//spawn disconnector thread
-		client[client_id].discthread.start_assert(thread_disconnector_f, &client[client_id]);
+		client[client_id].discthread.start_assert(thread_disconnector_f, &client[client_id], threadPriority);
 
 		log("disconnect_client %i droptime = %.2f", client_id, client[client_id].droptime);
 
@@ -552,11 +555,7 @@ DLOG_Scope s("PIDg");
 		readLong(packet, count, packid);	//packet id
 		readLong(packet, count, smsgid);	// special message id (if packet id == 0)
 
-#ifdef LEETNET_LOG
-		char adst[256];
-		nlAddrToString(&remoteaddr, adst);
-		log("INCOMING: %s size=%i (%i,%i) -- ", adst, length, packid, smsgid);
-#endif
+		log("INCOMING: %s size=%i (%i,%i) -- ", addressToString(remoteaddr).c_str(), length, packid, smsgid);
 
 		// verifica se a mensagem eh de algum client conhecido
       int i;
@@ -606,11 +605,7 @@ DLOG_Scope s("PIDg");
 			writeString(lebuf, count, serverinfo);
 			//send
 			nlSetRemoteAddr(servsock, &remoteaddr);
-#ifdef LEETNET_LOG
-			char lix[1000];
-			nlAddrToString(&remoteaddr, lix);
-			log("SENDING REPLY TO CLIENT AT %s", lix);
-#endif
+			log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
 			nlWrite(servsock, lebuf, count);
 			return 1;
 		}
@@ -634,11 +629,7 @@ DLOG_Scope s("PIDg");
 			//send
 			nlSetRemoteAddr(servsock, &remoteaddr);
 			nlWrite(servsock, lebuf, count);
-#ifdef LEETNET_LOG
-			char lix[1000];
-			nlAddrToString(&remoteaddr, lix);
-			log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, lix);
-#endif
+			log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, addressToString(remoteaddr).c_str());
 			return 1;
 		}
 
@@ -1071,7 +1062,7 @@ DLOG_Scope s("PCD_Sp");
 	//------------------------
 	
 	//ctor
-	server_ci() :
+	server_ci(int thread_priority) :
 		#ifdef LEETNET_LOG
 		log((wheregamedir + "log" + directory_separator + "leetserverlog.txt").c_str(), true)
 		#else
@@ -1087,9 +1078,10 @@ DLOG_Scope s("PCD_Sp");
 		last_hack_think = 0.0;
 
 		//create all station objects
-		for (int i=0;i<MAX_CLIENTS;i++) {
+		for (int i=0;i<MAX_CLIENTS;i++)
 			client[i].station = new_station_c();
-		}
+
+		threadPriority = thread_priority;
 	}
 
 	//dtor
@@ -1113,7 +1105,7 @@ void thread_master_f(server_ci* server)
 {
 DLOG_ScopeNegStart("TMF");
 	if (LOG_THREAD_IDS)
-		server->log("Leet server thread_master_f() ID = %d", pthread_self());
+		server->log("Leet server thread_master_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 	//get socket to read from
 	NLsocket servsock = server->get_server_socket();
 
@@ -1167,7 +1159,7 @@ DLOG_ScopeNegStart("TMF");
 		}
 	}
 	if (LOG_THREAD_IDS)
-		server->log("exiting: Leet server thread_master_f() ID = %d", pthread_self());
+		server->log("exiting: Leet server thread_master_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 //client message processor (slave) thread - one for each client
@@ -1178,7 +1170,7 @@ void thread_slave_f(client_t* mydata)
 	server_ci *server = mydata->server;
 
 	if (LOG_THREAD_IDS)
-		server->log("Leet server thread_slave_f() ID = %d", pthread_self());
+		server->log("Leet server thread_slave_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	//my id
 	int myid = mydata->id;
@@ -1220,7 +1212,7 @@ DLOG_Scope s(TSFS[myid]);
 		}
 	}
 	if (LOG_THREAD_IDS)
-		server->log("exiting: Leet server thread_slave_f() ID = %d", pthread_self());
+		server->log("exiting: Leet server thread_slave_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 //client disconnector auxiliary thread. bombards
@@ -1230,7 +1222,7 @@ void thread_disconnector_f(client_t* mydata) {
 	server_ci *server = mydata->server;
 
 	if (LOG_THREAD_IDS)
-		server->log("Leet server thread_disconnector_f() ID = %d", pthread_self());
+		server->log("Leet server thread_disconnector_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	//loop
 	while (1) {
@@ -1244,13 +1236,12 @@ void thread_disconnector_f(client_t* mydata) {
 	}
 
 	if (LOG_THREAD_IDS)
-		server->log("exiting: Leet server thread_disconnector_f() ID = %d", pthread_self());
+		server->log("exiting: Leet server thread_disconnector_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 
 // server factory
-server_c *new_server_c() {
-	server_c* x = new server_ci();
-	return x;
+server_c *new_server_c(int thread_priority) {
+	return new server_ci(thread_priority);
 }
 

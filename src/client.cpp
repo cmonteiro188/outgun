@@ -45,7 +45,6 @@ using std::string;
 using std::vector;
 
 //#define ROOM_CHANGE_BENCHMARK
-const bool DISABLE_AUTOMATIC_SERVER_SEARCH = false;
 
 const int PASSBUFFER = 32;	//size of password file
 
@@ -108,7 +107,7 @@ void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
 	quitFlag = false;
 	threadFlag = true;
 	RedirectToMemFun1<ServerThreadOwner, void, const ServerExternalSettings&> rmf(this, &ServerThreadOwner::threadFn);
-	serverThread.start_assert(rmf, config);
+	serverThread.start_assert(rmf, config, config.priority);
 }
 
 void ServerThreadOwner::stop() {
@@ -120,7 +119,7 @@ void ServerThreadOwner::stop() {
 
 void TournamentPasswordManager::start() {
 	quitThread = false;
-	thread.start_assert(RedirectToMemFun<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn));
+	thread.start_assert(RedirectToMemFun0<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn), priority);
 }
 
 void TournamentPasswordManager::setToken(const std::string& newToken) {
@@ -130,11 +129,12 @@ void TournamentPasswordManager::setToken(const std::string& newToken) {
 	}
 }
 
-TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction) :
+TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) :
 	log(logs),
 	tokenCallback(tokenCallbackFunction),
 	quitThread(true),
 	passStatus(PS_noPassword),
+	priority(threadPriority),
 	servStatus(PS_noPassword)	// no server
 {
 }
@@ -240,7 +240,7 @@ void TournamentPasswordManager::threadFn() {
 		string response;
 		{
 			ostringstream respStream;
-			NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000);
+			const NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000);
 			nlClose(sock);
 			if (result != NR_ok) {
 				if (quitThread)
@@ -249,7 +249,7 @@ void TournamentPasswordManager::threadFn() {
 				passStatus = PS_recvError;
 				continue;
 			}
-			const string fullResponse = respStream.str();
+			string fullResponse = respStream.str();
 
 			// find the start and end of the body: after the last "<html>" and before the last "</html>"
 			// the original code uses full case insensivity so response.find_last_of() can't be used
@@ -318,13 +318,31 @@ void TournamentPasswordManager::threadFn() {
 		log("exiting: TournamentPasswordManager::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
+bool gamespy_t::setAddress(const string& address) {
+	if (!nlStringToAddr(address.c_str(), &addr))
+		return false;
+	if (nlGetPortFromAddr(&addr) == 0)
+		nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
+	return true;
+}
+
+string gamespy_t::addressString() const {
+	if (nlGetPortFromAddr(&addr) != DEFAULT_UDP_PORT)
+		return addressToString(addr);
+	else {
+		NLaddress cpy = addr;
+		nlSetAddrPort(&cpy, 0);
+		return addressToString(cpy);
+	}
+}
+
 gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	//securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
 	log(&normalLog, &errorLog, 0),
 	listenServer(log),
-	tournamentPassword(log, new RedirectToMemFun1<gameclient_c, void, string>(this, &gameclient_c::CB_tournamentToken)),
+	tournamentPassword(log, new RedirectToMemFun1<gameclient_c, void, string>(this, &gameclient_c::CB_tournamentToken), config.lowerPriority),
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
@@ -376,6 +394,8 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 	connected = false;
 
 	udpdq_size = 0;
+
+	Thread::setCallerPriority(config.priority);
 }
 
 gameclient_c::~gameclient_c() {
@@ -424,7 +444,7 @@ bool gameclient_c::start() {
 
 	connected = false;
 
-	client = new_client_c();
+	client = new_client_c(extConfig.priority);
 	client->set_callback(CFUNC_CONNECTION_UPDATE, cfunc_connection_update);
 	client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
 
@@ -493,6 +513,7 @@ bool gameclient_c::start() {
 			case CCS_MessageLogging:		menu.options.game.messageLogging.set(args == "1"); break;
 			case CCS_SaveStats:				menu.options.game.saveStats.set(args == "1"); break;
 			case CCS_ShowStats:				menu.options.game.showStats.set(args == "1"); break;
+			case CCS_AutoGetServerList:		menu.options.game.autoGetServerList.set(args == "1"); break;
 
 			// graphics menu
 			case CCS_Windowed:				menu.options.graphics.windowed.set(args == "1"); break;
@@ -542,13 +563,9 @@ bool gameclient_c::start() {
 	if (fav) {
 		string addr;
 		while (getline_skip_comments(fav, addr)) {
-			NLaddress testAddr;	// test IP address validity
-			if (nlStringToAddr(addr.c_str(), &testAddr)) {
-				gamespy_t spy;
-				spy.address = addr;
-				spy.addr = testAddr;
+			gamespy_t spy;
+			if (spy.setAddress(addr))
 				gamespy.push_back(spy);
-			}
 		}
 		fav.close();
 	}
@@ -589,7 +606,7 @@ bool gameclient_c::start() {
 	client_sounds.setVolume(menu.options.sounds.volume());
 	client_sounds.select_theme(menu.options.sounds.theme());
 
-	if (!DISABLE_AUTOMATIC_SERVER_SEARCH)
+	if (menu.options.game.autoGetServerList())
 		MCF_updateServers();
 
 	return true;
@@ -788,7 +805,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	// download map from server (ask file)
 	if (!ok || fx.map.crc != server_crc) {
 		char lix[256];
-		sprintf(lix, "Downloading map '%s' (CRC %i)...", mapname, server_crc);
+		snprintf(lix, 256, "Downloading map '%s' (CRC %i)...", mapname, server_crc);
 		print_message(msg_info, lix);
 
 		log("%s", lix);
@@ -839,7 +856,7 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//set window title: the hostname
 	ostringstream caption;
-	caption << "Connected to: " << hostname.substr(0, 32) << " (" << address << ')';
+	caption << "Connected to: " << hostname.substr(0, 32) << " (" << addressToString(serverIP) << ')';
 	extConfig.statusOutput(caption.str());
 
 	//don't want to change teams by default
@@ -988,7 +1005,7 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 		nAssert(openMenus.safeTop() == &m_connectProgress.menu);
 		m_connectProgress.addLine(message);
 		if (message == "Wrong player password")
-			remove_player_password(playername, address);
+			remove_player_password(playername, addressToString(serverIP));
 	}
 }
 
@@ -1102,21 +1119,10 @@ void gameclient_c::connect_command(bool loadPassword) {
 
 	// start connecting to specified IP/port
 	// connection results will come through the CFUNC_CONNECTION_UPDATE callback
-	if (address.empty()) {	//empty address == my own ip
-		NLaddress myadr;
-		get_self_IP(&myadr);
-		nlSetAddrPort(&myadr, serverExtConfig.port);
-		address = addressToString(myadr);
-	}
-	else if (address.find(':') == string::npos) {	// no port, use default
-		ostringstream port;
-		port << ':' << DEFAULT_UDP_PORT;
-		address += port.str();
-	}
+	string strAddress = addressToString(serverIP);
+	client->set_server_address(strAddress.c_str());
 
-	client->set_server_address(address.c_str());
-
-	log("Connecting to %s... passwords: server %s, player %s", address.c_str(), m_serverPassword.password().empty()?"no":"yes", m_playerPassword.password().empty()?"no":"yes");
+	log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(), m_serverPassword.password().empty()?"no":"yes", m_playerPassword.password().empty()?"no":"yes");
 
 	//set connect-data (goes in every connect packet): outgun game name and protocol strings
 	char lebuf[256]; int count = 0;
@@ -1126,7 +1132,7 @@ void gameclient_c::connect_command(bool loadPassword) {
 	if (!m_serverPassword.password().empty())
 		writeStr(lebuf, count, m_serverPassword.password());
 	if (loadPassword)
-		m_playerPassword.password.set(load_player_password(playername, address)); 
+		m_playerPassword.password.set(load_player_password(playername, strAddress)); 
 	if (!m_playerPassword.password().empty())
 		writeStr(lebuf, count, m_playerPassword.password());
 
@@ -1162,7 +1168,7 @@ void gameclient_c::change_name_command() {
 		openMenus.close();
 
 	playername = newName;
-	m_playerPassword.password.set(load_player_password(playername, address));
+	m_playerPassword.password.set(load_player_password(playername, addressToString(serverIP)));
 	issue_change_name_command();
 	tournamentPassword.changeData(playername, menu.options.name.password());
 }
@@ -2279,8 +2285,6 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 	for (int i = 0; i < nServers; i++) {
 		gamespy[i].refreshed = true;
 		gamespy[i].ping = 0;
-		if (nlGetPortFromAddr(&gamespy[i].addr) == 0)
-			nlSetAddrPort(&gamespy[i].addr, DEFAULT_UDP_PORT);
 		num_valid++;
 	}
 
@@ -2301,7 +2305,7 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 				writeByte(lebuf, count, (NLubyte)i);		//connect entry (am I lazy or what)
 				writeByte(lebuf, count, (NLubyte)round);		//packet number
 
-				nlSetRemoteAddr(sock, &gamespy[i].addr);
+				nlSetRemoteAddr(sock, &gamespy[i].address());
 				nlWrite(sock, lebuf, count);
 				tempd[i].send(round);
 			}
@@ -2336,7 +2340,7 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 
 				NLaddress from;
 				nlGetRemoteAddr(sock, &from);
-				if (!nlAddrCompare(&from, &gamespy[index].addr))
+				if (!nlAddrCompare(&from, &gamespy[index].address()))
 					continue;
 
 				readStr(lebuf, count, gamespy[index].info);
@@ -2452,13 +2456,9 @@ bool gameclient_c::getServerList() {
 	// Parse the successful response into the gamespy screen.
 	int servers_read;
 	for (servers_read = 0; servers_read < total_servers && getline_smart(response, line); servers_read++) {
-		NLaddress testAddr;	// test IP address validity
-		if (nlStringToAddr(line.c_str(), &testAddr)) {
-			gamespy_t spy;
-			spy.address = line;
-			spy.addr = testAddr;
+		gamespy_t spy;
+		if (spy.setAddress(line))
 			mgamespy.push_back(spy);
-		}
 	}
 
 	if (servers_read != total_servers) {
@@ -2936,6 +2936,7 @@ void gameclient_c::stop() {
 		cfg << CCS_MessageLogging		<< ' ' << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
 		cfg << CCS_SaveStats			<< ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
 		cfg << CCS_ShowStats			<< ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
+		cfg << CCS_AutoGetServerList	<< ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
 
 		// save graphics menu settings
 		cfg << CCS_Windowed				<< ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
@@ -2959,7 +2960,7 @@ void gameclient_c::stop() {
 	ofstream fav(fileName.c_str());
 	if (fav) {
 		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
-			fav << spy->address << '\n';
+			fav << spy->addressString() << '\n';
 		fav.close();
 	}
 
@@ -3507,8 +3508,8 @@ void gameclient_c::MCF_startServer() {
 
 void gameclient_c::MCF_playServer() {
 	if (listenServer.running()) {
-		address = "127.0.0.1:";
-		address += itoa(listenServer.port());
+		nAssert(nlStringToAddr("127.0.0.1", &serverIP));
+		nAssert(nlSetAddrPort(&serverIP, listenServer.port()));
 		openMenus.clear();
 		connect_command(true);
 	}
@@ -3698,7 +3699,7 @@ void gameclient_c::MCF_playerPasswordAccept() {
 	nAssert(openMenus.safeTop() == &m_playerPassword.menu);
 	openMenus.close();
 	if (m_playerPassword.save())
-		save_player_password(playername, address, m_playerPassword.password());
+		save_player_password(playername, addressToString(serverIP), m_playerPassword.password());
 	if (connected)
 		issue_change_name_command();
 	else
@@ -3719,12 +3720,12 @@ void gameclient_c::MCF_clearErrors() {
 
 void gameclient_c::MCF_prepareServerMenu() {
 	menu.connect.reset();
-	vector<string> addresses;
+	vector<NLaddress> addresses;
 	const vector<gamespy_t>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
 	serverListMutex.lock();
 	for (vector<gamespy_t>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
 		ostringstream info;
-		info << setw(21) << left << spy->address << right;
+		info << setw(21) << left << spy->addressString() << right;
 		info << setw(4);
 		if (spy->ping > 0)
 			info << spy->ping;
@@ -3736,14 +3737,14 @@ void gameclient_c::MCF_prepareServerMenu() {
 			else
 				info << ' ' << spy->info;
 		}
-		menu.connect.add(spy->address, info.str());
-		addresses.push_back(spy->address);
+		menu.connect.add(spy->address(), info.str());
+		addresses.push_back(spy->address());
 	}
 	if (!menu.connect.favorites())
 		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
-			if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address) == addresses.end()) {
+			if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address()) == addresses.end()) {
 				ostringstream info;
-				info << setw(21) << left << spy->address << right;
+				info << setw(21) << left << spy->addressString() << right;
 				info << setw(4);
 				if (spy->ping > 0)
 					info << spy->ping;
@@ -3755,8 +3756,8 @@ void gameclient_c::MCF_prepareServerMenu() {
 					else
 						info << ' ' << spy->info;
 				}
-				menu.connect.add(spy->address, info.str());
-				addresses.push_back(spy->address);
+				menu.connect.add(spy->address(), info.str());
+				addresses.push_back(spy->address());
 			}
 	serverListMutex.unlock();
 	typedef MenuCallback<gameclient_c> MCB;
@@ -3777,9 +3778,7 @@ void gameclient_c::MCF_prepareAddServer() {
 void gameclient_c::MCF_addServer() {
 	if (!menu.connect.addServer.address().empty()) {
 		gamespy_t spy;
-		spy.address = menu.connect.addServer.address();
-		NLaddress testAddr;	// test IP address validity
-		if (!nlStringToAddr(spy.address.c_str(), &testAddr)) {
+		if (!spy.setAddress(menu.connect.addServer.address())) {
 			m_dialog.clear();
 			m_dialog.addLine("Invalid IP address.");
 			showMenu(m_dialog);
@@ -3801,18 +3800,18 @@ bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned cha
 	(void)chr;
 	if (scan == KEY_DEL) {
 		vector<gamespy_t>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
-		const string address = menu.connect.getAddress(target);
+		const NLaddress address = menu.connect.getAddress(target);
 		for (vector<gamespy_t>::iterator spy = servers.begin(); spy != servers.end(); ++spy)
-			if (address == spy->address) {
+			if (nlAddrCompare(&address, &spy->address())) {
 				servers.erase(spy);
 				break;
 			}
 		return true;
 	}
 	else if (scan == KEY_INSERT && !menu.connect.favorites()) {
-		const string address = menu.connect.getAddress(target);
+		const NLaddress address = menu.connect.getAddress(target);
 		for (vector<gamespy_t>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
-			if (address == spy->address) {
+			if (nlAddrCompare(&address, &spy->address())) {
 				gamespy.push_back(*spy);
 				break;
 			}
@@ -3822,7 +3821,7 @@ bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned cha
 }
 
 void gameclient_c::MCF_connect(Textarea& target) {
-	address = menu.connect.getAddress(target);
+	serverIP = menu.connect.getAddress(target);
 	openMenus.clear();
 	connect_command(true);
 }
@@ -3830,14 +3829,14 @@ void gameclient_c::MCF_connect(Textarea& target) {
 void gameclient_c::MCF_updateServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
-		Thread::startDetachedThread_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::getServerListThread));
+		Thread::startDetachedThread_assert(RedirectToMemFun0<gameclient_c, void>(this, &gameclient_c::getServerListThread), extConfig.lowerPriority);
 	}
 }
 
 void gameclient_c::MCF_refreshServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
-		Thread::startDetachedThread_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::refreshThread));
+		Thread::startDetachedThread_assert(RedirectToMemFun0<gameclient_c, void>(this, &gameclient_c::refreshThread), extConfig.lowerPriority);
 	}
 }
 

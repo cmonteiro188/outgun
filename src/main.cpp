@@ -286,12 +286,11 @@ int main(int argc, char *argv[]) {
 	int				pmin = sched_get_priority_min(SCHED_OTHER);
 	int				pmax = sched_get_priority_max(SCHED_OTHER);
 	int				policy;
-	pthread_t		tme = pthread_self();
 	sched_param		param;
-	int				rc = pthread_getschedparam(tme, &policy, &param); // get priority of current thread (wich is the default value)
+	int				rc = pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
 	int				pdef = param.sched_priority;
 	log("Thread priorities:");
-	log("   rc = %i policy = %i OTHER=%i sched_prio = %i", rc, policy, SCHED_OTHER, param.sched_priority);
+	log("   rc = %i policy = %i (%i)", rc, policy, SCHED_OTHER);
 	log("   pmin %i pmax %i pdef = %i", pmin, pmax, pdef);
 
 	//show info
@@ -303,7 +302,7 @@ int main(int argc, char *argv[]) {
 		locals = nlGetAllLocalAddr(&locsize);
 
 		char infobuf[2048];
-		sprintf(infobuf,
+		snprintf(infobuf, 2048,
 			"Information:\n"
 			"\n"
 			"Thread priorities for -prio <val> parameter:\n"
@@ -323,6 +322,34 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
+	clientCfg.priority = clientCfg.lowerPriority = pdef;
+	serverCfg.lowerPriority = pdef;
+	if (!defaultprio) {
+		int ptarg;
+		if (targetprio_specified)
+			ptarg = targetprio;
+		else
+			ptarg = pmax - 1;	// guess one below system maximum (which usually means realtime and should never be used really)
+
+		if (ptarg < pmin || ptarg > pmax) {
+			if (targetprio_specified) {
+				log.error("Given priority %d doesn't fit on the scale", ptarg);
+				allegro_message("The priority isn't within system limits.\nRun with -info for more information.");
+				return 0;
+			}
+			else	// this mostly happens if pmin == pmax
+				log("Couldn't set a higher priority. Using default.");
+			ptarg = pdef;
+		}
+
+		serverCfg.priority = ptarg;
+		log("Priority set for server: %i", ptarg);
+	}
+	else {
+		serverCfg.priority = pdef;
+		log("-defaultprio: Leaving thread priorities on their default values");
+	}
+
 	GlobalCloseButtonHook::install();
 
 	// run dedicated server
@@ -336,33 +363,10 @@ int main(int argc, char *argv[]) {
 				serverCfg.statusOutput = statusOutputWindow;
 		}
 
-		// dedicated server - set process priority (all threads) to a higher value
-		if (!defaultprio) {
-			int ptarg;
-			if (!targetprio_specified) {	//if -prio parameter is unspecified
-				//guess one below system maximum (wich usually means realtime and should never be used really)
-				ptarg = pmax - 1;
-			}
-			else
-				ptarg = targetprio;
-
-			if (ptarg >= pmin && ptarg <= pmax) {
-				param.sched_priority = ptarg;
-				policy = SCHED_OTHER;
-				pthread_setschedparam(tme, policy, &param);
-				log("Priority set for dedicated server: %i", ptarg);
-			}
-			else
-				log("Skipped setting priority: %d doesn't fit on the scale", ptarg);
-		}
-		else
-			log("-defaultprio: Leaving thread priorities on their default values");
-
-		// gfx init
 		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
 			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) {
-				log.error("Switch_backamnesia and switch_background failed: server window can't run in the background.");
-				allegro_message("Error: server window can't run in the background.");
+				log.error("Switch_backamnesia and switch_background failed: server can't run in the background.");
+				allegro_message("Error: server can't run in the background.");
 				return 0;
 			}
 			else

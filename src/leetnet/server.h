@@ -116,7 +116,7 @@ public:
 
 
 // server factory 
-server_c *new_server_c();
+server_c *new_server_c(int thread_priority);
 
 
 

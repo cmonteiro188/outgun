@@ -415,7 +415,7 @@ int Checkbox::height() const {
 
 bool Checkbox::handleKey(char scan, unsigned char chr) {
 	(void)chr;
-	if (scan == KEY_SPACE || scan == KEY_X || scan == KEY_ENTER || scan == KEY_ENTER_PAD)
+	if (scan == KEY_SPACE || scan == KEY_X)
 		toggle();
 	else
 		return false;
@@ -581,22 +581,16 @@ void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
 bool Textobject::handleKey(char scan, unsigned char chr) {
 	(void)chr;
 	// If start goes out of range, draw method fixes it.
-	if (scan == KEY_UP) {
+	if (scan == KEY_UP)
 		--start;
-		return true;
-	}
-	else if (scan == KEY_DOWN) {
+	else if (scan == KEY_DOWN)
 		++start;
-		return true;
-	}
-	else if (scan == KEY_HOME) {
+	else if (scan == KEY_HOME)
 		start = 0;
-		return true;
-	}
-	else if (scan == KEY_END) {
+	else if (scan == KEY_END)
 		start = INT_MAX;
-		return true;
-	}
-	return false;
+	else
+		return false;
+	return true;
 }
 

@@ -66,7 +66,6 @@ enum {
 //the client class
 class client_c {
 public:
-
 	//set a callback function.
 	virtual void set_callback(int callback_id, client_callback_t callback_function) = 0;	
 	
@@ -99,7 +98,7 @@ public:
 
 
 //factory
-client_c		*new_client_c();
+client_c		*new_client_c(int thread_priority);
 
 
 #endif // _client_h_

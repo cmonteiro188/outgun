@@ -13,6 +13,7 @@ bool check_private_IP(const std::string& address);
 std::string getPublicIP(LogSet& log);
 bool isLocalIP(NLaddress address);	// local doesn't mean private
 std::string addressToString(const NLaddress& address);
+inline bool operator==(const NLaddress& a1, const NLaddress& a2) { return nlAddrCompare(&a1, &a2); }
 
 inline void readStr(const char* buf, int& count, std::string& dst) {
 	dst.clear();

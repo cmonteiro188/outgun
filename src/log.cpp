@@ -21,8 +21,8 @@ void Log::operator()(const char* fmt, ...) {
 }
 
 void Log::operator()(const char* fmt, va_list args) {
-	char buf[2000];
-	vsprintf(buf, fmt, args);
+	char buf[4000];
+	_vsnprintf(buf, 4000, fmt, args);
 	put(buf);
 }
 

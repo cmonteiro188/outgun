@@ -15,15 +15,21 @@
 #include "world.h"
 
 //server record
-struct gamespy_t {
-	NLaddress	addr;
-	std::string	address;
+class gamespy_t {
+public:
 	bool		refreshed;
 	bool		noresponse;
 	int			ping;
 	std::string	info;
 
 	gamespy_t() : refreshed(false), noresponse(true), ping(0) { }
+
+	const NLaddress& address() const { return addr; }
+	std::string addressString() const;
+	bool setAddress(const std::string& address);	// returns false if address is invalid
+
+private:
+	NLaddress	addr;
 };
 
 struct download_runes_t {
@@ -63,7 +69,8 @@ enum ClientCfgSetting {
 	CCS_Volume,
 	CCS_SoundTheme,
 	CCS_ShowStats,
-	CCS_MaxCommand = CCS_ShowStats
+	CCS_AutoGetServerList,
+	CCS_MaxCommand = CCS_AutoGetServerList
 };
 
 class ServerThreadOwner {
@@ -105,7 +112,7 @@ public:
 		PS_tokenRejected
 	};
 
-	TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction);	// warning: the callback will be called from a background thread
+	TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority);	// warning: the callback will be called from a background thread
 
 	void stop();
 	void changeData(const std::string& newName, const std::string& newPass);
@@ -125,6 +132,7 @@ private:
 	volatile bool quitThread;	// set to quit the thread
 	volatile PasswordStatus passStatus;	// set by both the thread and the regular interface to indicate the status
 	Thread thread;
+	int priority;
 
 	PasswordStatus servStatus;
 
@@ -142,6 +150,7 @@ public:
 	int trypageflip;	// try page flipping? ; -1 = undefined, 0 = false, 1 = true (-flip / -dbuf)
 	bool nosound;		// disable sound? -nosound
 	int targetfps;		// target (MAX) frames-per-second ; -1 = undefined
+	int lowerPriority, priority;	// lower is used for non-timecritical background threads
 
 	typedef void StatusOutputFnT(const std::string& str);
 	StatusOutputFnT* statusOutput;
@@ -242,7 +251,7 @@ class gameclient_c {
 	MutexHolder serverListMutex;
 
 	std::string playername;	//the player's name (max name len = 16)
-	std::string address;	//server IP address
+	NLaddress serverIP;
 
 	volatile bool abortThreads;
 

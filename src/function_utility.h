@@ -8,6 +8,7 @@
 // Hook# is a HookFunctionHolder#-like object that can be unbound and provides a different (more explicit) call syntax
 // Hookable# is a base class to allow easy inclusion of a Hook# in a class (use with care)
 
+// RedirectToFun# (deriving from HookFunctionBase#) is a helper giving a regular function pointer the interface of HookFunctionBase#
 // RedirectToMemFun# (deriving from HookFunctionBase#) is a helper allowing function objects bound to a member function of an object
 
 // generating new versions with different amounts of arguments should be easy when needed; shame creating them can't be circumvented
@@ -256,14 +257,24 @@ private:
 // 0-argument RedirectToMemFun
 
 template<class HostClass, class ReturnT>
-class RedirectToMemFun : public HookFunctionBase0<ReturnT> {
+class RedirectToMemFun0 : public HookFunctionBase0<ReturnT> {
 	HostClass* host;
 	ReturnT (HostClass::*function)();
 
 public:
-	RedirectToMemFun(HostClass* h, ReturnT (HostClass::*memFun)()) : host(h), function(memFun) { }
+	RedirectToMemFun0(HostClass* h, ReturnT (HostClass::*memFun)()) : host(h), function(memFun) { }
 	ReturnT operator()() { return (host->*function)(); }
-	RedirectToMemFun* clone() { return new RedirectToMemFun(host, function); }
+	RedirectToMemFun0* clone() { return new RedirectToMemFun0(host, function); }
+};
+
+template<class ReturnT>
+class RedirectToFun0 : public HookFunctionBase0<ReturnT> {
+	ReturnT (*function)();
+
+public:
+	RedirectToFun0(ReturnT (*fun)()) : function(fun) { }
+	ReturnT operator()() { return (*function)(); }
+	RedirectToFun0* clone() { return new RedirectToFun0(function); }
 };
 
 // 1-argument RedirectToMemFun
@@ -279,16 +290,36 @@ public:
 	RedirectToMemFun1* clone() { return new RedirectToMemFun1(host, function); }
 };
 
+template<class ReturnT, class Arg1T>
+class RedirectToFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
+	ReturnT (*function)(Arg1T);
+
+public:
+	RedirectToFun1(ReturnT (*fun)(Arg1T)) : function(fun) { }
+	ReturnT operator()(Arg1T arg) { return (*function)(arg); }
+	RedirectToFun1* clone() { return new RedirectToFun1(function); }
+};
+
 // 2-argument RedirectToMemFun
 
 template<class HostClass, class ReturnT, class Arg1T, class Arg2T>
-class RedirectToMemFun2 {
+class RedirectToMemFun2 : public HookFunctionBase2<ReturnT, Arg1T, Arg2T> {
 	HostClass* host;
 	ReturnT (HostClass::*function)(Arg1T, Arg2T);
 
 public:
 	RedirectToMemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T)) : host(h), function(memFun) { }
 	ReturnT operator()(Arg1T arg1, Arg2T arg2) { return (host->*function)(arg1, arg2); }
+};
+
+template<class ReturnT, class Arg1T, class Arg2T>
+class RedirectToFun2 : public HookFunctionBase2<ReturnT, Arg1T, Arg2T> {
+	ReturnT (*function)(Arg1T, Arg2T);
+
+public:
+	RedirectToFun2(ReturnT (*fun)(Arg1T, Arg2T)) : function(fun) { }
+	ReturnT operator()(Arg1T arg1, Arg2T arg2) { return (*function)(arg1, arg2); }
+	RedirectToFun2* clone() { return new RedirectToFun2(function); }
 };
 
 #endif

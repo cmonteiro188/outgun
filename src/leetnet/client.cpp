@@ -1,4 +1,4 @@
-//#define LEETNET_LOG
+#define LEETNET_LOG
 
 #include "dlog.h"
 
@@ -99,6 +99,8 @@ public:
 	//connect data
 	char			connect_data[4096];
 	int				connect_data_length;
+
+	int threadPriority;
 
 	//------------------------------
 	//  GAME CLIENT API
@@ -247,12 +249,11 @@ public:
 		started_disconnection = true;		// client started it
 		connect_status = 1;	//trying nice disconnection
 		tries_left = 10;		//try 10 times
-		thread_disconnect.start_assert(thread_disconnect_f, this);
+		thread_disconnect.start_assert(thread_disconnect_f, this, threadPriority);
 	}
 
 	//disconnect try - return TRUE to stop
 	bool disconnect_try() {
-
 		log("client disconnect_try()");
 		
 		// check stopped trying to disconnect
@@ -329,13 +330,13 @@ public:
 
 		//create reader thread
 		quit_reader_thread = false;
-		thread_read.start_assert(thread_reader_f, this);
+		thread_read.start_assert(thread_reader_f, this, threadPriority);
 		
 		//start connection tries
 		started_disconnection   = false;		//init "started_disconnection" flag for this connection session
 		tries_left = 4;					//number of tries
 		++connect_threads_running;
-		Thread::startDetachedThread_assert(thread_connect_f, this);
+		Thread::startDetachedThread_assert(thread_connect_f, this, threadPriority);
 	}
 
 	//cleanup connect sequence
@@ -596,7 +597,7 @@ DLOG_Scope s("CPIDg");
 	}
 
 	//ctor
-	client_ci() :
+	client_ci(int thread_priority) :
 		#ifdef LEETNET_LOG
 		log((wheregamedir + "log" + directory_separator + "leetclientlog.txt").c_str(), true)
 		#else
@@ -613,6 +614,8 @@ DLOG_Scope s("CPIDg");
 		connect_data_length = 0;
 
 		connect_threads_running = 0;
+
+		threadPriority = thread_priority;
 
 		//station agora tem reset_state(), entao cria no construtor e deleta no destrutor
 		station = new_station_c();
@@ -637,7 +640,7 @@ DLOG_Scope s("CPIDg");
 //connector thread function
 void thread_connect_f(client_ci* client) {
 	if (LOG_THREAD_IDS)
-		client->log("Leet client thread_connect_f() ID = %d", pthread_self());
+		client->log("Leet client thread_connect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	//repeat
 	bool stop = false;
@@ -652,13 +655,13 @@ void thread_connect_f(client_ci* client) {
 
 	--client->connect_threads_running;
 	if (LOG_THREAD_IDS)
-		client->log("exiting: Leet client thread_connect_f() ID = %d", pthread_self());
+		client->log("exiting: Leet client thread_connect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 //disconnector thread function
 void thread_disconnect_f(client_ci* client) {
 	if (LOG_THREAD_IDS)
-		client->log("Leet client thread_disconnect_f() ID = %d", pthread_self());
+		client->log("Leet client thread_disconnect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	//repeat
 	bool stop = false;
@@ -675,7 +678,7 @@ void thread_disconnect_f(client_ci* client) {
 	client->nice_disconnect_done(server_c::disconnect_client_initiated);
 
 	if (LOG_THREAD_IDS)
-		client->log("exiting: Leet client thread_disconnect_f() ID = %d", pthread_self());
+		client->log("exiting: Leet client thread_disconnect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 //reader thread function
@@ -683,7 +686,7 @@ void thread_disconnect_f(client_ci* client) {
 void thread_reader_f(client_ci* client) {
 DLOG_ScopeNegStart("CTR");
 	if (LOG_THREAD_IDS)
-		client->log("Leet client thread_reader_f() ID = %d", pthread_self());
+		client->log("Leet client thread_reader_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	//read buffer
 	char	buffer[THREAD_READER_BUFSIZE];
@@ -719,12 +722,11 @@ DLOG_ScopeNeg s("CTR");
 	}
 
 	if (LOG_THREAD_IDS)
-		client->log("exiting: Leet client thread_reader_f() ID = %d", pthread_self());
+		client->log("exiting: Leet client thread_reader_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
 
 //factory
-client_c		*new_client_c() {
-	client_ci	*x = new client_ci();
-	return x;
+client_c		*new_client_c(int thread_priority) {
+	return new client_ci(thread_priority);
 }

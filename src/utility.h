@@ -11,6 +11,7 @@ template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb
 
 int atoi(const std::string& str);
 std::string itoa(int val, int radix = 10);
+std::string fcvt(double val);
 int iround(double value);
 
 // Returns the current time in the standard format.

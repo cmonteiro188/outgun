@@ -1,16 +1,19 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <memory>	// auto_ptr
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "incalleg.h"
 #include "commont.h"
-#include "world.h"
-#include "leetnet/sleep.h"	// sleep util
-#include "thread.h"
+#include "gamemod.h"
+#include "leetnet/sleep.h"	// MS_SLEEP
 #include "nassert.h"
+#include "thread.h"
+#include "world.h"
 
 // implements:
 #include "server.h"
@@ -51,6 +54,7 @@ gameserver_c::gameserver_c(LogSet& hostLogs, const ServerExternalSettings& confi
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 	fav_colors[0].resize(16, false);
 	fav_colors[1].resize(16, false);
+	Thread::setCallerPriority(config.priority);
 }
 
 gameserver_c::~gameserver_c() {
@@ -116,7 +120,7 @@ void gameserver_c::ctf_game_restart() {
 		}
 
 	char lix[256];
-	sprintf(lix, "CTF GAME OVER - FINAL SCORE: RED %i - BLUE %i", world.teams[0].score(), world.teams[1].score());
+	snprintf(lix, 256, "CTF GAME OVER - FINAL SCORE: RED %i - BLUE %i", world.teams[0].score(), world.teams[1].score());
 	network.broadcast_message(msg_info, lix);
 
 	if (worldConfig.balanceTeams()) {
@@ -126,11 +130,11 @@ void gameserver_c::ctf_game_restart() {
 	}
 
 	if (worldConfig.getTimeLimit() == 0)
-		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
+		snprintf(lix, 256, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
 	else if (worldConfig.getCaptureLimit() > 0)
-		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", worldConfig.getCaptureLimit(), worldConfig.getTimeLimit() / 10 / 60);
+		snprintf(lix, 256, "CAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", worldConfig.getCaptureLimit(), worldConfig.getTimeLimit() / 10 / 60);
 	else
-		sprintf(lix, "TIME LIMIT IS %lu MINUTES", worldConfig.getTimeLimit() / 10 / 60);
+		snprintf(lix, 256, "TIME LIMIT IS %lu MINUTES", worldConfig.getTimeLimit() / 10 / 60);
 	network.broadcast_message(msg_info, lix);
 
 	network.broadcast_sample(SAMPLE_CTF_GAMEOVER);
@@ -391,13 +395,84 @@ void gameserver_c::score_neg(int p, int amount) {
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
 	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
-		refresh_team_score_modifiers();
-		client[cid].fdn += amount;
-		client[cid].neg_delta_score = (int)(client[cid].fdn);
+		client[cid].fdn += amount;	// not affected by team modifier
+		client[cid].neg_delta_score = static_cast<int>(client[cid].fdn);
 	}
 }
 
+bool gameserver_c::trySetMaxplayers(int val) {
+	if (val != maxplayers && network.get_player_count() != 0) {
+		log.error("Can't change max_players while players are connected");
+		return false;
+	}
+	setMaxPlayers(val);
+	return true;
+}
+
+bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }	// helper for load_game_mod
+
 void gameserver_c::load_game_mod() {
+	RedirectToMemFun1<ServerNetworking, void, const std::string&> setHostname(&network, &ServerNetworking::set_hostname);
+	RedirectToMemFun1<ServerNetworking, void, const std::string&> setServerPassword(&network, &ServerNetworking::set_server_password);
+
+	RedirectToFun1<bool, int> checkMaxplayer(checkMaxplayerSetting);
+	RedirectToMemFun1<gameserver_c, bool, int> tryMaxplayer(this, &gameserver_c::trySetMaxplayers);
+
+	typedef std::auto_ptr<GamemodSetting> PT;
+	static PT settings[] = {
+		PT(new GS_Float		("friction",				&world.physics.fric)),
+		PT(new GS_Float		("drag",					&world.physics.drag)),
+		PT(new GS_Float		("acceleration",			&world.physics.accel)),
+		PT(new GS_Float		("run_acceleration",		&world.physics.run_mul)),
+		PT(new GS_Float		("turbo_acceleration",		&world.physics.turbo_mul)),
+		PT(new GS_Boolean	("player_collisions",		&world.physics.player_collisions)),
+		PT(new GS_Boolean	("friendly_fire",			&world.physics.friendly_fire)),
+		PT(new GS_Boolean	("friendly_deathbringer",	&world.physics.friendly_db)),
+		PT(new GS_Map		("map",						&maprot)),
+		PT(new GS_PowerupNum("pups_min",				&pupConfig.pups_min, &pupConfig.pups_min_percentage)),
+		PT(new GS_PowerupNum("pups_max",				&pupConfig.pups_max, &pupConfig.pups_max_percentage)),
+		PT(new GS_Int		("pups_respawn_time",		&pupConfig.pups_respawn_time,		0)),
+		PT(new GS_Int		("pup_chance_shield",		&pupConfig.pup_chance_shield,		0)),
+		PT(new GS_Int		("pup_chance_turbo",		&pupConfig.pup_chance_turbo,		0)),
+		PT(new GS_Int		("pup_chance_shadow",		&pupConfig.pup_chance_shadow,		0)),
+		PT(new GS_Int		("pup_chance_power",		&pupConfig.pup_chance_power,		0)),
+		PT(new GS_Int		("pup_chance_weapon",		&pupConfig.pup_chance_weapon,		0)),
+		PT(new GS_Int		("pup_chance_megahealth",	&pupConfig.pup_chance_megahealth,	0)),
+		PT(new GS_Int		("pup_chance_deathbringer",	&pupConfig.pup_chance_deathbringer,	0)),
+		PT(new GS_Ulong		("time_limit",				&worldConfig.time_limit, 0, GS_Ulong::lim::max(), 60 * 10)),	// convert minutes to frames
+		PT(new GS_Ulong		("extra_time",				&worldConfig.extra_time, 0, GS_Ulong::lim::max(), 60 * 10)),	// convert minutes to frames
+		PT(new GS_Boolean	("sudden_death",			&worldConfig.sudden_death)),
+		PT(new GS_Int		("game_end_delay",			&game_end_delay, 0)),
+		PT(new GS_Int		("capture_limit",			&worldConfig.capture_limit, 0)),
+		PT(new GS_Balance	("balance_teams",			&worldConfig.balance_teams)),
+		PT(new GS_ForwardStr("server_name",				setHostname)),
+		PT(new GS_ForwardInt("max_players",				string() + "an even integer between 2 and " + itoa(MAX_PLAYERS), checkMaxplayer, tryMaxplayer)),
+		PT(new GS_AddString	("welcome_message",			&welcome_message)),
+		PT(new GS_AddString	("info_message",			&info_message)),
+		PT(new GS_ForwardStr("server_password",			setServerPassword)),
+		PT(new GS_Int		("pup_add_time",			&pupConfig.pup_add_time, 1, 999)),
+		PT(new GS_Int		("pup_max_time",			&pupConfig.pup_max_time, 1, 999)),
+		PT(new GS_Boolean	("pup_deathbringer_switch",	&pupConfig.pup_deathbringer_switch)),
+		PT(new GS_Float		("pup_deathbringer_time",	&pupConfig.pup_deathbringer_time, 1.)),
+		PT(new GS_Boolean	("pups_drop_at_death",		&pupConfig.pups_drop_at_death)),
+		PT(new GS_Int		("pup_health_bonus",		&pupConfig.pup_health_bonus, 1)),
+		PT(new GS_Float		("pup_power_damage",		&pupConfig.pup_power_damage, 0.)),
+		PT(new GS_Int		("pup_weapon_max",			&pupConfig.pup_weapon_max, 1, 9, 1, -1)),	// decrease by 1 to end up with the internal setting
+		PT(new GS_Boolean	("random_maprot",			&random_maprot)),
+		PT(new GS_Int		("vote_block_time",			&vote_block_time, 0, GS_Int::lim::max(), 60 * 10)),	// convert minutes to frames
+		PT(new GS_Int		("idlekick_time",			&idlekick_time, 10, GS_Int::lim::max(), 1, 0, true)),	// special setting: allow 0 that is outside the normal range
+		PT(new GS_Double	("respawn_time",			&worldConfig.respawn_time, 0.)),
+		PT(new GS_Double	("waiting_time_deathbringer",	&worldConfig.waiting_time_deathbringer, 0.)),
+		PT(new GS_Int		("pup_shadow_invisibility",	&worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal)),	// 0->smn, 1->0
+		PT(new GS_Int		("rocket_damage",			&worldConfig.rocket_damage, 1)),
+		PT(new GS_Boolean	("sayadmin_enabled",		&sayadmin_enabled)),
+		PT(new GS_String	("sayadmin_comment",		&sayadmin_comment)),
+		PT(new GS_String	("server_website",			&server_website_url)),
+		PT(new GS_Boolean	("tournament",				&tournament)),
+		PT(new GS_Boolean	("save_stats",				&save_stats)),
+		PT(0)
+	};
+
 	string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
 	ifstream in(filename.c_str());
 	if (in) {
@@ -409,265 +484,21 @@ void gameserver_c::load_game_mod() {
 			ist >> cmd;
 			ist.ignore();
 			getline(ist, value);
-			const double val = atof(value.c_str());
-			const int ival = atoi(value.c_str());
-
-			if (cmd == "friction")
-				world.physics.fric = val;
-			else if (cmd == "drag")
-				world.physics.drag = val;
-			else if (cmd == "acceleration")
-				world.physics.accel = val;
-			else if (cmd == "run_acceleration")
-				world.physics.run_mul = val;
-			else if (cmd == "turbo_acceleration")
-				world.physics.turbo_mul = val;
-			else if (cmd == "flag_acceleration")
-				world.physics.flag_mul = val;
-			else if (cmd == "player_collisions") {
-				if (ival == 0 || ival == 1)
-					world.physics.player_collisions = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "friendly_fire") {
-				if (ival == 0 || ival == 1)
-					world.physics.friendly_fire = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "friendly_deathbringer") {
-				if (ival == 0 || ival == 1)
-					world.physics.friendly_db = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "map") {
-				MapInfo mi;
-				if (mi.load(log, value)) {
-					maprot.push_back(mi);
-					log("Added '%s' to map rotation", value.c_str());
+			for (int si = 0;; ++si) {
+				if (&*settings[si] == 0) {	// end of settings marker
+					log.error("Unrecognized gamemod setting: '%s'", cmd.c_str());
+					break;
 				}
-				else
-					log.error("Can't add '%s' to map rotation", value.c_str());
-			}
-			else if (cmd == "pups_min") {
-				if (value.find('%') != string::npos) {
-					if (ival >= 0) {
-						pupConfig.pups_min = ival;
-						pupConfig.pups_min_percentage = true;
-					}
-					else
-						log.error("Can't set pups_min to %d%%", ival);
+				if (settings[si]->matchCommand(cmd)) {
+					settings[si]->set(log, value);	// ignore return value; the status is logged
+					break;
 				}
-				else if (ival >= 0 && ival <= MAX_PICKUPS) {
-					pupConfig.pups_min = ival;
-					pupConfig.pups_min_percentage = false;
-				}
-				else
-					log.error("Can't set pups_min to %d", ival);
 			}
-			else if (cmd == "pups_max") {
-				if (value.find('%') != string::npos) {
-					if (ival >= 0) {
-						pupConfig.pups_max = ival;
-						pupConfig.pups_max_percentage = true;
-					}
-					else
-						log.error("Can't set pups_max to %d%%", ival);
-				}
-				else if (ival >= 0 && ival <= MAX_PICKUPS) {
-					pupConfig.pups_max = ival;
-					pupConfig.pups_max_percentage = false;
-				}
-				else
-					log.error("Can't set pups_max to %d", ival);
-			}
-			else if (cmd == "pups_respawn_time")
-				pupConfig.pups_respawn_time = ival;
-			else if (cmd == "pup_chance_shield")
-				pupConfig.pup_chance_shield = ival;
-			else if (cmd == "pup_chance_turbo")
-				pupConfig.pup_chance_turbo = ival;
-			else if (cmd == "pup_chance_shadow")
-				pupConfig.pup_chance_shadow = ival;
-			else if (cmd == "pup_chance_power")
-				pupConfig.pup_chance_power = ival;
-			else if (cmd == "pup_chance_weapon")
-				pupConfig.pup_chance_weapon = ival;
-			else if (cmd == "pup_chance_megahealth")
-				pupConfig.pup_chance_megahealth = ival;
-			else if (cmd == "pup_chance_deathbringer")
-				pupConfig.pup_chance_deathbringer = ival;
-			else if (cmd == "time_limit") {
-				if (ival >= 0)
-					worldConfig.time_limit = 60 * 10 * ival; // minutes to frames
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "extra_time") {
-				if (ival >= 0)
-					worldConfig.extra_time = 60 * 10 * ival; // minutes to frames
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "sudden_death") {
-				if (ival == 0 || ival == 1)
-					worldConfig.sudden_death = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "game_end_delay") {
-				if (ival >= 0)
-					game_end_delay = ival;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "capture_limit") {
-				if (ival >= 0)
-					worldConfig.capture_limit = ival;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "balance_teams") {
-				if (value == "no")
-					worldConfig.balance_teams = WorldSettings::TB_disabled;
-				else if (value == "balance")
-					worldConfig.balance_teams = WorldSettings::TB_balance;
-				else if (value == "shuffle")
-					worldConfig.balance_teams = WorldSettings::TB_balance_and_shuffle;
-				else
-					log.error("Can't set %s to %s", cmd.c_str(), value.c_str());
-			}
-			else if (cmd == "server_name")
-				network.set_hostname(value);
-			else if (cmd == "max_players") {
-				if (ival != maxplayers && network.get_player_count() != 0)
-					log.error("Can't change max_players while players are connected");
-				else if (ival >= 2 && ival <= MAX_PLAYERS && ival % 2 == 0)
-					setMaxPlayers(ival);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "welcome_message")
-				welcome_message.push_back(value);
-			else if (cmd == "info_message")
-				info_message.push_back(value);
-			else if (cmd == "server_website")
-				server_website_url = value;
-			else if (cmd == "server_password")
-				network.set_server_password(value);
-			else if (cmd == "pup_add_time") {
-				if (ival > 0 && ival < 1000)
-					pupConfig.pup_add_time = ival;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "pup_max_time") {
-				if (ival > 0 && ival < 1000)
-					pupConfig.pup_max_time = ival;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "pup_deathbringer_switch") {
-				if (ival == 0 || ival == 1)
-					pupConfig.pup_deathbringer_switch = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "pup_deathbringer_time") {
-				if (val >= 1.0)
-					pupConfig.pup_deathbringer_time = val;
-				else
-					log.error("Can't set %s to %f", cmd.c_str(), val);
-			}
-			else if (cmd == "pups_drop_at_death") {
-				if (ival == 0 || ival == 1)
-					pupConfig.pups_drop_at_death = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "pup_health_bonus") {
-				if (ival >= 0)
-					pupConfig.pup_health_bonus = ival;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "pup_power_damage") {
-				if (val > 0.)
-					pupConfig.pup_power_damage = val;
-				else
-					log.error("Can't set %s to %f", cmd.c_str(), val);
-			}
-			else if (cmd == "pup_weapon_max") {
-				if (ival >= 1 && ival <= 9)
-					pupConfig.pup_weapon_max = ival - 1;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "random_maprot") {
-				if (ival == 0 || ival == 1)
-					random_maprot = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "vote_block_time") {
-				if (ival >= 0)
-					vote_block_time = 60 * 10 * ival;	// minutes to frames
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "idlekick_time") {
-				if (ival >= 10 || ival == 0)
-					idlekick_time = ival * 10;	// seconds to frames
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "respawn_time") {
-				if (val >= 0)
-					worldConfig.respawn_time = val;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "waiting_time_deathbringer") {
-				if (val >= 0)
-					worldConfig.waiting_time_deathbringer = val;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "pup_shadow_invisibility") {
-				if (ival == 0 || ival == 1)
-					worldConfig.shadow_minimum = ival == 1 ? 0 : worldConfig.shadow_minimum_normal;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "rocket_damage") {
-				if (ival >= 0)
-					worldConfig.rocket_damage = ival;
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "sayadmin_enabled") {
-				if (ival == 0 || ival == 1)
-					sayadmin_enabled = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			}
-			else if (cmd == "sayadmin_comment")
-				sayadmin_comment = value;
-			else if (cmd == "tournament")
-				if (ival == 0 || ival == 1)
-					tournament = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			else if (cmd == "save_stats")
-				if (ival == 0 || ival == 1)
-					save_stats = (ival == 1);
-				else
-					log.error("Can't set %s to %d", cmd.c_str(), ival);
-			else
-				log.error("*** Bad command in gamemod: %s", cmd.c_str());
 		}
+
+		if ((pupConfig.pups_min_percentage == pupConfig.pups_max_percentage && pupConfig.pups_min > pupConfig.pups_max) ||
+				pupConfig.pups_max == 0)	// if they are in different units, only the value of 0 is comparable
+			pupConfig.pups_min = pupConfig.pups_max;
 
 		if (!server_website_url.empty())
 			info_message.push_back(string() + "Website: " + server_website_url);
@@ -742,7 +573,7 @@ bool gameserver_c::server_next_map(int reason) {
 	gameover_time = get_time() + game_end_delay;		// timeout for gameover plaque
 
 	char lix[256];
-	sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap].title.c_str(), currmap+1, maprot.size());
+	snprintf(lix, 256, "Server changed map to: %s (%i of %i)", maprot[currmap].title.c_str(), currmap+1, maprot.size());
 	network.broadcast_message(msg_info, lix);
 
 	return true;
@@ -1078,7 +909,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 				int bufi = 0;
 				for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
 					if (world.player[ppid].used) {
-						sprintf(buf + bufi, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
+						snprintf(buf + bufi, 26, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
 						bufi += 26;
 						++onrow;
 					}
@@ -1152,7 +983,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			char talkmsg[256];
 			// check for team message:
 			if (sbuf[0] == '.') {
-				sprintf(talkmsg, "%s: %s", world.player[pid].name.c_str(), sbuf + 1);
+				snprintf(talkmsg, 256, "%s: %s", world.player[pid].name.c_str(), sbuf + 1);
 				if (world.player[pid].muted == 2)
 					network.player_message(pid, msg_team, talkmsg);
 				else
@@ -1160,7 +991,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			}
 			//regular msg
 			else {
-				sprintf(talkmsg, "%s: %s", world.player[pid].name.c_str(), sbuf);
+				snprintf(talkmsg, 256, "%s: %s", world.player[pid].name.c_str(), sbuf);
 				if (world.player[pid].muted == 2)
 					network.player_message(pid, msg_normal, talkmsg);
 				else

@@ -545,7 +545,7 @@ void ServerNetworking::client_report_status(int id) {
 	mjob_count++;
 	pthread_mutex_unlock(&mjob_mutex);
 	RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
-	Thread::startDetachedThread_assert(rmf, job);
+	Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
 
 	clid.delta_score = 0;
 	clid.neg_delta_score = 0;
@@ -582,21 +582,21 @@ void ServerNetworking::broadcast_screen_message(int px, int py, char* lebuf, int
 // broadcast message with varargs
 void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
 	va_list argptr;
-	char msg[16384];
+	char msg[1000];
 	va_start(argptr, fs);
-	vsprintf(msg, fs, argptr);
+	_vsnprintf(msg, 1000, fs, argptr);
 	va_end (argptr);
 
 	broadcast_message(type, msg);
 }
 
 void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) {	// bprintf for a single player
-	char buf[16384];
+	char buf[1000];
 	buf[0] = data_text_message;
 	buf[1] = type;
 	va_list argptr;
 	va_start(argptr, fmt);
-	vsprintf(buf + 2, fmt, argptr);
+	_vsnprintf(buf + 2, 1000, fmt, argptr);
 	va_end(argptr);
 	server->send_message(world.player[pid].cid, buf, 2 + strlen(buf + 2) + 1);
 }
@@ -667,7 +667,7 @@ bool ServerNetworking::start() {
 		fileTransfer[i].reset();
 
 	// start server
-	server = new_server_c();
+	server = new_server_c(host->config().priority);
 
 	server->setHelloCallback(sfunc_client_hello);
 	server->setConnectedCallback(sfunc_client_connected);
@@ -691,14 +691,14 @@ bool ServerNetworking::start() {
 	shellssock = NL_INVALID;	// not in use
 
 	//start TCP shell master thread in the port number 500 less than server UDP port
-	shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500);
+	shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500, host->config().lowerPriority);
 
 	//start TCP thread for talking with master server
 	if (!host->config().privateserver)
-		mthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread));
+		mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), host->config().lowerPriority);
 
 	//start website thread
-	webthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_website_thread));
+	webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
 
 	return true;
 }
@@ -1100,7 +1100,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					pthread_mutex_unlock(&mjob_mutex);
 
 					RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
-					Thread::startDetachedThread_assert(rmf, job);
+					Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
 				}
 			}
 			else if (code == data_tournament_participation) {
@@ -1344,7 +1344,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		NLubyte clFrame = world.player[i].lastClientFrame;
 		writeByte(lebuf, lecount, clFrame);
 		#ifdef SEND_FRAMEOFFSET
-		NLubyte fo = static_cast<NLubyte>(bound<float>(world.player[i].frameOffset, 0., .999) * 256.);
+		NLubyte fo = static_cast<NLubyte>( bound<float>(world.player[i].frameOffset, 0., .999) * 256. );
 		writeByte(lebuf, lecount, fo);
 		#endif
 
@@ -1541,7 +1541,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		nlSetAddrPort(&tournamentServer, 80);
 		nlConnect(sock, &tournamentServer);
 
-		NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
+		const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
 		if (result != NR_ok) {
 			nlClose(sock);
 			if (mjob_exit)
@@ -1553,7 +1553,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		string response;
 		{
 			ostringstream respStream;
-			NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &mjob_exit, 30000);
+			const NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &mjob_exit, 30000);
 			nlClose(sock);
 			if (result != NR_ok) {
 				if (mjob_exit)
@@ -1773,7 +1773,7 @@ void ServerNetworking::run_mastertalker_thread() {
 	// send quit message
 	ostringstream quit;
 	quit << "ip=" << localAddress << "&port=" << host->config().port << "&quit=1\r\n";
-	NetworkResult result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
+	const NetworkResult result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
 	log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(quit.str()).c_str(), result);
 
 	if (result == NR_ok) {
@@ -1962,7 +1962,7 @@ void ServerNetworking::run_website_thread() {
 
 	// send quit message
 	const string quit = "quit=1\r\n";
-	NetworkResult result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
+	const NetworkResult result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
 	log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
 	if (result == NR_ok) {
@@ -2177,7 +2177,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 			slaveThread.join();
 		slaveRunning = true;	// slave will set it false when exiting
 		shellssock = newSock;
-		slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning);
+		slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning, host->config().lowerPriority);
 	}
 	nlClose(shellmsock);
 	log("Admin shell master thread quitting");
@@ -2374,7 +2374,7 @@ void ServerNetworking::stop() {
 	//wait for all master jobs to complete nicely
 	while (mjob_count > 0 && get_time() < mjmaxtime) {
 		char lix[200];
-		sprintf(lix, "Shutdown: waiting for %d tournament updates", mjob_count);
+		snprintf(lix, 200, "Shutdown: waiting for %d tournament updates", mjob_count);
 		host->config().statusOutput(lix);
 		MS_SLEEP(100);
 	}
@@ -2383,7 +2383,7 @@ void ServerNetworking::stop() {
 	mjob_exit = true;		//MUST terminate -- abort
 	while (mjob_count > 0) {
 		char lix[200];
-		sprintf(lix, "Shutdown: ABORTING %d tournament updates", mjob_count);
+		snprintf(lix, 200, "Shutdown: ABORTING %d tournament updates", mjob_count);
 		host->config().statusOutput(lix);
 		MS_SLEEP(100);
 	}
@@ -2415,7 +2415,7 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 	for (int i = 0; i < shots; i++)
 		writeByte(lebuf, count, sid[i]);	// rocket-object id (needed because client-side rockets can be deleted by the server)
 	writeLong(lebuf, count, world.frame);	// time of shot of the rocket: current (last simulated) frame
-	NLubyte shotType = (team << 1) | power;
+	const NLubyte shotType = (team << 1) | power;
 	writeByte(lebuf, count, static_cast<NLubyte>(shotType));	// owner of all rockets
 	writeByte(lebuf, count, static_cast<NLubyte>(px));	//coord
 	writeByte(lebuf, count, static_cast<NLubyte>(py));
@@ -2429,7 +2429,7 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const rocket_c& rocket) {
 	char lebuf[256]; int count = 0;
-	NLubyte shotType = (rocket.team << 1) | rocket.power;
+	const NLubyte shotType = (rocket.team << 1) | rocket.power;
 	writeByte(lebuf, count, data_old_rocket_visible);
 	writeByte(lebuf, count, static_cast<NLubyte>(rid));
 	writeByte(lebuf, count, rocket.direction);

@@ -49,8 +49,8 @@ Menu_serverList::Menu_serverList() :
 	reset();
 }
 
-void Menu_serverList::add(const string& address, const string& serverInfo) {
-	servers.push_back(pair<string, Textarea>(address, Textarea(serverInfo)));
+void Menu_serverList::add(const NLaddress& address, const string& serverInfo) {
+	servers.push_back(pair<NLaddress, Textarea>(address, Textarea(serverInfo)));
 }
 
 void Menu_serverList::reset() {
@@ -69,7 +69,7 @@ void Menu_serverList::reset() {
 }
 
 void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook) {
-	for (vector<pair<string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+	for (vector<pair<NLaddress, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
 		servi->second.setHook(hook->clone());
 		servi->second.setKeyHook(keyHook->clone());
 		menu.add_component(&servi->second);
@@ -78,12 +78,13 @@ void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyH
 	delete keyHook;
 }
 
-string Menu_serverList::getAddress(const Textarea& target) {
-	for (vector<pair<string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+NLaddress Menu_serverList::getAddress(const Textarea& target) {
+	for (vector<pair<NLaddress, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
 		if (&servi->second == &target)
 			return servi->first;
 	}
-	return string();
+	nAssert(0);
+	return NLaddress();
 }
 
 void Menu_serverList::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
@@ -123,6 +124,8 @@ Menu_game::Menu_game() :
 	saveStats			("Save game statistics", false),
 	showStats			("Show stats after the round", false),
 
+	autoGetServerList	("Get server list at startup", true),
+
 	menu				("Game options")
 {
 	menu.add_component(&favoriteColors);
@@ -133,6 +136,8 @@ Menu_game::Menu_game() :
 	menu.add_component(&messageLogging);
 	menu.add_component(&saveStats);
 	menu.add_component(&showStats);
+	ins_space();
+	menu.add_component(&autoGetServerList);
 }
 
 void Menu_graphics::reloadChoices(const Graphics& gfx) {

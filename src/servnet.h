@@ -4,6 +4,7 @@
 #include "network.h"	// for NetworkResult
 #include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "thread.h"
+#include "utility.h"
 
 #include <map>
 

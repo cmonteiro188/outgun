@@ -11,7 +11,6 @@
 #include "log.h"
 #include "commont.h"	// for time_counter
 #include "utility.h"
-#include "thread.h"	// threadRandomize() from there is implemented here
 
 using std::hex;
 using std::min;
@@ -31,6 +30,12 @@ string itoa(int val, int radix) {
 	return buf;
 }
 
+string fcvt(double val) {
+	ostringstream ss;
+	ss << val;
+	return ss.str();
+}
+
 int iround(double value) {
 	return static_cast<int>(value + 0.5);
 }
@@ -43,7 +48,11 @@ string toupper(string str) {
 
 string trim(string str) {
 	str.erase(0, str.find_first_not_of(" \t\n\r\xA0"));
-	str.erase(str.find_last_not_of(" \t\n\r\xA0") + 1);
+	const string::size_type lastGood = str.find_last_not_of(" \t\n\r\xA0");
+	if (lastGood == string::npos)
+		return string();
+	if (lastGood + 1 < str.length())
+		str.erase(lastGood + 1);
 	return str;
 }
 
@@ -187,10 +196,6 @@ string approxTime(int seconds) {
 	return str;
 }
 
-void threadRandomize() {	// declared in thread.h
-	srand(time(0));
-}
-
 // definitions for incalleg.h
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
@@ -199,7 +204,7 @@ void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color
 	va_list argptr;
 	char xbuf[16384];
 	va_start(argptr, format);
-	vsprintf(xbuf, format, argptr);
+	_vsnprintf(xbuf, 16384, format, argptr);
 	va_end(argptr);
 	textout(bmp, f, xbuf, x, y, color);
 }
@@ -208,7 +213,7 @@ void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, in
 	va_list argptr;
 	char xbuf[16384];
 	va_start(argptr, format);
-	vsprintf(xbuf, format, argptr);
+	_vsnprintf(xbuf, 16384, format, argptr);
 	va_end(argptr);
 	textout_centre(bmp, f, xbuf, x, y, color);
 }
@@ -217,7 +222,7 @@ void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int
 	va_list argptr;
 	char xbuf[16384];
 	va_start(argptr, format);
-	vsprintf(xbuf, format, argptr);
+	_vsnprintf(xbuf, 16384, format, argptr);
 	va_end(argptr);
 	textout_right(bmp, f, xbuf, x, y, color);
 }
