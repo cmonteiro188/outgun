@@ -596,8 +596,8 @@ void setcolors() {
 	col[COLRED] = makecol(0xff,0,0);
 
 	// base minimap background colors
-	col[COLBBLUE] = makecol(0,0,0x44);
-	col[COLBRED] = makecol(0x44,0,0);
+	col[COLBBLUE] = makecol(0,0,0x66);
+	col[COLBRED] = makecol(0x66,0,0);
 
 	//other
 	col[COLFOGOFWAR] = makecol(0xff, 0xff, 0xff);
@@ -803,7 +803,7 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 		assert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
-	void draw_minimap(BITMAP* buffer) const;
+	void draw_minimap(BITMAP* buffer, bool flagPaintSimple=false) const;
 	bool load(FILE* f);
 };
 
@@ -990,7 +990,11 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 	}
 }
 
-void Map::draw_minimap(BITMAP* buffer) const {
+void Map::draw_minimap(BITMAP* buffer, bool flagPaintSimple) const {
+	#ifndef CL_MINIMAP_FLAGPOS
+	(void)flagPaintSimple;
+	#endif
+
 	//black bg
 	clear_to_color(buffer, 0);
 
@@ -1008,24 +1012,31 @@ void Map::draw_minimap(BITMAP* buffer) const {
 
 	//draw bases
 	#ifdef CL_MINIMAP_FLAGPOS
-	int red_x = tinfo[0].flag.px;
-	int red_y = tinfo[0].flag.py;
-	int blue_x = tinfo[1].flag.px;
-	int blue_y = tinfo[1].flag.py;
-	bool same_room = false;
-	// Are both maps in the same room?
-	if (red_x == blue_x && red_y == blue_y) {
-		same_room = true; /*
-		float fx = tinfo[0].flag.px * plw + tinfo[0].flag.x;
-		float fy = tinfo[0].flag.py * plh + tinfo[0].flag.y;
-		circlefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, col[COLRED]);
-		fx = tinfo[1].flag.px * plw + tinfo[1].flag.x;
-		fy = tinfo[1].flag.py * plh + tinfo[1].flag.y;
-		circlefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, col[COLBLUE]);*/
-	}
-	else {
-		rectfill(buffer, 2+ MMSCRW * red_x, 2+ MMSCRH * red_y, MMSCRW * (red_x + 1), MMSCRH * (red_y + 1), col[COLBRED]);
-		rectfill(buffer, 2+ MMSCRW * blue_x, 2+ MMSCRH * blue_y, MMSCRW * (blue_x + 1), MMSCRH * (blue_y + 1), col[COLBBLUE]);
+	if (flagPaintSimple) {
+		int  red_rx = tinfo[0].flag.px,  red_ry = tinfo[0].flag.py;
+		int blue_rx = tinfo[1].flag.px, blue_ry = tinfo[1].flag.py;
+		if (red_rx==blue_rx && red_ry==blue_ry) {
+			// for lack of mathematical enthusiasm, the half-way line is not calculated analytically; instead, determine each pixel individually (slow)
+			// this is OK since this function is called once per map instead of every frame
+			int xmin = 2+MMSCRW*red_rx, xmax = MMSCRW*(red_rx+1);
+			int ymin = 2+MMSCRH*red_ry, ymax = MMSCRH*(red_ry+1);
+			for (int y=ymin; y<=ymax; ++y) {
+				float roomy = float(y + 1 - ymin) / float(MMSCRH) * plh;
+				float ydist_r2 = pow(tinfo[0].flag.y-roomy, 2);
+				float ydist_b2 = pow(tinfo[1].flag.y-roomy, 2);
+				for (int x=xmin; x<=xmax; ++x) {
+					float roomx = float(x + 1 - xmin) / float(MMSCRW) * plw;
+					float xdist_r2 = pow(tinfo[0].flag.x-roomx, 2);
+					float xdist_b2 = pow(tinfo[1].flag.x-roomx, 2);
+					int color = (xdist_r2 + ydist_r2 < xdist_b2 + ydist_b2) ? col[COLBRED] : col[COLBBLUE];
+					putpixel(buffer, x, y, color);
+				}
+			}
+		}
+		else {
+			rectfill(buffer, 2+MMSCRW* red_rx, 2+MMSCRH* red_ry, MMSCRW*( red_rx+1), MMSCRH*( red_ry+1), col[COLBRED ]);
+			rectfill(buffer, 2+MMSCRW*blue_rx, 2+MMSCRH*blue_ry, MMSCRW*(blue_rx+1), MMSCRH*(blue_ry+1), col[COLBBLUE]);
+		}
 	}
 	#else
 	int fx = tinfo[0].flag.px;
@@ -1050,14 +1061,21 @@ void Map::draw_minimap(BITMAP* buffer) const {
 	rect(buffer, 0, 0, buffer->w -1, buffer->h -1, col[COLGREEN]);
 
 	#ifdef CL_MINIMAP_FLAGPOS
-	if (same_room) {
-		float fx = tinfo[0].flag.px * plw + tinfo[0].flag.x;
-		float fy = tinfo[0].flag.py * plh + tinfo[0].flag.y;
-		floodfill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), col[COLBRED]);
-		fx = tinfo[1].flag.px * plw + tinfo[1].flag.x;
-		fy = tinfo[1].flag.py * plh + tinfo[1].flag.y;
-		floodfill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), col[COLBBLUE]);
+	int  red_px = int(1 + (tinfo[0].flag.px*plw + tinfo[0].flag.x)/maxx*98.);
+	int  red_py = int(1 + (tinfo[0].flag.py*plh + tinfo[0].flag.y)/maxy*98.);
+	int blue_px = int(1 + (tinfo[1].flag.px*plw + tinfo[1].flag.x)/maxx*98.);
+	int blue_py = int(1 + (tinfo[1].flag.py*plh + tinfo[1].flag.y)/maxy*98.);
+	if (!flagPaintSimple) {
+		if (getpixel(buffer,  red_px,  red_py) != 0)	// is painted with any color
+			return draw_minimap(buffer, true);	// restart with basic painting
+		floodfill(buffer,  red_px,  red_py, col[COLBRED ]);
+
+		if (getpixel(buffer, blue_px, blue_py) != 0)	// is painted with any color (including by previous red floodfill)
+			return draw_minimap(buffer, true);	// restart with basic painting
+		floodfill(buffer, blue_px, blue_py, col[COLBBLUE]);
 	}
+	circle(buffer,  red_px,  red_py, 3, col[COLRED ]);
+	circle(buffer, blue_px, blue_py, 3, col[COLBLUE]);
 	#endif
 }
 
@@ -4697,58 +4715,8 @@ public:
 
 	//----- THE REST  ----------------
 
-	//start server
-	bool start(int target_maxplayers) {
-
-		#ifdef NR_NAME_AUTHORIZATION
-		authorizations.load();
-		#endif
-
-		int i;
-
-		//check if maxplayers is valid
-		if (target_maxplayers < 2)				//menos de dois
-			return false;
-		if (target_maxplayers > MAX_PLAYERS)		//mais que o maximo
-			return false;
-		if (target_maxplayers % 2 == 1)	//numero impar de jogadores
-			return false;
-
-		//set maxplayers
-		maxplayers = target_maxplayers;
-
-		//reset client_c struct (closes files...)
-		for (i=0;i<MAX_PLAYERS;i++)
-			client[i].reset();
-
-		//not showing gameover plaque to clients
-		gameover = false;
-
-		ping_send_counter = 0;
-		ping_send_client = 0;
-
-		//reset fslavesocks
-		for (int ss=0;ss<MAX_PLAYERS;ss++)
-			fslavesock[ss] = NL_INVALID;			//inicializa
-		file_threads_quit = false;	//not yet
-
-		// server game phisics parameters
-		// DEFAULT VALUES...
-		//
+	bool reset_settings() {
 		set_default_physics();
-
-		// reset players
-		//players_present = 0;
-		player_count = 0;
-		for (i=0;i<MAX_PLAYERS;i++) {
-			player[i].used = false;
-			player[i].id = i;
-			player[i].name[0]=0;
-		}
-
-		// reset bots
-		bot_count = 0;
-		bot_prefs_change();
 
 		//default configuration
 		//DEFAULT POWERUP CONFIG
@@ -4785,7 +4753,13 @@ public:
 		// reset server rotation list
 		currmap = 0;
 
+		sayadmin_comment = string();
 		sayadmin_enabled = false;
+
+		welcome_message.clear();
+		info_message.clear();
+
+		maprot.clear();
 
 		// load server configuration from gamemod.txt
 		load_game_mod();
@@ -4830,6 +4804,60 @@ public:
 
 		if (random_maprot)
 			random_shuffle(maprot.begin(), maprot.end());
+
+		return true;
+	}
+
+	//start server
+	bool start(int target_maxplayers) {
+
+		#ifdef NR_NAME_AUTHORIZATION
+		authorizations.load();
+		#endif
+
+		int i;
+
+		//check if maxplayers is valid
+		if (target_maxplayers < 2)				//menos de dois
+			return false;
+		if (target_maxplayers > MAX_PLAYERS)		//mais que o maximo
+			return false;
+		if (target_maxplayers % 2 == 1)	//numero impar de jogadores
+			return false;
+
+		//set maxplayers
+		maxplayers = target_maxplayers;
+
+		//reset client_c struct (closes files...)
+		for (i=0;i<MAX_PLAYERS;i++)
+			client[i].reset();
+
+		//not showing gameover plaque to clients
+		gameover = false;
+
+		ping_send_counter = 0;
+		ping_send_client = 0;
+
+		//reset fslavesocks
+		for (int ss=0;ss<MAX_PLAYERS;ss++)
+			fslavesock[ss] = NL_INVALID;			//inicializa
+		file_threads_quit = false;	//not yet
+
+		// reset players
+		//players_present = 0;
+		player_count = 0;
+		for (i=0;i<MAX_PLAYERS;i++) {
+			player[i].used = false;
+			player[i].id = i;
+			player[i].name[0]=0;
+		}
+
+		// reset bots
+		bot_count = 0;
+		bot_prefs_change();
+
+		if (!reset_settings())
+			return false;
 
 		if (!load_rotation_map(currmap))
 			return false;
@@ -8644,6 +8672,9 @@ public:
 					if (result == 4)
 						banPlayer(pid);
 					break;
+				case ATS_RESET_SETTINGS:
+					reset_settings();
+					break;
 				case ATS_QUIT:
 					should_quit = true;
 					break;
@@ -9345,6 +9376,8 @@ public:
 	BITMAP *hostad;
 	char    hostadname[128];
 
+	//log messages to file
+	bool message_logging;
 	ofstream message_log;
 
 	void check_flagpos_marks();
@@ -9357,7 +9390,8 @@ public:
 		hostadname[0]=0;
 
 		// open message log file
-		message_log.open("message.log", ios::app);
+		if (message_logging)
+			message_log.open("message.log", ios::app);
 
 		//default physics parameters
 		//set_default_physics();
@@ -13332,16 +13366,18 @@ public:
 				case 2: {
 					chatmsg = &(msg[1]);		//avoid a useless readString...
 					print_message(chatmsg);		//print it to the "console"
-					// print message to log
-					// date and time
-					time_t tt = time(0);
-					struct tm* tmb = localtime(&tt);
-					message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
-						<< '-' << setfill('0') << setw(2) << tmb->tm_mday
-						<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
-						<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
-					// message
-					message_log << (msg[0] == '@' ? msg + 2 : msg) << '\n';
+					if (message_logging) {
+						// print message to log
+						// date and time
+						time_t tt = time(0);
+						struct tm* tmb = localtime(&tt);
+						message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
+							<< '-' << setfill('0') << setw(2) << tmb->tm_mday
+							<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
+							<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
+						// message
+						message_log << (msg[0] == '@' ? msg + 2 : msg) << '\n';
+					}
 
 					//talk sound
 					if ((strlen(chatmsg) >= 2) && (chatmsg[0] == '@') && (chatmsg[1] == 'I')) {
@@ -14824,7 +14860,8 @@ public:
 				delete udpdq[uq];
 				udpdq[uq] = 0;
 			}
-		message_log.close();
+		if (message_logging)
+			message_log.close();
 	}
 
 	//ctor
@@ -14896,6 +14933,7 @@ public:
 
 		pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 		udpdq_size = 0;
+		message_logging = false;
 	}
 
 	//dtor
@@ -15287,6 +15325,8 @@ int main(int argc, char *argv[]) {
 	//
 	nlEnable(NL_SOCKET_STATS);
 
+	bool message_logging = false;
+
 	// check args
 	//
 	for (int i=1;i<argc;i++) {
@@ -15350,6 +15390,8 @@ int main(int argc, char *argv[]) {
 				strcpy(force_ip_name, argv[i]);	//to next parameter value
 			}
 		}
+		else if (!strcmp(argv[i], "-log"))
+			message_logging = true;
 		else
 			LOG2("WARNING: command-line argument #%i is unknown ('%s')\n", i, argv[i]);
 	}
@@ -15572,6 +15614,8 @@ int main(int argc, char *argv[]) {
 		// run client
 		//
 		gameclient = new gameclient_c();
+		gameclient->message_logging = message_logging;
+		LOG1("Message logging is %s\n", message_logging ? "enabled" : "disabled");
 		if (!gameclient->start()) {
 			LOG("ERROR: cannot start gameclient!\n");
 			return 0;
