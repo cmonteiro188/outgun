@@ -412,12 +412,7 @@ public:
     void set_fav_colors(const std::vector<char>& colors) { fav_col = colors; }
     const std::vector<char>& fav_colors() const { return fav_col; }
 
-    void take_flag() { carrying_flag = true; }
-    void drop_flag() { carrying_flag = false; }
-    bool flag() const { return carrying_flag; }
-
 private:
-    bool carrying_flag;
     std::vector<char> fav_col;
 };
 

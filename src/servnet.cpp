@@ -384,6 +384,12 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
     writeByte(lebuf, count, data_capture);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
     broadcast_message(lebuf, count);
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_PLAYER_CAPTURES);
+        writeLong(lebuf, count, player.cid);
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const {
@@ -435,6 +441,18 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     writeByte(lebuf, count, attacker_info);
     writeByte(lebuf, count, tar_flag);
     broadcast_message(lebuf, count);
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        if (attacker.used) {
+            writeLong(lebuf, count, STA_PLAYER_KILLS);
+            writeLong(lebuf, count, attacker.cid);
+        }
+        if (target.used) {  // should be
+            writeLong(lebuf, count, STA_PLAYER_DIES);
+            writeLong(lebuf, count, target.cid);
+        }
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const {
@@ -448,6 +466,12 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
         id_flag |= 0x40;
     writeByte(lebuf, count, id_flag);
     broadcast_message(lebuf, count);
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_PLAYER_DIES);
+        writeLong(lebuf, count, player.cid);
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
@@ -725,6 +749,7 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
     if (shellssock != NL_INVALID) {
         count = 0;
         writeLong(lebuf, count, STA_GAME_TEXT);
+        writeByte(lebuf, count, '.');
         writeStr(lebuf, count, text);
         nlWrite(shellssock, lebuf, count);
     }
@@ -810,7 +835,11 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     writeStr(lebuf, count, world.map.title);
     writeByte(lebuf, count, static_cast<NLubyte>(host->current_map_nr()));
     writeByte(lebuf, count, static_cast<NLubyte>(host->maplist().size()));
-    server->send_message(world.player[pid].cid, lebuf, count);
+
+    if (pid < 0)
+        broadcast_message(lebuf, count);
+    else
+        server->send_message(world.player[pid].cid, lebuf, count);
 
     //VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
     world.player[pid].awaiting_client_ready = true;
@@ -826,7 +855,19 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
             writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getCaptureLimit()));
             writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
         }
-        server->send_message(world.player[pid].cid, lebuf, count);
+        if (pid < 0)
+            broadcast_message(lebuf, count);
+        else
+            server->send_message(world.player[pid].cid, lebuf, count);
+    }
+}
+
+void ServerNetworking::broadcast_map_change_message(int reason, const char* mapname) const {
+    send_map_change_message(-1, reason, mapname);
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_GAME_OVER);
+        nlWrite(shellssock, lebuf, count);
     }
 }
 
@@ -1064,12 +1105,6 @@ int ServerNetworking::client_connected(int id) {
     world.player[myself].respawn_to_base = true;    // New players always spawn in the base.
     // don't actually spawn until the client has loaded the map and is in the game
 
-    if (player_count == 2) {
-        host->ctf_game_restart();
-        world.reset_time();
-        sendStartGame();
-    }
-
     host->resetClient(id);
     world.player[myself].stats().set_lifetime(0);
 
@@ -1114,13 +1149,20 @@ int ServerNetworking::client_connected(int id) {
         send_player_crap_update(id, i);
     }
 
-    host->check_team_changes();
-    update_serverinfo();
     send_server_settings(world.player[myself]);
     send_map_time(id);
     send_stats(world.player[myself]);
     send_team_stats(world.player[myself]);
     world.player[myself].current_map_list_item = 0; // the first map info to be sent
+
+    if (player_count == 2) {
+        host->ctf_game_restart();
+        world.reset_time();
+        sendStartGame();
+    }
+
+    host->check_team_changes();
+    update_serverinfo();
     world.check_pickup_creation(false);             // check pickup creation
     return myself;
 }
@@ -1220,6 +1262,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
         NLubyte ccb;
         readByte(data, count, ccb);
         pl.controls.fromNetwork(ccb, false);
+        pl.controls.clearModifiersIfIdle();
 
         const ClientControls& ctrl = pl.controls;
         //if not strafing, update direction
@@ -1274,10 +1317,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 if (find_nonprintable_char(msg + 1)) {
                     log("Kicked player %d for client misbehavior: sent unprintable characters.", pid);
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                    break;  // don't process the rest of the messages
                 }
                 else if (string(msg + 1).length() > max_chat_message_length) {
                     log("Kicked player %d for client misbehavior: sent too long message (%d characters).", pid, string(msg + 1).length());
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                    break;  // don't process the rest of the messages
                 }
                 else
                     host->chat(pid, msg + 1);
@@ -1333,6 +1378,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     if (fsize == -1) {
                         log("Kicked player %d for client misbehavior: invalid download attempt", pid);
                         host->disconnectPlayer(pid, disconnect_client_misbehavior); // don't process the rest of the messages
+                        break;  // don't process the rest of the messages
                     }
                     else {
                         fileTransfer[id].data = new char[fsize];    //allocated to fit!
@@ -1541,10 +1587,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                 const int oppTeamStart = (1 - i / TSIZE) * TSIZE;
                 for (int j = oppTeamStart; j < oppTeamStart + TSIZE; ++j)   // find out who this teammate sees (who are in the same room and visible)
                     if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-                           (world.player[j].visibility > 10 || world.player[j].flag()))
+                           (world.player[j].visibility > 10 || world.player[j].stats().has_flag()))
                         normalView[t] |= 1 << j;
             }
-            else if (!world.player[i].item_shadow() || world.player[i].flag())
+            else if (!world.player[i].item_shadow() || world.player[i].stats().has_flag())
                 shadowView[t] += static_cast<NLulong>(1 << i);
         }
         shadowView[t] |= normalView[t];
@@ -1619,7 +1665,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             for (int j = 0; j < maxplayers; j++) {
                 // player j exists, in same room, visible or in same team or has a flag
                 if (world.player[j].used && world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-                        (world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].flag())) {
+                        (world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].stats().has_flag())) {
                     players_onscreen |= (1 << j);
 
                     const ServerPlayer& h = world.player[j];

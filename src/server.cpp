@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -129,6 +129,8 @@ void Server::ctf_game_restart() {
             }
         }
 
+    world.returnAllFlags();
+
     if (worldConfig.balanceTeams()) {
         balance_teams();
         if (worldConfig.balanceTeams() == WorldSettings::TB_balance_and_shuffle)
@@ -165,13 +167,15 @@ void Server::shuffle_teams() {  // weird system, because players table has gaps
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used)
             players.push_back(i);
-    vector<int> swap = players;
-    random_shuffle(swap.begin(), swap.end());
-    for (int i = 0, sw = 0; i < maxplayers; i++)
+    if (players.size() <= 2)
+        return;
+    random_shuffle(players.begin(), players.end()); // after this, indicates the new player id for each player
+    // swap all red team players with the player of their new id (only do inter-team swaps)
+    for (int i = 0, pi = 0; i < TSIZE; i++)
         if (world.player[i].used) {
-            if (players[sw] / TSIZE != swap[sw] / TSIZE)
-                swap_players(players[sw], swap[sw]);
-            sw++;
+            if (players[pi] >= TSIZE)
+                swap_players(i, players[pi]);
+            pi++;
         }
 }
 
@@ -614,9 +618,7 @@ bool Server::server_next_map(int reason) {
         return reset_settings(true);    // re-initialize map-list (and other settings as a side-effect); it calls back this function so the end-part has already executed
 
     // notify all players
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            network.send_map_change_message(i, reason, maprot[currmap].file.c_str());
+    network.broadcast_map_change_message(reason, maprot[currmap].file.c_str());
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {
         const ServerPlayer& pl = world.player[i];
@@ -823,6 +825,10 @@ int Server::getLessScoredTeam() const {
     if (team_smul[0] > team_smul[1])
         return 0;
     else if (team_smul[1] > team_smul[0])
+        return 1;
+    else if (world.teams[0].score() < world.teams[1].score())
+        return 0;
+    else if (world.teams[1].score() < world.teams[0].score())
         return 1;
     else
         return rand() % 2;
@@ -1037,12 +1043,12 @@ void Server::chat(int pid, const char* sbuf) {
             if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 maprot[world.player[pid].mapVote].votes = 99;
-                server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
             }
             else {
                 network.bprintf(msg_server, "%s decided it's time for a restart.", world.player[pid].name.c_str());
-                ctf_game_restart();
+                maprot[currmap].votes = 99;
             }
+            server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
         }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);

@@ -235,6 +235,8 @@ public:
     // the last packet received, to be acked
     NLulong ack;
 
+    NLulong nextPortChange; // at which client frame if there's still zero ack, a port change is attempted; 0 means disabled
+
     //the UDP packet set
     char    udp_data[BIG_UDPBUF];
     int     udp_size;
@@ -300,6 +302,8 @@ public:
         idgen_packet_send = 1;
         ack = 0;
         reliable_count = 0;
+        nextPortChange = 0;
+
         //clear incoming messages
         msg_current = 1;
         for (int i=0;i<MAX_INCOMING_MESSAGES;i++)
@@ -442,6 +446,10 @@ DLOG_Scope s("USIP");
         return 1; //ok
     }
 
+    virtual void enablePortSearch() {
+        nextPortChange = 30;    // try 3 seconds with the real port
+    }
+
     // process UDP raw packet that was set in set_incoming_packet
     // returns data block pointer and size of block for the unreliable
     // data block of the packet
@@ -505,6 +513,19 @@ DLOG_Scope s("UPIP");
         readByte(udp_data, count, nreliable);   //number of reliable msgs
         
         //if (debug) printf(" rc=%i", nreliable);
+
+        if (nextPortChange != 0) {
+            if (packet_ack != 0)
+                nextPortChange = 0;
+            else if (packet_id >= nextPortChange) {
+                const int port = nlGetPortFromAddr(&netaddr);
+                if (port > 0 && port < 65535)
+                    nlSetAddrPort(&netaddr, port + 1);
+                nextPortChange += 30;
+                if (nextPortChange >= 150)   // 15 seconds, equals 5 ports, is max connect sequence length
+                    nextPortChange = 0; // stop changing
+            }
+        }
 
         NLulong msgid;
         NLshort msgsize;

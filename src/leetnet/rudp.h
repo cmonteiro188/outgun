@@ -123,6 +123,8 @@ public:
     // because a thread may set the packet so that other thread processes it (see below)
     virtual int set_incoming_packet(char *udp_data, int udp_size) = 0;
 
+    virtual void enablePortSearch() = 0;
+
     // process UDP raw packet that was set in set_incoming_packet. returns data block pointer
     // and size of block for the unreliable data block of the packet
     // returns special == true if it's a "connection" packet (id (first long) == 0)

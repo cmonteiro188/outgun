@@ -2,7 +2,7 @@
  *  servnet.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -204,6 +204,7 @@ public:
     void send_map_vote(const ServerPlayer& player) const;
     void broadcast_map_votes_update();
     void send_map_change_message(int pid, int reason, const char* mapname) const;
+    void broadcast_map_change_message(int reason, const char* mapname) const;
     void send_map_time(int cid) const;
     void send_server_settings(const ServerPlayer& player) const;
     void broadcast_map_change_info(int votes, int needed, int vote_block_time) const;

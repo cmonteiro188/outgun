@@ -746,7 +746,6 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     dropped_flag = false;
     respawn_time = 0;
     respawn_to_base = false;
-    carrying_flag = false;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
@@ -1441,9 +1440,7 @@ bool ServerWorld::load_map(const char* mapdir, const string& mapname) {
 }
 
 void ServerWorld::returnAllFlags() {
-    for (int i = 0; i < MAX_PLAYERS; i++)
-        player[i].drop_flag();
-    WorldBase::returnAllFlags();    // moved this after player drop_flags in hopes to alleviate the assertion in ServerWorld::dropFlagIfAny()
+    WorldBase::returnAllFlags();
     net->ctf_net_flag_status(-1, 0);
     net->ctf_net_flag_status(-1, 1);
     net->ctf_net_flag_status(-1, 2);
@@ -1465,7 +1462,7 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) {
 }
 
 bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
-    if (!player[pid].flag())
+    if (!player[pid].stats().has_flag())
         return false;
     int flag = -1;
     int i = 0;
@@ -1485,10 +1482,9 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
             }
     }
     nAssert(flag != -1);
-    player[pid].drop_flag();    // moved this before dropFlag in hopes to alleviate the assertion 2 lines up
-    dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
-    player[pid].stats().add_flag_drop(get_time());
+    player[pid].stats().add_flag_drop(get_time());  // before dropFlag in hopes to alleviate the assertion above
     teams[pid / TSIZE].add_flag_drop();
+    dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
     if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
         net->broadcast_flag_drop(player[pid], team);
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
@@ -1925,7 +1921,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     bool carrier_defended = false, flag_defended = false;
     if (!same_team) {
         for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
-            if (player[i].used && player[i].flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
+            if (player[i].used && player[i].stats().has_flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
                 carrier_defended = true;
                 host->score_frag(attacker, 1);
                 break;  // only one frag even for defending multiple carriers
@@ -1937,7 +1933,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                 break;      // only one frag even for defending multiple flags
             }
     }
-    const bool flag = player[target].flag();
+    const bool flag = player[target].stats().has_flag();
     bool wild_flag = false;
     if (flag) {
         player[attacker].stats().add_carrier_kill();
@@ -1973,7 +1969,7 @@ void ServerWorld::removePlayer(int pid) {
 
 void ServerWorld::suicide(int pid) {
     if (player[pid].health > 0) {
-        const bool flag = player[pid].flag();
+        const bool flag = player[pid].stats().has_flag();
         bool wild_flag = false;
         if (flag)
             for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
@@ -2257,8 +2253,8 @@ pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, Phys
 
     const PhysicsCallbacksBase::PlayerHitResult res = callback.playerHitPlayer(pl1.id, pl2.id, fabs(k2 - k1));
 
-    const double newk1 = -k2 * res.bounceStrength1;   // should there be a mass difference this would be more complicated
-    const double newk2 = -k1 * res.bounceStrength2;
+    const double newk1 = k1 + (-k2 - k1) * res.bounceStrength1;   // should there be a mass difference this would be more complicated
+    const double newk2 = k2 + (-k1 - k2) * res.bounceStrength2;
 
     static const double baseSpeedMul = .9;
 
@@ -2793,7 +2789,7 @@ void ServerWorld::simulateFrame() {
 
         // Flag steal - touch other team's flag or wild flag
         bool touches_flag = false;
-        if (!pl.flag()) {
+        if (!pl.stats().has_flag()) {
             int f = 0;
             for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi, ++f)
                 if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
@@ -2804,7 +2800,7 @@ void ServerWorld::simulateFrame() {
                         break;  // only take one flag
                     }
                 }
-            if (!pl.flag()) {
+            if (!pl.stats().has_flag()) {
                 int f = 0;
                 for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
                     if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
@@ -2894,7 +2890,6 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     teams[pid / TSIZE].add_flag_take();
     net->broadcast_flag_take(player[pid], team);
     stealFlag(team, flag, pid);
-    player[pid].take_flag();
     // shadow powerup: show player
     if (player[pid].item_shadow())
         player[pid].visibility = maximum_shadow_visibility;
@@ -2925,7 +2920,6 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
         }
     host->score_frag(pid, 3);
     player[pid].stats().add_capture(get_time());
-    player[pid].drop_flag();
     teams[myteam].add_score(getMapTime(), player[pid].name);
     returnFlag(team, flag);
 

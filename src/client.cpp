@@ -1127,6 +1127,9 @@ void Client::send_tournament_participation() {
 }
 
 void Client::client_disconnected(const char* data, int length) {
+    if (!connected)
+        return;
+
     //restore window title
     extConfig.statusOutput(_("Outgun client"));
 
@@ -1331,8 +1334,13 @@ int Client::remove_player_passwords(const std::string& name) const {
 }
 
 void Client::connect_command(bool loadPassword) {   // call with frameMutex locked
+    const bool alreadyConnected = connected;
+
     // disconnect
     client->connect(false);
+
+    if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
+        MS_SLEEP(500);
 
     handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
     openMenus.close(&m_connectProgress.menu);
@@ -1403,8 +1411,10 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls;
-    if (openMenus.empty())  // don't move at all when a real menu is open
+    if (openMenus.empty()) { // don't move at all when a real menu is open
         currentControls = readControls(menusel != menu_maps, menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
+        currentControls.clearModifiersIfIdle();
+    }
 
     if (!forceSend && currentControls == sentControls)
         return;

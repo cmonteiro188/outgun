@@ -122,7 +122,6 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
     pup_sprite.resize(Powerup::pup_last_real + 1);
     plx = 0;
     ply = SCREEN_H - scale(plh) - 35;
-    //    log("csb(bkg, %d, %d, %d, %d) / %d, %d", plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)), background->w, background->h);
     roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
     minimap_w = minimap_place_w = SCREEN_W - roombg->w - 4; // 4 for left margin
     minimap_h = minimap_place_h = scale(100);

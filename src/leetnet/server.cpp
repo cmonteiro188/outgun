@@ -919,6 +919,8 @@ DLOG_Scope s("PCD_Sp");
                         nlWrite(servsock, reply->getbuf(), reply->getlen());
 
                         delete reply;
+
+                        client[cid].station->enablePortSearch();
                     }
                     else {
 

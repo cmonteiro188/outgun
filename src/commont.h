@@ -55,10 +55,12 @@ bool readJoystickButton(int button);    // operates on pseudo button ids that ar
 class ClientControls {
 public:
     ClientControls() : data(0) { }
+
     NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
     void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
     void fromKeyboard(bool use_pad, bool use_cursor_keys);
     void fromJoystick(int moving_stick, int run_button, int strafe_button); // uses pseudo button ids like readJoystickButton
+
     bool isUp    () const { return (data & up    ) != 0; }
     bool isDown  () const { return (data & down  ) != 0; }
     bool isLeft  () const { return (data & left  ) != 0; }
@@ -72,6 +74,8 @@ public:
 
     bool operator==(const ClientControls& o) { return data == o.data; }
     bool operator!=(const ClientControls& o) { return data != o.data; }
+
+    void clearModifiersIfIdle() { if (!isUpDown() && !isLeftRight()) data &= ~(run | strafe); }
 
 private:
     NLubyte data;
