@@ -18,6 +18,8 @@ public:
 	Mappic() { }
 
 	void run();
+	
+	class Save_error { };
 };
 
 #endif // MAPPIC_H_INC

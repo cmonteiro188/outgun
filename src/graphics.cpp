@@ -50,7 +50,7 @@ using std::vector;
 using std::list;
 using std::setprecision;
 
-Graphics::Graphics(int scr_w, int scr_h):
+Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	/*plx(0),
 	ply(90),*/
 	minimap_start_x(0),
@@ -68,7 +68,8 @@ Graphics::Graphics(int scr_w, int scr_h):
 	wall_texture.resize(1, 0);
 	for (int t = 0; t < 2; t++)
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
-	reset_video_mode();
+	if (reset_video)
+		reset_video_mode();
 	flagpos_buf[0] = 0;
 	flagpos_buf[1] = 0;
 	drawbuf = create_bitmap(scr_w, scr_h);
@@ -138,7 +139,7 @@ void Graphics::setcolors() {
 	col[COLDARKORA]	= makecol(0xBF, 0x70, 0x00);
 	col[COLINFO] = col[COLDARKORA];		//color of statusbar non-game info (hostname, IP, net traffic)
 	col[COLENER3] = makecol(125, 100, 255);
-	col[COLDARKGREEN] = makecol(0x00, 0x99, 0x00);
+	col[COLDARKGREEN] = makecol(0x00, 0x77, 0x00);
 
 	//teams 0 & 1 (playernum(0..15) / 8) colors:
 	teamcol[0] = col[COLRED];
@@ -303,7 +304,7 @@ bool Graphics::reset_video_mode() {
 	col[COLWALL] = makecol(wall_r, wall_g, wall_b);
 
 	flagpos_ready = false;
-	
+
 	load_pictures();
 
 	return true; //ok
@@ -583,10 +584,11 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
 	float room_w = float(minimap_w - 2) / map.w;
 	float room_h = float(minimap_h - 2) / map.h;
+	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : col[COLSHADOW];
 	for (int i = 1; i < map.w; i++)
-		vline(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, minimap_start_y + minimap_h, col[COLSHADOW]);
+		vline(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, minimap_start_y + minimap_h, room_border_col);
 	for (int i = 1; i < map.h; i++)
-		hline(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, col[COLSHADOW]);
+		hline(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, room_border_col);
 
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
@@ -598,7 +600,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 		for (int x = 0; x < map.w; x++) {
 			float bx = minimap_start_x + 1 + x * plw * xmul;
 			set_clip(buffer, (int)bx, (int)by, int(bx + room_w), int(by + room_h));
-			draw_room_walls(buffer, map.room[x][y], bx, by, xmul, makecol(0x00, 0x77, 0x00), false);
+			draw_room_walls(buffer, map.room[x][y], bx, by, xmul, col[COLDARKGREEN], false);
 			set_clip(buffer, 0, 0, buffer->w, buffer->h);
 		}
 	}
@@ -612,7 +614,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	for (int ry = 0; ry < map.h; ++ry)
 		for (int rx = 0; rx < map.w; ++rx) {
 			// save map
-			blit(buffer, backup, 0, 0, 0, 0, minibg->w, minibg->h);
+			blit(buffer, backup, 0, 0, 0, 0, buffer->w, buffer->h);
 			bool flag[] = { false, false };
 			for (int t = 0; t < 2; ++t)
 				for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi)
@@ -661,12 +663,12 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 								//failure[1 - t].push_back(*fj);
 								successful = false;
 								// restore map
-								blit(backup, buffer, 0, 0, 0, 0, minibg->w, minibg->h);
+								blit(backup, buffer, 0, 0, 0, 0, buffer->w, buffer->h);
 								break;
 							}
 						}
 						if (successful)	// save map
-							blit(buffer, backup, 0, 0, 0, 0, minibg->w, minibg->h);
+							blit(buffer, backup, 0, 0, 0, 0, buffer->w, buffer->h);
 					}
 			}
 			if (failure[0].empty() && failure[1].empty())
@@ -1256,32 +1258,31 @@ void Graphics::map_list(const vector<gameserver_c::MapInfo>& maps, int current, 
 	if (map_list_start < 0)
 		map_list_start = 0;
 
-	int i = 0;
-	for (vector<gameserver_c::MapInfo>::const_iterator mi = maps.begin() + map_list_start;
-							mi != maps.end() && i < map_list_size; ++mi, ++i) {
+	for (int i = map_list_start; i < static_cast<int>(maps.size()) && i < map_list_start + map_list_size; ++i) {
 		ostringstream mapline;
-		mapline << setw(2) << map_list_start + i + 1 << ' ' << setw(2);
-		if (mi->votes > 0)
-			mapline << mi->votes;
+		mapline << setw(2) << i + 1 << ' ' << setw(2);
+		const gameserver_c::MapInfo& map = maps[i];
+		if (map.votes > 0)
+			mapline << map.votes;
 		else
 			mapline << '-';
-		if (own_vote == map_list_start + i)
+		if (own_vote == i)
 			mapline << " *";
 		else
 			mapline << "  ";
-		mapline << ' ' << setw(20) << left << mi->title.substr(0, 20) << right << ' ';
-		mapline << setw(2) << mi->width << '×' << setw(2) << left << mi->height << right << ' ';
-		mapline << mi->author.substr(0, 27);
-		const int y = y1 + 5 * line_height + line_height * i;
-		textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, (map_list_start + i == current) ? col[COLYELLOW] : col[COLWHITE], -1);
+		mapline << ' ' << setw(20) << left << map.title.substr(0, 20) << right << ' ';
+		mapline << setw(2) << map.width << '×' << setw(2) << left << map.height << right << ' ';
+		mapline << map.author.substr(0, 27);
+		const int y = y1 + 5 * line_height + line_height * (i - map_list_start);
+		textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, (i == current) ? col[COLYELLOW] : col[COLWHITE], -1);
 	}
 	// draw scrollbar if there are more maps than visible on the screen
 	if (map_list_size < static_cast<int>(maps.size())) {
 		const int x = x2 - 30;
 		const int y = y1 + 5 * line_height - 4;
 		const int height = map_list_size * line_height;
-		const int bar_y = height * map_list_start / maps.size();
-		const int bar_h = height * map_list_size / maps.size();
+		const int bar_y = static_cast<int>(static_cast<float>(height * map_list_start) / maps.size() + 0.5);
+		const int bar_h = static_cast<int>(static_cast<float>(height * map_list_size) / maps.size() + 0.5);
 		scrollbar(x, y, height, bar_y, bar_h, col[COLGREEN], col[COLDARKGREEN]);
 	}
 	ostringstream vote;
@@ -1417,8 +1418,11 @@ void Graphics::print_text_border(const string& text, int x, int y, int textcol, 
 
 void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2) {
 	const int width = 10;
-	rectfill(drawbuf, x, y, x + width, y + height, col2);
-	rectfill(drawbuf, x, y + bar_y, x + width, y + bar_y + bar_h, col1);
+	if (height > 0) {
+		rectfill(drawbuf, x, y, x + width - 1, y + height - 1, col2);
+		if (bar_h > 0)
+			rectfill(drawbuf, x, y + bar_y, x + width - 1, y + bar_y + bar_h - 1, col1);
+	}
 }
 
 void Graphics::show_not_responding_message() {
@@ -1942,7 +1946,9 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	get_palette(pal);
 	minimap_place_w = old_minimap_p_w;
 	minimap_place_h = old_minimap_p_h;
-	return !save_bitmap(filename.c_str(), clip, pal);
+	bool failure = !save_bitmap(filename.c_str(), clip, pal);
+	destroy_bitmap(buffer);
+	return failure;
 }
 
 // Theme functions
@@ -2021,7 +2027,7 @@ void Graphics::load_theme(const string& dirname) {
 	string name;
 	ifstream in(dest);
 	if (in) {
-		if (!getline(in, name))
+		if (!getline_smart(in, name))
 			name = "(unnamed theme)";
 		in.close();
 	}

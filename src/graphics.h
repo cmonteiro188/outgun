@@ -35,7 +35,7 @@ class Team;
 
 class Graphics {
 public:
-	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y);
+	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y, bool reset_video = true);
 	~Graphics();
 	
 	BITMAP* drawbuffer() const { return drawbuf; }

@@ -45,20 +45,20 @@ vector<string> Mappic::load_maps(const string& dir) {
 }
 
 void Mappic::save_pictures() const {
-	Graphics graphics;
+	set_color_depth(16);
+	Graphics graphics(640, 480, false);
 	string dir("screens");
-	char sep[2] = { 0 };
-	put_backslash(sep);
-	dir += sep;
+	dir += directory_separator;
 	for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
 		string picture = dir + *name + ".pcx";
 		Map mp;
 		mp.load(SERVER_MAPS_DIR, *name);
 		if (graphics.save_map_picture(picture, mp)) {
-			LOG1("Saved map picture to '%s'\n", picture.c_str())
+			LOG1("Saved map picture to '%s'\n", picture.c_str());
 		}
 		else {
-			LOG1("Can't save map picture to '%s'\n", picture.c_str())
+			LOG1("Can't save map picture to '%s'\n", picture.c_str());
+			throw Save_error();
 		}
 	}
 }

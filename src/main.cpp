@@ -189,9 +189,14 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-log"))
 			message_logging = true;
 		else if (!strcmp(argv[i], "-mappic")) {
+			set_window_title("Outgun map picture saver");
 			Mappic mappic;
-			mappic.run();
-			allegro_message("Saved map pictures to screens directory.");
+			try {
+				mappic.run();
+				allegro_message("Saved map pictures to screens directory.");
+			} catch (const Mappic::Save_error& s) {
+				allegro_message("Error: Could not save map pictures to screens directory!");
+			}
 			return 0;
 		}
 		else
