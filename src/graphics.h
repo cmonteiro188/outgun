@@ -23,99 +23,15 @@
 #define sby (mmy + 110)         // + XXX = minimap panel height
 
 class Map;
+class RectWall;
+class TriWall;
+class CircWall;
 class ClientPlayer;
 class Sounds;
 class gamespy_t;
 class clientfx_t;
 
 class Graphics {
-	BITMAP* drawbuf;	// main draw buffer
-	BITMAP* minibg;		// minimap draw buffer
-	//int plw, plh;
-	//int plx, ply;
-	int minimap_w, minimap_h;
-	int minimap_place_w, minimap_place_h;
-	int minimap_start_x, minimap_start_y;
-
-	BITMAP* roombg;		// room background draw buffer
-
-	BITMAP* flagpos_buf[2];
-	static const int flagpos_radius = 30;
-	bool flagpos_ready;
-
-	// drawing screens
-	BITMAP* vidpage1;
-	BITMAP* vidpage2;
-	BITMAP* backbuf;
-	bool page_flipping;
-
-    std::list<clientfx_t> cfx;
-
-	//colors
-	enum {
-		//player's colors
-		COLGREEN,
-		COLYELLOW,
-		COLWHITE,
-		COLMAG,
-		COLCYAN,
-		COLORA,
-		COLLRED,		// light red
-		COLLBLUE,		// light blue
-		//MORE player colors
-		COL9,
-		COL10,
-		COL11,
-		COL12,
-		COL13,
-		COL14,
-		COL15,
-		COL16,
-
-		//team colors
-		COLRED,			//team 1 (color 0)
-		COLBLUE,		//team 2 (color 1)
-
-		//base colors
-		COLBRED,			//team 1 (color 0)
-		COLBBLUE,		//team 2 (color 1)
-
-		//other
-		COLFOGOFWAR,
-		COLMENUWHITE,
-		COLMENUBLACK,
-		COLMENUGRAY,
-		COLGROUND,
-		COLWALL,
-		COLNOLIFE,
-		COLDARKGRAY,
-		COLSHADOW,
-		COLLIMBO,
-		COLDARKORA,
-		COLINFO,
-		COLENER3,
-		COLGROUND_DEF,
-		COLWALL_DEF,
-		NUM_OF_COL
-	};
-
-	int teamcol[2];
-	int teamlcol[2];	//light colours for statusbar
-	int teamdcol[2];	//dark colours for player name
-
-	int	col[NUM_OF_COL];
-
-	void build_flagpos_marks();
-	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
-
-	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
-	void menu_caption();
-
-	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
-	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
-
-	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
-
 public:
 	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y);
 	~Graphics();
@@ -135,6 +51,9 @@ public:
 	void reset_playground_colors();
 	void random_playground_colors();
 
+	void load_floor_texture(const std::string& filename);
+	void load_wall_texture(const std::string& filename);
+
 	void draw_background();
 
 	void draw_playground();
@@ -142,6 +61,11 @@ public:
 
 	void predraw_room(const Room& room);
 	void draw_room();
+
+	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
+	void draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, bool texture);
+	void draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, bool texture);
+	void draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, bool texture);
 
 	void draw_flag(int team, int x, int y);
 	void draw_flagpos_mark(int team, int flag_x, int flag_y);
@@ -229,6 +153,97 @@ public:
 	void dialog(const std::string& t1, const std::string& t2);
 	
 	bool save_map_picture(const string& filename, const Map& map);
+
+private:
+	BITMAP* drawbuf;	// main draw buffer
+	BITMAP* minibg;		// minimap draw buffer
+	//int plw, plh;
+	//int plx, ply;
+	int minimap_w, minimap_h;
+	int minimap_place_w, minimap_place_h;
+	int minimap_start_x, minimap_start_y;
+
+	BITMAP* roombg;		// room background draw buffer
+
+	BITMAP* flagpos_buf[2];
+	static const int flagpos_radius = 30;
+	bool flagpos_ready;
+
+	BITMAP* floor_texture;
+	BITMAP* wall_texture;
+
+	// drawing screens
+	BITMAP* vidpage1;
+	BITMAP* vidpage2;
+	BITMAP* backbuf;
+	bool page_flipping;
+
+    std::list<clientfx_t> cfx;
+
+	//colors
+	enum {
+		//player's colors
+		COLGREEN,
+		COLYELLOW,
+		COLWHITE,
+		COLMAG,
+		COLCYAN,
+		COLORA,
+		COLLRED,		// light red
+		COLLBLUE,		// light blue
+		//MORE player colors
+		COL9,
+		COL10,
+		COL11,
+		COL12,
+		COL13,
+		COL14,
+		COL15,
+		COL16,
+
+		//team colors
+		COLRED,			//team 1 (color 0)
+		COLBLUE,		//team 2 (color 1)
+
+		//base colors
+		COLBRED,			//team 1 (color 0)
+		COLBBLUE,		//team 2 (color 1)
+
+		//other
+		COLFOGOFWAR,
+		COLMENUWHITE,
+		COLMENUBLACK,
+		COLMENUGRAY,
+		COLGROUND,
+		COLWALL,
+		COLNOLIFE,
+		COLDARKGRAY,
+		COLSHADOW,
+		COLLIMBO,
+		COLDARKORA,
+		COLINFO,
+		COLENER3,
+		COLGROUND_DEF,
+		COLWALL_DEF,
+		NUM_OF_COL
+	};
+
+	int teamcol[2];
+	int teamlcol[2];	//light colours for statusbar
+	int teamdcol[2];	//dark colours for player name
+
+	int	col[NUM_OF_COL];
+
+	void build_flagpos_marks();
+	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
+
+	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
+	void menu_caption();
+
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 };
 
 #endif // GRAPHICS_H_INC

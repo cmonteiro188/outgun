@@ -67,14 +67,6 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
 	return (maxy >= miny);
 }
 
-inline void rotate_angle(float& angle, float shift) {
-	angle += shift;
-	if (angle < 0)
-		angle += 360;
-	else if (angle >= 360)
-		angle -= 360;
-}
-
 bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) const {
 	nAssert(ry1<=ry2 && rx1<=rx2);
 	nAssert(p1y<=p2y && p2y<=p3y);
@@ -144,94 +136,6 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
 	if (dcr - rr < ro)
 		return true;
 	return false;
-}
-
-void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) const {
-	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
-		circlefill(buffer, int(x0 + scale * x), int(y0 + scale * y), int(scale * ro), color);
-		return;
-	}
-	// ring or sector
-	BITMAP* cbuff = create_bitmap(int(2 * scale * ro) + 1, int(2 * scale * ro) + 1);
-	const int transparent = bitmap_mask_color(cbuff);
-	clear_to_color(cbuff, transparent);
-	circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ro), color);
-	if (ri > 0)						// ring
-		circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ri) - 1, transparent);
-	if (angle[0] != angle[1]) {		// sector
-		const double x[] = { va1.first, va2.first };
-		const double y[] = { va1.second, va2.second };
-		// remove unnecessary   2 1
-		// quarters             3 4
-		float ang1 = angle[0];
-		float ang2 = angle[1];
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 1
-			rectfill(cbuff, int(scale * ro), 0, int(scale * 2 * ro), int(scale * ro), transparent);
-		rotate_angle(ang1, 90);
-		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 2
-			rectfill(cbuff, 0, 0, int(scale * ro), int(scale * ro), transparent);
-		rotate_angle(ang1, 90);
-		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 3
-			rectfill(cbuff, 0, int(scale * ro), int(scale * ro), int(scale * 2 * ro), transparent);
-		rotate_angle(ang1, 90);
-		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 4
-			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
-		// remove the rest unnecessary sectors of the circle
-		const float k = 1.5;
-		float diff = angle[1] - angle[0];
-		if (diff < 0)
-			diff += 360;
-		if (x[0] * x[1] > 0 && y[0] * y[1] > 0 && diff > 90) {	// remove a sector (<90°) between the angles
-			triangle(cbuff, int(scale * ro), int(scale * ro),
-					int(scale * (ro + k * x[0] * ro)), int(scale * (ro + k * (-y[0]) * ro)),
-					int(scale * (ro + k * x[1] * ro)), int(scale * (ro + k * (-y[1]) * ro)), transparent);
-		}
-		else {											// remove sectors between the angles and n·90°
-			for (int i = 0; i < 2; i++) {
-				int tx, ty;
-				if (angle[i] < 90) {
-					tx = 0 + i;
-					ty = 1 - i;
-				}
-				else if (angle[i] > 270) {
-					tx = -1 + i;
-					ty = 0 + i;
-				}
-				else if (angle[i] > 180 && angle[i] < 270) {
-					tx = 0 - i;
-					ty = -1 + i;
-				}
-				else if (angle[i] > 90 && angle[i] < 180) {
-					tx = 1 - i;
-					ty = 0 - i;
-				}
-				else {
-					tx = 0;
-					ty = 0;
-				}
-				if (tx != 0 || ty != 0)
-					triangle(cbuff, int(scale * ro), int(scale * ro),
-						int(scale * (ro + k * x[i] * ro)), int(scale * (ro + k * (-y[i]) * ro)),
-						int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
-			}
-		}
-		// draw back removed lines at n·90°
-		for (int i = 0; i < 2; i++) {
-			if (angle[i] == 0)
-				vline(cbuff, int(scale * ro), int(scale * (ro - ri)), 0, color);
-			else if (angle[i] == 90)
-				hline(cbuff, int(scale * (ro + ri)), int(scale * ro), int(scale * 2 * ro), color);
-			else if (angle[i] == 180)
-				vline(cbuff, int(scale * ro), int(scale * (ro + ri)), int(scale * 2 * ro), color);
-			else if (angle[i] == 270)
-				hline(cbuff, int(scale * (ro - ri)), int(scale * ro), 0, color);
-		}
-	}
-	masked_blit(cbuff, buffer, 0, 0, int(x0 + scale * (x - ro)), int(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
-	destroy_bitmap(cbuff);
 }
 
 bool Map::load(const char *mapdir, const string& mapname) {

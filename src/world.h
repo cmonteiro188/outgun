@@ -8,29 +8,25 @@ typedef pair<double, double> Coords;
 typedef pair<double, Coords> BounceData;
 
 class RectWall {	// rectangular wall
-	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
-	int tex;	// texture id
-	int alpha;
-
-	friend void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius);
-
 public:
 	RectWall() { }
 	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_)
 			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) swap(a, c); if (d<b) swap(b, d); }
 	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
-	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
-		rectfill(buffer, int(x0+xScale*a), int(y0+yScale*b), int(x0+xScale*c), int(y0+yScale*d), color);
-	}
+	int x1() const { return a; }
+	int y1() const { return b; }
+	int x2() const { return c; }
+	int y2() const { return d; }
+
+private:
+	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
+	int tex;	// texture id
+	int alpha;
+
+	friend void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius);
 };
 
 class TriWall {	// triangular wall
-	int p1x, p1y, p2x, p2y, p3x, p3y;
-	int boundx1, boundy1, boundx2, boundy2;
-	int tex, alpha;
-
-	friend void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
-
 public:
 	TriWall() { }
 	TriWall(int x1, int y1, int x2, int y2, int x3, int y3, int tex_, int alpha_)
@@ -44,15 +40,38 @@ public:
 		boundx2=max(p1x, max(p2x, p3x)), boundy2=max(p1y, max(p2y, p3y));
 	}
 	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;
-	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
-		triangle(buffer,
-				int(x0+xScale*p1x), int(y0+yScale*p1y),
-				int(x0+xScale*p2x), int(y0+yScale*p2y),
-				int(x0+xScale*p3x), int(y0+yScale*p3y), color);
-	}
+	int x1() const { return p1x; }
+	int y1() const { return p1y; }
+	int x2() const { return p2x; }
+	int y2() const { return p2y; }
+	int x3() const { return p3x; }
+	int y3() const { return p3y; }
+
+private:
+	int p1x, p1y, p2x, p2y, p3x, p3y;
+	int boundx1, boundy1, boundx2, boundy2;
+	int tex, alpha;
+
+	friend void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
 };
 
 class CircWall {	// circular wall
+public:
+	CircWall() { }
+	CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int tex_, int alpha_);
+
+	bool intersects_rect(double x1, double y1, double x2, double y2) const;
+
+	int X() const { return x; }
+	int Y() const { return y; }
+	int radius() const { return ro; }
+	int radius_in() const { return ri; }
+	const float* angles() const { return angle; }
+	const Coords& angle_vector_1() const { return va1; }
+	const Coords& angle_vector_2() const { return va2; }
+	int texture() const { return tex; }
+
+private:
 	int x, y, ro, ri;
 	float angle[2];
 	Coords va1, va2, midvec;
@@ -60,13 +79,6 @@ class CircWall {	// circular wall
 	int tex, alpha;
 
 	friend void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius);
-
-public:
-	CircWall() { }
-	CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int tex_, int alpha_);
-
-	bool intersects_rect(double x1, double y1, double x2, double y2) const;
-	void draw(BITMAP* buffer, float x0, float y0, float scale, int color) const;
 };
 
 struct Room {
@@ -74,14 +86,6 @@ struct Room {
 	vector<TriWall>  twalls, tground;
 	vector<CircWall> cwalls, cground;
 
-	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
-		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
-			rwi->draw(buffer, x0, y0, xScale, yScale, color);
-		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
-			twi->draw(buffer, x0, y0, xScale, yScale, color);
-		for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
-			cwi->draw(buffer, x0, y0, xScale, color);
-	}
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
 		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
 			if (rwi->intersects_rect(x1, y1, x2, y2))

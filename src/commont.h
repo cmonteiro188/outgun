@@ -3,9 +3,12 @@
 #ifndef COMMONT_H_INC
 #define COMMONT_H_INC
 
-#include "fortfy22/fortify.h"
-
 #include <allegro.h>
+#ifdef ALLEGRO_WINDOWS
+#include <winalleg.h>
+#endif
+
+#include "fortfy22/fortify.h"
 
 #include <vector>
 #include <list>
@@ -19,12 +22,6 @@ using namespace std;
 #include <cstring>
 #include <cmath>
 
-//patching main / _main / WinMain link errors...
-#ifdef ALLEGRO_WINDOWS
-#include <winalleg.h>
-// windows.h automatically included
-#endif
-
 #include <pthread.h>
 #include <sched.h>
 #include <nl.h>             // HawkNL
@@ -37,7 +34,7 @@ using namespace std;
 extern FILE *game_log;
 
 #if defined ALLEGRO_WINDOWS || WIN32 || WIN64
-#include <conio.h>
+//#include <conio.h>
 #endif
 
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
@@ -57,6 +54,8 @@ public:
 	bool    isRun() const { return (data&16)!=0; }
 	bool isStrafe() const { return (data&32)!=0; }
 };
+
+void rotate_angle(float& angle, float shift);
 
 template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
 

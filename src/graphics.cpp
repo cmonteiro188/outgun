@@ -4,6 +4,8 @@
 #include "sounds.h"
 #include "graphics.h"
 
+#define PATTERNED_PLAYER
+
 //macros for allegro video mode
 
 //#define WINMODE GFX_DIRECTX_ACCEL
@@ -49,6 +51,8 @@ Graphics::Graphics(int scr_w, int scr_h):
 	minimap_start_x(0),
 	minimap_start_y(0),
 	flagpos_ready(false),
+	floor_texture(0),
+	wall_texture(0),
 	vidpage1(0),
 	vidpage2(0),
 	backbuf(0)
@@ -63,6 +67,8 @@ Graphics::Graphics(int scr_w, int scr_h):
 	roombg = create_bitmap(plw, plh);
 	setcolors();
 	reset_playground_colors();
+	load_floor_texture("floor.pcx");
+	load_wall_texture("wall.pcx");
 }
 
 Graphics::~Graphics() {
@@ -71,6 +77,8 @@ Graphics::~Graphics() {
 	destroy_bitmap(roombg);
 	destroy_bitmap(flagpos_buf[0]);
 	destroy_bitmap(flagpos_buf[1]);
+	if (wall_texture)
+		destroy_bitmap(wall_texture);
 }
 
 void Graphics::draw_screen() const {
@@ -145,6 +153,14 @@ void Graphics::random_playground_colors() {
 	col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	flagpos_ready = false;
+}
+
+void Graphics::load_floor_texture(const string& filename) {
+	floor_texture = load_bitmap(filename.c_str(), NULL);
+}
+
+void Graphics::load_wall_texture(const string& filename) {
+	wall_texture = load_bitmap(filename.c_str(), NULL);
 }
 
 void Graphics::clear() {
@@ -418,7 +434,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 		for (int x = 0; x < map.w; x++) {
 			float bx = minimap_start_x + 1 + x * plw * xmul;
 			set_clip(buffer, (int)bx, (int)by, int(bx + room_w), int(by + room_h));
-			map.room[x][y].draw(buffer, bx, by, xmul, ymul, makecol(0x00, 0x77, 0x00));
+			draw_room_walls(buffer, map.room[x][y], bx, by, xmul, makecol(0x00, 0x77, 0x00), false);
 			set_clip(buffer, 0, 0, buffer->w, buffer->h);
 		}
 	}
@@ -505,10 +521,39 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		line(drawbuf, 1 + plx + x, 1 + ply + y, 1 + plx + xg, 1 + ply + yg, pc1);
 	}
 
+#ifdef PATTERNED_PLAYER
+	const int r1 = getr(pc1);
+	const int g1 = getg(pc1);
+	const int b1 = getb(pc1);
+	const int r2 = getr(pc2);
+	const int g2 = getg(pc2);
+	const int b2 = getb(pc2);
+	int r = r1, g = g1, b = b1;
+	const int diff = 20;
+	for (int i = PLAYER_RADIUS; i >= 0; i--) {
+		circlefill(drawbuf, plx + x, ply + y, i, makecol(r, g, b));
+		if (r2 < r1)
+			r -= diff;
+		else if (r2 > r1)
+			r += diff;
+		if (g2 < g1)
+			g -= diff;
+		else if (g2 > g1)
+			g += diff;
+		if (b2 < b1)
+			b -= diff;
+		else if (b2 > b1)
+			b += diff;
+		r = max(0, min(r, 255));
+		g = max(0, min(g, 255));
+		b = max(0, min(b, 255));
+	}
+#else
 	// outer color: team color
 	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS, pc1);
 	// inner color: self color
 	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS*2/3, pc2);
+#endif
 
 	//desenha arma depois se dir 0,1,2,3,4
 	if (gundir < 5) {
@@ -606,7 +651,7 @@ void Graphics::draw_deathbringer_affected(int x, int y, int team) {
 void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
 	set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
 	//darken ground
-	drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	for (int r = 50; r > 0; r -= 5) {
 		set_trans_blender(0, 0, 0, 50 - r);
 		circlefill(drawbuf, plx + x, ply + y + PLAYER_RADIUS/3, r, 0);
@@ -647,21 +692,173 @@ void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 }
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
-	build_flagpos_marks();	// draw flag position mark sprites
-	blit(flagpos_buf[team], roombg, 0, 0,
-		flag_x - flagpos_radius, flag_y - flagpos_radius, 2 * flagpos_radius, 2 * flagpos_radius);
+	if (!floor_texture) {
+		build_flagpos_marks();	// draw flag position mark sprites
+		blit(flagpos_buf[team], roombg, 0, 0,
+			flag_x - flagpos_radius, flag_y - flagpos_radius, 2 * flagpos_radius, 2 * flagpos_radius);
+	}
+	else {
+		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+		int alpha = 0;
+		const int step = 2; //(128 - alpha) / flagpos_radius + 1;
+		for (int i = flagpos_radius; i >= 0; i--) {
+			set_trans_blender(0, 0, 0, alpha);
+			circlefill(roombg, flag_x, flag_y, i, teamcol[team]);
+			alpha = min(alpha + step, 128);
+		}
+		solid_mode();
+	}
 }
 
 void Graphics::draw_playground() {
-	clear_to_color(roombg, col[COLGROUND]);
+	if (floor_texture) {
+		drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture, 0, 0);
+		rectfill(roombg, 0, 0, roombg->w - 1, roombg->h - 1, col[COLGROUND]);
+		solid_mode();
+	}
+	else
+		clear_to_color(roombg, col[COLGROUND]);
 }
 
 void Graphics::predraw_room(const Room& room) {
-	room.draw(roombg, 0, 0, 1., 1., col[COLWALL]);
+	draw_room_walls(roombg, room, 0, 0, 1., col[COLWALL], wall_texture);
 }
 
 void Graphics::draw_room() {
 	blit(roombg, drawbuf, 0, 0, plx, ply, roombg->w, roombg->h);
+}
+
+void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
+	for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
+		draw_rect_wall(buffer, *rwi, x, y, scale, color, texture);
+	for (vector<TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
+		draw_tri_wall(buffer, *twi, x, y, scale, color, texture);
+	for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
+		draw_circ_wall(buffer, *cwi, x, y, scale, color, texture);
+}
+
+void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, bool texture) {
+	if (texture)
+		drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, 0, 0);
+	rectfill(buffer, int(x0 + scale * wall.x1()), int(y0 + scale * wall.y1()),
+					 int(x0 + scale * wall.x2()), int(y0 + scale * wall.y2()), color);
+	if (texture)
+		solid_mode();
+}
+
+void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, bool texture) {
+	if (texture)
+		drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, 0, 0);
+	triangle(buffer,
+		int(x0 + scale * wall.x1()), int(y0 + scale * wall.y1()),
+		int(x0 + scale * wall.x2()), int(y0 + scale * wall.y2()),
+		int(x0 + scale * wall.x3()), int(y0 + scale * wall.y3()), color);
+	if (texture)
+		solid_mode();
+}
+
+void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, bool texture) {
+	const int x = wall.X();
+	const int y = wall.Y();
+	const int ro = wall.radius();
+	const int ri = wall.radius_in();
+	const float* const angle = wall.angles();
+	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
+		if (texture)
+			drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, 0, 0);
+		circlefill(buffer, int(x0 + scale * x), int(y0 + scale * y), int(scale * ro), color);
+		if (texture)
+			solid_mode();
+		return;
+	}
+	// ring or sector
+	BITMAP* cbuff = create_bitmap(int(2 * scale * ro) + 1, int(2 * scale * ro) + 1);
+	const int transparent = bitmap_mask_color(cbuff);
+	clear_to_color(cbuff, transparent);
+	if (texture)
+		drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, int(scale * (ro - x)), int(scale * (ro - y)));
+	circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ro), color);
+	if (texture)
+		solid_mode();
+	if (ri > 0)						// ring
+		circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ri) - 1, transparent);
+	if (angle[0] != angle[1]) {		// sector
+		const double vx[] = { wall.angle_vector_1().first, wall.angle_vector_2().first };
+		const double vy[] = { wall.angle_vector_1().second, wall.angle_vector_2().second };
+		// remove unnecessary   2 1
+		// quarters             3 4
+		float ang1 = angle[0];
+		float ang2 = angle[1];
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 1
+			rectfill(cbuff, int(scale * ro), 0, int(scale * 2 * ro), int(scale * ro), transparent);
+		rotate_angle(ang1, 90);
+		rotate_angle(ang2, 90);
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 2
+			rectfill(cbuff, 0, 0, int(scale * ro), int(scale * ro), transparent);
+		rotate_angle(ang1, 90);
+		rotate_angle(ang2, 90);
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 3
+			rectfill(cbuff, 0, int(scale * ro), int(scale * ro), int(scale * 2 * ro), transparent);
+		rotate_angle(ang1, 90);
+		rotate_angle(ang2, 90);
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 4
+			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
+		// remove the rest unnecessary sectors of the circle
+		const float k = 1.5;
+		float diff = angle[1] - angle[0];
+		if (diff < 0)
+			diff += 360;
+		if (vx[0] * vx[1] > 0 && vy[0] * vy[1] > 0 && diff > 90) {	// remove a sector (<90°) between the angles
+			triangle(cbuff, int(scale * ro), int(scale * ro),
+					int(scale * (ro + k * vx[0] * ro)), int(scale * (ro + k * (-vy[0]) * ro)),
+					int(scale * (ro + k * vx[1] * ro)), int(scale * (ro + k * (-vy[1]) * ro)), transparent);
+		}
+		else {											// remove sectors between the angles and n·90°
+			for (int i = 0; i < 2; i++) {
+				int tx, ty;
+				if (angle[i] < 90) {
+					tx = 0 + i;
+					ty = 1 - i;
+				}
+				else if (angle[i] > 270) {
+					tx = -1 + i;
+					ty = 0 + i;
+				}
+				else if (angle[i] > 180 && angle[i] < 270) {
+					tx = 0 - i;
+					ty = -1 + i;
+				}
+				else if (angle[i] > 90 && angle[i] < 180) {
+					tx = 1 - i;
+					ty = 0 - i;
+				}
+				else {
+					tx = 0;
+					ty = 0;
+				}
+				if (tx != 0 || ty != 0)
+					triangle(cbuff, int(scale * ro), int(scale * ro),
+						int(scale * (ro + k * vx[i] * ro)), int(scale * (ro + k * (-vy[i]) * ro)),
+						int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
+			}
+		}
+		// draw back removed lines at n·90°
+		if (texture)
+			drawing_mode(DRAW_MODE_COPY_PATTERN, wall_texture, int(scale * (ro - x)), int(scale * (ro - y)));
+		for (int i = 0; i < 2; i++) {
+			if (angle[i] == 0)
+				vline(cbuff, int(scale * ro), int(scale * (ro - ri)), 0, color);
+			else if (angle[i] == 90)
+				hline(cbuff, int(scale * (ro + ri)), int(scale * ro), int(scale * 2 * ro), color);
+			else if (angle[i] == 180)
+				vline(cbuff, int(scale * ro), int(scale * (ro + ri)), int(scale * 2 * ro), color);
+			else if (angle[i] == 270)
+				hline(cbuff, int(scale * (ro - ri)), int(scale * ro), 0, color);
+		}
+	}
+	masked_blit(cbuff, buffer, 0, 0, int(x0 + scale * (x - ro)), int(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
+	destroy_bitmap(cbuff);
+	solid_mode();
 }
 
 void Graphics::draw_pup(const pickup_c& pup, double time) {

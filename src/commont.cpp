@@ -12,6 +12,14 @@ void ClientControls::fromKeyboard() {
 		data |= 32;
 }
 
+void rotate_angle(float& angle, float shift) {
+	angle += shift;
+	if (angle < 0)
+		angle += 360;
+	else if (angle >= 360)
+		angle -= 360;
+}
+
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)
