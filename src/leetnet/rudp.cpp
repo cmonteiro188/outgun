@@ -27,9 +27,7 @@
 
 */
 
-#define LEETNET_DATA_LOG
-#define SIMULATED_PACKET_LOSS 0
-
+#include "../debugconfig.h"	// for LEETNET_SIMULATED_PACKET_LOSS, LEETNET_DATA_LOG
 #include "dlog.h"
 
 #include "../mutex.h"
@@ -703,8 +701,8 @@ DLOG_Scope s("USP");
 		//
 		nlSetRemoteAddr(sendsock, &netaddr);
 		NLint result;
-		#if SIMULATED_PACKET_LOSS != 0
-		if (rand() % 100 < SIMULATED_PACKET_LOSS)
+		#if LEETNET_SIMULATED_PACKET_LOSS != 0
+		if (rand() % 100 < LEETNET_SIMULATED_PACKET_LOSS)
 			result = count;	// packet simulated as lost; sent ok though
 		else
 		#endif

@@ -109,7 +109,12 @@ enum ClientCfgSetting {
 	CCS_JoystickShoot,
 	CCS_JoystickRun,
 	CCS_JoystickStrafe,
-	CCS_MaxCommand = CCS_JoystickStrafe
+	CCS_ContinuousTextures,
+	CCS_UnderlineMasterAuth,
+	CCS_UnderlineServerAuth,
+	CCS_ServerPublic,
+	CCS_ServerPort,
+	CCS_MaxCommand = CCS_ServerPort
 };
 
 class ServerThreadOwner {
@@ -331,7 +336,7 @@ class Client {
 	std::ofstream message_log;
 
 	const ClientExternalSettings extConfig;
-	const ServerExternalSettings serverExtConfig;
+	ServerExternalSettings serverExtConfig;
 
 	class GFXMode {
 	public:
@@ -353,9 +358,6 @@ class Client {
 	void MCF_connect(Textarea& target);
 	void MCF_cancelConnect();
 	void MCF_disconnect();
-	void MCF_startServer();
-	void MCF_playServer();
-	void MCF_stopServer();
 	void MCF_exitOutgun();
 	void MCF_prepareMainMenu();
 	void MCF_prepareNameMenu();
@@ -383,12 +385,17 @@ class Client {
 	void MCF_refreshServers();
 	void MCF_prepareAddServer();
 	void MCF_addServer();
+	bool MCF_addressEntryKeyHandler(char scan, unsigned char chr);
 	bool MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr);
-	void MCF_loadHelp();
 	void MCF_playerPasswordAccept();
 	void MCF_serverPasswordAccept();
 	void MCF_clearErrors();
+	void MCF_prepareOwnServerMenu();
+	void MCF_startServer();
+	void MCF_playServer();
+	void MCF_stopServer();
 
+	void loadHelp();
 	void CB_tournamentToken(std::string token);	// callback called by tournamentPassword from another thread
 
 	bool screenModeChange();	// the return value should be tested at the first call
@@ -426,6 +433,7 @@ class Client {
 	bool refresh_all_servers();
 	bool refresh_servers(std::vector<ServerListEntry>& gamespy);
 	bool getServerList();
+	bool parseServerList(std::istream& response);
 
 	void check_download();	// call with downloadMutex locked
 	void process_udp_download_chunk(const char* buf, int len, bool last);

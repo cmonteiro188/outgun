@@ -172,7 +172,8 @@ private:
 	int space;
 };
 
-class Textfield : public Component, public MenuHookable<Textfield> {
+// the Textfield keyhook is only called with keys not handled otherwise (= non-printables other than backspace)
+class Textfield : public Component, public MenuHookable<Textfield>, public KeyHookable<Textfield> {
 public:
 	Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0): Component(caption_), value(init_text), maxlen(fieldLength), maskChar(mask) { }
 	void set(const std::string& text) { value = text; }
@@ -272,9 +273,9 @@ public:
 	Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_)
 		: Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_), step(1), graphic(graphic_) { }
 	Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_, int init_value, int step_ = 1)	// a step of 0 results in a logarithmic behavior
-		: Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value), step(step_), graphic(graphic_) { }
+		: Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value), step(step_), graphic(graphic_) { nAssert(init_value >= vmin_ && init_value <= vmax_); nAssert(step >= 0); }
 
-	void set(int value) { nAssert(val >= vmin && val <= vmax); val = value; }
+	void set(int value) { nAssert(value >= vmin && value <= vmax); val = value; }
 	void boundSet(int value);
 	int operator()() const { return val; }
 
@@ -287,6 +288,28 @@ public:
 private:
 	int vmin, vmax, val, step;
 	bool graphic;
+};
+
+class NumberEntry : public Component, public MenuHookable<NumberEntry> {
+public:
+	NumberEntry(const std::string caption_, int vmin_, int vmax_)	// currently limited to positive numbers!
+		: Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_), entry(vmin_) { nAssert(vmin_ >= 0 && vmax_ >= vmin_); }
+	NumberEntry(const std::string caption_, int vmin_, int vmax_, int init_value)	// currently limited to positive numbers!
+		: Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value), entry(init_value) { nAssert(vmin_ >= 0 && vmax_ >= vmin_ && init_value >= vmin_ && init_value <= vmax_); }
+
+	void set(int value) { nAssert(value >= vmin && value <= vmax); val = entry = value; }
+	void boundSet(int value);
+	int operator()() const { return val; }
+
+	// inherited interface
+	bool needsNumberKeys() const { return true; }
+	int width() const;
+	int height() const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+	bool handleKey(char scan, unsigned char chr);
+
+private:
+	int vmin, vmax, val, entry;	// entry is the current state of editing; it differs from val exactly when it's smaller than vmin
 };
 
 class Textarea : public Component, public MenuHookable<Textarea>, public KeyHookable<Textarea> {

@@ -51,6 +51,12 @@ protected:
 
 // generic setting prototypes
 
+class GS_Ignore : public GamemodSetting {
+public:
+	GS_Ignore(const std::string& name) : GamemodSetting(name) { }
+	bool set(LogSet&, const std::string&) { return true; }
+};
+
 // deal with Visual C++'s perks
 #undef min
 #undef max
@@ -139,9 +145,25 @@ private:
 	HookFunctionBase1<void, const std::string&>& var;
 };
 
-class GS_ForwardInt : public GamemodSetting {
+class GS_CheckForwardStr : public GamemodSetting {
 public:
-	GS_ForwardInt(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, int>& check_, HookFunctionBase1<bool, int>& pVar)
+	GS_CheckForwardStr(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, const std::string&>& check_, HookFunctionBase1<bool, const std::string&>& pVar)
+		: GamemodSetting(name), expect(expect_), checkValue(check_), var(pVar) { }
+	bool set(LogSet& log, const std::string& value) {
+		if (!checkValue(value))
+			return basicErrorMessage(log, value, expect);
+		return var(value);
+	}
+
+private:
+	const std::string expect;
+	HookFunctionBase1<bool, const std::string&>& checkValue;
+	HookFunctionBase1<bool, const std::string&>& var;
+};
+
+class GS_CheckForwardInt : public GamemodSetting {
+public:
+	GS_CheckForwardInt(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, int>& check_, HookFunctionBase1<bool, int>& pVar)
 		: GamemodSetting(name), expect(expect_), checkValue(check_), var(pVar) { }
 	bool set(LogSet& log, const std::string& value);
 

@@ -99,14 +99,14 @@ public:
 	void reset_playground_colors();
 	void random_playground_colors();
 
-	void predraw(const Room& room, const std::vector< std::pair<int, const WorldCoords*> >& flags,
+	void predraw(const Room& room, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
 				 const std::vector< std::pair<int, const WorldCoords*> >& spawns, bool grid = false);
 
 	void draw_background();
 	void draw_empty_background();
 
-	void predraw_room_ground(const Room& room);
-	void predraw_room_walls(const Room& room);
+	void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
+	void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
 
 	void draw_flag(int team, int x, int y);
 	void draw_flagpos_mark(int team, int flag_x, int flag_y);
@@ -143,7 +143,7 @@ public:
 	void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
 							 const std::string& talkbuffer);
 
-	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings = false);
+	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings = false, bool underlineMasterAuthenticated = false, bool underlineServerAuthenticated = false);
 
 	void team_statistics(const Team* teams);
 	void draw_statistics(const std::vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank = 0);
@@ -226,19 +226,19 @@ private:
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
 	// texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
-	void draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture);
-	void draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture);
+	void draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture);
+	void draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture);
 
-	static void draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, double scale, int color, BITMAP* tex);
-	static void draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, double scale, int color, BITMAP* texture);
-	static void draw_tri_wall (BITMAP* buffer, const TriWall & wall, double x0, double y0, double scale, int color, BITMAP* texture);
-	static void draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, double scale, int color, BITMAP* texture);
+	static void draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* tex);
+	static void draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
+	static void draw_tri_wall (BITMAP* buffer, const TriWall & wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
+	static void draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
 
 	std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
 	void draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time);
 
-	void draw_scoreboard_name(const std::string& name, int x, int y, int pcol);
+	void draw_scoreboard_name(const std::string& name, int x, int y, int pcol, bool underline);
 	void draw_scoreboard_points(int points, int x, int y, int team);
 
 	void print_chat_message(Message_type type, const std::string& message, int x, int y);

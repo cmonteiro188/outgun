@@ -25,6 +25,7 @@
 #define MUTEX_H_INC
 
 #include <pthread.h>
+#include "debugconfig.h"	// for LOG_MUTEX_LOCKUNLOCK
 #include "nassert.h"
 #include "utility.h"
 
@@ -34,8 +35,15 @@ class MutexHolder {
 public:
 	MutexHolder()  { nAssert(0 == pthread_mutex_init(&mutex, 0)); }
 	~MutexHolder() { nAssert(0 == pthread_mutex_destroy(&mutex)); }
-	void lock()    { nAssert(0 == pthread_mutex_lock(&mutex)); }
-	void unlock()  { nAssert(0 == pthread_mutex_unlock(&mutex)); }
+	void lock()    { logAction('L'); nAssert(0 == pthread_mutex_lock(&mutex)); logAction('G'); }
+	void unlock()  { logAction('U'); nAssert(0 == pthread_mutex_unlock(&mutex)); }
+
+private:
+	void doLogAction(char operation);	// defined in debug.cpp
+	void logAction(char operation) {
+		if (LOG_MUTEX_LOCKUNLOCK)
+			doLogAction(operation);
+	}
 };
 
 class MutexLock {

@@ -1,8 +1,3 @@
-#define LEETNET_LOG
-#define LEETNET_DATA_LOG
-
-#include "dlog.h"
-
 /*
  *  This file is part of Outgun.
  *
@@ -50,7 +45,11 @@
 
 #include "../log.h"
 
-#include "../commont.h"	// for LOG_THREAD_IDS
+#include "../debugconfig.h"	// for LEETNET_LOG, LEETNET_DATA_LOG
+#include "../debug.h"
+#include "dlog.h"
+
+#include "../commont.h"	// for wheregamedir
 
 class client_ci;
 
@@ -665,8 +664,7 @@ DLOG_Scope s("CPIDg");
 
 //connector thread function
 void thread_connect_f(client_ci* client) {
-	if (LOG_THREAD_IDS)
-		client->log("Leet client thread_connect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("Leet client thread_connect_f", client->log);
 
 	for (;;) {
 		if (client->connect_try())
@@ -674,15 +672,13 @@ void thread_connect_f(client_ci* client) {
 		MS_SLEEP(1000); // *** NO CPU PROBLEM HERE ***
 	}
 
-	if (LOG_THREAD_IDS)
-		client->log("exiting: Leet client thread_connect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("Leet client thread_connect_f", client->log);
 	--client->connect_threads_running;
 }
 
 //disconnector thread function
 void thread_disconnect_f(client_ci* client) {
-	if (LOG_THREAD_IDS)
-		client->log("Leet client thread_disconnect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("Leet client thread_disconnect_f", client->log);
 
 	//repeat
 	bool stop = false;
@@ -698,16 +694,14 @@ void thread_disconnect_f(client_ci* client) {
 	//nice disconnect done
 	client->nice_disconnect_done(server_c::disconnect_client_initiated);
 
-	if (LOG_THREAD_IDS)
-		client->log("exiting: Leet client thread_disconnect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("Leet client thread_disconnect_f", client->log);
 }
 
 //reader thread function
 #define THREAD_READER_BUFSIZE 8192
 void thread_reader_f(client_ci* client) {
 DLOG_ScopeNegStart("CTR");
-	if (LOG_THREAD_IDS)
-		client->log("Leet client thread_reader_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("Leet client thread_reader_f", client->log);
 
 	//read buffer
 	char	buffer[THREAD_READER_BUFSIZE];
@@ -742,8 +736,7 @@ DLOG_ScopeNeg s("CTR");
 		}
 	}
 
-	if (LOG_THREAD_IDS)
-		client->log("exiting: Leet client thread_reader_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("Leet client thread_reader_f", client->log);
 }
 
 

@@ -51,9 +51,18 @@ int Thread::doStart(pthread_t* pThread, void* (*function)(void*), void* argument
 }
 
 void Thread::doSetPriority(pthread_t thread, int priority) {
+	int policy;
 	sched_param param;
+	nAssert(0 == pthread_getschedparam(thread, &policy, &param));
 	param.sched_priority = priority;
-	nAssert(0 == pthread_setschedparam(thread, SCHED_OTHER, &param));
+	nAssert(0 == pthread_setschedparam(thread, policy, &param));
+}
+
+int Thread::doGetPriority(pthread_t thread) {
+	int policy;
+	sched_param param;
+	nAssert(0 == pthread_getschedparam(thread, &policy, &param));
+	return param.sched_priority;
 }
 
 void Thread::join(bool acceptRecursive) {

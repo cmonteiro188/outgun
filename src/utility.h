@@ -37,6 +37,7 @@ int atoi(const std::string& str);
 std::string itoa(int val);
 std::string fcvt(double val);
 int iround(double value);
+int numberWidth(int num);	// how many characters num takes when printed
 
 // Returns the current time in the standard format.
 std::string date_and_time();
@@ -77,6 +78,10 @@ public:
 	void operator()(const char* fmt, ...);
 	void error(const char* fmt, ...);
 	void security(const char* fmt, ...);
+
+	Log* accessNormal() { return normalLog; }
+	Log* accessError() { return errorLog; }
+	Log* accessSecurity() { return securityLog; }
 };
 
 class MemoryLog;

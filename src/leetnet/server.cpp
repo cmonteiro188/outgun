@@ -33,21 +33,18 @@
 
 */
 
-#define LEETNET_LOG
-#define LEETNET_DATA_LOG
-
-#include "dlog.h"
-const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
-
 #include <pthread.h>
 #include <sched.h>
 #include <nl.h>
 #include <stdio.h>
-#include "../commont.h"	// for LOG_THREAD_IDS
+#include "../commont.h"	// for wheregamedir
+#include "../debug.h"
+#include "../debugconfig.h"	// LEETNET_LOG, LEETNET_DATA_LOG
+#include "../log.h"
 #include "../mutex.h"
 #include "../network.h"
 #include "../thread.h"
-#include "../log.h"
+#include "dlog.h"
 #include "leetnet.h"
 #include "server.h"
 #include "rudp.h"
@@ -57,6 +54,8 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 #include "ConditionVariable.h"
 #include "Mutex.h"
 using namespace GNE;
+
+const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };	// for dlog.h logging
 
 // max (absolute) clients that can connect to a server
 // change this to meet your needs
@@ -767,14 +766,15 @@ DLOG_Scope s("ST");
 		last_hack_think = curr_time;
 
 		for (int i=0;i<MAX_CLIENTS;i++)
-		if (client[i].used) {
-		
+			if (client[i].used) {
 				//HACK: check when it's droptime for a client 
 				if ((client[i].told_disconnect) || (client[i].server_disconnected))	// disconnection started by either side
 				if (client[i].droptime < curr_time) {
 					//bye
 					log("droptime: client %i's slave freed.", i);
+					client[i].station_mutex.acquire();
 					free_slave(i);
+					client[i].station_mutex.release();
 				}
 
 				//HACK: check for lagged call
@@ -801,7 +801,7 @@ DLOG_Scope s("ST");
 					//disconnect the client - 3 sec timeout
 					disconnect_client(i, 3, disconnect_timeout);
 				}
-		}
+			}
 	}
 
 	//returns the serversocket
@@ -1062,14 +1062,11 @@ DLOG_Scope s("PCD_Sp");
 
 	//free slave thread
 	void free_slave(int id) {
-
 		//if disconnector alive, join with it
 		if (client[id].discthread.isRunning()) {
 			client[id].discleft = 0;	//paranoia
 			client[id].discthread.join();
 		}
-
-		client[id].station_mutex.acquire();
 
 		//free slave
 		client[id].used = false;
@@ -1094,8 +1091,6 @@ DLOG_Scope s("PCD_Sp");
 
 		num_clients--;
 		log("slave %i freed, clients now = %i", id, num_clients);
-
-		client[id].station_mutex.release();
 	}
 	
 
@@ -1153,8 +1148,7 @@ DLOG_Scope s("PCD_Sp");
 void thread_master_f(server_ci* server)
 {
 DLOG_ScopeNegStart("TMF");
-	if (LOG_THREAD_IDS)
-		server->log("Leet server thread_master_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("Leet server thread_master_f", server->log);
 	//get socket to read from
 	NLsocket servsock = server->get_server_socket();
 
@@ -1207,8 +1201,7 @@ DLOG_ScopeNegStart("TMF");
 			server->process_incoming_datagram(buffer, amount);
 		}
 	}
-	if (LOG_THREAD_IDS)
-		server->log("exiting: Leet server thread_master_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("Leet server thread_master_f", server->log);
 }
 
 //client message processor (slave) thread - one for each client
@@ -1218,8 +1211,7 @@ void thread_slave_f(client_t* mydata)
 	//server
 	server_ci *server = mydata->server;
 
-	if (LOG_THREAD_IDS)
-		server->log("Leet server thread_slave_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("Leet server thread_slave_f", server->log);
 
 	//my id
 	int myid = mydata->id;
@@ -1228,7 +1220,6 @@ void thread_slave_f(client_t* mydata)
 
 	//loop
 	while (mydata->quitflag == false) {
-
 		// LOOP 0: stop server
 		// LOOP 1: work (with the station etc.) only if client structure is set to "used"
 		//  				if not used, just jump to the sleep part again
@@ -1263,8 +1254,7 @@ DLOG_Scope s(TSFS[myid]);
 		}
 	}
 	mydata->station_mutex.release();
-	if (LOG_THREAD_IDS)
-		server->log("exiting: Leet server thread_slave_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("Leet server thread_slave_f", server->log);
 }
 
 //client disconnector auxiliary thread. bombards
@@ -1273,8 +1263,7 @@ void thread_disconnector_f(client_t* mydata) {
 	//server
 	server_ci *server = mydata->server;
 
-	if (LOG_THREAD_IDS)
-		server->log("Leet server thread_disconnector_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("Leet server thread_disconnector_f", server->log);
 
 	//loop
 	while (1) {
@@ -1287,8 +1276,7 @@ void thread_disconnector_f(client_t* mydata) {
 		MS_SLEEP(100);    //*** NO CPU PROBLEM HERE ***
 	}
 
-	if (LOG_THREAD_IDS)
-		server->log("exiting: Leet server thread_disconnector_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("Leet server thread_disconnector_f", server->log);
 }
 
 

@@ -47,13 +47,14 @@ class Menu_serverList {
 	std::vector<std::pair<NLaddress, Textarea> > servers;	// address and server info
 
 public:
-	Textarea		update;
-	Textarea		refresh;
-	StaticText		refreshStatus;
-	Checkbox		favorites;
-	Menu_addServer	addServer;
-	StaticText		keyHelp;
-	StaticText		caption;
+	Textarea			update;
+	Textarea			refresh;
+	StaticText			refreshStatus;
+	Checkbox			favorites;
+	Menu_addServer		addServer;
+	Textfield			manualEntry;
+	StaticText			keyHelp;
+	StaticText			caption;
 
 	Menu menu;
 
@@ -91,6 +92,8 @@ public:
 	Checkbox	saveStats;
 	Checkbox	showStats;
 	Checkbox	showServerInfo;
+	Checkbox	underlineMasterAuth;
+	Checkbox	underlineServerAuth;
 	Checkbox	autoGetServerList;
 
 	Menu menu;
@@ -132,6 +135,7 @@ public:
 	Textarea			apply;
 	Select<std::string>	theme;
 	Checkbox			antialiasing;
+	Checkbox			contTextures;
 	Slider				statsBgAlpha;
 	Slider				fpsLimit;
 	Checkbox			mapInfoMode;
@@ -190,21 +194,43 @@ public:
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
+class Menu_ownServer {
+public:
+	Checkbox		pub;
+	NumberEntry		port;
+	StaticText		address;
+	Textarea		start;
+	Textarea		play;
+	Textarea		stop;
+
+	Menu menu;
+
+	Menu_ownServer();
+	void init(const std::string& externalAddress, bool priv);
+	void refreshCaption(bool serverRunning);
+	void refreshEnables(bool serverRunning, bool connected);
+
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
+
+private:
+	std::string ip;
+	bool privateIP;
+};
+
 class Menu_main {
 public:
 	StaticText		newVersion;
 	Menu_serverList	connect;
 	Textarea		disconnect;
 	Menu_options	options;
-	Textarea		startServer;
-	Textarea		playServer;
-	Textarea		stopServer;
+	Menu_ownServer	ownServer;
 	Menu_help		help;
 	Textarea		exitOutgun;
 
 	Menu menu;
 
 	Menu_main();
+
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 

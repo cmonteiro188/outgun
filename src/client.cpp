@@ -39,6 +39,7 @@
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
 #include "commont.h"
+#include "debug.h"
 #include "gameserver_interface.h"
 #include "names.h"
 #include "nassert.h"
@@ -83,6 +84,7 @@ using std::endl;
 using std::find;
 using std::ifstream;
 using std::ios;
+using std::istream;
 using std::istringstream;
 using std::left;
 using std::list;
@@ -201,8 +203,7 @@ public:
 };
 
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
-	if (LOG_THREAD_IDS)
-		log("ServerThreadOwner::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("ServerThreadOwner::threadFn", log);
 
 	GameserverInterface gameserver(log, config);
 	if (!gameserver.start(config.server_maxplayers)) {
@@ -220,8 +221,7 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 	//restore client's windowtitle
 	config.statusOutput("Outgun client");	// note: this is the server's statusOutput not client's
 
-	if (LOG_THREAD_IDS)
-		log("exiting: ServerThreadOwner::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("ServerThreadOwner::threadFn", log);
 }
 
 void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
@@ -307,8 +307,7 @@ const char* TournamentPasswordManager::statusAsString() const {
 }
 
 void TournamentPasswordManager::threadFn() {
-	if (LOG_THREAD_IDS)
-		log("TournamentPasswordManager::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("TournamentPasswordManager::threadFn", log);
 
 	bool newToken = true;
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
@@ -437,13 +436,14 @@ void TournamentPasswordManager::threadFn() {
 		}
 	}
 
-	if (LOG_THREAD_IDS)
-		log("exiting: TournamentPasswordManager::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("TournamentPasswordManager::threadFn", log);
 }
 
 bool ServerListEntry::setAddress(const string& address) {
-	if (!nlStringToAddr(address.c_str(), &addr))
+	if (!isValidIP(address, true, 1))
 		return false;
+	if (!nlStringToAddr(address.c_str(), &addr))
+		nAssert(0);
 	if (nlGetPortFromAddr(&addr) == 0)
 		nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
 	return true;
@@ -766,8 +766,10 @@ bool Client::start() {
 			case CCS_MessageLogging:		menu.options.game.messageLogging.set(args == "1"); break;
 			case CCS_SaveStats:				menu.options.game.saveStats.set(args == "1"); break;
 			case CCS_ShowStats:				menu.options.game.showStats.set(args == "1"); break;
-			case CCS_AutoGetServerList:		menu.options.game.autoGetServerList.set(args == "1"); break;
 			case CCS_ShowServerInfo:		menu.options.game.showServerInfo.set(args == "1"); break;
+			case CCS_UnderlineMasterAuth:	menu.options.game.underlineMasterAuth.set(args == "1"); break;
+			case CCS_UnderlineServerAuth:	menu.options.game.underlineServerAuth.set(args == "1"); break;
+			case CCS_AutoGetServerList:		menu.options.game.autoGetServerList.set(args == "1"); break;
 
 			// controls menu
 			case CCS_KeypadMoving:			menu.options.controls.keypadMoving.set(args == "1"); break;
@@ -800,6 +802,7 @@ bool Client::start() {
 			case CCS_FPSLimit:				menu.options.graphics.fpsLimit.boundSet(atoi(args)); break;
 			case CCS_GFXTheme:				menu.options.graphics.theme.set(args); break;	// ignore error
 			case CCS_Antialiasing:			menu.options.graphics.antialiasing.set(args == "2"); break;
+			case CCS_ContinuousTextures:	menu.options.graphics.contTextures.set(args == "1"); break;
 			case CCS_StatsBgAlpha:			menu.options.graphics.statsBgAlpha.boundSet(atoi(args)); break;
 
 			// sound menu
@@ -807,6 +810,9 @@ bool Client::start() {
 			case CCS_Volume:				menu.options.sounds.volume.boundSet(atoi(args)); break;
 			case CCS_SoundTheme:			menu.options.sounds.theme.set(args); break;	// ignore error
 
+			// local server menu
+			case CCS_ServerPublic:			menu.ownServer.pub.set(args == "1"); break;
+			case CCS_ServerPort:			menu.ownServer.port.boundSet(atoi(args)); break;
 			default:	nAssert(0);	// must handle all values up to the highest known
 		}
 	}
@@ -861,6 +867,12 @@ bool Client::start() {
 	MCF_sndEnableChange();
 	client_sounds.setVolume(menu.options.sounds.volume());
 	client_sounds.select_theme(menu.options.sounds.theme());
+
+	// local server
+	if (serverExtConfig.privSettingForced)
+		menu.ownServer.pub.set(!serverExtConfig.privateserver);
+	if (serverExtConfig.portForced)
+		menu.ownServer.port.set(serverExtConfig.port);	// assume caller to take care of limiting to proper range (1..65535)
 
 	if (menu.options.game.autoGetServerList())
 		MCF_updateServers();
@@ -2412,8 +2424,7 @@ const char* Client::refreshStatusAsString() const {
 }
 
 void Client::getServerListThread() {
-	if (LOG_THREAD_IDS)
-		log("getServerListThread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("getServerListThread", log);
 
 	nAssert(refreshStatus == RS_running);
 
@@ -2423,20 +2434,17 @@ void Client::getServerListThread() {
 		if (!refresh_all_servers())
 			ok = false;
 
-	if (LOG_THREAD_IDS)
-		log("exiting: getServerListThread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("getServerListThread", log);
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
 void Client::refreshThread() {
-	if (LOG_THREAD_IDS)
-		log("refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("refreshThread", log);
 
 	nAssert(refreshStatus == RS_running);
 	const bool ok = refresh_all_servers();
 
-	if (LOG_THREAD_IDS)
-		log("exiting: refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("refreshThread", log);
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
@@ -2636,11 +2644,16 @@ bool Client::getServerList() {
 
 	log("Full response: '%s'", formatForLogging(response.str()).c_str());
 
-	MutexDebug md("serverListMutex", __LINE__, log);
-	MutexLock ml(serverListMutex);
+	if (parseServerList(response))
+		return true;
+	else {
+		log.error("Incorrect data received from master server.");
+		return false;
+	}
+}
 
-	//clear the old gamespy master screen
-	mgamespy.clear();
+bool Client::parseServerList(istream& response) {
+	static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
 
 	string line, empty;
 
@@ -2651,35 +2664,36 @@ bool Client::getServerList() {
 
 	// The first line is the newest version.
 	getline_smart(response, line);
-	if (line.empty()) {
-		log.error("Incorrect data received from master server.");
+	if (line.empty())
 		return false;
-	}
 	if (line != GAME_VERSION)
 		menu.newVersion.set(string() + "New version: " + line);
 
 	// The second line is the total number of servers.
 	getline_smart(response, line);
-	if (line.empty()) {
-		log.error("Incorrect data received from master server.");
+	istringstream is(line);
+	int total_servers;
+	is >> total_servers;
+	if (!is || is.peek() != eof_ch || total_servers < 0 || total_servers > 10000)
 		return false;
-	}
-	const int total_servers = atoi(line);
+
+	MutexDebug md("serverListMutex", __LINE__, log);
+	MutexLock ml(serverListMutex);
 
 	// Parse the successful response into the gamespy screen.
+
+	mgamespy.clear();
+
 	int servers_read;
-	for (servers_read = 0; servers_read < total_servers && getline_smart(response, line); servers_read++) {
+	for (servers_read = 0; getline_smart(response, line); servers_read++) {
 		ServerListEntry spy;
 		if (spy.setAddress(line))
 			mgamespy.push_back(spy);
+		else
+			return false;
 	}
 
-	if (servers_read != total_servers) {
-		log.error("Incorrect data received from master server: Server count mismatch.");
-		return false;
-	}
-
-	return true;
+	return (servers_read == total_servers);
 }
 
 void Client::loop(volatile bool* quitFlag) {
@@ -3171,8 +3185,10 @@ void Client::stop() {
 		cfg << CCS_MessageLogging		<< ' ' << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
 		cfg << CCS_SaveStats			<< ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
 		cfg << CCS_ShowStats			<< ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
-		cfg << CCS_AutoGetServerList	<< ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
 		cfg << CCS_ShowServerInfo		<< ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
+		cfg << CCS_UnderlineMasterAuth	<< ' ' << (menu.options.game.underlineMasterAuth() ? 1 : 0) << '\n';
+		cfg << CCS_UnderlineServerAuth	<< ' ' << (menu.options.game.underlineServerAuth() ? 1 : 0) << '\n';
+		cfg << CCS_AutoGetServerList	<< ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
 
 		// save controls menu settings
 		cfg << CCS_KeypadMoving			<< ' ' << (menu.options.controls.keypadMoving() ? 1 : 0) << '\n';
@@ -3190,12 +3206,17 @@ void Client::stop() {
 		cfg << CCS_FPSLimit				<< ' ' << menu.options.graphics.fpsLimit() << '\n';
 		cfg << CCS_GFXTheme				<< ' ' << menu.options.graphics.theme() << '\n';
 		cfg << CCS_Antialiasing			<< ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
+		cfg << CCS_ContinuousTextures	<< ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
 		cfg << CCS_StatsBgAlpha			<< ' ' << menu.options.graphics.statsBgAlpha() << '\n';
 
 		// save sound menu settings
 		cfg << CCS_SoundEnabled			<< ' ' << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
 		cfg << CCS_Volume				<< ' ' << menu.options.sounds.volume() << '\n';
 		cfg << CCS_SoundTheme			<< ' ' << menu.options.sounds.theme() << '\n';
+
+		// save local server menu settings
+		cfg << CCS_ServerPublic			<< ' ' << (menu.ownServer.pub() ? 1 : 0) << '\n';
+		cfg << CCS_ServerPort			<< ' ' << menu.ownServer.port() << '\n';
 
 		cfg.close();
 	}
@@ -3300,7 +3321,14 @@ void Client::predraw() {
 		}
 	}
 
-	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], flags, spawns, menu.options.graphics.mapInfoMode());
+	int texRoomX, texRoomY;	// the room is textured as in these coordinates
+	if (menu.options.graphics.contTextures()) {
+		texRoomX = fx.player[me].roomx;	// use real coordinates -> textures continue from a room to the next one
+		texRoomY = fx.player[me].roomy;
+	}
+	else
+		texRoomX = texRoomY = 0;	// this way the texturing always starts from the top left corner (classic look)
+	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
 }
 
 //draw the whole game screen
@@ -3491,7 +3519,7 @@ void Client::draw_game_frame() {
 					client_graphics.draw_minimap_room(fx.map, rx, ry);
 	}//!hide_game
 
-	client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB]);
+	client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB], menu.options.game.underlineMasterAuth(), menu.options.game.underlineServerAuth());
 
 	client_graphics.draw_fps(FPS);
 
@@ -3658,15 +3686,15 @@ void Client::draw_game_menu() {
 
 void Client::initMenus() {
 	typedef MenuCallback<Client> MCB;
+	typedef MenuKeyCallback<Client> MKC;
+	menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
+						  new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
 
 	menu.recursiveSetMenuOpener					(new MCB::A<Menu,			&Client::MCF_menuOpener				>(this));
 
 	menu.menu						.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareMainMenu		>(this));
 
 	menu.disconnect						.setHook(new MCB::N<Textarea,		&Client::MCF_disconnect				>(this));
-	menu.startServer					.setHook(new MCB::N<Textarea,		&Client::MCF_startServer			>(this));
-	menu.playServer						.setHook(new MCB::N<Textarea,		&Client::MCF_playServer				>(this));
-	menu.stopServer						.setHook(new MCB::N<Textarea,		&Client::MCF_stopServer				>(this));
 	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&Client::MCF_exitOutgun				>(this));
 
 	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu		>(this));
@@ -3674,6 +3702,7 @@ void Client::initMenus() {
 	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&Client::MCF_prepareServerMenu		>(this));
 	menu.connect.update					.setHook(new MCB::N<Textarea,		&Client::MCF_updateServers			>(this));
 	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&Client::MCF_refreshServers			>(this));
+	menu.connect.manualEntry		 .setKeyHook(new MKC::N<Textfield,		&Client::MCF_addressEntryKeyHandler	>(this));
 
 	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareAddServer		>(this));
 	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_addServer				>(this));
@@ -3698,6 +3727,7 @@ void Client::initMenus() {
 	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&Client::MCF_screenModeChange		>(this));
 	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_gfxThemeChange			>(this));
 	menu.options.graphics.antialiasing	.setHook(new MCB::N<Checkbox,		&Client::MCF_antialiasChange		>(this));
+	menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,		&Client::predraw					>(this));
 	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&Client::MCF_statsBgChange			>(this));
 	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&Client::predraw					>(this));
 
@@ -3705,6 +3735,11 @@ void Client::initMenus() {
 	menu.options.sounds.enabled			.setHook(new MCB::N<Checkbox,		&Client::MCF_sndEnableChange		>(this));
 	menu.options.sounds.volume			.setHook(new MCB::N<Slider,			&Client::MCF_sndVolumeChange		>(this));
 	menu.options.sounds.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_sndThemeChange			>(this));
+
+	menu.ownServer.menu				.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareOwnServerMenu	>(this));
+	menu.ownServer.start				.setHook(new MCB::N<Textarea,		&Client::MCF_startServer			>(this));
+	menu.ownServer.play					.setHook(new MCB::N<Textarea,		&Client::MCF_playServer				>(this));
+	menu.ownServer.stop					.setHook(new MCB::N<Textarea,		&Client::MCF_stopServer				>(this));
 
 	m_playerPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_playerPasswordAccept	>(this));
 	m_serverPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_serverPasswordAccept	>(this));
@@ -3717,10 +3752,20 @@ void Client::initMenus() {
 
 	m_errors.menu.setCaption("Errors");
 
-	MCF_loadHelp();
+	loadHelp();
 
 	menu.options.graphics.init(client_graphics);
 	menu.options.sounds.init(client_sounds);
+
+	// find the most probable external IP to show in the local server menu
+	string addr = serverExtConfig.force_ip_name;
+	if (addr.empty())
+		addr = getPublicIP(log, false);
+	if (addr.empty()) {	// no public address, will have to do with another external address (if any)
+		LogSet noLogSet(0, 0, 0);	// don't log this second round which would just duplicate information
+		addr = getPublicIP(noLogSet, true);
+	}
+	menu.ownServer.init(addr, addr.empty() || check_private_IP(addr));	// check for private here to include the check to force_ip_name
 }
 
 void Client::MCF_menuOpener(Menu& menu) {
@@ -3734,40 +3779,12 @@ void Client::MCF_menuCloser() {
 }
 
 void Client::MCF_prepareMainMenu() {
-	if (listenServer.running()) {
-		menu.startServer.setEnable(false);
-		menu.playServer.setEnable(!connected);
-		menu.stopServer.setEnable(true);
-	}
-	else {
-		menu.startServer.setEnable(true);
-		menu.playServer.setEnable(false);
-		menu.stopServer.setEnable(false);
-	}
+	menu.ownServer.refreshCaption(listenServer.running());
 	menu.disconnect.setEnable(connected);
 }
 
 void Client::MCF_disconnect() {
 	disconnect_command();
-}
-
-void Client::MCF_startServer() {
-	if (!listenServer.running())
-		listenServer.start(serverExtConfig.port, serverExtConfig);
-}
-
-void Client::MCF_playServer() {
-	if (listenServer.running()) {
-		nAssert(nlStringToAddr("127.0.0.1", &serverIP));
-		nAssert(nlSetAddrPort(&serverIP, listenServer.port()));
-		openMenus.clear();
-		connect_command(true);
-	}
-}
-
-void Client::MCF_stopServer() {
-	if (listenServer.running())
-		listenServer.stop();
 }
 
 void Client::MCF_exitOutgun() {
@@ -4041,16 +4058,38 @@ void Client::MCF_addServer() {
 			showMenu(m_dialog);
 			return;
 		}
-		if (menu.connect.favorites())
+		mgamespy.push_back(spy);
+		if (menu.connect.addServer.save())
 			gamespy.push_back(spy);
-		else {
-			mgamespy.push_back(spy);
-			if (menu.connect.addServer.save())
-				gamespy.push_back(spy);
-		}
 		MCF_prepareServerMenu();
 	}
 	MCF_menuCloser();
+}
+
+bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
+	(void)chr;
+	if (scan != KEY_ENTER && scan != KEY_INSERT)
+		return false;
+	if (menu.connect.manualEntry().empty())
+		return true;	// the key is considered handled even if it has no effect in this case
+	ServerListEntry spy;
+	if (!spy.setAddress(menu.connect.manualEntry())) {
+		m_dialog.clear();
+		m_dialog.addLine("Invalid IP address.");
+		showMenu(m_dialog);
+		return true;
+	}
+	if (scan == KEY_ENTER) {	// connect to the address
+		serverIP = spy.address();
+		connect_command(true);
+	}
+	else if (scan == KEY_INSERT) {	// add the server to the list shown below
+		if (menu.connect.favorites())
+			gamespy.push_back(spy);
+		else
+			mgamespy.push_back(spy);
+	}
+	return true;
 }
 
 bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) {
@@ -4096,7 +4135,35 @@ void Client::MCF_refreshServers() {
 	}
 }
 
-void Client::MCF_loadHelp() {
+void Client::MCF_prepareOwnServerMenu() {
+	menu.ownServer.refreshCaption(listenServer.running());
+	menu.ownServer.refreshEnables(listenServer.running(), connected);
+}
+
+void Client::MCF_startServer() {
+	if (!listenServer.running()) {
+		serverExtConfig.privateserver = menu.ownServer.pub() ? 0 : 1;
+		serverExtConfig.port = menu.ownServer.port();
+		serverExtConfig.privSettingForced = serverExtConfig.portForced = true;
+		listenServer.start(serverExtConfig.port, serverExtConfig);
+	}
+}
+
+void Client::MCF_playServer() {
+	if (listenServer.running()) {
+		nAssert(nlStringToAddr("127.0.0.1", &serverIP));
+		nAssert(nlSetAddrPort(&serverIP, listenServer.port()));
+		openMenus.clear();
+		connect_command(true);
+	}
+}
+
+void Client::MCF_stopServer() {
+	if (listenServer.running())
+		listenServer.stop();
+}
+
+void Client::loadHelp() {
 	menu.help.clear();
 	const string configFile = wheregamedir + "config" + directory_separator + "help.txt";
 	ifstream in(configFile.c_str());

@@ -72,7 +72,7 @@ class ServerNetworking {
 	static void sfunc_client_lag_status		(void* customp, int client_id, int status);
 	static void sfunc_client_ping_result	(void* customp, int client_id, int pingtime);
 
-	std::map<std::string, std::string> master_parameters(const std::string& address) const;
+	std::map<std::string, std::string> master_parameters(const std::string& address, bool quitting = false) const;
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string website_maplist() const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
@@ -113,6 +113,10 @@ class ServerNetworking {
 	int				ping_send_client;
 	int				ctop[256];			// client id-to-player id index
 	int				player_count;
+	std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
+	int				localPlayers;
+
+	int				maplist_revision;	// used by website thread to determine when to resend maplist
 
 	// web site settings
 	std::vector<std::string> web_servers;
@@ -214,6 +218,7 @@ public:
 	void set_hostname(const std::string& name);
 	NLaddress get_client_address(int cid) const;
 	int get_player_count() const { return player_count; }
+	int numDistinctClients() const { return distinctRemotePlayers.size() + (localPlayers > 0 ? 1 : 0); }
 
 	void clear_web_servers() { web_servers.clear(); }
 	void add_web_server(const std::string& server) { web_servers.push_back(server); }

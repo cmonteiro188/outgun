@@ -1528,9 +1528,9 @@ bool ServerWorld::load_map(const char* mapdir, const string& mapname) {
 }
 
 void ServerWorld::returnAllFlags() {
-	WorldBase::returnAllFlags();
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		player[i].drop_flag();
+	WorldBase::returnAllFlags();	// moved this after player drop_flags in hopes to alleviate the assertion in ServerWorld::dropFlagIfAny()
 	net->ctf_net_flag_status(-1, 0);
 	net->ctf_net_flag_status(-1, 1);
 	net->ctf_net_flag_status(-1, 2);
@@ -1574,8 +1574,8 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	nAssert(flag != -1);
 	net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
 	net->broadcast_sample(SAMPLE_CTF_LOST);
+	player[pid].drop_flag();	// moved this before dropFlag in hopes to alleviate the assertion 3 lines up
 	dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
-	player[pid].drop_flag();
 	player[pid].stats().add_flag_drop(get_time());
 	teams[pid / TSIZE].add_flag_drop();
 	if (purpose) {

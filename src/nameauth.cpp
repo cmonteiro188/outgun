@@ -97,10 +97,12 @@ bool NameAuthorizationDatabase::load() {
 				names.push_back(NameEntry(name, "", true));
 		}
 		else if (command == "BAN") {
-			NLaddress addr;
-			if (!dataRead || !nlStringToAddr(data.c_str(), &addr))
+			if (!dataRead || !isValidIP(data))
 				log.error("Invalid ban command (IP address) in auth.txt: \"%s\"", line.c_str());
 			else {
+				NLaddress addr;
+				if (!nlStringToAddr(data.c_str(), &addr))
+					nAssert(0);
 				nlSetAddrPort(&addr, 0);
 				time_t endTime;
 				strl >> endTime;

@@ -24,6 +24,17 @@
 #ifndef DEBUG_H_INC
 #define DEBUG_H_INC
 
+class Log;
+class LogSet;
+
+// thread ID logging; this is controlled by LOG_THREAD_IDS in debugconfig.h
+void logThreadEvent(bool exit, const char* function, Log& log);
+void logThreadEvent(bool exit, const char* function, LogSet& log);	// simply dumps to the normal log of the LogSet
+inline void logThreadStart(const char* function, Log& log) { logThreadEvent(false, function, log); }
+inline void logThreadExit (const char* function, Log& log) { logThreadEvent(true , function, log); }
+inline void logThreadStart(const char* function, LogSet& log) { logThreadEvent(false, function, log); }
+inline void logThreadExit (const char* function, LogSet& log) { logThreadEvent(true , function, log); }
+
 #ifdef NDEBUG
 
 class ValidityChecker {

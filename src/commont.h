@@ -113,8 +113,6 @@ private:
 	NLubyte data;
 };
 
-int threadPriority();	// debug help
-
 class GlobalDisplaySwitchHook {
 	static volatile bool flag;
 	friend void GlobalDisplaySwitchHook__callback();
@@ -125,9 +123,6 @@ public:
 	static bool readAndClear();
 };
 
-//static const bool LOG_THREAD_IDS = false;
-static const bool LOG_THREAD_IDS = true;//#@
-
 static const int plw = 472, plh = 354;	// play area width/height
 
 static const int PLAYER_RADIUS = 15;
@@ -137,8 +132,8 @@ static const int ROCKET_RADIUS = 4, QUAD_ROCKET_RADIUS = 6;
 // Game specific strings
 #define GAME_STRING "Outgun"
 #define GAME_PROTOCOL "1.0.0b11"
-#define GAME_VERSION "1.0.0 beta 11"
-#define GAME_SHORT_VERSION "1.0.0b11"
+#define GAME_VERSION "1.0.0 beta 12"
+#define GAME_SHORT_VERSION "1.0.0b12"
 
 #define TK1_VERSION_STRING "v048"
 

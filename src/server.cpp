@@ -410,7 +410,7 @@ void Server::score_frag(int pid, int amount) {
 	const int cid = world.player[pid].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
-	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
+	if (tournament && network.numDistinctClients() >= 4 && client[cid].current_participation) {
 		refresh_team_score_modifiers();
 		client[cid].fdp += amount * team_smul[pid / TSIZE];
 		client[cid].delta_score = static_cast<int>(client[cid].fdp);
@@ -422,7 +422,7 @@ void Server::score_neg(int p, int amount) {
 	const int cid = world.player[p].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
-	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
+	if (tournament && network.numDistinctClients() >= 4 && client[cid].current_participation) {
 		client[cid].fdn += amount;	// not affected by team modifier
 		client[cid].neg_delta_score = static_cast<int>(client[cid].fdn);
 	}
@@ -438,8 +438,14 @@ bool Server::trySetMaxplayers(int val) {
 }
 
 bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }	// helper for load_game_mod
+bool checkForceIpValue(const std::string& val) { return isValidIP(val); }
+
+bool Server::setForceIP(const std::string& val) { extConfig.force_ip_name = val; return true; }
 
 void Server::load_game_mod(bool reload) {
+	RedirectToFun1<bool, const std::string&> checkForceIP(checkForceIpValue);
+	RedirectToMemFun1<Server, bool, const std::string&> setForceIP(this, &Server::setForceIP);
+
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setHostname(&network, &ServerNetworking::set_hostname);
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setServerPassword(&network, &ServerNetworking::set_server_password);
 
@@ -458,9 +464,18 @@ void Server::load_game_mod(bool reload) {
 		privSetting = new GS_DisallowRunning("private_server");
 	}
 	else {
-		portSetting = new GS_Int	("server_port",		&extConfig.port, 1, 65535);
-		ipSetting   = new GS_String	("server_ip",		&extConfig.force_ip_name);
-		privSetting = new GS_Boolean("private_server",	&extConfig.privateserver);
+		if (extConfig.portForced)
+			portSetting = new GS_Ignore	("server_port");
+		else
+			portSetting = new GS_Int	("server_port",		&extConfig.port, 1, 65535);
+		if (extConfig.ipForced)
+			ipSetting = new GS_Ignore	("server_ip");
+		else
+			ipSetting = new GS_CheckForwardStr("server_ip",	"IP address without :port", checkForceIP, setForceIP);
+		if (extConfig.privSettingForced)
+			privSetting = new GS_Ignore	("private_server");
+		else
+			privSetting = new GS_Boolean("private_server",	&extConfig.privateserver);
 	}
 
 	typedef std::auto_ptr<GamemodSetting> PT;
@@ -498,7 +513,7 @@ void Server::load_game_mod(bool reload) {
 		PT(new GS_Int		("capture_limit",			&worldConfig.capture_limit, 0)),
 		PT(new GS_Balance	("balance_teams",			&worldConfig.balance_teams)),
 		PT(new GS_ForwardStr("server_name",				setHostname)),
-		PT(new GS_ForwardInt("max_players",				string() + "an even integer between 2 and " + itoa(MAX_PLAYERS), checkMaxplayer, tryMaxplayer)),
+		PT(new GS_CheckForwardInt("max_players",		string() + "an even integer between 2 and " + itoa(MAX_PLAYERS), checkMaxplayer, tryMaxplayer)),
 		PT(new GS_AddString	("welcome_message",			&welcome_message)),
 		PT(new GS_AddString	("info_message",			&info_message)),
 		PT(new GS_ForwardStr("server_password",			setServerPassword)),
@@ -513,6 +528,7 @@ void Server::load_game_mod(bool reload) {
 		PT(new GS_Boolean	("random_maprot",			&random_maprot)),
 		PT(new GS_Int		("vote_block_time",			&vote_block_time, 0, GS_Int::lim::max(), 60 * 10)),	// convert minutes to frames
 		PT(new GS_Int		("idlekick_time",			&idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),	// convert seconds to frames; special setting: allow 0 that is outside the normal range
+		PT(new GS_Int		("idlekick_playerlimit",	&idlekick_playerlimit, 1, MAX_PLAYERS)),
 		PT(new GS_Double	("respawn_time",			&worldConfig.respawn_time, 0.)),
 		PT(new GS_Double	("waiting_time_deathbringer",	&worldConfig.waiting_time_deathbringer, 0.)),
 		PT(new GS_Int		("pup_shadow_invisibility",	&worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal)),	// 0->smn, 1->0
@@ -525,7 +541,7 @@ void Server::load_game_mod(bool reload) {
 		PT(new GS_ForwardStr("web_server",				addWebServer)),
 		PT(new GS_ForwardStr("web_script",				setWebScript)),
 		PT(new GS_ForwardStr("web_auth",				setWebAuth)),
-		PT(new GS_ForwardInt("web_refresh",				"at least 1", setWebRefresh, setWebRefresh)),
+		PT(new GS_CheckForwardInt("web_refresh",		"at least 1", setWebRefresh, setWebRefresh)),
 		PT(0)
 	};
 	const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
@@ -689,6 +705,7 @@ bool Server::reset_settings(bool reload) {	// set reload if reset_settings has a
 	random_maprot = false;
 	vote_block_time = 0;	// no limit
 	idlekick_time = 120 * 10;	// 2 minutes in frames
+	idlekick_playerlimit = 4;
 
 	welcome_message.clear();
 	info_message.clear();
@@ -1155,7 +1172,7 @@ void Server::simulate_and_broadcast_frame() {
 					network.plprintf(i, msg_warning, "Disconnecting in %d...", world.player[i].kickTimer / 10);
 				continue;
 			}
-			if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle() && get_player_count() > 1) {
+			if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle() && get_player_count() >= idlekick_playerlimit) {
 				++world.player[i].idleFrames;
 				int timeToKick = idlekick_time - world.player[i].idleFrames;
 				if (timeToKick == 0)

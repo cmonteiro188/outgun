@@ -33,8 +33,6 @@
 #include "commont.h"
 #include "nassert.h"
 
-#include <pthread.h>	// must include _after_ incalleg.h
-
 using std::cout;
 using std::istream;
 using std::string;
@@ -126,13 +124,6 @@ bool check_name(const std::string& name) {
 	if (name.find_first_of(" \xA0") == 0 || name.find_last_of(" \xA0") == name.length() - 1)
 		return false;
 	return true;
-}
-
-int threadPriority() {
-	int policy;
-	sched_param param;
-	pthread_getschedparam(pthread_self(), &policy, &param);
-	return param.sched_priority;
 }
 
 volatile bool GlobalDisplaySwitchHook::flag = false;

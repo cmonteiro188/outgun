@@ -124,7 +124,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
 	roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
-	minimap_w = minimap_place_w = SCREEN_W - roombg->w;
+	minimap_w = minimap_place_w = SCREEN_W - roombg->w - 4;	// 4 for left margin
 	minimap_h = minimap_place_h = scale(100);
 	mmx = SCREEN_W - minimap_w;
 	if (mmx > 8 * 80)	// check if minimap fits to the right of chat messages
@@ -133,7 +133,14 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
 		mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
 	nAssert(minibg);
-	sbx = SCREEN_W - (20 * 8 + 4);	// scoreboard is 20 characters wide
+	const int scoreboardPlaceX = roombg->w;	// to the right of the playfield, if possible
+	const int scoreboardPlaceW = SCREEN_W - scoreboardPlaceX;
+	static const int scoreboardW = 20 * 8;	// 20 characters
+	// center scoreboard in its place
+	if (scoreboardPlaceW > scoreboardW + 8)	// reserve 4 pixels for both margins
+		sbx = scoreboardPlaceX + (scoreboardPlaceW - scoreboardW) / 2;
+	else
+		sbx = SCREEN_W - (scoreboardW + 4);	// force on the playfield if it wouldn't fit otherwise (this shouldn't happen in 1.0.0, as things are forced a bit)
 	sby = mmy + minimap_place_h + 10;
 	indicators_x = 0;
 	indicators_y = SCREEN_H - 30;
@@ -369,7 +376,11 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	return true;
 }
 
-void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
+void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
+	// the room is textured like it's the room at coordinates (texRoomX,texRoomY)
+	// this means moving the texture offsetting origin to the top left of room (0,0)
+	int texOffsetBaseX = - texRoomX * iround(plw * scr_mul);
+	int texOffsetBaseY = - texRoomY * iround(plh * scr_mul);
 	acquire_bitmap(background);
 	clear_to_color(background, 0);
 	if (antialiasing) {
@@ -405,20 +416,20 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoor
 		TextureData backupTexture;
 		TextureData td;
 		if (floor_texture.front())
-			backupTexture.setTexture(floor_texture.front());
+			backupTexture.setTexture(floor_texture.front(), texOffsetBaseX, texOffsetBaseY);
 		else
 			backupTexture.setSolid(col[COLGROUND]);
 		for (vector<Bitmap>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti) {
-			if (*ti) { td.setTexture(*ti); textures.push_back(td); }
+			if (*ti) { td.setTexture(*ti, texOffsetBaseX, texOffsetBaseY); textures.push_back(td); }
 			else textures.push_back(backupTexture);
 		}
 
 		if (wall_texture.front())
-			backupTexture.setTexture(wall_texture.front());
+			backupTexture.setTexture(wall_texture.front(), texOffsetBaseX, texOffsetBaseY);
 		else
 			backupTexture.setSolid(col[COLWALL]);
 		for (vector<Bitmap>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti) {
-			if (*ti) { td.setTexture(*ti); textures.push_back(td); }
+			if (*ti) { td.setTexture(*ti, texOffsetBaseX, texOffsetBaseY); textures.push_back(td); }
 			else textures.push_back(backupTexture);
 		}
 
@@ -434,18 +445,18 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoor
 	else {
 		// draw floor
 		if (floor_texture.front()) {
-			drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture.front(), 0, 0);
+			drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture.front(), texOffsetBaseX, texOffsetBaseY);
 			rectfill(roombg, 0, 0, roombg->w - 1, roombg->h - 1, col[COLGROUND]);
 			solid_mode();
 		}
 		else
 			clear_to_color(roombg, col[COLGROUND]);
-		predraw_room_ground(room);
+		predraw_room_ground(room, texOffsetBaseX, texOffsetBaseY);
 		// draw flag position marks
 		for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
 			draw_flagpos_mark(fi->first, fi->second->x, fi->second->y);
 		// draw walls
-		predraw_room_walls(room);
+		predraw_room_walls(room, texOffsetBaseX, texOffsetBaseY);
 	}
 	for (vector< pair<int, const WorldCoords*> >::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
 		circlefill(roombg, scale(si->second->x), scale(si->second->y), scale(PLAYER_RADIUS), teamcol[si->first]);
@@ -471,52 +482,52 @@ void Graphics::draw_background() {
 	blit(background, drawbuf, 0, 0, 0, 0, background->w, background->h);
 }
 
-void Graphics::predraw_room_ground(const Room& room) {
-	draw_room_ground(roombg, room, 0, 0, scr_mul, col[COLGROUND], true);
+void Graphics::predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY) {
+	draw_room_ground(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scr_mul, col[COLGROUND], true);
 }
 
-void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture) {
+void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture) {
 	for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
-		draw_wall(buffer, *wi, x, y, scale, color, texture ? get_floor_texture((*wi)->texture()) : 0);
+		draw_wall(buffer, *wi, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, texture ? get_floor_texture((*wi)->texture()) : 0);
 }
 
-void Graphics::predraw_room_walls(const Room& room) {
-	draw_room_walls(roombg, room, 0, 0, scr_mul, col[COLWALL], true);
+void Graphics::predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY) {
+	draw_room_walls(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scr_mul, col[COLWALL], true);
 }
 
-void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture) {
+void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture) {
 	for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
-		draw_wall(buffer, *wi, x, y, scale, color, texture ? get_wall_texture((*wi)->texture()) : 0);
+		draw_wall(buffer, *wi, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, texture ? get_wall_texture((*wi)->texture()) : 0);
 }
 
-void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, double scale, int color, BITMAP* tex) {
+void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* tex) {
 	RectWall* rwp = dynamic_cast<RectWall*>(wall);
 	if (rwp) {
-		draw_rect_wall(buffer, *rwp, x, y, scale, color, tex);
+		draw_rect_wall(buffer, *rwp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
 		return;
 	}
 	TriWall * twp = dynamic_cast<TriWall *>(wall);
 	if (twp) {
-		draw_tri_wall (buffer, *twp, x, y, scale, color, tex);
+		draw_tri_wall (buffer, *twp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
 		return;
 	}
 	CircWall* cwp = dynamic_cast<CircWall*>(wall);
 	nAssert(cwp);
-	draw_circ_wall    (buffer, *cwp, x, y, scale, color, tex);
+	draw_circ_wall    (buffer, *cwp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
 }
 
-void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, double scale, int color, BITMAP* texture) {
+void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, texOffsetBaseX, texOffsetBaseY);
 	rectfill(buffer, iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
 					 iround(x0 + scale * wall.x2() - 1), iround(y0 + scale * wall.y2() - 1), color);
 	if (texture)
 		solid_mode();
 }
 
-void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, double y0, double scale, int color, BITMAP* texture) {
+void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, texOffsetBaseX, texOffsetBaseY);
 	triangle(buffer,
 		iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
 		iround(x0 + scale * wall.x2()), iround(y0 + scale * wall.y2()),
@@ -525,7 +536,7 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, dou
 		solid_mode();
 }
 
-void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, double scale, int color, BITMAP* texture) {
+void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
 	const double x = wall.X();
 	const double y = wall.Y();
 	const double ro = wall.radius();
@@ -533,7 +544,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
 	const double* const angle = wall.angles();
 	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
 		if (texture)
-			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
+			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, texOffsetBaseX, texOffsetBaseY);
 		circlefill(buffer, iround(x0 + scale * x), iround(y0 + scale * y), iround(scale * ro), color);
 		if (texture)
 			solid_mode();
@@ -545,7 +556,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, iround(scale * (ro - x)), iround(scale * (ro - y)));
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, iround(scale * (ro - x)) + texOffsetBaseX, iround(scale * (ro - y)) + texOffsetBaseY);
 	circlefill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * ro), color);
 	if (texture)
 		solid_mode();
@@ -613,7 +624,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
 		}
 		// draw back removed lines at n·90°
 		if (texture)
-			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, iround(scale * (ro - x)), iround(scale * (ro - y)));
+			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, iround(scale * (ro - x)) + texOffsetBaseX, iround(scale * (ro - y)) + texOffsetBaseY);
 		for (int i = 0; i < 2; i++) {
 			if (angle[i] == 0)
 				vline(cbuff, iround(scale * ro), iround(scale * (ro - ri)), 0, color);
@@ -662,8 +673,8 @@ void Graphics::draw_flag(int team, int x, int y) {
 void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
 	const double px = static_cast<double>(flag.position().px * plw + flag.position().x) / (plw * map.w);
 	const double py = static_cast<double>(flag.position().py * plh + flag.position().y) / (plh * map.h);
-	const int pix = static_cast<int>(mmx + minimap_start_x + 1 + px * (minimap_w - 2));
-	const int piy = static_cast<int>(mmy + minimap_start_y + 1 + py * (minimap_h - 2));
+	const int pix = static_cast<int>(mmx + minimap_start_x + px * minimap_w);
+	const int piy = static_cast<int>(mmy + minimap_start_y + py * minimap_h);
 	const int scl = minimap_place_w;
 	//draw flagpole
 	rectfill(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, col[COLYELLOW]);
@@ -692,16 +703,16 @@ void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, doubl
 pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const {
 	const double px = (player.roomx * plw + player.lx) / static_cast<double>(plw * map.w);
 	const double py = (player.roomy * plh + player.ly) / static_cast<double>(plh * map.h);
-	const int x = static_cast<int>(mmx + 1 + px * (minimap_w - 2)) + minimap_start_x;
-	const int y = static_cast<int>(mmy + 1 + py * (minimap_h - 2)) + minimap_start_y;
+	const int x = static_cast<int>(mmx + px * minimap_w) + minimap_start_x;
+	const int y = static_cast<int>(mmy + py * minimap_h) + minimap_start_y;
 	return pair<int, int>(x, y);
 }
 
 void Graphics::draw_minimap_room(const Map& map, int rx, int ry) {
-	const int x1 = mmx + minimap_start_x + 1 + rx * (minimap_w - 1) / map.w;
-	const int y1 = mmy + minimap_start_y + 1 + ry * (minimap_h - 1) / map.h;
-	const int x2 = mmx + minimap_start_x + 1 + (rx + 1) * (minimap_w - 1) / map.w - 1;
-	const int y2 = mmy + minimap_start_y + 1 + (ry + 1) * (minimap_h - 1) / map.h - 1;
+	const int x1 = mmx + minimap_start_x + rx * minimap_w / map.w;
+	const int y1 = mmy + minimap_start_y + ry * minimap_h / map.h;
+	const int x2 = mmx + minimap_start_x + (rx + 1) * minimap_w / map.w - 1;
+	const int y2 = mmy + minimap_start_y + (ry + 1) * minimap_h / map.h - 1;
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, 0x38);
 	rectfill(drawbuf, x1, y1, x2, y2, col[COLFOGOFWAR]);
@@ -720,6 +731,7 @@ void Graphics::update_minimap_background(const Map& map) {
 void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) {
 	// black background
 	clear_to_color(buffer, 0);
+	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
 	if (map.w == 0 || map.h == 0)
 		return;
@@ -727,42 +739,50 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	// Calculate new minimap size.
 	if (map.w * 4 * minimap_place_h > map.h * 3 * minimap_place_w) {
 		minimap_w = minimap_place_w;
-		minimap_h = static_cast<int>(static_cast<double>((minimap_w - 1) * map.h * 3) / map.w / 4. + 1.);	// important not to round
+		minimap_h = static_cast<int>(static_cast<double>(minimap_w * map.h * 3) / (map.w * 4.)) + 1;	// add 1 because w should be the relatively smaller one for safety (because it's used in determining 'scale' below
 	}
 	else {
 		minimap_h = minimap_place_h;
-		minimap_w = static_cast<int>(static_cast<double>((minimap_h - 1) * map.w * 4) / map.h / 3. + 1.);	// important not to round
+		minimap_w = static_cast<int>(static_cast<double>(minimap_h * map.w * 4) / (map.h * 3.));	// truncate to make sure w is the relatively smaller one
 	}
 
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
-	const double room_w = (minimap_w - 1.) / map.w;	// use -1. (not 2) to have half a pixel under the green border on every edge; this is to compensate for error in the value of minimap_? so there's no gap
-	const double room_h = (minimap_h - 1.) / map.h;
-	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
+
+	const double actual_start_x = minimap_start_x + .005;	// .005 is a safety to make sure we stay within the bitmap even with small calculation errors
+	const double actual_start_y = minimap_start_y + .005;
 
 	const double maxx = plw * map.w;
 	const double maxy = plh * map.h;
-	const double xmul = (minimap_w - 1.) / maxx;
+	const double scale = (minimap_w - .01) / maxx;	// -.01 is a safety to make sure we stay within the bitmap even with small calculation errors
+	const double room_w = plw * scale;
+	const double room_h = plh * scale;
 
 	SceneAntialiaser scene;
-	scene.setScaling(minimap_start_x + .5, minimap_start_y + .5, xmul);
+	scene.setScaling(actual_start_x, actual_start_y, scale);
 
 	// add background
 	scene.addRectangle(0, 0, maxx, maxy, 0);
 
 	// add room boundaries
-	const double halfPixw = .49999 / xmul, halfPixh = .49999 / xmul;
+	const double halfPixw = .49999 / scale, halfPixh = .49999 / scale;
+	// vertical boundaries
+	scene.addRectangle(0, 0, halfPixw, maxy, 2);	// first boundary on the left is only a 'half' one
 	for (int i = 1; i < map.w; i++)
 		scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
+	scene.addRectangle(maxx - halfPixw, 0, maxx, maxy, 2);	// last boundary on the right is only a 'half' one
+	// the same for horizontal boundaries
+	scene.addRectangle(0, 0, maxx, halfPixh, 2);
 	for (int i = 1; i < map.h; i++)
 		scene.addRectangle(0, plh * i - halfPixh, maxx, plh * i + halfPixh, 2);
+	scene.addRectangle(0, maxy - halfPixh, maxx, maxy, 2);
 
 	// add walls
 	for (int y = 0; y < map.h; y++) {
-		const double by = minimap_start_y + .5 + y * plh * xmul;
+		const double by = actual_start_y + y * plh * scale;
 		for (int x = 0; x < map.w; x++) {
-			const double bx = minimap_start_x + .5 + x * plw * xmul;
-			scene.setScaling(bx, by, xmul);
+			const double bx = actual_start_x + x * plw * scale;
+			scene.setScaling(bx, by, scale);
 			scene.setClipping(0, 0, plw, plh);
 			const Room& room = map.room[x][y];
 			for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
@@ -779,9 +799,6 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	Texturizer tex(buffer, 0, 0, colors);
 	scene.render(tex);
 	tex.finalize();
-
-	//green border
-	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);
 
 	// draw bases
 	Bitmap backup = create_bitmap(minimap_place_w, minimap_place_w);
@@ -804,8 +821,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 				for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
 					if (fi->px != rx || fi->py != ry)
 						continue;
-					const int px = static_cast<int>(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
-					const int py = static_cast<int>(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
+					const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);	// not to be rounded: max coord is already minimap_w - small safety
+					const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
 					const int c = getpixel(buffer, px, py);
 					if (c == 0)
 						floodfill(buffer, px, py, teamdcol[t]);
@@ -818,8 +835,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 					for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
 						if (fi->px != rx || fi->py != ry)
 							continue;
-						const int px = static_cast<int>(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
-						const int py = static_cast<int>(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
+						const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);
+						const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
 						const int c = getpixel(buffer, px, py);
 						bool successful = true;
 						if (c == 0)
@@ -831,8 +848,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 						for (vector<WorldCoords>::const_iterator fj = map.tinfo[1 - t].flags.begin(); successful && fj != map.tinfo[1 - t].flags.end(); ++fj) {
 							if (fj->px != rx || fj->py != ry)
 								continue;
-							const int px = static_cast<int>(minimap_start_x + 1 + (fj->px * plw + fj->x) / maxx * (minimap_w - 2));
-							const int py = static_cast<int>(minimap_start_y + 1 + (fj->py * plh + fj->y) / maxy * (minimap_h - 2));
+							const int px = static_cast<int>(actual_start_x + (fj->px * plw + fj->x) * scale);
+							const int py = static_cast<int>(actual_start_y + (fj->py * plh + fj->y) * scale);
 							const int c = getpixel(buffer, px, py);
 							if (c == teamdcol[t]) {
 								failure[t].push_back(*fi);
@@ -848,10 +865,10 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			}
 			if (failure[0].empty() && failure[1].empty())
 				continue;
-			const int xmin = static_cast<int>(minimap_start_x + 2 + room_w * rx);
-			const int xmax = static_cast<int>(minimap_start_x + room_w * (rx + 1));
-			const int ymin = static_cast<int>(minimap_start_y + 2 + room_h * ry);
-			const int ymax = static_cast<int>(minimap_start_y + room_h * (ry + 1));
+			const int xmin = static_cast<int>(actual_start_x + room_w * rx);
+			const int xmax = static_cast<int>(actual_start_x + room_w * (rx + 1) - 1);
+			const int ymin = static_cast<int>(actual_start_y + room_h * ry);
+			const int ymax = static_cast<int>(actual_start_y + room_h * (ry + 1) - 1);
 			for (int y = ymin; y <= ymax; ++y) {
 				const double roomy = double(y + 1 - ymin) / double(room_h) * plh;
 				for (int x = xmin; x <= xmax; ++x) {
@@ -864,8 +881,12 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 					double dist_b2 = INT_MAX;
 					for (vector<WorldCoords>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
 						dist_b2 = min(dist_b2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
-					const int color = (dist_r2 < dist_b2) ? teamdcol[0] : teamdcol[1];
-					putpixel(buffer, x, y, color);
+					double diff = dist_r2 - dist_b2;
+					if (diff < -2)
+						putpixel(buffer, x, y, teamdcol[1]);
+					else if (diff > 2)
+						putpixel(buffer, x, y, teamdcol[0]);
+					// don't paint about equally distant pixels
 				}
 			}
 		}
@@ -876,8 +897,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	for (int t = 0; t <= 2; ++t) {
 		const vector<WorldCoords>& flags = (t == 2 ? map.wild_flags : map.tinfo[t].flags);
 		for (vector<WorldCoords>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-			const int px = static_cast<int>(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
-			const int py = static_cast<int>(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
+			const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);
+			const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
 			if (save_map_pic) {
 				//draw the flagpole
 				rectfill(buffer, px, py - static_cast<int>(room_w / 12), px + static_cast<int>(room_w / 60) - 1, py, col[COLYELLOW]);
@@ -1329,16 +1350,14 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
 }
 
-void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings) {
+void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
 	if (!show_scoreboard)
 		return;
 
 	const int y_space = SCREEN_H - sby;
-	int line_h = y_space / (maxplayers + 2 + 2 + 1);	// players, 2 captions, 2 empty lines, FPS
+	int line_h = y_space / (maxplayers + 2 + 2 + 1);	// players, 2 captions, 2 empty lines, FPS	//#fixme: could the room for FPS be reserved someplace else...
 	if (line_h > 12)
 		line_h = 12;
-	if (line_h < 8)
-		line_h = 8;
 
 	// captions
 	ostringstream red, blue;
@@ -1363,13 +1382,15 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 		const int pcol = col[player.color()];
 		const int x = sbx;
 		const int y = sby + (line[player.team()] + 1) * line_h + player.team() * (maxplayers / 2 + 1) * line_h;
-		draw_scoreboard_name(name.str(), x, y, pcol);
+		draw_scoreboard_name(name.str(), x, y, pcol, (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth()));
 		draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
 		line[player.team()]++;
 	}
 }
 
-void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol) {
+void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol, bool underline) {
+	if (underline)
+		hline(drawbuf, x, y + 8, x + 8 * name.length() - 1, pcol);
 	textout_ex(drawbuf, font, name.c_str(), x, y, pcol, -1);
 }
 

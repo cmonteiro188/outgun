@@ -37,6 +37,7 @@
 #include "leetnet/sleep.h"	// sleep util
 #include "admshell.h"
 #include "commont.h"
+#include "debug.h"
 #include "function_utility.h"
 #include "mutex.h"
 #include "nassert.h"
@@ -79,6 +80,8 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs) :
 	log(logs),
 	hostname("Anonymous host"),
 	player_count(0),
+	localPlayers(0),
+	maplist_revision(0),
 	web_refresh(0)
 {
 	server = 0;
@@ -826,13 +829,26 @@ int ServerNetworking::client_connected(int id) {
 			world.check_pickup_creation(false);				// check pickup creation
 			break;
 		}
+	nAssert(myself != -1);
+
+	if (world.player[myself].localIP)
+		++localPlayers;
+	else {
+		NLaddress ip = get_client_address(id);
+		nlSetAddrPort(&ip, 0);
+		vector< pair<NLaddress, int> >::iterator pi;
+		for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
+			if (nlAddrCompare(&pi->first, &ip)) {
+				++pi->second;
+				break;
+			}
+		if (pi == distinctRemotePlayers.end())
+			distinctRemotePlayers.push_back(pair<NLaddress, int>(ip, 1));
+	}
 
 	send_map_change_message(myself, NEXTMAP_NONE, host->getCurrentMapFile().c_str());
 
-	if (myself == -1) {
-		log.error("Couldn't find a slot for an incoming player even though server wasn't supposed to be full.");
-		return -1;
-	}
+	// can't abort from this point on... anything that can abort should be above
 
 	broadcast_new_player(world.player[myself]);
 
@@ -927,6 +943,19 @@ void ServerNetworking::client_disconnected(int id) {
 
 	//report the latest player achievements to the master server
 	client_report_status(id);
+
+	if (world.player[pid].localIP)
+		--localPlayers;
+	else {
+		NLaddress ip = get_client_address(id);
+		nlSetAddrPort(&ip, 0);
+		vector< pair<NLaddress, int> >::iterator pi;
+		for (pi = distinctRemotePlayers.begin(); !nlAddrCompare(&pi->first, &ip); ++pi)
+			nAssert(pi != distinctRemotePlayers.end());
+		--pi->second;
+		if (pi->second == 0)
+			distinctRemotePlayers.erase(pi);
+	}
 
 	fileTransfer[id].reset();
 	host->game_remove_player(pid, true);
@@ -1562,8 +1591,7 @@ double ServerNetworking::getTraffic() {
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
-	if (LOG_THREAD_IDS)
-		log("run_masterjob_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("run_masterjob_thread", log);
 
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
 
@@ -1605,7 +1633,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 		string response;
 		{
 			ostringstream respStream;
-			const NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &mjob_exit, 30000);
+			const NetworkResult result = save_http_response(sock, respStream, &mjob_exit, 30000);
 			nlClose(sock);
 			if (result != NR_ok) {
 				if (mjob_exit)
@@ -1692,14 +1720,14 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 					server->send_message(job->cid, lebuf, count);
 				}
 				else if (job->code == MasterQuery::JT_score) {
-					plprintf(pid, msg_warning, "Your tournament score update was failed!");
+					plprintf(pid, msg_warning, "Updating your tournament score failed!");
 					log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
 				}
 				else
 					nAssert(0);
 			}
 			else if (job->code == MasterQuery::JT_score)
-				log("Tournament thread: Score update lost for a player that's left the server");
+				log("Tournament thread: Score update lost for a player who has left the server");
 			break;	// request complete
 		}
 		else
@@ -1711,13 +1739,11 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 	}
 	delete job;
 
-	if (LOG_THREAD_IDS)
-		log("exiting: run_masterjob_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("run_masterjob_thread", log);
 }
 
 void ServerNetworking::run_mastertalker_thread() {
-	if (LOG_THREAD_IDS)
-		log("run_mastertalker_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("run_mastertalker_thread", log);
 
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string line;
@@ -1729,17 +1755,11 @@ void ServerNetworking::run_mastertalker_thread() {
 	// determine the public IP to send to master
 	string localAddress;
 	if (!host->config().force_ip_name.empty()) {	// use IP manually given to the program
-		log("Master talker: Forcing IP to value %s", host->config().force_ip_name.c_str());
-
-		NLaddress testAddr;
-		if (!nlStringToAddr(host->config().force_ip_name.c_str(), &testAddr) || host->config().force_ip_name.find_first_of(':') != string::npos) {
-			log.error("Master talker: Tried to force an invalid IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
-			return;
-		}
 		if (check_private_IP(host->config().force_ip_name)) {
 			log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
 			return;
 		}
+		log("Master talker: Forcing IP to %s", host->config().force_ip_name.c_str());
 
 		localAddress = host->config().force_ip_name;
 	}
@@ -1761,6 +1781,8 @@ void ServerNetworking::run_mastertalker_thread() {
 			continue;
 
 		master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
+
+		// note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
 		//open socket
 		nlOpenMutex.lock();
@@ -1785,22 +1807,33 @@ void ServerNetworking::run_mastertalker_thread() {
 		map<string, string> parameters = master_parameters(localAddress);
 		const string data = build_http_data(parameters);
 		NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
-
-		log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(data).c_str(), result);
-		if (result == NR_ok) {
+		if (result != NR_ok)
+			log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+		else {
 			std::stringstream response;
-			result = saveAllFromUnblockingTCP(msock, response, &file_threads_quit, 30000);
-			// save response to a file
-			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-			out << response.str();
-			out.close();
-			if (response.str().find("VERSION ERROR") != string::npos) {
-				log.error("You have a deprecated Outgun version. Please update.");
-				break;
+			result = save_http_response(msock, response, &file_threads_quit, 30000);
+			if (result == NR_ok) {
+				// save transaction to a file
+				ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+				out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+				out << "--- Query ---\n";
+				out << data;
+				out << "\n--- Response ---\n";
+				out << response.str();
+				out.close();
+				if (response.str().find("VERSION ERROR") != string::npos) {
+					log.error("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update.");
+					nlClose(msock);
+					return;
+				}
+				if (response.str().find("[OK]") == string::npos)
+					log.error("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.");
+			}
+			else {
+				log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+				master_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
 			}
 		}
-		if (result != NR_ok)
-			master_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
 
 		//close socket
 		nlClose(msock);
@@ -1831,23 +1864,35 @@ void ServerNetworking::run_mastertalker_thread() {
 	}
 
 	// send quit message
-	ostringstream quit;
-	quit << "ip=" << localAddress << "&port=" << host->config().port << "&quit=1\r\n";
-	const NetworkResult result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
-	log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(quit.str()).c_str(), result);
-
-	if (result == NR_ok) {
-		// save response to a file
-		ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-		save_http_response(msock, out, 0, 5000);	// only 5 seconds allowed; it's not so crucial
+	map<string, string> parameters = master_parameters(localAddress, true);	// true = quitting
+	const string data = build_http_data(parameters);
+	NetworkResult result = post_http_data(msock, 0, 5000, master_script, data);	// only 5 seconds allowed; it's not so crucial
+	if (result != NR_ok)
+		log("Master talker: (Quit) Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+	else {
+		std::stringstream response;
+		result = save_http_response(msock, response, 0, 5000);	// only 5 seconds allowed; it's not so crucial
+		if (result == NR_ok) {
+			// save transaction to a file
+			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+			out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+			out << "--- Query ---\n";
+			out << data;
+			out << "\n--- Response ---\n";
+			out << response.str();
+			out.close();
+			if (response.str().find("[OK]") == string::npos)
+				log.error("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.");
+		}
+		else
+			log("Master talker: (Quit) Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
 	}
 
 	nlClose(msock);
 }
 
 void ServerNetworking::run_website_thread() {
-	if (LOG_THREAD_IDS)
-		log("run_website_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("run_website_thread", log);
 
 	if (web_servers.empty() || web_script.empty())
 		return;
@@ -1867,6 +1912,7 @@ void ServerNetworking::run_website_thread() {
 	NLaddress website_address;
 	double website_talk_time = 0.0;
 	bool first_connection = true;
+	int sent_maplist_revision = -1;
 
 	while (!file_threads_quit) {
 		MS_SLEEP(500);
@@ -1875,6 +1921,8 @@ void ServerNetworking::run_website_thread() {
 			continue;
 
 		website_talk_time = get_time() + web_refresh * 60.0;
+
+		// note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
 		log("Website thread: Start sending information to server website.");
 
@@ -1912,7 +1960,8 @@ void ServerNetworking::run_website_thread() {
 
 		// build and send data
 		map<string, string> parameters = website_parameters(localAddress);
-		if (first_connection) {		// send maplist
+		int sending_maplist_revision = maplist_revision;
+		if (first_connection || sending_maplist_revision != sent_maplist_revision) {
 			parameters["maplist"] = website_maplist();
 			first_connection = false;
 		}
@@ -1926,6 +1975,8 @@ void ServerNetworking::run_website_thread() {
 		}
 		if (result != NR_ok)
 			website_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
+		else
+			sent_maplist_revision = sending_maplist_revision;
 
 		//close socket
 		nlClose(websock);
@@ -1969,28 +2020,32 @@ void ServerNetworking::run_website_thread() {
 	nlClose(websock);
 }
 
-map<string, string> ServerNetworking::master_parameters(const string& address) const {
+map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const {
 	map<string, string> parameters;
-	parameters["name"] = hostname;
 	parameters["ip"] = address;
 	ostringstream p;
 	p << host->config().port;
 	parameters["port"] = p.str();
-	ostringstream pc;
-	pc << player_count;
-	if (host->config().dedserver)
-		parameters["dedicated"] = "1";
-	parameters["players"] = pc.str();
-	ostringstream mpc;
-	mpc << maxplayers;
-	parameters["max_players"] = mpc.str();
-	parameters["version"] = GAME_VERSION;
-	parameters["protocol"] = GAME_PROTOCOL;
-	ostringstream upt;
-	upt << world.frame / 10;
-	parameters["uptime"] = upt.str();
-	parameters["map"] = host->current_map().title;
-	parameters["link"] = host->server_website();
+	if (quitting)
+		parameters["quit"] = "1";
+	else {
+		parameters["name"] = hostname;
+		ostringstream pc;
+		pc << player_count;
+		parameters["players"] = pc.str();
+		if (host->config().dedserver)
+			parameters["dedicated"] = "1";
+		ostringstream mpc;
+		mpc << maxplayers;
+		parameters["max_players"] = mpc.str();
+		parameters["version"] = GAME_VERSION;
+		parameters["protocol"] = GAME_PROTOCOL;
+		ostringstream upt;
+		upt << world.frame / 10;
+		parameters["uptime"] = upt.str();
+		parameters["map"] = host->current_map().title;
+		parameters["link"] = host->server_website();
+	}
 	return parameters;
 }
 
@@ -2003,9 +2058,9 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	parameters["port"] = p.str();
 	ostringstream pc;
 	pc << player_count;
+	parameters["players"] = pc.str();
 	if (host->config().dedserver)
 		parameters["dedicated"] = "1";
-	parameters["players"] = pc.str();
 	ostringstream mpc;
 	mpc << maxplayers;
 	parameters["max_players"] = mpc.str();
@@ -2040,12 +2095,13 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 	// URL encode parameter values
 	ostringstream param_line;
 	for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
+		if (i != parameters.begin())
+			param_line << '&';
 		for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
 			url_encode(*s, param_line);
 		param_line << '=';
 		for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
 			url_encode(*s, param_line);
-		param_line << '&';
 	}
 	param_line << "\r\n";
 	return param_line.str();
@@ -2084,8 +2140,7 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread(int port) {
-	if (LOG_THREAD_IDS)
-		log("run_shellmaster_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("run_shellmaster_thread", log);
 
 	Thread slaveThread;
 	volatile bool slaveRunning = false;	// the slave thread will modify this flag when quitting
@@ -2179,13 +2234,11 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 	if (slaveThread.isRunning())
 		slaveThread.join();
 
-	if (LOG_THREAD_IDS)
-		log("exiting: run_shellmaster_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("run_shellmaster_thread", log);
 }
 
 void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// sets *runningFlag = true when quitting
-	if (LOG_THREAD_IDS)
-		log("run_shellslave_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadStart("run_shellslave_thread", log);
 
 	while (!file_threads_quit) {
 		char rbuf[256];
@@ -2317,6 +2370,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 				break;
 			case ATS_RESET_SETTINGS: {
 				host->reset_settings(true);
+				++maplist_revision;
 				char lebuf[16]; int count = 0;
 				writeByte(lebuf, count, data_reset_map_list);
 				server->broadcast_message(lebuf, count);
@@ -2346,8 +2400,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 	*runningFlag = false;
 	log("Admin shell slave thread quitting");
 
-	if (LOG_THREAD_IDS)
-		log("exiting: run_shellslave_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+	logThreadExit("run_shellslave_thread", log);
 }
 
 void ServerNetworking::stop() {

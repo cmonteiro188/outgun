@@ -95,7 +95,7 @@ class Server {
 	double			team_smul[2];
 	NLulong 		next_vote_announce_frame;
 	int				last_vote_announce_votes, last_vote_announce_needed;
-	int				idlekick_time;
+	int				idlekick_time, idlekick_playerlimit;
 	int				game_end_delay;
 	ClientData		client[MAX_PLAYERS];
 	std::vector<bool> fav_colors[2];
@@ -125,6 +125,8 @@ class Server {
 
 	bool trySetMaxplayers(int val);	// checks that no players are connected, if that fails, logs an error and returns false
 	void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
+
+	bool setForceIP(const std::string& val);
 
 	// copying not allowed
 	Server(const Server& o);

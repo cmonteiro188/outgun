@@ -48,27 +48,47 @@ const char* getNlErrorString() {
 		return nlGetErrorStr(nlGetError());
 }
 
-bool check_private_IP(const string& address) {
+bool isValidIP(const std::string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
+	unsigned int i1, i2, i3, i4, port;
+	char midChar, endChar;
+	int n = sscanf(address.c_str(), "%u.%u.%u.%u%c%u%c", &i1, &i2, &i3, &i4, &midChar, &port, &endChar);
+	if (allowPort && (requirePort || n != 4)) {
+		if (n != 6 || midChar != ':' || port > 65535 || port < minimumPort)
+			return false;
+	}
+	else {
+		if (n != 4)
+			return false;
+	}
+	return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256);
+}
+
+bool check_private_IP(const string& address, bool allowAnyExternal) {
 	int i1, i2;
 	int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
 	nAssert(n == 2);
 	if (n != 2)
 		return false;
 	// private IP ranges:
-	// 10.0.0.0        -   10.255.255.255
-	// 172.16.0.0      -   172.31.255.255
-	// 192.168.0.0     -   192.168.255.255
-	// 169.254.0.0     -   169.254.255.255 [used by Microsoft DHCP client]
+	//  10.  0.0.0  -   10.255.255.255
+	// 172. 16.0.0  -  172. 31.255.255
+	// 192.168.0.0  -  192.168.255.255
+	// 169.254.0.0  -  169.254.255.255 [used by Microsoft DHCP client]
+	// 127.  0.0.0  -  127.255.255.255 [loopback]
+	if (i1 == 127)
+		return true;
+	if (allowAnyExternal)
+		return false;
 	return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
 }
 
-string getPublicIP(LogSet& log) {
+string getPublicIP(LogSet& log, bool allowAnyExternal) {
 	NLaddress* locals;
 	NLint nLocals;
 	locals = nlGetAllLocalAddr(&nLocals);
 	for (int i = 0; i < nLocals; ++i) {
 		string addr = addressToString(locals[i]);
-		bool priv = check_private_IP(addr);
+		bool priv = check_private_IP(addr, allowAnyExternal);
 		if (priv)
 			log("Local address %s ignored", addr.c_str());
 		else {

@@ -33,9 +33,11 @@
 class LogSet;
 
 const char* getNlErrorString();
-bool check_private_IP(const std::string& address);
-std::string getPublicIP(LogSet& log);
-bool isLocalIP(NLaddress address);	// local doesn't mean private
+
+bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false);
+bool check_private_IP(const std::string& address, bool allowAnyExternal = false);	// with allowAnyExternal only (invalid and) loopback addresses are blocked
+std::string getPublicIP(LogSet& log, bool allowAnyExternal = false);	// with allowAnyExternal only (invalid and) loopback addresses are blocked
+bool isLocalIP(NLaddress address);	// returns true if address points to this machine (nothing to do with the address being private)
 std::string addressToString(const NLaddress& address);
 inline bool operator==(const NLaddress& a1, const NLaddress& a2) { return nlAddrCompare(&a1, &a2); }
 

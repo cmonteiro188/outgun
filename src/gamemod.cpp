@@ -52,7 +52,7 @@ bool GS_Boolean::set(LogSet& log, const string& value) {
 	return true;
 }
 
-bool GS_ForwardInt::set(LogSet& log, const string& value) {
+bool GS_CheckForwardInt::set(LogSet& log, const string& value) {
 	static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
 	istringstream rd(trim(value));
 	int val;

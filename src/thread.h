@@ -30,6 +30,7 @@
 class Thread {
 	static void randomize();	// does just { srand(time(0)); }; not inlined to avoid extra headers here
 	static int doStart(pthread_t* pThread, void* (*function)(void*), void* argument, bool detached, int priority);
+	static int doGetPriority(pthread_t thread);
 	static void doSetPriority(pthread_t thread, int priority);
 
 	template<class Function>
@@ -128,8 +129,10 @@ public:
 	void join(bool acceptRecursive = false);
 	void detach();
 	void setPriority(int priority) { nAssert(running); doSetPriority(thread, priority); }
+	int getPriority() const { nAssert(running); return doGetPriority(thread); }
 
 	static void setCallerPriority(int priority) { doSetPriority(pthread_self(), priority); }
+	static int getCallerPriority() { return doGetPriority(pthread_self()); }
 };
 
 #endif

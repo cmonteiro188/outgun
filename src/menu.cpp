@@ -126,6 +126,7 @@ void Menu::setSelection(int selection) {
 
 void Menu::draw(BITMAP* buffer) {
 	//#fix: handle colors and other drawing details with a separate class connected with Graphics
+	// colors are initialized in every draw because they must be initialized after every color depth change
 	col_background		= makecol(0x30, 0x40, 0x30);
 	col_borderShadow	= makecol(0x50, 0x60, 0x50);
 	col_borderHighlight	= makecol(0xA0, 0xB0, 0xA0);
@@ -332,7 +333,7 @@ void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 	if (h < minHeight())
 		return;
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-	x += (caption.length()) * char_w;
+	x += caption.length() * char_w;
 	textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
 	x += 2 * char_w;
 	if (maskChar)
@@ -346,7 +347,7 @@ void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 }
 
 int Textfield::width() const {
-	return (caption.length() + 2 + maxlen) * char_w;
+	return (caption.length() + 2 + maxlen + 1) * char_w;	// 2 for ": " and 1 for cursor
 }
 
 int Textfield::height() const {
@@ -354,13 +355,23 @@ int Textfield::height() const {
 }
 
 bool Textfield::handleKey(char scan, unsigned char chr) {
-	if (scan == KEY_BACKSPACE && !value.empty())
-		value.erase(value.end() - 1);
-	else if (!is_nonprintable_char(chr) && static_cast<int>(value.length()) < maxlen)
-		value += chr;
+	bool stateChange = false;
+	if (scan == KEY_BACKSPACE) {
+		if (!value.empty()) {
+			value.erase(value.end() - 1);
+			stateChange = true;
+		}
+	}
+	else if (!is_nonprintable_char(chr)) {
+		if ((int)value.length() < maxlen) {
+			value += chr;
+			stateChange = true;
+		}
+	}
 	else
-		return false;
-	callHook(*this);
+		return callKeyHook(*this, scan, chr);	// note: callHook is not executed regardless of the return
+	if (stateChange)
+		callHook(*this);
 	return true;
 }
 
@@ -499,12 +510,12 @@ void Slider::boundSet(int value) {
 }
 
 int Slider::width() const {
+	int fieldWidth;
 	if (graphic)
-		return char_w * (caption.length() + 20);	// arbitrary bar length
-	else {
-		const double maxAbs = max(abs(vmin) * (vmin < 0 ? 10 : 1), abs(vmax));	// multiply by 10 to add one to width to make room for '-'
-		return char_w * static_cast<int>(ceil(std::log10(maxAbs)));
-	}
+		fieldWidth = 20;	// arbitrary bar length
+	else
+		fieldWidth = max(numberWidth(vmin), numberWidth(vmax));
+	return char_w * (caption.length() + 1 + fieldWidth);
 }
 
 int Slider::height() const {
@@ -553,6 +564,67 @@ bool Slider::handleKey(char scan, unsigned char chr) {
 	else
 		return false;
 	callHook(*this);
+	return true;
+}
+
+
+void NumberEntry::boundSet(int value) {
+	entry = val = bound(value, vmin, vmax);
+}
+
+int NumberEntry::width() const {
+	int fieldWidth;	// don't count the cursor to this
+	// in basic case space for val_ is needed
+	// for the case of entry < vmin = val, space is needed for "entry_ (val)" (this can't happen when vmin == 0)
+	if (vmin > 0) {
+		int withEntry = numberWidth(vmin - 1) + numberWidth(vmin) + 3;	// the widest value for entry in this case is vmin - 1
+		fieldWidth = max(withEntry, numberWidth(vmax));
+	}
+	else
+		fieldWidth = numberWidth(vmax);
+	return char_w * (caption.length() + 2 + fieldWidth + 1);	// 2 for ": ", 1 for cursor
+}
+
+int NumberEntry::height() const {
+	return line_h;
+}
+
+void NumberEntry::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
+	if (h < minHeight())
+		return;
+	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
+	x += caption.length() * char_w;
+	textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
+	x += 2 * char_w;
+	if (entry != val)
+		textprintf_ex(buffer, font, x, y, col_value, -1, "%d%s (%d)", entry, active ? "_" : "", val);
+	else
+		textprintf_ex(buffer, font, x, y, col_value, -1, "%d%s", val, active ? "_" : "");
+}
+
+bool NumberEntry::handleKey(char scan, unsigned char chr) {
+	if ((scan == KEY_LEFT || chr == '-') && entry > vmin)
+		--entry;
+	else if ((scan == KEY_RIGHT || chr == '+') && entry < vmax)
+		++entry;
+	else if (scan == KEY_BACKSPACE)
+		entry /= 10;	// discard the last digit
+	else if (chr >= '0' && chr <= '9') {	// assuming sequentiality and ASCII order "0123456789"
+		entry = entry * 10 + (chr - '0');
+		if (entry > vmax) {
+			entry /= 10;	// back up to where we were
+			return false;
+		}
+	}
+	else
+		return false;
+	int oldVal = val;
+	if (entry >= vmin)
+		val = entry;
+	else
+		val = vmin;
+	if (val != oldVal)
+		callHook(*this);
 	return true;
 }
 

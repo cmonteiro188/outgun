@@ -22,6 +22,10 @@
  *
  */
 
+#include <string>
+#include <sstream>
+#include <vector>
+
 #include "incalleg.h"
 #include "menu.h"
 #include "utility.h"
@@ -29,6 +33,7 @@
 #include "sounds.h"
 #include "client_menus.h"
 
+using std::ostringstream;
 using std::pair;
 using std::string;
 using std::vector;
@@ -63,6 +68,7 @@ Menu_serverList::Menu_serverList() :
 
 	favorites		("Show favorite servers"),
 	addServer		(),
+	manualEntry		("Manually enter IP", "", 21),
 
 	keyHelp			("Ins = add to favorites          Del = remove server"),
 
@@ -86,6 +92,7 @@ void Menu_serverList::reset() {
 	ins_space();
 	menu.add_component(&favorites);
 	menu.add_component(&addServer.menu);
+	menu.add_component(&manualEntry);
 	ins_space();
 //	menu.add_component(&keyHelp);
 //	ins_space();
@@ -148,6 +155,8 @@ Menu_game::Menu_game() :
 	saveStats			("Save game statistics", false),
 	showStats			("Show stats after the round", false),
 	showServerInfo		("Show server info when connected", false),
+	underlineMasterAuth	("Underline master-authenticated players", true),
+	underlineServerAuth	("Underline server-authenticated players", false),
 
 	autoGetServerList	("Get server list at startup", true),
 
@@ -162,6 +171,8 @@ Menu_game::Menu_game() :
 	menu.add_component(&saveStats);
 	menu.add_component(&showStats);
 	menu.add_component(&showServerInfo);
+	menu.add_component(&underlineMasterAuth);
+	menu.add_component(&underlineServerAuth);
 	ins_space();
 	menu.add_component(&autoGetServerList);
 }
@@ -212,6 +223,7 @@ Menu_graphics::Menu_graphics() :
 
 	theme		("Theme"),
 	antialiasing("Antialiasing", true),
+	contTextures("Continuous textures between rooms", false),
 	statsBgAlpha("Stats screen alpha", true, 0, 255, 255, 15),
 
 	fpsLimit	("FPS limit", false, 1, 10000, 60, 0),
@@ -229,6 +241,7 @@ Menu_graphics::Menu_graphics() :
 	ins_space();
 	menu.add_component(&theme);
 	menu.add_component(&antialiasing);
+	menu.add_component(&contTextures);
 	menu.add_component(&statsBgAlpha);
 	ins_space();
 	menu.add_component(&fpsLimit);
@@ -318,6 +331,77 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
 	sounds	.recursiveSetMenuOpener(opener->clone());
 }
 
+Menu_ownServer::Menu_ownServer() :
+	pub		("Add to public serverlist", false),
+	port	("Server port", 1, 65535, DEFAULT_UDP_PORT),
+	address	("Detected address"),
+
+	start	("Start server"),
+	play	("Play on the server"),
+	stop	("Stop server"),
+
+	menu	("Local server", true)
+{
+	menu.add_component(&pub);
+	menu.add_component(&port);
+	menu.add_component(&address);
+	ins_space();
+	menu.add_component(&start);
+	menu.add_component(&play);
+	menu.add_component(&stop);
+}
+
+void Menu_ownServer::init(const std::string& externalAddress, bool priv) {
+	privateIP = priv;
+	if (priv && !externalAddress.empty())
+		ip = string("(private) ") + externalAddress;
+	else
+		ip = externalAddress;	// the case of empty ip is handled specially in the drawing code
+}
+
+void Menu_ownServer::refreshCaption(bool serverRunning) {
+	if (serverRunning)
+		menu.setCaption("Local server (running)");
+	else
+		menu.setCaption("Local server");
+	// this could be a separate function but it really doesn't hurt to update the address field here
+	if (ip.empty())
+		address.set("(unknown)");
+	else {
+		ostringstream os;
+		os << ip;
+		if (port() != DEFAULT_UDP_PORT)
+			os << ':' << port();
+		address.set(os.str());
+	}
+}
+
+void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) {
+	if (serverRunning) {
+		pub.setEnable(false);
+		port.setEnable(false);
+		start.setEnable(false);
+		play.setEnable(!connected);
+		stop.setEnable(true);
+	}
+	else {
+		if (privateIP) {
+			pub.set(false);
+			pub.setEnable(false);
+		}
+		else
+			pub.setEnable(true);
+		port.setEnable(true);
+		start.setEnable(true);
+		play.setEnable(false);
+		stop.setEnable(false);
+	}
+}
+
+void Menu_ownServer::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
+	menu.setHook(opener);
+}
+
 Menu_main::Menu_main() :
 	newVersion	(""),
 
@@ -326,9 +410,7 @@ Menu_main::Menu_main() :
 
 	options		(),
 
-	startServer	("Start local server"),
-	playServer	("Play on local server"),
-	stopServer	("Stop local server"),
+	ownServer	(),
 
 	help		(),
 	exitOutgun	("Exit Outgun"),
@@ -341,9 +423,7 @@ Menu_main::Menu_main() :
 	ins_space();
 	menu.add_component(&options.menu);
 	ins_space();
-	menu.add_component(&startServer);
-	menu.add_component(&playServer);
-	menu.add_component(&stopServer);
+	menu.add_component(&ownServer.menu);
 	ins_space();
 	menu.add_component(&help.menu);
 	menu.add_component(&exitOutgun);
@@ -353,6 +433,7 @@ void Menu_main::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener
 	menu.setHook(opener);
 	connect.recursiveSetMenuOpener(opener->clone());
 	options.recursiveSetMenuOpener(opener->clone());
+	ownServer.recursiveSetMenuOpener(opener->clone());
 	help.recursiveSetMenuOpener(opener->clone());
 }
 

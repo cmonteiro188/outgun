@@ -21,9 +21,9 @@
 #ifndef DLOG_H_INC
 #define DLOG_H_INC
 
-#define DISABLE_DLOG
+#include "../debugconfig.h"	// for LEETNET_ACTIVITY_LOG
 
-#ifdef DISABLE_DLOG
+#ifndef LEETNET_ACTIVITY_LOG
 
 class DLOG_Scope {
 public:
@@ -45,7 +45,7 @@ public:
 
 class DLOG_Main { };
 
-#else	// DISABLE_DLOG
+#else	// LEETNET_ACTIVITY_LOG
 
 #include <stdio.h>
 #include "../mutex.h"
@@ -59,7 +59,7 @@ class DLOG_Main {
 	MutexHolder writeMutex;
 
 public:
-	DLOG_Main() { fp = fopen("lnetdlog.txt", "wb"); nAssert(fp); }
+	DLOG_Main() { fp = fopen("lnetdlog.bin", "wb"); nAssert(fp); }
 	~DLOG_Main() { fclose(fp); }
 	void operator()(const char* str, char mode) {
 		int t = GNE::Timer::getCurrentTime().getTotaluSec();
@@ -93,7 +93,7 @@ public:
 	DLOG_ScopeNegStart(const char* n) { G_DLOG(n, '+'); }
 };
 
-#endif	// DISABLE_DLOG
+#endif	// LEETNET_ACTIVITY_LOG
 
 #endif	// DLOG_H_INC
 

@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include <cmath>
 #include <cstdarg>
 #include <cstdlib>
 #include <ctime>
@@ -69,6 +70,13 @@ int iround(double value) {
 		return static_cast<int>(value + 0.5);
 	else
 		return static_cast<int>(value - 0.5);
+}
+
+int numberWidth(int num) {
+	if (num == 0)
+		return 1;
+	int absw = static_cast<int>(floor(std::log10(double(abs(num))))) + 1;
+	return (num < 0) ? absw + 1 : absw;
 }
 
 string toupper(string str) {
