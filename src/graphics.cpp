@@ -977,7 +977,7 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 	textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
 }
 
-// ### FIXME: the blood looks ridiculous
+// ### FIXME: blood looks ridiculous
 void Graphics::draw_player_dead(int x, int y) {
 	x = scale(x);
 	y = scale(y);
