@@ -181,23 +181,9 @@ gameclient_c::~gameclient_c() {
 }
 
 bool gameclient_c::start() {
-	// gfx init
-	client_graphics.load_resolutions();
-	if (!client_graphics.init())		// fatal error
-		return false;
-
-	set_close_button_callback(gameclient_c::close_button_callback);
-
 	// open message log file
 	if (message_logging)
 		message_log.open("message.log", ios::app);
-
-	//default physics parameters
-	//set_default_physics();
-	//log("NORMAL   fri %.1f acc %.1f mxs %.1f", svp_fric, svp_accel, svp_maxspeed);
-	//log("RUN      fri %.1f acc %.1f mxs %.1f", svp_fric_run, svp_accel_run, svp_maxspeed_run);
-	//log("TURBO    fri %.1f acc %.1f mxs %.1f", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
-	//log("TURBORUN fri %.1f acc %.1f mxs %.1f", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
 
 	//clear UDPDQ
 	for (int uq=0;uq<MAX_UDPDQ;uq++) udpdq[uq] = 0;
@@ -246,12 +232,10 @@ bool gameclient_c::start() {
 	namestatus_code = 0;
 
 	//try to load the client's password
-	char dest[WHERE_PATH_SIZE];
+	string fileName = wheregamedir + "password.bin";
 	int c;
-	append_filename(dest, wheregamedir, "password.bin", WHERE_PATH_SIZE);
-	FILE *psf = fopen(dest, "rb");
+	FILE *psf = fopen(fileName.c_str(), "rb");
 	if (psf) {
-
 		char pas[PASSBUFFER];
 		for (c=0;c<PASSBUFFER;c++) {
 			int cha = fgetc(psf);
@@ -279,33 +263,21 @@ bool gameclient_c::start() {
 	}
 
 	//try to load client configuration
-	bool randomname = true; // give random name
-	append_filename(dest, wheregamedir, "clconfig.txt", WHERE_PATH_SIZE);
-	log("dest for clconfig.txt = %s", dest);
+	// defaults
+	bool randomname = true;
+	client_graphics.select_theme("<no theme>");
 
-	ifstream cfg(dest);
+	fileName = wheregamedir + "clconfig.txt";
+
+	ifstream cfg(fileName.c_str());
 	if (cfg) {
 		string line;
-		//read sound theme directory name
-		if (getline_smart(cfg, line)) {
-			client_sounds.set_theme_dir(line);
-			log("Sound theme directory default = %s", line.c_str());
-		}
 
-		//read graphics theme directory name
-		if (getline_smart(cfg, line)) {
-			client_graphics.set_theme_dir(line);
-			log("Graphics theme directory default = %s", line.c_str());
+		// read gameclient_c internal settings
+		if (getline_smart(cfg, line) && line.find_first_not_of(' ') != string::npos) {
+			randomname = false;
+			playername = line;
 		}
-
-		//read antialiasing setting
-		if (getline_smart(cfg, line)) {
-			int mode = atoi(line);
-			if (mode < 0 || mode > 2)
-				mode = 0;
-			client_graphics.set_antialiasing(static_cast<Graphics::Antialiasing_mode>(mode));
-		}
-
 		vector<int> fav_colors;
 		if (getline_smart(cfg, line)) {
 			istringstream ist(line);
@@ -320,14 +292,75 @@ bool gameclient_c::start() {
 		for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
 			menu.options.game.favoriteColors.addOption(*col);
 
-		//read player name
-		string name;
-		if (getline_smart(cfg, name) && name.find_first_not_of(' ') != string::npos) {
-			randomname = false;
-			playername = name;
+		// read game menu settings
+		if (getline_smart(cfg, line))
+			menu.options.game.showNames.set(line == "1");
+		if (getline_smart(cfg, line))
+			menu.options.game.lagPrediction.set(line == "1");
+		if (getline_smart(cfg, line)) {
+			int v = atoi(line);
+			if (v < 0 || v > 10)
+				v = 10;
+			menu.options.game.lagPredictionAmount.set(v);
+		}
+		if (getline_smart(cfg, line))
+			menu.options.game.joystick.set(line == "1");
+
+		// read graphics menu settings
+		if (getline_smart(cfg, line))
+			menu.options.graphics.windowed.set(line == "1");
+		if (getline_smart(cfg, line)) {	// depth and resolution
+			istringstream is(line);
+			int width, height, depth;
+			is >> width >> height >> depth;
+			bool ok = is;
+			char nullc;
+			is >> nullc;
+			if (!ok || is || width < 640 || height < 480 || (depth != 16 && depth != 24 && depth != 32))
+				log("Bad screen mode in clconfig.txt");
+			else {
+				nAssert(menu.options.graphics.colorDepth.set(depth));
+				menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
+				if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
+					log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
+				else
+					MCF_screenModeChange();
+			}
+		}
+		if (getline_smart(cfg, line)) {	// theme
+			if (!menu.options.graphics.theme.set(line))
+				log("Previous graphics theme not available (%s)", line.c_str());
+			else {
+				client_graphics.select_theme(line);
+				log("Graphics theme directory loaded = %s", line.c_str());
+			}
+		}
+		if (getline_smart(cfg, line)) {	// antialiasing
+			int modei = atoi(line);
+			if (modei < 0 || modei > 2)
+				modei = 0;
+			Graphics::Antialiasing_mode mode = static_cast<Graphics::Antialiasing_mode>(modei);
+			menu.options.graphics.antialiasing.set(mode);
+			client_graphics.set_antialiasing(mode);
 		}
 
-		//read addresses
+		// read sound menu settings
+		if (getline_smart(cfg, line))
+			menu.options.sounds.enabled.set(line == "1");
+		if (getline_smart(cfg, line)) {	// theme
+			if (!menu.options.sounds.theme.set(line))
+				log("Previous sound theme not available (%s)", line.c_str());
+			else {
+				client_sounds.select_theme(line);
+				log("Sound theme directory loaded = %s", line.c_str());
+			}
+		}
+
+		cfg.close();
+	}
+	fileName = wheregamedir + "favorites.txt";
+	ifstream fav(fileName.c_str());
+	if (fav) {
 		string addr;
 		while (getline_smart(cfg, addr)) {
 			gamespy_t spy;
@@ -339,20 +372,20 @@ bool gameclient_c::start() {
 			gamespy.push_back(spy);
 			mgamespy.push_back(spy);
 		}
-		cfg.close();
+		fav.close();
 	}
 
-	//give a random name
 	if (randomname)
 		playername = RandomName();
 
-	client_sounds.search_themes();
-	client_graphics.search_themes();
-	
+	if (!screenModeChange())
+		return false;
+
+	set_close_button_callback(gameclient_c::close_button_callback);
+
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
 
-	//refresh master!
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	get_servers_from_master();
 	#endif
@@ -860,7 +893,7 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 }
 
 //start downloading a server file
-void gameclient_c::download_server_file(const char *type, const char *name, char *dest) {
+void gameclient_c::download_server_file(const char *type, const char *name, const char *dest) {
 
 	//new download request
 	download_runes_t	*rune = new download_runes_t();
@@ -908,18 +941,10 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 		log("%s", lix);
 
 		// MAKE DOWNLOAD -- ASK FILE
-
-		char fname[256];
-		strcpy(fname, CLIENT_MAPS_DIR);
-		put_backslash(fname);
-		strcat(fname, mapname);
-		strcat(fname, ".txt");
-
-		char dest[1024];	//full destination path for file
-		append_filename(dest, wheregamedir, fname, WHERE_PATH_SIZE);
+		string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + mapname + ".txt";
 
 		//download server file -- opens new thread and TCP conection
-		download_server_file("map", mapname, dest);
+		download_server_file("map", mapname, fileName.c_str());
 	}
 }
 
@@ -1448,10 +1473,10 @@ void gameclient_c::connect_command() {
 	client->connect(false);
 	
 	// copy gamespy address
-	if (showmaster)
+/*	if (showmaster)
 		address = mgamespy[gi].address;
 	else
-		address = gamespy[gi].address;
+		address = gamespy[gi].address;*/
 
 	// start connecting to specified IP/port
 	// connection results will come through the CFUNC_CONNECTION_UPDATE callback
@@ -1478,13 +1503,8 @@ void gameclient_c::connect_command() {
 	writeStr(lebuf, count, playername);
 	if (!m_serverPassword.password().empty())
 		writeStr(lebuf, count, m_serverPassword.password());
-	if (!m_playerPassword.password().empty()) {
+	if (!m_playerPassword.password().empty())
 		writeStr(lebuf, count, m_playerPassword.password());
-		if (m_playerPassword.save())
-			save_player_password(playername, address, m_playerPassword.password());
-		else
-			remove_player_password(playername, address);
-	}
 
 	client->set_connect_data(lebuf, count);
 
@@ -3201,47 +3221,54 @@ void gameclient_c::stop() {
 	}
 
 	//save configuration file
-	//try to load client configuration
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, "clconfig.txt", WHERE_PATH_SIZE);
-	log("dest for clconfig.txt OUT = %s", dest);
-
-	ofstream cfg(dest);
+	string fileName = wheregamedir + "clconfig.txt";
+	ofstream cfg(fileName.c_str());
 	if (cfg) {
-		if (client_sounds.no_sounds())
-			cfg << "-\n";
-		else
-			cfg << client_sounds.theme_dir() << '\n';
-		if (client_graphics.basic())
-			cfg << "-\n";
-		else
-			cfg << client_graphics.theme_dir() << '\n';
-		cfg << client_graphics.antialiasing_mode() << '\n';
-
-		if (menu.options.game.favoriteColors.values().empty())
-			cfg << -1;
-		else
-			for (vector<int>::const_iterator col = menu.options.game.favoriteColors.values().begin();
-				col != menu.options.game.favoriteColors.values().end(); ++col)
-					cfg << *col << ' ';
-		cfg << '\n';
-
+		// save gameclient_c internal settings
 		nAssert(!playername.empty());
 		cfg << playername << '\n';
 
-		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy) {
-			log("Saving gamespy address %s.", spy->address.c_str());
-			cfg << spy->address << '\n';
+		if (menu.options.game.favoriteColors.values().empty())
+			cfg << -1;
+		else {
+			const vector<int>& colVec = menu.options.game.favoriteColors.values();
+			for (vector<int>::const_iterator col = colVec.begin(); col != colVec.end(); ++col)
+				cfg << *col << ' ';
 		}
+		cfg << '\n';
+
+		// save game menu settings
+		cfg << (menu.options.game.showNames() ? 1 : 0) << '\n';
+		cfg << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
+		cfg << menu.options.game.lagPredictionAmount() << '\n';
+		cfg << (menu.options.game.joystick() ? 1 : 0) << '\n';
+
+		// save graphics menu settings
+		cfg << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
+		ScreenMode mode = menu.options.graphics.resolution();
+		cfg << mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
+		cfg << menu.options.graphics.theme() << '\n';
+		cfg << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
+
+		// save sound menu settings
+		cfg << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
+		cfg << menu.options.sounds.theme() << '\n';
+
 		cfg.close();
+	}
+	fileName = wheregamedir + "favorites.txt";
+	ofstream fav(fileName.c_str());
+	if (fav) {
+		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
+			fav << spy->address << '\n';
+		fav.close();
 	}
 
 	//save client's password
 	log("Saving password file...");
-	append_filename(dest, wheregamedir, "password.bin", WHERE_PATH_SIZE);
-	FILE *psf = fopen(dest, "wb");
+	fileName = wheregamedir + "password.bin";
+	FILE *psf = fopen(fileName.c_str(), "wb");
 	if (psf) {
-
 		char cha;
 		for (int c=0;c<PASSBUFFER;c++) {
 			if (c < static_cast<int>(player_password.length())) {
@@ -3258,7 +3285,7 @@ void gameclient_c::stop() {
 		fclose(psf);
 	}
 	else
-		log.error("CANNOT OPEN PASSWORD FILE FOR WRITING");
+		log.error("Can't open %s for writing", fileName.c_str());
 
 	//clear udpdq
 	for (int uq=0;uq<MAX_UDPDQ;uq++)
@@ -3877,54 +3904,72 @@ void gameclient_c::draw_game_menu() {
 
 // gameclient_c::initMenus internal definition:
 template<class ArgT, void (gameclient_c::*memFun)(ArgT&)>
-class ClientCallback : public HookFunctionBase<ArgT> {
+class CallbackA : public HookFunctionBase<ArgT> {
 public:
-	ClientCallback(gameclient_c* host) : gc(host) { }
+	CallbackA(gameclient_c* host) : gc(host) { }
 	void operator()(ArgT& obj) { (gc->*memFun)(obj); }
-	HookFunctionBase<ArgT>* clone() { return new ClientCallback(gc); }
+	CallbackA* clone() { return new CallbackA(gc); }
+
+private:
+	gameclient_c* gc;
+};
+
+// gameclient_c::initMenus internal definition:
+template<class ArgT, void (gameclient_c::*memFun)()>
+class CallbackN : public HookFunctionBase<ArgT> {
+public:
+	CallbackN(gameclient_c* host) : gc(host) { }
+	void operator()(ArgT&) { (gc->*memFun)(); }
+	CallbackN* clone() { return new CallbackN(gc); }
 
 private:
 	gameclient_c* gc;
 };
 
 void gameclient_c::initMenus() {
-	menu.recursiveSetMenuOpener					(new ClientCallback<Menu,		&gameclient_c::MCF_menuOpener		>(this));
+	menu.recursiveSetMenuOpener					(new CallbackA<Menu,			&gameclient_c::MCF_menuOpener		>(this));
 
-	menu.menu						.setDrawHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareMainMenu	>(this));
+	menu.menu						.setDrawHook(new CallbackN<Menu,			&gameclient_c::MCF_prepareMainMenu	>(this));
 
-	menu.connect						.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_connect			>(this));
-	menu.disconnect						.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_disconnect		>(this));
-	menu.startServer					.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_startServer		>(this));
-	menu.stopServer						.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_stopServer		>(this));
+	menu.connect						.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_connect			>(this));
+	menu.disconnect						.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_disconnect		>(this));
+	menu.startServer					.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_startServer		>(this));
+	menu.stopServer						.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_stopServer		>(this));
 
-	menu.options.menu				  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.menu				  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 
-	menu.options.name.menu			.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareNameMenu	>(this));
-	menu.options.name.menu		   .setCloseHook(new ClientCallback<Menu,		&gameclient_c::MCF_nameMenuClose	>(this));
-	menu.options.name.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
-	menu.options.name.name				.setHook(new ClientCallback<Textfield,	&gameclient_c::MCF_nameChange		>(this));
-	menu.options.name.randomName		.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_randomName		>(this));
-	menu.options.name.removePasswords	.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_removePasswords	>(this));
+	menu.options.name.menu			.setOpenHook(new CallbackN<Menu,			&gameclient_c::MCF_prepareNameMenu	>(this));
+	menu.options.name.menu		   .setCloseHook(new CallbackN<Menu,			&gameclient_c::MCF_nameMenuClose	>(this));
+	menu.options.name.menu			  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.name.name				.setHook(new CallbackN<Textfield,		&gameclient_c::MCF_nameChange		>(this));
+	menu.options.name.randomName		.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_randomName		>(this));
+	menu.options.name.removePasswords	.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_removePasswords	>(this));
 
-	menu.options.game.menu			.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareGameMenu	>(this));
-	menu.options.game.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
-	menu.options.game.joystick			.setHook(new ClientCallback<Checkbox,   &gameclient_c::MCF_joystick			>(this));
+	menu.options.game.menu			.setOpenHook(new CallbackN<Menu,			&gameclient_c::MCF_prepareGameMenu	>(this));
+	menu.options.game.menu			  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.game.joystick			.setHook(new CallbackN<Checkbox,		&gameclient_c::MCF_joystick			>(this));
 
-	menu.options.graphics.menu		.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareGfxMenu	>(this));
-	menu.options.graphics.menu	   .setCloseHook(new ClientCallback<Menu,		&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.menu		  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
-	menu.options.graphics.apply			.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.theme			.setHook(new ClientCallback<Select,		&gameclient_c::MCF_gfxThemeChange	>(this));
+	menu.options.graphics.menu		.setOpenHook(new CallbackN<Menu,			&gameclient_c::MCF_prepareGfxMenu	>(this));
+	menu.options.graphics.menu	   .setCloseHook(new CallbackN<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
+	menu.options.graphics.menu		  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.graphics.colorDepth	.setHook(new CallbackN<Select<int>,		&gameclient_c::MCF_screenDepthChange>(this));
+	menu.options.graphics.apply			.setHook(new CallbackN<Textarea,		&gameclient_c::MCF_screenModeChange	>(this));
+	menu.options.graphics.theme			.setHook(new CallbackN<Select<string>,	&gameclient_c::MCF_gfxThemeChange	>(this));
+	typedef Select<Graphics::Antialiasing_mode> aaSelT;
+	menu.options.graphics.antialiasing	.setHook(new CallbackN<aaSelT,			&gameclient_c::MCF_antialiasChange	>(this));
 
-	menu.options.sounds.menu		.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareSndMenu	>(this));
-	menu.options.sounds.menu		  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
-	menu.options.sounds.theme			.setHook(new ClientCallback<Select,		&gameclient_c::MCF_sndThemeChange	>(this));
+	menu.options.sounds.menu		.setOpenHook(new CallbackN<Menu,			&gameclient_c::MCF_prepareSndMenu	>(this));
+	menu.options.sounds.menu		  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_menuCloser		>(this));
+	menu.options.sounds.theme			.setHook(new CallbackN<Select<string>,	&gameclient_c::MCF_sndThemeChange	>(this));
 
-	m_playerPassword.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_connect			>(this));
-	m_serverPassword.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_connect			>(this));
+	m_playerPassword.menu			  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_connect			>(this));
+	m_serverPassword.menu			  .setOkHook(new CallbackN<Menu,			&gameclient_c::MCF_connect			>(this));
+
+	menu.options.graphics.init(client_graphics);
+	menu.options.sounds.init(client_sounds);
 }
 
-void gameclient_c::MCF_prepareMainMenu(Menu&) {
+void gameclient_c::MCF_prepareMainMenu() {
 	if (listenServer.running()) {
 		menu.startServer.setEnable(false);
 		menu.stopServer.setEnable(true);
@@ -3936,17 +3981,17 @@ void gameclient_c::MCF_prepareMainMenu(Menu&) {
 	menu.disconnect.setEnable(connected);
 }
 
-void gameclient_c::MCF_prepareNameMenu(Menu&) {
+void gameclient_c::MCF_prepareNameMenu() {
 	menu.options.name.name.set(playername);
 	menu.options.name.password.set(player_password);
 }
 
-void gameclient_c::MCF_nameMenuClose(Menu&) {
+void gameclient_c::MCF_nameMenuClose() {
 	change_name_command();
 	check_change_pass_command();
 }
 
-void gameclient_c::MCF_removePasswords(Textarea&) {
+void gameclient_c::MCF_removePasswords() {
 	const int removed = remove_player_passwords(menu.options.name.name());
 	ostringstream dialog;
 	if (removed > 0)
@@ -3957,26 +4002,65 @@ void gameclient_c::MCF_removePasswords(Textarea&) {
 	showDialog(dialog.str());
 }
 
-void gameclient_c::MCF_prepareGfxMenu(Menu&) {
-	Menu_graphics& gfxmenu = menu.options.graphics;
-	//#fix: needs support from graphics and theme subsystems
-	gfxmenu.resolution.addOption("<res>");
-	gfxmenu.colorDepth.addOption("<depth>");
-	gfxmenu.theme.addOption("<theme>");
+void gameclient_c::MCF_prepareGfxMenu() {
+	menu.options.graphics.update(client_graphics);
 }
 
-void gameclient_c::MCF_prepareSndMenu(Menu&) {
-	Menu_sounds& sndmenu = menu.options.sounds;
-	//#fix: needs support from theme subsystem
-	sndmenu.theme.addOption("<theme>");
+void gameclient_c::MCF_gfxThemeChange() {
+	client_graphics.select_theme(menu.options.graphics.theme());
+	predraw();
 }
 
-/*
-a)	client_graphics.reset_video_mode();
-b)	client_graphics.init();
+void gameclient_c::MCF_screenDepthChange() {
+	menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
+}
+
+void gameclient_c::MCF_screenModeChange() { screenModeChange(); }	// used to lose the return value
+
+bool gameclient_c::screenModeChange() {	// the return value should be tested at the first call
+	if (!menu.options.graphics.newMode())
+		return true;
+	ScreenMode res = menu.options.graphics.resolution();
+	int ow = res.width, oh = res.height, depth = menu.options.graphics.colorDepth();
+	bool owin = menu.options.graphics.windowed();
+	for (int nTry = 0;; ++nTry) {
+		if (client_graphics.init(res.width, res.height, depth, menu.options.graphics.windowed())) {
+			if (nTry != 0)
+				log.error("Couldn't set screen mode %d×%d×%d %s; reverted to 640×480 %s", ow, oh, depth, owin?"windowed":"fullscreen", menu.options.graphics.windowed()?"windowed":"fullscreen");
+			break;
+		}
+		switch (nTry) {
+			case 0:
+				res.width = 640;
+				res.height = 480;
+				if (!menu.options.graphics.resolution.set(res))
+					return false;
+				break;
+			case 1:
+				menu.options.graphics.windowed.set(!owin);
+				break;
+			case 2:
+				return false;
+		}
+	}
 	client_graphics.update_minimap_background(fx.map);
 	predraw();
-*/
+	return true;
+}
+
+void gameclient_c::MCF_antialiasChange() {
+	client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
+	client_graphics.update_minimap_background(fx.map);
+	predraw();
+}
+
+void gameclient_c::MCF_prepareSndMenu() {
+	menu.options.sounds.update(client_sounds);
+}
+
+void gameclient_c::MCF_sndThemeChange() {
+	client_sounds.select_theme(menu.options.sounds.theme());
+}
 
 void gameclient_c::close_button_callback() {
 	force_exit = true;

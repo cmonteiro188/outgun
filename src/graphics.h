@@ -8,22 +8,6 @@
 
 // ---- client screen layout ----
 
-//resolution
-//#define RESOL_X 640
-//#define RESOL_Y 480
-
-//play area offset
-//#define plx 0
-//#define ply 90
-
-//minimap offset
-//#define mmx (plx + plw + 4)
-//#define mmy ply
-
-//scoreboard offset
-//#define sbx (plx + plw)
-//#define sby (mmy + 110)	// + XXX = minimap panel height
-
 class Map;
 class MapInfo;
 class Room;
@@ -41,22 +25,28 @@ class Message;
 class spoint_t;
 class rocket_c;
 
+class ScreenMode {
+public:
+	int width, height;
+
+	ScreenMode(int w, int h) : width(w), height(h) { }
+	bool operator==(const ScreenMode& o) const { return width == o.width && height == o.height; }
+	bool operator<(const ScreenMode& o) const { return width < o.width || (width == o.width && height < o.height); }
+};
+
 class Graphics {
 public:
 	Graphics(LogSet logs);
 	~Graphics();
 
-	bool init();
-
-	void load_resolutions();
+	std::vector<ScreenMode> getResolutions(int depth) const;	// returns a sorted list of unique resolutions
+	bool init(int width, int height, int depth, bool windowed);
 
 	void draw_screen() const;
 	bool save_screenshot(const std::string& filename) const;
 
-	bool reset_video_mode();
 	void clear();
 
-	void setcolors();
 	void reset_playground_colors();
 	void random_playground_colors();
 
@@ -157,41 +147,34 @@ public:
 	void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
 
 	// menus
-	void main_menu(bool connected, const std::string& address, const std::string& playername, const std::string& namestatus,
-				   bool listen_server_running, int listen_port_running, const Sounds& sounds);
-	void public_servers(const std::vector<gamespy_t>& servers, int selection);
-	void favourite_servers(const std::vector<gamespy_t>& servers, int selection);
-	void name_password_menu(const std::string& name, int password_len, bool name_selected, const std::string& namestatus);
-	void password_menu(const std::string& caption, int password_len, bool selected = true);
-	void password_menu_save(const std::string& caption, int password_len, bool save_password, bool pw_selected);
 	void game_help();
 	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
 	void dialog(const std::string& t1, const std::string& t2);
-	void display_menu();
 
 	bool save_map_picture(const std::string& filename, const Map& map);
 
-	void search_themes();
-	void next_theme();
-	void set_theme_dir(const std::string& dir);
-	const std::string& theme_dir() const { return themedir; }
+	void search_themes(LineReceiver& dst) const;
+	void select_theme(const std::string& name);
 	bool basic() const { return no_theme; }
 
 	enum Antialiasing_mode { AA_none, AA_map, AA_both };
 
 	Antialiasing_mode antialiasing_mode() const { return antialiasing; }
-	void toggle_antialiasing();
 	void set_antialiasing(Antialiasing_mode mode) { antialiasing = mode; }
-	
-	void resolution_prev();
-	void resolution_next();
 	
 	int player_color(int index) const { return col[index]; }
 	
 	BITMAP* drawbuffer() { return drawbuf; }
 
+	// public only for Mappic
+	void setColors();
+
 private:
 	void unload_bitmaps();
+
+	bool reset_video_mode(int width, int height, int depth, bool windowed);
+
+	void setPlaygroundColors();
 
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
@@ -204,9 +187,6 @@ private:
 	void draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
 
 	std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
-
-	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
-	void menu_caption();
 
 	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time);
 
@@ -224,9 +204,8 @@ private:
 
 	void scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
 
-	std::string make_theme_path(const std::string& theme_dir);
 	void load_theme(const std::string& dirname = "");
-	void load_pictures();
+	void load_pictures(const std::string& path);
 
 	void load_floor_textures(const std::string& filename);
 	void load_wall_textures(const std::string& filename);
@@ -254,9 +233,6 @@ private:
 	void hline_sc(BITMAP* buff, double x1, double y, double x2, int color) const;
 	void vline_sc(BITMAP* buff, double x, double y1, double y2, int color) const;
 	
-	int res_x() const { return resolutions[sel_resol].first; }
-	int res_y() const { return resolutions[sel_resol].second; }
-
 	BITMAP* drawbuf;	// main draw buffer
 	BITMAP* background;	// draw buffer for floor, walls and minimap
 	BITMAP* minibg;		// minimap draw buffer
@@ -298,16 +274,11 @@ private:
 
 	std::list<clientfx_t> cfx;
 
-	std::string themedir;
+	std::string theme_path;
 	std::string theme_name;
-	al_ffblk themeffblk;	// for al_find*
 	bool no_theme;
 
 	Antialiasing_mode antialiasing;
-
-	std::vector<std::pair<int, int> > resolutions;
-	int sel_resol;
-	int col_depth;
 
 	//colors
 	enum {
@@ -363,8 +334,9 @@ private:
 	int teamdcol[2];	// dark colours for player name
 
 	int	col[NUM_OF_COL];
+	int groundCol[3], wallCol[3];
 
-	LogSet log;
+	mutable LogSet log;
 };
 
 #endif // GRAPHICS_H_INC

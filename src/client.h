@@ -126,9 +126,7 @@ class gameclient_c {
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
 	MenuStack openMenus;
-//#fix: get rid
-	bool menushow;
-	Menu_selection menusel;
+	Menu_selection menusel;	// a special screen rather than menu: maplist, stats
 	bool gameshow;
 	bool helpshow;
 	double FPS;
@@ -169,27 +167,28 @@ class gameclient_c {
 
 	// menu callback functions
 	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
-	void MCF_menuCloser(Menu&) { openMenus.close(); }
-	template<class ArgT> void MCF_connect(ArgT&) { openMenus.clear(); connect_command(); }	//#fix: menu!
-	void MCF_disconnect(Textarea&) { disconnect_command(); }
-	void MCF_startServer(Textarea&) { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
-	void MCF_stopServer(Textarea&) { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
-	void MCF_prepareMainMenu(Menu&);
-	void MCF_prepareNameMenu(Menu&);
-	void MCF_nameMenuClose(Menu&);
-	void MCF_nameChange(Textfield&) { menu.options.name.password.set(""); check_change_pass_command(); }
-	void MCF_randomName(Textarea&) { menu.options.name.name.set(RandomName()); }
-	void MCF_removePasswords(Textarea&);
-	void MCF_prepareGameMenu(Menu&) { menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics); }
-	void MCF_joystick(Checkbox&) { if (menu.options.game.joystick()) install_joystick(JOY_TYPE_AUTODETECT); else remove_joystick(); }
-	void MCF_screenModeChange(Textarea&) { screenModeChange(); }
-	void MCF_gfxThemeChange(Select&) { }	//#fix: action!
-	void MCF_prepareGfxMenu(Menu&);
-	void MCF_screenModeChange(Menu&) { screenModeChange(); }
-	void MCF_sndThemeChange(Select&) { client_sounds.next_theme(); }	//#fix: action!
-	void MCF_prepareSndMenu(Menu&);
+	void MCF_menuCloser() { openMenus.close(); }
+	void MCF_connect() { openMenus.clear(); if (m_playerPassword.save()) save_player_password(playername, address, m_playerPassword.password()); else remove_player_password(playername, address); connect_command(); }	//#fix: menu!
+	void MCF_disconnect() { disconnect_command(); }
+	void MCF_startServer() { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
+	void MCF_stopServer() { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
+	void MCF_prepareMainMenu();
+	void MCF_prepareNameMenu();
+	void MCF_nameMenuClose();
+	void MCF_nameChange() { menu.options.name.password.set(""); check_change_pass_command(); }
+	void MCF_randomName() { menu.options.name.name.set(RandomName()); }
+	void MCF_removePasswords();
+	void MCF_prepareGameMenu() { menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics); }
+	void MCF_joystick() { if (menu.options.game.joystick()) install_joystick(JOY_TYPE_AUTODETECT); else remove_joystick(); }
+	void MCF_screenDepthChange();
+	void MCF_screenModeChange();
+	void MCF_gfxThemeChange();
+	void MCF_antialiasChange();
+	void MCF_prepareGfxMenu();
+	void MCF_sndThemeChange();
+	void MCF_prepareSndMenu();
 
-	void screenModeChange() { }	//#fix: action!
+	bool screenModeChange();	// the return value should be tested at the first call
 
 public:
 	bool message_logging;
@@ -232,7 +231,7 @@ public:
 	void client_udp_setup_download();
 	void client_udp_download(download_runes_t* rune);
 	void download_file_complete(download_runes_t* r);
-	void download_server_file(const char* type, const char* name, char* dest);
+	void download_server_file(const char* type, const char* name, const char* dest);
 	void server_map_command(const char* mapname, NLushort server_crc);
 
 	// sounds

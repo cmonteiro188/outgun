@@ -550,7 +550,7 @@ bool splitOnIntersect(SegListT::iterator si, BorderFunctionBase* bfn, SegListT& 
 
 void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDest) {
 	nAssert(!segDest.empty());	// it must be pre-filled with (possibly empty) segments that cover all possible y's (one seg from -1e99 to 1e99 is good)
-	nAssert(borders.size() >= 2);	// using clipping with objects wholly outside the clip area will violate this; disable this line if that's possible
+//	nAssert(borders.size() >= 2);	// using clipping with objects wholly outside the clip area (or otherwise invisible) will violate this; disable this line if that's possible
 
 	#ifdef DEBUG_SPLIT
 	cerr << '\n';

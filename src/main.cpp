@@ -1,3 +1,4 @@
+#include <string>
 #include <sstream>
 
 #include "commont.h"
@@ -6,6 +7,7 @@
 #include "mappic.h"
 
 using std::ostringstream;
+using std::string;
 
 void increment_time_counter() {
 	time_counter++;
@@ -95,16 +97,11 @@ int main(int argc, char *argv[]) {
 	directory_separator = stuff[0];
 
 	// find out where we are
-	char* exespec = new char[2048];
-	get_executable_name(exespec, 2048);
-	replace_filename((char*)wheregamedir, (const char *)exespec, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
-	delete [] exespec;
-	exespec = 0;
-
-	char lognamebuf[1024];
-
-	//open outgun.log at EXE root path
-	append_filename(lognamebuf, wheregamedir, "outgun.log", WHERE_PATH_SIZE);
+	char *path = new char[2048];
+	get_executable_name(path, 2048);
+	replace_filename(path, path, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
+	wheregamedir = path;
+	delete[] path;
 
 	log("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
@@ -326,16 +323,11 @@ int main(int argc, char *argv[]) {
 	}
 	// run client
 	else {
-		//require CLIENT_MAPS_DIR directory
-		char mappath[256];
-		strcpy(mappath, CLIENT_MAPS_DIR);  // cmaps
-		char dest[1024];
-		append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
-		log("CMAPS DIR IS = '%s'", dest);
+		string mapPath = wheregamedir + CLIENT_MAPS_DIR;
 		al_ffblk mapffblk;	//for al_find*
-		int result = al_findfirst(dest, &mapffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
+		int result = al_findfirst(mapPath.c_str(), &mapffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
 		if (result != 0 || !(mapffblk.attrib&FA_DIREC)) {
-			allegro_message("ERROR: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", dest);
+			allegro_message("ERROR: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", mapPath.c_str());
 			return 0;
 		}
 

@@ -23,6 +23,15 @@
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str);
 
+class FileReader {	// reads a file non-empty line by line, skipping commented lines (with ';')
+public:
+	FileReader(const std::string& filename);
+	std::string readLine();	// returns an empty string at end of file
+
+private:
+	std::ifstream file;
+};
+
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
 
 class ClientControls {
@@ -102,8 +111,7 @@ extern NLaddress master_address;
 extern char directory_separator;
 
 //root path (game executable path)
-#define WHERE_PATH_SIZE 256
-extern char wheregamedir[WHERE_PATH_SIZE];
+extern std::string wheregamedir;
 
 // server game phisics parameters
 extern double svp_fric, svp_accel, svp_maxspeed;

@@ -28,30 +28,6 @@
 #ifndef _log_h_
 #define _log_h_
 
-#include "stdio.h"
-
-#ifndef LOG_NOLOG
-
-#include "timefunc.h"
-
-#ifndef LOG_NOTIMEPRINT
-#define LOG_TIME_PRINT fprintf(LOG_EXPR, "%9.2f: ", LOG_TIMEFUNC)
-#else
-#define LOG_TIME_PRINT 
-#endif
-
-#define LOG_OPEN(y) { LOG_EXPR = fopen(y, "w"); }
-#define LOG(y) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y); fflush(LOG_EXPR); }
-#define LOG1(y, p1) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y, p1); fflush(LOG_EXPR); }
-#define LOG2(y, p1,p2) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y, p1,p2); fflush(LOG_EXPR); }
-#define LOG3(y, p1,p2,p3) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y, p1,p2,p3); fflush(LOG_EXPR); }
-#define LOG4(y, p1,p2,p3,p4) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y, p1,p2,p3,p4); fflush(LOG_EXPR); }
-#define LOG5(y, p1,p2,p3,p4,p5) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y, p1,p2,p3,p4,p5); fflush(LOG_EXPR); }
-#define LOG6(y, p1,p2,p3,p4,p5,p6) { LOG_TIME_PRINT; fprintf(LOG_EXPR, y, p1,p2,p3,p4,p5,p6); fflush(LOG_EXPR); }
-#define LOG_CLOSE() { fclose(LOG_EXPR); }
-
-#else
-
 #define LOG_OPEN(y)
 #define LOG(y)
 #define LOG1(y, p1)
@@ -61,9 +37,6 @@
 #define LOG5(y, p1,p2,p3,p4,p5)
 #define LOG6(y, p1,p2,p3,p4,p5,p6)
 #define LOG_CLOSE()
-
-#endif
-
 
 #endif // _log_h_
 

@@ -1,7 +1,9 @@
 #include "incalleg.h"
 #include <cstdarg>
+#include <cstdlib>
 #include <string>
 #include <sstream>
+#include <iostream>
 #include "log.h"
 #include "commont.h"	// for time_counter
 #include "utility.h"
@@ -11,6 +13,12 @@ using std::string;
 
 int atoi(const string& str) {
 	return std::atoi(str.c_str());
+}
+
+string itoa(int val, int radix) {
+	char buf[256];
+	itoa(val, buf, radix);
+	return buf;
 }
 
 int iround(double value) {
@@ -88,6 +96,11 @@ string date_and_time() {
 	char time_str[time_w + 1];
 	strftime(time_str, time_w, "%Y-%m-%d %H:%M:%S", tmb);
 	return time_str;
+}
+
+FileReader::FileReader(const string& filename) {
+	string s = wheregamedir + filename;
+	file.open(s.c_str());
 }
 
 // definitions for incalleg.h

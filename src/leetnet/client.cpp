@@ -31,10 +31,11 @@
 
 #include "client.h"
 
-#include "nl.h"
+#include <nl.h>
 
-#include "pthread.h"
-#include "sched.h"
+#include <pthread.h>
+#include <sched.h>
+#include <stdio.h>
 
 #include "rudp.h"
 

@@ -104,24 +104,36 @@ private:
 	char maskChar;	// 0 for no masking
 };
 
-class Select : public Component, public Hookable<Select> {
+class SelectBase : public Component {
 public:
-	Select(const std::string caption_): Component(caption_), selected(0) { }
-	void clearOptions() { options.clear(); selected = 0; }
-	void addOption(const std::string& text) { options.push_back(text); }
-	void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
-	int operator()() const { return selected; }
-	const std::string& asString() const { return options[selected]; }
-
-	// inherited interface
+	virtual ~SelectBase() { }
+	void draw(BITMAP* buffer, int x, int y, bool active) const;
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
 	bool handleKey(char scan, char chr);
 
-private:
+	virtual void virtualCallHook() = 0;
+
+protected:
+	SelectBase(const std::string caption_): Component(caption_), selected(0) { }
+
 	std::vector<std::string> options;
 	int selected;
+};
+
+template<class ValueT>
+class Select : public SelectBase, public Hookable< Select<ValueT> > {
+public:
+	Select(const std::string caption_): SelectBase(caption_) { }
+	void clearOptions() { options.clear(); values.clear(); selected = 0; }
+	void addOption(const std::string& text, const ValueT& value) { options.push_back(text); values.push_back(value); }
+	bool set(const ValueT& value);	// returns false if there is no value in the options
+//	void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
+	const ValueT& operator()() const { return values[selected]; }
+
+private:
+	void virtualCallHook() { callHook(*this); }
+	std::vector<ValueT> values;	// should always be in sync with options
 };
 
 class Colorselect : public Component, public Hookable<Colorselect> {
@@ -167,6 +179,7 @@ private:
 class Slider : public Component, public Hookable<Slider> {
 public:
 	Slider(const std::string caption_, int vmin_, int vmax_) : Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_) { }
+	Slider(const std::string caption_, int vmin_, int vmax_, int init_value) : Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value) { }
 	void set(int value) { val = value; }
 	int operator()() const { return val; }
 
@@ -197,6 +210,18 @@ public:
 private:
 	std::string text;
 };
+
+// template implementation
+
+template<class ValueT>
+bool Select<ValueT>::set(const ValueT& value) {
+	for (int i = 0; i < (int)values.size(); ++i)
+		if (values[i] == value) {
+			selected = i;
+			return true;
+		}
+	return false;
+}
 
 #endif // MENU_H_INC
 

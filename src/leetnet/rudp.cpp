@@ -30,11 +30,10 @@
 */
 
 #include "../mutex.h"
-#include "rudp.h"		
-#include "nl.h"				// HawkNL
-//#include "stdio.h"		//for printf debugging  (FIXME - move to log)
 #include "../nassert.h"
-#include "pthread.h"
+#include "rudp.h"		
+#include <nl.h>				// HawkNL
+#include <pthread.h>
 
 // buffer size limitations (stupid hardcoded but works)
 //

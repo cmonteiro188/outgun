@@ -177,25 +177,16 @@ bool Room::fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is
 }
 
 bool Map::load(LogSet& log, const char *mapdir, const string& mapname) {
-	char lebuffer[1024];
-	char dest[WHERE_PATH_SIZE];
+	string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
 
-	// MAPDIR + / + MAPNAME + .TXT
-	strcpy(lebuffer, mapdir);
-	put_backslash(lebuffer);
-	strcat(lebuffer, mapname.c_str());
-	strcat(lebuffer, ".txt");
-
-	//append all that to the root dir of the game
-	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
-	FILE *fmap = fopen(dest, "rb");
+	FILE *fmap = fopen(fileName.c_str(), "rb");
 	if (fmap) {
 		*this = Map();
 		NLubyte lebigbuf[65536];
 		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
 		crc = nlGetCRC16((NLubyte*)lebigbuf, numread);
 		fclose(fmap);
-		ifstream in(dest);
+		ifstream in(fileName.c_str());
 		if (in) {
 			if (!parse_file(log, in)) {
 				log.error("Can't load map '%s'", mapname.c_str());
@@ -205,7 +196,7 @@ bool Map::load(LogSet& log, const char *mapdir, const string& mapname) {
 			return true;
 		}
 	}
-	log.error("Can't load mapfile '%s'!", dest);
+	log.error("Can't load mapfile '%s'!", fileName.c_str());
 	return false;
 }
 

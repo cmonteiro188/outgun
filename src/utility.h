@@ -10,6 +10,7 @@
 template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
 
 int atoi(const std::string& str);
+std::string itoa(int val, int radix = 10);
 int iround(double value);
 
 // Returns a current time in the standard format.

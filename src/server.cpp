@@ -454,13 +454,13 @@ void gameserver_c::score_neg(int p, int amount) {
 
 void gameserver_c::load_game_mod() {
 	const int default_capture_limit = worldConfig.getCaptureLimit();
-	char filename[WHERE_PATH_SIZE];
-	append_filename(filename, wheregamedir, "gamemod.txt", WHERE_PATH_SIZE);
-	ifstream in(filename);
+
+	string filename = wheregamedir + "gamemod.txt";
+	ifstream in(filename.c_str());
 	if (in) {
 		bool command = true;
 
-		log("Loading game mod from '%s'...", filename);
+		log("Loading game mod from '%s'...", filename.c_str());
 
 		string line, cmd;
 		while (in) {
@@ -851,20 +851,15 @@ bool gameserver_c::reset_settings(bool keepMap) {
 
 	// did not specify maps, scan "maps/" folder for .txt map files
 	if (maprot.empty()) {
-		char mappath[256];
-		strcpy(mappath, SERVER_MAPS_DIR);  // maps
-		put_backslash(mappath);					// maps/
-		strcat(mappath, "*.txt");				// maps/*.txt
-		char nameBuf[512];
-		char dest[1024];
-		append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
+		string searchPattern = wheregamedir + SERVER_MAPS_DIR + directory_separator + "*.txt";
 
-		log("MAP SCAN DIR IS = '%s'", dest);
+		log("Scanning for maps: '%s'", searchPattern.c_str());
 
 		al_ffblk mapffblk;	//for al_find*
 
-		int result = al_findfirst(dest, &mapffblk, FA_ARCH|FA_RDONLY);
+		int result = al_findfirst(searchPattern.c_str(), &mapffblk, FA_ARCH|FA_RDONLY);
 		while (result == 0) {
+			char nameBuf[500];
 			//char *replace_extension(char *dest, const char *filename, const char *ext, int size
 			replace_extension(nameBuf, mapffblk.name, "", 500);
 			nameBuf[strlen(nameBuf)-1] = 0;	//take last damn '.' out

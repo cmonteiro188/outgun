@@ -28,7 +28,7 @@ class DLOG_Main { };
 #else	// DISABLE_DLOG
 
 #include <stdio.h>
-#include "/ohjlmnti/outguned/src/nassert.h"
+#include "../nassert.h"
 
 #include "Time.h"
 #include "Timer.h"

@@ -36,14 +36,14 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 
 */
 
+#include <pthread.h>
+#include <sched.h>
+#include <nl.h>
+#include <stdio.h>
 #include "../mutex.h"
-#include "pthread.h"
-#include "sched.h"
 #include "leetnet.h"
 #include "server.h"
-#include "nl.h"
 #include "rudp.h"
-#include "stdio.h"
 #include "timefunc.h"
 #include "Timer.h"
 #include "sleep.h"

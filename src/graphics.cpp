@@ -20,6 +20,7 @@
 //#define SWITCH_PAUSE_CLIENT
 
 using std::ifstream;
+using std::istringstream;
 using std::left;
 using std::list;
 using std::max;
@@ -57,15 +58,15 @@ Graphics::~Graphics() {
 	unload_bitmaps();
 }
 
-bool Graphics::init() {
+bool Graphics::init(int width, int height, int depth, bool windowed) {
+	if (!reset_video_mode(width, height, depth, windowed))
+		return false;
 	unload_bitmaps();
-	scr_mul = static_cast<double>(res_x()) / 640;
+	scr_mul = static_cast<double>(width) / 640;
 	floor_texture.resize(4, 0);
 	wall_texture.resize(1, 0);
 	for (int t = 0; t < 2; t++)
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
-	if (!reset_video_mode())
-		return false;
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
 	drawbuf = create_bitmap(SCREEN_W, SCREEN_H);
@@ -84,8 +85,10 @@ bool Graphics::init() {
 	sby = mmy + minimap_place_h + 10;
 	indicators_x = 0;
 	indicators_y = SCREEN_H - 30;
-	setcolors();
 	reset_playground_colors();
+	setColors();
+	if (!no_theme)
+		load_pictures(theme_path);
 	return true;
 }
 
@@ -105,7 +108,7 @@ void Graphics::draw_screen() const {
 	release_screen();
 }
 
-void Graphics::setcolors() {
+void Graphics::setColors() {
 	//the first 8 colors are player's colors
 	col[COLGREEN] = makecol(0x00, 0xFF, 0x00);
 	col[COLYELLOW] = makecol(0xFF, 0xFF, 0x00);
@@ -138,8 +141,6 @@ void Graphics::setcolors() {
 	col[COLMENUWHITE] = makecol(0xC0, 0xC0, 0xC0);
 	col[COLMENUGRAY] = makecol(0x68,0x68,0x68);
 	col[COLMENUBLACK] = makecol(0x40,0x40,0x40);
-	col[COLGROUND_DEF] = makecol(0x10, 0x40, 0);
-	col[COLWALL_DEF] = makecol(0x30, 0xC0, 0);
 	col[COLNOLIFE] = makecol(0, 0, 0);
 	col[COLDARKGRAY] = makecol(0x30, 0x30, 0x30);
 	col[COLSHADOW] = makecol(0x18, 0x18, 0x18);
@@ -161,152 +162,117 @@ void Graphics::setcolors() {
 	//light colours for team text bg
 	teamdcol[0] = col[COLBRED];
 	teamdcol[1] = col[COLBBLUE];
+
+	setPlaygroundColors();
+}
+
+void Graphics::setPlaygroundColors() {
+	col[COLGROUND] = makecol(groundCol[0], groundCol[1], groundCol[2]);
+	col[COLWALL] = makecol(wallCol[0], wallCol[1], wallCol[2]);
 }
 
 void Graphics::reset_playground_colors() {
-	col[COLGROUND] = col[COLGROUND_DEF];
-	col[COLWALL] = col[COLWALL_DEF];
+	static const int groundInit[] = { 0x10, 0x40, 0x00 };
+	static const int wallInit  [] = { 0x30, 0xC0, 0x00 };
+	for (int i = 0; i < 3; ++i) {
+		groundCol[i] = groundInit[i];
+		wallCol  [i] = wallInit  [i];
+	}
+	setPlaygroundColors();
 }
 
 void Graphics::random_playground_colors() {
-	col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
-	col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
+	for (int i = 0; i < 3; ++i) {
+		groundCol[i] = rand() % 256;
+		wallCol  [i] = rand() % 256;
+	}
+	setPlaygroundColors();
 }
 
 void Graphics::clear() {
 	clear_to_color(drawbuf, 0);
 }
 
-void Graphics::load_resolutions() {
-	resolutions.clear();
+vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sorted list of unique resolutions
+	vector<ScreenMode> mvec;
+	#ifdef ALLEGRO_WINDOWS
 	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
 	if (modes) {
-		log("Available graphics modes:");
+		int depth2 = (depth == 16) ? 15 : depth;	// 15 and 16 bit modes are considered equal
 		for (int i = 0; i < modes->num_modes; i++) {
 			const GFX_MODE& mode = modes->mode[i];
-			pair<int, int> res(mode.width, mode.height);
-			if ((resolutions.empty() || res != resolutions.back()) && mode.width >= 640 && mode.height >= 480) {
-				log("%d×%d×%d", mode.width, mode.height, mode.bpp);
-				resolutions.push_back(res);
-			}
+			if (mode.width >= 640 && mode.height >= 480 && (mode.bpp == depth || mode.bpp == depth2))
+				mvec.push_back(ScreenMode(mode.width, mode.height));
 		}
 		destroy_gfx_mode_list(modes);
 	}
-	else {
-		log("No possible graphics modes found for DirectX.");
+	if (mvec.empty())
+		log("No usable %d-bit DirectX fullscreen modes autodetected.", depth);
+	#endif
+	FileReader resFile("gfxmodes.txt");
+	for (;;) {
+		string line = resFile.readLine();
+		if (line.empty())
+			break;
+		istringstream ss(line);
+		int width, height, bits;
+		char nullc;
+		ss >> width >> height >> bits;
+		bool ok = ss;
+		ss >> nullc;
+		if (!ok || ss) {
+			log.error("Syntax error in gfxmodes.txt, line '%s'.", line.c_str());
+			break;
+		}
+		if (width < 640 || width < 480 || (bits != 16 && bits != 24 && bits != 32)) {
+			log.error("Unusable mode in gfxmodes.txt : %d×%d×%d (should be at least 640×480 with bits 16, 24 or 32)",
+							width, height, bits);
+			break;
+		}
+		if (bits == depth)
+			mvec.push_back(ScreenMode(width, height));
 	}
-	if (resolutions.empty())	// just try something
-		resolutions.push_back(pair<int, int>(640, 480));
-	// Search resolutions for windowed DirectX, X, Linux, etc.
-	sel_resol = 0;
+	if (mvec.empty())
+		mvec.push_back(ScreenMode(640, 480));	// just try something
+	std::sort(mvec.begin(), mvec.end());
+	mvec.erase(std::unique(mvec.begin(), mvec.end()), mvec.end());
+	return mvec;
 }
 
-void Graphics::resolution_prev() {
-	if (--sel_resol < 0)
-		sel_resol = 0;
-}
-
-void Graphics::resolution_next() {
-	if (++sel_resol >= static_cast<int>(resolutions.size()))
-		sel_resol = resolutions.size() - 1;
-}
-
-bool Graphics::reset_video_mode() {
-	string err[4];
-
-	// save playground colours
-	const int ground_r = getr(col[COLGROUND]);
-	const int ground_g = getg(col[COLGROUND]);
-	const int ground_b = getb(col[COLGROUND]);
-	const int wall_r = getr(col[COLWALL]);
-	const int wall_g = getg(col[COLWALL]);
-	const int wall_b = getb(col[COLWALL]);
-
-	//un-show any video bitmaps?
-	//show_video_bitmap(screen);
-
-	//destroy all old surfaces
+bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed) {
 	if (vidpage1) { log("destroying vidpage1"); destroy_bitmap(vidpage1); vidpage1 = 0; }
 	if (vidpage2) { log("destroying vidpage2"); destroy_bitmap(vidpage2); vidpage2 = 0; }
 	if (backbuf) { log("destroying backbuf"); destroy_bitmap(backbuf); backbuf = 0; }
 
-	int notok;
-
-	set_color_depth(16); // hicolor
-	if (winclient) // set mode
-		notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
-	else
-		notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
-
-// ***** INICIO *******
-
-	if (notok < 0) {
-		log("Cannot set %d×%d×16 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
-		log("Allegro error: '%s'", allegro_error);
-		err[0] = allegro_error;
-
-		//try again...
-		winclient = !winclient;
-		set_color_depth(16); // hicolor
-		if (winclient) // set mode
-			notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
-		else
-			notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
-
-		if (notok < 0) {
-			log("Cannot set %d×%d×16 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
-			log("Allegro error: '%s'", allegro_error);
-			err[1] = allegro_error;
-
-			//try again...
-			winclient = !winclient;
-			set_color_depth(15); // ===> different color depth
-			if (winclient) // set mode
-				notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
-			else
-				notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
-
-			if (notok < 0) {
-				log("Cannot set %d×%d×15 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
-				log("Allegro error: '%s'", allegro_error);
-				err[2] = allegro_error;
-
-				//AND try again.....
-				winclient = !winclient;
-				set_color_depth(15); // ===> different color depth
-				if (winclient) // set mode
-					notok = set_gfx_mode(WINMODE, res_x(), res_y(), 0, 0);
-				else
-					notok = set_gfx_mode(FULLMODE, res_x(), res_y(), 0, 0);
-
-				if (notok < 0) {
-					log("Cannot set %d×%d×15 windowed?=%i graphics mode!", res_x(), res_y(), winclient);
-					log("Allegro error: '%s'", allegro_error);
-					err[3] = allegro_error;
-
-					char elmsg[4096];
-					sprintf(elmsg, "Cannot initialize graphics! reasons:\n1 = '%s'\n2 = '%s'\n3 = '%s'\n4 = '%s'",
-					err[0].c_str(), err[1].c_str(), err[2].c_str(), err[3].c_str());
-					allegro_message(elmsg);
-					return false;	// FATAL error
-				}
+	log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed?"windowed":"fullscreen");
+	set_color_depth(depth);
+	int res = set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0);
+	if (res < 0) {
+		log("Error: '%s'", allegro_error);
+		if (depth == 16) {	// try equivalent 15-bit mode too
+			set_color_depth(15);
+			res = set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0);
+			if (res < 0) {
+				log("Error with equivalent 15-bit mode: '%s'", allegro_error);
+				return false;
 			}
 		}
+		else
+			return false;
 	}
 
-// ***** FIM *******
-
-#ifndef SWITCH_PAUSE_CLIENT
+	#ifndef SWITCH_PAUSE_CLIENT
 	if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
-		if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) // allow running in the background
-		{
+		if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) { // allow running in the background
 			log.error("Client cannot run in the background!");
 			return false; // FATAL
 		}
-		else log("switch_background set ok.");
+		else
+			log("Switch_background set ok.");
 	}
-	else log("switch_BACKAMNESIA set ok.");
-#endif
+	else
+		log("Switch_backamnesia set ok.");
+	#endif
 
 	//attempt to create two video bitmaps, else use RAM backbuffer
 	if (trypageflip) {
@@ -316,16 +282,16 @@ bool Graphics::reset_video_mode() {
 	}
 
 	//delete any partial video pages
-	if ((!vidpage1) || (!vidpage2)) {
+	if (!vidpage1 || !vidpage2) {
 		if (trypageflip)
-			log("PAGE FLIPPING: not enought video memory. using bruteforce doublebuffering");
+			log("Page flipping: not enough video memory. Using bruteforce doublebuffering.");
 		else
-			log("USING SAFE MODE VIDEO -- DOUBLE-BUFFERING (option -dbuf). for page flipping use -flip");
+			log("Using safe mode video -- double-buffering (option -dbuf). For page flipping use -flip.");
 
 		if (vidpage1) { destroy_bitmap(vidpage1); vidpage1 = 0; log("destroyed vidpage1"); }
-		if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; log("destroyed vidpage2");}
+		if (vidpage2) { destroy_bitmap(vidpage2); vidpage2 = 0; log("destroyed vidpage2"); }
 
-			//create RAM backbuffer
+		//create RAM backbuffer
 		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
 		if (!backbuf) {
 			log.error("Cannot create memory backbuffer!");
@@ -338,14 +304,6 @@ bool Graphics::reset_video_mode() {
 		drawbuf = vidpage1;
 		page_flipping = true;
 	}
-	setcolors();
-
-	// restore playground colours
-	col[COLGROUND] = makecol(ground_r, ground_g, ground_b);
-	col[COLWALL] = makecol(wall_r, wall_g, wall_b);
-
-	if (!no_theme)
-		load_pictures();
 
 	return true; //ok
 }
@@ -772,7 +730,6 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			}
 		}
 	}
-	log("10");
 
 	//green border
 	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);
@@ -1819,253 +1776,10 @@ void Graphics::game_help() {
 	textprintf_ex(drawbuf, font, x+100, y+510, col[COLWHITE], -1, " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
 }
 
-void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool showmaster) {
-	const int xi = 50 - 8 * 2;
-
-	textout_ex(drawbuf, font, "IP Address             Ping #P Version/Hostname", xi, 105, col[COLWHITE], -1);
-
-	char blinkchar[2];
-
-	int line = 0;
-	for (vector<gamespy_t>::const_iterator server = servers.begin(); server != servers.end(); server++) {
-		const int yi = 120 + line * 13;
-
-		// selection
-		if (selection == line) {
-			rectfill(drawbuf, xi - 3, yi - 3, xi + 550 + 8 * 3, yi + 12, col[COLSHADOW]);
-			//blink cursor
-			if ((int)(get_time() * 4) % 2)
-				blinkchar[0] = ' ';
-			else
-				blinkchar[0] = '<';
-			blinkchar[1] = 0;
-		}
-		else
-			blinkchar[0] = 0;
-
-		//server edit prompt
-		textprintf_ex(drawbuf, font, xi, yi, col[COLGREEN], -1, ":%s%s", server->address.c_str(), blinkchar);
-		//favs watermarks
-		if (showmaster && server->favs)
-			textout_ex(drawbuf, font, "*", xi - 12, yi, col[COLGREEN], -1);
-
-		//draw gamespy entry
-		bool refreshed, invalid, noresponse;
-		refreshed  = server->refreshed;
-		invalid    = server->invalid;
-		noresponse = server->noresponse;
-
-		if (!refreshed) { // not refreshed
-			//server info
-			textout_ex(drawbuf, font, "press SPACEBAR to refresh...", xi + (18+5)*8, yi, col[COLWHITE], -1);
-		}
-		else if (invalid) {	//refreshed, invalid
-			//server info
-			textout_ex(drawbuf, font, "---", xi + (18+5)*8, yi, col[COLWHITE], -1);
-		}
-		else if (noresponse) {	//refreshed, no response
-			//server info
-			textout_ex(drawbuf, font, "no response.", xi + (18+5)*8, yi, col[COLWHITE], -1);
-		}
-		else	//refreshed, valid, show server info
-			textout_ex(drawbuf, font, server->info.c_str(), xi + (18+5)*8, yi, col[COLGREEN], -1);
-		line++;
-	}
-}
-
-void Graphics::public_servers(const vector<gamespy_t>& servers, int selection) {
-	//Big F Menu
-	rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
-	rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
-
-	const int lotext = makecol(0x99, 0x99, 0x99);
-
-	const int hi = makecol(0x68, 0x68, 0x88);
-	const int lo = makecol(0x68,0x48,0x48);
-	//hilight all
-	rectfill(drawbuf, 20, 20, 620, 460, hi);
-	//first bar hi vs lo
-	rectfill(drawbuf, 20, 20, 320, 50, hi);
-	rectfill(drawbuf, 320, 19, 621, 50, 0);
-	rectfill(drawbuf, 320, 24, 616, 50, lo);
-	vline(drawbuf, 320, 20, 50, col[COLMENUBLACK]);
-	hline(drawbuf, 320, 50, 621, col[COLMENUWHITE]);
-	hline(drawbuf, 320, 24, 616, lotext);
-	vline(drawbuf, 616, 24, 49, col[COLMENUBLACK]);
-	textout_centre_ex(drawbuf, font, "INTERNET SEARCH", 170, 35, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "FAVORITES", 470, 35, lotext, -1);
-
-	int textcol;
-	if (static_cast<int>(get_time()) % 2)
-		textcol = col[COLGREEN];
-	else
-		textcol = col[COLYELLOW];
-	textout_centre_ex(drawbuf, font, "F2 = UPDATE LIST OF SERVERS", 320, 65, textcol, -1);
-
-	textout_centre_ex(drawbuf, font, "Press SPACE to refresh the servers", 320, 80, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "TAB:Favorites  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh", 320, 440, col[COLWHITE], -1);
-
-	// show the servers
-	server_list(servers, selection, true);
-}
-
-void Graphics::favourite_servers(const vector<gamespy_t>& servers, int selection) {
-	//Big F Menu
-	rect(drawbuf,  19,  19, 620, 460, col[COLMENUWHITE]);
-	rect(drawbuf,  21,  21, 621, 461, col[COLMENUBLACK]);
-
-	const int lotext = makecol(0x99, 0x99, 0x99);
-
-	const int hi = makecol(0x88, 0x68, 0x68);
-	const int lo = makecol(0x48,0x48,0x68);
-	//hilight all
-	rectfill(drawbuf, 20, 20, 620, 460, hi);
-	//first bar lo vs hi
-	rectfill(drawbuf, 320, 20, 620, 50, hi);
-	rectfill(drawbuf, 19, 19, 320, 50, 0);
-	rectfill(drawbuf, 24, 24, 320, 50, lo);
-	vline(drawbuf, 320, 19, 50, col[COLMENUWHITE]);
-	hline(drawbuf, 19, 50, 320, col[COLMENUWHITE]);
-	hline(drawbuf, 24, 24, 320, lotext);
-	vline(drawbuf, 24, 24, 49, col[COLMENUWHITE]);
-	textout_centre_ex(drawbuf, font, "INTERNET SEARCH", 170, 35, lotext, -1);
-	textout_centre_ex(drawbuf, font, "FAVORITES", 470, 35, col[COLWHITE], -1);
-
-	textout_centre_ex(drawbuf, font, "Type the IP address of the server and hit ENTER", 320, 65, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Press SPACE to refresh the servers", 320, 80, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "TAB:Internet  ARROWS:Select  ENTER:Connect  ESC:Cancel  SPACE:Refresh", 320, 440, col[COLWHITE], -1);
-
-	// show the servers
-	server_list(servers, selection, false);
-}
-
-//draw the menu caption
-void Graphics::menu_caption() {
-	//"3d" menu
-	rect(drawbuf,  99,  69, 539, 409, col[COLMENUWHITE]);
-	rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
-	rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
-	textprintf_ex(drawbuf, font, 150, 120, col[COLWHITE], -1, "Outgun         version %s", GAME_VERSION);
-	textout_ex(drawbuf, font, "http://koti.mbnet.fi/npr/outgun/", 150, 135, col[COLGREEN], -1);
-}
-
-//draw the main menu
-void Graphics::main_menu(bool connected, const string& address, const string& playername, const string& namestatus,
-						 bool listen_server_running, int listen_port_running, const Sounds& sounds) {
-	menu_caption();
-	int DELY = 10;
-	textprintf_ex(drawbuf, font, 150, 185-DELY, col[COLWHITE], -1, "  [ 1 ]   Connect");
-	textprintf_ex(drawbuf, font, 150, 200-DELY, col[COLWHITE], -1, "  [ 2 ]   Disconnect");
-	if (connected)
-		textprintf_ex(drawbuf, font, 150+22*8, 200-DELY, col[COLGREEN], -1, "(%s)", address.c_str());
-	textprintf_ex(drawbuf, font, 150, 215-DELY, col[COLWHITE], -1, "  [ 3 ]   Change Player Name & Password");
-	textprintf_ex(drawbuf, font, 150, 227-DELY, col[COLGREEN], -1, "          '%s' (%s)", playername.c_str(), namestatus.c_str());
-	textprintf_ex(drawbuf, font, 150, 243-DELY, col[COLWHITE], -1, "  [ 4 ]   Start/stop local server");
-	if (listen_server_running)
-		textprintf_ex(drawbuf, font, 150, 255-DELY, col[COLGREEN], -1, "          SERVER RUNNING ON PORT %i", listen_port_running);
-	textprintf_ex(drawbuf, font, 150, 271-DELY, col[COLWHITE], -1, "  [ 5 ]   Toggle fullscreen/windowed mode");
-
-	if (sounds.no_sounds()) {
-		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme:");
-		textprintf_centre_ex(drawbuf, font, 150+180, 298-DELY, col[COLGREEN], -1, "sounds off");
-	}
-	else {
-		textprintf_ex(drawbuf, font, 150, 286-DELY, col[COLWHITE], -1, "  [ 6 ]   Change sound theme: (%s)", sounds.theme_dir().c_str());
-		textprintf_centre_ex(drawbuf, font, 150+180, 298-DELY, col[COLGREEN], -1, "'%s'", sounds.theme_name().c_str());
-	}
-
-	if (no_theme) {
-		textprintf_ex(drawbuf, font, 150, 312-DELY, col[COLWHITE], -1, "  [ 7 ]   Change graphics theme:");
-		textprintf_centre_ex(drawbuf, font, 150+180, 324-DELY, col[COLGREEN], -1, "basic graphics");
-	}
-	else {
-		textprintf_ex(drawbuf, font, 150, 312-DELY, col[COLWHITE], -1, "  [ 7 ]   Change graphics theme: (%s)", themedir.c_str());
-		textprintf_centre_ex(drawbuf, font, 150+180, 324-DELY, col[COLGREEN], -1, "'%s'", theme_name.c_str());
-	}
-	textprintf_ex(drawbuf, font, 150, 338-DELY, col[COLWHITE], -1, "  [ 8 ]   Toggle antialiasing: (%s)", antialiasing == AA_none ? "off" : antialiasing == AA_map ? "map" : "on");
-	textout_ex(drawbuf, font, "  [ 9 ]   Display settings", 150, 353 - DELY, col[COLWHITE], -1);
-
-/*#fix: change the menu system so that everything fits :)
-	textout_ex(drawbuf, font, "Hit CONTROL+F12 to EXIT THE GAME", 150, 354-DELY, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, "Hit ESC to HIDE OR SHOW THIS MENU", 150, 369-DELY, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, "Hit F1 to SHOW THE HELP SCREEN", 150, 384-DELY, col[COLORA], -1);
-*/
-}
-
 // show two-line message
 void Graphics::dialog(const string& t1, const string& t2) {
-	menu_caption();
 	textout_ex(drawbuf, font, t1.c_str(), 150, 230, col[COLWHITE], -1);
 	textout_ex(drawbuf, font, t2.c_str(), 150, 250, col[COLWHITE], -1);
-}
-
-//draw the name and password menu
-void Graphics::name_password_menu(const string& name, int password_len, bool name_selected, const string& namestatus) {
-	menu_caption();
-
-	char namecursor = ' ';
-	char passcursor = ' ';
-	if (name_selected)
-		namecursor = '_';
-	else
-		passcursor = '_';
-
-	textout_ex(drawbuf, font, "Type in your player name. If you have", 150, 170, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, "registered your name on the Outgun", 150, 185, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, "website, then type in your password!", 150, 200, col[COLWHITE], -1);
-
-	textout_ex(drawbuf, font, "ENTER = OK   ESC = CANCEL  TAB = NEXT FIELD", 150, 220, col[COLWHITE], -1);
-	textprintf_ex(drawbuf, font, 150, 260, col[COLGREEN], -1, "NAME:     %s%c", name.c_str(), namecursor);
-
-	// password field: '********'
-	const string password(password_len, '*');
-
-	textprintf_ex(drawbuf, font, 150, 285, col[COLGREEN], -1, "PASSWORD: %s%c", password.c_str(), passcursor);
-
-	textprintf_ex(drawbuf, font, 150, 350, col[COLWHITE], -1, "Registration status: %s", namestatus.c_str());
-
-	// favourite colours
-	/*for (int i = 0; i < 10; i++)
-		draw_player(130 + 37 * i, 230, 1, i, 7, 0., 0, 255, 0.);*/
-}
-
-void Graphics::password_menu(const string& caption, int password_len, bool selected) {
-	menu_caption();
-	ostringstream line;
-	line << caption << ": ";
-	const int x = 150;
-	textout_ex(drawbuf, font, line.str().c_str(), x, 230, col[COLWHITE], -1);
-	string password(password_len, '*');
-	if (selected)
-		password += '_';
-	textout_ex(drawbuf, font, password.c_str(), x + 8 * line.str().length(), 230, col[COLGREEN], -1);
-	textout_ex(drawbuf, font, "Esc to cancel.", x, 270, col[COLWHITE], -1);
-}
-
-void Graphics::password_menu_save(const string& caption, int password_len, bool save_password, bool pw_selected) {
-	password_menu(caption, password_len, !pw_selected);
-	const int x = 150;
-	const int y = 250;
-	textout_ex(drawbuf, font, "[ ] Save password", x, y, col[COLWHITE], -1);
-	if (save_password)
-		textout_ex(drawbuf, font, "×", x + 8, y, col[COLGREEN], -1);
-	if (pw_selected)
-		textout_ex(drawbuf, font, "_", x + 8, y, col[COLGREEN], -1);
-}
-
-void Graphics::display_menu() {
-	menu_caption();
-	const int x = 150;
-	const int y = 200;
-	int line = 0;
-	textout_ex(drawbuf, font, "Resolution   ", x, y + line * 12, col[COLWHITE], -1);
-	if (resolutions.empty())
-		textout_ex(drawbuf, font, "-", x + 13 * 8, y + line * 12, col[COLGREEN], -1);
-	else
-		textprintf_ex(drawbuf, font, x + 13 * 8, y + line * 12, col[COLGREEN], -1, "%d×%d", res_x(), res_y());
-	line++;
-	textout_ex(drawbuf, font, "Colour depth ", x, y + line * 12, col[COLWHITE], -1);
-	textprintf_ex(drawbuf, font, x + 13 * 8, y + line * 12, col[COLGREEN], -1, "%d bits", col_depth);
 }
 
 //show progress (for tight loops that don't work with the regular screen flip loop)
@@ -2298,100 +2012,49 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	return failure;
 }
 
-void Graphics::toggle_antialiasing() {
-	if (antialiasing == AA_none)
-		antialiasing = AA_map;
-	else if (antialiasing == AA_map)
-		antialiasing = AA_both;
-	else
-		antialiasing = AA_none;
-}
-
 // Theme functions
 
-void Graphics::search_themes() {
-	if (no_theme)
-		return;
+void Graphics::search_themes(LineReceiver& dst) const {
+	dst("<no theme>");
 
-	const string themepath = make_theme_path("*.*");
+	const string searchPattern = wheregamedir + "graphics" + directory_separator + "*.*";
 
-	log("Graphics theme searching '%s'", themepath.c_str());
+	log("Graphics theme searching: '%s'", searchPattern.c_str());
 
-	int error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
+	const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
 
-	while (!error) {
-		if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") &&
-		  strcmp(themeffblk.name, "..") && themedir == themeffblk.name) {
-			load_theme(themedir);
-			return;
-		}
-		error = al_findnext(&themeffblk);
-	}
-	no_theme = true;
-	log("No graphics theme selected.");
+	struct al_ffblk ffblk;
+	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
+		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
+			dst(ffblk.name);
 }
 
-void Graphics::next_theme() {
-	int error;
-	if (no_theme) {
-		no_theme = false;
-		const string themepath = make_theme_path("*.*");
-		error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-	}
-	else
-		error = al_findnext(&themeffblk);
-	if (error) {
+void Graphics::select_theme(const string& dir) {
+	if (dir == "<no theme>") {
 		no_theme = true;
 		unload_pictures();
-		log("No graphics theme selected.");
 	}
-	else if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, ".."))
-		load_theme(themeffblk.name);
-	else
-		next_theme();
-}
-
-string Graphics::make_theme_path(const string& dir) {
-	string picture_name = "graphics";
-	picture_name += directory_separator;
-	picture_name += dir;
-
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, picture_name.c_str(), WHERE_PATH_SIZE);
-
-	log("Graphics theme path is '%s'.", dest);
-	
-	return dest;
+	else {
+		no_theme = false;
+		load_theme(dir.c_str());
+	}
 }
 
 void Graphics::load_theme(const string& dirname) {
-	if (!dirname.empty())
-		themedir = dirname;
+	theme_path = wheregamedir + "graphics" + directory_separator + dirname + directory_separator;
+	load_pictures(theme_path);
 
-	load_pictures();			//load new
-
-	// load theme description
-	string des_file = "graphics";
-	des_file += directory_separator;
-	des_file += themedir;
-	des_file += directory_separator;
-	des_file += "theme.txt";
-
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, des_file.c_str(), WHERE_PATH_SIZE);
-
-	ifstream in(dest);
-	if (!getline_smart(in, theme_name))
+	FileReader fr(theme_path + "theme.txt");
+	theme_name = fr.readLine();
+	if (theme_name.empty())
 		theme_name = "(unnamed theme)";
-	log("Loaded graphics theme from '%s'.", des_file.c_str());
+
+	log("Loaded graphics theme '%s'.", dirname.c_str());
 }
 
-void Graphics::load_pictures() {
-	string path = "graphics";
-	path += directory_separator;
-	path += themedir;
-	path += directory_separator;
-
+void Graphics::load_pictures(const string& path) {
+	if (floor_texture.empty())	// kludge: load_theme -> load_pictures might be called before init
+		return;
 	load_floor_textures(path);
 	load_wall_textures(path);
 	load_player_sprite(path + "team.pcx", path + "personal.pcx");
@@ -2500,12 +2163,6 @@ void Graphics::unload_player_sprites() {
 		destroy_bitmap(player_sprite_power);
 		player_sprite_power = 0;
 	}
-}
-
-void Graphics::set_theme_dir(const string& dir) {
-	themedir = dir;
-	if (dir == "-")
-		no_theme = true;
 }
 
 inline int Graphics::scale(double value) const {

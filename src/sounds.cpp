@@ -20,86 +20,43 @@ const string& Sounds::theme_name() const {
 	return themename;
 }
 
-const string& Sounds::theme_dir() const {
-	return themedir;
-}
+void Sounds::search_themes(LineReceiver& dst) const {
+	bool found = false;
 
-void Sounds::search_themes() {
-	if (no_theme)
-		return;
-	//try the last theme directory first
-	const string themepath = make_theme_path("*.*");
+	const string searchPattern = wheregamedir + "sound" + directory_separator + "*.*";
 
-	log("theme searching '%s'", themepath.c_str());
+	log("Sound theme searching: '%s'", searchPattern.c_str());
 
-	int error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
+	const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
 
-	while (!error) {
-		if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") &&
-		  strcmp(themeffblk.name, "..") && themedir == themeffblk.name) {
-			load_theme(themedir);
-			return;
+	struct al_ffblk ffblk;
+	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
+		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, "..")) {
+			dst(ffblk.name);
+			found = true;
 		}
-		error = al_findnext(&themeffblk);
-	}
-	no_theme = true;
-	log("No sound theme selected.");
+	if (!found)
+		dst("<no themes found>");
 }
 
-void Sounds::next_theme() {
-	int error;
-	if (no_theme) {
-		no_theme = false;
-		const string themepath = make_theme_path("*.*");
-		error = al_findfirst(themepath.c_str(), &themeffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-	}
-	else
-		error = al_findnext(&themeffblk);
-	if (error) {
-		no_theme = true;
-		unload_samples();
-		log("No theme selected.");
-	}
-	else if ((themeffblk.attrib & FA_DIREC) && strcmp(themeffblk.name, ".") && strcmp(themeffblk.name, ".."))
-		load_theme(themeffblk.name);
-	else
-		next_theme();
-}
-
-string Sounds::make_theme_path(const string& dir) {
-	string sound_name = "sound";
-	sound_name += directory_separator;
-	sound_name += dir;
-
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
-
-	log("Sound theme path is '%s'.", dest);
-
-	return dest;
+void Sounds::select_theme(const string& dir) {
+	load_theme(dir.c_str());
 }
 
 void Sounds::load_theme(const string& dir) {
-	if (!dir.empty())
-		themedir = dir;
-
 	unload_samples();		//unload old (if any)
-	load_samples();			//load new
+
+	string path = wheregamedir + "sound" + directory_separator + dir + directory_separator;
+
+	load_samples(path);			//load new
 
 	// load sfx theme description
-	string des_file = "sound";
-	des_file += directory_separator;
-	des_file += themedir;
-	des_file += directory_separator;
-	des_file += "theme.txt";
+	string des_file = path + "theme.txt";
 
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, des_file.c_str(), WHERE_PATH_SIZE);
-
-	ifstream in(dest);
+	ifstream in(des_file.c_str());
 	if (!getline_smart(in, themename))
 		themename = "(unnamed theme)";
-	log("Loaded sound theme from '%s'.", des_file.c_str());
+	log("Loaded sound theme '%s'.", dir.c_str());
 
 	//play a sample
 	if (!no_theme)
@@ -107,39 +64,20 @@ void Sounds::load_theme(const string& dir) {
 }
 
 //append the correct path
-SAMPLE* Sounds::load_outgun_sample(const string& fname, int slot, bool try_redirect, bool reverse) {
-	//soundname: add "sound/" to the filename
-	string sound_name = "sound";
-	sound_name += directory_separator;
-	sound_name += themedir;
-	sound_name += directory_separator;
-	sound_name += fname;
-	sound_name += ".wav";
-
-	//add soundname to where game dir
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
+SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect, bool reverse) {
+	string fileName = path + fname + ".wav";
 
 	//try load
-	SAMPLE* ret = sample[slot] = load_sample(dest);
+	SAMPLE* ret = sample[slot] = load_sample(fileName.c_str());
 
 	//sample must be played in reverse?
 	sample_reverse[slot] = reverse;
 
-	log("load_sample[%i]: '%s' = %p  rev = %i", slot, dest, ret, sample_reverse[slot]);
-
 	//V0.3.10: if not found, look for .txt redirect
 	if (try_redirect && ret == 0) {	// don't go into endless loop
-		//txt filename
-		sound_name = "sound";
-		sound_name += directory_separator;
-		sound_name += themedir;
-		sound_name += directory_separator;
-		sound_name += fname;
-		sound_name += ".txt";
-		append_filename(dest, wheregamedir, sound_name.c_str(), WHERE_PATH_SIZE);
+		string textName = path + fname + ".txt";
 
-		ifstream in(dest);
+		ifstream in(textName.c_str());
 		if (in) {
 			string redir_name;
 			getline_smart(in, redir_name);
@@ -148,7 +86,7 @@ SAMPLE* Sounds::load_outgun_sample(const string& fname, int slot, bool try_redir
 			bool is_reversed = false;
 
 			//retry once ("false": don't try redirect again if fails)
-			return load_outgun_sample(redir_name.c_str(), slot, false, is_reversed);
+			return load_outgun_sample(path, redir_name.c_str(), slot, false, is_reversed);
 		}
 	}
 
@@ -156,46 +94,46 @@ SAMPLE* Sounds::load_outgun_sample(const string& fname, int slot, bool try_redir
 }
 
 //sample try loads
-void Sounds::load_samples() {
+void Sounds::load_samples(const string& path) {
 	if (!sound_inited)
 		return;
-	load_outgun_sample("fire", SAMPLE_FIRE);
-	load_outgun_sample("hit", SAMPLE_HIT);
-	load_outgun_sample("wallhit", SAMPLE_WALLHIT);
-	load_outgun_sample("qwallhit", SAMPLE_QUADWALLHIT);
+	load_outgun_sample(path, "fire", SAMPLE_FIRE);
+	load_outgun_sample(path, "hit", SAMPLE_HIT);
+	load_outgun_sample(path, "wallhit", SAMPLE_WALLHIT);
+	load_outgun_sample(path, "qwallhit", SAMPLE_QUADWALLHIT);
 
-	load_outgun_sample("getdb", SAMPLE_GETDEATHBRINGER);
-	load_outgun_sample("usedb", SAMPLE_USEDEATHBRINGER);
-	load_outgun_sample("hitdb", SAMPLE_HITDEATHBRINGER);
-	load_outgun_sample("diedb", SAMPLE_DIEDEATHBRINGER);
+	load_outgun_sample(path, "getdb", SAMPLE_GETDEATHBRINGER);
+	load_outgun_sample(path, "usedb", SAMPLE_USEDEATHBRINGER);
+	load_outgun_sample(path, "hitdb", SAMPLE_HITDEATHBRINGER);
+	load_outgun_sample(path, "diedb", SAMPLE_DIEDEATHBRINGER);
 
-	load_outgun_sample("death1", SAMPLE_DEATH);
-	load_outgun_sample("death2", SAMPLE_DEATH_2);
+	load_outgun_sample(path, "death1", SAMPLE_DEATH);
+	load_outgun_sample(path, "death2", SAMPLE_DEATH_2);
 
-	load_outgun_sample("entergam", SAMPLE_ENTERGAME);
-	load_outgun_sample("leftgam", SAMPLE_LEFTGAME);
-	load_outgun_sample("chanteam", SAMPLE_CHANGETEAM);
-	load_outgun_sample("talk", SAMPLE_TALK);
-	load_outgun_sample("wabounce", SAMPLE_WALLBOUNCE);
+	load_outgun_sample(path, "entergam", SAMPLE_ENTERGAME);
+	load_outgun_sample(path, "leftgam", SAMPLE_LEFTGAME);
+	load_outgun_sample(path, "chanteam", SAMPLE_CHANGETEAM);
+	load_outgun_sample(path, "talk", SAMPLE_TALK);
+	load_outgun_sample(path, "wabounce", SAMPLE_WALLBOUNCE);
 
-	load_outgun_sample("weaponup", SAMPLE_WEAPON_UP);
-	load_outgun_sample("megaheal", SAMPLE_MEGAHEALTH);
-	load_outgun_sample("shieldp", SAMPLE_SHIELD_PICKUP);
-	load_outgun_sample("shieldd", SAMPLE_SHIELD_DAMAGE);
-	load_outgun_sample("shieldl", SAMPLE_SHIELD_LOST);
-	load_outgun_sample("speedon", SAMPLE_BOOTS_ON);
-	load_outgun_sample("speedoff", SAMPLE_BOOTS_OFF);
-	load_outgun_sample("quadon", SAMPLE_QUAD_ON);
-	load_outgun_sample("quadfire", SAMPLE_QUAD_FIRE);
-	load_outgun_sample("quadoff", SAMPLE_QUAD_OFF);
-	load_outgun_sample("helmon", SAMPLE_HELM_ON);
-	load_outgun_sample("helmoff", SAMPLE_HELM_OFF);
+	load_outgun_sample(path, "weaponup", SAMPLE_WEAPON_UP);
+	load_outgun_sample(path, "megaheal", SAMPLE_MEGAHEALTH);
+	load_outgun_sample(path, "shieldp", SAMPLE_SHIELD_PICKUP);
+	load_outgun_sample(path, "shieldd", SAMPLE_SHIELD_DAMAGE);
+	load_outgun_sample(path, "shieldl", SAMPLE_SHIELD_LOST);
+	load_outgun_sample(path, "speedon", SAMPLE_BOOTS_ON);
+	load_outgun_sample(path, "speedoff", SAMPLE_BOOTS_OFF);
+	load_outgun_sample(path, "quadon", SAMPLE_QUAD_ON);
+	load_outgun_sample(path, "quadfire", SAMPLE_QUAD_FIRE);
+	load_outgun_sample(path, "quadoff", SAMPLE_QUAD_OFF);
+	load_outgun_sample(path, "helmon", SAMPLE_HELM_ON);
+	load_outgun_sample(path, "helmoff", SAMPLE_HELM_OFF);
 
-	load_outgun_sample("got", SAMPLE_CTF_GOT);
-	load_outgun_sample("lost", SAMPLE_CTF_LOST);
-	load_outgun_sample("return", SAMPLE_CTF_RETURN);
-	load_outgun_sample("capture", SAMPLE_CTF_CAPTURE);
-	load_outgun_sample("gameover", SAMPLE_CTF_GAMEOVER);
+	load_outgun_sample(path, "got", SAMPLE_CTF_GOT);
+	load_outgun_sample(path, "lost", SAMPLE_CTF_LOST);
+	load_outgun_sample(path, "return", SAMPLE_CTF_RETURN);
+	load_outgun_sample(path, "capture", SAMPLE_CTF_CAPTURE);
+	load_outgun_sample(path, "gameover", SAMPLE_CTF_GAMEOVER);
 }
 
 //unload samples
@@ -216,11 +154,5 @@ void Sounds::play(int s) const {
 		stop_sample(sample[s]);
 		play_sample(sample[s], 255, 127, 1000, false);		//regular play
 	}
-}
-
-void Sounds::set_theme_dir(const string& dir) {
-	themedir = dir;
-	if (dir == "-")
-		no_theme = true;
 }
 

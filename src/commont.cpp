@@ -56,7 +56,7 @@ void ClientControls::fromJoystick() {
 }
 
 NLaddress master_address;
-char wheregamedir[WHERE_PATH_SIZE];
+string wheregamedir;
 double svp_fric, svp_accel, svp_maxspeed;
 double svp_fric_run, svp_accel_run, svp_maxspeed_run;
 double svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
@@ -127,5 +127,14 @@ istream& getline_smart(istream& in, string& str) {
 		}
 		str += c;
 	}
+}
+
+//#fix: some error handling?
+string FileReader::readLine() {	// returns an empty string at end of file
+	string s;
+	do {
+		getline_smart(file, s);
+	} while (file && !s.empty() && s[0] == ';');
+	return s;
 }
 

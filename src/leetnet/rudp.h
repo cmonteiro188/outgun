@@ -31,7 +31,7 @@
 #define _rudp_h_
 
 //hawknl
-#include "nl.h"
+#include <nl.h>
 
 // gets the IP of this machine
 void get_self_IP(NLaddress *addr);

@@ -111,18 +111,9 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 			return -1;	//#should also kick their butt for that
 		}
 
-		char lebuffer[1024];
-		char dest[WHERE_PATH_SIZE];
+		string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
 
-		// MAPDIR + / + MAPNAME + .TXT
-		strcpy(lebuffer, SERVER_MAPS_DIR);
-		put_backslash(lebuffer);
-		strcat(lebuffer, fname);
-		strcat(lebuffer, ".txt");
-
-		//append all that to the root dir of the game
-		append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
-		FILE *fmap = fopen(dest, "rb");
+		FILE *fmap = fopen(fileName.c_str(), "rb");
 		if (fmap) {
 			int amount = fread(lebuf, 1, 65536, fmap);
 			fclose(fmap);
@@ -747,16 +738,12 @@ bool ServerNetworking::start() {
 
 //reload hostname
 void ServerNetworking::reload_hostname() {
-	char filename[WHERE_PATH_SIZE];
-	append_filename(filename, wheregamedir, "hostname.txt", WHERE_PATH_SIZE);
-	ifstream in(filename);
-	if (in) {
-		getline_smart(in, hostname);
-		log("Hostname is '%s'", hostname.c_str());
-		in.close();
-	}
-	else
+	FileReader fr("hostname.txt");
+	hostname = fr.readLine();
+	if (hostname.empty())
 		hostname = "Anonymous host";
+	else
+		log("Hostname is '%s'", hostname.c_str());
 
 	//update serverinfo
 	update_serverinfo();

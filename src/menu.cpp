@@ -89,6 +89,10 @@ col_value			= makecol(0xFF, 0xFF, 0xFF);
 	const int y2 = my + h / 2;
 
 	rectfill(buffer, x1, y1, x2, y2, col_background);
+/*	hline(buffer, x1 + 1, y1 + 1, x2 - 1, col_borderHighlight);
+	vline(buffer, x1 + 1, y1 + 1, y2 - 1, col_borderHighlight);
+	hline(buffer, x1 + 1, y2 - 1, x2 - 1, col_borderShadow);
+	vline(buffer, x2 - 1, y1 + 1, y2 - 1, col_borderShadow);*/
 	hline(buffer, x1 - 1, y1 - 1, x2 + 1, col_borderHighlight);
 	vline(buffer, x1 - 1, y1 - 1, y2 + 1, col_borderHighlight);
 	hline(buffer, x1 - 1, y2 + 1, x2 + 1, col_borderShadow);
@@ -148,7 +152,7 @@ int Menu::total_width() const {
 	int min_width = caption.length() * char_w;
 	for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
 		min_width = max(min_width, (*comp)->width());
-	return min_width; //#todo: leave space for shortcut numbers
+	return min_width;	//#todo: leave space for shortcut numbers
 }
 
 int Menu::total_height() const {
@@ -194,7 +198,7 @@ bool Textfield::handleKey(char scan, char chr) {
 }
 
 
-void Select::draw(BITMAP* buffer, int x, int y, bool active) const {
+void SelectBase::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 	x += (caption.length()) * char_w;
 	textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
@@ -204,7 +208,7 @@ void Select::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, options[selected].c_str(), x, y, col_value, -1);
 }
 
-int Select::width() const {
+int SelectBase::width() const {
 	string::size_type maxSelLength = 0;	//#todo: precache
 	for (vector<string>::const_iterator si = options.begin(); si != options.end(); ++si)
 		if (si->length() > maxSelLength)
@@ -212,11 +216,11 @@ int Select::width() const {
 	return (caption.length() + 2 + maxSelLength) * char_w;
 }
 
-int Select::height() const {
+int SelectBase::height() const {
 	return line_h;
 }
 
-bool Select::handleKey(char scan, char chr) {
+bool SelectBase::handleKey(char scan, char chr) {
 	(void)chr;
 	if (scan == KEY_LEFT && selected > 0)
 		--selected;
@@ -224,7 +228,7 @@ bool Select::handleKey(char scan, char chr) {
 		++selected;
 	else
 		return false;
-	callHook(*this);
+	virtualCallHook();
 	return true;
 }
 
