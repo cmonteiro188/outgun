@@ -196,82 +196,51 @@ void gameserver_c::check_team_changes() {
 	}
 }
 
-//check if a player wants to change teams and if yes, try to fullfill the wish
+// Check if a player wants to change teams and if yes, try to fullfill the wish.
 void gameserver_c::check_player_change_teams(int pid) {
-	//valid players that want to change teams only
-	if (!world.player[pid].used) return;
-	if (!world.player[pid].want_change_teams) return;
+	if (!world.player[pid].used || !world.player[pid].want_change_teams)
+		return;
 	if (get_time() < world.player[pid].team_change_time) {
-		world.player[pid].team_change_pending = true;	//vai continuar tentando
-		return;	//v0.3.3 : intervalos minimos para troca de times
+		world.player[pid].team_change_pending = true;
+		return;
 	}
 
 	//count players in each team
-	int tc[2];tc[0]=0;tc[1]=0;
-	for (int i=0;i<maxplayers;i++)
+	int tc[2] = { 0, 0 };
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
-			tc[i/TSIZE]++;
+			tc[i / TSIZE]++;
 
 	//check if team changing happens: calculate delta TARGET TEAM - MY TEAM
-	int teamdelta = tc[1-(pid/TSIZE)] - tc[pid/TSIZE];
+	const int teamdelta = tc[1 - pid / TSIZE] - tc[pid / TSIZE];
 
-	//case 0: target team with MORE players: do not move
-	if (teamdelta > 0) {
-	}
-	//case 1: target team with 2 players less:  move player without trades
-	else if (teamdelta <= -2) {
-		// MOVE W/O TRADE
-		for (int i=0;i<maxplayers;i++)
-		if (i/TSIZE != pid/TSIZE)			// no time oposto
-		{
-			if (!world.player[i].used)		// player vago
-			{
-				move_player(pid, i);	// move pid to free slot
-				break;
-			}
-		}
-	}
+	// target team with MORE players: do not move
+	if (teamdelta > 0)
+		return;
+	// target team with 2 players less: move player without a trade
+	if (teamdelta <= -2)
+		for (int i = 0; i < maxplayers; i++)
+			if (i / TSIZE != pid / TSIZE)
+				if (!world.player[i].used) {
+					move_player(pid, i);
+					return;
+				}
 	//case 2: target team with 0 player less: check for trade, else do nothing
 	//case 3: target team with 1 player less: check for trade, else go anyways
-	else {
-		// FIND A TRADE
-		bool found = false;
-
-		for (int i=0;i<maxplayers;i++)
-		if (world.player[i].used)	// um player
-		if (i/TSIZE != pid/TSIZE)		// do outro time
-		if (world.player[i].want_change_teams)		// que quer trocar de time
-		{
-			found = true;
-			swap_players(pid, i);		// make trade
-			break;
+	// Find a trade.
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used && i / TSIZE != pid / TSIZE && world.player[i].want_change_teams) {
+			swap_players(pid, i);
+			return;
 		}
 
-		// IF TRADE NOT FOUND AND TEAMDELTA == 1, MOVE W/O TRADE
-		if ((teamdelta == -1) && (!found)) {
-
-			//comentando isso fora conserta o bug q eh o server entrar em loop
-
-			for (int i=0;i<maxplayers;i++)
-			if (i/TSIZE != pid/TSIZE)			// no time oposto
-			{
-				if (!world.player[i].used)		// player vago
-				{
-					move_player(pid, i);	// move pid to free slot
-					break;
-				}
+	// If the old team has one player more, move the player.
+	if (teamdelta == -1)
+		for (int i = 0; i < maxplayers; i++)
+			if (i / TSIZE != pid / TSIZE && !world.player[i].used) {
+				move_player(pid, i);
+				return;
 			}
-			/*
-			for (int i=0;i<MAX_PLAYERS;i++)
-			if (!world.player[i].used)		// player vago
-			if (i/TSIZE != pid/TSIZE)			// no time oposto
-			{
-				move_player(pid, i);	// move pid to free slot
-				break;
-			}
-			*/
-		}
-	}
 }
 
 //move player - move player (f rom) to empty position (t o)
@@ -480,31 +449,17 @@ void gameserver_c::load_game_mod() {
 				int ival = atoi(line.c_str());
 
 				if (cmd == "friction")
-					world.physics.walk.fric = val;
-				else if (cmd == "accel")
-					world.physics.walk.accel = val;
-				else if (cmd == "maxspeed")
-					world.physics.walk.maxSpeed = val;
-				else if (cmd == "friction_run")
-					world.physics.run.fric = val;
-				else if (cmd == "accel_run")
-					world.physics.run.accel = val;
-				else if (cmd == "maxspeed_run")
-					world.physics.run.maxSpeed = val;
-				else if (cmd == "friction_turbo")
-					world.physics.turboWalk.fric = val;
-				else if (cmd == "accel_turbo")
-					world.physics.turboWalk.accel = val;
-				else if (cmd == "maxspeed_turbo")
-					world.physics.turboWalk.maxSpeed = val;
-				else if (cmd == "friction_turborun")
-					world.physics.turboRun.fric = val;
-				else if (cmd == "accel_turborun")
-					world.physics.turboRun.accel = val;
-				else if (cmd == "maxspeed_turborun")
-					world.physics.turboRun.maxSpeed = val;
-				else if (cmd == "flag_penalty")
-					world.physics.flag_penalty = val;
+					world.physics.fric = val;
+				else if (cmd == "drag")
+					world.physics.drag = val;
+				else if (cmd == "acceleration")
+					world.physics.accel = val;
+				else if (cmd == "run_acceleration")
+					world.physics.run_mul = val;
+				else if (cmd == "turbo_acceleration")
+					world.physics.turbo_mul = val;
+				else if (cmd == "flag_acceleration")
+					world.physics.flag_mul = val;
 				else if (cmd == "player_collisions") {
 					if (ival == 0 || ival == 1)
 						world.physics.player_collisions = (ival == 1);
@@ -1030,10 +985,9 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 
 	//check if it's the first name information from client. then it
 	// must have just entered the game
-	bool entered_game = world.player[pid].name.empty();
+	const bool entered_game = world.player[pid].name.empty();
 
-	// Name with only whitespaces not allowed.
-	if (tempname.find_first_not_of("  \t") == string::npos || tempname.length() > 15)	// space, no-brake space, tab
+	if (!check_name(tempname))
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
 		#ifdef SV_NAME_AUTHORIZATION

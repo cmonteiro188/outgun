@@ -131,7 +131,7 @@ Menu_graphics::Menu_graphics() :
 	theme		("Theme"),
 	antialiasing("Antialiasing"),
 	statsBgAlpha("Stats screen alpha", 0, 255, 255),
-	grid		("Grid on room", false),
+	mapInfoMode	("Map info mode", false),
 
 	menu		("Graphic options")
 {
@@ -153,7 +153,7 @@ Menu_graphics::Menu_graphics() :
 	menu.add_component(&theme);
 	menu.add_component(&antialiasing);
 	menu.add_component(&statsBgAlpha);
-	menu.add_component(&grid);
+	menu.add_component(&mapInfoMode);
 }
 
 void Menu_graphics::init(const Graphics& gfx) {
@@ -260,8 +260,12 @@ Menu_text::Menu_text() :
 	menu	("Outgun " GAME_VERSION)
 { }
 
-void Menu_text::addLine(string line, bool cancelable) {
-	lines.push_back(Textarea(line));
+void Menu_text::addLine(const string& line, bool cancelable) {
+	addLine(line, "", cancelable);
+}
+
+void Menu_text::addLine(const string& caption, const string& value, bool cancelable) {
+	lines.push_back(Textarea(caption, value));
 	menu.clear_components();
 	for (vector<Textarea>::iterator li = lines.begin(); li != lines.end(); ++li)
 		menu.add_component(&*li);
@@ -281,7 +285,7 @@ Menu_playerPassword::Menu_playerPassword() :
 	menu.add_component(&save);
 }
 
-void Menu_playerPassword::setup(string plyName, bool saveChecked) {
+void Menu_playerPassword::setup(const string& plyName, bool saveChecked) {
 	menu.setCaption("Player password for " + plyName);
 	password.set("");
 	save.set(saveChecked);
@@ -294,3 +298,19 @@ Menu_serverPassword::Menu_serverPassword() :
 {
 	menu.add_component(&password);
 }
+
+Menu_help::Menu_help() :
+	text	(),
+
+	menu	("Outgun help")
+{ }
+
+void Menu_help::addLine(const string& line) {
+	lines.push_back(line);
+	menu.clear_components();
+	text = Textobject();
+	for (vector<string>::iterator li = lines.begin(); li != lines.end(); ++li)
+		text.addLine(*li);
+	menu.add_component(&text);
+}
+

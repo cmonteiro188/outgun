@@ -170,15 +170,6 @@ void Graphics::setColors() {
 	col[COL14] = makecol(0x00, 0x00, 0x80);
 	col[COL15] = makecol(0x80, 0x00, 0x00);
 	col[COL16] = makecol(0x66, 0x66, 0x66);
-	// original
-	/*col[COL9] = makecol(242, 158, 224);
-	col[COL10] = makecol(134, 143, 57);
-	col[COL11] = makecol( 14, 148, 87);
-	col[COL12] = makecol( 33, 132, 137);
-	col[COL13] = makecol(100, 100, 100);
-	col[COL14] = makecol(166, 166, 166);
-	col[COL15] = makecol(202, 1, 56);	//wine
-	col[COL16] = makecol(0xBF, 0x70, 0);	//darkora*/
 
 	// team solid colors
 	col[COLBLUE] = makecol(0, 0, 0xFF);
@@ -333,7 +324,7 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	return true;
 }
 
-void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags, bool grid) {
+void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags, const vector< pair<int, const spoint_t*> >& spawns, bool grid) {
 	clear_to_color(background, 0);
 	if (antialiasing == AA_both) {
 		SceneAntialiaser scene;
@@ -417,11 +408,13 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 		// draw walls
 		predraw_room_walls(room);
 	}
+	for (vector< pair<int, const spoint_t*> >::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
+		circlefill(roombg, scale(si->second->x), scale(si->second->y), scale(PLAYER_RADIUS), teamcol[si->first]);
 	if (grid) {
 		for (int y = 1; y < 12; ++y)
-			hline(roombg, 0, scale(plh * y / 12), plw, col[COLWHITE]);
+			hline(roombg, 0, scale(plh * y / 12.), scale(plw), y == 6 ? col[COLYELLOW] : col[COLWHITE]);
 		for (int x = 1; x < 16; ++x)
-			vline(roombg, scale(plw * x / 16), 0, plh, col[COLWHITE]);
+			vline(roombg, scale(plw * x / 16.), 0, scale(plh), x == 8 ? col[COLYELLOW] : col[COLWHITE]);
 	}
 	#ifdef TEST_FALL_ON_WALL
 	for (int y = 0; y < plh; y += 2)
@@ -599,12 +592,6 @@ void Graphics::draw_flag(int team, int x, int y) {
 		return;
 	}
 	y += scale(20);
-	//draw shadow
-	/*ellipsefill(drawbuf,
-		plx + x,
-		ply + y,
-		scale(12), scale(3), col[COLSHADOW]
-	);*/
 	//draw flagpole
 	rectfill(drawbuf,
 		plx + x - scale(3),
@@ -634,28 +621,25 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
 	//draw flagpole
 	rectfill(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, col[COLYELLOW]);
 	//draw the flag itself
-	rectfill(drawbuf, pix + 1, piy - scl / 32,
-		pix + scl / 32, piy - scl / 80, teamcol[team]);
+	rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, teamcol[team]);
 }
 
-void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player, int team, int pc) {
+void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
 	const pair<int, int> coords = calculate_minimap_coordinates(map, player);
-	// 3 pixels for team colour
-	putpixel(drawbuf, coords.first + 0, coords.second + 0, teamcol[team]);
-	putpixel(drawbuf, coords.first + 1, coords.second + 0, teamcol[team]);
-	putpixel(drawbuf, coords.first + 0, coords.second + 1, teamcol[team]);
-	// 1 pixel for personal colour
-	putpixel(drawbuf, coords.first + 1, coords.second + 1, col[pc]);
+	const int a = scale(1);
+	const int b = a / 2;
+	rectfill(drawbuf, coords.first - a, coords.second - a, coords.first + a, coords.second + a, teamcol[player.team()]);
+	rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
 }
 
-void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, int team, double time) {
+void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
 	const pair<int, int> coords = calculate_minimap_coordinates(map, player);
 	if (static_cast<int>(time * 15) % 3 > 0) {
-		circlefill(drawbuf, coords.first, coords.second, 2, col[COLYELLOW]);
-		circlefill(drawbuf, coords.first, coords.second, 1, teamlcol[team]);
+		circlefill(drawbuf, coords.first, coords.second, scale(2), col[COLYELLOW]);
+		circlefill(drawbuf, coords.first, coords.second, scale(1), teamlcol[player.team()]);
 	}
 	else
-		circlefill(drawbuf, coords.first, coords.second, 2, 0);
+		circlefill(drawbuf, coords.first, coords.second, scale(2), 0);
 }
 
 pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const {
@@ -1385,16 +1369,15 @@ void Graphics::team_statistics(const Team* teams) {
 			set_trans_blender(0, 0, 0, stats_alpha);
 		}
 		rectfill(drawbuf, x1, y1, x2, y2, 0);
+		// caption backgrounds
+		rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
+		rectfill(drawbuf, x1, y1 + 3 * line_height - 4, mx - 1, y1 + 4 * line_height, teamdcol[0]);
+		rectfill(drawbuf, mx, y1 + 3 * line_height - 4, x2, y1 + 4 * line_height, teamdcol[1]);
 		solid_mode();
 	}
 
-	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
-	textout_centre_ex(drawbuf, font, "TEAM STATS", mx, y1 + line_height, col[COLWHITE], -1);
-
-	rectfill(drawbuf, x1, y1 + 3 * line_height - 4, mx - 1, y1 + 4 * line_height, teamdcol[0]);
+	textout_centre_ex(drawbuf, font, "Team stats", mx, y1 + line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Red Team", (3 * x1 + x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
-
-	rectfill(drawbuf, mx, y1 + 3 * line_height - 4, x2, y1 + 4 * line_height, teamdcol[1]);
 	textout_centre_ex(drawbuf, font, "Blue Team", (x1 + 3 * x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
 
 	int line = 5;
@@ -1409,6 +1392,7 @@ void Graphics::team_statistics(const Team* teams) {
 	textout_centre_ex(drawbuf, font, "Hit accuracy",   mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Shots taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Movement",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Power",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
 	for (int t = 0; t < 2; t++) {
 		const Team& team = teams[t];
@@ -1425,6 +1409,7 @@ void Graphics::team_statistics(const Team* teams) {
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
 	}
 
 	line++;
@@ -1479,8 +1464,8 @@ void Graphics::team_statistics(const Team* teams) {
 	}
 }
 
-void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers) {
-	const int num_lines = maxplayers + 3 + 2 * 2;	// line usage: 1 blank, red team (2 captions, 1 for every player), 1 blank, blue team, 1 page num
+void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) {
+	const int num_lines = maxplayers + 3 + 2 * 3;	// line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
 	const int line_h = min(12, SCREEN_H / num_lines);	// Preferred line height is 12.
 	const int h = num_lines * line_h;
 	const int w = 540;
@@ -1492,7 +1477,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
 	const int x2 = mx + w / 2;
 	const int y2 = my + h / 2;
 	const int x_left = x1 + x_margin;
-	const int team1y = y1 + line_h, team2y = team1y + (2 + maxplayers / 2 + 1) * line_h, pageNumY = team2y + (2 + maxplayers / 2) * line_h;
+	const int team1y = y1 + line_h, team2y = team1y + (3 + maxplayers / 2 + 1) * line_h, pageNumY = team2y + (3 + maxplayers / 2) * line_h;
 
 	if (stats_alpha >= 0) {
 		if (stats_alpha < 255) {
@@ -1500,6 +1485,9 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
 			set_trans_blender(0, 0, 0, stats_alpha);
 		}
 		rectfill(drawbuf, x1, y1, x2, y2, 0);
+		// caption backgrounds
+		rectfill(drawbuf, x1, team1y - 4, x2, team1y + 2 * line_h - 1, teamdcol[0]);
+		rectfill(drawbuf, x1, team2y - 4, x2, team2y + 2 * line_h - 1, teamdcol[1]);
 		solid_mode();
 	}
 
@@ -1528,20 +1516,21 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
 	const string red =  string("Red Team              ") + caption1;
 	const string blue = string("Blue Team             ") + caption1;
 	const string row2 = string("                      ") + caption2;
-	rectfill(drawbuf, x1, team1y - 4, x2, team1y + 2 * line_h - 1, teamdcol[0]);
 	textout_ex(drawbuf, font,  red.c_str(), x_left, team1y         , col[COLWHITE], -1);
 	textout_ex(drawbuf, font, row2.c_str(), x_left, team1y + line_h, col[COLWHITE], -1);
-	rectfill(drawbuf, x1, team2y - 4, x2, team2y + 2 * line_h - 1, teamdcol[1]);
 	textout_ex(drawbuf, font, blue.c_str(), x_left, team2y         , col[COLWHITE], -1);
 	textout_ex(drawbuf, font, row2.c_str(), x_left, team2y + line_h, col[COLWHITE], -1);
 
 	int i = 0;
-	int teamLineY[2] = { team1y + 2 * line_h, team2y + 2 * line_h };
+	int teamLineY[2] = { team1y + 3 * line_h, team2y + 3 * line_h };
 	for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi, ++i) {
 		const ClientPlayer& player = **pi;
 		draw_player_statistics(player, x_left, teamLineY[player.team()], page, time);
 		teamLineY[player.team()] += line_h;
 	}
+
+	if (page == 3 && max_world_rank > 0)
+		textprintf_ex(drawbuf, font, x_left, pageNumY, col[COLGREEN], -1, "%d players in the tournament", max_world_rank);
 
 	ostringstream page_num;
 	page_num << page + 1 << '/' << 4;
@@ -1666,11 +1655,12 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 			set_trans_blender(0, 0, 0, stats_alpha);
 		}
 		rectfill(drawbuf, x1, y1, x2, y2, 0);
+		// caption background
+		rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
 		solid_mode();
 	}
 
-	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
-	textout_centre_ex(drawbuf, font, "SERVER MAP LIST", mx, y1 + line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Server map list", mx, y1 + line_height, col[COLWHITE], -1);
 
 	ostringstream caption;
 	caption << left << "Nr Vote " << setw(20) << "Title" << ' ' << setw(5) << "Size" << " Author";
@@ -2284,7 +2274,7 @@ void Graphics::load_rocket_sprites(const string& path) {
 
 // Make flag sprites by combining flag image with team colour.
 void Graphics::load_flag_sprites(const string& path) {
-	const int size = scale(41);
+	const int size = scale(50);
 	Bitmap flag = scale_sprite(path + "flag.pcx", size, size);
 	if (flag) {
 		Bitmap team = scale_alpha_sprite(path + "flag_team.pcx", size, size);

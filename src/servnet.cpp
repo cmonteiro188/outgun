@@ -27,6 +27,7 @@
 const float delay_to_report_server = 3.0;
 
 using std::ifstream;
+using std::istringstream;
 using std::map;
 using std::max;
 using std::ofstream;
@@ -712,7 +713,7 @@ bool ServerNetworking::start() {
 
 //reload hostname
 void ServerNetworking::set_hostname(const string& name) {
-	if (hostname.empty())
+	if (name.empty())
 		hostname = "Anonymous host";
 	else
 		hostname = name;
@@ -1027,7 +1028,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				host->nameChange(id, pid, name, password);
 			}
 			else if (code == data_text_message) {
-				host->chat(pid, msg+1);
+				if (find_nonprintable_char(msg + 1))
+					host->disconnectPlayer(pid, disconnect_client_misbehavior);
+				else
+					host->chat(pid, msg + 1);
 			}
 			//+attack
 			else if (code == data_fire_on) {
@@ -1149,7 +1153,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			else if (code == data_tournament_participation) {
 				NLubyte data;
 				readByte(msg, count, data);
-				ClientData& clid = host->getClientData(pid);
+				ClientData& clid = host->getClientData(world.player[pid].cid);
 				clid.next_participation = data;
 				if (!clid.participation_info_received) {
 					clid.current_participation = clid.next_participation;
@@ -1808,7 +1812,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	// send quit message
 	ostringstream quit;
-	quit << "port=" << host->config().port << "&quit=1\r\n";
+	quit << "ip=" << localAddress << "&port=" << host->config().port << "&quit=1\r\n";
 	bool result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
 	log("Master talker: Sent information to master server:");
 	log("%s", quit.str().c_str());
@@ -1837,23 +1841,74 @@ void ServerNetworking::run_website_thread() {
 			localAddress = addressToString(myadr);
 		}
 	}
+	vector<string> site_addresses;
+	string site_script, site_auth;
+	int site_refresh = 0;
 
-	const string web_settings(wheregamedir + "config" + directory_separator + "website.txt");
 	// load web script location
+	const string web_settings(wheregamedir + "config" + directory_separator + "website.txt");
 	ifstream in(web_settings.c_str());
 	if (!in) {
 		log("Website thread: Can not open %s. Quit.", web_settings.c_str());
 		return;
 	}
-	string site_name, site_ip, site_script, site_auth;
-	if (!getline_smart(in, site_name) || !getline_smart(in, site_ip) || !getline_smart(in, site_script)) {
-		log.error("Website thread: Invalid format in %s. Quit.", web_settings.c_str());
+	string line;
+	while (getline_smart(in, line)) {
+		if (line[0] == ';')
+			continue;
+		istringstream ist(line);
+		string key, value;
+		ist >> key;
+		getline_smart(ist, value);
+		value = trim(value);
+		if (!ist || value.empty()) {
+			log.error("Website thread: Invalid line in %s: '%s'. Quit.", web_settings.c_str(), line.c_str());
+			return;
+		}
+		if (key == "address")
+			site_addresses.push_back(value);
+		else if (key == "script") {
+			if (!site_script.empty()) {
+				log.error("Website thread: Multiple %s lines in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
+				return;
+			}
+			site_script = value;
+		}
+		else if (key == "auth") {
+			if (!site_auth.empty()) {
+				log.error("Website thread: Multiple %s lines in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
+				return;
+			}
+			site_auth = value;
+		}
+		else if (key == "refresh") {
+			if (site_refresh != 0) {
+				log.error("Website thread: Multiple %s lines in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
+				return;
+			}
+			const int val = atoi(value);
+			if (val <= 0) {
+				log.error("Website thread: Invalid value for %s in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
+				return;
+			}
+			site_refresh = val;
+		}
+		else {
+			log.error("Website thread: Invalid line in %s: '%s'. Quit.", web_settings.c_str(), line.c_str());
+			return;
+		}
+	}
+	in.close();
+	if (site_addresses.empty()) {
+		log("Website thread: No web site addresses in %s. Quit.", web_settings.c_str());
 		return;
 	}
-	getline_smart(in, site_auth);
-	in.close();
-	if (site_script.empty() || (site_name.empty() && site_ip.empty())) {
-		log.error("Website thread: No script or site location in %s. Quit.", web_settings.c_str());
+	if (site_script.empty()) {
+		log.error("Website thread: No script name in %s. Quit.", web_settings.c_str());
+		return;
+	}
+	if (site_refresh == 0) {
+		log.error("Website thread: No refresh time in %s. Quit.", web_settings.c_str());
 		return;
 	}
 
@@ -1867,7 +1922,7 @@ void ServerNetworking::run_website_thread() {
 		if (get_time() < website_talk_time)
 			continue;
 
-		website_talk_time = get_time() + 2 * 60.0;		// 2 minutes
+		website_talk_time = get_time() + site_refresh * 60.0;
 
 		log("Website thread: Start sending information to server website.");
 
@@ -1879,45 +1934,27 @@ void ServerNetworking::run_website_thread() {
 			log.error("Website thread: Server can't open socket to connect to server website.");
 			continue;
 		}
-		if (!nlGetAddrFromName(site_name.c_str(), &website_address))
-			log("Website thread: Can't get IP address for %s! Reason: %s", site_name.c_str(), getNlErrorString());
+		bool success = false;
+		for (vector<string>::const_iterator addri = site_addresses.begin(); addri != site_addresses.end(); ++addri)
+			if (nlGetAddrFromName(addri->c_str(), &website_address)) {
+				log("Website thread: Address %s works.", addri->c_str());
+				success = true;
+				break;
+			}
+			else
+				log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), getNlErrorString());
+		if (!success)
+			log("Website thread: Can't get any address from the list!");
 		int web_port = nlGetPortFromAddr(&website_address);
 		if (!web_port) {
 			web_port = 80;
-			nlSetAddrPort(&website_address, web_port);
+			if (nlSetAddrPort(&website_address, web_port) == NL_FALSE)
+				log("Website thread: Can't set port for the address. Reason: %s", getNlErrorString());
 		}
 		if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
-			log.error("Website thread: Server can't connect to %s:%d! Reason: %s", site_name.c_str(), web_port, getNlErrorString());
-			nlStringToAddr(site_ip.c_str(), &website_address);
-			web_port = nlGetPortFromAddr(&website_address);
-			if (!web_port) {
-				web_port = 80;
-				nlSetAddrPort(&website_address, web_port);
-			}
-			if (nlConnect(websock, &website_address) == NL_FALSE) {	// connect to IP address
-				log.error("Website thread: Server can't connect to %s! Reason: %s", site_ip.c_str(), getNlErrorString());
-				nlClose(websock);
-				continue;
-			}
-			else {	// save new name for web server
-				NLchar new_name[NL_MAX_STRING_LENGTH];
-				nlGetNameFromAddr(&website_address, new_name);
-				if (new_name && site_name != new_name) {
-					ofstream out(web_settings.c_str());
-					out << new_name << '\n' << site_ip << '\n' << site_script << '\n' << site_auth << '\n';
-					out.close();
-					log("Website thread: Saved new name (%s) for IP address %s.", new_name, site_ip.c_str());
-				}
-			}
-		}
-		else {	// save new IP address for web server
-			string new_address = addressToString(website_address);
-			if (site_ip != new_address) {
-				ofstream out(web_settings.c_str());
-				out << site_name << '\n' << new_address << '\n' << site_script << '\n' << site_auth << '\n';
-				out.close();
-				log("Website thread: Saved new IP address (%s) for %s.", new_address.c_str(), site_name.c_str());
-			}
+			log.error("Website thread: Server can't connect to the web server! Reason: %s", getNlErrorString());
+			nlClose(websock);
+			continue;
 		}
 
 		// build and send data
@@ -1962,7 +1999,7 @@ void ServerNetworking::run_website_thread() {
 
 	//connect
 	if (nlConnect(websock, &website_address) == NL_FALSE) {
-		log.error("Website thread: (Quit) Server can't connect to %s.", site_name.c_str());
+		log.error("Website thread: (Quit) Server can't connect to the web server.");
 		nlClose(websock);
 		return;
 	}

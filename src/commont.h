@@ -11,6 +11,9 @@
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str);
 
+// Check player name validity.
+bool check_name(const std::string& name);
+
 class FileReader {	// reads a file non-empty line by line, skipping commented lines (with ';')
 public:
 	FileReader(const std::string& filename);

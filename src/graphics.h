@@ -72,7 +72,8 @@ public:
 	void reset_playground_colors();
 	void random_playground_colors();
 
-	void predraw(const Room& room, const std::vector< std::pair<int, const spoint_t*> >& flags, bool grid = false);
+	void predraw(const Room& room, const std::vector< std::pair<int, const spoint_t*> >& flags,
+				 const std::vector< std::pair<int, const spoint_t*> >& spawns, bool grid = false);
 
 	void draw_background();
 	void draw_empty_background();
@@ -85,8 +86,8 @@ public:
 	void draw_mini_flag(int team, const Flag& flag, const Map& map);
 	void draw_minimap_background();
 	void update_minimap_background(const Map& map);
-	void draw_minimap_player(const Map& map, const ClientPlayer& player, int team, int pc);
-	void draw_minimap_me(const Map& map, const ClientPlayer& player, int team, double time);
+	void draw_minimap_player(const Map& map, const ClientPlayer& player);
+	void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
 	void draw_minimap_room(const Map& map, int rx, int ry);
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
@@ -118,7 +119,7 @@ public:
 	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers);
 
 	void team_statistics(const Team* teams);
-	void draw_statistics(const std::vector<ClientPlayer*>& players, int page, int time, int maxplayers);
+	void draw_statistics(const std::vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank = 0);
 	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
 					 const std::vector<std::vector<std::pair<int, int> > >& sticks, const std::vector<int>& buttons);
 

@@ -573,7 +573,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 
 MapInfo::MapInfo() : votes(0), votes_changed(false) { }
 
-bool MapInfo::load(LogSet& log, string mapName) {
+bool MapInfo::load(LogSet& log, const string& mapName) {
 	Map map;
 	bool ok = map.load(log, SERVER_MAPS_DIR, mapName);
 	if (!ok)
@@ -992,36 +992,22 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& 
 
 void WorldBase::applyPlayerAcceleration(int pid) {
 	PlayerBase* h = player[pid].getPtr();
-	bool turbo = h->item_speed;
-	bool deathbringer_affected = h->under_deathbringer_effect(get_time());
+	const bool deathbringer_affected = h->under_deathbringer_effect(get_time());
 	const Team& enemy = teams[1 - pid / TSIZE];
-	bool carryFlag = false;
-	for (vector<Flag>::const_iterator fi = enemy.flags().begin(); fi != enemy.flags().end(); ++fi)
-		if (fi->carrier() == pid) {
-			carryFlag = true;
-			break;
-		}
-	if (!carryFlag)
-		for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+	bool flag_penalty = false;
+	if (h->controls.isRun()) {	// check possible flag penalty
+		for (vector<Flag>::const_iterator fi = enemy.flags().begin(); fi != enemy.flags().end(); ++fi)
 			if (fi->carrier() == pid) {
-				carryFlag = true;
+				flag_penalty = true;
 				break;
 			}
-
-	//select effective physics vars for the player
-	float player_accel, player_friction, player_maxspeed;
-	PhysicalSettings::Movement* moveParms;
-	if (h->controls.isRun())
-		moveParms = turbo ? &physics.turboRun : &physics.run;
-	else
-		moveParms = turbo ? &physics.turboWalk : &physics.walk;
-	player_accel = moveParms->accel;
-	player_friction = moveParms->fric;
-	player_maxspeed = moveParms->maxSpeed;
-
-	//flag carrier disadvantage when running
-	if (h->controls.isRun() && carryFlag)
-		player_maxspeed -= physics.flag_penalty;
+		if (!flag_penalty)
+			for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+				if (fi->carrier() == pid) {
+					flag_penalty = true;
+					break;
+				}
+	}
 
 	float xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
 	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
@@ -1034,37 +1020,31 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 
 	// model 1 by Huntta
 
-	player_friction = 0.125;
-	const float air_friction = 0.125;
-	player_accel    = 2.25; //2.12;
+	float player_accel = physics.accel;
+	if (h->item_speed)
+		player_accel *= physics.turbo_mul;
+	if (h->controls.isRun())
+		player_accel *= physics.run_mul;
+	if (flag_penalty)
+		player_accel *= physics.flag_mul;
 
-	if (turbo)
-		if (h->controls.isRun())
-			player_accel *= 2.75;
-		else
-			player_accel *= 1.5;
-	else if (h->controls.isRun())
-		player_accel *= 1.8333;
-	if (h->controls.isRun() && carryFlag)
-		player_accel *= 0.9;
-
-	if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
-		xAcc /= sqrt(2.);
-		yAcc /= sqrt(2.);
-	}
 	if (h->sx > 0)
-		h->sx = max(h->sx - player_friction, 0.);
+		h->sx = max(h->sx - physics.fric, 0.);
 	else if (h->sx < 0)
-		h->sx = min(h->sx + player_friction, 0.);
+		h->sx = min(h->sx + physics.fric, 0.);
 	if (h->sy > 0)
-		h->sy = max(h->sy - player_friction, 0.);
+		h->sy = max(h->sy - physics.fric, 0.);
 	else if (h->sy < 0)
-		h->sy = min(h->sy + player_friction, 0.);
+		h->sy = min(h->sy + physics.fric, 0.);
 
-	h->sx -= air_friction * h->sx;
-	h->sy -= air_friction * h->sy;
+	h->sx -= physics.drag * h->sx;
+	h->sy -= physics.drag * h->sy;
 
 	if (!deathbringer_affected) {
+		if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
+			xAcc /= sqrt(2.);
+			yAcc /= sqrt(2.);
+		}
 		h->sx += xAcc * player_accel;
 		h->sy += yAcc * player_accel;
 	}
@@ -1244,50 +1224,48 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
 		addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + *dirp, 0, frameAdvance, cb);
 }
 
-void PhysicalSettings::Movement::read(char* lebuf, int& count) {
-	readFloat(lebuf, count, fric);
-	readFloat(lebuf, count, accel);
-	readFloat(lebuf, count, maxSpeed);
-}
-
-void PhysicalSettings::Movement::write(char* lebuf, int& count) const {
-	writeFloat(lebuf, count, fric);
-	writeFloat(lebuf, count, accel);
-	writeFloat(lebuf, count, maxSpeed);
-}
-
 PhysicalSettings::PhysicalSettings() :
-	walk		(1.5, 2.0, 12.0),
-	run			(1.5, 2.0, 22.0),
-	turboWalk	(3.0, 4.0, 18.0),
-	turboRun	(3.0, 4.0, 33.0),
-	flag_penalty(3.0),
+	fric		(0.125),
+	drag		(0.125),
+	accel		(2.00),
+	run_mul		(1.77),
+	turbo_mul	(1.45),
+	flag_mul	(0.900),
 	friendly_fire(false),
 	friendly_db(false),
 	player_collisions(false)
 {
+	calc_max_run_speed();
+}
+
+void PhysicalSettings::calc_max_run_speed() {
+	max_run_speed = (run_mul * accel - fric) / drag;
 }
 
 void PhysicalSettings::read(char* lebuf, int& count) {
-	walk		.read(lebuf, count);
-	run			.read(lebuf, count);
-	turboWalk	.read(lebuf, count);
-	turboRun	.read(lebuf, count);
-	readFloat(lebuf, count, flag_penalty);
+	readFloat(lebuf, count, fric);
+	readFloat(lebuf, count, drag);
+	readFloat(lebuf, count, accel);
+	readFloat(lebuf, count, run_mul);
+	readFloat(lebuf, count, turbo_mul);
+	readFloat(lebuf, count, flag_mul);
 
 	NLubyte ff_db_pc = 0;
 	readByte(lebuf, count, ff_db_pc);
 	friendly_fire		= (ff_db_pc & 0x01) != 0;
 	friendly_db			= (ff_db_pc & 0x02) != 0;
 	player_collisions	= (ff_db_pc & 0x04) != 0;
+
+	calc_max_run_speed();
 }
 
 void PhysicalSettings::write(char* lebuf, int& count) const {
-	walk		.write(lebuf, count);
-	run			.write(lebuf, count);
-	turboWalk	.write(lebuf, count);
-	turboRun	.write(lebuf, count);
-	writeFloat(lebuf, count, flag_penalty);
+	writeFloat(lebuf, count, fric);
+	writeFloat(lebuf, count, drag);
+	writeFloat(lebuf, count, accel);
+	writeFloat(lebuf, count, run_mul);
+	writeFloat(lebuf, count, turbo_mul);
+	writeFloat(lebuf, count, flag_mul);
 
 	NLubyte ff_db_pc = 0;
 	if (friendly_fire)
@@ -2306,8 +2284,8 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 					const int rid = rrock[ri];
 					if (rock[rid].team == pid / TSIZE && (!physics.friendly_fire || rock[rid].owner == pid))	// friendly rocket
 						continue;
-					bool shield = static_cast<PlayerBase&>(player[pid]).item_shield;
-					double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + plyRadius + (shield ? SHIELD_RADIUS_ADD : 0));
+					const bool shield = static_cast<PlayerBase&>(player[pid]).item_shield;
+					const double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + plyRadius + (shield ? SHIELD_RADIUS_ADD : 0));
 					if (time < minCollision && time < rockMoveMax[ri]) {
 						minCollision = time;
 						cPlyI = pi;
@@ -2329,7 +2307,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				const int pid = rply[pi];
 				for (uint ti = pi + 1; ti < rply.size(); ++ti) {
 					const int tid = rply[ti];
-					double time = getTimeTillCollision(player[pid], player[tid], 2. * plyRadius);
+					const double time = getTimeTillCollision(player[pid], player[tid], 2. * plyRadius);
 					if (time < minPlyCollision) {
 						minPlyCollision = time;
 						pcPly1I = pi;
@@ -2539,7 +2517,7 @@ void ServerWorld::simulateFrame() {
 			//check enemy players onscreen that are not hit by it yet and are inside
 			// the donut radius...radius-50
 			for (int v = 0; v < maxplayers; v++)
-				//enemy players only if friendly fire is off
+				//enemy players only if friendly deathbringer is off
 				if ((v/TSIZE != i/TSIZE || physics.friendly_db) && player[v].used && player[v].health > 0 &&
 								player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
 								player[v].deathbringer_end < get_time()) {
@@ -2940,6 +2918,7 @@ void Team::clear_stats() {
 	total_hits = 0;
 	total_shots_taken = 0;
 	total_movement = 0;
+	tournament_power = 0;
 	caps.clear();
 	start_score = 0;
 }
@@ -3100,6 +3079,13 @@ void Statistics::add_flag_take(double time) {
 void Statistics::add_flag_drop(double time) {
 	flag = false;
 	++total_flags_dropped;
+	total_flag_carrying_time += time - flag_taking_time;
+}
+
+void Statistics::finish_stats(double time) {
+	dead = true;
+	total_lifetime += time - last_spawn_time;
+	flag = false;
 	total_flag_carrying_time += time - flag_taking_time;
 }
 

@@ -146,7 +146,7 @@ void TournamentPasswordManager::stop() {
 	}
 }
 
-void TournamentPasswordManager::changeData(string newName, string newPass) {
+void TournamentPasswordManager::changeData(const string& newName, const string& newPass) {
 	if (newName == name && newPass == password)
 		return;
 
@@ -454,9 +454,9 @@ bool gameclient_c::start() {
 		string line;
 
 		// read gameclient_c internal settings
-		if (getline_smart(cfg, line) && line.find_first_not_of("  \t") != string::npos) {
+		if (getline_smart(cfg, line) && check_name(line)) {
 			randomname = false;
-			playername = line.substr(0, 15);
+			playername = line;
 		}
 
 		// read name menu settings
@@ -563,15 +563,19 @@ bool gameclient_c::start() {
 	if (fav) {
 		string addr;
 		while (getline_smart(fav, addr)) {
-			gamespy_t spy;
-			spy.address = addr;
-			gamespy.push_back(spy);
+			NLaddress testAddr;	// test IP address validity
+			if (nlStringToAddr(addr.c_str(), &testAddr)) {
+				gamespy_t spy;
+				spy.address = addr;
+				spy.addr = testAddr;
+				gamespy.push_back(spy);
+			}
 		}
 		fav.close();
 	}
 
 	if (randomname)
-		playername = RandomName();
+		playername = trim(RandomName().substr(0, 15));
 
 	tournamentPassword.changeData(playername, menu.options.name.password());
 
@@ -1128,7 +1132,7 @@ void gameclient_c::save_stats() const {
 	out << "<H3>Team stats</H3>\n\n";
 	const Team& red = fx.teams[0];
 	const Team& blue = fx.teams[1];
-	out << "<TABLE BORDER>\n <TR><TH>Team<TH>Red<TH>Blue\n";
+	out << "<TABLE BORDER CLASS=\"teams\">\n <TR><TH>Team<TH>Red<TH>Blue\n";
 	print_team_stats_row(out, "Captures",		red.score(), blue.score());
 	print_team_stats_row(out, "Kills",			red.kills(), blue.kills());
 	print_team_stats_row(out, "Deaths",			red.deaths(), blue.deaths());
@@ -1143,7 +1147,7 @@ void gameclient_c::save_stats() const {
 	out << "</TABLE>\n\n";
 
 	out << "<H3>Player stats</H3>\n\n";
-	out << "<TABLE BORDER>\n <TR><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
+	out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
 	for (vector<ClientPlayer>::const_iterator pl = fx.player.begin(); pl != fx.player.end(); ++pl) {
 		if (!pl->used)
 			continue;
@@ -1158,6 +1162,8 @@ void gameclient_c::save_stats() const {
 		out << "<TD>" << stats.flags_dropped();
 		out << "<TD>" << stats.flags_returned();
 		out << "<TD>" << stats.carriers_killed();
+		const int carry_time = static_cast<int>(stats.flag_carrying_time(0));
+		out << "<TD>" << carry_time / 60 << ':' << carry_time % 60;
 		out << "<TD>" << stats.cons_kills();
 		out << "<TD>" << stats.cons_deaths();
 		out << "<TD>" << stats.shots();
@@ -1165,7 +1171,7 @@ void gameclient_c::save_stats() const {
 		out << "<TD>" << stats.shots_taken();
 		out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement() << " u";
 	}
-	out << "</TABLE>\n\n";
+	out << "\n</TABLE>\n\n";
 }
 
 void gameclient_c::print_team_stats_row(ostream& out, const string& header, int amount1, int amount2, const string& postfix) const {
@@ -1227,7 +1233,7 @@ void gameclient_c::issue_change_name_command() {
 	//regular change name
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_name_update);
-	nAssert(playername.length() < 16);
+	nAssert(check_name(playername));
 	writeStr(lebuf, count, playername);	// the name
 	writeStr(lebuf, count, m_playerPassword.password());	// empty or not, it's needed
 	client->send_message(lebuf, count);
@@ -1235,8 +1241,9 @@ void gameclient_c::issue_change_name_command() {
 
 void gameclient_c::change_name_command() {
 	//set new name, close menu
+	menu.options.name.name.set(trim(menu.options.name.name()));
 	const string& newName = menu.options.name.name();
-	if (newName.find_first_not_of("  \t") == string::npos)
+	if (!check_name(newName))
 		return;
 	if (openMenus.safeTop() == &menu.options.name.menu)
 		openMenus.close();
@@ -1253,9 +1260,13 @@ void gameclient_c::send_frame(bool newFrame) {
 
 	if (newFrame) {
 		++clFrameSent;
-		controlHistory[clFrameSent].fromKeyboard();
-		if (menu.options.game.joystick())
-			controlHistory[clFrameSent].fromJoystick();
+		if (menusel == menu_none && openMenus.empty()) {	// don't move when menu or similar is open
+			controlHistory[clFrameSent].fromKeyboard();
+			if (menu.options.game.joystick())
+				controlHistory[clFrameSent].fromJoystick();
+		}
+		else
+			controlHistory[clFrameSent] = ClientControls();
 		svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
 
 		writeByte(lebuf, count, clFrameSent);
@@ -1263,9 +1274,11 @@ void gameclient_c::send_frame(bool newFrame) {
 	}
 	else {
 		ClientControls currCtrl;
-		currCtrl.fromKeyboard();
-		if (menu.options.game.joystick())
-			currCtrl.fromJoystick();
+		if (menusel == menu_none && openMenus.empty()) {	// don't move when menu or similar is open
+			currCtrl.fromKeyboard();
+			if (menu.options.game.joystick())
+				currCtrl.fromJoystick();
+		}
 
 		writeByte(lebuf, count, clFrameSent);
 		writeByte(lebuf, count, currCtrl.toNetwork(false));
@@ -1557,11 +1570,16 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//parse rest of message
 			switch (static_cast<Network_data_code>(code)) {
 				// name update
-				case data_name_update:
+				case data_name_update: {
 					readByte(msg, count, pid);
-					readStr(msg, count, fx.player[pid].name);
-					fx.player[pid].name = fx.player[pid].name.substr(0, 15);
+					string name;
+					readStr(msg, count, name);
+					if (check_name(name))
+						fx.player[pid].name = name;
+					else
+						log.error("Invalid name for player %d.", pid);
 					break;
+				}
 
 				//text message
 				case data_text_message: {
@@ -1570,9 +1588,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					const Message_type type = static_cast<Message_type>(byte);
 					string chatmsg;
 					readStr(msg, count, chatmsg);
-					print_message(type, chatmsg);		//print it to the "console"
-					if (menu.options.game.messageLogging())
-						message_log << date_and_time() << "  " << chatmsg << endl;
+					if (find_nonprintable_char(chatmsg))
+						log.error("Server sent a non-printable characters.");
+					else {
+						print_message(type, chatmsg);		//print it to the "console"
+						if (menu.options.game.messageLogging())
+							message_log << date_and_time() << "  " << chatmsg << endl;
+					}
 
 					//talk sound
 					if (type != msg_info)
@@ -1804,17 +1826,20 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 
 				//server shows gameover plaque
-				case data_gameover_show:
-					readByte(lebuf, count, abyte);
-					gameover_plaque = abyte;		// kind of plaque (capture limit or vote exit)
-					if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
+				case data_gameover_show: {
+					NLubyte plaque;
+					readByte(lebuf, count, plaque);
+					if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
 						readByte(lebuf, count, abyte);	//RED team final score
 						red_final_score = abyte;
 						readByte(lebuf, count, abyte);  //BLUE team final score
 						blue_final_score = abyte;
+						for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+							pi->stats().finish_stats(get_time());
 						menusel = menu_teams;		// show stats
-						if (menu.options.game.saveStats())
+						if (gameover_plaque == NEXTMAP_NONE && menu.options.game.saveStats())
 							save_stats();
+						gameover_plaque = plaque;
 					}
 					else {
 						gameover_plaque = NEXTMAP_NONE;
@@ -1822,6 +1847,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 							menusel = menu_none;
 					}
 					break;
+				}
 
 				//server hides gameover plaque, the game starts
 				case data_gameover_hide:
@@ -1876,6 +1902,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readLong(lebuf, count, pscore);		//score
 					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
 					readLong(lebuf, count, max_world_rank);		//world players count
+					log("%d", max_world_rank);
 					readFloat(lebuf, count, max_world_score);		//world score max
 					if (color < MAX_PLAYERS / 2)
 						fx.player[pid].set_color(color);
@@ -1909,10 +1936,16 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						print_message(msg_info, msg.str());
 					}
 					fx.player[pid].reg_status = ls;
-					fx.player[pid].rank = (int)prank;
-					fx.player[pid].score = (int)pscore;
-					fx.player[pid].neg_score = (int)nscore;
-					//log("CRAPZ UPDATE %i %c %i %i", pid, abyte, prank, pscore);
+					fx.player[pid].rank = static_cast<int>(prank);
+					fx.player[pid].score = static_cast<int>(pscore);
+					fx.player[pid].neg_score = static_cast<int>(nscore);
+					// update new team powers
+					float power[2] = { 0, 0 };
+					for (int i = 0; i < fx.maxplayers; i++)
+						if (fx.player[i].used)
+							power[fx.player[i].team()] = (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
+					for (int t = 0; t < 2; t++)
+						fx.teams[t].set_power(power[t]);
 					break;
 				}
 
@@ -2138,59 +2171,60 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					m_serverInfo.menu.setCaption(hostname);
 
    					NLubyte data;
-   					ostringstream line;
+   					ostringstream caption;
+   					ostringstream value;
    					const int width = 22;
 
 					readByte(lebuf, count, data);
-					line << setw(width) << "Capture limit: ";
+					caption << setw(width) << "Capture limit: ";
 					if (data == 0)
-						line << "none";
+						value << "none";
 					else
-						line << static_cast<int>(data);
-					m_serverInfo.addLine(line.str());
-					line.str("");
+						value << static_cast<int>(data);
+					m_serverInfo.addLine(caption.str(), value.str());
+					caption.str(""); value.str("");
 
 					readByte(lebuf, count, data);
-					line << setw(width) << "Time limit: ";
+					caption << setw(width) << "Time limit: ";
 					if (data == 0)
-						line << "none";
+						value << "none";
 					else
-						line << static_cast<int>(data) << " min";
-					m_serverInfo.addLine(line.str());
-					line.str("");
+						value << static_cast<int>(data) << " min";
+					m_serverInfo.addLine(caption.str(), value.str());
+					caption.str(""); value.str("");
 
 					readByte(lebuf, count, data);
-					line << setw(width) << "Extra time: ";
+					caption << setw(width) << "Extra time: ";
 					if (data == 0)
-						line << "none";
+						value << "none";
 					else
-						line << static_cast<int>(data) << " min";
-					m_serverInfo.addLine(line.str());
-					line.str("");
+						value << static_cast<int>(data) << " min";
+					m_serverInfo.addLine(caption.str(), value.str());
+					caption.str(""); value.str("");
+
+					caption << setw(width) << "Player collisions: ";
+					value << (fx.physics.player_collisions ? "on" : "off");
+					m_serverInfo.addLine(caption.str(), value.str());
+					caption.str(""); value.str("");
+
+					caption << setw(width) << "Friendly fire: ";
+					value << (fx.physics.friendly_fire ? "on" : "off");
+					m_serverInfo.addLine(caption.str(), value.str());
+					caption.str(""); value.str("");
 
 					readByte(lebuf, count, data);
-					int i = 0;
-					line << setw(width) << "Balance teams: " << ((data & (1 << i++)) ? "on" : "off");
-					m_serverInfo.addLine(line.str());
-					line.str("");
-					line << setw(width) << "Player collisions: " << (fx.physics.player_collisions ? "on" : "off");
-					m_serverInfo.addLine(line.str());
-					line.str("");
-					line << setw(width) << "Friendly fire: " << (fx.physics.friendly_fire ? "on" : "off");
-					m_serverInfo.addLine(line.str());
-					line.str("");
-					line << setw(width) << "Drop power-ups: " << ((data & (1 << i++)) ? "on" : "off");
-					m_serverInfo.addLine(line.str());
-					line.str("");
-					line << setw(width) << "Invisible shadow: " << ((data & (1 << i++)) ? "on" : "off");
-					m_serverInfo.addLine(line.str());
-					line.str("");
-					line << setw(width) << "Switch deathbringer: " << ((data & (1 << i++)) ? "on" : "off");
-					m_serverInfo.addLine(line.str());
-					line.str("");
-					line << setw(width) << "Maximum weapon level: " << (data >> i) + 1;
-					m_serverInfo.addLine(line.str());
-					line.str("");
+					const string caps[] = { "Balance teams", "Drop power-ups", "Invisible shadow", "Switch deathbringer" };
+					int i;
+					for (i = 0; i < 4; i++) {
+						caption << setw(width - 2) << caps[i] << ": ";
+						value << ((data & (1 << i)) ? "on" : "off");
+						m_serverInfo.addLine(caption.str(), value.str());
+						caption.str(""); value.str("");
+					}
+					caption << setw(width) << "Maximum weapon level: ";
+					value << (data >> i) + 1;
+					m_serverInfo.addLine(caption.str(), value.str());
+					//caption.str(""); value.str("");
 
 					showMenu(m_serverInfo);
 					break;
@@ -2275,14 +2309,10 @@ void gameclient_c::save_screenshot() {
 
 //toggle help screen
 void gameclient_c::toggle_help() {
-	if (openMenus.safeTop() == &m_help.menu) {
-		client_sounds.play(SAMPLE_FIRE);
+	if (openMenus.safeTop() == &m_help.menu)
 		openMenus.close();
-	}
-	else {
-		client_sounds.play(SAMPLE_WEAPON_UP);
+	else
 		showMenu(m_help);
-	}
 }
 
 const char* gameclient_c::refreshStatusAsString() const {
@@ -2306,17 +2336,6 @@ void gameclient_c::getServerListThread() {
 	if (!abortThreads)
 		if (!refresh_all_servers())
 			ok = false;
-	refreshStatus = RS_running;
-
-	// remove invalid IPs
-	serverListMutex.lock();
-	for (vector<gamespy_t>::iterator spy = mgamespy.begin(); spy != mgamespy.end(); )
-		if (spy->invalid)
-			spy = mgamespy.erase(spy);
-		else
-			++spy;
-	serverListMutex.unlock();
-
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
@@ -2372,14 +2391,11 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 	int num_valid = 0;			// count of valid entries still waiting for a response
 
 	for (int i = 0; i < nServers; i++) {
-		if (!nlStringToAddr(gamespy[i].address.c_str(), &gamespy[i].addr))
-			gamespy[i].invalid = true;
-		else {
-			if (nlGetPortFromAddr(&gamespy[i].addr) == 0)
-				nlSetAddrPort(&gamespy[i].addr, DEFAULT_UDP_PORT);
-			gamespy[i].invalid = false;
-			num_valid++;
-		}
+		gamespy[i].refreshed = true;
+		gamespy[i].ping = 0;
+		if (nlGetPortFromAddr(&gamespy[i].addr) == 0)
+			nlSetAddrPort(&gamespy[i].addr, DEFAULT_UDP_PORT);
+		num_valid++;
 	}
 
 	serverListMutex.unlock();
@@ -2392,18 +2408,17 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 
 		if (round < 4) {	// on first 4 rounds, packets are sent to each server
 			MutexLock ml(serverListMutex);
-			for (int i = 0; i < nServers; i++)
-				if (!gamespy[i].invalid) {
-					int count = 0;
-					writeLong(lebuf, count, 0);			//special packet
-					writeLong(lebuf, count, 200);		//serverinfo request
-					writeByte(lebuf, count, (NLubyte)i);		//connect entry (am I lazy or what)
-					writeByte(lebuf, count, (NLubyte)round);		//packet number
+			for (int i = 0; i < nServers; i++) {
+				int count = 0;
+				writeLong(lebuf, count, 0);			//special packet
+				writeLong(lebuf, count, 200);		//serverinfo request
+				writeByte(lebuf, count, (NLubyte)i);		//connect entry (am I lazy or what)
+				writeByte(lebuf, count, (NLubyte)round);		//packet number
 
-					nlSetRemoteAddr(sock, &gamespy[i].addr);
-					nlWrite(sock, lebuf, count);
-					tempd[i].send(round);
-				}
+				nlSetRemoteAddr(sock, &gamespy[i].addr);
+				nlWrite(sock, lebuf, count);
+				tempd[i].send(round);
+			}
 		}
 		else if (num_valid <= 0)	// all done
 			break;
@@ -2578,9 +2593,13 @@ bool gameclient_c::getServerList() {
 	// Parse the successful response into the gamespy screen.
 	int servers_read;
 	for (servers_read = 0; servers_read < total_servers && getline_smart(response, line); servers_read++) {
-		gamespy_t spy;
-		spy.address = line;
-		mgamespy.push_back(spy);
+		NLaddress testAddr;	// test IP address validity
+		if (nlStringToAddr(line.c_str(), &testAddr)) {
+			gamespy_t spy;
+			spy.address = line;
+			spy.addr = testAddr;
+			mgamespy.push_back(spy);
+		}
 	}
 
 	if (servers_read != total_servers) {
@@ -2618,28 +2637,30 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
 			if (menusel != menu_none || !openMenus.empty()) {
 				while (keypressed()) {
-					//get key
 					int ch = readkey();
 					const int sc = ch >> 8;	// scancode
 					ch &= 0xFF;				// character
 
-					//screenshot
 					if (sc == KEY_F11)
 						screenshot = true;
 
-					//toggle help
 					if (sc == KEY_F1)
 						toggle_help();
+					else if (sc == KEY_F5) {
+						if (openMenus.safeTop() == &m_serverInfo.menu)
+							openMenus.close();
+						else
+							showMenu(m_serverInfo);
+					}
 					else if (menusel == menu_maps || menusel == menu_players || menusel == menu_teams) {
 						if (sc == KEY_F2)
 							menusel = (menusel == menu_maps ? menu_none : menu_maps);
-						else if (sc == KEY_TAB)
-							menusel = (menusel == menu_players ? menu_none : menu_players);
-						else if (sc == KEY_F5)
+						else if (sc == KEY_F3)
 							menusel = (menusel == menu_teams ? menu_none : menu_teams);
+						else if (sc == KEY_F4)
+							menusel = (menusel == menu_players ? menu_none : menu_players);
 					}
 
-					//test key
 					switch (menusel) {
 						case menu_maps:
 							if (key[KEY_UP])
@@ -2808,10 +2829,16 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 						toggle_help();
 					else if (sc == KEY_F2)
 						menusel = menu_maps;
-					else if (sc == KEY_TAB)
-						menusel = menu_players;
-					else if (sc == KEY_F5)
+					else if (sc == KEY_F3)
 						menusel = menu_teams;
+					else if (sc == KEY_F4)
+						menusel = menu_players;
+					else if (sc == KEY_F5) {
+						if (openMenus.safeTop() == &m_serverInfo.menu)
+							openMenus.close();
+						else
+							showMenu(m_serverInfo);
+					}
 
 					// change colours
 					if (sc == KEY_HOME) {
@@ -2845,15 +2872,13 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 						}
 					}
 					// Add character to text, max text length 60 chars.
-					// Code positions 128 - 159 are reserverd for control purposes.
-					// 160 is no-brake space, but Allegro thinks it is ^ (circumflex).
-					else if (talkbuffer.length() < 60 && ((ch >= 32 && ch <= 127) || ch >= 160) && !is_keypad(sc))
+					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) && !is_keypad(sc))
 						talkbuffer += static_cast<char>(ch);
 				}
 			}
 
 			// F4 == want/don't want to exit map
-			if (openMenus.empty() && (menusel == menu_none || menusel == menu_maps) && key[KEY_F4]) {
+			if (openMenus.empty() && (menusel == menu_none || menusel == menu_maps) && key[KEY_F8]) {
 				if (!key_votexit) {
 					key_votexit = true;
 
@@ -3110,7 +3135,7 @@ void gameclient_c::playerHitPlayerCallback(int pid1, int pid2) {
 }
 
 bool gameclient_c::shouldApplyPhysicsToPlayerCallback(int pid) {
-	return fx.player[pid].onscreen;
+	return fx.player[pid].onscreen && !fx.player[pid].dead;
 }
 
 void gameclient_c::predraw() {
@@ -3118,15 +3143,22 @@ void gameclient_c::predraw() {
 			fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
 		return;	//#fix: this shouldn't be needed, or should be checked from a simple flag
 	vector< pair<int, const spoint_t*> > flags;
+	vector< pair<int, const spoint_t*> > spawns;
 
 	for (int team = 0; team <= 2; team++) {
 		const vector<spoint_t>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
-		for (vector<spoint_t>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
+		for (vector<spoint_t>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)		// flags
 			if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
 				flags.push_back(pair<int, const spoint_t*>(team, &(*pi)));
+		if (menu.options.graphics.mapInfoMode() && team < 2) {
+			const vector<spoint_t>& tspawn = fx.map.tinfo[team].spawn;
+			for (vector<spoint_t>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi)	// spawns
+				if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
+					spawns.push_back(pair<int, const spoint_t*>(team, &(*pi)));
+		}
 	}
 
-	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], flags, menu.options.graphics.grid());
+	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], flags, spawns, menu.options.graphics.mapInfoMode());
 }
 
 //draw the whole game screen
@@ -3206,7 +3238,7 @@ void gameclient_c::draw_game_frame() {
 
 		// draw any rockets
 		for (int i = 0; i < MAX_ROCKETS; i++)
-			if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
+			if (fx.rock[i].owner != -1 && fd.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
 				fd.rock[i].team = fx.rock[i].team;
 				fd.rock[i].power = fx.rock[i].power;
 				client_graphics.draw_rocket(fd.rock[i], get_time());
@@ -3298,14 +3330,13 @@ void gameclient_c::draw_game_frame() {
 
 					if (i != me) {
 						if (fx.player[i].color() >= 0 && fx.player[i].color() < MAX_PLAYERS / 2)	// Check because the server may have sent invalid colour.
-							client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, fx.player[i].color());
+							client_graphics.draw_minimap_player(fx.map, fx.player[i]);
 					}
 					else // myself: draw differently
-						client_graphics.draw_minimap_me(fx.map, fx.player[i], i / TSIZE, get_time());
+						client_graphics.draw_minimap_me(fx.map, fx.player[i], get_time());
 				}
 
 		// paint fog of war in all invisible rooms
-		//
 		for (int ry = 0; ry < fx.map.h; ry++)
 			for (int rx = 0; rx < fx.map.w; rx++)
 				if (!roomvis[ry * fx.map.w + rx])
@@ -3435,7 +3466,7 @@ void gameclient_c::draw_player(int pid) {
 	else {
 		if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {	// Check because the server may have sent invalid colour.
 			// turbo effect
-			if (player.item_speed && (fabs(player.sx) > fx.physics.walk.maxSpeed || fabs(player.sy) > fx.physics.walk.maxSpeed) &&
+			if (player.item_speed && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
 						get_time() > player.speed_drop_time) {
 				player.speed_drop_time = get_time() + 0.05;
 					client_graphics.create_speedfx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir);
@@ -3469,7 +3500,7 @@ void gameclient_c::draw_game_menu() {
 			pthread_mutex_unlock(&mapInfoMutex);
 			break;
 		case menu_players:
-			client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers);
+			client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
 			break;
 		case menu_teams:
 			client_graphics.team_statistics(fx.teams);
@@ -3529,7 +3560,7 @@ void gameclient_c::initMenus() {
 	typedef Select<Graphics::Antialiasing_mode> aaSelT;
 	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&gameclient_c::MCF_antialiasChange	>(this));
 	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&gameclient_c::MCF_statsBgChange	>(this));
-	menu.options.graphics.grid			.setHook(new MCB::N<Checkbox,		&gameclient_c::predraw				>(this));
+	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&gameclient_c::predraw				>(this));
 
 	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareSndMenu	>(this));
 	menu.options.sounds.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
@@ -3545,7 +3576,6 @@ void gameclient_c::initMenus() {
 	m_dialog.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));	// cancel not used
 	m_errors.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_clearErrors		>(this));	// cancel not used
 	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));	// cancel not used
-	m_help.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::toggle_help			>(this));	// cancel not used
 
 	m_errors.menu.setCaption("Errors");
 
@@ -3615,7 +3645,7 @@ void gameclient_c::MCF_nameChange() {	// only function to clear the password
 }
 
 void gameclient_c::MCF_randomName() {
-	menu.options.name.name.set(RandomName());
+	menu.options.name.name.set(trim(RandomName().substr(0, 15)));
 	MCF_nameChange();
 }
 
@@ -3779,7 +3809,12 @@ void gameclient_c::MCF_prepareServerMenu() {
 			info << spy->ping;
 		else
 			info << '?';
-		info << ' ' << spy->info;
+		if (spy->refreshed) {
+			if (spy->noresponse)
+				info << " no response";
+			else
+				info << ' ' << spy->info;
+		}
 		menu.connect.add(spy->address, info.str());
 		addresses.push_back(spy->address);
 	}
@@ -3812,6 +3847,13 @@ void gameclient_c::MCF_addServer() {
 	if (!menu.connect.addServer.address().empty()) {
 		gamespy_t spy;
 		spy.address = menu.connect.addServer.address();
+		NLaddress testAddr;	// test IP address validity
+		if (!nlStringToAddr(spy.address.c_str(), &testAddr)) {
+			m_dialog.clear();
+			m_dialog.addLine("Invalid IP address.");
+			showMenu(m_dialog);
+			return;
+		}
 		if (menu.connect.favorites())
 			gamespy.push_back(spy);
 		else {
@@ -3826,20 +3868,17 @@ void gameclient_c::MCF_addServer() {
 
 bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) {
 	(void)chr;
-	if (menu.connect.favorites()) {
-		if (scan != KEY_DEL)
-			return false;
+	if (scan == KEY_DEL) {
+		vector<gamespy_t>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
 		const string address = menu.connect.getAddress(target);
-		for (vector<gamespy_t>::iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
+		for (vector<gamespy_t>::iterator spy = servers.begin(); spy != servers.end(); ++spy)
 			if (address == spy->address) {
-				gamespy.erase(spy);
+				servers.erase(spy);
 				break;
 			}
 		return true;
 	}
-	else {
-		if (scan != KEY_INSERT)
-			return false;
+	else if (scan == KEY_INSERT && !menu.connect.favorites()) {
 		const string address = menu.connect.getAddress(target);
 		for (vector<gamespy_t>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
 			if (address == spy->address) {
@@ -3873,11 +3912,11 @@ void gameclient_c::MCF_refreshServers() {
 
 void gameclient_c::MCF_loadHelp() {
 	m_help.clear();
-	m_help.menu.setCaption("Outgun help");
-	string configFile = wheregamedir + "config" + directory_separator + "help.txt";
+	const string configFile = wheregamedir + "config" + directory_separator + "help.txt";
 	ifstream in(configFile.c_str());
 	if (!in) {
-		m_help.addLine(string() + "No help found (should be " + configFile + ")");
+		m_help.addLine(string() + "No help found. It should be in");
+		m_help.addLine(string() + configFile);
 		return;
 	}
 	string line;

@@ -50,6 +50,17 @@ string trim(string str) {
 	return str;
 }
 
+bool find_nonprintable_char(const string& str) {
+	for (string::const_iterator s = str.begin(); s != str.end(); ++s)
+		if (is_nonprintable_char(*s))
+			return true;
+	return false;
+}
+
+bool is_nonprintable_char(unsigned char c) {
+	return c < 32 || (c >= 128 && c <= 159);
+}
+
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)

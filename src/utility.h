@@ -22,6 +22,9 @@ std::string toupper(std::string str);
 // Trim beginning and trailing whitespaces.
 std::string trim(std::string str);
 
+bool find_nonprintable_char(const std::string& str);
+bool is_nonprintable_char(unsigned char c);
+
 // strspnp: (Watcom definition) find from str the first char not in charset
 char* strspnp(char* str, const char* charset);
 const char* strspnp(const char* str, const char* charset);

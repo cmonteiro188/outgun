@@ -89,7 +89,7 @@ public:
 	Select<std::string>	theme;
 	Select<Graphics::Antialiasing_mode> antialiasing;
 	Slider				statsBgAlpha;
-	Checkbox			grid;
+	Checkbox			mapInfoMode;
 
 	Menu menu;
 
@@ -155,7 +155,8 @@ public:
 
 	Menu_text();
 	void clear() { lines.clear(); }
-	void addLine(std::string line, bool cancelable = false);
+	void addLine(const std::string& line, bool cancelable = false);
+	void addLine(const std::string& caption, const std::string& value, bool cancelable = false);
 };
 
 class Menu_playerPassword {
@@ -166,7 +167,7 @@ public:
 	Menu menu;
 
 	Menu_playerPassword();
-	void setup(std::string plyName, bool saveChecked);
+	void setup(const std::string& plyName, bool saveChecked);
 };
 
 class Menu_serverPassword {
@@ -178,4 +179,18 @@ public:
 	Menu_serverPassword();
 };
 
+class Menu_help {
+	std::vector<std::string> lines;
+
+public:
+	Textobject text;
+
+	Menu menu;
+
+	Menu_help();
+	void clear() { lines.clear(); }
+	void addLine(const std::string& line);
+};
+
 #endif	// CLIENT_MENUS_H_INC
+

@@ -154,7 +154,7 @@ public:
 	bool votes_changed;
 
 	MapInfo();
-	bool load(LogSet& log, std::string mapName);
+	bool load(LogSet& log, const std::string& mapName);
 };
 
 class Statistics {
@@ -198,6 +198,8 @@ public:
 	void add_hit() { ++total_hits; }
 	void add_shot_take() { ++total_shots_taken; }
 	void add_movement(double amount) { total_movement += amount; }
+
+	void finish_stats(double time);
 
 	void take_frag(int n = 1) { total_frags -= n; }
 
@@ -464,6 +466,7 @@ public:
 	void set_shots_taken(int n) { total_shots_taken = n; }
 	void set_base_score(int n) { start_score = n; }
 	void set_movement(double amount) { total_movement = amount; }
+	void set_power(float pow) { tournament_power = pow; }
 
 	void add_score(double time, const std::string& player);
 	void add_kill() { ++total_kills; }
@@ -500,6 +503,7 @@ public:
 	int shots_taken() const { return total_shots_taken; }
 	double movement() const { return total_movement; }
 	float accuracy() const;
+	float power() const { return tournament_power; }
 
 	const Flag& flag(int n) const { return team_flags[n]; }
 	const std::vector<Flag>& flags() const { return team_flags; }
@@ -519,6 +523,7 @@ private:
 	int total_hits;
 	int total_shots_taken;
 	double total_movement;
+	float tournament_power;
 	std::vector<Flag> team_flags;
 	std::vector<std::pair<int, std::string> > caps;	// time and player name
 	int start_score;	// for players who join in the middle of the game
@@ -569,19 +574,15 @@ public:
 
 class PhysicalSettings {
 public:
-	class Movement {
-	public:
-		float fric, accel, maxSpeed;
-		Movement(float friction, float acceleration, float maxSpeed_) : fric(friction), accel(acceleration), maxSpeed(maxSpeed_) { }
-		void read(char* lebuf, int& count);
-		void write(char* lebuf, int& count) const;
-	};
-	Movement walk, run, turboWalk, turboRun;
-	float flag_penalty;
+	float fric, drag, accel;
+	float run_mul, turbo_mul, flag_mul;
 	bool friendly_fire, friendly_db;
 	bool player_collisions;
 
+	float max_run_speed;	// max speed without turbo, for turbo effect in client
+
 	PhysicalSettings();
+	void calc_max_run_speed();
 	void read(char* lebuf, int& count);
 	void write(char* lebuf, int& count) const;
 	void print(LineReceiver& printer) const;

@@ -4,6 +4,7 @@
 #include <cstdlib>
 
 #include "incalleg.h"
+#include "utility.h"
 #include "commont.h"
 
 using std::cout;
@@ -79,6 +80,18 @@ istream& getline_smart(istream& in, string& str) {
 		}
 		str += c;
 	}
+}
+
+bool check_name(const std::string& name) {
+	if (name.length() > 15)
+		return false;
+	if (name.find_first_not_of(" \xA0") == string::npos)	// Name with only spaces and no-brake spaces not allowed.
+		return false;
+	if (find_nonprintable_char(name))
+		return false;
+	if (name.find_first_of(" \xA0") == 0 || name.find_last_of(" \xA0") == name.length() - 1)
+		return false;
+	return true;
 }
 
 FileReader::FileReader(const string& filename) {

@@ -22,14 +22,14 @@
 
 //server record
 struct gamespy_t {
-	NLaddress addr;
-	std::string address;  //IP-address typein buffer
-	bool invalid;
-	bool noresponse;
-	int ping;
-	std::string info;
+	NLaddress	addr;
+	std::string	address;  //IP-address typein buffer
+	bool		refreshed;
+	bool		noresponse;
+	int			ping;
+	std::string	info;
 
-	gamespy_t() : invalid(true), noresponse(true), ping(0) { }
+	gamespy_t() : refreshed(false), noresponse(true), ping(0) { }
 };
 
 struct download_runes_t {
@@ -89,7 +89,7 @@ public:
 	TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction);	// warning: the callback will be called from a background thread
 
 	void stop();
-	void changeData(std::string newName, std::string newPass);
+	void changeData(const std::string& newName, const std::string& newPass);
 	PasswordStatus status() const { if (passStatus == PS_tokenReceived && servStatus != PS_noPassword) return servStatus; else return passStatus; }
 	const char* statusAsString() const;
 	std::string getToken() const { return token.read(); }
@@ -206,7 +206,7 @@ class gameclient_c {
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
 	Menu_text m_serverInfo;
-	Menu_text m_help;
+	Menu_help m_help;
 
 	MenuStack openMenus;
 

@@ -11,6 +11,8 @@
 class Graphics;
 class BITMAP;
 
+void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
+
 // Base class of menu components
 class Component {
 public:
@@ -24,9 +26,10 @@ public:
 	virtual bool isEnabled() const { return enabled; }
 	virtual bool needsNumberKeys() const { return false; }
 
-	virtual void draw(BITMAP* buffer, int x, int y, bool active) const = 0;
+	virtual void draw(BITMAP* buffer, int x, int y, int height, bool active) const = 0;
 	virtual int width() const = 0;
 	virtual int height() const = 0;
+	virtual int minHeight() const { return height(); }
 	virtual bool handleKey(char, unsigned char) { return false; }	// an object should either have an active handleKey() or override so that !isEnabled()
 
 protected:
@@ -87,12 +90,10 @@ public:
 	// inherited interface
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char, unsigned char);
 
 private:
-	void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
-
 	int total_width() const;
 	int total_height() const;
 
@@ -134,7 +135,7 @@ public:
 	bool needsNumberKeys() const { return true; }
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -146,7 +147,7 @@ private:
 class SelectBase : public Component {
 public:
 	virtual ~SelectBase() { }
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	int width() const;
 	int height() const;
 	bool handleKey(char scan, unsigned char chr);
@@ -189,7 +190,7 @@ public:
 	// inherited interface
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -208,7 +209,7 @@ public:
 	// inherited interface
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -225,7 +226,7 @@ public:
 	// inherited interface
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -240,7 +241,7 @@ public:
 	// inherited interface
 	int width() const;
 	int height() const;
-	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
 
 	// override isEnabled() : can't be enabled if not hooked
@@ -248,6 +249,23 @@ public:
 
 private:
 	std::string text;
+};
+
+class Textobject : public Component, public MenuHookable<Textobject> {
+public:
+	Textobject(): Component(""), start(0) { }
+	void addLine(const std::string& text) { lines.push_back(text); }
+
+	// inherited interface
+	int width() const;
+	int height() const;
+	int minHeight() const { return 12; }	// one line
+	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+	bool handleKey(char scan, unsigned char chr);
+
+private:
+	std::vector<std::string> lines;
+	mutable int start;	// may change in drawing
 };
 
 // this template does the necessary wrapping of member function references to be given to Components as callbacks
