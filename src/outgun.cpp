@@ -1,8 +1,10 @@
+#ifndef PUBLIC_SERVER
 //#define NR_CLIET_AFFECTING
+#endif
 
 //#NR
-#define WELCOME_MESSAGE_1 "@TWelcome to Nix's Outgun server in Finland"
-#define WELCOME_MESSAGE_2 "The server is slightly modified from the official 0.5.0"
+#define WELCOME_MESSAGE_1 "@TWelcome to Nix's Outgun server in Finland (bad ping to Brazil, sorry)"
+#define WELCOME_MESSAGE_2 "The gameplay is standard but there are some server tweaks to the official 0.5.0"
 #define WELCOME_MESSAGE_3 "Contact me at npr1@suomi24.fi if there are any problems"
 
 /*
@@ -3590,7 +3592,7 @@ public:
 		//#NR: remove and regenerate powerups
 		for (i=0;i<MAX_PICKUPS;i++)
 			world.item[i].kind = 0;
-		check_pickup_creation();
+		check_pickup_creation(true);
 
 		//update the ADMIN SHELL
 		if (shellssock) {
@@ -3714,8 +3716,8 @@ public:
 	}
 
 	// verifica powerups unused por jogadores presentes
-	void check_pickup_creation() {
-
+//	void check_pickup_creation() {
+	void check_pickup_creation(bool instant) {	//#NR
 		int i, pc, ic;
 
 		//count number of players
@@ -3739,7 +3741,10 @@ public:
 		if (world.item[i].kind == 0)
 		{
 			world.item[i].kind = 255;
-			world.item[i].respawn_time = get_time() + PICKUP_RESPAWN_TIME;
+			if (instant)
+				respawn_pickup(i);
+			else
+				world.item[i].respawn_time = get_time() + PICKUP_RESPAWN_TIME;
 
 			ic++;
 
@@ -3894,7 +3899,7 @@ public:
 		it->kind = 0;		
 
 		// check pickup creation
-		check_pickup_creation();
+		check_pickup_creation(false);
 	}
 
 	//game player screen changed
@@ -5225,7 +5230,7 @@ public:
 				world.hero[i].d = 0;
 
 				//check pickup creation
-			  check_pickup_creation();
+			  check_pickup_creation(false);
 
 				break;
 			}
@@ -8118,6 +8123,15 @@ public:
 					sprintf(lechat, "ADMIN: %s", chat);
 					broadcast_message(lechat);
 					break;
+				case ATS_GET_PINGS:	//#NR
+					for (int p=0; p<maxplayers; ++p)
+						if (player[p].used && !player[p].isbot) {
+							answer=true;
+							writeLong(lebuf, count, STA_PLAYER_PING);
+							writeLong(lebuf, count, player[p].cid);
+							writeLong(lebuf, count, player[p].ping);
+						}
+					break;
 				case ATS_QUIT:
 					should_quit = true;
 					break;
@@ -8468,7 +8482,6 @@ int sfunc_client_data(runes_t *arg) {
 }
 
 int sfunc_client_ping_result(runes_t *arg) {
-
 	gameserver->ping_result(arg->client_id, arg->pingtime);
 
 	return 0;
