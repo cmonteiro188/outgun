@@ -1279,15 +1279,15 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				//V0.3.9 : transmissao x,y de 4 bytes para 3
 				NLubyte xy;
 				NLushort hx,hy;
-				hx = ((NLushort)h->lx);
-				hy = ((NLushort)h->ly);
+				hx = (NLushort)h->lx;
+				hy = (NLushort)h->ly;
 
 				xy = (NLubyte) (hx & 255);
 				writeByte(lebuf, lecount, xy);		//first 8 bits x
 				xy = (NLubyte) (hy & 255);
 				writeByte(lebuf, lecount, xy);		//first 8 bits y
 				//256+512+1024+2048 = 3840    last 4 bits mask
-				xy = (NLubyte) ( ((hx & 3840) >> 8) + ((hy & 3840) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
+				xy = (NLubyte) ( ((hx & 0xF00) >> 8) + ((hy & 0xF00) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
 				writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
 
 				//sho = ((NLshort)h->x);

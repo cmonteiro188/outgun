@@ -18,6 +18,7 @@ public:
 
 	bool collideToRockets() const { return false; }
 	bool gatherMovementDistance() const { return false; }
+	bool allowRoomChange() const { return false; }
 	void addMovementDistance(int, float) { }
 	void playerScreenChange(int) { }
 	void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
@@ -3267,8 +3268,8 @@ void gameclient_c::draw_game_frame() {
 							//tempo p/ proximo efeito
 							fx.player[i].death_drop_time = get_time() + 0.01;
 							//drop it
-							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
 						}
 					}
 					// draw deathbringer affected effect
@@ -3276,7 +3277,7 @@ void gameclient_c::draw_game_frame() {
 						client_graphics.draw_deathbringer_affected((int)fd.player[i].lx, (int)fd.player[i].ly, i / TSIZE);
 					// shield
 					if (fx.player[i].item_shield)
-						client_graphics.draw_shield((int)fd.player[i].lx, (int)fd.player[i].ly - 15, 24, alpha);
+						client_graphics.draw_shield((int)fd.player[i].lx, (int)fd.player[i].ly, SHIELD_RADIUS, alpha);
 				}
 			}
 

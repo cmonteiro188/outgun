@@ -6,23 +6,11 @@
 #define PHYS_NEW
 //#define PHYS_VECTOR_ACC
 
-// radii must be defined for graphics too if changed
-#define PLAYER_RADIUS 15
-#define SHIELD_RADIUS 24
-#define ROCKET_RADIUS 4
-
 //same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
 #define SHOT_DELTAX 17  // V0.4.8 : A HAIR LESS!
 
 //minimum time between flag steal at base and capture, to consider a map to be valid for scoring
 #define MINIMUM_GRAB_TO_CAPTURE_TIME 6.0
-
-/* PHYS_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
-#ifdef PHYS_NEW
-#define PHYS_SHIFTY PLAYER_RADIUS
-#else
-#define PHYS_SHIFTY 0
-#endif
 
 //#define ALWAYS_FRICTION
 
@@ -756,11 +744,11 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, float x, float y, flo
 }
 
 BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, float plyRadius) {
-	return genGetTimeTillWall(room, pl.lx, pl.ly-PHYS_SHIFTY, pl.sx, pl.sy, plyRadius);
+	return genGetTimeTillWall(room, pl.lx, pl.ly, pl.sx, pl.sy, plyRadius);
 }
 
 float WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock) {
-	return genGetTimeTillWall(room, rock.x, rock.y-PHYS_SHIFTY, rock.sx, rock.sy, ROCKET_RADIUS).first;
+	return genGetTimeTillWall(room, rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS).first;
 }
 
 float WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, float collRadius) {
@@ -1087,6 +1075,7 @@ public:
 
 	bool collideToRockets() const { return true; }
 	bool gatherMovementDistance() const { return true; }
+	bool allowRoomChange() const { return true; }
 	void addMovementDistance(int pid, float dist) { w.addMovementDistanceCallback(pid, dist); }
 	void playerScreenChange(int pid) { w.playerScreenChangeCallback(pid); }
 	void rocketHitWall(int rid, bool, float, float, int, int) { w.rocketHitWallCallback(rid); }
@@ -1203,7 +1192,7 @@ void ServerWorld::respawnPlayer(int pid) {
 	}
 
 	//if was killed or map spawn point places player over a wall
-	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20)) {
+	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-20, pos.x+20, pos.y+20)) {
 		// generate a random spot for respawn:
 		// - unnocupied screen
 		// - away from walls
@@ -1227,10 +1216,10 @@ void ServerWorld::respawnPlayer(int pid) {
 
 			//find a suitable coordinate -- middle square
 			pos.x = plw / 8 + rand() % (3 * plw / 4);
-			pos.y = plh / 8 + rand() % (3 * plh / 4) +PHYS_SHIFTY;
+			pos.y = plh / 8 + rand() % (3 * plh / 4);
 
 			//do a check for walls, maybe retrying another screen if hits a wall
-			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20))
+			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-20, pos.x+20, pos.y+20))
 				break;	//success!
 
 			//fall on wall true, keep trying...
@@ -1286,10 +1275,10 @@ bool ServerWorld::check_flag_touch(int px, int py, int x, int y, int t) {
 	int fx = flag[t].pos.x;
 	int fy = flag[t].pos.y;
 
-	if (fx > x - 30)
-	if (fx < x + 30)
-	if (fy > y - 30)
-	if (fy < y + 30)
+	if (fx > x - (PLAYER_RADIUS + 15))
+	if (fx < x + (PLAYER_RADIUS + 15))
+	if (fy > y - (PLAYER_RADIUS + 15))
+	if (fy < y + (PLAYER_RADIUS + 15))
 		return true;	//touch
 
 	return false;
@@ -1803,7 +1792,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	for (;;) {	//#fix: optimize this loop, esp. for client
 		// find out next player-wall collision
 		float minBounce = 2.;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
-		int bPly=0, bPlyI=0;	// which player it is, pid and room-table-index
+		uint bPly=0, bPlyI=0;	// which player it is, pid and room-table-index
 		for (uint pi=0; pi<rply.size(); ++pi) {
 			float bt = plyMoveMax[pi].first;
 			if (bt < minBounce) {
@@ -1815,7 +1804,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 
 		// find out next player-rocket collision
 		float minCollision = 2.;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
-		int cPly=0, cPlyI=0, cRock=0, cRockI=0;	// which player and rocket they are, pid/rid and room-table-indices
+		uint cPly=0, cPlyI=0, cRock=0, cRockI=0;	// which player and rocket they are, pid/rid and room-table-indices
 		if (callback.collideToRockets()) {
 			for (uint pi=0; pi<rply.size(); ++pi) {
 				int pid = rply[pi];
@@ -1838,24 +1827,32 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 
 		// execute movement
 		float mt = min(fraction, min<float>(minCollision, minBounce + .01));	// time of the next event (add .01 to minBounce to not bounce infinitely)
-		for (uint pi=0; pi<rply.size(); ++pi) {
+		for (uint pi=0; pi<rply.size(); ) {
 			// don't move more than mt or more than plyMoveMax-.001 but don't move backwards (-.001 to stay out of walls)
 			float amount = bound<float>(plyMoveMax[pi].first - .001, subFrame, mt);
 			PlayerBase& pl = player[rply[pi]];
 			pl.move(amount - subFrame);
 			if (callback.gatherMovementDistance())
 				callback.addMovementDistance(rply[pi], (amount - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
-			// check room change
 			bool rch = false;
-			if (pl.lx < 0)   { pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
-			if (pl.lx > plw) { pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
-			if (pl.ly < 0)   { pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
-			if (pl.ly > plh) { pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
+			if (callback.allowRoomChange()) {
+				if (pl.lx < 0)   { pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
+				if (pl.lx > plw) { pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
+				if (pl.ly < 0)   { pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
+				if (pl.ly > plh) { pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
+			}
 			if (rch) {
 				callback.playerScreenChange(rply[pi]);
 				rply.erase(rply.begin() + pi);
 				plyMoveMax.erase(plyMoveMax.begin() + pi);
+				if (bPlyI >= pi)
+					--bPlyI;
+				if (cPlyI >= pi)
+					--cPlyI;
+				// continue with the same index (which points to the next player now)
 			}
+			else
+				++pi;
 		}
 		for (uint ri=0; ri<rrock.size(); ) {
 			rocket_c& r = rock[rrock[ri]];
@@ -1864,6 +1861,8 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				callback.rocketHitWall(rrock[ri], r.power, r.x, r.y, r.px, r.py);
 				rrock.erase(rrock.begin() + ri);
 				rockMoveMax.erase(rockMoveMax.begin() + ri);
+				if (cRockI >= ri)
+					--cRockI;
 				// continue with the same index (which points to the next rocket now)
 			}
 			else {
@@ -1900,7 +1899,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	}
 	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri) {
 		const rocket_c& r = rock[*ri];
-		if (r.x<-20 || r.x>plw+20 || r.y<-20 || r.y>plh+20)
+		if (r.x<0 || r.x>plw || r.y<0 || r.y>plh)
 			callback.rocketOutOfBounds(*ri);	// don't bother with removing it from rrock since the simulation is over
 	}
 }
@@ -2008,9 +2007,9 @@ void ServerWorld::simulateFrame() {
 			{
 				//calculate player distance to the deathbringer core
 				double ex = player[i].lx;
-				double ey = player[i].ly - 15;
+				double ey = player[i].ly;
 				double rx = player[v].lx;
-				double ry = player[v].ly - 15;
+				double ry = player[v].ly;
 				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
 
 				// hit distance: if dt == rad, hit, if rad
@@ -2188,10 +2187,10 @@ void ServerWorld::simulateFrame() {
 			if (item[k].px == player[i].roomx)		// player's screen
 			if (item[k].py == player[i].roomy)
 			//x,y == center of powerup!
-			if (item[k].x + prad > player[i].lx - 20)
-			if (item[k].x - prad < player[i].lx + 20)
-			if (item[k].y + prad > player[i].ly - 20 - 10)
-			if (item[k].y - prad < player[i].ly + 20 - 10)
+			if (item[k].x + prad > player[i].lx - PLAYER_RADIUS)
+			if (item[k].x - prad < player[i].lx + PLAYER_RADIUS)
+			if (item[k].y + prad > player[i].ly - PLAYER_RADIUS)
+			if (item[k].y - prad < player[i].ly + PLAYER_RADIUS)
 			{
 				//pick pickup
 				game_touch_pickup(i, k);		//COOL!

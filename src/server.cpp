@@ -1066,8 +1066,8 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 				accuracy,
 				world.player[pid].total_shots_taken);
 			world.player[pid].queue_printf(" Distance travelled: %.0lf units, average speed %.2lf units/s.",
-				world.player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
-				world.player[pid].total_movement/30./double(lifetime));
+				world.player[pid].total_movement/(PLAYER_RADIUS*2.),	// make the unit player diameter
+				world.player[pid].total_movement/(PLAYER_RADIUS*2.)/double(lifetime));
 			int av_lifetime = lifetime / (world.player[pid].total_deaths + 1);
 			world.player[pid].queue_printf(" You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
 				playing_time / 60,

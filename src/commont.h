@@ -72,6 +72,11 @@ inline void writeStr(char* buf, int& count, const string& src) {
 #define plw 472
 #define plh 354
 
+#define PLAYER_RADIUS 15
+#define SHIELD_RADIUS 24
+#define ROCKET_RADIUS 4
+#define QUAD_ROCKET_RADIUS 6
+
 //RANKING defines
 #define DEFAULT_PLAYER_RATE 1.0
 

@@ -446,6 +446,7 @@ class PhysicsCallbacksBase {
 public:
 	virtual bool collideToRockets() const =0;	// should player to rocket collisions be checked at all
 	virtual bool gatherMovementDistance() const =0;	// should addMovementDistance be called with player movements
+	virtual bool allowRoomChange() const =0;
 	virtual void addMovementDistance(int pid, float dist) =0;	// player pid has moved the distance dist
 	virtual void playerScreenChange(int pid) =0;	// player pid has moved to a new room (called max. once per frame per player)
 	virtual void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) =0;	// caller doesn't remove the rocket

@@ -268,23 +268,23 @@ void Graphics::draw_flag(int team, int x, int y) {
 	//draw shadow
 	ellipsefill(drawbuf,
 		plx + x,
-		ply + y,
+		ply + y + 15,
 		12, 3, col[COLSHADOW]
 	);
 	//draw flagpole
 	rectfill(drawbuf,
 		plx + x - 3,
-		ply + y - 40,
+		ply + y - 25,
 		plx + x + 3,
-		ply + y,
+		ply + y + 15,
 		col[COLYELLOW]
 	);
 	//draw the flag itself
 	rectfill(drawbuf,
 		plx + x,
-		ply + y - 38,
+		ply + y - 23,
 		plx + x + 20,
-		ply + y - 20,
+		ply + y - 5,
 		teamcol[team]
 	);
 }
@@ -445,7 +445,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	yg = (int)((double)yg * 0.7);
 
 	xg += x;
-	yg += y - 15;
+	yg += y;
 
 	if (alpha < 255) {
 		set_trans_blender(0, 0, 0, alpha);
@@ -454,21 +454,21 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 
 	//desenha arma antes se dir 5,6,7
 	if (gundir >= 5) {
-		line(drawbuf, 0 + plx + x, 0 + ply + y - 15, 0 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 0 + ply + y - 15, 1 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 1 + ply + y - 15, 1 + plx + xg, 1 + ply + yg, pc1);
+		line(drawbuf, 0 + plx + x, 0 + ply + y, 0 + plx + xg, 0 + ply + yg, pc1);
+		line(drawbuf, 1 + plx + x, 0 + ply + y, 1 + plx + xg, 0 + ply + yg, pc1);
+		line(drawbuf, 1 + plx + x, 1 + ply + y, 1 + plx + xg, 1 + ply + yg, pc1);
 	}
 
 	// outer color: team color
-	circlefill(drawbuf, plx + x, ply + y - 15, 15, pc1);
+	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS, pc1);
 	// inner color: self color
-	circlefill(drawbuf, plx + x, ply + y - 15, 10, pc2);
+	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS*2/3, pc2);
 
 	//desenha arma depois se dir 0,1,2,3,4
 	if (gundir < 5) {
-		line(drawbuf, 0 + plx + x, 0 + ply + y - 15, 0 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 0 + ply + y - 15, 1 + plx + xg, 0 + ply + yg, pc1);
-		line(drawbuf, 1 + plx + x, 1 + ply + y - 15, 1 + plx + xg, 1 + ply + yg, pc1);
+		line(drawbuf, 0 + plx + x, 0 + ply + y, 0 + plx + xg, 0 + ply + yg, pc1);
+		line(drawbuf, 1 + plx + x, 0 + ply + y, 1 + plx + xg, 0 + ply + yg, pc1);
+		line(drawbuf, 1 + plx + x, 1 + ply + y, 1 + plx + xg, 1 + ply + yg, pc1);
 	}
 
 	if (alpha < 255)
@@ -478,22 +478,22 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 void Graphics::draw_player_shadow(const ClientPlayer& player, int alpha) {
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
-	ellipsefill(drawbuf, plx + (int)player.lx, ply + (int)player.ly, 15, 3, col[COLSHADOW]);
+	ellipsefill(drawbuf, plx + (int)player.lx, ply + (int)player.ly + PLAYER_RADIUS, 15, 3, col[COLSHADOW]);
 	solid_mode();
 }
 
 void Graphics::draw_virou_sorvete(int x, int y) {
-	ellipsefill(drawbuf, plx + x, ply + y - 15, 6, 15, col[COLORA]);
-	circlefill(drawbuf, plx + x - 8, ply + y - 10-15, 8, col[COLBLUE]);
-	circlefill(drawbuf, plx + x + 8, ply + y - 10-15, 8, col[COLMAG]);
-	circlefill(drawbuf, plx + x + 0, ply + y - 20-15, 8, col[COLGREEN]);
-	textprintf_centre_ex(drawbuf, font, plx + x + 0, ply + y - 20-43, col[COLWHITE], -1, "VIROU");
-	textprintf_centre_ex(drawbuf, font, plx + x + 0, ply + y - 20-33, col[COLWHITE], -1, "SORVETE!");
+	ellipsefill(drawbuf, plx + x, ply + y, 6, 15, col[COLORA]);
+	circlefill(drawbuf, plx + x - 8, ply + y - 10, 8, col[COLBLUE]);
+	circlefill(drawbuf, plx + x + 8, ply + y - 10, 8, col[COLMAG]);
+	circlefill(drawbuf, plx + x + 0, ply + y - 20, 8, col[COLGREEN]);
+	textprintf_centre_ex(drawbuf, font, plx + x + 0, ply + y - 48, col[COLWHITE], -1, "VIROU");
+	textprintf_centre_ex(drawbuf, font, plx + x + 0, ply + y - 38, col[COLWHITE], -1, "SORVETE!");
 }
 
 void Graphics::draw_player_dead(int x, int y) {
-	ellipsefill(drawbuf, plx + x, ply + y, 20, 6, col[COLRED]);
-	circlefill(drawbuf, plx + x, ply + y - 10, 12, col[COLRED]);
+	ellipsefill(drawbuf, plx + x, ply + y + PLAYER_RADIUS*4/5, 20, 6, col[COLRED]);
+	circlefill(drawbuf, plx + x, ply + y, PLAYER_RADIUS*4/5, col[COLRED]);
 }
 
 void Graphics::draw_gun_explosion(int x, int y, int rad) {
@@ -551,9 +551,9 @@ void Graphics::draw_deathbringer_affected(int x, int y, int team) {
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, 128);
 	for (int i = 0; i < 5; i++)
-		circlefill(drawbuf, plx + x + rand() % 40 - 20, ply + y + rand() % 40 - 20 - 15, 15, teamcol[team]);
-		for (int j = 0; j < 5; j++)
-			circlefill(drawbuf, plx + x + rand() % 40 - 20, ply + y + rand() % 40 - 20 - 15, 15, 0);
+		circlefill(drawbuf, plx + x + rand() % 40 - 20, ply + y + rand() % 40 - 20, 15, teamcol[team]);
+	for (int i = 0; i < 5; i++)
+		circlefill(drawbuf, plx + x + rand() % 40 - 20, ply + y + rand() % 40 - 20, 15, 0);
 	solid_mode();
 }
 
@@ -563,7 +563,7 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
 	drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 	for (int r = 50; r > 0; r -= 5) {
 		set_trans_blender(0, 0, 0, 50 - r);
-		circlefill(drawbuf, plx + x, ply + y - 10, r, 0);
+		circlefill(drawbuf, plx + x, ply + y + PLAYER_RADIUS/3, r, 0);
 	}
 	solid_mode();
 	set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
@@ -579,24 +579,24 @@ void Graphics::draw_shield(int x, int y, int r, int alpha) {
 }
 
 void Graphics::draw_player_name(const string& name, int x, int y, int team) {
-	print_text_border_centre(name, plx + x, ply + y - 40, col[COLWHITE], teamdcol[team]);
+	print_text_border_centre(name, plx + x, ply + y - PLAYER_RADIUS - 10, col[COLWHITE], teamdcol[team]);
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 	if (rocket.power) {	// powered rocket
 		//draw rocket shadow
-		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, 6, 3, col[COLSHADOW]);
+		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y + QUAD_ROCKET_RADIUS + 8, QUAD_ROCKET_RADIUS, 3, col[COLSHADOW]);
 		//draw the rocket
 		if ((int)(time * 30) % 2)
-			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y - 15, 6, col[COLWHITE]);	//y-12?
+			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, QUAD_ROCKET_RADIUS, col[COLWHITE]);	//y-12?
 		else
-			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y - 15, 4, teamlcol[rocket.team]); //y-12??
+			circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, QUAD_ROCKET_RADIUS, teamlcol[rocket.team]); //y-12??
 	}
 	else {				// normal rocket
 		//draw rocket shadow
-		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, 4, 2, col[COLSHADOW]);
+		ellipsefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y + ROCKET_RADIUS + 8, ROCKET_RADIUS, 2, col[COLSHADOW]);
 		//draw the rocket
-		circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y - 15, 4, teamcol[rocket.team]); //y-10??
+		circlefill(drawbuf, plx + (int)rocket.x, ply + (int)rocket.y, ROCKET_RADIUS, teamcol[rocket.team]); //y-10??
 	}
 }
 
