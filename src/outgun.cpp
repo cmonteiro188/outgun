@@ -21,6 +21,7 @@
 #define CL_SHOW_FLAGPOS
 #define FLAGPOS_RAD 30
 //#define CL_SHOW_TIME_LEFT
+#define SHADOW_MINIMUM_NORMAL 7
 
 // ----
 
@@ -2327,7 +2328,8 @@ public:
 			pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
 	bool pups_min_percentage, pups_max_percentage;
 	int pup_add_time, pup_max_time;
-	bool pup_deathbringer_switch, pup_shadow_invisibility;
+	bool pup_deathbringer_switch;
+	int shadow_minimum;	// smallest alpha value allowed; 1 is when even the coordinates are not sent
 	double respawn_time, waiting_time_deathbringer;
 
 	//ctor
@@ -4635,7 +4637,7 @@ public:
 					}
 					else if (cmd == 36) {
 						if (ival == 0 || ival == 1)
-							pup_shadow_invisibility = ival==1?true:false;
+							shadow_minimum = ival==1?1:SHADOW_MINIMUM_NORMAL;
 						else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 					}
 				}
@@ -4872,7 +4874,7 @@ public:
 		pup_chance_deathbringer = 11;
 
 		pup_deathbringer_switch = true;
-		pup_shadow_invisibility = false;
+		shadow_minimum = SHADOW_MINIMUM_NORMAL;
 
 		respawn_time = 2.0;
 		waiting_time_deathbringer = 4.0;
@@ -6053,7 +6055,7 @@ public:
 								player[pid].queue_printf("Power-up time is %d seconds", pup_max_time);
 							if (pup_deathbringer_switch)
 								player[pid].queue_printf("Picking up a second deathbringer power-up cancels the effect");
-							if (pup_shadow_invisibility)
+							if (shadow_minimum == 1)
 								player[pid].queue_printf("A player using the shadow power-up gets totally invisible");
 							ostringstream pupstr;
 							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << "%%";
@@ -6665,8 +6667,8 @@ public:
 			//
 			if (player[i].item_helm > 0) {
 				player[i].item_helm -= 10;		//slowly fades....
-				if (player[i].item_helm < 1)	// minimum
-					player[i].item_helm = 1;
+				if (player[i].item_helm < shadow_minimum)	// minimum
+					player[i].item_helm = shadow_minimum;
 			}
 
 			// check deathbringer effect
@@ -7528,7 +7530,7 @@ public:
 						&&
 						(player[j].y == player[i].y)
 						&&
-						(!pup_shadow_invisibility || player[j].item_helm != 1 || i/TSIZE == j/TSIZE ||
+						(player[j].item_helm != 1 || i/TSIZE == j/TSIZE ||
 								(world.flag[1-j/TSIZE].carried && world.flag[1-j/TSIZE].carrier == j)) ) {
 					//add to players_onscreen
 					players_onscreen += (1 << j);
