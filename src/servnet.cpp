@@ -2209,6 +2209,7 @@ void ServerNetworking::run_website_thread() {
 
 	NLaddress website_address;
 	double website_talk_time = 0.0;
+	bool first_connection = true;
 
 	do {
 		if (get_time() > website_talk_time) {
@@ -2262,7 +2263,11 @@ void ServerNetworking::run_website_thread() {
 			}
 
 			// build and send data
-			const map<string, string> parameters = website_parameters(address);
+			map<string, string> parameters = website_parameters(address);
+			if (first_connection) {		// send maplist
+				parameters["maplist"] = website_maplist();
+				first_connection = false;
+			}
 			const string data = build_http_data(parameters);
 			NLint result = post_http_data(site_script, data, site_auth);
 			LOG("Sent information to server website:\n");
@@ -2358,28 +2363,26 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	return parameters;
 }
 
+string ServerNetworking::website_maplist() const {
+    ostringstream maps;
+    for (vector<gameserver_c::MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
+        if (m != host->maplist().begin())
+            maps << '\n';
+        maps << m->title;
+    }
+    return maps.str();
+}
+
 string ServerNetworking::build_http_data(const map<string, string>& parameters) const {
 	// URL encode parameter values
 	ostringstream param_line;
 	for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
 		//param_line << i->first << '=';
-		for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++) {
-			if (is_url_safe(*s))		// send safe characters as they are
-				param_line << *s;
-			else if (*s == ' ')			// spaces to + characters
-				param_line << '+';
-			else						// encode unsafe characters to %xx
-				param_line << "%" << hex << static_cast<int>(static_cast<unsigned char>(*s));
-		}
+		for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
+			url_encode(*s, param_line);
 		param_line << '=';
-		for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++) {
-			if (is_url_safe(*s))		// send safe characters as they are
-				param_line << *s;
-			else if (*s == ' ')			// spaces to + characters
-				param_line << '+';
-			else						// encode unsafe characters to %xx
-				param_line << "%" << hex << static_cast<int>(static_cast<unsigned char>(*s));
-		}
+		for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
+			url_encode(*s, param_line);
 		param_line << '&';
 	}
 	param_line << "\r\n";
@@ -2389,8 +2392,7 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 NLint ServerNetworking::post_http_data(const string& script, string parameters, const string& auth) const {
 	char lebuf[65536]; int count = 0;
 	ostringstream data;
-	//const string password = encode_base64("outgun:g0djku9k30u92f");
-	const string password = encode_base64(auth);
+	const string password = base64_encode(auth);
 	parameters += "passwd=";
 	parameters += password;
 	data << "POST " << script << " HTTP/1.0\r\n";
@@ -2417,7 +2419,16 @@ void ServerNetworking::save_http_response(ostream& out) const {
 	} while (result == buffer_size && get_time() <= timeout && !file_threads_quit);
 }
 
-string ServerNetworking::encode_base64(const string& data) const {
+void ServerNetworking::url_encode(char c, ostream& out) const {
+	if (is_url_safe(c))	// send safe characters as they are
+		out << c;
+	else if (c == ' ')	// spaces to + characters
+		out << '+';
+	else				// encode unsafe characters to %xx
+		out << '%' << hex << setw(2) << setfill('0') << static_cast<int>(static_cast<unsigned char>(c));
+}
+
+string ServerNetworking::base64_encode(const string& data) const {
 	const string conversion_table("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
 	const char padding = '=';
 	string result;

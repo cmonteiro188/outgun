@@ -75,6 +75,8 @@ class gameserver_c {
 	// asetukset
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;
+
+public:
 	struct MapInfo {
 		string title, author, file;
 		int width, height;
@@ -82,6 +84,8 @@ class gameserver_c {
 		MapInfo();
 		bool load(string mapName);
 	};
+
+private:
 	vector<MapInfo> maprot;
 	int currmap;		// current map in maprot
 	bool random_maprot;
@@ -136,6 +140,7 @@ public:
 	bool server_next_map(int reason);
 	const MapInfo& current_map() const { return maprot[currmap]; }
 	const string& getCurrentMapFile() const { return maprot[currmap].file; }
+	const vector<MapInfo>& maplist() const { return maprot; }
 
 	const vector<string>& getWelcomeMessage() const { return welcome_message; }
 
