@@ -201,7 +201,9 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
 	}
 	if (selected_item >= static_cast<int>(components.size()))
 		selected_item = components.size() - 1;
-	if (selected_item < start)
+	if (start >= static_cast<int>(components.size()) - visible_items)
+		start = max<int>(0, components.size() - visible_items);
+	else if (selected_item < start)
 		start = selected_item;
 	else if (selected_item >= start + visible_items)
 		start = selected_item - visible_items + 1;
@@ -370,16 +372,14 @@ int Colorselect::height() const {
 }
 
 bool Colorselect::handleKey(char scan, unsigned char chr) {
-	if (scan == KEY_LEFT && selected > 0)
-		--selected;
-	else if (scan == KEY_RIGHT && selected + 1 < static_cast<int>(options.size()))
-		++selected;
-	else if (chr == '+' && selected > 0) {
-		swap(options[selected], options[selected - 1]);
+	if ((scan == KEY_LEFT || chr == '+') && selected > 0) {
+		if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '+')
+			swap(options[selected], options[selected - 1]);
 		--selected;
 	}
-	else if (chr == '-' && selected + 1 < static_cast<int>(options.size())) {
-		swap(options[selected], options[selected + 1]);
+	else if ((scan == KEY_RIGHT || chr == '+') && selected + 1 < static_cast<int>(options.size())) {
+		if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '-')
+			swap(options[selected], options[selected + 1]);
 		++selected;
 	}
 	else
@@ -407,7 +407,7 @@ int Checkbox::height() const {
 
 bool Checkbox::handleKey(char scan, unsigned char chr) {
 	(void)chr;
-	if (scan == KEY_SPACE || scan == KEY_X)
+	if (scan == KEY_SPACE || scan == KEY_X || scan == KEY_ENTER || scan == KEY_ENTER_PAD)
 		toggle();
 	else
 		return false;
@@ -440,10 +440,11 @@ void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 	const int x0 = x + (caption.length() + 1) * char_w;
 	if (graphic) {
 		const int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
-		y -= 4;
-		rect(buffer, x0, y, x + width() - 1, y + height() - 1, captionColor(active));
+		const int yb = y - 4;
+		rect(buffer, x0, yb, x + width() - 1, yb + height() - 1, captionColor(active));
 		if (barLength)
-			rectfill(buffer, x0 + 1, y + 1, x0 + barLength, y + height() - 2, col_value);
+			rectfill(buffer, x0 + 1, yb + 1, x0 + barLength, yb + height() - 2, col_value);
+		textprintf_centre_ex(buffer, font, (x0 + x + width() - 1) / 2, y, col_disabled, -1, "%.0f%%", 100 * static_cast<float>(val - vmin) / (vmax - vmin));
 	}
 	else
 		textprintf_ex(buffer, font, x0, y, col_value, -1, "%d", val);
@@ -571,14 +572,21 @@ void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
 
 bool Textobject::handleKey(char scan, unsigned char chr) {
 	(void)chr;
+	// If start goes out of range, draw method fixes it.
 	if (scan == KEY_UP) {
-		if (--start < 0)
-			start = 0;
+		--start;
 		return true;
 	}
 	else if (scan == KEY_DOWN) {
-		if (++start >= static_cast<int>(lines.size()))
-			start = lines.size() - 1;
+		++start;
+		return true;
+	}
+	else if (scan == KEY_HOME) {
+		start = 0;
+		return true;
+	}
+	else if (scan == KEY_END) {
+		start = INT_MAX;
 		return true;
 	}
 	return false;

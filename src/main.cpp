@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
 			"Local addresses:\n",
 				pmin, pmax, pdef);
 
-		for (int z=0;z<locsize;z++) {
+		for (int z = 0;z < locsize; z++) {
 			strcat(infobuf, addressToString(locals[z]).c_str());
 			strcat(infobuf, "\n");
 		}
@@ -387,8 +387,10 @@ int main(int argc, char *argv[]) {
 			allegro_message("Error: directory '%s' not found.\nPlease create this directory.\nThe game can't run without it.", CLIENT_MAPS_DIR);
 			return 0;
 		}
-		if (!check_dir("stats"))
-			log.error("Directory 'stats' not found.");
+		if (!check_dir("client_stats"))
+			log.error("Directory 'client_stats' not found.");
+		if (!check_dir("server_stats"))
+			log.error("Directory 'server_stats' not found.");
 
 		// run client
 		clientCfg.statusOutput = statusOutputWindow;

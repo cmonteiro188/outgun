@@ -11,8 +11,6 @@ public:
 	Sounds::Sounds(LogSet logs);
 	Sounds::~Sounds();
 
-	bool valid() const;
-
 	void play(int s) const;
 
 	void search_themes(LineReceiver& dst) const;

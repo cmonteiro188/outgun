@@ -305,6 +305,8 @@ public:
 	virtual bool under_deathbringer_effect(double curr_time) const =0;
 };
 
+bool compare_players(const PlayerBase* a, const PlayerBase* b);
+
 class ServerPlayer : public PlayerBase {
 public:
 	int health;
@@ -615,8 +617,10 @@ class WorldBase {
 	void executeBounce(PlayerBase& pl1, PlayerBase& pl2) const;
 	void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 
+ 	void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
+
 protected:
-	WorldBase() { }
+	WorldBase(): player(MAX_PLAYERS) { }
 
 public:
 	void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction);
@@ -627,7 +631,7 @@ public:
 	Map map;
 
 	int maxplayers;	// actual
-	PointerContainer<PlayerBase> player[MAX_PLAYERS];
+	std::vector<PointerContainer<PlayerBase> > player;
 	Team teams[2];
 
 	std::vector<Flag> wild_flags;	// both teams can capture these (team ID is 2)
@@ -650,6 +654,8 @@ public:
 	virtual void stealFlag(int team, int flag, int carrier);
 
 	static std::string getTeamName(int team);
+
+	void save_stats(const std::string& dir, const std::string& map_name) const;
 };
 
 class PowerupSettings {
@@ -797,6 +803,9 @@ public:
 	// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 	void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
 						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter);
+
+	/*void save_stats(const std::string& dir, const Team* teams,
+				const std::vector<ClientPlayer*>& players, const std::string& map_name) const;*/
 };
 
 #endif

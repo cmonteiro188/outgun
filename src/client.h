@@ -163,9 +163,6 @@ class gameclient_c {
 	void remove_player_password(const std::string& name, const std::string& address) const;
 	int remove_player_passwords(const std::string& name) const;
 
-	void save_stats() const;
-	void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
-
 	ServerThreadOwner listenServer;
 
 	// world

@@ -194,7 +194,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 
 //v0.4.5: broadcast player crap
 void ServerNetworking::broadcast_player_crap(int pid) {
-	for (int i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			send_player_crap_update(world.player[i].cid, pid);
 }
@@ -261,13 +261,13 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
 
 	const vector<Flag>& flags = team == 2 ? world.wild_flags : world.teams[team].flags();
 	for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-		if (fi->carried())	{ 			//carried?
-			writeByte(lebuf, count, 1);	//TRUE
+		if (fi->carried())	{
+			writeByte(lebuf, count, 1);	// carried
 			//new flag carrier
 			writeByte(lebuf, count, static_cast<NLubyte>(fi->carrier()));	//player who took it
 		}
 		else {
-			writeByte(lebuf, count, 0);	//FALSE
+			writeByte(lebuf, count, 0);	// not carried
 			//new flag position
 			writeByte(lebuf, count, static_cast<NLubyte>(fi->position().px));
 			writeByte(lebuf, count, static_cast<NLubyte>(fi->position().py));
@@ -740,11 +740,9 @@ void ServerNetworking::update_serverinfo() {
 
 int ServerNetworking::client_connected(int id) {
 	//2TEAM: check wich team to put player
-	int t1, t2, targ;
-	t1 = 0;		//red team count
-	t2 = 0;		//blue team count
-	int i;
-	for (i=0;i<maxplayers;i++)
+	int t1 = 0;		//red team count
+	int t2 = 0;		//blue team count
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
 			if (i/TSIZE == 0)
 				t1++;
@@ -753,6 +751,7 @@ int ServerNetworking::client_connected(int id) {
 		}
 
 	// put on red team, blue team, or randomize if same # of players in both teams
+	int targ;
 	if (t1 < t2)
 		targ = 0;
 	else if (t1 > t2)
@@ -765,28 +764,19 @@ int ServerNetworking::client_connected(int id) {
 	// alloc new player : scans only slots of the team (up from targ)
 	int myself = -1;
 
-	for (i = targ; i < targ + TSIZE; i++)
+	for (int i = targ; i < targ + TSIZE; i++)
 		if (!world.player[i].used) {
-			// add player to players_present
-			//players_present = players_present | (1 << i);
-
 			// init player
-			int cid;
-			cid=id;
-			ctop[cid]=i;
+			const int cid = id;
+			ctop[cid] = i;
+			myself = i;
 
 			world.player[i].clear(true, i, cid, "", i / TSIZE);
 			world.player[i].localIP = isLocalIP(get_client_address(cid));
 			player_count++;
 
-			myself = i;
-
-			//reset keypresses
-			world.player[i].controls = ClientControls();
-
-			//check pickup creation
-			world.check_pickup_creation(false);
-
+			world.player[i].controls = ClientControls();	// reset keypresses
+			world.check_pickup_creation(false);				// check pickup creation
 			break;
 		}
 
@@ -797,18 +787,12 @@ int ServerNetworking::client_connected(int id) {
 		return -1;
 	}
 
-	// spawn player
+	// New players always spawn in the base.
 	world.player[myself].respawn_to_base = true;
 	world.respawnPlayer(myself);
 
-	// se o player_count ficou == 2, reseta partida
-	//
 	if (player_count == 2)
 		host->ctf_game_restart();
-
-	//char lelix[222];
-	//sprintf(lelix, "PCOUNT = %i BCOUNT = %i\n", player_count, bot_count);
-	//network.broadcast_message(lelix);
 
 	char lebuf[256]; int count;
 
@@ -837,7 +821,7 @@ int ServerNetworking::client_connected(int id) {
 	// - all other player's names
 	// - all other player's frags
 
-	for (i = 0; i < maxplayers; i++) {
+	for (int i = 0; i < maxplayers; i++) {
 		if (!world.player[i].used)
 			continue;
 		if (i == myself)
@@ -848,7 +832,7 @@ int ServerNetworking::client_connected(int id) {
 		//frags update
 		count = 0;
 		writeByte(lebuf, count, data_frags_update);
-		writeByte(lebuf, count, i);		// what player id
+		writeByte(lebuf, count, static_cast<NLubyte>(i));		// what player id
 		writeLong(lebuf, count, world.player[i].stats().frags());
 		server->send_message(id, lebuf, count);
 
@@ -856,7 +840,7 @@ int ServerNetworking::client_connected(int id) {
 	}
 
 	const vector<string>& welcome_message = host->getWelcomeMessage();
-	for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
+	for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
 		player_message(myself, msg_info, *line);
 
 	host->check_team_changes();
@@ -869,18 +853,12 @@ int ServerNetworking::client_connected(int id) {
 	return myself;
 }
 
-//client disconnected (callback function)
-//
-// mesmas observacoes para client_connect. adicionalmente:
-//
 void ServerNetworking::client_disconnected(int id) {
-	if (ctop[id]==-1)
+	if (ctop[id] == -1)
 		return;
 
-	int pid;
-
 	//what player
-	pid = ctop[id];
+	const int pid = ctop[id];
 
 	//first update the ADMIN SHELL
 	if (shellssock != NL_INVALID) {
@@ -944,7 +922,7 @@ void ServerNetworking::forwardSayadminMessage(int cid, const string& message) {
 //process incoming client data (callback function)
 void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 	(void)length;
-	if (ctop[id]==-1)
+	if (ctop[id] == -1)
 		return;
 
 	//player id
@@ -1028,18 +1006,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				else
 					host->chat(pid, msg + 1);
 			}
-			//+attack
-			else if (code == data_fire_on) {
+			else if (code == data_fire_on)
 				world.player[pid].attack = true;
-			}
-			//-attack
-			else if (code == data_fire_off) {
+			else if (code == data_fire_off)
 				world.player[pid].attack = false;
-			}
-			else if (code == data_suicide) {
+			else if (code == data_suicide)
 				world.suicide(pid);
-			}
-			// want changeteams on
 			else if (code == data_change_team_on) {
 				if (!world.player[pid].want_change_teams) {
 					world.player[pid].want_change_teams = true;
@@ -1047,32 +1019,26 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					pid = ctop[id];
 				}
 			}
-			// want changeteams off
 			else if (code == data_change_team_off) {
 				if (world.player[pid].want_change_teams) {
 					world.player[pid].want_change_teams = false;
 					world.player[pid].team_change_pending = false; //so pra garantir
 				}
 			}
-			else if (code == data_client_ready) {
-				//client is ready to play now
+			else if (code == data_client_ready)
 				world.player[pid].awaiting_client_ready = false;
-			}
-			// want change map
 			else if (code == data_map_exit_on) {
 				if (world.player[pid].want_map_exit == false) {
 					world.player[pid].want_map_exit = true;
 					host->check_map_exit();
 				}
 			}
-			// dont' want change map
 			else if (code == data_map_exit_off) {
 				if (world.player[pid].want_map_exit == true) {
 					world.player[pid].want_map_exit = false;
 					host->check_map_exit();
 				}
 			}
-			// v0.4.4: UDP DOWNLOAD of files - request
 			else if (code == data_file_request) {
 				char ftype[64];
 				char fname[256];
@@ -1103,7 +1069,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					}
 				}
 			}
-			// v0.4.4: UDP DOWNLOAD of files - the ack
 			else if (code == data_file_ack) {
 				//check expected ack
 				NLulong ackpos;
@@ -1124,7 +1089,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					//unexpected ack pos. should never happen and if it does ,just discard...
 				}
 			}
-			// v0.4.4 : client is telling his newest token
 			else if (code == data_registration_token) {
 				string tok;
 				readStr(msg, count, tok);
@@ -1943,8 +1907,10 @@ void ServerNetworking::run_website_thread() {
 			}
 			else
 				log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), getNlErrorString());
-		if (!success)
+		if (!success) {
 			log("Website thread: Can't get any address from the list!");
+			continue;
+		}
 		int web_port = nlGetPortFromAddr(&website_address);
 		if (!web_port) {
 			web_port = 80;
@@ -2598,7 +2564,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		else if (host->isBanned(client_id)) {
 			log("Rejected a client because their IP is banned (%s)", addressToString(get_client_address(client_id)).c_str());
 			res->accepted = false;
-			writeString(res->customData, res->customDataLength, "You are banned");
+			writeString(res->customData, res->customDataLength, "You are banned from this server");
 		}
 		else {
 			string name;
@@ -2609,7 +2575,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 				readStr(data, count, password);
 			if (!check_name(name)) {
 				res->accepted = false;
-				// no need to explain, the client musn't allow this
+				// no need to explain, the client must not allow this
 			}
 			else if (password == server_password) {
 				string player_password;

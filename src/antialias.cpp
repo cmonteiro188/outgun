@@ -46,7 +46,7 @@ double CurveFunction::spanLeftSideIntegral(double x0, double y0, double y1) cons
 	y0 -= cy; y1 -= cy;
 	numAssert3(fabs(y0) <= r, int(y0), int(r), int((y0-r)*1e20));
 	numAssert3(fabs(y1) <= r, int(y1), int(r), int((y1-r)*1e20));
-	double val = (y1 - y0)*(cx - x0) + .5*sideMul*( y1*sqrt(r2 - y1*y1) - y0*sqrt(r2 - y0*y0) + r2*(asin(y1/r) - asin(y0/r)) );
+	const double val = (y1 - y0)*(cx - x0) + .5*sideMul*( y1*sqrt(r2 - y1*y1) - y0*sqrt(r2 - y0*y0) + r2*(asin(y1/r) - asin(y0/r)) );
 	numAssert(val >= -.00001 && val <= 1.00001, int(val*10000.));
 	return val;
 }
@@ -98,7 +98,7 @@ double LineFunction::spanLeftSideIntegral(double x0, double y0, double y1) const
 		nAssert(y0 == y1 && y0 == py1);
 		return 0;
 	}
-	double val = (y1 - y0)*(px1 - x0 - py1 * ratio) + .5*(y1*y1 - y0*y0)*ratio;
+	const double val = (y1 - y0)*(px1 - x0 - py1 * ratio) + .5*(y1*y1 - y0*y0)*ratio;
 	numAssert(val >= -.0001 && val <= 1.00001, int(val*1000000.));
 	return val;
 }
@@ -204,7 +204,7 @@ void renderBlock(double y0, double y1, const BorderFunctionBase& fl, const Borde
 	}
 	renderLine(y0, ceil(y0), fl, fr, tex, overlay);
 	tex.nextLine();
-	double y1f = floor(y1);
+	const double y1f = floor(y1);
 	for (y0 = ceil(y0); y0 < y1f; ++y0) {
 		renderLine(y0, y0 + 1, fl, fr, tex, overlay);
 		tex.nextLine();
@@ -266,12 +266,12 @@ double getIntersection(LineFunction* f1, CurveFunction* f2, double miny) {
 	// | f1->(px1,py1) + t * f1->(px2-px1,py2-py1) - f2->(cx,cy) |^2 = f2->r2
 	// (x - f2->cx) * f2->sideMul > 0
 	// t is calculated from the first equation just like in bounceFromPoint in world.cpp (code is copied from there)
-	double dx = f2->cx  - f1->px1, dy = f2->cy  - f1->py1;
-	double mx = f1->px2 - f1->px1, my = f1->py2 - f1->py1;
-	double r2 = f2->r2;
-	double m2 = mx*mx + my*my;
-	double mdotd = mx*dx + my*dy;
-	double d2 = dx*dx + dy*dy;
+	const double dx = f2->cx  - f1->px1, dy = f2->cy  - f1->py1;
+	const double mx = f1->px2 - f1->px1, my = f1->py2 - f1->py1;
+	const double r2 = f2->r2;
+	const double m2 = mx*mx + my*my;
+	const double mdotd = mx*dx + my*dy;
+	const double d2 = dx*dx + dy*dy;
 	double disc = mdotd*mdotd - m2*(d2-r2);
 	if (disc <= 0)
 		return 1e99;	// no intersection
@@ -280,14 +280,14 @@ double getIntersection(LineFunction* f1, CurveFunction* f2, double miny) {
 	double besty = 1e99;
 	double y = f1->py1 + t * my;
 	if (y >= miny) {
-		double xside = t * mx - dx;
+		const double xside = t * mx - dx;
 		if (xside * f2->sideMul > 0)	// same sign -> is on the 'active' side of the circle
 			besty = y;
 	}
 	t = (mdotd + disc) / m2;	// larger t
 	y = f1->py1 + t * my;
 	if (y >= miny && y < besty) {
-		double xside = t * mx - dx;
+		const double xside = t * mx - dx;
 		if (xside * f2->sideMul > 0)	// same sign -> is on the 'active' side of the circle
 			besty = y;
 	}
@@ -298,27 +298,27 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) {
 	// | (x,y) - f1->(cx,cy) |^2 = f1->r2
 	// | (x,y) - f2->(cx,cy) |^2 = f2->r2
 	// it's a tricky one; the solution is from http://mathforum.org/library/drmath/view/51836.html
-	double dx = f2->cx - f1->cx;
-	double dy = f2->cy - f1->cy;
-	double sr2 = dx*dx + dy*dy;
+	const double dx = f2->cx - f1->cx;
+	const double dy = f2->cy - f1->cy;
+	const double sr2 = dx*dx + dy*dy;
 	if (sr2 == 0)
 		return 1e99;	// no intersection
-	double t = .5 * (sr2 + f1->r2 - f2->r2);
-	double xb = f1->cx + dx * t / sr2;
-	double yb = f1->cy + dy * t / sr2;
-	double srt = f1->r2 - t*t/sr2;
+	const double t = .5 * (sr2 + f1->r2 - f2->r2);
+	const double xb = f1->cx + dx * t / sr2;
+	const double yb = f1->cy + dy * t / sr2;
+	const double srt = f1->r2 - t*t/sr2;
 	if (srt <= 0)
 		return 1e99;	// no intersection
-	double sr = sqrt(sr2);
-	double mul = sqrt(srt) / sr;
+	const double sr = sqrt(sr2);
+	const double mul = sqrt(srt) / sr;
 	// now the points are (xb +- dy*mul , yb -+ dx*mul)
 	double y1 = yb - dx*mul;
 	double besty = 1e99;
 	if (y1 >= miny) {
-		double x1 = xb + dy*mul;
-		double dx1 = x1 - f1->cx, dx2 = x1 - f2->cx;
+		const double x1 = xb + dy*mul;
+		const double dx1 = x1 - f1->cx, dx2 = x1 - f2->cx;
 		#ifndef NDEBUG
-		double dy1 = y1 - f1->cy, dy2 = y1 - f2->cy;
+		const double dy1 = y1 - f1->cy, dy2 = y1 - f2->cy;
 		nAssert(fabs(dx1*dx1 + dy1*dy1 - f1->r2) < .00001);
 		nAssert(fabs(dx2*dx2 + dy2*dy2 - f2->r2) < .00001);
 		#endif
@@ -327,10 +327,10 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) {
 	}
 	y1 = yb + dx*mul;
 	if (y1 >= miny && y1 < besty) {
-		double x1 = xb - dy*mul;
-		double dx1 = x1 - f1->cx, dx2 = x1 - f2->cx;
+		const double x1 = xb - dy*mul;
+		const double dx1 = x1 - f1->cx, dx2 = x1 - f2->cx;
 		#ifndef NDEBUG
-		double dy1 = y1 - f1->cy, dy2 = y1 - f2->cy;
+		const double dy1 = y1 - f1->cy, dy2 = y1 - f2->cy;
 		nAssert(fabs(dx1*dx1 + dy1*dy1 - f1->r2) < .00001);
 		nAssert(fabs(dx2*dx2 + dy2*dy2 - f2->r2) < .00001);
 		#endif
@@ -344,20 +344,20 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) {
 // extreme values of y (that might [would the math be exact] actually be at the extreme coordinate or even outside the segment) are ignored
 bool YSegment::getFirstIntersection(BorderFunctionBase* bfn, double* splity) {
 	*splity = 1e99;
-	double miny = y0 + INTERSECTION_TRESHOLD;
+	const double miny = y0 + INTERSECTION_TRESHOLD;
 	LineFunction* lfp1 = dynamic_cast<LineFunction*>(bfn);
 	if (lfp1) {
 		for (TexBorderListT::const_iterator bi = final.begin(); bi != final.end(); ++bi) {
 			LineFunction* lfp2 = dynamic_cast<LineFunction*>(bi->getFn());
 			if (lfp2) {
-				double y = getIntersection(lfp1, lfp2);
+				const double y = getIntersection(lfp1, lfp2);
 				if (y > miny && y < *splity)
 					*splity = y;
 				continue;
 			}
 			CurveFunction* cfp2 = dynamic_cast<CurveFunction*>(bi->getFn());
 			nAssert(cfp2);
-			double y = getIntersection(lfp1, cfp2, miny);
+			const double y = getIntersection(lfp1, cfp2, miny);
 			if (y < *splity)
 				*splity = y;
 			continue;
@@ -369,14 +369,14 @@ bool YSegment::getFirstIntersection(BorderFunctionBase* bfn, double* splity) {
 		for (TexBorderListT::const_iterator bi = final.begin(); bi != final.end(); ++bi) {
 			LineFunction* lfp2 = dynamic_cast<LineFunction*>(bi->getFn());
 			if (lfp2) {
-				double y = getIntersection(lfp2, cfp1, miny);
+				const double y = getIntersection(lfp2, cfp1, miny);
 				if (y > miny && y < *splity)
 					*splity = y;
 				continue;
 			}
 			CurveFunction* cfp2 = dynamic_cast<CurveFunction*>(bi->getFn());
 			nAssert(cfp2);
-			double y = getIntersection(cfp1, cfp2, miny);
+			const double y = getIntersection(cfp1, cfp2, miny);
 			if (y < *splity)
 				*splity = y;
 			continue;
@@ -605,7 +605,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 				SegListT::iterator insPos = si;
 				++insPos;
 				segDest.insert(insPos, si->split(bi->y1));
-				bool split = splitOnIntersect(si, bi->fn, segDest);	// the next round will handle the newly created segment if any
+				const bool split = splitOnIntersect(si, bi->fn, segDest);	// the next round will handle the newly created segment if any
 				si->add(bi->fn);
 				if (!split)
 					break;
@@ -617,7 +617,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 				if (si->width() < SPLIT_TRESHOLD)
 					segDest.erase(si);
 				else {
-					bool split = splitOnIntersect(si, bi->fn, segDest);	// the next round will handle the newly created segment if any
+					const bool split = splitOnIntersect(si, bi->fn, segDest);	// the next round will handle the newly created segment if any
 					si->add(bi->fn);
 					if (!split)
 						break;
@@ -745,7 +745,7 @@ void Texturizer::startPixSpan(int x) {
 		}
 		spanIndex = x - si->x0();
 		if (spanIndex < 0) {
-			int nextStart = si->x0();
+			const int nextStart = si->x0();
 			partSpan = &(*row.insert(si, PartialPixelSegment(x)));	// keep them sorted
 			spanEnd = nextStart - partSpan->x0();
 			spanIndex = 0;
@@ -829,7 +829,7 @@ void SolidTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {	// f
 		hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, color);
 	else {
 		startPixSpan(x0);
-		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
+		const int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
 		for (int x = x0; x < x1; ++x)
 			putPixI(iAlpha);
 	}
@@ -855,7 +855,7 @@ void TextureTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {	//
 	}
 	else {
 		startPixSpan(x0);
-		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
+		const int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
 		for (int x = x0; x < x1; ++x)
 			putPixI(iAlpha);
 	}
@@ -909,11 +909,11 @@ void FlagmarkerTexturizer::startPixSpan(int x) {
 }
 
 void FlagmarkerTexturizer::putPix(double alpha) {	// draws at current x coord and increases it
-	float intensity = markRadius - sqrt(dx * dx + dy2);
+	const float intensity = markRadius - sqrt(dx * dx + dy2);
 	if (intensity <= 0)
 		host.putPix(0, 0);
 	else {
-		int iAlpha = static_cast<int>(intensity * alpha * intensityMul);
+		const int iAlpha = static_cast<int>(intensity * alpha * intensityMul);
 		host.blendPix(color, iAlpha);
 	}
 	++dx;
@@ -961,12 +961,12 @@ void SceneAntialiaser::addTriWall (const  TriWall& wall, int texture) {
 	objects.back().overlay = false;
 	vector<WallBorderSegment>& borders = objects.back().borders;
 
-	float x1 = x0 + wall.x1() * scale;
-	float y1 = y0 + wall.y1() * scale;
-	float x2 = x0 + wall.x2() * scale;
-	float y2 = y0 + wall.y2() * scale;
-	float x3 = x0 + wall.x3() * scale;
-	float y3 = y0 + wall.y3() * scale;
+	const float x1 = x0 + wall.x1() * scale;
+	const float y1 = y0 + wall.y1() * scale;
+	const float x2 = x0 + wall.x2() * scale;
+	const float y2 = y0 + wall.y2() * scale;
+	const float x3 = x0 + wall.x3() * scale;
+	const float y3 = y0 + wall.y3() * scale;
 
 	bfns.push_back(new LineFunction(x1, y1, x2, y2));
 	borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
@@ -984,9 +984,9 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) {
 	objects.back().overlay = false;
 	vector<WallBorderSegment>& borders = objects.back().borders;
 
-	double cx = x0 + wall.X() * scale, cy = y0 + wall.Y() * scale;
-	double ro = wall.radius() * scale;
-	double ri = wall.radius_in() * scale;
+	const double cx = x0 + wall.X() * scale, cy = y0 + wall.Y() * scale;
+	const double ro = wall.radius() * scale;
+	const double ri = wall.radius_in() * scale;
 
 	if (wall.angles()[0] == wall.angles()[1]) {	// a whole circle/ring
 		bfns.push_back(new CurveFunction(cx, cy, ro, false));
@@ -1013,16 +1013,16 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) {
 	nAssert(ar[1] >= ar[0]);
 	nAssert(ar[0] >= 0.);
 
-	double yeo = cy - ro * va2.second;	// - belongs to va2.second
-	double yei = cy - ri * va2.second;	// - belongs to va2.second
+	const double yeo = cy - ro * va2.second;	// - belongs to va2.second
+	const double yei = cy - ri * va2.second;	// - belongs to va2.second
 	double ang = ar[0];
-	int pi_i = static_cast<int>(ang / M_PI) + 1;
+	const int pi_i = static_cast<int>(ang / M_PI) + 1;
 	bool rightSide = (pi_i & 1) != 0;
 	double npi = M_PI * pi_i;
 
 	for (;;) {
-		double yao = cy - ro * cos(ang);	// - belongs to cos
-		double yai = cy - ri * cos(ang);	// - belongs to cos
+		const double yao = cy - ro * cos(ang);	// - belongs to cos
+		const double yai = cy - ri * cos(ang);	// - belongs to cos
 		if (npi < ar[1]) {	// draw from ang to npi
 			bfns.push_back(new CurveFunction(cx, cy, ro, rightSide));
 			if (rightSide)
@@ -1129,7 +1129,7 @@ void SceneAntialiaser::clip(int i0) {
 						border->fn = clipLeft;
 						break;
 					}
-					WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+					const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
 					border->fn = clipLeft;
 					border->y1 = *lcpi;
 					object->borders.push_back(newSeg);
@@ -1143,7 +1143,7 @@ void SceneAntialiaser::clip(int i0) {
 						border->fn = clipRight;
 						break;
 					}
-					WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+					const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
 					border->fn = clipRight;
 					border->y1 = *rcpi;
 					object->borders.push_back(newSeg);
@@ -1154,7 +1154,7 @@ void SceneAntialiaser::clip(int i0) {
 				else if (*lcpi < *rcpi) {	// within the clipping region until *lcpi
 					if (*lcpi >= border->y1)
 						break;
-					WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+					const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
 					border->y1 = *lcpi;
 					object->borders.push_back(newSeg);
 					border = &object->borders.back();	// continue splitting with this new segment
@@ -1163,7 +1163,7 @@ void SceneAntialiaser::clip(int i0) {
 				else {	// within the clipping region until *rcpi
 					if (*rcpi >= border->y1)
 						break;
-					WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+					const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
 					border->y1 = *rcpi;
 					object->borders.push_back(newSeg);
 					border = &object->borders.back();	// continue splitting with this new segment
@@ -1175,25 +1175,25 @@ void SceneAntialiaser::clip(int i0) {
 }
 
 void SceneAntialiaser::addRectWallClipped(const RectWall& wall, int texture) {
-	int startNew = objects.size();
+	const int startNew = objects.size();
 	addRectWall(wall, texture);
 	clip(startNew);
 }
 
 void SceneAntialiaser::addTriWallClipped (const  TriWall& wall, int texture) {
-	int startNew = objects.size();
+	const int startNew = objects.size();
 	addTriWall (wall, texture);
 	clip(startNew);
 }
 
 void SceneAntialiaser::addCircWallClipped(const CircWall& wall, int texture) {
-	int startNew = objects.size();
+	const int startNew = objects.size();
 	addCircWall(wall, texture);
 	clip(startNew);
 }
 
 void SceneAntialiaser::render(Texturizer& tex) const {
-	vector<DrawElement> drawEls = assembleScene(objects);
+	const vector<DrawElement> drawEls = assembleScene(objects);
 	#ifdef DEBUG_RENDER
 	if (drawEls.size() < 50) {
 		cerr << "rendering " << drawEls.size() << " elements:\n\n";

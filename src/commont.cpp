@@ -101,3 +101,4 @@ bool check_name(const std::string& name) {
 		return false;
 	return true;
 }
+

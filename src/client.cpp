@@ -78,10 +78,6 @@ public:
 int cfunc_connection_update(client_runes_t *arg);
 int cfunc_server_data(client_runes_t *arg);
 
-bool compare_players(const ClientPlayer* a, const ClientPlayer* b) {
-	return a->team() < b->team() || a->stats().frags() > b->stats().frags();
-}
-
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
 	if (LOG_THREAD_IDS)
 		log("ServerThreadOwner::threadFn() ID = %d", pthread_self());
@@ -1096,83 +1092,6 @@ int gameclient_c::remove_player_passwords(const std::string& name) const {
 	return removed;
 }
 
-// Save stats in HTML file.
-void gameclient_c::save_stats() const {
-	const string date_time = date_and_time();
-	const string date = date_time.substr(0, date_time.find(' '));
-	const string time = date_time.substr(date_time.find(' ') + 1);
-	const string filename = wheregamedir + "stats" + directory_separator + date + ".html";
-	// Check if the stats file exists.
-	ifstream in(filename.c_str());
-	const bool print_html_begin = !in;
-	in.close();
-
-	ofstream out(filename.c_str(), ios::app);
-	if (!out) {
-		log.error("Could not open the statistics file: %s", filename.c_str());
-		return;
-	}
-
-	if (print_html_begin) {
-		out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
-		out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
-		out << "<LINK REL=\"stylesheet\" HREF=\"outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
-		out << "<H1>Outgun statistics " << date << "</H1>\n\n";
-	}
-	out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << old_map << "</H2>\n\n";
-
-	out << "<H3>Team stats</H3>\n\n";
-	const Team& red = fx.teams[0];
-	const Team& blue = fx.teams[1];
-	out << "<TABLE BORDER CLASS=\"teams\">\n <TR><TH>Team<TH>Red<TH>Blue\n";
-	print_team_stats_row(out, "Captures",		red.score(), blue.score());
-	print_team_stats_row(out, "Kills",			red.kills(), blue.kills());
-	print_team_stats_row(out, "Deaths",			red.deaths(), blue.deaths());
-	print_team_stats_row(out, "Suicides",		red.suicides(), blue.suicides());
-	print_team_stats_row(out, "Flags taken",	red.flags_taken(), blue.flags_taken());
-	print_team_stats_row(out, "Flags dropped",	red.flags_dropped(), blue.flags_dropped());
-	print_team_stats_row(out, "Flags returned",	red.flags_returned(), blue.flags_returned());
-	print_team_stats_row(out, "Shots",			red.shots(), blue.shots());
-	print_team_stats_row(out, "Hit accuracy",	static_cast<int>(100. * red.accuracy() + 0.5), static_cast<int>(100. * blue.accuracy() + 0.5), "%");
-	print_team_stats_row(out, "Shots taken",	red.shots_taken(), blue.shots_taken());
-	print_team_stats_row(out, "Total movement",	static_cast<int>(red.movement()), static_cast<int>(blue.movement()), " u");
-	out << "</TABLE>\n\n";
-
-	out << "<H3>Player stats</H3>\n\n";
-	out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
-	for (vector<ClientPlayer>::const_iterator pl = fx.player.begin(); pl != fx.player.end(); ++pl) {
-		if (!pl->used)
-			continue;
-		out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << pl->name;
-		const Statistics& stats = pl->stats();
-		out << "<TD>" << stats.frags();
-		out << "<TD>" << stats.captures();
-		out << "<TD>" << stats.kills();
-		out << "<TD>" << stats.deaths();
-		out << "<TD>" << stats.suicides();
-		out << "<TD>" << stats.flags_taken();
-		out << "<TD>" << stats.flags_dropped();
-		out << "<TD>" << stats.flags_returned();
-		out << "<TD>" << stats.carriers_killed();
-		const int carry_time = static_cast<int>(stats.flag_carrying_time(0));
-		out << "<TD>" << carry_time / 60 << ':' << carry_time % 60;
-		out << "<TD>" << stats.cons_kills();
-		out << "<TD>" << stats.cons_deaths();
-		out << "<TD>" << stats.shots();
-		out << "<TD>" << std::setprecision(0) << std::fixed << stats.accuracy() << '%';
-		out << "<TD>" << stats.shots_taken();
-		out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement() << " u";
-	}
-	out << "\n</TABLE>\n\n";
-}
-
-void gameclient_c::print_team_stats_row(ostream& out, const string& header, int amount1, int amount2, const string& postfix) const {
-	out << " <TR><TH>" << header;
-	out << "<TD ALIGN=\"center\">" << amount1 << postfix;
-	out << "<TD ALIGN=\"center\">" << amount2 << postfix;
-	out << '\n';
-}
-
 //connect command
 void gameclient_c::connect_command(bool loadPassword) {
 	// disconnect
@@ -1196,7 +1115,7 @@ void gameclient_c::connect_command(bool loadPassword) {
 
 	log("Connecting to %s... passwords: server %s, player %s", address.c_str(), m_serverPassword.password().empty()?"no":"yes", m_playerPassword.password().empty()?"no":"yes");
 
-	//set connect-data (goes in every connect packet): outgun game name and version strings
+	//set connect-data (goes in every connect packet): outgun game name and protocol strings
 	char lebuf[256]; int count = 0;
 	writeString(lebuf, count, GAME_STRING);
 	writeString(lebuf, count, GAME_PROTOCOL);
@@ -1664,8 +1583,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readLong(lebuf, count, frameno);	// frame # of shot
 
 					readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
-					bool power = ((rteampower & 1) != 0);
-					int team = (rteampower & 2) >> 1;
+					const bool power = ((rteampower & 1) != 0);
+					const int team = (rteampower & 2) >> 1;
 
 					readByte(lebuf, count, rpx);
 					readByte(lebuf, count, rpy);
@@ -1690,8 +1609,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readLong(lebuf, count, frameno);
 
 					readByte(lebuf, count, rteampower);
-					bool power = ((rteampower & 1) != 0);
-					int team = (rteampower & 2) >> 1;
+					const bool power = ((rteampower & 1) != 0);
+					const int team = (rteampower & 2) >> 1;
 
 					readByte(lebuf, count, rpx);
 					readByte(lebuf, count, rpy);
@@ -1772,9 +1691,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//my weapon notify change
 				case data_weapon_change:
 					readByte(lebuf, count, abyte);	// weapon level
-					if (me >= 0) {
+					if (me >= 0)
 						fx.player[me].weapon = abyte;
-					}
 					break;
 
 				//server commands client to change map
@@ -1815,7 +1733,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 							pi->stats().finish_stats(get_time());
 						menusel = menu_teams;		// show stats
 						if (gameover_plaque == NEXTMAP_NONE && menu.options.game.saveStats())
-							save_stats();
+							fx.save_stats("client_stats", old_map);
 						gameover_plaque = plaque;
 					}
 					else {
@@ -2039,7 +1957,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_spawn: {
 					NLchar pid;
 					readByte(lebuf, count, pid);
-					fx.player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
+					fx.player[pid].stats().set_spawn_time(get_time());
 					break;
 				}
 
@@ -2819,13 +2737,17 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 						}
 					}
 					// Add character to text, max text length 60 chars.
-					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) && !is_keypad(sc))
+					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) && !is_keypad(sc) && !KB_INALTSEQ_FLAG) {
 						talkbuffer += static_cast<char>(ch);
+						ostringstream ost;
+						ost << ch;
+						print_message(msg_info, ost.str());
+					}
 				}
 			}
 
 			// F8 == want/don't want to exit map
-			if (openMenus.empty() && (menusel == menu_none || menusel == menu_maps) && key[KEY_F8]) {
+			if (openMenus.empty() && key[KEY_F8]) {
 				if (!key_votexit) {
 					key_votexit = true;
 

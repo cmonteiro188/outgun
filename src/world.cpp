@@ -21,17 +21,25 @@ const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 const float minimum_grab_to_capture_time = 6.0;
 
 using std::ifstream;
+using std::ios;
 using std::istream;
 using std::istringstream;
 using std::max;
 using std::min;
+using std::ofstream;
+using std::ostream;
 using std::ostringstream;
 using std::pair;
 using std::setfill;
 using std::setw;
+using std::stable_sort;
 using std::string;
 using std::swap;
 using std::vector;
+
+bool compare_players(const PlayerBase* a, const PlayerBase* b) {
+	return a->team() < b->team() || a->stats().frags() > b->stats().frags();
+}
 
 /* subIntersection:
  * returns true if the area between lines (lx1,ly1)-(lx2,ly2) and (rx1,ry1)-(rx2,ry2) intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
@@ -1587,7 +1595,8 @@ void ServerWorld::respawnPlayer(int pid) {
 	player[pid].respawn_to_base = false;
 
 	player[pid].dead = false;
-	player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
+
+	player[pid].stats().set_spawn_time(get_time());
 
 	net->broadcast_spawn(player[pid]);
 
@@ -2558,16 +2567,16 @@ void ServerWorld::simulateFrame() {
 			}
 		}
 		//lose health & energy if running
-		const int MIN_HEALTH_FOR_RUN_PENALTY = 40;
+		const int min_health_for_run_penalty = 40;
 		if (h->controls.isRun()) {
 			if (player[i].energy <= 0) {
-				if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {
+				if (player[i].health > min_health_for_run_penalty) {
 					if (frame % 2 == 0)
 						player[i].health -= 2;
 					else
 						player[i].health -= 1;
-					if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)
-						player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
+					if (player[i].health < min_health_for_run_penalty)
+						player[i].health = min_health_for_run_penalty;
 				}
 			}
 			else {
@@ -2577,10 +2586,10 @@ void ServerWorld::simulateFrame() {
 					player[i].energy -= 1;
 				if (player[i].energy == -1) { // special case
 					player[i].energy++;
-					if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {
+					if (player[i].health > min_health_for_run_penalty) {
 						player[i].health--;
-						if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)
-							player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
+						if (player[i].health < min_health_for_run_penalty)
+							player[i].health = min_health_for_run_penalty;
 					}
 				}
 			}
@@ -2756,7 +2765,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 	const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
 	const int myteam = pid / TSIZE;
-	const double timeDiff = get_time() - capt_flag.grab_time();
+	double timeDiff = get_time() - capt_flag.grab_time();
 	if (host->tournament_active() && timeDiff <= minimum_grab_to_capture_time) {	// can't capture yet
 		if (timeDiff <= .1) {	// being able to capture flags without moving is a too easy way to cheat
 			log.error("This map is invalid: instant flag capture is possible");
@@ -2830,6 +2839,104 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 	frame += subFrameAfter;
 	// PLAYER_POS_ACCURACY is used to counter problems in bouncing caused by inaccurate positions over network
 }
+
+// Save stats in HTML file.
+void WorldBase::save_stats(const string& dir, const string& map_name) const {
+	const string date_time = date_and_time();
+	const string date = date_time.substr(0, date_time.find(' '));
+	const string time = date_time.substr(date_time.find(' ') + 1);
+	const string filename = wheregamedir + dir + directory_separator + date + ".html";
+	// Check if the stats file exists.
+	ifstream in(filename.c_str());
+	const bool print_html_begin = !in;
+	in.close();
+
+	ofstream out(filename.c_str(), ios::app);
+	if (!out) {
+		//log.error("Could not open the statistics file: %s", filename.c_str());
+		return;
+	}
+
+	if (print_html_begin) {
+		out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
+		out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
+		out << "<LINK REL=\"stylesheet\" HREF=\"outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
+		out << "<H1>Outgun statistics " << date << "</H1>\n\n";
+	}
+	out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << map_name << "</H2>\n\n";
+
+	out << "<H3>Team stats</H3>\n\n";
+	const Team& red = teams[0];
+	const Team& blue = teams[1];
+	out << "<TABLE BORDER CLASS=\"teams\">\n <TR><TH>Team<TH>Red<TH>Blue\n";
+	print_team_stats_row(out, "Captures",		red.score(), blue.score());
+	print_team_stats_row(out, "Kills",			red.kills(), blue.kills());
+	print_team_stats_row(out, "Deaths",			red.deaths(), blue.deaths());
+	print_team_stats_row(out, "Suicides",		red.suicides(), blue.suicides());
+	print_team_stats_row(out, "Flags taken",	red.flags_taken(), blue.flags_taken());
+	print_team_stats_row(out, "Flags dropped",	red.flags_dropped(), blue.flags_dropped());
+	print_team_stats_row(out, "Flags returned",	red.flags_returned(), blue.flags_returned());
+	print_team_stats_row(out, "Shots",			red.shots(), blue.shots());
+	print_team_stats_row(out, "Hit accuracy",	static_cast<int>(100. * red.accuracy() + 0.5), static_cast<int>(100. * blue.accuracy() + 0.5), "%");
+	print_team_stats_row(out, "Shots taken",	red.shots_taken(), blue.shots_taken());
+	print_team_stats_row(out, "Total movement",	static_cast<int>(red.movement()), static_cast<int>(blue.movement()), " u");
+	out << "</TABLE>\n\n";
+
+	out << "<H3>Player stats</H3>\n\n";
+	out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
+	vector<const PlayerBase*> players;
+	for (vector<PointerContainer<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
+		if (pl->getPtr()->used)
+			players.push_back(pl->getPtr());
+	stable_sort(players.begin(), players.end(), compare_players);
+	int team = 0;
+	for (vector<const PlayerBase*>::const_iterator pl = players.begin(); pl != players.end(); ++pl) {
+		if (!(*pl)->used)
+			continue;
+		if (team == 0 && (*pl)->team() == 0) {
+			out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Red team\n";
+			team++;
+		}
+		else if (team <= 1 && (*pl)->team() == 1) {
+			out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Blue team\n";
+			team++;
+		}
+		out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << (*pl)->name;
+		const Statistics& stats = (*pl)->stats();
+		out << "<TD>" << stats.frags();
+		out << "<TD>" << stats.captures();
+		out << "<TD>" << stats.kills();
+		out << "<TD>" << stats.deaths();
+		out << "<TD>" << stats.suicides();
+		out << "<TD>" << stats.flags_taken();
+		out << "<TD>" << stats.flags_dropped();
+		out << "<TD>" << stats.flags_returned();
+		out << "<TD>" << stats.carriers_killed();
+		const int carry_time = static_cast<int>(stats.flag_carrying_time(0));
+		out << "<TD>" << carry_time / 60 << ':' << setw(2) << setfill('0') << carry_time % 60;
+		out << "<TD>" << stats.cons_kills();
+		out << "<TD>" << stats.cons_deaths();
+		out << "<TD>" << stats.shots();
+		out << "<TD>" << std::setprecision(0) << std::fixed << stats.accuracy() << '%';
+		out << "<TD>" << stats.shots_taken();
+		out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement() << " u";
+	}
+	out << "\n</TABLE>\n\n";
+}
+
+void WorldBase::print_team_stats_row(ostream& out, const string& header, int amount1, int amount2, const string& postfix) const {
+	out << " <TR><TH>" << header;
+	out << "<TD ALIGN=\"center\">" << amount1 << postfix;
+	out << "<TD ALIGN=\"center\">" << amount2 << postfix;
+	out << '\n';
+}
+
+/*void ClientWorld::save_stats(const string& dir, const Team* teams, const vector<ClientPlayer*>& players, const string& map_name) const {
+	vector<PlayerBase*> plb;
+	for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi)
+		plb.push_back(*pi);
+	WorldBase::save_stats(dir, teams, plb, map_name);
+}*/
 
 // Team
 
