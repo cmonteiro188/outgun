@@ -268,7 +268,3 @@ string RandomName(int npal)
 	return nome;
 }
 
-void FreeName(string name) {
-
-	// FIXME?
-}

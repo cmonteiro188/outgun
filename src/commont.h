@@ -8,17 +8,17 @@
 
 // ---- server side defines
 
-#define SV_CONSOLE	// enable console commands
-#define SV_NAME_AUTHORIZATION	// enable player IP based filtering : name authorization and ban
-#define SV_NO_PUP_SWITCHING	// disable the changing of power-ups lying on the ground
-#define SV_VOTE_ANNOUNCE_INTERVAL 5	// in seconds, how often a changing voting status will be announced
-#define SV_SHADOW_MINIMUM_NORMAL 7	// the shadow visibility factor
+#define SV_CONSOLE  // enable console commands
+#define SV_NAME_AUTHORIZATION   // enable player IP based filtering : name authorization and ban
+#define SV_NO_PUP_SWITCHING // disable the changing of power-ups lying on the ground
+#define SV_VOTE_ANNOUNCE_INTERVAL 5 // in seconds, how often a changing voting status will be announced
+#define SV_SHADOW_MINIMUM_NORMAL 7  // the shadow visibility factor
 
 // ---- client side defines
 
-#define CL_MINIMAP_FLAGPOS	// paint minimap more intelligently according to flag positions
-#define CL_SHOW_FLAGPOS	// show a flag position marker on the ground
-#define CL_FLAGPOS_RAD 30	// the radius of the flag position marker
+#define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
+#define CL_SHOW_FLAGPOS // show a flag position marker on the ground
+#define CL_FLAGPOS_RAD 30   // the radius of the flag position marker
 //#define CL_SHOW_TIME_LEFT
 
 // ----
@@ -54,7 +54,7 @@ const char* strspnp(const char* str, const char* charset);
 
 //macros for allegro video mode
 
-//#define WINMODE GFX_GDI		-- can't pageflip
+//#define WINMODE GFX_GDI       -- can't pageflip
 
 //#define WINMODE GFX_DIRECTX_ACCEL
 //#define FULLMODE GFX_DIRECTX_ACCEL
@@ -67,7 +67,7 @@ const char* strspnp(const char* str, const char* charset);
 //#define DEBUG_RANKING
 
 //same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
-#define	SHOT_DELTAX	17	// V0.4.8 : A HAIR LESS!
+#define SHOT_DELTAX 17  // V0.4.8 : A HAIR LESS!
 
 //minimum time between flag steal at base and capture, to consider a map to be valid for scoring
 #define MINIMUM_GRAB_TO_CAPTURE_TIME 6.0
@@ -84,20 +84,20 @@ const char* strspnp(const char* str, const char* charset);
 
 #define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
-#define PASSBUFFER	32		//size of password file
+#define PASSBUFFER  32      //size of password file
 
 //quick debugs
-//#define MIN_ALPHA_FRIENDS 1			//debug value
+//#define MIN_ALPHA_FRIENDS 1           //debug value
 #define MIN_ALPHA_FRIENDS 64
 
-#define ROCKET_SPEED 50.0		//in pixels/0.1s
+#define ROCKET_SPEED 50.0       //in pixels/0.1s
 
 #define MIN_HEALTH_FOR_RUN_PENALTY 40
 
-#define NUMBER_OF_POWERUP_KINDS 7	//quad shield shadow turbo weapon-up megahealth deathbringer
+#define NUMBER_OF_POWERUP_KINDS 7   //quad shield shadow turbo weapon-up megahealth deathbringer
 
 //#define DEBUG_POWERUPS
-//#define REALLY_DEBUG_POWERUPS		//define only if DEBUG_POWERUPS defined
+//#define REALLY_DEBUG_POWERUPS     //define only if DEBUG_POWERUPS defined
 
 // GAME VERSION / GAME STRING
 //
@@ -107,7 +107,7 @@ const char* strspnp(const char* str, const char* charset);
 
 #define TK1_VERSION_STRING "v048"
 
-#include "allegro.h"	// Allegro
+#include "allegro.h"    // Allegro
 
 //patching main / _main / WinMain link errors...
 #ifdef ALLEGRO_WINDOWS
@@ -115,14 +115,14 @@ const char* strspnp(const char* str, const char* charset);
 #include "windows.h"
 #endif
 
-#include <stdio.h>			// for -text (v0.5.0)
+#include <stdio.h>          // for -text (v0.5.0)
 
-#include "nl.h"				// HawkNL
+#include "nl.h"             // HawkNL
 
-#include "leetnet/server.h"		// l33t server
-#include "leetnet/client.h"		// l33t client
-#include "leetnet/rudp.h"			// get_self_I
-#include "leetnet/sleep.h"		// sleep util
+#include "leetnet/server.h"     // l33t server
+#include "leetnet/client.h"     // l33t client
+#include "leetnet/rudp.h"           // get_self_I
+#include "leetnet/sleep.h"      // sleep util
 
 #include "string.h"
 #include "math.h"
@@ -132,13 +132,13 @@ const char* strspnp(const char* str, const char* charset);
 
 #include <string>
 using namespace std;
-#include "names.h"		//the COOLEST random-name generator by Renato Hentschke
+#include "names.h"      //the COOLEST random-name generator by Renato Hentschke
 
 //admin shell protocol
 #include "admshell.h"
 
 //log utils
-//#define LOG_NOLOG		// uncomment to disable logging
+//#define LOG_NOLOG     // uncomment to disable logging
 #define LOG_EXPR game_log
 #define LOG_TIMEFUNC get_time()
 #include "leetnet/log.h"
@@ -163,12 +163,12 @@ extern FILE *game_log;
 #define plh 354
 
 //minimap offset
-#define mmx (plx + plw + 16)	//push 8 to left
+#define mmx (plx + plw + 16)    //push 8 to left
 #define mmy ply
 
 //scoreboard offset
 #define sbx (plx + plw)
-#define sby (mmy + 110)			// + XXX = minimap panel height
+#define sby (mmy + 110)         // + XXX = minimap panel height
 
 
 //************************************************************
@@ -179,7 +179,7 @@ extern FILE *game_log;
 #define DEFAULT_UDP_PORT 25000
 
 //the master server address (www.mycgiserver.com:80)
-extern NLaddress		master_address;
+extern NLaddress        master_address;
 
 //directories for save/load maps
 #define SERVER_MAPS_DIR "maps"
@@ -188,9 +188,6 @@ extern NLaddress		master_address;
 //root path (game executable path)
 #define WHERE_PATH_SIZE 256
 extern char wheregamedir[WHERE_PATH_SIZE];
-
-//function that resets the video mode
-bool reset_video_mode();
 
 // server game phisics parameters
 extern double svp_fric, svp_accel, svp_maxspeed;
@@ -202,33 +199,33 @@ extern double svp_flag_penalty;
 void set_default_physics();
 
 // number-of-players
-#define MAX_PLAYERS	32							// the MAXIMUM MAXIMUM number of players EVER
-extern int			maxplayers;		// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
-#define TSIZE (maxplayers/2)				// CTF TEAM SIZE
+#define MAX_PLAYERS 32                          // the MAXIMUM MAXIMUM number of players EVER
+extern int          maxplayers;     // the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
+#define TSIZE (maxplayers/2)                // CTF TEAM SIZE
 
-#define MAX_ROCKETS 256		// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
+#define MAX_ROCKETS 256     // maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
-#define MAX_PICKUPS MAX_PLAYERS	// the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
+#define MAX_PICKUPS MAX_PLAYERS // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
 
 //arg switches (+ default values)
-extern bool dedserver;		//dedicated server? -ded
-extern bool textserver;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
-extern bool privateserver;	//private server? (will not publish)
-extern bool winclient;		//windowed client?	-win / -fs
-extern bool trypageflip;	//try page flipping? -flip / -dbuf
-extern bool nosound;			//disable sound? -nosound
-extern int targetfps;			//target (MAX) frames-per-second
-extern int port;				//the server port
-extern bool showinfo;		//apenas show info e desliga server
+extern bool dedserver;      //dedicated server? -ded
+extern bool textserver;     //textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
+extern bool privateserver;  //private server? (will not publish)
+extern bool winclient;      //windowed client?  -win / -fs
+extern bool trypageflip;    //try page flipping? -flip / -dbuf
+extern bool nosound;            //disable sound? -nosound
+extern int targetfps;           //target (MAX) frames-per-second
+extern int port;                //the server port
+extern bool showinfo;       //apenas show info e desliga server
 #define TARGET_PRIO_UNSPECIFIED -666666
-extern bool defaultprio;	//select default server threads priority
-extern int targetprio;	//unspecified
-extern int server_maxplayers;		//default maxplayers of the server
-extern bool sound_inited;		//install_sound succeeded?
-extern bool sound_enabled;		// player wants sounds?
-extern bool no_tcp_download;		// V0.4.7: CHANGED DEFAULT : disable use of the TCP socket for file transfers (use the regular UDP leetnet connection)
-extern bool force_ip;		//force IP?
-extern char force_ip_name[32];		//force IP to what?
+extern bool defaultprio;    //select default server threads priority
+extern int targetprio;  //unspecified
+extern int server_maxplayers;       //default maxplayers of the server
+extern bool sound_inited;       //install_sound succeeded?
+extern bool sound_enabled;      // player wants sounds?
+extern bool no_tcp_download;        // V0.4.7: CHANGED DEFAULT : disable use of the TCP socket for file transfers (use the regular UDP leetnet connection)
+extern bool force_ip;       //force IP?
+extern char force_ip_name[32];      //force IP to what?
 
 void server_status_string(char *str);
 double get_time();
@@ -238,14 +235,22 @@ extern volatile int speed_counter;
 extern volatile int client_netsend_counter;
 extern volatile unsigned long time_counter;
 
+//server_next_map() reasons
+enum {
+    NEXTMAP_NONE,
+    NEXTMAP_CAPTURE_LIMIT,
+    NEXTMAP_VOTE_EXIT,
+    NUM_OF_NEXTMAP
+};
+
 //audio samples : codes
 enum {
 
-	SAMPLE_FIRE,			//ok
-	SAMPLE_HIT,				//ok
+    SAMPLE_FIRE,            //ok
+    SAMPLE_HIT,             //ok
 
-	SAMPLE_WALLHIT,				//new! v0.3.9
-	SAMPLE_QUADWALLHIT,		//new! v0.3.9
+    SAMPLE_WALLHIT,             //new! v0.3.9
+    SAMPLE_QUADWALLHIT,     //new! v0.3.9
 
 	SAMPLE_DEATH,			//ok
 	SAMPLE_DEATH_2,		//ok
@@ -287,72 +292,7 @@ enum {
 	NUM_OF_SAMPLES
 };
 
-
-//colors
-enum {
-	//player's colors
-	COLGREEN,
-	COLYELLOW,
-	COLWHITE,
-	COLMAG,
-	COLCYAN,
-	COLORA,
-	COLLRED,		// light red
-	COLLBLUE,		// light blue
-	//MORE player colors
-	COL9,
-	COL10,
-	COL11,
-	COL12,
-	COL13,
-	COL14,
-	COL15,
-	COL16,
-
-	//team colors
-	COLRED,			//team 1 (color 0)
-	COLBLUE,		//team 2 (color 1)
-
-	//base colors
-	COLBRED,			//team 1 (color 0)
-	COLBBLUE,		//team 2 (color 1)
-
-	//other
-	COLFOGOFWAR,
-	COLMENUWHITE,
-	COLMENUBLACK,
-	COLMENUGRAY,
-	COLGROUND,
-	COLWALL,
-	COLNOLIFE,
-	COLDARKGRAY,
-	COLSHADOW,
-	COLLIMBO,
-	COLDARKORA,
-	COLINFO,
-	COLENER3,
-	NUM_OF_COL
-};
-
-extern int teamcol[2];
-extern int teamlcol[2];	//light colours for statusbar
-extern int teamdcol[2];	//dark colours for player name
-
 extern char teamname[2][5];
-
-extern int	col[NUM_OF_COL];
-void setcolors();
-
-//server record
-struct gamespy_t {
-	NLaddress addr;
-	char address[128];	//IP-address typein buffer
-	bool invalid;
-	bool noresponse;
-	bool favs;	//hack
-	bool refreshed;	//if data below is valid -------------
-	char info[128];
-};
 
 struct RectWall {	// rectangular wall
 	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
@@ -673,70 +613,6 @@ struct player_t {
 
 };
 
-
-//per-client struct (statically allocated to a single client)
-class oneclient_c {
-public:
-
-	//v0.4.4 UDP FILE transfer
-	bool		serving_udp_file;			//if TRUE, already serving a file
-	char		*data;					//the file data
-	NLulong		dp,old_dp,fsize;				//the file pointer and the total size
-
-	//v0.4.4 PLAYER REGISTRATION STATUS
-	bool		token_have;					//player claims to be registered with (name,token)
-	bool		token_valid;		//player (name,token) is validated
-	char		token[64];					//the player's token
-	int			intoken;						//integer version of token
-
-	//v0.4.4 client statistics
-	int			delta_score;		//the player's score accumulator
-	int			neg_delta_score;		//NEG score accum 0.4.8
-
-	double fdp;		//DOUBLE delta accums. os acima sao apenas o "trunc atual"
-	double fdn;
-
-	int			rank;						//current ranking position
-	int			score;					//current score POS -- SOMATORIO (né?!?!?)
-	int			neg_score;					//current score NEG 0.4.8 -- SOMATORIO (né?!?!?)
-
-	oneclient_c() {
-		serving_udp_file = false;
-		data = 0;
-		reset();
-	}
-
-	//chamado no fim do UDP!
-	void download_reset() {
-		if ((serving_udp_file) && (data)) {
-			delete data;
-			data = 0;
-		}
-		serving_udp_file = false;
-	}
-
-	void reset() {
-		delta_score = 0;
-		neg_delta_score = 0;
-		fdp = 0.0;
-		fdn = 0.0;
-		score = 0;
-		neg_score = 0;
-		rank = 0;
-
-		token_have = false;
-		token_valid = false;
-		token[0]=0;
-		intoken=666;
-
-		download_reset();
-	}
-
-	~oneclient_c() {
-		download_reset();
-	}
-};
-
 // a player's sprite state
 struct hero_t {
 	int tx, ty;		//tela X,Y
@@ -886,379 +762,16 @@ public:
 	}
 };
 
-//master job struct
-class masterjob_c {
-public:
+bool load_map(const char *mapdir, const string& mapname, Map *map);
+bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected);
+#if !defined(SV_SERVER_PHYSICS)
+bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+#endif
 
-	char								request[512];		//http request to be sent
-
-	bool		html_end;			//received a response(request fullfilled)
-
-	char				lebuf[65536];		//lebuf for collecting response
-	int					n;			//lebuf length
-
-	int			code;			//job code
-
-	//VARS FOR EACH SPECIFIC JOB CODE
-	int			cid;		//code 1 - client id
-
-	//return values of the callback
-	bool		retry;		//if true, wait a bit and retry
-
-	masterjob_c() {
-		lebuf[0]=0;
-		html_end = false;
-		request[0]=0;
-	}
-};
-
-class gameserver_c {
-public:
-	Map		map;
-	server_c	*server;
-	char hostadname[128];
-	NLsocket		msock;
-	pthread_t		mthread;
-	double			master_talk_time;	//time to talk?
-	bool				master_pre_exiting_ok;		// if no need to kill the master socket...
-	bool				master_exiting_ok;		// if no need to kill the master socket...
-	bool				master_never_talked;		// if never talked to master, then no need to unregister the server when qutting (optimization)
-	bool							mjob_exit;				//flag for all pending master jobs to quit now
-	bool							mjob_fastretry;		//flag for all pending master jobs to stop waiting and retry immediately
-	int								mjob_count;
-	pthread_mutex_t		mjob_mutex;  //mutex for socket list
-	bool							file_threads_quit;		//terminate all file server threads/sockets now
-	NLsocket					filesock;
-	pthread_t					server_filemaster_thread;  // thread for server filemaster
-	pthread_mutex_t		fslavesock_mutex;  //mutex for socket list
-	NLsocket					fslavesock[MAX_PLAYERS];
-	pthread_t					fslavethr[MAX_PLAYERS];
-	NLsocket		shellmsock;
-	pthread_t		shellmthread;
-	NLsocket		shellssock;
-	pthread_t		shellsthread;
-	char		hostname[256];
-	vector<string> welcome_message;	// welcome message line by line
-	vector<string> info_message;	// the message /info shows, line by line
-	string sayadmin_comment;
-	bool sayadmin_enabled;
-	player_t	player[MAX_PLAYERS];
-	int				ctop[256];			// client id-to-player id index
-	oneclient_c	client[MAX_PLAYERS];
-	int max_world_score, max_world_rank;
-	double team_smul[2];
-	frame_t		world;
-	NLulong		frame;
-	double server_kbps_traffic;
-	int ping_send_counter, ping_send_client;
-	struct MapInfo {
-		string title, file;
-		int width, height;
-		int votes;
-		MapInfo();
-		bool load(string mapName);
-	};
-	vector<MapInfo> maprot;
-	int currmap;		// current map in maprot
-	#ifdef SV_NAME_AUTHORIZATION
-	NameAuthorizationDatabase authorizations;
-	#endif
-	bool random_maprot;
-	NLulong next_vote_announce_frame;
-	int last_vote_announce_votes, last_vote_announce_needed;
-	NLulong map_start_time;	// frame #
-	bool	gameover;
-	double		gameover_time;		//timeout for gameover plaque
-	NLulong time_limit;
-	int capture_limit;
-	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
-	int pups_min, pups_max, pups_respawn_time, pup_chance_shield, pup_chance_turbo, pup_chance_shadow,
-			pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
-	bool pups_min_percentage, pups_max_percentage;
-	int pup_add_time, pup_max_time;
-	bool pup_deathbringer_switch;
-	int shadow_minimum;	// smallest alpha value allowed; 1 is when even the coordinates are not sent
-	double respawn_time, waiting_time_deathbringer;
-	gameserver_c();
-	virtual ~gameserver_c();
-	void mutePlayer(int pid, int mode);
-	void kickPlayer(int pid, bool ban=false);
-	#ifdef SV_NAME_AUTHORIZATION
-	void banPlayer(int pid);
-	#endif
-	int choose_powerup_kind();
-	void upload_next_file_chunk(int i);
-	int get_download_file(char *lebuf, char *ftype, char *fname);
-	void run_filemaster_thread(void *);
-	void run_fileslave_thread(void *arg);
-	void send_me_packet(int pid);
-	void send_player_name_update(int cid, int pid);
-	void broadcast_player_name(int pid);
-	void send_player_crap_update(int cid, int pid);
-	void broadcast_player_crap(int pid);
-	int check[MAX_PLAYERS];
-	int checount;
-	void check_team_changes();
-	void check_player_change_teams(int pid);
-	void move_update_player(int a);
-	void move_player(int f, int t);
-	void swap_players(int a, int b);
-	void broadcast_sample(int code);
-	void broadcast_screen_sample(int p, int code);
-	void ctf_net_flag_status(int cid, int team);
-	void ctf_return_flag(int team);
-	void ctf_drop_flag(int team, int px, int py, int x, int y);
-	void ctf_steal_flag(int team, int carrier);
-	void ctf_update_teamscore(int t);
-	void game_respawn_player(int pid);
-	void game_delete_rocket(int r, NLshort hitx, NLshort hity, int targ);
-	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta);
-	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta);
-	void game_shoot_rocket(int playernum, int shots, int px, int py, int x, int y, int gundir);
-	bool ctf_drop_flag_if_any(int pid);
-	void refresh_team_score_modifiers();
-	void score_frag(int p, int amount);
-	void score_neg(int p, int amount);
-	void client_report_status(int id);
-	void game_reset_player(int target, float time_penalty = 0.);
-	void game_kill_player(int target, bool time_penalty);
-	void game_damage_player(int target, int attacker, int damage, bool deathbringer);
-	void game_remove_player(int pid);
-	void ctf_game_restart();
-	void respawn_pickup(int p);
-	int pups_by_percent(int percentage) const;
-	void check_pickup_creation(bool instant);
-	void game_touch_pickup(int p, int pk);
-	void game_player_screen_change(int p);
-	void broadcast_team_message(int team, char *text);
-	void broadcast_screen_message(int px, int py, char *lebuf, int count);
-	void bprintf(const char *fs, ...);
-	void plprintf(int pid, const char* fmt, ...);
-	void player_message(int pid, const char *text);
-	void broadcast_message(const char *text);
-	void load_game_mod();
-	bool load_rotation_map(int pos);
-	void send_map_change_message(int pid, int reason, const char* mapname);
-	bool server_next_map(int reason);
-	void check_map_exit();
-	bool reset_settings();
-	bool start(int target_maxplayers);
-	void reload_hostname();
-	void update_serverinfo();
-	int client_connected(int id);
-	void client_disconnected(int id);
-	void ping_result(int client_id, int ping_time);
-	void incoming_client_data(int id, char *data, int length);
-	bool check_flag_touch(int px, int py, int x, int y, int t);
-	void run_server_player_physics(int i, frame_t *src, frame_t *dest);
-	void simulate_and_broadcast_frame();
-	void server_think_after_broadcast();
-	void loop(volatile bool *running_flag);
-	void master_job_response(masterjob_c *j);
-	void run_masterjob_thread(void *arg);
-	bool check_private_IP(char *address);
-	void run_mastertalker_thread(void *);
-	bool read_string_from_TCP(NLsocket sock, char *buf);
-	void run_shellmaster_thread(void *);
-	void run_shellslave_thread(void *);
-	void stop();
-	char *get_hostname();
-};
-
-//************************************************************
-//  client stuff
-//************************************************************
-
-// number of chat messages in the buffer
-#define CHAT_SIZE 8
-
-// size of clientside visual fx array
-#define MAX_CLIENTFX 128
-
-// size of connect screen
-#define MAX_GAMESPY 24
-
-// size of udp download queue (only 1 should be needed but...)
-#define MAX_UDPDQ 16
-
-// drawing screens
-extern BITMAP *drawbuf, *vidpage1, *vidpage2, *backbuf;
-extern bool		page_flipping;
-
-//explosion clientside fx
-struct clientfx_t {
-
-	bool		used;		//used record?
-
-	int			type;		// type of fx	0==gun explosion
-	int			px,py;	// screen where it spawned. if changed when time to redraw, delete it
-	double time;		// start time
-
-	//fx specific vars
-	int x;					// screen x  of fx
-	int y;					// screen y  of fx
-
-	//speed fx
-	int col1, col2, gundir;
-
-	//deathbringer owner
-	int owner;
-};
-
-struct download_runes_t {
-
-	int did;		//download id
-
-	char type[64];	//type of file to download
-	char name[256];	//name of file to download
-	char dest[512];	//full destination path+name for downloaded file
-
-};
-
-class gameclient_c {
-public:
-	Map		map;
-	player_t player[MAX_PLAYERS];
-	clientfx_t		cfx[MAX_CLIENTFX];
-	int	me;
-	bool option_show_names;
-	bool player_password_set;	//flag for the thread
-	bool player_token_new;		//TRUE if first call to token servled
-	bool player_token_set;		//TRUE if player now holds a valid token
-	char player_token[64];		// the token
-	char player_password[16];
-	pthread_t	passthread;
-	frame_t		fd, fx;
-	pthread_mutex_t		frame_mutex;
-	pthread_mutex_t		udpdq_mutex;
-	int udpdq_size;		//size
-	download_runes_t		*udpdq[MAX_UDPDQ];		//the udp download queue
-	int udpdq_ptr;		//current download. if -1, no current downloads
-	int ud_fp;			//file pointer for read/write
-	FILE *ud_fout;	//input or output file
-	NLulong fdp, fdp_max;
-	NLulong max_world_score, max_world_rank;
-	double lastpackettime;
-	client_c *client;
-	SAMPLE *sample[NUM_OF_SAMPLES];
-	bool sample_reverse[NUM_OF_SAMPLES];
-	char sfxthemedir[256];
-	char sfxthemename[256];
-	al_ffblk	sfxthemeffblk;	//for al_find*
-	bool	validtheme;		// if sfxthemedir points to valid dir
-	bool menushow;
-	int menu;		//menu screen #
-	bool gameshow;
-	bool helpshow;
-	double FPS;
-	int framecount, totalframecount;
-	double starttime;
-	bool want_change_teams;
-	bool want_map_exit;
-	int scoreboard[MAX_PLAYERS];
-	volatile bool trying_connection;
-	volatile bool connected;
-	char	hostname[256];
-	int		strlen_hostname;	//strlen precalculado
-	bool				showmaster;		//showing master screen (opposite: showing favourites screen)
-	bool				first_fav_refresh;		//first refresh of favorites page already done?
-	gamespy_t		gamespy[MAX_GAMESPY];
-	int					gi;	//what game entry
-	gamespy_t		mgamespy[MAX_GAMESPY];		//gamespy of masterserver
-	char playername[256]; //the player's name (max name len = 16)
-	char namestatus[64];		// v0.4.4: NAME STATUS (unregistered, registering..., registered!)
-	char editplayername[256]; //the player's name edit buffer
-	char address[256];		//server IP address
-	char dialogmessage[256];	//dialog message
-	char dialogmessage2[256];	//dialog message line 2
-	char talkbuffer[256];			// chat input buffer
-	char chatbuffer[CHAT_SIZE][256];		// last chat messages list
-	double chaterasetime;				// time to erase a chat message from the list
-	char editplayerpass[64]; //the player's password edit buffer
-	char namecursor[2];
-	char passcursor[2];
-	int		namestatus_code;		//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
-	BITMAP *minibg;
-	BITMAP* flagpos_buf[2];
-	bool flagpos_ready;
-	bool map_ready;
-	char servermap[64];	//last map command from server
-	int gameover_plaque;
-	int red_final_score, blue_final_score;		//final scores for showing in the gameover plaque
-	bool server_no_tcp;
-	BITMAP *hostad;
-	char    hostadname[128];
-	bool message_logging;
-	ofstream message_log;
-
-	void check_flagpos_marks();
-	bool start();
-	void send_client_ready();
-	void check_change_pass_command();
-	void client_password_thread(void *);
-	void process_udp_download_chunk(int last, NLulong pos, int len, char* buf);
-	void client_udp_setup_download();
-	void client_udp_download(download_runes_t  *rune);
-	void download_file_complete(download_runes_t  *r);
-	void download_server_file(const char *type, const char *name, char *dest);
-	void client_download_thread(void *arg);
-	void server_builtin_map_command(NLubyte num);
-	void server_map_command(const char *mapname, NLushort server_crc);
-	void next_sfx_theme();
-	void make_sfx_theme_path(char *themepath, char *themedir);
-	void set_theme_dir(char *dirname);
-	SAMPLE *load_outgun_sample(char *fname, int slot, bool try_redirect = true, bool reverse = false);
-	void load_samples();
-	void unload_samples();
-	void sound(int s);
-	void clear_fx();
-	int get_new_cfx();
-	void cfx_create_wallexplo(int x, int y, int px, int py);
-	void cfx_create_quadwallexplo(int x, int y, int px, int py);
-	void cfx_create_deathbringer(int owner, double start_time, int x, int y, int px, int py);
-	void cfx_create_deathcarrier(int x, int y, int px, int py, int team);
-	void cfx_create_gunexplo(int x, int y, int px, int py);
-	void cfx_create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
-	void update_scoreboard();
-	void calc_game_frame();
-	void draw_flag_at(BITMAP *drawbuf, int t, int x, int y);
-	void draw_mini_flag(BITMAP *drawbuf, int whatteam);
-	void update_minimap_background();
-	void draw_player(BITMAP *drawbuf, int x, int y, int gundir, int pc1, int pc2, int alpha);
-	void draw_game_frame(BITMAP *drawbuf);
-	void draw_game_help();
-	void draw_game_menu();
-	void set_menu(int menumber);
-	void disconnect_command();
-	void client_connected(char *data, int length);
-	void client_disconnected();
-	void connect_failed_denied(char *data, int length);
-	void connect_failed_unreachable();
-	void refresh_command();
-	void refresh_command_2(gamespy_t *gamespy);
-	void connect_command();
-	void send_player_token();
-	void issue_change_name_command();
-	void change_name_command();
-	void send_frame();
-	void client_set_rocket(int id, int dir, NLulong frameno, int owner, int px, int py, int x, int y, int xdelta);
-	void client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int owner, int px, int py, int x, int y);
-	void process_incoming_data(char *data, int length);
-	void send_chat(char *msg);
-	void erase_first_message();
-	void print_message(const char *msg);
-	void save_screenshot();
-	void toggle_help();
-	void show_progress(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
-	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
-	void get_servers_from_master();
-	void loop();
-	void stop();
-	gameclient_c();
-	virtual ~gameclient_c();
-};
-
-extern gameclient_c *gameclient;
-extern gameserver_c *gameserver;
+extern int listen_port_running;
+extern volatile bool	listen_server_running;
+extern pthread_t	listen_server_thread;
+void listen_start();
+void listen_stop();
 
 #endif
