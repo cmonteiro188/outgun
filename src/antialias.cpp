@@ -568,11 +568,12 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 		for (si = segDest.begin(); nAssert(si != segDest.end()), si->getY1() <= bi->y0; ++si);
 		// si points to first segment whose y1 > bi->y0
 		if (si->getY1() < bi->y0 + SPLIT_TRESHOLD) {	// in this case, this segment is ignored (too little of bi is in this segment)
-			si->setY1(bi->y0);
-			if (si->width() < SPLIT_TRESHOLD)
+			if (bi->y0 - si->getY0() < SPLIT_TRESHOLD)	// bi->y0 is the new si->y1; this test also matches when bi->y0 < si->getY0()
 				si = segDest.erase(si);
-			else
+			else {
+				si->setY1(bi->y0);
 				++si;
+			}
 		}
 		else if (si->getY0() < bi->y0 - SPLIT_TRESHOLD) {	// in this case, the segment must be split (too much of the segment is outside bi)
 			SegListT::iterator insPos = si;

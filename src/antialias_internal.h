@@ -140,12 +140,12 @@ class YSegment {
 	};
 
 public:
-	YSegment(double y0_, double y1_) : y0(y0_), y1(y1_) { }
+	YSegment(double y0_, double y1_) : y0(y0_), y1(y1_) { nAssert(y1 >= y0); }
 	double getY0() const { return y0; }
 	double getY1() const { return y1; }
 	double width() const { nAssert(y1 >= y0); return y1 - y0; }
-	void setY0(double y) { nAssert(y >= y0); y0 = y; }	// only allow shrinking the segment
-	void setY1(double y) { nAssert(y <= y1); y1 = y; }
+	void setY0(double y) { nAssert(y >= y0); nAssert(y1 >= y); y0 = y; }	// only allow shrinking the segment
+	void setY1(double y) { nAssert(y <= y1); nAssert(y >= y0); y1 = y; }
 	void add(BorderFunctionBase* border) { build.push_back(border); }	// ownership of the pointed object is not transferred!
 	bool getFirstIntersection(BorderFunctionBase* bfn, double* splity);
 	YSegment split(double midy);	// the segment starting with midy is the returned one
