@@ -147,7 +147,7 @@ public:
 	void send_map_time(int cid);
 	void ctf_net_flag_status(int cid, int team);
 	void ctf_update_teamscore(int t);
-	void move_update_player(int a);
+	void move_update_player(int a, bool silent = false);
 	void client_report_status(int id);
 	void sendWorldReset();
 	void sendEndGameover();
@@ -198,7 +198,5 @@ public:
 
 	void set_server_password(const std::string& passwd) { server_password = passwd; }
 };
-
-bool is_url_safe(char c);
 
 #endif

@@ -235,6 +235,7 @@ protected:
 	PlayerBase() { }
 	
 	int team_nr;
+	int personal_color;
 	Statistics player_stats;
 
 public:
@@ -281,14 +282,17 @@ public:
 		team_nr = team_id;
 		stats().clear();
 		stats().set_start_time(static_cast<int>(get_time()));
+		personal_color = -1;
 	}
+
+	void set_color(int c) { personal_color = c; }
 
 	const Statistics& stats() const { return player_stats; }
 	Statistics& stats() { return player_stats; }
 
 	bool item_helm() const { return visibility < 255; }
 	int team() const { return team_nr; }
-	int color() const { return id % TSIZE; }
+	int color() const { return personal_color; }
 	virtual bool under_deathbringer_effect(double curr_time) const =0;
 };
 
@@ -371,12 +375,16 @@ public:
 	void queue_printf(const char* fmt, ...);
 	void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
 
+	void set_fav_colors(const std::vector<char>& colors) { fav_col = colors; }
+	const std::vector<char>& fav_colors() const { return fav_col; }
+
 	void take_flag() { carrying_flag = true; }
 	void drop_flag() { carrying_flag = false; }
 	bool flag() const { return carrying_flag; }
 
 private:
 	bool carrying_flag;
+	std::vector<char> fav_col;
 };
 
 class PlayerQueueAdder : public LineReceiver {
@@ -638,7 +646,11 @@ public:
 	int shadow_minimum;	// smallest alpha value allowed; 0 is when even the coordinates are not sent
 	int rocket_damage;
 	NLulong time_limit;
+	NLulong extra_time;
+	bool sudden_death;
 	int capture_limit;
+
+	static const int shadow_minimum_normal;
 
 	void reset();
 	void print(LineReceiver& printer) const;
@@ -648,6 +660,7 @@ public:
 	int getShadowMinimum() const { return shadow_minimum; }
 	int getCaptureLimit() const { return capture_limit; }
 	NLulong getTimeLimit() const { return time_limit; }
+	NLulong getExtraTime() const { return extra_time; }
 };
 
 class ServerNetworking;
@@ -685,6 +698,7 @@ public:
 	int getMapTime() const { return frame - map_start_time; }
 	bool isTimeLimit() const { return config.getTimeLimit() > 0; }
 	int getTimeLeft() const { return config.getTimeLimit() - getMapTime(); }
+	int getExtraTimeLeft() const { return config.getTimeLimit() + config.getExtraTime() - getMapTime(); }
 
 	// server specific functions
 	void reset();

@@ -4,7 +4,6 @@
 #define SV_NAME_AUTHORIZATION   // enable player IP based filtering : name authorization and ban
 #define SV_NO_PUP_SWITCHING // disable the changing of power-ups lying on the ground
 #define SV_VOTE_ANNOUNCE_INTERVAL 5 // in seconds, how often a changing voting status will be announced
-#define SV_SHADOW_MINIMUM_NORMAL 7  // the shadow visibility factor
 
 #ifdef SV_NAME_AUTHORIZATION
 #include "nameauth.h"
@@ -48,8 +47,8 @@ public:
 
 		token_have = false;
 		token_valid = false;
-		token[0]=0;
-		intoken=666;
+		token[0] = 0;
+		intoken = 666;
 	}
 };
 
@@ -64,6 +63,7 @@ class gameserver_c {
 	int				last_vote_announce_votes, last_vote_announce_needed;
 	int				idlekick_time;
 	ClientData		client[MAX_PLAYERS];
+	std::vector<bool> fav_colors[2];
 
 	// pelimaailma
 	ServerWorld		world;
@@ -112,8 +112,11 @@ public:
 	void check_team_changes();
 	void check_player_change_teams(int pid);
 	void move_player(int f, int t);
+	void move_player_inside_team(int source, int target);
 	void swap_players(int a, int b);
 	void game_remove_player(int pid);
+	void check_fav_colors(int pid);
+	void set_fav_colors(int pid, const std::vector<char>& colors);
 
 	void nameChange(int id, int pid, const std::string& tempname);
 	void chat(int id, int pid, const char* sbuf);	//#fix: separate console handling

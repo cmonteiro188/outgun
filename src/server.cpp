@@ -22,6 +22,8 @@ using std::vector;
 gameserver_c::gameserver_c() : world(this, &network), network(this, world) {
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
+	fav_colors[0].resize(16, false);
+	fav_colors[1].resize(16, false);
 }
 
 gameserver_c::~gameserver_c() {
@@ -203,9 +205,7 @@ void gameserver_c::check_player_change_teams(int pid) {
 }
 
 //move player - move player (f rom) to empty position (t o)
-//
 void gameserver_c::move_player(int f, int t) {
-
 	//broadcast sound
 	network.broadcast_sample(SAMPLE_CHANGETEAM);
 
@@ -216,6 +216,9 @@ void gameserver_c::move_player(int f, int t) {
 	}
 
 	world.dropFlagIfAny(f);
+
+	fav_colors[f / TSIZE][world.player[f].color()] = false;
+	world.player[f].set_color(-1);
 
 	//copy to t
 	world.player[t] = world.player[f];
@@ -228,13 +231,15 @@ void gameserver_c::move_player(int f, int t) {
 
 	world.player[t].id = t;
 
-	//I really dont want to change teams no more..
+	//I really don't want to change teams anymore.
 	world.player[t].want_change_teams = false;
 	world.player[t].team_change_time = get_time() + 10.0;		//10 secs interval
 
 	//kill t
 	if (world.player[t].health > 0)
 		world.resetPlayer(t);
+
+	check_fav_colors(t);
 
 	//update t
 	network.move_update_player(t);
@@ -249,37 +254,80 @@ void gameserver_c::swap_players(int a, int b) {
 	if (world.player[b].health > 0)
 		world.resetPlayer(b);
 
+	fav_colors[a / TSIZE][world.player[a].color()] = false;
+	fav_colors[b / TSIZE][world.player[b].color()] = false;
+	world.player[a].set_color(-1);
+	world.player[b].set_color(-1);
+
 	swap(world.player[a], world.player[b]);
 	world.swapRocketOwners(a, b);
 	world.player[a].id = a;
 	world.player[b].id = b;
 
-	//either don't want to change teams anymore
+	// either don't want to change teams anymore
 	world.player[a].want_change_teams = false;
 	world.player[a].team_change_time = get_time() + 10.0;		//10 secs interval
 	world.player[b].want_change_teams = false;
 	world.player[b].team_change_time = get_time() + 10.0;		//10 secs interval
 
-	//send updates
+	check_fav_colors(a);
+	check_fav_colors(b);
+
+	// send updates
 	network.move_update_player(a);
 	network.move_update_player(b);
 }
 
+void gameserver_c::set_fav_colors(int pid, const vector<char>& colors) {
+	if (world.player[pid].used)
+		world.player[pid].set_fav_colors(colors);
+}
+
+void gameserver_c::check_fav_colors(int pid) {
+	ServerPlayer& player = world.player[pid];
+	if (!player.used)
+		return;
+	const int team = pid / TSIZE;
+	const vector<char>& player_colors = player.fav_colors();
+	// check favourite colours
+	for (vector<char>::const_iterator col = player_colors.begin(); col != player_colors.end(); col++) {
+		nAssert(*col < static_cast<int>(fav_colors[team].size()));
+		if (player.color() == *col)
+			return;
+		else if (!fav_colors[team][*col]) {
+			if (player.color() != -1)
+				fav_colors[team][player.color()] = false;
+			player.set_color(*col);
+			fav_colors[team][player.color()] = true;
+			return;
+		}
+	}
+	// if no favourites free, check all colours
+	for (int i = 0; i < static_cast<int>(fav_colors[team].size()); i++)
+		if (!fav_colors[team][i]) {
+			if (player.color() != -1)
+				fav_colors[team][player.color()] = false;
+			player.set_color(i);
+			fav_colors[team][player.color()] = true;
+			return;
+		}
+	nAssert(0);		// should never go here
+}
+
 //refresh team ratings
 void gameserver_c::refresh_team_score_modifiers() {
-
 	double raw[2];
-	raw[0]=0.0;
-	raw[1]=0.0;
+	raw[0] = 0.0;
+	raw[1] = 0.0;
 
 	//somatorio raw ratings
-	for (int p=0;p<maxplayers;p++)
+	for (int p = 0; p < maxplayers; p++)
 		if (world.player[p].used) {
 			// use "1.0" rating for anybody with less than 100 positive points
 			if (client[world.player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
-				raw[p/TSIZE] += DEFAULT_PLAYER_RATE;
+				raw[p / TSIZE] += DEFAULT_PLAYER_RATE;
 			else
-				raw[p/TSIZE] += ( ((double)client[world.player[p].cid].score) + 1.0) / ( ((double)client[world.player[p].cid].neg_score) + 1.0);
+				raw[p / TSIZE] += (client[world.player[p].cid].score + 1.0) / (client[world.player[p].cid].neg_score + 1.0);
 		}
 
 	//modifiers
@@ -287,7 +335,7 @@ void gameserver_c::refresh_team_score_modifiers() {
 	team_smul[1] = raw[0] / raw[1];
 
 	//ceil,floor (1/3 & 3/1)
-	for (int i=0;i<2;i++) {
+	for (int i = 0; i < 2; i++) {
 		if (team_smul[i] < 0.3333)
 			team_smul[i] = 0.3333;
 		if (team_smul[i] > 3.0)
@@ -487,6 +535,18 @@ void gameserver_c::load_game_mod() {
 					else
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
+				else if (cmd == "extra_time") {
+					if (ival >= 0)
+						worldConfig.extra_time = 60 * 10 * ival; // minutes to frames
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+				}
+				else if (cmd == "sudden_death") {
+					if (ival == 0 || ival == 1)
+						worldConfig.sudden_death = ival == 1 ? true : false;
+					else
+						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
+				}
 				else if (cmd == "capture_limit") {
 					if (ival >= 0)
 						worldConfig.capture_limit = ival;
@@ -579,7 +639,7 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "pup_shadow_invisibility") {
 					if (ival == 0 || ival == 1)
-						worldConfig.shadow_minimum = ival == 1 ? 0 : SV_SHADOW_MINIMUM_NORMAL;
+						worldConfig.shadow_minimum = ival == 1 ? 0 : worldConfig.shadow_minimum_normal;
 					else
 						LOG2("Can't set %s to %d\n", cmd.c_str(), ival);
 				}
@@ -857,10 +917,11 @@ int gameserver_c::getLessScoredTeam() const {
 	else if (team_smul[1] > team_smul[0])
 		return 1;
 	else
-		return rand()%2;
+		return rand() % 2;
 }
 
 void gameserver_c::game_remove_player(int pid) {
+	fav_colors[pid / TSIZE][world.player[pid].color()] = false;
 	client[world.player[pid].cid].reset();
 	network.removePlayer(pid);
 	world.removePlayer(pid);

@@ -142,7 +142,8 @@ void ServerNetworking::send_me_packet(int pid) {
 	int count = 0;
 	char lebuf[1024];
 	writeByte(lebuf, count, data_first_packet);
-	writeByte(lebuf, count, ((NLubyte)pid) );					// who am I
+	writeByte(lebuf, count, ((NLubyte)pid));					// who am I
+	writeByte(lebuf, count, world.player[pid].color());
 	writeByte(lebuf, count, ((NLubyte)host->current_map_nr()));	// current map
 	writeByte(lebuf, count, ((NLubyte)world.teams[0].score()));	// team 0 current score
 	writeByte(lebuf, count, ((NLubyte)world.teams[1].score()));	// team 1 current score
@@ -214,6 +215,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 		world.player[pid].reg_status = ' ';
 
 	writeByte(lebuf, count, ((NLubyte)pid));
+	writeByte(lebuf, count, world.player[pid].color());
 	writeByte(lebuf, count, ((NLubyte)world.player[pid].reg_status));					//regstatus
 	writeLong(lebuf, count, ((NLulong)clid.rank));		//ranking#
 	writeLong(lebuf, count, ((NLulong)clid.score));		//score POS
@@ -230,16 +232,15 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 
 //v0.4.5: broadcast player crap
 void ServerNetworking::broadcast_player_crap(int pid) {
-
 	for (int i=0;i<maxplayers;i++)
 		if (world.player[i].used)
 			send_player_crap_update(world.player[i].cid, pid);
 }
 
 // messages to update moved players (players/clients with new clients/players)
-void ServerNetworking::move_update_player(int a) {
+void ServerNetworking::move_update_player(int a, bool silent) {
 	if (world.player[a].used) {
-		ctop[ world.player[a].cid ] = a;
+		ctop[world.player[a].cid] = a;
 
 		broadcast_player_name(a);
 		send_me_packet(a);
@@ -253,13 +254,11 @@ void ServerNetworking::move_update_player(int a) {
 		server->broadcast_message(lebuf, count);
 
 		//v0.4.5 : atualiza registration char / score / rank
-		broadcast_player_crap( a );
-
-		//name (NEEDED? FIXME - ja tem la em cima!)
-		//broadcast_player_name( a );
+		broadcast_player_crap(a);
 
 		//message
-		bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), teamname[a/TSIZE]);
+		if (!silent)
+			bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), teamname[a / TSIZE]);
 	}
 }
 
@@ -474,12 +473,17 @@ void ServerNetworking::broadcast_map_votes_update() {
 				server->send_message(world.player[i].cid, lebuf, count);
 }
 
-//send map time left
+//send map time and time left
 void ServerNetworking::send_map_time(int cid) {
-	//if (!world.isTimeLimit())
-		//return;
 	const NLulong current_time = world.getMapTime() / 10;
-	const NLulong time_left = max(0, world.getTimeLeft()) / 10;
+	NLlong time_left;
+	if (world.getTimeLeft() <= 0) {
+		time_left = world.getExtraTimeLeft() / 10;
+		if (time_left < 0)
+			time_left = 0;
+	}
+	else
+		time_left = world.getTimeLeft() / 10;
 	char lebuf[64]; int count = 0;
 	writeByte(lebuf, count, data_map_time);
 	writeLong(lebuf, count, current_time);
@@ -842,6 +846,8 @@ int ServerNetworking::client_connected(int id) {
 		writeLong(lebuf, count, world.player[myself].cid);
 		nlWrite(shellssock, lebuf, count);
 	}
+	
+	host->check_fav_colors(myself);
 
 	//update the player with world information
 	//	- who is he (player #)
@@ -856,7 +862,7 @@ int ServerNetworking::client_connected(int id) {
 	// - all other player's names
 	// - all other player's frags
 
-	for (i=0;i<maxplayers;i++) {
+	for (i = 0; i < maxplayers; i++) {
 		if (!world.player[i].used)
 			continue;
 		if (i == myself)
@@ -1198,6 +1204,24 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					world.player[pid].mapVote = vote;
 					host->check_map_exit();
 				}
+			}
+			else if (code == data_fav_colors) {
+				NLbyte size;
+				readByte(msg, count, size);
+				vector<char> fav_colors;
+				// two colours in a byte
+				for (int i = 0; i < size; i++) {
+					NLubyte col;
+					readByte(msg, count, col);
+					int c = (col & 0x0F);
+					if (c >= 0 && c < 16)
+						fav_colors.push_back(c);
+					c = (col >> 4);
+					if (++i < size && c >= 0 && c < 16)
+						fav_colors.push_back(c);
+				}
+				host->set_fav_colors(pid, fav_colors);
+				host->check_fav_colors(pid);
 			}
 			else {
 				//ERROR: unknown message from client
@@ -2496,17 +2520,25 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	parameters["map"] = host->current_map().title;
 	parameters["mapfile"] = host->getCurrentMapFile();
 	parameters["info"] = "Test server";
+	ostringstream players;
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used) {
+			if (!players.str().empty())
+				players << '\n';
+			players << world.player[i].name << '\t' << i / TSIZE;
+		}
+	parameters["playerlist"] = players.str();
 	return parameters;
 }
 
 string ServerNetworking::website_maplist() const {
-    ostringstream maps;
-    for (vector<MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
-        if (m != host->maplist().begin())
-            maps << '\n';
-        maps << m->title;
-    }
-    return maps.str();
+	ostringstream maps;
+	for (vector<MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
+		if (m != host->maplist().begin())
+			maps << '\n';
+		maps << m->title;
+	}
+	return maps.str();
 }
 
 string ServerNetworking::build_http_data(const map<string, string>& parameters) const {
@@ -2528,8 +2560,6 @@ NLint ServerNetworking::post_http_data(const string& script, string parameters, 
 	char lebuf[65536]; int count = 0;
 	ostringstream data;
 	const string password = base64_encode(auth);
-	parameters += "passwd=";
-	parameters += password;
 	data << "POST " << script << " HTTP/1.0\r\n";
 	data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
 	data << "Authorization: Basic " << password << "\r\n";
@@ -2668,24 +2698,23 @@ void ServerNetworking::run_shellmaster_thread() {
 			//
 			char lebuf[4096]; int count = 0;
 			for (int i=0;i<maxplayers;i++)
-			if (world.player[i].used)
-			{
-				writeLong(lebuf, count, STA_PLAYER_CONNECTED);////1 .... player connected <int id>
-				writeLong(lebuf, count, world.player[i].cid);
-				writeLong(lebuf, count, STA_PLAYER_FRAGS);
-				writeLong(lebuf, count, world.player[i].cid);
-				writeLong(lebuf, count, world.player[i].frags);
-				writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-				writeLong(lebuf, count, world.player[i].cid);
-				writeStr(lebuf, count, world.player[i].name);
-				writeLong(lebuf, count, STA_PLAYER_IP);
-				writeLong(lebuf, count, world.player[i].cid);
-				char addrBuf[50];
-				NLaddress addr = get_client_address(world.player[i].cid);
-				nlSetAddrPort(&addr, 0);
-				nlAddrToString(&addr, addrBuf);
-				writeString(lebuf, count, addrBuf);
-			}
+				if (world.player[i].used) {
+					writeLong(lebuf, count, STA_PLAYER_CONNECTED);////1 .... player connected <int id>
+					writeLong(lebuf, count, world.player[i].cid);
+					writeLong(lebuf, count, STA_PLAYER_FRAGS);
+					writeLong(lebuf, count, world.player[i].cid);
+					writeLong(lebuf, count, world.player[i].frags);
+					writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+					writeLong(lebuf, count, world.player[i].cid);
+					writeStr(lebuf, count, world.player[i].name);
+					writeLong(lebuf, count, STA_PLAYER_IP);
+					writeLong(lebuf, count, world.player[i].cid);
+					char addrBuf[50];
+					NLaddress addr = get_client_address(world.player[i].cid);
+					nlSetAddrPort(&addr, 0);
+					nlAddrToString(&addr, addrBuf);
+					writeString(lebuf, count, addrBuf);
+				}
 			nlWrite(pidaosock, lebuf, count);
 
 			//keep socket so it can be closed. this assignment also will reflect

@@ -76,6 +76,9 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 #endif
 
 Graphics::Graphics():
+	drawbuf(0),
+	background(0),
+	minibg(0),
 	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
@@ -87,6 +90,16 @@ Graphics::Graphics():
 	no_theme(false),
 	antialiasing(AA_both)
 { }
+
+Graphics::~Graphics() {
+	if (drawbuf)
+		destroy_bitmap(drawbuf);
+	if (background)
+		destroy_bitmap(background);
+	if (minibg)
+		destroy_bitmap(minibg);
+	unload_pictures();
+}
 
 bool Graphics::init() {
 	scr_mul = static_cast<double>(res_x()) / 640;
@@ -112,16 +125,6 @@ bool Graphics::init() {
 	setcolors();
 	reset_playground_colors();
 	return true;
-}
-
-Graphics::~Graphics() {
-	if (drawbuf)
-		destroy_bitmap(drawbuf);
-	if (background)
-		destroy_bitmap(background);
-	if (minibg)
-		destroy_bitmap(minibg);
-	unload_pictures();
 }
 
 void Graphics::draw_screen() const {
@@ -268,6 +271,7 @@ bool Graphics::reset_video_mode() {
 	if (notok < 0) {
 		LOG3("ERROR: cannot set %d×%d×16 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
 		LOG1("Allegro error: '%s'\n", allegro_error);
+
 		err[0] = allegro_error;
 
 		//try again...
@@ -948,28 +952,33 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	}
 
+	const int player_radius = scale(PLAYER_RADIUS);
+
 #ifdef PATTERNED_PLAYER
-	const int r1 = getr(pc1);
-	const int g1 = getg(pc1);
-	const int b1 = getb(pc1);
-	const int r2 = getr(pc2);
-	const int g2 = getg(pc2);
-	const int b2 = getb(pc2);
-	int r = r1, g = g1, b = b1;
-	const int r_diff = (r2 - r1) / scale(PLAYER_RADIUS) + 1;
-	const int g_diff = (g2 - g1) / scale(PLAYER_RADIUS) + 1;
-	const int b_diff = (b2 - b1) / scale(PLAYER_RADIUS) + 1;
 	if (item_quad && player_sprite_power && static_cast<int>(time * 10) % 2)
-		masked_blit(player_sprite_power, drawbuf, 0, 0, plx + x - scale(PLAYER_RADIUS), ply + y - scale(PLAYER_RADIUS), player_sprite_power->w, player_sprite_power->h);
+		masked_blit(player_sprite_power, drawbuf, 0, 0, plx + x - player_radius, ply + y - player_radius, player_sprite_power->w, player_sprite_power->h);
 	else if (player_sprite[team][pli])
-		masked_blit(player_sprite[team][pli], drawbuf, 0, 0, plx + x - scale(PLAYER_RADIUS), ply + y - scale(PLAYER_RADIUS), player_sprite[team][pli]->w, player_sprite[team][pli]->h);
-	else
-		for (int i = scale(PLAYER_RADIUS); i >= 0; i--) {
-			circlefill(drawbuf, plx + x, ply + y, i, makecol(r, g, b));
-			r = max(0, min(r + r_diff, 255));
-			g = max(0, min(g + g_diff, 255));
-			b = max(0, min(b + b_diff, 255));
-		}
+		masked_blit(player_sprite[team][pli], drawbuf, 0, 0, plx + x - player_radius, ply + y - player_radius, player_sprite[team][pli]->w, player_sprite[team][pli]->h);
+	else {
+		const int r1 = getr(pc1);
+		const int g1 = getg(pc1);
+		const int b1 = getb(pc1);
+		const int r2 = getr(pc2);
+		const int g2 = getg(pc2);
+		const int b2 = getb(pc2);
+		for (int y1 = y - player_radius; y1 < y + player_radius; y1++)
+			for (int x1 = x - player_radius; x1 < x + player_radius; x1++) {
+				const int dx = x - x1;
+				const int dy = y - y1;
+				const float dist = sqrt(static_cast<float>(dx * dx + dy * dy));
+				if (dist > player_radius)
+					continue;
+				const int r = static_cast<int>((r2 * 255 * (player_radius - dist) / player_radius + r1 * 255 * dist / player_radius) / 255);
+				const int g = static_cast<int>((g2 * 255 * (player_radius - dist) / player_radius + g1 * 255 * dist / player_radius) / 255);
+				const int b = static_cast<int>((b2 * 255 * (player_radius - dist) / player_radius + b1 * 255 * dist / player_radius) / 255);
+				putpixel(drawbuf, plx + x1, ply + y1, makecol(r, g, b));
+			}
+	}
 #else
 	// outer color: team color
 	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS), pc1);
@@ -2279,11 +2288,10 @@ void Graphics::draw_speedfx(int room_x, int room_y, double time) {
 bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	const int old_minimap_p_w = minimap_place_w;
 	const int old_minimap_p_h = minimap_place_h;
-	minimap_place_w = map.w * 40 + 2;
-	minimap_place_h = map.h * 30 + 2;
+	minimap_place_w = map.w * 60 + 2;
+	minimap_place_h = map.h * 45 + 2;
 	BITMAP* buffer = create_bitmap(minimap_place_w, minimap_place_h);
 	update_minimap_background(buffer, map, true);
-	//BITMAP* clip = create_sub_bitmap(buffer, minimap_start_x, minimap_start_y, minimap_w, minimap_h);
 	PALETTE pal;
 	get_palette(pal);
 	minimap_place_w = old_minimap_p_w;

@@ -142,6 +142,8 @@ class gameclient_c {
 	bool screenshot;
 	Sounds client_sounds;
 
+	std::vector<char> fav_colors;
+
 	std::ofstream message_log;
 
 	static bool force_exit;

@@ -43,11 +43,6 @@ public:
 
 	void load_resolutions();
 
-	BITMAP* drawbuffer() const { return drawbuf; }
-	
-	int minimap_width() const { return minimap_w; }
-	int minimap_height() const { return minimap_h; }
-
 	void draw_screen() const;
 	bool save_screenshot(const std::string& filename) const;
 

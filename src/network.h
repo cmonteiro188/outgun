@@ -51,7 +51,8 @@ enum Network_data_codes {
 	data_flag_return,
 	data_flag_drop,
 	data_spawn,
-	data_movements_shots
+	data_movements_shots,
+	data_fav_colors
 };
 
 #endif

@@ -1201,14 +1201,18 @@ int PowerupSettings::pups_by_percent(int percentage, const Map& map) const {
 }
 
 #include "server.h"
-//#fix: include needed for funny callback activities and SV_SHADOW_MINIMUM_NORMAL - get rid!
+//#fix: include needed for funny callback activities - get rid!
+
+const int WorldSettings::shadow_minimum_normal = 7;
 
 void WorldSettings::reset() {
 	respawn_time = 2.0;
 	waiting_time_deathbringer = 4.0;
-	shadow_minimum = SV_SHADOW_MINIMUM_NORMAL;
+	shadow_minimum = shadow_minimum_normal;
 	rocket_damage = 70;
-	time_limit = 0;	// no time limit
+	time_limit = 0;		// no time limit
+	extra_time = 0;
+	sudden_death = 0;
 	capture_limit = 8;
 }
 
@@ -1225,9 +1229,22 @@ void WorldSettings::print(LineReceiver& printer) const {
 		line << "- No map time limit.";
 	else
 		line << "- Map time limit: " << time_limit / 10 / 60 << " min";
-	if (svp_friendly_fire)
-		line << "- Friendly fire is on";
 	printer(line.str());
+	line.str("");
+	if (extra_time > 0 || sudden_death) {
+		line << "- Extra-time if the game is tied: ";
+		if (extra_time > 0) {
+			line << extra_time << " min";
+			if (sudden_death)
+				line << " with sudden death";
+		}
+		else
+			line << "until the first capture";
+		printer(line.str());
+		line.str("");
+	}
+	if (svp_friendly_fire)
+		printer("- Friendly fire is on");
 	if (shadow_minimum == 1)
 		printer("- A player using the shadow power-up gets totally invisible");
 }
@@ -1297,7 +1314,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	if (config.getTimeLimit() == 0)
 		map_time << " There is no time limit.";
 	else {
-		int remaining_seconds = getTimeLeft() / 10;
+		const int remaining_seconds = getTimeLeft() / 10;
 		// time limit not very useful when only one player
 		int players = 0;
 		for (int i = 0; i < maxplayers; i++)
@@ -1305,8 +1322,15 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 				players++;
 		if (players == 1)
 			map_time << " No time limit at the moment as you are the only player.";
-		else if (remaining_seconds < 0) // if time is out and game continues, it must be sudden death
-			map_time << " Sudden death.";
+		else if (remaining_seconds < 0) {
+			const int extra_time_seconds = getExtraTimeLeft() / 10;
+			if (extra_time_seconds > 0) {
+				map_time << " Extra-time left: " << extra_time_seconds / 60 << ':';
+				map_time << setfill('0') << setw(2) << extra_time_seconds % 60 << '.';
+			}
+			if (config.sudden_death)
+				map_time << " Sudden death.";
+		}
 		else {
 			map_time << " Time left: " << remaining_seconds / 60 << ':';
 			map_time << setfill('0') << setw(2) << remaining_seconds % 60 << '.';
@@ -1407,9 +1431,8 @@ void ServerWorld::respawnPlayer(int pid) {
 		// - away from walls
 
 		//calculate room touch matrix
-		vector<bool> roompop;
-		roompop.resize(map.w*map.h, false);
-		for (int i=0; i<maxplayers; i++)
+		vector<bool> roompop(map.w*map.h, false);
+		for (int i = 0; i < maxplayers; i++)
 			if (player[i].used && player[i].roomx >= 0 && player[i].roomy >= 0 && player[i].roomx < map.w && player[i].roomy < map.h)
 				roompop[player[i].roomy * map.w + player[i].roomx] = true;
 
@@ -1670,7 +1693,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
-			player[p].visibility = 0;		// invisible
+			player[p].visibility = config.getShadowMinimum();
 			player[p].item_helm_time = get_time() + itemTime;
 
 			net->sendPupTime(p, it->kind, itemTime);
@@ -2586,10 +2609,20 @@ void ServerWorld::simulateFrame() {
 			net->bprintf(msg_info, "*** One minute left in the game");
 		else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
 			net->bprintf(msg_info, "*** 30 seconds left in the game");
-		else if (timeLeft <= 0) {
+		// game ends if time is over and (the game is not tied or there is no extra-time)
+		else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.sudden_death))) {
 			net->bprintf(msg_info, "*** Time out - CTF game over");
 			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 			host->ctf_game_restart();
+		}
+		else if (getExtraTimeLeft() <= 0) {
+			net->bprintf(msg_info, "*** Extra-time out - CTF game over");
+			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
+			host->ctf_game_restart();
+		}
+		else if (timeLeft == 0) {
+			net->bprintf(msg_info, "*** Normal time out - extra-time started");
+			net->send_map_time(-1);
 		}
 	}
 }

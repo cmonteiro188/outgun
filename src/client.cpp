@@ -12,6 +12,7 @@
 using std::find;
 using std::ifstream;
 using std::ios;
+using std::istringstream;
 using std::list;
 using std::max;
 using std::min;
@@ -26,7 +27,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-#define CLIENT_PREDICTION
+//#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
@@ -142,6 +143,7 @@ bool gameclient_c::start() {
 	player_password_set = false;	//no password
 	namestatus = "NO PASSWORD SET";
 	namestatus_code = 0;
+	fav_colors.clear();
 
 	//try to load the client's password
 	char dest[WHERE_PATH_SIZE];
@@ -202,6 +204,13 @@ bool gameclient_c::start() {
 			if (mode < 0 || mode > 2)
 				mode = 0;
 			client_graphics.set_antialiasing(static_cast<Graphics::Antialiasing_mode>(mode));
+		}
+
+		if (getline_smart(cfg, line)) {
+			istringstream ist(line);
+			int col;
+			while (ist >> col)
+				fav_colors.push_back(col);
 		}
 
 		//read player name
@@ -882,6 +891,21 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	readStr(data, count, hostname);
 	hostname = hostname.substr(0, 32);	//truncate at 32 chars
+
+	if (!fav_colors.empty()) {
+		char lebuf[256]; int count = 0;
+		writeByte(lebuf, count, data_fav_colors);
+		writeByte(lebuf, count, fav_colors.size());
+		// send two colours in a byte
+		for (vector<char>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col) {
+			NLubyte byte = (*col & 0x0F);
+			if (++col != fav_colors.end())
+				byte |= (*col << 4);
+			writeByte(lebuf, count, byte);
+		}
+		LOG1("Sent %d colours\n", fav_colors.size());
+		client->send_message(lebuf, count);
+	}
 
 	chat_visible = 8;
 
@@ -1798,15 +1822,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//"hello" one-time server information ("first packet")
 				case data_first_packet: {
 					readByte(msg, count, pid);	//"who am I"
-/* the system is weird, but throwing these messages helps none
-					//DEBUG msg
-					if (pid != whatme) {
-						char lixoverde[200];
-						sprintf(lixoverde, "###WARNING###: me %i memsg %i whatme %i\n", me, pid, whatme);
-						send_chat(lixoverde);
-					}
-*/
 					me = pid;
+
+					int color;
+					readByte(msg, count, color);	//"who am I"
+					fx.player[pid].set_color(color);
 
 					NLchar map_nr;
 					readByte(msg, count, map_nr);	//current map number
@@ -2110,20 +2130,24 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 
 				//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
-				case data_crap_update:
+				case data_crap_update: {
+					int color;
 					readByte(lebuf, count, pid);			//waht player slot
+					readByte(lebuf, count, color);
 					readByte(lebuf, count, abyte);		//reg char
 					readLong(lebuf, count, prank);		//ranking#
 					readLong(lebuf, count, pscore);		//score
 					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
 					readLong(lebuf, count, max_world_rank);		//world players count
 					readLong(lebuf, count, max_world_score);		//world score max
+					fx.player[pid].set_color(color);
 					fx.player[pid].reg_status = (char)abyte;
 					fx.player[pid].rank = (int)prank;
 					fx.player[pid].score = (int)pscore;
 					fx.player[pid].neg_score = (int)nscore;
 					//LOG4("CRAPZ UPDATE %i %c %i %i\n", pid, abyte, prank, pscore);
 					break;
+				}
 
 				// map time left
 				case data_map_time: {
@@ -2135,7 +2159,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						map_end_time = static_cast<int>(get_time()) + time_left;
 						map_time_limit = true;
 					}
-					LOG("Map time received.\n");
+					LOG1("Map time received. Time left %d seconds.\n", time_left);
 					break;
 				}
 
@@ -3375,6 +3399,10 @@ void gameclient_c::stop() {
 			cfg << client_graphics.theme_dir() << '\n';
 		cfg << client_graphics.antialiasing_mode() << '\n';
 
+		for (vector<char>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
+			cfg << static_cast<int>(*col) << ' ';
+		cfg << '\n';
+
 		if (!playername.empty())
 			cfg << playername << '\n';
 		else
@@ -4023,44 +4051,47 @@ void gameclient_c::draw_game_frame() {
 }
 
 void gameclient_c::draw_player(int i) {
+	const ClientPlayer& player = fx.player[i];
 	int alpha = fd.player[i].visibility;
+	if (alpha < 20)
+		alpha = 20;
 	if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
 		alpha = MIN_ALPHA_FRIENDS;
 	// draw flag if player is carrier of a flag
 	for (int t = 0; t < 2; t++)
 		for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
 			if (fi->carrier() == i)
-				client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
+				client_graphics.draw_flag(t, static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly) + 15);
 	for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
 		if (fi->carrier() == i)
-			client_graphics.draw_flag(2, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
+			client_graphics.draw_flag(2, static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly) + 15);
 	if (fx.player[i].dead) {	// draw only ice creams
 		if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
-			client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);
+			client_graphics.draw_virou_sorvete(static_cast<int>(player.lx), static_cast<int>(player.ly));
 	}
 	else {
 		// turbo effect
-		if (fx.player[i].item_speed && (fabs(fx.player[i].sx) > svp_maxspeed || fabs(fx.player[i].sy) > svp_maxspeed) &&
-					get_time() > fx.player[i].speed_drop_time) {
+		if (player.item_speed && (fabs(player.sx) > svp_maxspeed || fabs(player.sy) > svp_maxspeed) &&
+					get_time() > player.speed_drop_time) {
 			fx.player[i].speed_drop_time = get_time() + 0.05;
-			client_graphics.create_speedfx(static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly), fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
+			client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, i % TSIZE, player.gundir);
 		}
 
 		//draw player
-		client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, i % TSIZE, fx.player[i].gundir, fx.player[i].hitfx, fx.player[i].item_quad, alpha, get_time());
+		client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
 
 		//draw deathbringer carrier effect
-		if (fx.player[i].item_deathbringer && get_time() > fx.player[i].death_drop_time) {
+		if (player.item_deathbringer && get_time() > player.death_drop_time) {
 			fx.player[i].death_drop_time = get_time() + 0.01;
-			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE);
-			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE);
+			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, player.roomx, player.roomy, i / TSIZE);
+			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, player.roomx, player.roomy, i / TSIZE);
 		}
 		// draw deathbringer affected effect
-		if (fx.player[i].deathbringer_affected)
+		if (player.deathbringer_affected)
 			client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE);
 		// shield
-		if (fx.player[i].item_shield)
-			client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, fx.player[i].team());
+		if (player.item_shield)
+			client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, player.team());
 	}
 }
 
