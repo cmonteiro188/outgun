@@ -214,6 +214,7 @@ public:
 	void send_player_crap_update(int cid, int pid);
 	void broadcast_player_crap(int pid);
 
+	void send_map_time(int cid);
 	void ctf_net_flag_status(int cid, int team);
 	void sendWeaponPower(int pid);
 	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id; array of NLubyte[shots]

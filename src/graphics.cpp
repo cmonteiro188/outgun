@@ -598,7 +598,7 @@ void Graphics::draw_pup(const pickup_c& pup, double time) {
 		case 4: draw_pup_power(pup.x, pup.y, time); break;	// power
 		case 5: draw_pup_weapon(pup.x, pup.y, time); break;	// weapon upgrade
 		case 6: draw_pup_health(pup.x, pup.y, time); break;	// megahealth
-		case 7: draw_pup_deathbringer(pup.x, pup.y); break;	//deathbringer
+		case 7: draw_pup_deathbringer(pup.x, pup.y); break;	// deathbringer
 	}
 }
 
@@ -720,6 +720,55 @@ void Graphics::draw_scoreboard_points(int y, int team, int points) {
 	textprintf(drawbuf, font, sbx + 4 + 16 * 8, y, teamlcol[team], "%4i", points);
 }
 
+void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	set_trans_blender(0, 0, 0, 180);
+
+	int w = 540;
+	int h = 420;
+	int mx = SCREEN_W / 2;
+	int my = SCREEN_H / 2;
+	int x1 = mx - w / 2;
+	int y1 = my - h / 2;
+	int x2 = mx + w / 2;
+	int y2 = my + h / 2;
+	//int xc = (x1 + x2) / 2;
+	const int x_left = x1 + 40;
+
+	rectfill(drawbuf, x1, y1, x2, y2, 0);
+	solid_mode();
+
+	int line_height = 10;
+
+	// frags and ping work, other stats are just layout testing
+	string text = "      Frags Ping Cap Kil Dea  Acc   Dist Time";
+	print_text_border(string("Red Team  ") + text, x_left, y1 + line_height, teamlcol[0], teamdcol[0]);
+	print_text_border(string("Blue Team ") + text, x_left, y1 + h / 2 + line_height, teamlcol[1], teamdcol[1]);
+	//textprintf(drawbuf, font, x_left, y1 + line_height, teamlcol[0], "Red Team  %s", text.c_str());
+	//textprintf(drawbuf, font, x_left, y1 + h / 2 + line_height, teamlcol[1], "Blue Team %s", text.c_str());
+
+	int i = 0;
+	for (vector<ClientPlayer>::const_iterator p = players.begin(); p != players.end(); p++, i++) {
+		const int y = y1 + 3 * line_height + line_height * (i % TSIZE) + (i / TSIZE) * h / 2;
+		if (p->used)
+			draw_player_statistics(*p, i / TSIZE, x_left, y);
+	}
+}
+
+void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int x, int y) {
+	ostringstream info;
+	info << left << setw(15) << player.name << ' ' << right;
+	info << setw(5) << player.frags << ' ';
+	info << setw(4) << player.ping << ' ';
+	// layout testing
+	info << "  2  24  18  65%   4210  78 min";
+	textprintf(drawbuf, font, x, y, teamlcol[team], "%s", info.str().c_str());
+}
+
+void Graphics::map_time(int seconds) {
+	textprintf(drawbuf, font, plx + 10, ply + 6, 0, "TIME:%4d:%02d", seconds / 60, seconds % 60);
+}
+
 void Graphics::draw_fps(double fps) {
 	textprintf(drawbuf, font, plx + 10, ply + plh - 14, 0, "FPS:%3.0f", fps);
 }
@@ -818,6 +867,20 @@ void Graphics::print_chat_input(int line, const string& message) {
 	textprintf(drawbuf, font, x + 1, y - 1 + line * lh, 0, "%s", message.c_str());
 	// the prompt text
 	textprintf(drawbuf, font, x, y + line * lh, col[COLWHITE], "%s", message.c_str());
+}
+
+void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol) {
+	// nice border
+	textprintf(drawbuf, font, x + 1, y + 0, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x + 1, y + 1, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x + 0, y + 1, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x - 1, y + 1, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x - 1, y + 0, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x - 1, y - 1, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x + 0, y - 1, bordercol, "%s", text.c_str());
+	textprintf(drawbuf, font, x + 1, y - 1, bordercol, "%s", text.c_str());
+	// text itself
+	textprintf(drawbuf, font, x, y, textcol, "%s", text.c_str());
 }
 
 void Graphics::show_not_responding_message() {

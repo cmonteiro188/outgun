@@ -1070,6 +1070,10 @@ void gameclient_c::client_connected(char *data, int length) {
 	framecount = 0;
 	frameCountStartTime = get_time();
 	FPS = 666.0;
+	
+	//reset map time
+	map_time_limit = false;
+	map_end_time = 0;
 
 	//send name update request
 	issue_change_name_command();
@@ -2099,6 +2103,16 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				fx.player[pid].neg_score = (int)nscore;
 				//LOG4("CRAPZ UPDATE %i %c %i %i\n", pid, abyte, prank, pscore);
 				break;
+
+			// map time left
+			case 35: {
+				int time_left;
+				readLong(lebuf, count, time_left);
+				map_end_time = (int)get_time() + time_left;
+				map_time_limit = true;
+				LOG("Map time left received.\n");
+				break;
+			}
 
 			default:
 				LOG1("BAD ERROR: UNKNOWN SERVER MESSAGE CODE = %i!!\n", code);
@@ -3586,13 +3600,14 @@ void gameclient_c::draw_game_frame() {
 	//FPS
 	client_graphics.draw_fps(FPS);
 
-#ifdef CL_SHOW_TIME_LEFT
 	// Time left if time limit is on.
-	if (time_limit > 0)
-		textprintf(drawbuf, font, plx+10, ply+6, 0, "TIME: %3d:%02d", seconds / 60, seconds % 60);
-#endif
+	if (map_time_limit)
+		if (map_end_time > (int)get_time())
+			client_graphics.map_time(map_end_time - (int)get_time());
+		else
+			client_graphics.map_time(0);
 
-	// QUAD DAMAGE
+	// player's power-ups
 	if (me >= 0) {
 
 		double val;
@@ -3674,6 +3689,10 @@ void gameclient_c::draw_game_frame() {
 		client_graphics.show_not_responding_message();
 
 	// V0.4.4 : player scores overlay
+	if (key[KEY_TAB]) {
+		vector<ClientPlayer> players(fx.player, fx.player + MAX_PLAYERS);
+		client_graphics.draw_statistics(players);
+	}
 	/*if (key[KEY_TAB]) {
 		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 		set_trans_blender(0,0,0,150);

@@ -99,6 +99,8 @@ class Graphics {
 	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
 	void menu_caption();
 
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol);
+
 public:
 	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y);
 	~Graphics();
@@ -161,10 +163,14 @@ public:
 	void draw_scoreboard_name(int y, int pcol, const ClientPlayer& player);
 	void draw_scoreboard_points(int y, int team, int points);
 
+	void draw_statistics(const std::vector<ClientPlayer>& players);
+	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y);
+
 	void draw_player_power(double val);
 	void draw_player_turbo(double val);
 	void draw_player_shadow(double val);
 	void draw_player_weapon(int level);
+	void map_time(int seconds);
 	void draw_fps(double fps);
 	void draw_change_team_message(double time);
 	void draw_change_map_message(double time);

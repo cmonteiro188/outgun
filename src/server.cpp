@@ -771,6 +771,18 @@ void gameserver_c::ctf_update_teamscore(int t) {
 	server->broadcast_message(lebuf, count);
 }
 
+//send map time left
+void gameserver_c::send_map_time(int cid) {
+	const NLulong time_left = max(0LU, worldConfig.getTimeLimit() - world.getMapTime()) / 10;
+	char lebuf[64]; int count = 0;
+	writeByte(lebuf, count, 35);	// 35 = map time left
+	writeLong(lebuf, count, time_left);
+	if (cid == -1)
+		server->broadcast_message(lebuf, count);
+	else
+		server->send_message(cid, lebuf, count);
+}
+
 //refresh team ratings
 void gameserver_c::refresh_team_score_modifiers() {
 
@@ -1765,6 +1777,10 @@ int gameserver_c::client_connected(int id) {
 
 	//update serverinfo
 	update_serverinfo();
+
+	//send map time left if there is a time limit
+	if (worldConfig.getTimeLimit() > 0)
+		send_map_time(id);
 
 	//ok!
 	//

@@ -2173,6 +2173,9 @@ void ServerWorld::ctf_game_restart() {
 	host->ctf_update_teamscore(1);
 
 	map_start_time = frame;
+
+	if (config.getTimeLimit() > 0)
+		host->send_map_time(-1);
 }
 
 #include "client.h"

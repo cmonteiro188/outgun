@@ -7,7 +7,6 @@
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
-//#define CL_SHOW_TIME_LEFT
 
 // number of chat messages in the buffer
 #define CHAT_SIZE 8
@@ -63,6 +62,8 @@ class gameclient_c {
     bool want_change_teams;
     bool want_map_exit;
     bool option_show_names;
+    bool map_time_limit;
+    NLulong map_end_time;
 
 	// GUI
     bool menushow;
