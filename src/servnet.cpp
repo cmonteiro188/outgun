@@ -178,7 +178,6 @@ void ServerNetworking::send_me_packet(int pid) {
     writeByte(lebuf, count, ((NLubyte)host->current_map_nr())); // current map
     writeByte(lebuf, count, ((NLubyte)world.teams[0].score())); // team 0 current score
     writeByte(lebuf, count, ((NLubyte)world.teams[1].score())); // team 1 current score
-    world.physics.write(lebuf, count);
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
@@ -207,7 +206,7 @@ void ServerNetworking::broadcast_player_name(int pid) {
     }
 }
 
-//send a player crap update to a client
+// cid = to who, -1 = everybody; pid = whose crap
 void ServerNetworking::send_player_crap_update(int cid, int pid) {
     const ClientData& clid = host->getClientData(world.player[pid].cid);
 
@@ -231,46 +230,31 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
     writeLong(lebuf, count, (NLulong)clid.neg_score);
     writeLong(lebuf, count, (NLulong)max_world_rank);
 
-    server->send_message(cid, lebuf, count);
+    if (cid == -1)
+        server->broadcast_message(lebuf, count);
+    else
+        server->send_message(cid, lebuf, count);
 }
 
 //v0.4.5: broadcast player crap
 void ServerNetworking::broadcast_player_crap(int pid) {
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            send_player_crap_update(world.player[i].cid, pid);
+    send_player_crap_update(-1, pid);
 }
 
-// messages to update moved players (players/clients with new clients/players)
-void ServerNetworking::move_update_player(int a, bool silent) {
-    if (!world.player[a].used)
-        return;
-
+void ServerNetworking::move_update_player(int a) {
     ctop[world.player[a].cid] = a;
-
-    world.player[a].stats().finish_stats(get_time());
-
-    broadcast_player_name(a);
-    send_me_packet(a);
-
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_frags_update);
-    writeByte(lebuf, count, a);     // what player id
-    writeLong(lebuf, count, world.player[a].stats().frags());
-    server->broadcast_message(lebuf, count);
-
-    broadcast_player_crap(a);
-    broadcast_stats(world.player[a]);
-    broadcast_movements_and_shots(world.player[a]);
-
-    if (!silent)
-        broadcast_team_change(a);
 }
 
-void ServerNetworking::broadcast_team_change(int pid) {
+void ServerNetworking::broadcast_team_change(int from, int to, bool swap) {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_team_change);
-    writeByte(lebuf, count, static_cast<NLubyte>(pid));
+    writeByte(lebuf, count, static_cast<NLubyte>(from));
+    writeByte(lebuf, count, static_cast<NLubyte>(to));
+    writeByte(lebuf, count, static_cast<NLubyte>(world.player[to].color()));
+    if (swap)
+        writeByte(lebuf, count, static_cast<NLubyte>(world.player[from].color()));
+    else
+        writeByte(lebuf, count, 255);
     server->broadcast_message(lebuf, count);
 }
 
@@ -448,8 +432,19 @@ void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
     int count = 0;
     writeByte(lebuf, count, data_new_player);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    writeStr(lebuf, count, player.name);
     server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::new_player_to_admin_shell(int pid) const {
+    if (shellssock != NL_INVALID) {
+        char lebuf[256]; int count = 0;
+        writeLong(lebuf, count, STA_PLAYER_IP);
+        writeLong(lebuf, count, world.player[pid].cid);
+        NLaddress addr = get_client_address(world.player[pid].cid);
+        nlSetAddrPort(&addr, 0);
+        writeStr(lebuf, count, addressToString(addr));
+        nlWrite(shellssock, lebuf, count);
+    }
 }
 
 void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const {
@@ -634,6 +629,7 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
     i++;
     settings |= (pupConfig.pup_weapon_max << i);
     writeByte(lebuf, count, settings);
+    world.physics.write(lebuf, count);
     server->send_message(player.cid, lebuf, count);
 }
 
@@ -868,8 +864,10 @@ bool ServerNetworking::start() {
 
     server->set_client_timeout(5, 10);
 
-    if (!server->start(host->config().port))
+    if (!server->start(host->config().port)) {
+        log.error("Can't start network server on port %d.", host->config().port);
         return false;
+    }
 
     //v0.4.4 reset master jobs count
     mjob_count = 0;
@@ -986,9 +984,20 @@ int ServerNetworking::client_connected(int id) {
 
     // can't abort from this point on... anything that can abort should be above
 
+    // send basic information of which players there are, so the client has a basis to fill with later information
+    NLulong players_present = 0;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            players_present |= (1 << i);
+    char lebuf[8];
+    int count = 0;
+    writeByte(lebuf, count, data_players_present);
+    writeLong(lebuf, count, players_present);
+    server->send_message(id, lebuf, count);
+
     world.player[myself].respawn_to_base = true;
-    world.respawnPlayer(myself);    // move to a spawn spot to wait for the game
-    world.resetPlayer(myself, -1e10);   // kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
+    world.respawnPlayer(myself, true);    // move to a spawn spot to wait for the game
+    world.resetPlayer(myself, -1e10);   // kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready; no need to tell clients because of suppressing the spawn message above
     world.player[myself].respawn_to_base = true;    // New players always spawn in the base.
     // don't actually spawn until the client has loaded the map and is in the game
 
@@ -998,7 +1007,7 @@ int ServerNetworking::client_connected(int id) {
         sendStartGame();
     }
 
-    host->resetPlayer(id);
+    host->resetClient(id);
     world.player[myself].stats().set_lifetime(0);
 
     //first update the ADMIN SHELL
@@ -1068,9 +1077,6 @@ void ServerNetworking::client_disconnected(int id) {
         nlWrite(shellssock, lebuf, count);
     }
 
-    broadcast_player_left(world.player[pid]);
-    broadcast_sample(SAMPLE_LEFTGAME);  // ### FIXME: Move to client?
-
     //report the latest player achievements to the master server
     client_report_status(id);
 
@@ -1092,6 +1098,8 @@ void ServerNetworking::client_disconnected(int id) {
     //less one...
     player_count--;
 
+    broadcast_player_left(world.player[pid]);
+
     host->check_team_changes();
     host->check_map_exit();
 
@@ -1104,20 +1112,6 @@ void ServerNetworking::ping_result(int client_id, int ping_time) {
     if (ctop[client_id] == -1)
         return;
     world.player[ctop[client_id]].ping = ping_time;
-}
-
-void ServerNetworking::broadcast_new_player_notice(int pid) {
-    broadcast_new_player(world.player[pid]);
-    broadcast_sample(SAMPLE_ENTERGAME);
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count = 0;
-        writeLong(lebuf, count, STA_PLAYER_IP);
-        writeLong(lebuf, count, world.player[pid].cid);
-        NLaddress addr = get_client_address(world.player[pid].cid);
-        nlSetAddrPort(&addr, 0);
-        writeStr(lebuf, count, addressToString(addr));
-        nlWrite(shellssock, lebuf, count);
-    }
 }
 
 void ServerNetworking::forwardSayadminMessage(int cid, const string& message) {
@@ -1413,7 +1407,6 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     //  --- PRIMEIRA PARTE : igual pra todo mundo ----
     //
     //    LONG  frame
-    //      LONG  players present (bits 0..31 dizendo quais players[] sao validos)
     //
     // --- SEGUNDA PARTE : varia p/ cada cliente -----
     //
@@ -1455,12 +1448,6 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     //    SHORT ping do jogador : world.player[frame % maxplayers].ping;
     //
 
-    //RECALC PLAYERS PRESENT EVERY TIME
-    NLulong players_present = 0;
-    for (int pp = 0; pp < maxplayers; pp++)
-        if (world.player[pp].used)
-            players_present += (1 << pp);
-
     // ============================
     //   build common data buffer
     // ============================
@@ -1469,9 +1456,6 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
     //frame
     writeLong(lebuf, count, world.frame);
-
-    //players present NEW: LONG
-    writeLong(lebuf, count, players_present);
 
     //===============================
     //  build packet for each client
@@ -2714,20 +2698,18 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
             log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL, stri.c_str());
             res->accepted = false;
 
-            temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri;
+            temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri; // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
             writeStr(res->customData, res->customDataLength, temp.str());
         }
         else if (player_count >= maxplayers) {      //server full!
             log("Rejected a client because the server is full.");
             res->accepted = false;
-
-            temp << "Server is full (" << player_count << " players).";
-            writeStr(res->customData, res->customDataLength, temp.str());
+            writeByte(res->customData, res->customDataLength, reject_server_full);
         }
         else if (host->isBanned(client_id)) {
             log("Rejected a client because their IP is banned (%s).", addressToString(get_client_address(client_id)).c_str());
             res->accepted = false;
-            writeString(res->customData, res->customDataLength, "You are banned from this server.");
+            writeByte(res->customData, res->customDataLength, reject_banned);
         }
         else {
             string name;
@@ -2749,22 +2731,22 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 else {
                     res->accepted = false;
                     if (player_password.empty())
-                        writeStr(res->customData, res->customDataLength, "PLAYER PASSWORD");
+                        writeByte(res->customData, res->customDataLength, reject_player_password_needed);
                     else {
                         log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
                                 name.c_str(), player_password.c_str(), addressToString(get_client_address(client_id)).c_str());
-                        writeStr(res->customData, res->customDataLength, "Wrong player password");
+                        writeByte(res->customData, res->customDataLength, reject_wrong_player_password);
                     }
                 }
             }
             else {
                 res->accepted = false;
                 if (password.empty())
-                    writeStr(res->customData, res->customDataLength, "SERVER PASSWORD");
+                    writeByte(res->customData, res->customDataLength, reject_server_password_needed);
                 else {
                     log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
                             password.c_str(), addressToString(get_client_address(client_id)).c_str(), name.c_str());
-                    writeStr(res->customData, res->customDataLength, "Wrong server password");
+                    writeByte(res->customData, res->customDataLength, reject_wrong_server_password);
                 }
             }
         }

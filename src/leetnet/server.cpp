@@ -44,11 +44,11 @@
 #include "../mutex.h"
 #include "../network.h"
 #include "../thread.h"
+#include "../utility.h" // get_time
 #include "dlog.h"
 #include "leetnet.h"
 #include "server.h"
 #include "rudp.h"
-#include "timefunc.h"
 #include "Timer.h"
 #include "sleep.h"
 #include "ConditionVariable.h"
@@ -349,7 +349,7 @@ public:
 
         //countdown for client dropping - this var is checked by the reader thread
         //
-        client[client_id].droptime = get_timeh() + ((double)timeout);
+        client[client_id].droptime = get_time() + ((double)timeout);
 
         // send any disconnection packets only if the client ever sent a data packet (connected_knows = true)
         // because if the client never sent data, probably it must think it's not even connected
@@ -708,7 +708,7 @@ DLOG_Scope s("PIDg");
                                                                                                 // client. now must wait the ack (disconnect packet) from the client also (a.k.a. told_disconnect == true condition)
 
                 client[i].in_lag = false;           // not in lag
-                client[i].lastpackettime = get_timeh();     // last packet time is this one plus a bonus...
+                client[i].lastpackettime = get_time();     // last packet time is this one plus a bonus...
 
                 // new station - create & init
                 // MUDANDO: apenas reseta client station
@@ -755,14 +755,11 @@ DLOG_Scope s("PIDg");
     //HACK (a better one): called by reader thread to do some thinking for the server
     void server_think() {
 DLOG_Scope s("ST");
-
         //FIXME: THIS (was) JUST PLAIN WASTE OF CPU!
         //          but we can do better....
-        double curr_time = get_timeh();
-
+        double curr_time = get_time();
         if (curr_time - last_hack_think < 0.5)      //500ms resolution is enough
             return;
-
         last_hack_think = curr_time;
 
         for (int i=0;i<MAX_CLIENTS;i++)
@@ -788,7 +785,7 @@ DLOG_Scope s("ST");
                     if (client[i].connected_knows)
                         lagStatusCallback(customp, i, 1);
                 }
-                
+
                 //HACK: check for client dropped due to timeout
                 if (droptimeout > 0)
                 if (! ((client[i].told_disconnect) || (client[i].server_disconnected)) )    // disconnection not started by either side
@@ -843,7 +840,7 @@ DLOG_Scope s("PCD");
         if (!client[cid].server_disconnected)
         if (!client[cid].told_disconnect)
         {
-            client[cid].lastpackettime = get_timeh();   //update last packet receive time
+            client[cid].lastpackettime = get_time();   //update last packet receive time
             if (client[cid].in_lag) {
                 //"your lag's off!"
                 client[cid].in_lag = false;
@@ -948,7 +945,7 @@ DLOG_Scope s("PCD_Sp");
                     // callback already called
                     // no reply needed
                     // client droptime : now/soon (paranoia)
-                    client[cid].droptime = get_timeh() + 0.5;
+                    client[cid].droptime = get_time() + 0.5;
                 }
                 //client-initiated disconnection
                 else { 
@@ -972,7 +969,7 @@ DLOG_Scope s("PCD_Sp");
                         //mark 3 second countdown for client dropping
                         //this var is checked by the reader thread
                         // this is already set if server_disconnected == true
-                        client[cid].droptime = get_timeh() + 3.0;
+                        client[cid].droptime = get_time() + 3.0;
                     }
                     
                     //reply: ok, you are disconnected

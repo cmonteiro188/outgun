@@ -21,10 +21,11 @@
  *
  */
 
+#include <direct.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <direct.h>
+#include <windows.h>
 
 #include "platform.h"
 
@@ -38,4 +39,14 @@ int platStricmp(const char* s1, const char* s2) {
 
 int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return _vsnprintf(buf, count, fmt, arg);
+}
+
+void messageBox(const char* caption, const char* fmt, ...) {
+    const int bufSize = 16384;
+    char buf[bufSize];
+    va_list argptr;
+    va_start(argptr, fmt);
+    platVsnprintf(buf, bufSize, fmt, argptr);
+    va_end(argptr);
+    MessageBox(NULL, buf, caption, MB_OK);
 }

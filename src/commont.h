@@ -133,9 +133,9 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 // Game specific strings
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "1.0.0b11"
-#define GAME_VERSION "1.0.0 beta 12"
-#define GAME_SHORT_VERSION "1.0.0b12"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
+#define GAME_PROTOCOL "1.0.0b13"
+#define GAME_VERSION "1.0.0 beta 13"
+#define GAME_SHORT_VERSION "1.0.0b13"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 
 #define TK1_VERSION_STRING "v048"
 

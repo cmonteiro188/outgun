@@ -34,6 +34,7 @@ using std::string;
 void Log::put(const string& str) {
     lock();
     add(str);
+    ++nLines;
     unlock();
 }
 
@@ -48,6 +49,10 @@ void Log::operator()(const char* fmt, va_list args) {
     char buf[4000];
     platVsnprintf(buf, 4000, fmt, args);
     put(buf);
+}
+
+int Log::numLines() const {
+    return nLines;
 }
 
 FileLog::FileLog(const string& filename, bool truncate) {
@@ -97,3 +102,7 @@ void FileMemLog::add(const string& str) {
     MemoryLog::add(str);
 }
 
+void DualLog::add(const std::string& str) {
+    log1.put(prefix1 + str);
+    log2.put(prefix2 + str);
+}

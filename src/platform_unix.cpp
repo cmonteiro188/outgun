@@ -22,9 +22,12 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "platform.h"
 
@@ -38,4 +41,43 @@ int platStricmp(const char* s1, const char* s2) {
 
 int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return vsnprintf(buf, count, fmt, arg);
+}
+
+void messageBox(const char* caption, const char* fmt, ...) {
+    const int bufSize = 16384;
+    char buf[bufSize];
+    va_list argptr;
+    va_start(argptr, fmt);
+    platVsnprintf(buf, bufSize, fmt, argptr);
+    va_end(argptr);
+    static const int nFuncs = 4;
+    static const char* func[nFuncs] = { "xdialog", "gdialog", "kdialog", "xmessage" };
+    static int funci = 0;   // updated to whatever works; nFuncs means nothing works
+    while (funci != nFuncs) {
+        int lFunci = funci; // local copy as a thread safety measure
+        pid_t pid = fork();
+        if (pid == 0) { // child
+            if (lFunci == 3)    // xmessage
+                execlp(func[lFunci], func[lFunci], caption, ":", buf, 0);
+            else
+                execlp(func[lFunci], func[lFunci], "--title", caption, "--msgbox", buf, 0);
+            _exit(EXIT_FAILURE);
+        }
+        if (pid == -1) {
+            funci = nFuncs;
+            break;
+        }
+        // parent
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {   // shouldn't really happen
+            funci = nFuncs;
+            break;
+        }
+        if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)
+            return;
+        ++lFunci;
+        funci = lFunci;
+    }
+    // execution of any dialog failed -> print to console
+    fprintf(stderr, "%s: %s\n", caption, buf);
 }

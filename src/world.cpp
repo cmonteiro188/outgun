@@ -700,7 +700,7 @@ void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team
     neg_score = 0;
     rank = 0;
     team_nr = team_id;
-    stats().clear();
+    stats().clear(false);
     stats().set_start_time(static_cast<int>(get_time()));
     personal_color = -1;
     used = enable;
@@ -757,7 +757,6 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
     next_smoke_effect_time = 0;
     hitfx = 0;
     drawptr = drawused = 0;
-    old_dead = false;
     oldx = oldy = 0;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
@@ -1439,11 +1438,11 @@ void ServerWorld::reset() {
 
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used) {
-            player[i].stats().clear();
+            player[i].stats().clear(true);
             // prepare for respawn
             player[i].respawn_to_base = true;
-            respawnPlayer(i);   // move to a spawn spot to wait for the game
-            resetPlayer(i, -1e10);  // kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
+            respawnPlayer(i, true);   // move to a spawn spot to wait for the game
+            resetPlayer(i, -1e10);  // kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready; no need to tell clients because of suppressing the spawn message above
             player[i].respawn_to_base = true;   // always spawn in the base at the beginning of a map
             // don't actually spawn until the client has loaded the map and is in the game
         }
@@ -1556,8 +1555,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
             }
     }
     nAssert(flag != -1);
-    net->broadcast_sample(SAMPLE_CTF_LOST);
-    player[pid].drop_flag();    // moved this before dropFlag in hopes to alleviate the assertion 3 lines up
+    player[pid].drop_flag();    // moved this before dropFlag in hopes to alleviate the assertion 2 lines up
     dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
     player[pid].stats().add_flag_drop(get_time());
     teams[pid / TSIZE].add_flag_drop();
@@ -1568,7 +1566,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
     return true;
 }
 
-void ServerWorld::respawnPlayer(int pid) {
+void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     player[pid].respawn_time = -1;
     const int team = pid / TSIZE;
 
@@ -1656,7 +1654,8 @@ void ServerWorld::respawnPlayer(int pid) {
 
     player[pid].stats().spawn(get_time());
 
-    net->broadcast_spawn(player[pid]);
+    if (!dontInformClients)
+        net->broadcast_spawn(player[pid]);
 
     //for all effects, player screen changed
     game_player_screen_change(pid);
@@ -1759,10 +1758,8 @@ void ServerWorld::respawn_pickup(int p) {
     item[p].kind = pupConfig.choose_powerup_kind();
     item[p].px = px;
     item[p].py = py;
-    item[p].x = itemx;  //copy from randomized position
+    item[p].x = itemx;
     item[p].y = itemy;
-    //screen-change message of players in the screen the powerup arrived
-    //fixes "invisible powerup" problem, I hope
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used && player[i].roomx == px && player[i].roomy == py)
             net->sendPickupVisible(i, p, item[p]);
@@ -1920,7 +1917,7 @@ void ServerWorld::game_player_screen_change(int p) {
         }
 }
 
-void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the player out of the game
+void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the player out of the game; the clients must be informed and this function doesn't do that
     player[target].health = 0;
 
     player[target].visibility = 255;
@@ -1934,10 +1931,11 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
 
     dropFlagIfAny(target);
     player[target].respawn_time = get_time() + config.getRespawnTime() + time_penalty;
+    player[target].stats().kill(get_time(), true);
     player[target].dead = true;
 }
 
-void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the player in the usual way with score penalties and deathbringer effect
+void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the player in the usual way with score penalties and deathbringer effect; the clients must be informed and this function doesn't do that
     host->score_neg(target, 1); // score neg points because of death
     if (dropFlagIfAny(target))
         host->score_neg(target, 1); // score neg points because of losing the flag
@@ -1951,7 +1949,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
     if (pupConfig.pups_drop_at_death)
         drop_pickup(player[target]);
 
-    resetPlayer(target, (player[target].item_deathbringer || time_penalty) ? config.getDeathbringerWaitingTime() : 0);
+    resetPlayer(target, (player[target].item_deathbringer || time_penalty) ? config.getDeathbringerWaitingTime() : 0);  // clients must be informed by the caller
 }
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {   // inflict normal or deathbringer damage on target
@@ -2019,16 +2017,12 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
             }
     }
 
-    if (deathbringer)
-        net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);   // ### FIXME: Move to client?
-
-    net->broadcast_kill(player[attacker], player[target], deathbringer, flag, wild_flag, carrier_defended, flag_defended);
-
     player[attacker].stats().add_kill(deathbringer);
     teams[atteam].add_kill();
     player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
     teams[tateam].add_death();
 
+    net->broadcast_kill(player[attacker], player[target], deathbringer, flag, wild_flag, carrier_defended, flag_defended);
     killPlayer(target, false);
 }
 
@@ -2037,7 +2031,7 @@ void ServerWorld::removePlayer(int pid) {
         if (rock[r].owner == pid)
             deleteRocket(r, 0, 0, 255);
 
-    dropFlagIfAny(pid);
+    dropFlagIfAny(pid, true);
 
     player[pid].used = false;
 }
@@ -2052,11 +2046,11 @@ void ServerWorld::suicide(int pid) {
                     wild_flag = true;
                     break;
                 }
-        killPlayer(pid, true);
         host->score_frag(pid, -1);
         player[pid].stats().add_suicide(static_cast<int>(get_time()));
         teams[pid / TSIZE].add_suicide();
         net->broadcast_suicide(player[pid], flag, wild_flag);
+        killPlayer(pid, true);
     }
 }
 
@@ -2746,7 +2740,6 @@ void ServerWorld::simulateFrame() {
                 teams[myteam].add_flag_return();
                 net->broadcast_flag_return(pl);
                 returnFlag(myteam, f);  //flag returned
-                net->broadcast_sample(SAMPLE_CTF_RETURN);
             }
 
         // Flag capture - take enemy or wild flag to own flag
@@ -2846,7 +2839,6 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     net->broadcast_capture(player[pid], team);
 
     net->ctf_update_teamscore(myteam);      // this function can decide to restart the game
-    net->broadcast_sample(SAMPLE_CTF_CAPTURE);  // ### FIXME: Move to client?
 }
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
@@ -2908,7 +2900,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     if (print_html_begin) {
         out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
         out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
-        out << "<LINK REL=\"stylesheet\" HREF=\"../config/outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
+        out << "<LINK REL=\"stylesheet\" HREF=\"stats.css\" TYPE=\"text/css\" TITLE=\"Outgun statistics style\">\n\n";
         out << "<H1>Outgun statistics " << date << "</H1>\n\n";
     }
     out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << map_name << "</H2>\n\n";
@@ -3106,16 +3098,26 @@ Statistics::Statistics():
     total_movement(0),
     saved_speed(0),
     starttime(0),
-    dead(false),
+    dead(true),
     flag(false),
     total_flag_carrying_time(0),
     flag_taking_time(0)
 { }
 
-void Statistics::clear() {
+void Statistics::clear(bool preserveTime) {
     const double time = starttime;
     *this = Statistics();
-    starttime = time;
+    if (preserveTime)
+        starttime = time;
+}
+
+void Statistics::kill(double time, bool allowAlreadyDead) {
+    if (!allowAlreadyDead)
+        nAssert(!dead);
+    if (dead)
+        return;
+    dead = true;
+    total_lifetime += time - last_spawn_time;
 }
 
 void Statistics::add_kill(bool deathbringer) {
@@ -3134,9 +3136,7 @@ void Statistics::add_death(bool deathbringer, double time) {
     current_consecutive_kills = 0;
     if (deathbringer)
         ++total_deathbringer_deaths;
-    nAssert(!dead);
-    dead = true;
-    total_lifetime += time - last_spawn_time;
+    kill(time);
 }
 
 void Statistics::add_suicide(double time) {

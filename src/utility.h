@@ -97,7 +97,7 @@ public:
 };
 
 class MemoryLog;
-void errorMessage(const std::string& heading, MemoryLog& errorLog);
+void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);
 
 class LineReceiver {
 protected:

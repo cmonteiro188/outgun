@@ -27,12 +27,14 @@
 #include <string>
 #include <map>
 
+class LogSet;
+
 class Language {
 public:
-    Language() { }
+    Language() : lang_code("en") { }
     ~Language() { }
 
-    bool load(const std::string& lang);
+    bool load(const std::string& lang, LogSet& log);
 
     std::string get_text(const std::string& text) const;
     std::string code() const { return lang_code; }

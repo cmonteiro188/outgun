@@ -33,8 +33,12 @@
 
 class Log { // base class
     mutable MutexHolder m;
+    int nLines;
 
     virtual void add(const std::string& str) =0;
+
+    Log(const Log&);    // log objects aren't supposed to be copied; these aren't implemented anywhere to ensure that
+    Log& operator=(const Log&);
 
 protected:
     // note: operator()() locks the mutex automatically, so it is already locked on an add() call
@@ -42,11 +46,12 @@ protected:
     void unlock() const { m.unlock(); }
 
 public:
-    Log() { }
+    Log() : nLines(0) { }
     virtual ~Log() { }
     void put(const std::string& str);
     void operator()(const char* fmt, ...);
     void operator()(const char* fmt, va_list args);
+    int numLines() const;
 };
 
 class NoLog : public Log {
@@ -88,6 +93,19 @@ protected:
 
 public:
     FileMemLog(const std::string& filename, bool truncate) : FileLog(filename, truncate) { }
+};
+
+class DualLog : public virtual Log {    // the most flexible way of multiplying output
+    Log& log1, & log2;
+    std::string prefix1, prefix2;
+
+protected:
+    virtual void add(const std::string& str);
+
+public:
+    DualLog(Log& hostLog1, Log& hostLog2, const std::string outputPrefix1 = std::string(), const std::string outputPrefix2 = std::string())
+        : log1(hostLog1), log2(hostLog2), prefix1(outputPrefix1), prefix2(outputPrefix2) { }
+    virtual ~DualLog() { }
 };
 
 template<class Base>    // Base can be any Log variant

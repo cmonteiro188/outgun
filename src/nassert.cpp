@@ -67,17 +67,12 @@ void nasprintf(const char* expr, ...) {
             fclose(stdump);
         }
     }
-    // display using allegro_message
-    #ifdef ALLEGRO_WINDOWS
+    // display using messageBox
     va_start(argptr, expr);
     char buf[10000];
     platVsnprintf(buf, 10000, expr, argptr);
     va_end(argptr);
-    #else
-    // this is because in Linux, allegro_message prints to the console and the already printed message would be duplicated
-    char buf[] = "";
-    #endif
-    allegro_message("%s\nThis results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi", buf);
+    messageBox("Internal error", "%s\nThis results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi", buf);
     #endif // DISABLE_ENHANCED_NASSERT
 }
 

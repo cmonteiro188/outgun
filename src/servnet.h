@@ -163,11 +163,10 @@ public:
 
     void send_me_packet(int pid);
     void send_player_name_update(int cid, int pid);
-    void broadcast_new_player_notice(int pid);
     void broadcast_player_name(int pid);
     void send_player_crap_update(int cid, int pid);
     void broadcast_player_crap(int pid);
-    void broadcast_team_change(int pid);
+    void broadcast_team_change(int from, int to, bool swap);
 
     void broadcast_stats_ready() const;
     void broadcast_5_min_left() const;
@@ -184,6 +183,7 @@ public:
                         bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
     void broadcast_new_player(const ServerPlayer& player) const;
+    void new_player_to_admin_shell(int pid) const;  // called when the player name is known (unlike at broadcast_new_player)
     void broadcast_player_left(const ServerPlayer& player) const;
     void broadcast_spawn(const ServerPlayer& player) const;
     void broadcast_movements_and_shots(const ServerPlayer& player) const;   // Send player's movement and shots to everyone.
@@ -210,7 +210,7 @@ public:
 
     void ctf_net_flag_status(int cid, int team);
     void ctf_update_teamscore(int t);
-    void move_update_player(int a, bool silent = false);
+    void move_update_player(int a); // call after moving, a = pid after move
     void client_report_status(int id);
     void sendWorldReset();
     void sendStartGame();

@@ -196,7 +196,7 @@ class Statistics {
 public:
     Statistics();
 
-    void clear();
+    void clear(bool preserveTime);
 
     void set_frags(int n) { total_frags = n; }
     void set_kills(int n) { total_kills = n; }
@@ -223,7 +223,8 @@ public:
     void set_flag(bool f) { flag = f; }
     void set_dead(bool d) { dead = d; }
 
-    void spawn(double time) { set_spawn_time(time); dead = false; }
+    void spawn(double time) { set_spawn_time(time); nAssert(dead); dead = false; }
+    void kill(double time, bool allowAlreadyDead = false);
 
     void add_frag(int n = 1) { total_frags += n; }
     void add_kill(bool deathbringer);
@@ -427,7 +428,6 @@ public:
     double hitfx;
     int drawptr;
     int drawused;
-    bool old_dead;  // to detect time to play death sound
     int oldx, oldy; // detect room changes
 
     // get rid of these since they are only known for the local player
@@ -801,11 +801,11 @@ public:
     // server specific functions
     void reset();
     void reset_time() { map_start_time = frame; }
-    void respawnPlayer(int pid);
+    void respawnPlayer(int pid, bool dontInformClients = false);
     void printTimeStatus(LineReceiver& printer);
 
-    void resetPlayer(int target, double time_penalty = 0.);
-    void killPlayer(int target, bool time_penalty);
+    void resetPlayer(int target, double time_penalty = 0.); // take the player out of the game; the clients must be informed and this function doesn't do that
+    void killPlayer(int target, bool time_penalty); // kill the player in the usual way with score penalties and deathbringer effect; the clients must be informed and this function doesn't do that
     void damagePlayer(int target, int attacker, int damage, bool deathbringer);
     void removePlayer(int pid);
     void suicide(int pid);

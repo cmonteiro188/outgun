@@ -230,9 +230,10 @@ class Client {
     friend class TM_ConnectionUpdate;
 
     FileLog normalLog;
-    SupplementaryLog<MemoryLog> errorLog;
+    MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
+    DualLog errorLog;
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
-    mutable LogSet log;
+    mutable LogSet log; // this is the only access to logs in normal operation
 
     std::vector<std::vector<std::string> > load_all_player_passwords() const;
     std::string load_player_password(const std::string& name, const std::string& address) const;
@@ -242,7 +243,7 @@ class Client {
 
     ServerThreadOwner listenServer;
 
-    // world
+    // world (these variables all locked by frameMutex)
     ClientWorld fd, fx; //#fix: two maps, etc.
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
     int me;
@@ -457,7 +458,7 @@ class Client {
     void draw_game_menu();
 
 public:
-    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig);
+    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_);
     ~Client();
     bool start();
     void loop(volatile bool* quitFlag);

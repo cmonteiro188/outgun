@@ -145,16 +145,17 @@ private:
 class MenuStack {
 public:
     bool empty() const { return st.empty(); }
-    Menu* top() const { nAssert(!st.empty()); return st.top(); }
-    Menu* safeTop() const { if (st.empty()) return 0; return st.top(); }
-    void open(Menu* menu) { menu->open(); st.push(menu); }
-    void close() { nAssert(!empty()); Menu* menu = st.top(); st.pop(); menu->close(); }
+    Menu* top() const { nAssert(!st.empty()); return st.back(); }
+    Menu* safeTop() const { if (st.empty()) return 0; return st.back(); }
+    void open(Menu* menu) { close(menu); menu->open(); st.push_back(menu); }
+    bool close(Menu* menu); // from anywhere in the stack; returns true if found (and closed)
+    void close() { nAssert(!empty()); Menu* menu = st.back(); st.pop_back(); menu->close(); }
     void clear() { while (!empty()) close(); }
-    void draw(BITMAP* buf) { nAssert(!empty()); st.top()->draw(buf); }
-    void handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); st.top()->handleKeypress(scan, chr); }
+    void draw(BITMAP* buf) { nAssert(!empty()); st.back()->draw(buf); }
+    void handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); st.back()->handleKeypress(scan, chr); }
 
 private:
-    std::stack<Menu*> st;
+    std::vector<Menu*> st;  // a "real" std::stack can't be used because it doesn't allow removal from the middle by close(Menu*)
 };
 
 class Spacer : public Component {

@@ -43,7 +43,7 @@
 
 const bool TEST_FALL_ON_WALL = false;
 
-// Video driver selection: Look at Allegro's documentation for alternate values; changing these will especially help on Linux
+// Video driver selection: Look at Allegro's documentation for alternate values; changing these may especially help on Linux
 
 //const int WINMODE = GFX_DIRECTX_ACCEL;
 //const int FULLMODE = GFX_DIRECTX_ACCEL;
@@ -728,6 +728,54 @@ void Graphics::update_minimap_background(const Map& map) {
     update_minimap_background(minibg, map);
 }
 
+class MinimapHelper {   // small helper solely for Graphics::update_minimap_background
+public:
+    MinimapHelper(BITMAP* buffer_, double x0_, double y0_, double plw_, double plh_, double scale_)
+        : buffer(buffer_), x0(x0_), y0(y0_), plw(plw_), plh(plh_), scale(scale_) { }
+
+    void paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int color);
+    pair<int, int> flagCoords(const WorldCoords& coords) const;
+
+private:
+    BITMAP* buffer;
+    double x0, y0, plw, plh, scale;
+};
+
+// Paint within room (rx,ry) every pixel already of the given color with a team color or black according to which color flag or neither is nearest to it.
+void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int color) {
+    const int xmin = static_cast<int>(x0 + plw * scale * rx);
+    const int xmax = static_cast<int>(x0 + plw * scale * (rx + 1) - 1);
+    const int ymin = static_cast<int>(y0 + plh * scale * ry);
+    const int ymax = static_cast<int>(y0 + plh * scale * (ry + 1) - 1);
+
+    for (int y = ymin; y <= ymax; ++y) {
+        const double roomy = (y + 1 - ymin) / scale;
+        for (int x = xmin; x <= xmax; ++x) {
+            if (getpixel(buffer, x, y) != color)
+                continue;
+            const double roomx = (x + 1 - xmin) / scale;
+            double dist2[2] = { INT_MAX, INT_MAX };
+            for (int t = 0; t < 2; ++t)
+                for (vector<const WorldCoords*>::const_iterator fi = teamFlags[t].begin(); fi != teamFlags[t].end(); ++fi)
+                    dist2[t] = min(dist2[t], sqr((*fi)->y - roomy) + sqr((*fi)->x - roomx));
+            const double diff = dist2[0] - dist2[1];
+            if (diff < -2)
+                putpixel(buffer, x, y, teamColor[0]);
+            else if (diff > 2)
+                putpixel(buffer, x, y, teamColor[1]);
+            else
+                putpixel(buffer, x, y, 0);  // don't paint about equally distant pixels
+        }
+    }
+}
+
+pair<int, int> MinimapHelper::flagCoords(const WorldCoords& coords) const {
+    // the coords are not rounded because the max coord is already (minimap_w - small safety)
+    const int x = static_cast<int>(x0 + (coords.px * plw + coords.x) * scale);
+    const int y = static_cast<int>(y0 + (coords.py * plh + coords.y) * scale);
+    return pair<int, int>(x, y);
+}
+
 void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) {
     // black background
     clear_to_color(buffer, 0);
@@ -755,27 +803,25 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     const double maxx = plw * map.w;
     const double maxy = plh * map.h;
     const double scale = (minimap_w - .01) / maxx;  // -.01 is a safety to make sure we stay within the bitmap even with small calculation errors
-    const double room_w = plw * scale;
-    const double room_h = plh * scale;
 
     SceneAntialiaser scene;
     scene.setScaling(actual_start_x, actual_start_y, scale);
 
-    // add background
+    // add background (all floors)
     scene.addRectangle(0, 0, maxx, maxy, 0);
 
     // add room boundaries
-    const double halfPixw = .49999 / scale, halfPixh = .49999 / scale;
+    const double halfPixw = .49999 / scale;
     // vertical boundaries
     scene.addRectangle(0, 0, halfPixw, maxy, 2);    // first boundary on the left is only a 'half' one
     for (int i = 1; i < map.w; i++)
         scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
     scene.addRectangle(maxx - halfPixw, 0, maxx, maxy, 2);  // last boundary on the right is only a 'half' one
     // the same for horizontal boundaries
-    scene.addRectangle(0, 0, maxx, halfPixh, 2);
+    scene.addRectangle(0, 0, maxx, halfPixw, 2);
     for (int i = 1; i < map.h; i++)
-        scene.addRectangle(0, plh * i - halfPixh, maxx, plh * i + halfPixh, 2);
-    scene.addRectangle(0, maxy - halfPixh, maxx, maxy, 2);
+        scene.addRectangle(0, plh * i - halfPixw, maxx, plh * i + halfPixw, 2);
+    scene.addRectangle(0, maxy - halfPixw, maxx, maxy, 2);
 
     // add walls
     for (int y = 0; y < map.h; y++) {
@@ -800,125 +846,80 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     scene.render(tex);
     tex.finalize();
 
-    // draw bases
-    Bitmap backup = create_bitmap(minimap_place_w, minimap_place_h);
-    nAssert(backup);
-
+    // colorize bases
+    MinimapHelper helper(buffer, actual_start_x, actual_start_y, plw, plh, scale);
     for (int ry = 0; ry < map.h; ++ry)
         for (int rx = 0; rx < map.w; ++rx) {
-            // save map
-            blit(buffer, backup, 0, 0, 0, 0, buffer->w, buffer->h);
-            bool flag[] = { false, false };
+            // collect the flags that are in this room, simultaneously checking for flags that are on a wall pixel (not really but in the picture)
+            bool onWall = false;
+            vector<const WorldCoords*> teamFlags[2];    // one vector for each team
             for (int t = 0; t < 2; ++t)
-                for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi)
-                    if (fi->px == rx && fi->py == ry) {
-                        flag[t] = true;
-                        break;
-                    }
-            vector<WorldCoords> failure[2];
-            if (flag[0] ^ flag[1]) {        // only one team's flags in the room
-                const int t = flag[0] ? 0 : 1;
                 for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
-                    if (fi->px != rx || fi->py != ry)
-                        continue;
-                    const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);   // not to be rounded: max coord is already minimap_w - small safety
-                    const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
-                    const int c = getpixel(buffer, px, py);
-                    if (c == 0)
-                        floodfill(buffer, px, py, teamdcol[t]);
-                    else if (c != teamdcol[t])
-                        failure[t].push_back(*fi);
-                }
-            }
-            else if (flag[0] && flag[1]) {  // both team's flags in the room
-                for (int t = 0; t < 2; ++t)
-                    for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
-                        if (fi->px != rx || fi->py != ry)
-                            continue;
-                        const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);
-                        const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
-                        const int c = getpixel(buffer, px, py);
-                        bool successful = true;
-                        if (c == 0)
-                            floodfill(buffer, px, py, teamdcol[t]);
-                        else if (c != teamdcol[t]) {
-                            failure[t].push_back(*fi);
-                            successful = false;
-                        }
-                        for (vector<WorldCoords>::const_iterator fj = map.tinfo[1 - t].flags.begin(); successful && fj != map.tinfo[1 - t].flags.end(); ++fj) {
-                            if (fj->px != rx || fj->py != ry)
-                                continue;
-                            const int px = static_cast<int>(actual_start_x + (fj->px * plw + fj->x) * scale);
-                            const int py = static_cast<int>(actual_start_y + (fj->py * plh + fj->y) * scale);
-                            const int c = getpixel(buffer, px, py);
-                            if (c == teamdcol[t]) {
-                                failure[t].push_back(*fi);
-                                successful = false;
-                                // restore map
-                                blit(backup, buffer, 0, 0, 0, 0, buffer->w, buffer->h);
-                                break;
-                            }
-                        }
-                        if (successful) // save map
-                            blit(buffer, backup, 0, 0, 0, 0, buffer->w, buffer->h);
+                    const WorldCoords& flag = *fi;
+                    if (flag.px == rx && flag.py == ry) {
+                        teamFlags[t].push_back(&flag);
+                        const pair<int, int> coords = helper.flagCoords(flag);
+                        if (getpixel(buffer, coords.first, coords.second) != 0)
+                            onWall = true;
                     }
-            }
-            if (failure[0].empty() && failure[1].empty())
+                }
+            if (teamFlags[0].empty() && teamFlags[1].empty())
                 continue;
-
-            const int xmin = static_cast<int>(actual_start_x + room_w * rx);
-            const int xmax = static_cast<int>(actual_start_x + room_w * (rx + 1) - 1);
-            const int ymin = static_cast<int>(actual_start_y + room_h * ry);
-            const int ymax = static_cast<int>(actual_start_y + room_h * (ry + 1) - 1);
-
-            Bitmap base = create_bitmap(minimap_place_w, minimap_place_h);
-            nAssert(base);
-            blit(buffer, base, 0, 0, 0, 0, buffer->w, buffer->h);
-            for (int t = 0; t < 2; t++)
-                for (vector<WorldCoords>::const_iterator fi = failure[t].begin(); fi != failure[t].end(); ++fi) {
-                    const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);
-                    const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
-                    const int c = getpixel(base, px, py);
-                    if (c == 0)
-                        floodfill(base, px, py, teamdcol[0]);
-                }
-
-            for (int y = ymin; y <= ymax; ++y) {
-                const double roomy = (y + 1 - ymin) / room_h * plh;
-                for (int x = xmin; x <= xmax; ++x) {
-                    if (getpixel(buffer, x, y) != 0 || getpixel(base, x, y) == 0)
-                        continue;
-                    const double roomx = (x + 1 - xmin) / room_w * plw;
-                    double dist_r2 = INT_MAX;
-                    for (vector<WorldCoords>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
-                        dist_r2 = min(dist_r2, sqr(fi->y - roomy) + sqr(fi->x - roomx));
-                    double dist_b2 = INT_MAX;
-                    for (vector<WorldCoords>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
-                        dist_b2 = min(dist_b2, sqr(fi->y - roomy) + sqr(fi->x - roomx));
-                    const double diff = dist_r2 - dist_b2;
-                    if (diff < -2)
-                        putpixel(buffer, x, y, teamdcol[0]);
-                    else if (diff > 2)
-                        putpixel(buffer, x, y, teamdcol[1]);
-                    // don't paint about equally distant pixels
-                }
+            if (onWall) {
+                // The normal area-connected-to-the-flag paint algorithm can't be used for any flags in this case.
+                // Instead, paint every floor pixel in the room with the nearest flag's color.
+                helper.paintByFlags(rx, ry, teamFlags, teamdcol, 0);
+                continue;
             }
+            // Spread paint from each flag pos to all reachable space in the room (by floodfill).
+            // When flags of both teams would fill the same space, paint each pixel with the nearest flag's color.
+            bool bothFlags = (!teamFlags[0].empty() && !teamFlags[1].empty());
+            for (int t = 0; t < 2; ++t)
+                for (vector<const WorldCoords*>::const_iterator fi = teamFlags[t].begin(); fi != teamFlags[t].end(); ++fi) {
+                    const WorldCoords& flag = **fi;
+                    const pair<int, int> coords = helper.flagCoords(flag);
+                    if (getpixel(buffer, coords.first, coords.second) != 0) // this only happens when the flag has already been fully taken care of
+                        continue;
+                    if (!bothFlags) {
+                        floodfill(buffer, coords.first, coords.second, teamdcol[t]);
+                        continue;
+                    }
+                    const int tempColor = makecol(255, 0, 255); // this is an opportunity for bugs if someone decides to use bright pink as a regular map color
+                    floodfill(buffer, coords.first, coords.second, tempColor);
+                    // check all opposing team's flags for being in the same area
+                    const int ot = 1 - t;
+                    vector<const WorldCoords*> problemFlags[2];
+                    for (vector<const WorldCoords*>::const_iterator fj = teamFlags[ot].begin(); fj != teamFlags[ot].end(); ++fj) {
+                        const pair<int, int> coords = helper.flagCoords(**fj);
+                        if (getpixel(buffer, coords.first, coords.second) == tempColor)
+                            problemFlags[ot].push_back(*fj);
+                    }
+                    if (!problemFlags[ot].empty()) { // only in this case the more complex repainting needs to be done
+                        for (vector<const WorldCoords*>::const_iterator fj = fi; fj != teamFlags[t].end(); ++fj) {
+                            const pair<int, int> coords = helper.flagCoords(**fj);
+                            if (getpixel(buffer, coords.first, coords.second) == tempColor)
+                                problemFlags[t].push_back(*fj);
+                        }
+                        helper.paintByFlags(rx, ry, problemFlags, teamdcol, tempColor);
+                    }
+                    else    // just repaint the questionable area with the final color
+                        floodfill(buffer, coords.first, coords.second, teamdcol[t]);
+                }
         }
 
-    backup.free();
-
     //draw circles (or flags) to flag positions
+    const double room_w = plw * scale;
     for (int t = 0; t <= 2; ++t) {
         const vector<WorldCoords>& flags = (t == 2 ? map.wild_flags : map.tinfo[t].flags);
         for (vector<WorldCoords>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-            const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);
-            const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
+            const pair<int, int> coords = helper.flagCoords(*fi);
+            const int px = coords.first, py = coords.second;
             if (save_map_pic) {
                 //draw the flagpole
                 rectfill(buffer, px, py - static_cast<int>(room_w / 12), px + static_cast<int>(room_w / 60) - 1, py, col[COLYELLOW]);
                 //draw the flag
                 rectfill(buffer, px + static_cast<int>(room_w / 60), py - static_cast<int>(room_w / 12),
-                    px + static_cast<int>(room_w / 12), py - static_cast<int>(room_w / 30), teamcol[t]);
+                                 px + static_cast<int>(room_w / 12), py - static_cast<int>(room_w / 30), teamcol[t]);
             }
             else
                 circle(buffer, px, py, minimap_place_w / 50, teamcol[t]);
@@ -1669,7 +1670,7 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     const int line_h = 10;
     const int margin = 8;
     for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
-        const int c = me == line ? col[COLYELLOW] : col[COLWHITE];
+        const int c = (me == line - 1) ? col[COLYELLOW] : col[COLWHITE];
         textprintf_ex(drawbuf, font, margin, line++ * line_h, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
             line, player->used, player->onscreen, player->enemyvis, player->roomx, player->roomy,
             player->lx, player->ly, player->sx, player->sy);
@@ -1704,7 +1705,7 @@ void Graphics::map_time(int seconds) {
 }
 
 void Graphics::draw_fps(double fps) {
-    textprintf_right_ex(drawbuf, font, SCREEN_W - 2, SCREEN_H - 10, col[COLMENUGRAY], -1, "FPS:%3.0f", fps);
+    textprintf_right_ex(drawbuf, font, SCREEN_W - 2, SCREEN_H - 10, col[COLMENUGRAY], -1, "%s", _("FPS:$1", itoa_w((int)fps, 3)).c_str());
 }
 
 void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
@@ -1776,19 +1777,19 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 }
 
 void Graphics::draw_player_power(double val) {
-    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "%-6s %3.0f", _("Power").c_str(), val);
+    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "%s", _("Power  $1", itoa_w(iround(val), 3)).c_str());
 }
 
 void Graphics::draw_player_turbo(double val) {
-    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "%-6s %3.0f", _("Turbo").c_str(), val);
+    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "%s", _("Turbo  $1", itoa_w(iround(val), 3)).c_str());
 }
 
 void Graphics::draw_player_shadow(double val) {
-    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "%-6s %3.0f", _("Shadow").c_str(), val);
+    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "%s", _("Shadow $1", itoa_w(iround(val), 3)).c_str());
 }
 
 void Graphics::draw_player_weapon(int level) {
-    textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "%-7s %i", _("Weapon").c_str(), level);
+    textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "%s", _("Weapon $1", itoa(level)).c_str());
 }
 
 void Graphics::draw_change_team_message(double time) {
@@ -1815,7 +1816,7 @@ void Graphics::draw_player_health(int health) {
     const int x0 = indicators_x + 10;
     const int y0 = indicators_y;
     // health value
-    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-9s %3i", _("Health").c_str(), health);
+    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%s", _("Health $1", itoa_w(health, 3)).c_str());
     // health bar
     rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
     if (health == 0)
@@ -1837,7 +1838,7 @@ void Graphics::draw_player_energy(int energy) {
     const int x0 = indicators_x + 10 + 14 * 8;
     const int y0 = indicators_y;
     // energy value
-    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-9s %3i", _("Energy").c_str(), energy);
+    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%s", _("Energy $1", itoa_w(energy, 3)).c_str());
     // energy bar
     rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
     if (energy == 0)

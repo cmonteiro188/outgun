@@ -19,6 +19,14 @@
  *
  */
 
+/* "features":
+ * - doesn't notice <> type includes at all, and doesn't know about system
+ *   headers (works well when <> is used for system headers, "" for own ones)
+ * - doesn't recognize include lines with extra spaces
+ * - doesn't recognize the first include if it's the first line in the file
+ * - leaves all "recursive" work for make (can be considered good or bad)
+ */
+
 #include <cstdarg>
 #include <stdio.h>
 #include <string>
@@ -64,9 +72,10 @@ void skipToInclude(FILE* src) {
         for (int match = 1;; ++match) {
             if (match == matchLen)
                 return; // found
-            if (getChar(src) == matchStr[match])
+            const char ch = getChar(src);
+            if (ch == matchStr[match])
                 continue;
-            else if (getChar(src) == matchStr[0])
+            else if (ch == matchStr[0])
                 match = 0;
             else
                 break;
@@ -102,32 +111,32 @@ void replaceSlashes(std::string& str) { replaceChars(str, '/', '_'); }
  * @param dirbase The relative (to dir of Makefile) directory of the source file, empty if it is the same directory; no slash at the end in any case.
  */
 void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
-    try {
-        for (;;) {
-            skipToInclude(src);
-            std::string fileName = readIncludeFileName(src);
-            std::string path = dirbase;
-            int nameReadPos = 0;
-            while (fileName.substr(nameReadPos, 3) == "../") {
-                nameReadPos += 3;
-                std::string::size_type pathsep = path.find_last_of('/');
-                if (pathsep == std::string::npos) {
-                    if (path.empty())
-                        throw StrError("'#include \"%s\"' - invalid parent reference past base directory", fileName.c_str());
-                    pathsep = 0;
-                }
-                path.erase(pathsep);
-            }
-            if (!path.empty())
-                path += '/';
-            path += fileName.substr(nameReadPos);
-            replaceSlashes(path);
-            fprintf(dst, "\t$(%s_inc)", path.c_str());
-        }
-    } catch (EOF_Hit) {
-        fprintf(dst, "\n");
-        return;
-    }
+     for (;;) {
+         try {
+             skipToInclude(src);
+         } catch (EOF_Hit) {
+             fprintf(dst, "\n");
+             return;
+         }
+         std::string fileName = readIncludeFileName(src);
+         std::string path = dirbase;
+         int nameReadPos = 0;
+         while (fileName.substr(nameReadPos, 3) == "../") {
+             nameReadPos += 3;
+             std::string::size_type pathsep = path.find_last_of('/');
+             if (pathsep == std::string::npos) {
+                 if (path.empty())
+                     throw StrError("'#include \"%s\"' - invalid parent reference past base directory", fileName.c_str());
+                 pathsep = 0;
+             }
+             path.erase(pathsep);
+         }
+         if (!path.empty())
+             path += '/';
+         path += fileName.substr(nameReadPos);
+         replaceSlashes(path);
+         fprintf(dst, "\t$(%s_inc)", path.c_str());
+     }
 }
 
 void handleFile(std::string name, FILE* dst, const std::string& compileCommand) {

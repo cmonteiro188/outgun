@@ -2,6 +2,7 @@
  *  language.cpp
  *
  *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -24,6 +25,7 @@
 #include "incalleg.h"
 #include <fstream>
 #include "commont.h"
+#include "log.h"
 #include "utility.h"
 
 #include "language.h"
@@ -41,22 +43,22 @@ string Language::get_text(const string& text) const {
     return translation->second;
 }
 
-bool Language::load(const string& lang) {
+bool Language::load(const string& lang, LogSet& log) {
     texts.clear();
     lang_code = "en";
     if (lang == lang_code)  // English - no need to load the same phrases as in the code.
         return true;
-    const string dir = wheregamedir + "config" + directory_separator + "languages" + directory_separator;
+    const string dir = wheregamedir + "languages" + directory_separator;
     const string defname = dir + "en.txt";
     const string translname = dir + lang + ".txt";
     ifstream def(defname.c_str());
 	if (!def) {
-        allegro_message("%s not found.\nCan't load a language without the English reference.\nContinuing without a translation.", defname.c_str());
+        log.error("%s not found. Can't load a language without the English reference. Continuing without translation.", defname.c_str());
         return false;
     }
     ifstream transl(translname.c_str());
     if (!transl) {
-        allegro_message("Language file for '%s' not found (%s).\nContinuing without translation.", lang.c_str(), translname.c_str());
+        log.error("Language file for '%s' not found (%s). Continuing without translation.", lang.c_str(), translname.c_str());
         return false;
     }
     for (;;) {
@@ -69,14 +71,13 @@ bool Language::load(const string& lang) {
             break;
     }
     if (def || transl) {
-        allegro_message("Language file for '%s' is invalid, maybe for another version of Outgun.\n"
-                        "%s contains %s phrases than %s.\n"
-                        "Continuing without translation.",
-                        lang.c_str(), translname.c_str(), transl ? "more" : "less", defname.c_str());
+        log.error("Language file for '%s' is invalid, maybe for another version of Outgun. %s contains %s phrases than %s. Continuing without translation.",
+                  lang.c_str(), translname.c_str(), transl ? "more" : "less", defname.c_str());
         texts.clear();
         return false;
     }
     lang_code = lang;
+    log("Language '%s' loaded", lang.c_str());
     return true;
 }
 

@@ -64,9 +64,9 @@ using std::string;
 using std::swap;
 using std::vector;
 
-Server::Server(LogSet& hostLogs, const ServerExternalSettings& config) :
+Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix) :
     normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
-    errorLog(normalLog, "ERROR: "),
+    errorLog(normalLog, externalErrorLog, "ERROR: ", errorPrefix),
     securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
     log(&normalLog, &errorLog, &securityLog),
     world(this, &network, log),
@@ -83,20 +83,19 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config) :
     Thread::setCallerPriority(config.priority);
 }
 
-Server::~Server() {
-    errorMessage("Server had these errors: (see serverlog.txt)", errorLog);
-}
+Server::~Server() { }
 
 void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
-    if (world.player[pid].muted == mode)
+    if (world.player[pid].muted == mode || (world.player[pid].muted == 1 && mode == 2))
         return;
-    const string adminName = admin == -1 ? "" : world.player[admin].name;
-    network.broadcast_mute_message(pid, mode, adminName, mode != 2 && world.player[pid].muted != 2);
+    const string adminName = (admin == -1) ? "" : world.player[admin].name;
+    const bool tellPlayer = (mode != 2 && (world.player[pid].muted != 2 || mode == 1));
+    network.broadcast_mute_message(pid, mode, adminName, tellPlayer);
     world.player[pid].muted = mode;
 }
 
 void Server::kickPlayer(int pid, int admin, int minutes) {  // if minutes > 0, it's really a ban
-    const string adminName = admin == -1 ? "" : world.player[admin].name;
+    const string adminName = (admin == -1) ? "" : world.player[admin].name;
     network.broadcast_kick_message(pid, minutes, adminName);
     world.player[pid].kickTimer = 10 * 10;
 }
@@ -129,8 +128,6 @@ void Server::ctf_game_restart() {
         if (worldConfig.balanceTeams() == WorldSettings::TB_balance_and_shuffle)
             shuffle_teams();
     }
-
-    network.broadcast_sample(SAMPLE_CTF_GAMEOVER);
 
     network.sendWorldReset();   // must be before world.reset() because world.reset() already sends initializations
     world.reset();
@@ -235,19 +232,18 @@ void Server::check_player_change_teams(int pid) {
 
 //move player - move player (f rom) to empty position (t o)
 void Server::move_player(int f, int t) {
-    //broadcast sound
-    network.broadcast_sample(SAMPLE_CHANGETEAM);
-
     //UGLY HACK
     if (!check[t]) {
         check[t] = 1;
         checount--;
     }
 
-    world.dropFlagIfAny(f);
-
     fav_colors[f / TSIZE][world.player[f].color()] = false;
     world.player[f].set_color(-1);
+
+    world.dropFlagIfAny(f, true);
+    if (world.player[f].health > 0)
+        world.resetPlayer(f);   // no need to tell clients because it's inferred by team_change message
 
     //copy to t
     world.player[t] = world.player[f];
@@ -264,32 +260,30 @@ void Server::move_player(int f, int t) {
     world.player[t].want_change_teams = false;
     world.player[t].team_change_time = get_time() + 10.0;       //10 secs interval
 
-    //kill t
-    if (world.player[t].health > 0)
-        world.resetPlayer(t);
-
     check_fav_colors(t);
 
     //update t
     network.move_update_player(t);
+    network.broadcast_team_change(f, t, false);
 }
 
 //swap players - both are valid players
 void Server::swap_players(int a, int b) {
-    network.broadcast_sample(SAMPLE_CHANGETEAM);
-
-    if (world.player[a].health > 0)
-        world.resetPlayer(a);
-    if (world.player[b].health > 0)
-        world.resetPlayer(b);
-
     fav_colors[a / TSIZE][world.player[a].color()] = false;
     fav_colors[b / TSIZE][world.player[b].color()] = false;
     world.player[a].set_color(-1);
     world.player[b].set_color(-1);
 
+    world.dropFlagIfAny(a, true);
+    world.dropFlagIfAny(b, true);
+    if (world.player[a].health > 0)
+        world.resetPlayer(a);   // no need to tell clients because it's inferred by team_change message
+    if (world.player[b].health > 0)
+        world.resetPlayer(b);   // no need to tell clients because it's inferred by team_change message
+
     swap(world.player[a], world.player[b]);
     world.swapRocketOwners(a, b);
+
     world.player[a].id = a;
     world.player[b].id = b;
 
@@ -302,9 +296,9 @@ void Server::swap_players(int a, int b) {
     check_fav_colors(a);
     check_fav_colors(b);
 
-    // send updates
     network.move_update_player(a);
     network.move_update_player(b);
+    network.broadcast_team_change(a, b, true);
 }
 
 void Server::set_fav_colors(int pid, const vector<char>& colors) {
@@ -748,13 +742,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 bool Server::start(int target_maxplayers) {
     authorizations.load();
 
-    //check if maxplayers is valid
-    if (target_maxplayers < 2)              //menos de dois
-        return false;
-    if (target_maxplayers > MAX_PLAYERS)        //mais que o maximo
-        return false;
-    if (target_maxplayers % 2 == 1) //numero impar de jogadores
-        return false;
+    nAssert(target_maxplayers >= 2 && target_maxplayers <= MAX_PLAYERS && target_maxplayers % 2 == 0);
 
     // Set maxplayers, could be reset by gamemod setting.
     setMaxPlayers(target_maxplayers);
@@ -794,7 +782,8 @@ int Server::getLessScoredTeam() const {
 }
 
 void Server::game_remove_player(int pid, bool removeClient) {
-    fav_colors[pid / TSIZE][world.player[pid].color()] = false;
+    if (world.player[pid].color() != -1)
+        fav_colors[pid / TSIZE][world.player[pid].color()] = false;
     if (removeClient)
         client[world.player[pid].cid].reset();
     network.removePlayer(pid);
@@ -845,9 +834,9 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
         }
     }
 
-    network.broadcast_player_name(pid); // must be before new_player_notice to make admin shell show it right
+    network.broadcast_player_name(pid); // must be before new_player_to_admin_shell
     if (entered_game)
-        network.broadcast_new_player_notice(pid);
+        network.new_player_to_admin_shell(pid);
 
     // token removed; possibly authorized and/or admin
     network.broadcast_player_crap(pid);
@@ -1194,8 +1183,8 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
         if (world.frame % 10 == 0) {
             //update bar
             ostringstream status;
-            const int errors = errorLog.size();
-            if (errors)
+            const int errors = errorLog.numLines();
+            if (errors && extConfig.showErrorCount)
                 status << "ERRORS:" << errors << "  ";
             status << network.get_player_count() << '/' << maxplayers << "p ";
             status << setprecision(1) << std::fixed << network.getTraffic() << "k/s v" << GAME_VERSION;
@@ -1226,8 +1215,8 @@ void Server::stop() {
     network.stop();
 }
 
-GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings) {
-    host = new Server(hostLog, settings);
+GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix) {
+    host = new Server(hostLog, settings, externalErrorLog, errorPrefix);
 }
 
 GameserverInterface::~GameserverInterface() {
@@ -1245,4 +1234,3 @@ void GameserverInterface::loop(volatile bool *quitFlag, bool quitOnEsc) {
 void GameserverInterface::stop() {
     host->stop();
 }
-

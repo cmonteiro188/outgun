@@ -77,6 +77,7 @@ enum Network_data_code {
     data_flag_take,
     data_flag_return,
     data_flag_drop,
+    data_players_present,
     data_new_player,
     data_spawn,
     data_movements_shots,
@@ -110,6 +111,16 @@ enum Disconnect_reason {
     disconnect_kick = server_c::disconnect_first_user_defined,
     disconnect_idlekick,
     disconnect_client_misbehavior
+};
+
+enum Connect_rejection_reason {
+    reject_server_full,
+    reject_banned,
+    reject_player_password_needed,
+    reject_wrong_player_password,
+    reject_server_password_needed,
+    reject_wrong_server_password,
+    reject_last = reject_wrong_server_password
 };
 
 #endif

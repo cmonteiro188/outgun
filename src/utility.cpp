@@ -201,17 +201,20 @@ void LogSet::operator()(const char* fmt, ...) { if (!  normalLog) return; va_lis
 void LogSet::error     (const char* fmt, ...) { if (!   errorLog) return; va_list args; va_start(args, fmt); (*   errorLog)(fmt, args); va_end(args); }
 void LogSet::security  (const char* fmt, ...) { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
 
-void errorMessage(const string& heading, MemoryLog& errorLog) {
+void errorMessage(const string& heading, MemoryLog& errorLog, const string& footer) {
     int errors = errorLog.size();
     if (errors) {
         ostringstream msg;
-        msg << heading;
-        for (int count = min(errors, 10); count > 0; --count)
-            msg << '\n' << errorLog.pop();
+        for (int msgLines = 0; errors > 0 && msgLines < 20; --errors) {
+            vector<string> lines = split_to_lines(errorLog.pop(), 60, 4);   // 60 chosen as split point because at least gdialog likes to cut early
+            for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++msgLines)
+                msg << *li << '\n';
+        }
         errors = errorLog.size();
         if (errors)
-            msg << "\n+ " << errors << " more";
-        allegro_message(msg.str().c_str());
+            msg << "+ " << errors << " more";
+        msg << footer;
+        messageBox(heading.c_str(), "%s", msg.str().c_str());
     }
 }
 

@@ -83,7 +83,7 @@ public:
 
 class Server {
     FileLog normalLog;
-    SupplementaryLog<MemoryLog> errorLog;
+    DualLog errorLog;
     SupplementaryLog<FileLog> securityLog;
     LogSet log;
 
@@ -136,7 +136,7 @@ class Server {
 
 public:
 
-    Server(LogSet& hostLogs, const ServerExternalSettings& config);
+    Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object
     virtual ~Server();
     bool start(int target_maxplayers);
     void loop(volatile bool *quitFlag, bool quitOnEsc);
@@ -176,7 +176,7 @@ public:
     const ClientData& getClientData(int cid) const { return client[cid]; }
           ClientData& getClientData(int cid)       { return client[cid]; }
     bool changeRegistration(int id, const std::string& token);  // returns true if the token is different from before and non-empty
-    void resetPlayer(int cid) { client[cid].reset(); }
+    void resetClient(int cid) { client[cid].reset(); }
     void refresh_team_score_modifiers();
     void check_map_exit();
     void score_frag(int p, int amount);

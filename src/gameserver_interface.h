@@ -32,6 +32,7 @@
 
 class Server;
 class LogSet;
+class MemoryLog;
 
 class ServerExternalSettings {
 public:
@@ -48,16 +49,17 @@ public:
 
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;  // must be set properly (non-null) when used
+    bool showErrorCount;
 
     ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), privateserver(false),
-        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), statusOutput(0) { }
+        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), statusOutput(0), showErrorCount(true) { }
 };
 
 class GameserverInterface {
     Server* host;
 
 public:
-    GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings);
+    GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object
     ~GameserverInterface();
     bool start(int maxplayers);
     void loop(volatile bool *quitFlag, bool quitOnEsc);

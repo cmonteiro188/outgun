@@ -23,13 +23,13 @@
  *
  */
 
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include <cctype>
 #include <cmath>
@@ -207,21 +207,21 @@ public:
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
     logThreadStart("ServerThreadOwner::threadFn", log);
 
-    GameserverInterface gameserver(log, config);
+    GameserverInterface gameserver(log, config, *log.accessError(), "(server) ");
     if (!gameserver.start(config.server_maxplayers)) {
         log.error("Can't start listen server");
         quitFlag = true;
-        return;
     }
+    else {
+        log("Listen server running");
+        gameserver.loop(&quitFlag, false);
+        quitFlag = true;
+        gameserver.stop();
+        log("Listen server stopped");
 
-    log("Listen server running");
-    gameserver.loop(&quitFlag, false);
-    quitFlag = true;
-    gameserver.stop();
-    log("Listen server stopped");
-
-    //restore client's windowtitle
-    config.statusOutput(_("Outgun client"));    // note: this is the server's statusOutput not client's
+        //restore client's windowtitle
+        config.statusOutput(_("Outgun client"));    // note: this is the server's statusOutput not client's
+    }
 
     logThreadExit("ServerThreadOwner::threadFn", log);
 }
@@ -585,7 +585,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
             cl->connect_failed_unreachable();
             break;
         case 4: {
-            const string msg = _("Server is full.");
+            const string msg = _("The server is full.");
             cl->connect_failed_denied(msg.data(), msg.length());
             break;
         }
@@ -594,9 +594,10 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
     }
 }
 
-Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
+Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
     normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
-    errorLog(normalLog, "ERROR: "),
+    externalErrorLog(externalErrorLog_),
+    errorLog(normalLog, externalErrorLog, "ERROR: "),
     //securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
     log(&normalLog, &errorLog, 0),
     listenServer(log),
@@ -667,8 +668,6 @@ Client::~Client() {
 
     for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
         delete *mi;
-
-    errorMessage(_("Client had these errors: (see clientlog.txt)"), errorLog);
 
     log("Exiting client: destructor exiting");
 }
@@ -1022,6 +1021,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     readStr(data, count, hostname);
     m_serverInfo.clear();
+    m_serverInfo.addLine("");
 
     if (!menu.options.game.favoriteColors.values().empty()) {
         char lebuf[256]; int count = 0;
@@ -1062,9 +1062,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     // reset gamestate?
     connected = true;
     gameshow = true;
-    nAssert(openMenus.safeTop() != &m_errors.menu);
-    nAssert(openMenus.safeTop() == &m_connectProgress.menu || openMenus.safeTop() == &menu.help.menu);
-    openMenus.clear();
+    openMenus.clear();  // connect progress menu is showing; exceptions are when it's been closed and the disconnect is still pending, and when help is opened on top of it
     fx.frame = fd.frame = 0;
     fx.skipped = fd.skipped = true;
     me = -1;    //don't know who am I
@@ -1081,7 +1079,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     }
     // players
     for (int i = 0; i < MAX_PLAYERS; i++)
-        fx.player[i].clear(false, i, " ", i / TSIZE);
+        fx.player[i].clear(false, i, "", i / TSIZE);
     players_sb.clear();
     // powerups
     for (int i = 0; i < MAX_PICKUPS; ++i)
@@ -1152,9 +1150,9 @@ void Client::client_disconnected(const char* data, int length) {
             default:    break;
         }
     m_connectProgress.clear();
-    m_connectProgress.addLine(_("You have been disconnected."));
+    m_connectProgress.wrapLine(_("You have been disconnected."));
     if (!description.empty())
-        m_connectProgress.addLine(description);
+        m_connectProgress.wrapLine(description);
     showMenu(m_connectProgress);
     if (description.empty())
         log("Disconnection successful");
@@ -1166,37 +1164,73 @@ void Client::client_disconnected(const char* data, int length) {
 
 void Client::connect_failed_denied(const char* data, int length) {
     string message;
-    if (length > 0) {
+    bool userHandled = false;
+    if (length > 1) {
         int count = 0;
         readStr(data, count, message);
+        const string str1 = "Protocol mismatch: server: ";
+        const string str2 = ", client: " GAME_PROTOCOL;
+        const string::size_type str2pos = message.length() - str2.length();
+        if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
+            const std::string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
+            message = _("Protocol mismatch. Server: $1, client: $2.", serverProtocol, GAME_PROTOCOL);
+        }
+        // otherwise leave message at its value of whatever the server sent
+    }
+    else if (length == 1) {
+        int count = 0;
+        NLubyte rb;
+        readByte(data, count, rb);
+        if (rb > reject_last)
+            message = _("Unknown reason code ($1).", itoa(rb));
+        else {
+            Connect_rejection_reason reason = static_cast<Connect_rejection_reason>(rb);
+            switch (reason) {
+            case reject_server_full:
+                message = _("The server is full.");
+                break;
+            case reject_banned:
+                message = _("You are banned from this server.");
+                break;
+            case reject_player_password_needed:
+                openMenus.close(&m_connectProgress.menu);
+                m_playerPassword.setup(playername, false);
+                showMenu(m_playerPassword);
+                userHandled = true;
+                message = "Asking for player password."; // just for logging
+                break;
+            case reject_wrong_player_password:
+                message = _("Wrong player password.");
+                remove_player_password(playername, addressToString(serverIP));
+                break;
+            case reject_server_password_needed:
+                openMenus.close(&m_connectProgress.menu);
+                showMenu(m_serverPassword);
+                userHandled = true;
+                message = "Asking for server password."; // just for logging
+                break;
+            case reject_wrong_server_password:
+                message = _("Wrong server password.");
+                break;
+            default: nAssert(0);
+            }
+        }
     }
     else
-        message = "no reason given.";
+        message = _("No reason given.");
 
     log("Connecting failed: %s", message.c_str());
 
-    if (message == "SERVER PASSWORD") {
-        if (openMenus.safeTop() == &m_connectProgress.menu)
-            openMenus.close();
-        showMenu(m_serverPassword);
-    }
-    else if (message == "PLAYER PASSWORD") {
-        nAssert(openMenus.safeTop() == &m_connectProgress.menu);
-        openMenus.close();
-        m_playerPassword.setup(playername, false);
-        showMenu(m_playerPassword);
-    }
-    else {
-        nAssert(openMenus.safeTop() == &m_connectProgress.menu);
+    if (!userHandled) {
+        m_connectProgress.wrapLine(_("Connection refused."));
         m_connectProgress.wrapLine(message);
-        if (message == "Wrong player password")
-            remove_player_password(playername, addressToString(serverIP));
+        // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     }
 }
 
 void Client::connect_failed_unreachable() {
-    nAssert(openMenus.safeTop() == &m_connectProgress.menu);
-    m_connectProgress.addLine(_("No response from server."));
+    m_connectProgress.wrapLine(_("No response from server."));
+    // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
@@ -1324,9 +1358,8 @@ void Client::connect_command(bool loadPassword) {
     client->connect(true);
 
     m_connectProgress.clear();
-    m_connectProgress.addLine(_("Trying to connect..."), true);
-    if (openMenus.safeTop() != &m_connectProgress.menu)
-        showMenu(m_connectProgress);
+    m_connectProgress.wrapLine(_("Trying to connect..."), true);
+    showMenu(m_connectProgress);
 }
 
 void Client::issue_change_name_command() {
@@ -1347,8 +1380,7 @@ void Client::change_name_command() {
     const string& newName = menu.options.name.name();
     if (!check_name(newName))
         return;
-    if (openMenus.safeTop() == &menu.options.name.menu)
-        openMenus.close();
+    openMenus.close(&menu.options.name.menu);
 
     playername = newName;
     m_playerPassword.password.set(load_player_password(playername, addressToString(serverIP)));
@@ -1416,25 +1448,6 @@ void Client::process_incoming_data(const char* data, int length) {
         fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
         fx.frame = svframe;
 
-        NLulong players_present;        //LONG players present (32 players max)
-        readLong(data, count, players_present);
-        for (int i = 0; i < maxplayers; i++) {
-            //decode players_present: sets if "player" record is used or not, in clientside
-            if (players_present & (1 << i)) {
-                if (!fx.player[i].used)
-                    players_sb.push_back(&fx.player[i]);
-                fx.player[i].used = true;
-            }
-            else {
-                if (fx.player[i].used) {
-                    vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[i]);
-                    if (rm != players_sb.end())
-                        players_sb.erase(rm);
-                }
-                fx.player[i].used = false;
-            }
-        }
-
         //----- PLAYER SPECIFIC DATA -----
 
         readByte(data, count, clFrameWorld);
@@ -1496,6 +1509,16 @@ void Client::process_incoming_data(const char* data, int length) {
             readByte(data, count, scr);     //player.y
             fx.player[me].roomy = scr;
 
+            if (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
+                for (int j = 0; j < MAX_PICKUPS; j++)
+                    fx.item[j].kind = Powerup::pup_unused;  // the server will send messages for all seen, others should be forgotten
+
+                fx.player[me].oldx = fx.player[me].roomx;
+                fx.player[me].oldy = fx.player[me].roomy;
+
+                predrawNeeded = true;
+            }
+
             //read "players onscreen" vector
             NLulong players_onscreen;
             readLong(data, count, players_onscreen);
@@ -1550,11 +1573,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 h.item_shield = (extra & 8) != 0;
                 h.item_turbo = (extra & 16) != 0;
                 h.item_power = (extra & 32) != 0;
-
-                //verifica se acabou de morrer - play death sound
-                if (h.dead && !h.old_dead)
-                    addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-                h.old_dead = h.dead;
 
                 NLubyte ccb;
                 readByte(data, count, ccb);
@@ -1634,8 +1652,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 string name;
                 readByte(lebuf, count, pid);
                 readStr(lebuf, count, name);
-                if (check_name(name))
+                if (check_name(name)) {
+                    if (fx.player[pid].name.empty()) {
+                        addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
+                        addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
+                    }
                     fx.player[pid].name = name;
+                }
                 else
                     log.error("Invalid name for player %d.", pid);
                 break;
@@ -1650,15 +1673,14 @@ void Client::process_incoming_data(const char* data, int length) {
                 if (find_nonprintable_char(chatmsg)) {
                     log.error("Server sent non-printable characters in a message.");
                     addThreadMessage(new TM_DoDisconnect());
+                    break;
                 }
-                else {
-                    addThreadMessage(new TM_Text(type, chatmsg));
-                    if (menu.options.game.messageLogging())
-                        message_log << date_and_time() << "  " << chatmsg << endl;
-                }
+                addThreadMessage(new TM_Text(type, chatmsg));
+                if (menu.options.game.messageLogging())
+                    message_log << date_and_time() << "  " << chatmsg << endl;
 
                 //talk sound
-                if (type != msg_info)
+                if (type == msg_team || type == msg_normal)
                     addThreadMessage(new TM_Sound(SAMPLE_TALK));
                 break;
             }
@@ -1679,9 +1701,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, map_nr); //current map number
                 current_map = map_nr;
 
-                //reset want-change-teams: this message is send when players are swapped also
-                want_change_teams = false;
-
                 NLubyte score;
                 readByte(lebuf, count, score);
                 fx.teams[0].set_score(score);
@@ -1691,10 +1710,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.teams[1].set_score(score);
                 if (fx.teams[1].captures().size() == 0) // only if just joined the server
                     fx.teams[1].set_base_score(score);
-
-                //server physics parameters
-                fx.physics.read(lebuf, count);
-                fd.physics = fx.physics;
 
                 // room is probably changed
                 fx.player[me].oldx = -1;
@@ -1835,7 +1850,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, roky);
                 fx.rock[rockid].owner = -1;
                 if (target != 255) {    // hit player
-                    if (target < 250)   // blink player if not hit shield (252)
+                    if (target != 252)  // not shield hit -> blink player
                         fx.player[target].hitfx = get_time() + .3;
                     addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py));
                     addThreadMessage(new TM_Sound(SAMPLE_HIT));
@@ -1955,17 +1970,19 @@ void Client::process_incoming_data(const char* data, int length) {
                         pi->stats().finish_stats(get_time());
                     gameover_plaque = plaque;
 
-                    
                     string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
                     addThreadMessage(new TM_Text(msg_info, msg));
+                    addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
                     msg.clear();
-                    if (caplimit > 0) {
+                    if (caplimit > 0)
                         msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
-                        msg += ' ';
-                    }
-                    if (timelimit > 0)
+                    if (timelimit > 0) {
+                        if (!msg.empty())
+                            msg += ' ';
                         msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
-                    addThreadMessage(new TM_Text(msg_info, msg));
+                    }
+                    if (!msg.empty())
+                        addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 else {
                     gameover_plaque = NEXTMAP_NONE;
@@ -1982,7 +1999,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                    pi->stats().clear();
+                    pi->stats().clear(true);
                 if (stats_autoshowing) {
                     menusel = menu_none;
                     stats_autoshowing = false;
@@ -2161,6 +2178,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
+                addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
                 break;
             }
 
@@ -2187,13 +2205,18 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
                     else
                         msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
+                    if (fx.player[target].onscreen)
+                        addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
                 }
                 else {
-                    nAssert(known_attacker);
-                    if (same_team)
+                    if (!known_attacker)    // this should never happen with the current code, but it's here for future
+                        msg = _("$1 was nailed.", fx.player[target].name);
+                    else if (same_team)
                         msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
                     else
                         msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
+                    if (fx.player[target].onscreen)
+                        addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
                 }
                 addThreadMessage(new TM_Text(msg_info, msg));
                 if (carrier_defended && known_attacker) {
@@ -2232,6 +2255,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     else
                         msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
+                    addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 }
                 if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
@@ -2273,6 +2297,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
+                addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
                 break;
             }
 
@@ -2292,6 +2317,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
+                addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 break;
             }
 
@@ -2319,22 +2345,31 @@ void Client::process_incoming_data(const char* data, int length) {
                     else
                         msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
+                    addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+                }
+                break;
+            }
+
+            case data_players_present: {    // this is only sent immediately after connecting to the server
+                NLulong pp;
+                readLong(lebuf, count, pp);
+                for (int i = 0; i < MAX_PLAYERS; ++i) {
+                    if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
+                        continue;
+                    if (pp & (1 << i)) {
+                        fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
+                        players_sb.push_back(&fx.player[i]);
+                    }
                 }
                 break;
             }
 
             case data_new_player: {
                 NLubyte pid;
-                string name;
                 readByte(lebuf, count, pid);
-                readStr(lebuf, count, name);
-                fx.player[pid].stats().clear();
-                fx.player[pid].stats().set_start_time(get_time());
-                fx.player[pid].stats().set_lifetime(0);
-                if (!name.empty()) {
-                    const string msg = _("$1 entered the game.", name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                }
+                nAssert(!fx.player[pid].used);
+                fx.player[pid].clear(true, pid, "", pid / TSIZE);
+                players_sb.push_back(&fx.player[pid]);
                 break;
             }
 
@@ -2343,18 +2378,71 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
                 addThreadMessage(new TM_Text(msg_info, msg));
+                addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
+                vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
+                nAssert(rm != players_sb.end());
+                players_sb.erase(rm);
+                nAssert(fx.player[pid].used);
+                fx.player[pid].used = false;
                 break;
             }
             
             case data_team_change: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
+                NLubyte from, to, col1, col2;
+                readByte(lebuf, count, from);
+                readByte(lebuf, count, to);
+                readByte(lebuf, count, col1);
+                readByte(lebuf, count, col2);
+                const bool swap = (col2 != 255);
+                nAssert(fx.player[from].used && swap == fx.player[to].used);
+
                 string msg;
-                if (pid / TSIZE == 0)
-                    msg = _("$1 moved to red team.", fx.player[pid].name);
+                if (swap)
+                    msg = _("$1 and $2 swapped teams.", fx.player[from].name, fx.player[to].name);
+                else if (to / TSIZE == 0)
+                    msg = _("$1 moved to red team.", fx.player[from].name);
                 else
-                    msg = _("$1 moved to blue team.", fx.player[pid].name);
+                    msg = _("$1 moved to blue team.", fx.player[from].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
+                addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
+
+                if (swap) {
+                    std::swap(fx.player[from], fx.player[to]);
+                    fx.player[from].id = from;
+                    fx.player[to  ].id =   to;
+                    fx.player[from].set_team(from / TSIZE);
+                    fx.player[to  ].set_team(  to / TSIZE);
+                    // both players already exist in players_sb -> no changes
+                }
+                else {
+                    fx.player[to] = fx.player[from];
+                    fx.player[from].used = false;
+                    fx.player[to].id = to;
+                    fx.player[to].set_team(to / TSIZE);
+                    vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);
+                    nAssert(rm != players_sb.end());
+                    players_sb.erase(rm);
+                    players_sb.push_back(&fx.player[to]);
+                }
+
+                if (from == me || to == me) {
+                    want_change_teams = false;
+                    me = (me == from) ? to : from;
+                }
+
+                if (col1 < MAX_PLAYERS / 2)
+                    fx.player[to].set_color(col1);
+                else
+                    log("Invalid colour (%d) for player %d.", col1, to);
+                fx.player[to].stats().kill(static_cast<int>(get_time()), true);
+                if (swap) {
+                    if (col2 < MAX_PLAYERS / 2)
+                        fx.player[from].set_color(col2);
+                    else
+                        log("Invalid colour (%d) for player %d.", col2, from);
+                    fx.player[from].stats().kill(static_cast<int>(get_time()), true);
+                }
+
                 break;
             }
 
@@ -2477,6 +2565,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, timelimit);
                 readByte(lebuf, count, extratime);
                 readByte(lebuf, count, misc1);
+                fx.physics.read(lebuf, count);
+                fd.physics = fx.physics;
                 addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1));
                 break;
             }
@@ -2629,18 +2719,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 // just ignore commands in reserved range: they're probably some extension we don't have to care about
                 break;
         }
-    }
-
-    //detect screen changes / clear powerup fx's
-    if (me >= 0 && (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy)) {
-        for (int j = 0; j < MAX_PICKUPS; j++)
-            if (fx.item[j].px == fx.player[me].oldx && fx.item[j].py == fx.player[me].oldy)
-                fx.item[j].kind = Powerup::pup_unused;  // erase
-
-        fx.player[me].oldx = fx.player[me].roomx;
-        fx.player[me].oldy = fx.player[me].roomy;
-
-        predrawNeeded = true;
     }
 
     me = whatme;    // hack
@@ -3405,10 +3483,10 @@ void Client::loop(volatile bool* quitFlag) {
             client_graphics.clear();
         }
 
-        const int errors = errorLog.size();
+        const int errors = externalErrorLog.size();
         if (errors) {
             for (int count = 0; count < errors; ++count)
-                m_errors.wrapLine(errorLog.pop());
+                m_errors.wrapLine(externalErrorLog.pop());
             if (openMenus.safeTop() != &m_errors.menu)
                 showMenu(m_errors);
         }
@@ -3616,7 +3694,7 @@ void Client::predraw() {
 }
 
 //draw the whole game screen
-void Client::draw_game_frame() {
+void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
@@ -3649,7 +3727,6 @@ void Client::draw_game_frame() {
     }
     else {
         #ifdef ROOM_CHANGE_BENCHMARK
-        MutexLock ml(frameMutex);
         predraw();
         ++benchmarkRuns;
         #endif
@@ -4251,8 +4328,7 @@ void Client::MCF_sndThemeChange() {
 }
 
 void Client::MCF_playerPasswordAccept() {
-    nAssert(openMenus.safeTop() == &m_playerPassword.menu);
-    openMenus.close();
+    openMenus.close(&m_playerPassword.menu);
     if (m_playerPassword.save())
         save_player_password(playername, addressToString(serverIP), m_playerPassword.password());
     if (connected)
@@ -4262,14 +4338,13 @@ void Client::MCF_playerPasswordAccept() {
 }
 
 void Client::MCF_serverPasswordAccept() {
-    nAssert(openMenus.safeTop() == &m_serverPassword.menu && !connected);
-    openMenus.close();
+    openMenus.close(&m_serverPassword.menu);
+    nAssert(!connected);
     connect_command(false);
 }
 
 void Client::MCF_clearErrors() {
-    nAssert(openMenus.safeTop() == &m_errors.menu);
-    openMenus.close();
+    openMenus.close(&m_errors.menu);
     m_errors.clear();
 }
 
@@ -4435,6 +4510,7 @@ void Client::MCF_startServer() {
         serverExtConfig.privateserver = menu.ownServer.pub() ? 0 : 1;
         serverExtConfig.port = menu.ownServer.port();
         serverExtConfig.privSettingForced = serverExtConfig.portForced = true;
+        serverExtConfig.showErrorCount = false;
         listenServer.start(serverExtConfig.port, serverExtConfig);
     }
 }
@@ -4455,14 +4531,8 @@ void Client::MCF_stopServer() {
 
 void Client::loadHelp() {
     menu.help.clear();
-    // First try to load the translated help.
-    string configFile = wheregamedir + "config" + directory_separator + "help." + language.code() + ".txt";
+    const string configFile = wheregamedir + "languages" + directory_separator + "help." + language.code() + ".txt";
     ifstream in(configFile.c_str());
-    if (!in) {  // If failed, try to load the default help file.
-        in.clear();     // necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
-        configFile = wheregamedir + "config" + directory_separator + "help.txt";
-        in.open(configFile.c_str());
-    }
     if (!in) {
         menu.help.addLine(_("No help found. It should be in"));
         menu.help.addLine(configFile);

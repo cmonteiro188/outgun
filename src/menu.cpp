@@ -31,6 +31,7 @@
 
 #include "menu.h"
 
+using std::find;
 using std::max;
 using std::min;
 using std::string;
@@ -313,7 +314,7 @@ int Menu::total_width() const {
     int min_width = caption.length() * char_w;
     for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
         min_width = max(min_width, (*comp)->width());
-    return min_width;   //#todo: leave space for shortcut numbers
+    return min_width;
 }
 
 int Menu::total_height() const {
@@ -321,6 +322,16 @@ int Menu::total_height() const {
     for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
         height += (*comp)->height();
     return height;
+}
+
+
+bool MenuStack::close(Menu* menu) {
+    std::vector<Menu*>::iterator mi = find(st.begin(), st.end(), menu);
+    if (mi == st.end())
+        return false;
+    menu->close();
+    st.erase(mi);
+    return true;
 }
 
 
