@@ -107,8 +107,194 @@ void ServerThreadOwner::stop() {
 	serverThread.join();
 }
 
-//client password-to-token retrieval thread
-void *thread_clientpassword_f(void *arg);
+void TournamentPasswordManager::start() {
+	passStatus = PS_starting;
+	setToken("");
+	quitThread = false;
+	thread.start_assert(RedirectToMemFun<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn));
+}
+
+void TournamentPasswordManager::setToken(const std::string& newToken) {
+	if (token.read() != newToken) {
+		token = newToken;
+		tokenCallback(newToken);
+	}
+}
+
+TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction) :
+	log(logs),
+	tokenCallback(tokenCallbackFunction),
+	quitThread(true),
+	passStatus(PS_noPassword),
+	servStatus(PS_noPassword)	// no server
+{
+}
+
+void TournamentPasswordManager::stop() {
+	if (!quitThread) {
+		log("Joining password-token thread");
+		quitThread = true;
+		thread.join();
+	}
+}
+
+void TournamentPasswordManager::changeData(string newName, string newPass) {
+	if (newName == name && newPass == password)
+		return;
+
+	stop();
+	if (newPass.empty()) {
+		passStatus = PS_noPassword;
+		return;
+	}
+	name = newName;
+	password = newPass;
+	start();
+}
+
+const char* TournamentPasswordManager::statusAsString() const {
+	switch (status()) {
+		case PS_noPassword:			return "No password set";
+		case PS_starting:			return "Initializing...";
+		case PS_socketError:		return "Socket error";
+		case PS_sending:			return "Sending login...";
+		case PS_sendError:			return "Error sending";
+		case PS_receiving:			return "Waiting for response...";
+		case PS_recvError:			return "No response";
+		case PS_invalidResponse:	return "Invalid response received";
+		case PS_unavailable:		return "Master server unavailable";
+		case PS_tokenReceived:		return "Logged in";
+		case PS_badLogin:			return "Login failed: check password";
+		case PS_tokenSent:			return "Logged in; sent to server";
+		case PS_tokenAccepted:		return "Logged in; server accepted";
+		case PS_tokenRejected:		return "Error: server rejected";
+		default: nAssert(0); return 0;
+	}
+}
+
+void TournamentPasswordManager::threadFn() {
+	bool newToken = true;
+	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
+	while (!quitThread) {
+		if (delay > 0) {
+			MS_SLEEP(500);
+			delay -= 500;
+			continue;
+		}
+		delay = 60000;	// default to one minute
+
+		nlOpenMutex.lock();
+		nlDisable(NL_BLOCKING_IO);
+		NLsocket sock = nlOpen(0, NL_RELIABLE);
+		nlOpenMutex.unlock();
+		if (sock == NL_INVALID) {
+			log("Password thread: Can't open socket. %s", getNlErrorString());
+			passStatus = PS_socketError;
+			delay = 10000;
+			continue;
+		}
+
+		nlConnect(sock, &master_address);	//#?
+
+		string query =
+			string() +
+			"GET /servlet/fcecin.tk1/index.html?" +
+			 + TK1_VERSION_STRING +
+			'&' + (newToken?"new":"old") +
+			"&name=" + url_encode(name) +
+			"&password=" + url_encode(password) +
+			" HTTP/1.0\r\n\r\n";
+		passStatus = PS_sending;
+		if (newToken)
+			log("Password thread: Sending login");
+log("Query: %s", query.c_str());
+		if (!writeToUnblockingTCP(sock, query.data(), query.length(), &quitThread, 30000)) {
+			nlClose(sock);
+			if (quitThread)
+				break;
+			log("Password thread: Error sending login: timeout or %s", getNlErrorString());	//#fix
+			passStatus = PS_sendError;
+			continue;
+		}
+
+		passStatus = PS_receiving;
+		string response;
+		{
+			ostringstream respStream;
+			if (!saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000)) {
+				nlClose(sock);
+				if (quitThread)
+					break;
+				log("Password thread: Error receiving response: timeout or %s", getNlErrorString());	//#fix
+				passStatus = PS_recvError;
+				continue;
+			}
+			string fullResponse = respStream.str();
+
+			// find the start and end of the body: after the last "<html>" and before the last "</html>"
+			// the original code uses full case insensivity so response.find_last_of() can't be used
+			int startPos, endPos;
+			for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)	// start at length - 7 because "</html>" must fit after that
+				if (!stricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
+					break;
+			for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
+				if (!stricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
+					break;
+			if (startPos < 6 || endPos < startPos) {
+				log("Password thread: Invalid response (no <html>...</html>)");
+				passStatus = PS_invalidResponse;
+				continue;
+			}
+			response = fullResponse.substr(startPos, endPos - startPos);
+		}
+		nlClose(sock);
+
+		// parse the response
+		for (string::size_type i = 0; i < response.length(); ++i) {
+			if (response[i] < 32)
+				response[i] = '+';	// for readability in the log
+			if (!stricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
+				log("Password thread: Service unavailable (\"can't contact servlet runner\")");
+				passStatus = PS_unavailable;
+				break;
+			}
+		}
+		if (passStatus == PS_unavailable)
+			continue;
+		log("Password thread: Received response: \"%s\"", response.c_str());
+		string::size_type cPos = response.find_first_of('@');
+		if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
+			log("Password thread: Invalid response (expecting one @-code)");
+			passStatus = PS_invalidResponse;
+			break;
+		}
+		++cPos;	// point to the control character after @
+		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// login ok; token follows
+			++cPos;
+			string::size_type tokEnd = response.find_first_of('#', cPos);
+			if (tokEnd == string::npos || tokEnd - cPos > 15 || tokEnd == cPos) {
+				log("Password thread: Invalid response (invalid token)");
+				passStatus = PS_invalidResponse;
+			}
+			else {
+				log("Password thread: Login OK");
+				passStatus = PS_tokenReceived;
+				setToken(response.substr(cPos, tokEnd - cPos));
+				delay = 10*60000;	// refresh token after 10 minutes
+			}
+		}
+		else if (response[cPos] == 'E' || response[cPos] == 'F') {
+			log("Password thread: Login failed (wrong name or password)");
+			passStatus = PS_badLogin;
+			setToken("");
+			delay = 10*60000;	// try again after 10 minutes (will probably fail then too)
+		}
+		else {
+			log("Password thread: Invalid response (bad @-code)");
+			passStatus = PS_invalidResponse;
+		}
+	}
+}
 
 bool gameclient_c::force_exit = false;
 const size_t gameclient_c::chat_size = 32;
@@ -119,6 +305,7 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
 	log(&normalLog, &errorLog, &securityLog),
 	listenServer(log),
+	tournamentPassword(log, new RedirectToMemFun1<gameclient_c, void, string>(this, &gameclient_c::CB_tournamentToken)),
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
@@ -225,28 +412,14 @@ bool gameclient_c::start() {
 	FILE *psf = fopen(fileName.c_str(), "rb");
 	if (psf) {
 		char pas[PASSBUFFER];
-		for (c=0;c<PASSBUFFER;c++) {
-			int cha = fgetc(psf);
-			if (cha == EOF) break;
-			pas[c] = (char)cha;
+		for (c = 0; c < PASSBUFFER; c++) {
+			int cha = fgetc(psf);	// don't care about EOF yet
+			pas[c] = static_cast<char>(255 - cha);
 		}
-
-		//read all?
-		if (c == PASSBUFFER) {
-			//toggle bits
-			int rot;
-			for (int d=0;d<PASSBUFFER;d++) {
-				rot = pas[d];
-				rot = 255 - rot;
-				pas[d] = (char)rot;
-			}
-			//get the password
+		if (!feof(psf)) {
 			pas[8] = 0;
 			menu.options.name.password.set(pas);
-			//copy to editpass and simulate pressing ENTER on the name/pass screen...
-			check_change_pass_command();
 		}
-
 		fclose(psf);
 	}
 
@@ -366,6 +539,8 @@ bool gameclient_c::start() {
 	if (randomname)
 		playername = RandomName();
 
+	tournamentPassword.changeData(playername, menu.options.name.password());
+
 	for (int i = 0; i < 16; i++)
 		if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
 			fav_colors.push_back(i);
@@ -399,332 +574,6 @@ void gameclient_c::send_client_ready() {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_client_ready);
 	client->send_message(lebuf, count);		// bem curtinha a mensagem mesmo...
-}
-
-// check if password has changed.
-// if NO, do nothing
-// if YES: send a new request to the master server
-// V0.4.6 : always re-log client if ENTER pressed! (if player doesn't want to log again, should press ESC instead)
-void gameclient_c::check_change_pass_command() {
-	const string& newPass = menu.options.name.password();
-	if (newPass == player_password)
-		return;
-
-	if (!quit_password_thread) {
-		quit_password_thread = true;
-		passthread.join();
-	}
-
-	//NO TOKEN, not anymore...
-	player_token_set = false;
-
-	player_password = newPass;
-	if (player_password.empty()) {
-		menu.options.name.namestatus.set("NO PASSWORD SET");
-		namestatus_code = 0;
-	}
-	else {
-		menu.options.name.namestatus.set("STARTING LOGIN...");
-
-		//setup stuff for the new thread
-		quit_password_thread = false;	//thread running; don't quit
-		player_token_new = true;	//getting a NEW token, not refreshing the token
-
-		// request new token for this password
-		passthread.start_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::client_password_thread));
-	}
-}
-
-//THREAD for getting a token from a password. nonblocking TCP operations, quit on quit_password_thread
-void gameclient_c::client_password_thread() {
-	NLsocket sock = NL_INVALID;
-
-	while (!quit_password_thread) {
-		//open a nonblocking socket
-		nlOpenMutex.lock();
-		nlDisable(NL_BLOCKING_IO);
-		sock = nlOpen(0, NL_RELIABLE);
-		nlOpenMutex.unlock();
-		if (sock == NL_INVALID) {
-			log("Password thread: Can't open socket. %s", getNlErrorString());
-			menu.options.name.namestatus.set("SOCKET ERROR. RETRYING...");
-			MS_SLEEP(3000);	//five secs
-			continue;				//again...
-		}
-
-		nlConnect(sock, &master_address);
-
-		//build query
-		char blux[1024];
-		if (player_token_new)
-			sprintf(blux, "GET /servlet/fcecin.tk1/index.html?%s&new&name=%s&password=%s\n\n", TK1_VERSION_STRING, playername.c_str(), player_password.c_str());
-		else
-			sprintf(blux, "GET /servlet/fcecin.tk1/index.html?%s&old&name=%s&password=%s\n\n", TK1_VERSION_STRING, playername.c_str(), player_password.c_str());
-
-		char querybuf[1024]; int qcount = 0;
-		writeString(querybuf, qcount, blux);
-		qcount--;	//take the zero out
-
-		menu.options.name.namestatus.set("SENDING LOGIN...");
-
-		//keep trying to write the query.
-		NLint result;
-		do {
-			result = nlWrite(sock, querybuf, qcount);
-			MS_SLEEP(50);
-
-			//qutting?
-			if (quit_password_thread)
-				break;
-
-		} while (result == NL_INVALID && (nlGetError() == NL_CON_PENDING));
-
-		//qutting?
-		if (quit_password_thread)
-			continue;
-
-		menu.options.name.namestatus.set("WAITING RESPONSE...");
-
-		//try to read the reply
-		//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
-		bool html_end = false;
-		int nostuffcound = 0;
-		char lebuf[65536];
-		int n = 0;
-		do {
-			//read
-			result = nlRead(sock, &(lebuf[n]), 1);
-
-			//quitting?
-			if (quit_password_thread)
-				break;
-
-			//no byte
-			if (result == 0) {
-				if (nostuffcound > 0) {
-					nostuffcound++;
-					//200 (4000*50/1000) seconds after it came some stuff but now without coming more stuff
-					// THEN: retry in a while
-					if (nostuffcound > 4000) {
-						//retry
-						lebuf[0] = 0;
-						nlClose(sock);
-						sock = NL_INVALID;
-						menu.options.name.namestatus.set("NO RESPONSE. RETRYING...");
-						MS_SLEEP(3000);
-						break;
-					}
-				}
-
-				MS_SLEEP(50);
-			}
-
-			//error occured
-			if (result == NL_INVALID) {
-				//if already got html_end, no error
-				//if (html_end)  // *** FIXME: parsing the result?
-				//break;
-
-				//error: try again
-				nlClose(sock);
-				sock = NL_INVALID;
-				menu.options.name.namestatus.set("ERROR. RETRYING...");
-				MS_SLEEP(3000);
-				break;
-			}
-
-			//received anything below 32: turn them into "+" signals...
-			if (lebuf[n] < 32)
-				lebuf[n] = '+';
-
-			//check for received </HTML>
-			if (n >= 6) {
-				if (
-					(lebuf[n-6] == '<') &&
-					(lebuf[n-5] == '/') &&
-					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
-					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
-					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
-					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
-					(lebuf[n-0] == '>')
-				)
-				{
-					//log("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i", n);
-					html_end = true;
-					lebuf[n+1] = 0;
-					//log("Full response: \"%s\"", lebuf);
-					break;
-				}
-			}
-
-			//check for received another <HTML> : reset all stuff
-			if (n >= 5) {
-				if (
-					(lebuf[n-5] == '<') &&
-					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
-					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
-					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
-					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
-					(lebuf[n-0] == '>')
-				)
-				{
-					lebuf[n+1]=0;
-					//log("** READ <HTML>, DISCARDING BUFFER '%s' **", lebuf);
-					n = -1;
-				}
-			}
-
-			//read next
-			n++;
-		} while (1);
-
-		//found it?
-		if (html_end) {
-			//FIRST THINGS FIRST: close the socket
-			nlClose(sock);
-			sock = NL_INVALID;
-
-			//parse the result (FIXME)
-			//if SUCCESS (got token) then semi-busy-wait until told to quit or time
-			//  to send a new token request
-			//if FAILED then update the status and quit
-
-			menu.options.name.namestatus.set("RECEIVED RESPONSE!");
-
-			bool ok = false, wrongid = false, unavailable = false;
-			log("RECV RESPONSE n = %i", n);
-			for (int i = 0; i < n; i++) {
-				//0.4.7: "can't contact servlet runner.." > service unavailable
-				if ((i>21)
-					&&
-					(
-					((lebuf[i-21] == 'C') || (lebuf[i-21] == 'c')) &&
-					((lebuf[i-20] == 'O') || (lebuf[i-20] == 'o')) &&
-					((lebuf[i-19] == 'N') || (lebuf[i-19] == 'n')) &&
-					((lebuf[i-18] == 'T') || (lebuf[i-18] == 't')) &&
-					((lebuf[i-17] == 'A') || (lebuf[i-17] == 'a')) &&
-					((lebuf[i-16] == 'C') || (lebuf[i-16] == 'c')) &&
-					((lebuf[i-15] == 'T') || (lebuf[i-15] == 't')) &&
-					((lebuf[i-14] == ' ') || (lebuf[i-14] == ' ')) &&
-					((lebuf[i-13] == 'S') || (lebuf[i-13] == 's')) &&
-					((lebuf[i-12] == 'E') || (lebuf[i-12] == 'e')) &&
-					((lebuf[i-11] == 'R') || (lebuf[i-11] == 'r')) &&
-					((lebuf[i-10] == 'V') || (lebuf[i-10] == 'v')) &&
-					((lebuf[i-9] == 'L') || (lebuf[i-9] == 'l')) &&
-					((lebuf[i-8] == 'E') || (lebuf[i-8] == 'e')) &&
-					((lebuf[i-7] == 'T') || (lebuf[i-7] == 't')) &&
-					((lebuf[i-6] == ' ') || (lebuf[i-6] == ' ')) &&
-					((lebuf[i-5] == 'R') || (lebuf[i-5] == 'r')) &&
-					((lebuf[i-4] == 'U') || (lebuf[i-4] == 'u')) &&
-					((lebuf[i-3] == 'N') || (lebuf[i-3] == 'n')) &&
-					((lebuf[i-2] == 'N') || (lebuf[i-2] == 'n')) &&
-					((lebuf[i-1] == 'E') || (lebuf[i-1] == 'e')) &&
-					((lebuf[i] == 'R') || (lebuf[i] == 'r')))) {
-					unavailable = true;
-				}
-				//control char
-				else if (lebuf[i] == '@') {
-					//log("(( @ ))");
-					i++;
-
-					if (lebuf[i] == 'K') {
-						//log("(( @K ))");
-						//scan the token....
-						i++;
-						player_token[0]=0;
-						int pt=0;
-						while (lebuf[i] != '#') {
-							//log("(( TOK ))");
-							player_token[pt]=lebuf[i];		//cat char
-							player_token[pt+1]=0;
-							if (pt > 15) {
-								//error... give up... tokens aren't so long...
-								break;
-							}
-							i++;	//next.
-							pt++;
-						}
-						//okeydokey...?
-						if (pt <= 15) {
-							ok = true;
-						}
-					}
-					else if ((lebuf[i] == 'E') || (lebuf[i] == 'F')) //query Error / Failed login (wrong name/pass)
-					{
-						//log("(( @E || @F ))");
-						wrongid = true;
-					}
-					else {
-						//UNKNOWN code... yuck.
-					}
-				}
-			}
-
-			//OK?
-			if (ok) {
-				menu.options.name.namestatus.set(string() + "LOGGED [" + player_token + "]");
-				namestatus_code = 1;
-
-				//OK!
-				player_token_set = true;
-				player_token_new = false;
-
-				//--- if connected, update token ---
-				if (connected)
-					send_player_token();
-
-				//wait xxx minutes to send again	//*2 == halfsecond
-				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
-					MS_SLEEP(500);
-					if (quit_password_thread)
-						break;
-				}
-			}
-			//WRONG ID?
-			else if (wrongid) {
-				menu.options.name.namestatus.set("ERROR: WRONG ID!");
-				namestatus_code = 2;
-				log.error("WRONG ID. QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
-				//wait xxx minutes to send again	//*2 == halfsecond
-				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
-					MS_SLEEP(500);
-					if (quit_password_thread)
-						break;
-				}
-			}
-			//UNAVAILABLE?
-			else if (unavailable) {
-				menu.options.name.namestatus.set("SERVER UNAVAILABLE");
-				namestatus_code = 2;
-				log.error("UNKNOWN ERROR!!! QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
-				//wait xxx minutes to send again	//*2 == halfsecond
-				for (int busy=0;busy<60*1*2;busy++) {		//1 MINUTE
-					MS_SLEEP(500);
-					if (quit_password_thread)
-						break;
-				}
-			}
-			//WHAT???
-			else {
-				menu.options.name.namestatus.set("UNKNOWN ERROR!");
-				namestatus_code = 2;
-				log.error("UNKNOWN ERROR!!! QUERY='''%s''' LEBUF='''%s'''", blux, lebuf);
-				//wait xxx minutes to send again	//*2 == halfsecond
-				for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
-					MS_SLEEP(500);
-					if (quit_password_thread)
-						break;
-				}
-			}
-		}
-		else {
-			//failed, just retry (go on with the loop)
-		}
-
-	}//WHILE(password set)
-
-	if (sock != NL_INVALID)
-		nlClose(sock);
 }
 
 // incoming chunk of requested file by UDP
@@ -1061,18 +910,12 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//send name update request
 	issue_change_name_command();
+	// send registration token (if any)
+	string s = tournamentPassword.getToken();
+	if (!s.empty())
+		CB_tournamentToken(s);
 
-	//init game frame state
-	//fx.frame = 0;				//hmm
-	//fx.skipped = true;	//hmm
-	//fd.frame = 0;				//hmm
-	//fd.skipped = true;	//hmm
-
-	// MOVED FROM GAMECLIENT_C::START():
-
-	// default map
-	//load_default_map(&map);
-	map_ready = false;		// NO map change commands from server yet
+	map_ready = false;
 	servermap[0]=0;
 
 	maps.clear();
@@ -1116,12 +959,7 @@ void gameclient_c::client_disconnected(const char* data, int length) {
 	else
 		log("Disconnected: %s", description.c_str());
 
-	if (namestatus_code == 0)
-		menu.options.name.namestatus.set("NO PASSWORD SET?");
-	else if ((namestatus_code == 1) || (namestatus_code == 3))
-		menu.options.name.namestatus.set(string() + "LOGGED (" + player_token + ")");
-	else if (namestatus_code == 2)
-		menu.options.name.namestatus.set("ERROR: WRONG ID?");
+	tournamentPassword.disconnectedFromServer();
 }
 
 void gameclient_c::connect_failed_denied(char *data, int length) {
@@ -1305,48 +1143,18 @@ void gameclient_c::connect_command(bool loadPassword) {
 		showMenu(m_connectProgress);
 }
 
-//send player token message
-void gameclient_c::send_player_token() {
-	if (player_token_set) {
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, data_registration_token);
-		writeString(lebuf, count, player_token);
-		client->send_message(lebuf, count);
-	}
-}
-
-//issue change name command
 void gameclient_c::issue_change_name_command() {
+	if (!connected)
+		return;
 	//regular change name
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_name_update);
-	if (playername.length() > 16)
-		playername.erase(15);			//truncate player name, max 16 chars
+	nAssert(playername.length() < 16);
 	writeStr(lebuf, count, playername);	// the name
 	writeStr(lebuf, count, m_playerPassword.password());	// empty or not, it's needed
 	client->send_message(lebuf, count);
-
-	//name changed:
-	player_token_new = true;	//getting a NEW token, not refreshing the token
-
-	//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
-	//conectado...
-	check_change_pass_command();
-
-	//FIXME: code == 2 (?)
-	if ((namestatus_code == 1) || (namestatus_code == 3))
-		menu.options.name.namestatus.set("NAME CHANGED...");
-	else
-		namestatus_code = 0;						//take the "*" out of the name
-
-	//v0.4.4 follow-up-message: since changing name DISABLES the registration status
-	//  of the player, we need to send a new message requesting registration, if the
-	//  player has a token
-	//v0.4.9 : substituido pelo "enter" acima do check_...()
-	//send_player_token();
 }
 
-//change name command
 void gameclient_c::change_name_command() {
 	//set new name, close menu
 	const string& newName = menu.options.name.name();
@@ -1357,10 +1165,9 @@ void gameclient_c::change_name_command() {
 
 	playername = newName;
 	m_playerPassword.password.set(load_player_password(playername, address));
-	if (connected)
-		issue_change_name_command();
+	issue_change_name_command();
+	tournamentPassword.changeData(playername, menu.options.name.password());
 }
-
 
 //send the client's frame to server (keypresses)
 void gameclient_c::send_frame(bool newFrame) {
@@ -2002,16 +1809,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//v0.4.4: registration response from server
 				case data_registration_response:
 					readByte(lebuf, count, abyte);
-					if (abyte == 1) {
-						//success!
-						menu.options.name.namestatus.set(string() + "RECORDING (" + player_token + ")");
-						namestatus_code = 3;
-					}
-					else {
-						//fail
-						menu.options.name.namestatus.set(string() + "REJECTED (" + player_token + ")");
-					}
-
+					if (abyte == 1)	// success
+						tournamentPassword.serverAcceptsToken();
+					else
+						tournamentPassword.serverRejectsToken();
 					break;
 
 				//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
@@ -3023,15 +2824,6 @@ void gameclient_c::loop() {
 	//client exit cleanup: done at stop wich needs to be called after loop
 }
 
-void TournamentPasswordManager::stop() {
-	//join with token request thread, if any
-	if (!quit_password_thread) {
-		log("**** CLIENT JOINING PASSWORD-TOKEN THREAD.... ****");
-		quit_password_thread = true;
-		passthread.join();
-	}
-}
-
 void gameclient_c::stop() {
 	abortThreads = true;
 
@@ -3095,19 +2887,13 @@ void gameclient_c::stop() {
 	fileName = wheregamedir + "config" + directory_separator + "password.bin";
 	FILE *psf = fopen(fileName.c_str(), "wb");
 	if (psf) {
-		char cha;
-		for (int c=0;c<PASSBUFFER;c++) {
-			if (c < static_cast<int>(player_password.length())) {
-				//write toggling bits
-				int rot = player_password[c];
-				rot = 255 - rot;
-				cha = (char)rot;
-				fputc(cha, psf);
-			}
+		const string& password = menu.options.name.password();
+		for (string::size_type c = 0; c < PASSBUFFER; c++) {
+			if (c < password.length())
+				fputc(static_cast<unsigned char>(255 - password[c]), psf);
 			else
-				fputc(255, psf);		//255 = 0 toggled! (important)
+				fputc(255, psf);	// 255 = 0 toggled (important)
 		}
-
 		fclose(psf);
 	}
 	else
@@ -3223,11 +3009,6 @@ void gameclient_c::draw_game_frame() {
 			}
 		}
 
-Powerup t;
-t.kind = Powerup::pup_shadow;
-t.x = t.y = 200;
-for (int ti = 0; ti < 500; ++ti)//#@
- client_graphics.draw_pup(t, get_time());
 		// FIXME: y-ordering of draw not maintained
 		// draw any item pickups
 		if (me >= 0)
@@ -3748,6 +3529,7 @@ void gameclient_c::initMenus() {
 	menu.options.menu				  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 
 	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareNameMenu	>(this));
+	menu.options.name.menu			.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareDrawNameMenu>(this));
 	menu.options.name.menu		   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_nameMenuClose	>(this));
 	menu.options.name.menu			  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.name.name				.setHook(new MCB::N<Textfield,		&gameclient_c::MCF_nameChange		>(this));
@@ -3807,12 +3589,14 @@ void gameclient_c::MCF_cancelConnect() {
 
 void gameclient_c::MCF_prepareNameMenu() {
 	menu.options.name.name.set(playername);
-	menu.options.name.password.set(player_password);
+}
+
+void gameclient_c::MCF_prepareDrawNameMenu() {
+	menu.options.name.namestatus.set(tournamentPassword.statusAsString());
 }
 
 void gameclient_c::MCF_nameMenuClose() {
 	change_name_command();
-	check_change_pass_command();
 }
 
 void gameclient_c::MCF_removePasswords() {
@@ -4002,6 +3786,16 @@ void gameclient_c::MCF_refreshServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
 		Thread::startDetachedThread_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::refreshThread));
+	}
+}
+
+void gameclient_c::CB_tournamentToken(string token) {	// callback called by tournamentPassword from another thread
+	if (connected) {
+		char lebuf[256]; int count = 0;
+		writeByte(lebuf, count, data_registration_token);
+		writeStr(lebuf, count, token);
+		client->send_message(lebuf, count);
+		tournamentPassword.serverProcessingToken();
 	}
 }
 

@@ -1,16 +1,17 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
 
+#include "client_menus.h"
+#include "function_utility.h"
 #include "graphics.h"
-#include "sounds.h"
-#include "world.h"
-#include "protocol.h"
-#include "thread.h"
-#include "mutex.h"
 #include "log.h"
 #include "menu.h"
-#include "client_menus.h"
+#include "mutex.h"
 #include "names.h"
+#include "protocol.h"
+#include "sounds.h"
+#include "thread.h"
+#include "world.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
@@ -62,33 +63,80 @@ public:
 	void stop();
 };
 
-class TournamentPasswordManager {
-	volatile bool quit_password_thread;
-	Thread passthread;
+template<class DstType> DstType& volatile_ref_cast(volatile DstType& src) { return const_cast<DstType&>(src); }
 
-	bool player_token_new;	//TRUE if first call to token servlet
-	bool player_token_set;
-	char player_token[64];
-	std::string player_password;
-	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
-
-	void client_password_thread();
+// Threadsafe: Wrapper of an object of type ObjT providing a thread safe very limited interface.
+template<class ObjT>
+class Threadsafe {
+	mutable MutexHolder mutex;
+	volatile ObjT obj;
 
 public:
-	TournamentPasswordManager();
+	Threadsafe() { }
+	Threadsafe(const ObjT& o) : obj(o) { }
 
-TournamentPasswordManager::TournamentPasswordManager() :
-	quit_password_thread(true),
-	player_token_set(false),
-	player_token_new,
-	namestatus_code(0)
-{
-//	menu.options.name.namestatus.set("NO PASSWORD SET");
-}
+	Threadsafe& operator=(const ObjT& o) { mutex.lock(); volatile_ref_cast<ObjT>(obj) = o; mutex.unlock(); return *this; }
+	ObjT read() const { mutex.lock(); ObjT o = volatile_ref_cast<const ObjT>(obj); mutex.unlock(); return o; }	// Get a *copy* of the object
 
-
+	// for more complex operations, use lock(), access() and unlock()
+	void lock() const { mutex.lock(); }
+	void unlock() const { mutex.unlock(); }
+	      ObjT& access()       { return obj; }	// use obj only between lock() and unlock()
+	const ObjT& access() const { return obj; }	// use obj only between lock() and unlock()
 };
 
+class TournamentPasswordManager {
+public:
+	typedef HookFunctionHolder1<void, std::string> TokenCallbackT;	// an empty string is given to indicate no token
+
+	enum PasswordStatus {
+		PS_noPassword,
+		PS_starting,
+		PS_socketError,
+		PS_sending,
+		PS_sendError,
+		PS_receiving,
+		PS_recvError,
+		PS_invalidResponse,
+		PS_unavailable,
+		PS_tokenReceived,
+		PS_badLogin,
+		// these follow from server status and passStatus is never one of these:
+		PS_tokenSent,
+		PS_tokenAccepted,
+		PS_tokenRejected
+	};
+
+	TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction);	// warning: the callback will be called from a background thread
+
+	void stop();
+	void changeData(std::string newName, std::string newPass);
+	PasswordStatus status() const { if (passStatus == PS_tokenReceived && servStatus != PS_noPassword) return servStatus; else return passStatus; }
+	const char* statusAsString() const;
+	std::string getToken() const { return token.read(); }
+
+	void serverProcessingToken()	{ servStatus = PS_tokenSent;		}
+	void serverAcceptsToken()		{ servStatus = PS_tokenAccepted;	}
+	void serverRejectsToken()		{ servStatus = PS_tokenRejected;	}
+	void disconnectedFromServer()	{ servStatus = PS_noPassword;		}	// actually, no server
+
+private:
+	LogSet log;
+	TokenCallbackT tokenCallback;
+
+	volatile bool quitThread;	// set to quit the thread
+	volatile PasswordStatus passStatus;	// set by both the thread and the regular interface to indicate the status
+	Thread thread;
+
+	PasswordStatus servStatus;
+
+	std::string name, password;	// constant while the thread is running
+	Threadsafe<std::string> token;
+
+	void start();
+	void threadFn();
+	void setToken(const std::string& newToken);
+};
 
 class client_c;	// of leetnet
 class client_runes_t;
@@ -154,7 +202,7 @@ class gameclient_c {
 	// GUI
 	Menu_main menu;
 	Menu_text m_connectProgress;
-	Menu_text m_dialog;	// take care not to open multiple dialogs (same goes to other menus too)
+	Menu_text m_dialog;	// take care not to open multiple dialogs (same goes to other menus too); to allow that, a vector of Menu_text should be created
 	Menu_text m_errors;
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
@@ -214,9 +262,10 @@ class gameclient_c {
 	void MCF_stopServer() { if (listenServer.running()) listenServer.stop(); }
 	void MCF_prepareMainMenu();
 	void MCF_prepareNameMenu();
+	void MCF_prepareDrawNameMenu();
 	void MCF_nameMenuClose();
-	void MCF_nameChange() { menu.options.name.password.set(""); check_change_pass_command(); }
-	void MCF_randomName() { menu.options.name.name.set(RandomName()); }
+	void MCF_nameChange() { menu.options.name.password.set(""); tournamentPassword.changeData(playername, ""); }	// only function to clear the password
+	void MCF_randomName() { menu.options.name.name.set(RandomName()); MCF_nameChange(); }
 	void MCF_removePasswords();
 	void MCF_prepareGameMenu() { menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics); }
 	void MCF_joystick();
@@ -238,6 +287,8 @@ class gameclient_c {
 	void MCF_playerPasswordAccept();
 	void MCF_serverPasswordAccept();
 	void MCF_clearErrors();
+
+	void CB_tournamentToken(std::string token);	// callback called by tournamentPassword from another thread
 
 	bool screenModeChange();	// the return value should be tested at the first call
 
@@ -270,9 +321,7 @@ public:
 	void send_frame(bool newFrame);
 	void process_incoming_data(char* data, int length);
 
-	void check_change_pass_command();
-
-	const char* gameclient_c::refreshStatusAsString() const;
+	const char* refreshStatusAsString() const;
 	void getServerListThread();
 	void refreshThread();
 	bool refresh_all_servers();

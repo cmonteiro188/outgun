@@ -12,6 +12,7 @@
 #include "leetnet/sleep.h"	// sleep util
 #include "admshell.h"
 #include "commont.h"
+#include "function_utility.h"
 #include "mutex.h"
 #include "nassert.h"
 #include "network.h"

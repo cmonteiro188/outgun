@@ -95,6 +95,7 @@ bool saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile boo
 		else {
 			lebuf[read] = '\0';
 			out << lebuf;
+std::cerr << "{" << read << "}" << ">" << lebuf << "<";
 		}
 
 		MS_SLEEP(roundDelay);

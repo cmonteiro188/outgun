@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 #include <stack>
-#include "utility.h"	// for Hook
+
+#include "function_utility.h"
+#include "nassert.h"
 
 class Graphics;
 class BITMAP;
