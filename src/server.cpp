@@ -1079,7 +1079,6 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			if (!info_message.empty())
 				network.player_message(pid, msg_normal, "/info       information about this server");
 			network.player_message(pid, msg_normal, "/config     current server configuration");
-			network.player_message(pid, msg_normal, "/stats      see your stats");
 			network.player_message(pid, msg_normal, "/mapinfo n  information about map n (default: current map)");
 			network.player_message(pid, msg_normal, "/time       check server uptime, current map time and time left on the map");
 			if (sayadmin_enabled) {
@@ -1140,46 +1139,6 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		else if (!strcmp(cbuf, "time")) {
 			PlayerMessager pm(*this, pid, msg_info);
 			world.printTimeStatus(pm);
-		}
-		else if (!strcmp(cbuf, "stats")) {
-			int playing_time = (int)get_time() - world.player[pid].start_time;  // seconds
-			int lifetime = world.player[pid].lifetime;
-			if (!world.player[pid].dead)
-				lifetime += (int)get_time() - world.player[pid].last_spawn_time;
-			network.plprintf(pid, msg_header, "Your stats: %d captures, %d kills, %d deaths, %d suicides",
-				world.player[pid].total_captures,
-				world.player[pid].total_kills,
-				world.player[pid].total_deaths,
-				world.player[pid].total_suicides);
-			network.plprintf(pid, msg_normal, " Enemy flags: %d taken, %d dropped",
-				world.player[pid].total_flags_taken,
-				world.player[pid].total_flags_dropped);
-			network.plprintf(pid, msg_normal, " Own flags: %d returned, %d carriers killed",
-				world.player[pid].total_flags_returned,
-				world.player[pid].total_flag_carriers_killed);
-			network.plprintf(pid, msg_normal, " Consecutive kills: %d (%d), deaths: %d (%d)",
-				world.player[pid].most_consecutive_kills,
-				world.player[pid].current_consecutive_kills,
-				world.player[pid].most_consecutive_deaths,
-				world.player[pid].current_consecutive_deaths);
-			int accuracy = 0;
-			if (world.player[pid].total_shots > 0)
-				accuracy = int((100. * world.player[pid].total_hits) / world.player[pid].total_shots + 0.5);
-			network.plprintf(pid, msg_normal, " Shots: %d shot, accuracy %d%%, %d taken",
-				world.player[pid].total_shots,
-				accuracy,
-				world.player[pid].total_shots_taken);
-			network.plprintf(pid, msg_normal, " Distance travelled: %.0lf units, average speed %.2lf units/s.",
-				world.player[pid].total_movement/(PLAYER_RADIUS*2.),	// make the unit player diameter
-				world.player[pid].total_movement/(PLAYER_RADIUS*2.)/double(lifetime));
-			int av_lifetime = lifetime / (world.player[pid].total_deaths + 1);
-			network.plprintf(pid, msg_normal, " You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
-				playing_time / 60,
-				lifetime / 60,
-				lifetime % 60,
-				av_lifetime / 60,
-				av_lifetime % 60);
-			// Add more stats: flag carrying time, etc.
 		}
 		else if (!strcmp(cbuf, "list") && admin) {
 			network.player_message(pid, msg_header, "Players on server: ID, name");

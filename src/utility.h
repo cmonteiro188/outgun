@@ -124,6 +124,22 @@ private:
 	Hook<ArgT> hook;
 };
 
+template<class ArgT>
+class KeyHookable {
+public:
+	typedef typename Hook<ArgT>::FunctionT HookFunctionT;
+
+	virtual ~KeyHookable() { }
+	void setKeyHook(HookFunctionT* fn) { keyHook.set(fn); }	// the ownership is transferred
+	bool isKeyHooked() const { return keyHook.active(); }
+
+protected:
+	void callKeyHook(ArgT& obj) { keyHook.call(obj); }
+
+private:
+	Hook<ArgT> keyHook;
+};
+
 inline void readStr(const char* buf, int& count, std::string& dst) {
 	dst.clear();
 	while (buf[count])

@@ -2095,7 +2095,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			master_never_talked = false;
 
 			// build and send data
-			map<string, string> parameters = master_parameters();
+			map<string, string> parameters = master_parameters(address);
 			const string data = build_http_data(parameters);
 			NLint result = post_http_data(msock, master_script, data);
 
@@ -2362,10 +2362,10 @@ void ServerNetworking::run_website_thread() {
 	website_exiting_ok = true;
 }
 
-map<string, string> ServerNetworking::master_parameters() const {
+map<string, string> ServerNetworking::master_parameters(const string& address) const {
 	map<string, string> parameters;
 	parameters["name"] = hostname;
-	//parameters["ip"] = address;
+	parameters["ip"] = address;
 	ostringstream p;
 	p << port;
 	parameters["port"] = p.str();
@@ -2380,6 +2380,7 @@ map<string, string> ServerNetworking::master_parameters() const {
 	ostringstream upt;
 	upt << world.frame / 10;
 	parameters["uptime"] = upt.str();
+	parameters["map"] = host->current_map().title;
 	parameters["link"] = host->server_website();
 	return parameters;
 }
@@ -2644,7 +2645,7 @@ void ServerNetworking::run_shellslave_thread() {
 							answer = true;
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
 							writeLong(lebuf, count, world.player[pid].cid);
-							delta = (int)(get_time() - world.player[pid].start_time);
+							delta = static_cast<int>(get_time() - world.player[pid].stats().start_time());
 							writeLong(lebuf, count, delta);
 						}
 					}
@@ -2657,7 +2658,7 @@ void ServerNetworking::run_shellslave_thread() {
 							answer = true;//ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
 							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].total_kills);
+							writeLong(lebuf, count, world.player[pid].stats().kills());
 						}
 					}
 					break;
@@ -2669,7 +2670,7 @@ void ServerNetworking::run_shellslave_thread() {
 							answer = true;//ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
 							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].total_deaths);
+							writeLong(lebuf, count, world.player[pid].stats().deaths());
 						}
 					}
 					break;
@@ -2681,7 +2682,7 @@ void ServerNetworking::run_shellslave_thread() {
 							answer = true;//ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
 							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].total_captures);
+							writeLong(lebuf, count, world.player[pid].stats().captures());
 						}
 					}
 					break;

@@ -137,6 +137,11 @@ void Sounds::load_samples(const string& path) {
 	load_outgun_sample(path, "return", SAMPLE_CTF_RETURN);
 	load_outgun_sample(path, "capture", SAMPLE_CTF_CAPTURE);
 	load_outgun_sample(path, "gameover", SAMPLE_CTF_GAMEOVER);
+
+	load_outgun_sample(path, "5_min", SAMPLE_5_MIN_LEFT);
+	load_outgun_sample(path, "1_min", SAMPLE_1_MIN_LEFT);
+
+	load_outgun_sample(path, "spree", SAMPLE_KILLING_SPREE);
 }
 
 SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) {

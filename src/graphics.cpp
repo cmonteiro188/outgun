@@ -54,6 +54,7 @@ Graphics::Graphics(LogSet logs):
 	show_scoreboard(true),
 	show_minimap(true),
 	player_sprite_power(0),
+	player_shield_sprite(0),
 	map_list_size(27),
 	map_list_start(0),
 	team_captures_size(16),
@@ -96,8 +97,13 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	scr_mul = static_cast<double>(width) / 640;
 	floor_texture.resize(4, 0);
 	wall_texture.resize(1, 0);
-	for (int t = 0; t < 2; t++)
+	for (int t = 0; t < 2; t++) {
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
+		dead_sprite[t] = 0;
+		rocket_sprite[t] = 0;
+		power_rocket_sprite[t] = 0;
+	}
+	pup_sprite.resize(Powerup::pup_respawning, 0);
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
 	background = create_bitmap(SCREEN_W, SCREEN_H);
@@ -152,18 +158,27 @@ void Graphics::setColors() {
 	col[COLWHITE] = makecol(0xFF, 0xFF, 0xFF);
 	col[COLMAG]	= makecol(0xFF, 0x00, 0xFF);
 	col[COLCYAN] = makecol(0, 0xFF, 0xFF);
-	col[COLORA]	= makecol(0xFF, 0xB0, 0x00);
+	col[COLORA]	= makecol(0xFF, 0xA0, 0x00);
 	col[COLLRED] = makecol(0xFF, 0x55, 0x44);
 	col[COLLBLUE] = makecol(0x44, 0x55, 0xFF);
 	//MORE player colors
-	col[COL9] = makecol(242, 158, 224);
+	col[COL9] = makecol(0x00, 0x80, 0x00);
+	col[COL10] = makecol(0xA0, 0xA0, 0xA0);
+	col[COL11] = makecol(0x00, 0x00, 0x00);
+	col[COL12] = makecol(0x80, 0x00, 0x80);
+	col[COL13] = makecol(0xA0, 0x60, 0x00);
+	col[COL14] = makecol(0x00, 0x00, 0x80);
+	col[COL15] = makecol(0x80, 0x00, 0x00);
+	col[COL16] = makecol(0x66, 0x66, 0x66);
+	// original
+	/*col[COL9] = makecol(242, 158, 224);
 	col[COL10] = makecol(134, 143, 57);
 	col[COL11] = makecol( 14, 148, 87);
 	col[COL12] = makecol( 33, 132, 137);
 	col[COL13] = makecol(100, 100, 100);
 	col[COL14] = makecol(166, 166, 166);
 	col[COL15] = makecol(202, 1, 56);	//wine
-	col[COL16] = makecol(0xBF, 0x70, 0);	//darkora
+	col[COL16] = makecol(0xBF, 0x70, 0);	//darkora*/
 
 	// team solid colors
 	col[COLBLUE] = makecol(0, 0, 0xFF);
@@ -190,7 +205,7 @@ void Graphics::setColors() {
 	//teams 0 & 1 (playernum(0..15) / 8) colors:
 	teamcol[0] = col[COLRED];
 	teamcol[1] = col[COLBLUE];
-	teamcol[2] = col[COLWHITE];
+	teamcol[2] = col[COLGREEN];
 
 	//light colours for text
 	teamlcol[0] = col[COLLRED];
@@ -851,7 +866,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	int pc1 = teamcol[team];
 	int pc2 = col[pli];
 	// test different colours:
-	//int pc2 = col[pli + (int)time / 2 % 16];
+	//pc2 = col[(int)time / 2 % 16];
 	//blink player when hit
 	double deltafx = hitfx - time;
 	if (deltafx > 0) {
@@ -977,16 +992,23 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 	textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
 }
 
-void Graphics::draw_player_dead(int x, int y) {
-	x = scale(x);
-	y = scale(y);
-	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	set_trans_blender(0, 0, 0, 90);
-	const int plrScale = scale(PLAYER_RADIUS * 10);
-	ellipsefill(drawbuf, plx + x - plrScale / 25, ply + y + plrScale / 20, plrScale / 9, plrScale / 10, col[COLRED]);
-	ellipsefill(drawbuf, plx + x                , ply + y - plrScale / 30, plrScale / 8, plrScale / 10, col[COLRED]);
-	ellipsefill(drawbuf, plx + x + plrScale / 50, ply + y + plrScale / 40, plrScale / 8, plrScale / 10, col[COLRED]);
-	solid_mode();
+void Graphics::draw_player_dead(const ClientPlayer& player) {
+	const int x = scale(player.lx);
+	const int y = scale(player.ly);
+	BITMAP* sprite = dead_sprite[player.team()];
+	if (sprite) {
+		set_alpha_blender();
+		draw_trans_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2);
+	}
+	else {
+		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+		set_trans_blender(0, 0, 0, 90);
+		const int plrScale = scale(PLAYER_RADIUS * 10);
+		ellipsefill(drawbuf, plx + x - plrScale / 25, ply + y + plrScale / 20, plrScale / 9, plrScale / 10, col[COLRED]);
+		ellipsefill(drawbuf, plx + x                , ply + y - plrScale / 30, plrScale / 8, plrScale / 10, col[COLRED]);
+		ellipsefill(drawbuf, plx + x + plrScale / 50, ply + y + plrScale / 40, plrScale / 8, plrScale / 10, col[COLRED]);
+		solid_mode();
+	}
 }
 
 void Graphics::draw_gun_explosion(int x, int y, int rad) {
@@ -1072,10 +1094,24 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
 	set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 }
 
-void Graphics::draw_shield(int x, int y, int r, int alpha, int team) {
+void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int direction) {
 	x = scale(x);
 	y = scale(y);
 	r = scale(r);
+	if (player_shield_sprite && (team == 0 || team == 1)) {
+		if (alpha < 255) {
+			BITMAP* buffer = create_bitmap(player_shield_sprite->w, player_shield_sprite->h);
+			nAssert(buffer);
+			const int transparent = bitmap_mask_color(drawbuf);
+			clear_to_color(buffer, transparent);
+			rotate_sprite(buffer, player_shield_sprite, 0, 0, itofix(direction * 32));
+			draw_trans_sprite(drawbuf, buffer, plx + x - buffer->w / 2, ply + y - buffer->h / 2);
+			destroy_bitmap(buffer);
+		}
+		else
+			rotate_sprite(drawbuf, player_shield_sprite, plx + x - player_shield_sprite->w / 2, ply + y - player_shield_sprite->h / 2, itofix(direction * 32));
+		return;
+	}
 	const int v[] = { scale(3), scale(5), scale(9) };
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
@@ -1100,7 +1136,10 @@ void Graphics::draw_player_name(const string& name, int x, int y, int team) {
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 	const int x = scale(rocket.x);
 	const int y = scale(rocket.y);
-	if (rocket.power) {	// powered rocket
+	BITMAP* sprite = (rocket.power ? power_rocket_sprite[rocket.team] : rocket_sprite[rocket.team]);
+	if (sprite)
+		rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(rocket.direction * 32));
+	else if (rocket.power) {
 		//draw rocket shadow
 		ellipsefill(drawbuf, plx + x, ply + y + scale(QUAD_ROCKET_RADIUS + 8), scale(QUAD_ROCKET_RADIUS), scale(3), col[COLSHADOW]);
 		//draw the rocket
@@ -1109,7 +1148,7 @@ void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 		else
 			circlefill(drawbuf, plx + x, ply + y, scale(QUAD_ROCKET_RADIUS), teamlcol[rocket.team]); //y-12??
 	}
-	else {				// normal rocket
+	else {
 		//draw rocket shadow
 		ellipsefill(drawbuf, plx + x, ply + y + scale(ROCKET_RADIUS + 8), scale(ROCKET_RADIUS), scale(2), col[COLSHADOW]);
 		//draw the rocket
@@ -1136,18 +1175,21 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 }
 
 void Graphics::draw_pup(const Powerup& pup, double time) {
-	// pup's shadow
-	//ellipsefill(drawbuf, plx + scale(pup.x), ply + scale(pup.y + 12), scale(12), scale(3), col[COLSHADOW]);
-	switch (pup.kind) {
-		case Powerup::pup_shield:		draw_pup_shield(pup.x, pup.y); break;
-		case Powerup::pup_turbo:		draw_pup_turbo(pup.x, pup.y); break;
-		case Powerup::pup_shadow:		draw_pup_shadow(pup.x, pup.y, time); break;
-		case Powerup::pup_power:		draw_pup_power(pup.x, pup.y, time); break;
-		case Powerup::pup_weapon:		draw_pup_weapon(pup.x, pup.y, time); break;
-		case Powerup::pup_health:		draw_pup_health(pup.x, pup.y, time); break;
-		case Powerup::pup_deathbringer:	draw_pup_deathbringer(pup.x, pup.y); break;
-		default: nAssert(0);
-	}
+	nAssert(pup.kind > 0 && pup.kind <= static_cast<int>(pup_sprite.size()));
+	BITMAP* sprite = pup_sprite[pup.kind - 1];
+	if (sprite)
+		masked_blit(sprite, drawbuf, 0, 0, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2, sprite->w, sprite->h);
+	else
+		switch (pup.kind) {
+			case Powerup::pup_shield:		draw_pup_shield(pup.x, pup.y); break;
+			case Powerup::pup_turbo:		draw_pup_turbo(pup.x, pup.y); break;
+			case Powerup::pup_shadow:		draw_pup_shadow(pup.x, pup.y, time); break;
+			case Powerup::pup_power:		draw_pup_power(pup.x, pup.y, time); break;
+			case Powerup::pup_weapon:		draw_pup_weapon(pup.x, pup.y, time); break;
+			case Powerup::pup_health:		draw_pup_health(pup.x, pup.y, time); break;
+			case Powerup::pup_deathbringer:	draw_pup_deathbringer(pup.x, pup.y); break;
+			default: nAssert(0);
+		}
 }
 
 void Graphics::draw_pup_shield(int x, int y) {
@@ -1255,13 +1297,21 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams) {
 	if (!show_scoreboard)
 		return;
+
+	const int y_space = SCREEN_H - sby;
+	int line_h = y_space / (maxplayers + 2 + 2 + 1);	// players, 2 captions, 2 empty lines, FPS
+	if (line_h > 12)
+		line_h = 12;
+	if (line_h < 8)
+		line_h = 8;
+
 	// captions
 	ostringstream red;
 	red << "Red Team:    " << setw(2) << teams[0].score() << " capt";
-	draw_scoreboard_caption(0, red.str());
+ 	textout_ex(drawbuf, font, red.str().c_str(), sbx, sby, teamlcol[0], -1);
 	ostringstream blue;
 	blue << "Blue Team:   " << setw(2) << teams[1].score() << " capt";
-	draw_scoreboard_caption(1, blue.str());
+ 	textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 1) * line_h, teamlcol[1], -1);
 
 	int line[2] = { 0, 0 };
 	for (int i = 0; i < static_cast<int>(players.size()); i++) {
@@ -1270,16 +1320,11 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 		name << player.reg_status << player.name.substr(0, 15);
 		const int pcol = col[player.color()];
 		const int x = sbx;
-		const int y = sby + 8 + line[player.team()] * 12 + player.team() * 18 * 8;
+		const int y = sby + (line[player.team()] + 1) * line_h + player.team() * (maxplayers / 2 + 1) * line_h;
 		draw_scoreboard_name(name.str(), x, y, pcol);
 		draw_scoreboard_points(player.frags, x + 20 * 8, y, player.team());
 		line[player.team()]++;
 	}
-}
-
-void Graphics::draw_scoreboard_caption(int team, const string& caption) {
-	const int nameydelta_min = 8;
-	textout_ex(drawbuf, font, caption.c_str(), sbx, sby - 4 + team * 18 * nameydelta_min, teamlcol[team], -1);
 }
 
 void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol) {
@@ -2078,6 +2123,10 @@ void Graphics::load_pictures(const string& path) {
 	load_floor_textures(path);
 	load_wall_textures(path);
 	load_player_sprite(path + "player.pcx", path + "team.pcx", path + "personal.pcx");
+	load_shield_sprite(path);
+	load_dead_sprite(path);
+	load_rocket_sprites(path);
+	load_pup_sprites(path);
 }
 
 void Graphics::load_floor_textures(const string& path) {
@@ -2111,52 +2160,47 @@ void Graphics::load_player_sprite(const string& filename_common, const string& f
 	unload_player_sprites();
 	// Load player images.
 	BITMAP* common_base = load_bitmap(filename_common.c_str(), NULL);
+	//set_color_conversion(COLORCONV_NONE);
 	BITMAP* team_base = load_bitmap(filename_team.c_str(), NULL);
 	BITMAP* personal_base = load_bitmap(filename_personal.c_str(), NULL);
-	const int transparent = bitmap_mask_color(drawbuf);
-	const int size = 2 * 2 * scale(PLAYER_RADIUS);
+	//set_color_conversion(COLORCONV_TOTAL);
+	const int size = scale(2 * 2 * PLAYER_RADIUS);
 	if (common_base && team_base && personal_base) {
 		BITMAP* common = create_bitmap(size, size);
 		BITMAP* team = create_bitmap(size, size);
 		BITMAP* personal = create_bitmap(size, size);
 		nAssert(common && team && personal);
-		clear_to_color(common, transparent);
-		clear_to_color(team, transparent);
-		clear_to_color(personal, transparent);
 		// Resize player images.
-		stretch_sprite(common, common_base, 0, 0, size, size);
-		stretch_sprite(team, team_base, 0, 0, size, size);
-		stretch_sprite(personal, personal_base, 0, 0, size, size);
+		stretch_blit(common_base, common, 0, 0, common_base->w, common_base->h, 0, 0, common->w, common->h);
+		stretch_blit(team_base, team, 0, 0, team_base->w, team_base->h, 0, 0, team->w, team->h);
+		stretch_blit(personal_base, personal, 0, 0, personal_base->w, personal_base->h, 0, 0, personal->w, personal->h);
 		// Make player sprites by combining player image with team and personal colours.
 		for (int t = 0; t < 2; t++)
 			for (int p = 0; p < MAX_PLAYERS / 2; p++) {
 				player_sprite[t][p] = create_bitmap(size, size);
-				clear_to_color(player_sprite[t][p], transparent);
 				create_player_sprite(player_sprite[t][p], common, team, personal, teamcol[t], col[p]);
 			}
 		// Make a sprite for player with power.
 		player_sprite_power = create_bitmap(size, size);
-		clear_to_color(player_sprite_power, transparent);
 		create_player_sprite(player_sprite_power, common, team, personal, col[COLWHITE], col[COLCYAN]);
 		destroy_bitmap(common);
 		destroy_bitmap(team);
 		destroy_bitmap(personal);
 	}
-	if (common_base)
-		destroy_bitmap(common_base);
-	if (team_base)
-		destroy_bitmap(team_base);
-	if (personal_base)
-		destroy_bitmap(personal_base);
+	unload_bitmap(common_base);
+	unload_bitmap(team_base);
+	unload_bitmap(personal_base);
 }
 
 void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const {
-	masked_blit(common, sprite, 0, 0, 0, 0, common->w, common->h);
+	blit(common, sprite, 0, 0, 0, 0, common->w, common->h);
+	if (!team && !personal)
+		return;
 	// todo: remove pixel by pixel drawing if possible
 	for (int y = 0; y < sprite->h; y++)
 		for (int x = 0; x < sprite->w; x++) {
-			const int team_alpha = getr(getpixel(team, x, y));
-			const int personal_alpha = getr(getpixel(personal, x, y));
+			const int team_alpha = (team ? getr(getpixel(team, x, y)) : 0);
+			const int personal_alpha = (personal ? getr(getpixel(personal, x, y)) : 0);
 			if (team_alpha != 0 || personal_alpha != 0) {
 				drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 				set_trans_blender(0, 0, 0, personal_alpha);
@@ -2168,10 +2212,97 @@ void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team
 		}
 }
 
+void Graphics::load_shield_sprite(const string& path) {
+	unload_bitmap(player_shield_sprite);
+	const int size = scale(2 * 2 * PLAYER_RADIUS);
+	player_shield_sprite = scale_sprite(path + "player_shield.pcx", size, size);
+}
+
+void Graphics::load_dead_sprite(const string& path) {
+	unload_dead_sprites();
+	const int size = scale(2 * 2 * PLAYER_RADIUS);
+	BITMAP* picture = scale_sprite(path + "dead.pcx", size, size);
+	//set_color_conversion(COLORCONV_NONE);
+	BITMAP* alpha = scale_sprite(path + "dead_alpha.pcx", size, size);
+	BITMAP* team = scale_sprite(path + "dead_team.pcx", size, size);
+	//set_color_conversion(COLORCONV_TOTAL);
+	if (picture) {
+		for (int t = 0; t < 2; t++) {
+			dead_sprite[t] = create_bitmap_ex(32, size, size);
+			if (dead_sprite[t]) {
+				create_player_sprite(dead_sprite[t], picture, team, 0, teamcol[t], 0);
+				set_write_alpha_blender();
+				drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+				if (alpha)
+					draw_trans_sprite(dead_sprite[t], alpha, 0, 0);
+				else	// maximum alpha level
+					rectfill(dead_sprite[t], 0, 0, dead_sprite[t]->w - 1, dead_sprite[t]->h - 1, 255);
+				solid_mode();
+			}
+		}
+	}
+	unload_bitmap(picture);
+	unload_bitmap(alpha);
+	unload_bitmap(team);
+}
+
+void Graphics::load_rocket_sprites(const string& path) {
+	unload_rocket_sprites();
+	const int size = scale(2 * 2 * ROCKET_RADIUS);
+	BITMAP* normal = scale_sprite(path + "rocket.pcx", size, size);
+	if (normal) {
+		BITMAP* alpha = scale_sprite(path + "rocket_team.pcx", size, size);
+		for (int t = 0; t < 2; t++) {
+			rocket_sprite[t] = create_bitmap(size, size);
+			create_player_sprite(rocket_sprite[t], normal, alpha, 0, teamcol[t], 0);
+		}
+		unload_bitmap(normal);
+		unload_bitmap(alpha);
+	}
+	BITMAP* power = scale_sprite(path + "rocket_pow.pcx", size, size);
+	if (power) {
+		BITMAP* alpha = scale_sprite(path + "rocket_pow_team.pcx", size, size);
+		for (int t = 0; t < 2; t++) {
+			power_rocket_sprite[t] = create_bitmap(size, size);
+			clear_to_color(power_rocket_sprite[t], bitmap_mask_color(drawbuf));
+			create_player_sprite(power_rocket_sprite[t], power, alpha, 0, teamcol[t], 0);
+		}
+		unload_bitmap(power);
+		unload_bitmap(alpha);
+	}
+}
+
+void Graphics::load_pup_sprites(const string& path) {
+	unload_pup_sprites();
+	const int size = scale(2 * PLAYER_RADIUS);
+	pup_sprite[Powerup::pup_shield - 1] = scale_sprite(path + "shield.pcx", size, size);
+	pup_sprite[Powerup::pup_turbo - 1] = scale_sprite(path + "turbo.pcx", size, size);
+	pup_sprite[Powerup::pup_shadow - 1] = scale_sprite(path + "shadow.pcx", size, size);
+	pup_sprite[Powerup::pup_power - 1] = scale_sprite(path + "power.pcx", size, size);
+	pup_sprite[Powerup::pup_weapon - 1] = scale_sprite(path + "weapon.pcx", size, size);
+	pup_sprite[Powerup::pup_health - 1] = scale_sprite(path + "health.pcx", size, size);
+	pup_sprite[Powerup::pup_deathbringer - 1] = scale_sprite(path + "deathbringer.pcx", size, size);
+}
+
+BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) {
+	BITMAP* temp = load_bitmap(filename.c_str(), NULL);
+	if (!temp)
+		return 0;
+	BITMAP* target = create_bitmap(x, y);
+	nAssert(target);
+	clear_to_color(target, bitmap_mask_color(drawbuf));
+	stretch_sprite(target, temp, 0, 0, target->w, target->h);
+	return target;
+}
+
 void Graphics::unload_pictures() {
 	unload_floor_textures();
 	unload_wall_textures();
 	unload_player_sprites();
+	unload_dead_sprites();
+	unload_rocket_sprites();
+	unload_pup_sprites();
+	unload_bitmap(player_shield_sprite);
 }
 
 void Graphics::unload_floor_textures() {
@@ -2189,6 +2320,23 @@ void Graphics::unload_player_sprites() {
 		for (vector<BITMAP*>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
 			unload_bitmap(*pl);
 	unload_bitmap(player_sprite_power);
+}
+
+void Graphics::unload_dead_sprites() {
+	for (int i = 0; i < 2; i++)
+		unload_bitmap(dead_sprite[i]);
+}
+
+void Graphics::unload_rocket_sprites() {
+	for (int i = 0; i < 2; i++) {
+		unload_bitmap(rocket_sprite[i]);
+		unload_bitmap(power_rocket_sprite[i]);
+	}
+}
+
+void Graphics::unload_pup_sprites() {
+	for (vector<BITMAP*>::iterator pup = pup_sprite.begin(); pup != pup_sprite.end(); ++pup)
+		unload_bitmap(*pup);
 }
 
 inline int Graphics::scale(double value) const {

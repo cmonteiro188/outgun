@@ -14,10 +14,21 @@ public:
 	StringSelectInserter& operator()(const std::string& str) { dst.addOption(str, str); return *this; }
 };
 
+Menu_addServer::Menu_addServer() :
+	address		("IP address", "", 21),
+	save		("Add to favorite list"),
+
+	menu		("Add server")
+{
+	menu.add_component(&address);
+	menu.add_component(&save);
+}
+
 Menu_serverList::Menu_serverList() :
 	favorites	("Favorite servers only"),
 	update		("Update server list"),
 	refresh		("Refresh servers"),
+	addServer	(),
 	caption		("IP address            Ping Players Version Host name"),
 
 	menu		("Server list")
@@ -35,6 +46,7 @@ void Menu_serverList::reset() {
 	menu.add_component(&favorites);
 	menu.add_component(&update);
 	menu.add_component(&refresh);
+	menu.add_component(&addServer.menu);
 	menu.add_component(&caption);
 }
 
@@ -52,6 +64,11 @@ std::string Menu_serverList::getAddress(const Textarea& target) {
 			return servi->first;
 	}
 	return std::string();
+}
+
+void Menu_serverList::recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) {
+	menu.setHook(opener);
+	addServer.recursiveSetMenuOpener(opener->clone());
 }
 
 Menu_name::Menu_name() :
@@ -76,6 +93,7 @@ Menu_game::Menu_game() :
 	lagPrediction		("Lag prediction", false),
 	lagPredictionAmount	("Lag prediction amount", 0, 10, 10),
 	joystick			("Enable joystick control", false),
+	messageLogging		("Save chat messages", false),
 
 	menu				("Game options")
 {
@@ -84,6 +102,7 @@ Menu_game::Menu_game() :
 	menu.add_component(&lagPrediction);
 	menu.add_component(&lagPredictionAmount);
 	menu.add_component(&joystick);
+	menu.add_component(&messageLogging);
 }
 
 Menu_graphics::Menu_graphics() :

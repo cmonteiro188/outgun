@@ -13,9 +13,10 @@
 #include "utility.h"
 
 #define PHYS_NEW
-//#define PHYS_VECTOR_ACC
+#define PHYS_VECTOR_ACC
+#define PHYS_VECTOR_ACC_TEST
 
-//same as PLAYER RADIUS (15) + ROCKET RADIUS (3) - 1
+//same as PLAYER RADIUS (15) + ROCKETRADIUS (3) - 1
 const int shot_deltax = 17;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
@@ -539,26 +540,6 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 	cid = _cid;
 	waitnametime = get_time() - 666.0;	//can change name right now
 
-	total_kills = 0;
-	total_deaths = 0;
-	most_consecutive_kills = 0;
-	current_consecutive_kills = 0;
-	most_consecutive_deaths = 0;
-	current_consecutive_deaths = 0;
-	total_suicides = 0;
-	total_captures = 0;
-	total_flags_taken = 0;
-	total_flags_dropped = 0;
-	total_flags_returned = 0;
-	total_flag_carriers_killed = 0;
-	total_shots = 0;
-	total_hits = 0;
-	total_shots_taken = 0;
-	total_movement = 0;
-	start_time = static_cast<int>(get_time());
-	last_spawn_time = start_time;
-	lifetime = 0;
-
 	lastClientFrame = 0;
 	#ifdef SEND_FRAMEOFFSET
 	frameOffset = 0;
@@ -953,6 +934,65 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	int xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
 
 	#ifdef PHYS_VECTOR_ACC
+	// new correcting coefficients : reduce friction and total acceleration
+	/*player_maxspeed *= 1.2;
+	player_friction *=  .5;
+	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
+
+	// acceleration
+	if (!deathbringer_affected) {
+		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
+		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
+		float mul = player_accel;
+		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
+			mul /= sqrt(2.);
+
+		h->sx += float(xAcc)*mul;
+		h->sy += float(yAcc)*mul;
+	}
+
+	// friction
+	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+	if (spd > 0) {
+		float mul;
+		if (spd <= player_friction)
+			mul = 0.;
+		else
+			mul = 1. - player_friction/spd;
+		h->sx *= mul;
+		h->sy *= mul;
+		spd *= mul;
+		if (spd > player_maxspeed) {	// artificial "friction" forcing a reverse acceleration to settle too great speeds
+			if (spd > player_maxspeed + player_accel)
+				mul = 1. - player_accel / spd;
+			else
+				mul = player_maxspeed / spd;
+			h->sx *= mul;
+			h->sy *= mul;
+		}
+	}
+	*/#ifdef PHYS_VECTOR_ACC_TEST
+
+	player_friction = 0.5;
+	player_accel    = 5.5;
+
+	if (turbo)
+		if (h->controls.isRun())
+			player_accel *= 2.5;
+		else
+			player_accel *= 1.75;
+	else if (h->controls.isRun())
+		player_accel *= 1.25;
+
+	h->sx -= player_friction * h->sx;
+	h->sy -= player_friction * h->sy;
+
+	if (!deathbringer_affected) {
+		h->sx += float(xAcc) * player_accel;
+		h->sy += float(yAcc) * player_accel;
+	}
+
+ 	#else
 
 	// this is a more physically correct model by Nix
 
@@ -993,6 +1033,7 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 		}
 	}
 
+	#endif	// PHYS_VECTOR_ACC_TEST
 	#else	// PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
@@ -1064,6 +1105,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	r->py = py;
 	r->x = x;
 	r->y = y;
+	r->direction = dir;
 
 	float deg = dir * M_PI_4;
 
@@ -1289,6 +1331,7 @@ void ServerWorld::reset() {
 			resetPlayer(i);
 			//zero score
 			player[i].frags = 0;
+			player[i].stats().clear();
 		}
 
 	//zero all rockets
@@ -1409,7 +1452,6 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	player[pid].drop_flag();
 	player[pid].stats().add_flag_drop();
 	teams[pid / TSIZE].add_flag_drop();
-	player[pid].total_flags_dropped++;
 	if (purpose)
 		player[pid].frags--;
 	return true;
@@ -1496,7 +1538,6 @@ void ServerWorld::respawnPlayer(int pid) {
 
 	player[pid].respawn_to_base = false;
 
-	player[pid].last_spawn_time = (int)get_time();
 	player[pid].dead = false;
 	
 	net->broadcast_spawn(player[pid]);
@@ -1773,20 +1814,14 @@ void ServerWorld::resetPlayer(int target, float time_penalty) {	// take the play
 
 	dropFlagIfAny(target);
 	player[target].respawn_time = get_time() + config.getRespawnTime() + time_penalty;
-	if (!player[target].dead) {
-		player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
+	if (!player[target].dead)
 		player[target].dead = true;
-	}
 }
 
 void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
 	host->score_neg(target, 1);	// score neg points because of death
 	if (dropFlagIfAny(target))
 		host->score_neg(target, 1);	// score neg points because of losing the flag
-	player[target].total_deaths++;
-	if (++player[target].current_consecutive_deaths > player[target].most_consecutive_deaths)
-		player[target].most_consecutive_deaths = player[target].current_consecutive_deaths;
-	player[target].current_consecutive_kills = 0;
 
 	if (player[target].item_deathbringer) {
 		//record time to simulate the deathbringer explosion
@@ -1830,10 +1865,6 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 		host->score_frag(attacker, 1);		// frag to attacker for the kill
 	else
 		host->score_frag(attacker, -2);		// take two frags for killing own player
-	player[attacker].total_kills++;
-	if (++player[attacker].current_consecutive_kills > player[attacker].most_consecutive_kills)
-		player[attacker].most_consecutive_kills = player[attacker].current_consecutive_kills;
-	player[attacker].current_consecutive_deaths = 0;
 
 	const int tateam = target / TSIZE;
 	const int atteam = attacker / TSIZE;
@@ -1859,7 +1890,6 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 			host->score_frag(attacker, 1);	// extra frag for fragging a carrier
 		else
 			host->score_frag(attacker, -1);	// extra penalty for fragging own carrier
-		player[attacker].total_flag_carriers_killed++;
 	}
 
 	if (deathbringer) {
@@ -1908,7 +1938,6 @@ void ServerWorld::suicide(int pid) {
 		bool flag = player[pid].flag();
 		killPlayer(pid, true);
 		player[pid].frags--;
-		player[pid].total_suicides++;
 		player[pid].stats().add_suicide(static_cast<int>(get_time()));
 		teams[pid / TSIZE].add_suicide();
 		net->broadcast_suicide(player[pid], flag);
@@ -1930,7 +1959,6 @@ NLubyte ServerWorld::getFreeRocket() {
 void ServerWorld::shootRockets(int pid, int shots) {
 	int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
 
-	player[pid].total_shots++;
 	player[pid].stats().add_shot();
 	teams[pid / TSIZE].add_shot();
 
@@ -1943,16 +1971,16 @@ void ServerWorld::shootRockets(int pid, int shots) {
 
 	//build people-that-know DOUBLE WORD (32bits == 32players max)
 	//send message to players on the same screen
-	NLulong  vislist = 0;
-	for (int p=0; p<maxplayers; p++)
-		if (player[p].used && player[p].roomx==px && player[p].roomy==py)
+	NLulong vislist = 0;
+	for (int p = 0; p < maxplayers; p++)
+		if (player[p].used && player[p].roomx == px && player[p].roomy == py)
 			vislist |= (1 << p);
 
 	//mark all created rockets with the vislist
-	for (int k=0;k<shots;k++)
-		rock[ sid[k] ].vislist = vislist;
+	for (int k = 0; k < shots; k++)
+		rock[sid[k]].vislist = vislist;
 
-	net->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y);
+	net->sendRocketMessage(shots, player[pid].gundir, sid, pid / TSIZE, player[pid].item_quad, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
@@ -1977,7 +2005,6 @@ void ServerWorld::swapRocketOwners(int a, int b) {
 }
 
 void ServerWorld::addMovementDistanceCallback(int pid, float dist) {
-	player[pid].total_movement += dist;
 	player[pid].stats().add_movement(dist);
 }
 
@@ -1998,8 +2025,6 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 		damage = static_cast<int>(pupConfig.pup_power_damage * damage);
 
 	damagePlayer(pid, rock[rid].owner, damage, false);
-	player[rock[rid].owner].total_hits++;
-	player[pid].total_shots_taken++;
 
 	player[rock[rid].owner].stats().add_hit();
 	teams[rock[rid].team].add_hit();
@@ -2557,7 +2582,6 @@ void ServerWorld::simulateFrame() {
 			if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
 				//FLAG RETURNED!
 				host->score_frag(i, 1);	// just add some frags
-				player[i].total_flags_returned++;
 				player[i].stats().add_flag_return();
 				teams[myteam].add_flag_return();
 				net->bprintf(msg_info, "%s RETURNED THE %s FLAG!", player[i].name.c_str(), getTeamName(myteam).c_str());
@@ -2595,10 +2619,14 @@ void ServerWorld::simulateFrame() {
 	const NLulong time_limit = config.getTimeLimit();
 	if (host->get_player_count() > 1 && time_limit > 0) {
 		const int timeLeft = getTimeLeft();
-		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
+		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10) {
 			net->bprintf(msg_info, "*** Five minutes remaining");
-		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
+			net->broadcast_sample(SAMPLE_5_MIN_LEFT);
+		}
+		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10) {
 			net->bprintf(msg_info, "*** One minute remaining");
+			net->broadcast_sample(SAMPLE_1_MIN_LEFT);
+		}
 		else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
 			net->bprintf(msg_info, "*** 30 seconds remaining");
 		// game ends if time is over and (the game is not tied or there is no extra-time)
@@ -2651,7 +2679,6 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 				host->score_neg(h, 1);	// small neg point penalty for your flag being captured
 		}
 	host->score_frag(pid, 3);
-	player[pid].total_captures++;
 	player[pid].stats().add_capture();
 	player[pid].drop_flag();
 	teams[myteam].add_score(getMapTime(), player[pid].name);
@@ -2822,6 +2849,12 @@ Statistics::Statistics():
 	starttime(0),
 	dead(false)
 { }
+
+void Statistics::clear() {
+	const int time = starttime;
+	*this = Statistics();
+	starttime = time;
+}
 
 void Statistics::add_kill(bool deathbringer) {
 	++total_kills;

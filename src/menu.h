@@ -197,7 +197,7 @@ private:
 	int vmin, vmax, val;
 };
 
-class Textarea : public Component, public Hookable<Textarea> {
+class Textarea : public Component, public Hookable<Textarea>, public KeyHookable<Textarea> {
 public:
 	Textarea(const std::string& caption_, const std::string& text_ = std::string()): Component(caption_), text(text_) { }
 	void set(const std::string& val) { text = val; }

@@ -7,14 +7,27 @@
 #include "graphics.h"	// for definition of Graphics::Antialiasing_mode and mode fetching functions
 #include "menu.h"
 
+class Menu_addServer {
+public:
+	Textfield	address;
+	Checkbox	save;
+
+	Menu menu;
+
+	Menu_addServer();
+
+	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+};
+
 class Menu_serverList {
 	std::vector<std::pair<std::string, Textarea> > servers;	// address and server info
 
 public:
-	Checkbox favorites;
-	Textarea update;
-	Textarea refresh;
-	Textarea caption;
+	Checkbox		favorites;
+	Textarea		update;
+	Textarea		refresh;
+	Menu_addServer	addServer;
+	Textarea		caption;
 
 	Menu menu;
 
@@ -24,7 +37,7 @@ public:
 	void addHooks(Hookable<Textarea>::HookFunctionT* hook);
 	std::string getAddress(const Textarea& target);
 
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_name {
@@ -48,6 +61,7 @@ public:
 	Checkbox	lagPrediction;
 	Slider		lagPredictionAmount;
 	Checkbox	joystick;
+	Checkbox	messageLogging;
 
 	Menu menu;
 

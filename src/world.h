@@ -148,8 +148,8 @@ public:
 class Statistics {
 public:
 	Statistics();
-	
-	void clear() { *this = Statistics(); }
+
+	void clear();
 
 	void set_kills(int n) { total_kills = n; }
 	void set_deaths(int n) { total_deaths = n; }
@@ -328,7 +328,7 @@ public:
 	double talk_hotness;
 
 	//admin shell stats
-	int total_kills;
+	/*int total_kills;
 	int total_deaths;
 	int most_consecutive_kills;
 	int current_consecutive_kills;
@@ -346,7 +346,7 @@ public:
 	int last_spawn_time;
 	int lifetime;
 	double total_movement;
-	int start_time;
+	int start_time;*/
 
 	bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
@@ -402,6 +402,7 @@ public:
 	int px, py;			//screen coords
 	double x, y;		//start position or current position
 	double sx, sy;		//speed
+	int direction;
 	NLulong time;		//time of shot or current time
 
 	rocket_c() { owner = -1; }
@@ -498,7 +499,17 @@ private:
 //powerups
 class Powerup {
 public:
-	enum Pup_type { pup_unused, pup_shield, pup_turbo, pup_shadow, pup_power, pup_weapon, pup_health, pup_deathbringer, pup_respawning };
+	enum Pup_type {
+		pup_unused,
+		pup_shield,
+		pup_turbo,
+		pup_shadow,
+		pup_power,
+		pup_weapon,
+		pup_health,
+		pup_deathbringer,
+		pup_respawning
+	};
 
 	Pup_type kind;	// type of powerup
 

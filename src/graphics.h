@@ -73,7 +73,7 @@ public:
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
 	void draw_player_shadow(const ClientPlayer& player, int alpha);
 	void draw_player_name(const std::string& name, int x, int y, int team);
-	void draw_player_dead(int x, int y);
+	void draw_player_dead(const ClientPlayer& player);
 
 	void draw_rocket(const rocket_c& rocket, double time);
 	void draw_gun_explosion(int x, int y, int rad);
@@ -85,7 +85,7 @@ public:
 
 	void draw_deathbringer_affected(int x, int y, int team);
 	void draw_deathbringer_carrier_effect(int x, int y);
-	void draw_shield(int x, int y, int r, int alpha = 255, int team = -1);
+	void draw_shield(int x, int y, int r, int alpha = 255, int team = -1, int direction = 0);
 
 	void draw_virou_sorvete(int x, int y);
 
@@ -194,7 +194,6 @@ private:
 
 	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time);
 
-	void draw_scoreboard_caption(int team, const std::string& caption);
 	void draw_scoreboard_name(const std::string& name, int x, int y, int pcol);
 	void draw_scoreboard_points(int points, int x, int y, int team);
 
@@ -219,10 +218,20 @@ private:
 	void load_player_sprite(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
 	void create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
 
+	void load_shield_sprite(const std::string& path);
+	void load_dead_sprite(const std::string& path);
+	void load_rocket_sprites(const std::string& path);
+	void load_pup_sprites(const std::string& path);
+
+	BITMAP* scale_sprite(const std::string& filename, int x, int y);
+
 	void unload_pictures();
 	void unload_floor_textures();
 	void unload_wall_textures();
 	void unload_player_sprites();
+	void unload_dead_sprites();
+	void unload_rocket_sprites();
+	void unload_pup_sprites();
 
 	int scale(double value) const;
 	
@@ -258,6 +267,11 @@ private:
 	std::vector<BITMAP*> wall_texture;
 	std::vector<BITMAP*> player_sprite[2];
 	BITMAP* player_sprite_power;
+	BITMAP* player_shield_sprite;
+	BITMAP* dead_sprite[2];
+	BITMAP* rocket_sprite[2];
+	BITMAP* power_rocket_sprite[2];
+	std::vector<BITMAP*> pup_sprite;
 
 	int map_list_size;
 	int map_list_start;

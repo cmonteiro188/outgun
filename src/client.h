@@ -187,7 +187,8 @@ class gameclient_c {
 	void MCF_randomName() { menu.options.name.name.set(RandomName()); }
 	void MCF_removePasswords();
 	void MCF_prepareGameMenu() { menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics); }
-	void MCF_joystick() { if (menu.options.game.joystick()) install_joystick(JOY_TYPE_AUTODETECT); else remove_joystick(); }
+	void MCF_joystick();
+	void MCF_messageLogging();
 	void MCF_screenDepthChange();
 	void MCF_screenModeChange();
 	void MCF_gfxThemeChange();
@@ -200,6 +201,8 @@ class gameclient_c {
 	void MCF_prepareServerMenu();
 	void MCF_updateServers() { if (!menu.connect.favorites()) get_servers_from_master(); MCF_prepareServerMenu(); }
 	void MCF_refreshServers() { refresh_command(); MCF_prepareServerMenu(); }
+	void MCF_prepareAddServer();
+	void MCF_addServer();
 	void MCF_playerPasswordAccept();
 	void MCF_serverPasswordAccept();
 	void MCF_clearErrors();
@@ -251,7 +254,6 @@ public:
 	void server_map_command(const char* mapname, NLushort server_crc);
 
 	// sounds
-	void sound(int s) const;
 	Sounds& sounds() { return client_sounds; }
 
 	// GUI

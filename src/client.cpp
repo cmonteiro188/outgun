@@ -172,7 +172,6 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	pthread_mutex_init(&mapInfoMutex, 0);
 	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 	udpdq_size = 0;
-	message_logging = false;
 }
 
 gameclient_c::~gameclient_c() {
@@ -187,10 +186,6 @@ gameclient_c::~gameclient_c() {
 }
 
 bool gameclient_c::start() {
-	// open message log file
-	if (message_logging)
-		message_log.open("message.log", ios::app);
-
 	//clear UDPDQ
 	for (int uq=0;uq<MAX_UDPDQ;uq++) udpdq[uq] = 0;
 	udpdq_ptr = -1;
@@ -310,6 +305,8 @@ bool gameclient_c::start() {
 		}
 		if (getline_smart(cfg, line))
 			menu.options.game.joystick.set(line == "1");
+		if (getline_smart(cfg, line))
+			menu.options.game.messageLogging.set(line == "1");
 
 		// read graphics menu settings
 		if (getline_smart(cfg, line))
@@ -395,6 +392,8 @@ bool gameclient_c::start() {
 
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
+	if (menu.options.game.messageLogging())
+		message_log.open("message.log", ios::app);
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	get_servers_from_master();
@@ -957,14 +956,8 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	}
 }
 
-// sounds
-void gameclient_c::sound(int s) const {
-	client_sounds.play(s);
-}
-
 //update the scoreboard
 void gameclient_c::update_scoreboard() {
-
 	//reset used players/used scoreboard entries
 	bool scoreused[MAX_PLAYERS];
 	for (int f=0;f<MAX_PLAYERS;f++) {
@@ -1511,6 +1504,7 @@ void gameclient_c::connect_command(bool loadPassword) {
 	client->set_connect_data(lebuf, count);
 
 	client->connect(true);
+	log("client->connect(true)");
 
 	m_connectProgress.clear();
 	m_connectProgress.addLine("Trying to connect...", true);
@@ -1912,7 +1906,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					string chatmsg;
 					readStr(msg, count, chatmsg);
 					print_message(type, chatmsg);		//print it to the "console"
-					if (message_logging)
+					if (menu.options.game.messageLogging())
 						message_log << date_and_time() << "  " << chatmsg << endl;
 
 					//talk sound
@@ -2162,8 +2156,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						map_vote = -1;
 					fx.player[me].oldx = -1;
 					fx.player[me].oldy = -1;
+					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+						pi->stats().clear();
 					break;
-					
+
 				case data_world_reset:
 					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
 						fx.item[iid].kind = Powerup::pup_unused;
@@ -3165,7 +3161,7 @@ void gameclient_c::loop() {
 			if (openMenus.safeTop() != &m_errors.menu)
 				showMenu(m_errors);
 		}
-log("drawing");
+
 		if (helpshow)
 			client_graphics.game_help();
 		else if (menusel != menu_none || !openMenus.empty())
@@ -3232,6 +3228,7 @@ void gameclient_c::stop() {
 		cfg << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
 		cfg << menu.options.game.lagPredictionAmount() << '\n';
 		cfg << (menu.options.game.joystick() ? 1 : 0) << '\n';
+		cfg << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
 
 		// save graphics menu settings
 		cfg << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
@@ -3284,7 +3281,7 @@ void gameclient_c::stop() {
 			delete udpdq[uq];
 			udpdq[uq] = 0;
 		}
-	if (message_logging)
+	if (menu.options.game.messageLogging())
 		message_log.close();
 
 	if (listenServer.running())
@@ -3312,7 +3309,7 @@ void gameclient_c::playerHitWallCallback(int pid) {
 	float currTime = get_time();	//#fix
 	if (currTime > fx.player[pid].wall_sound_time) {
 		fx.player[pid].wall_sound_time = currTime + 0.2;
-		sound(SAMPLE_WALLBOUNCE);
+		client_sounds.play(SAMPLE_WALLBOUNCE);
 	}
 }
 
@@ -3384,7 +3381,7 @@ void gameclient_c::draw_game_frame() {
 				if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
 					;	// draw later
 				else
-					client_graphics.draw_player_dead(static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly));
+					client_graphics.draw_player_dead(fx.player[i]);
 			}
 		}
 
@@ -3857,7 +3854,7 @@ void gameclient_c::draw_player(int i) {
 			client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE);
 		// shield
 		if (player.item_shield)
-			client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, player.team());
+			client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, player.team(), player.gundir);
 	}
 }
 
@@ -3877,9 +3874,7 @@ void gameclient_c::draw_game_menu() {
 			break;
 		case menu_none:
 			if (!openMenus.empty())
-{if (openMenus.top() == &m_playerPassword.menu) log("ppwd menu"); else if (openMenus.top() == &m_connectProgress.menu) log("cprg menu"); else log("o menu");
 				openMenus.draw(client_graphics.drawbuffer());
-} else log("no menu");
 			break;
 		default:
 			numAssert(0, menusel);
@@ -3903,6 +3898,9 @@ void gameclient_c::initMenus() {
 	menu.connect.update					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_updateServers	>(this));
 	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_refreshServers	>(this));
 
+	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareAddServer	>(this));
+	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_addServer		>(this));
+
 	menu.options.menu				  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 
 	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareNameMenu	>(this));
@@ -3915,6 +3913,7 @@ void gameclient_c::initMenus() {
 	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGameMenu	>(this));
 	menu.options.game.menu			  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_joystick			>(this));
+	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_messageLogging	>(this));
 
 	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGfxMenu	>(this));
 	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
@@ -3984,6 +3983,21 @@ void gameclient_c::MCF_removePasswords() {
 	showMenu(m_dialog);
 }
 
+void gameclient_c::MCF_joystick() {
+	if (menu.options.game.joystick())
+		install_joystick(JOY_TYPE_AUTODETECT);
+	else
+		remove_joystick();
+}
+
+void gameclient_c::MCF_messageLogging() {
+	menu.options.game.messageLogging.toggle();
+	if (menu.options.game.messageLogging())
+		message_log.open("message.log", ios::app);
+	else
+		message_log.close();
+}
+
 void gameclient_c::MCF_prepareGfxMenu() {
 	menu.options.graphics.update(client_graphics);
 }
@@ -4046,6 +4060,7 @@ void gameclient_c::MCF_sndEnableChange() {
 
 void gameclient_c::MCF_sndVolumeChange() {
 	client_sounds.setVolume(menu.options.sounds.volume());
+	client_sounds.play(SAMPLE_QUAD_FIRE);
 }
 
 void gameclient_c::MCF_sndThemeChange() {
@@ -4088,16 +4103,40 @@ void gameclient_c::MCF_prepareServerMenu() {
 	}
 	if (!menu.connect.favorites())
 		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
-			if (!spy->invalid && find(addresses.begin(), addresses.end(), spy->address) == addresses.end()) {
+			if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address) == addresses.end()) {
 				ostringstream info;
 				info << setw(21) << left << spy->address << right;
 				info << ' ' << spy->info;
 				menu.connect.add(spy->address, info.str());
 			}
-	// #todo: Remove duplicate IPs.
 	typedef MenuCallback<gameclient_c> MCB;
 	menu.connect.addHooks(new MCB::A<Textarea, &gameclient_c::MCF_connect>(this));
 	menu.connect.update.setEnable(!menu.connect.favorites());
+}
+
+void gameclient_c::MCF_prepareAddServer() {
+	menu.connect.addServer.save.set(menu.connect.favorites());
+	menu.connect.addServer.address.set("");
+}
+
+void gameclient_c::MCF_addServer() {
+	if (!menu.connect.addServer.address().empty()) {
+		gamespy_t spy;
+		spy.invalid = true;
+		spy.noresponse = true;
+		spy.favs = false;
+		spy.refreshed = false;
+		spy.address = menu.connect.addServer.address();
+		if (menu.connect.favorites())
+			gamespy.push_back(spy);
+		else {
+			mgamespy.push_back(spy);
+			if (menu.connect.addServer.save())
+				gamespy.push_back(spy);
+		}
+		MCF_prepareServerMenu();
+	}
+	MCF_menuCloser();
 }
 
 void gameclient_c::MCF_connect(Textarea& target) {

@@ -41,7 +41,7 @@ class ServerNetworking {
 	static void sfunc_client_lag_status		(void* customp, int client_id, int status);
 	static void sfunc_client_ping_result	(void* customp, int client_id, int pingtime);
 
-	std::map<std::string, std::string> master_parameters() const;
+	std::map<std::string, std::string> master_parameters(const std::string& address) const;
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string website_maplist() const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
