@@ -164,6 +164,7 @@ Vaihda tähän tilaan
 Teema
 Reunanpehmennys
 Tekstuurien jatkuvuus huoneesta toiseen
+Kadonneiden pelaajien näyttö kartalla
 Tilastoruudun läpinäkymättömyys
 FPS-rajoitus
 Ylimääräisten karttatietojen näyttö
@@ -299,6 +300,11 @@ oikealle
 ampuminen
 juokseminen
 sivusiirtymä
+
+; Used as values for 'Disappeared players on minimap' in the graphics menu.
+häivytys
+nopea poisto
+hidas poisto
 
 ; Used in the error collection dialogs. The last two are only used in the main
 ; program error dialog which is shown for example when invalid command line

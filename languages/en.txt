@@ -164,6 +164,7 @@ Apply changes
 Theme
 Antialiasing
 Continuous textures between rooms
+Disappeared players on minimap
 Stats screen alpha
 FPS limit
 Map info mode
@@ -299,6 +300,11 @@ right
 shoot
 run
 strafe
+
+; Used as values for 'Disappeared players on minimap' in the graphics menu.
+fade out
+hide early
+hide late
 
 ; Used in the error collection dialogs. The last two are only used in the main
 ; program error dialog which is shown for example when invalid command line

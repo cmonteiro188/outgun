@@ -1,4 +1,4 @@
-Outgun 1.0.0, copyright © 2002-2005 tekijät.
+Outgun 1.0.1, copyright © 2002-2005 tekijät.
  
 Outgun on GNU GPL:n alla levitettävä vapaa ohjelma ja sen levitys on
 suotavaa muutamien vaatimusten puitteissa. KAIKKI VASTUU ON KÄYTTÄJÄLLÄ.

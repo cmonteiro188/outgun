@@ -169,6 +169,7 @@ Aplicar alterações
 Tema
 Antialiasing
 Textura continua entre salas
+Jogadores desaparecidos no mini mapa
 Estado alfa da tela
 Limite do FPS
 Modo de informação do mapa
@@ -304,6 +305,11 @@ direita
 atirar
 correr
 esquivar
+
+; Used as values for 'Disappeared players on minimap' in the graphics menu.
+desbotamento
+esconder cedo
+esconder tarde
 
 ; Used in the error collection dialogs. The last two are only used in the main
 ; program error dialog which is shown for example when invalid command line
