@@ -1188,7 +1188,7 @@ void ServerWorld::respawnPlayer(int pid) {
 	player[pid].item_shield = false;
 	player[pid].item_quad = false;
 	player[pid].item_speed = false;
-	player[pid].item_helm = 0;
+	player[pid].visibility = 255;
 	player[pid].item_deathbringer = false;
 	player[pid].deathbringer_end = 0;
 
@@ -1360,12 +1360,12 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			break;
 		}
 		case 3:	{	// shadow
-			double itemTime = player[p].item_helm_time-get_time();
-			if (!player[p].item_helm || itemTime<0)
+			double itemTime = player[p].item_helm_time - get_time();
+			if (!player[p].item_helm() || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
-			player[p].item_helm = 1;		//invis maximo de inicio
+			player[p].visibility = 0;		// invisible
 			player[p].item_helm_time = get_time() + itemTime;
 
 			net->sendPupTime(p, it->kind, itemTime);
@@ -1436,7 +1436,7 @@ void ServerWorld::game_player_screen_change(int p) {
 void ServerWorld::resetPlayer(int target, float time_penalty) {	// take the player out of the game
 	player[target].health = 0;
 
-	player[target].item_helm = 0;
+	player[target].visibility = 255;
 	player[target].item_quad = false;
 	player[target].item_speed = false;
 	// deathbringer is not removed until respawn because the flag is needed
@@ -1473,8 +1473,8 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {	// inflict normal or deathbringer damage on target
 	//HELM powerup: show player
-	if (player[target].item_helm > 0)
-		player[target].item_helm = 255;
+	if (player[target].item_helm())
+		player[target].visibility = 254;
 
 	if (player[target].item_shield) {
 		player[target].energy -= damage;
@@ -1908,7 +1908,6 @@ void ServerWorld::simulateFrame() {
 		}
 
 		// check powerups expired
-		//
 		if (player[i].item_speed)
 			if (get_time() > player[i].item_speed_time) {
 				player[i].item_speed = false;
@@ -1919,18 +1918,17 @@ void ServerWorld::simulateFrame() {
 				player[i].item_quad = false;
 				net->broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
 			}
-		if (player[i].item_helm)
+		if (player[i].item_helm())
 			if (get_time() > player[i].item_helm_time) {
-				player[i].item_helm = 0;
+				player[i].visibility = 255;
 				net->broadcast_screen_sample(i, SAMPLE_HELM_OFF);
 			}
 
 		// helm alpha down
-		//
-		if (player[i].item_helm > 0) {
-			player[i].item_helm -= 10;		//slowly fades....
-			if (player[i].item_helm < config.getShadowMinimum())	// minimum
-				player[i].item_helm = config.getShadowMinimum();
+		if (player[i].item_helm()) {
+			player[i].visibility -= 10;		//slowly fades....
+			if (player[i].visibility < config.getShadowMinimum())	// minimum
+				player[i].visibility = config.getShadowMinimum();
 		}
 
 		// check deathbringer effect
@@ -2022,8 +2020,8 @@ void ServerWorld::simulateFrame() {
 			player[i].next_shoot_time = get_time() + 0.5;		// add minimum interval (in secs)
 
 			//show helm
-			if (player[i].item_helm > 0)
-				player[i].item_helm = 255;
+			if (player[i].item_helm())
+				player[i].visibility = 254;
 
 			shootRockets(i, numshots);
 		}
@@ -2178,8 +2176,8 @@ void ServerWorld::simulateFrame() {
 				net->bprintf("@I%s GOT THE %s FLAG!", player[i].name.c_str(), teamname[enemyteam]);
 				stealFlag(enemyteam, i);  //flag stolen!
 				//HELM powerup: show player
-				if (player[i].item_helm > 0)
-					player[i].item_helm = 255;
+				if (player[i].item_helm())
+					player[i].visibility = 254;
 			}
 		}
 		else if (!player[i].drop_key)

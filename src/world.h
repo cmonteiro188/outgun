@@ -150,7 +150,7 @@ public:
 	bool item_shield;
 	bool item_quad;
 	bool item_speed;
-	int item_helm;	// 0 == no   1+ == yes, alpha
+	int visibility;		// alpha
 
 	int roomx, roomy;
 	double lx, ly, sx, sy;	// position within room and speed
@@ -176,7 +176,7 @@ public:
 		id = _pid;
 		name = _name;
 		item_deathbringer = item_shield = item_quad = item_speed = false;
-		item_helm = 0;
+		visibility = 255;
 		roomx = roomy = 0;
 		lx = ly = sx = sy = 0;
 		gundir = 0;
@@ -188,6 +188,8 @@ public:
 		used = enable;
 		team_nr = 0;
 	}
+
+	bool item_helm() const { return visibility < 255; }
 	int team() const { return team_nr; }
 	int color() const { return id; }
 	virtual bool under_deathbringer_effect(double curr_time) const =0;
@@ -539,7 +541,7 @@ public:
 class WorldSettings {
 public:
 	double respawn_time, waiting_time_deathbringer;
-	int shadow_minimum;	// smallest alpha value allowed; 1 is when even the coordinates are not sent
+	int shadow_minimum;	// smallest alpha value allowed; 0 is when even the coordinates are not sent
 	NLulong time_limit;
 	int capture_limit;
 
@@ -619,8 +621,8 @@ public:
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
 	double frame;
 
-	ClientPlayer player[MAX_PLAYERS];
-	ClientWorld() : skipped(true) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+	vector<ClientPlayer> player;
+	ClientWorld() : skipped(true), player(MAX_PLAYERS) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 	// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 	void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
 						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter);

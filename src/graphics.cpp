@@ -1127,9 +1127,9 @@ void Graphics::map_list(const vector<gameserver_c::MapInfo>& maps, int current) 
 			mapline << mi->votes;
 		else
 			mapline << '-';
-		mapline << ' ' << setw(20) << left << mi->title << right << ' ';
+		mapline << ' ' << setw(20) << left << mi->title.substr(0, 20) << right << ' ';
 		mapline << setw(2) << mi->width << '×' << setw(2) << left << mi->height << right << ' ';
-		mapline << mi->author;
+		mapline << mi->author.substr(0, 27);
 		const int y = y1 + 5 * line_height + line_height * i;
 		textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, i == current ? col[COLYELLOW] : col[COLWHITE], -1);
 	}

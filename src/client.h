@@ -26,6 +26,16 @@ struct download_runes_t {
 	char dest[512];	//full destination path+name for downloaded file
 };
 
+enum Menu_selection {
+	menu_none,
+	menu_main,
+	menu_dialog,
+	menu_server_list,
+	menu_name_password,
+	menu_maps,
+	menu_players
+};
+
 class client_c;	// of leetnet
 
 class gameclient_c {
@@ -77,7 +87,8 @@ class gameclient_c {
 
 	// GUI
 	bool menushow;
-	int menu;	//menu screen #
+	//int menu;	//menu screen #
+	Menu_selection menu;
 	bool gameshow;
 	bool helpshow;
 	double FPS;
@@ -175,7 +186,7 @@ public:
 	void draw_game_frame();
 	void draw_game_menu();
 	void update_scoreboard();
-	void set_menu(int menumber);
+	void set_menu(Menu_selection menumber);
 };
 
 extern gameclient_c *gameclient;

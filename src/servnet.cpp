@@ -1191,7 +1191,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		if (world.player[helmiter].used)
 			//fix: helm nao enxerga outros helms, a nao ser com a flag
 			//ou seja: so mostra (break) se:  NAO TEM HELM   ou   TEM FLAG
-			if ((world.player[helmiter].item_helm == 0) || ((world.flag[1-helmiter/TSIZE].carried) && (world.flag[1-helmiter/TSIZE].carrier == helmiter)))
+			if (!world.player[helmiter].item_helm() || (world.flag[1 - helmiter / TSIZE].carried && world.flag[1 - helmiter / TSIZE].carrier == helmiter))
 				break;
 	} while (runaway-- > 0);
 
@@ -1204,19 +1204,13 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
 		helmview[t] = 0;		//default zero
 
-		for (int i=0;i<maxplayers;i++)			// p/ cada inimigo desse time
-		if (i/TSIZE == 1-t)
-		if (world.player[i].used)
-		{
+		for (int i = 0; i < maxplayers; i++)			// p/ cada inimigo desse time
+		if (i / TSIZE == 1 - t && world.player[i].used) {
 			// ---- helmview -----
 			// mostra se NAO TEM HELM ou SE TA COM FLAG
-			if ((world.player[i].item_helm == 0) || ((world.flag[1-i/TSIZE].carried) && (world.flag[1-i/TSIZE].carrier == i))) {
+			if (!world.player[i].item_helm() || (world.flag[1 - i / TSIZE].carried && world.flag[1 - i / TSIZE].carrier == i)) {
 				//adiciona bit
-				//helmview[t] += ((NLushort) (1 << (i%TSIZE)));
-				// FUCKING TYPE CONVERSION HELL
-				int fuck = helmview[t];
-				fuck += (1 << (i%TSIZE));
-				helmview[t] = (NLushort)fuck;
+				helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
 			}
 
 			// ---- tview -----
@@ -1226,20 +1220,15 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			if (j/TSIZE == t)
 			if (world.player[j].used)
 			{
-				if ((world.player[j].roomx == world.player[i].roomx) && (world.player[j].roomy == world.player[i].roomy))	{
-
+				if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)	{
 					//se o cara tem helm E NAO TEM FLAG, nao aparece!!
-					if ((world.player[i].item_helm > 0) && ((world.flag[1-i/TSIZE].carried == false) || (world.flag[1-i/TSIZE].carrier != i))) {
-						//nao visto!
+					if (world.player[i].visibility == 0 && (world.flag[1 - i / TSIZE].carried == false || world.flag[1 - i / TSIZE].carrier != i)) {
+						//invisible
 					}
 					else {
-						//visto!
-						tview[t][i%TSIZE] = 1;	//visto!
-						//tview_bits[t] += ((NLushort) (1 << (i%TSIZE)));		//seta bit de "visto"
-						// FUCKING TYPE CONVERSION HELL
-						int fuck = tview_bits[t];
-						fuck += (1 << (i%TSIZE));
-						tview_bits[t] = (NLushort)fuck;
+						//visible
+						tview[t][i % TSIZE] = 1;	//visto!
+						tview_bits[t] += static_cast<NLushort>(1 << (i % TSIZE));		//seta bit de "visto"
 						break;
 					}
 				}
@@ -1339,7 +1328,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 					&&
 					(world.player[j].roomy == world.player[i].roomy)
 					&&
-					(world.player[j].item_helm != 1 || i/TSIZE == j/TSIZE ||
+					(world.player[j].visibility > 0 || i/TSIZE == j/TSIZE ||
 							(world.flag[1-j/TSIZE].carried && world.flag[1-j/TSIZE].carrier == j)) ) {
 				//add to players_onscreen
 				players_onscreen += (1 << j);
@@ -1402,7 +1391,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				ccb |= h.gundir << 5;
 				writeByte(lebuf, lecount, ccb);
 
-				writeByte(lebuf, lecount, (NLubyte)world.player[j].item_helm);
+				writeByte(lebuf, lecount, (NLubyte)world.player[j].visibility);
 			}
 
 			//update players_onscreen (it's before the players on screen data (above))
@@ -1410,7 +1399,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
 			//ELMO: visao alem do alcance!!
 			NLubyte who;
-			if (world.player[i].item_helm > 0) {
+			if (world.player[i].item_helm()) {
 
 				//team "viewed enemies" do meu time (i/TSIZE)
 				//writeByte(lebuf, lecount, 255);		// todos!!!
@@ -1419,7 +1408,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 				//writeByte(lebuf, lecount, tview_bits[i/TSIZE]);
 				//FIX: helm tambem nao eh no viewed enemies. o helm de um time é 255 (todos)
 				//     menos quem tem helm
-				writeShort(lebuf, lecount, helmview[i/TSIZE]);
+				writeShort(lebuf, lecount, helmview[i/TSIZE] | tview_bits[i/TSIZE]);
 
 				//"quem eu vou ficar sabendo no minimap agora?" -- do time
 				who = (NLubyte)helmiter;

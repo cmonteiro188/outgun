@@ -813,7 +813,7 @@ void gameclient_c::update_scoreboard() {
 }
 
 //show a specific menu screen
-void gameclient_c::set_menu(int menumber) {
+void gameclient_c::set_menu(Menu_selection menumber) {
 	menu = menumber;
 	clear_keybuf(); //clear keystrokes buffer
 }
@@ -827,8 +827,7 @@ void gameclient_c::disconnect_command() {
 	//dialogz
 	strcpy(dialogmessage, "You are disconnected. Press ESC.");
 	strcpy(dialogmessage2, "");
-	menushow = true;
-	set_menu(2);	//dialog menu
+	set_menu(menu_dialog);
 }
 
 void gameclient_c::client_connected(char *data, int length) {
@@ -873,12 +872,10 @@ void gameclient_c::client_connected(char *data, int length) {
 	// reset gamestate?
 	connected = true;
 	gameshow = true;
+	menu = menu_none;
 	fx.frame = fd.frame = 0;
 	fx.skipped = fd.skipped = true;
 	me = -1;	//don't know who am I
-
-	//hide menu : must be AFTER gameshow = true
-	menushow = false;  // hide menu
 
 	//reset chat buffer
 	talkbuffer[0] = 0;
@@ -940,8 +937,7 @@ void gameclient_c::client_disconnected() {
 	// show a message
 	strcpy(dialogmessage, "You have been disconnected. Press ESC.");
 	strcpy(dialogmessage2, "");
-	menushow = true;
-	set_menu(2);	//dialog menu
+	set_menu(menu_dialog);
 
 	//namestatus
 	if (namestatus_code == 0)
@@ -974,8 +970,7 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 	// show a message
 	strcpy(dialogmessage, "Connection refused. Press ESC.");
 	strcpy(dialogmessage2, message);
-	menushow = true;
-	set_menu(2);	//dialog menu
+	set_menu(menu_dialog);
 }
 
 void gameclient_c::connect_failed_unreachable() {
@@ -986,8 +981,7 @@ void gameclient_c::connect_failed_unreachable() {
 	// show a message
 	strcpy(dialogmessage, "No response from server. Press ESC.");
 	strcpy(dialogmessage2, "");
-	menushow = true;
-	set_menu(2);	//dialog menu
+	set_menu(menu_dialog);
 }
 
 //refresh servers command
@@ -1230,8 +1224,8 @@ void gameclient_c::connect_command() {
 	// set flags, show dialog...
 	trying_connection = true;
 	sprintf(dialogmessage, "Trying to connect... ESC = cancel");
-	dialogmessage2[0]='\0';
-	set_menu(2);	// dialog
+	dialogmessage2[0] = '\0';
+	set_menu(menu_dialog);
 }
 
 //send player token message
@@ -1278,8 +1272,8 @@ void gameclient_c::issue_change_name_command() {
 void gameclient_c::change_name_command() {
 	//set new name, close menu
 	playername = editplayername;
-	if (menushow)
-		set_menu(0);
+	if (menu != menu_none)
+		set_menu(menu_main);
 
 	//send reliable net message with the name
 	if (connected)
@@ -1516,7 +1510,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//read helm byte
 					readByte(data, count, byt);
-					h.item_helm = byt;
+					h.visibility = byt;
 				}
 			}
 
@@ -1851,7 +1845,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				else {
 					//FIXME: unknown map kind
 				}
-				for (int iid=0; iid<MAX_PICKUPS; ++iid)
+				for (int iid = 0; iid < MAX_PICKUPS; ++iid)
 					fx.item[iid].kind = 0;
 				fx.player[me].oldx = -1;
 				fx.player[me].oldy = -1;
@@ -2088,7 +2082,6 @@ void gameclient_c::save_screenshot() {
 
 //toggle help screen
 void gameclient_c::toggle_help() {
-
 	helpshow = !helpshow;
 
 	if (helpshow)
@@ -2417,8 +2410,7 @@ void gameclient_c::loop() {
 	bool notquit = true;
 
 	//show menu and not game yet
-	menushow = true;
-	set_menu(0);
+	set_menu(menu_main);
 	gameshow = false;
 
 	//reset speed counter
@@ -2465,7 +2457,6 @@ void gameclient_c::loop() {
 
 			//help showing
 			if (helpshow) {
-
 				while (keypressed()) {
 					//get key
 					int ch = readkey();
@@ -2481,7 +2472,7 @@ void gameclient_c::loop() {
 				}
 			}
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
-			else if (menushow) {
+			else if (menu != menu_none) {
 				while (keypressed()) {
 					string lerud_abloxon;
 
@@ -2497,173 +2488,174 @@ void gameclient_c::loop() {
 					//toggle help
 					if (sc == KEY_F1)
 						toggle_help();
+					else if (sc == KEY_F2)
+						menu = (menu == menu_maps ? menu_none : menu_maps);
+					else if (sc == KEY_TAB)
+						menu = (menu == menu_players ? menu_none : menu_players);
 
 					//test key
 					switch (menu) {
-					//main menu
-					case 0:
-						if (key[KEY_SPACE] && sc == KEY_F8) {
-							port++;
-							if (port > DEFAULT_UDP_PORT + 5)
-								port = DEFAULT_UDP_PORT;
-						}
-						else if (sc == KEY_F10) {
-							editplayername = RandomName();
-							change_name_command();
-						}
-						switch (ch) {
-							case '1': set_menu(1); break;
-							case '2': disconnect_command(); break;
-							case '3':
-								editplayername = playername;
-								editplayerpass = player_password;
-								name_selected = true;
-								set_menu(3);
-								break;
-							case '4': // start/stop listenserver
-								if (listen_server_running)
-									listen_stop();
-								else
-									listen_start();
-								break;
-							case '5':
-								winclient = !winclient;
-								client_graphics.reset_video_mode();
-								client_graphics.update_minimap_background(fx.map);
-								predraw();
-								break;
-							case '6': client_sounds.next_theme(); break;
-							case '7':
-								client_graphics.next_theme();
-								predraw();
-								break;
-							default:;
-						}
-						break;
-					//connect screen
-					case 1:
-						if (showmaster)
-							i = strlen(mgamespy[gi].address);
-						else
-							i = strlen(gamespy[gi].address);
-						if (
-									//v0.4.2: including +6 chars for :xxxxx (port)
-									(i < 21)
-									//(i < 16)	// max length of IP address typein
-									&&
-									//v0.4.2 ":" para port#
-									(((ch >= '0') && (ch <= '9')) || (ch == '.') || (ch == ':'))
-						) {
-							if (showmaster) {
-								mgamespy[gi].address[i] = (char)ch;
-								mgamespy[gi].address[i+1] = 0;
-								mgamespy[gi].refreshed = false;
+						//main menu
+						case menu_main:
+							if (key[KEY_SPACE] && sc == KEY_F8) {
+								port++;
+								if (port > DEFAULT_UDP_PORT + 5)
+									port = DEFAULT_UDP_PORT;
 							}
-							else {
-								gamespy[gi].address[i] = (char)ch;
-								gamespy[gi].address[i+1] = 0;
-								gamespy[gi].refreshed = false;
+							else if (sc == KEY_F10) {
+								editplayername = RandomName();
+								change_name_command();
 							}
-						}
-						else if (sc == KEY_UP) {
-							gi--;
-							if (gi < 0)
-								gi = MAX_GAMESPY-1;
-						}
-						else if (sc == KEY_DOWN) {
-							gi++;
-							if (gi >= MAX_GAMESPY)
-								gi = 0;
-						}
-						else if (sc == KEY_SPACE) {
-
-							refresh_command();
-							clear_keybuf();	//clear the key buffer to stop too much refreshing.
-						}
-						else if (sc == KEY_BACKSPACE) {
-							if (i > 0) {
+							switch (ch) {
+								case '1': set_menu(menu_server_list); break;
+								case '2': disconnect_command(); break;
+								case '3':
+									editplayername = playername;
+									editplayerpass = player_password;
+									name_selected = true;
+									set_menu(menu_name_password);
+									break;
+								case '4': // start/stop listenserver
+									if (listen_server_running)
+										listen_stop();
+									else
+										listen_start();
+									break;
+								case '5':
+									winclient = !winclient;
+									client_graphics.reset_video_mode();
+									client_graphics.update_minimap_background(fx.map);
+									predraw();
+									break;
+								case '6': client_sounds.next_theme(); break;
+								case '7':
+									client_graphics.next_theme();
+									predraw();
+									break;
+								default:;
+							}
+							break;
+						//connect screen
+						case menu_server_list:
+							if (showmaster)
+								i = strlen(mgamespy[gi].address);
+							else
+								i = strlen(gamespy[gi].address);
+							if (
+										//v0.4.2: including +6 chars for :xxxxx (port)
+										(i < 21)
+										//(i < 16)	// max length of IP address typein
+										&&
+										//v0.4.2 ":" para port#
+										(((ch >= '0') && (ch <= '9')) || (ch == '.') || (ch == ':'))
+							) {
 								if (showmaster) {
-									mgamespy[gi].address[i-1] = 0;
+									mgamespy[gi].address[i] = (char)ch;
+									mgamespy[gi].address[i+1] = 0;
 									mgamespy[gi].refreshed = false;
 								}
 								else {
-									gamespy[gi].address[i-1] = 0;
+									gamespy[gi].address[i] = (char)ch;
+									gamespy[gi].address[i+1] = 0;
 									gamespy[gi].refreshed = false;
 								}
 							}
-						}
-						else if (sc == KEY_ENTER) {
-							connect_command();
-						}
-						else if (sc == KEY_TAB) {
-							showmaster = !showmaster;
+							else if (sc == KEY_UP) {
+								gi--;
+								if (gi < 0)
+									gi = MAX_GAMESPY-1;
+							}
+							else if (sc == KEY_DOWN) {
+								gi++;
+								if (gi >= MAX_GAMESPY)
+									gi = 0;
+							}
+							else if (sc == KEY_SPACE) {
 
-							//make the first refresh of favorites when showing it
-							if ((!showmaster) && (first_fav_refresh == false)) {
-								first_fav_refresh = true;
 								refresh_command();
+								clear_keybuf();	//clear the key buffer to stop too much refreshing.
 							}
-						}
-						else if ((sc == KEY_F2) && (showmaster)) {
-							//update from master
-							get_servers_from_master();
-						}
-						break;
-					//dialog screen : just ESC
-					case 2:
-						break;
-					//change name screen
-					case 3:
-
-						if (name_selected)
-							i = editplayername.length();
-						else
-							i = editplayerpass.length();
-
-						if (((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) || (ch == '-') || (ch == '_')) {
-
-							if (name_selected) {
-								if (i < 15) {
-									editplayername += static_cast<char>(ch);
-									editplayerpass = ""; //reset password after editing name
+							else if (sc == KEY_BACKSPACE) {
+								if (i > 0) {
+									if (showmaster) {
+										mgamespy[gi].address[i-1] = 0;
+										mgamespy[gi].refreshed = false;
+									}
+									else {
+										gamespy[gi].address[i-1] = 0;
+										gamespy[gi].refreshed = false;
+									}
 								}
 							}
-							else {
-								if (i < 8)
-									editplayerpass += static_cast<char>(ch);
+							else if (sc == KEY_ENTER) {
+								connect_command();
 							}
-						}
-						else if (sc == KEY_BACKSPACE) {
-							if (i > 0) {
+							else if (sc == KEY_TAB) {
+								showmaster = !showmaster;
+
+								//make the first refresh of favorites when showing it
+								if ((!showmaster) && (first_fav_refresh == false)) {
+									first_fav_refresh = true;
+									refresh_command();
+								}
+							}
+							else if ((sc == KEY_F2) && (showmaster)) {
+								//update from master
+								get_servers_from_master();
+							}
+							break;
+						//dialog screen : just ESC
+						case menu_dialog:
+							break;
+						//change name screen
+						case menu_name_password:
+							if (name_selected)
+								i = editplayername.length();
+							else
+								i = editplayerpass.length();
+
+							if (((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) || (ch == '-') || (ch == '_')) {
+
 								if (name_selected) {
-									editplayername.erase(editplayername.end() - 1);
-									editplayerpass = ""; //reset password after editing name
+									if (i < 15) {
+										editplayername += static_cast<char>(ch);
+										editplayerpass = ""; //reset password after editing name
+									}
 								}
-								else
-									editplayerpass.erase(editplayerpass.end() - 1);
+								else {
+									if (i < 8)
+										editplayerpass += static_cast<char>(ch);
+								}
 							}
-						}
-						else if (sc == KEY_ENTER) {
-							change_name_command();
-							//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
-							//conectado...
-							check_change_pass_command();
-						}
-						else if (sc == KEY_TAB)		// switch fields
-							name_selected = !name_selected;
-						break;
-					//wtf?
-					default:;
+							else if (sc == KEY_BACKSPACE) {
+								if (i > 0) {
+									if (name_selected) {
+										editplayername.erase(editplayername.end() - 1);
+										editplayerpass = ""; //reset password after editing name
+									}
+									else
+										editplayerpass.erase(editplayerpass.end() - 1);
+								}
+							}
+							else if (sc == KEY_ENTER) {
+								change_name_command();
+								//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
+								//conectado...
+								check_change_pass_command();
+							}
+							else if (sc == KEY_TAB)		// switch fields
+								name_selected = !name_selected;
+							break;
+						//wtf?
+						default:;
 					}
 				}
 			}
 			// menu not showing: send keypresses to the game
 			else {
-
 				bool sendnow = false;
 
 				// ctrl == fire event
-				//
 				if (key[KEY_LCONTROL] || key[KEY_RCONTROL]) {
 					if (!key_fire) {
 						key_fire = true;
@@ -2791,6 +2783,10 @@ void gameclient_c::loop() {
 					// toggle help
 					if (sc == KEY_F1)
 						toggle_help();
+					else if (sc == KEY_F2)
+						menu = menu_maps;
+					else if (sc == KEY_TAB)
+						menu = menu_players;
 
 					// change colours
 					if (sc == KEY_HOME) {
@@ -2846,21 +2842,18 @@ void gameclient_c::loop() {
 						//this cancels the attempt to connect
 						client->connect(false);
 						//go back to main screen
-						set_menu(0);
+						set_menu(menu_main);
 					}
 					//se mostrando help, quita
-					else if (helpshow) {
+					else if (helpshow)
 						toggle_help();
-					}
-					else if (!menushow) {		// no menu, show
-						menushow = true;
-						set_menu(0);
-					}
+					else if (menu == menu_none)		// no menu, show
+						set_menu(menu_main);
 					else {		// menu
-						if (menu > 0)		// go back one screen
-							set_menu(0);
+						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list)	// go back one screen
+							set_menu(menu_main);
 						else						// hide menu
-							menushow = false;
+							menu = menu_none;
 					}
 				}
 			}
@@ -2933,14 +2926,13 @@ void gameclient_c::loop() {
 			//int co = makecol(0x22, 0x22, 0x22);
 			//textprintf(drawbuf, font, 0, 0, co, "page-flipping = %i", page_flipping);
 			//textprintf(drawbuf, font, 0, 10, co, "port = %i", port);
-			menushow = true;
+			//menu = menu_main;
 		}
 
-		if (menushow)
-			draw_game_menu();	// draw the game menu
-
 		if (helpshow)
-			client_graphics.game_help();	// draw help
+			client_graphics.game_help();
+		else if (menu != menu_none)
+			draw_game_menu();
 
 		//if (page_flipping) {
 			//LOG("** releasing bitmap...");
@@ -3072,8 +3064,7 @@ gameclient_c::gameclient_c():
 	lastpackettime=0;
 
 	//menu showing?
-	menushow = false;
-	menu = 0;		//menu screen #
+	menu = menu_main;		//menu screen #
 
 	//game showing?
 	gameshow = false;
@@ -3277,15 +3268,13 @@ void gameclient_c::draw_game_frame() {
 		}
 
 		// the PLAY AREA: the players!
-		//
 		for (int k = 0; k < maxplayers; k++) {
-
 			//HACK REMENDEX: predict item_helm
-			if (fd.player[i].item_helm > 0) {
+			if (fd.player[i].item_helm()) {
 				int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
-				fd.player[i].item_helm = fx.player[i].item_helm - hspd;
-				if (fd.player[i].item_helm < 1)
-					fd.player[i].item_helm = 1;
+				fd.player[i].visibility = fx.player[i].visibility - hspd;
+				if (fd.player[i].visibility < 0)
+					fd.player[i].visibility = 0;
 			}
 
 			//indirection: draw in y-order
@@ -3294,12 +3283,9 @@ void gameclient_c::draw_game_frame() {
 
 			if (i >= 0 && fx.player[i].onscreen) {		// draw only players on my screen
 				//calcula alfa do player
-				int alpha = 255;
-				if (fd.player[i].item_helm > 0) {
-					alpha = fd.player[i].item_helm;
-					if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
-						alpha = MIN_ALPHA_FRIENDS;
-				}
+				int alpha = fd.player[i].visibility;
+				if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
+					alpha = MIN_ALPHA_FRIENDS;
 				client_graphics.draw_player_shadow(fx.player[i], alpha);	//#fix? fx -> fd to make shadow not jump
 				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
 				for (int t = 0; t < 2; t++)
@@ -3348,7 +3334,7 @@ void gameclient_c::draw_game_frame() {
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
-			if (option_show_names && fx.player[i].used && !(fx.player[i].item_helm && i / TSIZE != me / TSIZE)) {
+			if (option_show_names && fx.player[i].used && !(fx.player[i].visibility == 0 && i / TSIZE != me / TSIZE)) {
 				int ttx = (int)fd.player[i].lx;
 				int tty = (int)fd.player[i].ly;
 				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
@@ -3374,7 +3360,7 @@ void gameclient_c::draw_game_frame() {
 			if (!fx.flag[f].carried)
 				client_graphics.draw_mini_flag(f, fx.flag[f], fx.map);
 
-		vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm > 0) ? true : false);
+		vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_helm()) ? true : false);
 
 		// draw all teammates and enemies on screens where there are teammates
 		//draw all the players - put a pixel where they are
@@ -3518,7 +3504,6 @@ void gameclient_c::draw_game_frame() {
 
 	// player's power-ups
 	if (me >= 0) {
-
 		double val;
 		if (fx.player[me].item_quad) {
 			val = fx.player[me].item_quad_time - get_time();
@@ -3530,7 +3515,7 @@ void gameclient_c::draw_game_frame() {
 			if (val < 0) val = 0;
 			client_graphics.draw_player_turbo(val);
 		}
-		if (fx.player[me].item_helm) {
+		if (fx.player[me].item_helm()) {
 			val = fx.player[me].item_helm_time - get_time();
 			if (val < 0) val = 0;
 			client_graphics.draw_player_shadow(val);
@@ -3597,10 +3582,8 @@ void gameclient_c::draw_game_frame() {
 	if (get_time() > lastpackettime + 1.0)
 		client_graphics.show_not_responding_message();
 
-	if (key[KEY_TAB]) {
-		vector<ClientPlayer> players(fx.player, fx.player + MAX_PLAYERS);
-		client_graphics.draw_statistics(players);
-	}
+	if (key[KEY_TAB])
+		client_graphics.draw_statistics(fx.player);
 	else if (key[KEY_F2])
 		client_graphics.map_list(maps, current_map);
 	/*if (key[KEY_TAB]) {
@@ -3759,25 +3742,35 @@ void gameclient_c::draw_game_frame() {
 
 //draws the game menu
 void gameclient_c::draw_game_menu() {
-	if (menu == 0)
-		client_graphics.main_menu(connected, address, playername, namestatus,
-			listen_server_running, listen_port_running, client_sounds);
-	else if (menu == 1) {
-		if (showmaster) {
-			vector<gamespy_t> servers(mgamespy, mgamespy + MAX_GAMESPY);
-			client_graphics.public_servers(servers, gi);
-		}
-		else {
-			vector<gamespy_t> servers(gamespy, gamespy + MAX_GAMESPY);
-			client_graphics.favourite_servers(servers, gi);
-		}
+	switch (menu) {
+		case menu_main:
+			client_graphics.main_menu(connected, address, playername, namestatus,
+				listen_server_running, listen_port_running, client_sounds);
+			break;
+		case menu_server_list:
+			if (showmaster) {
+				vector<gamespy_t> servers(mgamespy, mgamespy + MAX_GAMESPY);
+				client_graphics.public_servers(servers, gi);
+			}
+			else {
+				vector<gamespy_t> servers(gamespy, gamespy + MAX_GAMESPY);
+				client_graphics.favourite_servers(servers, gi);
+			}
+			break;
+		case menu_dialog:
+			client_graphics.dialog(dialogmessage, dialogmessage2);
+			break;
+		case menu_name_password:
+			client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
+			break;
+		case menu_maps:
+			client_graphics.map_list(maps, current_map);
+			break;
+		case menu_players:
+			client_graphics.draw_statistics(fx.player);
+			break;
+		default: ;
 	}
-	else if (menu == 2)
-		client_graphics.dialog(dialogmessage, dialogmessage2);
-	else if (menu == 3)
-		client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
-	else
-		nAssert(0);
 }
 
 void gameclient_c::close_button_callback() {

@@ -586,12 +586,12 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == 36) {
 					if (ival == 0 || ival == 1)
-						worldConfig.shadow_minimum = ival==1?1:SV_SHADOW_MINIMUM_NORMAL;
+						worldConfig.shadow_minimum = ival == 1 ? 0 : SV_SHADOW_MINIMUM_NORMAL;
 					else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 				}
 				else if (cmd == 37) {
 					if (ival == 0 || ival == 1)
-						sayadmin_enabled = ival==1?true:false;
+						sayadmin_enabled = ival == 1 ? true : false;
 					else LOG1("Can't set sayadmin_enabled to %d\n", ival);
 				}
 				else if (cmd == 38) {
