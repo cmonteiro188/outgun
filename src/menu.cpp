@@ -555,11 +555,11 @@ int Textobject::height() const {
 void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
 	(void)active;
 	const int line_h = 12;
-	int visible_lines = 0;
 	if (start < 0)
 		start = 0;
 	if (start > static_cast<int>(lines.size()) - h / line_h)
 		start = lines.size() - h / line_h;
+	visible_lines = 0;
 	for (int i = start, y = y0; i < static_cast<int>(lines.size()); ++i) {
 		if (y + line_h > y0 + h)
 			break;
@@ -589,6 +589,10 @@ bool Textobject::handleKey(char scan, unsigned char chr) {
 		start = 0;
 	else if (scan == KEY_END)
 		start = INT_MAX;
+	else if (scan == KEY_PGUP)
+		start -= visible_lines;
+	else if (scan == KEY_PGDN)
+		start += visible_lines;
 	else
 		return false;
 	return true;
