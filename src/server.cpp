@@ -735,7 +735,7 @@ bool gameserver_c::start(int target_maxplayers) {
 				break;
 			admins.push_back(line);
 		}
-		LOG1("Loaded %ud administrator names\n", admins.size());
+		LOG1("Loaded %u administrator names\n", admins.size());
 	}
 	else
 		LOG("Couldn't load administrator names: no admins.txt\n");
