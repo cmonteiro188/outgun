@@ -1,0 +1,143 @@
+; Outgun server configuration file ("gamemod")
+;
+; Each line is either a comment (starting with ';') or a command and its
+; argument separated by a space or a tab. See doc\gamemod.html for
+; information on the effect of different commands.
+
+; ------------------
+;  GENERAL SETTINGS
+; ------------------
+
+; server_name: default: Anonymous host
+; max_players: an even number between 2 and 32, default: 16 or from arguments
+; welcome_message, info_message: max 79 characters per line, default: none
+; sayadmin_comment: max 30 characters, default: none
+; server_website, server_password: default: none
+; sayadmin_enabled, tournament, save_stats: 1 to enable, 0 to disable
+;   defaults: sayadmin_enabled 0, tournament 1, save_stats 0
+; idlekick_time: seconds, 10 or more, or 0 to disable, default: 120
+
+server_name Anonymous host
+;max_players 16
+;welcome_message Uncomment this line and replace with a message, or add lines.
+;info_message Uncomment this line and replace with your info, or add lines.
+sayadmin_enabled 0
+;sayadmin_comment insert comment here
+;server_password password
+tournament 1
+save_stats 0
+idlekick_time 120
+;server_website http://www.example.net/foo/
+
+; -----------------
+;  SERVER WEB SITE
+; -----------------
+
+; See http://koti.mbnet.fi/janir/outgun/script.html for instructions to configuring
+; your website and these settings to work together.
+
+; web_server: server's host name or IP, default: none
+; web_script: path of the script on the server, default: none
+; web_auth: username, ':', password, default: none
+; web_refresh: minutes, at least 1, default: 2
+
+;web_server www.example.net
+;web_script /path/script.php
+;web_auth user:pass
+web_refresh 2
+
+; --------------
+;  MAP ROTATION
+; --------------
+
+; map: one map name without path or .txt per line, default: none (all maps)
+; random_maprot: 1 to enable, 0 to disable, default: 0
+; vote_block_time: minutes, default: 0
+
+;map tutorial
+random_maprot 0
+vote_block_time 0
+
+; -------------
+;  GAME CONFIG
+; -------------
+
+; capture_limit: number of captures (0 = no limit), default: 8
+; time_limit: minutes (0 = no limit), default: 0
+; extra_time: minutes (allows 0), default: 0
+; sudden_death: 1 to enable, 0 to disable, default: 0
+; game_end_delay: seconds (allows 0), default: 5
+; balance_teams: no, balance or shuffle, default: no
+; friendly_fire, friendly_deathbringer: 1 to enable, 0 to disable, default: 0
+; respawn_time: (float) seconds, default: 2.0
+; waiting_time_deathbringer: (float) seconds, default: 4.0
+; rocket_damage: amount of energy, default: 70
+
+capture_limit 8
+time_limit 0
+extra_time 0
+sudden_death 0
+game_end_delay 5
+balance_teams no
+friendly_fire 0
+friendly_deathbringer 0
+respawn_time 2.0
+waiting_time_deathbringer 4.0
+rocket_damage 70
+
+; ----------
+;  POWERUPS
+; ----------
+
+; pups_min, pups_max: 0 to 32, or 0% to any %, defaults: 20%, 80%
+; pups_respawn_time: seconds (accepts 0), default: 25
+; pup_add_time, pup_max_time: seconds, defaults: 40, 100
+; pups_drop_at_death: 1 to enable, 0 to disable, default: 0
+; pup_weapon_max: 1 to 9, default: 9
+; pup_health_bonus: amount of energy, default: 160
+; pup_power_damage: (float) multiplier to rocket_damage, default: 2.0
+; pup_deathbringer_time: (float) seconds, default: 5.0
+; pup_deathbringer_switch: 1 to enable, 0 to disable, default: 1
+; pup_shadow_invisibility: 1 to enable, 0 to disable, default: 0
+; pup_chance_shield, turbo, shadow, power, weapon, megahealth, deathbringer:
+;   a number relative to the others, defaults: 16, 14, 14, 14, 18, 13, 11
+
+pups_min 20%
+pups_max 80%
+pups_respawn_time 25
+pup_add_time  40
+pup_max_time 100
+pups_drop_at_death 0
+pup_weapon_max 9
+pup_health_bonus 160
+pup_power_damage 2.0
+pup_deathbringer_time 5.0
+pup_deathbringer_switch 1
+pup_shadow_invisibility 0
+
+pup_chance_shield       16
+pup_chance_turbo        14
+pup_chance_shadow       14
+pup_chance_power        14
+pup_chance_weapon       18
+pup_chance_megahealth   13
+pup_chance_deathbringer 11
+
+; ---------
+;  PHYSICS
+; ---------
+
+; friction, drag, acceleration: (float) defaults: 0.09, 0.09, 1.44
+; run_acceleration, turbo_acceleration, flag_acceleration: (float)
+;   multipliers to acceleration, defaults: 1.77, 1.45, 0.90
+; player_collisions: 1 to enable, 0 to disable, default: 0
+
+friction     0.09
+drag         0.09
+acceleration 1.44
+
+run_acceleration   1.77
+turbo_acceleration 1.45
+flag_acceleration  0.90
+
+player_collisions 0

@@ -1,6 +1,7 @@
-For more information access these websites:
- the original Outgun website   http://www.amok.com.br/outgun/en/
- Nix's Outgun development page http://koti.mbnet.fi/npr/outgun/
+For more information access these resources:
+ game documentation              directory 'doc'
+ the original Outgun website     http://outgun.sf.net/en/
+ development by Nix and Huntta   http://koti.mbnet.fi/outgun/
  
 Controls
  
@@ -42,9 +43,10 @@ Health and energy
 Minimap
  
  On the upper-right corner of the screen is the minimap. It shows
- the contents of all rooms of the map that have your teammates.
+ all the players you and your teammates can see (and more with
+ the shadow powerup).
  
 Powerups
  
  If you see an item lying on the ground, grab it. It's a special
- power-up item.
+ powerup item.

@@ -1,9 +1,5 @@
-; This file is automatically rewritten whenever valid addresses are added.
-; New reserved names must be added manually: add lines "name <the name>"
-; and "password <the password>". Then you can add the IP's from the game
-; by typing "/auth <the name>,<the password>".
-;
-; e.g.
-;
-; name Einstein
-; password einstein-pass
+; This file is automatically rewritten whenever the ban list changes.
+; To reserve a name add a row:
+; user <name> <tab> <password>  or  admin <name> [<tab> <password>]
+; where <tab> is a tabulator character.
+; Passwordless admins need to authenticate by logging in to the tournament
