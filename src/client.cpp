@@ -1551,7 +1551,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 hy += (xy & 0xF0) << 4;
                 h.lx = hx * (plw / double(0xFFF));
                 h.ly = hy * (plh / double(0xFFF));
-                h.posUpdated = svframe;
 
                 typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
                 NLubyte byte;
@@ -1583,6 +1582,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 //read shadow byte
                 readByte(data, count, byt);
                 h.visibility = byt;
+
+                if (!h.dead && (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag()))
+                    h.posUpdated = svframe;
             }
 
             for (int round = 0; round < 2; ++round) {
@@ -2453,6 +2455,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().spawn(get_time());
+                if (!fx.player[pid].onscreen)   // this information is after the spawn
+                    fx.player[pid].posUpdated = 0;  // (probably) not seen in this life, if seen before spawning, not valid anymore
             }
 
             break; case data_team_movements_shots: {
@@ -3242,6 +3246,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             writeByte(lebuf, count, want_change_teams ? data_change_team_on : data_change_team_off);
             client->send_message(lebuf, count);
         }
+        break; case KEY_TAB:    // Prevent annoying Control+Tab character.
         break; default:
             // Add character to text
             if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
@@ -3795,8 +3800,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - 20) {
-                    if (pl.onscreen && i / TSIZE != me / TSIZE && pl.visibility < 10)  // visibility is valid only if onscreen
-                        continue;
                     static const int max_time = 20; // frames
                     static const int start_fadeout = 10;   // frames
                     int alpha;

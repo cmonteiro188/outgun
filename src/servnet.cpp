@@ -1534,7 +1534,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     for (int t = 0; t < 2; ++t) {
         normalView[t] = shadowView[t] = 0;
         for (int i = 0; i < maxplayers; ++i) {
-            if (!world.player[i].used)
+            if (!world.player[i].used || world.player[i].dead)  // dead enemies aren't seen, dead teammates don't see
                 continue;
             if (i / TSIZE == t) {
                 normalView[t] |= 1 << i;    // teammates always visible

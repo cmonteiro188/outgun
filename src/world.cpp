@@ -1850,7 +1850,11 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
     player[target].sy = 0;
 
     dropFlagIfAny(target);
-    player[target].respawn_time = get_time() + config.getRespawnTime() + time_penalty;
+
+    double timeDelay = config.getRespawnTime() + time_penalty;
+    if (player[target].item_deathbringer && timeDelay < 1.8)    // the time required for a deathbringer explosion to reach the other end of the screen
+        timeDelay = 1.8;
+    player[target].respawn_time = get_time() + timeDelay;
     player[target].stats().kill(get_time(), true);
     player[target].dead = true;
 }
@@ -2592,6 +2596,7 @@ void ServerWorld::simulateFrame() {
 
         // check for a player's deathbringer to bring death
         if (player[i].dead && player[i].item_deathbringer) {
+            // note: if any of this calculation is changed, also update the time constant 1.8 in resetPlayer
             const bool dbTeam = player[i].deathbringer_team;
             //delta time since shoot
             const double delta = (frame - player[i].item_deathbringer_time) * 0.1;
