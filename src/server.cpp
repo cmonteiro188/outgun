@@ -351,266 +351,190 @@ void gameserver_c::score_neg(int p, int amount) {
 }
 
 void gameserver_c::load_game_mod() {
-
-	char dest[WHERE_PATH_SIZE];
-	append_filename(dest, wheregamedir, "gamemod.txt", WHERE_PATH_SIZE);
-	FILE *fmod = fopen(dest, "r");
-	if (fmod) {
-
-		char s[1024];
-
+	char filename[WHERE_PATH_SIZE];
+	append_filename(filename, wheregamedir, "gamemod.txt", WHERE_PATH_SIZE);
+	ifstream in(filename);
+	if (in) {
 		bool command = true;
-		int cmd = 0;
 
-		LOG1("loading game mod from '%s'...\n", dest);
+		LOG1("Loading game mod from '%s'...\n", filename);
 
-		while (1) {
-			//char* fgets(char* s, int n, FILE* stream);
-			//Copies characters from (input) stream stream to s,
-			// stopping when n-1 characters copied, newline copied, end-of-file reached or error occurs.
-			//If no error, s is NUL-terminated. Returns NULL on end-of-file or error, s otherwise.
-
-			if (fgets((char*)s, 1024, fmod) == 0)
-				break;
-
-			s[ strlen(s) - 1] = 0;	//erase \n
-
-			//LOG1("modline '%s'\n", s);
-
-			if (s[0] == '\0')	//skip blank
+		string line, cmd;
+		while (getline_smart(in, line)) {
+			if (line[0] == ';')	//skip blank and comment
 				continue;
+			else if (command)
+				cmd = line;
+			else {	// parameter
+				double val = atof(line.c_str());
+				int ival = atoi(line.c_str());
 
-			if (s[0] == ';') // skip comment
-				continue;
-
-			if (command) {
-				if (!strcmp(s, "friction")) cmd = 1;
-				else if (!strcmp(s, "accel")) cmd = 2;
-				else if (!strcmp(s, "maxspeed")) cmd = 3;
-				else if (!strcmp(s, "friction_run")) cmd = 4;
-				else if (!strcmp(s, "accel_run")) cmd = 5;
-				else if (!strcmp(s, "maxspeed_run")) cmd = 6;
-				else if (!strcmp(s, "friction_turbo")) cmd = 7;
-				else if (!strcmp(s, "accel_turbo")) cmd = 8;
-				else if (!strcmp(s, "maxspeed_turbo")) cmd = 9;
-				else if (!strcmp(s, "friction_turborun")) cmd = 10;
-				else if (!strcmp(s, "accel_turborun")) cmd = 11;
-				else if (!strcmp(s, "maxspeed_turborun")) cmd = 12;
-				else if (!strcmp(s, "flag_penalty")) cmd = 13;
-				else if (!strcmp(s, "map")) cmd = 14;
-				else if (!strcmp(s, "pups_min")) cmd = 15;
-				else if (!strcmp(s, "pups_max")) cmd = 28;
-				else if (!strcmp(s, "pups_respawn_time")) cmd = 16;
-				else if (!strcmp(s, "pup_chance_shield")) cmd = 17;
-				else if (!strcmp(s, "pup_chance_turbo")) cmd = 18;
-				else if (!strcmp(s, "pup_chance_shadow")) cmd = 19;
-				else if (!strcmp(s, "pup_chance_power")) cmd = 20;
-				else if (!strcmp(s, "pup_chance_weapon")) cmd = 21;
-				else if (!strcmp(s, "pup_chance_megahealth")) cmd = 22;
-				else if (!strcmp(s, "pup_chance_deathbringer")) cmd = 23;
-				else if (!strcmp(s, "time_limit")) cmd = 24;
-				else if (!strcmp(s, "capture_limit")) cmd = 25;
-				else if (!strcmp(s, "welcome_message")) cmd = 26;
-				else if (!strcmp(s, "info_message")) cmd = 27;
-				// 28 = pups_max
-				else if (!strcmp(s, "pup_add_time")) cmd = 29;
-				else if (!strcmp(s, "pup_max_time")) cmd = 30;
-				else if (!strcmp(s, "pup_deathbringer_switch")) cmd = 31;
-				else if (!strcmp(s, "random_maprot")) cmd = 32;
-				else if (!strcmp(s, "vote_block_time")) cmd = 33;
-				else if (!strcmp(s, "respawn_time")) cmd = 34;
-				else if (!strcmp(s, "waiting_time_deathbringer")) cmd = 35;
-				else if (!strcmp(s, "pup_shadow_invisibility")) cmd = 36;
-				else if (!strcmp(s, "sayadmin_enabled")) cmd = 37;
-				else if (!strcmp(s, "sayadmin_comment")) cmd = 38;
-				else {
-					LOG1("*** Bad command in gamemod: %s\n", s);
-					cmd = 0;
-				}
-
-				//LOG1("is command %i\n", cmd);
-			}
-			else {
-				double val = 1.0;
-				int ival = 1;
-
-				sscanf(s, "%lf", &val);
-				sscanf(s, "%i", &ival);
-
-				//LOG3("set cmd %i value to %f from '%s'\n", cmd, val, s);
-				//LOG3("set cmd %i value to %i from '%s'\n", cmd, ival, s);
-
-				if (cmd == 1) {
+				if (cmd == "friction")
 					svp_fric = val;
-				}
-				else if (cmd == 2) {
+				else if (cmd == "accel")
 					svp_accel = val;
-				}
-				else if (cmd == 3) {
+				else if (cmd == "maxspeed")
 					svp_maxspeed = val;
-				}
-				else if (cmd == 4) {
+				else if (cmd == "friction_run")
 					svp_fric_run = val;
-				}
-				else if (cmd == 5) {
+				else if (cmd == "accel_run")
 					svp_accel_run = val;
-				}
-				else if (cmd == 6) {
+				else if (cmd == "maxspeed_run")
 					svp_maxspeed_run = val;
-				}
-				else if (cmd == 7) {
+				else if (cmd == "friction_turbo")
 					svp_fric_turbo = val;
-				}
-				else if (cmd == 8) {
+				else if (cmd == "accel_turbo")
 					svp_accel_turbo = val;
-				}
-				else if (cmd == 9) {
+				else if (cmd == "maxspeed_turbo")
 					svp_maxspeed_turbo = val;
-				}
-				else if (cmd == 10) {
+				else if (cmd == "friction_turborun")
 					svp_fric_turborun = val;
-				}
-				else if (cmd == 11) {
+				else if (cmd == "accel_turborun")
 					svp_accel_turborun = val;
-				}
-				else if (cmd == 12) {
+				else if (cmd == "maxspeed_turborun")
 					svp_maxspeed_turborun = val;
-				}
-				else if (cmd == 13) {
+				else if (cmd == "flag_penalty")
 					svp_flag_penalty = val;
-				}
-				else if (cmd == 14) {
+				else if (cmd == "map") {
 					MapInfo mi;
-					if (mi.load(s)) {
+					if (mi.load(line)) {
 						maprot.push_back(mi);
-						LOG1("Added '%s' to map rotation\n", s);
+						LOG1("Added '%s' to map rotation\n", line.c_str());
 					}
-					else
-						LOG1("Can't add '%s' to map rotation\n", s);
+					else {
+						LOG1("Can't add '%s' to map rotation\n", line.c_str());
+					}
 				}
-				else if (cmd == 15) {
-					if (strchr(s, '%')) {
+				else if (cmd == "pups_min") {
+					if (line.find('%') != string::npos) {
 						if (ival >= 0) {
 							pupConfig.pups_min = ival;
 							pupConfig.pups_min_percentage = true;
 						}
-						else LOG1("Can't set pups_min to %d%%\n", ival);
+						else {
+							LOG1("Can't set pups_min to %d%%\n", ival);
+						}
 					}
 					else if (ival >= 0 && ival <= MAX_PICKUPS) {
 						pupConfig.pups_min = ival;
 						pupConfig.pups_min_percentage = false;
 					}
-					else LOG1("Can't set pups_min to %d\n", ival);
+					else {
+						LOG1("Can't set pups_min to %d\n", ival);
+					}
 				}
-				else if (cmd == 28) {
-					if (strchr(s, '%')) {
+				else if (cmd == "pups_max") {
+					if (line.find('%') != string::npos) {
 						if (ival >= 0) {
 							pupConfig.pups_max = ival;
 							pupConfig.pups_max_percentage = true;
 						}
-						else LOG1("Can't set pups_max to %d%%\n", ival);
+						else {
+							LOG1("Can't set pups_max to %d%%\n", ival);
+						}
 					}
-					else if (ival>=0 && ival<=MAX_PICKUPS) {
+					else if (ival >= 0 && ival <= MAX_PICKUPS) {
 						pupConfig.pups_max = ival;
 						pupConfig.pups_max_percentage = false;
 					}
-					else LOG1("Can't set pups_max to %d\n", ival);
+					else {
+						LOG1("Can't set pups_max to %d\n", ival);
+					}
 				}
-				else if (cmd == 16) {
-					if (ival >= 0 && ival <= 60)
-						pupConfig.pups_respawn_time = ival;
-					else LOG1("Can't set pups_respawn_time to %d\n", ival);
-				}
-				else if (cmd == 17) {
+				else if (cmd == "pups_respawn_time")
+					pupConfig.pups_respawn_time = ival;
+				else if (cmd == "pup_chance_shield")
 					pupConfig.pup_chance_shield = ival;
-				}
-				else if (cmd == 18) {
+				else if (cmd == "pup_chance_turbo")
 					pupConfig.pup_chance_turbo = ival;
-				}
-				else if (cmd == 19) {
+				else if (cmd == "pup_chance_shadow")
 					pupConfig.pup_chance_shadow = ival;
-				}
-				else if (cmd == 20) {
+				else if (cmd == "pup_chance_power")
 					pupConfig.pup_chance_power = ival;
-				}
-				else if (cmd == 21) {
+				else if (cmd == "pup_chance_weapon")
 					pupConfig.pup_chance_weapon = ival;
-				}
-				else if (cmd == 22) {
+				else if (cmd == "pup_chance_megahealth")
 					pupConfig.pup_chance_megahealth = ival;
-				}
-				else if (cmd == 23) {
+				else if (cmd == "pup_chance_deathbringer")
 					pupConfig.pup_chance_deathbringer = ival;
-				}
-				else if (cmd == 24) {
+				else if (cmd == "time_limit") {
 					if (ival >= 0)
-						worldConfig.time_limit = 60 * 10 * ival; // convert minutes to frames
+						worldConfig.time_limit = 60 * 10 * ival; // minutes to frames
 				}
-				else if (cmd == 25) {
+				else if (cmd == "capture_limit") {
 					if (ival > 0)
 						worldConfig.capture_limit = ival;
 				}
-				else if (cmd == 26) {
-					welcome_message.push_back(s);
-				}
-				else if (cmd == 27) {
-					info_message.push_back(s);
-				}
-				else if (cmd == 29) {
-					if (ival > 0 && ival<1000)
+				else if (cmd == "welcome_message")
+					welcome_message.push_back(line);
+				else if (cmd == "info_message")
+					info_message.push_back(line);
+				else if (cmd == "pup_add_time") {
+					if (ival > 0 && ival < 1000)
 						pupConfig.pup_add_time = ival;
-					else LOG1("Can't set pup_add_time to %d\n", ival);
+					else
+						LOG1("Can't set pup_add_time to %d\n", ival);
 				}
-				else if (cmd == 30) {
-					if (ival > 0 && ival<1000)
+				else if (cmd == "pup_max_time") {
+					if (ival > 0 && ival < 1000)
 						pupConfig.pup_max_time = ival;
-					else LOG1("Can't set pup_max_time to %d\n", ival);
+					else
+						LOG1("Can't set pup_max_time to %d\n", ival);
 				}
-				else if (cmd == 31) {
+				else if (cmd == "pup_deathbringer_switch") {
 					if (ival == 0 || ival == 1)
-						pupConfig.pup_deathbringer_switch = ival==1?true:false;
-					else LOG1("Can't set pup_deathbringer_switch to %d\n", ival);
+						pupConfig.pup_deathbringer_switch = ival == 1 ? true : false;
+					else
+						LOG1("Can't set pup_deathbringer_switch to %d\n", ival);
 				}
-				else if (cmd == 32) {
+				else if (cmd == "random_maprot") {
 					if (ival == 0 || ival == 1)
-						random_maprot = ival==1?true:false;
-					else LOG1("Can't set random_maprot to %d\n", ival);
+						random_maprot = ival == 1 ? true : false;
+					else
+						LOG1("Can't set random_maprot to %d\n", ival);
 				}
-				else if (cmd == 33) {
+				else if (cmd == "vote_block_time") {
 					if (ival >= 0)
-						vote_block_time = 60*10*ival;	// minutes to frames
+						vote_block_time = 60 * 10 * ival;	// minutes to frames
 				}
-				else if (cmd == 34) {
+				else if (cmd == "respawn_time") {
 					if (val >= 0)
 						worldConfig.respawn_time = val;
 				}
-				else if (cmd == 35) {
+				else if (cmd == "waiting_time_deathbringer") {
 					if (val >= 0)
 						worldConfig.waiting_time_deathbringer = val;
 				}
-				else if (cmd == 36) {
+				else if (cmd == "pup_shadow_invisibility") {
 					if (ival == 0 || ival == 1)
 						worldConfig.shadow_minimum = ival == 1 ? 0 : SV_SHADOW_MINIMUM_NORMAL;
-					else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
+					else
+						LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 				}
-				else if (cmd == 37) {
+				else if (cmd == "sayadmin_enabled") {
 					if (ival == 0 || ival == 1)
 						sayadmin_enabled = ival == 1 ? true : false;
-					else LOG1("Can't set sayadmin_enabled to %d\n", ival);
+					else
+						LOG1("Can't set sayadmin_enabled to %d\n", ival);
 				}
-				else if (cmd == 38) {
-					sayadmin_comment = s;
-				}
+				else if (cmd == "sayadmin_comment")
+					sayadmin_comment = line;
+				/*else if (cmd == "idle_kick_time")
+					idle_kick_time = 60 * 10 * val;		// minutes to frames*/
+				else
+					LOG1("*** Bad command in gamemod: %s\n", cmd.c_str());
 			}
 
-			//parameter
+			// command or parameter
 			command = !command;
 		}
 
-		LOG("END OF MOD FILE.\n");
+		LOG("END OF GAME MOD FILE.\n");
 
-		fclose(fmod);
+		//in.close();
 	}
+	else
+		LOG("Can't open game mod file!\n");
 	world.setConfig(worldConfig, pupConfig);
 }
 
@@ -675,7 +599,7 @@ bool gameserver_c::server_next_map(int reason) {
 	gameover_time = get_time() + 5.0;		//5 secods timeout for gameover plaque
 
 	char lix[256];
-	sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap].file.c_str(), currmap+1, maprot.size());
+	sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap].title.c_str(), currmap+1, maprot.size());
 	network.broadcast_message(lix);
 
 	return true;
