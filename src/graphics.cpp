@@ -479,7 +479,7 @@ void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, fl
 	if (texture)
 		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 	rectfill(buffer, iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
-					 iround(x0 + scale * wall.x2()), iround(y0 + scale * wall.y2()), color);
+					 iround(x0 + scale * wall.x2() - 1), iround(y0 + scale * wall.y2() - 1), color);
 	if (texture)
 		solid_mode();
 }
@@ -515,7 +515,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
 	if (texture)
-		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, static_cast<int>(scale * (ro - x)), static_cast<int>(scale * (ro - y)));
+		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, iround(scale * (ro - x)), iround(scale * (ro - y)));
 	circlefill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * ro), color);
 	if (texture)
 		solid_mode();
@@ -583,7 +583,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		}
 		// draw back removed lines at n·90°
 		if (texture)
-			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, static_cast<int>(scale * (ro - x)), static_cast<int>(scale * (ro - y)));
+			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, iround(scale * (ro - x)), iround(scale * (ro - y)));
 		for (int i = 0; i < 2; i++) {
 			if (angle[i] == 0)
 				vline(cbuff, iround(scale * ro), iround(scale * (ro - ri)), 0, color);
