@@ -1,50 +1,5 @@
-/*
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
- *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- */
-
-/*
-
-	Outgun
-
-	A simple game with retro-graphics for net coding research purposes.
-
-	by Fábio Reis Cecin (frcecin@terra.com.br)
-	http://www.inf.ufrgs.br/~fcecin/outgun
-
-	GPL'ed version and
-	Linux packaging by Rafael Jannone (jannone@inf.ufrgs.br)
-
-*/
-
-#ifdef PUBLIC_SERVER
-
-//#define SV_SERVER_PHYSICS
-//#define SV_PHYS_VECTOR_ACC
-#define SV_SUPPORT_OLD_CLIENTS
-
-#else
-
 #define SV_SERVER_PHYSICS
 //#define SV_PHYS_VECTOR_ACC
-//#define SV_SUPPORT_OLD_CLIENTS
-#define CLIENT_SERVER_EXTENSIONS
-
-#endif
-
 
 // ---- server side defines
 
@@ -56,7 +11,6 @@
 
 // ---- client side defines
 
-#define CL_SUPPORT_OLD_SERVERS
 #define CL_MINIMAP_FLAGPOS	// paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS	// show a flag position marker on the ground
 #define CL_FLAGPOS_RAD 30	// the radius of the flag position marker
@@ -76,15 +30,6 @@
 #else
 #define SV_SHIFTY 0
 #endif
-
-#ifdef SV_SUPPORT_OLD_CLIENTS
-#define SV_COMPAT_PCNT "%%"
-#define CL_SUPPORT_OLD_SERVERS
-#else
-#define SV_COMPAT_PCNT "%"
-#define CLIENT_SERVER_EXTENSIONS
-#endif
-
 
 #ifdef SV_NAME_AUTHORIZATION
 #include "nameauth.h"
@@ -124,12 +69,6 @@ const char* strspnp(const char* str, const char* charset) {
 //DEBUGGING ranking?
 //#define DEBUG_RANKING
 
-//TURN OFF BOTS?
-#define NO_BOTS
-
-//maximum BOTSIZE variable value, absolute
-#define MAX_BOTSIZE 8
-
 //same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
 #define	SHOT_DELTAX	17	// V0.4.8 : A HAIR LESS!
 
@@ -138,7 +77,6 @@ const char* strspnp(const char* str, const char* charset) {
 
 //RANKING defines
 #define DEFAULT_PLAYER_RATE 1.0
-#define DEFAULT_BOT_PLAYER_RATE 1.0
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
 
 //#define SWITCH_PAUSE_CLIENT
@@ -1171,7 +1109,7 @@ bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double
 	return bounced;
 }
 
-#if !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
+#if !defined(SV_SERVER_PHYSICS)
 
 //wall hit?
 bool wallhit(double x, double y, const RectWall &w) { int ix=(int)x, iy=(int)y; return w.intersects_rect(ix, iy, ix, iy); }
@@ -1253,7 +1191,7 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 	return ever_had_wall_hit;
 }
 
-#endif	// !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
+#endif	// !defined(SV_SERVER_PHYSICS)
 
 //draw a wall, solid or nonsolid, texid, lum, in a map
 void drawwall_tex(Map *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
@@ -1370,8 +1308,6 @@ struct player_t {
 
 	bool			used;		// player record valid?
 
-	bool			isbot;	// BOTZ: TRUE when this player is a serverside bot
-
 	//server-side flag: waiting for this client to say that it has all the resources needed to play
 	bool			awaiting_client_ready;
 
@@ -1379,10 +1315,6 @@ struct player_t {
 	char			reg_status;
 	int				score, rank;
 	int				neg_score;			// V0.4.8 NEW VAR
-
-	//client-to-server bot configuration preferences:
-	NLubyte		botsize;		//target team sizes
-	NLubyte		botmode;		//wanted bot mode  0=default   1=use botsize   2=fill holes
 
 	int				weapon;	// poder da arma atual (nivel) 0,1,2,3,4 (...?)
 
@@ -1512,7 +1444,7 @@ struct player_t {
 		va_end(argptr);
 		add_to_queue(string(buf));
 	}
-	void clear(bool enable, bool is_bot, int _pid, int _cid, const char* _name) {
+	void clear(bool enable, int _pid, int _cid, const char* _name) {
 		ping = 0;
 		frags = 0;	//reset score ?
 		oldfrags = -666;
@@ -1557,11 +1489,6 @@ struct player_t {
 		last_spawn_time = start_time;
 		lifetime = 0;
 
-		// BOTZ: bot ou nao?
-		isbot = is_bot;
-			//default bot preferences
-		botmode = 0;
-		botsize = 0;
 			//score...  (V0.4.8 -- was missing!)
 		score = 0;
 		neg_score = 0;
@@ -1949,7 +1876,7 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 	return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy);
 }
 
-#if !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
+#if !defined(SV_SERVER_PHYSICS)
 bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
 	//
@@ -2058,7 +1985,7 @@ bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo
 	//wall collision correction
 	return wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
 }
-#endif	// !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
+#endif	// !defined(SV_SERVER_PHYSICS)
 
 //************************************************************
 //  server stuff
@@ -2068,9 +1995,6 @@ bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo
 // it is good if this delay is set to a minute or so, since this will
 // filter out people opening and closing servers frequently
 #define	DELAY_TO_REPORT_SERVER	10.0
-
-//bot frame extrapolation depth (numero de frames que o bot extrapola pra frente)
-#define BOT_XDEPTH 10
 
 //server_next_map() reasons
 enum {
@@ -2084,9 +2008,6 @@ enum {
 
 // client count
 int	player_count;
-
-// serverside bot count BOTZ
-int bot_count;
 
 // server callbacks
 int sfunc_client_hello(runes_t *arg);
@@ -2187,7 +2108,7 @@ public:
 
 	// the players
 	player_t	player[MAX_PLAYERS];
-	int				ctop[256];			// client id-to-player id index. ctop[255] reservado para lixo area de bots
+	int				ctop[256];			// client id-to-player id index
 
 	//the CLIENTS (v0.4.4  -- this should have been in here before)
 	oneclient_c	client[MAX_PLAYERS];
@@ -2200,13 +2121,6 @@ public:
 
 	//the current frame (game world simulation state)
 	frame_t		world;
-
-	//frames extrapoladas tempo zero: world  tempo 1 em diante:		xw[0] em diante
-	frame_t		xw[BOT_XDEPTH];
-
-	//bot target configuration
-	int  botmode;		//1= fill-in (default)  2= target team size
-	int  botsize;
 
 	// current frame count
 	NLulong		frame;
@@ -2309,7 +2223,7 @@ public:
 		else if (mode == 1)
 			plprintf(pid, "@WYou have been muted (you can't send messages)");
 		for (int i=0; i<MAX_PLAYERS; ++i)
-			if (player[i].used && !player[i].isbot && i!=pid) {
+			if (player[i].used && i!=pid) {
 				if (mode == 0)
 					plprintf(i, "@IThe admin has unmuted %s", player[pid].name);
 				else
@@ -2326,7 +2240,7 @@ public:
 			plprintf(pid, "@WWarning: you can get permanently banned for behaving badly!");
 		}
 		for (int i=0; i<MAX_PLAYERS; ++i)
-			if (player[i].used && !player[i].isbot && i!=pid)
+			if (player[i].used && i!=pid)
 				plprintf(i, "@IThe admin has %s %s (disconnect in 10 seconds)", ban?"banned":"kicked", player[pid].name);
 		player[pid].kickTimer = 10*10;
 	}
@@ -2697,7 +2611,6 @@ public:
 
 		for (int i=0;i<maxplayers;i++)
 		if (player[i].used)
-		if (!player[i].isbot)
 			send_player_name_update(player[i].cid, pid);
 
 		//server->broadcast_message(lebuf, count);
@@ -2740,7 +2653,6 @@ public:
 
 		for (int i=0;i<maxplayers;i++)
 		if (player[i].used)
-		if (!player[i].isbot)
 			send_player_crap_update(player[i].cid, pid);
 	}
 
@@ -2777,11 +2689,10 @@ public:
 			return;	//v0.3.3 : intervalos minimos para troca de times
 		}
 
-		//count players in each team - IGNORE BOTS
+		//count players in each team
 		int tc[2];tc[0]=0;tc[1]=0;
 		for (int i=0;i<maxplayers;i++)
 			if (player[i].used)
-			if (!player[i].isbot)		// IGNORE BOTS
 				tc[i/TSIZE]++;
 
 		//check if team changing happens: calculate delta TARGET TEAM - MY TEAM
@@ -2801,12 +2712,6 @@ public:
 					move_player(pid, i);	// move pid to free slot
 					break;
 				}
-				else if (player[i].isbot)  // bot
-				{
-					bot_disconnect(i); // DESCONECTA BOT primeiro
-					move_player(pid, i);	// move pid to free slot
-					break;
-				}
 			}
 		}
 		//case 2: target team with 0 player less: check for trade, else do nothing
@@ -2817,7 +2722,6 @@ public:
 
 			for (int i=0;i<maxplayers;i++)
 			if (player[i].used)	// um player
-			if (!player[i].isbot)		// player que NAO EH BOT
 			if (i/TSIZE != pid/TSIZE)		// do outro time
 			if (player[i].want_change_teams)		// que quer trocar de time
 			{
@@ -2836,12 +2740,6 @@ public:
 				{
 					if (!player[i].used)		// player vago
 					{
-						move_player(pid, i);	// move pid to free slot
-						break;
-					}
-					else if (player[i].isbot)  // bot
-					{
-						bot_disconnect(i); // DESCONECTA BOT primeiro
 						move_player(pid, i);	// move pid to free slot
 						break;
 					}
@@ -2866,8 +2764,6 @@ public:
 		if (player[a].used) {
 			broadcast_player_name(a);
 
-			if (!player[a].isbot) {
-
 				send_me_packet(a);
 				/*
 				count = 0;
@@ -2891,7 +2787,6 @@ public:
 
 				//name (NEEDED? FIXME - ja tem la em cima!)
 				//broadcast_player_name( a );
-			}
 
 			//message
 			bprintf("@I%s moved to %s team", player[a].name, teamname[a/TSIZE]);
@@ -2923,8 +2818,7 @@ public:
 		game_remove_player(f);
 
 		//update ctop
-		if (!player[t].isbot)
-			ctop[ player[t].cid ] = t;
+		ctop[ player[t].cid ] = t;
 
 		//I really dont want to change teams no more..
 		player[t].want_change_teams = false;
@@ -2950,10 +2844,8 @@ public:
 		swap(player[a], player[b]);
 
 		//swap client id's
-		if (!player[a].isbot)
-			ctop[ player[a].cid ] = a;
-		if (!player[b].isbot)
-			ctop[ player[b].cid ] = b;
+		ctop[ player[a].cid ] = a;
+		ctop[ player[b].cid ] = b;
 
 		//either don't want to change teams anymore
 		player[a].want_change_teams = false;
@@ -3163,12 +3055,10 @@ public:
 		player[pid].weapon = 0;		//default weapon
 
 		//notify player weapon power change
-		if (!player[pid].isbot) {
-			char lebuf[256]; int count = 0;
-			writeByte(lebuf, count, 18);		//player power change
-			writeByte(lebuf, count, ((NLubyte)player[pid].weapon) );
-			server->send_message(player[pid].cid, lebuf, count);
-		}
+		char lebuf[256]; int count = 0;
+		writeByte(lebuf, count, 18);		//player power change
+		writeByte(lebuf, count, ((NLubyte)player[pid].weapon) );
+		server->send_message(player[pid].cid, lebuf, count);
 
 		player[pid].item_shield = false;			// no items
 		player[pid].item_quad = false;
@@ -3181,16 +3071,6 @@ public:
 
 		player[pid].last_spawn_time = (int)get_time();
 		player[pid].dead = false;
-
-		#ifdef SV_SUPPORT_OLD_CLIENTS
-		// clear pup-list (the default client won't do it)
-		for (int iid=0; iid<MAX_PICKUPS; ++iid) {
-			char lebuf[256]; int count=0;
-			writeByte(lebuf, count, 16);	//	item removed
-			writeByte(lebuf, count, iid);
-			server->send_message(player[pid].cid, lebuf, count);
-		}
-		#endif
 
 		//for all effects, player screen changed
 		game_player_screen_change(pid);
@@ -3219,7 +3099,6 @@ public:
 		//send message to players that received the rocket
 		for (int p=0;p<maxplayers;p++)
 		if (player[p].used)								//still valid player? (nao custa checar..)
-		if (!player[p].isbot)							// not a bot !!!!
 		if (rock->vislist & (1 << p))			//verifica se o bit de "conhece o rocket" ta ligado
 		{
 			// send the message to this player
@@ -3387,7 +3266,6 @@ public:
 		NLulong  vislist = 0;
 		for (int p=0;p<maxplayers;p++)
 		if (player[p].used)
-		if (!player[p].isbot)	//not bot!!
 		if (player[p].x == px)
 		if (player[p].y == py) {
 			vislist += (1 << p);	// mark as sent
@@ -3435,17 +3313,13 @@ public:
 
 		//somatorio raw ratings
 		for (int p=0;p<maxplayers;p++)
-		if (player[p].used)
-			if (!player[p].isbot) {
-
-				// use "1.0" rating for anybody with less than 100 positive points
-				if (client[player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
-					raw[p/TSIZE] += DEFAULT_PLAYER_RATE;		// default player rate
-				else
-					raw[p/TSIZE] += ( ((double)client[player[p].cid].score) + 1.0) / ( ((double)client[player[p].cid].neg_score) + 1.0);
-			}
+		if (player[p].used) {
+			// use "1.0" rating for anybody with less than 100 positive points
+			if (client[player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
+				raw[p/TSIZE] += DEFAULT_PLAYER_RATE;		// default player rate
 			else
-				raw[p/TSIZE] += DEFAULT_BOT_PLAYER_RATE;		//soma 1.0 rating para cada bot
+				raw[p/TSIZE] += ( ((double)client[player[p].cid].score) + 1.0) / ( ((double)client[player[p].cid].neg_score) + 1.0);
+		}
 
 		//modifiers
 		team_smul[0] = raw[1] / raw[0];
@@ -3673,18 +3547,14 @@ public:
 		//update the ADMIN SHELL
 		if (shellssock) {
 			char lebuf[256]; int count; NLint result;
-			if (!player[attacker].isbot) {
-				count = 0;
-				writeLong(lebuf, count, STA_PLAYER_KILLS);
-				writeLong(lebuf, count, player[attacker].cid);
-				result = nlWrite(shellssock, lebuf, count);
-			}
-			if (!player[target].isbot) {
-				count = 0;
-				writeLong(lebuf, count, STA_PLAYER_DIES);
-				writeLong(lebuf, count, player[target].cid);
-				result = nlWrite(shellssock, lebuf, count);
-			}
+			count = 0;
+			writeLong(lebuf, count, STA_PLAYER_KILLS);
+			writeLong(lebuf, count, player[attacker].cid);
+			result = nlWrite(shellssock, lebuf, count);
+			count = 0;
+			writeLong(lebuf, count, STA_PLAYER_DIES);
+			writeLong(lebuf, count, player[target].cid);
+			result = nlWrite(shellssock, lebuf, count);
 		}
 
 		game_kill_player(target, false);
@@ -3703,9 +3573,6 @@ public:
 		player[pid].delayedMessages.clear();
 		ctop[player[pid].cid] = -1;
 		player[pid].used = false;
-
-		//bot prefs changed?
-		bot_prefs_change();
 	}
 
 	//restart ctf game
@@ -3716,7 +3583,6 @@ public:
 		//submit all pending reports
 		for (i=0;i<maxplayers;i++)
 		if (player[i].used)
-		if (!player[i].isbot)
 		{
 			cid = player[i].cid;
 			client_report_status(cid);
@@ -3853,7 +3719,6 @@ public:
 		//fixes "invisible powerup" problem, I hope
 		for (i=0;i<maxplayers;i++)
 		if (player[i].used)		//valid
-		if (!player[i].isbot)		//nonbot
 		if (player[i].x == px)	//on the screen of the item
 		if (player[i].y == py)
 		{
@@ -3962,13 +3827,11 @@ public:
 			player[p].item_speed = true;
 			player[p].item_speed_time = get_time() + itemTime;
 
-			if (!player[p].isbot) {
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 17);		//powerup time indicator
-				writeByte(lebuf, count, it->kind);		//what kind
-				writeShort(lebuf, count, (NLushort)itemTime);		//time
-				server->send_message(player[p].cid, lebuf, count);
-			}
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 17);		//powerup time indicator
+			writeByte(lebuf, count, it->kind);		//what kind
+			writeShort(lebuf, count, (NLushort)itemTime);		//time
+			server->send_message(player[p].cid, lebuf, count);
 
 			broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
 		}
@@ -3985,13 +3848,11 @@ public:
 			player[p].item_helm = 1;		//invis maximo de inicio
 			player[p].item_helm_time = get_time() + itemTime;
 
-			if (!player[p].isbot) {
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 17);		//powerup time indicator
-				writeByte(lebuf, count, it->kind);		//what kind
-				writeShort(lebuf, count, (NLushort)itemTime);		//time
-				server->send_message(player[p].cid, lebuf, count);
-			}
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 17);		//powerup time indicator
+			writeByte(lebuf, count, it->kind);		//what kind
+			writeShort(lebuf, count, (NLushort)itemTime);		//time
+			server->send_message(player[p].cid, lebuf, count);
 
 			broadcast_screen_sample(p, SAMPLE_HELM_ON);
 		}
@@ -4008,13 +3869,11 @@ public:
 			player[p].item_quad = true;
 			player[p].item_quad_time = get_time() + itemTime;
 
-			if (!player[p].isbot) {
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 17);		//powerup time indicator
-				writeByte(lebuf, count, it->kind);		//what kind
-				writeShort(lebuf, count, (NLushort)itemTime);		//time
-				server->send_message(player[p].cid, lebuf, count);
-			}
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 17);		//powerup time indicator
+			writeByte(lebuf, count, it->kind);		//what kind
+			writeShort(lebuf, count, (NLushort)itemTime);		//time
+			server->send_message(player[p].cid, lebuf, count);
 
 			broadcast_screen_sample(p, SAMPLE_QUAD_ON);
 		}
@@ -4032,12 +3891,10 @@ public:
 			}
 
 			//notify player weapon power change
-			if (!player[p].isbot) {
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 18);		//player power change
-				writeByte(lebuf, count, ((NLubyte)player[p].weapon) );
-				server->send_message(player[p].cid, lebuf, count);
-			}
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 18);		//player power change
+			writeByte(lebuf, count, ((NLubyte)player[p].weapon) );
+			server->send_message(player[p].cid, lebuf, count);
 
 			broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
 		}
@@ -4137,17 +3994,15 @@ public:
 				#endif	// SV_NO_PUP_SWITCHING
 
 				//send a "item on the screen" message
-				if (!player[p].isbot) {
-					char lebuf[256]; int count = 0;
-					writeByte(lebuf, count, 15);		//"item update"
-					writeByte(lebuf, count, (NLubyte)i);	//what item
-					writeByte(lebuf, count, (NLubyte)it->kind);	//kind
-					writeByte(lebuf, count, (NLubyte)it->px);		//screen
-					writeByte(lebuf, count, (NLubyte)it->py);
-					writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
-					writeShort(lebuf, count, (NLushort)it->y);
-					server->send_message(player[p].cid, lebuf, count);
-				}
+				char lebuf[256]; int count = 0;
+				writeByte(lebuf, count, 15);		//"item update"
+				writeByte(lebuf, count, (NLubyte)i);	//what item
+				writeByte(lebuf, count, (NLubyte)it->kind);	//kind
+				writeByte(lebuf, count, (NLubyte)it->px);		//screen
+				writeByte(lebuf, count, (NLubyte)it->py);
+				writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
+				writeShort(lebuf, count, (NLushort)it->y);
+				server->send_message(player[p].cid, lebuf, count);
 			}
 		}
 	}
@@ -4163,7 +4018,6 @@ public:
 		// send message only to teammates
 		for (int i=0;i<maxplayers;i++)
 		if (player[i].used)
-		if (!player[i].isbot)	// nao para bots!!
 		if ((i/TSIZE) == team) {
 			server->send_message(player[i].cid, lebuf, count);
 		}
@@ -4182,7 +4036,6 @@ public:
 
 		for (int j=0;j<maxplayers;j++)
 		if (player[j].used)
-		if (!player[j].isbot)		// nao para bots!!
 		if (player[j].x == px)
 		if (player[j].y == py)
 			server->send_message(player[j].cid, lebuf, count); //send the message
@@ -4231,7 +4084,6 @@ public:
 		writeByte(lebuf, count, 2);
 		writeString(lebuf, count, text);
 		if (player[pid].used)
-		if (!player[pid].isbot)	// nao para bots!
 			server->send_message(player[pid].cid, lebuf, count);
 	}
 
@@ -4241,7 +4093,7 @@ public:
 		writeByte(lebuf, count, 2);
 		writeString(lebuf, count, text);
 		for (int i=0;i<maxplayers;i++)
-			if (player[i].used && !player[i].isbot)
+			if (player[i].used)
 				server->send_message(player[i].cid, lebuf, count);
 		//send to the admin shell
 		if (shellssock) {
@@ -4609,7 +4461,7 @@ public:
 
 		// notify all players
 		for (int i=0;i<maxplayers;i++)
-			if (player[i].used && !player[i].isbot)
+			if (player[i].used)
 				send_map_change_message(i, reason, maprot[currmap].file.c_str());
 
 		char lix[256];
@@ -4625,7 +4477,7 @@ public:
 	void check_map_exit() {
 		int num_for = 0, num_against = 0;
 		for (int i=0; i<maxplayers; i++)
-			if (player[i].used && !player[i].isbot) {
+			if (player[i].used) {
 				if (player[i].want_map_exit)
 					num_for++;
 				else
@@ -4637,7 +4489,7 @@ public:
 		for (int m=0; m<(int)maprot.size(); ++m)
 			maprot[m].votes=0;
 		for (int p=0; p<maxplayers; ++p)
-			if (player[p].used && !player[p].isbot && player[p].mapVote!=-1)
+			if (player[p].used && player[p].mapVote!=-1)
 				++maprot[player[p].mapVote].votes;
 		#endif
 
@@ -4786,10 +4638,6 @@ public:
 			player[i].name[0]=0;
 		}
 
-		// reset bots
-		bot_count = 0;
-		bot_prefs_change();
-
 		if (!reset_settings())
 			return false;
 
@@ -4910,13 +4758,9 @@ public:
 
 		//v0.4.8 UGLY FIX : count all players again, check for discrepancy
 		int pc = 0;
-		for (int i=0;i<maxplayers;i++) {
-			if (player[i].used == true) {
-				if (player[i].isbot == false) {
-					pc++;
-				}
-			}
-		}
+		for (int i=0;i<maxplayers;i++)
+			if (player[i].used == true)
+				pc++;
 		if (pc != player_count) { //debug
 			LOG2("** update_serverinfo() BUG FOUND: PC=%i player_count=%i !\n", pc, player_count);
 		}
@@ -4928,517 +4772,20 @@ public:
 		server->set_server_info(sinfo);
 	}
 
-	// ---------- SERVER BOT API START -------------------------------------------
-
-	// INSERE (tenta inserir) UM BOT PLAYER NO JOGO
-	//  retorna: player id do bot criado ou -1 se o server ja ta full (tratar isso (-1) porque
-	//     pode acontecer de um player de carne e osso conectar no meio tempo)
-	//
-	// essa funcao aqui se chama de algum outro método aqui do gameserver_c mesmo. quer dizer,
-	// é a lógica do server é quem vai inserir ou remover bots do jogo. os clientes (players)
-	// até podem fazer parte do processo (pedir mais bots ou menos bots), mas eles entram so
-	// com requisicoes pro gameserver, que eh quem vai efetivamente colocar ou remover bots
-	// do jogo
-	int bot_connect() {
-
-		if (bot_count + player_count >= maxplayers)		// nao deixa extrapolar o maximo, nao custa nada checar isso
-			return -1;
-
-		// consuma a conexao pelas vias naturais
-		int bot_id = client_connected(-1, true);
-
-		// -1? erro (acho que e normal)
-		if (bot_id == -1)
-			return -1;
-
-		// mais um bots...
-		//bot_count++;
-		//char leex[333];
-		//sprintf(leex, "bot %i CONNECT new count = %i\n", bot_id, bot_count);
-		//broadcast_message(leex);
-
-		// trocando o nome do bot
-		//
-		//static int fakek_counter =0;
-		//sprintf(player[bot_id].name, "[BOT] P%i N%i", bot_id, fakek_counter++);
-		sprintf(player[bot_id].name, "[BOT] %s", RandomName().c_str() );
-		player[bot_id].name[15] = 0;	//max 15 chars
-
-		// send entered-game message
-		//
-		//char dummy[1] = { 0 };
-		//broadcast_message("@I%s added to the game%s", player[bot_id].name, dummy);
-		//broadcast_sample(SAMPLE_ENTERGAME);
-
-		// broadcast the new player's name
-		//
-		broadcast_player_name(bot_id);
-
-		//		aqui:		gameserver_c::player[bot_id]  <-- player_t que representa o bot
-
-		return bot_id;
-	}
-
-	// REMOVE UM BOT PLAYER DO JOGO
-	// valem as mesmas observacoes do bot_connect acima
-	// passa como parametro o id (player[id]) que o bot_connect te passou
-	//
-	void bot_disconnect(int bot_id) {
-
-		//if player not used, do not disconnect
-		if (!player[bot_id].used)
-			return;
-
-		// paranoia total
-		if (player[bot_id].isbot == false) {
-			LOG("\nERROR!!!!! ARGH QUE COISA ESTRANHA BOT_DISCONNECT() TENTANDO DESCONECTAR ALGUEM QUE NAO EH FLAGGED COMO BOT !!!\n");
-			throw 6789;
-			return;
-		}
-
-		// menos um bots...
-		//bot_count--;
-		//char leex[333];
-		//sprintf(leex, "bot %i disconnect new count = %i\n", bot_id, bot_count);
-		//broadcast_message(leex);
-
-		// consuma a desconexão por vias naturais
-		client_disconnected(bot_id, true);
-	}
-
-	//funcao invocada quando ha mudanca nas preferencias individuais de cada player sobre como
-	// cada um deles acha que os bots no server devem se comportar (numero de bots, modo de preenchimento
-	// com bots, etc.)
-	void bot_prefs_change() {
-
-		int mode[3];		//votos para modo[0] (sem opiniao), modo[1] (NO BOTS) e modo[2] (bot fill teams + extra)
-		mode[0]=mode[1]=mode[2]=0;
-		int sizeacum = 0;
-		int i;
-
-		// conta votos para modos e team sizes
-		for (i=0;i<maxplayers;i++)
-		if (player[i].used)
-		if (!player[i].isbot)
-		{
-			switch (player[i].botmode) {
-			case 0: mode[0]++; break;
-			case 1: mode[1]++; break;
-			case 2:
-				mode[2]++;
-				sizeacum += player[i].botsize;
-				break;
-			}
-		}
-
-		//se tem mais gente votando pra modo 2 (SIM BOTS) entao tem bots
-		if (mode[2] > mode[1]) {
-			botmode = 2;	//fit-to-size
-			botsize = sizeacum / mode[2];
-		}
-		//senao, nao poe bots
-		else
-			botmode = 1;	//NO BOTS new v0.4.7
-	}
-
-	// bot_before_frame
-	// aqui adicionar ou remover bots conforme necessidade
-	void bot_before_frame() {
-
-		//========================================================
-		// 1. check entrada e saida de bots
-		//========================================================
-
-		//V0.4.7: novos botmodes
-		int i;
-
-		//botmode 1: disconnect any and all bots
-		if (botmode == 1) {
-			for (i=0;i<maxplayers;i++)
-			if (player[i].used)
-			if (player[i].isbot)
-				bot_disconnect(i);
-		}
-		//botmode 2: fill teams and add some extra bots
-		//
-		// 1o) for the team with MOST HUMAN PLAYERS (any will do if equal #) compare number of bots
-		//     with botsize
-		//     IF EQUAL : ok
-		//     WHILE #BOTS GREATER : disconnect a bot
-		//     WHILE #BOTS LESSER : add a bot
-		// 2o) compare the TOTAL number of players of both teams
-		//     IF EQUAL : ok
-		//     WHILE #OTHER > #FIRST : disconnect a bot from OTHER
-		//     WHILE #OTHER < #FIRST : connect a bot to OTHER
-		//
-		else if (botmode == 2) {
-
-			//count HUMAN players, BOT players and TOTAL players in each team
-			int thc[2];thc[0]=0;thc[1]=0;
-			int tbc[2];tbc[0]=0;tbc[1]=0;
-			int ttc[2];ttc[0]=0;ttc[1]=0;
-			int i;
-			for (i=0;i<maxplayers;i++) {
-				if (player[i].used) {
-					if (player[i].isbot) {
-						tbc[i/TSIZE]++;
-						ttc[i/TSIZE]++;
-					}
-					else {
-						thc[i/TSIZE]++;
-						ttc[i/TSIZE]++;
-					}
-				}
-			}
-
-			//t is the team with most human players, or any of them
-			int t = rand() % 2;
-			if (thc[0] > thc[1])
-				t = 0;
-			else if (thc[1] > thc[0])
-				t = 1;
-
-			//ot is the other team
-			int ot = 1 - t;
-
-			//debug
-			static int derun;
-
-			//compare botsize with number of bots in team t
-			if (tbc[t] == botsize) {
-				//OK!
-			}
-			else if (tbc[t] > botsize) {
-				derun = 0;
-				//disconnect bots until equal
-				while (tbc[t] > botsize) {
-					if (derun++ > 1000)
-						throw 36661;
-					i = rand() % maxplayers;
-					if (i/TSIZE == t)
-					if (player[i].used)
-					if (player[i].isbot) {
-						//less one
-						bot_disconnect(i);
-						tbc[t]--;
-						ttc[t]--;
-					}
-				}
-			}
-			else if (tbc[t] < botsize) {
-				derun = 0;
-				//connect bots
-				while (tbc[t] < botsize) {
-					if (derun++ > 1000)
-						throw 36662;
-					int p = bot_connect();
-					if (p == -1)
-						break; //enough...
-					//another one...
-					tbc[t]++;
-					ttc[t]++;
-				}
-			}
-
-			//compare total number of players of other team with the t team
-			if (ttc[ot] == ttc[t]) {
-				//OK!
-			}
-			else if (ttc[ot] > ttc[t]) {
-				derun = 0;
-				//disconnect bots from other
-				while (ttc[ot] > ttc[t]) {
-					if (derun++ > 1000)
-						throw 36663;
-					i = rand() % maxplayers;
-					if (i/TSIZE == ot)
-					if (player[i].used)
-					if (player[i].isbot) {
-						//less one
-						bot_disconnect(i);
-						tbc[ot]--;
-						ttc[ot]--;
-					}
-				}
-			}
-			else if (ttc[ot] < ttc[t]) {
-				derun = 0;
-				//connect bots
-				while (ttc[ot] < ttc[t]) {
-					if (derun++ > 1000)
-						throw 36664;
-					int p = bot_connect();
-					if (p == -1)
-						break; //enough...
-					//another one...
-					tbc[ot]++;
-					ttc[ot]++;
-				}
-			}
-
-		}
-
-		/*
-		//fill-in
-		if (botmode == 1) {
-
-			//count HUMAN players in each team
-			int tc[2];tc[0]=0;tc[1]=0;
-			int i;
-			for (i=0;i<maxplayers;i++)
-				if (player[i].used)
-				if (!player[i].isbot)
-					tc[i/TSIZE]++;
-
-			// 0. disconnect all bots from team that has the most human players
-
-			int t = -1;
-			if (tc[0] > tc[1])
-				t = 0;
-			else if (tc[1] > tc[0])
-				t = 1;
-
-			//same number of humans in both teams
-			if (t == -1) {
-
-				//simply disconnect any and all bots from the game
-				for (i=0;i<maxplayers;i++)
-				if (player[i].used)
-				if (player[i].isbot)
-					bot_disconnect(i);
-
-			}
-			//team t has the most human players
-			else {
-
-				// 0. disconnect all bots from team t
-				for (i=0;i<maxplayers;i++)
-				if (i/TSIZE == t)	//that team
-				if (player[i].used)		//valid
-				if (player[i].isbot)	//bot
-					bot_disconnect(i);	//bye
-
-				// 0,5 recalc number of players in each team
-				//count players in each team
-				tc[0]=tc[1]=0;
-				for (i=0;i<maxplayers;i++)
-					if (player[i].used)
-						tc[i/TSIZE]++;
-
-				// 1. disconnect bots from team that has most players, until number of players is the same
-				// or the team with most players runs out of bots
-
-				int t = -1;
-				if (tc[0] > tc[1])
-					t = 0;
-				else if (tc[1] > tc[0])
-					t = 1;
-
-				//is there a team that has most players?
-				if (t != -1) {
-
-					for (i=0;i<maxplayers;i++)
-					if (i/TSIZE == t) // player of that team
-					if (player[i].used)	//valid
-					if (player[i].isbot)	//bot
-					if (tc[t] > tc[1-t])	//time continua com mais gente
-					{
-						tc[t]--;	//menos um
-						bot_disconnect(i);	//tira o bot
-					}
-				}
-
-				// 2. connect bots until number of players is the same
-
-				while (tc[0] != tc[1])	//um dos timem continua com menos gente
-				{
-					int pid = bot_connect();	//coloca um bot - ja vai pro time com menos gente
-					tc[pid/TSIZE]++;							//mais um pra esse time
-				}
-
-			}//t != -1
-		}
-		//set to target team size
-		else if (botmode == 2) {
-
-			//count players in each team
-			int tc[2];tc[0]=0;tc[1]=0;
-			int i;
-			for (i=0;i<maxplayers;i++)
-				if (player[i].used)
-					tc[i/TSIZE]++;
-
-			//for both teams
-			for (int t=0;t<2;t++) {
-
-				//keep disconnecting bots until no bots left or tc[t] == botsize
-				if (tc[t] > botsize) {
-
-					for (i=0;i<maxplayers;i++)
-					if (i/TSIZE == t)					//do time
-					if (player[i].used)		//player used
-					if (player[i].isbot)	//eh bot
-					if (tc[t] > botsize)	//time ainda ta grande demais
-					{
-						tc[t]--;		//menos um
-						bot_disconnect(i);	//remove o bot
-					}
-
-				}
-			}
-
-			//connect bots until same number of players on both teams
-			while ((tc[0] < botsize) || (tc[1] < botsize)) {
-
-				//add a bot
-				int pid = bot_connect();
-
-				//update counter of the team the bot went
-				tc[pid/TSIZE]++;
-			}
-
-		}
-*/
-		//========================================================
-		// 2. calcula extrapolated frames
-		//========================================================
-
-		int fwd;	//forward frame count. 0= +100ms 1= +200ms ...
-		for (fwd=0;fwd<BOT_XDEPTH;fwd++) {
-
-			if (fwd == 0) {
-				//world to xw[0]
-
-				// start by copying state
-				memcpy(&xw[0], &world, sizeof(frame_t));
-
-				// run physics frame for all players
-				for (int p=0;p<maxplayers;p++)
-				if (player[p].used)
-					run_server_player_physics(p, &world, &xw[0]);	//player id, frame source, frame dest
-			}
-			else {
-				//xw[fwd-1] to xw[fwd]
-
-				// start by copying state
-				memcpy(&xw[fwd], &xw[fwd-1], sizeof(frame_t));
-
-				// run physics frame for all players
-				for (int p=0;p<maxplayers;p++)
-				if (player[p].used)
-					run_server_player_physics(p, &xw[fwd-1], &xw[fwd]);	//player id, frame source, frame dest
-			}
-
-			// update rocket coordinates
-			for (int r=0;r<MAX_ROCKETS;r++) {
-
-				rocket_c *rock = &xw[fwd].rock[r];
-				rocket_c *oldrock;
-				if (fwd == 0)
-					oldrock = &world.rock[r];
-				else
-					oldrock = &xw[fwd-1].rock[r];
-
-				if (rock->owner != -1)
-				{
-					//move-se
-					rock->x = oldrock->x + rock->sx;
-					rock->y = oldrock->y + rock->sy;
-
-					//out of bounds
-					if ((rock->x < -20) || (rock->y < -20) || (rock->x > plw + 20) || (rock->y > plh + 20)) {
-						rock->owner = -1;	//just remove it. clients will figure out the same
-					}
-				}
-			}
-		}
-
-		//========================================================
-		// 3. FIXME MAKE-ME : calcula alguma coisa pros bots, baseado
-		//    no extrapolated frame acima
-		//========================================================
-
-		// **** FIXME ****
-
-	}
-
-	// ******************************************************************************************
-	// ******************************************************************************************
-	//BOTZ!!!
-	// !!!! NESSA FUNÇÃO É ONDE VAI A INTELIGENCIA ARTIFICIAL DO SUPER HIPER BOT DO JANNONE !!!!!
-	//
-	//  bot_frame_think()
-	//  entradas:
-	//     1. int bi: player id (indice do array "player" que deve estar no escopo da funcao)
-	//     2. uma porrada de variaveis do gameserver_c, caso voce nao tenha notado (perfeitamente
-	//        compreensivel devido ao tamanho dessa porcaria) essa funcao eh um metodo de
-	//        gameserver_c, entao o bot enxerga tudo que o server enxerga (maps, jogadores, etc.)
-	//        o bot pode ate roubar e ir correndo atras de powerups e pessoas que ele nao enxerga!!
-	//        --> PERGUNTAR PRO FABIO PARA QUE VARIAVEIS PERGUNTAR QUAIS INFORMACOES O BOT PRECISA
-	//
-	//    essa funcao vai ser chamada de 100 em 100 milisegundos, ou seja, sempre que o server
-	//    realizar um step de simulacao (aquela coisa suave clientside eh pura extrapolacao de
-	//    movimento). o objetivo dessa funcao eh o bot dizer, para essa frame, que teclas ele
-	//    estah pressionando (o input dele)
-	//
-	//  saida:
-	//     a saida do bot escreve direto nessas vars: (eu sei, tah podre, fazer o que:)
-	//     world.hero[bi].l  :  se esta pressionando a tecla de "move left"
-	//     world.hero[bi].r  :  se esta pressionando a tecla de "move right"
-	//     world.hero[bi].u  :  se esta pressionando a tecla de "move up"
-	//     world.hero[bi].d  :  se esta pressionando a tecla de "move down"
-	//     world.hero[bi].run : se esta pressionando a tecla de "run"
-	//    (*** ATENCAO ACHO QUE BOT NAO PRECISA DO STRAFE -- USAR "GUNDIR" DIRETO ***)
-	//     world.hero[bi].strafe :  se esta pressionando a tecla de "strafe"
-	//     world.hero[bi].gundir :  gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
-	//                              gundir=0 eh pra direita, e vai aumentando 1 por 1 girando em sentido horario ate 7 (sao 8 angulos diferentes)
-	//     player[bi].attack : true se esta pressionando a tecla de ataque (nao significa que
-	//                         vai sair um tiro na proxima frame, pois tem o delay do tiro, que
-	//											da' pra ser lido de player[bi].next_shoot_time)
-	//
-	// ******************************************************************************************
-	// ******************************************************************************************
-	void bot_frame_think(int bi) {
-
-		// bot mutcho louco!
-		//
-		world.hero[bi].l = (rand() % 2) == 0;
-		world.hero[bi].r = (rand() % 2) == 0;
-		world.hero[bi].u = (rand() % 2) == 0;
-		world.hero[bi].d = (rand() % 2) == 0;
-		world.hero[bi].run    = (rand() % 2) == 0;
-		world.hero[bi].gundir = rand() % 8;		//0..7
-		player[bi].attack     = (rand() % 2) == 0;
-	}
-
-	// ---------- SERVER BOT API END ---------------------------------------------
-
-	//client connected (callback function)
-	// se is_bot, significa que é um BOT! essa funcao eh chamada pelo callback do leet server
-	//  quando eh um client de carne e osso, e tambem chamada pelo BOT_CONNECT para conectar um bot
-	//  pelas vias naturais
-	//
-	//NEW! a funcao retorna o player id alocado, bom para bots
-	//
-	int client_connected(int id, bool is_bot) {
+	int client_connected(int id) {
 
 		//2TEAM: check wich team to put player
 		int t1, t2, targ;
 		t1 = 0;		//red team count
 		t2 = 0;		//blue team count
 		int i;
-		for (i=0;i<maxplayers;i++) {
-			if (player[i].used)
-			if ((!is_bot) && (player[i].isbot))	//NAO CONTA BOTS SE NAO FOR BOT!
-			{
-				//nop
-			}
-			else
+		for (i=0;i<maxplayers;i++)
+			if (player[i].used) {
 				if (i/TSIZE == 0)
 					t1++;
 				else
 					t2++;
-		}
+			}
 
 		//put on red team, blue team, or randomize if same # of players in both teams
 		if (t1 < t2)
@@ -5465,25 +4812,17 @@ public:
 
 		for (i=targ;i<(targ+TSIZE);i++)
 		{
-			//UPDATE: sobrescreve bots SE NAO EH BOT
-			if ((!player[i].used) || ((player[i].isbot) && (!is_bot)) )
+			if (!player[i].used)
 			{
-				//se bot, tira
-				if (player[i].isbot)
-					bot_disconnect(i);
-
 				// add player to players_present
 				//players_present = players_present | (1 << i);
 
 				// init player
 				int cid;
-				if (is_bot)
-					cid=222+i;
-				else
-					cid=id;
+				cid=id;
 				ctop[cid]=i;
 
-				player[i].clear(true, is_bot, i, cid, SERVER_DEFAULT_PLAYER_NAME);
+				player[i].clear(true, i, cid, SERVER_DEFAULT_PLAYER_NAME);
 
 				myself = i;
 
@@ -5512,56 +4851,48 @@ public:
 		}
 
 		//CONNECT OK: another one...
-		if (!is_bot)
-			player_count++;
-		else
-			bot_count++;
+		player_count++;
 
 		// se o player_count ficou == 2, reseta partida
 		//
-		if (player_count + bot_count == 2)
+		if (player_count == 2)
 			ctf_game_restart();
 
 		//char lelix[222];
 		//sprintf(lelix, "PCOUNT = %i BCOUNT = %i\n", player_count, bot_count);
 		//broadcast_message(lelix);
 
-		// "if not a bot..." inits
+		char lebuf[256]; int count;
+
+		//**** V0.4.4 : init oneclient_c ****
+		client[id].reset();
+		client[id].token_have = false;		// no token
+
+		//first update the ADMIN SHELL
+		if (shellssock) {
+			count = 0;
+			writeLong(lebuf, count, STA_PLAYER_CONNECTED);
+			writeLong(lebuf, count, player[myself].cid);
+			nlWrite(shellssock, lebuf, count);
+		}
+
+		//update the player with world information
+		//	- who is he (player #)
+
+		send_me_packet(myself);
+
+		// - world ctf flags information
+		ctf_net_flag_status(id, 0);
+		ctf_net_flag_status(id, 1);
+
+		// MAP NAME+CRC !!! VERY IMPORTANT
 		//
-		if (!is_bot) {
+		send_map_change_message(myself, NEXTMAP_NONE, maprot[currmap].file.c_str());
 
-			char lebuf[256]; int count;
+		// - all other player's names
+		// - all other player's frags
 
-			//**** V0.4.4 : init oneclient_c ****
-			//		v0.4.7: IF NOT A BOT !!!
-			client[id].reset();
-			client[id].token_have = false;		// no token
-
-			//first update the ADMIN SHELL
-			if (shellssock) {
-				count = 0;
-				writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-				writeLong(lebuf, count, player[myself].cid);
-				nlWrite(shellssock, lebuf, count);
-			}
-
-			//update the player with world information
-			//	- who is he (player #)
-
-			send_me_packet(myself);
-
-			// - world ctf flags information
-			ctf_net_flag_status(id, 0);
-			ctf_net_flag_status(id, 1);
-
-			// MAP NAME+CRC !!! VERY IMPORTANT
-			//
-			send_map_change_message(myself, NEXTMAP_NONE, maprot[currmap].file.c_str());
-
-			// - all other player's names
-			// - all other player's frags
-
-			for (i=0;i<maxplayers;i++)
+		for (i=0;i<maxplayers;i++)
 			if (player[i].used)
 			if (i != myself) {
 
@@ -5585,9 +4916,8 @@ public:
 				send_player_crap_update(id, i);
 			}
 
-			for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
-				player[myself].add_to_queue(*line);
-		}
+		for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
+			player[myself].add_to_queue(*line);
 
 		//check for team changes
 		//
@@ -5604,61 +4934,45 @@ public:
 	//client disconnected (callback function)
 	//
 	// mesmas observacoes para client_connect. adicionalmente:
-	//  se is_bot == true, entao id eh um PLAYER ID
-	//  se is_bot == false, entao id eh um CLIENT ID
 	//
-	void client_disconnected(int id, bool is_bot) {
-		if (!is_bot && ctop[id]==-1)
+	void client_disconnected(int id) {
+		if (ctop[id]==-1)
 			return;
 
 		int pid;
 
-		if (!is_bot) {
+		//less one...
+		player_count--;
 
-			//less one...
-			player_count--;
+		//what player
+		pid = ctop[id];
 
-			//what player
-			pid = ctop[id];
-
-			//first update the ADMIN SHELL
-			if (shellssock) {
-				char lebuf[256]; int count;
-				count = 0;
-				writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
-				writeLong(lebuf, count, player[pid].cid);
-				nlWrite(shellssock, lebuf, count);
-			}
-
-			//broadcast a textual message "Player BLABLA left the game"
-			bprintf("@I%s left the game with %i frags", player[pid].name, player[pid].frags);
-
-			//sound
-			broadcast_sample(SAMPLE_LEFTGAME);
-
-			//report the latest player achievements to the master server
-			client_report_status(id);
-
-			//clear oneclient_c
-			client[id].reset();
+		//first update the ADMIN SHELL
+		if (shellssock) {
+			char lebuf[256]; int count;
+			count = 0;
+			writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
+			writeLong(lebuf, count, player[pid].cid);
+			nlWrite(shellssock, lebuf, count);
 		}
-		else {
 
-			//less one...
-			bot_count--;
+		//broadcast a textual message "Player BLABLA left the game"
+		bprintf("@I%s left the game with %i frags", player[pid].name, player[pid].frags);
 
-			//se bot, pid eh o proprio id
-			pid = id;
-		}
+		//sound
+		broadcast_sample(SAMPLE_LEFTGAME);
+
+		//report the latest player achievements to the master server
+		client_report_status(id);
+
+		//clear oneclient_c
+		client[id].reset();
 
 		//remove player from the game
 		game_remove_player(pid);
 
-		//check for team changes - APENAS se nao era bot. bots saindo/entrando nao devem afetar isso!
-		if (!is_bot) {
-			check_team_changes();
-			check_map_exit();
-		}
+		check_team_changes();
+		check_map_exit();
 
 		//update serverinfo
 		update_serverinfo();
@@ -5771,7 +5085,7 @@ public:
 						//readString(msg, count, player[pid].name); //name update request
 						strcpy(player[pid].name, "(invalid name)");
 						if (strpbrk(tempname, "%@")!=NULL)
-							player[pid].add_to_queue("@WSorry, this server doesn't accept " SV_COMPAT_PCNT " or @ in a name");
+							player[pid].add_to_queue("@WSorry, this server doesn't accept % or @ in a name");
 						else if (strspnp(tempname, " ")==NULL)
 							player[pid].add_to_queue("@WPlease enter a name");
 						else {
@@ -5823,24 +5137,7 @@ public:
 				}
 				//chat!
 				else if (code == 2) {
-					#ifdef SV_SUPPORT_OLD_CLIENTS
-					// remove single %'s
-					char sbuf[strlen(msg+1)+1];
-					int si=0, mi=1;
-					do {
-						if (msg[mi]!='%')
-							sbuf[si++]=msg[mi++];
-						else if (msg[mi+1]=='%') {	// allow pairs of '%' only
-							sbuf[si++]='%';
-							sbuf[si++]='%';
-							mi+=2;
-						}
-						else
-							++mi;
-					} while (msg[mi-1]!='\0');
-					#else
 					const char* sbuf=msg+1;
-					#endif
 					#ifdef SV_CONSOLE
 					// handle 'console' commands
 					if (player[pid].delayedMessages.size()>2) {
@@ -5906,10 +5203,10 @@ public:
 							if (shadow_minimum == 1)
 								player[pid].queue_printf("- A player using the shadow power-up gets totally invisible");
 							ostringstream pupstr;
-							pupstr << "- Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << SV_COMPAT_PCNT;
-							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << SV_COMPAT_PCNT;
+							pupstr << "- Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << '%';
+							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << '%';
 							if (pups_min_percentage || pups_max_percentage)
-								pupstr << " (" SV_COMPAT_PCNT " of map size)";
+								pupstr << " (% of map size)";
 							player[pid].add_to_queue(pupstr.str());
 							#ifdef SV_SERVER_PHYSICS
 							player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
@@ -6066,7 +5363,7 @@ public:
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
-							player[pid].queue_printf(" Shots: %d shot, accuracy %d" SV_COMPAT_PCNT SV_COMPAT_PCNT ", %d taken",
+							player[pid].queue_printf(" Shots: %d shot, accuracy %d%%, %d taken",
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
@@ -6200,20 +5497,6 @@ public:
 						player[pid].want_change_teams = false;
 						player[pid].team_change_pending = false; //so pra garantir
 						//broadcast_message("@I%s player '%s' don't want to change teams", teamname[pid/TSIZE], player[pid].name);
-					}
-				}
-				// game preferences update
-				else if (code == 19) {
-					NLubyte prefcode;
-					readByte(msg, count, prefcode);
-					if (prefcode == 1) {
-						//bot preferences
-						readByte(msg, count, player[pid].botmode);
-						readByte(msg, count, player[pid].botsize);
-						bot_prefs_change();
-					}
-					else {
-						//unknown preferences --- just discard message
 					}
 				}
 				// "client ready" message
@@ -6354,13 +5637,11 @@ public:
 						//broadcast his crap
 						broadcast_player_crap( ctop[id] );
 				}
-				#ifdef CLIENT_SERVER_EXTENSIONS
 				// drop flag
 				else if (code == 34) {
 					player[pid].dropped_flag = true;
 					ctf_drop_flag_if_any(pid);
 				}
-				#endif
 				else {
 					//ERROR: unknown message from client
 					LOG3("ERROR: UNKNOWN MESSAGE FROM CLIENT %i CODE=%i LENGTH=%i\n", id, code, msglen);
@@ -6402,23 +5683,7 @@ public:
 		float startx = hd->x, starty = hd->y;
 
 		#ifdef SV_SERVER_PHYSICS
-			bool realBounce = NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
-
-			#ifdef SV_SUPPORT_OLD_CLIENTS
-			if (realBounce) {
-				hero_t testHero = src->hero[i];
-				bool clientBounce = applyDefaultPhysics(&testHero, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
-				//player bounced: play bounce sample if minimum time elapsed
-				if (!clientBounce && get_time() > player[i].wall_sound_time || get_time() + 0.2 < player[i].wall_sound_time) {	// second test means w_s_t is invalid (since it is not initialized, ever)
-					player[i].wall_sound_time = get_time() + 0.2;
-					broadcast_screen_sample(i, SAMPLE_WALLBOUNCE);
-				}
-				else if (clientBounce)
-					player[i].wall_sound_time = get_time() + 0.2;
-			}
-			#else
-			(void)realBounce;
-			#endif
+			NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 		#else
 			applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 		#endif
@@ -6639,9 +5904,6 @@ public:
 		{
 			rocket_c *rock = &(world.rock[i]);
 
-			#if defined(SV_SERVER_PHYSICS) && defined(SV_SUPPORT_OLD_CLIENTS)
-			bool NR_hit=false;
-			#endif
 			//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
 			int t;
 			for (t=0;t<10;t++)
@@ -6661,7 +5923,7 @@ public:
 				}
 
 				//wall hit - remove
-				#if !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
+				#if !defined(SV_SERVER_PHYSICS)
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
 					rock->owner=-1;
 					t=999;break;
@@ -6669,15 +5931,11 @@ public:
 				#endif
 				#ifdef SV_SERVER_PHYSICS
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-SV_SHIFTY-2, (int)rock->x+2, (int)rock->y-SV_SHIFTY+2)) {
-					#ifdef SV_SUPPORT_OLD_CLIENTS
-					NR_hit=true;
-					#else
 					rock->owner=-1;
 					t=999;
 					break;
-					#endif
 				}
-				#endif	// SV_SERVER_PHYSICS
+				#endif
 
 				// check if a player (alive) is hit by this rocket now
 				//
@@ -6742,10 +6000,6 @@ public:
 				}
 
 			}
-			#if defined(SV_SERVER_PHYSICS) && defined(SV_SUPPORT_OLD_CLIENTS)
-			if (t==10 && NR_hit)	//# ugly fix to remove rockets inside walls under new physics, only when clients won't
-				game_delete_rocket(i, (int)rock->x, (int)rock->y, 255);
-			#endif
 		}
 
 		// for each player, update positions & speeds
@@ -6773,7 +6027,6 @@ public:
 				run_server_player_physics(i, &world, &world);	//player id, frame source, frame dest
 
 				//OUT : copy screen information from hero back to player
-				// (for bots)
 				if ((player[i].x != h->tx) || (player[i].y != h->ty))
 				{
 					player[i].x = h->tx;
@@ -7024,13 +6277,11 @@ public:
 					player[i].total_captures++;
 
 					//update the ADMIN SHELL
-					if (!player[i].isbot) {
-						char lebuf[256]; int count; NLint result;
-						count = 0;
-						writeLong(lebuf, count, STA_PLAYER_CAPTURES);
-						writeLong(lebuf, count, player[i].cid);
-						result = nlWrite(shellssock, lebuf, count);
-					}
+					char lebuf[256]; int count; NLint result;
+					count = 0;
+					writeLong(lebuf, count, STA_PLAYER_CAPTURES);
+					writeLong(lebuf, count, player[i].cid);
+					result = nlWrite(shellssock, lebuf, count);
 
 					//CAPTURE (team count ++)
 					world.flag[myteam].score++;
@@ -7048,7 +6299,7 @@ public:
 		if (frame >= next_vote_announce_frame) {
 			int votes=0, players=0;
 			for (int i=0; i<maxplayers; ++i)
-				if (player[i].used && !player[i].isbot) {
+				if (player[i].used) {
 					++players;
 					if (player[i].want_map_exit)
 						++votes;
@@ -7071,20 +6322,18 @@ public:
 		for (int i=0; i<maxplayers; ++i)
 			if (player[i].used) {
 				++players;
-				if (!player[i].isbot) {
-					if (player[i].kickTimer) {
-						--player[i].kickTimer;
-						if (player[i].kickTimer==0)
-							server->disconnect_client(player[i].cid, 1);	// 1 second timeout
-						else if (player[i].kickTimer%10 == 0 && player[i].kickTimer<=50)
-							plprintf(i, "@WDisconnecting in %d...", player[i].kickTimer/10);
-					}
-					else {
-						player_t::DMQueueT& dm=player[i].delayedMessages;
-						while (dm.size() && --dm.begin()->first<0) {
-							player_message(i, dm.begin()->second.c_str());
-							dm.erase(dm.begin());
-						}
+				if (player[i].kickTimer) {
+					--player[i].kickTimer;
+					if (player[i].kickTimer==0)
+						server->disconnect_client(player[i].cid, 1);	// 1 second timeout
+					else if (player[i].kickTimer%10 == 0 && player[i].kickTimer<=50)
+						plprintf(i, "@WDisconnecting in %d...", player[i].kickTimer/10);
+				}
+				else {
+					player_t::DMQueueT& dm=player[i].delayedMessages;
+					while (dm.size() && --dm.begin()->first<0) {
+						player_message(i, dm.begin()->second.c_str());
+						dm.erase(dm.begin());
 					}
 				}
 			}
@@ -7287,7 +6536,6 @@ public:
 		// ==================================================================
 		for (i=0;i<maxplayers;i++)
 		if (player[i].used)			// player valido (used)
-		if (!player[i].isbot)		// BOTZ: para bots, nao faz o "BROADCAST" do simulate_and_broadcast...
 		{
 			//rewrite past common data
 			lecount = count;
@@ -7500,8 +6748,7 @@ public:
 		if (ping_send_client >= maxplayers)
 			ping_send_client = 0;
 		if (player[ping_send_client].used) // valid player?
-		if (!player[ping_send_client].isbot)	//NOT a bot?
-			server->ping_client(player[ping_send_client].cid); //ping
+		server->ping_client(player[ping_send_client].cid); //ping
 	}
 
 	//run something after simulate_and_broadcast
@@ -7511,7 +6758,6 @@ public:
 		//check players with pending team changes
 		for (i=0;i<maxplayers;i++)
 		if (player[i].used)
-		if (!player[i].isbot)
 		if (player[i].team_change_pending)
 		if (player[i].want_change_teams)
 		if (player[i].team_change_time < get_time())
@@ -7580,27 +6826,6 @@ public:
 			// executa algo para todos os players
 			server_think_after_broadcast();
 
-			// BOTZ: apos a simulacao da fisica da frame e envio de frame update pra todos os jogadores de
-			//   carne e osso, segue-se um periodo de dormencia do server, em torno de 100 ms (menos, porque
-			//   o simulate/broadcast frame tem seu custo)
-			//
-			//   ANTES desta sonolencia, ha um tempo para que os bots "pensem" que teclas vao apertar.
-			//   fabuloso, nao?
-			//
-			//   todos os bots tem que atualizar seus keypresses lá no bot_frame_think()
-			//
-#ifndef	NO_BOTS
-
-			bot_before_frame();		// roda algo sobre bots, só que antes de todos os bots pensarem
-
-			int bi;
-			for (bi=0;bi<maxplayers;bi++)
-				if (player[bi].used)		// bá, muito importante! quase esqueco....
-				if (player[bi].isbot)		// é bot? nao avacalhar teclas dos outros...
-					bot_frame_think(bi);
-
-#endif
-
 			// sleep while not time to send again
 			while (server_speed_counter <= 0) {
 
@@ -7618,6 +6843,8 @@ public:
 
 	//a master job response is obtained: parse it
 	void master_job_response(masterjob_c *j) {
+		if (ctop[j->cid] == -1)	// client no longer connected
+			return; 
 
 		//LOG4("== MJOB RESPONSE : %i %i %i '''%s'''\n", j->code, j->cid, j->html_end, j->lebuf);
 
@@ -8421,7 +7648,6 @@ public:
 				char lebuf[4096]; int count = 0;
 				for (int i=0;i<maxplayers;i++)
 				if (player[i].used)
-				if (!player[i].isbot)
 				{
 					writeLong(lebuf, count, STA_PLAYER_CONNECTED);////1 .... player connected <int id>
 					writeLong(lebuf, count, player[i].cid);
@@ -8525,10 +7751,7 @@ public:
 					result = nlRead(shellssock, rbuf, 4);
 					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 					if (result == 4) {
-
-						if ((!player[pid].used) || (player[pid].isbot)) {
-						}
-						else {
+						if (player[pid].used) {
 							answer = true; //ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_FRAGS);
 							writeLong(lebuf, count, player[pid].cid);
@@ -8540,10 +7763,7 @@ public:
 					result = nlRead(shellssock, rbuf, 4);
 					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 					if (result == 4) {
-
-						if ((!player[pid].used) || (player[pid].isbot)) {
-						}
-						else { //ADMIN SHELL
+						if (player[pid].used) {
 							answer = true;
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
 							writeLong(lebuf, count, player[pid].cid);
@@ -8556,10 +7776,7 @@ public:
 					result = nlRead(shellssock, rbuf, 4);
 					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 					if (result == 4) {
-
-						if ((!player[pid].used) || (player[pid].isbot)) {
-						}
-						else {
+						if (player[pid].used) {
 							answer = true;//ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
 							writeLong(lebuf, count, player[pid].cid);
@@ -8571,9 +7788,7 @@ public:
 					result = nlRead(shellssock, rbuf, 4);
 					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 					if (result == 4) {
-						if ((!player[pid].used) || (player[pid].isbot)) {
-						}
-						else {
+						if (player[pid].used) {
 							answer = true;//ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
 							writeLong(lebuf, count, player[pid].cid);
@@ -8585,10 +7800,7 @@ public:
 					result = nlRead(shellssock, rbuf, 4);
 					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 					if (result == 4) {
-
-						if ((!player[pid].used) || (player[pid].isbot)) {
-						}
-						else {
+						if (player[pid].used) {
 							answer = true;//ADMIN SHELL
 							writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
 							writeLong(lebuf, count, player[pid].cid);
@@ -8603,7 +7815,7 @@ public:
 					break;
 				case ATS_GET_PINGS:
 					for (int p=0; p<maxplayers; ++p)
-						if (player[p].used && !player[p].isbot) {
+						if (player[p].used) {
 							answer=true;
 							writeLong(lebuf, count, STA_PLAYER_PING);
 							writeLong(lebuf, count, player[p].cid);
@@ -8699,7 +7911,6 @@ public:
 		int i,cid;
 		for (i=0;i<maxplayers;i++)
 		if (player[i].used)
-		if (!player[i].isbot)
 		{
 			cid = player[i].cid;
 			client_report_status(cid);
@@ -8972,7 +8183,7 @@ int sfunc_client_connected(runes_t *arg) {
 
 	//LOG1("client connected %i\n", arg->client_id);
 
-	gameserver->client_connected(arg->client_id, false); //false == nao eh serverside bot
+	gameserver->client_connected(arg->client_id);
 
 	return 0;
 }
@@ -8981,7 +8192,7 @@ int sfunc_client_disconnected(runes_t *arg) {
 
 	//LOG1("client disconnected %i\n", arg->client_id);
 
-	gameserver->client_disconnected(arg->client_id, false);	//false == nao eh serverside bot
+	gameserver->client_disconnected(arg->client_id);
 
 	return 0;
 }
@@ -9280,12 +8491,6 @@ public:
 
 	//if player wants to exit the map
 	bool want_map_exit;
-
-	//client-to-server bot configuration preferences:
-	NLubyte		botsize;		//target team sizes
-	NLubyte		botmode;		//wanted bot mode  0=fill holes  1=use botsize
-	double		bot_pref_time;		//otimizando rede: caso jogador fique trocando toda hora de cfg de bot
-	bool			bot_pref_change;	//otimizando rede: caso jogador fique trocando toda hora de cfg de bot
 
 	//the scoreboard, maps entry # to display into player-id
 	int scoreboard[MAX_PLAYERS];
@@ -11825,20 +11030,6 @@ public:
 
 			//WEAPON LEVEL
 			textprintf(drawbuf, font, plx+340, ply+plh+5, col[COLWHITE], "WEAPON: %i", player[me].weapon + 1);
-
-			//BOT CFG
-#ifndef	NO_BOTS
-
-			if (botmode == 0)
-				textprintf(drawbuf, font, plx+340, ply+plh+25, col[COLWHITE], "Bots: Default");
-			else if (botmode == 1)
-				textprintf(drawbuf, font, plx+340, ply+plh+25, col[COLWHITE], "Bots: None"); // NEW
-			else if (botsize > 0)
-				textprintf(drawbuf, font, plx+340, ply+plh+25, col[COLWHITE], "Bots: Fill+%i", botsize);
-			else
-				textprintf(drawbuf, font, plx+340, ply+plh+25, col[COLWHITE], "Bots: Fill"); // NEW
-
-#endif  // NO_BOTS
 		}
 
 		//server hostname
@@ -12008,9 +11199,7 @@ public:
 				redt++;
 
 				sorry[0]=0;
-				if (player[i].isbot)
-					strcpy(sorry, " ");
-				else if (player[i].reg_status == ' ')
+				if (player[i].reg_status == ' ')
 					strcpy(sorry, " ");
 				else if (player[i].reg_status == '?')
 					strcpy(sorry, " ");
@@ -12052,9 +11241,7 @@ public:
 				i = scoreboard[p];
 
 				sorry[0]=0;
-				if (player[i].isbot)
-					strcpy(sorry, " ");
-				else if (player[i].reg_status == ' ')
+				if (player[i].reg_status == ' ')
 					strcpy(sorry, " ");
 				else if (player[i].reg_status == '?')
 					strcpy(sorry, " ");
@@ -12166,21 +11353,10 @@ public:
 		textprintf(drawbuf, font, x+100, y+140, col[COLWHITE], "  Nix's Outgun development page");
 		textprintf(drawbuf, font, x+364, y+140, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
 
-#ifndef NO_BOTS
-
-		textprintf(drawbuf, font, x+100, y+160, col[COLWHITE], " MOVING     ARROW KEYS = MOVE       >>> BOT PREFERENCES: <<<");
-		textprintf(drawbuf, font, x+100, y+170, col[COLWHITE], "  YOUR      CONTROL    = SHOOT!     F5,F6 = Less/More bots");
-		textprintf(drawbuf, font, x+100, y+180, col[COLWHITE], "CHARACTER:  ALT        = STRAFE     F7    = Vote for NO BOTS");
-		textprintf(drawbuf, font, x+100, y+190, col[COLWHITE], "  >>>>>     SHIFT      = RUN        F8    = Let others decide");
-
-#else
-
 		textprintf(drawbuf, font, x+100, y+160, col[COLWHITE], "           MOVING            ARROW KEYS = MOVE");
 		textprintf(drawbuf, font, x+100, y+170, col[COLWHITE], "            YOUR             CONTROL    = SHOOT!");
 		textprintf(drawbuf, font, x+100, y+180, col[COLWHITE], "          CHARACTER:         ALT        = STRAFE");
 		textprintf(drawbuf, font, x+100, y+190, col[COLWHITE], "            >>>>>            SHIFT      = RUN");
-
-#endif
 
 		textprintf(drawbuf, font, x+100, y+210, col[COLWHITE], "TALKING TO ALL PLAYERS: Just type your message and hit ENTER");
 
@@ -12475,11 +11651,6 @@ public:
 		//don't want to exit map by default
 		want_map_exit = false;
 
-		//default bot preferences
-		botmode = 0;
-		botsize = 0;
-		bot_pref_change = false;
-
 		//avoid "dropped" plaque
 		lastpackettime = get_time() + 1.0;
 
@@ -12503,7 +11674,7 @@ public:
 		// players
 
 		for (i=0;i<MAX_PLAYERS;i++)
-			player[i].clear(false, false, i, 0, "(name unknown)");
+			player[i].clear(false, i, 0, "(name unknown)");
 
 		//reset FPS count vars
 		framecount = 0;
@@ -13554,10 +12725,8 @@ public:
 					else {
 						//FIXME: unknown map kind
 					}
-					#ifndef CL_SUPPORT_OLD_SERVERS
 					for (int iid=0; iid<MAX_PICKUPS; ++iid)
 						fx.item[iid].kind = 0;
-					#endif
 					break;
 
 				//server shows gameover plaque
@@ -13700,20 +12869,7 @@ public:
 	void send_chat(char *msg) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 2);	//want to chat!
-		#ifdef CL_SUPPORT_OLD_SERVERS
-		for (char* dst=lebuf+1;; ++dst, ++msg) {	// duplicate percent signs
-			*dst = *msg;
-			++count;
-			if (*msg == '\0')
-				break;
-			if (*msg == '%') {
-				*(++dst) = '%';
-				++count;
-			}
-		}
-		#else
 		writeString(lebuf, count, msg);	// the message
-		#endif
 		client->send_message(lebuf, count);
 	}
 
@@ -13733,17 +12889,7 @@ public:
 		// i points to first shift target (0 if no spaces were found)
 		for (++i; i<CHAT_SIZE; ++i)
 			strcpy(chatbuffer[i-1], chatbuffer[i]);
-		#ifdef CL_SUPPORT_OLD_SERVERS
-		for (char* dst=chatbuffer[CHAT_SIZE-1];; ++msg, ++dst) {
-			*dst = *msg;
-			if (*msg == '\0')
-				break;
-			if (*msg == '%' && *(msg+1) == '%')
-				++msg;
-		}
-		#else
 		strcpy(chatbuffer[CHAT_SIZE-1], msg);
-		#endif
 		chaterasetime = get_time() + 10.0;
 	}
 
@@ -14155,22 +13301,6 @@ public:
 
 			// (0) check for time to send delayed messages
 			//
-			//bot preferences update
-#ifndef	NO_BOTS
-
-			if (bot_pref_change)
-			if (get_time() > bot_pref_time)
-			{
-				bot_pref_change = false;
-
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 19);		//19==update preferences
-				writeByte(lebuf, count, 1);			//1 == bot preferences
-				writeByte(lebuf, count, botmode);
-				writeByte(lebuf, count, botsize);
-				client->send_message(lebuf, count);
-			}
-#endif // NO_BOTS
 
 			// (1) loop doing input/sleep before next simulation/draw time
 			//
@@ -14562,49 +13692,6 @@ public:
 						else if (sc == KEY_F3) {
 							option_show_names = !option_show_names;
 						}
-#ifndef	NO_BOTS
-						// BOT PREFERENCES: F5: less bots (botmode 2)
-						else if (sc == KEY_F5) {
-							if ((botsize > 0) || (botmode != 2)) {
-								botmode = 2;
-								if (botsize > 0)
-									botsize--;
-								//send update to server:
-								bot_pref_change = true;
-								bot_pref_time = get_time() + 3.0;
-							}
-						}
-						// BOT PREFERENCES: F6: more bots (botmode 2)
-						else if (sc == KEY_F6) {
-							if ((botsize < TSIZE) || (botmode != 2)) {
-								botmode = 2;
-								//v0.4.7 : maximum botsize allowed
-								if ( (botsize < TSIZE) && (botsize < MAX_BOTSIZE) )
-									botsize++;
-								//send update to server:
-								bot_pref_change = true;
-								bot_pref_time = get_time() + 3.0;
-							}
-						}
-						// BOT PREFERENCES: F7: NO BOTS (v0.4.7) (botmode 1)
-						else if (sc == KEY_F7) {
-							if (botmode != 1) {
-								botmode = 1;
-								//send update to server:
-								bot_pref_change = true;
-								bot_pref_time = get_time() + 3.0;
-							}
-						}
-						// BOT PREFERENCES: F8: default/no opinion (botmode 0)
-						else if (sc == KEY_F8) {
-							if (botmode != 0) {
-								botmode = 0;
-								//send update to server:
-								bot_pref_change = true;
-								bot_pref_time = get_time() + 3.0;
-							}
-						}
-#endif // NO_BOTS
 						// F11:screenshot
 						else if (sc == KEY_F11) {
 							save_screenshot();
