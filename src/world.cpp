@@ -2167,6 +2167,9 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
 
             damagePlayer(pid1, pid2, shieldColdam, false);
             damagePlayer(pid2, pid1, shieldColdam, false);
+
+            if (!pl2.item_shield) // if target is not shielded, make it blink and play hit sound 
+                net->broadcast_screen_power_collision(pid2);
         }
         // works both ways
         if (pl2.item_shield && pl2.deathbringer_end < get_time() && !pl1.item_deathbringer) {
@@ -2174,6 +2177,9 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
 
             damagePlayer(pid1, pid2, shieldColdam, false);
             damagePlayer(pid2, pid1, shieldColdam, false);
+
+            if (!pl1.item_shield) // if target is not shielded, make it blink and play hit sound 
+                net->broadcast_screen_power_collision(pid1);
         }
 
         // humiliation hit/kill:
