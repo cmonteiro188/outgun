@@ -27,7 +27,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-//#define CLIENT_PREDICTION
+#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
@@ -1824,7 +1824,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(msg, count, pid);	//"who am I"
 					me = pid;
 
-					int color;
+					NLubyte color;
 					readByte(msg, count, color);	//"who am I"
 					fx.player[pid].set_color(color);
 
@@ -2131,7 +2131,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
 				case data_crap_update: {
-					int color;
+					NLubyte color;
 					readByte(lebuf, count, pid);			//waht player slot
 					readByte(lebuf, count, color);
 					readByte(lebuf, count, abyte);		//reg char
@@ -4053,8 +4053,8 @@ void gameclient_c::draw_game_frame() {
 void gameclient_c::draw_player(int i) {
 	const ClientPlayer& player = fx.player[i];
 	int alpha = fd.player[i].visibility;
-	if (alpha < 20)
-		alpha = 20;
+	if (alpha < 7)
+		alpha = 7;
 	if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
 		alpha = MIN_ALPHA_FRIENDS;
 	// draw flag if player is carrier of a flag

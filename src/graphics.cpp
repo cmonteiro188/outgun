@@ -271,7 +271,6 @@ bool Graphics::reset_video_mode() {
 	if (notok < 0) {
 		LOG3("ERROR: cannot set %d×%d×16 windowed?=%i graphics mode!\n", res_x(), res_y(), winclient);
 		LOG1("Allegro error: '%s'\n", allegro_error);
-
 		err[0] = allegro_error;
 
 		//try again...
@@ -981,9 +980,9 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	}
 #else
 	// outer color: team color
-	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS), pc1);
+	circlefill(drawbuf, plx + x, ply + y, player_radius, pc1);
 	// inner color: self color
-	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 2 / 3), pc2);
+	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 2) / 3, pc2);
 #endif
 
 	// draw player's gun

@@ -143,7 +143,7 @@ void ServerNetworking::send_me_packet(int pid) {
 	char lebuf[1024];
 	writeByte(lebuf, count, data_first_packet);
 	writeByte(lebuf, count, ((NLubyte)pid));					// who am I
-	writeByte(lebuf, count, world.player[pid].color());
+	writeByte(lebuf, count, ((NLubyte)world.player[pid].color()));
 	writeByte(lebuf, count, ((NLubyte)host->current_map_nr()));	// current map
 	writeByte(lebuf, count, ((NLubyte)world.teams[0].score()));	// team 0 current score
 	writeByte(lebuf, count, ((NLubyte)world.teams[1].score()));	// team 1 current score
@@ -215,7 +215,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 		world.player[pid].reg_status = ' ';
 
 	writeByte(lebuf, count, ((NLubyte)pid));
-	writeByte(lebuf, count, world.player[pid].color());
+	writeByte(lebuf, count, ((NLubyte)world.player[pid].color()));
 	writeByte(lebuf, count, ((NLubyte)world.player[pid].reg_status));					//regstatus
 	writeLong(lebuf, count, ((NLulong)clid.rank));		//ranking#
 	writeLong(lebuf, count, ((NLulong)clid.score));		//score POS
