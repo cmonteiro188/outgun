@@ -33,8 +33,8 @@ idlekick_time 120
 ;  SERVER WEB SITE
 ; -----------------
 
-; See http://koti.mbnet.fi/janir/outgun/script.html for instructions to configuring
-; your website and these settings to work together.
+; See http://koti.mbnet.fi/outgun/documentation/script.html for instructions to
+; configuring your website and these settings to work together.
 
 ; web_server: server's host name or IP, default: none
 ; web_script: path of the script on the server, default: none
