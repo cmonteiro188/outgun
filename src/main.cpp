@@ -74,7 +74,6 @@ int main(int argc, char *argv[]) {
 	strcpy(teamname[2], "WILD");
 
 	// general init
-	//
 	gameclient = 0;
 
 	//LOG_OPEN("outgun.log");
@@ -93,7 +92,6 @@ int main(int argc, char *argv[]) {
 	directory_separator = stuff[0];
 
 	// find out where we are
-	//
 	char *exespec = new char[2048];
 	get_executable_name(exespec, 2048);
 	replace_filename((char*)wheregamedir, (const char *)exespec, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
@@ -108,19 +106,6 @@ int main(int argc, char *argv[]) {
 
 	LOG3("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s\n", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
-	if (nlInit() == NL_FALSE) {
-		LOG("ERROR: cannot init HawkNL!\n");
-		return 0;
-	}
-	if (nlSelectNetwork(NL_IP) == NL_FALSE) {
-		LOG("ERROR: no IP network!\n");
-		return 0;
-	}
-
-	// enable statistics
-	//
-	nlEnable(NL_SOCKET_STATS);
-
 	bool message_logging = false;
 	bool showinfo = false;
 	bool defaultprio = false;	//select default server threads priority
@@ -128,7 +113,6 @@ int main(int argc, char *argv[]) {
 	bool targetprio_specified = false;
 
 	// check args
-	//
 	for (int i=1;i<argc;i++) {
 		if (!strcmp(argv[i], "-ded"))
 			dedserver = true;
@@ -204,6 +188,18 @@ int main(int argc, char *argv[]) {
 			LOG2("WARNING: command-line argument #%i is unknown ('%s')\n", i, argv[i]);
 	}
 
+	if (nlInit() == NL_FALSE) {
+		LOG("ERROR: cannot init HawkNL!\n");
+		return 0;
+	}
+	if (nlSelectNetwork(NL_IP) == NL_FALSE) {
+		LOG("ERROR: no IP network!\n");
+		return 0;
+	}
+
+	// enable statistics
+	nlEnable(NL_SOCKET_STATS);
+
 	// resolve master server address
 	// #FIXME: read master server address from a file
 	LOG("resolving master server address...\n");
@@ -230,7 +226,6 @@ int main(int argc, char *argv[]) {
 	install_int_ex(increment_time_counter, BPS_TO_TIMER(200));		//5 ms accuracy is already 10 times better than clock()
 
 	// install server timer (used for both dedicated and listen server)
-	//
 	LOCK_VARIABLE(server_speed_counter);
 	LOCK_FUNCTION(increment_server_speed_counter);
 	install_int_ex(increment_server_speed_counter, BPS_TO_TIMER(10));		//10Hz
