@@ -35,8 +35,8 @@ wabounce.wav - player bounces out of wall
 wallhit.wav - a player shot hits a wall
 weaponup.wav - player picks up a WEAPON UPGRADE
 
-after that, you must create a folder under the outgun/sound folder. e.g.:
-c:\outgun\sound\mysounds
+after that, you must create a folder under the outgun\sound folder. e.g.:
+c:\programs files\outgun\050E\sound\mysounds
 
 then place your sounds there. you can add a "theme.txt" text file to this
 folder. the first line of the file will contain the description of your

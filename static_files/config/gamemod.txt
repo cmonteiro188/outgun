@@ -1,20 +1,38 @@
-;
 ; GAME MOD FILE
 ;
 ; syntax:
 ;   command-line 
 ;   parameter-line
 ;   ....
-;
-;
 
-; ----------------
+; -----------------
+;  SERVER MESSAGES
+; -----------------
+
+; welcome message, line by line (0 to any number of lines)
+welcome_message
+@TWelcome! Type /help for details about this server.
+
+; info message, line by line (0 to any number of lines)
+;info_message
+;Uncomment these lines and replace this line with your wanted info.
+;info_message
+;You can use more than 1 line with both info_message and welcome_message.
+
+; enable (1) or disable (0) the /sayadmin console command
+; if enabled, messages are logged to sayadmin.log
+sayadmin_enabled
+0
+;sayadmin_comment
+;If you enable the sayadmin feature, you can enter a short comment here.
+
+; ---------------------
 ;  SERVER MAP ROTATION
-; ----------------
+; ---------------------
 
-; leave this section blank to let the server use all maps in outgun/maps/
+; if you don't put any maps here, the server uses all maps in the maps-folder
 ;
-; else add maps to the map rotation list with:
+; add maps to the map rotation list with:
 ;   map
 ;   <map_file_name WITHOUT .txt EXTENSION>
 ;
@@ -23,28 +41,65 @@
 ;   level1
 ;   map
 ;   level2
-;
-; etc.
-;
 
-; by default, use only the default map
-map
-outgun1
+;map
+;outgun1
 
-; ----------------
+; choose map rotation type (0 = fixed, 1 = randomize at server start)
+random_maprot
+0
+
+; disallow map changing votes after the map start, time in minutes
+vote_block_time
+0
+
+; -------------
 ;  GAME CONFIG
-; ----------------
+; -------------
 
-; minimum number of powerups in game (0..32)
+; needed captures for win
+capture_limit
+8
+
+; map time limit, in minutes; set to 0 to not use a time limit
+time_limit
+0 
+
+; waiting time when killed, in seconds
+respawn_time
+2.0
+
+; extra waiting time after a use of deathbringer and suicide, in seconds
+waiting_time_deathbringer
+4.0
+
+; min/max number of power-ups in game (0..32 or x% ; % is of mapsize)
 pups_min
-6
+10 %
+pups_max
+50 %
 
-; respawn time of powerups, in seconds (10..30)
+; respawn time of powerups, in seconds (0..60)
 pups_respawn_time
 25
 
+; add time and max time in seconds to turbo, power and shadow (1..999)
+pup_add_time
+40
+pup_max_time
+100
+
+; a second deathbringer switches it off (0 = false, 1 = true)
+pup_deathbringer_switch
+1
+
+; shadow makes player totally invisible (0 = false, 1 = true)
+pup_shadow_invisibility
+0
+
 ; chance (%) of appearing a certain kind of powerup. (the sum of all chances
 ;  need not be exactly 100)
+; note: if you want no power-ups, don't set it here, set pups_max to 0 instead
 pup_chance_shield
 16
 pup_chance_turbo
@@ -90,4 +145,3 @@ maxspeed_turborun
 33.0
 flag_penalty
 3.0
-
