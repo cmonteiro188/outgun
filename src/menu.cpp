@@ -425,7 +425,7 @@ bool Colorselect::handleKey(char scan, unsigned char chr) {
 			swap(options[selected], options[selected - 1]);
 		--selected;
 	}
-	else if ((scan == KEY_RIGHT || chr == '+') && selected + 1 < static_cast<int>(options.size())) {
+	else if ((scan == KEY_RIGHT || chr == '-') && selected + 1 < static_cast<int>(options.size())) {
 		if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '-')
 			swap(options[selected], options[selected + 1]);
 		++selected;
