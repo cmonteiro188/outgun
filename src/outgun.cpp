@@ -2,6 +2,9 @@
 //#define NR_CLIENT_AFFECTING
 #endif
 
+
+// ---- server side defines
+
 #define NR_CONSOLE	// console commands
 #define NR_NAME_AUTHORIZATION
 
@@ -11,15 +14,22 @@
 //#define NR_FIX_BOUNCING	// makes a difference only when nr_server_physics not defined
 #define NR_PHYS_VECTOR_ACC
 
-#ifdef NR_SERVER_PHYSICS
-#define NR_FIX_BOUNCING
-#endif
+// ---- client side defines
+
+#define CL_MINIMAP_FLAGPOS
+#define CL_SHOW_FLAGPOS
+
+// ----
 
 #include <vector>
 #include <list>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+
+#ifdef NR_SERVER_PHYSICS
+#define NR_FIX_BOUNCING
+#endif
 
 #ifdef NR_FIX_BOUNCING
 /* NR_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
@@ -231,12 +241,6 @@ fica pro outgun II ...
 //#define DEBUG_POWERUPS
 //#define REALLY_DEBUG_POWERUPS		//define only if DEBUG_POWERUPS defined
 
-#ifdef DEBUG_POWERUPS
-#define PICKUP_RESPAWN_TIME 6.0		//debug time
-#else
-#define PICKUP_RESPAWN_TIME	pups_respawn_time	//v0.4.4: time is configurable (was 30 seconds)
-#endif
-
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
@@ -384,35 +388,6 @@ void set_default_physics() {
 	svp_maxspeed_turborun = 32.0;
 	svp_flag_penalty = 3.0;
 	*/
-	/*
-	what was in the GAMEMOD.TXT FILE for 0.3.0
-				friction
-				2.5
-				accel
-				2.5
-				maxspeed
-				15.0
-				friction_run
-				3.0
-				accel_run
-				3.0
-				maxspeed_run
-				22.0
-				friction_turbo
-				4.0
-				accel_turbo
-				4.0
-				maxspeed_turbo
-				24.0
-				friction_turborun
-				6.0
-				accel_turborun
-				6.0
-				maxspeed_turborun
-				33.0
-				flag_penalty
-				3.0
-	*/
 }
 
 // number-of-players
@@ -429,8 +404,6 @@ int			maxplayers = MAX_PLAYERS;		// the maximum number of players configured for
 #endif
 
 int			maxpickups;							// the maximum number of pickups (function of maxplayers)
-
-#define MAX_TEAM_SPAWNS 8		// maximum different team spawn points
 
 //arg switches (+ default values)
 bool dedserver = false;		//dedicated server? -ded
@@ -650,145 +623,285 @@ void setcolors() {
 
 //server record
 struct gamespy_t {
-
-	NLaddress		addr;
-
-	char				address[128];	//IP/address typein buffer
-
-	bool				invalid;		//address is invalid
-
-	bool				noresponse;		//no response?
-
-	bool				favs;					//hack
-
-	bool				refreshed;		//if data below is valid -------------
-
-	char				info[128];		//server info string
-
+	NLaddress addr;
+	char address[128];	//IP-address typein buffer
+	bool invalid;
+	bool noresponse;
+	bool favs;	//hack
+	bool refreshed;	//if data below is valid -------------
+	char info[128];
 };
 
-//the world is a x,y indexed 2d array of rooms
-#define WXMAX 20		//maximum world size
-#define WYMAX 20
-#define WALLMAX			64	//maximum number of walls in a room
-#define GROUNDMAX		64	//maximum number of ground patches in a room
+struct RectWall {
+	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
+	int tex;	// texture id
+	int alpha;
 
-//rectangles
-class wall_c { public:
-
-	//rectangle coords (a,b)->(c,d) a==-1 unused
-	int a, b, c, d;
-
-	int tex; //texture id
-
-	int alpha; //alpha
-
-	//unused wall
-	wall_c() { clear(); }
-
-	void clear() { a = -1; tex = -1; alpha = -1; }
+	RectWall() { }
+	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_) : a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) {
+		assert(c>a && d>b);
+	}
+	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
 };
 
+struct Room {
+	vector<RectWall> walls;
+	vector<RectWall> ground;	// optional list of textures for ground [not used]
 
-class room_c { public:
-
-	//a collection of walls (rectangles)
-	wall_c		wall[WALLMAX];
-
-	//NEW! : collection of visual rectangles (ground patches)
-	wall_c	ground[GROUNDMAX];
-
-	void clear() {
-		for (int i=0;i<WALLMAX;i++) {
-			wall[i].clear();
-			ground[i].clear();
-		}
+	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
+		for (vector<RectWall>::const_iterator rwi=walls.begin(); rwi!=walls.end(); ++rwi)
+			rectfill(buffer, int(x0+xScale*rwi->a), int(y0+yScale*rwi->b), int(x0+xScale*rwi->c), int(y0+yScale*rwi->d), color);
+	}
+	bool fall_on_wall(int x1, int y1, int x2, int y2) const {
+		for (vector<RectWall>::const_iterator rwi=walls.begin(); rwi!=walls.end(); ++rwi)
+			if (rwi->intersects_rect(x1, y1, x2, y2))
+				return true;
+		return false;
 	}
 };
 
 //entity locale
 struct spoint_t {
-
-	//screen (if px == -1, unused)
-	int px,py;
-	//relative (to screen) X,Y position
-	int x,y;
+	int px, py;	//screen (if px == -1, unused)
+	int x, y;	//relative (to screen) X,Y position
 };
 
 //team info
 struct teaminfo_t {
+	spoint_t flag;	//flag position
+	vector<spoint_t> spawn;	//team spawn points
+	unsigned int lastspawn;	//last team spawn point used
 
-	//flag position
-	spoint_t		flag;
-
-	//team spawn points
-	spoint_t		spawn[MAX_TEAM_SPAWNS];
-
-	//last team spawn point used
-	int			lastspawn;
+	teaminfo_t() : lastspawn(0) { }
 };
 
-class map_c { public:
+class Map {
+	bool parse_label(FILE *f, char *label, int crx, int cry);	// crx,cry = "current room pointer"
 
-	//v0.4.7: map is valid for scoring?
-	bool valid_for_scoring;
+public:
+	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?
+	teaminfo_t tinfo[2];	//team information for red=0 and blue=1 teams
+	vector< vector<Room> > room;
 
-	//team information for red=0 and blue=1 teams
-	teaminfo_t	tinfo[2];
-
-	//array of rooms
-	room_c	room[WXMAX][WYMAX];
-
-	//clear all map information
-	void clear() {
-
-		//assume by default that the map is valid for scoring
-		valid_for_scoring = true;
-
-		//clear team info
-		memset(&tinfo[0], 0, sizeof(teaminfo_t));
-		memset(&tinfo[1], 0, sizeof(teaminfo_t));
-
-		//clear rooms
-		int x,y;
-		for (x=0;x<WXMAX;x++)
-		for (y=0;y<WYMAX;y++)
-			room[x][y].clear();
-	}
-
-	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) {
-		for (int w=0;w<WALLMAX;w++)
-		if (room[px][py].wall[w].a != -1)
-		{
-			wall_c *wa = &(room[px][py].wall[w]);
-			if (wa->c > x1)
-			if (wa->a < x2)
-			if (wa->d > y1)
-			if (wa->b < y2)
-			{
-				//HIT
-				return true;
-			}
-		}
-
-		//no hits
-		return false;
-	}
-
-	//---- map parser state ----------
-	// FIXME : make updating map.room from loadmap a safe operation
-	char PROTEKT[4096];	//protect mapfilename (if map loader writes crap past room data)
-												//also a slack area to the map loader code to write crap ho ho ho
-												//my code sucks
-
-	char title[256];		//map title
-
-	char filename[256];		//map filename (shortcut for server's crappy list)
-	int rx, ry;		// current room
-	int	ver;				// map version
-	int w, h;			// width height
+	string title;	//map title
+	int	ver;	// map version
+	int w, h;	// width height
 	NLushort crc;	//map's 16bit CRC
+
+	Map() : valid_for_scoring(true), ver(-1), w(0), h(0), crc(0) { }
+
+	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
+		assert(px>=0 && py>=0 && px<w && py<h);
+		return room[px][py].fall_on_wall(x1, y1, x2, y2);
+	}
+	void draw_minimap(BITMAP* buffer) const;
+	bool load(FILE* f) { return parse_label(f, 0, 0, 0); }
 };
+
+bool Map::parse_label(FILE *f, char *label, int crx=0, int cry=0) {	// crx,cry = "current room pointer"
+	bool labelscan = false;
+	char labeltmp[256];
+	if (label) {
+		labelscan = true;
+		sprintf(labeltmp, ":%s", label);
+	}
+	rewind(f);
+	for (;;) {
+		char s[1024];
+		if (fgets((char *)s, 1024, f) == 0)	//end-of-file
+			return labelscan?false:true;
+
+		s[strlen(s)-1] = 0;	//erase \n
+		if (s[0] == '\0' || s[0]==';')
+			continue;
+		//if seeking for a label, ignore until it is found
+		if (labelscan) {
+			if (!strcmp(s, labeltmp))
+				labelscan = false;
+			continue;
+		}
+		//end of label: when finds another label or ":"
+		if (!labelscan && s[0] == ':')
+			return true;
+
+		char nullc;	// to be used at ends of sscanf to make sure there is nothing extra on the line
+		if (s[0]=='W' || s[0]=='G') {	// W x1 y1 x2 y2 [tex alpha] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
+			bool is_solid = (s[0]=='W');
+			float x1, y1, x2, y2;
+			int texid, alpha;
+			int n = sscanf(s+1, " %f %f %f %f %i %i %c", &x1, &y1, &x2, &y2, &texid, &alpha, &nullc);
+			if (n == 4) {
+				texid=-1;
+				alpha=255;
+			}
+			else if (n!=6 || crx<0 || cry<0 || crx>=w || cry>=h) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			int a, b, c, d;
+			a = (int)(x1 * (double)plw);
+			b = (int)(y1 * (double)plh);
+			c = (int)(x2 * (double)plw);
+			d = (int)(y2 * (double)plh);
+			Room& rm=room[crx][cry];
+			vector<RectWall>& wvec=is_solid?rm.walls:rm.ground;
+			wvec.push_back(RectWall(a, b, c, d, texid, alpha));
+			continue;
+		}
+		if (s[0]=='R') {	// R x y : set room pointer to (x,y)
+			int n = sscanf(s+1, " %i %i %c", &crx, &cry, &nullc);
+			if (n!=2 || crx<0 || crx>=w || cry<0 || cry>=h) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			continue;
+		}
+		if (s[0]=='X') {	// X label x1 y1 [x2 y2] : add walls from label to the rectangle (x1,y1)-(x2,y2)
+			char nextlabel[64];
+			int rx1, ry1, rx2, ry2;
+			int n = sscanf(s+1, " %64s %i %i %i %i %c", nextlabel, &rx1, &ry1, &rx2, &ry2, &nullc);
+			if (n == 3) {	// one room only
+				rx2 = rx1;
+				ry2 = ry1;
+			}
+			else if (n!=5 || rx1<0 || rx2>=w || rx2<rx1 || ry1<0 || ry2>=h || ry2<ry1) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			long filepos = ftell(f);
+			for (int ry=ry1; ry<=ry2; ry++)
+				for (int rx=rx1; rx<=rx2; rx++)
+					if (!parse_label(f, nextlabel, rx, ry))
+						return false;
+			fseek(f, filepos, SEEK_SET);
+			crx=rx2; cry=ry2;	// compatibility with original sloppy specs (needed?)
+			continue;
+		}
+		if (!strncmp(s, "P width ", 8)) {	// P width w : set map width to w rooms
+			if (w != 0) {
+				LOG("Redefined map width\n");
+				return false;
+			}
+			int n = sscanf(s+1, " width %i %c", &w, &nullc);
+			if (w<1 || n!=1) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			room.resize(w);
+			for (vector< vector<Room> >::iterator ri=room.begin(); ri!=room.end(); ++ri)
+				ri->resize(h);
+			continue;
+		}
+		if (!strncmp(s, "P height ", 9)) {	// P height h : set map height to h rooms
+			if (h != 0) {
+				LOG("Redefined map height\n");
+				return false;
+			}
+			int n = sscanf(s+1, " height %i %c", &h, &nullc);
+			if (h<1 || n!=1) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			for (vector< vector<Room> >::iterator ri=room.begin(); ri!=room.end(); ++ri)
+				ri->resize(h);
+			continue;
+		}
+		if (!strncmp(s, "P title ", 8)) {	// P title text : set map title to text
+			if (title.length()) {
+				LOG("Redefined map title\n");
+				return false;
+			}
+			title=string(s+8);
+			continue;
+		}
+		if (!strncmp(s, "spawn ", 6)) {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
+			int team, rx, ry;
+			float x, y;
+			int n = sscanf(s, "spawn %i %i %i %f %f %c", &team, &rx, &ry, &x, &y, &nullc);
+			if (n != 5) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			spoint_t spot;
+			spot.px = bound(rx, 0, w-1);
+			spot.py = bound(ry, 0, h-1);
+			spot.x = (int)(x * (double)plw);
+			spot.y = (int)(y * (double)plh);
+			tinfo[team].spawn.push_back(spot);
+			continue;
+		}
+		if (!strncmp(s, "flag ", 5)) {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
+			int team, rx, ry;
+			float x, y;
+			int n = sscanf(s, "flag %i %i %i %f %f %c", &team, &rx, &ry, &x, &y, &nullc);
+			if (n != 5) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			tinfo[team].flag.px = bound(rx, 0, w-1);
+			tinfo[team].flag.py = bound(ry, 0, h-1);
+			tinfo[team].flag.x = (int)(x * (double)plw);
+			tinfo[team].flag.y = (int)(y * (double)plh);
+			continue;
+		}
+		if (s[0]=='V') {	// V ver : set file format version
+			int n = sscanf(s+1, " %i %c", &ver, &nullc);
+			if (n != 1) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			continue;
+		}
+		LOG1("Unrecognized map line: %s\n", s);
+	}
+}
+
+void Map::draw_minimap(BITMAP* buffer) const {
+	//black bg
+	clear_to_color(buffer, 0);
+
+	//draw screen boundaries
+	int MMSCRW = (int)(98.0/float(w));
+	int MMSCRH = (int)(98.0/float(h));
+	int j;
+	for (j=1;j<w;j++)
+		line(buffer, 2+MMSCRW * j, 1, 2+MMSCRW * j, 100, col[COLSHADOW]);
+	for (j=1;j<h;j++)
+		line(buffer, 1, 2+MMSCRH * j, 100, 2+MMSCRH * j, col[COLSHADOW]);
+
+	double maxx = plw*w;
+	double maxy = plh*h;
+
+	//draw bases
+	#ifdef CL_MINIMAP_FLAGPOS
+	float fx = tinfo[0].flag.px * plw + tinfo[0].flag.x;
+	float fy = tinfo[0].flag.py * plh + tinfo[0].flag.y;
+	ellipsefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, 4, col[COLRED]);
+	fx = tinfo[1].flag.px * plw + tinfo[1].flag.x;
+	fy = tinfo[1].flag.py * plh + tinfo[1].flag.y;
+	ellipsefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, 4, col[COLBLUE]);
+	#else
+	int fx = tinfo[0].flag.px;
+	int fy = tinfo[0].flag.py;
+	rectfill(buffer, 2+ MMSCRW * fx, 2+ MMSCRH * fy, MMSCRW * (fx + 1), MMSCRH * (fy + 1), col[COLBRED]);
+	fx = tinfo[1].flag.px;
+	fy = tinfo[1].flag.py;
+	rectfill(buffer, 2+ MMSCRW * fx, 2+ MMSCRH * fy, MMSCRW * (fx + 1), MMSCRH * (fy + 1), col[COLBBLUE]);
+	#endif
+
+	//draw solid walls
+	float xmul=98./maxx, ymul=98./maxy;
+	for (int y=0; y<h; y++) {
+		float by=1.+y*plh*ymul;
+		for (int x=0; x<w; x++) {
+			float bx=1.+x*plw*xmul;
+			room[x][y].draw(buffer, bx, by, xmul, ymul, makecol(0x00, 0x77, 0x00));
+		}
+	}
+
+	//green border
+	rect(buffer, 0, 0, buffer->w -1, buffer->h -1, col[COLGREEN]);
+}
 
 //#NR: new function for use by NR_wallcorrect()
 /* calculateDisplacement():
@@ -863,14 +976,11 @@ pair<double, Coords> calculateDisplacement(double dn, double dp1, double dp2, do
 	return pair<double, Coords>(dist, collisionCoords);
 }
 
-bool NR_wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py) {
+bool NR_wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py) {
 	static const double plyRadius=15;
 
-	if (px < 0) return false;
-	if (py < 0) return false;
-	if (px >= map->w) return false;
-	if (py >= map->h) return false;
-	const room_c& r=map->room[px][py];
+	assert(px >= 0 && py >= 0 && px < map->w && py < map->h);
+	const Room& r = map->room[px][py];
 
 	double stx=*ox, sty=*oy-NR_SHIFTY;	// start pos
 	double dtx=* x, dty=* y-NR_SHIFTY;	// destination
@@ -886,37 +996,31 @@ bool NR_wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double 
 		Coords bounceVec;
 		Coords bbox0(min(stx-plyRadius, dtx-plyRadius), min(sty-plyRadius, dty-plyRadius)),
 		       bbox1(max(stx+plyRadius, dtx+plyRadius), max(sty+plyRadius, dty+plyRadius));
-		for (int wi=0; wi<WALLMAX; ++wi) {
-			if (r.wall[wi].a == -1)	// no such wall
-				continue;
-			const wall_c& w=r.wall[wi];
-assert(w.a<=w.c && w.b<=w.d);
-assert(w.a<w.c && w.b<w.d);
+		for (vector<RectWall>::const_iterator wi=r.walls.begin(); wi!=r.walls.end(); ++wi) {
 			// fast and crude bounding-box style check first
-			if (bbox1.first<w.a || bbox0.first>w.c
-			 || bbox1.second<w.b || bbox0.second>w.d)
+			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 				continue;
 			// check more carefully
 			pair<double, Coords> rv;
 			rv.first=1.;
-			if (mx>0 && w.a>stx) {	// check vertical wall a
-				rv=calculateDisplacement(w.a-stx, w.b-sty, w.d-sty,  mx, my, plyRadius);	// n=x, p=y
+			if (mx>0 && wi->a>stx) {	// check vertical wall a
+				rv=calculateDisplacement(wi->a - stx, wi->b - sty, wi->d - sty,  mx, my, plyRadius);	// n=x, p=y
 				// rv is already in room coordinates
 			}
-			else if (mx<0 && w.c<stx) {	// check vertical wall c
-				rv=calculateDisplacement(stx-w.c, w.b-sty, w.d-sty, -mx, my, plyRadius);	// n=-x, p=y
+			else if (mx<0 && wi->c<stx) {	// check vertical wall c
+				rv=calculateDisplacement(stx - wi->c, wi->b - sty, wi->d - sty, -mx, my, plyRadius);	// n=-x, p=y
 				rv.second.first*=-1;	// n: -x -> x
 			}
 			if (rv.first<minMovement) {
 				minMovement=rv.first;
 				bounceVec=rv.second;
 			}
-			if (my>0 && w.b>sty) {	// check horizontal wall b
-				rv=calculateDisplacement(w.b-sty, w.a-stx, w.c-stx,  my, mx, plyRadius);	// n=y, p=x
+			if (my>0 && wi->b>sty) {	// check horizontal wall b
+				rv=calculateDisplacement(wi->b - sty, wi->a - stx, wi->c - stx,  my, mx, plyRadius);	// n=y, p=x
 				// rv is already in reverse room coordinates
 			}
-			else if (my<0 && w.d<sty) {	// check horizontal wall d
-				rv=calculateDisplacement(sty-w.d, w.a-stx, w.c-stx, -my, mx, plyRadius);	// n=-y, p=x
+			else if (my<0 && wi->d<sty) {	// check horizontal wall d
+				rv=calculateDisplacement(sty - wi->d, wi->a - stx, wi->c - stx, -my, mx, plyRadius);	// n=-y, p=x
 				rv.second.first*=-1;	// n: -y -> y
 			}
 			swap(rv.second.first, rv.second.second);	// was x/y-flipped
@@ -953,18 +1057,13 @@ assert(w.a<w.c && w.b<w.d);
 	return bounced;
 }
 
+//#NRtodo: scrap these as soon as we have only clients that use NR_wallcorrect ::
+
 //wall hit?
-bool wallhit(double x, double y, wall_c &w) {
-	if (((int)x) >= (w.a))
-	if (((int)x) <= (w.c))
-	if (((int)y) >= (w.b))
-	if (((int)y) <= (w.d))
-		return true;
-	return false;
-}
+bool wallhit(double x, double y, const RectWall &w) { return w.intersects_rect(x, y, x, y); }
 
 //wall collision correction
-bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py) {
+bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py) {
 
 	if (px < 0) return false;
 	if (py < 0) return false;
@@ -990,7 +1089,7 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 
 	bool ever_had_wall_hit = false;
 	bool had_wall_hit; //keep pushing out until no wall hit
-	room_c *r = &(map->room[px][py]);
+	Room *r = &(map->room[px][py]);
 
 	int runaway = 10;
 	do {
@@ -998,110 +1097,61 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 		had_wall_hit = false;
 		bool y_solved = false;
 
-		for (int w=0;w<WALLMAX;w++)
-		if (r->wall[w].a != -1) {
-
-			//check collision. if yes, take x,y out of the wall
-			//
+		for (int w=0;w<(int)r->walls.size();w++) {
 			int runaw = 100;
-			while (wallhit((*x),(*y)-NR_SHIFTY,r->wall[w])) {
-			//if (wallhit((*x),(*y),r->wall[w])) {
-
-				//at least one wall hit this turn
+			while (wallhit((*x),(*y)-NR_SHIFTY,r->walls[w])) {
 				had_wall_hit = true;
-
-				//push x out of wall
-
 				(*x) += dx;
 				y_solved = false;
-
-				if (!(wallhit((*x),(*y)-NR_SHIFTY,r->wall[w])))
+				if (!(wallhit((*x),(*y)-NR_SHIFTY,r->walls[w])))
 				break;
-
-				//push y out of wall
 				(*y) += dy;
 				y_solved = true;
-
 				runaw--;
 				if (runaw < 0) {
 					LOG1("RA (2) = %i\n", p);
 					(*x) = (*ox);
 					(*y) = (*oy);
-					return false;	//FIXME:throw exception
+					return false;
 				}
 			}
 		}
-
 		if (had_wall_hit) {
 			ever_had_wall_hit = true;
-
 			if (y_solved)
 				(*sy) *= -1;
 			else
 				(*sx) *= -1;
-
 		}
-
 		runaway--;
 		if (runaway < 0) {
 			LOG1("RA = %i\n", p);
-			//LOG("WARNING: WALCORRECT RUNAWAY !!!!!\n");
 			(*x) = (*ox);
 			(*y) = (*oy);
-			return false;	//FIXME:throw exception
+			return false;
 		}
-
 	} while (had_wall_hit);
-
 	if (ever_had_wall_hit) {
-
-		//check for probable bug -- sometimes the wall-correct algorythm pushes the
-		// players out of bounds. if this is the case, just back to the last valid position
 		if (((*x) <= 0.01) || ((*x) >= ((double)plw) - 0.01) || ((*y)-NR_SHIFTY <= 0.01) || ((*y)-NR_SHIFTY >= ((double)plh) - 0.01)) {
-			// just back up
 			(*x) = (*ox);
 			(*y) = (*oy);
 		}
-
-		(*ox) = (*x);	//another safe position
+		(*ox) = (*x);
 		(*oy) = (*y);
 	}
-
 	return ever_had_wall_hit;
 }
 
 //draw a wall, solid or nonsolid, texid, lum, in a map
-void drawwall_tex(map_c *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
-
-	if (is_solid) {
-		for (int w=0;w<WALLMAX;w++)
-		if (m->room[x][y].wall[w].a < 0) {
-			m->room[x][y].wall[w].a = a;
-			m->room[x][y].wall[w].b = b;
-			m->room[x][y].wall[w].c = c;
-			m->room[x][y].wall[w].d = d;
-			m->room[x][y].wall[w].tex = tex;
-			m->room[x][y].wall[w].alpha = alpha;
-			break;
-		}
-	}
-	else {
-		for (int w=0;w<WALLMAX;w++)
-		if (m->room[x][y].wall[w].a < 0) {
-			m->room[x][y].ground[w].a = a;
-			m->room[x][y].ground[w].b = b;
-			m->room[x][y].ground[w].c = c;
-			m->room[x][y].ground[w].d = d;
-			m->room[x][y].ground[w].tex = tex;
-			m->room[x][y].ground[w].alpha = alpha;
-			break;
-		}
-	}
+void drawwall_tex(Map *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
+	if (is_solid)
+		m->room[x][y].walls.push_back(RectWall(a, b, c, d, tex, alpha));
+	else
+		m->room[x][y].ground.push_back(RectWall(a, b, c, d, tex, alpha));
 }
 
 //draw a solid wall in a map
-void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
-
+void drawwall(Map *m, int x, int y, int a, int b, int c, int d) {
 	//draw solid wall with tex = -1 & alpha 255
 	drawwall_tex(m, true, x, y, a, b, c, d, -1, 255);
 }
@@ -1112,27 +1162,26 @@ int LARGX = COMPX / 4;
 int LARGY = COMPY / 4;
 
 //closewalls
-void closelwall(map_c *map, int x, int y) {
+void closelwall(Map *map, int x, int y) {
 	drawwall(map, x, y, 0, 0, LARGX, plh);
 }
-void closerwall(map_c *map, int x, int y) {
+void closerwall(Map *map, int x, int y) {
 	drawwall(map, x, y, plw-LARGX, 0, plw, plh);
 }
-void closeuwall(map_c *map, int x, int y) {
+void closeuwall(Map *map, int x, int y) {
 	drawwall(map, x, y, 0, 0, plw, LARGY);
 }
-void closedwall(map_c *map, int x, int y) {
+void closedwall(Map *map, int x, int y) {
 	drawwall(map, x, y, 0, plh-LARGY, plw, plh);
 }
 
 //load default map (for testing)
-void load_default_map(map_c *map) {
+void load_default_map(Map *map) {
+	*map = Map();
 
 	//map title
-	strcpy(map->title, "The Blunt, by Fabio Cecin");
+	map->title = "The Blunt, by Fabio Cecin";
 
-	//importante...
-	map->clear();
 	//map size
 	map->w = 6;
 	map->h = 6;
@@ -1152,57 +1201,19 @@ void load_default_map(map_c *map) {
 	}
 
 	//closewalls
-	closelwall(map, 0, 0);
-	closelwall(map, 0, 1);
-	closelwall(map, 0, 4);
-	closelwall(map, 0, 5);
-	closelwall(map, 1, 1);
-	closelwall(map, 1, 2);
-	closelwall(map, 1, 3);
-	closelwall(map, 1, 4);
-	closelwall(map, 3, 1);
-	closelwall(map, 3, 2);
-	closelwall(map, 3, 3);
-	closelwall(map, 3, 4);
-	closelwall(map, 5, 1);
-	closelwall(map, 5, 2);
-	closelwall(map, 5, 3);
-	closelwall(map, 5, 4);
+	closelwall(map, 0, 0);	closelwall(map, 0, 1);	closelwall(map, 0, 4);	closelwall(map, 0, 5);	closelwall(map, 1, 1);	closelwall(map, 1, 2);
+	closelwall(map, 1, 3);	closelwall(map, 1, 4);	closelwall(map, 3, 1);	closelwall(map, 3, 2);	closelwall(map, 3, 3);	closelwall(map, 3, 4);
+	closelwall(map, 5, 1);	closelwall(map, 5, 2);	closelwall(map, 5, 3);	closelwall(map, 5, 4);
 
-	closerwall(map, 0, 1);
-	closerwall(map, 0, 2);
-	closerwall(map, 0, 3);
-	closerwall(map, 0, 4);
-	closerwall(map, 2, 1);
-	closerwall(map, 2, 2);
-	closerwall(map, 2, 3);
-	closerwall(map, 2, 4);
-	closerwall(map, 4, 1);
-	closerwall(map, 4, 2);
-	closerwall(map, 4, 3);
-	closerwall(map, 4, 4);
-	closerwall(map, 5, 0);
-	closerwall(map, 5, 1);
-	closerwall(map, 5, 4);
-	closerwall(map, 5, 5);
+	closerwall(map, 0, 1);	closerwall(map, 0, 2);	closerwall(map, 0, 3);	closerwall(map, 0, 4);	closerwall(map, 2, 1);	closerwall(map, 2, 2);
+	closerwall(map, 2, 3);	closerwall(map, 2, 4);	closerwall(map, 4, 1);	closerwall(map, 4, 2);	closerwall(map, 4, 3);	closerwall(map, 4, 4);
+	closerwall(map, 5, 0);	closerwall(map, 5, 1);	closerwall(map, 5, 4);	closerwall(map, 5, 5);
 
-	closeuwall(map, 0, 0);
-	closeuwall(map, 1, 0);
-	closeuwall(map, 2, 0);
-	closeuwall(map, 3, 0);
-	closeuwall(map, 4, 0);
-	closeuwall(map, 5, 0);
-	closeuwall(map, 3, 1);
-	closeuwall(map, 2, 5);
+	closeuwall(map, 0, 0);	closeuwall(map, 1, 0);	closeuwall(map, 2, 0);	closeuwall(map, 3, 0);	closeuwall(map, 4, 0);	closeuwall(map, 5, 0);
+	closeuwall(map, 3, 1);	closeuwall(map, 2, 5);
 
-	closedwall(map, 0, 5);
-	closedwall(map, 1, 5);
-	closedwall(map, 2, 5);
-	closedwall(map, 3, 5);
-	closedwall(map, 4, 5);
-	closedwall(map, 5, 5);
-	closedwall(map, 3, 0);
-	closedwall(map, 2, 4);
+	closedwall(map, 0, 5);	closedwall(map, 1, 5);	closedwall(map, 2, 5);	closedwall(map, 3, 5);	closedwall(map, 4, 5);	closedwall(map, 5, 5);
+	closedwall(map, 3, 0);	closedwall(map, 2, 4);
 
 	// BUILD RED TEAM INFO
 	//
@@ -1211,11 +1222,13 @@ void load_default_map(map_c *map) {
 	map->tinfo[0].flag.x = plw / 2;
 	map->tinfo[0].flag.y = plh / 2;
 	map->tinfo[0].lastspawn = 0;		// lastspawn
-	for (i=0;i<MAX_TEAM_SPAWNS;i++) {	// teamspawns
-		map->tinfo[0].spawn[i].px = 1;
-		map->tinfo[0].spawn[i].py = 1;
-		map->tinfo[0].spawn[i].x = 80 + 30 * i;
-		map->tinfo[0].spawn[i].y = 3 * plh / 4;
+	for (i=0;i<8;i++) {	// teamspawns
+		spoint_t spot;
+		spot.px = 1;
+		spot.py = 1;
+		spot.x = 80 + 30 * i;
+		spot.y = 3 * plh / 4;
+		map->tinfo[0].spawn.push_back(spot);
 	}
 
 	// BUILD BLUE TEAM INFO
@@ -1225,11 +1238,13 @@ void load_default_map(map_c *map) {
 	map->tinfo[1].flag.x = plw / 2;
 	map->tinfo[1].flag.y = plh / 2;
 	map->tinfo[1].lastspawn = 0;		// lastspawn
-	for (i=0;i<MAX_TEAM_SPAWNS;i++) {	// teamspawns
-		map->tinfo[1].spawn[i].px = map->w-2;
-		map->tinfo[1].spawn[i].py = map->h-2;
-		map->tinfo[1].spawn[i].x = 80 + 30 * i;
-		map->tinfo[1].spawn[i].y = plh / 4;
+	for (i=0;i<8;i++) {	// teamspawns
+		spoint_t spot;
+		spot.px = map->w-2;
+		spot.py = map->h-2;
+		spot.x = 80 + 30 * i;
+		spot.y = plh / 4;
+		map->tinfo[1].spawn.push_back(spot);
 	}
 }
 
@@ -1674,367 +1689,13 @@ public:
 	}
 };
 
-//============================================================
-//  map loading API
-//============================================================
-
-//ok = getword(word, s, &c);
-// buffer da palavra (que seja grande o suficiente...), string original, pointeiro para posicao atual na string original
-// retorna false se acabou a string e nao tinha mais palavras
-// brancos (' ') == espacos entre palavras
-bool getword(char *word, char *s, int &c) {
-
-	bool copied = false;
-//	char *oword = word;
-
-	//LOG2("gw '%s'(%i) = ", s, c);
-
-	//skip blanks
-	while (s[c] == ' ')
-		c++;
-
-	//copy word
-	while ((s[c] != ' ') && (s[c] != 0)) {
-		copied = true;
-		word[0] = s[c];
-		word++;
-		c++;
-	}
-
-	//zero-terminate word
-	word[0] = 0;
-
-	//LOG2("'%s'(%i)\n", oword, c);
-
-	//return result
-	return copied;
-}
-
-
-// funcao utilitaria
-// procura pelo label e executa. se label NULL, executa desde o inicio
-// retorna FALSE se erro
-bool load_map_parse_label(FILE *f, char *label, map_c *map) {
-
-	//label scan mode?
-	bool labelscan = false;
-	char labeltmp[256];
-	if (label) {
-		labelscan = true;
-		sprintf(labeltmp, ":%s", label);
-
-		//LOG1("LABEL SCAN: '%s'\n", label);
-	}
-
-	//seek beginning of file
-	rewind(f);
-
-	//parse the map file
-	while (1) {
-//char* fgets(char* s, int n, FILE* stream);
-//Copies characters from (input) stream stream to s, stopping when n-1 characters copied, newline copied,
-//end-of-file reached or error occurs. If no error, s is NUL-terminated. Returns NULL on end-of-file or
-//error, s otherwise.
-
-		char s[1024];
-		if (fgets((char *)s, 1024, f) == 0) {		//end-of-file
-			if (labelscan)
-				return false;		//error:label not found
-			else
-				return true;		//ok?... (end of label by end-of-file)
-		}
-
-		s[ strlen(s) - 1] = 0;	//erase \n
-
-		//if (!labelscan)
-			//LOG1("mapf '%s'\n", s);
-
-		if (strlen(s) == 0)	//skip blanks
-			continue;
-
-		if (s[0] == ';') // skip comments
-			continue;
-
-		//if seeking for a label, ignore until it is found
-		if (labelscan) {
-			if (!strcmp(s, labeltmp)) {		//achou
-				//LOG("LABEL FOUND\n");
-				labelscan = false;
-			}
-			continue;	//continue anyways
-		}
-
-		//end of label: when finds another label or ":"
-		if (!labelscan)
-		if (s[0] == ':')
-			return true;		//end of label execution
-
-		//*** PARSE USEFUL STUFF ***
-		char word[256];
-		int c = 0;
-		bool ok;
-
-		ok = getword(word, s, c);
-
-		if (!ok) {
-			//FIXME: handle error
-		}
-		else if ((!strcmp(word, "W")) || (!strcmp(word, "G"))) {
-
-			//W or G?
-			bool is_solid = !strcmp(word, "W");
-
-			double x1,y1,x2,y2,texid,alpha;
-
-			ok = getword(word, s, c);
-			if (ok) {
-				sscanf(word, "%lf", &x1);
-				ok = getword(word, s, c);
-				if (ok) {
-					sscanf(word, "%lf", &y1);
-					ok = getword(word, s, c);
-					if (ok) {
-						sscanf(word, "%lf", &x2);
-						ok = getword(word, s, c);
-						if (ok) {
-							sscanf(word, "%lf", &y2);
-							ok = getword(word, s, c);
-							if (ok) {
-								sscanf(word, "%lf", &texid);
-								ok = getword(word, s, c);
-								if (ok) {
-									sscanf(word, "%lf", &alpha);
-
-									//add wall
-									//void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
-									int a,b,c,d;
-									a = (int)(x1 * (double)plw);
-									b = (int)(y1 * (double)plh);
-									c = (int)(x2 * (double)plw);
-									d = (int)(y2 * (double)plh);
-									drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d, (int)texid, (int)alpha);
-								}
-							}
-							else {
-
-								//add wall with default tex id & alpha
-								//void drawwall(map_c *m, int x, int y, int a, int b, int c, int d) {
-								int a,b,c,d;
-								a = (int)(x1 * (double)plw);
-								b = (int)(y1 * (double)plh);
-								c = (int)(x2 * (double)plw);
-								d = (int)(y2 * (double)plh);
-								drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d, -1, 255);
-							}
-						}
-					}
-				}
-			}
-		}
-		else if (!strcmp(word, "R")) {
-			ok = getword(word, s, c);
-			if (ok) {
-				sscanf(word, "%i", &map->rx);
-				//VALIDATE
-				if (map->rx < 0) map->rx = 0; else if (map->rx > map->w - 1) map->rx = map->w - 1;
-				ok = getword(word, s, c);
-				if (ok) {
-					sscanf(word, "%i", &map->ry);
-					//VALIDATE
-					if (map->ry < 0) map->ry = 0; else if (map->ry > map->h - 1) map->ry = map->h - 1;
-				}
-			}
-		}
-		else if (!strcmp(word, "X")) {
-			ok = getword(word, s, c);
-			if (ok) {
-				char nextlabel[64];
-				strcpy(nextlabel, word);
-
-				int rx1,ry1,rx2,ry2;
-				rx2 = -1;
-
-				ok = getword(word, s, c);
-				if (ok) {
-					sscanf(word, "%i", &rx1);
-					ok = getword(word, s, c);
-					if (ok) {
-						sscanf(word, "%i", &ry1);
-						ok = getword(word, s, c);
-						if (ok) {
-							sscanf(word, "%i", &rx2);
-							ok = getword(word, s, c);
-							if (ok) {
-								sscanf(word, "%i", &ry2);
-							}
-						}
-					}
-				}
-
-				//record previous file position
-				long filepos = ftell(f);
-
-				//one room only call
-				if (rx2 == -1) {
-					map->rx = rx1;
-					map->ry = ry1;
-					//VALIDATE
-					if (map->rx < 0) map->rx = 0; else if (map->rx > map->w - 1) map->rx = map->w - 1;
-					if (map->ry < 0) map->ry = 0; else if (map->ry > map->h - 1) map->ry = map->h - 1;
-					ok = load_map_parse_label(f, nextlabel, map);
-					if (!ok)
-						return false;	//ERROR!
-				}
-				//room range call
-				else {
-					for (int ry=ry1;ry<=ry2;ry++)
-					for (int rx=rx1;rx<=rx2;rx++)
-					{
-						map->rx = rx;
-						map->ry = ry;
-						//VALIDATE
-						if (map->rx < 0) map->rx = 0; else if (map->rx > map->w - 1) map->rx = map->w - 1;
-						if (map->ry < 0) map->ry = 0; else if (map->ry > map->h - 1) map->ry = map->h - 1;
-						ok = load_map_parse_label(f, nextlabel, map);
-						if (!ok)
-							return false;	//ERROR!
-					}
-				}
-
-				//restore previous file position
-				fseek(f, filepos, 0);		//0 == "SEEK_SET" ??
-			}
-		}
-		else if (!strcmp(word, "P")) {
-			ok = getword(word, s, c);
-			if (ok) {
-				if (!strcmp(word, "width")) {
-					ok = getword(word, s, c);
-					if (ok) {
-						sscanf(word, "%i", &map->w);
-						//VALIDATE
-						if ((map->w < 1) || (map->w > WXMAX))
-							map->w = WXMAX;
-						//LOG1("MAP LOAD P WIDTH = %i\n", map->w);
-					}
-				}
-				else if (!strcmp(word, "height")) {
-					ok = getword(word, s, c);
-					if (ok) {
-						sscanf(word, "%i", &map->h);
-						//VALIDATE
-						if ((map->h < 1) || (map->h > WYMAX))
-							map->h = WYMAX;
-						//LOG1("MAP LOAD P HEIGHT = %i\n", map->h);
-					}
-				}
-				else if (!strcmp(word, "title")) {
-					// copy title to map->title
-					map->title[0]=0;
-					bool first = true;
-					while (getword(word, s, c)) {
-						if (first)
-							first = false;
-						else
-							strcat(map->title, " "); //space
-						strcat(map->title, word); //append the word
-					}
-				}
-			}
-		}
-		else if (!strcmp(word, "spawn")) {
-			int team, rx, ry;
-			double x, y;
-
-			ok = getword(word, s, c);
-			if (ok) {
-				sscanf(word, "%i", &team);
-				ok = getword(word, s, c);
-				if (ok) {
-					sscanf(word, "%i", &rx);
-					//VALIDATE
-					if (rx < 0) rx = 0; else if (rx > map->w - 1) rx = map->w - 1;
-					ok = getword(word, s, c);
-					if (ok) {
-						sscanf(word, "%i", &ry);
-						//VALIDATE
-						if (ry < 0) ry = 0; else if (ry > map->h - 1) ry = map->h - 1;
-						ok = getword(word, s, c);
-						if (ok) {
-							sscanf(word, "%lf", &x);
-							ok = getword(word, s, c);
-							if (ok) {
-								sscanf(word, "%lf", &y);
-
-								map->tinfo[team].spawn[map->tinfo[team].lastspawn].px = rx;
-								map->tinfo[team].spawn[map->tinfo[team].lastspawn].py = ry;
-								map->tinfo[team].spawn[map->tinfo[team].lastspawn].x = (int)(x * (double)plw);
-								map->tinfo[team].spawn[map->tinfo[team].lastspawn].y = (int)(y * (double)plh);
-
-								map->tinfo[team].lastspawn++;
-							}
-						}
-					}
-				}
-			}
-		}
-		else if (!strcmp(word, "flag")) {
-			int team, rx, ry;
-			double x, y;
-
-			ok = getword(word, s, c);
-			if (ok) {
-				sscanf(word, "%i", &team);
-				ok = getword(word, s, c);
-				if (ok) {
-					sscanf(word, "%i", &rx);
-					//VALIDATE
-					if (rx < 0) rx = 0; else if (rx > map->w - 1) rx = map->w - 1;
-					ok = getword(word, s, c);
-					if (ok) {
-						sscanf(word, "%i", &ry);
-						//VALIDATE
-						if (ry < 0) ry = 0; else if (ry > map->h - 1) ry = map->h - 1;
-						ok = getword(word, s, c);
-						if (ok) {
-							sscanf(word, "%lf", &x);
-							ok = getword(word, s, c);
-							if (ok) {
-								sscanf(word, "%lf", &y);
-
-								map->tinfo[team].flag.px = rx;
-								map->tinfo[team].flag.py = ry;
-								map->tinfo[team].flag.x = (int)(x * (double)plw);
-								map->tinfo[team].flag.y = (int)(y * (double)plh);
-							}
-						}
-					}
-				}
-			}
-		}
-		else if (!strcmp(word, "V")) {
-			ok = getword(word, s, c);
-			if (ok) {
-				sscanf(word, "%i", &map->ver);
-				// FIXME: do version check to select the appropriate mapfile parser
-			}
-		}
-
-	}
-}
-
 // tenta carregar um mapa do arquivo OUTGUN_DIR/mapdir/mapname.TXT
 // retorna FALSE se nao conseguiu abrir ou se tava corrompido etc
 // retorna o mapa (map_c) atualizado no parametro *map
 
-bool load_map(char *mapdir, char *mapname, map_c *map, NLushort *crc) {
-
+bool load_map(char *mapdir, char *mapname, Map *map, NLushort *crc) {
 	//clear
-	map->clear();
-
-	//hack
-	map->tinfo[0].lastspawn = 0;		// lastspawn
-	map->tinfo[1].lastspawn = 0;		// lastspawn
+	*map = Map();
 
 	char lebuffer[1024];
 	char dest[WHERE_PATH_SIZE];
@@ -2049,41 +1710,20 @@ bool load_map(char *mapdir, char *mapname, map_c *map, NLushort *crc) {
 	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
 	FILE *fmap = fopen(dest, "r");	// FIXME: r or rb ??
 	if (fmap) {
+		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", mapname);
 
-		//save name
-		strcpy(map->filename, mapname);
-		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
-
-		//set the map width/height to the default WXMAX/WYMAX values
-		map->w = WXMAX;
-		map->h = WYMAX;
-		map->rx = 0;
-		map->ry = 0;
-
-		//get fokken crc
 		NLubyte lebigbuf[65536];
-
-		//size_t fread(void* ptr, size_t size, size_t nobj, FILE* stream);
-		//Reads (at most) nobj objects of size size from stream stream into ptr and returns number of objects
-		//read. (feof and ferror can be used to check status.)
-
 		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
 		(*crc) = nlGetCRC16((NLubyte*)lebigbuf, numread);
+
 		rewind(fmap);	//e volta pro comeco
-
-		//LOG1("PRE LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
-
-		//parse map file
-		load_map_parse_label(fmap, 0, map);
-
-		//LOG1("POS LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
-
-		//hack
-		map->tinfo[0].lastspawn = 0;		// lastspawn
-		map->tinfo[1].lastspawn = 0;		// lastspawn
+		if (!map->load(fmap)) {
+			LOG1("Error loading map '%s'\n", mapname);
+			return false;
+		}
 
 		fclose(fmap);
-		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", map->filename);
+		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", mapname);
 		return true;
 	}
 	else {
@@ -2101,7 +1741,7 @@ bool load_map(char *mapdir, char *mapname, map_c *map, NLushort *crc) {
 //delay for the server contacting the master server, in seconds
 // it is good if this delay is set to a minute or so, since this will
 // filter out people opening and closing servers frequently
-#define	DELAY_TO_REPORT_SERVER	1.0
+#define	DELAY_TO_REPORT_SERVER	10.0
 
 //bot frame extrapolation depth (numero de frames que o bot extrapola pra frente)
 #define BOT_XDEPTH 10
@@ -2179,7 +1819,7 @@ class gameserver_c {
 public:
 
 	// the current worldmap
-	map_c		map;
+	Map		map;
 
 	// net server
 	server_c	*server;
@@ -2271,20 +1911,20 @@ public:
 	#endif
 	bool random_maprot;
 
-	//#NR: vote announce timer
+	// vote announce timer
 	NLulong next_vote_announce_frame;
 	int last_vote_announce_votes, last_vote_announce_needed;
 
-	//#JR: map start time
-	NLulong map_start_time;
+	NLulong map_start_time;	// frame #
 
 	//server showing gameover plaque?
 	bool	gameover;
 	double		gameover_time;		//timeout for gameover plaque
 
-	//#JR: server parameters: time and capture limits
 	NLulong time_limit;
 	int capture_limit;
+
+	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
 
 	//server parameters: powerups
 	int pups_min, pups_max, pups_respawn_time, pup_chance_shield, pup_chance_turbo, pup_chance_shadow,
@@ -2306,7 +1946,6 @@ public:
 		ping_send_counter = 0;		// ping send counter
 		ping_send_client = 0;
 
-		//#NR
 		for (int i=0; i<256; ++i)
 			ctop[i]=-1;
 
@@ -3130,7 +2769,7 @@ public:
 		int t = pid/TSIZE;
 
 		//choose a team spawn point
-		if (++map.tinfo[t].lastspawn >= MAX_TEAM_SPAWNS)
+		if (++map.tinfo[t].lastspawn >= map.tinfo[t].spawn.size())
 			map.tinfo[t].lastspawn = 0;
 
 		spoint_t pos;
@@ -3146,27 +2785,21 @@ public:
 			// - away from walls
 
 			//calculate room touch matrix
-			bool roompop[WXMAX][WYMAX];
-			memset(roompop, 0, WXMAX*WYMAX);
+			vector<bool> roompop;
+			roompop.resize(map.w*map.h, false);
 			for (int i=0;i<maxplayers;i++)
-			if (player[i].used)
-			if (player[i].x >= 0)	//enforce valid player screen (needed for "touch room")
-			if (player[i].y >= 0)
-			if (player[i].x < map.w)
-			if (player[i].y < map.h)
-				roompop[player[i].x][player[i].y] = true;
+				if (player[i].used && player[i].x >= 0 && player[i].y >= 0 && player[i].x < map.w && player[i].y < map.h)
+					roompop[player[i].y * map.w + player[i].x] = true;
 
 			int runaway = 400;
-
 			do {
-
 				//find screen
+				int ridx;
 				do {
-					pos.px = rand() % map.w;
-					pos.py = rand() % map.h;
-
-					//don't care for people on the room if already tried 200 times
-				} while ((runaway-- > 200) && (roompop[pos.px][pos.py] == true));	//keep trying until unnocupied (==false)
+					ridx = rand() % (map.w*map.h);
+				} while ((runaway-- > 200) && (roompop[ridx] == true));	//keep trying until unnocupied (==false)
+				pos.px = ridx%map.h;
+				pos.py = ridx/map.h;
 
 				//find a suitable coordinate -- middle square
 				pos.x = plw / 8 + rand() % (3 * plw / 4);
@@ -4007,7 +3640,7 @@ public:
 				if (instant)
 					respawn_pickup(i);
 				else
-					world.item[i].respawn_time = get_time() + PICKUP_RESPAWN_TIME;
+					world.item[i].respawn_time = get_time() + pups_respawn_time;
 				if (++ic>=real_min)
 					break;
 			}
@@ -4427,8 +4060,11 @@ public:
 					else if (!strcmp(s, "pup_max_time")) cmd = 30;
 					else if (!strcmp(s, "pup_deathbringer_switch")) cmd = 31;
 					else if (!strcmp(s, "random_maprot")) cmd = 32;
-					else
+					else if (!strcmp(s, "vote_block_time")) cmd = 33;
+					else {
+						LOG1("*** Bad command in gamemod: %s\n", s);
 						cmd = 0;
+					}
 
 					//LOG1("is command %i\n", cmd);
 				}
@@ -4577,6 +4213,10 @@ public:
 							random_maprot = ival==1?true:false;
 						else LOG1("Can't set random_maprot to %d\n", ival);
 					}
+					else if (cmd == 33) {
+						if (ival >= 0)
+							vote_block_time = 60*10*ival;	// minutes to frames
+					}
 				}
 
 				//parameter
@@ -4590,25 +4230,15 @@ public:
 	}
 
 	//load a map from the rotation list
-	bool load_rotation_map(int pos) {
-
+	void load_rotation_map(int pos) {
 		bool ok = load_map(SERVER_MAPS_DIR, maprot[pos], &map, &(map.crc));
-		builtin = false;
-
-		LOG4("load_rotation_map() maprot[%i] = '%s' map.name='%s' result = %i\n", pos, maprot[pos], map.filename, ok);
-
-		if (ok == false) {
-			//failed (what a shame) -- load the builtin map
-			load_default_map(&map);
-			builtin = true;
-		}
-
-		return ok;
+		assert(ok);
+		LOG2("load_rotation_map() maprot[%i] = '%s'\n", pos, maprot[pos]);
 	}
 
 	//send map change message to a player
 	//reason: NEXTMAP_CAPTURE_LIMIT ou NEXTMAP_VOTE_EXIT
-	void send_map_change_message(int pid, int reason) {
+	void send_map_change_message(int pid, int reason, const char* mapname) {
 
 		char lebuf[256];
 		int count = 0;
@@ -4622,7 +4252,7 @@ public:
 			writeByte(lebuf, count, 2);		// 2 = custom map message
 			writeShort(lebuf, count, map.crc);
 			//LOG2("SERVER: send mapchange to %i mapfile = '%s'\n", pid, map.filename);
-			writeString(lebuf, count, map.filename);	//.filename is shortcut for server's current map rotation list entry (whatever it is)
+			writeString(lebuf, count, mapname);
 		}
 		server->send_message(player[pid].cid, lebuf, count);
 
@@ -4701,11 +4331,9 @@ public:
 			#endif
 
 			// attempts to load map from current position of rotation list
-			bool ok = load_rotation_map(currmap);
-			if (ok)
-				sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
-			else
-				sprintf(lix, "Server changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
+			load_rotation_map(currmap);
+			sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
+//			sprintf(lix, "Server changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
 		}
 
 		next_vote_announce_frame = 0;	// let new announce be made as soon as someone votes
@@ -4713,9 +4341,8 @@ public:
 
 		// notify all players
 		for (int i=0;i<maxplayers;i++)
-		if (player[i].used)
-			if (!player[i].isbot)
-			send_map_change_message(i, reason);
+			if (player[i].used && !player[i].isbot)
+				send_map_change_message(i, reason, maprot[currmap]);
 
 		broadcast_message(lix);
 
@@ -4725,21 +4352,14 @@ public:
 
 	//check map exit by vote
 	void check_map_exit() {
-
-		//broadcast_message("CHECKING MAP EXIT...");
-
-		int exit_count = 0;
-		int i = 0;
-
-		for (i=0;i<maxplayers;i++)
-		if (player[i].used)
-		if (!player[i].isbot)
-		{
-			if (player[i].want_map_exit)
-				exit_count++;		//a favor
-			else
-				exit_count--;		//contra
-		}
+		int num_for = 0, num_against = 0;
+		for (int i=0; i<maxplayers; i++)
+			if (player[i].used && !player[i].isbot) {
+				if (player[i].want_map_exit)
+					num_for++;
+				else
+					num_against++;
+			}
 
 		#ifdef NR_CONSOLE
 		// this could be done elsewhere, but this function is called whenever votes change
@@ -4750,15 +4370,8 @@ public:
 				++mapinfo[player[p].mapVote].votes;
 		#endif
 
-		//passou o voto!
-		if (exit_count > 0) {
-
-			//broadcast_message("ENOUGH VOTES, EXITING!!");
-
-			//vai para o proximo mapa
+		if ((map_start_time+vote_block_time<frame && num_for>num_against) || (num_for && num_against==0)) {	// num_for to not change with no players...
 			server_next_map(NEXTMAP_VOTE_EXIT);
-
-			//reposiciona jogadores
 			ctf_game_restart();
 		}
 	}
@@ -4843,6 +4456,8 @@ public:
 		time_limit = 0;	// no time limit
 		capture_limit = CTF_DEFAULT_NUMBER_OF_CAPTURES;
 
+		vote_block_time = 0;	// no limit
+
 		random_maprot = false;
 		// reset server rotation list
 		maprots = 0;
@@ -4905,15 +4520,12 @@ public:
 		}
 		#endif
 
-		// load first map from rotation list, or load built-in if still no maps found
 		if (maprots == 0) {
-
-			// default map
-			load_default_map(&map);
-			builtin = true;
+			LOG("No maps for rotation\n");
+			return false;
 		}
-		else
-			load_rotation_map(currmap);		// rand() % maprots : load map from a random position of the rotation list
+
+		load_rotation_map(currmap);
 
 		// start server
 		server = new_server_c();
@@ -5675,7 +5287,7 @@ public:
 
 			// MAP NAME+CRC !!! VERY IMPORTANT
 			//
-			send_map_change_message(myself, NEXTMAP_NONE);
+			send_map_change_message(myself, NEXTMAP_NONE, maprot[currmap]);
 
 			// - all other player's names
 			// - all other player's frags
@@ -6014,10 +5626,10 @@ public:
 							if (pup_deathbringer_switch)
 								player[pid].queue_printf("Picking up a second deathbringer power-up cancels the effect");
 							ostringstream pupstr;
-							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << '%';
-							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << '%';
+							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << "%%";
+							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << "%%";
 							if (pups_min_percentage || pups_max_percentage)
-								pupstr << " (% of map size)";
+								pupstr << " (%% of map size)";
 							player[pid].add_to_queue(pupstr.str());
 							#ifdef NR_SERVER_PHYSICS
 							player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
@@ -7304,7 +6916,7 @@ hd->y=h->y+hd->sy;
 
 		}
 
-		//#NR announce voting status
+		// announce voting status
 		if (frame >= next_vote_announce_frame) {
 			int votes=0, players=0;
 			for (int i=0; i<maxplayers; ++i)
@@ -7318,11 +6930,16 @@ hd->y=h->y+hd->sy;
 				last_vote_announce_votes=votes;
 				last_vote_announce_needed=players;
 				next_vote_announce_frame=frame+NR_VOTE_ANNOUNCE_INTERVAL*10;
-				bprintf("@I*** %d/%d votes for mapchange", votes, players);
+				ostringstream voteinfo;
+				voteinfo << "@I*** " << votes << '/' << players << " votes for mapchange";
+				if (map_start_time+vote_block_time >= frame)
+					voteinfo << " (unanimousity required for " << (map_start_time+vote_block_time-frame+5)/10 << " more seconds)";
+				broadcast_message(voteinfo.str().c_str());
 			}
 		}
+
+		// player maintenance (check delayed messages etc)
 		int players = 0;
-		//#NR player maintenance (check delayed messages etc)
 		for (int i=0; i<maxplayers; ++i)
 			if (player[i].used) {
 				++players;
@@ -7343,6 +6960,8 @@ hd->y=h->y+hd->sy;
 					}
 				}
 			}
+
+		// check timelimit
 		if (players > 1 && time_limit > 0) {
 			if (time_limit >= 10*60 * 10 && frame - map_start_time == time_limit - 5*60 * 10)
 				bprintf("@I*** Five minutes left in the game");
@@ -9472,7 +9091,7 @@ class gameclient_c {
 public:
 
 	// the current worldmap
-	map_c		map;
+	Map		map;
 
 	//all the players to show including me
 	player_t player[MAX_PLAYERS];
@@ -11369,50 +10988,8 @@ public:
 
 	//update the minimap background
 	void update_minimap_background() {
-
 		LOG2("update_minimap map.w = %i map.h = %i\n", map.w, map.h);
-
-		//black bg
-		clear_to_color(minibg, 0);
-
-		//draw screen boundaries
-		int MMSCRW = (int)(98.0/((double)map.w));
-		int MMSCRH = (int)(98.0/((double)map.h));
-		int j;
-		for (j=1;j<map.w;j++)
-			line(minibg, 2+MMSCRW * j, 1, 2+MMSCRW * j, 100, col[COLSHADOW]);
-		for (j=1;j<map.h;j++)
-			line(minibg, 1, 2+MMSCRH * j, 100, 2+MMSCRH * j, col[COLSHADOW]);
-
-		//draw bases
-		int fx = map.tinfo[0].flag.px;
-		int fy = map.tinfo[0].flag.py;
-		rectfill(minibg, 2+ MMSCRW * fx, 2+ MMSCRH * fy, MMSCRW * (fx + 1), MMSCRH * (fy + 1), col[COLBRED]);
-		fx = map.tinfo[1].flag.px;
-		fy = map.tinfo[1].flag.py;
-		rectfill(minibg, 2+ MMSCRW * fx, 2+ MMSCRH * fy, MMSCRW * (fx + 1), MMSCRH * (fy + 1), col[COLBBLUE]);
-
-		//draw solid walls
-		int a,b,c,d;
-		double maxx = plw*(map.w);
-		double maxy = plh*(map.h);
-		for (int x=0;x<map.w;x++)
-		for (int y=0;y<map.h;y++)
-		for (int w=0;w<WALLMAX;w++)
-		if (map.room[x][y].wall[w].a != -1)
-		{
-			wall_c *wa = &(map.room[x][y].wall[w]);
-
-			a = 1 + (int)( (((double)wa->a + x*plw) / maxx) * 98.0 );
-			b = 1 + (int)( (((double)wa->b + y*plh) / maxy) * 98.0 );
-			c = 1 + (int)( (((double)wa->c + x*plw) / maxx) * 98.0 );
-			d = 1 + (int)( (((double)wa->d + y*plh) / maxy) * 98.0 );
-
-			rectfill(minibg, a,b,c,d, makecol(0x00, 0x77, 0x00));
-		}
-
-		//green border
-		rect(minibg, 0, 0, minibg->w -1, minibg->h -1, col[COLGREEN]);
+		map.draw_minimap(minibg);
 	}
 
 	//draws a player object
@@ -11543,7 +11120,7 @@ public:
 
 			if (map_ready) {
 				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "Waiting game start - next map is:");
-				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 50, col[COLORA], "%s", map.title);
+				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 50, col[COLORA], "%s", map.title.c_str());
 			}
 			else
 				textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "Loading map: %lu bytes", fdp);
@@ -11565,27 +11142,18 @@ public:
 			*/
 				rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
+			// place of flag
+			set_trans_blender(0, 0, 0, 128);
+			if (player[me].x==map.tinfo[0].flag.px && player[me].y==map.tinfo[0].flag.py)
+				ellipsefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, 20, 20, col[COLBRED]);
+			if (player[me].x==map.tinfo[1].flag.px && player[me].y==map.tinfo[1].flag.py)
+				ellipsefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, 20, 20, col[COLBBLUE]);
+			solid_mode();
+
 			// map walls
 			//
-			if (player[me].x >= 0)
-			if (player[me].y >= 0)
-			if (player[me].x < map.w)
-			if (player[me].y < map.h)
-			{
-				room_c *r = &(map.room[player[me].x][player[me].y]);
-				if (r) {
-					for (int w=0;w<WALLMAX;w++)
-					if (r->wall[w].a != -1)	{
-						rectfill(drawbuf,
-							plx + r->wall[w].a,
-							ply + r->wall[w].b,
-							plx + r->wall[w].c,
-							ply + r->wall[w].d,
-							col[COLWALL]
-						);
-					}
-				}
-			}
+			if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < map.w && player[me].y < map.h)
+				map.room[player[me].x][player[me].y].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
 		}
 
 		// frame is valid?
@@ -12110,95 +11678,71 @@ public:
 			if (fx.flag[f].carried == false)
 				draw_mini_flag(drawbuf, f);
 
-			//room "touch" matrix - for fog-of-war
-			bool roomvis[WXMAX][WYMAX];
-			if (me >= 0)
-			if (player[me].item_helm > 0)	// has helm invis visao alem do alcance thundercats?
-				memset(roomvis, 1, WXMAX*WYMAX);	// sem fog! ve tudo!!
-			else
-				memset(roomvis, 0, WXMAX*WYMAX);  // tapa a fog
+			vector<bool> roomvis;
+			roomvis.resize(map.w*map.h, (me>=0 && player[me].item_helm>0)?true:false);
 
 			// draw all teammates and enemies on screens where there are teammates
 			//draw all the players - put a pixel where they are
-			if (me >= 0)
-			if (fx.frame >= 0)
-			for (int i=0;i<maxplayers;i++)
-			if (player[i].used)
-			if (player[i].x >= 0)	//enforce valid player screen (needed for "touch room")
-			if (player[i].y >= 0)
-			if (player[i].x < map.w)
-			if (player[i].y < map.h)
-			if (
-						(i/TSIZE == me/TSIZE)		//show all teammates
-						||
-						(
-							(i/TSIZE != me/TSIZE)		//enemies
-							&&
-							((player[me].enemyvis & (1 << (i%TSIZE) )) != 0)		//a visible enemy
-						)
-			)
-			{
-				//"touch" room (calculating fog of war)
-				roomvis[player[i].x][player[i].y] = true;
+			if (me>=0 && fx.frame>=0)
+				for (int i=0;i<maxplayers;i++)
+					if (player[i].used && player[i].x>=0 && player[i].y>=0 && player[i].x<map.w && player[i].y<map.h &&
+							(i/TSIZE == me/TSIZE || (player[me].enemyvis & (1<<(i%TSIZE)) ))) {
+						roomvis[player[i].y*map.w+player[i].x] = true;
 
-				// coord on minimap
-				double px, py;
-				px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * map.w);
-				py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * map.h);
-				int pix = mmx + 21 + ((int)(px*98));
-				int piy = mmy + 01 + ((int)(py*98));
+						// coord on minimap
+						double px, py;
+						px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * map.w);
+						py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * map.h);
+						int pix = mmx + 21 + ((int)(px*98));
+						int piy = mmy +  1 + ((int)(py*98));
 
-				//verifica se o jogador a ser desenhado é um carrier de flag inimiga
-				int enemyteam = 1-i/TSIZE;
-				if (fx.flag[enemyteam].carried)
-				if (fx.flag[enemyteam].carrier == i) {
+						//verifica se o jogador a ser desenhado é um carrier de flag inimiga
+						int enemyteam = 1-i/TSIZE;
+						if (fx.flag[enemyteam].carried)
+						if (fx.flag[enemyteam].carrier == i) {
 
-					// update flag position for draw
-					fx.flag[enemyteam].pos.px = player[i].x;
-					fx.flag[enemyteam].pos.py = player[i].y;
-					fx.flag[enemyteam].pos.x = (int)fx.hero[i].x;
-					fx.flag[enemyteam].pos.y = (int)fx.hero[i].y;
+							// update flag position for draw
+							fx.flag[enemyteam].pos.px = player[i].x;
+							fx.flag[enemyteam].pos.py = player[i].y;
+							fx.flag[enemyteam].pos.x = (int)fx.hero[i].x;
+							fx.flag[enemyteam].pos.y = (int)fx.hero[i].y;
 
-					// draw the miniflag here
-					draw_mini_flag(drawbuf, enemyteam);
-				}
+							// draw the miniflag here
+							draw_mini_flag(drawbuf, enemyteam);
+						}
 
-				if (i != me) {
-					putpixel(drawbuf, pix+0, piy+0, teamcol[i/TSIZE]);	//3 pixel teamcol
-					putpixel(drawbuf, pix+1, piy+0, teamcol[i/TSIZE]);	//3 pixel teamcol
-					putpixel(drawbuf, pix+0, piy+1, teamcol[i/TSIZE]);	//3 pixel teamcol
-					putpixel(drawbuf, pix+1, piy+1, col[i%TSIZE]);		// 1 pixel personal-color
-				}
-				else {
-					//myself: draw differently
-					if ( ((int) (get_time() * 15) ) % 3 > 0 ) {
-						ellipsefill(drawbuf, pix, piy, 2, 2, col[COLYELLOW]);
-						ellipsefill(drawbuf, pix, piy, 1, 1, teamlcol[i/TSIZE]);
-					} else
-						ellipsefill(drawbuf, pix, piy, 2, 2, 0);
-				}
-			}
+						if (i != me) {
+							putpixel(drawbuf, pix+0, piy+0, teamcol[i/TSIZE]);	//3 pixel teamcol
+							putpixel(drawbuf, pix+1, piy+0, teamcol[i/TSIZE]);	//3 pixel teamcol
+							putpixel(drawbuf, pix+0, piy+1, teamcol[i/TSIZE]);	//3 pixel teamcol
+							putpixel(drawbuf, pix+1, piy+1, col[i%TSIZE]);		// 1 pixel personal-color
+						}
+						else {
+							//myself: draw differently
+							if ( (int(get_time() * 15)) % 3 > 0 ) {
+								ellipsefill(drawbuf, pix, piy, 2, 2, col[COLYELLOW]);
+								ellipsefill(drawbuf, pix, piy, 1, 1, teamlcol[i/TSIZE]);
+							}
+							else
+								ellipsefill(drawbuf, pix, piy, 2, 2, 0);
+						}
+					}
 
 			// paint fog of war in all invisible rooms
 			//
-			for (int ry=0;ry<map.h;ry++)
-			for (int rx=0;rx<map.w;rx++)
-			if (roomvis[rx][ry] == false)	//not seeing map room[rx][ry]- paint fog
-			{
-				drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-
-				set_trans_blender(0,0,0,0x38);
-
-				// FOG OF WAR!!!!!!!!
-				int a,b,c,d;
-				a = mmx+21 + rx*98/map.w;
-				b = mmy+01 + ry*98/map.h;
-				c = mmx+21 + (rx+1)*98/map.w-1;
-				d = mmy+01 + (ry+1)*98/map.h-1;
-				rectfill(drawbuf, a,b,c,d, col[COLFOGOFWAR]);
-
-				solid_mode();
-			}
+			for (int ry=0; ry<map.h; ry++)
+				for (int rx=0; rx<map.w; rx++)
+					if (!roomvis[ry*map.w+rx]) {
+						drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+						set_trans_blender(0,0,0,0x38);
+						int a,b,c,d;
+						a = mmx+21 +  rx   *98/map.w  ;
+						b = mmy+ 1 +  ry   *98/map.h  ;
+						c = mmx+21 + (rx+1)*98/map.w-1;
+						d = mmy+ 1 + (ry+1)*98/map.h-1;
+						rectfill(drawbuf, a,b,c,d, col[COLFOGOFWAR]);
+					}
+			solid_mode();
 		}//!hide_game
 
 		//
@@ -15814,6 +15358,7 @@ int main(int argc, char *argv[]) {
 	if (set_shitty_mode() == false)
 		return 0;		//if this ever executes then the world is a sucky sucky place.
 
+/*
 	// holding left shift on boot = switch to dedicated server
 	// holding right control on boot = toggle winclient flag
 	MS_SLEEP(500);
@@ -15823,6 +15368,7 @@ int main(int argc, char *argv[]) {
 		winclient = !winclient;
 	if (key[KEY_ALT])
 		trypageflip = !trypageflip;
+*/
 
 	// install higher-accuracy timer interrupt
 	//
