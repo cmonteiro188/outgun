@@ -38,10 +38,10 @@ enum Menu_selection {
 class client_c;	// of leetnet
 
 class gameclient_c {
-	std::vector<std::pair<std::string, std::string> > load_all_player_passwords() const;
-	std::string load_player_password(const std::string& name) const;
-	void save_player_password(const std::string& name, const std::string& password) const;
-	void remove_player_password(const std::string& name) const;
+	std::vector<std::vector<std::string> > load_all_player_passwords() const;
+	std::string load_player_password(const std::string& name, const std::string& address) const;
+	void save_player_password(const std::string& name, const std::string& address, const std::string& password) const;
+	void remove_player_password(const std::string& name, const std::string& address) const;
 
 	// world
 	ClientWorld fd, fx;	//#fix: two maps, etc.

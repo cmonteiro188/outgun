@@ -1003,7 +1003,7 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 	else if (message == "PLAYER PASSWORD") {
 		set_menu(menu_player_password);
 		save_password_selected = false;
-		edit_player_password = load_player_password(playername);
+		edit_player_password = load_player_password(playername, address);
 		save_pl_password = !edit_player_password.empty();
 	}
 	else {
@@ -1024,77 +1024,87 @@ void gameclient_c::connect_failed_unreachable() {
 	set_menu(menu_dialog);
 }
 
-string gameclient_c::load_player_password(const string& name) const {
+string gameclient_c::load_player_password(const string& name, const string& address) const {
 	ifstream in(password_file.c_str());
 	while (in) {
-		string load_name, load_password;
+		string load_name, load_address, load_password;
 		getline(in, load_name);
+		getline(in, load_address);
 		getline(in, load_password);
-		if (load_name == name)
+		if (load_name == name && load_address == address)
 			return load_password;
 	}
 	return string();
 }
 
-vector<pair<string, string> > gameclient_c::load_all_player_passwords() const {
-	vector<pair<string, string> > passwords;
+vector<vector<string> > gameclient_c::load_all_player_passwords() const {
+	vector<vector<string> > passwords;
 	ifstream in(password_file.c_str());
 	while (1) {
-		string name, password;
+		string name, address, password;
 		getline(in, name);
+		getline(in, address);
 		getline(in, password);
-		if (in)
-			passwords.push_back(pair<string, string>(name, password));
+		if (in) {
+			vector<string> entry;
+			entry.push_back(name);
+			entry.push_back(address);
+			entry.push_back(password);
+			passwords.push_back(entry);
+		}
 		else
 			break;
 	}
 	return passwords;
 }
 
-void gameclient_c::save_player_password(const string& name, const string& password) const {
-	vector<pair<string, string> > passwd_list = load_all_player_passwords();
+void gameclient_c::save_player_password(const string& name, const string& address, const string& password) const {
+	vector<vector<string> > passwd_list = load_all_player_passwords();
 	// check if player already has a password
-	string test = load_player_password(name);
-	if (test.empty())
-		passwd_list.push_back(pair<string, string>(name, password));
+	string test = load_player_password(name, address);
+	if (test.empty()) {
+		vector<string> entry;
+		entry.push_back(name);
+		entry.push_back(address);
+		entry.push_back(password);
+		passwd_list.push_back(entry);
+	}
 	ofstream out(password_file.c_str());
 	if (!out) {
 		LOG1("Can't save player password to %s!\n", password_file.c_str());
 		return;
 	}
-	for (vector<pair<string, string> >::const_iterator name_pwd = passwd_list.begin();
-					name_pwd != passwd_list.end(); ++name_pwd) {
-		out << name_pwd->first << '\n';
-		if (name_pwd->first == name)
+	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
+		out << (*item)[0] << '\n';
+		out << (*item)[1] << '\n';
+		if ((*item)[0] == name && (*item)[1] == address)
 			out << password;
 		else
-			out << name_pwd->second;
+			out << (*item)[2];
 		out << '\n';
-		LOG2("%s, %s\n", name_pwd->first.c_str(), name_pwd->second.c_str());
+		LOG("Player password saved.\n");
 	}
 }
 
-void gameclient_c::remove_player_password(const string& name) const {
+void gameclient_c::remove_player_password(const string& name, const string& address) const {
 	// check if player has a password
-	string test = load_player_password(name);
+	string test = load_player_password(name, address);
 	if (test.empty())
 		return;
-	vector<pair<string, string> > passwd_list = load_all_player_passwords();
+	vector<vector<string> > passwd_list = load_all_player_passwords();
 	ofstream out(password_file.c_str());
 	if (!out)
 		return;
-	for (vector<pair<string, string> >::const_iterator name_pwd = passwd_list.begin();
-					name_pwd != passwd_list.end(); ++name_pwd) {
-		if (name_pwd->first == name)
+	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
+		if ((*item)[0] == name && (*item)[1] == address)
 			continue;
-		out << name_pwd->first << '\n';
-		out << name_pwd->second << '\n';
+		for (int i = 0; i < 3; i++)
+			out << (*item)[i] << '\n';
 	}
 }
 
 //refresh servers command
 void gameclient_c::refresh_command() {
-
 	if (showmaster)
 		refresh_command_2(mgamespy);
 	else
@@ -1329,9 +1339,9 @@ void gameclient_c::connect_command() {
 	if (!edit_player_password.empty()) {
 		writeStr(lebuf, count, edit_player_password);
 		if (save_pl_password)
-			save_player_password(playername, edit_player_password);
+			save_player_password(playername, address, edit_player_password);
 		else
-			remove_player_password(playername);
+			remove_player_password(playername, address);
 	}
 
 	client->set_connect_data(lebuf, count);
@@ -3522,9 +3532,20 @@ void gameclient_c::draw_game_frame() {
 	}
 	// frame is valid?
 	if (!hide_game && fd.frame >= 0) {
+		// draw dead players, except ice creams
+		for (int k = 0; k < maxplayers; k++) {
+			const int i = fd.player[k].drawptr;
+
+			if (i >= 0 && fx.player[i].onscreen && fx.player[i].dead) {
+				if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
+					;	// draw later
+				else
+					client_graphics.draw_player_dead((int)fx.player[i].lx, (int)fx.player[i].ly);
+			}
+		}
+
 		// FIXME: y-ordering of draw not maintained
 		// draw any item pickups
-		//
 		if (me >= 0)
 			for (int i = 0; i < MAX_PICKUPS; i++)
 				// used power-ups, not respawning, on my screen
@@ -3541,7 +3562,6 @@ void gameclient_c::draw_game_frame() {
 
 		// FIXME: y-ordering of draw not maintained
 		// draw any dropped flags (use fx since flags don't move)
-		//
 		for (int t = 0; t < 2; t++)
 			for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
 				// not carried, on same screen
@@ -3607,17 +3627,15 @@ void gameclient_c::draw_game_frame() {
 				int alpha = fd.player[i].visibility;
 				if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
 					alpha = MIN_ALPHA_FRIENDS;
-				client_graphics.draw_player_shadow(fx.player[i], alpha);	//#fix? fx -> fd to make shadow not jump
+				//client_graphics.draw_player_shadow(fx.player[i], alpha);	//#fix? fx -> fd to make shadow not jump
 				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
 				for (int t = 0; t < 2; t++)
 					for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
 						if (fi->carrier() == i)
 							client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
-				if (fx.player[i].dead) {
-					if ((fx.player[i].frags >= 10) && (fx.player[i].frags % 10 == 0))
+				if (fx.player[i].dead) {	// draw only ice creams
+					if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
 						client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);
-					else
-						client_graphics.draw_player_dead((int)fx.player[i].lx, (int)fx.player[i].ly);
 				}
 				// desenha player vivo
 				else {
