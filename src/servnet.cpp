@@ -306,6 +306,111 @@ void ServerNetworking::ctf_update_teamscore(int t) {
 	server->broadcast_message(lebuf, count);
 }
 
+void ServerNetworking::broadcast_capture(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_capture);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_flag_take(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_flag_take);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_flag_return);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	server->broadcast_message(lebuf, count);
+}
+
+// player dropped the flag on purpose
+void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_flag_drop);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_kill);
+	// first byte, deatbringer bit and attacker id
+	NLubyte att_db = attacker.id;
+	if (deathbringer)
+		att_db |= 0x80;
+	// second byte, flag bit and target id
+	NLubyte tar_flag = target.id;
+	if (flag)
+		tar_flag |= 0x80;
+	writeByte(lebuf, count, att_db);
+	writeByte(lebuf, count, tar_flag);
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_suicide);
+	NLubyte id_flag = player.id;
+	if (flag)
+		id_flag |= 0x80;
+	writeByte(lebuf, count, id_flag);
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_spawn);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::send_movements_and_shots(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_movements_shots);
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used) {
+			writeLong(lebuf, count, static_cast<NLlong>(world.player[i].stats().movement()));
+			writeShort(lebuf, count, static_cast<NLshort>(world.player[i].stats().shots()));
+			writeShort(lebuf, count, static_cast<NLshort>(world.player[i].stats().hits()));
+			writeShort(lebuf, count, static_cast<NLshort>(world.player[i].stats().shots_taken()));
+		}
+	server->send_message(player.cid, lebuf, count);
+}
+
+void ServerNetworking::send_stats(const ServerPlayer& player) const {
+	char lebuf[256];
+	int count = 0;
+	writeByte(lebuf, count, data_stats);
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used) {
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().kills()));
+			writeByte(lebuf, count, static_cast<NLshort>(world.player[i].stats().deaths()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().cons_kills()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().current_cons_kills()));
+			writeByte(lebuf, count, static_cast<NLshort>(world.player[i].stats().cons_deaths()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().current_cons_deaths()));
+			writeByte(lebuf, count, static_cast<NLshort>(world.player[i].stats().suicides()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().captures()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().flags_taken()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().flags_dropped()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().flags_returned()));
+			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().carriers_killed()));
+		}
+	server->send_message(player.cid, lebuf, count);
+}
+
 void ServerNetworking::send_map_info(const ServerPlayer& player) {
 	int count = 0;
 	char lebuf[256];
@@ -320,21 +425,16 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) {
 }
 
 void ServerNetworking::broadcast_map_votes_update() {
+	// check changed votes
 	vector<pair<NLchar, NLchar> > votes;	// map number and votes
 	NLchar i = 0;
 	for (vector<gameserver_c::MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
-		if (mi->votes_changed || i % 3 == 4) {
+		if (mi->votes_changed) {
 			votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
 			mi->votes_changed = false;
 		}
 
-	if (!votes.empty())
-		for (int i = 0; i < maxplayers; i++)
-			if (world.player[i].used)
-				send_map_votes_update(world.player[i], votes);
-}
-
-void ServerNetworking::send_map_votes_update(const ServerPlayer& player, const vector<pair<NLchar, NLchar> >& votes) {
+	// build packet
 	int count = 0;
 	char lebuf[256];
 	writeByte(lebuf, count, data_map_votes_update);
@@ -343,7 +443,12 @@ void ServerNetworking::send_map_votes_update(const ServerPlayer& player, const v
 		writeByte(lebuf, count, vi->first);
 		writeByte(lebuf, count, vi->second);
 	}
-	server->send_message(player.cid, lebuf, count);
+
+	// send packet
+	if (!votes.empty())
+		for (int i = 0; i < maxplayers; i++)
+			if (world.player[i].used)
+				server->send_message(world.player[i].cid, lebuf, count);
 }
 
 //send map time left
@@ -565,6 +670,7 @@ bool ServerNetworking::start() {
 	//start website thread
 	websock = NL_INVALID;		//not opened
 	pthread_create(&webthread, 0, thread_website_f, this);
+	website_exiting_ok = false;
 
 	//shell socket
 	//v0.4.2 : new port
@@ -689,6 +795,10 @@ int ServerNetworking::client_connected(int id) {
 	//CONNECT OK: another one...
 	player_count++;
 
+	// spawn player
+	world.player[myself].respawn_to_base = true;
+	world.respawnPlayer(myself);
+
 	// se o player_count ficou == 2, reseta partida
 	//
 	if (player_count == 2)
@@ -745,7 +855,6 @@ int ServerNetworking::client_connected(int id) {
 		world.player[myself].add_to_queue(*line);
 
 	//check for team changes
-	//
 	host->check_team_changes();
 
 	//update serverinfo
@@ -754,15 +863,13 @@ int ServerNetworking::client_connected(int id) {
 	//send map time left if there is a time limit
 	send_map_time(id);
 
+	//send stats
+	send_stats(world.player[myself]);
+
 	//the first map info to be sent
 	world.player[myself].current_map_list_item = 0;
 
-	// spawn player
-	world.player[myself].respawn_to_base = true;
-	world.respawnPlayer(myself);
-
 	//ok!
-	//
 	return myself;
 }
 
@@ -1063,6 +1170,19 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			// stop dropping flag
 			else if (code == data_stop_drop_flag)
 				world.player[pid].drop_key = false;
+			// map vote
+			else if (code == data_map_vote) {
+				NLbyte vote;
+				readByte(msg, count, vote);
+				if (world.player[pid].mapVote != vote) {
+					if (world.player[pid].mapVote >= 0 && world.player[pid].mapVote < static_cast<int>(host->maplist().size()))
+						host->maplist()[world.player[pid].mapVote].votes_changed = true;
+					if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
+						host->maplist()[vote].votes_changed = true;
+					world.player[pid].mapVote = vote;
+					host->check_map_exit();
+				}
+			}
 			else {
 				//ERROR: unknown message from client
 				LOG3("ERROR: UNKNOWN MESSAGE FROM CLIENT %i CODE=%i LENGTH=%i\n", id, code, msglen);
@@ -1180,6 +1300,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		if (world.player[helmiter].used) {
 			//fix: helm nao enxerga outros helms, a nao ser com a flag
 			//ou seja: so mostra (break) se:  NAO TEM HELM   ou   TEM FLAG
+			/* ### REMOVE ###
 			const Team& team = world.teams[1 - helmiter / TSIZE];
 			bool out = false;
 			for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
@@ -1188,6 +1309,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 					break;
 				}
 			if (out)
+				break;*/
+			if (!world.player[helmiter].item_helm() || world.player[helmiter].flag())
 				break;
 		}
 	} while (runaway-- > 0);
@@ -1205,12 +1328,15 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		if (i / TSIZE == 1 - t && world.player[i].used) {
 			// ---- helmview -----
 			// mostra se NAO TEM HELM ou SE TA COM FLAG
+			if (!world.player[i].item_helm() || world.player[i].flag())
+				helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
+			/* ### REMOVE
 			const Team& team = world.teams[1 - i / TSIZE];
 			for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
 				if (!world.player[i].item_helm() || fi->carrier() == i) {
 					//adiciona bit
 					helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
-				}
+				}*/
 
 			// ---- tview -----
 			tview[t][i] = 0;		// default = nao visto
@@ -1318,23 +1444,14 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			writeLong(lebuf, lecount, 0);
 
 			for (int j = 0; j < maxplayers; j++) {
-				bool visible = false;
-				// player j exists
+				// player j exists, in same room, visibility > 0 or in same team or has a flag
 				if ((players_present & (1 << j)) != 0 &&
-					world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-					(world.player[j].visibility > 0 || i / TSIZE == j / TSIZE))
-						visible = true;
-				else
-					for (vector<Flag>::const_iterator fi = world.teams[1 - j / TSIZE].flags().begin(); fi != world.teams[1 - j / TSIZE].flags().end(); ++fi)
-						if (fi->carrier() == j)
-							visible = true;
-				if (visible) {
+						world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
+						(world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].flag())) {
 					//add to players_onscreen
 					players_onscreen += (1 << j);
 
 					const ServerPlayer& h = world.player[j];
-
-	//					NLshort sho;
 
 					//V0.3.9: took out screen from here
 
@@ -1457,8 +1574,15 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		}
 	}
 
-	if (world.frame % 10 == 0) {
+	// map votes update
+	if (world.frame % 10 == 0)
 		broadcast_map_votes_update();
+
+	// stats update
+	if (world.frame / MAX_PLAYERS % 5 == 0) {
+		const int pid = world.frame % MAX_PLAYERS;
+		if (world.player[pid].used)
+			send_movements_and_shots(world.player[pid]);
 	}
 
 	// PING: v0.4.1
@@ -2858,7 +2982,6 @@ void ServerNetworking::stop() {
 	// flag so threads will quit themselves
 	master_pre_exiting_ok = false;
 	master_exiting_ok = false;
-	website_exiting_ok = false;
 	file_threads_quit = true;	//quit stuff now
 
 	//close TCP connection with the server admin shell

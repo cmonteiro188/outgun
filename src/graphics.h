@@ -31,6 +31,7 @@ class ClientPlayer;
 class Sounds;
 class gamespy_t;
 class clientfx_t;
+class Team;
 
 class Graphics {
 public:
@@ -101,11 +102,14 @@ public:
 	void draw_scoreboard_name(int y, int pcol, const ClientPlayer& player);
 	void draw_scoreboard_points(int y, int team, int points);
 
-	void draw_statistics(const std::vector<ClientPlayer>& players);
-	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y);
+	void team_statistics(const Team* teams);
+	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
 
-	void map_list(const vector<gameserver_c::MapInfo>& maps) { map_list(maps, -1); }
-	void map_list(const vector<gameserver_c::MapInfo>& maps, int current);
+	void map_list(const vector<gameserver_c::MapInfo>& maps, int current = -1,
+				  int own_vote = -1, const std::string& edit_vote = "");
+
+	void map_list_prev();
+	void map_list_next();
 
 	void draw_player_power(double val);
 	void draw_player_turbo(double val);
@@ -162,8 +166,8 @@ private:
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
 	// texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
-	void draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, BITMAP* texture);
-	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, BITMAP* texture);
+	void draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
+	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
 
 	void draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
 	void draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
@@ -174,19 +178,27 @@ private:
 	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
 	void menu_caption();
 
+	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time);
+
 	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 
 	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 
+	void scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
+
 	std::string make_theme_path(const std::string& theme_dir);
 	void load_theme(const std::string& dirname = "");
 	void load_pictures();
-	void unload_pictures();
 
-	void load_floor_texture(const std::string& filename);
-	void load_wall_texture(const std::string& filename);
+	void load_floor_textures(const std::string& filename);
+	void load_wall_textures(const std::string& filename);
 	void load_player_sprite(const std::string& filename_team, const std::string& filename_personal);
+	void create_player_sprite(BITMAP* sprite, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
+
+	void unload_pictures();
+	void unload_floor_textures();
+	void unload_wall_textures();
 	void unload_player_sprites();
 
 	BITMAP* drawbuf;	// main draw buffer
@@ -204,9 +216,13 @@ private:
 	static const int flagpos_radius = 30;
 	bool flagpos_ready;
 
-	BITMAP* floor_texture;
-	BITMAP* wall_texture;
-	vector<BITMAP*> player_sprite[2];
+	std::vector<BITMAP*> floor_texture;
+	std::vector<BITMAP*> wall_texture;
+	std::vector<BITMAP*> player_sprite[2];
+	BITMAP* player_sprite_power;
+
+	int map_list_size;
+	int map_list_start;
 
 	// drawing screens
 	BITMAP* vidpage1;
@@ -267,6 +283,7 @@ private:
 		COLENER3,
 		COLGROUND_DEF,
 		COLWALL_DEF,
+		COLDARKGREEN,
 		NUM_OF_COL
 	};
 

@@ -33,7 +33,8 @@ enum Menu_selection {
 	menu_server_list,
 	menu_name_password,
 	menu_maps,
-	menu_players
+	menu_players,
+	menu_teams
 };
 
 class client_c;	// of leetnet
@@ -79,6 +80,9 @@ class gameclient_c {
 
 	std::vector<gameserver_c::MapInfo> maps;
 	int current_map;
+	int map_vote;
+	std::string edit_map_vote;
+	int player_stats_page;
 	bool want_change_teams;
 	bool want_map_exit;
 	bool option_show_names;

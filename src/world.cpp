@@ -206,18 +206,18 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 			float x1, y1, x2, y2;
 			int texid, alpha;
 			int n = sscanf(s+1, " %f %f %f %f %i %i %c", &x1, &y1, &x2, &y2, &texid, &alpha, &nullc);
-			if (n == 4) {
-				texid = -1;
+			if (n == 4)
+				texid = 0;
+			if (n == 4 || n == 5)
 				alpha = 255;
-			}
-			if ((n!=4 && n!=6) || crx<0 || cry<0 || crx>=w || cry>=h) {
+			if (n < 4 || n > 6 || crx < 0 || cry < 0 || crx >= w || cry >= h) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
 			x1 *= plw / scalex; x2 *= plw / scalex;
 			y1 *= plh / scaley; y2 *= plh / scaley;
 			Room& rm = room[crx][cry];
-			vector<RectWall>& wvec = (s[0]=='W') ? rm.rwalls : rm.rground;
+			vector<RectWall>& wvec = (s[0] == 'W') ? rm.rwalls : rm.rground;
 			wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
 			continue;
 		}
@@ -226,18 +226,18 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 			float x1, y1, x2, y2, x3, y3;
 			int texid, alpha;
 			int n = sscanf(s+1, " %c %f %f %f %f %f %f %i %i %c", &type, &x1, &y1, &x2, &y2, &x3, &y3, &texid, &alpha, &nullc);
-			if (n == 7) {
-				texid = -1;
+			if (n == 7)
+				texid = 0;
+			if (n == 7 || n == 8)
 				alpha = 255;
-			}
-			if ((n!=7 && n!=9) || (type!='W' && type!='G') || crx<0 || cry<0 || crx>=w || cry>=h) {
+			if (n < 7 || n > 9 || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
 			x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
 			y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
 			Room& rm = room[crx][cry];
-			vector<TriWall>& wvec = (type=='W') ? rm.twalls : rm.tground;
+			vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
 			wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
 			continue;
 		}
@@ -252,7 +252,8 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 				case 5:
 					a1 = a2 = 0;	// flow
 				case 7:
-					texid = -1;
+					texid = 0;
+				case 8:
 					alpha = 255;
 					break;
 				default: break;
@@ -261,7 +262,7 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 				a1 += 360;
 			if (a2 < 0)
 				a2 += 360;
-			if ((n != 9 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360) {
+			if ((n != 9 && n != 8 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
@@ -270,7 +271,7 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 			ro *= plh / scaley;
 			ri *= plh / scaley;
 			Room& rm = room[crx][cry];
-			vector<CircWall>& wvec = (type=='W') ? rm.cwalls : rm.cground;
+			vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
 			wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
 			continue;
 		}
@@ -1023,8 +1024,8 @@ public:
 void ServerWorld::reset() {
 	// zero teamscores
 	returnAllFlags();
-	teams[0].clear_score();
-	teams[1].clear_score();
+	teams[0].clear();
+	teams[1].clear();
 
 	for (int i=0;i<maxplayers;i++)
 		if (player[i].used) {
@@ -1098,6 +1099,8 @@ bool ServerWorld::load_map(const char *mapdir, const string& mapname) {
 
 void ServerWorld::returnAllFlags() {
 	WorldBase::returnAllFlags();
+	for (int i = 0; i < MAX_PLAYERS; i++)
+		player[i].drop_flag();
 	net->ctf_net_flag_status(-1, 0);
 	net->ctf_net_flag_status(-1, 1);
 }
@@ -1119,18 +1122,22 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) {
 
 bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	const int enemy = 1 - pid / TSIZE;
-	int flag = -1;
+	if (!player[pid].flag())
+		return false;
+	int flag = 0;
 	int i = 0;
 	for (vector<Flag>::const_iterator fi = teams[enemy].flags().begin(); fi != teams[enemy].flags().end(); ++fi, ++i)
 		if (fi->carrier() == pid) {
 			flag = i;
 			break;
 		}
-	if (flag == -1)
-		return false;
 	net->bprintf("@I%s LOST THE %s FLAG!", player[pid].name.c_str(), teamname[enemy]);
 	net->broadcast_sample(SAMPLE_CTF_LOST);
+	net->broadcast_flag_drop(player[pid]);
 	dropFlag(enemy, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
+	player[pid].drop_flag();
+	player[pid].stats().add_flag_drop();
+	teams[pid / TSIZE].add_flag_drop();
 	player[pid].total_flags_dropped++;
 	if (purpose)
 		player[pid].frags--;
@@ -1221,6 +1228,8 @@ void ServerWorld::respawnPlayer(int pid) {
 
 	player[pid].last_spawn_time = (int)get_time();
 	player[pid].dead = false;
+	
+	net->broadcast_spawn(player[pid]);
 
 	//for all effects, player screen changed
 	game_player_screen_change(pid);
@@ -1545,19 +1554,35 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 			host->score_frag(attacker, 1);
 			break;		// only one message
 		}
+	const bool flag = player[target].flag();
+	/* ### REMOVE ###
 	for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
 		if (fi->carrier() == target) {
 			host->score_frag(attacker, 1);	// extra frag for fragging a carrier
 			player[attacker].total_flag_carriers_killed++;
-		}
+			flag = true;
+		}*/
+	if (flag) {
+		host->score_frag(attacker, 1);	// extra frag for fragging a carrier
+		player[attacker].total_flag_carriers_killed++;
+	}
 
 	if (deathbringer) {
 		if (player[attacker].used)
 			net->bprintf("@I%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
+		else
+			net->bprintf("@I%s was choked", player[target].name.c_str());
 		net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
 	}
 	else
 		net->bprintf("@I%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
+
+	net->broadcast_kill(player[attacker], player[target], deathbringer, flag);
+
+	player[attacker].stats().add_kill(deathbringer);
+	teams[atteam].add_kill();
+	player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
+	teams[tateam].add_death();
 
 	killPlayer(target, false);
 }
@@ -1578,9 +1603,13 @@ void ServerWorld::removePlayer(int pid) {
 
 void ServerWorld::suicide(int pid) {
 	if (player[pid].health > 0) {
+		bool flag = player[pid].flag();
 		killPlayer(pid, true);
-		player[pid].frags--;                        
+		player[pid].frags--;
 		player[pid].total_suicides++;
+		player[pid].stats().add_suicide(static_cast<int>(get_time()));
+		teams[pid / TSIZE].add_suicide();
+		net->broadcast_suicide(player[pid], flag);
 	}
 }
 
@@ -1600,6 +1629,8 @@ void ServerWorld::shootRockets(int pid, int shots) {
 	int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
 
 	player[pid].total_shots++;
+	player[pid].stats().add_shot();
+	teams[pid / TSIZE].add_shot();
 
 	NLubyte sid[16];
 	for (int i = 0; i < shots; ++i)
@@ -1645,6 +1676,7 @@ void ServerWorld::swapRocketOwners(int a, int b) {
 
 void ServerWorld::addMovementDistanceCallback(int pid, float dist) {
 	player[pid].total_movement += dist;
+	player[pid].stats().add_movement(dist);
 }
 
 void ServerWorld::playerScreenChangeCallback(int pid) {
@@ -1669,6 +1701,10 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 	damagePlayer(pid, rock[rid].owner, damage, false);
 	player[rock[rid].owner].total_hits++;
 	player[pid].total_shots_taken++;
+
+	player[rock[rid].owner].stats().add_hit();
+	teams[rock[rid].team].add_hit();
+	player[pid].stats().add_shot_take();
 
 	//if player not dead, push him
 	if (player[pid].health > 0) {
@@ -2189,16 +2225,18 @@ void ServerWorld::simulateFrame() {
 				game_touch_pickup(i, k);		//COOL!
 			}
 
+		/* ### REMOVE ###
 		bool already_carrying = false;
 		for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi)
 			if (fi->carrier() == i) {
 				already_carrying = true;
 				break;
-			}
+			}*/
 		// --> CTF FLAG STEAL touch other team's flag
 		// enemy flag dropped (at base or somewhere)
 		bool touches_flag = false;
-		if (!already_carrying) {
+		//if (!already_carrying) {
+		if (!player[i].flag()) {
 			int f = 0;
 			for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
 				if (!fi->carried() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
@@ -2208,8 +2246,12 @@ void ServerWorld::simulateFrame() {
 						//FLAG STOLEN!
 						host->score_frag(i, 1);	// just add some frags
 						player[i].total_flags_taken++;
+						player[i].stats().add_flag_take();
+						teams[myteam].add_flag_take();
 						net->bprintf("@I%s GOT THE %s FLAG!", player[i].name.c_str(), teamname[enemyteam]);
+						net->broadcast_flag_take(player[i]);
 						stealFlag(enemyteam, f, i);  //flag stolen!
+						player[i].take_flag();
 						//HELM powerup: show player
 						if (player[i].item_helm())
 							player[i].visibility = 254;
@@ -2226,7 +2268,10 @@ void ServerWorld::simulateFrame() {
 				//FLAG RETURNED!
 				host->score_frag(i, 1);	// just add some frags
 				player[i].total_flags_returned++;
+				player[i].stats().add_flag_return();
+				teams[myteam].add_flag_return();
 				net->bprintf("@I%s RETURNED THE %s FLAG!", player[i].name.c_str(), teamname[myteam]);
+				net->broadcast_flag_return(player[i]);
 				returnFlag(myteam, f);  //flag returned
 				net->broadcast_sample(SAMPLE_CTF_RETURN);
 			}
@@ -2254,6 +2299,8 @@ void ServerWorld::simulateFrame() {
 						}
 					host->score_frag(i, 3);
 					player[i].total_captures++;
+					player[i].stats().add_capture();
+					player[i].drop_flag();
 					teams[myteam].add_score();
 					returnFlag(enemyteam, f);
 
@@ -2261,6 +2308,7 @@ void ServerWorld::simulateFrame() {
 					if (teams[myteam].score() == config.getCaptureLimit() - 1)
 						one_more = " One more to win!";
 					net->bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name.c_str(), teamname[enemyteam], one_more.c_str());
+					net->broadcast_capture(player[i]);
 
 					net->ctf_update_teamscore(myteam);		//this function can decide to restart the game . (?)
 					net->broadcast_sample(SAMPLE_CTF_CAPTURE);
@@ -2335,6 +2383,22 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 
 // Team
 
+Team::Team() {
+	clear();
+}
+
+void Team::clear() {
+	points = 0;
+	total_kills = 0;
+	total_deaths = 0;
+	total_suicides = 0;
+	total_flags_taken = 0;
+	total_flags_dropped = 0;
+	total_flags_returned = 0;
+	total_shots = 0;
+	total_hits = 0;
+}
+
 void Team::add_flag(const spoint_t& pos) {
 	team_flags.push_back(Flag(pos));
 }
@@ -2399,5 +2463,85 @@ void Flag::return_to_base() {
 void Flag::drop() {
 	status = status_dropped;
 	carrier_id = -1;
+}
+
+// Statistics
+
+Statistics::Statistics():
+	total_kills(0),
+	total_deaths(0),
+	total_deathbringer_kills(0),
+	total_deathbringer_deaths(0),
+	most_consecutive_kills(0),
+	current_consecutive_kills(0),
+	most_consecutive_deaths(0),
+	current_consecutive_deaths(0),
+	total_suicides(0),
+	total_captures(0),
+	total_flags_taken(0),
+	total_flags_dropped(0),
+	total_flags_returned(0),
+	total_flag_carriers_killed(0),
+	total_shots(0),
+	total_hits(0),
+	total_shots_taken(0),
+	last_spawn_time(0),
+	total_lifetime(0),
+	total_movement(0),
+	starttime(0),
+	dead(false)
+{ }
+
+void Statistics::add_kill(bool deathbringer) {
+	++total_kills;
+	most_consecutive_kills = max(most_consecutive_kills, ++current_consecutive_kills);
+	current_consecutive_deaths = 0;
+	if (deathbringer)
+		++total_deathbringer_kills;
+}
+
+void Statistics::add_death(bool deathbringer, int time) {
+	++total_deaths;
+	most_consecutive_deaths = max(most_consecutive_deaths, ++current_consecutive_deaths);
+	current_consecutive_kills = 0;
+	if (deathbringer)
+		++total_deathbringer_deaths;
+	dead = true;
+	total_lifetime += time - last_spawn_time;
+}
+
+void Statistics::add_suicide(int time) {
+	add_death(false, time);
+	++total_suicides;
+}
+
+float Statistics::accuracy() const {
+	if (total_shots == 0)
+		return 0;
+	else
+		return static_cast<float>(total_hits) / total_shots;
+}
+
+int Statistics::lifetime(int time) const {
+	if (dead)
+		return total_lifetime;
+	else
+		return total_lifetime + time - last_spawn_time;
+}
+
+int Statistics::average_lifetime(int time) const {
+	return lifetime(time) / (total_deaths + 1);
+}
+
+int Statistics::playtime(int time) const {
+	return time - starttime;
+}
+
+double Statistics::movement() const {
+	return total_movement;
+}
+
+float Statistics::speed(int time) const {
+	return movement() / lifetime(time) / PLAYER_RADIUS / 2.;
 }
 

@@ -40,7 +40,16 @@ enum Network_data_codes {
 	data_map_exit_off,
 	data_client_ready,
 	data_map_list,
-	data_map_votes_update
+	data_map_votes_update,
+	data_map_vote,
+	data_stats,
+	data_capture,
+	data_kill,
+	data_flag_take,
+	data_flag_return,
+	data_flag_drop,
+	data_spawn,
+	data_movements_shots
 };
 
 #endif

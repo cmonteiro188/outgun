@@ -17,6 +17,7 @@ public:
 	int y1() const { return b; }
 	int x2() const { return c; }
 	int y2() const { return d; }
+	int texture() const { return tex; }
 
 private:
 	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
@@ -46,6 +47,7 @@ public:
 	int y2() const { return p2y; }
 	int x3() const { return p3x; }
 	int y3() const { return p3y; }
+	int texture() const { return tex; }
 
 private:
 	int p1x, p1y, p2x, p2y, p3x, p3y;
@@ -141,11 +143,99 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 	bool load(const char *mapdir, const string& mapname);
 };
 
+class Statistics {
+public:
+	Statistics();
+	
+	void clear() { *this = Statistics(); }
+
+	void set_kills(int n) { total_kills = n; }
+	void set_deaths(int n) { total_deaths = n; }
+	void set_cons_kills(int n) { most_consecutive_kills = n; }
+	void set_current_cons_kills(int n) { current_consecutive_kills = n; }
+	void set_cons_deaths(int n) { most_consecutive_deaths = n; }
+	void set_current_cons_deaths(int n) { current_consecutive_deaths = n; }
+	void set_suicides(int n) { total_suicides = n; }
+	void set_captures(int n) { total_captures = n; }
+	void set_flags_taken(int n) { total_flags_taken = n; }
+	void set_flags_dropped(int n) { total_flags_dropped = n; }
+	void set_flags_returned(int n) { total_flags_returned = n; }
+	void set_carriers_killed(int n) { total_flag_carriers_killed = n; }
+	void set_shots(int n) { total_shots = n; }
+	void set_hits(int n) { total_hits = n; }
+	void set_shots_taken(int n) { total_shots_taken = n; }
+	void set_movement(double amount) { total_movement = amount; }
+	void set_spawn_time(int time) { last_spawn_time = time; dead = false; }
+	void set_start_time(int time) { starttime = time; }
+
+	void add_kill(bool deathbringer);
+	void add_death(bool deathbringer, int time);
+	void add_suicide(int time);
+	void add_capture() { ++total_captures; }
+	void add_flag_take() { ++total_flags_taken; }
+	void add_flag_drop() { ++total_flags_dropped; }
+	void add_flag_return() { ++total_flags_returned; }
+	void add_carrier_kill() { ++total_flag_carriers_killed; }
+	void add_shot() { ++total_shots; }
+	void add_hit() { ++total_hits; }
+	void add_shot_take() { ++total_shots_taken; }
+	void add_movement(double amount) { total_movement += amount; }
+
+	int kills() const { return total_kills; }
+	int deaths() const { return total_deaths; }
+	int cons_kills() const { return most_consecutive_kills; }
+	int current_cons_kills() const { return current_consecutive_kills; }
+	int cons_deaths() const { return most_consecutive_deaths; }
+	int current_cons_deaths() const { return current_consecutive_deaths; }
+	int suicides() const { return total_suicides; }
+	int captures() const { return total_captures; }
+	int flags_taken() const { return total_flags_taken; }
+	int flags_dropped() const { return total_flags_dropped; }
+	int flags_returned() const { return total_flags_returned; }
+	int carriers_killed() const { return total_flag_carriers_killed; }
+	int shots() const { return total_shots; }
+	int hits() const { return total_hits; }
+	float accuracy() const;
+	int shots_taken() const { return total_shots_taken; }
+	int spawn_time() const { return last_spawn_time; }
+	int lifetime(int time) const;
+	int average_lifetime(int time) const;
+	int playtime(int time) const;
+	double movement() const;
+	float speed(int time) const;
+	int start_time() const { return starttime; }
+
+private:
+	int total_kills;
+	int total_deaths;
+	int total_deathbringer_kills;
+	int total_deathbringer_deaths;
+	int most_consecutive_kills;
+	int current_consecutive_kills;
+	int most_consecutive_deaths;
+	int current_consecutive_deaths;
+	int total_suicides;
+	int total_captures;
+	int total_flags_taken;
+	int total_flags_dropped;
+	int total_flags_returned;
+	int total_flag_carriers_killed;
+	int total_shots;
+	int total_hits;
+	int total_shots_taken;
+	int last_spawn_time;
+	int total_lifetime;
+	double total_movement;
+	int starttime;
+	bool dead;
+};
+
 class PlayerBase {
 protected:
 	PlayerBase() { }
 	
 	int team_nr;
+	Statistics player_stats;
 
 public:
 	bool item_deathbringer;
@@ -189,7 +279,12 @@ public:
 		rank = 0;
 		used = enable;
 		team_nr = 0;
+		stats().clear();
+		stats().set_start_time(static_cast<int>(get_time()));
 	}
+
+	const Statistics& stats() const { return player_stats; }
+	Statistics& stats() { return player_stats; }
 
 	bool item_helm() const { return visibility < 255; }
 	int team() const { return team_nr; }
@@ -326,7 +421,7 @@ public:
 		total_hits = 0;
 		total_shots_taken = 0;
 		total_movement = 0;
-		start_time = (int)get_time();
+		start_time = static_cast<int>(get_time());
 		last_spawn_time = start_time;
 		lifetime = 0;
 
@@ -346,7 +441,15 @@ public:
 		dropped_flag = false;
 		respawn_time = 0;
 		respawn_to_base = false;
+		carrying_flag = false;
 	}
+
+	void take_flag() { carrying_flag = true; }
+	void drop_flag() { carrying_flag = false; }
+	bool flag() const { return carrying_flag; }
+
+private:
+	bool carrying_flag;
 };
 
 class PlayerQueueAdder : public LineReceiver {
@@ -448,11 +551,21 @@ private:
 
 class Team {
 public:
-	Team(): points(0) { }
+	Team();
+
+	void clear();
 
 	void set_score(int s) { points = s; }
 	void add_score() { ++points; }
-	void clear_score() { points = 0; }
+	
+	void add_kill() { ++total_kills; }
+	void add_death() { ++total_deaths; }
+	void add_suicide() { ++total_suicides; ++total_deaths; }
+	void add_flag_take() { ++total_flags_taken; }
+	void add_flag_drop() { ++total_flags_dropped; }
+	void add_flag_return() { ++total_flags_returned; }
+	void add_shot() { ++total_shots; }
+	void add_hit() { ++total_hits; }
 
 	void add_flag(const spoint_t& pos);
 	void remove_flags();
@@ -466,12 +579,28 @@ public:
 	void move_flag(int n, const spoint_t& pos);
 
 	int score() const { return points; }
+	int kills() const { return total_kills; }
+	int deaths() const { return total_deaths; }
+	int suicides() const { return total_suicides; }
+	int flags_taken() const { return total_flags_taken; }
+	int flags_dropped() const { return total_flags_dropped; }
+	int flags_returned() const { return total_flags_returned; }
+	int shots() const { return total_shots; }
+	int hits() const { return total_hits; }
 
 	const Flag& flag(int n) const { return team_flags[n]; }
 	const std::vector<Flag>& flags() const { return team_flags; }
 
 private:
 	int points;
+	int total_kills;
+	int total_deaths;
+	int total_suicides;
+	int total_flags_taken;
+	int total_flags_dropped;
+	int total_flags_returned;
+	int total_shots;
+	int total_hits;
 	std::vector<Flag> team_flags;
 };
 

@@ -1,3 +1,4 @@
+#include <cctype>
 #include "commont.h"
 #include "world.h"
 #include "names.h"
@@ -1629,7 +1630,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 			//"hello" one-time server information ("first packet")
 			case data_first_packet: {
-				NLchar map_nr;
 				readByte(msg, count, pid);	//"who am I"
 
 				//DEBUG msg
@@ -1641,6 +1641,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				me = pid;
 
+				NLchar map_nr;
 				readByte(msg, count, map_nr);	//current map number
 				current_map = map_nr;
 
@@ -1781,11 +1782,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				break;
 
 			//CTF team score update
-			case data_score_update:
+			case data_score_update: {
+				NLubyte score;
 				readByte(lebuf, count, abyte);		//team
-				readByte(lebuf, count, rockid);		//new score
-				fx.teams[abyte].set_score(rockid);	// update the score
+				readByte(lebuf, count, score);		//new score
+				fx.teams[abyte].set_score(score);	// update the score
 				break;
+			}
 
 			//sound event
 			case data_sound:
@@ -1851,6 +1854,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					NLchar map_nr;
 					readByte(lebuf, count, map_nr);
 					current_map = map_nr;
+					if (map_vote == current_map)
+						map_vote = -1;
 				}
 				else {
 					//FIXME: unknown map kind
@@ -1993,6 +1998,129 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, votes);
 					if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
 						maps[map_nr].votes = votes;
+				}
+				break;
+			}
+
+			case data_capture: {
+				NLchar pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_capture();
+				break;
+			}
+
+			case data_kill: {
+				NLchar attacker, target;
+				readByte(lebuf, count, attacker);
+				readByte(lebuf, count, target);
+				const bool deathbringer = attacker & 0x80;
+				attacker &= ~0x80;
+				const bool flag = target & 0x80;
+				target &= ~0x80;
+				fx.player[attacker].stats().add_kill(deathbringer);
+				fx.teams[attacker / TSIZE].add_kill();
+				fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
+				fx.teams[target / TSIZE].add_death();
+				if (flag) {
+					fx.player[attacker].stats().add_carrier_kill();
+					fx.player[target].stats().add_flag_drop();
+					fx.teams[target / TSIZE].add_flag_drop();
+				}
+				break;
+			}
+
+			case data_flag_take: {
+				NLchar pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_flag_take();
+				fx.teams[pid / TSIZE].add_flag_take();
+				break;
+			}
+
+			case data_flag_return: {
+				NLchar pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_flag_return();
+				fx.teams[pid / TSIZE].add_flag_return();
+				break;
+			}
+
+			case data_flag_drop: {
+				NLchar pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().add_flag_drop();
+				fx.teams[pid / TSIZE].add_flag_drop();
+				break;
+			}
+
+			case data_suicide: {
+				NLchar pid;
+				readByte(lebuf, count, pid);
+				const bool flag = pid & 0x80;
+				pid &= ~0x80;
+				fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
+				fx.teams[pid / TSIZE].add_suicide();
+				if (flag) {
+					fx.player[pid].stats().add_flag_drop();
+					fx.teams[pid / TSIZE].add_flag_drop();
+				}
+				break;
+			}
+
+			case data_spawn: {
+				NLchar pid;
+				readByte(lebuf, count, pid);
+				fx.player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
+				break;
+			}
+
+			case data_movements_shots: {
+				for (int i = 0; i < MAX_PLAYERS; i++) {
+					if (!fx.player[i].used)
+						continue;
+					NLlong movement;
+					readLong(lebuf, count, movement);
+					fx.player[i].stats().set_movement(movement);
+					NLshort data;
+					readShort(lebuf, count, data);
+					fx.player[i].stats().set_shots(data);
+					readShort(lebuf, count, data);
+					fx.player[i].stats().set_hits(data);
+					readShort(lebuf, count, data);
+					fx.player[i].stats().set_shots_taken(data);
+				}
+				break;
+			}
+
+			case data_stats: {
+				for (int i = 0; i < MAX_PLAYERS; i++) {
+					if (!fx.player[i].used)
+						continue;
+					NLubyte data;
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_kills(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_deaths(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_cons_kills(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_current_cons_kills(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_cons_deaths(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_current_cons_deaths(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_suicides(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_captures(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_flags_taken(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_flags_dropped(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_flags_returned(data);
+					readByte(lebuf, count, data);
+					fx.player[i].stats().set_carriers_killed(data);
 				}
 				break;
 			}
@@ -2497,10 +2625,14 @@ void gameclient_c::loop() {
 					//toggle help
 					if (sc == KEY_F1)
 						toggle_help();
-					else if (menu != menu_name_password && sc == KEY_F2)
-						menu = (menu == menu_maps ? menu_none : menu_maps);
-					else if (menu != menu_name_password && sc == KEY_TAB)
-						menu = (menu == menu_players ? menu_none : menu_players);
+					else if (menu == menu_maps || menu == menu_players || menu == menu_teams) {
+						if (sc == KEY_F2)
+							set_menu(menu == menu_maps ? menu_none : menu_maps);
+						else if (sc == KEY_TAB)
+							set_menu(menu == menu_players ? menu_none : menu_players);
+						else if (sc == KEY_F5)
+							set_menu(menu == menu_teams ? menu_none : menu_teams);
+					}
 
 					//test key
 					switch (menu) {
@@ -2580,7 +2712,6 @@ void gameclient_c::loop() {
 									gi = 0;
 							}
 							else if (sc == KEY_SPACE) {
-
 								refresh_command();
 								clear_keybuf();	//clear the key buffer to stop too much refreshing.
 							}
@@ -2655,7 +2786,39 @@ void gameclient_c::loop() {
 							else if (sc == KEY_TAB)		// switch fields
 								name_selected = !name_selected;
 							break;
-						//wtf?
+						case menu_maps:
+							if (key[KEY_UP])
+								client_graphics.map_list_prev();
+							if (key[KEY_DOWN])
+								client_graphics.map_list_next();
+							if (isdigit(ch) && edit_map_vote.size() < 3)
+								edit_map_vote += ch;
+							else if (sc == KEY_BACKSPACE) {
+								if (!edit_map_vote.empty())
+									edit_map_vote.erase(edit_map_vote.end() - 1);
+							}
+							else if (sc == KEY_ENTER) {
+								int new_vote = atoi(edit_map_vote.c_str()) - 1;
+								edit_map_vote = "";
+								if (new_vote != map_vote && (new_vote >= 0 && new_vote < static_cast<int>(maps.size()) ||
+												map_vote >= 0 && map_vote < static_cast<int>(maps.size()))) {
+									map_vote = new_vote;
+
+									// send map vote
+									char lebuf[16];
+									int count = 0;
+									writeByte(lebuf, count, data_map_vote);
+									writeByte(lebuf, count, map_vote);
+									client->send_message(lebuf, count);
+								}
+							}
+							break;
+						case menu_players:
+							if (key[KEY_UP])
+								player_stats_page = max(0, player_stats_page - 1);
+							if (key[KEY_DOWN])
+								player_stats_page = min(3, player_stats_page + 1);
+							break;
 						default:;
 					}
 				}
@@ -2693,7 +2856,6 @@ void gameclient_c::loop() {
 				}
 
 				// del == suicide event
-				//
 				if (key[KEY_DEL]) {
 					if (!key_kill) {
 						key_kill = true;
@@ -2722,8 +2884,7 @@ void gameclient_c::loop() {
 					client->send_message(lebuf, count);
 				}
 
-				// end == want/don't want swap team
-				//
+				// end == want/don't want to change team
 				if (key[KEY_END]) {
 					if (!key_swap) {
 						key_swap = true;
@@ -2741,26 +2902,6 @@ void gameclient_c::loop() {
 					}
 				}
 				else key_swap = false;
-
-				// F4 == want/don't want to exit map
-				//
-				if (key[KEY_F4]) {
-					if (!key_votexit) {
-						key_votexit = true;
-
-						//toggle my local option
-						want_map_exit = !want_map_exit;
-
-						//want to swap/dont want  message
-						char lebuf[16]; int count = 0;
-						if (want_map_exit)
-							writeByte(lebuf, count, data_map_exit_on);
-						else
-							writeByte(lebuf, count, data_map_exit_off);
-						client->send_message(lebuf, count);
-					}
-				}
-				else key_votexit = false;
 
 				// l,r,u,d,fire game keys
 				if ((key[KEY_UP]    != key_up)    ||
@@ -2793,9 +2934,11 @@ void gameclient_c::loop() {
 					if (sc == KEY_F1)
 						toggle_help();
 					else if (sc == KEY_F2)
-						menu = menu_maps;
+						set_menu(menu_maps);
 					else if (sc == KEY_TAB)
-						menu = menu_players;
+						set_menu(menu_players);
+					else if (sc == KEY_F5)
+						set_menu(menu_teams);
 
 					// change colours
 					if (sc == KEY_HOME) {
@@ -2838,6 +2981,26 @@ void gameclient_c::loop() {
 				}
 			}
 
+			// F4 == want/don't want to exit map
+			if ((menu == menu_none || menu == menu_maps) && key[KEY_F4]) {
+				if (!key_votexit) {
+					key_votexit = true;
+
+					//toggle my local option
+					want_map_exit = !want_map_exit;
+
+					//want to swap/dont want  message
+					char lebuf[16]; int count = 0;
+					if (want_map_exit)
+						writeByte(lebuf, count, data_map_exit_on);
+					else
+						writeByte(lebuf, count, data_map_exit_off);
+					client->send_message(lebuf, count);
+				}
+			}
+			else
+				key_votexit = false;
+
 			//ESC = show/hide menu, go back menu (special key)
 			static bool kesc = false;
 			if (key[KEY_ESC]) {
@@ -2862,7 +3025,7 @@ void gameclient_c::loop() {
 						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list)	// go back one screen
 							set_menu(menu_main);
 						else						// hide menu
-							menu = menu_none;
+							set_menu(menu_none);
 					}
 				}
 			}
@@ -3051,6 +3214,9 @@ void gameclient_c::stop() {
 
 //ctor
 gameclient_c::gameclient_c():
+	current_map(-1),
+	map_vote(-1),
+	player_stats_page(0),
 	name_selected(true),
 	screenshot(false)
 {
@@ -3108,8 +3274,6 @@ gameclient_c::gameclient_c():
 	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 	udpdq_size = 0;
 	message_logging = false;
-
-	current_map = -1;
 }
 
 //dtor
@@ -3356,14 +3520,14 @@ void gameclient_c::draw_game_frame() {
 				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
 			}
 		}
+
+		for (int i = 0; i < maxplayers; i++)
+			if (fx.player[i].used && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy &&
+				fx.player[i].onscreen && fx.player[i].item_deathbringer)
+					client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
+
+		client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
 	}
-
-	for (int i = 0; i < maxplayers; i++)
-		if (fx.player[i].used && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy &&
-			fx.player[i].onscreen && fx.player[i].item_deathbringer)
-				client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
-
-	client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
 	//do not draw stuff below if map not ready to show
 	if (!hide_game) {
@@ -3425,18 +3589,13 @@ void gameclient_c::draw_game_frame() {
 	// the SCOREBOARD
 	//
 
-	if (key[KEY_TAB]) {
-		client_graphics.draw_scoreboard_caption(0, "Red Team:    (PINGS)");
-		client_graphics.draw_scoreboard_caption(1, "Blue Team:   (PINGS)");
-	}
-	else {
-		ostringstream red;
-		red << "Red Team:    " << setw(2) << fx.teams[0].score() << " capt";
-		client_graphics.draw_scoreboard_caption(0, red.str());
-		ostringstream blue;
-		blue << "Blue Team:   " << setw(2) << fx.teams[1].score() << " capt";
-		client_graphics.draw_scoreboard_caption(1, blue.str());
-	}
+	ostringstream red;
+	red << "Red Team:    " << setw(2) << fx.teams[0].score() << " capt";
+	client_graphics.draw_scoreboard_caption(0, red.str());
+	ostringstream blue;
+	blue << "Blue Team:   " << setw(2) << fx.teams[1].score() << " capt";
+	client_graphics.draw_scoreboard_caption(1, blue.str());
+
 	/*vector<ClientPlayer> plrs(fx.player, fx.player + MAX_PLAYERS);
 	client_graphics.draw_scoreboard(plrs);*/
 	int pix[2]; pix[0]=pix[1]=0;
@@ -3488,14 +3647,8 @@ void gameclient_c::draw_game_frame() {
 					// show name
 					client_graphics.draw_scoreboard_name(what_y, i % TSIZE, fx.player[i]);
 
-					// show ping or frags
-					if (key[KEY_TAB]) {
-						if (fx.player[i].ping > 9999)	// fix ping if too big
-      						fx.player[i].ping = 9999;
-						client_graphics.draw_scoreboard_points(what_y, i / TSIZE, fx.player[i].ping);
-					}
-					else
-						client_graphics.draw_scoreboard_points(what_y, i / TSIZE, fx.player[i].frags);
+					// show frags
+					client_graphics.draw_scoreboard_points(what_y, i / TSIZE, fx.player[i].frags);
 				}
 			}
 		}
@@ -3599,10 +3752,6 @@ void gameclient_c::draw_game_frame() {
 	if (get_time() > lastpackettime + 1.0)
 		client_graphics.show_not_responding_message();
 
-	if (key[KEY_TAB])
-		client_graphics.draw_statistics(fx.player);
-	else if (key[KEY_F2])
-		client_graphics.map_list(maps, current_map);
 	/*if (key[KEY_TAB]) {
 		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 		set_trans_blender(0,0,0,150);
@@ -3781,10 +3930,13 @@ void gameclient_c::draw_game_menu() {
 			client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
 			break;
 		case menu_maps:
-			client_graphics.map_list(maps, current_map);
+			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
 			break;
 		case menu_players:
-			client_graphics.draw_statistics(fx.player);
+			client_graphics.draw_statistics(fx.player, player_stats_page, static_cast<int>(get_time()));
+			break;
+		case menu_teams:
+			client_graphics.team_statistics(fx.teams);
 			break;
 		default: ;
 	}

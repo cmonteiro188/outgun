@@ -215,6 +215,8 @@ void gameserver_c::move_player(int f, int t) {
 	//remove f
 	game_remove_player(f);
 
+	world.player[t].id = t;
+
 	//I really dont want to change teams no more..
 	world.player[t].want_change_teams = false;
 	world.player[t].team_change_time = get_time() + 10.0;		//10 secs interval
@@ -238,6 +240,8 @@ void gameserver_c::swap_players(int a, int b) {
 
 	swap(world.player[a], world.player[b]);
 	world.swapRocketOwners(a, b);
+	world.player[a].id = a;
+	world.player[b].id = b;
 
 	//either don't want to change teams anymore
 	world.player[a].want_change_teams = false;
@@ -653,7 +657,8 @@ bool gameserver_c::server_next_map(int reason) {
 		if (world.player[p].mapVote==currmap)
 			world.player[p].mapVote=-1;
 	}
-	maprot[currmap].votes=0;
+	maprot[currmap].votes = 0;
+	maprot[currmap].votes_changed = true;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 	next_vote_announce_frame = 0;	// let a new announcement be made as soon as someone votes
 
@@ -928,7 +933,6 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 			world.player[pid].queue_printf("/config     current server configuration");
 			world.player[pid].queue_printf("/stats      see your stats");
 			world.player[pid].queue_printf("/mapinfo n  information about map n (default: current map)");
-			world.player[pid].queue_printf("/votemap n  vote for the next map to be n (default: list maps and votes)");
 			world.player[pid].queue_printf("/time       check server uptime, current map time and time left on the map");
 			if (sayadmin_enabled) {
 				ostringstream ostr;
@@ -977,36 +981,6 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 				world.player[pid].queue_printf("@IThis map is %s (%s)", maprot[currmap].title.c_str(), maprot[currmap].author.c_str());
 				world.player[pid].queue_printf("@I%s.txt, size %d×%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
 			}
-		}
-		else if (!strcmp(cbuf, "votemap")) {
-			ostringstream status;
-			if (*pCommand != '\0') {
-				int mid = atoi(pCommand) - 1;
-				if (mid >= -1 && mid < static_cast<int>(maprot.size()) && pCommand[strspn(pCommand, "0123456789")] == '\0') {
-					if (world.player[pid].mapVote == mid)
-						status << "No changes.";
-					else {
-						if (world.player[pid].mapVote == -1)
-							status << "Vote added for map " << mid + 1 << '.';
-						else if (mid == -1)
-							status << "Vote removed.";
-						else
-							status << "Vote updated for map " << mid + 1 << '.';
-						if (world.player[pid].mapVote != -1)
-							maprot[world.player[pid].mapVote].votes_changed = true;
-						if (mid != -1)
-							maprot[mid].votes_changed = true;
-						world.player[pid].mapVote = mid;
-						check_map_exit();
-					}
-					if (!world.player[pid].want_map_exit)
-						world.player[pid].queue_printf("@T%s Press F4 to actually vote for a mapchange.", status.str().c_str());
-				}
-				else
-					world.player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprot.size());
-			}
-			else
-				world.player[pid].queue_printf("@TFor example to vote for map 1, type /votemap 1.");
 		}
 		else if (!strcmp(cbuf, "time")) {
 			PlayerQueueAdder pqa(world.player[pid]);

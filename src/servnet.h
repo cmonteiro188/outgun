@@ -130,9 +130,18 @@ public:
 	void send_player_crap_update(int cid, int pid);
 	void broadcast_player_crap(int pid);
 
+	void broadcast_capture(const ServerPlayer& player) const;
+	void broadcast_flag_take(const ServerPlayer& player) const;
+	void broadcast_flag_return(const ServerPlayer& player) const;
+	void broadcast_flag_drop(const ServerPlayer& player) const;
+	void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const;
+	void broadcast_suicide(const ServerPlayer& player, bool flag) const;
+	void broadcast_spawn(const ServerPlayer& player) const;
+	void send_movements_and_shots(const ServerPlayer& player) const;
+	void send_stats(const ServerPlayer& player) const;
+
 	void send_map_info(const ServerPlayer& player);
 	void broadcast_map_votes_update();
-	void send_map_votes_update(const ServerPlayer& player, const std::vector<std::pair<NLchar, NLchar> >& votes);
 	void send_map_change_message(int pid, int reason, const char* mapname);
 	void send_map_time(int cid);
 	void ctf_net_flag_status(int cid, int team);
