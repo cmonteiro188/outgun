@@ -426,11 +426,6 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 	//connected? (that is, "connection accepted")
 	connected = false;
 
-	{
-		MutexLock ml(downloadMutex);
-		downloads.clear();
-	}
-
 	Thread::setCallerPriority(config.priority);
 }
 
@@ -1937,16 +1932,17 @@ void Client::process_incoming_data(char *data, int length) {
 					break;
 				}
 
+				case data_new_player: {
+					NLubyte pid;
+					readByte(lebuf, count, pid);
+					fx.player[pid].stats().set_start_time(get_time());
+					fx.player[pid].stats().set_lifetime(0);
+				}
+
 				case data_spawn: {
 					NLubyte pid;
 					readByte(lebuf, count, pid);
-					const bool first_time = pid & 0x80;
-					pid &= ~0x80;
 					fx.player[pid].stats().set_spawn_time(get_time());
-					if (first_time) {
-						fx.player[pid].stats().set_start_time(get_time());
-						fx.player[pid].stats().set_lifetime(0);
-					}
 					break;
 				}
 

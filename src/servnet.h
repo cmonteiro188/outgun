@@ -142,7 +142,8 @@ public:
 	void broadcast_flag_drop(const ServerPlayer& player) const;
 	void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const;
 	void broadcast_suicide(const ServerPlayer& player, bool flag) const;
-	void broadcast_spawn(const ServerPlayer& player, bool first_time) const;
+	void broadcast_new_player(const ServerPlayer& player) const;
+	void broadcast_spawn(const ServerPlayer& player) const;
 	void send_movements_and_shots(const ServerPlayer& player) const;	// Send player's movement and shots to everyone.
 	void send_stats(const ServerPlayer& player) const;					// Send everyone's stats to player.
 	void send_team_movements_and_shots(const ServerPlayer& player) const;

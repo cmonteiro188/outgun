@@ -1511,7 +1511,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	return true;
 }
 
-void ServerWorld::respawnPlayer(int pid, bool first_time) {
+void ServerWorld::respawnPlayer(int pid) {
 	player[pid].respawn_time = -1;
 	const int team = pid / TSIZE;
 
@@ -1599,7 +1599,7 @@ void ServerWorld::respawnPlayer(int pid, bool first_time) {
 
 	player[pid].stats().set_spawn_time(get_time());
 
-	net->broadcast_spawn(player[pid], first_time);
+	net->broadcast_spawn(player[pid]);
 
 	//for all effects, player screen changed
 	game_player_screen_change(pid);

@@ -759,7 +759,7 @@ public:
 	// server specific functions
 	void reset();
 	void reset_time() { map_start_time = frame; }
-	void respawnPlayer(int pid, bool first_time = false);
+	void respawnPlayer(int pid);
 	void printTimeStatus(LineReceiver& printer);
 
 	void resetPlayer(int target, float time_penalty = 0.);

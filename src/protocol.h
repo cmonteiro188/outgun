@@ -55,6 +55,7 @@ enum Network_data_code {
 	data_flag_take,
 	data_flag_return,
 	data_flag_drop,
+	data_new_player,
 	data_spawn,
 	data_movements_shots,
 	data_team_movements_shots,

@@ -351,11 +351,19 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag) 
 	server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_spawn(const ServerPlayer& player, bool first_time) const {
+void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
+	char lebuf[64];
+	int count = 0;
+	writeByte(lebuf, count, data_new_player);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
 	char lebuf[64];
 	int count = 0;
 	writeByte(lebuf, count, data_spawn);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (first_time ? 0x80 : 0x00));
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
 	server->broadcast_message(lebuf, count);
 }
 
@@ -779,9 +787,11 @@ int ServerNetworking::client_connected(int id) {
 		return -1;
 	}
 
+	broadcast_new_player(world.player[myself]);
+
 	// New players always spawn in the base.
-	world.player[myself].respawn_to_base = true;
-	world.respawnPlayer(myself, true);
+	world.player[myself].respawn_to_base = true;	// don't actually spawn until the client has loaded the map and is in the game
+	world.resetPlayer(myself);
 
 	if (player_count == 2) {
 		host->ctf_game_restart();
@@ -2557,3 +2567,4 @@ bool ServerNetworking::set_web_refresh(int refresh) {
 	}
 	return false;
 }
+

@@ -396,8 +396,8 @@ class Client {
 	void draw_game_menu();
 
 public:
-	gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig);
-	~gameclient_c();
+	Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig);
+	~Client();
 	bool start();
 	void loop(volatile bool* quitFlag);
 	void stop();
