@@ -1,3 +1,7 @@
+#define AL_FUNC_DEPRECATED AL_FUNC
+#define AL_PRINTFUNC_DEPRECATED AL_PRINTFUNC
+#define AL_INLINE_DEPRECATED AL_INLINE
+
 #include "commont.h"
 #include <allegro.h>
 #include "graphics.h"

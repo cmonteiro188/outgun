@@ -626,13 +626,13 @@ bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo
 
 	// friction
 	float absx=fabs(h->sx), absy=fabs(h->sy);
-	if (!xAcc || absx>player_maxspeed) {
+	if (!xAcc || absx>=player_maxspeed) {
 		if (absx > player_friction)
 			h->sx *= 1. - player_friction/absx;
 		else
 			h->sx = 0.;
 	}
-	if (!yAcc || absy>player_maxspeed) {
+	if (!yAcc || absy>=player_maxspeed) {
 		if (absy > player_friction)
 			h->sy *= 1. - player_friction/absy;
 		else
@@ -956,10 +956,11 @@ void ServerWorld::respawnPlayer(int pid) {
 	host->game_player_screen_change(pid);
 }
 
-void ServerWorld::make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta) {
+void ServerWorld::make_damn_rocket(int i, int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta) {
 	rocket_c* r = &rock[i];
 	r->owner = playernum;
 	r->team = playernum/TSIZE;
+	r->power = power;
 	r->px = px;
 	r->py = py;
 	r->x = x;
@@ -979,17 +980,17 @@ void ServerWorld::make_damn_rocket(int i, int playernum, int px, int py, int x, 
 	r->y += r->sy * 5.0 / 10.0;
 }
 
-NLubyte ServerWorld::game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta) {
+NLubyte ServerWorld::game_do_shoot_rocket(int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta) {
 	for (NLubyte i=0;i<MAX_ROCKETS;i++)
 		if (rock[i].owner == -1) { //unused
-			make_damn_rocket(i,playernum,px,py,x,y,deg,xdelta);
+			make_damn_rocket(i,playernum,px,py,x,y,power,deg,xdelta);
 			return i;
 		}
 
 	//whoops!
 	LOG("WHOOPS!\n");
 	int wtf = rand() % MAX_ROCKETS;
-	make_damn_rocket(wtf,playernum,px,py,x,y,deg,xdelta);
+	make_damn_rocket(wtf,playernum,px,py,x,y,power,deg,xdelta);
 	return (NLubyte)wtf;
 }
 
@@ -1003,75 +1004,76 @@ void ServerWorld::shootRockets(int pid, int shots) {
 
 	// center degree
 	double cdeg = gundir * PIOIT;
+	bool power = player[pid].item_quad;
 
 	//allocate a new rocket server-side for each shot
 	// shots = qual arma (1-9 tiros!)
 	switch (shots) {
 	case 1:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
 		break;
 	case 2:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
 		break;
 	case 3:
 		//V0.4.8 : NEW TRIPLE SHOT!
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		//sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		//sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
+		//sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
+		//sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
 		break;
 	case 4:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
 		break;
 	case 5:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
 		break;
 	case 6:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
 		break;
 	case 7:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 3, 0);
+		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 3, 0);
 		break;
 	case 8:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
+		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 3, 0);
+		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 3, 0);
 		break;
 	case 9:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-		sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
+		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
+		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 3, 0);
+		sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 3, 0);
 		break;
 	}
 
@@ -1086,7 +1088,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
 	for (int k=0;k<shots;k++)
 		rock[ sid[k] ].vislist = vislist;
 
-	host->sendRocketMessage(shots, gundir, sid, playernum, px, py, x, y);
+	host->sendRocketMessage(shots, gundir, sid, playernum/TSIZE, power, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {

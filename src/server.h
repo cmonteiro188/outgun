@@ -215,7 +215,7 @@ public:
 	void broadcast_player_crap(int pid);
 	void ctf_net_flag_status(int cid, int team);
 	void sendWeaponPower(int pid);
-	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int playernum, int px, int py, int x, int y);	// sid = shot-id; array of NLubyte[shots]
+	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id; array of NLubyte[shots]
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 
 	void broadcast_sample(int code);

@@ -2487,11 +2487,11 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 	h->r = (keys & 2) != 0;
 	h->u = (keys & 4) != 0;
 	h->d = (keys & 8) != 0;
-	h->strafe = (keys & 16) != 0;
+	bool strafe = (keys & 16) != 0;
 	h->run = (keys & 32) != 0;
 
 	//if not strafing, update direction
-	if (!h->strafe) {
+	if (!strafe) {
 		// left
 		if ((h->l) && (!h->r)) {
 			if ((h->u) && (!h->d))	// + up
@@ -3380,11 +3380,11 @@ void gameserver_c::simulate_and_broadcast_frame() {
 					//default damage to the target: 70
 					int damage = 70;
 
-					//v0.4.0: dano 50 se esta com o deathbringer
+/*					//v0.4.0: dano 50 se esta com o deathbringer
 					if (world.player[rock->owner].item_deathbringer)
-						damage = 50;
+						damage = 50;*/
 
-					if (world.player[rock->owner].item_quad)
+					if (rock->power)
 						damage *= 2;
 
 					//do damage
@@ -5458,7 +5458,7 @@ void gameserver_c::sendWeaponPower(int pid) {
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void gameserver_c::sendRocketMessage(int shots, int gundir, NLubyte* sid, int playernum, int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
+void gameserver_c::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
 	//assembly multi-rocket message
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
@@ -5470,7 +5470,8 @@ void gameserver_c::sendRocketMessage(int shots, int gundir, NLubyte* sid, int pl
 	for (int i=0;i<shots;i++) //MULTI ROCKETS!
 		writeByte(lebuf, count, sid[i]);		// rocket-object id (needed because client-side rockets can be deleted by the server)
 	writeLong(lebuf, count, frame);	// time of shot of the rocket: current (last simulated) frame
-	writeByte(lebuf, count, (NLubyte)playernum);	// owner of all rockets
+	NLubyte shotType = (team<<1) | power;
+	writeByte(lebuf, count, (NLubyte)shotType);	// owner of all rockets
 	writeByte(lebuf, count, (NLubyte)px);	//coord
 	writeByte(lebuf, count, (NLubyte)py);
 	writeShort(lebuf, count, (NLshort)x);

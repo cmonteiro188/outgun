@@ -98,22 +98,18 @@ protected:
 	PlayerBase() { }
 
 public:
-	int weapon;
-
 	bool item_deathbringer;
 	bool item_shield;
 	bool item_quad;
 	bool item_speed;
 	int item_helm;	// 0 == no   1+ == yes, alpha
 
-	bool attack;	// if player is holding attack button
-
 	int roomx, roomy;
 	double lx, ly, sx, sy;	// position within room and speed
 	bool l, r, u, d;	// left, right, up, down acceleration keys
-	bool strafe;
 	bool run;
 	int gundir;	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
+	int weapon;
 
 // get rid of (or move elsewhere)
 	bool used;
@@ -130,15 +126,14 @@ public:
 	void clear(bool enable, int _pid, const char* _name) {
 		ping = 0;
 		frags = 0;
-		attack = false;
+		weapon = 0;
 		id = _pid;
 		strcpy(name, _name);	//the default name
-		weapon = 0;
 		item_deathbringer = item_shield = item_quad = item_speed = false;
 		item_helm = 0;
 		roomx = roomy = 0;
 		lx = ly = sx = sy = 0;
-		l = r = u = d = strafe = run = false;
+		l = r = u = d = run = false;
 		gundir = 0;
 		dead = false;
 		reg_status = enable ? '-' : ' ';
@@ -154,6 +149,8 @@ class ServerPlayer : public PlayerBase {
 public:
 	int health;
 	int energy;
+
+	bool attack;	// if player is holding attack button
 
 	double item_quad_time;
 	double item_speed_time;
@@ -237,6 +234,7 @@ public:
 	void clear(bool enable, int _pid, int _cid, const char* _name) {
 		PlayerBase::clear(enable, _pid, _name);
 
+		attack = false;
 		oldfrags = -666;
 		want_map_exit = false;		//by default don't want change maps
 		mapVote=-1;
@@ -293,7 +291,6 @@ public:
 	double wall_sound_time;
 	bool onscreen;
 	NLulong	enemyvis;
-	double quad_sound_finished;
 	double hitfx;
 	int drawptr;
 	int drawused;
@@ -320,7 +317,7 @@ public:
 		enemyvis = 0;
 		deathbringer_affected = false;
 		death_drop_time = 0;
-		quad_sound_finished = hitfx = 0;
+		hitfx = 0;
 		drawptr = drawused = 0;
 		old_dead = false;
 		oldx = oldy = 0;
@@ -333,6 +330,7 @@ public:
 
 	//owning player-id (-1 == unused)
 	int	owner;
+	bool power;
 
 	//don't draw flag & remove schedule (CLIENT-SIDE): se dontdraw==true, nao desenha em client side e remove quando tempo >= clremove
 	bool dontdraw;
@@ -458,8 +456,8 @@ class gameserver_c;	//#fix: get rid of this callback system
 class ServerWorld : public WorldBase {
 	gameserver_c* host;
 
-	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta);
-	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta);
+	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta);
+	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta);
 
 public:
 	ServerPlayer player[MAX_PLAYERS];

@@ -31,10 +31,6 @@ const char* strspnp(const char* str, const char* charset);
 #define plw 472
 #define plh 354
 
-#define AL_FUNC_DEPRECATED AL_FUNC
-#define AL_PRINTFUNC_DEPRECATED AL_PRINTFUNC
-#define AL_INLINE_DEPRECATED AL_INLINE
-
 // ***** FORTIFY !!! *****
 
 #include "fortfy22/fortify.h"
