@@ -386,7 +386,6 @@ private:
         COLNOLIFE,
         COLDARKGRAY,
         COLSHADOW,
-        COLLIMBO,
         COLDARKORA,
         COLINFO,
         COLENER3,

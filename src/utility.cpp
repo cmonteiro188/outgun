@@ -59,6 +59,14 @@ string itoa(int val) {
     return ss.str();
 }
 
+string itoa_w(int val, int width, bool left) {
+    ostringstream ss;
+    if (left)
+        ss << left;
+    ss << setw(width) << val;
+    return ss.str();
+}
+
 string fcvt(double val) {
     ostringstream ss;
     ss << val;
@@ -101,6 +109,20 @@ string replace_all(string text, const string& s1, const string& s2) {
         text = text.replace(pos, s1.length(), s2);
         pos += s1.length();
     }
+    return text;
+}
+
+string pad_to_size_left (string text, int size, char pad) {
+    int add = size - text.length();
+    if (add > 0)
+        text.insert(0, add, pad);
+    return text;
+}
+
+string pad_to_size_right(string text, int size, char pad) {
+    int add = size - text.length();
+    if (add > 0)
+        text.append(add, pad);
     return text;
 }
 
@@ -308,4 +330,3 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
     textout_right(bmp, f, text, x, y, color);
 }
 #endif  // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-

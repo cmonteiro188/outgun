@@ -215,7 +215,7 @@ Menu_graphics::Menu_graphics() :
     oldMode(-1, -1),    // guarantees anything to be newMode()
 
     colorDepth  (_("Color depth")),
-    desktopDepth(_(" desktop"), itoa(desktop_color_depth()) + _("-bit")),
+    desktopDepth(_(" desktop"), _("$1-bit", itoa(desktop_color_depth()))),
     resolution  (_("Screen size")),
     windowed    (_("Windowed mode"), true),
     flipping    (_("Use page flipping"), false),
@@ -252,13 +252,13 @@ Menu_graphics::Menu_graphics() :
 void Menu_graphics::init(const Graphics& gfx) { // call just once, before calling update
     nAssert(colorDepth.size() == 0);
     if (gfx.depthAvailable(16))
-        colorDepth.addOption(_("16-bit"), 16);
+        colorDepth.addOption(_("$1-bit", "16"), 16);
     if (gfx.depthAvailable(24))
-        colorDepth.addOption(_("24-bit"), 24);
+        colorDepth.addOption(_("$1-bit", "24"), 24);
     if (gfx.depthAvailable(32))
-        colorDepth.addOption(_("32-bit"), 32);
+        colorDepth.addOption(_("$1-bit", "32"), 32);
     if (colorDepth.size() == 0)
-        colorDepth.addOption(_("16-bit"), 16);  // this will force Graphics to use a hope-this-works resolution
+        colorDepth.addOption(_("$1-bit", "16"), 16);  // this will force Graphics to use a hope-this-works resolution
     colorDepth.set(desktop_color_depth());  // may fail (although it's unlikely); ignore
     reloadChoices(gfx);
     resolution.set(ScreenMode(640, 480));   // default resolution
@@ -355,7 +355,7 @@ Menu_ownServer::Menu_ownServer() :
 void Menu_ownServer::init(const std::string& externalAddress, bool priv) {
     privateIP = priv;
     if (priv && !externalAddress.empty())
-        ip = _("(private)") + ' ' + externalAddress;
+        ip = _("(private) $1", externalAddress);
     else
         ip = externalAddress;   // the case of empty ip is handled specially in the drawing code
 }

@@ -59,11 +59,20 @@ bool Language::load(const string& lang) {
         allegro_message("Language file for '%s' not found (%s).\nContinuing without translation.", lang.c_str(), translname.c_str());
         return false;
     }
-    string key, value;
-    while (getline_skip_comments(def, key) && getline_skip_comments(transl, value))
-        texts[key] = value;
-    if (def) {
-        allegro_message("Language file for '%s' is invalid.\n%s contains less phrases than %s.\nContinuing without translation.", lang.c_str(), translname.c_str(), defname.c_str());
+    for (;;) {
+        string key, value;
+        getline_skip_comments(def, key);
+        getline_skip_comments(transl, value);
+        if (def && transl)
+            texts[key] = value;
+        else
+            break;
+    }
+    if (def || transl) {
+        allegro_message("Language file for '%s' is invalid, maybe for another version of Outgun.\n"
+                        "%s contains %s phrases than %s.\n"
+                        "Continuing without translation.",
+                        lang.c_str(), translname.c_str(), transl ? "more" : "less", defname.c_str());
         texts.clear();
         return false;
     }
@@ -86,4 +95,3 @@ string _(const string& text, const string& t1, const string& t2) {
     translation = replace_all(translation, "$2", t2);
     return translation;
 }
-

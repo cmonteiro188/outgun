@@ -2178,14 +2178,14 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
                 }
                 addThreadMessage(new TM_Text(msg_info, msg));
-                if (carrier_defended) {
+                if (carrier_defended && known_attacker) {
                     if (attacker_team == 0)
                         msg = _("$1 defends the red carrier.", fx.player[attacker].name);
                     else
                         msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
-                if (flag_defended) {
+                if (flag_defended && known_attacker) {
                     if (attacker_team == 0)
                         msg = _("$1 defends the red flag.", fx.player[attacker].name);
                     else
@@ -2193,7 +2193,10 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 if (fx.player[target].stats().current_cons_kills() >= 10) {
-                    msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
+                    if (!known_attacker)
+                        msg = _("$1's killing spree was ended.", fx.player[target].name);
+                    else
+                        msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 fx.player[attacker].stats().add_kill(deathbringer);
@@ -2215,7 +2218,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
                         addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
-                    msg = _("$1 is on a killing spree!", fx.player[attacker].name);
+                    if (known_attacker)
+                        msg = _("$1 is on a killing spree!", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 break;
@@ -3983,7 +3987,7 @@ void Client::MCF_removePasswords() {
     const int removed = remove_player_passwords(menu.options.name.name());
     string dialog;
     if (removed == 1)
-        dialog = _("$1 password removed.", itoa(removed));
+        dialog = _("1 password removed.");
     else if (removed > 1)
         dialog = _("$1 passwords removed.", itoa(removed));
     else

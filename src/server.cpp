@@ -920,8 +920,7 @@ void Server::chat(int pid, const char* sbuf) {
 
         const char* pCommand=sbuf+1;
         char cbuf[30];
-        int ci;
-        for (ci = 0;; ++ci, ++pCommand) {
+        for (int ci = 0;; ++ci, ++pCommand) {
             if (ci == 29) {
                 cbuf[29]='\0';
                 break;
@@ -935,6 +934,7 @@ void Server::chat(int pid, const char* sbuf) {
             if (*pCommand == '\0')
                 break;
         }
+        // cbuf contains the first word, pCommand points to arguments, if any
         if (!strcmp(cbuf, "help")) {
             network.player_message(pid, msg_header, "Console commands available on this server:");
             network.player_message(pid, msg_server, "/help       this screen");
@@ -975,7 +975,7 @@ void Server::chat(int pid, const char* sbuf) {
             pupConfig.print(pm);
         }
         else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
-            if (strspnp(pCommand, " ")!=NULL) {
+            if (strspnp(pCommand, " ")) {
                 ofstream log((wheregamedir + "log" + directory_separator + "sayadmin.log").c_str(), ios::out | ios::app);
                 log << date_and_time() << "  " << world.player[pid].name << ": " << pCommand << endl;
                 network.forwardSayadminMessage(world.player[pid].cid, pCommand);
@@ -985,8 +985,8 @@ void Server::chat(int pid, const char* sbuf) {
                 network.player_message(pid, msg_server, "For example to send \"Hello!\", type /sayadmin Hello!");
         }
         else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
-            if (*pCommand!='\0') {
-                int mid=atoi(pCommand)-1;
+            if (*pCommand != '\0') {
+                int mid = atoi(pCommand) - 1;
                 if (mid>=0 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
                     network.plprintf(pid, msg_server, "Map %d is %s (%s)", mid+1, maprot[mid].title.c_str(), maprot[mid].author.c_str());
                     network.plprintf(pid, msg_server, "%s.txt, size %d×%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);

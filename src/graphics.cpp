@@ -222,7 +222,6 @@ void Graphics::setColors() {
     col[COLNOLIFE] = makecol(0, 0, 0);
     col[COLDARKGRAY] = makecol(0x30, 0x30, 0x30);
     col[COLSHADOW] = makecol(0x18, 0x18, 0x18);
-    col[COLLIMBO] = makecol(0x10, 0x10, 0x10);
     col[COLDARKORA] = makecol(0xBF, 0x70, 0x00);
     col[COLINFO] = col[COLDARKORA];     //color of statusbar non-game info (hostname, IP, net traffic)
     col[COLENER3] = makecol(125, 100, 255);
@@ -1368,16 +1367,12 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     red  << _("Red Team");
     blue << _("Blue Team");
     if (pings) {
-        red  << setw(caption_width - red.str().length()) << _("pings");
+        red  << setw(caption_width -  red.str().length()) << _("pings");
         blue << setw(caption_width - blue.str().length()) << _("pings");
     }
     else {
-        ostringstream points;
-        points << teams[0].score() << _(" capt");
-        red << setw(caption_width - red.str().length()) << points.str();
-        points.str("");
-        points << teams[1].score() << _(" capt");
-        blue << setw(caption_width - blue.str().length()) << points.str();
+        red  << setw(caption_width -  red.str().length()) << _("$1 capt", itoa_w(teams[0].score(), 3));
+        blue << setw(caption_width - blue.str().length()) << _("$1 capt", itoa_w(teams[1].score(), 3));
     }
     textout_ex(drawbuf, font, red.str().c_str(), sbx, sby, teamlcol[0], -1);
     textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 1) * line_h, teamlcol[1], -1);
@@ -1683,8 +1678,8 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
 
     line++;
     const int bpstraffic = bpsin + bpsout;
-    textprintf_ex(drawbuf, font, margin, line++ * line_h, col[COLINFO], -1, "%s: %4i B/s", _("Traffic").c_str(), bpstraffic);
-    textprintf_ex(drawbuf, font, margin, line++ * line_h, col[COLINFO], -1, "%s %4i B/s, %s %4i B/s", _("in").c_str(), bpsin, _("out").c_str(), bpsout);
+    textout_ex(drawbuf, font, _("Traffic: $1 B/s", itoa_w(bpstraffic, 4)).c_str(), margin, line++ * line_h, col[COLINFO], -1);
+    textout_ex(drawbuf, font, _("in $1 B/s, out $2 B/s", itoa_w(bpsin, 4), itoa_w(bpsout, 4)).c_str(), margin, line++ * line_h, col[COLINFO], -1);
 }
 
 void Graphics::map_time(int seconds) {

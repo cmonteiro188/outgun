@@ -1561,7 +1561,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
     dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
     player[pid].stats().add_flag_drop(get_time());
     teams[pid / TSIZE].add_flag_drop();
-    if (purpose) {  // If player dies other way, clients know the flag is dropped.
+    if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
         net->broadcast_flag_drop(player[pid], team);
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }

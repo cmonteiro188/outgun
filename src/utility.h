@@ -35,6 +35,7 @@ template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb
 
 int atoi(const std::string& str);
 std::string itoa(int val);
+std::string itoa_w(int val, int width, bool left = false);
 std::string fcvt(double val);
 int iround(double value);
 int numberWidth(int num);   // how many characters num takes when printed
@@ -57,6 +58,10 @@ std::string trim(std::string str);
 
 // Replace all occurences of s1 to s2 in text.
 std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
+
+// Pad /text/ with /pad/ from the given side until it's length is /size/ characters. Do nothing if length >= /size/.
+std::string pad_to_size_left (std::string text, int size, char pad = ' ');
+std::string pad_to_size_right(std::string text, int size, char pad = ' ');
 
 bool find_nonprintable_char(const std::string& str);
 bool is_nonprintable_char(unsigned char c);
