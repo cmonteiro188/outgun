@@ -865,22 +865,11 @@ int ServerNetworking::client_connected(int id) {
 	for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
 		world.player[myself].add_to_queue(*line);
 
-	//check for team changes
 	host->check_team_changes();
-
-	//update serverinfo
 	update_serverinfo();
-
-	//send map time left if there is a time limit
 	send_map_time(id);
-
-	//send stats
 	send_stats(world.player[myself]);
-
-	//the first map info to be sent
-	world.player[myself].current_map_list_item = 0;
-
-	//ok!
+	world.player[myself].current_map_list_item = 0;	// the first map info to be sent
 	return myself;
 }
 
@@ -984,11 +973,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			plprintf(pid, "@WC>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
 	}
 	#endif
-	if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) >= 128) {	// this frame is very likely newer than the previous one
-		pl.lastClientFrame = clFrame;
+	if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) {	// this frame is very likely newer or the same as the previous one
 		#ifdef SEND_FRAMEOFFSET
-		pl.frameOffset = 10. * (get_time() - frameSentTime);
+		if (clFrame != pl.lastClientFrame)
+			pl.frameOffset = 10. * (get_time() - frameSentTime);
 		#endif
+		pl.lastClientFrame = clFrame;
 
 		NLubyte ccb;
 		readByte(data, count, ccb);
@@ -1112,7 +1102,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					int fsize = get_download_file((char *)buffy, ftype, fname);
 					//error: can't read file FIXME: DISCONNECT THE CLIENT
 					if (fsize == -1) {
-						LOG("ERROR: CAN'T READ THE FILE CLIENT IS ASKING FOR. FIXME: MUST DISCONNECT HIM...\n");
+						LOG("ERROR: CAN'T READ THE FILE CLIENT IS ASKING FOR.\n");
 					}
 					else {
 						fileTransfer[id].data = new char[fsize];	//allocated to fit!
@@ -1373,9 +1363,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		if (!world.player[i].used)
 			continue;
 
-		//rewrite past common data
+		// start writing at end of common data
 		lecount = count;
 
+		// first send client prediction synchronization data
 		NLubyte clFrame = world.player[i].lastClientFrame;
 		writeByte(lebuf, lecount, clFrame);
 		#ifdef SEND_FRAMEOFFSET
@@ -1383,161 +1374,126 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		writeByte(lebuf, lecount, fo);
 		#endif
 
-		//extra byte of information
-		// BIT 0: extra health
-		// BIT 1: extra energy
-		// BIT 2  ( VERY IMPORTANT ) : player not ready bit (envia frame vazio!) OU server exibindo placa "game over"
-		NLubyte xtra = 0;
-		if (world.player[i].health & 256) xtra += 1;
-		if (world.player[i].energy & 256) xtra += 2;
-		// BITS 3..8 == what player id
-		if (i & 1) xtra += 8;
-		if (i & 2) xtra += 16;
-		if (i & 4) xtra += 32;
-		if (i & 8) xtra += 64;
-		if (i & 16) xtra += 128;
-
 		bool skip_frame = world.player[i].awaiting_client_ready || !gameRunning;
 
-		if (skip_frame) xtra += 4;		// VERY IMPORTANT
+		// first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
+		NLubyte xtra = i << 3;
+		if (world.player[i].health & 256)
+			xtra |= 1;
+		if (world.player[i].energy & 256)
+			xtra |= 2;
+		if (skip_frame)
+			xtra |= 4;
 		writeByte(lebuf, lecount, xtra);
 
-		// ****** VERY IMPORTANT ******
-		// send almost empty frame if client not ready (leave bandwidth for data transfer) OR IF
-		// server showing gameover plaque
+		// send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
 		if (!skip_frame) {
-			// NEW: 0.3.9 : send before players_onscreen 2 bytes with the screen of self
+			// 2 bytes with the screen of self
 			NLubyte scr;
-			scr = ((NLubyte)world.player[i].roomx);
-			writeByte(lebuf, lecount, scr);	//player.x (screen)
-			scr = ((NLubyte)world.player[i].roomy);
-			writeByte(lebuf, lecount, scr);	//player.y (screen)
+			scr = static_cast<NLubyte>(world.player[i].roomx);
+			writeByte(lebuf, lecount, scr);
+			scr = static_cast<NLubyte>(world.player[i].roomy);
+			writeByte(lebuf, lecount, scr);
 
-			//player data field for each player ON SCREEN
-			NLulong		players_onscreen = 0;
+			// player data field to indicate which players are on screen (and therefore sent on the frame)
+			NLulong players_onscreen = 0;
 
-			//keep place for players_onscreen
+			// players_onscreen will be written here in the end
 			int p_on_count = lecount;
 			writeLong(lebuf, lecount, 0);
 
 			for (int j = 0; j < maxplayers; j++) {
 				// player j exists, in same room, visible or in same team or has a flag
-				if ((players_present & (1 << j)) != 0 &&
-						world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
+				if (world.player[j].used && world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
 						(world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].flag())) {
-					//add to players_onscreen
-					players_onscreen += (1 << j);
+					players_onscreen |= (1 << j);
 
 					const ServerPlayer& h = world.player[j];
 
-					//V0.3.9: took out screen from here
-
-					//V0.3.9 : transmissao x,y de 4 bytes para 3
+					// position in 3 bytes
 					NLubyte xy;
 					NLushort hx,hy;
-					hx = (NLushort)h.lx;
-					hy = (NLushort)h.ly;
+					hx = static_cast<NLushort>(h.lx * (float(0xFFF) / plw) + .5);
+					hy = static_cast<NLushort>(h.ly * (float(0xFFF) / plh) + .5);
+					xy = static_cast<NLubyte>(hx & 0x0FF);
+					writeByte(lebuf, lecount, xy);
+					xy = static_cast<NLubyte>(hy & 0x0FF);
+					writeByte(lebuf, lecount, xy);
+					xy = static_cast<NLubyte>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
+					writeByte(lebuf, lecount, xy);
 
-					xy = (NLubyte) (hx & 255);
-					writeByte(lebuf, lecount, xy);		//first 8 bits x
-					xy = (NLubyte) (hy & 255);
-					writeByte(lebuf, lecount, xy);		//first 8 bits y
-					//256+512+1024+2048 = 3840    last 4 bits mask
-					xy = (NLubyte) ( ((hx & 0xF00) >> 8) + ((hy & 0xF00) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
-					writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
-
-					//sho = ((NLshort)h.x);
-					//writeShort(lebuf, lecount, sho);	//x
-					//sho = ((NLshort)h.y);
-					//writeShort(lebuf, lecount, sho);	//y
-
-					//speed em bytes - xinelao mesmo
+					// speed in 2 bytes
 					NLbyte sxy;
-					sxy = ((NLbyte)(h.sx * 2));
+					sxy = static_cast<NLbyte>(h.sx * 2);	// * 2 gives a half pixel resolution with range from -63 to +63
 					writeByte(lebuf, lecount, sxy);
-					sxy = ((NLbyte)(h.sy * 2));
+					sxy = static_cast<NLbyte>(h.sy * 2);
 					writeByte(lebuf, lecount, sxy);
 
-					//sho = ((NLshort)(h.sx * 100));
-					//writeShort(lebuf, lecount, sho );	//sx  30.283482345634... = 30283 = 30.283(depois)
-					//sho = ((NLshort)(h.sy * 100));
-					//writeShort(lebuf, lecount, sho );	//sy
-
-					// EXTRA BYTE (ex- zframe)  bit 0 : player dead  bit 1 : has deathbringer  bit 2 : deathbringer-affected
+					// flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
 					NLubyte extra = 0;
-					if (world.player[j].health <= 0) extra += 1; //deadflag
-					if (world.player[j].item_deathbringer) extra += 2; //has deathbringer
-					if (world.player[j].deathbringer_end > get_time()) extra += 4;		//deathbringer-affected
-					// ITEMS: moved to this byte
-					if (world.player[j].item_shield)		extra += 8;
-					if (world.player[j].item_speed)			extra += 16;
-					if (world.player[j].item_quad)			extra += 32;
-
-					//write extra byte
+					if (world.player[j].health <= 0)
+						extra |= 1;
+					if (world.player[j].item_deathbringer)
+						extra |= 2;
+					if (world.player[j].deathbringer_end > get_time())
+						extra |= 4;
+					if (world.player[j].item_shield)
+						extra |= 8;
+					if (world.player[j].item_speed)
+						extra |= 16;
+					if (world.player[j].item_quad)
+						extra |= 32;
 					writeByte(lebuf, lecount, extra);
 
+					// controls and gundirection in 1 byte
 					NLubyte ccb;
 					if (world.player[j].health > 0)	// if dead player, don't send keys
 						ccb = world.player[j].controls.toNetwork(true);
 					else
-						ccb = 0;
+						ccb = ClientControls().toNetwork(true);
 					ccb |= h.gundir << 5;
 					writeByte(lebuf, lecount, ccb);
 
-					writeByte(lebuf, lecount, (NLubyte)world.player[j].visibility);
+					// visibility in 1 byte
+					writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
 				}
 			}
 
-			//update players_onscreen (it's before the players on screen data (above))
+			// write players_onscreen in its place (reserved before the above loop)
 			writeLong(lebuf, p_on_count, players_onscreen);
 
-			//ELMO: visao alem do alcance!!
 			NLubyte who;
 			if (world.player[i].item_helm()) {
-				//team "viewed enemies" do meu time (i/TSIZE)
-				//writeByte(lebuf, lecount, 255);		// todos!!!
-				//FIX: helm nao enxerga todo mundo nao
-				//team "viewed enemies" do meu time (i/TSIZE)
-				//writeByte(lebuf, lecount, tview_bits[i/TSIZE]);
-				//FIX: helm tambem nao eh no viewed enemies. o helm de um time é 255 (todos)
-				//     menos quem tem helm
 				writeShort(lebuf, lecount, helmview[i/TSIZE] | tview_bits[i/TSIZE]);
-
-				//"quem eu vou ficar sabendo no minimap agora?" -- do time
 				who = (NLubyte)helmiter;
 				writeByte(lebuf, lecount, who);
 			}
-			//sem elmo: visao normal
 			else {
-				//team "viewed enemies" do meu time (i/TSIZE)
 				writeShort(lebuf, lecount, tview_bits[i/TSIZE]);
-
-				//"quem eu vou ficar sabendo no minimap agora?" -- do time
 				who = (NLubyte)tviter[i/TSIZE];
 				writeByte(lebuf, lecount, who);
 			}
 
-			//x do cara, 0..255 (%) do mundo
 			NLubyte mx = (NLubyte)(((world.player[who].lx + ((double)(world.player[who].roomx * plw))) / (world.map.w*plw)) * 255.0);
 			writeByte(lebuf, lecount, mx);
 
-			//y do cara, 0..255 (%) do mundo
 			NLubyte my = (NLubyte)(((world.player[who].ly + ((double)(world.player[who].roomy * plh))) / (world.map.h*plh)) * 255.0);
 			writeByte(lebuf, lecount, my);
 
-			//send player's BASE health (first 8 bits)
-			if (world.player[i].health < 0) world.player[i].health = 0;
-			writeByte(lebuf, lecount, ((NLubyte)(world.player[i].health & 255)));
+			// send 8 bits of player's health
+			if (world.player[i].health < 0)
+				world.player[i].health = 0;
+			writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].health & 255));
 
-			//send player's BASE energy (first 8 bits)
-			if (world.player[i].energy < 0) world.player[i].energy = 0;
-			writeByte(lebuf, lecount, ((NLubyte)(world.player[i].energy & 255)));
+			// send 8 bits of player's energy
+			if (world.player[i].energy < 0)
+				world.player[i].energy = 0;
+			writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].energy & 255));
 
-			//ping of player frame# % MAXPLAYERS
-			NLushort theping = (NLushort) world.player[world.frame % maxplayers].ping;
+			// ping of player frame# % MAXPLAYERS
+			NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
 			writeShort(lebuf, lecount, theping);
-
-		}//!world.player[i].awaiting_client_ready
+		}
 
 		//send the packet
 		server->send_frame(world.player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
@@ -1929,7 +1885,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 					//LOG1("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i\n", n);
 					job->html_end = true;
 					lebuf[n+1] = 0;
-					//LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+					//LOG1("Full response: \"%s\"\n", lebuf);
 					break;
 				}
 			}
@@ -1946,7 +1902,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 				)
 				{
 					lebuf[n+1]=0;
-					//LOG1("\n** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
+					//LOG1("** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
 					n = -1;
 				}
 			}
@@ -2051,7 +2007,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 			for (int z=0;z<locsize;z++) {
 				nlAddrToString( &(locals[z]) , address );
-				LOG1("CHECKING LOCAL : %s ... ", address);
+				LOG1("CHECKING LOCAL : %s ...\n", address);
 				privateip = check_private_IP(address);
 				if (!privateip)	{
 					LOG("NOT PRIVATE! this is good\n");
@@ -2137,7 +2093,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			//send it
 			NLint result = nlWrite(msock, lebuf, count);
 			//LOG3("WROTE TO MASTER '%s', result = %i, count = %i\n", query, result, count);
-			//LOG2("MASTER TALKER: wrote to master %i,%i", result, count);
+			//LOG2("MASTER TALKER: wrote to master %i,%i\n", result, count);
 
 			//parse the response (should be <HTML><BODY> etc... with "@K" on it
 			int n=0;
@@ -2166,7 +2122,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 						//LOG("MASTER TALKER: </HTML>\n");
 						lebuf[n+1] = 0;
-						//LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+						//LOG1("Full response: \"%s\"\n", lebuf);
 						break;
 					}
 				}
@@ -2302,7 +2258,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			{
 				LOG("(QUIT) RECEIVED </HTML>! SUCCESS!!\n");
 				lebuf[n+1] = 0;
-				//LOG1("(QUIT) ---- Full response START ----\n%s\n(QUIT) ---- Full response END ----\n", lebuf);
+				//LOG1("(QUIT) Full response: \"%s\"\n", lebuf);
 				break;
 			}
 		}
@@ -2428,7 +2384,7 @@ void ServerNetworking::run_website_thread() {
 			const string data = build_http_data(parameters);
 			NLint result = post_http_data(site_script, data, site_auth);
 			LOG("Website thread: Sent information to server website:\n");
-			LOG1("\t%s", data.c_str());
+			LOG1("\t%s\n", data.c_str());
 			LOG1("\tResult: %i\n", result);
 			if (result == -1)
 				website_talk_time = get_time() + 15.0;		// 15 seconds
@@ -2482,7 +2438,7 @@ void ServerNetworking::run_website_thread() {
 	const string quit = "quit=1\r\n";
 	NLint result = post_http_data(site_script, quit, site_auth);
 	LOG("Website thread: Sent information to server website:\n");
-	LOG1("\t%s", quit.c_str());
+	LOG1("\t%s\n", quit.c_str());
 	LOG1("\tResult: %i\n", result);
 
 	// save response to a file
@@ -2646,7 +2602,7 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread() {
-	LOG("\nrun_shellmaster_thread() STARTED\n");
+	LOG("run_shellmaster_thread() STARTED\n");
 
 	while (1) {
 		//accept one connection
@@ -2657,7 +2613,7 @@ void ServerNetworking::run_shellmaster_thread() {
 		//valid socket?
 		if (pidaosock != NL_INVALID) {
 
-			LOG("\npidaosock NOT INVALID! incoming SHELL CONNECTION!\n");
+			LOG("pidaosock NOT INVALID! incoming SHELL CONNECTION!\n");
 
 			//accept connections only from localhost
 			NLaddress addr, c1, c2;
@@ -2669,14 +2625,14 @@ void ServerNetworking::run_shellmaster_thread() {
 			nlSetAddrPort(&c2, 0);
 
 			if ((nlAddrCompare(&addr, &c1) == NL_FALSE) && (nlAddrCompare(&addr, &c2) == NL_FALSE)) {
-				LOG("\nWARNING: attempt to connect a remote admin shell blocked!\n");
+				LOG("WARNING: attempt to connect a remote admin shell blocked!\n");
 				nlClose(pidaosock);
 				continue;
 			}
 
 			//if already connected, skip
 			if (shellssock != NL_INVALID)	{ //skip
-				LOG("\nWARNING: attempt to connect two simultaneous admin shells blocked!\n");
+				LOG("WARNING: attempt to connect two simultaneous admin shells blocked!\n");
 				nlClose(pidaosock);
 				continue;
 			}
@@ -2717,8 +2673,6 @@ void ServerNetworking::run_shellmaster_thread() {
 				nlClose(shellmsock);
 				return;
 			}
-			//else
-			//LOG("(SH)");
 		}
 
 		//sleep a bit
@@ -3166,15 +3120,6 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 	ostringstream temp;
 	int count = 0;
 
-	/*LOG("args bytevalues : ");
-	for (int i=0;i<arg->length;i++) {
-		LOG1("%i.\n", arg->data[i] );
-	}
-	LOG("args charvalues : ");
-	for (i=0;i<arg->length;i++) {
-		LOG1("%c.\n", arg->data[i] );
-	}*/
-
 	if (length > 0)
 		readStr(data, count, stri);	//read gamestring
 
@@ -3218,7 +3163,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 			string password;
 			if (!server_password.empty() && length - count > 0)
 				readStr(data, count, password);
-			if (server_password.empty() || server_password == password) {
+			if (password == server_password) {
 				string player_password;
 				if (length - count > 0)
 					readStr(data, count, player_password);

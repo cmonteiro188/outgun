@@ -3,7 +3,7 @@
 #include "world.h"
 #include "effects.h"
 #include "sounds.h"
-#include "antalias.h"
+#include "antialias.h"
 #include "graphics.h"
 
 #define PATTERNED_PLAYER
@@ -13,8 +13,26 @@
 //#define WINMODE GFX_DIRECTX_ACCEL
 //#define FULLMODE GFX_DIRECTX_ACCEL
 
-#ifdef NIX	// use GDI graphics mode instead of DirectX - works better on my computer, slows things down on all computers
-#define WINMODE GFX_GDI		// can't pageflip
+#define WINMODE GFX_AUTODETECT_WINDOWED
+#define FULLMODE GFX_AUTODETECT
+
+//#define SWITCH_PAUSE_CLIENT
+
+using std::ifstream;
+using std::left;
+using std::list;
+using std::max;
+using std::min;
+using std::ostringstream;
+using std::pair;
+using std::right;
+using std::setfill;
+using std::setprecision;
+using std::setw;
+using std::string;
+using std::vector;
+
+#if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
 	text_mode(bg);
 	va_list argptr;
@@ -54,27 +72,7 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
 	text_mode(bg);
 	textout_right(bmp, f, text, x, y, color);
 }
-#else
-#define WINMODE GFX_AUTODETECT_WINDOWED
 #endif
-
-#define FULLMODE GFX_AUTODETECT
-
-//#define SWITCH_PAUSE_CLIENT
-
-using std::ifstream;
-using std::left;
-using std::list;
-using std::max;
-using std::min;
-using std::ostringstream;
-using std::pair;
-using std::right;
-using std::setfill;
-using std::setprecision;
-using std::setw;
-using std::string;
-using std::vector;
 
 Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	minimap_start_x(0),
@@ -304,9 +302,9 @@ bool Graphics::reset_video_mode() {
 			LOG("ERROR: client cannot run in the background!\n");
 			return false; // FATAL
 		}
-		else LOG("switch_background set ok.");
+		else LOG("switch_background set ok.\n");
 	}
-	else LOG("switch_BACKAMNESIA set ok.");
+	else LOG("switch_BACKAMNESIA set ok.\n");
 #endif
 
 	//attempt to create two video bitmaps, else use RAM backbuffer
@@ -368,9 +366,9 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			scene.addCircWall(*cwi, cwi->texture());
 
 		// add flag markers as overlays
-		const float fr = flagpos_radius * scr_mul;
+		const float fr = flagpos_radius;
 		for (int fi = 0; fi < static_cast<int>(flags.size()); ++fi) {
-			const float fx = flags[fi].second->x * scr_mul, fy = flags[fi].second->y * scr_mul;
+			const float fx = flags[fi].second->x, fy = flags[fi].second->y;
 			scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size(), true);
 		}
 
@@ -993,8 +991,17 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 void Graphics::draw_player_dead(int x, int y) {
 	x = scale(x);
 	y = scale(y);
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	set_trans_blender(0, 0, 0, 90);
+	const int plrScale = scale(PLAYER_RADIUS * 10);
+	ellipsefill(drawbuf, plx + x - plrScale / 25, ply + y + plrScale / 20, plrScale / 9, plrScale / 10, col[COLRED]);
+	ellipsefill(drawbuf, plx + x                , ply + y - plrScale / 30, plrScale / 8, plrScale / 10, col[COLRED]);
+	ellipsefill(drawbuf, plx + x + plrScale / 50, ply + y + plrScale / 40, plrScale / 8, plrScale / 10, col[COLRED]);
+	solid_mode();
+	/*
 	ellipsefill(drawbuf, plx + x, ply + y + scale(PLAYER_RADIUS * 4 / 5), 20, 6, col[COLRED]);
 	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 4 / 5), col[COLRED]);
+	*/
 }
 
 void Graphics::draw_gun_explosion(int x, int y, int rad) {

@@ -521,17 +521,18 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 	attack = false;
 	oldfrags = -666;
 	want_map_exit = false;		//by default don't want change maps
-	mapVote=-1;
+	mapVote = -1;
 	delayedMessages.clear();
-	kickTimer=0;
-	muted=0;
+	idleFrames = 0;
+	kickTimer = 0;
+	muted = 0;
 	want_change_teams = false;	// don't want to change teams yet
 	team_change_time = 0;
 	team_change_pending = false;
 	next_shoot_time = 0;
 	talk_temp = 0.0;
 	talk_hotness = 1.0;
-	cid=_cid;
+	cid = _cid;
 	waitnametime = get_time() - 666.0;	//can change name right now
 
 	total_kills = 0;
@@ -2587,32 +2588,32 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 
 	frame = source.frame;
 
-	for (int i=0; i<2; ++i)
-		teams[i] = source.teams[i];
+	for (int i = 0; i < 2; ++i)
+		teams[i] = source.teams[i];	//#fix: needed?
 
-	for (int i=0; i<maxplayers; i++) {
+	for (int i = 0; i < maxplayers; ++i) {
 		if (source.player[i].onscreen)
 			player[i] = source.player[i];
 		else
 			player[i].used = false;
 	}
-	for (int i=0; i<MAX_ROCKETS; i++) {
+	for (int i = 0; i < MAX_ROCKETS; ++i) {
 		if (source.rock[i].owner == -1)
 			rock[i].owner = -1;
 		else
 			rock[i] = source.rock[i];
 	}
 
+	static const float playerPosAccuracy = plw / float(0xFFF) / 2.;
 	for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {	// note: it is OK to wrap around in the middle of the sequence
 		player[me].controls = ctrlTab[ctrli];
-		applyPhysics(physCallbacks, PLAYER_RADIUS-1., 1.);	// 1 is full frame
+		applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, 1.);	// 1 is full frame
 		++frame;
 	}
-	if (ctrlFirst == ctrlLast)	// no other data in this case
-		player[me].controls = ctrlTab[ctrlLast];
-	applyPhysics(physCallbacks, PLAYER_RADIUS-1., subFrameAfter);
+	player[me].controls = ctrlTab[ctrlLast];
+	applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
 	frame += subFrameAfter;
-	// PLAYER_RADIUS-1. is used to counter problems in bouncing caused by inaccurate positions over network
+	// PLAYER_POS_ACCURACY is used to counter problems in bouncing caused by inaccurate positions over network
 }
 
 // Team

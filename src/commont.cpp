@@ -1,11 +1,13 @@
 #include "commont.h"
 
+#include <cstdlib>
+
 using std::cout;
 using std::istream;
 using std::string;
 
-int atoi (const string& str) {
-	return atoi(str.c_str());
+int atoi(const string& str) {
+	return std::atoi(str.c_str());
 }
 
 void ClientControls::fromKeyboard() {

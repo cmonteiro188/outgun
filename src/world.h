@@ -315,6 +315,7 @@ public:
 	int mapVote;
 	typedef std::list< std::pair<int, std::string> > DMQueueT;
 	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
+	int idleFrames;
 	int kickTimer;
 	int muted;	// 0 = no, 1 = yes, 2 = silently
 

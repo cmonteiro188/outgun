@@ -526,6 +526,10 @@ void gameserver_c::load_game_mod() {
 					if (ival >= 0)
 						vote_block_time = 60 * 10 * ival;	// minutes to frames
 				}
+				else if (cmd == "idlekick_time") {
+					if (ival >= 10 || ival == 0)
+						idlekick_time = ival * 10;	// seconds to frames
+				}
 				else if (cmd == "respawn_time") {
 					if (val >= 0)
 						worldConfig.respawn_time = val;
@@ -671,6 +675,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	worldConfig.reset();
 
 	vote_block_time = 0;	// no limit
+	idlekick_time = 0;	// no limit
 
 	random_maprot = false;
 	// reset server rotation list
@@ -834,9 +839,6 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname) {
 	//check if it's the first name information from client. then it
 	// must have just entered the game
 	bool entered_game = world.player[pid].name.empty();
-
-	// log
-	//LOG3("client %i player %i '%s' renamed to", id, pid, world.player[pid].name.c_str());
 
 	world.player[pid].name = "(invalid name)";
 	if (tempname.find_first_not_of(' ') == string::npos)
@@ -1117,8 +1119,6 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 				else
 					network.broadcast_message(talkmsg);
 			}
-			// log
-			//LOG4("client %i player %i name %s says: '%s'\n", id, pid, world.player[pid].name.c_str(), &(msg[1]));
 		}
 	}
 }
@@ -1202,13 +1202,26 @@ void gameserver_c::simulate_and_broadcast_frame() {
 					network.disconnect_client(world.player[i].cid, 1);	// 1 second timeout
 				else if (world.player[i].kickTimer%10 == 0 && world.player[i].kickTimer<=50)
 					network.plprintf(i, "@WDisconnecting in %d...", world.player[i].kickTimer/10);
+				continue;
 			}
-			else {
-				ServerPlayer::DMQueueT& dm=world.player[i].delayedMessages;
-				while (dm.size() && --dm.begin()->first<0) {
-					network.player_message(i, dm.begin()->second.c_str());
-					dm.erase(dm.begin());
+			if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle()) {
+				++world.player[i].idleFrames;
+				int timeToKick = idlekick_time - world.player[i].idleFrames;
+				if (timeToKick == 0)
+					network.disconnect_client(world.player[i].cid, 1);
+				else if ((timeToKick == 60*10 && idlekick_time >= 3*60*10) ||
+						 (timeToKick == 30*10 && idlekick_time >= 3*30*10) ||
+						 (timeToKick == 15*10 && idlekick_time >= 2*15*10) ||
+						  timeToKick ==  5*10) {
+					network.plprintf(i, "@W*** Idle kick: move or be kicked in %d seconds", timeToKick / 10);
 				}
+			}
+			else
+				world.player[i].idleFrames = 0;
+			ServerPlayer::DMQueueT& dm=world.player[i].delayedMessages;
+			while (dm.size() && --dm.begin()->first<0) {
+				network.player_message(i, dm.begin()->second.c_str());
+				dm.erase(dm.begin());
 			}
 		}
 	network.broadcast_frame(!gameover);
@@ -1330,11 +1343,11 @@ void* thread_listenserver_f(void*) {
 
 	//(3) shutdown the localserver
 	//
-	LOG("GAMESERVER STOPPING");
+	LOG("GAMESERVER STOPPING\n");
 	gameserver->stop();
-	LOG("GAMESERVER DELETING");
+	LOG("GAMESERVER DELETING\n");
 	delete gameserver;
-	LOG("GAMESERVER DELETED");
+	LOG("GAMESERVER DELETED\n");
 	gameserver = 0;
 
 	//restore client's windowtitle

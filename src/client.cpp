@@ -26,10 +26,10 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-//#define CLIENT_PREDICTION
-const float lagWanted = 1.;
+#define CLIENT_PREDICTION
+const float lagWanted = .5;
 
-#ifdef NIX
+#if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 void set_close_button_callback(void (*fn)()) {
 	set_window_close_hook(fn);
 }
@@ -82,7 +82,7 @@ bool gameclient_c::start() {
 
 	//default physics parameters
 	//set_default_physics();
-	//LOG3("\nNORMAL   fri %.1f acc %.1f mxs %.1f\n", svp_fric, svp_accel, svp_maxspeed);
+	//LOG3("NORMAL   fri %.1f acc %.1f mxs %.1f\n", svp_fric, svp_accel, svp_maxspeed);
 	//LOG3("RUN      fri %.1f acc %.1f mxs %.1f\n", svp_fric_run, svp_accel_run, svp_maxspeed_run);
 	//LOG3("TURBO    fri %.1f acc %.1f mxs %.1f\n", svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo);
 	//LOG3("TURBORUN fri %.1f acc %.1f mxs %.1f\n", svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun);
@@ -393,7 +393,7 @@ void gameclient_c::client_password_thread(void *) {
 					//LOG1("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i\n", n);
 					html_end = true;
 					lebuf[n+1] = 0;
-					//LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+					//LOG1("Full response: \"%s\"\n", lebuf);
 					break;
 				}
 			}
@@ -410,7 +410,7 @@ void gameclient_c::client_password_thread(void *) {
 				)
 				{
 					lebuf[n+1]=0;
-					//LOG1("\n** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
+					//LOG1("** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
 					n = -1;
 				}
 			}
@@ -593,7 +593,7 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 
 	//this is bad! but will never happen.
 	if (amount != len) {
-		LOG2("BAD BAD ERROR! process_udp_download_chunk can't fwrite len %i amount %i !!!", len, amount);
+		LOG2("BAD BAD ERROR! process_udp_download_chunk can't fwrite len %i amount %i !!!\n", len, amount);
 		// FIXME: better handling
 	}
 
@@ -650,7 +650,7 @@ void gameclient_c::client_udp_setup_download() {
 	}
 	else {
 		//do something if can't write to the file (disconnect player/whatever)
-		LOG1("UDP client_download_thread() can't write output file!! (%s)", r->dest);
+		LOG1("UDP client_download_thread() can't write output file!! (%s)\n", r->dest);
 		disconnect_command();		//FIXME make it better
 		return;
 	}
@@ -691,7 +691,7 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 		}
 
 	//error that will never happen even in a million years
-	LOG("BAD BAD **ERROR** : UDPDQ IS FULL");
+	LOG("BAD BAD **ERROR** : UDPDQ IS FULL\n");
 	nAssert(0);	//BAD ERROR
 
 	pthread_mutex_unlock ( &udpdq_mutex );
@@ -773,7 +773,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 		sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
 		print_message(lix);
 
-		LOG(lix);
+		LOG1("%s\n", lix);
 
 		// MAKE DOWNLOAD -- ASK FILE
 
@@ -847,7 +847,6 @@ void gameclient_c::set_menu(Menu_selection menumber) {
 //disconnect command
 void gameclient_c::disconnect_command() {
 	//disconnect the client here if was connected, else does nothing
-	LOG("disconnect_command()\n");
 	client->connect(false);
 
 	//dialogz
@@ -893,6 +892,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	//avoid "dropped" plaque
 	lastpackettime = get_time() + 1.0;
 
+	averageLag = 0;
+
 	clFrameSent = clFrameWorld = 0;
 	frameReceiveTime = 0;
 
@@ -911,10 +912,12 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//reset world data
 	// players
-
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		fx.player[i].clear(false, i, "(name unknown)", i / TSIZE);
 	players_sb.clear();
+	// powerups
+	for (int iid = 0; iid < MAX_PICKUPS; ++iid)
+		fx.item[iid].kind = Powerup::pup_unused;
 
 	//reset FPS count vars
 	framecount = 0;
@@ -1305,7 +1308,6 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 //connect command
 void gameclient_c::connect_command() {
 	// disconnect
-	LOG("connect_command()\n");
 	client->connect(false);
 
 	// copy gamespy address
@@ -1414,13 +1416,21 @@ void gameclient_c::change_name_command() {
 void gameclient_c::send_frame(bool newFrame) {
 	char lebuf[256]; int count = 0;
 
-	if (newFrame)
+	if (newFrame) {
 		++clFrameSent;
-	controlHistory[clFrameSent].fromKeyboard();
-	svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+		controlHistory[clFrameSent].fromKeyboard();
+		svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
 
-	writeByte(lebuf, count, clFrameSent);
-	writeByte(lebuf, count, controlHistory[clFrameSent].toNetwork(false));
+		writeByte(lebuf, count, clFrameSent);
+		writeByte(lebuf, count, controlHistory[clFrameSent].toNetwork(false));
+	}
+	else {
+		ClientControls currCtrl;
+		currCtrl.fromKeyboard();
+
+		writeByte(lebuf, count, clFrameSent);
+		writeByte(lebuf, count, currCtrl.toNetwork(false));
+	}
 
 	client->send_frame(lebuf, count);
 }
@@ -1498,7 +1508,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 		readByte(data, count, clFrameWorld);
 		frameReceiveTime = get_time();
-		int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 100ul);	// bound because svFrameHistory has invalid frame# at connect to server
+		int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 50ul);	// bound because svFrameHistory has invalid frame# at connect to server
 		averageLag = averageLag*.99 + currentLag*.01;
 
 		#ifdef SEND_FRAMEOFFSET
@@ -1600,13 +1610,16 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//xy = ((hx & 3840) >> 8) + ((hy & 3840) >> 4); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
 					//writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
 
+					NLushort hx, hy;
 					readByte(data, count, xy);		//first 8 bits x
-					h.lx = static_cast<double>(xy);
-					readByte(data, count, xy);		//first 8 bits y
-					h.ly = static_cast<double>(xy);
-					readByte(data, count, xy);		//first 4 bits x + first 4 bits y
-					h.lx += static_cast<double>( (xy &  15) << 8 );	//bits 0-3 to 8-11
-					h.ly += static_cast<double>( (xy & 240) << 4 ); //bits 4-7 to 8-11
+					hx = xy;
+					readByte(data, count, xy);
+					hy = xy;
+					readByte(data, count, xy);
+					hx += (xy & 0x0F) << 8;
+					hy += (xy & 0xF0) << 4;
+					h.lx = hx * (plw / float(0xFFF));
+					h.ly = hy * (plh / float(0xFFF));
 
 					//V0.3.9 speed em bytes, xinelao mesmo
 					NLbyte sxy;
@@ -1767,14 +1780,14 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//"hello" one-time server information ("first packet")
 				case data_first_packet: {
 					readByte(msg, count, pid);	//"who am I"
-
+/* the system is weird, but throwing these messages helps none
 					//DEBUG msg
 					if (pid != whatme) {
 						char lixoverde[200];
 						sprintf(lixoverde, "###WARNING###: me %i memsg %i whatme %i\n", me, pid, whatme);
 						send_chat(lixoverde);
 					}
-
+*/
 					me = pid;
 
 					NLchar map_nr;
@@ -2450,8 +2463,8 @@ void gameclient_c::get_servers_from_master() {
 				if (html_end) {
 					if (nostuffcound > 200) {		//2 seconds after it came some stuff but now without coming more stuff
 						lebuf[n+1] = 0;
-						LOG("2 SEC TIMEOUT READING STUFF AFTER </HTML>");
-						LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+						LOG("2 SEC TIMEOUT READING STUFF AFTER </HTML>\n");
+						LOG1("Full response: \"%s\"\n", lebuf);
 						break;
 					}
 				}
@@ -2509,7 +2522,7 @@ void gameclient_c::get_servers_from_master() {
 				html_end = true;
 				nostuffcound = 1;
 				lebuf[n+1] = 0;
-				LOG1("---- Full response START ----\n%s\n---- Full response END ----\n", lebuf);
+				LOG1("Full response: \"%s\"\n", lebuf);
 				break;
 			}
 		}
@@ -2526,7 +2539,7 @@ void gameclient_c::get_servers_from_master() {
 			)
 			{
 				lebuf[n+1]=0;
-				//LOG1("\n** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
+				//LOG1("** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
 				html_end = false;
 				n = -1;
 			}
@@ -3186,7 +3199,6 @@ void gameclient_c::loop() {
 						trying_connection = false;	//not anymore
 
 						//this cancels the attempt to connect
-						LOG("loop()\n");
 						client->connect(false);
 						//go back to main screen
 						set_menu(menu_main);
@@ -3234,19 +3246,18 @@ void gameclient_c::loop() {
 			ClientPhysicsCallbacks cb(*this);
 			#ifdef CLIENT_PREDICTION
 			float timeDelta = max<float>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
-			NLubyte firstFrame;
+			NLubyte firstFrame, lastFrame;
 			if (clFrameSent == clFrameWorld)
-				firstFrame = clFrameWorld;
-			else
-				firstFrame = clFrameWorld + 1;
-			NLubyte lastFrame = firstFrame;
-			while (lastFrame != clFrameSent && timeDelta > 1.) {
-				++lastFrame;
-				timeDelta -= 1;
+				firstFrame = lastFrame = clFrameWorld;
+			else {
+				firstFrame = lastFrame = clFrameWorld + 1;
+				while (lastFrame != clFrameSent && timeDelta > 1.) {
+					++lastFrame;
+					timeDelta -= 1.;
+				}
 			}
-
-			if (timeDelta > 5.)
-				timeDelta = 5.;
+			if (timeDelta > 3.)
+				timeDelta = 3.;
 			fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
 			#else
 			fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
@@ -3285,7 +3296,7 @@ void gameclient_c::loop() {
 			draw_game_menu();
 
 		//if (page_flipping) {
-			//LOG("** releasing bitmap...");
+			//LOG("** releasing bitmap...\n");
 			//release_bitmap(drawbuf);
 			//LOG("OK!\n");
 		//}
@@ -4028,9 +4039,9 @@ void gameclient_c::draw_game_frame() {
 
 
 	//unlock frame mutex
-	//LOG1("unlocking HOW=%i",HOWMANY);
+	//LOG1("unlocking HOW=%i\n",HOWMANY);
 	pthread_mutex_unlock( &frame_mutex );
-	//LOG1("unlocked! HOW=%i",HOWMANY);
+	//LOG1("unlocked! HOW=%i\n",HOWMANY);
 
 	// another frame, calc FPS...
 	//
@@ -4117,7 +4128,7 @@ int cfunc_connection_update(client_runes_t *arg) {
 		gameclient->connect_failed_unreachable();
 		break;
 	case 4:
-		LOG("cannot connect, net-server is full!");
+		LOG("cannot connect, net-server is full!\n");
 		count = 0;
 		writeString(lebuf, count, "Server is full.");
 		gameclient->connect_failed_denied(lebuf, count);

@@ -40,7 +40,7 @@ bool set_shitty_mode() {
 		set_color_depth( DTC );
 
 		if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
-			LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 2 with %i", DTC)
+			LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 2 with %i\n", DTC)
 		else
 			return true;
 	}
@@ -51,14 +51,14 @@ bool set_shitty_mode() {
 	set_color_depth( DTC );
 
 	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0)) {
-		LOG1("ERROR: could not set gfx mode 320x240 windowed.. tried with %i", DTC);
+		LOG1("ERROR: could not set gfx mode 320x240 windowed.. tried with %i\n", DTC);
 	}
 	else
 		return true;
 
 	// try safe mode
 	if (set_gfx_mode(GFX_SAFE, 320, 240, 0, 0)) {
-		LOG("ERROR: could not set a safe gfx mode.");
+		LOG("ERROR: could not set a safe gfx mode.\n");
 		return false;
 	}
 	else
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
 	sched_param		param;
 	int				rc = pthread_getschedparam(tme, &policy, &param); // get priority of current thread (wich is the default value)
 	int				pdef = param.sched_priority;
-	LOG("\nThread priorities:");
+	LOG("Thread priorities:\n");
 	LOG4("   rc = %i policy = %i OTHER=%i sched_prio = %i\n", rc, policy, SCHED_OTHER, param.sched_priority);
 	LOG3("   pmin %i pmax %i pdef = %i\n", pmin, pmax, pdef);
 
@@ -291,10 +291,10 @@ int main(int argc, char *argv[]) {
 			param.sched_priority = ptarg;
 			policy = SCHED_OTHER;
 			pthread_setschedparam(tme, policy, &param);
-			LOG1("\nNEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i\n", ptarg);
+			LOG1("NEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i\n", ptarg);
 		}
 		else
-			LOG("\n-defaultprio: Leaving thread priorities on their default values\n");
+			LOG("-defaultprio: Leaving thread priorities on their default values\n");
 
 		// log
 		LOG_CLOSE();

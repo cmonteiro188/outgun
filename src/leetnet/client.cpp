@@ -43,10 +43,10 @@
 
 #define LOG_NOLOG		//disable logging
 #define LOG_EXPR client_c_log
-#define LOG_TIMEFUNC get_timeh()
+#define LOG_TIMEFUNC get_time()
 #include "log.h"
 FILE *client_c_log;
-
+extern double get_time();
 
 //connector thread function
 void *thread_connect_f(void *arg);
@@ -378,7 +378,7 @@ DLOG_Scope s("CPIDg");
 		NLulong l1, l2;
 		readLong(udp_data, fubar, l1);		//discard the "0"
 		readLong(udp_data, fubar, l2);
-		LOG3("CLIENT INCOMING size=%i (%i, %i)\n", udp_length, l1,l2);
+		LOG3("CLIENT INCOMING size=%i (%lu, %lu)\n", udp_length, l1,l2);
 
 		//set datagram
 		station->set_incoming_packet(udp_data, udp_length);

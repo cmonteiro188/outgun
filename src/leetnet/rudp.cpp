@@ -507,24 +507,21 @@ DLOG_Scope s("UPIM");
 	
 	// set the station's remote address for sending (IP:PORT)
 	virtual int set_remote_address(char* address) {
-	
 		//decode the address
 		nlStringToAddr(address, &netaddr);
-	
+
 		//set address to socket remoteaddress
 		sendsock = nlOpen(0, NL_UNRELIABLE);
 		if (sendsock == NL_INVALID)
 			return 0;		//ERROR
 		else
 			nlSetRemoteAddr(sendsock, &netaddr);
-
 		//ok
 		return 1;
 	}
 
 	// set the station's remote address for sending (IP:PORT)
 	virtual int set_remote_address(NLaddress *some_addr) {
-
 		//copy address
 		memcpy(&netaddr, some_addr, sizeof(NLaddress));
 	

@@ -36,7 +36,7 @@ LEETNET_OBJS = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
 	leetnet/Time.o leetnet/TimerCallback.o leetnet/Timer.o \
 	leetnet/dlog.o
 
-OBJS = antalias.o world.o servnet.o server.o graphics.o commont.o \
+OBJS = antialias.o world.o servnet.o server.o graphics.o commont.o \
 	client.o main.o names.o nameauth.o sounds.o mappic.o nassert.o \
 	$(LEETNET_OBJS)
 
@@ -63,7 +63,8 @@ srvmonit.exe: $(MON_OBJS)
 	windres -i $< -O coff -o $@
 
 admshell_inc =	admshell.h
-antalias_inc =	antalias.h
+antialias_inc =	antialias.h
+antialias_internal_inc =	antialias_internal.h	$(antialias_inc)
 client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(world_inc)	$(network_inc)
 commont_inc =	commont.h
 effects_inc =	effects.h
@@ -82,13 +83,13 @@ mappic_inc =	mappic.h
 OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 LEETNETCOMPILE = $(OBJCOMPILE)
 
-antalias.o:	antalias.cpp	$(world_inc)	$(antalias_inc)
+antialias.o:	antialias.cpp	$(world_inc)	$(antialias_inc)	$(antialias_internal_inc)
 	$(OBJCOMPILE)
 client.o:	client.cpp	$(commont_inc)	$(world_inc)	$(names_inc)	$(client_inc)	$(network_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
 commont.o:	commont.cpp	$(commont_inc)
 	$(OBJCOMPILE)
-graphics.o:	graphics.cpp	$(commont_inc)	$(world_inc)	$(effects_inc)	$(sounds_inc)	$(antalias_inc)	$(graphics_inc)
+graphics.o:	graphics.cpp	$(commont_inc)	$(world_inc)	$(effects_inc)	$(sounds_inc)	$(antialias_inc)	$(graphics_inc)
 	$(OBJCOMPILE) $(GFX_COMPILE_EXTRA)
 main.o: 	main.cpp	$(commont_inc)	$(server_inc)	$(client_inc)	$(mappic_inc)
 	$(OBJCOMPILE)

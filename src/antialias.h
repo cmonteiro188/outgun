@@ -1,5 +1,5 @@
-#ifndef ANTALIAS_H_INC
-#define ANTALIAS_H_INC
+#ifndef ANTIALIAS_H_INC
+#define ANTIALIAS_H_INC
 
 #include <vector>
 #include <list>
@@ -223,4 +223,4 @@ private:
 	float clipx1, clipy1, clipx2, clipy2;
 };
 
-#endif	// ANTALIAS_H_INC
+#endif	// ANTIALIAS_H_INC

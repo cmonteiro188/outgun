@@ -62,6 +62,7 @@ class gameserver_c {
 	double			team_smul[2];
 	NLulong 		next_vote_announce_frame;
 	int				last_vote_announce_votes, last_vote_announce_needed;
+	int				idlekick_time;
 	ClientData		client[MAX_PLAYERS];
 
 	// pelimaailma
