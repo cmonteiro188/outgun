@@ -1568,6 +1568,10 @@ struct player_t {
 	//admin shell stats
 	int		total_kills;
 	int		total_deaths;
+	int		most_consecutive_kills;
+	int		current_consecutive_kills;
+	int		most_consecutive_deaths;
+	int		current_consecutive_deaths;
 	int		total_suicides;
 	int		total_captures;
 	int		total_flags_taken;
@@ -1627,6 +1631,10 @@ struct player_t {
 			//default stats
 		total_kills = 0;
 		total_deaths = 0;
+		most_consecutive_kills = 0;
+		current_consecutive_kills = 0;
+		most_consecutive_deaths = 0;
+		current_consecutive_deaths = 0;
 		total_suicides = 0;
 		total_captures = 0;
 		total_flags_taken = 0;
@@ -3659,6 +3667,9 @@ public:
 		if (ctf_drop_flag_if_any(target))
 			score_neg(target, 1);	// score neg points because of losing the flag
 		player[target].total_deaths++;
+		if (++player[target].current_consecutive_deaths > player[target].most_consecutive_deaths)
+			player[target].most_consecutive_deaths = player[target].current_consecutive_deaths;
+		player[target].current_consecutive_kills = 0;
 
 		if (player[target].item_deathbringer) {
 			//record time to simulate the deathbringer explosion
@@ -3710,6 +3721,9 @@ public:
 
 		score_frag(attacker, 1);	//frag to attacker for the kill
 		player[attacker].total_kills++;
+		if (++player[attacker].current_consecutive_kills > player[attacker].most_consecutive_kills)
+			player[attacker].most_consecutive_kills = player[attacker].current_consecutive_kills;
+		player[attacker].current_consecutive_deaths = 0;
 
 		int tateam = target/TSIZE;
 		int atteam = attacker/TSIZE;
@@ -6125,6 +6139,11 @@ public:
 							player[pid].queue_printf("Own flags: %d returned, %d carriers killed",
 								player[pid].total_flags_returned,
 								player[pid].total_flag_carriers_killed);
+							player[pid].queue_printf("Consecutive kills: %d (%d), deaths: %d (%d)",
+								player[pid].most_consecutive_kills,
+								player[pid].current_consecutive_kills,
+								player[pid].most_consecutive_deaths,
+								player[pid].current_consecutive_deaths);
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
@@ -6140,8 +6159,7 @@ public:
 								playing_time / 60,
 								lifetime / 60,
 								lifetime % 60);
-							// Add more stats: flags taken and dropped, flag carrying time, travelled distance,
-							// shots, shot accuracy, shots taken, flag carriers killed, suicides, etc.
+							// Add more stats: flag carrying time, travelled distance, average speed, etc.
 						}
 						#ifdef NR_NAME_AUTHORIZATION
 						else if (!strcmp(cbuf, "auth")) {
@@ -12270,7 +12288,7 @@ public:
 
 		textprintf(drawbuf, font, x+100, y+260, col[COLWHITE], "GAME CONCEPT: You are a member of a team, either RED or BLUE,");
 		textprintf(drawbuf, font, x+100, y+270, col[COLWHITE], " assigned to you at random when you connect. Your goal is to");
-		textprintf(drawbuf, font, x+100, y+280, col[COLWHITE], " help your team to win, by capturing 8 (default) times the ememy");
+		textprintf(drawbuf, font, x+100, y+280, col[COLWHITE], " help your team to win, by capturing 8 (default) times the enemy");
 		textprintf(drawbuf, font, x+100, y+290, col[COLWHITE], " flag. To capture the flag, a member of your team must steal");
 		textprintf(drawbuf, font, x+100, y+300, col[COLWHITE], " the enemy flag and bring it to your team's flag, provided your");
 		textprintf(drawbuf, font, x+100, y+310, col[COLWHITE], " flag has not been stolen already! Capiche?");
@@ -12284,14 +12302,14 @@ public:
 		textprintf(drawbuf, font, x+100, y+390, col[COLWHITE], " It shows the contents of all rooms of the map that have at least");
 		textprintf(drawbuf, font, x+100, y+400, col[COLWHITE], " one player of your team.");
 
-		textprintf(drawbuf, font, x+100, y+420, col[COLWHITE], "CHANGING TEAMS: Hit the 'END' key to set wether you want to");
-		textprintf(drawbuf, font, x+100, y+430, col[COLWHITE], " change teams or not. Your will change teams when appropriate.");
+		textprintf(drawbuf, font, x+100, y+420, col[COLWHITE], "CHANGING TEAMS: Hit the END key to set whether you want to");
+		textprintf(drawbuf, font, x+100, y+430, col[COLWHITE], " change team or not. You will change team when appropriate.");
 
 		textprintf(drawbuf, font, x+100, y+450, col[COLWHITE], "POWERUPS: If you see an animated item lying on the ground, grab");
 		textprintf(drawbuf, font, x+100, y+460, col[COLWHITE], " it. It's a special power-up item.");
 
-		textprintf(drawbuf, font, x+100, y+480, col[COLWHITE], "ETC.: Hit DEL to kill yourself. Hold TAB to see other player's");
-		textprintf(drawbuf, font, x+100, y+490, col[COLWHITE], " ping times (in milisecons) on the scoreboard below the minimap.");
+		textprintf(drawbuf, font, x+100, y+480, col[COLWHITE], "ETC.: Hit DEL to kill yourself. Hold TAB to see other players'");
+		textprintf(drawbuf, font, x+100, y+490, col[COLWHITE], " ping times (in milliseconds) on the scoreboard.");
 		textprintf(drawbuf, font, x+100, y+500, col[COLWHITE], " Hit HOME to change world colors and CTRL+HOME to restore them.");
 		textprintf(drawbuf, font, x+100, y+510, col[COLWHITE], " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
 	}
