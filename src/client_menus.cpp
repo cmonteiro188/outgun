@@ -208,6 +208,7 @@ void Menu_graphics::init(const Graphics& gfx) {	// call just once, before callin
 		colorDepth.addOption("16-bit", 16);	// this will force Graphics to use a hope-this-works resolution
 	colorDepth.set(desktop_color_depth());	// may fail (although it's unlikely); ignore
 	reloadChoices(gfx);
+	resolution.set(ScreenMode(640, 480));	// default resolution
 }
 
 void Menu_graphics::update(const Graphics& gfx) {	// tries to keep the selected resolution and theme
@@ -231,7 +232,7 @@ bool Menu_graphics::newMode() {
 
 Menu_sounds::Menu_sounds() :
 	enabled	("Sounds enabled", true),
-	volume	("Volume", true, 0, 255, 150, 15),
+	volume	("Volume", true, 0, 255, 128, 15),
 	theme	("Theme"),
 
 	menu	("Sound options", true)
