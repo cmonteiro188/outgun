@@ -18,17 +18,21 @@ function conf_yesno_answer {
 
 function downandinstall {
 	name="$1"
-	compile="$2"
-	install="$3"
-	siteurl="$4"
-	fileurl="$5"
-	filename="$6"
-	subdir="$7"
+	compile1="$2"
+	compile2="$3"
+	install="$4"
+	siteurl="$5"
+	fileurl="$6"
+	filename="$7"
+	subdir="$8"
 
-	echo "Couldn't compile with $name, probably you don't have $name installed on your system."
-	echo "You can try to download a package for your distribution in your distro repository"
-	echo "or manually download and install from $siteurl."
-	echo "If you prefer, this script will try to download $name sources, compile and install."
+	echo
+	echo "Couldn't compile with $name, probably you don't have $name installed"
+	echo "on your system."
+	echo "You can try to download it as a package fom your distro repository or"
+	echo "manually download and install from $siteurl."
+	echo "If you prefer, this script will try to download $name sources, compile"
+	echo "and install."
 	if [ `whoami` != 'root' ]; then {
 		echo "For the installation process you will need your root password."
 	} fi
@@ -40,13 +44,18 @@ function downandinstall {
 	if [ "$ANSWER" = 'yes' ]; then {
 		if ! [ -f "$filename" ]; then {
 			wget "$fileurl"
+			echo
 		} fi
 		if [ -f "$filename" ]; then {
 			if [ "`tar -zxf "$filename" 2>&1`" == "" ]; then {
 				cd $subdir
-				if { $compile; } then {
+				if { $compile1 && $compile2; } then {
 					if [ `whoami` = 'root' ]; then {
-						$install
+						if ! $install; then {
+							echo
+							echo "Problem installing $name."
+							exit 1
+						} fi
 					}
 					else {
 						if ! su root -c "$install" && ! su root -c "$install"; then {
@@ -55,17 +64,20 @@ function downandinstall {
 							exit 1
 						} fi
 					} fi
+					/sbin/ldconfig
 					echo
-					echo "$name compiled. Running the script again to see if everything is OK."
+					echo "$name installed. Running the script again to see if everything is OK."
 					echo
 					cd ../
 					sh ./compile.sh
 				}
 				else {
+					echo
 					echo "Couldn't compile $name. You will have to try to fix it manually."
 				} fi
 			}
 			else {
+				echo
 				echo "Problems uncompressing $name. Trying again may help."
 				rm -fr "$filename"
 			} fi
@@ -75,6 +87,7 @@ function downandinstall {
 		} fi
 	}
 	else {
+		echo
 		echo "OK, so install $name in your system and run this script again."
 	} fi
 }
@@ -89,12 +102,13 @@ function clean {
 }
 
 echo
-echo ===========================================================================================
-echo "This script will try to compile Outgun and compile and install its dependecies if needed."
+echo ===============================================================================
+echo "This script will try to compile Outgun and compile and install its dependecies"
+echo "if needed."
 echo "It's released under the GPL. Read docs for more info."
-echo "WARNING: This script is still BETA version."
-echo "Please, Report any errors to the FORUM at outgun.sf.net or by email at: thommy@globo.com"
-echo ===========================================================================================
+echo "WARNING: This script is still a BETA version. Please, report any errors to the"
+echo "FORUM at outgun.sf.net or by email at: thommy@globo.com"
+echo ===============================================================================
 echo
 echo "Cleaning files from an old execution. . ."
 clean
@@ -150,7 +164,9 @@ echo "Checking g++"
 echo "Compiling test program. . ."
 g++ g++.check.cpp -o g++.check.bin
 if ! [ -f "./g++.check.bin" ]; then {
-	echo "A new enough g++ was not found in your system. Get it or, if you have it, update to a newer version."
+	echo
+	echo "A new enough g++ was not found in your system. Get it or, if you have it,"
+	echo "update to a newer version."
 	exit 1
 } fi
 
@@ -162,7 +178,7 @@ echo "Compiling test program. . ."
 g++ hawk.check.cpp -o hawk.check.bin -lNL -pthread
 
 if ! [ -f "./hawk.check.bin" ]; then {
-	downandinstall "HawkNL" "make -f makefile.linux" "make -f makefile.linux install" "http://www.hawksoft.com/hawknl/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_hawknl_src.tar.gz" "./outgun_1.0_hawknl_src.tar.gz" "./hawknl*/"
+	downandinstall "HawkNL" "make -f makefile.linux" "true" "make -f makefile.linux install" "http://www.hawksoft.com/hawknl/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_hawknl_src.tar.gz" "./outgun_1.0_hawknl_src.tar.gz" "./hawknl*/"
 	exit 0
 } fi
 
@@ -172,9 +188,11 @@ if { ./hawk.check.bin; } then {
 	echo
 }
 else {
-	echo "WARNING: Problems running a program compiled with HawkNL. Outgun may compile but will not run."
-	echo "         (Re)install a new version of HawkNL (http://www.hawksoft.com/hawknl/) and test it again,"
-	echo "         or try to resolve the error otherwise."
+	echo
+	echo "WARNING: Problems running a program compiled with HawkNL. Outgun may compile"
+    echo "         but will not run."
+	echo "         (Re)install a new version of HawkNL (http://www.hawksoft.com/hawknl/)"
+	echo "         and test it again, or try to resolve the error otherwise."
 	echo
 } fi
 
@@ -185,7 +203,7 @@ echo "Compiling test program. . ."
 g++ allegro.check.cpp -o allegro.check.bin `allegro-config --libs`
 
 if ! [ -f "./allegro.check.bin" ]; then {
-	downandinstall "Allegro" "./configure && make" "make install" "http://alleg.sf.net/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_allegro_src.tar.gz" "./outgun_1.0_allegro_src.tar.gz" "./allegro-*/"
+	downandinstall "Allegro" "./configure" "make" "make install" "http://alleg.sf.net/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_allegro_src.tar.gz" "./outgun_1.0_allegro_src.tar.gz" "./allegro-*/"
 	exit 0
 } fi
 
@@ -195,14 +213,18 @@ if [ "`./allegro.check.bin 2>&1`" == "" ]; then {
 	echo
 }
 else {
-	echo "WARNING: Problems running a program compiled with Allegro. Outgun may compile but will not run."
-	echo "         (Re)install a newer version of Allegro (http://alleg.sf.net/) and test it again,"
-	echo "         or try to resolve the error otherwise."
+	echo
+	echo "WARNING: Problems running a program compiled with Allegro. Outgun may compile"
+	echo "         but will not run."
+	echo "         (Re)install a newer version of Allegro (http://alleg.sf.net/) and"
+	echo "         test it again, or try to resolve the error otherwise."
 	echo
 } fi
 
-echo "Now Outgun is going to compiled, if there were no errors or warnings, you should be playing soon."
-echo "Or not so soon, depending of your machine speed. In my XP2200+ with 512 DDR 400, it takes over 5 minutes for this process to be completed."
+echo
+echo "Now Outgun is going to be compiled, and if there were no errors or warnings,"
+echo "you should be playing soon. Or not so soon, depending of your machine speed."
+echo "In my XP2200+ with 512 DDR 400, this process takes almost 5 minutes."
 echo
 echo "Compiling Outgun. . ."
 cd ./src
@@ -212,8 +234,11 @@ if [ -f "../outgun" ]; then {
 	echo "Outgun compiled fine. You should run now by typing ./outgun"
 	echo
 	echo "Have a nice play!"
+	clean
 }
 else {
+	echo
 	echo "I don't know how but Outgun didn't compile."
-	echo "Check the error messages and try to find out yourself the reason and run this script again."
+	echo "Check the error messages and try to find out yourself the reason and run"
+	echo "this script again."
 } fi
