@@ -37,6 +37,7 @@
 #include "log.h"
 #include "commont.h"    // for time_counter
 #include "platform.h"
+#include "language.h"
 #include "utility.h"
 
 using std::dec;
@@ -112,19 +113,19 @@ string replace_all(string text, const string& s1, const string& s2) {
     return text;
 }
 
-string pad_to_size_left (string text, int size, char pad) {
-    int add = size - text.length();
+/*string pad_to_size_left(string text, int size, char pad) {
+    const int add = size - text.length();
     if (add > 0)
         text.insert(0, add, pad);
     return text;
 }
 
 string pad_to_size_right(string text, int size, char pad) {
-    int add = size - text.length();
+    const int add = size - text.length();
     if (add > 0)
         text.append(add, pad);
     return text;
-}
+}*/
 
 bool find_nonprintable_char(const string& str) {
     for (string::const_iterator s = str.begin(); s != str.end(); ++s)
@@ -254,36 +255,36 @@ string date_and_time() {
 
 string approxTime(int seconds) {
     int time = seconds;
-    const char* timeUnit;
+    string timeUnit;
     if (time == 0 || (time % 60 != 0 && time <= 200))
-        timeUnit = "second";
+        timeUnit = time == 1 ? _("second") : _("seconds");
     else {
         time = (time + 40) / 60;    // 40 chosen because rounding up is favored
         if (time % 60 != 0 && time <= 200)
-            timeUnit = "minute";
+            timeUnit = time == 1 ? _("minute") : _("minutes");
         else {
             time = (time + 40) / 60;
             if (time % 24 != 0 && time <= 100)
-                timeUnit = "hour";
+                timeUnit = time == 1 ? _("hour") : _("hours");
             else {
                 time = (time + 16) / 24;
                 // because a year isn't an integral amount of weeks, it must be handled separately
                 if (time % 365 == 0 || time >= 7 * 100) {   // show more than 100 weeks in years
                     time = (time + 250) / 365;
-                    timeUnit = "year";
+                    timeUnit = time == 1 ? _("year") : _("years");
                 }
                 else if (time % 7 != 0 && time <= 50)
-                    timeUnit = "day";
+                    timeUnit = time == 1 ? _("day") : _("days");
                 else {
                     time = (time + 5) / 7;
-                    timeUnit = "week";
+                    timeUnit = time == 1 ? _("week") : _("weeks");
                 }
             }
         }
     }
-    string str = itoa(time) + ' ' + timeUnit;
-    if (time != 1)
-        str += 's';
+    const string str = itoa(time) + ' ' + timeUnit;
+    /*if (time != 1)
+        str += 's';*/
     return str;
 }
 

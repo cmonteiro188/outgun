@@ -801,7 +801,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     tex.finalize();
 
     // draw bases
-    Bitmap backup = create_bitmap(minimap_place_w, minimap_place_w);
+    Bitmap backup = create_bitmap(minimap_place_w, minimap_place_h);
     nAssert(backup);
 
     for (int ry = 0; ry < map.h; ++ry)
@@ -865,23 +865,37 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
             }
             if (failure[0].empty() && failure[1].empty())
                 continue;
+
             const int xmin = static_cast<int>(actual_start_x + room_w * rx);
             const int xmax = static_cast<int>(actual_start_x + room_w * (rx + 1) - 1);
             const int ymin = static_cast<int>(actual_start_y + room_h * ry);
             const int ymax = static_cast<int>(actual_start_y + room_h * (ry + 1) - 1);
+
+            Bitmap base = create_bitmap(minimap_place_w, minimap_place_h);
+            nAssert(base);
+            blit(buffer, base, 0, 0, 0, 0, buffer->w, buffer->h);
+            for (int t = 0; t < 2; t++)
+                for (vector<WorldCoords>::const_iterator fi = failure[t].begin(); fi != failure[t].end(); ++fi) {
+                    const int px = static_cast<int>(actual_start_x + (fi->px * plw + fi->x) * scale);
+                    const int py = static_cast<int>(actual_start_y + (fi->py * plh + fi->y) * scale);
+                    const int c = getpixel(base, px, py);
+                    if (c == 0)
+                        floodfill(base, px, py, teamdcol[0]);
+                }
+
             for (int y = ymin; y <= ymax; ++y) {
-                const double roomy = double(y + 1 - ymin) / double(room_h) * plh;
+                const double roomy = (y + 1 - ymin) / room_h * plh;
                 for (int x = xmin; x <= xmax; ++x) {
-                    if (getpixel(buffer, x, y) != 0)
+                    if (getpixel(buffer, x, y) != 0 || getpixel(base, x, y) == 0)
                         continue;
-                    const double roomx = double(x + 1 - xmin) / double(room_w) * plw;
+                    const double roomx = (x + 1 - xmin) / room_w * plw;
                     double dist_r2 = INT_MAX;
                     for (vector<WorldCoords>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
-                        dist_r2 = min(dist_r2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
+                        dist_r2 = min(dist_r2, sqr(fi->y - roomy) + sqr(fi->x - roomx));
                     double dist_b2 = INT_MAX;
                     for (vector<WorldCoords>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
-                        dist_b2 = min(dist_b2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
-                    double diff = dist_r2 - dist_b2;
+                        dist_b2 = min(dist_b2, sqr(fi->y - roomy) + sqr(fi->x - roomx));
+                    const double diff = dist_r2 - dist_b2;
                     if (diff < -2)
                         putpixel(buffer, x, y, teamdcol[1]);
                     else if (diff > 2)
@@ -1070,10 +1084,13 @@ void Graphics::draw_virou_sorvete(int x, int y) {
     }
 }
 
-void Graphics::draw_gun_explosion(int x, int y, int rad) {
+void Graphics::draw_gun_explosion(int x, int y, int rad, int team) {
     x = scale(x);
     y = scale(y);
-    circle(drawbuf, plx + x, ply + y, scale(rad), makecol(rand() % 256, rand() % 256, rand() % 256));
+    const int c = makecol(team == 0 ? rand() % 128 + 128 : rand() % 256,
+                          rand() % 256,
+                          team == 1 ? rand() % 128 + 128 : rand() % 256);
+    circle(drawbuf, plx + x, ply + y, scale(rad), c);
 }
 
 void Graphics::draw_deathbringer_smoke(int x, int y, double time) {
@@ -1334,12 +1351,12 @@ void Graphics::draw_one_line_message(const string& message) {
 }
 
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) {
-    textout_centre_ex(drawbuf, font, caption.c_str(), plx + plw / 2, ply + plh / 2 + 20, col[COLGREEN], -1);
-    textout_centre_ex(drawbuf, font, map.c_str(), plx + plw / 2, ply + plh / 2 + 50, col[COLORA], -1);
+    textout_centre_ex(drawbuf, font, caption.c_str(), plx + scale(plw) / 2, ply + scale(plh / 2 + 20), col[COLGREEN], -1);
+    textout_centre_ex(drawbuf, font, map.c_str(), plx + scale(plw) / 2, ply + scale(plh / 2 + 50), col[COLORA], -1);
 }
 
 void Graphics::draw_loading_map_message(const string& text) {
-    textout_centre_ex(drawbuf, font, text.c_str(), plx + plw / 2, ply + plh / 2 + 70, col[COLGREEN], -1);
+    textout_centre_ex(drawbuf, font, text.c_str(), plx + scale(plw / 2), ply + scale(plh / 2 + 70), col[COLGREEN], -1);
 }
 
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
@@ -1348,8 +1365,8 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
         case 0: case 1: c = teamlcol[team]; break;
         default: c = col[COLMENUGRAY]; break;
     }
-    textout_centre_ex(drawbuf, font, text.c_str(), plx + plw / 2, ply + plh / 2 - 40, c, -1);
-    textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "%s", _("SCORE $1 - $2", itoa(score1), itoa(score2)).c_str());
+    textout_centre_ex(drawbuf, font, text.c_str(), plx + scale(plw / 2), ply + scale(plh / 2 - 40), c, -1);
+    textprintf_centre_ex(drawbuf, font, plx + scale(plw / 2), ply + scale(plh / 2 - 20), c, -1, "%s", _("SCORE $1 - $2", itoa(score1), itoa(score2)).c_str());
 }
 
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
@@ -1648,7 +1665,7 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
                            const vector<vector<pair<int, int> > >& sticks, const vector<int>& buttons) {
     clear_to_color(drawbuf, 0);
 
-    int line = 0;
+    int line = 1;
     const int line_h = 10;
     const int margin = 8;
     for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
@@ -1866,7 +1883,7 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         case msg_warning: c = col[COLLRED]; break;
         case msg_team: c = col[COLYELLOW]; break;
         case msg_info: c = col[COLGREEN]; break;
-        case msg_header: c = makecol(0x88, 0xFF, 0xFF); break;
+        case msg_header: c = makecol(0xAA, 0xFF, 0xFF); break;
         case msg_server: c = col[COLCYAN]; break;
         case msg_normal: default: c = col[COLORA];
     }
@@ -1936,7 +1953,7 @@ void Graphics::clear_fx() {
 }
 
 //create rocket explosion fx
-void Graphics::create_wallexplo(int x, int y, int px, int py) {
+void Graphics::create_wallexplo(int x, int y, int px, int py, int team) {
     GraphicsEffect fx;
 
     fx.type = FX_WALL_EXPLOSION;
@@ -1945,12 +1962,13 @@ void Graphics::create_wallexplo(int x, int y, int px, int py) {
     fx.time = get_time();
     fx.px = px;
     fx.py = py;
+    fx.team = team;
 
     cfx.push_back(fx);
 }
 
 //create power rocket explosion fx
-void Graphics::create_powerwallexplo(int x, int y, int px, int py) {
+void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team) {
     GraphicsEffect fx;
 
     fx.type = FX_POWER_WALL_EXPLOSION;
@@ -1959,6 +1977,7 @@ void Graphics::create_powerwallexplo(int x, int y, int px, int py) {
     fx.time = get_time();
     fx.px = px;
     fx.py = py;
+    fx.team = team;
 
     cfx.push_back(fx);
 }
@@ -2017,7 +2036,7 @@ void Graphics::create_deathbringer(int team, double start_time, int x, int y, in
 }
 
 //create explosion fx
-void Graphics::create_gunexplo(int x, int y, int px, int py) {
+void Graphics::create_gunexplo(int x, int y, int px, int py, int team) {
     GraphicsEffect fx;
 
     fx.type = FX_GUN_EXPLOSION;
@@ -2026,6 +2045,7 @@ void Graphics::create_gunexplo(int x, int y, int px, int py) {
     fx.time = get_time();
     fx.px = px;
     fx.py = py;
+    fx.team = team;
 
     cfx.push_back(fx);
 }
@@ -2043,8 +2063,8 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                     fx = cfx.erase(fx);
                 else {
                     for (int e = 0; e < 3; e++) {
-                        int rad = 4 + e + (int)(delta * 40);
-                        draw_gun_explosion(fx->x, fx->y, rad);
+                        const int rad = 4 + e + static_cast<int>(delta * 40);
+                        draw_gun_explosion(fx->x, fx->y, rad, fx->team);
                     }
                     ++fx;
                 }
@@ -2059,8 +2079,8 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                     fx = cfx.erase(fx);
                 else {
                     for (int e = 0; e < 2; e++) {
-                        int rad = 4 + e + (int)(delta * 40);
-                        draw_gun_explosion(fx->x, fx->y, rad);
+                        const int rad = 4 + e + (int)(delta * 40);
+                        draw_gun_explosion(fx->x, fx->y, rad, fx->team);
                     }
                     ++fx;
                 }
@@ -2071,8 +2091,8 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                     fx = cfx.erase(fx);
                 else {
                     for (int e = 0; e < 3; e++) {
-                        int rad = 4 + e + (int)(delta * 60);
-                        draw_gun_explosion(fx->x, fx->y, rad);
+                        const int rad = 4 + e + (int)(delta * 60);
+                        draw_gun_explosion(fx->x, fx->y, rad, fx->team);
                     }
                     ++fx;
                 }

@@ -169,11 +169,11 @@ public:
 };
 
 class TM_GunexploEffect : public ThreadMessage {
-    int rokx, roky, px, py;
+    int rokx, roky, px, py, team;
 
 public:
     TM_GunexploEffect(int rokx_, int roky_, int px_, int py_) : rokx(rokx_), roky(roky_), px(px_), py(py_) { }
-    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(rokx, roky, px, py); }
+    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(rokx, roky, px, py, team); }
 };
 
 class TM_Deathbringer : public ThreadMessage {
@@ -1629,7 +1629,6 @@ void Client::process_incoming_data(const char* data, int length) {
 
         //parse rest of message
         switch (static_cast<Network_data_code>(code)) {
-            // name update
             case data_name_update: {
                 NLubyte pid;
                 string name;
@@ -1903,7 +1902,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
             case data_weapon_change: {
                 NLubyte level;
-                readByte(lebuf, count, level);  // weapon level
+                readByte(lebuf, count, level);
                 if (me >= 0)
                     fx.player[me].weapon = level;
                 break;
@@ -1917,10 +1916,12 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.wild_flags.clear();
                 NLushort crc;
                 readShort(lebuf, count, crc);
-                string mapname;
+                string mapname, maptitle;
                 readStr(lebuf, count, mapname);
-                NLubyte map_nr;
+                readStr(lebuf, count, maptitle);
+                NLubyte map_nr, total_maps;
                 readByte(lebuf, count, map_nr);
+                readByte(lebuf, count, total_maps);
                 current_map = map_nr;
                 if (map_vote == current_map)
                     map_vote = -1;
@@ -1928,6 +1929,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[me].oldy = -1;
                 old_map = fx.map.title;
                 addThreadMessage(new TM_MapChange(mapname, crc));
+                const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
+                addThreadMessage(new TM_Text(msg_info, msg));
                 break;
             }
 
@@ -1945,9 +1948,23 @@ void Client::process_incoming_data(const char* data, int length) {
                     red_final_score = score;
                     readByte(lebuf, count, score);  //BLUE team final score
                     blue_final_score = score;
+                    NLubyte caplimit, timelimit;
+                    readByte(lebuf, count, caplimit);
+                    readByte(lebuf, count, timelimit);
                     for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                         pi->stats().finish_stats(get_time());
                     gameover_plaque = plaque;
+
+                    string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
+                    addThreadMessage(new TM_Text(msg_info, msg));
+                    msg.clear();
+                    if (caplimit > 0) {
+                        msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
+                        msg += ' ';
+                    }
+                    if (timelimit > 0)
+                        msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
+                    addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 else {
                     gameover_plaque = NEXTMAP_NONE;
@@ -2307,21 +2324,23 @@ void Client::process_incoming_data(const char* data, int length) {
 
             case data_new_player: {
                 NLubyte pid;
+                string name;
                 readByte(lebuf, count, pid);
+                readStr(lebuf, count, name);
                 fx.player[pid].stats().clear();
                 fx.player[pid].stats().set_start_time(get_time());
                 fx.player[pid].stats().set_lifetime(0);
-                /*const string msg = _("$1 entered the game.", fx.player[pid].name);
-                addThreadMessage(new TM_Text(msg_info, msg));*/
+                if (!name.empty()) {
+                    const string msg = _("$1 entered the game.", name);
+                    addThreadMessage(new TM_Text(msg_info, msg));
+                }
                 break;
             }
 
             case data_player_left: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
-                NLlong frags;
-                readLong(lebuf, count, frags);
-                const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(frags));
+                const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
                 addThreadMessage(new TM_Text(msg_info, msg));
                 break;
             }
@@ -2497,6 +2516,108 @@ void Client::process_incoming_data(const char* data, int length) {
                 addThreadMessage(new TM_Text(msg_info, msg));
                 break;
             }
+            
+            case data_map_change_info: {
+                NLubyte votes, needed;
+                NLshort vote_block_time;
+                readByte(lebuf, count, votes);
+                readByte(lebuf, count, needed);
+                readShort(lebuf, count, vote_block_time);
+                string msg = _("*** $1/$2 votes for mapchange.", itoa(votes), itoa(needed));
+                if (vote_block_time > 0)
+                    msg += " " +_("(All players needed for $1 more seconds.)", itoa(vote_block_time));
+                addThreadMessage(new TM_Text(msg_info, msg));
+                break;
+            }
+
+            case data_too_much_talk: {
+                const string msg = _("Too much talk. Chill...");
+                addThreadMessage(new TM_Text(msg_warning, msg));
+                break;
+            }
+
+            case data_mute_notification: {
+                const string msg = _("You are muted. You can't send messages.");
+                addThreadMessage(new TM_Text(msg_warning, msg));
+                break;
+            }
+        
+            case data_player_mute: {
+                NLubyte pid, mode;
+                string admin;
+                readByte(lebuf, count, pid);
+                readByte(lebuf, count, mode);
+                readStr(lebuf, count, admin);
+                if (admin.empty())
+                    admin = _("The admin");
+                if (pid == me) {
+                    string msg;
+                    if (mode == 0)
+                        msg = _("You have been unmuted (you can send messages again).");
+                    else if (mode == 1)
+                        msg = _("You have been muted by $1 (you can't send messages).", admin);
+                    else
+                        nAssert(0);     // The silent mute should not be known by the muted player.
+                    addThreadMessage(new TM_Text(msg_warning, msg));
+                }
+                else {
+                    string msg;
+                    if (mode == 0)
+                        msg = _("$1 has unmuted $2.", admin, fx.player[pid].name);
+                    else
+                        msg = _("$1 has muted $2.", admin, fx.player[pid].name);
+                    addThreadMessage(new TM_Text(msg_info, msg));
+                }
+                break;
+            }
+
+            case data_player_kick: {
+                NLubyte pid;
+                NLlong minutes;
+                string admin;
+                readByte(lebuf, count, pid);
+                readLong(lebuf, count, minutes);
+                readStr(lebuf, count, admin);
+                if (pid == me) {
+                    string msg;
+                    if (minutes == 0)
+                        msg = _("You are being kicked from this server by $1!", admin);
+                    else
+                        msg = _("$1 has BANNED you from this server for $2!", admin, approxTime(minutes * 60));
+                    addThreadMessage(new TM_Text(msg_warning, msg));
+                }
+                else {
+                    string msg;
+                    if (minutes == 0)
+                        msg = _("$1 has kicked $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
+                    else
+                        msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
+                    addThreadMessage(new TM_Text(msg_info, msg));
+                }
+                break;
+            }
+
+            case data_disconnecting: {
+                NLubyte time;
+                readByte(lebuf, count, time);
+                const string msg = _("Disconnecting in $1...", itoa(time));
+                addThreadMessage(new TM_Text(msg_warning, msg));
+                break;
+            }
+
+            case data_idlekick_warning: {
+                NLubyte time;
+                readByte(lebuf, count, time);
+                const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
+                addThreadMessage(new TM_Text(msg_warning, msg));
+                break;
+            }
+            
+            case data_broken_map: {
+                const string msg = _("This map is broken. There is an instantly capturable flag. Avoid it.");
+                addThreadMessage(new TM_Text(msg_warning, msg));
+                break;
+            }
 
             default:
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
@@ -2510,7 +2631,7 @@ void Client::process_incoming_data(const char* data, int length) {
     }
 
     //detect screen changes / clear powerup fx's
-    if (me >= 0 && (fx.player[me].roomx != fx.player[me].oldx) || (fx.player[me].roomy != fx.player[me].oldy)) {
+    if (me >= 0 && fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
         for (int j = 0; j < MAX_PICKUPS; j++)
             if (fx.item[j].px == fx.player[me].oldx && fx.item[j].py == fx.player[me].oldy)
                 fx.item[j].kind = Powerup::pup_unused;  // erase
@@ -3427,11 +3548,11 @@ void Client::stop() {
 
 void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
     if (power) {
-        client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
+        client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_POWERWALLHIT);
     }
     else {
-        client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
+        client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_WALLHIT);
     }
     fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation

@@ -157,6 +157,9 @@ public:
     void removePlayer(int pid); // call only when moving players around; this actually does close to nothing
     void disconnect_client(int cid, int timeout, Disconnect_reason reason);
     int getPid(int cid) { return ctop[cid]; }   //#fix: this shouldn't be necessary
+    
+    void send_simple_message(Network_data_code code, int pid) const;
+    void broadcast_simple_message(Network_data_code code) const;
 
     void send_me_packet(int pid);
     void send_player_name_update(int cid, int pid);
@@ -181,6 +184,7 @@ public:
                         bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
     void broadcast_new_player(const ServerPlayer& player) const;
+    void broadcast_player_left(const ServerPlayer& player) const;
     void broadcast_spawn(const ServerPlayer& player) const;
     void broadcast_movements_and_shots(const ServerPlayer& player) const;   // Send player's movement and shots to everyone.
     void broadcast_stats(const ServerPlayer& player) const;             // Send player's stats to everyone.
@@ -194,6 +198,16 @@ public:
     void send_map_change_message(int pid, int reason, const char* mapname);
     void send_map_time(int cid);
     void send_server_settings(const ServerPlayer& player);
+    void broadcast_map_change_info(int votes, int needed, int vote_block_time) const;
+
+    void send_too_much_talk(int pid) const;
+    void send_mute_notification(int pid) const;
+    void broadcast_mute_message(int pid, int mode, const std::string& admin, bool inform_target) const;
+    void broadcast_kick_message(int pid, int minutes, const std::string& admin) const;
+    void send_idlekick_warning(int pid, int seconds) const;
+    void send_disconnecting_message(int pid, int seconds) const;
+    void broadcast_broken_map() const;
+
     void ctf_net_flag_status(int cid, int team);
     void ctf_update_teamscore(int t);
     void move_update_player(int a, bool silent = false);

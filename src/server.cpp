@@ -90,35 +90,14 @@ Server::~Server() {
 void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
     if (world.player[pid].muted == mode)
         return;
-    const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
-    if (mode == 0 && world.player[pid].muted != 2)
-        network.plprintf(pid, msg_warning, "You have been unmuted (you can send messages again)");
-    else if (mode == 1) {
-        network.plprintf(pid, msg_warning, "You have been muted (you can't send messages)");
-        if (admin != -1)
-            network.plprintf(pid, msg_server, "The administrator responsible is %s.", adminName);
-    }
-    for (int i = 0; i < MAX_PLAYERS; ++i)
-        if (world.player[i].used && i != pid) {
-            if (mode == 0)
-                network.plprintf(i, msg_server, "%s has unmuted %s", adminName, world.player[pid].name.c_str());
-            else
-                network.plprintf(i, msg_server, "%s has muted %s", adminName, world.player[pid].name.c_str());
-        }
+    const string adminName = admin == -1 ? "" : world.player[admin].name;
+    network.broadcast_mute_message(pid, mode, adminName, mode != 2 && world.player[pid].muted != 2);
     world.player[pid].muted = mode;
 }
 
 void Server::kickPlayer(int pid, int admin, int minutes) {  // if minutes > 0, it's really a ban
-    const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
-    if (minutes > 0)
-        network.plprintf(pid, msg_warning, "You are BANNED from this server for %s!", approxTime(minutes * 60).c_str());
-    else
-        network.plprintf(pid, msg_warning, "You are being kicked from this server!");
-    if (admin != -1)
-        network.plprintf(pid, msg_server, "The administrator responsible is %s.", adminName);
-    for (int i = 0; i < MAX_PLAYERS; ++i)
-        if (world.player[i].used && i != pid)
-            network.plprintf(i, msg_server, "%s has %s %s (disconnect in 10 seconds)", adminName, minutes > 0 ? "banned" : "kicked", world.player[pid].name.c_str());
+    const string adminName = admin == -1 ? "" : world.player[admin].name;
+    network.broadcast_kick_message(pid, minutes, adminName);
     world.player[pid].kickTimer = 10 * 10;
 }
 
@@ -145,25 +124,11 @@ void Server::ctf_game_restart() {
             }
         }
 
-    ostringstream msg;
-    msg << "CTF GAME OVER - FINAL SCORE: RED " << world.teams[0].score() << " - BLUE " << world.teams[1].score();   // ### FIXME: Move to client
-    network.broadcast_message(msg_info, msg.str());
-
     if (worldConfig.balanceTeams()) {
         balance_teams();
         if (worldConfig.balanceTeams() == WorldSettings::TB_balance_and_shuffle)
             shuffle_teams();
     }
-
-    msg.str("");
-    if (worldConfig.getCaptureLimit() > 0) {
-        msg << "CAPTURE " << worldConfig.getCaptureLimit() << " FLAGS TO WIN THE GAME";
-        if (worldConfig.getTimeLimit() > 0)
-            msg << " - ";
-    }
-    if (worldConfig.getTimeLimit() > 0)
-        msg << "TIME LIMIT IS " << worldConfig.getTimeLimit() / 10 / 60 << " MINUTES";
-    network.broadcast_message(msg_info, msg.str());
 
     network.broadcast_sample(SAMPLE_CTF_GAMEOVER);
 
@@ -655,10 +620,6 @@ bool Server::server_next_map(int reason) {
     gameover = true;
     gameover_time = get_time() + game_end_delay;        // timeout for gameover plaque
 
-    ostringstream msg;
-    msg << "Server changed map to " << maprot[currmap].title << " (" << currmap + 1 << " of " << maprot.size() << ')';
-    network.broadcast_message(msg_info, msg.str());
-
     return true;
 }
 
@@ -860,7 +821,7 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
     const bool entered_game = world.player[pid].name.empty();
 
     if (!check_name(tempname)) {
-        log("Kicked player %d for client misbehavior: attempted invalid name '%s'", pid, tempname.c_str());
+        log("Kicked player %d for client misbehavior: attempted invalid name '%s'.", pid, tempname.c_str());
         disconnectPlayer(pid, disconnect_client_misbehavior);
         return;
     }
@@ -870,7 +831,7 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
             world.player[pid].waitnametime = get_time() + 1.0;
         }
         else if (entered_game) {
-            log("Kicked player %d for client misbehavior: authorization changed between entering the game and first name change", pid);
+            log("Kicked player %d for client misbehavior: authorization changed between entering the game and first name change.", pid);
             disconnectPlayer(pid, disconnect_client_misbehavior);
             return;
         }
@@ -920,7 +881,8 @@ void Server::chat(int pid, const char* sbuf) {
 
         const char* pCommand=sbuf+1;
         char cbuf[30];
-        for (int ci = 0;; ++ci, ++pCommand) {
+        int ci;
+        for (ci = 0;; ++ci, ++pCommand) {
             if (ci == 29) {
                 cbuf[29]='\0';
                 break;
@@ -1043,7 +1005,7 @@ void Server::chat(int pid, const char* sbuf) {
                     kickPlayer(ppid, pid);
                 else if (!strcmp(cbuf, "ban")) {
                     if (time <= 0 || time > 60 * 24 * 7)    // allow at most a weeks ban (a bit over 10000 minutes)
-                        network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week)");
+                        network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week).");
                     else
                         banPlayer(ppid, pid, time);
                 }
@@ -1059,12 +1021,12 @@ void Server::chat(int pid, const char* sbuf) {
         }
         else if (!strcmp(cbuf, "forcemap") && admin) {
             if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
-                network.bprintf(msg_server, "%s decided it's time for a map change", world.player[pid].name.c_str());
+                network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 maprot[world.player[pid].mapVote].votes = 99;
                 server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
             }
             else
-                network.bprintf(msg_server, "%s decided it's time for a restart", world.player[pid].name.c_str());
+                network.bprintf(msg_server, "%s decided it's time for a restart.", world.player[pid].name.c_str());
             ctf_game_restart();
             world.reset_time();
             network.sendStartGame();
@@ -1082,10 +1044,10 @@ void Server::chat(int pid, const char* sbuf) {
             world.player[pid].talk_hotness = 6.0;
         if (world.player[pid].talk_temp > 10.0) {
             world.player[pid].talk_temp = 18.0;
-            network.player_message(pid, msg_warning, "Too much talk. Chill...");
+            network.send_too_much_talk(pid);
         }
         else if (world.player[pid].muted == 1)
-            network.plprintf(pid, msg_warning, "You are muted. You can't send messages.");
+            network.send_mute_notification(pid);
         else {
             ostringstream msg;
             msg << world.player[pid].name << ": ";
@@ -1156,11 +1118,12 @@ void Server::simulate_and_broadcast_frame() {
             last_vote_announce_votes = votes;
             last_vote_announce_needed = players;
             next_vote_announce_frame = world.frame + voteAnnounceInterval * 10;
-            ostringstream voteinfo;
-            voteinfo << "*** " << votes << '/' << players << " votes for mapchange";
+            int voteblock;
             if (world.getMapTime() < vote_block_time)
-                voteinfo << " (all players needed for " << (vote_block_time - world.getMapTime() + 5) / 10 << " more seconds)";
-            network.broadcast_message(msg_server, voteinfo.str().c_str());
+                voteblock = (vote_block_time - world.getMapTime() + 5) / 10;
+            else
+                voteblock = 0;
+            network.broadcast_map_change_info(votes, players, voteblock);
         }
         if (world.getMapTime() == vote_block_time)
             check_map_exit();
@@ -1172,7 +1135,7 @@ void Server::simulate_and_broadcast_frame() {
                 if (world.player[i].kickTimer == 0)
                     disconnectPlayer(i, disconnect_kick);
                 else if (world.player[i].kickTimer % 10 == 0 && world.player[i].kickTimer <= 50)
-                    network.plprintf(i, msg_warning, "Disconnecting in %d...", world.player[i].kickTimer / 10);
+                    network.send_disconnecting_message(i, world.player[i].kickTimer / 10);
                 continue;
             }
             if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle() && get_player_count() >= idlekick_playerlimit) {
@@ -1184,7 +1147,7 @@ void Server::simulate_and_broadcast_frame() {
                          (timeToKick == 30*10 && idlekick_time >= 3*30*10) ||
                          (timeToKick == 15*10 && idlekick_time >= 2*15*10) ||
                          (timeToKick ==  5*10 && idlekick_time >= 2* 5*10)) {
-                    network.plprintf(i, msg_warning, "*** Idle kick: move or be kicked in %d seconds", timeToKick / 10);
+                    network.send_idlekick_warning(i, timeToKick / 10);
                 }
             }
             else

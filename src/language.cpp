@@ -85,13 +85,13 @@ string _(const string& text) {
 }
 
 string _(const string& text, const string& t1) {
-    string translation = _(text);
-    translation = replace_all(translation, "$1", t1);
-    return translation;
+    return replace_all(_(text), "$1", t1);
 }
 
 string _(const string& text, const string& t1, const string& t2) {
-    string translation = _(text, t1);
-    translation = replace_all(translation, "$2", t2);
-    return translation;
+    return replace_all(_(text, t1), "$2", t2);
+}
+
+string _(const string& text, const string& t1, const string& t2, const string& t3) {
+    return replace_all(_(text, t1, t2), "$3", t3);
 }

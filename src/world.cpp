@@ -2635,7 +2635,7 @@ void ServerWorld::simulateFrame() {
                     if (frame % 2 == 0)
                         pl.health -= 2;
                     else
-                        pl.health -= 1;
+                        pl.health--;
                     if (pl.health < min_health_for_run_penalty)
                         pl.health = min_health_for_run_penalty;
                 }
@@ -2644,7 +2644,7 @@ void ServerWorld::simulateFrame() {
                 if (frame % 2 == 0)
                     pl.energy -= 2;
                 else
-                    pl.energy -= 1;
+                    pl.energy--;
                 if (pl.energy == -1) { // special case
                     pl.energy++;
                     if (pl.health > min_health_for_run_penalty) {
@@ -2820,11 +2820,11 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     const double timeDiff = get_time() - capt_flag.grab_time();
     if (host->tournament_active() && timeDiff <= minimum_grab_to_capture_time) {    // can't capture yet
         if (timeDiff <= .1) {   // being able to capture flags without moving is a too easy way to cheat
-            log.error("This map is invalid: instant flag capture is possible");
+            log.error("This map is invalid: instant flag capture is possible.");
             host->score_frag(pid, -10);
             suicide(pid);
             returnFlag(team, flag);
-            net->bprintf(msg_warning, "This map is broken. There is an instantly capturable flag. Avoid it.");  // ### FIXME: To client?
+            net->broadcast_broken_map();
         }
         return;
     }
