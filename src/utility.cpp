@@ -39,7 +39,10 @@ string fcvt(double val) {
 }
 
 int iround(double value) {
-	return static_cast<int>(value + 0.5);
+	if (value >= 0)
+		return static_cast<int>(value + 0.5);
+	else
+		return static_cast<int>(value - 0.5);
 }
 
 string toupper(string str) {
