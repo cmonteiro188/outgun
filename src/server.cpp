@@ -384,9 +384,7 @@ void Server::sendMessage(int pid, Message_type type, const std::string& msg) {
 
 //refresh team ratings
 void Server::refresh_team_score_modifiers() {
-    double raw[2];
-    raw[0] = 0.0;
-    raw[1] = 0.0;
+    double raw[2] = { 0.0, 0.0 };
 
     //somatorio raw ratings
     for (int p = 0; p < maxplayers; p++)
@@ -524,8 +522,8 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("pups_drop_at_death",      &pupConfig.pups_drop_at_death)),
         PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
         PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
-        PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9, 1, -1)),   // decrease by 1 to end up with the internal setting
-        PT(new GS_Boolean   ("random_maprot",           &random_maprot)),
+        PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9, 1)),
+        PT(new GS_Maprot    ("random_maprot",           &random_maprot, &random_first_map)),
         PT(new GS_Int       ("vote_block_time",         &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)), // convert minutes to frames
         PT(new GS_Int       ("idlekick_time",           &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),  // convert seconds to frames; special setting: allow 0 that is outside the normal range
         PT(new GS_Int       ("idlekick_playerlimit",    &idlekick_playerlimit, 1, MAX_PLAYERS)),
@@ -777,6 +775,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
         else
             currmap = mapi;
     }
+    else if (random_first_map)
+        currmap = rand() % maprot.size();
     return true;
 }
 

@@ -498,6 +498,7 @@ void FileDownload::finish() {
 }
 
 void TM_ServerSettings::execute(Client* cl) const {
+    cl->m_serverInfo.clear();
     cl->m_serverInfo.menu.setCaption(cl->hostname);
 
     ostringstream caption;
@@ -550,7 +551,7 @@ void TM_ServerSettings::execute(Client* cl) const {
         caption.str(""); value.str("");
     }
     caption << setw(width) << _("Maximum weapon level") << ':';
-    value << (misc1 >> i) + 1;
+    value << (misc1 >> i);
     cl->m_serverInfo.addLine(caption.str(), value.str());
 
     if (cl->menu.options.game.showServerInfo())
@@ -3707,7 +3708,7 @@ void Client::draw_game_frame() {
             client_graphics.draw_player_shadow(val);
         }
 
-        client_graphics.draw_player_weapon(fx.player[me].weapon + 1);   // weapon level
+        client_graphics.draw_player_weapon(fx.player[me].weapon);
     }
 
     if (want_change_teams)

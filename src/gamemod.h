@@ -193,6 +193,16 @@ private:
     std::vector<MapInfo>* var;
 };
 
+class GS_Maprot : public GamemodSetting {
+public:
+    GS_Maprot(const std::string& name, bool* maprot, bool* start) : GamemodSetting(name), random_maprot(maprot), random_start(start) { }
+    bool set(LogSet& log, const std::string& value);
+
+private:
+    bool* random_maprot;
+    bool* random_start;
+};
+
 class GS_PowerupNum : public GamemodSetting {
 public:
     GS_PowerupNum(const std::string& name, int* pVar, bool* pPercentFlag) : GamemodSetting(name), var(pVar), percentFlag(pPercentFlag) { }

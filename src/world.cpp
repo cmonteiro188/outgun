@@ -735,7 +735,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     item_power_time = item_turbo_time = item_shadow_time = 0;
     health = energy = 0;
     megabonus = 0;
-    weapon = 0;
+    weapon = 1;
     drop_key = false;
     dropped_flag = false;
     respawn_time = 0;
@@ -748,7 +748,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int team_id) {
     item_power_time = item_turbo_time = item_shadow_time = 0;
     health = energy = 0;
-    weapon = 0;
+    weapon = 1;
 
     next_turbo_effect_time = wall_sound_time = player_sound_time = 0;
     onscreen = false;
@@ -1009,7 +1009,7 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock,
     const double d2 = dx * dx + dy * dy;
     const double disc = mdotd * mdotd - m2 * (d2 - r2);
     if (disc >= 0) {    // there are real solutions
-        double t = (mdotd - sqrt(disc)) / m2;   // the collision with smaller t (the larger t is when going away)
+        const double t = (mdotd - sqrt(disc)) / m2;   // the collision with smaller t (the larger t is when going away)
         if (t >= 0)
             return t;
     }
@@ -1098,43 +1098,6 @@ void WorldBase::applyPlayerAcceleration(int pid) {
             xAcc = perp_x * physics.turn_mul + par_x;
             yAcc = perp_y * physics.turn_mul + par_y;
         }
-        /* code for directing the _final_ acceleration taking into account turn_mul and brake_mul
-         * in practice this feels weird, so we're using the directed initial acceleration method instead
-         *
-        if (fabs(h->sx) < .001 && fabs(h->sy) < .001) { // the player is not moving -> any direction is 'forward'
-            // just normalize the acceleration vector and we're done
-            if (xAcc != 0 && yAcc != 0) {
-                xAcc /= sqrt(2.);
-                yAcc /= sqrt(2.);
-            }
-        }
-        else {
-            // find the unit initial acceleration vector 'init' so that when scaled with turn_mul and brake_mul,
-            //   the resultant acceleration r is to the direction of a = (xAcc,yAcc)
-            // this is calculated in components parallel to and perpendicular to the current velocity as the scaling is done to those components
-            // first divide the wanted resultant acceleration direction (a) into these components
-            // component of a parallel to v: par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
-            const double v2 = h->sx * h->sx + h->sy * h->sy;
-            const double par_mul = (xAcc * h->sx + yAcc * h->sy) / v2;
-
-            // now par == par_mul * v, so |par| == par_mul * |v| ; perp is the rest of a, so |perp| = sqrt(|a|^2 - |par|^2)
-            double par2 = par_mul * par_mul * v2;
-            double perp2 = (xAcc * xAcc + yAcc * yAcc) - par2;
-
-            // if par_mul < 0, the parallel component is braking
-            const double scale_par2 = (par_mul < 0) ? physics.brake_mul * physics.brake_mul : 1.;
-            const double scale_perp2 = physics.turn_mul * physics.turn_mul;
-
-            // because r == init_par * scale_par + init_perp * scale_perp, init should be w = (par / scale_par + perp / scale_perp), normalized
-            const double w2 = par2 / scale_par2 + perp2 / scale_perp2;
-
-            // now init = par / scale_par / |w| + perp / scale_perp / |w|
-            // as noted, r == init_par * scale_par + init_perp * scale_perp == par / |w| + perp / |w| == a / |w|
-            const double a_mul = 1. / sqrt(w2);
-            xAcc *= a_mul;
-            yAcc *= a_mul;
-        }
-        */
         h->sx += xAcc * player_accel;
         h->sy += yAcc * player_accel;
     }
@@ -1676,7 +1639,7 @@ void ServerWorld::respawnPlayer(int pid) {
     player[pid].energy = 100;
     player[pid].megabonus = 0;
 
-    player[pid].weapon = 0;
+    player[pid].weapon = 1;
 
     net->sendWeaponPower(pid);
 
@@ -1723,7 +1686,7 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
         player_items.push_back(Powerup::pup_shadow);
     if (player.item_power && player.item_power_time - get_time() >= pupConfig.pup_add_time / 2)
         player_items.push_back(Powerup::pup_power);
-    if (player.weapon >= 1)         // 1 means double weapon
+    if (player.weapon >= 2)
         player_items.push_back(Powerup::pup_weapon);
 
     if (player_items.empty())       // nothing to drop
@@ -1811,10 +1774,10 @@ void ServerWorld::check_pickup_creation(bool instant) {
     for (int i = 0; i < MAX_PICKUPS; i++)
         if (item[i].kind != Powerup::pup_unused)
             ic++;
-    int pc = host->get_player_count();
+    const int pc = host->get_player_count();
 
     int real_min = pupConfig.getMinPups(map);
-    int real_max = pupConfig.getMaxPups(map);
+    const int real_max = pupConfig.getMaxPups(map);
     if (pc > real_min)
         real_min = pc;
     if (real_min > real_max)
@@ -2110,7 +2073,7 @@ NLubyte ServerWorld::getFreeRocket() {
 }
 
 void ServerWorld::shootRockets(int pid, int shots) {
-    int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
+    const int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
 
     player[pid].stats().add_shot();
     teams[pid / TSIZE].add_shot();
@@ -2137,9 +2100,9 @@ void ServerWorld::shootRockets(int pid, int shots) {
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
-    Rocket* r = &rock[rid];
-    net->sendRocketDeletion(r->vislist, rid, hitx, hity, targ);
-    r->owner = -1;
+    Rocket& r = rock[rid];
+    net->sendRocketDeletion(r.vislist, rid, hitx, hity, targ);
+    r.owner = -1;
 }
 
 void ServerWorld::changeRocketsOwner(int source, int target) {
@@ -2214,9 +2177,9 @@ void WorldBase::executeBounce(PlayerBase& ply, const Coords& bounceVec, double p
     // bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
     // : S -= 2* ( (S dot b) * b / |b|^2 )  ; |b| is always plyRadius
     // to add a specific speed loss only in the bounce direction, reduce from the 2.
-    const double mul = 2. * (ply.sx*bounceVec.first + ply.sy*bounceVec.second) / (plyRadius*plyRadius);
-    ply.sx -= mul*bounceVec.first;
-    ply.sy -= mul*bounceVec.second;
+    const double mul = 2. * (ply.sx * bounceVec.first + ply.sy * bounceVec.second) / (plyRadius * plyRadius);
+    ply.sx -= mul * bounceVec.first;
+    ply.sy -= mul * bounceVec.second;
     // lose some speed too
     ply.sx *= .95;
     ply.sy *= .95;
@@ -2477,7 +2440,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
     for (int i = 0; i < MAX_ROCKETS; ++i)
         if (rock[i].owner != -1) {
-            double wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i], frames);
+            const double wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i], frames);
             if (wallTime < frames) {
                 rock[i].move(wallTime);
                 callback.rocketHitWall(i, rock[i].power, rock[i].x, rock[i].y, rock[i].px, rock[i].py);
@@ -2489,7 +2452,7 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
 
 void ServerWorld::simulateFrame() {
     // (-1) check powerup respawn
-    double thetime = get_time();
+    const double thetime = get_time();
     for (int i = 0; i < MAX_PICKUPS; i++)
         if (item[i].kind == Powerup::pup_respawning && thetime > item[i].respawn_time)
             respawn_pickup(i);
@@ -2606,7 +2569,7 @@ void ServerWorld::simulateFrame() {
             if (player[i].energy < 0)
                 player[i].energy = 0;
             else {
-                for (int k = 1; k < player[i].weapon + 1; k++) {
+                for (int k = 1; k < player[i].weapon; k++) {
                     //try add one shot
                     player[i].energy -= 1;
                     if (player[i].energy < 0) {
@@ -2633,14 +2596,13 @@ void ServerWorld::simulateFrame() {
 
     // for each player, do misc stuff
     for (int i = 0; i < maxplayers; i++) {
-        if (!player[i].used)
+        ServerPlayer& pl = player[i];
+        if (!pl.used)
             continue;
 
-        ServerPlayer* h = &(player[i]);
-
         //check if dead/respawn
-        if (player[i].health <= 0) {
-            if (player[i].respawn_time < get_time() && !player[i].awaiting_client_ready)
+        if (pl.health <= 0) {
+            if (pl.respawn_time < get_time() && !pl.awaiting_client_ready)
                 respawnPlayer(i);       //time to respawn player
             else
                 continue;
@@ -2648,90 +2610,84 @@ void ServerWorld::simulateFrame() {
 
         // check don't regen because of deathbringer
         //v0.4.0: do not regen if has deathbringer and both health/energy are at no less than 100
-        const bool deathbringer_penalty =
-                ((player[i].item_deathbringer) && (player[i].health >= 100) && (player[i].energy >= 100))           //rand() % 100 < 50
-                ||
-                (player[i].deathbringer_end > get_time());
+        const bool deathbringer_penalty = (pl.item_deathbringer && pl.health >= 100 && pl.energy >= 100) || pl.deathbringer_end > get_time();
 
-        // regen?
         if (!deathbringer_penalty) {
             // regenerate +1 health or +1 energy
-            if (player[i].health < 100)
-                player[i].health++;
+            if (pl.health < 100)
+                pl.health++;
             else {
-                //caso energy > 100, regenera mais devagar (-33%)
-                if (player[i].energy < 100)
-                    player[i].energy++;
-                else if (player[i].energy < 200) {
+                if (pl.energy < 100)
+                    pl.energy++;
+                else if (pl.energy < 200) {
                     if (frame % 2)
-                        player[i].energy++;
+                        pl.energy++;
                 }
-                //MEGA health vagarosamente...
-                else if ((player[i].health < 200) && (frame % 10 == 0))
-                    player[i].health++;
+                else if (pl.health < 200 && frame % 10 == 0)
+                    pl.health++;
             }
         }
         //lose health & energy if running
         const int min_health_for_run_penalty = 40;
-        if (h->controls.isRun()) {
-            if (player[i].energy <= 0) {
-                if (player[i].health > min_health_for_run_penalty) {
+        if (pl.controls.isRun()) {
+            if (pl.energy <= 0) {
+                if (pl.health > min_health_for_run_penalty) {
                     if (frame % 2 == 0)
-                        player[i].health -= 2;
+                        pl.health -= 2;
                     else
-                        player[i].health -= 1;
-                    if (player[i].health < min_health_for_run_penalty)
-                        player[i].health = min_health_for_run_penalty;
+                        pl.health -= 1;
+                    if (pl.health < min_health_for_run_penalty)
+                        pl.health = min_health_for_run_penalty;
                 }
             }
             else {
                 if (frame % 2 == 0)
-                    player[i].energy -= 2;
+                    pl.energy -= 2;
                 else
-                    player[i].energy -= 1;
-                if (player[i].energy == -1) { // special case
-                    player[i].energy++;
-                    if (player[i].health > min_health_for_run_penalty) {
-                        player[i].health--;
-                        if (player[i].health < min_health_for_run_penalty)
-                            player[i].health = min_health_for_run_penalty;
+                    pl.energy -= 1;
+                if (pl.energy == -1) { // special case
+                    pl.energy++;
+                    if (pl.health > min_health_for_run_penalty) {
+                        pl.health--;
+                        if (pl.health < min_health_for_run_penalty)
+                            pl.health = min_health_for_run_penalty;
                     }
                 }
             }
         }
         //rot health to 100 if has deathbringer
-        if (player[i].item_deathbringer && player[i].health > 100 && frame % 4 == 0)
-            player[i].health--;
+        if (pl.item_deathbringer && pl.health > 100 && frame % 4 == 0)
+            pl.health--;
         //rot energy to 100 if has deathbringer
-        if (player[i].item_deathbringer && player[i].energy > 100 && frame % 4 == 0)
-            player[i].energy--;
+        if (pl.item_deathbringer && pl.energy > 100 && frame % 4 == 0)
+            pl.energy--;
         //megahealth bonus:
-        if (player[i].megabonus > 0)
+        if (pl.megabonus > 0)
             for (int mh = 0; mh < 5; mh++) {
-                if (player[i].megabonus > 0 && player[i].health < 300) {
-                    player[i].health++;
-                    player[i].megabonus--;
+                if (pl.megabonus > 0 && pl.health < 300) {
+                    pl.health++;
+                    pl.megabonus--;
                 }
-                if (player[i].megabonus > 0 && player[i].energy < 300) {
-                    player[i].energy++;
-                    player[i].megabonus--;
+                if (pl.megabonus > 0 && pl.energy < 300) {
+                    pl.energy++;
+                    pl.megabonus--;
                 }
             }
         // new limit - don't store megabonuses
-        if (player[i].health == 300 && player[i].energy == 300)
-            player[i].megabonus = 0;
+        if (pl.health == 300 && pl.energy == 300)
+            pl.megabonus = 0;
 
-        //limit health 0 .. 300
-        if (player[i].health < 0)
-            player[i].health = 0;
-        else if (player[i].health > 300)
-            player[i].health = 300;
+        //limit health 0...300
+        if (pl.health < 0)
+            pl.health = 0;
+        else if (pl.health > 300)
+            pl.health = 300;
 
-        //limit energy 0 .. 300
-        if (player[i].energy < 0)
-            player[i].energy = 0;
-        else if (player[i].energy > 300)
-            player[i].energy = 300;
+        //limit energy 0...300
+        if (pl.energy < 0)
+            pl.energy = 0;
+        else if (pl.energy > 300)
+            pl.energy = 300;
 
         //---------------------------------
         // check game object collisions
@@ -2744,51 +2700,51 @@ void ServerWorld::simulateFrame() {
         const int touchRadius = PICKUP_RADIUS + PLAYER_RADIUS;
 
         for (int k = 0; k < MAX_PICKUPS; k++)
-            if (item[k].kind <= Powerup::pup_last_real && item[k].px == player[i].roomx && item[k].py == player[i].roomy) {
-                const double dx = item[k].x - player[i].lx;
-                const double dy = item[k].y - player[i].ly;
+            if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
+                const double dx = item[k].x - pl.lx;
+                const double dy = item[k].y - pl.ly;
                 if (dx * dx + dy * dy < touchRadius * touchRadius)
                     game_touch_pickup(i, k);
             }
 
         // Flag steal - touch other team's flag or wild flag
         bool touches_flag = false;
-        if (!player[i].flag()) {
+        if (!pl.flag()) {
             int f = 0;
             for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi, ++f)
-                if (!fi->carried() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                     touches_flag = true;
                     // Has player just dropped the flag or not?
-                    if (!player[i].dropped_flag && !player[i].drop_key) {
+                    if (!pl.dropped_flag && !pl.drop_key) {
                         player_steals_flag(i, 2, f);
                         break;  // only take one flag
                     }
                 }
-            if (!player[i].flag()) {
+            if (!pl.flag()) {
                 int f = 0;
                 for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
-                    if (!fi->carried() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+                    if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                         touches_flag = true;
                         // Has player just dropped the flag or not?
-                        if (!player[i].dropped_flag && !player[i].drop_key) {
+                        if (!pl.dropped_flag && !pl.drop_key) {
                             player_steals_flag(i, enemyteam, f);
                             break;  // only take one flag
                         }
                     }
             }
         }
-        if (!player[i].drop_key && !touches_flag)
-            player[i].dropped_flag = false;
+        if (!pl.drop_key && !touches_flag)
+            pl.dropped_flag = false;
 
         // Flag return - wild flags can't be returned
         int f = 0;
         for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                 //FLAG RETURNED!
                 host->score_frag(i, 1); // just add some frags
-                player[i].stats().add_flag_return();
+                pl.stats().add_flag_return();
                 teams[myteam].add_flag_return();
-                net->broadcast_flag_return(player[i]);
+                net->broadcast_flag_return(pl);
                 returnFlag(myteam, f);  //flag returned
                 net->broadcast_sample(SAMPLE_CTF_RETURN);
             }
@@ -2797,7 +2753,7 @@ void ServerWorld::simulateFrame() {
         for (vector<Flag>::const_iterator fmy = teams[myteam].flags().begin(); fmy != teams[myteam].flags().end(); ++fmy) {
             int f = 0;
             for (vector<Flag>::const_iterator fen = teams[enemyteam].flags().begin(); fen != teams[enemyteam].flags().end(); ++fen, ++f)
-                if (fen->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+                if (fen->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                     player_captures_flag(i, enemyteam, f);
                     if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
                         host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
@@ -2807,7 +2763,7 @@ void ServerWorld::simulateFrame() {
                 }
             f = 0;
             for (vector<Flag>::const_iterator fw = wild_flags.begin(); fw != wild_flags.end(); ++fw, ++f)
-                if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly)) {
+                if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                     player_captures_flag(i, 2, f);
                     if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
                         host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
@@ -2874,12 +2830,12 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     }
     // add frags to all players of the team and
     // penalise every player of the other team
-    for (int h = 0; h < MAX_PLAYERS; h++)
-        if (player[h].used) {
-            if (h / TSIZE == myteam)
-                host->score_frag(h, 2); // small two-frag bonus
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if (player[i].used) {
+            if (i / TSIZE == myteam)
+                host->score_frag(i, 2); // small two-frag bonus
             else if (team != 2)
-                host->score_neg(h, 1);  // small neg point penalty for your flag being captured
+                host->score_neg(i, 1);  // small neg point penalty for your flag being captured
         }
     host->score_frag(pid, 3);
     player[pid].stats().add_capture(get_time());
