@@ -2926,7 +2926,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
 		out << "<TD>" << stats.cons_kills();
 		out << "<TD>" << stats.cons_deaths();
 		out << "<TD>" << stats.shots();
-		out << "<TD>" << std::setprecision(0) << std::fixed << stats.accuracy() << '%';
+		out << "<TD>" << std::setprecision(0) << std::fixed << stats.accuracy() * 100. << '%';
 		out << "<TD>" << stats.shots_taken();
 		out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement() << " u";
 	}
