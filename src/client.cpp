@@ -783,7 +783,7 @@ bool Client::start() {
 				if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
 					log("Bad screen mode in client.cfg");
 				else {
-					nAssert(menu.options.graphics.colorDepth.set(depth));
+					menu.options.graphics.colorDepth.set(depth);	// may fail if the previous depth isn't available
 					menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
 					if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
 						log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
