@@ -33,6 +33,7 @@ public:
 	virtual int height() const = 0;
 	virtual int minHeight() const { return height(); }
 	virtual bool handleKey(char, unsigned char) { return false; }	// an object should either have an active handleKey() or override so that !isEnabled()
+	virtual void shortcutActivated() { }
 
 protected:
 	int captionColor(bool active) const;	// decides a color based on isEnabled() and active
@@ -73,10 +74,13 @@ class KeyHook : public Hook3<bool, CallerT&, char, unsigned char> { };
 class Menu : public Component, public MenuHookable<Menu> {
 public:
 	// visible_items to 20 is there to prevent scrollbar when starting the game and pressing down arrow same time
-	Menu(const std::string& caption_): Component(caption_), start(0), selected_item(0), visible_items(20) { }
+	Menu(const std::string& caption_, bool useShortcuts): Component(caption_), start(0), selected_item(0), visible_items(20), shortcuts(useShortcuts) { }
 
-	void clear_components() { components.clear(); }
+	void clear_components() { selected_item = 0; components.clear(); }
 	void add_component(Component* comp) { components.push_back(comp); }
+
+	int selection() const { return selected_item; }
+	void setSelection(int selection);
 
 	void open() { openHook.call(*this); home(); }
 	void close() { closeHook.call(*this); }
@@ -94,6 +98,7 @@ public:
 	int height() const;
 	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char, unsigned char);
+	void shortcutActivated();
 
 private:
 	int total_width() const;
@@ -108,6 +113,7 @@ private:
 	int start;
 	int selected_item;
 	int visible_items;
+	bool shortcuts;	// use keys 1 to 0 as shortcuts in this menu
 
 	MenuHook<Menu> drawHook, openHook, closeHook, okHook;
 };
@@ -231,6 +237,7 @@ public:
 	int height() const;
 	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
+	void shortcutActivated();
 
 private:
 	bool checked;
@@ -268,6 +275,7 @@ public:
 	int height() const;
 	void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
 	bool handleKey(char scan, unsigned char chr);
+	void shortcutActivated();
 
 	// override isEnabled() : can't be enabled if not hooked
 	bool isEnabled() const { return Component::isEnabled() && isHooked(); }
@@ -292,7 +300,7 @@ private:
 	std::string text;
 };
 
-class Textobject : public Component, public MenuHookable<Textobject> {
+class Textobject : public Component {
 public:
 	Textobject(): Component(""), start(0), visible_lines(0) { }
 	void addLine(const std::string& text) { lines.push_back(text); }

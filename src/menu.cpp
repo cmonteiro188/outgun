@@ -17,7 +17,8 @@ using std::vector;
 const int char_w = 8;
 const int line_h = 16;
 
-int col_background, col_borderShadow, col_borderHighlight, col_menuCaption, col_menuCaptionBg, col_caption, col_active, col_disabled, col_value, col_scrollbar, col_scrollbarBg;
+int col_background, col_borderShadow, col_borderHighlight, col_menuCaption, col_menuCaptionBg, col_caption,
+	col_active, col_disabled, col_value, col_scrollbar, col_scrollbarBg, col_shortcutDisabled, col_shortcutEnabled;
 
 void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, int col1, int col2) {
 	const int width = 10;
@@ -91,6 +92,14 @@ bool Menu::next() {
 	return true;
 }
 
+void Menu::setSelection(int selection) {
+	nAssert(selection >= 0);
+	if (selection >= (int)components.size())
+		selected_item = components.size() - 1;
+	else
+		selected_item = selection;
+}
+
 void Menu::draw(BITMAP* buffer) {
 	//#fix: handle colors and other drawing details with a separate class connected with Graphics
 	col_background		= makecol(0x30, 0x40, 0x30);
@@ -104,11 +113,13 @@ void Menu::draw(BITMAP* buffer) {
 	col_value			= makecol(0xFF, 0xFF, 0xFF);
 	col_scrollbar		= makecol(0x00, 0xFF, 0x00);
 	col_scrollbarBg		= makecol(0x00, 0x77, 0x00);
+	col_shortcutDisabled= makecol(0x50, 0x60, 0x50);
+	col_shortcutEnabled	= makecol(0xB0, 0xD0, 0xB0);
 
 	drawHook.call(*this);
 
-	if (selected_item >= static_cast<int>(components.size()))
-		selected_item = components.size() - 1;
+	nAssert(!components.empty());
+	nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
 
 	if (!components.empty() && !components[selected_item]->isEnabled())	// a disabled component can not be active
 		if (!next())	// try moving down first - feels intuitive
@@ -159,12 +170,22 @@ void Menu::draw(BITMAP* buffer) {
 			start = 0;
 	}
 	visible_items = 0;
+	int selecti = 1;
+	for (int ci = 0; ci < start; ++ci)	// find the initial selecti for next loop at compi = start
+		if (components[ci]->canBeEnabled())
+			++selecti;
+	const int shortcutColor = components[selected_item]->needsNumberKeys() ? col_shortcutDisabled : col_shortcutEnabled;
 	for (int compi = start; compi < static_cast<int>(components.size()); ++compi) {
 		Component* component = components[compi];
 		if (y + component->minHeight() > y2 - padding)
 			break;
-		//#todo: show shortcut numbers if the active component doesn't needNumberKeys()
-		//textprintf_right_ex(buffer, font, x_start - char_w, y, col_menuCaption, -1, "%d", compi + 1);
+
+		if (components[compi]->canBeEnabled()) {
+			if (selecti <= 10 && shortcuts)
+				textprintf_right_ex(buffer, font, x_start - char_w, y, shortcutColor, -1, "%d", selecti % 10);
+			++selecti;
+		}
+
 		const int h = min(component->height(), y2 - padding - y);
 		component->draw(buffer, x_start, y, h, compi == selected_item);
 		y += component->height();
@@ -183,7 +204,8 @@ void Menu::draw(BITMAP* buffer) {
 }
 
 void Menu::handleKeypress(char scan, unsigned char chr) {
-	nAssert(components.size() > 0);
+	nAssert(!components.empty());
+	nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
 	if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
 		prev();
 	else if (scan == KEY_DOWN || scan == KEY_TAB)
@@ -192,30 +214,43 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
 		home();
 	else if (scan == KEY_END)
 		end();
-	else if (chr == 0) {	// check for Alt + number
+	else if (shortcuts && ((isdigit(chr) && !components[selected_item]->needsNumberKeys()) || chr == 0)) {	// check for number, and Alt + number
 		int shortcut;
-		switch (scan) {
-			case KEY_1: shortcut = 0; break;
-			case KEY_2: shortcut = 1; break;
-			case KEY_3: shortcut = 2; break;
-			case KEY_4: shortcut = 3; break;
-			case KEY_5: shortcut = 4; break;
-			case KEY_6: shortcut = 5; break;
-			case KEY_7: shortcut = 6; break;
-			case KEY_8: shortcut = 7; break;
-			case KEY_9: shortcut = 8; break;
-			default: shortcut = -1; break;
-		}
+		if (chr == 0)	// with alt
+			switch (scan) {
+				case KEY_1: shortcut = 0; break;
+				case KEY_2: shortcut = 1; break;
+				case KEY_3: shortcut = 2; break;
+				case KEY_4: shortcut = 3; break;
+				case KEY_5: shortcut = 4; break;
+				case KEY_6: shortcut = 5; break;
+				case KEY_7: shortcut = 6; break;
+				case KEY_8: shortcut = 7; break;
+				case KEY_9: shortcut = 8; break;
+				case KEY_0: shortcut = 9; break;
+				default: shortcut = -1; break;
+			}
+		else if (chr == '0')
+			shortcut = 9;
+		else
+			shortcut = chr - '1';	// relies on "123456789" being sequential and in that order (as in ASCII)
 		if (shortcut != -1) {
-			// update selected_item
-			for (selected_item = 0; selected_item < (int)components.size() && shortcut > 0; ++selected_item)
-				if (components[selected_item]->canBeEnabled())
-					--shortcut;
+			bool found = false;
+			int newsel;
+			for (newsel = 0; newsel < (int)components.size(); ++newsel)
+				if (components[newsel]->canBeEnabled())
+					if (shortcut-- == 0) {
+						found = true;
+						break;
+					}
+			if (found && components[newsel]->isEnabled()) {
+				selected_item = newsel;
+				components[selected_item]->shortcutActivated();
+				return;
+			}
 		}
 	}
-	if (selected_item >= static_cast<int>(components.size()))
-		selected_item = components.size() - 1;
-	//#todo: handle number shortcuts if the active component doesn't needNumberKeys()
+	nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
 	if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
 		return;
 	if (scan == KEY_ENTER || scan == KEY_ENTER_PAD)
@@ -242,6 +277,11 @@ bool Menu::handleKey(char scan, unsigned char chr) {
 		return false;
 	callHook(*this);
 	return true;
+}
+
+void Menu::shortcutActivated() {
+	nAssert(isEnabled());
+	callHook(*this);
 }
 
 int Menu::total_width() const {
@@ -423,6 +463,12 @@ bool Checkbox::handleKey(char scan, unsigned char chr) {
 	return true;
 }
 
+void Checkbox::shortcutActivated() {
+	nAssert(isEnabled());
+	toggle();
+	callHook(*this);
+}
+
 
 void Slider::boundSet(int value) {
 	val = bound(value, vmin, vmax);
@@ -516,6 +562,11 @@ bool Textarea::handleKey(char scan, unsigned char chr) {
 	else if (callKeyHook(*this, scan, chr))
 		return true;
 	return false;
+}
+
+void Textarea::shortcutActivated() {
+	nAssert(isEnabled());
+	callHook(*this);
 }
 
 
