@@ -7,8 +7,6 @@
 #include "admshell.h"
 #include "nassert.h"
 
-//#define MBOX_SAYADMIN
-
 using std::string;
 
 typedef unsigned char uchar;
@@ -208,6 +206,7 @@ void dualprintf(const char* fmt, ...) {
 	va_start(argptr, fmt);
 	vfprintf(outfile, fmt, argptr);
 	va_end(argptr);
+	fflush(outfile);
 }
 
 string plyNames[32];
@@ -217,7 +216,7 @@ const char* plyName(int idx) {
 	return buf;
 }
 
-bool runMonitor(int port) {
+bool runMonitor(int port, bool disableMessagebox) {
 	NLsocket sock;
 
 	nlDisable(NL_BLOCKING_IO);
@@ -296,9 +295,8 @@ bool runMonitor(int port) {
 				char cap[strBufLen+100];
 				sprintf(cap, "Sayadmin message from %s", plyNames[ival[0]].c_str());
 				dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
-				#ifdef MBOX_SAYADMIN
-				MessageBox(NULL, strBuf, cap, MB_OK);
-				#endif
+				if (!disableMessagebox)
+					MessageBox(NULL, strBuf, cap, MB_OK);
 				break;
 			}
 			case STA_PLAYER_IP: dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf); break;
@@ -328,11 +326,19 @@ bool runMonitor(int port) {
 
 int main(int argc, const char* argv[]) {
 	int port=24500;
+	bool disableMessagebox = false;
 	if (argc>1) {
-		port=atoi(argv[1]);
-		if (argc!=2 || port==0) {
-			printf("Arg: [port]\n");
-			return 2;
+		if (argv[1][0] == 'q' || argv[1][0] == 'Q') {
+			disableMessagebox = true;
+			--argc;
+			++argv;
+		}
+		if (argc>1) {
+			port=atoi(argv[1]);
+			if (argc!=2 || port==0) {
+				printf("Arg: [q] [port]\n");
+				return 2;
+			}
 		}
 	}
     if (nlInit() == NL_FALSE) {
@@ -348,7 +354,7 @@ int main(int argc, const char* argv[]) {
 		printf("Can't open srvmonit.log for append!\n");
 		return 1;
 	}
-	int r=runMonitor(port)?0:1;
+	int r=runMonitor(port, disableMessagebox)?0:1;
 	fclose(outfile);
 	nlShutdown();
 	return r;
