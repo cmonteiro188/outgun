@@ -213,6 +213,7 @@ Balance teams
 Drop power-ups
 Invisible shadow
 Switch deathbringer
+One hit shield
 Maximum weapon level
 Powerups
 Minimum powerups
@@ -375,6 +376,7 @@ $1 left the game with $2 frags.
 $1 moved to blue team.
 $1 moved to red team.
 $1 and $2 swapped teams.
+$1 changed name to $2.
 *** Five minutes remaining
 *** One minute remaining
 *** 30 seconds remaining

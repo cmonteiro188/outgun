@@ -214,6 +214,7 @@ Herkkujen pudotus
 Näkymätön varjo
 Vaihtava savupommi
 Aserajoitus
+Kertakäyttösuoja
 Herkkuja
 Herkkuja vähintään
 Herkkuja enintään
@@ -375,6 +376,7 @@ $1 lähti pelistä ($2 pistettä).
 $1 siirtyi siniseen joukkueeseen.
 $1 siirtyi punaiseen joukkueeseen.
 $1 ja $2 vaihtoivat joukkuetta.
+$1 vaihtoi nimekseen $2.
 *** Viisi minuuttia jäljellä
 *** Minuutti jäljellä
 *** 30 sekuntia jäljellä

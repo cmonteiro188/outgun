@@ -215,6 +215,7 @@ Times balanceados
 Soltar poderes
 Sombre invisível
 Alternar deathbringer
+Escudo de 1 tiro
 Nível máximo da arma
 Poderes
 Poder mínimo
@@ -377,6 +378,7 @@ $1 deixou o jogo com $2 mortos.
 $1 moveu para o time azul.
 $1 moveu para o time vermelho.
 $1 e $2 trocaram de time.
+$1 mudou de nome para $2.
 *** Cinco minutos restantes
 *** Um minuto restante
 *** 30 segundos restantes

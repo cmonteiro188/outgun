@@ -5,7 +5,7 @@
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
 *******************************************************************************
-                                                      [ 1.0.0 beta 2004-12-14 ]
+                                                   [ 1.0.0 beta 16 2004-12-29 ]
 
 
 -------------------------
@@ -76,8 +76,8 @@ Maps by
 
 1.0.0 beta testers (in decreasing order of bugs reported)
    ThOR27 (very much deserving of his own line),
-   Caio Monteiro "Nosferatu", Joonas, Spinal, MM-coiote, PHiN, rFrota,
-   Detonador, K4(Maicon)
+   Spinal, Caio Monteiro "Nosferatu", Joonas, PHIN, MM-coiote, rFrota,
+   Detonador, K4(Maicon), Zigue, Syrus-DH
    You. Get your name here by reporting a new bug. :)
 
 This game uses the excellent libraries:

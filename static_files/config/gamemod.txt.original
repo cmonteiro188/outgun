@@ -106,8 +106,8 @@ rocket_damage 70
 ; pup_health_bonus: amount of energy, default: 160
 ; pup_power_damage: (float) multiplier to rocket_damage, default: 2.0
 ; pup_deathbringer_time: (float) seconds, default: 5.0
-; pup_deathbringer_switch: 1 to enable, 0 to disable, default: 1
-; pup_shadow_invisibility: 1 to enable, 0 to disable, default: 0
+; pup_deathbringer_switch, pup_shadow_invisibility, pup_shield_one_hit:
+;   1 to enable, 0 to disable, defaults: 1, 0, 0
 ; pup_chance_shield, turbo, shadow, power, weapon, megahealth, deathbringer:
 ;   a number relative to the others, defaults: 16, 14, 14, 14, 18, 13, 11
 
@@ -123,6 +123,7 @@ pup_power_damage 2.0
 pup_deathbringer_time 5.0
 pup_deathbringer_switch 1
 pup_shadow_invisibility 0
+pup_shield_one_hit 0
 
 pup_chance_shield       16
 pup_chance_turbo        14
@@ -142,16 +143,16 @@ pup_chance_deathbringer 11
 ; run_acceleration, turbo_acceleration, flag_acceleration: (float)
 ;   multipliers to acceleration, defaults: 1.75, 1.45, 0.91
 ; player_collisions: no, normal, or special, default: normal
+; rocket_speed: (float) default: 50
 
 friction     0.20
 drag         0.16
 acceleration 2.60
-
 brake_acceleration 0.10
 turn_acceleration  0.50
-
 run_acceleration   1.75
 turbo_acceleration 1.45
 flag_acceleration  0.91
 
 player_collisions normal
+rocket_speed 50
