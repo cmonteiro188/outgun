@@ -65,6 +65,7 @@ public:
 	Checkbox	joystick;
 	Checkbox	messageLogging;
 	Checkbox	saveStats;
+	Checkbox	showStats;
 
 	Menu menu;
 
@@ -149,10 +150,12 @@ public:
 
 class Menu_main {
 public:
+	StaticText		newVersion;
 	Menu_serverList	connect;
 	Textarea		disconnect;
 	Menu_options	options;
 	Textarea		startServer;
+	Textarea		playServer;
 	Textarea		stopServer;
 	Menu_help		help;
 	Textarea		exitOutgun;

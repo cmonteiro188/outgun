@@ -24,7 +24,7 @@
 // Delay for the server contacting the master server, in seconds.
 // It is good if this delay is set to a minute or so, since this will
 // filter out people opening and closing servers frequently.
-const float delay_to_report_server = 3.0;
+const float delay_to_report_server = 30.0;
 
 using std::ifstream;
 using std::istringstream;
@@ -70,12 +70,12 @@ ServerNetworking::~ServerNetworking() {
 }
 
 void ServerNetworking::upload_next_file_chunk(int i) {
-	int CHUNKSIZE = 128;		// the max chunk size in bytes
+	const int max_chunksize = 128;		// the max chunk size in bytes
 
 	//actual size sent
 	int chunksize = fileTransfer[i].fsize - fileTransfer[i].dp;		//attempt to send remaining...
-	if (chunksize > CHUNKSIZE)							//...but there is the maximum
-		chunksize = CHUNKSIZE;
+	if (chunksize > max_chunksize)							//...but there is the maximum
+		chunksize = max_chunksize;
 
 	//check if will be last
 	NLubyte islast = 0;	//default:no
@@ -151,7 +151,7 @@ void ServerNetworking::send_player_name_update(int cid, int pid) {
 
 //broadcast new player name
 void ServerNetworking::broadcast_player_name(int pid) {
-	for (int i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			send_player_name_update(world.player[i].cid, pid);
 
@@ -380,7 +380,7 @@ void ServerNetworking::send_stats(const ServerPlayer& player) const {
 			char lebuf[64];
 			int count = 0;
 			writeByte(lebuf, count, data_stats);
-			writeByte(lebuf, count, static_cast<NLubyte>(i));
+			writeByte(lebuf, count, static_cast<NLubyte>(i) | (world.player[i].flag() ? 0x80 : 0x00));
 			const Statistics& stats = world.player[i].stats();
 			writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
 			writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
@@ -553,16 +553,14 @@ void ServerNetworking::client_report_status(int id) {
 	clid.fdn = 0.0;
 }
 
-//broadcast team message
 void ServerNetworking::broadcast_team_message(int team, const string& text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
 	writeByte(lebuf, count, msg_team);
 	writeStr(lebuf, count, text);
 
-	// send message only to teammates
-	for (int i=0;i<maxplayers;i++)
-		if (world.player[i].used && i / TSIZE == team)
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used && i / TSIZE == team)	// only to teammates
 			server->send_message(world.player[i].cid, lebuf, count);
 
 	//send to the admin shell
@@ -575,24 +573,20 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) {
 }
 
 //broadcast message to all players in one screen
-void ServerNetworking::broadcast_screen_message(int px, int py, char *lebuf, int count) {
-	for (int j=0;j<maxplayers;j++)
-	if (world.player[j].used)
-	if (world.player[j].roomx == px)
-	if (world.player[j].roomy == py)
-		server->send_message(world.player[j].cid, lebuf, count); //send the message
+void ServerNetworking::broadcast_screen_message(int px, int py, char* lebuf, int count) {
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
+			server->send_message(world.player[i].cid, lebuf, count);
 }
 
-// V0.4.9 : broadcast message with varargs
+// broadcast message with varargs
 void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
-	//vsprintf...
 	va_list argptr;
 	char msg[16384];
 	va_start(argptr, fs);
 	vsprintf(msg, fs, argptr);
 	va_end (argptr);
 
-	//broadcast it
 	broadcast_message(type, msg);
 }
 
@@ -617,13 +611,12 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
 		server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-//broadcast message to all
 void ServerNetworking::broadcast_message(Message_type type, const string& text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
 	writeByte(lebuf, count, type);
 	writeStr(lebuf, count, text);
-	for (int i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			server->send_message(world.player[i].cid, lebuf, count);
 	//send to the admin shell
@@ -635,7 +628,6 @@ void ServerNetworking::broadcast_message(Message_type type, const string& text) 
 	}
 }
 
-//send map change message to a player
 void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) {
 	char lebuf[256];
 	int count = 0;
@@ -664,8 +656,8 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 }
 
 bool ServerNetworking::start() {
-	for (int i=0; i<256; ++i)
-		ctop[i]=-1;
+	for (int i = 0; i < 256; ++i)
+		ctop[i] = -1;
 	player_count = 0;
 
 	max_world_rank = 0;
@@ -725,7 +717,7 @@ void ServerNetworking::update_serverinfo() {
 	//v0.4.8 UGLY FIX : count all players again, check for discrepancy
 	int pc = 0;
 	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used == true)
+		if (world.player[i].used)
 			pc++;
 	nAssert(pc == player_count);
 
@@ -734,7 +726,7 @@ void ServerNetworking::update_serverinfo() {
 		info << "D ";
 	else
 		info << "  ";
-	info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_VERSION << ' ' << hostname;
+	info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
 	server->set_server_info(info.str().c_str());
 }
 
@@ -744,7 +736,7 @@ int ServerNetworking::client_connected(int id) {
 	int t2 = 0;		//blue team count
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
-			if (i/TSIZE == 0)
+			if (i / TSIZE == 0)
 				t1++;
 			else
 				t2++;
@@ -809,8 +801,8 @@ int ServerNetworking::client_connected(int id) {
 	host->check_fav_colors(myself);
 
 	//update the player with world information
-	//	- who is he (player #)
 
+	//	- who is he (player #)
 	send_me_packet(myself);
 
 	// - world ctf flags information
@@ -1249,7 +1241,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
 	//RECALC PLAYERS PRESENT EVERY TIME
 	NLulong players_present = 0;
-	for (int pp=0;pp<maxplayers;pp++)
+	for (int pp = 0; pp < maxplayers; pp++)
 		if (world.player[pp].used)
 			players_present += (1 << pp);
 
@@ -1341,7 +1333,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	// ==================================================================
 	//   BUILD AND SEND EVERY DAMN PACKET
 	// ==================================================================
-	for (int i=0; i<maxplayers; i++) {
+	for (int i = 0; i < maxplayers; i++) {
 		if (!world.player[i].used)
 			continue;
 
@@ -1352,11 +1344,11 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		NLubyte clFrame = world.player[i].lastClientFrame;
 		writeByte(lebuf, lecount, clFrame);
 		#ifdef SEND_FRAMEOFFSET
-		NLubyte fo = static_cast<NLubyte>( bound<float>(world.player[i].frameOffset, 0., .999) * 256. );
+		NLubyte fo = static_cast<NLubyte>(bound<float>(world.player[i].frameOffset, 0., .999) * 256.);
 		writeByte(lebuf, lecount, fo);
 		#endif
 
-		bool skip_frame = world.player[i].awaiting_client_ready || !gameRunning;
+		const bool skip_frame = world.player[i].awaiting_client_ready || !gameRunning;
 
 		// first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
 		NLubyte xtra = i << 3;
@@ -2240,9 +2232,9 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 		int pid = 0;	// pid and cid set if argPid[code]
 		NLulong dwArg = 0;	// set if argDw[code]
 		//                         noop, get-functions,ch,qu,pi,kckbanmte,reset
-		int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
-		int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
-		int argsLen = (argPid[code] + argDw[code]) * 4;
+		const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
+		const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+		const int argsLen = (argPid[code] + argDw[code]) * 4;
 		if (argsLen) {
 			result = nlRead(shellssock, rbuf, argsLen);
 			if (result != argsLen) {
@@ -2354,13 +2346,13 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 
 void ServerNetworking::stop() {
 	//submit all pending player reports
-	for (int i=0; i<maxplayers; i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			client_report_status(world.player[i].cid);
 
 	//v0.4.4 : flag master job threads to start trying to resolve themselves quickly
 	mjob_fastretry = true;
-	double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
+	const double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
 
 	host->config().statusOutput("Shutdown: net server");
 
@@ -2370,7 +2362,7 @@ void ServerNetworking::stop() {
 		nAssert(0);
 
 	//reset client_c struct (closes files...)
-	for (int i=0; i<MAX_PLAYERS; i++)
+	for (int i = 0; i < MAX_PLAYERS; i++)
 		fileTransfer[i].reset();
 
 	file_threads_quit = true;	// flag so threads will quit themselves
@@ -2418,24 +2410,21 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 												int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_rocket_fire);
-	//NLubyte  powerdir;		//bits 0..4 = power bits 5..8=dir
-	//powerdir = NLubyte(shots) | NLubyte(gundir<<4);
-	//writeByte(lebuf, count, powerdir);	// power and dir
 	writeByte(lebuf, count, shots);			// power and dir
 	writeByte(lebuf, count, gundir);		// power and dir
-	for (int i=0; i<shots; i++)
+	for (int i = 0; i < shots; i++)
 		writeByte(lebuf, count, sid[i]);	// rocket-object id (needed because client-side rockets can be deleted by the server)
 	writeLong(lebuf, count, world.frame);	// time of shot of the rocket: current (last simulated) frame
-	NLubyte shotType = (team<<1) | power;
-	writeByte(lebuf, count, (NLubyte)shotType);	// owner of all rockets
-	writeByte(lebuf, count, (NLubyte)px);	//coord
-	writeByte(lebuf, count, (NLubyte)py);
-	writeShort(lebuf, count, (NLshort)x);
-	writeShort(lebuf, count, (NLshort)y);
+	NLubyte shotType = (team << 1) | power;
+	writeByte(lebuf, count, static_cast<NLubyte>(shotType));	// owner of all rockets
+	writeByte(lebuf, count, static_cast<NLubyte>(px));	//coord
+	writeByte(lebuf, count, static_cast<NLubyte>(py));
+	writeShort(lebuf, count, static_cast<NLshort>(x));
+	writeShort(lebuf, count, static_cast<NLshort>(y));
 
-	for (int p=0; p<maxplayers; p++)
-		if (world.player[p].used && world.player[p].roomx==px && world.player[p].roomy==py)
-			server->send_message(world.player[p].cid, lebuf, count);
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
+			server->send_message(world.player[i].cid, lebuf, count);
 }
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const rocket_c& rocket) {
@@ -2458,30 +2447,28 @@ void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx
 	//assembly rocket delete message
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_rocket_delete);
-	NLubyte byt = (NLubyte)rid;
-	writeByte(lebuf, count, byt);		// rocket-object id
-	byt = (NLubyte)targ;
-	writeByte(lebuf, count, byt);		// player-target. if 255, no player in particular was hit
+	writeByte(lebuf, count, static_cast<NLubyte>(rid));		// rocket-object id
+	writeByte(lebuf, count, static_cast<NLubyte>(targ));		// player-target. if 255, no player in particular was hit
 
 	writeShort(lebuf, count, hitx);		// HIT X,Y OF ROCKET
 	writeShort(lebuf, count, hity);
 
 	//send message to players that received the rocket
-	for (int p=0; p<maxplayers; p++)
-		if (world.player[p].used)	//still valid player? (nao custa checar..)
-			if (plymask & (1<<p))
-				server->send_message(world.player[p].cid, lebuf, count);
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used)
+			if (plymask & (1 << i))
+				server->send_message(world.player[i].cid, lebuf, count);
 }
 
 void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_deathbringer);
-	writeByte(lebuf, count, ((NLubyte)pid));	//team/target player
+	writeByte(lebuf, count, static_cast<NLubyte>(pid));	//team/target player
 	writeLong(lebuf, count, world.frame);		//frame # of the bringer shot (message can be delayed)
-	writeByte(lebuf, count, ((NLubyte)ply.roomx));
-	writeByte(lebuf, count, ((NLubyte)ply.roomy));
-	writeShort(lebuf, count, ((NLushort)ply.lx));
-	writeShort(lebuf, count, ((NLushort)ply.ly));
+	writeByte(lebuf, count, static_cast<NLubyte>(ply.roomx));
+	writeByte(lebuf, count, static_cast<NLubyte>(ply.roomy));
+	writeShort(lebuf, count, static_cast<NLushort>(ply.lx));
+	writeShort(lebuf, count, static_cast<NLushort>(ply.ly));
 
 	server->broadcast_message(lebuf, count);
 }
@@ -2489,12 +2476,12 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
 void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_pup_visible);
-	writeByte(lebuf, count, (NLubyte)pup_id);	//what item
-	writeByte(lebuf, count, (NLubyte)it.kind);	//kind
-	writeByte(lebuf, count, (NLubyte)it.px);		//screen
-	writeByte(lebuf, count, (NLubyte)it.py);
-	writeShort(lebuf, count, (NLushort)it.x);	//pos in screen
-	writeShort(lebuf, count, (NLushort)it.y);
+	writeByte(lebuf, count, static_cast<NLubyte>(pup_id));	//what item
+	writeByte(lebuf, count, static_cast<NLubyte>(it.kind));	//kind
+	writeByte(lebuf, count, static_cast<NLubyte>(it.px));		//screen
+	writeByte(lebuf, count, static_cast<NLubyte>(it.py));
+	writeShort(lebuf, count, static_cast<NLushort>(it.x));	//pos in screen
+	writeShort(lebuf, count, static_cast<NLushort>(it.y));
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
@@ -2502,7 +2489,7 @@ void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_pup_timer);
 	writeByte(lebuf, count, pupType);
-	writeShort(lebuf, count, (NLushort)timeLeft);
+	writeShort(lebuf, count, static_cast<NLushort>(timeLeft));
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 

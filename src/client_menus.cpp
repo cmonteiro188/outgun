@@ -121,6 +121,7 @@ Menu_game::Menu_game() :
 
 	messageLogging		("Save chat messages", false),
 	saveStats			("Save game statistics", false),
+	showStats			("Show stats after the round", false),
 
 	menu				("Game options")
 {
@@ -131,6 +132,7 @@ Menu_game::Menu_game() :
 	ins_space();
 	menu.add_component(&messageLogging);
 	menu.add_component(&saveStats);
+	menu.add_component(&showStats);
 }
 
 void Menu_graphics::reloadChoices(const Graphics& gfx) {
@@ -267,12 +269,15 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
 }
 
 Menu_main::Menu_main() :
+	newVersion	(""),
+
 	connect		(),
 	disconnect	("Disconnect"),
 
 	options		(),
 
 	startServer	("Start local server"),
+	playServer	("Play on local server"),
 	stopServer	("Stop local server"),
 
 	help		(),
@@ -280,12 +285,14 @@ Menu_main::Menu_main() :
 
 	menu		("Outgun " GAME_VERSION)
 {
+	menu.add_component(&newVersion);
 	menu.add_component(&connect.menu);
 	menu.add_component(&disconnect);
 	ins_space();
 	menu.add_component(&options.menu);
 	ins_space();
 	menu.add_component(&startServer);
+	menu.add_component(&playServer);
 	menu.add_component(&stopServer);
 	ins_space();
 	menu.add_component(&help.menu);

@@ -86,6 +86,7 @@ class gameserver_c {
 
 	// settings
 	bool tournament;
+	bool save_stats;
 	const ServerExternalSettings extConfig;
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;

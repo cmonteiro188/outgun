@@ -70,6 +70,7 @@ bool Menu::prev() {
 		--selected_item;
 		if (selected_item < 0) {
 			selected_item = original;
+			--start;	// allow seeing unselectable components
 			return false;
 		}
 	} while (!components[selected_item]->isEnabled());
@@ -83,6 +84,7 @@ bool Menu::next() {
 		++selected_item;
 		if (selected_item >= static_cast<int>(components.size())) {
 			selected_item = original;
+			++start;	// allow seeing unselectable components
 			return false;
 		}
 	} while (!components[selected_item]->isEnabled());
@@ -144,6 +146,18 @@ void Menu::draw(BITMAP* buffer) {
 	const int scrollbar_start_y = y;
 
 	// draw components and calculate visible items
+	if (h == min_height)	// everything fits
+		start = 0;
+	else {
+		if (selected_item < start)
+			start = selected_item;
+		if (selected_item >= start + visible_items)
+			start = selected_item - visible_items + 1;
+		if (start >= static_cast<int>(components.size()) - visible_items)
+			start = components.size() - visible_items;
+		if (start < 0)
+			start = 0;
+	}
 	visible_items = 0;
 	for (int compi = start; compi < static_cast<int>(components.size()); ++compi) {
 		Component* component = components[compi];
@@ -201,12 +215,6 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
 	}
 	if (selected_item >= static_cast<int>(components.size()))
 		selected_item = components.size() - 1;
-	if (start >= static_cast<int>(components.size()) - visible_items)
-		start = max<int>(0, components.size() - visible_items);
-	else if (selected_item < start)
-		start = selected_item;
-	else if (selected_item >= start + visible_items)
-		start = selected_item - visible_items + 1;
 	//#todo: handle number shortcuts if the active component doesn't needNumberKeys()
 	if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
 		return;

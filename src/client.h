@@ -62,7 +62,8 @@ enum ClientCfgSetting {
 	CCS_SoundEnabled,
 	CCS_Volume,
 	CCS_SoundTheme,
-	CCS_MaxCommand = CCS_SoundTheme
+	CCS_ShowStats,
+	CCS_MaxCommand = CCS_ShowStats
 };
 
 class ServerThreadOwner {
@@ -253,6 +254,7 @@ class gameclient_c {
 	std::string talkbuffer;
 	std::list<Message> chatbuffer;
 	bool show_all_messages;
+	bool stats_autoshowing;
 	Graphics client_graphics;
 	bool screenshot;
 	volatile bool mapChanged, predrawNeeded;
@@ -284,6 +286,7 @@ class gameclient_c {
 	void MCF_cancelConnect();
 	void MCF_disconnect();
 	void MCF_startServer();
+	void MCF_playServer();
 	void MCF_stopServer();
 	void MCF_exitOutgun();
 	void MCF_prepareMainMenu();

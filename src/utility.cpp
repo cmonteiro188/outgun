@@ -43,8 +43,7 @@ string toupper(string str) {
 
 string trim(string str) {
 	str.erase(0, str.find_first_not_of(" \t\n\r\xA0"));
-	if (!str.empty())
-		str.erase(str.find_last_not_of(" \t\n\r\xA0") + 1);
+	str.erase(str.find_last_not_of(" \t\n\r\xA0") + 1);
 	return str;
 }
 

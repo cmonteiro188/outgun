@@ -189,7 +189,7 @@ void TournamentPasswordManager::threadFn() {
 
 	bool newToken = true;
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
-	
+
 	while (!quitThread) {
 		if (delay > 0) {
 			MS_SLEEP(500);
@@ -216,7 +216,7 @@ void TournamentPasswordManager::threadFn() {
 		nlSetAddrPort(&tournamentServer, 80);
 		nlConnect(sock, &tournamentServer);
 
-		string query =
+		const string query =
 			string() +
 			"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
 			'&' + (newToken?"new":"old") +
@@ -249,7 +249,7 @@ void TournamentPasswordManager::threadFn() {
 				passStatus = PS_recvError;
 				continue;
 			}
-			string fullResponse = respStream.str();
+			const string fullResponse = respStream.str();
 
 			// find the start and end of the body: after the last "<html>" and before the last "</html>"
 			// the original code uses full case insensivity so response.find_last_of() can't be used
@@ -290,7 +290,7 @@ void TournamentPasswordManager::threadFn() {
 		++cPos;	// point to the control character after @
 		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// login ok; token follows
 			++cPos;
-			string::size_type tokEnd = response.find_first_of('#', cPos);
+			const string::size_type tokEnd = response.find_first_of('#', cPos);
 			if (tokEnd == string::npos || tokEnd - cPos > 15 || tokEnd == cPos) {
 				log("Password thread: Invalid response (invalid token)");
 				passStatus = PS_invalidResponse;
@@ -492,6 +492,7 @@ bool gameclient_c::start() {
 			case CCS_Joystick:				menu.options.game.joystick.set(args == "1"); break;
 			case CCS_MessageLogging:		menu.options.game.messageLogging.set(args == "1"); break;
 			case CCS_SaveStats:				menu.options.game.saveStats.set(args == "1"); break;
+			case CCS_ShowStats:				menu.options.game.showStats.set(args == "1"); break;
 
 			// graphics menu
 			case CCS_Windowed:				menu.options.graphics.windowed.set(args == "1"); break;
@@ -608,7 +609,7 @@ void gameclient_c::process_udp_download_chunk(int last, NLulong pos, int len, ch
 
 	//write it
 	fseek(ud_fout, pos, 0);		//0 == "SEEK_SET" ??
-	int amount = fwrite(buf, 1, len, ud_fout);
+	const int amount = fwrite(buf, 1, len, ud_fout);
 
 	if (amount != len) {
 		log.error("Error writing to map file.");
@@ -713,14 +714,14 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 }
 
 //file download complete
-void gameclient_c::download_file_complete(download_runes_t  *r) {
+void gameclient_c::download_file_complete(download_runes_t* r) {
 	log("Download complete: '%s' '%s' '%s'", r->type, r->name, r->dest);
 
 	//map complete
 	if (!strcmp(r->type, "map")) {
 		//if expected map, change now
 		if (!strcmp(r->name, servermap)) {
-			bool ok = fd.load_map(log, CLIENT_MAPS_DIR, r->name) && fx.load_map(log, CLIENT_MAPS_DIR, r->name);	//#fix
+			const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, r->name) && fx.load_map(log, CLIENT_MAPS_DIR, r->name);	//#fix
 			if (!ok)
 				log.error("After download: map '%s' not found", r->name);
 			else {
@@ -750,7 +751,7 @@ void gameclient_c::download_server_file(const char *type, const char *name, cons
 	}
 
 	//new download request
-	download_runes_t	*rune = new download_runes_t();
+	download_runes_t* rune = new download_runes_t();
 	strcpy(rune->type, type);
 	strcpy(rune->name, name);
 	strcpy(rune->dest, dest);
@@ -768,7 +769,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 	//try to load the map. will fail if not found
 	LogSet noLogSet(0, 0, 0);	// if there's an error with the map, don't log it
-	bool ok = fd.load_map(noLogSet, CLIENT_MAPS_DIR, mapname) && fx.load_map(noLogSet, CLIENT_MAPS_DIR, mapname);	//#fix
+	const bool ok = fd.load_map(noLogSet, CLIENT_MAPS_DIR, mapname) && fx.load_map(noLogSet, CLIENT_MAPS_DIR, mapname);	//#fix
 
 	if (!ok)
 		log("Map '%s' not found", mapname);
@@ -834,6 +835,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	}
 
 	show_all_messages = false;
+	stats_autoshowing = false;
 
 	//set window title: the hostname
 	ostringstream caption;
@@ -1062,10 +1064,10 @@ void gameclient_c::save_player_password(const string& name, const string& addres
 
 void gameclient_c::remove_player_password(const string& name, const string& address) const {
 	// check if player has a password
-	string test = load_player_password(name, address);
+	const string test = load_player_password(name, address);
 	if (test.empty())
 		return;
-	vector<vector<string> > passwd_list = load_all_player_passwords();
+	const vector<vector<string> > passwd_list = load_all_player_passwords();
 	ofstream out(password_file.c_str());
 	if (!out)
 		return;
@@ -1201,7 +1203,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	lastpackettime = get_time();
 
 	//(1) process server frame data
-	//
 	int count = 0;
 	NLulong svframe;	//server's frame
 	readLong(data, count, svframe);
@@ -1249,13 +1250,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 		readByte(data, count, clFrameWorld);
 		frameReceiveTime = get_time();
-		int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 50ul);	// bound because svFrameHistory has invalid frame# at connect to server
+		const int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 50ul);	// bound because svFrameHistory has invalid frame# at connect to server
 		averageLag = averageLag*.99 + currentLag*.01;
 
 		#ifdef SEND_FRAMEOFFSET
 		NLubyte fo;
 		readByte(data, count, fo);
-		float offsetDelta = (fo / 256.) - .5;	// the deviation from aim, in frames
+		const float offsetDelta = (fo / 256.) - .5;	// the deviation from aim, in frames
 		frameOffsetDeltaTotal += offsetDelta;
 		if (++frameOffsetDeltaNum == 10) {	// try to fix deviations every 10 frames
 			frameOffsetDeltaTotal /= 10.;
@@ -1424,7 +1425,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	char *msg;
 	char *lebuf;
 	int msglen;
-	NLulong		fragz;
 
 	do {
 		lebuf = msg = client->receive_message(&msglen);
@@ -1459,7 +1459,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				//text message
 				case data_text_message: {
 					char byte;
 					readByte(msg, count, byte);
@@ -1482,7 +1481,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				//"hello" one-time server information ("first packet")
 				case data_first_packet: {
 					readByte(msg, count, pid);	//"who am I"
 					me = pid;
@@ -1494,7 +1492,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					else
 						log("Invalid colour (%d) for player %d (me).", color, pid);
 
-					NLchar map_nr;
+					NLubyte map_nr;
 					readByte(msg, count, map_nr);	//current map number
 					current_map = map_nr;
 
@@ -1521,15 +1519,15 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				//frags update
-				case data_frags_update:
-					readByte(msg, count, pid);	// what player
-					readLong(msg, count, fragz);	// new frag value
-					fx.player[pid].stats().set_frags(fragz);
+				case data_frags_update: {
+					readByte(msg, count, pid);
+					NLulong frags;
+					readLong(msg, count, frags);
+					fx.player[pid].stats().set_frags(frags);
 					stable_sort(players_sb.begin(), players_sb.end(), compare_players);
 					break;
+				}
 
-				//CTF flag update
 				case data_flag_update: {
 					NLbyte flags;
 					readByte(msg, count, team);		// team of the flag
@@ -1572,7 +1570,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				//rocket fire notification
 				case data_rocket_fire: {
 					readByte(lebuf, count, rpow);	// rocket powerdir
 					readByte(lebuf, count, rdir);	// rocket powerdir
@@ -1623,7 +1620,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					// no sound
 				}
 
-				//rocket deletion notification
 				case data_rocket_delete:
 					readByte(lebuf, count, rockid);	// rocket object id
 					readByte(lebuf, count, abyte);	// target player
@@ -1639,7 +1635,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					}
 					break;
 
-				//CTF team score update
 				case data_score_update: {
 					NLubyte score;
 					readByte(lebuf, count, abyte);		//team
@@ -1648,13 +1643,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				//sound event
 				case data_sound:
 					readByte(lebuf, count, abyte);		// sample #
 					client_sounds.play(abyte);
 					break;
 
-				//pickup visible
 				case data_pup_visible:
 					readByte(lebuf, count, iid);		// item id
 					readByte(lebuf, count, abyte);		// kind
@@ -1669,13 +1662,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.item[iid].y = usho;
 					break;
 
-				//pickup picked
 				case data_pup_picked:
 					readByte(lebuf, count, iid);
 					fx.item[iid].kind = Powerup::pup_unused;		// no more!
 					break;
 
-				//powerup clientside timer set
 				case data_pup_timer:
 					readByte(lebuf, count, iid);	//kind
 					readShort(lebuf, count, usho);	//amount of time
@@ -1689,14 +1680,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					}
 					break;
 
-				//my weapon notify change
 				case data_weapon_change:
 					readByte(lebuf, count, abyte);	// weapon level
 					if (me >= 0)
 						fx.player[me].weapon = abyte;
 					break;
 
-				//server commands client to change map
 				case data_map_change:
 					old_map = fx.map.title;
 					map_ready = false;	// map NOT ready anymore: must load/change
@@ -1707,7 +1696,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readShort(lebuf, count, usho);			//read CRC16 of map
 					readString(lebuf, count, mapname);		//read map name
 					server_map_command(mapname, usho);
-					NLchar map_nr;
+					NLubyte map_nr;
 					readByte(lebuf, count, map_nr);
 					current_map = map_nr;
 					if (map_vote == current_map)
@@ -1721,7 +1710,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						fx.item[iid].kind = Powerup::pup_unused;
 					break;
 
-				//server shows gameover plaque
 				case data_gameover_show: {
 					NLubyte plaque;
 					readByte(lebuf, count, plaque);
@@ -1732,31 +1720,36 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						blue_final_score = abyte;
 						for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
 							pi->stats().finish_stats(get_time());
-						menusel = menu_teams;		// show stats
+						if (menu.options.game.showStats() && menusel == menu_none && openMenus.empty()) {
+							menusel = menu_teams;
+							stats_autoshowing = true;
+						}
 						if (gameover_plaque == NEXTMAP_NONE && menu.options.game.saveStats())
 							fx.save_stats("client_stats", old_map);
 						gameover_plaque = plaque;
 					}
 					else {
 						gameover_plaque = NEXTMAP_NONE;
-						if (menusel == menu_teams)
+						if (stats_autoshowing) {
 							menusel = menu_none;
+							stats_autoshowing = false;
+						}
 					}
 					break;
 				}
 
-				//server hides gameover plaque, the game starts
 				case data_gameover_hide:
 					gameover_plaque = NEXTMAP_NONE;		//hide
 					fx.teams[0].clear_stats();
 					fx.teams[1].clear_stats();
 					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
 						pi->stats().clear();
-					if (menusel == menu_teams)
+					if (stats_autoshowing) {
 						menusel = menu_none;
+						stats_autoshowing = false;
+					}
 					break;
 
-				//deathbringer shot
 				case data_deathbringer:
 					readByte(lebuf, count, abyte);	//what player
 					readLong(lebuf, count, frameno);		// start time
@@ -1770,7 +1763,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					client_sounds.play(SAMPLE_USEDEATHBRINGER);
 					break;
 
-				//v0.4.4: UDP FILE DOWNLOAD: incoming chunk
 				case data_file_download:
 					readByte(lebuf, count, abyte);		//"last chunk"?
 					readLong(lebuf, count, frameno);	//absolute pos of the chunk on file
@@ -1779,7 +1771,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					process_udp_download_chunk(abyte, frameno, usho, &(lebuf[count]));
 					break;
 
-				//v0.4.4: registration response from server
 				case data_registration_response:
 					readByte(lebuf, count, abyte);
 					if (abyte == 1)	// success
@@ -1788,7 +1779,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						tournamentPassword.serverRejectsToken();
 					break;
 
-				//v0.4.5: CRAPZ UPDATE message -- updates lots of crap about a player
 				case data_crap_update: {
 					NLubyte color;
 					readByte(lebuf, count, pid);			//waht player slot
@@ -1843,7 +1833,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-				// map time left
 				case data_map_time: {
 					int current_time, time_left;
 					readLong(lebuf, count, current_time);
@@ -1853,13 +1842,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						map_end_time = static_cast<int>(get_time()) + time_left;
 						map_time_limit = true;
 					}
-					//log("Map time received. Time left %d seconds.", time_left);
+					if (LOG_MESSAGE_TRAFFIC)
+						log("Map time received. Time left %d seconds.", time_left);
 					break;
 				}
 
-				// server map list
 				case data_map_list: {
-					NLchar width, height, votes;
+					NLubyte width, height, votes;
 					MapInfo mapinfo;
 					readStr(lebuf, count, mapinfo.title);
 					readStr(lebuf, count, mapinfo.author);
@@ -1875,7 +1864,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_map_votes_update: {
-					NLchar total, map_nr, votes;
+					NLbyte total, map_nr, votes;
 					readByte(lebuf, count, total);
 					MutexLock ml(mapInfoMutex);
 					for (int i = 0; i < total; i++) {
@@ -1888,7 +1877,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_capture: {
-					NLchar pid;
+					NLubyte pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().add_capture(get_time());
 					fx.teams[pid / TSIZE].add_score(get_time() - map_start_time, fx.player[pid].name);
@@ -1896,7 +1885,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_kill: {
-					NLchar attacker, target;
+					NLubyte attacker, target;
 					readByte(lebuf, count, attacker);
 					readByte(lebuf, count, target);
 					const bool deathbringer = attacker & 0x80;
@@ -1918,7 +1907,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_flag_take: {
-					NLchar pid;
+					NLubyte pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().add_flag_take(get_time());
 					fx.teams[pid / TSIZE].add_flag_take();
@@ -1926,7 +1915,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_flag_return: {
-					NLchar pid;
+					NLubyte pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().add_flag_return();
 					fx.teams[pid / TSIZE].add_flag_return();
@@ -1934,7 +1923,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_flag_drop: {
-					NLchar pid;
+					NLubyte pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().add_flag_drop(get_time());
 					fx.teams[pid / TSIZE].add_flag_drop();
@@ -1942,7 +1931,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_suicide: {
-					NLchar pid;
+					NLubyte pid;
 					readByte(lebuf, count, pid);
 					const bool flag = pid & 0x80;
 					pid &= ~0x80;
@@ -1956,7 +1945,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_spawn: {
-					NLchar pid;
+					NLubyte pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().set_spawn_time(get_time());
 					break;
@@ -2018,8 +2007,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_stats: {
 					NLubyte id;
 					readByte(lebuf, count, id);
+					const bool flag = (id & 0x80);
+					id &= ~0x80;
 					// todo: check id
 					Statistics& stats = fx.player[id].stats();
+					if (flag)
+						stats.add_flag_take(get_time());
 					NLubyte data;
 					readByte(lebuf, count, data);
 					stats.set_kills(data);
@@ -2136,18 +2129,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		}
 	} while (msg != 0);
 
-	// (3) calc stuff dependant on received data
-	//
-
 	//detect screen changes / clear powerup fx's
 	if (me >= 0 && (fx.player[me].roomx != fx.player[me].oldx) || (fx.player[me].roomy != fx.player[me].oldy)) {
-		//screen changed.
-
-		//V0.4.7: now, why would I want to do that??
-		//clear all clientside fx's
-		//for (int f=0;f<MAX_CLIENTFX;f++)
-		//	cfx[f].used = false;
-
 		for (int j=0;j<MAX_PICKUPS;j++)
 			if (fx.item[j].px==fx.player[me].oldx && fx.item[j].py==fx.player[me].oldy)
 				fx.item[j].kind = Powerup::pup_unused;	// erase
@@ -2156,12 +2139,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		fx.player[me].oldx = fx.player[me].roomx;
 		fx.player[me].oldy = fx.player[me].roomy;
 
-		// predraw new room
 		predrawNeeded = true;
 	}
 
-	//this is a HACK:
-	me = whatme;
+	me = whatme;	// hack
 }
 
 //send chat message
@@ -2244,7 +2225,7 @@ void gameclient_c::refreshThread() {
 		log("refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
 	nAssert(refreshStatus == RS_running);
-	bool ok = refresh_all_servers();
+	const bool ok = refresh_all_servers();
 
 	if (LOG_THREAD_IDS)
 		log("exiting: refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
@@ -2451,7 +2432,16 @@ bool gameclient_c::getServerList() {
 		if (line.empty())
 			break;
 
-	// The first line is the total number of servers.
+	// The first line is the newest version.
+	getline_smart(response, line);
+	if (line.empty()) {
+		log.error("Incorrect data received from master server.");
+		return false;
+	}
+	if (line != GAME_VERSION)
+		menu.newVersion.set(string() + "New version: " + line);
+
+	// The second line is the total number of servers.
 	getline_smart(response, line);
 	if (line.empty()) {
 		log.error("Incorrect data received from master server.");
@@ -2475,6 +2465,7 @@ bool gameclient_c::getServerList() {
 		log.error("Incorrect data received from master server: Server count mismatch.");
 		return false;
 	}
+
 	return true;
 }
 
@@ -2486,7 +2477,7 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 	showMenu(menu);
 	gameshow = false;
 
-	unsigned long sendFrameStep = 20;	// 20 steps of 200 Hz clock equals the 10 Hz server clock
+	const unsigned long sendFrameStep = 20;	// 20 steps of 200 Hz clock equals the 10 Hz server clock
 	unsigned long nextSendFrame = time_counter;
 	unsigned long nextClientFrameI = time_counter;
 	double nextClientFrameF = nextClientFrameI;
@@ -2519,14 +2510,21 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 							openMenus.close();
 						else
 							showMenu(m_serverInfo);
+						stats_autoshowing = false;
 					}
 					else if (menusel == menu_maps || menusel == menu_players || menusel == menu_teams) {
-						if (sc == KEY_F2)
+						if (sc == KEY_F2) {
 							menusel = (menusel == menu_maps ? menu_none : menu_maps);
-						else if (sc == KEY_F3)
+							stats_autoshowing = false;
+						}
+						else if (sc == KEY_F3) {
 							menusel = (menusel == menu_teams ? menu_none : menu_teams);
-						else if (sc == KEY_F4)
+							stats_autoshowing = false;
+						}
+						else if (sc == KEY_F4) {
 							menusel = (menusel == menu_players ? menu_none : menu_players);
+							stats_autoshowing = false;
+						}
 					}
 
 					switch (menusel) {
@@ -2685,6 +2683,13 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 				if (sendnow)
 					send_frame(false);
 
+				// Check Alt+keypad sequences
+				if (keyboard_needs_poll())
+					poll_keyboard();	// ignore return value
+				static bool alt_sequence = false;
+				if (key_shifts & KB_INALTSEQ_FLAG)
+					alt_sequence = true;
+
 				// keypresses to talk prompt
 				while (keypressed()) {
 					//get key
@@ -2695,17 +2700,24 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 					// toggle help
 					if (sc == KEY_F1)
 						toggle_help();
-					else if (sc == KEY_F2)
+					else if (sc == KEY_F2) {
 						menusel = menu_maps;
-					else if (sc == KEY_F3)
+						stats_autoshowing = false;
+					}
+					else if (sc == KEY_F3) {
 						menusel = menu_teams;
-					else if (sc == KEY_F4)
+						stats_autoshowing = false;
+					}
+					else if (sc == KEY_F4) {
 						menusel = menu_players;
+						stats_autoshowing = false;
+					}
 					else if (sc == KEY_F5) {
 						if (openMenus.safeTop() == &m_serverInfo.menu)
 							openMenus.close();
 						else
 							showMenu(m_serverInfo);
+						stats_autoshowing = false;
 					}
 
 					// change colours
@@ -2739,13 +2751,11 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 						}
 					}
 					// Add character to text, max text length 60 chars.
-					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) && !is_keypad(sc) && !KB_INALTSEQ_FLAG) {
+					else if (talkbuffer.length() < 60 && !is_nonprintable_char(ch) && !is_keypad(sc) && !alt_sequence)
 						talkbuffer += static_cast<char>(ch);
-						ostringstream ost;
-						ost << ch;
-						print_message(msg_info, ost.str());
-					}
 				}
+				if (!(key_shifts & KB_INALTSEQ_FLAG))
+					alt_sequence = false;
 			}
 
 			// F8 == want/don't want to exit map
@@ -2775,8 +2785,10 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 					kesc = true;
 					if (!talkbuffer.empty()) // cancel chat
 						talkbuffer.clear();
-					else if (menusel != menu_none)
+					else if (menusel != menu_none) {
 						menusel = menu_none;
+						stats_autoshowing = false;
+					}
 					else if (openMenus.empty())
 						showMenu(menu);
 					else
@@ -2863,7 +2875,7 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 			client_graphics.clear();
 		}
 
-		int errors = errorLog.size();
+		const int errors = errorLog.size();
 		if (errors) {
 			for (int count = 0; count < errors; ++count)
 				m_errors.addLine(errorLog.pop());
@@ -2923,6 +2935,7 @@ void gameclient_c::stop() {
 		cfg << CCS_Joystick				<< ' ' << (menu.options.game.joystick() ? 1 : 0) << '\n';
 		cfg << CCS_MessageLogging		<< ' ' << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
 		cfg << CCS_SaveStats			<< ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
+		cfg << CCS_ShowStats			<< ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
 
 		// save graphics menu settings
 		cfg << CCS_Windowed				<< ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
@@ -3045,9 +3058,8 @@ void gameclient_c::predraw() {
 
 //draw the whole game screen
 void gameclient_c::draw_game_frame() {
-	// hiding stuff?
-	// v0.4.1 : hide stuff if frame skipped
-	bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
+	// hide stuff if frame skipped
+	const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
 	// the playground: border, walls and pits
 	if (hide_game) {
@@ -3238,19 +3250,18 @@ void gameclient_c::draw_game_frame() {
 
 	// player's power-ups
 	if (me >= 0) {
-		double val;
 		if (fx.player[me].item_quad) {
-			val = fx.player[me].item_quad_time - get_time();
+			double val = fx.player[me].item_quad_time - get_time();
 			if (val < 0) val = 0;
 			client_graphics.draw_player_power(val);
 		}
 		if (fx.player[me].item_speed) {
-			val = fx.player[me].item_speed_time - get_time();
+			double val = fx.player[me].item_speed_time - get_time();
 			if (val < 0) val = 0;
 			client_graphics.draw_player_turbo(val);
 		}
 		if (fx.player[me].item_helm()) {
-			val = fx.player[me].item_helm_time - get_time();
+			double val = fx.player[me].item_helm_time - get_time();
 			if (val < 0) val = 0;
 			client_graphics.draw_player_shadow(val);
 		}
@@ -3311,17 +3322,14 @@ void gameclient_c::draw_game_frame() {
 		client_graphics.debug_panel(fx.player, me, bpsin, bpsout, sticks, buttons);
 	}
 
-	// another frame, calc FPS...
-	//
+	// another frame, calculate FPS
 	totalframecount++;
 	framecount++;
-	double baixo = get_time() - frameCountStartTime;
-	if (baixo > 0) {
-		if (baixo > 1.0) {
-			FPS = ((double)framecount) / baixo;
-			frameCountStartTime = get_time();
-			framecount = 0;
-		}
+	const double baixo = get_time() - frameCountStartTime;
+	if (baixo > 1.0) {
+		FPS = ((double)framecount) / baixo;
+		frameCountStartTime = get_time();
+		framecount = 0;
 	}
 }
 
@@ -3405,6 +3413,7 @@ void gameclient_c::initMenus() {
 
 	menu.disconnect						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_disconnect		>(this));
 	menu.startServer					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_startServer		>(this));
+	menu.playServer						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_playServer		>(this));
 	menu.stopServer						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_stopServer		>(this));
 	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_exitOutgun		>(this));
 
@@ -3476,10 +3485,12 @@ void gameclient_c::MCF_menuCloser() {
 void gameclient_c::MCF_prepareMainMenu() {
 	if (listenServer.running()) {
 		menu.startServer.setEnable(false);
+		menu.playServer.setEnable(!connected);
 		menu.stopServer.setEnable(true);
 	}
 	else {
 		menu.startServer.setEnable(true);
+		menu.playServer.setEnable(false);
 		menu.stopServer.setEnable(false);
 	}
 	menu.disconnect.setEnable(connected);
@@ -3492,6 +3503,15 @@ void gameclient_c::MCF_disconnect() {
 void gameclient_c::MCF_startServer() {
 	if (!listenServer.running())
 		listenServer.start(serverExtConfig.port, serverExtConfig);
+}
+
+void gameclient_c::MCF_playServer() {
+	if (listenServer.running()) {
+		address = "127.0.0.1:";
+		address += itoa(listenServer.port());
+		openMenus.clear();
+		connect_command(true);
+	}
 }
 
 void gameclient_c::MCF_stopServer() {
@@ -3588,12 +3608,12 @@ bool gameclient_c::screenModeChange() {	// returns true whenever Graphics is usa
 	if (!menu.options.graphics.newMode())
 		return true;
 
-	ScreenMode res = menu.options.graphics.resolution();
-	int depth = menu.options.graphics.colorDepth();
+	const ScreenMode res = menu.options.graphics.resolution();
+	const int depth = menu.options.graphics.colorDepth();
 
 	Checkbox& win  = menu.options.graphics.windowed;
 	Checkbox& flip = menu.options.graphics.flipping;
-	bool owin = win(), oflip = flip();
+	const bool owin = win(), oflip = flip();
 
 	for (int nTry = 0;; ++nTry) {
 		if (client_graphics.init(res.width, res.height, depth, win(), flip())) {
@@ -3743,7 +3763,7 @@ void gameclient_c::MCF_prepareServerMenu() {
 	typedef MenuKeyCallback<gameclient_c> MKC;
 	menu.connect.addHooks(new MCB::A<Textarea, &gameclient_c::MCF_connect>(this),
 						  new MKC::A<Textarea, &gameclient_c::MCF_addRemoveServer>(this));
-	bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
+	const bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
 	menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
 	menu.connect.refresh.setEnable(!refreshActive);
 	menu.connect.refreshStatus.set(refreshStatusAsString());

@@ -166,16 +166,16 @@ CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float a
 {
 	angle[0] = ang1;
 	angle[1] = ang2;
-	float a1r = angle[0] * M_PI / 180;
-	float a2r = angle[1] * M_PI / 180;
+	const float a1r = angle[0] * M_PI / 180;
+	const float a2r = angle[1] * M_PI / 180;
 	va1 = Coords(sin(a1r), cos(a1r));
 	va2 = Coords(sin(a2r), cos(a2r));
-	float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * M_PI);
+	const float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * M_PI);
 	if (a1r == a2r)
 		anglecos = -1.;	// full circle => max width
 	else
 		anglecos = cos((a2r_greater - a1r) / 2.);
-	float midangle = (a2r_greater + a1r) / 2;
+	const float midangle = (a2r_greater + a1r) / 2;
 	midvec = Coords(sin(midangle), cos(midangle));
 }
 
@@ -209,7 +209,7 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const {
 	if (centerAngle < 0.)
 		centerAngle += 360.;
 	// now within [0, 360[ in map coordinates
-	double width = asin(rr / dcr) * 180. / M_PI;	// how far from centerAngle the projection gets
+	const double width = asin(rr / dcr) * 180. / M_PI;	// how far from centerAngle the projection gets
 	float a0 = angle[0], a1 = angle[1];
 	if (a1 < a0)
 		a1 += 360.;
@@ -272,7 +272,7 @@ bool Room::fall_on_wall(int x, int y, int r) const {
 }
 
 bool Map::load(LogSet& log, const char *mapdir, const string& mapname) {
-	string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
+	const string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
 
 	FILE *fmap = fopen(fileName.c_str(), "rb");
 	if (fmap) {
@@ -386,7 +386,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		float x1, y1, x2, y2, x3, y3;
 		int texid, alpha;
 		ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
-		bool ok = ist;
+		const bool ok = ist;
 		ist >> texid;
 		if (!ist)
 			texid = 0;
@@ -465,7 +465,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		string nextlabel;
 		int rx1, ry1, rx2, ry2;
 		ist >> nextlabel >> rx1 >> ry1;
-		bool ok = ist;
+		const bool ok = ist;
 		ist >> rx2 >> ry2;
 		if (ok && !ist) {	// one room only
 			rx2 = rx1;
@@ -591,7 +591,7 @@ MapInfo::MapInfo() : votes(0), votes_changed(false) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) {
 	Map map;
-	bool ok = map.load(log, SERVER_MAPS_DIR, mapName);
+	const bool ok = map.load(log, SERVER_MAPS_DIR, mapName);
 	if (!ok)
 		return false;
 	file = mapName;
@@ -700,12 +700,12 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
 BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r) {
-	double m2 = mx*mx + my*my, r2 = r*r;
-	double mdotd = mx*dx + my*dy;
-	double d2 = dx*dx + dy*dy;
-	double disc = mdotd*mdotd - m2*(d2-r2);
+	const double m2 = mx*mx + my*my, r2 = r*r;
+	const double mdotd = mx*dx + my*dy;
+	const double d2 = dx*dx + dy*dy;
+	const double disc = mdotd*mdotd - m2*(d2-r2);
 	if (disc >= 0) {	// there are real solutions
-		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
+		const double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
 		if (t >= 0)
 			return BounceData(t, Coords(dx-t*mx, dy-t*my));
 	}
@@ -735,12 +735,12 @@ BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r)
  */
 BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {
 	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|(dx2,dy2)-(dx1,dy1)|
-	double diffx = dx2-dx1, diffy = dy2-dy1;
-	double div = mx*diffy - my*diffx;
+	const double diffx = dx2 - dx1, diffy = dy2 - dy1;
+	const double div = mx * diffy - my * diffx;
 	if (div != 0) {	// div == 0 <=> movement is parallel to the line => no collisions possible
-		double rBase = ( dx1*diffy - dy1*diffx ) / div;
-		double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
-		double t = rBase - fabs(rAdd);	// the collision with smaller t (the larger t is when going away from the line)
+		const double rBase = (dx1 * diffy - dy1 * diffx) / div;
+		const double rAdd = r * sqrt(diffx * diffx + diffy * diffy) / div;
+		const double t = rBase - fabs(rAdd);	// the collision with smaller t (the larger t is when going away from the line)
 		if (t >= 0) {
 			// make sure we are not off an end of the line
 			// this can surely be calculated in a simpler way, but this first came to mind
@@ -750,9 +750,9 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
 			// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
 			// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the expression above *(-.5))
 			// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)^2 + (dy2-dy1)^2 ]
-			double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-			if (k>=0. && k<=1.)
-				return BounceData(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+			const double k = (diffx * (t * mx - dx1) + diffy * (t  *my - dy1)) / (diffx * diffx + diffy * diffy);
+			if (k >= 0. && k <= 1.)
+				return BounceData(t, Coords(dx1 + k * diffx - t * mx, dy1 + k * diffy - t * my));
 		}
 	}
 	return BounceData(1e99, Coords());	// no collision
@@ -782,28 +782,28 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
  */
 BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) {
 	// check for solution A (if there is one, there is no need to check B)
-	double bounceRad = ar + (outside?cr:-cr);
-	double m2 = mx*mx + my*my, r2 = bounceRad*bounceRad;
-	double mdotd = mx*dx + my*dy;
-	double d2 = dx*dx + dy*dy;
-	double disc = mdotd*mdotd - m2*(d2-r2);
+	const double bounceRad = ar + (outside ? cr : -cr);
+	const double m2 = mx * mx + my * my, r2 = bounceRad * bounceRad;
+	const double mdotd = mx * dx + my * dy;
+	const double d2 = dx * dx + dy * dy;
+	const double disc = mdotd * mdotd - m2 * (d2 - r2);
 	if (disc >= 0) {	// there are real solutions
 		double t;
 		if (outside)
-			t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the center)
+			t = (mdotd - sqrt(disc)) / m2;	// the collision with smaller t (the larger t is when going away from the center)
 		else
-			t = (mdotd+sqrt(disc))/m2;	// the collision with larger t (the smaller t is when going towards the center)
+			t = (mdotd + sqrt(disc)) / m2;	// the collision with larger t (the smaller t is when going towards the center)
 		if (t >= 0) {
 			// make sure the point is within the given angle from av
 			// [ (t(mx,my) - (dx,dy)) dot av ] / [ |t(mx,my) - (dx,dy)| * |av| ] >= ahwcos
-			double xd = t*mx - dx, yd = t*my - dy;
-			double dot = xd*av.first - yd*av.second;	//NOTE: - because av.second is in reversed coordinates
+			const double xd = t * mx - dx, yd = t * my - dy;
+			const double dot = xd * av.first - yd * av.second;	//NOTE: - because av.second is in reversed coordinates
 			if (dot >= ahwcos * bounceRad) {	// |(dx,dy) - t(mx,my)| = bounceRad, |av| = 1
 				// calc the vector from t(mx,my) to collision point:
 				// length = cr
 				// (xd,yd) = along that vector, direction from radial center to center of circle, length bounceRad
-				double mul = (ar-bounceRad)/bounceRad;
-				return BounceData(t, Coords(xd*mul, yd*mul));
+				const double mul = (ar - bounceRad) / bounceRad;
+				return BounceData(t, Coords(xd * mul, yd * mul));
 			}
 		}
 	}
@@ -816,17 +816,17 @@ void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double
 	BounceData rv;
 	rv.first = 1e99;
 	bool onLine = false;
-	if (mx>0 && w.a>stx)	// check vertical wall a
+	if (mx > 0 && w.a > stx)	// check vertical wall a
 		rv = bounceFromLine(w.a - stx, w.b - sty, w.a - stx, w.d - sty, mx, my, plyRadius);
-	else if (mx<0 && w.c<stx)	// check vertical wall c
+	else if (mx < 0 && w.c < stx)	// check vertical wall c
 		rv = bounceFromLine(w.c - stx, w.b - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
 	if (rv.first < 1e10) {
 		onLine = true;
 		add_rv();
 	}
-	if (my>0 && w.b>sty)	// check horizontal wall b
+	if (my > 0 && w.b > sty)	// check horizontal wall b
 		rv = bounceFromLine(w.a - stx, w.b - sty, w.c - stx, w.b - sty, mx, my, plyRadius);
-	else if (my<0 && w.d<sty)	// check horizontal wall d
+	else if (my < 0 && w.d < sty)	// check horizontal wall d
 		rv = bounceFromLine(w.a - stx, w.d - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
 	if (rv.first < 1e10) {
 		onLine = true;
@@ -880,8 +880,8 @@ void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double
 	}
 	if (w.angle[0] == w.angle[1])	// no sectoring
 		return;
-	double p1x = w.x + w.ro*w.va1.first - stx, p1y = w.y - w.ro*w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
-	double p2x = w.x + w.ri*w.va1.first - stx, p2y = w.y - w.ri*w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
+	double p1x = w.x + w.ro * w.va1.first - stx, p1y = w.y - w.ro * w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
+	double p2x = w.x + w.ri * w.va1.first - stx, p2y = w.y - w.ri * w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
 	// side wall at angle va1
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
@@ -891,8 +891,8 @@ void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double
 	rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// side wall at angle va2
-	p1x = w.x + w.ro*w.va2.first - stx, p1y = w.y - w.ro*w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
-	p2x = w.x + w.ri*w.va2.first - stx, p2y = w.y - w.ri*w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
+	p1x = w.x + w.ro * w.va2.first - stx, p1y = w.y - w.ro * w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
+	p2x = w.x + w.ri * w.va2.first - stx, p2y = w.y - w.ri * w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// corners at angle va2
@@ -916,10 +916,10 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, d
 	if (mx == 0 && my == 0)
 		return bd;
 
-	Coords bbox0(min(x-radius, x+mx*maxFraction-radius), min(y-radius, y+my*maxFraction-radius)),
-	       bbox1(max(x+radius, x+mx*maxFraction+radius), max(y+radius, y+my*maxFraction+radius));
+	const Coords bbox0(min(x - radius, x + mx * maxFraction - radius), min(y - radius, y + my * maxFraction - radius));
+	const Coords bbox1(max(x + radius, x + mx * maxFraction + radius), max(y + radius, y + my * maxFraction + radius));
 
-	for (vector<RectWall>::const_iterator wi=room.rwalls.begin(); wi!=room.rwalls.end(); ++wi) {	// go through rectangular walls
+	for (vector<RectWall>::const_iterator wi = room.rwalls.begin(); wi != room.rwalls.end(); ++wi) {	// go through rectangular walls
 		// fast and crude bounding-box style check first
 		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 			continue;
@@ -927,12 +927,12 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, d
 		tryBounce(&bd, *wi, x, y, mx, my, radius);
 		#ifndef NDEBUG
 		if (bd.first < 1e10) {
-			double dx = bd.second.first, dy = bd.second.second, r = radius;
-			nAssert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			const double dx = bd.second.first, dy = bd.second.second, r = radius;
+			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
 		}
 		#endif
 	}
-	for (vector<TriWall>::const_iterator wi=room.twalls.begin(); wi!=room.twalls.end(); ++wi) {	// go through triangular walls
+	for (vector<TriWall>::const_iterator wi = room.twalls.begin(); wi != room.twalls.end(); ++wi) {	// go through triangular walls
 		// fast and crude bounding-box style check first
 		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 			continue;
@@ -940,12 +940,12 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, d
 		tryBounce(&bd, *wi, x, y, mx, my, radius);
 		#ifndef NDEBUG
 		if (bd.first < 1e10) {
-			double dx = bd.second.first, dy = bd.second.second, r = radius;
-			nAssert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			const double dx = bd.second.first, dy = bd.second.second, r = radius;
+			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
 		}
 		#endif
 	}
-	for (vector<CircWall>::const_iterator wi=room.cwalls.begin(); wi!=room.cwalls.end(); ++wi) {	// go through circular walls
+	for (vector<CircWall>::const_iterator wi = room.cwalls.begin(); wi != room.cwalls.end(); ++wi) {	// go through circular walls
 		// fast and crude bounding-box style check first
 		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 			continue;
@@ -953,8 +953,8 @@ BounceData WorldBase::genGetTimeTillWall(const Room& room, double x, double y, d
 		tryBounce(&bd, *wi, x, y, mx, my, radius);
 		#ifndef NDEBUG
 		if (bd.first < 1e10) {
-			double dx = bd.second.first, dy = bd.second.second, r = radius;
-			nAssert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			const double dx = bd.second.first, dy = bd.second.second, r = radius;
+			nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
 		}
 		#endif
 	}
@@ -2765,7 +2765,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 	const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
 	const int myteam = pid / TSIZE;
-	double timeDiff = get_time() - capt_flag.grab_time();
+	const double timeDiff = get_time() - capt_flag.grab_time();
 	if (host->tournament_active() && timeDiff <= minimum_grab_to_capture_time) {	// can't capture yet
 		if (timeDiff <= .1) {	// being able to capture flags without moving is a too easy way to cheat
 			log.error("This map is invalid: instant flag capture is possible");

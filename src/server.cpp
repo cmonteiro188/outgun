@@ -61,15 +61,15 @@ void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 =
 	if (world.player[pid].muted == mode)
 		return;
 	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
-	if (mode==0 && world.player[pid].muted!=2)
+	if (mode == 0 && world.player[pid].muted != 2)
 		network.plprintf(pid, msg_warning, "You have been unmuted (you can send messages again)");
 	else if (mode == 1) {
 		network.plprintf(pid, msg_warning, "You have been muted (you can't send messages)");
 		if (admin != -1)
 			network.plprintf(pid, msg_info, "The administrator responsible is %s.", adminName);
 	}
-	for (int i=0; i<MAX_PLAYERS; ++i)
-		if (world.player[i].used && i!=pid) {
+	for (int i = 0; i < MAX_PLAYERS; ++i)
+		if (world.player[i].used && i != pid) {
 			if (mode == 0)
 				network.plprintf(i, msg_info, "%s has unmuted %s", adminName, world.player[pid].name.c_str());
 			else
@@ -86,15 +86,15 @@ void gameserver_c::kickPlayer(int pid, int admin, int minutes) {	// if minutes >
 		network.plprintf(pid, msg_warning, "You are being kicked from this server!");
 	if (admin != -1)
 		network.plprintf(pid, msg_info, "The administrator responsible is %s.", adminName);
-	for (int i=0; i<MAX_PLAYERS; ++i)
-		if (world.player[i].used && i!=pid)
+	for (int i = 0; i < MAX_PLAYERS; ++i)
+		if (world.player[i].used && i != pid)
 			network.plprintf(i, msg_info, "%s has %s %s (disconnect in 10 seconds)", adminName, minutes > 0 ? "banned" : "kicked", world.player[pid].name.c_str());
 	world.player[pid].kickTimer = 10 * 10;
 }
 
 void gameserver_c::banPlayer(int pid, int admin, int minutes) {
 	authorizations.load();
-	NLaddress addr = network.get_client_address(world.player[pid].cid);
+	const NLaddress addr = network.get_client_address(world.player[pid].cid);
 	authorizations.ban(addr, world.player[pid].name, minutes);
 	authorizations.save();
 	kickPlayer(pid, admin, minutes);
@@ -160,7 +160,7 @@ void gameserver_c::balance_teams() {
 	}
 }
 
-void gameserver_c::shuffle_teams() {
+void gameserver_c::shuffle_teams() {	// weird system, because players table has gaps
 	vector<int> players;
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
@@ -178,11 +178,10 @@ void gameserver_c::shuffle_teams() {
 //check if team change requests can be satisfied
 void gameserver_c::check_team_changes() {
 	// check players in random order
-	//
-	for (int i=0;i<maxplayers;i++) check[i]=0;
+	for (int i = 0; i < maxplayers; i++)
+		check[i] = 0;
 	checount = maxplayers;
 	while (checount > 0) {
-
 		int p = rand() % maxplayers;
 		if (!check[p]) {
 			check[p] = 1;
@@ -373,45 +372,27 @@ void gameserver_c::refresh_team_score_modifiers() {
 }
 
 //score!
-void gameserver_c::score_frag(int p, int amount) {
-	//add regular frags amount
-	world.player[p].stats().add_frag(amount);
+void gameserver_c::score_frag(int pid, int amount) {
+	world.player[pid].stats().add_frag(amount);
 
-	const int cid = world.player[p].cid;
+	const int cid = world.player[pid].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
 	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
-		//refresh team ratings
 		refresh_team_score_modifiers();
-
-		double parcela = ((double)amount) * team_smul[p/TSIZE];
-
-		//add normalizado
-		client[cid].fdp += parcela;
-
-		//refresh integer version
-		client[cid].delta_score = (int)(client[cid].fdp);
+		client[cid].fdp += amount * team_smul[pid / TSIZE];
+		client[cid].delta_score = static_cast<int>(client[cid].fdp);
 	}
 }
 
 //score! NEG FRAG (v0.4.8)
 void gameserver_c::score_neg(int p, int amount) {
-	//add regular frags amount
-	//world.player[p].frags += amount;
-
 	const int cid = world.player[p].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
 	if (tournament && network.get_player_count() >= 2 && client[cid].current_participation) {
-		//refresh team ratings
 		refresh_team_score_modifiers();
-
-		double parcela = ((double)amount);		// NAO multiplica....
-
-		//add normalizado
-		client[cid].fdn += parcela;
-
-		//refresh integer version
+		client[cid].fdn += amount;
 		client[cid].neg_delta_score = (int)(client[cid].fdn);
 	}
 }
@@ -572,6 +553,8 @@ void gameserver_c::load_game_mod() {
 				welcome_message.push_back(value);
 			else if (cmd == "info_message")
 				info_message.push_back(value);
+			else if (cmd == "server_website")
+				server_website_url = value;
 			else if (cmd == "server_password")
 				network.set_server_password(value);
 			else if (cmd == "pup_add_time") {
@@ -672,16 +655,22 @@ void gameserver_c::load_game_mod() {
 			}
 			else if (cmd == "sayadmin_comment")
 				sayadmin_comment = value;
-			else if (cmd == "server_website")
-				server_website_url = value;
 			else if (cmd == "tournament")
 				if (ival == 0 || ival == 1)
 					tournament = (ival == 1);
 				else
 					log.error("Can't set %s to %d", cmd.c_str(), ival);
+			else if (cmd == "save_stats")
+				if (ival == 0 || ival == 1)
+					save_stats = (ival == 1);
+				else
+					log.error("Can't set %s to %d", cmd.c_str(), ival);
 			else
 				log.error("*** Bad command in gamemod: %s", cmd.c_str());
 		}
+
+		if (!server_website_url.empty())
+			info_message.push_back(string() + "Website: " + server_website_url);
 
 		log("Game mod file read.");
 		in.close();
@@ -693,7 +682,7 @@ void gameserver_c::load_game_mod() {
 
 //load a map from the rotation list
 bool gameserver_c::load_rotation_map(int pos) {
-	bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
+	const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
 	if (!ok)
 		return false;
 	log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
@@ -705,34 +694,35 @@ bool gameserver_c::server_next_map(int reason) {
 
 	nAssert(!maprot.empty());
 
-	world.save_stats("server_stats", current_map().title);
+	if (save_stats)
+		world.save_stats("server_stats", current_map().title);
 
 	vector<int> winners;
-	int maxVotes=0;
-	for (int m=0; m<(int)maprot.size(); ++m) {
-		if (maprot[m].votes<maxVotes)
+	int maxVotes = 0;
+	for (int m = 0; m < static_cast<int>(maprot.size()); ++m) {
+		if (maprot[m].votes < maxVotes)
 			continue;
-		if (maprot[m].votes>maxVotes) {
-			maxVotes=maprot[m].votes;
+		if (maprot[m].votes > maxVotes) {
+			maxVotes = maprot[m].votes;
 			winners.clear();
 		}
 		winners.push_back(m);
 	}
-	if (maxVotes==0)
-		currmap=(currmap+1)%maprot.size();
+	if (maxVotes == 0)
+		currmap = (currmap + 1) % maprot.size();
 	else {
-		if (winners.size()>1) {
+		if (winners.size() > 1) {
 			vector<int>::iterator it = find(winners.begin(), winners.end(), currmap);
 			if (it != winners.end())
 				winners.erase(it);
 		}
-		currmap=winners[rand()%winners.size()];
+		currmap = winners[rand() % winners.size()];
 	}
 	// clear votes for the current map
-	for (int p=0; p<maxplayers; ++p) {
-		world.player[p].want_map_exit=false;
-		if (world.player[p].mapVote==currmap)
-			world.player[p].mapVote=-1;
+	for (int p = 0; p < maxplayers; ++p) {
+		world.player[p].want_map_exit = false;
+		if (world.player[p].mapVote == currmap)
+			world.player[p].mapVote = -1;
 	}
 	maprot[currmap].votes = 0;
 	maprot[currmap].votes_changed = true;
@@ -761,7 +751,7 @@ bool gameserver_c::server_next_map(int reason) {
 //check map exit by vote
 void gameserver_c::check_map_exit() {
 	int num_for = 0, num_against = 0;
-	for (int i=0; i<maxplayers; i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
 			if (world.player[i].want_map_exit)
 				num_for++;
@@ -770,13 +760,13 @@ void gameserver_c::check_map_exit() {
 		}
 
 	// this could be done elsewhere, but this function is called whenever votes change
-	for (int m=0; m<(int)maprot.size(); ++m)
-		maprot[m].votes=0;
-	for (int p=0; p<maxplayers; ++p)
-		if (world.player[p].used && world.player[p].mapVote!=-1)
+	for (int m = 0; m < static_cast<int>(maprot.size()); ++m)
+		maprot[m].votes = 0;
+	for (int p = 0; p < maxplayers; ++p)
+		if (world.player[p].used && world.player[p].mapVote != -1)
 			++maprot[world.player[p].mapVote].votes;
 
-	if ((world.getMapTime()>=vote_block_time && num_for>num_against) || (num_against==0 && num_for)) {
+	if ((world.getMapTime() >= vote_block_time && num_for > num_against) || (num_against == 0 && num_for)) {
 		server_next_map(NEXTMAP_VOTE_EXIT);	// ignore return value
 		ctf_game_restart();
 	}
@@ -812,6 +802,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	server_website_url.clear();
 
 	tournament = true;
+	save_stats = false;
 
 	// load server configuration from gamemod.txt
 	load_game_mod();
@@ -986,7 +977,7 @@ bool gameserver_c::isAdmin(int pid) const {
 
 void gameserver_c::chat(int pid, const char* sbuf) {
 	// handle 'console' commands
-	if (sbuf[0]=='/') {
+	if (sbuf[0] == '/') {
 		bool admin = false;
 		ClientData& cld = client[world.player[pid].cid];
 		if ((cld.token_have && cld.token_valid) || isLocallyAuthorized(pid)) {
@@ -998,18 +989,18 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		const char* pCommand=sbuf+1;
 		char cbuf[30];
 		int ci;
-		for (ci=0;; ++ci, ++pCommand) {
-			if (ci==29) {
+		for (ci = 0;; ++ci, ++pCommand) {
+			if (ci == 29) {
 				cbuf[29]='\0';
 				break;
 			}
-			if (*pCommand==' ') {
-				cbuf[ci]='\0';
+			if (*pCommand == ' ') {
+				cbuf[ci] = '\0';
 				++pCommand;
 				break;
 			}
-			cbuf[ci]=*pCommand;
-			if (*pCommand=='\0')
+			cbuf[ci] = *pCommand;
+			if (*pCommand == '\0')
 				break;
 		}
 		if (!strcmp(cbuf, "help")) {
@@ -1143,7 +1134,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		else
 			network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);
 	}
-	else if (strspnp(sbuf, " ")!=NULL) {	// ignore messages that are all spaces
+	else if (strspnp(sbuf, " ") != NULL) {	// ignore messages that are all spaces
 		//talk flood protection
 		world.player[pid].talk_temp += world.player[pid].talk_hotness;
 		world.player[pid].talk_hotness += 3.0;
@@ -1151,26 +1142,26 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			world.player[pid].talk_temp = 18.0;
 		if (world.player[pid].talk_hotness > 6.0)
 			world.player[pid].talk_hotness = 6.0;
-			if (world.player[pid].talk_temp > 10.0) {
-				world.player[pid].talk_temp = 18.0;
+		if (world.player[pid].talk_temp > 10.0) {
+			world.player[pid].talk_temp = 18.0;
 			network.player_message(pid, msg_warning, "Too much talk. Chill...");
 		}
-		else if (world.player[pid].muted==1)
+		else if (world.player[pid].muted == 1)
 			network.plprintf(pid, msg_warning, "You are muted. You can't send messages.");
 		else {
 			char talkmsg[256];
 			// check for team message:
 			if (sbuf[0] == '.') {
-				sprintf(talkmsg, "%s: %s", world.player[pid].name.c_str(), sbuf+1);
-				if (world.player[pid].muted==2)
+				sprintf(talkmsg, "%s: %s", world.player[pid].name.c_str(), sbuf + 1);
+				if (world.player[pid].muted == 2)
 					network.player_message(pid, msg_team, talkmsg);
 				else
-					network.broadcast_team_message(pid/TSIZE, talkmsg);
+					network.broadcast_team_message(pid / TSIZE, talkmsg);
 			}
 			//regular msg
 			else {
 				sprintf(talkmsg, "%s: %s", world.player[pid].name.c_str(), sbuf);
-				if (world.player[pid].muted==2)
+				if (world.player[pid].muted == 2)
 					network.player_message(pid, msg_normal, talkmsg);
 				else
 					network.broadcast_message(msg_normal, talkmsg);
@@ -1180,7 +1171,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 }
 
 bool gameserver_c::changeRegistration(int id, const string& token) {
-	int intoken = atoi(token.c_str()); //atoi it
+	const int intoken = atoi(token.c_str());
 	if (intoken == client[id].intoken)
 		return false;
 
@@ -1223,7 +1214,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		for (int i = 0; i < maxplayers; ++i)
 			if (world.player[i].used && world.player[i].want_map_exit)
 				++votes;
-		int players = get_player_count() / 2 + 1;
+		const int players = get_player_count() / 2 + 1;
 		if (votes != last_vote_announce_votes || (players != last_vote_announce_needed && votes != 0)) {
 			last_vote_announce_votes = votes;
 			last_vote_announce_needed = players;
@@ -1231,7 +1222,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			ostringstream voteinfo;
 			voteinfo << "*** " << votes << '/' << players << " votes for mapchange";
 			if (world.getMapTime() < vote_block_time)
-				voteinfo << " (all players needed for " << (vote_block_time-world.getMapTime()+5)/10 << " more seconds)";
+				voteinfo << " (all players needed for " << (vote_block_time - world.getMapTime() + 5) / 10 << " more seconds)";
 			network.broadcast_message(msg_info, voteinfo.str().c_str());
 		}
 		else if (world.getMapTime() == vote_block_time)
@@ -1301,7 +1292,7 @@ void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 		if (world.frame % 10 == 0) {
 			//update bar
 			ostringstream status;
-			int errors = errorLog.size();
+			const int errors = errorLog.size();
 			if (errors)
 				status << "ERRORS:" << errors << "  ";
 			status << network.get_player_count() << '/' << maxplayers << "p ";

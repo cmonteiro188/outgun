@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
 			"Local addresses:\n",
 				pmin, pmax, pdef);
 
-		for (int z = 0;z < locsize; z++) {
+		for (int z = 0; z < locsize; z++) {
 			strcat(infobuf, addressToString(locals[z]).c_str());
 			strcat(infobuf, "\n");
 		}
