@@ -1456,9 +1456,9 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
 		player_items.push_back(Powerup::pup_shield);
 	if (player.item_speed && player.item_speed_time >= pupConfig.pup_add_time)
 		player_items.push_back(Powerup::pup_turbo);
-	if (player.item_helm() && player.item_speed_time >= pupConfig.pup_add_time)
+	if (player.item_helm() && player.item_helm_time >= pupConfig.pup_add_time)
 		player_items.push_back(Powerup::pup_shadow);
-	if (player.item_quad && player.item_speed_time >= pupConfig.pup_add_time)
+	if (player.item_quad && player.item_quad_time >= pupConfig.pup_add_time)
 		player_items.push_back(Powerup::pup_power);
 	if (player.weapon >= 1)			// 1 means double weapon
 		player_items.push_back(Powerup::pup_weapon);
@@ -1583,7 +1583,6 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 	Powerup *it = &item[pk];
 
 	//send "item removed" message to all players on the current screen
-	//
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_pup_picked);
 	writeByte(lebuf, count, (NLubyte)pk);	//what item id
