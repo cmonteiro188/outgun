@@ -105,7 +105,7 @@ public:
 
 extern bool g_allowBlockingMessages;    // controls all messageBox calls; disable to suppress all external message boxes (assertions included)
 
-void messageBox(const std::string& heading, const std::string& msg);
+void messageBox(const std::string& heading, const std::string& msg, bool blocking = true); // blocking may not be controllable
 
 class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);

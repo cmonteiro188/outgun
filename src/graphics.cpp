@@ -86,10 +86,14 @@ Graphics::~Graphics() {
 bool Graphics::init(int width, int height, int depth, bool windowed, bool flipping) {
     unload_bitmaps();
 
-    if (!reset_video_mode(width, height, depth, windowed))
+    if (windowed)
+        flipping = false;
+
+    if (!reset_video_mode(width, height, depth, windowed, flipping ? 3 : 1))
         return false;
 
-    page_flipping = (flipping && !windowed);
+    page_flipping = flipping;
+
     if (page_flipping) {
         vidpage1   = create_video_bitmap(SCREEN_W, SCREEN_H);
         vidpage2   = create_video_bitmap(SCREEN_W, SCREEN_H);
@@ -153,12 +157,18 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
     return true;
 }
 
+void Graphics::videoMemoryCorrupted() {
+    // re-allocate roombg to work around Allegro's bug - apparently sub-bitmaps don't always survive
+    roombg.free();
+    roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
+}
+
 void Graphics::unload_bitmaps() {
+    roombg    .free();  // sub-bitmap => release first
     vidpage1  .free();
     vidpage2  .free();
     backbuf   .free();
     background.free();
-    roombg    .free();
     minibg    .free();
     minibg_fog.free();
     db_effect .free();
@@ -173,19 +183,24 @@ void Graphics::endDraw() {
     release_bitmap(drawbuf);
 }
 
-void Graphics::draw_screen() {
-    //acquire_screen();
+void Graphics::draw_screen(bool acquireWithFlipping) {
     if (page_flipping) {
+        if (acquireWithFlipping)
+            acquire_screen();
         show_video_bitmap(drawbuf);
+        if (acquireWithFlipping)
+            release_screen();
 
         if (drawbuf == vidpage1)
             drawbuf = vidpage2;
         else
             drawbuf = vidpage1;
     }
-    else
+    else {
+        acquire_screen();
         blit(drawbuf, screen, 0, 0, 0, 0, SCREEN_W, SCREEN_H);
-    //release_screen();
+        release_screen();
+    }
 }
 
 void Graphics::setColors() {
@@ -342,14 +357,23 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
     return mvec;
 }
 
-bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed) {
+bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed, int pages) {
     log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed ? "windowed" : "fullscreen");
     set_color_depth(depth);
-    if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0)) {
+
+    int virtual_w = 0, virtual_h = 0;
+    #ifdef ALLEGRO_VRAM_SINGLE_SURFACE
+    if (pages > 1) {
+        virtual_w = width;
+        virtual_h = height * pages;
+    }
+    #endif
+
+    if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {
         log("Error: '%s'", allegro_error);
         if (depth == 16) {  // try equivalent 15-bit mode too
             set_color_depth(15);
-            if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0)) {
+            if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {
                 log("Error with equivalent 15-bit mode: '%s'", allegro_error);
                 return false;
             }
@@ -383,8 +407,6 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 }
 
 void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
-    roombg.free();
-    roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
     // the room is textured like it's the room at coordinates (texRoomX,texRoomY)
     // this means moving the texture offsetting origin to the top left of room (0,0)
     int texOffsetBaseX = - texRoomX * iround(plw * scr_mul);
@@ -727,7 +749,7 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
         blit(minibg_fog, drawbuf, x1 - mmx, y1 - mmy, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
     else {
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-        set_trans_blender(0, 0, 0, static_cast<int>(0x38 * (1. - visibility)));
+        set_trans_blender(0, 0, 0, static_cast<int>(fogOfWarMaxAlpha * (1. - visibility)));
         rectfill(drawbuf, x1, y1, x2, y2, col[COLFOGOFWAR]);
         solid_mode();
     }
@@ -743,7 +765,7 @@ void Graphics::update_minimap_background(const Map& map) {
     if (minibg_fog) {
         blit(minibg, minibg_fog, 0, 0, 0, 0, minibg->w, minibg->h);
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-        set_trans_blender(0, 0, 0, 0x38);
+        set_trans_blender(0, 0, 0, fogOfWarMaxAlpha);
         rectfill(minibg_fog, 0, 0, minibg_fog->w - 1, minibg_fog->h - 1, col[COLFOGOFWAR]);
         solid_mode();
     }
@@ -1192,9 +1214,8 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
         buffer = db_effect;
     else {
         buffer = create_bitmap_ex(32, db_effect->w, db_effect->h);
-        clear_to_color(buffer, makecol(0, 0, 0));
-        draw_trans_sprite(buffer, db_effect, 0, 0);
-        Bitmap alpha_channel = create_bitmap_ex(8, db_effect->w, db_effect->h);
+        clear_to_color(buffer, 0);
+        // recalculate alpha channel multiplying in the current alpha
         set_write_alpha_blender();
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
         for (int y = 0; y < buffer->h; y++)
@@ -2001,11 +2022,10 @@ bool Graphics::save_screenshot(const string& filename) const {
     get_palette(pal);
     if (page_flipping) {
         BITMAP* current_screen = drawbuf == vidpage1 ? vidpage2 : vidpage1;
-        BITMAP* temp = create_bitmap(current_screen->w, current_screen->h);
+        Bitmap temp = create_bitmap(current_screen->w, current_screen->h);
+        nAssert(temp);
         blit(current_screen, temp, 0, 0, 0, 0, current_screen->w, current_screen->h);
-        const bool success = !save_bitmap(filename.c_str(), temp, pal);
-        destroy_bitmap(temp);
-        return success;
+        return !save_bitmap(filename.c_str(), temp, pal);
     }
     return !save_bitmap(filename.c_str(), drawbuf, pal);
 }
@@ -2229,7 +2249,7 @@ void Graphics::make_db_effect() {
             const double dist = sqrt(dx * dx + dy * dy);
             const int max_alpha = 230;
             int alpha = static_cast<int>(max_alpha - dist * 2 * max_alpha / size);
-            alpha = max(0, min(alpha, max_alpha));
+            alpha = max(0, alpha);
             putpixel(db_effect, x, y, alpha);
         }
     solid_mode();

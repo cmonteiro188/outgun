@@ -31,6 +31,7 @@
 
 #include "incalleg.h"
 #include "platform.h"
+#include "leetnet/sleep.h"  // for MS_SLEEP
 
 using std::string;
 
@@ -46,7 +47,7 @@ int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return vsnprintf(buf, count, fmt, arg);
 }
 
-void platMessageBox(const string& caption, const string& msg) {
+void platMessageBox(const string& caption, const string& msg, bool blocking) {
     // The dialog tools may bug totally when given characters in wrong encoding.
     // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message.
     // We have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
@@ -74,13 +75,26 @@ void platMessageBox(const string& caption, const string& msg) {
             break;
         }
         // parent
-        int status;
-        if (waitpid(pid, &status, 0) == -1) {   // shouldn't really happen
-            funci = nFuncs;
-            break;
+        if (blocking) {
+            int status;
+            if (waitpid(pid, &status, 0) == -1) {   // shouldn't really happen
+                funci = nFuncs;
+                break;
+            }
+            if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)
+                return;
         }
-        if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)
-            return;
+        else {
+            MS_SLEEP(200);  // this is a total hack - but how else to detect the call failing?
+            int status;
+            const int ret = waitpid(pid, &status, WNOHANG);
+            if (ret == -1) {
+                funci = nFuncs;
+                break;
+            }
+            if (ret == 0 || (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)) // ret == 0 means the child is still running, ie. probably showing the message as it should
+                return;
+        }
         ++lFunci;
         funci = lFunci;
     }

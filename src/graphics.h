@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -88,10 +88,11 @@ public:
     bool depthAvailable(int depth) const;
     std::vector<ScreenMode> getResolutions(int depth, bool forceTryIfNothing = true) const; // returns a sorted list of unique resolutions
     bool init(int width, int height, int depth, bool windowed, bool flipping);
+    void videoMemoryCorrupted();    // call this when that happens with page flipping; predraw also needs to be called
 
     void startDraw();   // call endDraw for each startDraw
     void endDraw();
-    void draw_screen();
+    void draw_screen(bool acquireWithFlipping);
     bool save_screenshot(const std::string& filename) const;
 
     void clear();
@@ -202,7 +203,7 @@ public:
     void select_theme(const std::string& name);
 
     void set_antialiasing(bool enable) { antialiasing = enable; }
-    
+
     void set_min_transp(bool enable) { min_transp = enable; }
 
     int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
@@ -221,7 +222,7 @@ public:
 private:
     void unload_bitmaps();
 
-    bool reset_video_mode(int width, int height, int depth, bool windowed);
+    bool reset_video_mode(int width, int height, int depth, bool windowed, int pages = 1);
 
     void setPlaygroundColors();
 
@@ -409,6 +410,8 @@ private:
 
     int col[NUM_OF_COL];
     int groundCol[3], wallCol[3];
+
+    static const int fogOfWarMaxAlpha = 0x38;
 
     mutable LogSet log;
 };

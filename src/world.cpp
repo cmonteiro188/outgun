@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -436,7 +436,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         double x1, y1, x2, y2;
         int texid, alpha;
         ist >> x1 >> y1 >> x2 >> y2;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> texid;
         else
             texid = 0;
@@ -1325,6 +1325,7 @@ const int WorldSettings::shadow_minimum_normal = 7;
 void WorldSettings::reset() {
     respawn_time = 2.0;
     waiting_time_deathbringer = 4.0;
+    respawn_balancing_time = 0;
     shadow_minimum = shadow_minimum_normal;
     rocket_damage = 70;
     time_limit = 0;     // no time limit
@@ -1332,6 +1333,12 @@ void WorldSettings::reset() {
     sudden_death = 0;
     capture_limit = 8;
     balance_teams = TB_disabled;
+}
+
+double WorldSettings::getRespawnTime(int playerTeamSize, int enemyTeamSize) const {
+    if (playerTeamSize <= enemyTeamSize || enemyTeamSize == 0)
+        return respawn_time;
+    return respawn_time + respawn_balancing_time * (playerTeamSize - enemyTeamSize) / (double)enemyTeamSize;
 }
 
 class ServerPhysicsCallbacks : public PhysicsCallbacksBase {
@@ -1843,7 +1850,12 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
 
     dropFlagIfAny(target);
 
-    double timeDelay = config.getRespawnTime() + time_penalty;
+    int ts[2] = { 0, 0 };
+    for (int i = 0; i < maxplayers; ++i)
+        if (player[i].used)
+            ++ts[i / TSIZE];
+    const int plTeam = target / TSIZE;
+    double timeDelay = config.getRespawnTime(ts[plTeam], ts[1 - plTeam]) + time_penalty;
     if (player[target].item_deathbringer && timeDelay < 1.8)    // the time required for a deathbringer explosion to reach the other end of the screen
         timeDelay = 1.8;
     player[target].respawn_time = get_time() + timeDelay;

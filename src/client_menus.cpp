@@ -2,7 +2,7 @@
  *  client_menus.cpp
  *
  *  Copyright (C) 2004, 2005 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -160,6 +160,7 @@ Menu_game::Menu_game() :
     saveStats           (_("Save game statistics"), false),
     showStats           (_("Show stats after the round")),
     showServerInfo      (_("Show server info when connected"), false),
+    stayDead            (_("Stay dead when in a menu at round start"), true),
     underlineMasterAuth (_("Underline master-authenticated players"), true),
     underlineServerAuth (_("Underline server-authenticated players"), false),
 
@@ -176,6 +177,7 @@ Menu_game::Menu_game() :
     menu.add_component(&saveStats);
     menu.add_component(&showStats);
     menu.add_component(&showServerInfo);
+    menu.add_component(&stayDead);
     menu.add_component(&underlineMasterAuth);
     menu.add_component(&underlineServerAuth);
     ins_space();
@@ -269,12 +271,13 @@ Menu_graphics::Menu_graphics() :
     resolution  (_("Screen size")),
     windowed    (_("Windowed mode"), true),
     flipping    (_("Use page flipping"), false),
+    alternativeFlipping(_("Alternative page flipping method"), false),
     refreshRate (_("Current refresh rate")),
     apply       (_("Apply changes")),
 
     theme       (_("Theme")),
     antialiasing(_("Antialiasing"), true),
-    minTransp   (_("Minimal transparency effects"), false),
+    minTransp   (_("Less transparency effects"), false),
     contTextures(_("Continuous textures between rooms"), false),
     minimapPlayers(_("Disappeared players on minimap")),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
@@ -289,6 +292,7 @@ Menu_graphics::Menu_graphics() :
     menu.add_component(&resolution);
     menu.add_component(&windowed);
     menu.add_component(&flipping);
+    menu.add_component(&alternativeFlipping);
     menu.add_component(&refreshRate);
     menu.add_component(&apply);
     ins_space();

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -753,6 +753,7 @@ bool Client::start() {
             break; case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1");
             break; case CCS_ShowStats:             menu.options.game.showStats.set(args == "1" ? Menu_game::SS_teams : args == "2" ? Menu_game::SS_players : Menu_game::SS_none);
             break; case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1");
+            break; case CCS_StayDeadInMenus:       menu.options.game.stayDead.set(args == "1");
             break; case CCS_UnderlineMasterAuth:   menu.options.game.underlineMasterAuth.set(args == "1");
             break; case CCS_UnderlineServerAuth:   menu.options.game.underlineServerAuth.set(args == "1");
             break; case CCS_AutoGetServerList:     menu.options.game.autoGetServerList.set(args == "1");
@@ -792,6 +793,7 @@ bool Client::start() {
                 }
             }
             break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
+            break; case CCS_AlternativeFlipping:   menu.options.graphics.alternativeFlipping.set(args == "1");
             break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
             break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);   // ignore error
             break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
@@ -3412,7 +3414,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
 
             while (clientReadiesWaiting > 1 ||
-                   (clientReadiesWaiting && openMenus.empty() && menusel == menu_none)) {
+                   (clientReadiesWaiting && (!menu.options.game.stayDead() ||
+                                             (openMenus.empty() && menusel == menu_none)))) {
                 send_client_ready();
                 --clientReadiesWaiting;
             }
@@ -3422,8 +3425,10 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
 
-                if (GlobalDisplaySwitchHook::readAndClear() && menu.options.graphics.flipping())
+                if (GlobalDisplaySwitchHook::readAndClear() && menu.options.graphics.flipping()) {
+                    client_graphics.videoMemoryCorrupted();
                     predraw();
+                }
             }
 
             if (time_counter >= nextSendFrame || time_counter >= nextClientFrameI)
@@ -3520,7 +3525,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         }
 
         client_graphics.endDraw();
-        client_graphics.draw_screen();
+        client_graphics.draw_screen(!menu.options.graphics.alternativeFlipping());
         if (screenshot) {
             save_screenshot();
             screenshot = false;
@@ -3571,6 +3576,7 @@ void Client::stop() {
         cfg << CCS_SaveStats            << ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
         cfg << CCS_ShowStats            << ' ' << ((menu.options.game.showStats() == Menu_game::SS_teams) ? 1 : (menu.options.game.showStats() == Menu_game::SS_players) ? 2 : 0) << '\n';
         cfg << CCS_ShowServerInfo       << ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
+        cfg << CCS_StayDeadInMenus      << ' ' << (menu.options.game.stayDead() ? 1 : 0) << '\n';
         cfg << CCS_UnderlineMasterAuth  << ' ' << (menu.options.game.underlineMasterAuth() ? 1 : 0) << '\n';
         cfg << CCS_UnderlineServerAuth  << ' ' << (menu.options.game.underlineServerAuth() ? 1 : 0) << '\n';
         cfg << CCS_AutoGetServerList    << ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
@@ -3590,6 +3596,7 @@ void Client::stop() {
         ScreenMode mode = menu.options.graphics.resolution();
         cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
         cfg << CCS_Flipping             << ' ' << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
+        cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.graphics.alternativeFlipping() ? 1 : 0) << '\n';
         cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
@@ -4299,6 +4306,7 @@ void Client::MCF_prepareGfxMenu() {
 
 void Client::MCF_prepareDrawGfxMenu() {
     menu.options.graphics.flipping.setEnable(!menu.options.graphics.windowed());
+    menu.options.graphics.alternativeFlipping.setEnable(!menu.options.graphics.windowed() && menu.options.graphics.flipping());
 }
 
 void Client::MCF_gfxThemeChange() {

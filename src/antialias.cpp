@@ -756,7 +756,7 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) {
                 break; case TextureData::T_flagmarker: tex.addLayer(new FlagmarkerPixelSource(data.f));
                 break; default: nAssert(0);
             }
-        }       
+        }
         renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
     }
 }

@@ -2,7 +2,7 @@
  *  client_menus.h
  *
  *  Copyright (C) 2004, 2005 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -103,6 +103,7 @@ public:
     Checkbox    saveStats;
     Select<ShowStatsMode> showStats;
     Checkbox    showServerInfo;
+    Checkbox    stayDead;
     Checkbox    underlineMasterAuth;
     Checkbox    underlineServerAuth;
     Checkbox    autoGetServerList;
@@ -149,6 +150,7 @@ public:
     Select<ScreenMode>  resolution;
     Checkbox            windowed;
     Checkbox            flipping;
+    Checkbox            alternativeFlipping;
     StaticText          refreshRate;
     Textarea            apply;
     Select<std::string> theme;

@@ -737,7 +737,7 @@ class WorldSettings {
 public:
     enum Team_balance { TB_disabled = 0, TB_balance, TB_balance_and_shuffle };
 
-    double respawn_time, waiting_time_deathbringer;
+    double respawn_time, waiting_time_deathbringer, respawn_balancing_time;
     int shadow_minimum; // smallest alpha value allowed; 0 is when even the coordinates are not sent
     int rocket_damage;
     NLulong time_limit;
@@ -750,7 +750,7 @@ public:
 
     void reset();
 
-    double getRespawnTime() const { return respawn_time; }
+    double getRespawnTime(int playerTeamSize, int enemyTeamSize) const;
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }
     int getShadowMinimum() const { return shadow_minimum; }
     int getCaptureLimit() const { return capture_limit; }

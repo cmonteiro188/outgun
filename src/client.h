@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -119,6 +119,8 @@ enum ClientCfgSetting {
     CCS_AutodetectAddress,
     CCS_ArrowKeysInStats,
     CCS_MinimapPlayers,
+    CCS_AlternativeFlipping,
+    CCS_StayDeadInMenus,
     CCS_MinTransp,
     CCS_MaxCommand = CCS_MinTransp
 };

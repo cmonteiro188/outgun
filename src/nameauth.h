@@ -55,6 +55,7 @@ class NameAuthorizationDatabase {
 
     mutable LogSet log;
 
+    int identifyName(const std::string& name) const;
     static std::string makeComparable(const std::string& name);
 
 public:
@@ -64,7 +65,7 @@ public:
     bool load();
     bool save() const;
 
-    int identifyName(const std::string& name) const;
+    bool isProtected(const std::string& name) const;
     bool checkNamePassword(const std::string& name, const std::string& password) const;
     bool isAdmin(const std::string& name) const;
 

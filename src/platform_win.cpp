@@ -44,6 +44,7 @@ int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return _vsnprintf(buf, count, fmt, arg);
 }
 
-void platMessageBox(const string& caption, const string& msg) {
+void platMessageBox(const string& caption, const string& msg, bool blocking) {
+    (void)blocking; // can't produce nonblocking messages too easily
     MessageBox(NULL, msg.c_str(), caption.c_str(), MB_OK);
 }

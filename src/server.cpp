@@ -357,6 +357,7 @@ void Server::sendMessage(int pid, Message_type type, const std::string& msg) {
 //refresh team ratings
 void Server::refresh_team_score_modifiers() {
     double raw[2] = { 0.0, 0.0 };
+    int players[2] = { 0, 0 };
 
     //somatorio raw ratings
     for (int p = 0; p < maxplayers; p++)
@@ -366,7 +367,19 @@ void Server::refresh_team_score_modifiers() {
                 raw[p / TSIZE] += 1.0;
             else
                 raw[p / TSIZE] += (client[world.player[p].cid].score + 1.0) / (client[world.player[p].cid].neg_score + 1.0);
+            ++players[p / TSIZE];
         }
+
+    if (!players[0] || !players[1]) {
+        team_smul[0] = team_smul[1] = 0;
+        return;
+    }
+
+    if (worldConfig.respawn_balancing_time >= 5.) {   // artificial treshold for "enough"
+        // assume team size to make no difference
+        raw[0] /= players[0];
+        raw[1] /= players[1];
+    }
 
     //modifiers
     team_smul[0] = bound(raw[1] / raw[0], .3333, 3.);
@@ -506,6 +519,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("idlekick_playerlimit",    &idlekick_playerlimit, 1, MAX_PLAYERS)),
         PT(new GS_Double    ("respawn_time",            &worldConfig.respawn_time, 0.)),
         PT(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.)),
+        PT(new GS_Double    ("respawn_balancing_time",  &worldConfig.respawn_balancing_time, 0.)),
         PT(new GS_Int       ("pup_shadow_invisibility", &worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal)),  // 0->smn, 1->0
         PT(new GS_Int       ("rocket_damage",           &worldConfig.rocket_damage, 0)),
         PT(new GS_Boolean   ("sayadmin_enabled",        &sayadmin_enabled)),
@@ -908,7 +922,7 @@ public:
 };
 
 bool Server::isLocallyAuthorized(int pid) const {
-    return world.player[pid].localIP || authorizations.identifyName(world.player[pid].name) != -1;  // must have authorized because otherwise couldn't use the name
+    return world.player[pid].localIP || authorizations.isProtected(world.player[pid].name); // must have authorized because otherwise couldn't use the name
 }
 
 bool Server::isAdmin(int pid) const {

@@ -212,9 +212,9 @@ void LogSet::security  (const char* fmt, ... ) { if (!securityLog) return; va_li
 
 bool g_allowBlockingMessages = true;
 
-void messageBox(const string& heading, const string& msg) {
+void messageBox(const string& heading, const string& msg, bool blocking) {
     if (g_allowBlockingMessages)
-        platMessageBox(heading, msg);
+        platMessageBox(heading, msg, blocking);
     else {
         std::cerr << heading << ":\n" << msg << '\n';
         ofstream os((wheregamedir + "log" + directory_separator + "suppressed_messages.txt").c_str(), std::ios_base::ate);
