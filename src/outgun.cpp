@@ -1,19 +1,18 @@
 #ifndef PUBLIC_SERVER
 //#define NR_CLIENT_AFFECTING
-#define NR_CONSOLE
-#define NR_VOTEMAP
-//#define NR_FIX_BOUNCING	// this probably won't be worth enabling even with further development since the client doesn't follow well
 #endif
 
+#define NR_CONSOLE	// console commands
 #define NR_PUP_TIME_ADDS
 #define NR_ITEM_TIME 60
 #define NR_DEATHBRINGER_SWITCH
 #define NR_NO_PUP_SWITCHING
 #define NR_VOTE_ANNOUNCE_INTERVAL 5
 #define NR_RANDOM_MAPROT
+//#define NR_FIX_BOUNCING
 
-#include <vector>	//#NR
-
+#include <vector>
+#include <list>
 
 #ifdef NR_FIX_BOUNCING
 /* NR_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
@@ -22,18 +21,17 @@
 #define NR_SHIFTY 0
 #endif
 
-//#NR
-#ifdef PUBLIC_SERVER
-//                           123456789*123456789*123456789*123456789*123456789*123456789*123456789*123456789*
-#define WELCOME_MESSAGE_1 "@TWelcome to Nix's Outgun server in Finland (bad ping to Brazil, sorry)"
-#define WELCOME_MESSAGE_2   "There are added features but the gameplay is standard except for powerups"
-#define WELCOME_MESSAGE_3   "Contact the admin at npr1@suomi24.fi if there are any problems"
-//#define WELCOME_MESSAGE_3   "Type /help for more details about this server and contact information"
-#else
-#define WELCOME_MESSAGE_1 "@TWelcome to Nix's Code Testing server (bad ping to Brazil, sorry)"
-#define WELCOME_MESSAGE_2   "This server is temporarily on to test new features I'm developing"
-#define WELCOME_MESSAGE_3   "Type /help for more details about this server and contact information"
-#endif
+// strspnp: (Watcom definition) find from str the first char not in charset
+char* strspnp(char* str, const char* charset) {
+	for (; *str; ++str)
+		if (strchr(charset, *str)==NULL)
+			return str;
+	return NULL;
+}
+
+const char* strspnp(const char* str, const char* charset) {
+	return strspnp(const_cast<char*>(str), charset);
+}
 
 /*
  *  This program is free software; you can redistribute it and/or modify
@@ -363,8 +361,8 @@ fica pro outgun II ...
 #include "string.h"
 #include "math.h"
 
-#include "pthread.h"
-#include "sched.h"
+#include "pthread/pthread.h"
+#include "pthread/sched.h"
 
 #include <string>
 using namespace std;
@@ -1357,8 +1355,10 @@ struct player_t {
 	int				weapon;	// poder da arma atual (nivel) 0,1,2,3,4 (...?)
 
 	bool			want_map_exit; //server side - player quer sair p/ proximo mapa na rotacao
-	#ifdef NR_VOTEMAP
+	#ifdef NR_CONSOLE
 	int mapVote;
+	typedef list< pair<int, string> > DMQueueT;
+	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
 	#endif
 
 	bool			want_change_teams;		//server-side: player wants do change teams?
@@ -1444,6 +1444,96 @@ struct player_t {
 	bool			hot1;		//valid for interpolation (onscreen) this frame
 	bool			walc;		//wall-corrected this frame
 	int				nits;		//iterations for phisics
+
+	void reset_message_queue_timing() {	// make messages already on queue appear instantly
+		for (DMQueueT::iterator m=delayedMessages.begin(); m!=delayedMessages.end(); ++m)
+			m->first=0;
+	}
+	void add_to_queue(const string& str) {
+		int time;	// in server frames (1/10 sec)
+		if (delayedMessages.size()<=5)
+			time=0;
+		else
+			time=30;
+		delayedMessages.push_back(pair<int, string>(time, str));
+	}
+	void queue_printf(const char* fmt, ...) {
+		char buf[16385];
+		va_list argptr;
+		va_start(argptr, fmt);
+		vsprintf(buf, fmt, argptr);
+		va_end(argptr);
+		add_to_queue(string(buf));
+	}
+	void clear(bool enable, bool is_bot, int _pid, int _cid, const char* _name) {
+		ping = 0;
+		frags = 0;	//reset score ?
+		oldfrags = -666;
+		want_map_exit = false;		//by default don't want change maps
+		#ifdef NR_CONSOLE
+		mapVote=-1;
+		delayedMessages.clear();
+		#endif
+		want_change_teams = false;	// don't want to change teams yet
+		team_change_time = 0;	
+		team_change_pending = false;
+		next_shoot_time = 0;
+		attack = false;
+		reg_status = ' ';
+		talk_temp = 0.0;
+		talk_hotness = 1.0;
+
+		cid=_cid;
+		id = _pid;
+		strcpy(name, _name);	//the default name
+		waitnametime = get_time() - 666.0;	//can change name right now
+			//default stats
+		total_kills = 0;
+		total_deaths = 0;
+		total_captures = 0;
+		start_time = (int)get_time();
+
+		// BOTZ: bot ou nao?
+		isbot = is_bot;
+			//default bot preferences
+		botmode = 0;
+		botsize = 0;
+			//score...  (V0.4.8 -- was missing!)
+		score = 0;
+		neg_score = 0;
+		rank = 0;
+
+		//#NR added to simulate memset(player_t, 0) :
+		awaiting_client_ready=false;
+		weapon=0;
+		speed_drop_time=wall_sound_time=0;
+		onscreen=false;
+		enemyvis=0;
+		item_deathbringer=deathbringer_affected=false;
+		item_deathbringer_time=0;
+		deathbringer_end=death_drop_time=0;
+		deathbringer_attacker=0;
+		item_shield=item_quad=item_speed=false;
+		item_helm=0;
+		item_quad_time=item_speed_time=item_helm_time=0;
+		quad_sound_finished=hitfx=0;
+		x=y=oldx=oldy=0;
+		drawptr=drawused=0;
+		health=energy=megabonus=0;
+		dead=old_dead=false;
+		respawn_time=0;
+		respawn_to_base=false;
+		hot1=walc=false;
+		nits=0;
+
+		if (enable) {
+			reg_status='-';
+			used=true;
+		}
+		else
+			used=false;
+	}
+
 };
 
 
@@ -2218,6 +2308,9 @@ public:
 	//hostname
 	char		hostname[256];
 
+    // welcome message line by line
+    vector<string> welcome_message;
+
 	// the players
 	player_t	player[MAX_PLAYERS];
 	int				ctop[256];			// client id-to-player id index. ctop[255] reservado para lixo area de bots
@@ -2887,7 +2980,8 @@ public:
 
 		//copy to t
 		//player[t] = player[f];
-		memcpy(&(player[t]), &(player[f]), sizeof(player_t));
+//		memcpy(&(player[t]), &(player[f]), sizeof(player_t));
+		player[t] = player[f];	//#NR
 
 		//copy hero
 		world.hero[t] = world.hero[f];
@@ -2922,10 +3016,7 @@ public:
 		if (player[b].health > 0)	game_damage_player(b, b, 333333);
 
 		//chutando: troca players inteiros;
-		player_t	ptemp;
-		ptemp = player[a];
-		player[a] = player[b];
-		player[b] = ptemp;
+		swap(player[a], player[b]);
 
 		//swap client id's
 		if (!player[a].isbot)
@@ -3747,6 +3838,7 @@ public:
 		ctf_drop_flag_if_any(pid);
 
 		//erase player
+		player[pid].delayedMessages.clear();
 		player[pid].used = false;
 
 		//bot prefs changed?
@@ -4267,7 +4359,7 @@ public:
 	*/
 
 	// V0.4.9 : broadcast message with varargs
-	void bprintf(char *fs, ...) {
+	void bprintf(const char *fs, ...) {
 		//vsprintf...
 		va_list argptr;
 		char msg[16384];
@@ -4289,7 +4381,7 @@ public:
 	}
 
 	//send a single message player-printf
-	void player_message(int pid, char *text) {
+	void player_message(int pid, const char *text) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 2);
 		writeString(lebuf, count, text);
@@ -4299,7 +4391,7 @@ public:
 	}
 
 	//broadcast message to all
-	void broadcast_message(char *text) {
+	void broadcast_message(const char *text) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 2);
 		writeString(lebuf, count, text);
@@ -4376,6 +4468,7 @@ public:
 					else if (!strcmp(s, "pup_chance_weapon")) cmd = 21;
 					else if (!strcmp(s, "pup_chance_megahealth")) cmd = 22;
 					else if (!strcmp(s, "pup_chance_deathbringer")) cmd = 23;
+					else if (!strcmp(s, "welcome_message")) cmd = 24;
 					else 
 						cmd = 0;
 
@@ -4473,7 +4566,10 @@ public:
 					else if (cmd == 23) {
 						pup_chance_deathbringer = ival;
 					}
-				}	
+					else if (cmd == 24) {
+                        welcome_message.push_back(s);
+					}
+				}
 
 				//parameter
 				command = !command;
@@ -4565,7 +4661,7 @@ public:
 			sprintf(lix, "Server changed map to: DEFAULT (0)");
 		}
 		else {
-			#ifdef NR_VOTEMAP
+			#ifdef NR_CONSOLE
 			vector<int> winners;
 			int maxVotes=0;
 			for (int m=0; m<maprots; ++m) {
@@ -4584,9 +4680,11 @@ public:
 			else
 				currmap=winners[rand()%winners.size()];
 			// clear votes for the current map
-			for (int p=0; p<maxplayers; ++p)
+			for (int p=0; p<maxplayers; ++p) {
+				player[p].want_map_exit=false;	//#NR added here because by default it is only reset in check_map_exit() and normal map rotation leaves it
 				if (player[p].mapVote==currmap)
 					player[p].mapVote=-1;
+			}
 			mapinfo[currmap].votes=0;
 			#else
 			//next map on rotation
@@ -4631,7 +4729,7 @@ public:
 				exit_count--;		//contra
 		}
 
-		#ifdef NR_VOTEMAP
+		#ifdef NR_CONSOLE
 		// this could be done elsewhere, but this function is called whenever votes change
 		for (int m=0; m<maprots; ++m)
 			mapinfo[m].votes=0;
@@ -5477,56 +5575,16 @@ public:
 				//players_present = players_present | (1 << i);
 
 				// init player
-				memset(&(player[i]), 0, sizeof(player_t));
-				player[i].ping = 0;
-				player[i].frags = 0;	//reset score ?
-				player[i].oldfrags = -666;
-				player[i].want_map_exit = false;		//by default don't want change maps
-				#ifdef NR_VOTEMAP
-				player[i].mapVote=-1;
-				#endif
-				player[i].want_change_teams = false;	// don't want to change teams yet
-				player[i].team_change_time = 0;	
-				player[i].team_change_pending = false;
-				player[i].next_shoot_time = 0;
-				player[i].attack = false;
-				player[i].reg_status = ' ';
-				player[i].talk_temp = 0.0;
-				player[i].talk_hotness = 1.0;
+				//#NR
+				int cid;
+				if (is_bot)
+					cid=222+i;
+				else
+					cid=id;
+				ctop[cid]=i;
 
-				if (!is_bot) {
-					ctop[id] = i;			// index for fast find
-					player[i].cid = id;
-				}
-				else {
-					ctop[222+i] = i;			// HACK 
-					player[i].cid = 222+i;
-				}
+				player[i].clear(true, is_bot, i, cid, SERVER_DEFAULT_PLAYER_NAME);
 
-				player[i].id = i;
-				strcpy(player[i].name, SERVER_DEFAULT_PLAYER_NAME);	//the default name
-				player[i].waitnametime = get_time() - 666.0;	//can change name right now
-
-				//default stats
-				player[i].total_kills = 0;
-				player[i].total_deaths = 0;
-				player[i].total_captures = 0;
-				player[i].start_time = (int)get_time();
-				
-				// BOTZ: bot ou nao?
-				player[i].isbot = is_bot;
-
-				//default bot preferences
-				player[i].botmode = 0;
-				player[i].botsize = 0;
-
-				//score...  (V0.4.8 -- was missing!)
-				player[i].score = 0;
-				player[i].neg_score = 0;
-				player[i].rank = 0;
-				player[i].reg_status = '-';
-
-				player[i].used = true;
 				myself = i;
 
 				// spawn player
@@ -5627,9 +5685,8 @@ public:
 			}
 
 			//#NR
-			server->send_message(id, "\x02" WELCOME_MESSAGE_1, sizeof(WELCOME_MESSAGE_1)/sizeof(char)+1);
-			server->send_message(id, "\x02" WELCOME_MESSAGE_2, sizeof(WELCOME_MESSAGE_2)/sizeof(char)+1);
-			server->send_message(id, "\x02" WELCOME_MESSAGE_3, sizeof(WELCOME_MESSAGE_3)/sizeof(char)+1);
+			for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
+				player[myself].add_to_queue(*line);
 		}
 
 		//check for team changes
@@ -5850,6 +5907,11 @@ public:
 					} while (msg[mi-1]!='\0');
 					//#NR handle 'console' commands
 					#ifdef NR_CONSOLE
+					if (player[pid].delayedMessages.size()>2) {
+						player[pid].delayedMessages.clear();
+						plprintf(pid, "@I(rest of message cancelled)");
+					}
+					player[pid].reset_message_queue_timing();
 					if (sbuf[0]=='/') {
 						char* pCommand=sbuf+1;
 						char cbuf[30];
@@ -5870,29 +5932,43 @@ public:
 						}
 						if (!strcmp(cbuf, "help")) {
 //											 123456789*123456789*123456789*123456789*123456789*123456789*123456789*123456789*
-							plprintf(pid, "@TConsole commands available on this server:");
-							plprintf(pid,   "/help        this screen");
-							plprintf(pid,   "/info        information about this server");
-							plprintf(pid,   "/config      current server configuration");
-							plprintf(pid,   "/mapinfo n   information about map n (default: current map)");
-							plprintf(pid,   "/votemap n   vote for the next map to be n (default: list maps and votes)");
-							plprintf(pid,   "/sayadmin t  forward \"t\" to the server admin (in English or Finnish, please)");
+							player[pid].queue_printf("@TConsole commands available on this server:");
+							player[pid].queue_printf(  "/help        this screen");
+							player[pid].queue_printf(  "/info        information about this server");
+							player[pid].queue_printf(  "/config      current server configuration");
+							player[pid].queue_printf(  "/mapinfo n   information about map n (default: current map)");
+							player[pid].queue_printf(  "/votemap n   vote for the next map to be n (default: list maps and votes)");
+							player[pid].queue_printf(  "/sayadmin t  forward \"t\" to the server admin (in English or Finnish, please)");
 						}
 						else if (!strcmp(cbuf, "info")) {
 							unsigned long uptime=frame/10/60;	// minutes
-							plprintf(pid, "@TThis is Nix's Outgun server in Finland (that means bad ping to Brazil, sorry)");
-							plprintf(pid,   "The server has been up for %d:%02d. It's not 24 h and may be shut down anytime.", uptime/60, uptime%60);
-							plprintf(pid,   "Contact the admin at npr1@suomi24.fi or send short messages using /sayadmin");
-							plprintf(pid,   "For more info go to http://koti.mbnet.fi/~npr/outgun/ (not yet online)");
-							plprintf(pid,   "type /config to see current server settings");
+							player[pid].queue_printf("@TThis is Nix's Outgun server in Finland (that means bad ping to Brazil, sorry)");
+							player[pid].queue_printf(  "The server has been up for %d:%02d. It's not 24 h and may be shut down anytime.", uptime/60, uptime%60);
+							player[pid].queue_printf(  "Contact the admin at npr1@suomi24.fi or send short messages using /sayadmin");
+//							player[pid].queue_printf(  "For more info go to http://koti.mbnet.fi/npr/outgun/");
+							player[pid].queue_printf(  "type /config to see current server settings");
 						}
 						else if (!strcmp(cbuf, "config")) {
-							plprintf(pid, "@W(under construction)");
+							player[pid].queue_printf("@TThese non-standard gameplay affecting features are on at this moment:");
+							#ifdef NR_PUP_TIME_ADDS
+							player[pid].queue_printf(  "* pickup items add %d seconds to what's left", NR_ITEM_TIME);
+							#elif NR_ITEM_TIME != 60
+							player[pid].queue_printf(  "* pickup item time is %d seconds", NR_ITEM_TIME);
+							#endif
+							#ifdef NR_DEATHBRINGER_SWITCH
+							player[pid].queue_printf(  "* picking up a second deathbringer cancels the first");
+							#endif
+							#ifdef NR_NO_PUP_SWITCHING
+							player[pid].queue_printf(  "* pickup items do not change when a player enters the room");
+							#endif
 						}
 						else if (!strcmp(cbuf, "sayadmin")) {
-							if (*pCommand!='\0') {
+							if (strspnp(pCommand, " ")!=NULL) {
 								FILE* logp=fopen("msglog.txt", "at+");
-								fprintf(logp, "%s: %s\n", player[pid].name, pCommand);
+								time_t tt=time(0);
+								struct tm* tmb=localtime(&tt);
+								fprintf(logp, "%d%02d%02d %02d:%02d:%02d  %s: %s\n", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday,
+										tmb->tm_hour, tmb->tm_min, tmb->tm_sec, player[pid].name, pCommand);
 								fclose(logp);
 								if (shellssock) {
 									char lebuf[256];
@@ -5902,24 +5978,22 @@ public:
 									writeString(lebuf, count, pCommand);
 									NLint result=nlWrite(shellssock, lebuf, count);
 								}
-								plprintf(pid, "@IYour message has been logged. Thank you for your feedback!");
+								player[pid].queue_printf("@IYour message has been logged. Thank you for your feedback!");
 							}
 							else
-								plprintf(pid, "@W(empty message ignored)");
+								player[pid].queue_printf("@W(empty message ignored)");
 						}
 						else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
 						if (*pCommand!='\0') {
 							int mid=atoi(pCommand)-1;
 							if (mid>=0 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0')
-								plprintf(pid, "@IMap %d is %s (%s.txt)", mid+1, mapinfo[mid].title.c_str(), mapinfo[mid].file.c_str());
+								player[pid].queue_printf("@IMap %d is %s (%s.txt)", mid+1, mapinfo[mid].title.c_str(), mapinfo[mid].file.c_str());
 							else
-								plprintf(pid, "@WValid map id's are 1 to %d", maprots);
+								player[pid].queue_printf("@WValid map id's are 1 to %d", maprots);
 						}
 						else
-							plprintf(pid, "@IThis map is %s (%s)", mapinfo[currmap].title.c_str(), mapinfo[currmap].file.c_str());
-							#ifdef NR_VOTEMAP
-							plprintf(pid, "@IType /votemap to see a list of all maps");
-							#endif
+							player[pid].queue_printf("@IThis map is %s (%s)", mapinfo[currmap].title.c_str(), mapinfo[currmap].file.c_str());
+							player[pid].queue_printf("@IType /votemap to see a list of all maps");
 						}
 						else if (!strcmp(cbuf, "votemap")) {
 							string status;
@@ -5941,15 +6015,15 @@ public:
 									}
 								}
 								else {
-									plprintf(pid, "@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprots);
+									player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprots);
 									err=true;
 								}
 							}
 							if (!err) {
 								if (status.length())
-									plprintf(pid, "@T(%s) Maps on this server: ID, votes, description", status.c_str());
+									player[pid].queue_printf("@T(%s) Maps on this server: ID, votes, description", status.c_str());
 								else
-									plprintf(pid, "@TMaps on this server: ID, votes, description");
+									player[pid].queue_printf("@TMaps on this server: ID, votes, description");
 								// 26 chars usable for entry, to fit three on a line
 								char buf[200]; int bufi=0;
 								int rows=(maprots+2)/3;
@@ -5965,19 +6039,19 @@ public:
 											strcpy(buf+bufi+24, "  ");
 										bufi+=26;
 									}
-									plprintf(pid, "%s", buf);
+									player[pid].queue_printf("%s", buf);
 									bufi=0;
 								}
 								if (!player[pid].want_map_exit)
-									plprintf(pid, "@IPress F4 to actually vote for a mapchange");
+									player[pid].queue_printf("@IPress F4 to actually vote for a mapchange");
 							}
 						}
 						else
-							plprintf(pid, "@WUnknown command %s. Type /help for a list.", cbuf);
+							player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
 					}
 					else
 					#endif
-					{
+					if (strspnp(sbuf, " ")!=NULL) {	// ignore messages that are all spaces
 						//talk flood protection
 						player[pid].talk_temp += player[pid].talk_hotness;
 						player[pid].talk_hotness += 3.0;
@@ -7071,6 +7145,15 @@ public:
 				bprintf("@I*** %d/%d votes for mapchange", votes, players);
 			}
 		}
+		//#NR check delayed messages
+		for (int i=0; i<maxplayers; ++i)
+			if (player[i].used && !player[i].isbot) {
+				player_t::DMQueueT& dm=player[i].delayedMessages;
+				while (dm.size() && --dm.begin()->first<0) {
+					player_message(i, dm.begin()->second.c_str());
+					dm.erase(dm.begin());
+				}
+			}
 
 		// (2)  broadcast the frame
 		//
@@ -12722,16 +12805,8 @@ public:
 		//reset world data
 		// players
       
-		for (i=0;i<MAX_PLAYERS;i++) {
-         memset(&(player[i]), 0, sizeof(player_t));
-			player[i].ping = 0;
-			player[i].id = i;
-			strcpy(player[i].name, "(name unknown)");
-			player[i].reg_status = ' ';
-			player[i].frags = 0;
-			player[i].used = false;		// set to true/false on frame updates. if the positional data is there,
-																//	then the player must be present. false otherwise.
-		}
+		for (i=0;i<MAX_PLAYERS;i++)
+			player[i].clear(false, false, i, 0, "(name unknown)"); //#NR: replaced manual initialization including memset(0)
 
 		//reset FPS count vars
 		framecount = 0;
