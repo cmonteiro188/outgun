@@ -440,7 +440,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             ist >> texid;
         else
             texid = 0;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> alpha;
         else
             alpha = 255;
@@ -462,11 +462,11 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         double x1, y1, x2, y2, x3, y3;
         int texid, alpha;
         ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> texid;
         else
             texid = 0;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> alpha;
         else
             alpha = 255;
@@ -488,19 +488,19 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         double x, y, ro, ri, a1, a2;
         int texid, alpha;
         ist >> type >> x >> y >> ro;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> ri;
         else
             ri = a1 = a2 = 0;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> a1 >> a2;
         else
             a1 = a2 = 0;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> texid;
         else
             texid = 0;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> alpha;
         else
             alpha = 255;
@@ -542,7 +542,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         string nextlabel;
         int rx1, ry1, rx2, ry2;
         ist >> nextlabel >> rx1 >> ry1;
-        if (ist && !ist.eof())
+        if (ist.good())
             ist >> rx2 >> ry2;
         else {  // one room only
             rx2 = rx1;

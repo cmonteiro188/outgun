@@ -379,6 +379,8 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 }
 
 void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
+    roombg.free();
+    roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
     // the room is textured like it's the room at coordinates (texRoomX,texRoomY)
     // this means moving the texture offsetting origin to the top left of room (0,0)
     int texOffsetBaseX = - texRoomX * iround(plw * scr_mul);
@@ -1100,12 +1102,20 @@ void Graphics::draw_deathbringer_smoke(int x, int y, double time, double alpha) 
     const int effAlpha = static_cast<int>((120 - time * 200.0) * alpha);
     if (effAlpha <= 0)
         return;
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, effAlpha);
+    int c;
+    if (!page_flipping) {
+        c = makecol(0, 0, 0);
+        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+        set_trans_blender(0, 0, 0, effAlpha);
+    }
+    else {
+        const int rgb = 120 - effAlpha;
+        c = makecol(rgb, rgb, rgb);
+    }
     const double drad = 3.0 + 9.0 * (0.6 - time);
     const int rad = scale(drad);
     const int subdist = scale(96.0 - drad * 8.0);
-    circlefill(drawbuf, plx + x, ply + y - subdist, rad, 0);
+    circlefill(drawbuf, plx + x, ply + y - subdist, rad, c);
     solid_mode();
 }
 
@@ -1159,6 +1169,8 @@ void Graphics::draw_deathbringer_affected(int x, int y, int team, int alpha) {
 }
 
 void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
+    if (page_flipping)
+        return;
     x = scale(x);
     y = scale(y);
     set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
@@ -1956,6 +1968,14 @@ void Graphics::show_not_responding_message() {
 bool Graphics::save_screenshot(const string& filename) const {
     PALETTE pal;
     get_palette(pal);
+    if (page_flipping) {
+        BITMAP* current_screen = drawbuf == vidpage1 ? vidpage2 : vidpage1;
+        BITMAP* temp = create_bitmap(current_screen->w, current_screen->h);
+        blit(current_screen, temp, 0, 0, 0, 0, current_screen->w, current_screen->h);
+        const bool success = !save_bitmap(filename.c_str(), temp, pal);
+        destroy_bitmap(temp);
+        return success;
+    }
     return !save_bitmap(filename.c_str(), drawbuf, pal);
 }
 
