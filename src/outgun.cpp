@@ -632,29 +632,132 @@ struct gamespy_t {
 	char info[128];
 };
 
-struct RectWall {
+struct RectWall {	// rectangular wall
 	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
 	int tex;	// texture id
 	int alpha;
 
 	RectWall() { }
-	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_) : a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) {
-		assert(c>a && d>b);
-	}
+	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_)
+			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) swap(a, c); if (d<b) swap(b, d); }
 	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
 };
 
+struct TriWall {	// triangular wall
+	int x1, y1, x2, y2, x3, y3;
+	int boundx1, boundy1, boundx2, boundy2;
+	int tex, alpha;
+
+	TriWall() { }
+	TriWall(int x1_, int y1_, int x2_, int y2_, int x3_, int y3_, int tex_, int alpha_)
+			: x1(x1_), y1(y1_), x2(x2_), y2(y2_), x3(x3_), y3(y3_), tex(tex_), alpha(alpha_) {
+		assert(y1<=y2 && y2<=y3);
+		boundx1=min(x1, min(x2, x3)), boundy1=min(y1, min(y2, y3));
+		boundx2=max(x1, min(x2, x3)), boundy2=max(y1, min(y2, y3));
+	}
+	bool intersects_rect(float x1, float y1, float x2, float y2) const;
+};
+
+/* subIntersection:
+ * returns true if the area between lines (lx1,ly1)-(lx2,ly2) and (rx1,ry1)-(rx2,ry2) intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
+ * every line must be y-ordered : ly1<=ly2, ry1<=ry2, recty1<=recty2 ; additionally rectx1<=rectx2 and lx(y)<=rx(y) for all applicable y
+ *
+ * how it works:
+ * for the appropriate range of y, if there exists an y so that lx(y)<=rectx2 AND rx(y)>=rectx1 , there is an intersection in that range
+ * those ranges are solved with simple linear equasions since lx and rx are linear
+ */
+bool subIntersection(float lx1, float ly1,  float lx2, float ly2,  float rx1, float ry1,  float rx2, float ry2,
+				float rectx1, float recty1, float rectx2, float recty2) {
+	assert(ly1<=ly2 && ry1<=ry2);
+	float miny = max(max(ly1, ry1), recty1), maxy=min(min(ly2, ry2), recty2);
+	if (maxy < miny)
+		return false;
+for (float y=miny; y<maxy; y+=(maxy-miny)/10.) {
+ float lx = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1);
+ float rx = rx1 + (y-ry1)*(rx2-rx1)/(ry2-ry1);
+ assert(lx<=rx);
+}#@
+	// first narrow the range by lx(y) <= rectx2
+	if (lx1 == lx2) {	// can't formulate a value for intersection-y
+		if (lx1 > rectx2)	// lx(y) <= rectx2 identically false => no solutions
+			return false;
+		// lx(y) <= rectx2 identically true => no narrowing from lx
+	}
+	else {
+		// solve lx(y) == rectx2 , where lx(y) = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1)
+		float intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
+		if (lx2 > lx1) {	// the intersection is at y <= intersect_y
+			if (maxy > intersect_y)
+				maxy = intersect_y;
+		}
+		else {	// the intersection is at y >= intersect_y
+			if (miny < intersect_y)
+				miny = intersect_y;
+		}
+	}
+	if (maxy < miny)
+		return false;
+	// now narrow the range further by rx(y) >= rectx1, similarly
+	if (rx1 == rx2)
+		return (rx1 >= rectx1);
+	else {
+		float intersect_y = (rectx1 - rx1) * (ry2 - ry1) / (rx2 - rx1) + ry1;
+		if (rx2 > rx1) {	// the intersection is at y >= intersect_y
+			if (miny < intersect_y)
+				miny = intersect_y;
+		}
+		else {	// the intersection is at y <= intersect_y
+			if (maxy > intersect_y)
+				maxy = intersect_y;
+		}
+	}
+	return (maxy >= miny);
+}
+
+bool TriWall::intersects_rect(float rx1, float ry1, float rx2, float ry2) const {
+	assert(ry1<=ry2 && rx1<=rx2);
+	assert(y1<=y2 && y2<=y3);
+	if (rx1>boundx2 || rx2<boundx1 || ry1>boundy2 || ry2<boundy1)
+		return false;
+	/* idea: triangle is split in two triangles: y<=y2 and y>=y2
+	 * for both parts, the right and left edge are checked separately
+	 * for each edge there may be a region [yi0, yi1] where (for a right side edge) xr(y)>=x1
+	 * if those regions overlap with each other and [ry1, ry2], there exists an intersection
+	 */
+	if (x2 < x1 + (y2-y1) * (x3-x1) / (y3-y1)) {	// p2 is left to the p1-p3 line
+		if (subIntersection(x1,y1, x2,y2, x1,y1, x3,y3, rx1, ry1, rx2, ry2))	// part y<=y2 : L,R sides p1-p2, p1-p3
+			return true;
+		if (subIntersection(x2,y2, x3,y3, x1,y1, x3,y3, rx1, ry1, rx2, ry2))	// part y>=y2 : L,R sides p2-p3, p1-p3
+			return true;
+	}
+	else {
+		if (subIntersection(x1,y1, x3,y3, x1,y1, x2,y2, rx1, ry1, rx2, ry2))	// part y<=y2 : L,R sides p1-p3, p1-p2
+			return true;
+		if (subIntersection(x1,y1, x3,y3, x2,y2, x3,y3, rx1, ry1, rx2, ry2))	// part y>=y2 : L,R sides p1-p3, p2-p3
+			return true;
+	}
+	return false;
+}
+
 struct Room {
-	vector<RectWall> walls;
-	vector<RectWall> ground;	// optional list of textures for ground [not used]
+	vector<RectWall> rwalls, rground;	// ground: optional list of textures for ground [not used]
+	vector<TriWall>  twalls, tground;
 
 	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
-		for (vector<RectWall>::const_iterator rwi=walls.begin(); rwi!=walls.end(); ++rwi)
+		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
 			rectfill(buffer, int(x0+xScale*rwi->a), int(y0+yScale*rwi->b), int(x0+xScale*rwi->c), int(y0+yScale*rwi->d), color);
+		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
+			triangle(buffer,
+					int(x0+xScale*twi->x1), int(y0+yScale*twi->y1),
+					int(x0+xScale*twi->x2), int(y0+yScale*twi->y2),
+					int(x0+xScale*twi->x3), int(y0+yScale*twi->y3), color);
 	}
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const {
-		for (vector<RectWall>::const_iterator rwi=walls.begin(); rwi!=walls.end(); ++rwi)
+		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
 			if (rwi->intersects_rect(x1, y1, x2, y2))
+				return true;
+		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
+			if (twi->intersects_rect(x1, y1, x2, y2))
 				return true;
 		return false;
 	}
@@ -676,7 +779,7 @@ struct teaminfo_t {
 };
 
 class Map {
-	bool parse_label(FILE *f, char *label, int crx, int cry);	// crx,cry = "current room pointer"
+	bool parse_label(FILE *f, const char *label, int crx, int cry);	// crx,cry = "current room pointer"
 
 public:
 	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?
@@ -695,58 +798,73 @@ public:
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
 	void draw_minimap(BITMAP* buffer) const;
-	bool load(FILE* f) { return parse_label(f, 0, 0, 0); }
+	bool load(FILE* f) { *this=Map(); return parse_label(f, 0, 0, 0); }
 };
 
-bool Map::parse_label(FILE *f, char *label, int crx=0, int cry=0) {	// crx,cry = "current room pointer"
-	bool labelscan = false;
-	char labeltmp[256];
-	if (label) {
-		labelscan = true;
-		sprintf(labeltmp, ":%s", label);
-	}
+bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	// crx,cry = "current room pointer"
 	rewind(f);
 	for (;;) {
 		char s[1024];
-		if (fgets((char *)s, 1024, f) == 0)	//end-of-file
-			return labelscan?false:true;
-
-		s[strlen(s)-1] = 0;	//erase \n
+		if (!fgets(s, 1024, f)) {	// end-of-file or error
+			if (scan_label) {
+				LOG1("Map label %s not found\n", scan_label);
+				return false;
+			}
+			else
+				return true;
+		}
+		s[strlen(s)-1] = '\0';	// erase \n
 		if (s[0] == '\0' || s[0]==';')
 			continue;
-		//if seeking for a label, ignore until it is found
-		if (labelscan) {
-			if (!strcmp(s, labeltmp))
-				labelscan = false;
+		if (s[0]==':') {	// a label is found
+			if (!scan_label)
+				return true;
+			if (!strcmp(s+1, scan_label))
+				scan_label = 0;
 			continue;
 		}
-		//end of label: when finds another label or ":"
-		if (!labelscan && s[0] == ':')
-			return true;
-
+		if (scan_label)
+			continue;
 		char nullc;	// to be used at ends of sscanf to make sure there is nothing extra on the line
 		if (s[0]=='W' || s[0]=='G') {	// W x1 y1 x2 y2 [tex alpha] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
-			bool is_solid = (s[0]=='W');
+			// required: x1<x2, y1<y2
 			float x1, y1, x2, y2;
 			int texid, alpha;
 			int n = sscanf(s+1, " %f %f %f %f %i %i %c", &x1, &y1, &x2, &y2, &texid, &alpha, &nullc);
 			if (n == 4) {
-				texid=-1;
-				alpha=255;
+				texid = -1;
+				alpha = 255;
 			}
-			else if (n!=6 || crx<0 || cry<0 || crx>=w || cry>=h) {
+			if ((n!=4 && n!=6) || crx<0 || cry<0 || crx>=w || cry>=h) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
-			int a, b, c, d;
-			a = (int)(x1 * (double)plw);
-			b = (int)(y1 * (double)plh);
-			c = (int)(x2 * (double)plw);
-			d = (int)(y2 * (double)plh);
-			Room& rm=room[crx][cry];
-			vector<RectWall>& wvec=is_solid?rm.walls:rm.ground;
-			wvec.push_back(RectWall(a, b, c, d, texid, alpha));
+			x1 *= plw; x2 *= plw;
+			y1 *= plh; y2 *= plh;
+			Room& rm = room[crx][cry];
+			vector<RectWall>& wvec = (s[0]=='W') ? rm.rwalls : rm.rground;
+			wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
 			continue;
+		}
+		if (s[0]=='T') {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex alpha] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
+			// required: y1<=y2, y2<=y3
+			char type;
+			float x1, y1, x2, y2, x3, y3;
+			int texid, alpha;
+			int n = sscanf(s+1, " %c %f %f %f %f %f %f %i %i %c", &type, &x1, &y1, &x2, &y2, &x3, &y3, &texid, &alpha, &nullc);
+			if (n == 7) {
+				texid = -1;
+				alpha = 255;
+			}
+			if ((n!=7 && n!=9) || (type!='W' && type!='G') || crx<0 || cry<0 || crx>=w || cry>=h) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			x1 *= plw; x2 *= plw; x3 *= plw;
+			y1 *= plh; y2 *= plh; y3 *= plh;
+			Room& rm = room[crx][cry];
+			vector<TriWall>& wvec = (type=='W') ? rm.twalls : rm.tground;
+			wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
 		}
 		if (s[0]=='R') {	// R x y : set room pointer to (x,y)
 			int n = sscanf(s+1, " %i %i %c", &crx, &cry, &nullc);
@@ -906,46 +1024,63 @@ void Map::draw_minimap(BITMAP* buffer) const {
 //#NR: new function for use by NR_wallcorrect()
 /* calculateDisplacement():
  *
- * calculates how many times the vector (mn,mp) can be traveled until wall (dn,dp1)-(dn,dp2) is hit by a circle of radius r (max value considered is 1.)
- * assumptions: mn>=0, dp1<dp2
+ * calculates how many times the vector (mx,my) can be traveled until wall (dx1,dy1)-(dx2,dy2) is hit by a circle of radius r (max value considered is 1.)
  *
  *
- *        (mn,mp)      __--
+ *        (mx,my)      __--
  *          \    __--^^
- *         __+-^^  + -dp1
+ *         __+-^^  + -(dx1,dy1)
  *     +-^^      .>|
- *   (0,0)      /  + -dp2
- *             /  dn
+ *   (0,0)      /  + -(dx2,dy2)
+ *             /
  * p         wall
  * |
  * +--n
  *
  * either
- * A) the circle hits the wall proper with it's center somewhere on the line (dn-r,dp1)-(dn-r,dp2) or
+ * A) the circle hits the wall proper with it's center projection on the line
  * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
  *
- * A: t(mn,mp)=(dn-r,y) where dp1<y<dp2
- * B: |t(mn,mp)-(dn,dp)|=r , taking the smaller solution of t (if any real solution exists)
+ * A: | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | = r , taking the smaller solution of t and making sure the point is on the line
+ * B: | t(mx,my)-(dx,dy) | = r , taking the smaller solution of t (if any real solution exists)
  *
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) )
  */
 typedef pair<double, double> Coords;
-pair<double, Coords> calculateDisplacement(double dn, double dp1, double dp2, double mn, double mp, double r) {	// n=normal, p=parallel ; d=distance, m=movement
-	assert(mn>=0); assert(dp1<dp2);
+pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {	// d=distance, m=movement
 	// check for solution A (if there is one, there is no need to check B)
-	double t=(dn-r)/mn;
-	if (t>=0.) {
-		double tp=t*mp;
-		if (tp>dp1 && tp<dp2)
-			return pair<double, Coords>(t, Coords(r, 0));	// follows from selection of t
-	}
+	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) + dy1(dx2-dx1) +-R
+	double diffx = dx2-dx1, diffy = dy2-dy1;
+	double div = mx*diffy - my*diffx;
+	if (div == 0)	// movement parallel to the line => no collision
+		return pair<double, Coords>(1., Coords());
+	double rBase = ( dx1*diffy + dy1*diffx ) / div;
+	double rAdd = r / div;
+	double t;
+	if (rBase - rAdd >= 0)	// select the first 'collision' with t>0 (the possible second one would not be a collision since we would be going away)
+		t = rBase - rAdd;
+	else
+		t = rBase + rAdd;
+	assert(t >= 0);
+	// make sure we are not off an end of the line
+	// this can surely be calculated in a simpler way, but this first came to mind
+	// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
+	// | t*m - collp |  minimum (=r)
+	// | t*m - p1 - k(p2-p1) |  minimum (=r)
+	// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
+	// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
+	// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
+	double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
+	if (k>=0 && k<=1)
+		return pair<double, Coords>(t, Coords(dx1+k*diffx, dy1+k*diffy));
+
 	double dist=1.;
 	Coords collisionCoords;
 	// check for solution B
 	// for dp1:
-	double m2=mn*mn+mp*mp, r2=r*r;	// same for dp2
-	double mdotd=mn*dn+mp*dp1;
-	double d2=dn*dn+dp1*dp1;
+	double m2=mx*mx+my*my, r2=r*r;	// same for dp2
+	double mdotd=mx*dx1+my*dy1;
+	double d2=dx1*dx1+dy1*dy1;
 	double disc=mdotd*mdotd-m2*(d2-r2);
 	if (disc>=0) {	// there are real solutions
 		t=(mdotd-sqrt(disc))/m2;	// select smaller t
@@ -953,12 +1088,12 @@ pair<double, Coords> calculateDisplacement(double dn, double dp1, double dp2, do
 			t=(mdotd+sqrt(disc))/m2;
 		if (t>=0 && t<dist) {
 			dist=t;
-			collisionCoords=Coords(dn-t*mn, dp1-t*mp);
+			collisionCoords=Coords(dx1-t*mx, dy1-t*my);
 		}
 	}
 	// for dp2:
-	mdotd=mn*dn+mp*dp2;
-	d2=dn*dn+dp2*dp2;
+	mdotd=mx*dx2+my*dy2;
+	d2=dx2*dx2+dy2*dy2;
 	disc=mdotd*mdotd-m2*(d2-r2);
 	if (disc>=0) {	// there are real solutions
 		t=(mdotd-sqrt(disc))/m2;	// select smaller t
@@ -966,7 +1101,7 @@ pair<double, Coords> calculateDisplacement(double dn, double dp1, double dp2, do
 			t=(mdotd+sqrt(disc))/m2;
 		if (t>=0 && t<dist) {
 			dist=t;
-			collisionCoords=Coords(dn-t*mn, dp2-t*mp);
+			collisionCoords=Coords(dx2-t*mx, dy2-t*my);
 		}
 	}
 	#ifndef NDEBUG
@@ -996,39 +1131,73 @@ bool NR_wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *s
 		Coords bounceVec;
 		Coords bbox0(min(stx-plyRadius, dtx-plyRadius), min(sty-plyRadius, dty-plyRadius)),
 		       bbox1(max(stx+plyRadius, dtx+plyRadius), max(sty+plyRadius, dty+plyRadius));
-		for (vector<RectWall>::const_iterator wi=r.walls.begin(); wi!=r.walls.end(); ++wi) {
+		for (vector<RectWall>::const_iterator wi=r.rwalls.begin(); wi!=r.rwalls.end(); ++wi) {	// go through rectangular walls first
 			// fast and crude bounding-box style check first
 			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 				continue;
 			// check more carefully
 			pair<double, Coords> rv;
-			rv.first=1.;
+			rv.first = 1.;
 			if (mx>0 && wi->a>stx) {	// check vertical wall a
-				rv=calculateDisplacement(wi->a - stx, wi->b - sty, wi->d - sty,  mx, my, plyRadius);	// n=x, p=y
+				rv = calculateDisplacement(wi->a - stx, wi->b - sty, wi->d - sty,  mx, my, plyRadius);	// n=x, p=y
 				// rv is already in room coordinates
 			}
 			else if (mx<0 && wi->c<stx) {	// check vertical wall c
-				rv=calculateDisplacement(stx - wi->c, wi->b - sty, wi->d - sty, -mx, my, plyRadius);	// n=-x, p=y
-				rv.second.first*=-1;	// n: -x -> x
+				rv = calculateDisplacement(stx - wi->c, wi->b - sty, wi->d - sty, -mx, my, plyRadius);	// n=-x, p=y
+				rv.second.first *= -1;	// n: -x -> x
 			}
-			if (rv.first<minMovement) {
-				minMovement=rv.first;
-				bounceVec=rv.second;
+			if (rv.first < minMovement) {
+				minMovement = rv.first;
+				bounceVec = rv.second;
 			}
 			if (my>0 && wi->b>sty) {	// check horizontal wall b
-				rv=calculateDisplacement(wi->b - sty, wi->a - stx, wi->c - stx,  my, mx, plyRadius);	// n=y, p=x
+				rv = calculateDisplacement(wi->b - sty, wi->a - stx, wi->c - stx,  my, mx, plyRadius);	// n=y, p=x
 				// rv is already in reverse room coordinates
 			}
 			else if (my<0 && wi->d<sty) {	// check horizontal wall d
-				rv=calculateDisplacement(sty - wi->d, wi->a - stx, wi->c - stx, -my, mx, plyRadius);	// n=-y, p=x
-				rv.second.first*=-1;	// n: -y -> y
+				rv = calculateDisplacement(sty - wi->d, wi->a - stx, wi->c - stx, -my, mx, plyRadius);	// n=-y, p=x
+				rv.second.first *= -1;	// n: -y -> y
 			}
-			swap(rv.second.first, rv.second.second);	// was x/y-flipped
-			if (rv.first<minMovement) {
-				minMovement=rv.first;
-				bounceVec=rv.second;
+			if (rv.first < minMovement) {
+				minMovement = rv.first;
+				swap(rv.second.first, rv.second.second);	// was x/y-flipped
+				bounceVec = rv.second;
 			}
 		}
+/*
+		for (vector<TriWall>::const_iterator wi=r.twalls.begin(); wi!=r.twalls.end(); ++wi) {	// go through triangular walls separately
+			// fast and crude bounding-box style check first
+			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
+				continue;
+			// check more carefully
+			pair<double, Coords> rv;
+			rv.first = 1.;
+			double trans[2];
+			calcTransform(trans, wi->x1, wi->y1, wi->x2, wi->y2);
+			double d1[2], d2[2], m[2];
+			transform(d1, trans, wi->x1, wi->y1); transform(d2, trans, wi->x2, wi->y2); transform(m, mx, my);
+			assert(fabs(d1[0]-d2[0])<.0001);
+			rv = calculateDisplacement(d1[0], d1[1], d2[1], m[0], m[1], plyRadius);
+			if (rv.first < minMovement) {
+				minMovement = rv.first;
+				// inverse transform
+				double invt[2] = { trans[0], -trans[1] };
+				transform(d1, invt, rv.second.first, rv.second.second);
+				bounceVec.first=d1[0];
+				bounceVec.second=d1[1];
+			}
+
+
+
+
+
+
+			rv = rotateAndCalculate(wi->x1, wi->y1, wi->x3, wi->y3, stx, sty, mx, my, plyRadius);
+			if (rv.first < minMovement) { minMovement = rv.first; bounceVec = rv.second; }
+			rv = rotateAndCalculate(wi->x2, wi->y2, wi->x3, wi->y3, stx, sty, mx, my, plyRadius);
+			if (rv.first < minMovement) { minMovement = rv.first; bounceVec = rv.second; }
+		}
+*/
 		assert(minMovement>=0. && minMovement<=1.);
 		stx+=mx*minMovement*.999;	// make sure we aren't going the least bit inside a wall :)
 		sty+=my*minMovement*.999;
@@ -1097,13 +1266,13 @@ bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, 
 		had_wall_hit = false;
 		bool y_solved = false;
 
-		for (int w=0;w<(int)r->walls.size();w++) {
+		for (int w=0;w<(int)r->rwalls.size();w++) {
 			int runaw = 100;
-			while (wallhit((*x),(*y)-NR_SHIFTY,r->walls[w])) {
+			while (wallhit((*x),(*y)-NR_SHIFTY,r->rwalls[w])) {
 				had_wall_hit = true;
 				(*x) += dx;
 				y_solved = false;
-				if (!(wallhit((*x),(*y)-NR_SHIFTY,r->walls[w])))
+				if (!(wallhit((*x),(*y)-NR_SHIFTY,r->rwalls[w])))
 				break;
 				(*y) += dy;
 				y_solved = true;
@@ -1145,9 +1314,9 @@ bool wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *sy, 
 //draw a wall, solid or nonsolid, texid, lum, in a map
 void drawwall_tex(Map *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
 	if (is_solid)
-		m->room[x][y].walls.push_back(RectWall(a, b, c, d, tex, alpha));
+		m->room[x][y].rwalls.push_back(RectWall(a, b, c, d, tex, alpha));
 	else
-		m->room[x][y].ground.push_back(RectWall(a, b, c, d, tex, alpha));
+		m->room[x][y].rground.push_back(RectWall(a, b, c, d, tex, alpha));
 }
 
 //draw a solid wall in a map
@@ -1695,8 +1864,6 @@ public:
 
 bool load_map(char *mapdir, char *mapname, Map *map, NLushort *crc) {
 	//clear
-	*map = Map();
-
 	char lebuffer[1024];
 	char dest[WHERE_PATH_SIZE];
 
@@ -4370,7 +4537,7 @@ public:
 				++mapinfo[player[p].mapVote].votes;
 		#endif
 
-		if ((map_start_time+vote_block_time<frame && num_for>num_against) || (num_for && num_against==0)) {	// num_for to not change with no players...
+		if ((map_start_time+vote_block_time<frame && num_for>num_against) || num_against==0) {
 			server_next_map(NEXTMAP_VOTE_EXIT);
 			ctf_game_restart();
 		}
