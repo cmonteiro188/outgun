@@ -1,11 +1,36 @@
 #ifndef PUBLIC_SERVER
-//#define NR_CLIET_AFFECTING
+//#define NR_CLIENT_AFFECTING
+#define NR_CONSOLE_COMMANDS
+//#define NR_FIX_BOUNCING	// this probably won't be worth enabling even with further development since the client doesn't follow well
+#endif
+
+#define NR_PUP_TIME_ADDS
+#define NR_ITEM_TIME 60
+#define NR_DEATHBRINGER_SWITCH
+#define NR_NO_PUP_SWITCHING
+#define NR_VOTE_ANNOUNCE_INTERVAL 5
+#define NR_RANDOM_MAPROT
+
+
+#ifdef NR_FIX_BOUNCING
+/* NR_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
+#define NR_SHIFTY 15
+#else
+#define NR_SHIFTY 0
 #endif
 
 //#NR
+#ifdef PUBLIC_SERVER
+//                           123456789*123456789*123456789*123456789*123456789*123456789*123456789*123456789*
 #define WELCOME_MESSAGE_1 "@TWelcome to Nix's Outgun server in Finland (bad ping to Brazil, sorry)"
-#define WELCOME_MESSAGE_2 "The gameplay is standard but there are some server tweaks to the official 0.5.0"
-#define WELCOME_MESSAGE_3 "Contact me at npr1@suomi24.fi if there are any problems"
+#define WELCOME_MESSAGE_2   "There are added features but the gameplay is standard except for powerups"
+#define WELCOME_MESSAGE_3   "Contact the admin at npr1@suomi24.fi if there are any problems"
+//#define WELCOME_MESSAGE_3   "Type /config for more details or contact npr1@suomi24.fi if there are problems"
+#else
+#define WELCOME_MESSAGE_1 "@TWelcome to Nix's Code Testing server (bad ping to Brazil, sorry)"
+#define WELCOME_MESSAGE_2   "This server is temporarily on to test new features I'm developing"
+#define WELCOME_MESSAGE_3   "Contact me at npr1@suomi24.fi when there are problems"
+#endif
 
 /*
  *  This program is free software; you can redistribute it and/or modify
@@ -492,7 +517,7 @@ int			maxplayers = MAX_PLAYERS;		// the maximum number of players configured for
 
 #define MAX_ROCKETS 256		// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
-#ifdef NR_CLIET_AFFECTING
+#ifdef NR_CLIENT_AFFECTING
 #define MAX_PICKUPS 256
 #else
 #define MAX_PICKUPS MAX_PLAYERS	// the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
@@ -860,15 +885,168 @@ class map_c { public:
 	NLushort crc;	//map's 16bit CRC
 };
 
+#ifdef NR_FIX_BOUNCING
+
+//#NR: new function for use by wallcorrect()
+/* calculateDisplacement():
+ *
+ * calculates how many times the vector (mn,mp) can be traveled until wall (dn,dp1)-(dn,dp2) is hit by a circle of radius r (max value considered is 1.)
+ * assumptions: mn>=0, dp1<dp2
+ *
+ *
+ *        (mn,mp)      __--
+ *          \    __--^^
+ *         __+-^^  + -dp1
+ *     +-^^      .>|
+ *   (0,0)      /  + -dp2
+ *             /  dn
+ * p         wall
+ * |
+ * +--n
+ *
+ * either
+ * A) the circle hits the wall proper with it's center somewhere on the line (dn-r,dp1)-(dn-r,dp2) or
+ * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
+ *
+ * A: t(mn,mp)=(dn-r,y) where dp1<y<dp2
+ * B: |t(mn,mp)-(dn,dp)|=r , taking the smaller solution of t (if any real solution exists)
+ *
+ * returns: pair( t, pair(collisionn-centern, collisionp-centerp) )
+ */
+typedef pair<double, double> Coords;
+pair<double, Coords> calculateDisplacement(double dn, double dp1, double dp2, double mn, double mp, double r) {	// n=normal, p=parallel ; d=distance, m=movement
+	assert(mn>=0); assert(dp1<dp2);
+	// check for solution A (if there is one, there is no need to check B)
+	double t=(dn-r)/mn;
+	if (t>=0.) {
+		double tp=t*mp;
+		if (tp>dp1 && tp<dp2)
+			return pair<double, Coords>(t, Coords(r, 0));	// follows from selection of t
+	}
+	double dist=1.;
+	Coords collisionCoords;
+	// check for solution B
+	// for dp1:
+	double m2=mn*mn+mp*mp, r2=r*r;	// same for dp2
+	double mdotd=mn*dn+mp*dp1;
+	double d2=dn*dn+dp1*dp1;
+	double disc=mdotd*mdotd-m2*(d2-r2);
+	if (disc>=0) {	// there are real solutions
+		t=(mdotd-sqrt(disc))/m2;	// select smaller t
+		if (t<0)
+			t=(mdotd+sqrt(disc))/m2;
+		if (t>=0 && t<dist) {
+			dist=t;
+			collisionCoords=Coords(dn-t*mn, dp1-t*mp);
+		}
+	}
+	// for dp2:
+	mdotd=mn*dn+mp*dp2;
+	d2=dn*dn+dp2*dp2;
+	disc=mdotd*mdotd-m2*(d2-r2);
+	if (disc>=0) {	// there are real solutions
+		t=(mdotd-sqrt(disc))/m2;	// select smaller t
+		if (t<0)
+			t=(mdotd+sqrt(disc))/m2;
+		if (t>=0 && t<dist) {
+			dist=t;
+			collisionCoords=Coords(dn-t*mn, dp2-t*mp);
+		}
+	}
+	#ifndef NDEBUG
+	double dnn=collisionCoords.first, dnp=collisionCoords.second;
+	assert(fabs(dnn*dnn+dnp*dnp-r*r)<.0001 || dist>=1.);
+	#endif
+	return pair<double, Coords>(dist, collisionCoords);
+}
+
+//#NR: return instead of true=bounce, false=no bounce : 1=normal bounce, 0=no bounce, 2=special bounce (one that the clients won't calculate right)
+//#NR: whole function re-done
+int wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy, double *ox, double *oy, int px, int py, bool TEMPTEST=false) {
+	static const double plyRadius=15;
+
+	if (px < 0) return 0;
+	if (py < 0) return 0;
+	if (px >= map->w) return 0;
+	if (py >= map->h) return 0;
+	const room_c& r=map->room[px][py];
+
+	double stx=*ox, sty=*oy-NR_SHIFTY;	// start pos
+	double dtx=* x, dty=* y-NR_SHIFTY;	// destination
+
+	double mx=dtx-stx, my=dty-sty;	// movement vector
+
+	double minMovement=1.;
+	Coords bounceVec;
+	for (int wi=0; wi<WALLMAX; ++wi) {
+		if (r.wall[wi].a == -1)	// no such wall
+			continue;
+		const wall_c& w=r.wall[wi];
+		// fast and crude bounding-box style check first
+		if (max(stx+plyRadius, dtx+plyRadius)<w.a || min(stx-plyRadius, dtx-plyRadius)>w.c
+		 || max(sty+plyRadius, dty+plyRadius)<w.b || min(sty-plyRadius, dty-plyRadius)>w.d)
+			continue;
+		// check more carefully
+		pair<double, Coords> rv;
+		if (mx>0) {	// check vertical wall a
+			rv=calculateDisplacement(w.a-stx, w.b-sty, w.d-sty,  mx, my, plyRadius);	// n=x, p=y
+			// rv is already in room coordinates
+		}
+		else {     	// check vertical wall c
+			rv=calculateDisplacement(stx-w.c, w.b-sty, w.d-sty, -mx, my, plyRadius);	// n=-x, p=y
+			rv.second.first*=-1;	// n: -x -> x
+		}
+		if (rv.first<minMovement) {
+			minMovement=rv.first;
+			bounceVec=rv.second;
+		}
+		if (my>0) {	// check horizontal wall b
+			rv=calculateDisplacement(w.b-sty, w.a-stx, w.c-stx,  my, mx, plyRadius);	// n=y, p=x
+			// rv is already in reverse room coordinates
+		}
+		else {     	// check horizontal wall d
+			rv=calculateDisplacement(sty-w.d, w.a-stx, w.c-stx, -my, mx, plyRadius);	// n=-y, p=x
+			rv.second.first*=-1;	// n: -y -> y
+		}
+		swap(rv.second.first, rv.second.second);	// was x/y-flipped
+		if (rv.first<minMovement) {
+			minMovement=rv.first;
+			bounceVec=rv.second;
+		}
+	}
+	assert(minMovement>=0. && minMovement<=1.);
+if (TEMPTEST) return minMovement>0.;
+	minMovement*=.999;	// make sure we aren't going the least bit inside a wall :)
+	stx+=mx*minMovement;
+	sty+=my*minMovement;
+	*x=stx;
+	*y=sty+NR_SHIFTY;
+	*ox=*x;
+	*oy=*y;
+assert(wallcorrect(p, map, x, y, sx, sy, ox, oy, px, py, true));
+	if (minMovement<.998) {	// has bounced
+		// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
+		// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
+		double mul=2.*((*sx)*bounceVec.first+(*sy)*bounceVec.second)/(plyRadius*plyRadius);
+		(*sx) -= mul*bounceVec.first;
+		(*sy) -= mul*bounceVec.second;
+
+		// check for the only kind of bounce that the clients will detect: collision (almost) straight downwards
+		if (bounceVec.second>plyRadius*.9)
+			return 1;	// "normal" bounce
+		return 2;	// "special" bounce
+	}
+	return 0;	// no bounce
+}
+
+#else	// NR_FIX_BOUNCING
 //wall hit?
 bool wallhit(double x, double y, wall_c &w) {
-
 	if (((int)x) >= (w.a))
 	if (((int)x) <= (w.c))
 	if (((int)y) >= (w.b)) 
 	if (((int)y) <= (w.d))
 		return true;
-
 	return false;
 }
 
@@ -913,7 +1091,7 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 			//check collision. if yes, take x,y out of the wall
 			//
 			int runaw = 100;
-			while (wallhit((*x),(*y),r->wall[w])) {
+			while (wallhit((*x),(*y)-NR_SHIFTY,r->wall[w])) {
 			//if (wallhit((*x),(*y),r->wall[w])) {
 
 				//at least one wall hit this turn
@@ -924,7 +1102,7 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 				(*x) += dx;
 				y_solved = false;
 
-				if (!(wallhit((*x),(*y),r->wall[w])))
+				if (!(wallhit((*x),(*y)-NR_SHIFTY,r->wall[w])))
 				break;
 
 				//push y out of wall
@@ -969,8 +1147,8 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 		if ( 
 			   ((*x) <= 0.01) || 
 			   ((*x) >= ((double)plw) - 0.01) ||
-			   ((*y) <= 0.01) || 
-			   ((*y) >= ((double)plh) - 0.01)
+			   ((*y)-NR_SHIFTY <= 0.01) || 
+			   ((*y)-NR_SHIFTY >= ((double)plh) - 0.01)
 			 )
 		{
 			// just back up
@@ -984,6 +1162,7 @@ bool wallcorrect(int p, map_c* map, double *x, double *y, double *sx, double *sy
 
 	return ever_had_wall_hit;
 }
+#endif	// NR_FIX_BOUNCING else
 
 //draw a wall, solid or nonsolid, texid, lum, in a map
 void drawwall_tex(map_c *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
@@ -1931,7 +2110,8 @@ enum {
 #define SERVER_DEFAULT_PLAYER_NAME "**DEFAULT**"
 
 #define MAPFILENAMESIZE 32			// e tah mais que bom!
-#define MAPROTSIZE      32			//tambem mais do que bom
+//#define MAPROTSIZE      32			//tambem mais do que bom
+#define MAPROTSIZE      200			//tambem mais do que bom //#NR
 
 // client count
 int	player_count;
@@ -2069,6 +2249,10 @@ public:
 	bool	builtin;		//using the builtin map
 	char	maprot[MAPROTSIZE][MAPFILENAMESIZE];
 
+	//#NR: vote announce timer
+	NLulong next_vote_announce_frame;
+	int last_vote_announce_votes, last_vote_announce_needed;
+
 	//server showing gameover plaque?
 	bool	gameover;
 	double		gameover_time;		//timeout for gameover plaque
@@ -2083,6 +2267,9 @@ public:
 		hostname[0]=0;	//hostname
 		//memset(&world, 0, sizeof(frame_t));		//the current frame (game world simulation state)
 		frame = 0;		// current frame count
+		next_vote_announce_frame = 0;
+		last_vote_announce_votes = last_vote_announce_needed = 0;
+
 		server_kbps_traffic = 0;		//total server traffic in kbytes/sec
 		ping_send_counter = 0;		// ping send counter
 		ping_send_client = 0;
@@ -2964,6 +3151,14 @@ public:
 		player[pid].item_deathbringer = false;//
 		player[pid].deathbringer_end = 0;		//not hit by deathbringer yet
 
+		// clear pup-list (the client won't do it!?)	//#NR
+		for (int iid=0; iid<MAX_PICKUPS; ++iid) {
+			char lebuf[256]; int count=0;
+			writeByte(lebuf, count, 16);	//	item removed
+			writeByte(lebuf, count, iid);
+			server->send_message(player[pid].cid, lebuf, count);
+		}
+
 		//for all effects, player screen changed
 		game_player_screen_change(pid);
 
@@ -3800,14 +3995,22 @@ public:
 		//boots
 		else if (it->kind == 2) {
 
+#ifdef NR_PUP_TIME_ADDS
+			double itemTime=player[p].item_speed_time-get_time();
+			if (!player[p].item_speed || itemTime<0)
+				itemTime=0;
+			itemTime+=NR_ITEM_TIME;
+#else
+			double itemTime=NR_ITEM_TIME;
+#endif
 			player[p].item_speed = true;	
-			player[p].item_speed_time = get_time() + 60.0;
+			player[p].item_speed_time = get_time() + itemTime;
 
 			if (!player[p].isbot) {
 				char lebuf[256]; int count = 0;
 				writeByte(lebuf, count, 17);		//powerup time indicator
 				writeByte(lebuf, count, it->kind);		//what kind
-				writeShort(lebuf, count, (NLushort)60);		//time
+				writeShort(lebuf, count, (NLushort)itemTime);		//time
 				server->send_message(player[p].cid, lebuf, count);
 			}
 
@@ -3816,14 +4019,22 @@ public:
 		//helm
 		else if (it->kind == 3) {
 
+#ifdef NR_PUP_TIME_ADDS
+			double itemTime=player[p].item_helm_time-get_time();
+			if (!player[p].item_helm || itemTime<0)
+				itemTime=0;
+			itemTime+=NR_ITEM_TIME;
+#else
+			double itemTime=NR_ITEM_TIME;
+#endif
 			player[p].item_helm = 1;		//invis maximo de inicio
-			player[p].item_helm_time = get_time() + 60.0;
+			player[p].item_helm_time = get_time() + itemTime;
 
 			if (!player[p].isbot) {
 				char lebuf[256]; int count = 0;
 				writeByte(lebuf, count, 17);		//powerup time indicator
 				writeByte(lebuf, count, it->kind);		//what kind
-				writeShort(lebuf, count, (NLushort)60);		//time
+				writeShort(lebuf, count, (NLushort)itemTime);		//time
 				server->send_message(player[p].cid, lebuf, count);
 			}
 
@@ -3832,14 +4043,22 @@ public:
 		//quad
 		else if (it->kind == 4) {
 
+#ifdef NR_PUP_TIME_ADDS
+			double itemTime=player[p].item_quad_time-get_time();
+			if (!player[p].item_quad || itemTime<0)
+				itemTime=0;
+			itemTime+=NR_ITEM_TIME;
+#else
+			double itemTime=NR_ITEM_TIME;
+#endif
 			player[p].item_quad = true;		
-			player[p].item_quad_time = get_time() + 60.0;
+			player[p].item_quad_time = get_time() + itemTime;
 
 			if (!player[p].isbot) {
 				char lebuf[256]; int count = 0;
 				writeByte(lebuf, count, 17);		//powerup time indicator
 				writeByte(lebuf, count, it->kind);		//what kind
-				writeShort(lebuf, count, (NLushort)60);		//time
+				writeShort(lebuf, count, (NLushort)itemTime);		//time
 				server->send_message(player[p].cid, lebuf, count);
 			}
 
@@ -3888,9 +4107,12 @@ public:
 		}
 		//deathbringer
 		else if (it->kind == 7) {
-
+			#ifdef NR_DEATHBRINGER_SWITCH
+			player[p].item_deathbringer=!player[p].item_deathbringer;
+			#else
 			//flag as having the deathbringer
 			player[p].item_deathbringer = true;
+			#endif
 
 			broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
 		}
@@ -3914,6 +4136,7 @@ public:
 			if (it->px == player[p].x) // item on screen that player is entering
 			if (it->py == player[p].y) {
 
+				#ifndef NR_NO_PUP_SWITCHING
 				//broadcast_message("sending powerup update\n");
 				
 				//v0.1.2: PRIMEIRO verifica se tem mais alguem nessa tela. se nao
@@ -3959,6 +4182,7 @@ public:
 					if ((it->kind == 5) && (player[p].weapon >= 8))
 						it->kind = (NLubyte)original;
 				}
+				#endif	// NR_NO_PUP_SWITCHING
 
 				//send a "item on the screen" message
 				if (!player[p].isbot) {
@@ -4026,7 +4250,7 @@ public:
 		broadcast_message(lix);
 	}
 	*/
-	
+
 	// V0.4.9 : broadcast message with varargs
 	void bprintf(char *fs, ...) {
 		//vsprintf...
@@ -4038,6 +4262,15 @@ public:
 
 		//broadcast it
 		broadcast_message(msg);
+	}
+	void plprintf(int pid, const char* fmt, ...) {	//#NR: bprintf for a single player
+		char buf[16385];
+		buf[0]=2;	// server text
+		va_list argptr;
+		va_start(argptr, fmt);
+		vsprintf(buf+1, fmt, argptr);
+		va_end(argptr);
+		server->send_message(player[pid].cid, buf, strlen(buf)+1);
 	}
 
 	//send a single message player-printf
@@ -4192,13 +4425,17 @@ public:
 					}
 					else if (cmd == 15) {
 						if (ival >= 0)
-						if (ival < MAX_PICKUPS)
+//						if (ival < MAX_PICKUPS)
+						if (ival <= MAX_PICKUPS)	//#NR
 							pups_min = ival;
+						else LOG1("Can't set pups_min to %d\n", pups_min);	//#NR
 					}
 					else if (cmd == 16) {
-						if (ival >= 10)
+//						if (ival >= 10)
+						if (val >= 0) //#NR
 						if (ival <= 60)
 							pups_respawn_time = ival;
+						else LOG1("Can't set pups_respawn_time to %d\n", pups_min);	//#NR
 					}
 					else if (cmd == 17) {
 						pup_chance_shield = ival;
@@ -4364,6 +4601,10 @@ public:
 			for (i=0;i<maxplayers;i++)
 				player[i].want_map_exit = false;
 
+			//#NR
+			next_vote_announce_frame = 0;	// let new announce be made as soon as someone votes
+			last_vote_announce_votes = last_vote_announce_needed = 0;
+
 			//vai para o proximo mapa
 			server_next_map(NEXTMAP_VOTE_EXIT);
 			
@@ -4480,6 +4721,16 @@ public:
 				result = al_findnext(&mapffblk);
 			}
 		}
+
+		#ifdef NR_RANDOM_MAPROT
+		for (int p=0; p<maprots; ++p) {
+			char buf[MAPFILENAMESIZE];
+			int i=p+rand()%(maprots-p);
+			strcpy(buf, maprot[p]);
+			strcpy(maprot[p], maprot[i]);
+			strcpy(maprot[i], buf);
+		}
+		#endif
 
 		// load first map from rotation list, or load built-in if still no maps found
 		if (maprots == 0) {
@@ -5542,19 +5793,49 @@ public:
 						server->send_message(player[pid].cid, elbuf, elcnt);
 					}
 					else {
-						// check for team message:
-						if (msg[1] == '.') {
-							sprintf(talkmsg, "@T%s: %s", player[pid].name, &(msg[2]));
-							broadcast_team_message(pid/TSIZE, talkmsg);
+						//#NR remove single %'s
+						char sbuf[strlen(msg+1)+1];
+						int si=0, mi=1;
+						do {
+							if (msg[mi]!='%')
+								sbuf[si++]=msg[mi++];
+							else if (msg[mi+1]=='%') {	// allow pairs of '%' only
+								sbuf[si++]='%';
+								sbuf[si++]='%';
+								mi+=2;
+							}
+							else
+								++mi;
+						} while (msg[mi-1]!='\0');
+						//#NR handle 'console' commands
+						#ifdef NR_CONSOLE_COMMANDS
+						bool forceCommand=false;
+						char* pCommand=sbuf;
+						if (pCommand[0]=='/') {
+							forceCommand=true;
+							++pCommand;
 						}
-						//regular msg
-						else {
-							sprintf(talkmsg, "%s: %s", player[pid].name, &(msg[1]));
-							broadcast_message(talkmsg);
+						if (!strcmp(pCommand, "help")) {
+							plprintf(pid, "@W[the 'console' command facility is being built, help will appear here]");
 						}
-
-						// log
-						//LOG4("client %i player %i name %s says: '%s'\n", id, pid, player[pid].name, &(msg[1]));
+						else if (forceCommand)
+							plprintf(pid, "@WUnknown command %s. Type help for a list.", pCommand);
+						else // say
+						#endif
+						{
+							// check for team message:
+							if (msg[1] == '.') {
+								sprintf(talkmsg, "@T%s: %s", player[pid].name, sbuf+1);
+								broadcast_team_message(pid/TSIZE, talkmsg);
+							}
+							//regular msg
+							else {
+								sprintf(talkmsg, "%s: %s", player[pid].name, sbuf);
+								broadcast_message(talkmsg);
+							}
+							// log
+							//LOG4("client %i player %i name %s says: '%s'\n", id, pid, player[pid].name, &(msg[1]));
+						}
 					}
 				}
 				//+attack
@@ -5895,37 +6176,69 @@ public:
 		if (hd->x < 0) hd->x = 0;
 		else if (hd->x > plw) hd->x = plw;
 
+		//#NR lots done to relocate the y-coordinate so that it represents the wanted place of shadow (bottom of player)
+		//    which is how it is interpreted elsewhere; but at the same time fix the bouncing
 		//move y
 		hd->y = h->y + hd->sy;
-		if (hd->y < 0) hd->y = 0;
-		else if (hd->y > plh) hd->y = plh;
+		if (hd->y-NR_SHIFTY < 0) hd->y = 0 +NR_SHIFTY;
+		else if (hd->y-NR_SHIFTY > plh) hd->y = plh +NR_SHIFTY;
 
 		//wall collision correction
+		#ifdef NR_FIX_BOUNCING
+		if (wallcorrect(i, &map, &(hd->x), &(hd->y), &(hd->sx), &(hd->sy), &hd->ox, &hd->oy, h->tx, h->ty)==2) {	//#NR: 2 means clients won't detect it
+			//player bounced: play bounce sample if minimum time elapsed
+			if (get_time() > player[i].wall_sound_time || get_time() + 0.2 < player[i].wall_sound_time) {	// second test means w_s_t is invalid (since it is not initialized, ever)
+				player[i].wall_sound_time = get_time() + 0.2;
+				broadcast_screen_sample(i, SAMPLE_WALLBOUNCE);
+			}
+		}
+		#else
 		wallcorrect(i, &map, &(hd->x), &(hd->y), &(hd->sx), &(hd->sy), &hd->ox, &hd->oy, h->tx, h->ty);
+		#endif
 
 		//check room change x
+		#ifdef NR_FIX_BOUNCING
+		if (hd->x >= plw-1) {	//#NR
+			hd->x = 2;
+		#else
 		if (hd->x == plw) {
 			hd->x = 1;
+		#endif
 			hd->tx = h->tx + 1;
 			if (hd->tx > map.w - 1)
 				hd->tx = 0;
 		}
+		#ifdef NR_FIX_BOUNCING
+		else if (hd->x <= 1) {	// #NR
+			hd->x = plw - 2;
+		#else
 		else if (hd->x == 0) {
 			hd->x = plw - 1;
+		#endif
 			hd->tx = h->tx - 1;
 			if (hd->tx < 0)
 				hd->tx = map.w - 1;
 		}
 
 		//check room change y
-		if (hd->y == plh) {
-			hd->y = 1;
+		#ifdef NR_FIX_BOUNCING
+		if (hd->y-NR_SHIFTY >= plh-1) {	// #NR
+			hd->y = 2 +NR_SHIFTY;
+		#else
+		if (hd->y-NR_SHIFTY == plh) {
+			hd->y = 1 +NR_SHIFTY;
+		#endif
 			hd->ty = h->ty + 1;
 			if (hd->ty > map.h - 1)
 				hd->ty = 0;
 		}
-		else if (hd->y == 0) {
-			hd->y = plh - 1;
+		#ifdef NR_FIX_BOUNCING
+		else if (hd->y-NR_SHIFTY <= 1) {	//#NR
+			hd->y = plh - 2 +NR_SHIFTY;
+		#else
+		else if (hd->y-NR_SHIFTY == 0) {
+			hd->y = plh - 1 +NR_SHIFTY;
+		#endif
 			hd->ty = h->ty - 1;
 			if (hd->ty < 0)
 				hd->ty = map.h - 1;
@@ -6566,6 +6879,24 @@ public:
 			} // player.health > 0
 
     }
+
+		//#NR announce voting status
+		if (frame >= next_vote_announce_frame) {
+			int votes=0, players=0;
+			for (int i=0; i<maxplayers; ++i)
+				if (player[i].used && !player[i].isbot) {
+					++players;
+					if (player[i].want_map_exit)
+						++votes;
+				}
+			players=players/2+1;
+			if (votes!=last_vote_announce_votes || (players!=last_vote_announce_needed && votes!=0)) {
+				last_vote_announce_votes=votes;
+				last_vote_announce_needed=players;
+				next_vote_announce_frame=frame+NR_VOTE_ANNOUNCE_INTERVAL*10;
+				bprintf("@I*** %d/%d votes for mapchange", votes, players);
+			}
+		}
 
 		// (2)  broadcast the frame
 		//
@@ -7892,7 +8223,8 @@ public:
 			if (result != 1)	//interrupted
 				return false;
 
-			if (buf[n] == '0')	//string was terminated
+//			if (buf[n] == '0')	//string was terminated
+			if (buf[n] == '\0')	//#NR //string was terminated
 				return true;
 
 			n++;
@@ -8556,6 +8888,7 @@ volatile bool	listen_server_running = false;
 pthread_t	listen_server_thread;
 
 void *thread_listenserver_f(void *arg) {
+	srand(time(0));	//#NR
 
 	//save for display
 	listen_port_running = port;		//port selectr
