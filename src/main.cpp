@@ -102,7 +102,7 @@ void statusOutputWindow(const string& str) {
 
 void statusOutputText(const string& str) {
 	#ifndef ALLEGRO_WINDOWS
-	cout << str << '\n';
+	std::cout << str << '\n';
 	#else
 	statusOutputWindow(str);
 	#endif
