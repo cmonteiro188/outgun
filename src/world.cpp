@@ -2362,10 +2362,8 @@ void ServerWorld::simulateFrame() {
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
 						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter) {
-LOG("+extrapolate\n");
 	if (source.skipped) {
 		skipped = true;
-LOG("-R0\n");
 		return;
 	}
 	nAssert(source.frame > 0);
@@ -2388,19 +2386,15 @@ LOG("-R0\n");
 			rock[i] = source.rock[i];
 	}
 
-int count=0;
 	for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {	// note: it is OK to wrap around in the middle of the sequence
-LOG1("%d", count);
-++count;
 		player[me].controls = ctrlTab[ctrli];
 		applyPhysics(physCallbacks, PLAYER_RADIUS-1., 1.);	// 1 is full frame
 		++frame;
 	}
-LOG("e");
-	player[me].controls = ctrlTab[ctrlLast];
+	if (ctrlFirst == ctrlLast)	// no other data in this case
+		player[me].controls = ctrlTab[ctrlLast];
 	applyPhysics(physCallbacks, PLAYER_RADIUS-1., subFrameAfter);
 	frame += subFrameAfter;
 	// PLAYER_RADIUS-1. is used to counter problems in bouncing caused by inaccurate positions over network
-LOG("-extrapolate\n");
 }
 
