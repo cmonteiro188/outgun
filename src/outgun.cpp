@@ -1581,6 +1581,8 @@ struct player_t {
 	int		total_shots;
 	int		total_hits;
 	int		total_shots_taken;
+	int		last_spawn_time;
+	int 	lifetime;
 	double	total_movement;
 	int		start_time;
 
@@ -1646,6 +1648,8 @@ struct player_t {
 		total_shots_taken = 0;
 		total_movement = 0;
 		start_time = (int)get_time();
+		last_spawn_time = start_time;
+		lifetime = 0;
 
 		// BOTZ: bot ou nao?
 		isbot = is_bot;
@@ -3269,6 +3273,8 @@ public:
 
 		player[pid].respawn_to_base = false;
 
+		player[pid].last_spawn_time = (int)get_time();
+
 		#ifdef NR_SUPPORT_OLD_CLIENTS
 		// clear pup-list (the default client won't do it)
 		for (int iid=0; iid<MAX_PICKUPS; ++iid) {
@@ -3670,6 +3676,7 @@ public:
 		if (++player[target].current_consecutive_deaths > player[target].most_consecutive_deaths)
 			player[target].most_consecutive_deaths = player[target].current_consecutive_deaths;
 		player[target].current_consecutive_kills = 0;
+		player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
 
 		if (player[target].item_deathbringer) {
 			//record time to simulate the deathbringer explosion
@@ -6127,6 +6134,9 @@ public:
 						}
 						else if (!strcmp(cbuf, "stats")) {
 							int playing_time = (int)get_time() - player[pid].start_time;  // seconds
+							int lifetime = player[pid].lifetime;
+							if (player[pid].respawn_time < get_time())
+								lifetime += (int)get_time() - player[pid].last_spawn_time;
 							player[pid].queue_printf("Your stats: %d captures, %d kills, %d deaths, %d suicides",
 								player[pid].total_captures,
 								player[pid].total_kills,
@@ -6152,12 +6162,14 @@ public:
 								player[pid].total_shots_taken);
 							player[pid].queue_printf("Distance travelled: %.0lf units, average speed %.2lf units/s.",
 								player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
-								player[pid].total_movement/30./double(playing_time));
-							int lifetime = playing_time / (player[pid].total_deaths + 1);
-							player[pid].queue_printf("You have played %d minutes. Your average lifetime is %d:%02d.",
+								player[pid].total_movement/30./double(lifetime));
+							int av_lifetime = lifetime / (player[pid].total_deaths + 1);
+							player[pid].queue_printf("You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
 								playing_time / 60,
 								lifetime / 60,
-								lifetime % 60);
+								lifetime % 60,
+								av_lifetime / 60,
+								av_lifetime % 60);
 							// Add more stats: flag carrying time, etc.
 						}
 						#ifdef NR_NAME_AUTHORIZATION
