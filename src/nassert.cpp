@@ -48,7 +48,7 @@ void nasprintf(const char* expr, ...) {
 	char buf[10000];
 	_vsnprintf(buf, 10000, expr, argptr);
 	va_end(argptr);
-	allegro_message("%s\nTo help us fix this, please send assert.log and stackdump.bin from the log directory and describe what you were doing to npr1@suomi24.fi", buf);
+	allegro_message("%s\nTo help us fix this, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi", buf);
 	#endif // DISABLE_ENHANCED_NASSERT
 }
 
