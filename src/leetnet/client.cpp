@@ -742,7 +742,7 @@ void *thread_reader_f(void *arg) {
 		// check for error
 		if (amount == NL_INVALID) {
 			//DEBUG FIXME: error in nlGetError
-			volatile static int menosmenos = 0;
+			static volatile int menosmenos = 0;
 			if (menosmenos == 0) {
 				LOG("CLIENT READER: NL_INVALID!!\n");
 			}

@@ -113,7 +113,7 @@ public:
 // get rid of (or move elsewhere)
 	bool used;
 	int id;
-	char name[64];
+	string name;
 	int ping;
 	int frags;
 	bool dead;
@@ -122,11 +122,11 @@ public:
 	int neg_score;
 
 	virtual ~PlayerBase() { }
-	void clear(bool enable, int _pid, const char* _name) {
+	void clear(bool enable, int _pid, const string& _name) {
 		ping = 0;
 		frags = 0;
 		id = _pid;
-		strcpy(name, _name);	//the default name
+		name = _name;
 		item_deathbringer = item_shield = item_quad = item_speed = false;
 		item_helm = 0;
 		roomx = roomy = 0;
@@ -471,10 +471,12 @@ public:
 	NLulong getTimeLimit() const { return time_limit; }
 };
 
-class gameserver_c;	//#fix: get rid of this callback system
+class ServerNetworking;
+class gameserver_c;	//#fix: get rid of non-networking callbacks?
 
 class ServerWorld : public WorldBase {
 	gameserver_c* host;
+	ServerNetworking* net;
 	PowerupSettings pupConfig;
 	WorldSettings config;
 
@@ -485,7 +487,7 @@ public:
 	NLulong map_start_time;	// frame #
 	ServerPlayer player[MAX_PLAYERS];
 
-	ServerWorld(gameserver_c* hostp) : host(hostp) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+	ServerWorld(gameserver_c* hostp, ServerNetworking* netp) : host(hostp), net(netp), frame(0), map_start_time(0) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 
 	void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
 
@@ -495,6 +497,8 @@ public:
 	void dropFlag(int team, int roomx, int roomy, int lx, int ly);
 	void stealFlag(int team, int carrier);
 	int getMapTime() const { return frame - map_start_time; }
+	bool isTimeLimit() const { return config.getTimeLimit() > 0; }
+	int getTimeLeft() const { return (config.getTimeLimit() - getMapTime()) / 10; }
 
 	// server specific functions
 	void reset();
@@ -519,7 +523,6 @@ public:
 	void swapRocketOwners(int a, int b);
 
 	void simulateFrame();
-	void ctf_game_restart();
 };
 
 class gameclient_c;	//#fix: get rid of this callback system

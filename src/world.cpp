@@ -1,6 +1,16 @@
 #include "commont.h"
 #include "world.h"
 
+#define PHYS_NEW
+//#define PHYS_VECTOR_ACC
+
+/* PHYS_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
+#ifdef PHYS_NEW
+#define PHYS_SHIFTY 15
+#else
+#define PHYS_SHIFTY 0
+#endif
+
 /* subIntersection:
  * returns true if the area between lines (lx1,ly1)-(lx2,ly2) and (rx1,ry1)-(rx2,ry2) intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
  * every line must be y-ordered : ly1<=ly2, ry1<=ry2, recty1<=recty2 ; additionally rectx1<=rectx2 and lx(y)<=rx(y) for all applicable y
@@ -1022,6 +1032,8 @@ void ServerWorld::reset() {
 	for (int i=0;i<MAX_PICKUPS;i++)
 		item[i].kind = 0;
 	check_pickup_creation(true);
+
+	map_start_time = frame;
 }
 
 void ServerWorld::printTimeStatus(LineReceiver& printer) {
@@ -1044,7 +1056,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	if (config.getTimeLimit() == 0)
 		map_time << " There is no time limit.";
 	else {
-		int remaining_seconds = (config.getTimeLimit() / 10 - seconds);
+		int remaining_seconds = getTimeLeft();
 		// time limit not very useful when only one player
 		int players = 0;
 		for (int i = 0; i < maxplayers; i++)
@@ -1064,25 +1076,25 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 
 void ServerWorld::returnFlag(int team) {
 	WorldBase::returnFlag(team);
-	host->ctf_net_flag_status(-1, team);
+	net->ctf_net_flag_status(-1, team);
 }
 
 void ServerWorld::dropFlag(int team, int roomx, int roomy, int lx, int ly) {
 	WorldBase::dropFlag(team, roomx, roomy, lx, ly);
-	host->ctf_net_flag_status(-1, team);
+	net->ctf_net_flag_status(-1, team);
 }
 
 void ServerWorld::stealFlag(int team, int carrier) {
 	WorldBase::stealFlag(team, carrier);
-	host->ctf_net_flag_status(-1, team);
+	net->ctf_net_flag_status(-1, team);
 }
 
 bool ServerWorld::dropFlagIfAny(int pid) {
 	int enemyteam = 1 - (pid/TSIZE);
 	if (!flag[enemyteam].carried || flag[enemyteam].carrier!=pid)
 		return false;
-	host->bprintf("@I%s LOST THE %s FLAG!", player[pid].name, teamname[enemyteam]);
-	host->broadcast_sample(SAMPLE_CTF_LOST);
+	net->bprintf("@I%s LOST THE %s FLAG!", player[pid].name.c_str(), teamname[enemyteam]);
+	net->broadcast_sample(SAMPLE_CTF_LOST);
 	dropFlag(enemyteam, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
 	player[pid].total_flags_dropped++;
 	return true;
@@ -1138,7 +1150,7 @@ void ServerWorld::respawnPlayer(int pid) {
 		} while (runaway-- > 0);
 
 		if (runaway <= 0)
-			host->broadcast_message("PLAYER SPAWN RUNAWAY");
+			net->broadcast_message("PLAYER SPAWN RUNAWAY");
 	}
 
 	//put player there
@@ -1159,7 +1171,7 @@ void ServerWorld::respawnPlayer(int pid) {
 
 	player[pid].weapon = 0;		//default weapon
 
-	host->sendWeaponPower(pid);
+	net->sendWeaponPower(pid);
 
 	player[pid].item_shield = false;
 	player[pid].item_quad = false;
@@ -1238,23 +1250,12 @@ void ServerWorld::respawn_pickup(int p) {
 		if (!hit)
 			break;
 		if (--runaway < 0) {
-			host->broadcast_message("ITEM SPAWN RUNAWAY");
+			net->broadcast_message("ITEM SPAWN RUNAWAY");
 			return;
 		}
 	}
-	//choose a powerup kind
-	//v0.4.4 : roulette kind
-	int kind = pupConfig.choose_powerup_kind(); //1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
-
-	//v0.4.0 chance to set deathbringer to something else
-	//if (kind == 7)
-	//if (rand() % 100 <= 50)
-	//kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
-
-	//alloc powerup
+	int kind = pupConfig.choose_powerup_kind();
 	item[p].kind = (NLubyte)kind;
-
-	//item[p].respawning = false;
 	item[p].px = px;
 	item[p].py = py;
 	item[p].x = itemx;	//copy from randomized position
@@ -1263,7 +1264,7 @@ void ServerWorld::respawn_pickup(int p) {
 	//fixes "invisible powerup" problem, I hope
 	for (i=0;i<maxplayers;i++)
 		if (player[i].used && player[i].roomx==px && player[i].roomy==py)
-			host->sendPickupVisible(i, p, item[p]);
+			net->sendPickupVisible(i, p, item[p]);
 }
 
 // verifica powerups unused por jogadores presentes
@@ -1313,7 +1314,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 16);		//"item removed"
 	writeByte(lebuf, count, (NLubyte)pk);	//what item id
-	host->broadcast_screen_message(it->px, it->py, lebuf, count);
+	net->broadcast_screen_message(it->px, it->py, lebuf, count);
 
 	switch (it->kind) {
 		case 1: {	// shield
@@ -1330,7 +1331,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 					player[p].energy = 200;
 			}
 
-			host->broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
+			net->broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
 			break;
 		}
 		case 2: {	// turbo
@@ -1342,8 +1343,8 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			player[p].item_speed = true;
 			player[p].item_speed_time = get_time() + itemTime;
 
-			host->sendPupTime(p, it->kind, itemTime);
-			host->broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
+			net->sendPupTime(p, it->kind, itemTime);
+			net->broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
 			break;
 		}
 		case 3:	{	// shadow
@@ -1355,8 +1356,8 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			player[p].item_helm = 1;		//invis maximo de inicio
 			player[p].item_helm_time = get_time() + itemTime;
 
-			host->sendPupTime(p, it->kind, itemTime);
-			host->broadcast_screen_sample(p, SAMPLE_HELM_ON);
+			net->sendPupTime(p, it->kind, itemTime);
+			net->broadcast_screen_sample(p, SAMPLE_HELM_ON);
 			break;
 		}
 		case 4:	{	// power
@@ -1368,8 +1369,8 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			player[p].item_quad = true;
 			player[p].item_quad_time = get_time() + itemTime;
 
-			host->sendPupTime(p, it->kind, itemTime);
-			host->broadcast_screen_sample(p, SAMPLE_QUAD_ON);
+			net->sendPupTime(p, it->kind, itemTime);
+			net->broadcast_screen_sample(p, SAMPLE_QUAD_ON);
 			break;
 		}
 		case 5:	{	// weapon
@@ -1382,13 +1383,13 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 					player[p].energy = 200;
 			}
 
-			host->sendWeaponPower(p);
-			host->broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
+			net->sendWeaponPower(p);
+			net->broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
 			break;
 		}
 		case 6:	{	// megahealth
 			player[p].megabonus += 160;
-			host->broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
+			net->broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
 			break;
 		}
 		case 7: {	// deathbringer
@@ -1397,7 +1398,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			else
 				player[p].item_deathbringer = true;
 
-			host->broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
+			net->broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
 			break;
 		}
 	}
@@ -1469,7 +1470,7 @@ void ServerWorld::game_player_screen_change(int p) {
 			}
 			#endif	// SV_NO_PUP_SWITCHING
 
-			host->sendPickupVisible(p, i, item[i]);
+			net->sendPickupVisible(p, i, item[i]);
 		}
 	}
 }
@@ -1506,7 +1507,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player
 	if (player[target].item_deathbringer) {
 		//record time to simulate the deathbringer explosion
 		player[target].item_deathbringer_time = frame;
-		host->sendDeathbringer(target, player[target]);
+		net->sendDeathbringer(target, player[target]);
 	}
 
 	resetPlayer(target, (player[target].item_deathbringer || time_penalty)?config.getDeathbringerWaitingTime():0);
@@ -1523,10 +1524,10 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 			player[target].energy = 0;
 			player[target].item_shield = false;
 			if (!deathbringer)
-				host->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+				net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
 		}
 		else if (!deathbringer)
-			host->broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+			net->broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
 	}
 	//else do the regular body damage
 	else {
@@ -1550,12 +1551,12 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	if (flag[tateam].carried) {
 		int p = flag[tateam].carrier;
 		if (player[p].used && p!=attacker && player[p].roomx==player[target].roomx && player[p].roomy==player[target].roomy) {
-			host->bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
+			net->bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), teamname[atteam]);
 			host->score_frag(attacker, 1);
 		}
 	}
 	if (!flag[atteam].carried && flag[atteam].pos.px==player[target].roomx && flag[atteam].pos.py==player[target].roomy) {
-		host->bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
+		net->bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), teamname[atteam]);
 		host->score_frag(attacker, 1);
 	}
 	if (flag[atteam].carried && flag[atteam].carrier==target) {
@@ -1565,11 +1566,11 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 
 	if (deathbringer) {
 		if (player[attacker].used)
-			host->bprintf("@I%s was choked by %s", player[target].name, player[attacker].name);
-		host->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
+			net->bprintf("@I%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
+		net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
 	}
 	else
-		host->bprintf("@I%s was nailed by %s", player[target].name, player[attacker].name);
+		net->bprintf("@I%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
 
 	killPlayer(target, false);
 }
@@ -1630,12 +1631,12 @@ void ServerWorld::shootRockets(int pid, int shots) {
 	for (int k=0;k<shots;k++)
 		rock[ sid[k] ].vislist = vislist;
 
-	host->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y);
+	net->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
 	rocket_c* r = &rock[rid];
-	host->sendRocketDeletion(r->vislist, rid, hitx, hity, targ);
+	net->sendRocketDeletion(r->vislist, rid, hitx, hity, targ);
 	r->owner = -1;
 }
 
@@ -1678,7 +1679,7 @@ void ServerWorld::simulateFrame() {
 		if (player[i].oldfrags != player[i].frags) {
 			//updated
 			player[i].oldfrags = player[i].frags;
-			host->sendFragUpdate(i, player[i].frags);
+			net->sendFragUpdate(i, player[i].frags);
 		}
 
 		// check powerups expired
@@ -1686,17 +1687,17 @@ void ServerWorld::simulateFrame() {
 		if (player[i].item_speed)
 			if (get_time() > player[i].item_speed_time) {
 				player[i].item_speed = false;
-				host->broadcast_screen_sample(i, SAMPLE_BOOTS_OFF);
+				net->broadcast_screen_sample(i, SAMPLE_BOOTS_OFF);
 			}
 		if (player[i].item_quad)
 			if (get_time() > player[i].item_quad_time) {
 				player[i].item_quad = false;
-				host->broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
+				net->broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
 			}
 		if (player[i].item_helm)
 			if (get_time() > player[i].item_helm_time) {
 				player[i].item_helm = 0;
-				host->broadcast_screen_sample(i, SAMPLE_HELM_OFF);
+				net->broadcast_screen_sample(i, SAMPLE_HELM_OFF);
 			}
 
 		// helm alpha down
@@ -1752,7 +1753,7 @@ void ServerWorld::simulateFrame() {
 				// hit distance: if dt == rad, hit, if rad
 				if ((rad <= dt + 20) && (rad >= dt - 60)) {
 					player[v].item_deathbringer = false;
-					host->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
+					net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
 					player[v].deathbringer_attacker = i;
 					// time of effect ; also freeze his gun for this same amount of time
 					player[v].deathbringer_end = player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
@@ -2066,7 +2067,7 @@ void ServerWorld::simulateFrame() {
 				//FLAG STOLEN!
 				host->score_frag(i, 1);	// just add some frags
 				player[i].total_flags_taken++;
-				host->bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
+				net->bprintf("@I%s GOT THE %s FLAG!", player[i].name.c_str(), teamname[enemyteam]);
 				stealFlag(enemyteam, i);  //flag stolen!
 				//HELM powerup: show player
 				if (player[i].item_helm > 0)
@@ -2085,9 +2086,9 @@ void ServerWorld::simulateFrame() {
 			//FLAG RETURNED!
 			host->score_frag(i, 1);	// just add some frags
 			player[i].total_flags_returned++;
-			host->bprintf("@I%s RETURNED THE %s FLAG!", player[i].name, teamname[myteam]);
+			net->bprintf("@I%s RETURNED THE %s FLAG!", player[i].name.c_str(), teamname[myteam]);
 			returnFlag(myteam);  //flag returned
-			host->broadcast_sample(SAMPLE_CTF_RETURN);
+			net->broadcast_sample(SAMPLE_CTF_RETURN);
 		}
 
 		// --> CTF FLAG CAPTURE
@@ -2103,7 +2104,7 @@ void ServerWorld::simulateFrame() {
 			if (get_time() - flag[enemyteam].grab_time <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
 				//this map is bogus, ignore all scoring for it.
 				map.valid_for_scoring = false;
-				host->broadcast_message("@WThis map is too small. Scoring for World Ranking disabled.");
+				net->broadcast_message("@WThis map is too small. Scoring for World Ranking disabled.");
 				host->clearWorldRankingDeltas();
 			}
 			//add frags to all players of the team
@@ -2123,13 +2124,13 @@ void ServerWorld::simulateFrame() {
 			string one_more;
 			if (flag[myteam].score == config.getCaptureLimit() - 1) // points update later
 				one_more = " One more to win!";
-			host->bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name, teamname[enemyteam], one_more.c_str());
+			net->bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name.c_str(), teamname[enemyteam], one_more.c_str());
 
-			host->ctf_update_teamscore(myteam);		//this function can decide to restart the game . (?)
-			host->broadcast_sample(SAMPLE_CTF_CAPTURE);
+			net->ctf_update_teamscore(myteam);		//this function can decide to restart the game . (?)
+			net->broadcast_sample(SAMPLE_CTF_CAPTURE);
 			if (flag[myteam].score >= config.getCaptureLimit()) {
 				host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
-				ctf_game_restart();
+				host->ctf_game_restart();
 			}
 		}
 	}
@@ -2141,50 +2142,19 @@ void ServerWorld::simulateFrame() {
 			++players;
 	NLulong time_limit = config.getTimeLimit();
 	if (players > 1 && time_limit > 0) {
-		int timeLeft = time_limit - getMapTime();
+		int timeLeft = getTimeLeft();
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
-			host->bprintf("@I*** Five minutes left in the game");
+			net->bprintf("@I*** Five minutes left in the game");
 		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
-			host->bprintf("@I*** One minute left in the game");
+			net->bprintf("@I*** One minute left in the game");
 		else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
-			host->bprintf("@I*** 30 seconds left in the game");
+			net->bprintf("@I*** 30 seconds left in the game");
 		else if (timeLeft <= 0) {
-			host->bprintf("@I*** Time out - CTF game over");
+			net->bprintf("@I*** Time out - CTF game over");
 			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
-			ctf_game_restart();
+			host->ctf_game_restart();
 		}
 	}
-}
-
-void ServerWorld::ctf_game_restart() {
-	int i;
-
-	//submit all pending reports
-	for (i=0;i<maxplayers;i++)
-		if (player[i].used)
-			host->client_report_status(player[i].cid);
-
-	char lix[256];
-	sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", flag[0].score, flag[1].score);
-	host->broadcast_message(lix);
-
-	if (config.getTimeLimit() == 0)
-		sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME", config.getCaptureLimit());
-	else
-		sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", config.getCaptureLimit(), config.getTimeLimit() / 10 / 60);
-	host->broadcast_message(lix);
-
-	host->broadcast_sample(SAMPLE_CTF_GAMEOVER);
-
-	reset();
-
-	host->ctf_update_teamscore(0);
-	host->ctf_update_teamscore(1);
-
-	map_start_time = frame;
-
-	if (config.getTimeLimit() > 0)
-		host->send_map_time(-1);
 }
 
 #include "client.h"

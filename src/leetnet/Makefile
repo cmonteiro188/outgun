@@ -1,7 +1,5 @@
-LIBS = `allegro-config --libs` -lNL
-CFLAGS = -O2 -DLINUX
+CFLAGS = -O2 -Wall -W -Wno-deprecated
 
-LDFLAGS =  
 OBJS = \
 	client.o \
 	ConditionVariable.o \
@@ -14,15 +12,12 @@ OBJS = \
 	TimerCallback.o \
 	Timer.o
 
-
 PROGNAME = outgun
-
 
 outgun: $(OBJS)
 
 %.o: %.cpp
-	g++ -Wno-deprecated $(CFLAGS) -c -o $@ $<
-
+	g++ $(CFLAGS) -c -o $@ $<
 
 PHONY: clean
 

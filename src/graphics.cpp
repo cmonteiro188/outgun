@@ -5,6 +5,19 @@
 #include "commont.h"
 #include "graphics.h"
 
+//macros for allegro video mode
+
+//#define WINMODE GFX_DIRECTX_ACCEL
+//#define FULLMODE GFX_DIRECTX_ACCEL
+
+#ifdef NIX	// use GDI graphics mode instead of DirectX - works better on my computer, slows things down on all computers
+#define WINMODE GFX_GDI       // can't pageflip
+#else
+#define WINMODE GFX_AUTODETECT_WINDOWED
+#endif
+
+#define FULLMODE GFX_AUTODETECT
+
 using std::string;
 using std::vector;
 
@@ -576,6 +589,7 @@ void Graphics::draw_playground() {
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 	build_flagpos_marks();	// draw flag position mark sprites
+	// below is a homegrown clipping system; could as well use the Allegro one...
 	int x1 = max(0, flagpos_radius - flag_x);
 	int y1 = max(0, flagpos_radius - flag_y);
 	int x2 = min(2 * flagpos_radius, plw - flag_x + flagpos_radius + 1);
@@ -713,7 +727,7 @@ void Graphics::draw_scoreboard_caption(int team, const string& caption) {
 }
 
 void Graphics::draw_scoreboard_name(int y, int pcol, const ClientPlayer& player) {
-	textprintf(drawbuf, font, sbx + 4, y, col[pcol], "%c%s", player.reg_status, player.name);
+	textprintf(drawbuf, font, sbx + 4, y, col[pcol], "%c%s", player.reg_status, player.name.c_str());
 }
 
 void Graphics::draw_scoreboard_points(int y, int team, int points) {
@@ -757,7 +771,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
 
 void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int x, int y) {
 	ostringstream info;
-	info << left << setw(15) << player.name << ' ' << right;
+	info << left << setw(15) << player.name.c_str() << ' ' << right;
 	info << setw(5) << player.frags << ' ';
 	info << setw(4) << player.ping << ' ';
 	// layout testing

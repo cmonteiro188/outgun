@@ -53,7 +53,7 @@
 
 #include "timefunc.h"
 
-#include "timer.h"	//#NR
+#include "timer.h"
 
 #include "sleep.h"
 
@@ -92,8 +92,7 @@ struct client_t {
 	volatile bool		server_disconnected; // set to true when the server kicks the client. told_disconnect may
 																			 // be false at that point.
 
-//	double					ping_start_time;		//time of last ping request from gameserver
-	Time					ping_start_time;		//time of last ping request from gameserver	//#NR
+	Time					ping_start_time;		//time of last ping request from gameserver
 
 	server_ci				*server;		// the server instance (for the thread)
 
@@ -147,9 +146,6 @@ public:
 	//serverinfo buffer
 	char					serverinfo[2048];
 
-	// callback list
-	callback_t		gamesfunc[NUM_OF_SFUNC];
-
 	// UDP reader thread
 	pthread_t					reader_thread;
 
@@ -166,19 +162,27 @@ public:
 	int lagtimeout;
 	int droptimeout;
 
+	helloCallbackT* helloCallback;
+	connectedCallbackT* connectedCallback;
+	disconnectedCallbackT* disconnectedCallback;
+	dataCallbackT* dataCallback;
+	lagStatusCallbackT* lagStatusCallback;
+	pingResultCallbackT* pingResultCallback;
+
+	void* customp;	// custom pointer passed back to callback functions
+
 	//------------------------
 	// GAME SERVER API
 	//------------------------
 
 	//set a callback. you must set all the callbacks before calling start()
-	//this "callback_id" thing is because I don't want to write this as a 100-parameter function) call
-	// it a 100 times instead :-)
-	virtual int set_callback(int callback_id, callback_t callback_function) {
-		if (callback_id < 0) return 0;
-		if (callback_id >= NUM_OF_SFUNC) return 0;
-		gamesfunc[callback_id] = callback_function;
-		return 1;
-	}
+	virtual void setHelloCallback(helloCallbackT* fn) { helloCallback = fn; }
+	virtual void setConnectedCallback(connectedCallbackT* fn) { connectedCallback = fn; }
+	virtual void setDisconnectedCallback(disconnectedCallbackT* fn) { disconnectedCallback = fn; }
+	virtual void setDataCallback(dataCallbackT* fn) { dataCallback = fn; }
+	virtual void setLagStatusCallback(lagStatusCallbackT* fn) { lagStatusCallback = fn; }
+	virtual void setPingResultCallback(pingResultCallbackT* fn) { pingResultCallback = fn; }
+	virtual void setCallbackCustomPointer(void* ptr) { customp = ptr; }
 
 	//set the client timeouts in seconds. lagtime = time in secs without receiving packets that generates
 	// SFUNC_CLIENT_LAG_STATUS callbacks. droptime = time in secs w/o recv. packets that before kicking the client
@@ -256,6 +260,7 @@ public:
 
 	//stops the server. parameter is number of seconds to wait for all clients to gently disconnect
 	virtual int stop(int disconnect_clients_timeout) {
+		(void)disconnect_clients_timeout;	//#fix - shouldn't the value be used somewhere...
 
     int i;
 
@@ -335,13 +340,8 @@ public:
 
 		//call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
 		// DO NOT CALL if client not connected
-		if (client[client_id].connected_knows) {
-			runes_t args;
-			args.client_id = client_id;
-			args.data = 0;
-			args.length = 0;
-			gamesfunc[SFUNC_CLIENT_DISCONNECTED](&args);
-		}
+		if (client[client_id].connected_knows)
+			disconnectedCallback(customp, client_id);
 
 		//disconnect the client - this flags that the client is disconnected by the server but the
 		// client at first doesn't know this. will keep sending disconnect packets to client
@@ -468,8 +468,7 @@ public:
 		
 		client[client_id].station->send_raw_packet(dat);		
 
-//		client[client_id].ping_start_time = get_timeh();
-		client[client_id].ping_start_time = Timer::getCurrentTime();	//#NR
+		client[client_id].ping_start_time = Timer::getCurrentTime();
 
 		delete dat;
 
@@ -555,15 +554,16 @@ public:
 		NLaddress remoteaddr;
 		nlGetRemoteAddr(servsock, &remoteaddr);
 
-		char adst[256];
-		nlAddrToString(&remoteaddr, adst);
-
-		//debug
 		int count = 0;
 		NLulong packid, smsgid, leetversion;
 		readLong(packet, count, packid);	//packet id
 		readLong(packet, count, smsgid);	// special message id (if packet id == 0)
+
+#ifndef LOG_NOLOG
+		char adst[256];
+		nlAddrToString(&remoteaddr, adst);
 		LOG4("INCOMING: %s size=%i (%i,%i) -- ", adst, length, packid, smsgid);
+#endif
 
 		// verifica se a mensagem eh de algum client conhecido
       int i;
@@ -613,9 +613,11 @@ public:
 			writeString(lebuf, count, serverinfo);
 			//send
 			nlSetRemoteAddr(servsock, &remoteaddr);
+#ifndef LOG_NOLOG
 			char lix[1000];
 			nlAddrToString(&remoteaddr, lix);
 			LOG1("SENDING REPLY TO CLIENT AT %s\n", lix);
+#endif
 			nlWrite(servsock, lebuf, count);
 			return 1;
 		}
@@ -638,12 +640,12 @@ public:
 
 			//send
 			nlSetRemoteAddr(servsock, &remoteaddr);
+			nlWrite(servsock, lebuf, count);
+#ifndef LOG_NOLOG
 			char lix[1000];
 			nlAddrToString(&remoteaddr, lix);
-			nlWrite(servsock, lebuf, count);
-
 			LOG2("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***\n", num_clients, lix);
-
+#endif
 			return 1;
 		}
 
@@ -664,8 +666,7 @@ public:
 			{
 				//zero'ing state
 				client[i].id = i;					// the client's id (index on the array)
-//				client[i].ping_start_time = 0;		//time of last ping request from gameserver
-				client[i].ping_start_time = Time(0, 0);		//time of last ping request from gameserver	//#NR
+				client[i].ping_start_time = Time(0, 0);		//time of last ping request from gameserver
 				client[i].server = this;		// the server instance (for the thread)
 				//client[i].thread = 0;			// the slave thread
 				//client[i].discthread = 0;		// the disconnector thread
@@ -760,12 +761,8 @@ public:
 					client[i].in_lag = true;
 
 					//lag on callback - only if CONNECTED! (called SFUNC_CLIENT_CONNECTED callback...)
-					if (client[i].connected_knows) {
-						runes_t args;
-						args.client_id = i;
-						args.status = 1;	//entered lag
-						gamesfunc[SFUNC_CLIENT_LAG_STATUS](&args);
-					}
+					if (client[i].connected_knows)
+						lagStatusCallback(customp, i, 1);
 				}
 				
 				//HACK: check for client dropped due to timeout
@@ -774,12 +771,8 @@ public:
 				if ( ((int)(curr_time - client[i].lastpackettime)) > droptimeout ) // drop timeout
 				{
 					//dropped callback - only if CONNECTED! (called SFUNC_CLIENT_CONNECTED callback...)
-					if (client[i].connected_knows) {
-						runes_t args;
-						args.client_id = i;
-						args.status = 2;	//dropped / timeout
-						gamesfunc[SFUNC_CLIENT_LAG_STATUS](&args);
-					}
+					if (client[i].connected_knows)
+						lagStatusCallback(customp, i, 2);
 
 					//disconnect the client - 3 sec timeout
 					disconnect_client(i, 3);
@@ -831,21 +824,13 @@ public:
 				client[cid].in_lag = false;
 
 				//callback lag status update
-				runes_t args;
-				args.client_id = cid;
-				args.status = 0;	//exited lag zone
-				gamesfunc[SFUNC_CLIENT_LAG_STATUS](&args);
+				lagStatusCallback(customp, cid, 0);
 			}
 		}
 
 		//special packet?
 		//
 		
-		//some vars
-		runes_t	args;
-		runes_t *result;
-		data_c *reply;
-
 		if (is_special) {
 
 			// get the special code
@@ -856,16 +841,10 @@ public:
 			//switch
 			switch (code) {
 			case 666:	// "pong"  (from previous ping request)
-
-				args.client_id = cid;
-				//#NR
 				{
 					Time pt=Timer::getCurrentTime()-client[cid].ping_start_time;
-					args.pingtime=pt.getSec()*1000+pt.getuSec()/1000;
+					pingResultCallback(customp, cid, pt.getSec()*1000+pt.getuSec()/1000);
 				}
-//				args.pingtime = (int)( (get_timeh() - client[cid].ping_start_time) * 1000 );
-
-				gamesfunc[SFUNC_CLIENT_PING_RESULT](&args);
 				break;
 			case 1:
 
@@ -879,27 +858,22 @@ public:
 				{
 
 					//LOG1("CALLING SFUNC CALLBACK LEN = %i\n", len);
-				
-					args.client_id		= cid;
-					args.data					= &(data[16]); //skip 0/1/leetversion/size-of-custom
-					args.length				= (len - 16);	//skipped 0/1/leetversion/size-of-custom
-					result = (runes_t *)gamesfunc[SFUNC_CLIENT_HELLO](&args);
-
+					HelloResult res;
+					res.accepted = false;
+					res.customDataLength = 0;
+					helloCallback(customp, cid, &data[16], len-16, &res);
 					LOG1("client %i CONNECTION (II)\n", cid);
-
-					//if accepted (result id == client id)
-					if (result->client_id == args.client_id) {
-						
+					if (res.accepted) {
 						//connected!
 						client[cid].connected = true;
 
 						//send hello packet back to the client
 						LOG("SENT CONNECTION ACCEPTED 0/3 to client_ci\n");
-						reply = new_data_c();
+						data_c* reply = new_data_c();
 						reply->addlong(0);  //"special packet"
 						reply->addlong(3);	//"connection accepted"
-						if (result->length > 0)
-							reply->add(result->data, result->length);	// custom game data
+						if (res.customDataLength > 0)
+							reply->add(res.customData, res.customDataLength);	// custom game data
 						
 						LOG1("station debuginfo = %s\n", client[cid].station->debug_info());
 
@@ -917,11 +891,11 @@ public:
 					else {
 
 						//send CONNECTION_REJECTED to client
-						reply = new_data_c();
+						data_c* reply = new_data_c();
 						reply->addlong(0);		//"special packet"
 						reply->addlong(4);		//"connection rejected"
-						if (result->length > 0)
-							reply->add(result->data, result->length);	 // custom "connection denied" information
+						if (res.customDataLength > 0)
+							reply->add(res.customData, res.customDataLength);	// custom "connection denied" information
 						client[cid].station->send_raw_packet(reply);
 						delete reply;
 						
@@ -967,13 +941,8 @@ public:
 
 						//call the "client disconnected" callback (1 of 2 : client-initiated disconnection)
 						// DO NOT CALL if client not connected
-						if (client[cid].connected_knows) {
-							runes_t args;
-							args.client_id = cid;
-							args.data = 0;
-							args.length = 0;
-							gamesfunc[SFUNC_CLIENT_DISCONNECTED](&args);
-						}
+						if (client[cid].connected_knows)
+							disconnectedCallback(customp, cid);
 
 						//mark 3 second countdown for client dropping
 						//this var is checked by the reader thread
@@ -983,7 +952,7 @@ public:
 					
 					//reply: ok, you are disconnected
 					LOG1("sent disconnect that client %i initiated..\n", cid);
-					reply = new_data_c();
+					data_c* reply = new_data_c();
 					reply->addlong(0);		//"special packet"
 					reply->addlong(2);		//"you are now disconnected"
 					client[cid].station->send_raw_packet(reply);
@@ -1012,7 +981,7 @@ public:
 				// etc.?
 
 				/*
-				reply = new_data_c();
+				data_c* reply = new_data_c();
 				reply->addlong(0);		//"special packet"
 				reply->addlong(2);		//"you are now disconnected"
 				client[cid].station->send_raw_packet(reply);
@@ -1042,17 +1011,13 @@ public:
 
 					// make a favour for the client
 					LOG1("client %i datapacket - replying 'disconnected already'\n", cid);
-					reply = new_data_c();
+					data_c* reply = new_data_c();
 					reply->addlong(0);		//"special packet"
 					reply->addlong(2);		//"you are now disconnected"
 					client[cid].station->send_raw_packet(reply);
 					delete reply;
 				}
 				else {
-
-					//for the callbacks below
-					runes_t		args;
-					args.client_id = cid;
 
 					//it's a data packet, so the client knows he is connected already
 					//- discard "want connect" incoming packets (don't reply)
@@ -1063,17 +1028,12 @@ public:
 						client[cid].connected_knows = true;
 
 						//call gameserver "client connected" callback
-						args.data = 0;
-						args.length = 0;
-						gamesfunc[SFUNC_CLIENT_CONNECTED](&args);
+						connectedCallback(customp, cid);
 					}
 
 					// send the data to the gameserver 
 					// call SFUNC_CLIENT_DATA callback
-					//	
-					args.data = data;
-					args.length = len; 
-					gamesfunc[SFUNC_CLIENT_DATA](&args);
+					dataCallback(customp, cid, data, len);
 				}
 			}	
 		}
@@ -1082,7 +1042,7 @@ public:
 		return 1;
 	}
 
-	virtual NLaddress get_client_address(int client_id) const {
+	NLaddress get_client_address(int client_id) const {
 		return client[client_id].addr;
 	}
 	

@@ -3,16 +3,6 @@
 #ifndef COMMONT_H_INC
 #define COMMONT_H_INC
 
-#define PHYS_NEW
-//#define PHYS_VECTOR_ACC
-
-/* PHYS_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
-#ifdef PHYS_NEW
-#define PHYS_SHIFTY 15
-#else
-#define PHYS_SHIFTY 0
-#endif
-
 #include "fortfy22/fortify.h"
 
 #include <allegro.h>    // Allegro
@@ -32,7 +22,7 @@ using namespace std;
 //patching main / _main / WinMain link errors...
 #ifdef ALLEGRO_WINDOWS
 #include <winalleg.h>
-#include <windows.h>
+// windows.h automatically included
 #endif
 
 #include <pthread.h>
@@ -74,20 +64,21 @@ public:
 	virtual LineReceiver& operator()(const string& str) =0;
 };
 
+inline void readStr(const char* buf, int& count, string& dst) {
+	dst = "";
+	while (buf[count])
+		dst += buf[count++];
+	++count;
+}
+inline void writeStr(char* buf, int& count, const string& src) {
+	memcpy(&buf[count], src.data(), src.length());
+	count += src.length();
+	buf[count++] = '\0';
+}
+
 //play area width/height
 #define plw 472
 #define plh 354
-
-//macros for allegro video mode
-
-//#define WINMODE GFX_GDI       -- can't pageflip
-
-//#define WINMODE GFX_DIRECTX_ACCEL
-//#define FULLMODE GFX_DIRECTX_ACCEL
-
-#define WINMODE GFX_AUTODETECT_WINDOWED
-
-#define FULLMODE GFX_AUTODETECT
 
 //DEBUGGING ranking?
 //#define DEBUG_RANKING
@@ -120,16 +111,14 @@ public:
 
 #define MIN_HEALTH_FOR_RUN_PENALTY 40
 
-#define NUMBER_OF_POWERUP_KINDS 7   //quad shield shadow turbo weapon-up megahealth deathbringer
-
 //#define DEBUG_POWERUPS
 //#define REALLY_DEBUG_POWERUPS     //define only if DEBUG_POWERUPS defined
 
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "14"
-#define GAME_VERSION "0.5.0-E"
+#define GAME_PROTOCOL "Nix test v0.1"
+#define GAME_VERSION "NTST-01"
 
 #define TK1_VERSION_STRING "v048"
 

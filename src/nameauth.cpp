@@ -125,21 +125,21 @@ bool NameAuthorizationDatabase::addIP(const string& nameUpr, const string& passw
 	return false;
 }
 
-int NameAuthorizationDatabase::identifyName(const char* name) const {
+int NameAuthorizationDatabase::identifyName(const string& name) const {
 	static const char fromTab[]="!|012357";
 	static const char   toTab[]="IIOIZEST";
 	string nameUpr, nameAlpha;	// alpha contains only the alphabetical characters
-	for (const char* cp=name; *cp; ++cp) {
-		char ch=(*cp)&127;
-		const char* fromp=strchr(fromTab, ch);
+	for (string::size_type i=0; i<name.length(); ++i) {
+		char ch = name[i]&127;
+		const char* fromp = strchr(fromTab, ch);
 		if (fromp)
-			ch=toTab[fromp-fromTab];
+			ch = toTab[fromp-fromTab];
 		if (isalpha(ch)) {
-			nameUpr+=char(toupper(ch));
-			nameAlpha+=char(toupper(ch));
+			nameUpr += char(toupper(ch));
+			nameAlpha += char(toupper(ch));
 		}
 		else
-			nameUpr+='.';
+			nameUpr += '.';
 	}
 	for (int idx=0; idx<size(); ++idx) {
 		const string& nu=db[idx].nameUpr;

@@ -33,7 +33,7 @@ public:
 
     bool addIP(const string& nameUpr, const string& password, NLaddress addr);  // must be an existing name
 
-	int identifyName(const char* name) const;
+	int identifyName(const string& name) const;
     string getName(int idx) const { return db[idx].nameUpr; }
 	bool authorize(int idx, NLaddress addr) const;
 

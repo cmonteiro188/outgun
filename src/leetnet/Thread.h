@@ -95,7 +95,7 @@ public:
    *              some threads running and the method timed out.
    */
   //##ModelId=3C885B3800E8
-  static bool waitForAllThreads(int ms);
+//  static bool waitForAllThreads(int ms);
 
   /**
    * Returns the name of this thread.

@@ -25,48 +25,34 @@
 #ifndef _server_h_
 #define _server_h_
 
-
-// runes supplied as parameters by server_c for it's callbacks
-struct runes_t {
-
-	int			client_id;		// client id
-	int			status;				// for CLIENT_LAG_STATUS: 0=not lagged(left lag zone) 1=entered lag zone 2=client will just be dropped
-	int			pingtime;			// for CLIENT_PING_RESULT: ping time of the client in miliseconds
-	int			length;				// frame/message length (0 == empty/unused)
-	char*		data;					// frame/message data		(0 == empty/unused)
-};
-
-
-
-
-// type for callback functions. returns an int and brings runes_t* as an argument
-typedef int (*callback_t)(runes_t *);
-
-
-// the game-server's callback functions
-enum {
-
-	SFUNC_CLIENT_HELLO,						//parse game "hello" packet. return values: 0=deny connection  nonzero=accept connection  (use to implement client checking (version, etc..))
-	SFUNC_CLIENT_CONNECTED,				//client has connected
-	SFUNC_CLIENT_DISCONNECTED,		//client has disconnected
-	SFUNC_CLIENT_DATA,  					//client frame arrived (unreliable data), process it and get the new messages too
-	SFUNC_CLIENT_LAG_STATUS,			//client's lag status has changed
-	SFUNC_CLIENT_PING_RESULT,			//result of pinging a client (in ms)
-	
-	NUM_OF_SFUNC
-};
-
 struct _NLaddress;
 typedef struct _NLaddress NLaddress;
 
 // server class interface
 class server_c {
 public:
+	struct HelloResult {
+		bool accepted;
+		char customData[512];
+		int customDataLength;
+	};
+
+	typedef void helloCallbackT			(void* customp, int client_id, char* data, int length, HelloResult* res);
+	typedef void connectedCallbackT		(void* customp, int client_id);
+	typedef void disconnectedCallbackT	(void* customp, int client_id);
+	typedef void dataCallbackT			(void* customp, int client_id, char* data, int length);
+	typedef void lagStatusCallbackT		(void* customp, int client_id, int status);
+	typedef void pingResultCallbackT	(void* customp, int client_id, int pingtime);
 
 	//set a callback. you must set all the callbacks before calling start()
-	//this "callback_id" thing is because I don't want to write this as a 100-parameter function) call
-	// it a 100 times instead :-)
-	virtual int set_callback(int callback_id, callback_t callback_function) = 0;
+	virtual void setHelloCallback(helloCallbackT* fn);
+	virtual void setConnectedCallback(connectedCallbackT* fn);
+	virtual void setDisconnectedCallback(disconnectedCallbackT* fn);
+	virtual void setDataCallback(dataCallbackT* fn);
+	virtual void setLagStatusCallback(lagStatusCallbackT* fn);
+	virtual void setPingResultCallback(pingResultCallbackT* fn);
+
+	virtual void setCallbackCustomPointer(void* ptr);
 
 	//set the client timeouts in seconds. lagtime = time in secs without receiving packets that generates
 	// SFUNC_CLIENT_LAG_STATUS callbacks. droptime = time in secs w/o recv. packets that before kicking the client
@@ -112,7 +98,6 @@ public:
 	virtual char* receive_message(int client_id, int *length) = 0;
 
 	//ping a client. results come in the SFUNC_PING_RESULT callback
-	//current accuracy is proportional to the resolution of time.h's clock() function	//#NR: not
 	virtual int ping_client(int client_id) = 0;
 
 	//get a statistic from sockets. stat = HawkNL socket-stats id

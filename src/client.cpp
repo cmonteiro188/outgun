@@ -1766,9 +1766,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 			// name update
 			case 1:
-				readByte(msg, count, pid);		// player id
-				readString(msg, count, fx.player[pid].name);		// da name
-				fx.player[pid].name[15] = 0;		// force terminate string (paranoia)
+				readByte(msg, count, pid);
+				readStr(msg, count, fx.player[pid].name);
 				update_scoreboard();		//tentando consertar bug change teams
 				break;
 
@@ -3739,7 +3738,7 @@ void gameclient_c::draw_game_frame() {
 					fx.player[i].rank,
 					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
 					fx.player[i].score - fx.player[i].neg_score,
-					fx.player[i].name,
+					fx.player[i].name.c_str(),
 					fx.player[i].frags,
 					fx.player[i].ping
 				);
@@ -3749,7 +3748,7 @@ void gameclient_c::draw_game_frame() {
 			else {
 				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%16s %-15s %5i %4i",
 					sorry,
-					fx.player[i].name,
+					fx.player[i].name.c_str(),
 					fx.player[i].frags,
 					fx.player[i].ping
 				);
@@ -3779,7 +3778,7 @@ void gameclient_c::draw_game_frame() {
 					fx.player[i].rank,
 					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
 					fx.player[i].score - fx.player[i].neg_score,
-					fx.player[i].name,
+					fx.player[i].name.c_str(),
 					fx.player[i].frags,
 					fx.player[i].ping
 				);
@@ -3788,7 +3787,7 @@ void gameclient_c::draw_game_frame() {
 			else {
 				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%16s %-15s %5i %4i",
 					sorry,
-					fx.player[i].name,
+					fx.player[i].name.c_str(),
 					fx.player[i].frags,
 					fx.player[i].ping
 				);

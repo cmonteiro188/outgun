@@ -93,10 +93,12 @@ void Thread::sleep(int ms) {
 }
 
 //##ModelId=3C885B3800E8
+/*
 bool Thread::waitForAllThreads(int ms) {
 
 	throw 6667;
 	return false;
+}*/
 	/*
   if (ms > INT_MAX / 1000)
     ms = INT_MAX / 1000;
@@ -119,8 +121,8 @@ bool Thread::waitForAllThreads(int ms) {
   }
 
   return timeout;
-	*/
 }
+*/
 
 //##ModelId=3B0753810380
 std::string Thread::getName() const {

@@ -74,7 +74,6 @@ int main(int argc, char *argv[]) {
 	// general init
 	//
 	gameclient = 0;
-	gameserver = 0;
 
 	//LOG_OPEN("outgun.log");
 
@@ -322,7 +321,7 @@ int main(int argc, char *argv[]) {
 
 		// run server
 		//
-		gameserver = new gameserver_c();
+		gameserver_c* gameserver = new gameserver_c();
 		if (!gameserver->start(server_maxplayers)) {
 			LOG("ERROR: cannot start gameserver!\n");
 			return 0;
@@ -330,7 +329,6 @@ int main(int argc, char *argv[]) {
 		gameserver->loop(0);
 		gameserver->stop();
 		delete gameserver;
-		gameserver = 0;
 	}
 	// run client
 	//

@@ -40,21 +40,30 @@
 // buffer size limitations (stupid hardcoded but works)
 //
 
-#define MAXMSG				128		// capacity of to-be-acked message buffer
-#define ACKBUF				 64		// capacity of acks-to-send list (num of ulongs)
-#define RMSGBUF				 64		// maximum reliable messages inside one single packet
-#define SENDS					 16		// size of sends queue
-#define BIG_UDPBUF   8192		// a bigger UDP buffer
+#define EXTRA_RELIABLE_STORAGE
+/* if EXTRA_RELIABLE_STORAGE is defined, reliable messages queue is split to two when more than MAXMSG messages are being sent
+ * - the extra ones are separately stored in a list
+ * - only the first MAXMSG messages are transmitted until some of them receive acks
+ * it should definitely be used if losing reliable messages can't be afforded
+ */
 
-#define	MAX_INCOMING_MESSAGES  64		// size of incoming msg buffer (64 is already overkill)
-#define MAX_MESSAGE_SIZE		  256		// maximum size of a single reliable message (using more than this trashes the retransmit scheme anyways)
+#define MAXMSG				  64		// capacity of to-be-acked message buffer
+#define ACKBUF				  64		// capacity of acks-to-send list (num of ulongs)
+#define SENDS				  16		// size of sends queue
+#define BIG_UDPBUF			8192		// a bigger UDP buffer
+#define MAX_PACKET_SIZE		 256		// this is not a fixed limit; it just limits the sending of >1 reliable message
+
+#define	MAX_INCOMING_MESSAGES	  64		// size of incoming msg buffer (64 is already overkill)
+#define MAX_MESSAGE_SIZE		 256		// maximum size of a single reliable message (using more than this trashes the retransmit scheme anyways)
 
 
 // 256 x 10 = 2560 = 2,5K/s
 // obs: não tem controle se vai ser enviado 10 pacotes por segundo ou mais. ver caso do envio de
 //      teclas pelo client
-#define MAX_PACKET_SIZE	    256			//maximum size of whole packet (unreliable + acks + reliables que der)
-	
+
+#ifdef EXTRA_RELIABLE_STORAGE
+#include <list>
+#endif	
 
 
 // gets the IP of this machine
@@ -122,11 +131,13 @@ public:
 	}
 
 	//set data
-	void set(const data_c *data) {
+	void set(const data_c *datac) {
+		const data_ci* data = dynamic_cast<const data_ci*>(datac);
+		assert(data);
 		ulen = 0;		// reset my contents
-		extend(((data_ci*)data)->ulen);	// expand to fit other's used count
-		ulen = ((data_ci*)data)->ulen;		// my used = other used
-		memcpy(buf, ((data_ci*)data)->buf, ulen);		// copy other's data to my buffer
+		extend(data->ulen);	// expand to fit other's used count
+		ulen = data->ulen;		// my used = other used
+		memcpy(buf, data->buf, ulen);		// copy other's data to my buffer
 	}
 
 	//set data
@@ -317,7 +328,7 @@ public:
 		// index: head + iter
 		int i = sh + iter;
 		// wrap around
-		if (i > SENDS) i -= SENDS;
+		if (i >= SENDS) i -= SENDS;
 		// next iter
 		iter++;
 		// get
@@ -388,6 +399,17 @@ public:
 	msgrec reliable[MAXMSG];  // FIXME: access to "reliable" must be sinchronized
 	NLbyte	reliable_count;		//count of reliable messages in buffer
 
+	#ifdef EXTRA_RELIABLE_STORAGE
+	NLulong reliable_size;	// total size of reliable messages in reliable[], plus 6 bytes extra for each
+	std::list<data_ci*> extra_reliables;
+	void erase_extra_reliables() {
+		for (std::list<data_ci*>::iterator ri=extra_reliables.begin(); ri!=extra_reliables.end(); ++ri)
+			delete *ri;
+		extra_reliables.clear();
+	}
+	bool can_add_reliable(NLulong msgsize) const { return reliable_size==0 || reliable_size + msgsize < MAX_PACKET_SIZE; }
+	#endif
+
 	// resets the state of the object. so you don't have to delete and create a new one
 	// every time you want to use it for a different client/server.
 	virtual void reset_state() {
@@ -403,6 +425,10 @@ public:
 			reliable[m].id = -1;
 			reliable[m].sends_clear();
 		}
+		#ifdef EXTRA_RELIABLE_STORAGE
+		reliable_size = 0;
+		erase_extra_reliables();
+		#endif
 
 		//reset all the internal state for object initialization or reuse
 		sendbuf[0]=0;
@@ -428,6 +454,9 @@ public:
 
 	//dtor
 	virtual ~station_ci() {
+		#ifdef EXTRA_RELIABLE_STORAGE
+		erase_extra_reliables();
+		#endif
 		
 		//FIXME -- what else?
 
@@ -588,7 +617,7 @@ public:
 		NLint count = 0;  //packet parse count
 		NLulong packet_id;  //the packet id
 
-		int debug = 1;
+//		int debug = 1;
 
 		//parse packet id
 		readLong(udp_data, count, packet_id);		
@@ -692,11 +721,30 @@ public:
 
 						//acked! remove message from buffer
 						//
+						#ifdef EXTRA_RELIABLE_STORAGE
+						reliable[i].sends_clear();
+						assert((int)reliable_size >= reliable[i].message.getlen() + 6);
+						reliable_size -= reliable[i].message.getlen() + 6;
+						if (!extra_reliables.empty() && can_add_reliable(extra_reliables.front()->getlen())) {
+							reliable[i].id = idgen_reliable_send++;
+							data_ci* msg = extra_reliables.front();
+							extra_reliables.pop_front();
+							reliable[i].message.set(msg);
+							delete msg;
+							reliable_size += reliable[i].message.getlen() + 6;
+						}
+						else {
+							reliable[i].id = -1;
+							reliable[i].message.clear();
+							reliable_count--;
+						}
+						#else
 						reliable[i].id = -1;
 						reliable[i].message.clear();
 						reliable[i].sends_clear();
 						reliable_count--;					// less one
-						
+						#endif
+
 						//quit the two innermost iterations
 						//
 						a = num_packet_acks;
@@ -718,19 +766,33 @@ public:
 
 	// append reliable message to the packet buffer
 	virtual int writer(const char *data, int length) {
+		assert(length <= MAX_MESSAGE_SIZE);
 
-		//find slot in reliable
-		//
-		for (int i=0; i<MAXMSG; i++) 
-		if (reliable[i].id == -1) {
-			reliable[i].id = idgen_reliable_send++;  // generate and set new unique id
-			reliable[i].message.set(data, (NLshort)length);					// set the data
-			reliable_count++;												// another one
-			return 1;						//ok
+		#ifdef EXTRA_RELIABLE_STORAGE
+		if (reliable_count<MAXMSG && can_add_reliable(length))
+		#endif
+		{
+			//find slot in reliable
+			//
+			for (int i=0; i<MAXMSG; i++) 
+			if (reliable[i].id == -1) {
+				reliable[i].id = idgen_reliable_send++;  // generate and set new unique id
+				reliable[i].message.set(data, (NLshort)length);					// set the data
+				reliable_count++;												// another one
+				reliable_size += length + 6;
+				return 1;						//ok
+			}
 		}
 
-		//fucked up - not enought space in the reliable msgs buffer
+		// not enought space in the reliable msgs buffer
+		#ifdef EXTRA_RELIABLE_STORAGE
+		data_ci* msg = new data_ci();
+		msg->set(data, (NLshort)length);
+		extra_reliables.push_back(msg);
+		return 1;
+		#else
 		return 0;
+		#endif
 	}
 
 	// append unreliable data to the packet buffer
@@ -770,7 +832,7 @@ public:
 		
 		NLint	count = 0;
 		
-		static int debug = 1;
+//		static int debug = 1;
 
 		writeLong(sendbuf, count, id);	//packet id
 		
@@ -788,44 +850,16 @@ public:
 
 		//if (debug) printf(" rc=%i", reliable_count);
 
-		//save position in buffer of reliable messages count
-		int reliable_count_position = count;
-
-		//estimated size
-		int estsize = count + unreliable.ulen;		
-		
 		writeByte(sendbuf, count, reliable_count);	// number of reliable messages (wiil be overwritten)
 
-		bool firstmsg = true;
-
 		for (i=0;i<MAXMSG;i++)	// reliable messages in queue
-		if (reliable[i].id != -1) {
-
-			int sizeofthis = 4 + 2 + reliable[i].message.ulen; //long + short +block
-
-			//if ((firstmsg) || (estsize + sizeofthis < MAX_PACKET_SIZE)) {
-
-				//mais uma
+			if (reliable[i].id != -1) {
 				writeLong(sendbuf, count, reliable[i].id);		//id
 				writeShort(sendbuf, count, (NLushort)reliable[i].message.ulen);	//size
 				writeBlock(sendbuf, count, reliable[i].message.buf, reliable[i].message.ulen);	//data
-
-				//adiciona contadores
-				estsize += sizeofthis;
-				firstmsg = false;		//escreveu a primeira
-			//}
-			//else {
-			//throw 9342;
-			//break;		//estourou o pacote -- deixa pra próxima
-			//}
-
-			//if (debug) printf("(%i,%i)",reliable[i].id, reliable[i].message.ulen);
-
-			//add this send packet id to the message's outgoing sends
-			//FIXED: this can grow BIG. solution: wrap around like a queue. old values
-			//			 will be less probably be used (best solution: fixed alloc circular list)
-			reliable[i].sends_add((NLulong)id);
-		}
+				//add this send packet id to the message's outgoing sends
+				reliable[i].sends_add((NLulong)id);
+			}
 		
 		// FIXED: o "unreliable size" eh inferido do tamanho do datagrama UDP
 		//				ou seja o "resto" do pacote eh o unreliable data! (nao precisa enviar size)
