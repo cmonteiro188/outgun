@@ -76,7 +76,6 @@ ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet l
 ServerNetworking::~ServerNetworking() {
 nAssert(!mthread.isRunning());
 nAssert(!shellmthread.isRunning());
-nAssert(!shellsthread.isRunning());
 nAssert(!webthread.isRunning());
 	pthread_mutex_destroy(&mjob_mutex);
 	if (server) {
@@ -191,7 +190,7 @@ void ServerNetworking::broadcast_player_name(int pid) {
 			send_player_name_update(world.player[i].cid, pid);
 
 	//update the ADMIN SHELL
-	if (shellssock) {
+	if (shellssock != NL_INVALID) {
 		char lebuf[256]; int count = 0;
 		writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
 		writeLong(lebuf, count, world.player[pid].cid);
@@ -560,7 +559,7 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) {
 			server->send_message(world.player[i].cid, lebuf, count);
 
 	//send to the admin shell
-	if (shellssock) {
+	if (shellssock != NL_INVALID) {
 		count = 0;
 		writeLong(lebuf, count, STA_GAME_TEXT);
 		writeStr(lebuf, count, text);
@@ -621,7 +620,7 @@ void ServerNetworking::broadcast_message(Message_type type, const string& text) 
 		if (world.player[i].used)
 			server->send_message(world.player[i].cid, lebuf, count);
 	//send to the admin shell
-	if (shellssock) {
+	if (shellssock != NL_INVALID) {
 		count = 0;
 		writeLong(lebuf, count, STA_GAME_TEXT);
 		writeStr(lebuf, count, text);
@@ -690,37 +689,16 @@ bool ServerNetworking::start() {
 	mjob_exit = false;				//flag for all pending master jobs to quit now
 	mjob_fastretry = false;		//flag for all pending master jobs to stop waiting and retry immediately
 
-	int tcp_shell_port = port - 500;
-	nlOpenMutex.lock();
-	nlDisable(NL_BLOCKING_IO);
-	shellmsock = nlOpen((NLushort)tcp_shell_port, NL_RELIABLE);
-	nlOpenMutex.unlock();
-	if (shellmsock == NL_INVALID) {
-		log.error("Can't open the shell socket on port %i", tcp_shell_port);
-		return false; //oh no
-	}
-	if (!nlListen(shellmsock)) {
-		log.error("Can't set shell socket to listen mode");
-		return false; //oh no
-	}
-	shellssock = NL_INVALID;
+	shellssock = NL_INVALID;	// not in use
 
-	//start TCP shell master and slave threads
-	shellmthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_shellmaster_thread));
-	shellsthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_shellslave_thread));
+	//start TCP shell master thread in the port number 500 less than server UDP port
+	shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), port - 500);
 
 	//start TCP thread for talking with master server
-	if (!privateserver) {
-		msock = NL_INVALID;		//not opened
-		master_talk_time = get_time() + delay_to_report_server;	//give it a break
-		master_never_talked = true;		//not talked yet
-
+	if (!privateserver)
 		mthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread));
-	}
 
 	//start website thread
-	websock = NL_INVALID;		//not opened
-	website_exiting_ok = false;
 	webthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_website_thread));
 
 	return true;
@@ -826,7 +804,7 @@ int ServerNetworking::client_connected(int id) {
 	host->resetPlayer(id);
 
 	//first update the ADMIN SHELL
-	if (shellssock) {
+	if (shellssock != NL_INVALID) {
 		count = 0;
 		writeLong(lebuf, count, STA_PLAYER_CONNECTED);
 		writeLong(lebuf, count, world.player[myself].cid);
@@ -892,7 +870,7 @@ void ServerNetworking::client_disconnected(int id) {
 	pid = ctop[id];
 
 	//first update the ADMIN SHELL
-	if (shellssock) {
+	if (shellssock != NL_INVALID) {
 		char lebuf[256]; int count;
 		count = 0;
 		writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
@@ -925,10 +903,10 @@ void ServerNetworking::ping_result(int client_id, int ping_time) {
 	world.player[ctop[client_id]].ping = ping_time;
 }
 
-void ServerNetworking::newPlayer(int pid) {
+void ServerNetworking::broadcast_new_player_notice(int pid) {
 	bprintf(msg_info, "%s entered the game", world.player[pid].name.c_str());
 	broadcast_sample(SAMPLE_ENTERGAME);
-	if (shellssock) {
+	if (shellssock != NL_INVALID) {
 		char lebuf[256]; int count = 0;
 		writeLong(lebuf, count, STA_PLAYER_IP);
 		writeLong(lebuf, count, world.player[pid].cid);
@@ -942,7 +920,7 @@ void ServerNetworking::newPlayer(int pid) {
 }
 
 void ServerNetworking::forwardSayadminMessage(int cid, const string& message) {
-	if (!shellssock)
+	if (shellssock == NL_INVALID)
 		return;
 	char lebuf[256];
 	int count = 0;
@@ -1964,20 +1942,6 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	delete job;
 }
 
-bool ServerNetworking::check_private_IP(const char *address) {
-	int i1, i2;
-	int n = sscanf(address, "%d.%d.", &i1, &i2);
-	nAssert(n == 2);
-	if (n != 2)
-		return false;
-	// private IP ranges:
-	// 10.0.0.0        -   10.255.255.255
-	// 172.16.0.0      -   172.31.255.255
-	// 192.168.0.0     -   192.168.255.255
-	// 169.254.0.0     -   169.254.255.255 [used by Microsoft DHCP client]
-	return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
-}
-
 void ServerNetworking::run_mastertalker_thread() {
 	log("run_mastertalker_thread()");
 
@@ -1988,213 +1952,148 @@ void ServerNetworking::run_mastertalker_thread() {
 		master_script = "/janir/outgun/submit.php";
 	in.close();
 
-	//get my IP
-	//V0.4.4: -ip : force IP to something else
-	char address[256];
+	// determine the public IP to send to master
+	string localAddress;
 	if (force_ip) {
-		strcpy(address, force_ip_name);		//force IP
-
 		log("Master talker: Forcing IP to value %s", force_ip_name);
+
 		NLaddress testAddr;
-		if (!nlStringToAddr(address, &testAddr) || strchr(address, ':')) {
-			log.error("Master talker: Tried to force an invalid IP %s: not talking to master server...", address);
-			msock = NL_INVALID;	//???
-			master_exiting_ok = true;
+		if (!nlStringToAddr(force_ip_name, &testAddr) || strchr(force_ip_name, ':')) {
+			log.error("Master talker: Tried to force an invalid IP %s. Not talking to master server...", force_ip_name);
 			return;
 		}
-		if (check_private_IP(address)) {
-			log.error("Master talker: Tried to force a private IP %s: not talking to master server...", address);
-			msock = NL_INVALID;	//???
-			master_exiting_ok = true;
+		if (check_private_IP(force_ip_name)) {
+			log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", force_ip_name);
 			return;
 		}
+
+		localAddress = force_ip_name;	// use IP manually given to the program
 	}
 	else {
-		//don't force: resolve
-		NLaddress myadr;
-		get_self_IP(&myadr);
-		nlAddrToString(&myadr, address);
-
-		//strcpy(address, "192.168.1.1");  //DEBUG private ip
-
-		//v0.4.7: check for "private class IPs":
-		bool privateip = check_private_IP(address);
-
-		//LOG2("CHECKED DEFAULT IP %s RESULT = %i\n", address, privateip);
-
-		//private ip?
-		if (privateip) {
-			//don't despair! check for all IPs
-			NLaddress* locals;
-			NLint locsize;
-			locals = nlGetAllLocalAddr(&locsize);
-
-			for (int z=0;z<locsize;z++) {
-				nlAddrToString( &(locals[z]) , address );
-				log("Master talker: Checking local: %s", address);
-				privateip = check_private_IP(address);
-				if (!privateip)	{
-					log("Master talker: Public address.");
-					break;	//success! "address" now has non-private address string
-				}
-				else
-					log("Master talker: Private address, trying next.");
-			}
-
-			//still??
-			if (privateip) {
-				log("Master talker: Private IP %s (and all others): not talking to master server.", address);
-				msock = NL_INVALID;	//???
-				master_exiting_ok = true;
-				return;
-			}
+		localAddress = getPublicIP(log);
+		if (localAddress.empty()) {
+			log("Master talker: No public IP address. Not talking to master server.");
+			return;
 		}
 	}
 
-	//v0.4.2: add port
-	char sport[200];
-	sprintf(sport, ":%i", port);
-	strcat(address, sport);
+	// add port
+	localAddress += ':';
+	localAddress += itoa(port);
 
-	//while not time to quit
+	bool master_never_talked = true;
+	double master_talk_time = get_time() + delay_to_report_server;	//give it a break
+
 	while (!file_threads_quit) {
-		//time to update with master server?
-		if (get_time() > master_talk_time) {
-			//schedule next
-			master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
+		MS_SLEEP(500);
 
-			//open socket
-			nlOpenMutex.lock();
-			nlEnable(NL_BLOCKING_IO);
-			msock = nlOpen(0, NL_RELIABLE);
-			nlDisable(NL_BLOCKING_IO);
-			nlOpenMutex.unlock();
-			if (msock == NL_INVALID) {
-				log.error("Master talker: Server can't open socket to connect to master server.");
-				continue;
-			}
+		if (get_time() < master_talk_time)
+			continue;
 
-			//LOG("MASTER TALKER: socket open\n");
+		master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
 
-			//connect
-			if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
-				log.error("Master talker: Server can't connect to master server.");
-				nlClose(msock);
-				msock = NL_INVALID;
-				continue;
-			}
+		//open socket
+		nlOpenMutex.lock();
+		nlDisable(NL_BLOCKING_IO);
+		NLsocket msock = nlOpen(0, NL_RELIABLE);
+		nlOpenMutex.unlock();
+		if (msock == NL_INVALID) {
+			log.error("Master talker: Server can't open socket to connect to master server.");
+			continue;
+		}
 
-			//LOG("MASTER TALKER: socket connected\n");
+		//connect
+		if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
+			log.error("Master talker: Server can't connect to master server.");
+			nlClose(msock);
+			continue;
+		}
 
-			//chance to give up
-			if (file_threads_quit)
-				break;
+		//chance to give up
+		if (file_threads_quit) {
+			nlClose(msock);
+			break;
+		}
 
-			//now we have talked
-			master_never_talked = false;
+		//now we have talked
+		master_never_talked = false;
 
-			// build and send data
-			map<string, string> parameters = master_parameters(address);
-			const string data = build_http_data(parameters);
-			NLint result = post_http_data(msock, master_script, data);
+		// build and send data
+		map<string, string> parameters = master_parameters(localAddress);
+		const string data = build_http_data(parameters);
+		bool result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
 
-			log("Master talker: Sent information to master server:");
-			log("%s", data.c_str());
-			log("Result: %i", result);
-			if (result == -1)
-				master_talk_time = get_time() + 15.0;		// 15 seconds
-
+		log("Master talker: Sent information to master server:");
+		log("%s", data.c_str());
+		log("Result: %i", result);
+		if (result) {
 			// save response to a file
 			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-			save_http_response(msock, out);
-			out.close();
-
-			//close socket
-			nlClose(msock);
-			msock = NL_INVALID;
+			result = save_http_response(msock, out, &file_threads_quit, 30000);
 		}
-		//no: sleep a bit
-		MS_SLEEP(500);
+		if (!result)
+			master_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
+
+		//close socket
+		nlClose(msock);
 	}
 
 	log("Master talker: time to say goodbye.");
 
-	//master is pre-exiting, no need to do the first socket closure
-	master_pre_exiting_ok = true;
-
-	//qutting: close the socket
-	if (msock != NL_INVALID) {
-		log("Master talker: bye 1");
-		nlClose(msock);
-		msock = NL_INVALID;
-	}
-
-	//never talked? then just quit
-	if (master_never_talked) {
-		//master exited OK!
-		master_exiting_ok = true;
+	if (master_never_talked)
 		return;
-	}
-
-	log("Master talker: bye 2");
 
 	//quitting: delete my IP from master so clients won't see it
 	//open socket
 	nlOpenMutex.lock();
-	nlEnable(NL_BLOCKING_IO);
-	msock = nlOpen(0, NL_RELIABLE);
 	nlDisable(NL_BLOCKING_IO);
+	NLsocket msock = nlOpen(0, NL_RELIABLE);
 	nlOpenMutex.unlock();
 
 	if (msock == NL_INVALID) {
 		log.error("Master talker: (Quit) Server can't open socket to connect to master server.");
-		master_exiting_ok = true;
 		return;
 	}
 
 	//connect
-	if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
+	if (nlConnect(msock, &master_address) == NL_FALSE) {
 		log.error("Master talker: (Quit) Server can't connect to master server.");
 		nlClose(msock);
-		msock = NL_INVALID;
-		master_exiting_ok = true;
 		return;
 	}
 
 	// send quit message
 	ostringstream quit;
 	quit << "port=" << port << "&quit=1\r\n";
-	NLint result = post_http_data(msock, master_script, quit.str());
+	bool result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
 	log("Master talker: Sent information to master server:");
 	log("%s", quit.str().c_str());
 	log("Result: %i", result);
 
-	// save response to a file
-	ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-	save_http_response(msock, out);
-	out.close();
+	if (result) {
+		// save response to a file
+		ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+		save_http_response(msock, out, 0, 5000);	// only 5 seconds allowed; it's not so crucial
+	}
 
-	//master exited OK!
-	master_exiting_ok = true;
-
-	//close socket
 	nlClose(msock);
-	msock = NL_INVALID;
 }
 
 void ServerNetworking::run_website_thread() {
 	log("run_website_thread()");
 
-	string address;
+	string localAddress;
 	if (force_ip)
-		address = force_ip_name;
+		localAddress = force_ip_name;
 	else {
-		//don't force: resolve
-		NLaddress myadr;
-		get_self_IP(&myadr);
-		char addr[NL_MAX_STRING_LENGTH];
-		nlAddrToString(&myadr, addr);
-		address = addr;
+		localAddress = getPublicIP(log);
+		if (localAddress.empty()) {
+			NLaddress myadr;
+			get_self_IP(&myadr);
+			char addr[NL_MAX_STRING_LENGTH];
+			nlAddrToString(&myadr, addr);
+			localAddress = addr;
+		}
 	}
 
 	const string web_settings(wheregamedir + "config" + directory_separator + "website.txt");
@@ -2202,20 +2101,17 @@ void ServerNetworking::run_website_thread() {
 	ifstream in(web_settings.c_str());
 	if (!in) {
 		log("Website thread: Can not open %s. Quit.", web_settings.c_str());
-		website_exiting_ok = true;
 		return;
 	}
 	string site_name, site_ip, site_script, site_auth;
 	if (!getline_smart(in, site_name) || !getline_smart(in, site_ip) || !getline_smart(in, site_script)) {
-		log.error("Website thread: No valid format in %s. Quit.", web_settings.c_str());
-		website_exiting_ok = true;
+		log.error("Website thread: Invalid format in %s. Quit.", web_settings.c_str());
 		return;
 	}
 	getline_smart(in, site_auth);
 	in.close();
 	if (site_script.empty() || (site_name.empty() && site_ip.empty())) {
 		log.error("Website thread: No script or site location in %s. Quit.", web_settings.c_str());
-		website_exiting_ok = true;
 		return;
 	}
 
@@ -2223,144 +2119,127 @@ void ServerNetworking::run_website_thread() {
 	double website_talk_time = 0.0;
 	bool first_connection = true;
 
-	do {
-		if (get_time() > website_talk_time) {
-			website_talk_time = get_time() + 2 * 60.0;		// 2 minutes
-			log("Website thread: Start sending information to server website.");
-			nlOpenMutex.lock();
-			nlEnable(NL_BLOCKING_IO);
-			websock = nlOpen(0, NL_RELIABLE);
-			nlDisable(NL_BLOCKING_IO);
-			nlOpenMutex.unlock();
-			if (websock == NL_INVALID) {
-				log.error("Website thread: Server can't open socket to connect to server website!");
-				continue;
-			}
-			if (!nlGetAddrFromName(site_name.c_str(), &website_address)) {
-				const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
-				log.error("Website thread: Can't get IP address for %s! Reason: %s", site_name.c_str(), reason);
-			}
-			int web_port = nlGetPortFromAddr(&website_address);
+	while (!file_threads_quit) {
+		MS_SLEEP(500);
+
+		if (get_time() < website_talk_time)
+			continue;
+
+		website_talk_time = get_time() + 2 * 60.0;		// 2 minutes
+
+		log("Website thread: Start sending information to server website.");
+
+		nlOpenMutex.lock();
+		nlDisable(NL_BLOCKING_IO);
+		NLsocket websock = nlOpen(0, NL_RELIABLE);
+		nlOpenMutex.unlock();
+		if (websock == NL_INVALID) {
+			log.error("Website thread: Server can't open socket to connect to server website.");
+			continue;
+		}
+		if (!nlGetAddrFromName(site_name.c_str(), &website_address))
+			log("Website thread: Can't get IP address for %s! Reason: %s", site_name.c_str(), getNlErrorString());
+		int web_port = nlGetPortFromAddr(&website_address);
+		if (!web_port) {
+			web_port = 80;
+			nlSetAddrPort(&website_address, web_port);
+		}
+		if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
+			log.error("Website thread: Server can't connect to %s:%d! Reason: %s", site_name.c_str(), web_port, getNlErrorString());
+			nlStringToAddr(site_ip.c_str(), &website_address);
+			web_port = nlGetPortFromAddr(&website_address);
 			if (!web_port) {
 				web_port = 80;
 				nlSetAddrPort(&website_address, web_port);
 			}
-			if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {		// connect
-				const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
-				log.error("Website thread: Server can't connect to %s:%d! Reason: %s", site_name.c_str(), web_port, reason);
-				nlStringToAddr(site_ip.c_str(), &website_address);
-				web_port = nlGetPortFromAddr(&website_address);
-				if (!web_port) {
-					web_port = 80;
-					nlSetAddrPort(&website_address, web_port);
-				}
-				if (nlConnect(websock, &website_address) == NL_FALSE) {	// connect to IP address
-					const NLchar* const reason = nlGetSystemErrorStr(nlGetSystemError());
-					log.error("Website thread: Server can't connect to %s! Reason: %s", site_ip.c_str(), reason);
-					nlClose(websock);
-					websock = NL_INVALID;
-					continue;
-				}
-				else {	// save new name for web server
-					NLchar new_name[NL_MAX_STRING_LENGTH];
-					nlGetNameFromAddr(&website_address, new_name);
-					if (new_name && site_name != new_name) {
-						ofstream out(web_settings.c_str());
-						out << new_name << '\n' << site_ip << '\n' << site_script << '\n' << site_auth << '\n';
-						out.close();
-						log("Website thread: Saved new name (%s) for IP address %s.", new_name, site_ip.c_str());
-					}
-				}
+			if (nlConnect(websock, &website_address) == NL_FALSE) {	// connect to IP address
+				log.error("Website thread: Server can't connect to %s! Reason: %s", site_ip.c_str(), getNlErrorString());
+				nlClose(websock);
+				continue;
 			}
-			else {	// save new IP address for web server
-				NLchar new_address[NL_MAX_STRING_LENGTH];
-				nlAddrToString(&website_address, new_address);
-				if (site_ip != new_address) {
+			else {	// save new name for web server
+				NLchar new_name[NL_MAX_STRING_LENGTH];
+				nlGetNameFromAddr(&website_address, new_name);
+				if (new_name && site_name != new_name) {
 					ofstream out(web_settings.c_str());
-					out << site_name << '\n' << new_address << '\n' << site_script << '\n' << site_auth << '\n';
+					out << new_name << '\n' << site_ip << '\n' << site_script << '\n' << site_auth << '\n';
 					out.close();
-					log("Website thread: Saved new IP address (%s) for %s.", new_address, site_name.c_str());
+					log("Website thread: Saved new name (%s) for IP address %s.", new_name, site_ip.c_str());
 				}
 			}
-
-			// build and send data
-			map<string, string> parameters = website_parameters(address);
-			if (first_connection) {		// send maplist
-				parameters["maplist"] = website_maplist();
-				first_connection = false;
+		}
+		else {	// save new IP address for web server
+			NLchar new_address[NL_MAX_STRING_LENGTH];
+			nlAddrToString(&website_address, new_address);
+			if (site_ip != new_address) {
+				ofstream out(web_settings.c_str());
+				out << site_name << '\n' << new_address << '\n' << site_script << '\n' << site_auth << '\n';
+				out.close();
+				log("Website thread: Saved new IP address (%s) for %s.", new_address, site_name.c_str());
 			}
-			const string data = build_http_data(parameters);
-			NLint result = post_http_data(websock, site_script, data, site_auth);
-			log("Website thread: Sent information to server website:");
-			log("%s", data.c_str());
-			log("Result: %i", result);
-			if (result == -1)
-				website_talk_time = get_time() + 15.0;		// 15 seconds
-
-			// save response to a file
-			ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-			save_http_response(websock, out);
-			out.close();
-
-			//close socket
-			nlClose(websock);
-			websock = NL_INVALID;
 		}
 
-		//no: sleep a bit
-		MS_SLEEP(500);
-	} while (!file_threads_quit);
+		// build and send data
+		map<string, string> parameters = website_parameters(localAddress);
+		if (first_connection) {		// send maplist
+			parameters["maplist"] = website_maplist();
+			first_connection = false;
+		}
+		const string data = build_http_data(parameters);
+		bool result = post_http_data(websock, &file_threads_quit, 30000, site_script, data, site_auth);
+		log("Website thread: Sent information to server website:");
+		log("%s", data.c_str());
+		log("Result: %i", result);
+		if (result) {
+			// save response to a file
+			ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
+			result = save_http_response(websock, out, &file_threads_quit, 30000);
+		}
+		if (!result)
+			website_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
+
+		//close socket
+		nlClose(websock);
+	}
 
 	log("Website thread: time to say goodbye");
 
-	//qutting: close the socket
-	if (websock != NL_INVALID) {
-		log("Website thread: bye 1");
-		nlClose(websock);
-		websock = NL_INVALID;
-	}
+	if (first_connection)	// not send anything
+		return;
 
 	//quitting: send server shutdown message to web script
 	//open socket
-	//nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
 	nlOpenMutex.lock();
-	nlEnable(NL_BLOCKING_IO);
-	websock = nlOpen(0, NL_RELIABLE);
 	nlDisable(NL_BLOCKING_IO);
+	NLsocket websock = nlOpen(0, NL_RELIABLE);
 	nlOpenMutex.unlock();
 
 	if (websock == NL_INVALID) {
-		log.error("Website thread: (Quit) Server can't open socket to connect to server website!");
-		website_exiting_ok = true;
+		log.error("Website thread: (Quit) Server can't open socket to connect to server website.");
 		return;
 	}
 
 	//connect
-	if (nlConnect(websock, &website_address) == NL_FALSE) {		//connect
-		log.error("Website thread: (Quit) Server can't connect to %s!", site_name.c_str());
+	if (nlConnect(websock, &website_address) == NL_FALSE) {
+		log.error("Website thread: (Quit) Server can't connect to %s.", site_name.c_str());
 		nlClose(websock);
-		websock = NL_INVALID;
-		website_exiting_ok = true;
 		return;
 	}
 
 	// send quit message
 	const string quit = "quit=1\r\n";
-	NLint result = post_http_data(websock, site_script, quit, site_auth);
+	bool result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
 	log("Website thread: Sent information to server website:");
 	log("%s", quit.c_str());
 	log("Result: %i", result);
 
-	// save response to a file
-	ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-	save_http_response(websock, out);
-	out.close();
+	if (result) {
+		// save response to a file
+		ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
+		save_http_response(websock, out, 0, 5000);	// only 5 seconds allowed; it's not so crucial
+	}
 
-	//close socket
 	nlClose(websock);
-	websock = NL_INVALID;
-
-	website_exiting_ok = true;
 }
 
 map<string, string> ServerNetworking::master_parameters(const string& address) const {
@@ -2442,7 +2321,8 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 	return param_line.str();
 }
 
-NLint ServerNetworking::post_http_data(NLsocket& socket, const string& script, const string& parameters, const string& auth) const {
+bool ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+											const string& script, const string& parameters, const string& auth) const {
 	char lebuf[65536]; int count = 0;
 	ostringstream data;
 	data << "POST " << script << " HTTP/1.0\r\n";
@@ -2454,30 +2334,61 @@ NLint ServerNetworking::post_http_data(NLsocket& socket, const string& script, c
 	data << "Content-Length: " << parameters.length() << "\r\n\r\n";
 	writeStr(lebuf, count, data.str()); count--;
 	writeStr(lebuf, count, parameters); count--;
-	return nlWrite(socket, lebuf, count);
+	return writeToUnblockingTCP(socket, lebuf, count, abortFlag, timeout);
 }
 
-void ServerNetworking::save_http_response(NLsocket& socket, ostream& out) const {
-	const double timeout = get_time() + 60.0;
+bool ServerNetworking::writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout) const {
+	int at = 0;
+	const int roundDelay = 500;	// we're not in a hurry
+	int tries = 0;
+	while (at < length) {
+		if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
+			return false;
+
+		NLint written = nlWrite(socket, data + at, length - at);
+		if (written == NL_INVALID) {
+			if (nlGetError() != NL_CON_PENDING)
+				return false;
+		}
+		else
+			at += written;
+
+		MS_SLEEP(roundDelay);
+		++tries;
+	}
+	return true;
+}
+
+bool ServerNetworking::save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) const {
 	const int buffer_size = 511;
 	char lebuf[buffer_size + 1];
-	NLint result;
-	do {
-		// read
-		result = nlRead(socket, lebuf, buffer_size);
-		if (result == NL_INVALID)
-			break;
-		lebuf[result] = '\0';
-		// save
-		out << lebuf;
-	} while (get_time() <= timeout && !file_threads_quit);
+
+	const int roundDelay = 500;	// we're not in a hurry
+	int tries = 0;
+	for (;;) {
+		if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
+			return false;
+
+		NLint read = nlRead(socket, lebuf, buffer_size);
+		if (read == NL_INVALID) {
+			if (nlGetError() != NL_CON_PENDING)
+				return nlGetError() == NL_MESSAGE_END;
+		}
+		else {
+			lebuf[read] = '\0';
+			out << lebuf;
+		}
+
+		MS_SLEEP(roundDelay);
+		++tries;
+	}
 }
 
-//read a string from a blocking TCP stream, one char at a time
+// read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
 bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 	for (;;) {
 		NLint result = nlRead(sock, buf, 1);
-		if (result != 1)	//interrupted
+		if (result != 1)	// message not completely received
 			return false;
 		if (*buf == '\0')
 			return true;
@@ -2486,290 +2397,251 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 }
 
 //run a admin shell master thread
-void ServerNetworking::run_shellmaster_thread() {
-	log("run_shellmaster_thread() STARTED");
+void ServerNetworking::run_shellmaster_thread(int port) {
+	Thread slaveThread;
+	volatile bool slaveRunning = false;	// the slave thread will modify this flag when quitting
 
-	while (1) {
+	log("Admin shell master thread running");
+
+	nlOpenMutex.lock();
+	nlDisable(NL_BLOCKING_IO);
+	NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
+	nlOpenMutex.unlock();
+	if (shellmsock == NL_INVALID) {
+		log.error("Admin shell: Can't open socket on port %i", port);
+		return;
+	}
+	if (!nlListen(shellmsock)) {
+		log.error("Admin shell: Can't set socket to listen mode");
+		return;
+	}
+
+	while (!file_threads_quit) {
+		MS_SLEEP(1000);	// this thread definitely is no priority
+
 		//accept one connection
 		nlOpenMutex.lock();
-		nlEnable(NL_BLOCKING_IO);
-		NLsocket pidaosock = nlAcceptConnection(shellmsock);
 		nlDisable(NL_BLOCKING_IO);
+		NLsocket newSock = nlAcceptConnection(shellmsock);
 		nlOpenMutex.unlock();
 
-		//valid socket?
-		if (pidaosock != NL_INVALID) {
-
-			log("pidaosock NOT INVALID! incoming SHELL CONNECTION!");
-
-			//accept connections only from localhost
-			NLaddress addr, c1, c2;
-			nlGetRemoteAddr(pidaosock, &addr);
-			nlStringToAddr("127.0.0.1", &c1);
-			get_self_IP(&c2);
-			nlSetAddrPort(&addr, 0);
-			nlSetAddrPort(&c1, 0);
-			nlSetAddrPort(&c2, 0);
-
-			if ((nlAddrCompare(&addr, &c1) == NL_FALSE) && (nlAddrCompare(&addr, &c2) == NL_FALSE)) {
-				log.security("WARNING: attempt to connect a remote admin shell blocked!");
-				nlClose(pidaosock);
-				continue;
-			}
-
-			//if already connected, skip
-			if (shellssock != NL_INVALID)	{ //skip
-				log.security("WARNING: attempt to connect two simultaneous admin shells blocked!");
-				nlClose(pidaosock);
-				continue;
-			}
-
-			log("**** ADMIN SHELL SOCKET CONNECTED ON LOOPBACK PORT! ******");
-
-			//ADMIN SHELL just connected: tell about the current situation!
-			//
-			char lebuf[4096]; int count = 0;
-			for (int i=0;i<maxplayers;i++)
-				if (world.player[i].used) {
-					writeLong(lebuf, count, STA_PLAYER_CONNECTED);////1 .... player connected <int id>
-					writeLong(lebuf, count, world.player[i].cid);
-					writeLong(lebuf, count, STA_PLAYER_FRAGS);
-					writeLong(lebuf, count, world.player[i].cid);
-					writeLong(lebuf, count, world.player[i].frags);
-					writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-					writeLong(lebuf, count, world.player[i].cid);
-					writeStr(lebuf, count, world.player[i].name);
-					writeLong(lebuf, count, STA_PLAYER_IP);
-					writeLong(lebuf, count, world.player[i].cid);
-					char addrBuf[50];
-					NLaddress addr = get_client_address(world.player[i].cid);
-					nlSetAddrPort(&addr, 0);
-					nlAddrToString(&addr, addrBuf);
-					writeString(lebuf, count, addrBuf);
-				}
-			nlWrite(pidaosock, lebuf, count);
-
-			//keep socket so it can be closed. this assignment also will reflect
-			// on the execution of run_shellslave_thread()
-			shellssock = pidaosock;
-		}
-		else {
-			if (file_threads_quit) {		//quitting!
-				log("SHELLMASTER THREAD IS QUITTING");
-				nlClose(shellmsock);
-				return;
-			}
+		if (newSock == NL_INVALID) {
+			nAssert(nlGetError() == NL_NO_PENDING);
+			continue;
 		}
 
-		//sleep a bit
-		MS_SLEEP(500);
+		log("Incoming admin shell connection");
+
+		//accept connections only from localhost
+		NLaddress addr, c1, c2;
+		nlGetRemoteAddr(newSock, &addr);
+		nlStringToAddr("127.0.0.1", &c1);
+		get_self_IP(&c2);
+		nlSetAddrPort(&addr, 0);
+		nlSetAddrPort(&c1, 0);
+		nlSetAddrPort(&c2, 0);
+
+		if (nlAddrCompare(&addr, &c1) == NL_FALSE && nlAddrCompare(&addr, &c2) == NL_FALSE) {
+			log.security("Attempt to connect a remote admin shell blocked.");
+			nlClose(newSock);
+			continue;
+		}
+
+		if (slaveRunning) {	// if already connected, skip
+			log.security("Attempt to connect two simultaneous admin shells blocked.");
+			nlClose(newSock);
+			continue;
+		}
+
+		log("Admin shell connection accepted");
+
+		// tell about the current situation
+		char lebuf[4096];
+		int count = 0;
+		for (int i = 0; i < maxplayers; i++)
+			if (world.player[i].used) {
+				writeLong(lebuf, count, STA_PLAYER_CONNECTED);
+				writeLong(lebuf, count, world.player[i].cid);
+
+				writeLong(lebuf, count, STA_PLAYER_FRAGS);
+				writeLong(lebuf, count, world.player[i].cid);
+				writeLong(lebuf, count, world.player[i].frags);
+
+				writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+				writeLong(lebuf, count, world.player[i].cid);
+				writeStr(lebuf, count, world.player[i].name);
+
+				writeLong(lebuf, count, STA_PLAYER_IP);
+				writeLong(lebuf, count, world.player[i].cid);
+				char addrBuf[50];
+				NLaddress addr = get_client_address(world.player[i].cid);
+				nlSetAddrPort(&addr, 0);
+				nlAddrToString(&addr, addrBuf);
+				writeString(lebuf, count, addrBuf);
+			}
+		nlWrite(newSock, lebuf, count);
+
+		if (slaveThread.isRunning())
+			slaveThread.join();
+		slaveRunning = true;	// slave will set it false when exiting
+		shellssock = newSock;
+		slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning);
 	}
+	nlClose(shellmsock);
+	log("Admin shell master thread quitting");
+	if (slaveThread.isRunning())
+		slaveThread.join();
 }
 
-//run an admin shell slave thread
-void ServerNetworking::run_shellslave_thread() {
-	log("run_shellslave_thread() STARTED");
+void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// sets *runningFlag = true when quitting
+	log("Admin shell slave thread running");
 
-	while (1) {
+	while (!file_threads_quit) {
+		char rbuf[256];
+		int rcount = 0;
 
-		// valid socket?
-		if (shellssock != NL_INVALID) {
+		//read request code
+		NLint result = nlRead(shellssock, rbuf, 4);
 
-			//log("SLAVE SHELLSOCK READING MESSAGE...");
-
-			//read request code
-			NLint code, pid, clid, arg;
-			char rbuf[256]; int rcount = 0;
-			NLint result = nlRead(shellssock, rbuf, 4);
-			rcount = 0; readLong(rbuf, rcount, code);
-
-			//a zero result may be connection not ready yet (?)
-			if (result == 0) {
-				MS_SLEEP(10);
-				continue;
-			}
-
-			log("READ RESULT = %i VALUE = %i", result, code);
-
-			if (result == NL_INVALID) {
-				log("RESULT IS NL_INVALID. errors are %i %s %i %s", nlGetError(), nlGetErrorStr(nlGetError()), nlGetSystemError(), nlGetSystemErrorStr(nlGetSystemError()));
-				log("SLAVE CONNECTION RESET (1)");
-				if (shellssock != NL_INVALID) {
-					nlClose(shellssock);
-					shellssock = NL_INVALID;
-				}
-				continue;
-			}
-
-			if (file_threads_quit) {
-				log("SLAVE QUIT (2)");
-				break; //quitting...
-			}
-
-			if (result != 4) {
-				log("SLAVE CONNECTION RESET (2)");
-				if (shellssock != NL_INVALID) {
-					nlClose(shellssock);
-					shellssock = NL_INVALID;
-				}
-				continue;
-			}//error occured: end here
-
-			bool should_quit = false;
-			bool answer = false;
-			char lebuf[1024];
-			char chat[2048];
-			char lechat[2048];
-			int count = 0, delta;
-
-			//parse it
-			switch (code) {
-				case ATS_NOOP:						//0= no-op
-					break;
-				case ATS_GET_PLAYER_FRAGS:		//1... request the frags amount of a player <int id>
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4) {
-						if (world.player[pid].used) {
-							answer = true; //ADMIN SHELL
-							writeLong(lebuf, count, STA_PLAYER_FRAGS);
-							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].frags);
-						}
-					}
-					break;
-				case ATS_GET_PLAYER_TOTAL_TIME:		//request the frags amount of a player <int id>
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4) {
-						if (world.player[pid].used) {
-							answer = true;
-							writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
-							writeLong(lebuf, count, world.player[pid].cid);
-							delta = static_cast<int>(get_time() - world.player[pid].stats().start_time());
-							writeLong(lebuf, count, delta);
-						}
-					}
-					break;
-				case ATS_GET_PLAYER_TOTAL_KILLS:		//request the total kills amount of a player <int id>
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4) {
-						if (world.player[pid].used) {
-							answer = true;//ADMIN SHELL
-							writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
-							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].stats().kills());
-						}
-					}
-					break;
-				case ATS_GET_PLAYER_TOTAL_DEATHS:		//request the total deaths amount of a player <int id>
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4) {
-						if (world.player[pid].used) {
-							answer = true;//ADMIN SHELL
-							writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
-							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].stats().deaths());
-						}
-					}
-					break;
-				case ATS_GET_PLAYER_TOTAL_CAPTURES:		//request the total captures amount of a player <int id>				}
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4) {
-						if (world.player[pid].used) {
-							answer = true;//ADMIN SHELL
-							writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
-							writeLong(lebuf, count, world.player[pid].cid);
-							writeLong(lebuf, count, world.player[pid].stats().captures());
-						}
-					}
-					break;
-				case ATS_SERVER_CHAT:									//server is saying <string chat line>
-					read_string_from_TCP(shellssock, (char *)chat);
-					sprintf(lechat, "ADMIN: %s", chat);
-					broadcast_message(msg_normal, lechat);
-					break;
-				case ATS_GET_PINGS:
-					for (int p=0; p<maxplayers; ++p)
-						if (world.player[p].used) {
-							answer=true;
-							writeLong(lebuf, count, STA_PLAYER_PING);
-							writeLong(lebuf, count, world.player[p].cid);
-							writeLong(lebuf, count, world.player[p].ping);
-						}
-					break;
-				case ATS_MUTE_PLAYER:
-					result = nlRead(shellssock, rbuf, 8);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					readLong(rbuf, rcount, arg);
-					if (result == 8 && pid != -1)
-						host->mutePlayer(pid, arg, -1);
-					break;
-				case ATS_KICK_PLAYER:
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4 && pid != -1)
-						host->kickPlayer(pid, -1);
-					break;
-				#ifdef SV_NAME_AUTHORIZATION
-				case ATS_BAN_PLAYER:
-					result = nlRead(shellssock, rbuf, 4);
-					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-					if (result == 4 && pid != -1)
-						host->banPlayer(pid, -1);
-					break;
-				#endif
-				case ATS_RESET_SETTINGS:
-					host->reset_settings(true);
-					break;
-				case ATS_QUIT:
-					should_quit = true;
-					break;
-			}
-
-			//quitting?
-			if (should_quit) {
-				log("SLAVE ATS_QUIT (connection reset)");
-				if (shellssock != NL_INVALID) {
-					nlClose(shellssock);
-					shellssock = NL_INVALID;
-				}
-				continue;
-			}
-
-			//quitting...
-			if (file_threads_quit) {
-				log("SLAVE QUIT (4)");
-				break;
-			}
-
-			//send answer to the shell
-			if (answer) {
-				result = nlWrite(shellssock, lebuf, count);
-			}
-		}
-		//not valid
-		else {
-			//sleep a bit
-			MS_SLEEP(1000);
-		}
-
-		//quitting...
-		if (file_threads_quit) {
-			log("SLAVE QUIT (5)");
+		if (result == NL_INVALID) {
+			log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
 			break;
 		}
+
+		if (result == 0) {
+			MS_SLEEP(500);	// no need to be more responsive
+			continue;
+		}
+
+		if (result != 4) {
+			log.error("Admin shell: bad data length");
+			break;
+		}
+
+		NLulong code;
+		readLong(rbuf, rcount, code);
+
+		// parse the code
+		if (code >= NUMBER_OF_ATS) {
+			log.error("Admin shell: invalid command");
+			break;
+		}
+
+		if (code == ATS_QUIT) {
+			log("Admin shell: received quit command");
+			break;
+		}
+
+		NLulong cid;
+		int pid;	// pid and cid set if argPid[code]
+		NLulong dwArg;	// set if argDw[code]
+		//                         noop, get-functions,ch,qu,pi,kckbanmte,reset
+		int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
+		int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+		int argsLen = (argPid[code] + argDw[code]) * 4;
+		if (argsLen) {
+			result = nlRead(shellssock, rbuf, argsLen);
+			if (result != argsLen) {
+				if (result == NL_INVALID)
+					log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
+				else
+					log.error("Admin shell: bad data length (args: %d/%d)", result, argsLen);
+				break;
+			}
+			rcount = 0;
+			if (argPid[code]) {
+				readLong(rbuf, rcount, cid);
+				if (cid > 255) {
+					log.error("Admin shell: bad client id");
+					break;
+				}
+				pid = ctop[cid];
+				if (pid == -1 || !world.player[pid].used)	// player not in the game; just ignore the command
+					continue;
+			}
+			if (argDw[code])
+				readLong(rbuf, rcount, dwArg);
+		}
+
+		char answer[1000];
+		int ansLen = 0;
+		bool error = false;
+		switch (code) {
+			case ATS_GET_PLAYER_FRAGS:
+				writeLong(answer, ansLen, STA_PLAYER_FRAGS);
+				writeLong(answer, ansLen, cid);
+				writeLong(answer, ansLen, world.player[pid].frags);
+				break;
+			case ATS_GET_PLAYER_TOTAL_TIME:
+				writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
+				writeLong(answer, ansLen, cid);
+				writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
+				break;
+			case ATS_GET_PLAYER_TOTAL_KILLS:
+				writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
+				writeLong(answer, ansLen, cid);
+				writeLong(answer, ansLen, world.player[pid].stats().kills());
+				break;
+			case ATS_GET_PLAYER_TOTAL_DEATHS:
+				writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
+				writeLong(answer, ansLen, cid);
+				writeLong(answer, ansLen, world.player[pid].stats().deaths());
+				break;
+			case ATS_GET_PLAYER_TOTAL_CAPTURES:
+				writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
+				writeLong(answer, ansLen, cid);
+				writeLong(answer, ansLen, world.player[pid].stats().captures());
+				break;
+			case ATS_SERVER_CHAT: {
+				char buf[500];
+				if (!read_string_from_TCP(shellssock, buf)) {
+					log.error("Admin shell: unterminated string");
+					error = true;
+				}
+				else
+					bprintf(msg_normal, "ADMIN: %s", buf);
+				break;
+			}
+			case ATS_GET_PINGS:
+				for (int p=0; p<maxplayers; ++p)
+					if (world.player[p].used) {
+						writeLong(answer, ansLen, STA_PLAYER_PING);
+						writeLong(answer, ansLen, world.player[p].cid);
+						writeLong(answer, ansLen, world.player[p].ping);
+					}
+				break;
+			case ATS_MUTE_PLAYER:
+				host->mutePlayer(pid, dwArg, -1);
+				break;
+			case ATS_KICK_PLAYER:
+				host->kickPlayer(pid, -1);
+				break;
+			#ifdef SV_NAME_AUTHORIZATION
+			case ATS_BAN_PLAYER:
+				host->banPlayer(pid, -1);
+				break;
+			#endif
+			case ATS_RESET_SETTINGS:
+				host->reset_settings(true);
+				break;
+		}
+
+		if (error)
+			break;
+
+		if (ansLen) {
+			result = nlWrite(shellssock, answer, ansLen);
+			if (result != ansLen) {
+				log.error("Admin shell: sending response failed. Reason: %s", getNlErrorString());
+				break;
+			}
+		}
 	}
 
-	//quitting
-	log("ADMIN SHELL SLAVE THREAD QUITTING... CLOSING SOCKET");
-	if (shellssock != NL_INVALID) {
-		nlClose(shellssock);
-		shellssock = NL_INVALID;
-	}
+	nlClose(shellssock);
+	shellssock = NL_INVALID;	// not in use
+	*runningFlag = false;
+	log("Admin shell slave thread quitting");
 }
 
 void ServerNetworking::stop() {
@@ -2782,7 +2654,7 @@ void ServerNetworking::stop() {
 	mjob_fastretry = true;
 	double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
 
-	server_status_string("Shutdown: Net Server");
+	server_status_string("Shutdown: net server");
 
 	if (server)
 		server->stop(3);
@@ -2793,108 +2665,38 @@ void ServerNetworking::stop() {
 	for (int i=0; i<MAX_PLAYERS; i++)
 		fileTransfer[i].reset();
 
-	// flag so threads will quit themselves
-	master_pre_exiting_ok = false;
-	master_exiting_ok = false;
-	file_threads_quit = true;	//quit stuff now
+	file_threads_quit = true;	// flag so threads will quit themselves
 
 	//close TCP connection with the server admin shell
-	server_status_string("Shutdown: MSHELL Thread");
-
-	log("GAMESERVER JOINING SHELL-MASTER THREAD...");
+	server_status_string("Shutdown: admin shell threads");
 	shellmthread.join();
 
-	server_status_string("Shutdown: SSHELL Socket");
-
-	log("GAMESERVER CLOSING SHELL-SLAVE SOCKET...");
-	if (shellssock != NL_INVALID)
-		nlClose( shellssock );
-
-	server_status_string("Shutdown: SSHELL Thread");
-
-	log("GAMESERVER JOINING SHELL-SLAVE THREAD...");
-	shellsthread.join();
-
-	//thread for website interface
-	for (int waitcount = 0; !website_exiting_ok; waitcount++) {
-		if (waitcount > 30) {		// 30 * 100ms = 3 seconds
-			log.error("Tired of waiting for website thread...");
-			//kill the socket
-			server_status_string("Shutdown: Website Socket");
-			nlClose(websock);		//close AGAIN (it's a different one)
-			websock = NL_INVALID;
-			break;
-		}
+	//wait for all master jobs to complete nicely
+	while (mjob_count > 0 && get_time() < mjmaxtime) {
+		char lix[200];
+		sprintf(lix, "Shutdown: waiting for %d tournament updates", mjob_count);
+		server_status_string(lix);
 		MS_SLEEP(100);
 	}
 
-	//thread for TCP connection that server uses to register it's IP on the master-server
+	//clean up jobs
+	mjob_exit = true;		//MUST terminate -- abort
+	while (mjob_count > 0) {
+		char lix[200];
+		sprintf(lix, "Shutdown: ABORTING %d tournament updates", mjob_count);
+		server_status_string(lix);
+		MS_SLEEP(100);
+	}
+
 	if (!privateserver) {
-
-		//MS_SLEEP(1000);	//wait a bit for the slave thread to catch up
-
-		if (!master_pre_exiting_ok) {
-			if (msock != NL_INVALID) {
-				log("GAMESERVER CLOSING MASTER SERVER SOCKET...");
-				server_status_string("Shutdown: MASTER Socket 1");
-				nlClose(msock);
-				msock = NL_INVALID;
-			}
-			else
-				log("GAMESERVER CLOSING MASTER SERVER SOCKET (BUT IT HAS ALREADY BEEN DISCONNECTED AND SENDING DISCONNECT TO MASTER)...");
-		}
-
-		//MS_SLEEP(1000);	//wait a bit for the slave thread to catch up
-
-		log("GAMESERVER JOINING MASTER SERVER THREAD...");
-
-		server_status_string("Shutdown: MASTER Thread");
-
-		int waitcount = 0;
-		do {
-			MS_SLEEP(100);
-			if (master_exiting_ok) {	//done!
-				log("IT EXITED...");
-				break;
-			}
-
-			waitcount++;
-			if (waitcount > 30) {		// 30 * 100ms = 3 seconds
-				log.error("TIRED OF WAITING...");
-				//kill the socket
-				server_status_string("Shutdown: MASTER Socket 2");
-				nlClose(msock);		//close AGAIN (it's a different one)
-				msock = NL_INVALID;
-				break;
-			}
-
-		} while (1);
-
-		//wait for all master jobs to complete nicely
-		while ( (mjob_count > 0) && ( get_time() < mjmaxtime )) {
-			char lix[200];
-			sprintf(lix, "Shutdown: MJOBS %i left", mjob_count);
-			server_status_string(lix);
-			MS_SLEEP(100);
-		}
-
-		//clean up jobs
-		mjob_exit = true;		//MUST terminate -- abort
-		while (mjob_count > 0) {
-			char lix[200];
-			sprintf(lix, "Shutdown: MJOBS ABORT %i left", mjob_count);
-			server_status_string(lix);
-			MS_SLEEP(100);
-		}
-
-		//NOW one can join with the thread without fear
-		log("DE FACTO JOIN...");
-
-		server_status_string("(Kill this window if not closing)");
-
+		server_status_string("Shutdown: master talker thread");
 		mthread.join();
 	}
+
+	server_status_string("Shutdown: website thread");
 	webthread.join();
+
+	server_status_string("Shutdown: main thread");
 }
 
 void ServerNetworking::sendWeaponPower(int pid) {

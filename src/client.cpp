@@ -491,7 +491,7 @@ void gameclient_c::client_password_thread() {
 			if (player_password_set == false)
 				break;
 
-		} while ((result == NL_INVALID) && (nlGetError() == NL_CON_PENDING));
+		} while (result == NL_INVALID && (nlGetError() == NL_CON_PENDING));
 
 		//qutting?
 		if (player_password_set == false)
@@ -2553,7 +2553,7 @@ bool gameclient_c::getServerList() {
 
 	//check bogus
 	if (result == NL_INVALID) {
-		log("Client can't connect to master server. Reason: %s", nlGetSystemErrorStr(nlGetSystemError()));
+		log("Client can't connect to master server. Reason: %s", getNlErrorString());
 		nlClose(sock);
 		return false;
 	}

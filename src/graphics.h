@@ -233,8 +233,6 @@ private:
 	BITMAP* get_wall_texture(int texid);
 
 	void load_player_sprites(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
-	void create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;	// be careful to give the colors in same format as sprite
-
 	void load_shield_sprites(const std::string& path);
 	void load_dead_sprites(const std::string& path);
 	void load_rocket_sprites(const std::string& path);
@@ -243,9 +241,11 @@ private:
 	BITMAP* scale_sprite(const std::string& filename, int x, int y) const;
 	BITMAP* scale_alpha_sprite(const std::string& filename, int x, int y) const;
 	static void set_alpha_channel(BITMAP* bitmap, BITMAP* alpha);
-	static void rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle);	// x,y are destination coords of the sprite center
+	static void rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha);	// x,y are destination coords of the sprite center
 	static void rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle);	// x,y are destination coords of the sprite center
 	static int colorTo32(int color) { return makecol32(getr(color), getg(color), getb(color)); }
+	static void overlayColor(BITMAP* bmp, BITMAP* alpha, int color);	// alpha must be an 8-bit bitmap; give the color in same format as bmp
+	static void combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol);	// give the colors in same format as sprite
 
 	void unload_pictures();
 	void unload_floor_textures();

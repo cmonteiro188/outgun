@@ -43,6 +43,8 @@ class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog);
 
 const char* getNlErrorString();
+bool check_private_IP(const char* address);
+std::string getPublicIP(LogSet& log);
 
 class LineReceiver {
 protected:

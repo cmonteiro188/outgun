@@ -863,67 +863,66 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 		}
 	}
 
-	if (alpha < 255) {
-		set_trans_blender(0, 0, 0, alpha);
-		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	}
-
 	const int player_radius = scale(PLAYER_RADIUS);
 
 	BITMAP* sprite = 0;
 	if (item_quad && player_sprite_power && static_cast<int>(time * 10) % 2)
 		sprite = player_sprite_power;
-	else if (player_sprite[team][pli])
+	else
 		sprite = player_sprite[team][pli];
 	if (sprite) {
 		if (alpha < 255)
-			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(gundir * 32));
+			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(gundir * 32), alpha);
 		else
 			rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(gundir * 32));
-	}
-	else {
-		// outer color: team color
-		circlefill(drawbuf, plx + x, ply + y, player_radius, pc1);
-		// inner color: self color
-		circlefill(drawbuf, plx + x, ply + y, player_radius * 2 / 3, pc2);
-		// gun direction
-		int xg, yg;
-		switch (gundir) {
-			case 0: xg = 40; yg =  0; break;
-			case 1: xg = 28; yg = 28; break;
-			case 2: xg =  0; yg = 40; break;
-			case 3: xg =-28; yg = 28; break;
-			case 4: xg =-40; yg =  0; break;
-			case 5: xg =-28; yg =-28; break;
-			case 6: xg =  0; yg =-40; break;
-			case 7: xg = 28; yg =-28; break;
-			default: xg = 0; yg =  0; break;
-		}
-		xg = scale(xg * 0.7);
-		yg = scale(yg * 0.7);
-		// draw the gun
-		switch (gundir) {
-			case 0: case 4:
-				rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
-				break;
-			case 2: case 6:
-				rectfill(drawbuf, plx + x + xg - 1, ply + y + yg / 2, plx + x + xg + 1, ply + y + yg, pc1);
-				break;
-			case 1: case 5:
-				line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
-				line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
-				line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg - 1, pc1);
-				break;
-			case 3: case 7:
-				line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 - 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
-				line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
-				line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 1, pc1);
-				break;
-		}
+		return;
 	}
 
-	if (alpha < 255)
-		solid_mode();
+	if (alpha < 255) {
+		set_trans_blender(0, 0, 0, alpha);
+		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	}
+
+	// outer color: team color
+	circlefill(drawbuf, plx + x, ply + y, player_radius, pc1);
+	// inner color: self color
+	circlefill(drawbuf, plx + x, ply + y, player_radius * 2 / 3, pc2);
+	// gun direction
+	int xg, yg;
+	switch (gundir) {
+		case 0: xg = 40; yg =  0; break;
+		case 1: xg = 28; yg = 28; break;
+		case 2: xg =  0; yg = 40; break;
+		case 3: xg =-28; yg = 28; break;
+		case 4: xg =-40; yg =  0; break;
+		case 5: xg =-28; yg =-28; break;
+		case 6: xg =  0; yg =-40; break;
+		case 7: xg = 28; yg =-28; break;
+		default: xg = 0; yg =  0; break;
+	}
+	xg = scale(xg * 0.7);
+	yg = scale(yg * 0.7);
+	// draw the gun
+	switch (gundir) {
+		case 0: case 4:
+			rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
+			break;
+		case 2: case 6:
+			rectfill(drawbuf, plx + x + xg - 1, ply + y + yg / 2, plx + x + xg + 1, ply + y + yg, pc1);
+			break;
+		case 1: case 5:
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg - 1, pc1);
+			break;
+		case 3: case 7:
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 - 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
+			line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 1, pc1);
+			break;
+	}
+
+	solid_mode();
 }
 
 void Graphics::draw_player_shadow(const ClientPlayer& player, int alpha) {
@@ -954,7 +953,7 @@ void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
 	solid_mode();
 }
 
-void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) {	// x,y are destination coords of the sprite center
+void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) {	// x,y are destination coords of the sprite center
 	// make room so that rotating won't clip the corners off
 	//const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
 	//const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
@@ -964,7 +963,10 @@ void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
 	nAssert(buffer);
 	clear_to_color(buffer, bitmap_mask_color(buffer));
 	rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	set_trans_blender(0, 0, 0, alpha);
 	draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
+	solid_mode();
 }
 
 void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) {	// x,y are destination coords of the sprite center
@@ -978,6 +980,7 @@ void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
 	nAssert(buffer);
 	clear_to_color(buffer, bitmap_mask_color(buffer));
 	rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_alpha_blender();
 	draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
 	solid_mode();
@@ -1090,14 +1093,16 @@ void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int directi
 	if ((team == 0 || team == 1) && shield_sprite[team]) {
 		BITMAP* sprite = shield_sprite[team];
 		if (alpha < 255)
-			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(direction * 32));
+			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(direction * 32), alpha);
 		else
 			rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(direction * 32));
 		return;
 	}
 	const int v[] = { scale(3), scale(5), scale(9) };
-	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	set_trans_blender(0, 0, 0, alpha);
+	if (alpha < 255) {
+		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+		set_trans_blender(0, 0, 0, alpha);
+	}
 	if (team == 0)
 		for (int i = 0, c = rand() % 256; i < 3; i++)
 			ellipse(drawbuf, plx + x, ply + y, r + rand() % v[i], r + rand() % v[i], makecol(255, c, c));
@@ -2152,33 +2157,37 @@ void Graphics::load_player_sprites(const string& filename_common, const string& 
 			for (int p = 0; p < MAX_PLAYERS / 2; p++) {
 				player_sprite[t][p] = create_bitmap(size, size);
 				nAssert(player_sprite[t][p]);
-				create_player_sprite(player_sprite[t][p], common, team, personal, teamcol[t], col[p]);
+				combine_sprite(player_sprite[t][p], common, team, personal, teamcol[t], col[p]);
 			}
 		// Make a sprite for player with power.
 		player_sprite_power = create_bitmap(size, size);
 		nAssert(player_sprite_power);
-		create_player_sprite(player_sprite_power, common, team, personal, col[COLWHITE], col[COLCYAN]);
+		combine_sprite(player_sprite_power, common, team, personal, col[COLWHITE], col[COLCYAN]);
 	}
 }
 
-void Graphics::create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const {	// be careful to give the colors in same format as sprite
-	blit(common, sprite, 0, 0, 0, 0, common->w, common->h);
-	if (!team && !personal)
+void Graphics::overlayColor(BITMAP* bmp, BITMAP* alpha, int color) {	// alpha must be an 8-bit bitmap; give the color in same format as bmp
+	if (!alpha)
 		return;
-	// todo: remove pixel by pixel drawing if possible
-	for (int y = 0; y < sprite->h; y++)
-		for (int x = 0; x < sprite->w; x++) {
-			const int team_alpha = (team ? getpixel(team, x, y) : 0);	// assume 8-bit team and personal bitmaps
-			const int personal_alpha = (personal ? getpixel(personal, x, y) : 0);
-			if (team_alpha != 0 || personal_alpha != 0) {
-				drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-				set_trans_blender(0, 0, 0, personal_alpha);
-				putpixel(sprite, x, y, pcol);
-				set_trans_blender(0, 0, 0, team_alpha);
-				putpixel(sprite, x, y, tcol);
-				solid_mode();
+	nAssert(bmp);
+	nAssert(alpha->w == bmp->w && alpha->h == bmp->h);
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	for (int y = 0; y < bmp->h; y++)
+		for (int x = 0; x < bmp->h; x++) {
+			const int a = _getpixel(alpha, x, y);
+			if (a) {
+				set_trans_blender(0, 0, 0, a);
+				putpixel(bmp, x, y, color);
 			}
 		}
+	solid_mode();
+}
+
+void Graphics::combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) {	// give the colors in same format as sprite
+	nAssert(sprite && common);
+	blit(common, sprite, 0, 0, 0, 0, common->w, common->h);
+	overlayColor(sprite, personal, pcol);
+	overlayColor(sprite, team, tcol);
 }
 
 void Graphics::load_shield_sprites(const string& path) {
@@ -2190,7 +2199,7 @@ void Graphics::load_shield_sprites(const string& path) {
 	for (int t = 0; t < 2; t++) {
 		shield_sprite[t] = create_bitmap(size, size);
 		nAssert(shield_sprite[t]);
-		create_player_sprite(shield_sprite[t], picture, team, 0, teamcol[t], 0);
+		combine_sprite(shield_sprite[t], picture, team, 0, teamcol[t], 0);
 	}
 }
 
@@ -2204,7 +2213,7 @@ void Graphics::load_dead_sprites(const string& path) {
 	for (int t = 0; t < 2; t++) {
 		dead_sprite[t] = create_bitmap_ex(32, size, size);
 		nAssert(dead_sprite[t]);
-		create_player_sprite(dead_sprite[t], picture, team, 0, colorTo32(teamcol[t]), 0);
+		combine_sprite(dead_sprite[t], picture, team, 0, colorTo32(teamcol[t]), 0);
 		set_alpha_channel(dead_sprite[t], alpha);
 	}
 }
@@ -2213,21 +2222,21 @@ void Graphics::load_rocket_sprites(const string& path) {
 	const int size = scale(2 * 2 * ROCKET_RADIUS);
 	Bitmap normal = scale_sprite(path + "rocket.pcx", size, size);
 	if (normal) {
-		Bitmap alpha = scale_alpha_sprite(path + "rocket_team.pcx", size, size);
+		Bitmap team = scale_alpha_sprite(path + "rocket_team.pcx", size, size);
 		for (int t = 0; t < 2; t++) {
 			rocket_sprite[t] = create_bitmap(size, size);
 			nAssert(rocket_sprite[t]);
-			create_player_sprite(rocket_sprite[t], normal, alpha, 0, teamcol[t], 0);
+			combine_sprite(rocket_sprite[t], normal, team, 0, teamcol[t], 0);
 		}
 		normal.free();
 	}
 	Bitmap power = scale_sprite(path + "rocket_pow.pcx", size, size);
 	if (power) {
-		Bitmap alpha = scale_alpha_sprite(path + "rocket_pow_team.pcx", size, size);
+		Bitmap team = scale_alpha_sprite(path + "rocket_pow_team.pcx", size, size);
 		for (int t = 0; t < 2; t++) {
 			power_rocket_sprite[t] = create_bitmap(size, size);
 			nAssert(power_rocket_sprite[t]);
-			create_player_sprite(power_rocket_sprite[t], power, alpha, 0, teamcol[t], 0);
+			combine_sprite(power_rocket_sprite[t], power, team, 0, teamcol[t], 0);
 		}
 	}
 }

@@ -45,8 +45,10 @@ class ServerNetworking {
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string website_maplist() const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
-	NLint post_http_data(NLsocket& socket, const std::string& script, const std::string& parameters, const std::string& auth = "") const;
-	void save_http_response(NLsocket& socket, std::ostream& out) const;
+	bool post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+							const std::string& script, const std::string& parameters, const std::string& auth = "") const;	// timeout in ms
+	bool save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
+	bool writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
 
 	gameserver_c*	host;
 	ServerWorld&	world;
@@ -59,36 +61,46 @@ class ServerNetworking {
 	double			frameSentTime;	// at what time the last frame was sent
 	#endif
 
-	NLsocket		msock;
-	Thread			mthread;
-	double			master_talk_time;
-	bool			master_pre_exiting_ok;	// if no need to kill the master socket...
-	bool			master_exiting_ok;		// if no need to kill the master socket...
-	bool			master_never_talked;	// if never talked to master, then no need to unregister the server when qutting (optimization)
-	bool			mjob_exit;				//flag for all pending master jobs to quit now
-	bool			mjob_fastretry;			//flag for all pending master jobs to stop waiting and retry immediately
-	int				mjob_count;
+	volatile bool	mjob_exit;				//flag for all pending master jobs to quit now
+	volatile bool	mjob_fastretry;			//flag for all pending master jobs to stop waiting and retry immediately
+	volatile int	mjob_count;
 	pthread_mutex_t	mjob_mutex;				//mutex for socket list
 
 	int				max_world_score, max_world_rank;
 
 	ClientTransferData fileTransfer[MAX_PLAYERS];
-	bool			file_threads_quit;		//#fix: this is used by all kinds of threads even though file threads no longer exist
+	volatile bool	file_threads_quit;		//#fix: this is used by all kinds of threads even though file threads no longer exist
 
-	NLsocket		shellmsock;
+	NLsocket		shellssock;	// set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
 	Thread			shellmthread;
-	NLsocket		shellssock;
-	Thread			shellsthread;
-	NLsocket		websock;
+
+	Thread			mthread;
 	Thread			webthread;
 	
-	bool			website_exiting_ok;
-
 	std::string		hostname;
 	std::string		server_password;
 	int				ping_send_client;
 	int				ctop[256];			// client id-to-player id index
 	int				player_count;
+
+	void upload_next_file_chunk(int i);
+	int  get_download_file(char *lebuf, char *ftype, char *fname);
+
+	void clientHello(int client_id, char* data, int length, ServerHelloResult* res);
+	int  client_connected(int id);
+	void client_disconnected(int id);
+	void ping_result(int client_id, int ping_time);
+	void incoming_client_data(int id, char *data, int length);
+
+	void master_job_response(masterjob_c *j);
+	void run_masterjob_thread(masterjob_c* job);
+	void run_mastertalker_thread();
+
+	bool read_string_from_TCP(NLsocket sock, char *buf);
+	void run_shellmaster_thread(int port);
+	void run_shellslave_thread(volatile bool* quitFlag);
+
+	void run_website_thread();
 
 public:
 	ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs);
@@ -97,14 +109,15 @@ public:
 	bool start();
 	void stop();
 
-	void upload_next_file_chunk(int i);
-	int  get_download_file(char *lebuf, char *ftype, char *fname);
-
 	void update_serverinfo();
 	double getTraffic();
 
+	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }	// call only when moving players around; this actually does close to nothing
+	void disconnect_client(int cid, int timeout, Disconnect_reason reason);
+
 	void send_me_packet(int pid);
 	void send_player_name_update(int cid, int pid);
+	void broadcast_new_player_notice(int pid);
 	void broadcast_player_name(int pid);
 	void send_player_crap_update(int cid, int pid);
 	void broadcast_player_crap(int pid);
@@ -149,26 +162,6 @@ public:
 	void broadcast_message(Message_type type, const std::string& text);
 
 	void forwardSayadminMessage(int cid, const std::string& message);
-
-	void newPlayer(int pid);
-	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }
-	void disconnect_client(int cid, int timeout, Disconnect_reason reason);
-	void clientHello(int client_id, char* data, int length, ServerHelloResult* res);
-	int  client_connected(int id);
-	void client_disconnected(int id);
-	void ping_result(int client_id, int ping_time);
-	void incoming_client_data(int id, char *data, int length);
-
-	void master_job_response(masterjob_c *j);
-	void run_masterjob_thread(masterjob_c* job);
-	bool check_private_IP(const char* address);
-	void run_mastertalker_thread();
-
-	bool read_string_from_TCP(NLsocket sock, char *buf);
-	void run_shellmaster_thread();
-	void run_shellslave_thread();
-
-	void run_website_thread();
 
 	void broadcast_frame(bool gameRunning);
 

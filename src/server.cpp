@@ -1033,11 +1033,8 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 		#endif
 	}
 
-	//send entered-game message
 	if (entered_game)
-		network.newPlayer(pid);
-
-	//broadcast the new player's name
+		network.broadcast_new_player_notice(pid);
 	network.broadcast_player_name(pid);
 }
 

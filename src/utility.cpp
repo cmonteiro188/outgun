@@ -77,6 +77,39 @@ const char* getNlErrorString() {
 		return nlGetErrorStr(nlGetError());
 }
 
+bool check_private_IP(const char *address) {
+	int i1, i2;
+	int n = sscanf(address, "%d.%d.", &i1, &i2);
+	nAssert(n == 2);
+	if (n != 2)
+		return false;
+	// private IP ranges:
+	// 10.0.0.0        -   10.255.255.255
+	// 172.16.0.0      -   172.31.255.255
+	// 192.168.0.0     -   192.168.255.255
+	// 169.254.0.0     -   169.254.255.255 [used by Microsoft DHCP client]
+	return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
+}
+
+string getPublicIP(LogSet& log) {
+	NLaddress* locals;
+	NLint nLocals;
+	locals = nlGetAllLocalAddr(&nLocals);
+	for (int i = 0; i < nLocals; ++i) {
+		char buf[NL_MAX_STRING_LENGTH];
+		nlAddrToString(&locals[i], buf);
+		bool priv = check_private_IP(buf);
+		if (priv)
+			log("Local address %s ignored", buf);
+		else {
+			log("Found public address %s", buf);
+			return buf;
+		}
+	}
+	log("No public address found");
+	return string();
+}
+
 bool is_keypad(int sc) {
 	switch (sc) {
 		case KEY_1_PAD:
