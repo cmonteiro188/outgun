@@ -3410,7 +3410,6 @@ void Client::initMenus() {
 
 	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu>(this));
 	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu>(this));	//#fix: inefficient!
-	menu.connect.menu			   .setCloseHook(new MCB::N<Menu,			&Client::MCF_menuCloser		>(this));
 	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&Client::MCF_prepareServerMenu>(this));
 	menu.connect.update					.setHook(new MCB::N<Textarea,		&Client::MCF_updateServers	>(this));
 	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&Client::MCF_refreshServers	>(this));
@@ -3709,7 +3708,7 @@ void Client::MCF_clearErrors() {
 }
 
 void Client::MCF_prepareServerMenu() {
-	int oldSel = menu.connect.menu.selection();
+	const int oldSel = menu.connect.menu.selection();
 
 	menu.connect.reset();
 	vector<NLaddress> addresses;
