@@ -95,10 +95,10 @@ int main(int argc, char *argv[]) {
 	directory_separator = stuff[0];
 
 	// find out where we are
-	char *exespec = new char[2048];
+	char* exespec = new char[2048];
 	get_executable_name(exespec, 2048);
 	replace_filename((char*)wheregamedir, (const char *)exespec, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
-	delete exespec;
+	delete [] exespec;
 	exespec = 0;
 
 	char lognamebuf[1024];

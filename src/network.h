@@ -55,7 +55,8 @@ enum Network_data_code {
 	data_spawn,
 	data_movements_shots,
 	data_fav_colors,
-	data_name_authorization_request
+	data_name_authorization_request,
+	data_server_settings
 };
 
 enum Disconnect_reason {

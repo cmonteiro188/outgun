@@ -6,6 +6,8 @@
 #include <stack>
 #include "utility.h"	// for Hook
 
+class Graphics;
+
 // Base class of menu components
 class Component {
 public:
@@ -87,7 +89,7 @@ class Textfield : public Component, public Hookable<Textfield> {
 public:
 	Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0): Component(caption_), value(init_text), maxlen(fieldLength), maskChar(mask) { }
 	void set(const std::string& text) { value = text; }
-	std::string operator()() const { return value; }
+	const std::string& operator()() const { return value; }
 
 	// inherited interface
 	bool needsNumberKeys() const { return true; }
@@ -109,7 +111,7 @@ public:
 	void addOption(const std::string& text) { options.push_back(text); }
 	void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
 	int operator()() const { return selected; }
-	std::string asString() const { return options[selected]; }
+	const std::string& asString() const { return options[selected]; }
 
 	// inherited interface
 	int width() const;
@@ -122,12 +124,16 @@ private:
 	int selected;
 };
 
-class Checkbox : public Component, public Hookable<Checkbox> {
+class Colorselect : public Component, public Hookable<Colorselect> {
 public:
-	Checkbox(const std::string& caption_, bool init_value = false): Component(caption_), selected(init_value) { }
-	void toggle() { selected = !selected; }
-	void set(bool value) { selected = value; }
-	bool operator()() const { return selected; }
+	Colorselect(const std::string caption_): Component(caption_), selected(0), graphics(0) { }
+	void setGraphicsCallBack(const Graphics& graph) { graphics = &graph; }
+	void clearOptions() { options.clear(); selected = 0; }
+	void addOption(int col) { options.push_back(col); }
+	void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
+	int operator()() const { return selected; }
+	int asInt() const { return options[selected]; }
+	const std::vector<int>& values() const { return options; }
 
 	// inherited interface
 	int width() const;
@@ -136,7 +142,26 @@ public:
 	bool handleKey(char scan, char chr);
 
 private:
-	bool selected;
+	std::vector<int> options;
+	int selected;
+	const Graphics* graphics;
+};
+
+class Checkbox : public Component, public Hookable<Checkbox> {
+public:
+	Checkbox(const std::string& caption_, bool init_value = false): Component(caption_), checked(init_value) { }
+	void toggle() { checked = !checked; }
+	void set(bool value) { checked = value; }
+	bool operator()() const { return checked; }
+
+	// inherited interface
+	int width() const;
+	int height() const;
+	void draw(BITMAP* buffer, int x, int y, bool active) const;
+	bool handleKey(char scan, char chr);
+
+private:
+	bool checked;
 };
 
 class Slider : public Component, public Hookable<Slider> {

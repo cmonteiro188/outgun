@@ -148,6 +148,7 @@ public:
 	void broadcast_map_votes_update();
 	void send_map_change_message(int pid, int reason, const char* mapname);
 	void send_map_time(int cid);
+	void send_server_settings(const ServerPlayer& player);
 	void ctf_net_flag_status(int cid, int team);
 	void ctf_update_teamscore(int t);
 	void move_update_player(int a, bool silent = false);

@@ -8,6 +8,7 @@
 #include "log.h"
 #include "menu.h"
 #include "client_menus.h"
+#include "names.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
@@ -63,6 +64,7 @@ class gameclient_c {
 	std::string load_player_password(const std::string& name, const std::string& address) const;
 	void save_player_password(const std::string& name, const std::string& address, const std::string& password) const;
 	void remove_player_password(const std::string& name, const std::string& address) const;
+	int remove_player_passwords(const std::string& name) const;
 
 	ServerThreadOwner listenServer;
 
@@ -140,9 +142,9 @@ class gameclient_c {
 //#fix: get rid
 	bool showmaster;	//showing master screen (opposite: showing favourites screen)
 	bool first_fav_refresh;	//first refresh of favorites page already done?
-	gamespy_t gamespy[MAX_GAMESPY];
+	std::vector<gamespy_t> gamespy;
 	int gi;	//what game entry
-	gamespy_t mgamespy[MAX_GAMESPY];	//gamespy of masterserver
+	std::vector<gamespy_t> mgamespy;	//gamespy of master server
 
 	std::string playername;	//the player's name (max name len = 16)
 	std::string address;	//server IP address
@@ -157,8 +159,6 @@ class gameclient_c {
 	Graphics client_graphics;
 	bool screenshot;
 	Sounds client_sounds;
-
-	std::vector<char> fav_colors;
 
 	std::ofstream message_log;
 
@@ -178,13 +178,15 @@ class gameclient_c {
 	void MCF_prepareNameMenu(Menu&);
 	void MCF_nameMenuClose(Menu&);
 	void MCF_nameChange(Textfield&) { menu.options.name.password.set(""); check_change_pass_command(); }
-	void MCF_removePasswords(Textarea&) { }	//#fix: action!
-	void MCF_favoriteColors(Textarea&) { }	//#fix: action!
+	void MCF_randomName(Textarea&) { menu.options.name.name.set(RandomName()); }
+	void MCF_removePasswords(Textarea&);
+	void MCF_prepareGameMenu(Menu&) { menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics); }
+	void MCF_joystick(Checkbox&) { if (menu.options.game.joystick()) install_joystick(JOY_TYPE_AUTODETECT); else remove_joystick(); }
 	void MCF_screenModeChange(Textarea&) { screenModeChange(); }
 	void MCF_gfxThemeChange(Select&) { }	//#fix: action!
 	void MCF_prepareGfxMenu(Menu&);
 	void MCF_screenModeChange(Menu&) { screenModeChange(); }
-	void MCF_sndThemeChange(Select&) { }	//#fix: action!
+	void MCF_sndThemeChange(Select&) { client_sounds.next_theme(); }	//#fix: action!
 	void MCF_prepareSndMenu(Menu&);
 
 	void screenModeChange() { }	//#fix: action!
@@ -208,19 +210,19 @@ public:
 	void connect_command();
 	void disconnect_command();
 	void connection_update(client_runes_t *arg);
-	void client_connected(char *data, int length);
+	void client_connected(char* data, int length);
 	void client_disconnected(const char* data, int length);
-	void connect_failed_denied(char *data, int length);
+	void connect_failed_denied(char* data, int length);
 	void connect_failed_unreachable();
 	void refresh_command();
-	void refresh_command_2(gamespy_t *gamespy);
+	void refresh_command_2(std::vector<gamespy_t>& gamespy);
 	void send_player_token();
 	void issue_change_name_command();
 	void change_name_command();
 	void send_client_ready();
 	void send_chat(const std::string& msg);
 	void send_frame(bool newFrame);
-	void process_incoming_data(char *data, int length);
+	void process_incoming_data(char* data, int length);
 
 	void check_change_pass_command();
 	void client_password_thread(void *);
@@ -228,10 +230,10 @@ public:
 
 	void process_udp_download_chunk(int last, NLulong pos, int len, char* buf);
 	void client_udp_setup_download();
-	void client_udp_download(download_runes_t  *rune);
-	void download_file_complete(download_runes_t  *r);
-	void download_server_file(const char *type, const char *name, char *dest);
-	void server_map_command(const char *mapname, NLushort server_crc);
+	void client_udp_download(download_runes_t* rune);
+	void download_file_complete(download_runes_t* r);
+	void download_server_file(const char* type, const char* name, char* dest);
+	void server_map_command(const char* mapname, NLushort server_crc);
 
 	// sounds
 	void sound(int s) const;

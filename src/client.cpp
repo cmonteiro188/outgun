@@ -238,22 +238,12 @@ bool gameclient_c::start() {
 	first_fav_refresh = false;
 	showmaster = true;
 	gi = 0;
-	for (int i=0;i<MAX_GAMESPY;i++) {
-		gamespy[i].address[0]=0;
-		gamespy[i].refreshed = false;
-		gamespy[i].invalid = false;	//don't know the status yet
-		//master gamespy:
-		mgamespy[i].address[0]=0;
-		mgamespy[i].refreshed = false;
-		mgamespy[i].invalid = false;	//don't know the status yet
-	}
 
 	//assume no password
 	player_token_set = false;			//no token
 	player_password_set = false;	//no password
 	menu.options.name.namestatus.set("NO PASSWORD SET");
 	namestatus_code = 0;
-	fav_colors.clear();
 
 	//try to load the client's password
 	char dest[WHERE_PATH_SIZE];
@@ -316,13 +306,19 @@ bool gameclient_c::start() {
 			client_graphics.set_antialiasing(static_cast<Graphics::Antialiasing_mode>(mode));
 		}
 
+		vector<int> fav_colors;
 		if (getline_smart(cfg, line)) {
 			istringstream ist(line);
 			int col;
 			while (ist >> col)
-				if (col >= 0 && col < 16)
+				if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
 					fav_colors.push_back(col);
 		}
+		for (int i = 0; i < 16; i++)
+			if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
+				fav_colors.push_back(i);
+		for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
+			menu.options.game.favoriteColors.addOption(*col);
 
 		//read player name
 		string name;
@@ -332,12 +328,16 @@ bool gameclient_c::start() {
 		}
 
 		//read addresses
-		for (int i = 0; i < MAX_GAMESPY; i++) {
-			string addr;
-			if (getline_smart(cfg, addr)) {
-				strncpy(gamespy[i].address, addr.c_str(), 127);
-				strncpy(mgamespy[i].address, addr.c_str(), 127); //copy to master list too!
-			}
+		string addr;
+		while (getline_smart(cfg, addr)) {
+			gamespy_t spy;
+			spy.invalid = true;
+			spy.noresponse = true;
+			spy.favs = true;
+			spy.refreshed = false;
+			spy.address = addr;
+			gamespy.push_back(spy);
+			mgamespy.push_back(spy);
 		}
 		cfg.close();
 	}
@@ -348,6 +348,9 @@ bool gameclient_c::start() {
 
 	client_sounds.search_themes();
 	client_graphics.search_themes();
+	
+	if (menu.options.game.joystick())
+		install_joystick(JOY_TYPE_AUTODETECT);
 
 	//refresh master!
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
@@ -992,18 +995,18 @@ void gameclient_c::client_connected(char *data, int length) {
 	readStr(data, count, hostname);
 	hostname = hostname.substr(0, 32);	//truncate at 32 chars
 
-	if (!fav_colors.empty()) {
+	if (!menu.options.game.favoriteColors.values().empty()) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, data_fav_colors);
-		writeByte(lebuf, count, fav_colors.size());
+		writeByte(lebuf, count, menu.options.game.favoriteColors.values().size());
 		// send two colours in a byte
-		for (vector<char>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col) {
-			NLubyte byte = (*col & 0x0F);
-			if (++col != fav_colors.end())
-				byte |= (*col << 4);
+		for (vector<int>::const_iterator col = menu.options.game.favoriteColors.values().begin();
+					col != menu.options.game.favoriteColors.values().end(); ++col) {
+			NLubyte byte = static_cast<NLubyte>(*col) & 0x0F;
+			if (++col != menu.options.game.favoriteColors.values().end())
+				byte |= static_cast<NLubyte>(*col) << 4;
 			writeByte(lebuf, count, byte);
 		}
-		log("Sent %d colours", fav_colors.size());
 		client->send_message(lebuf, count);
 	}
 
@@ -1238,14 +1241,28 @@ void gameclient_c::remove_player_password(const string& name, const string& addr
 	ofstream out(password_file.c_str());
 	if (!out)
 		return;
-	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
-		if ((*item)[0] == name && (*item)[1] == address) {
+	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item)
+		if ((*item)[0] == name && (*item)[1] == address)
 			log("%s's player password at %s removed.", name.c_str(), address.c_str());
-			continue;
-		}
-		for (int i = 0; i < 3; i++)
-			out << (*item)[i] << '\n';
-	}
+		else
+			for (int i = 0; i < 3; i++)
+				out << (*item)[i] << '\n';
+}
+
+int gameclient_c::remove_player_passwords(const std::string& name) const {
+	vector<vector<string> > passwd_list = load_all_player_passwords();
+	ofstream out(password_file.c_str());
+	if (!out)
+		return 0;
+	int removed = 0;
+	for (vector<vector<string> >::iterator item = passwd_list.begin(); item != passwd_list.end(); ++item)
+		if ((*item)[0] == name)
+			removed++;
+		else
+			for (int i = 0; i < 3; i++)
+				out << (*item)[i] << '\n';
+	log("%s's player passwords removed.", name.c_str());
+	return removed;
 }
 
 //refresh servers command
@@ -1257,7 +1274,7 @@ void gameclient_c::refresh_command() {
 }
 
 //refresh servers command
-void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
+void gameclient_c::refresh_command_2(vector<gamespy_t>& gamespy) {
 	client_graphics.show_progress("", "Refreshing servers...", "");
 
 	nlOpenMutex.lock();
@@ -1282,7 +1299,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 	int	rc[MAX_GAMESPY];		//resposta count
 	double rt[MAX_GAMESPY];		//resposta time
 	int num_valid = 0;
-	for (int i = 0; i < MAX_GAMESPY; i++) {
+	for (int i = 0; i < static_cast<int>(gamespy.size()); i++) {
 		rc[i] = 0;	//no responses
 		rt[i] = 0;	//no time
 
@@ -1292,7 +1309,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 		nlOpen(0, 0);//force invalid enum error
 
-		nlStringToAddr(gamespy[i].address, &gamespy[i].addr);
+		nlStringToAddr(gamespy[i].address.c_str(), &gamespy[i].addr);
 
 		//test if the address is invalid (important)
 		if (nlGetError() == NL_INVALID_ENUM) {
@@ -1306,7 +1323,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 			//test if set was ok
 			if (nlGetError() == NL_INVALID_ENUM) {
 				gamespy[i].invalid = false; // non-invalid entry
-				num_valid ++;
+				num_valid++;
 			}
 		}
 	}
@@ -1314,7 +1331,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 	//send
 	for (int t = 0; t < 4; t++) { //send four times
 		// (1) SEND
-		for (int i = 0; i < MAX_GAMESPY; i++)
+		for (int i = 0; i < static_cast<int>(gamespy.size()); i++)
 			if (!gamespy[i].invalid) {
 				int count = 0;
 				writeLong(lebuf, count, 0);			//special packet
@@ -1352,7 +1369,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 						if (along == 200) {
 							readByte(lebuf, count, i); // client's gamespy entry
 							readByte(lebuf, count, pack); // packet #
-							readString(lebuf, count, gamespy[i].info);
+							readStr(lebuf, count, gamespy[i].info);
 
 							//add to ping statistics
 							rc[i]++;
@@ -1393,7 +1410,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 					if (along == 200) {
 						readByte(lebuf, count, i); // client's gamespy entry
 						readByte(lebuf, count, pack); // packet #
-						readString(lebuf, count, gamespy[i].info);
+						readStr(lebuf, count, gamespy[i].info);
 
 						//add to ping statistics
 						rc[i]++;
@@ -1409,7 +1426,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 	}
 
 	// add ping to statistics
-	for (int i = 0; i < MAX_GAMESPY; i++)
+	for (int i = 0; i < static_cast<int>(gamespy.size()); i++)
 		if (!gamespy[i].noresponse)	{	//got at least 1 response?
 			int daping;
 			if (rc[i] > 0)
@@ -1417,9 +1434,9 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 			else
 				daping = -666;
 
-			char thelix[2000];
-			sprintf(thelix, "%4i %s", daping, gamespy[i].info);
-			strcpy(gamespy[i].info, thelix);
+			ostringstream info;
+			info << setw(4) << daping << ' ' << gamespy[i].info;
+			gamespy[i].info = info.str();
 		}
 
 	nlClose(sock);
@@ -1541,6 +1558,8 @@ void gameclient_c::send_frame(bool newFrame) {
 	if (newFrame) {
 		++clFrameSent;
 		controlHistory[clFrameSent].fromKeyboard();
+		if (menu.options.game.joystick())
+			controlHistory[clFrameSent].fromJoystick();
 		svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
 
 		writeByte(lebuf, count, clFrameSent);
@@ -1549,6 +1568,8 @@ void gameclient_c::send_frame(bool newFrame) {
 	else {
 		ClientControls currCtrl;
 		currCtrl.fromKeyboard();
+		if (menu.options.game.joystick())
+			currCtrl.fromJoystick();
 
 		writeByte(lebuf, count, clFrameSent);
 		writeByte(lebuf, count, currCtrl.toNetwork(false));
@@ -2570,12 +2591,7 @@ void gameclient_c::get_servers_from_master() {
 	sock = NL_INVALID;
 
 	//clear the old gamespy master screen
-	for (int i = 0; i < MAX_GAMESPY; i++) {
-		mgamespy[i].address[0] = 0;
-		mgamespy[i].refreshed = false;
-		mgamespy[i].invalid = false;	//don't know the status yet
-		mgamespy[i].favs = false;
-	}
+	mgamespy.clear();
 
 	string line, empty;
 
@@ -2592,9 +2608,15 @@ void gameclient_c::get_servers_from_master() {
 
 	// Parse the successful response into the gamespy screen.
 	int servers_read;
-	for (servers_read = 0; servers_read < total_servers && servers_read < MAX_GAMESPY &&
-		getline_smart(response, line); servers_read++)
-			strcpy(mgamespy[servers_read].address, line.c_str());	// ### FIXME: add servers to vector
+	for (servers_read = 0; servers_read < total_servers && getline_smart(response, line); servers_read++) {
+		gamespy_t spy;
+		spy.invalid = true;
+		spy.noresponse = true;
+		spy.favs = true;
+		spy.refreshed = false;
+		spy.address = line;
+		mgamespy.push_back(spy);
+	}
 	if (servers_read != total_servers) {
 		log.error("Server count mismatch.");
 	}
@@ -2627,9 +2649,9 @@ void gameclient_c::get_servers_from_master() {
 	refresh_command();
 
 	//remove all invalid IPs
-	for (int i = 0; i < MAX_GAMESPY; i++)
-		if (mgamespy[i].invalid)
-			mgamespy[i].address[0] = 0;
+	for (vector<gamespy_t>::iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
+		if (spy->invalid)
+			spy = mgamespy.erase(spy);
 
 	//remove all "no response"s below minf
 	/*for (int i = minf; e < MAX_GAMESPY; e++)
@@ -2639,7 +2661,7 @@ void gameclient_c::get_servers_from_master() {
 		}*/
 
 	//compress entries
-	gamespy_t temp[MAX_GAMESPY];
+	/*gamespy_t temp[MAX_GAMESPY];
 	memcpy(temp, mgamespy, sizeof(gamespy_t) * MAX_GAMESPY);	//copy to temp
 	for (int i = 0; i < MAX_GAMESPY; i++) {
 		mgamespy[i].address[0] = 0;
@@ -2651,12 +2673,11 @@ void gameclient_c::get_servers_from_master() {
 		if (temp[i].address[0] != 0) {
 			memcpy(&(mgamespy[next]), &(temp[i]), sizeof(gamespy_t));	//copy back to master
 			next++;
-		}
+		}*/
 }
 
 //loop
 void gameclient_c::loop() {
-
 	bool notquit = true;
 
 	openMenus.clear();
@@ -2695,9 +2716,8 @@ void gameclient_c::loop() {
 		// (1) loop doing input/sleep before next simulation/draw time
 		//
 		do {
-			//quit key
-			if ((key[KEY_LCONTROL]) || (key[KEY_RCONTROL]))
-			if (key[KEY_F12]) {
+			//quit key Control-F12
+			if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
 				notquit = false;
 				break;
 			}
@@ -2863,8 +2883,12 @@ void gameclient_c::loop() {
 			else {
 				bool sendnow = false;
 
-				// ctrl == fire event
-				if (key[KEY_LCONTROL] || key[KEY_RCONTROL]) {
+				// control == fire
+				bool fire = key[KEY_LCONTROL] || key[KEY_RCONTROL];
+				if (!fire && menu.options.game.joystick() && !poll_joystick() && joy[0].num_buttons >= 1 && joy[0].button[0].b)
+					fire = true;
+
+				if (fire) {
 					if (!key_fire) {
 						key_fire = true;
 
@@ -2992,14 +3016,6 @@ void gameclient_c::loop() {
 							chat_visible = 8;
 					}
 
-					// F10: change name
-					if (sc == KEY_F10) {
-						menu.options.name.name.set(RandomName());
-						change_name_command();
-					}
-					else if (sc == KEY_F3) {
-						menu.options.game.showNames.toggle();
-					}
 					// F11: screenshot
 					else if (sc == KEY_F11) {
 						screenshot = true;
@@ -3202,19 +3218,20 @@ void gameclient_c::stop() {
 			cfg << client_graphics.theme_dir() << '\n';
 		cfg << client_graphics.antialiasing_mode() << '\n';
 
-		if (fav_colors.empty())
+		if (menu.options.game.favoriteColors.values().empty())
 			cfg << -1;
 		else
-			for (vector<char>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
-				cfg << static_cast<int>(*col) << ' ';
+			for (vector<int>::const_iterator col = menu.options.game.favoriteColors.values().begin();
+				col != menu.options.game.favoriteColors.values().end(); ++col)
+					cfg << *col << ' ';
 		cfg << '\n';
 
 		nAssert(!playername.empty());
 		cfg << playername << '\n';
 
-		for (int i = 0; i < MAX_GAMESPY; i++) {
-			log("Saving gamespy address = '%s'", gamespy[i].address);
-			cfg << gamespy[i].address << '\n';
+		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy) {
+			log("Saving gamespy address %s.", spy->address.c_str());
+			cfg << spy->address << '\n';
 		}
 		cfg.close();
 	}
@@ -3743,23 +3760,22 @@ void gameclient_c::draw_game_frame() {
 	if (key[KEY_F9]) {
 		const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
 		const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
-		client_graphics.debug_panel(fx.player, me, bpsin, bpsout);
 
-		/*int p;
-		for (p=0;p<maxplayers;p++) {
-			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f",
-				p, fx.player[p].used, fx.player[p].onscreen, fx.player[p].enemyvis, fx.player[p].roomx, fx.player[p].roomy,
-
-				//					fx.player[p].x, fx.player[p].y, fx.player[p].sx, fx.player[p].sy,
-				fd.player[p].lx, fd.player[p].ly, fd.player[p].sx, fd.player[p].sy
-				);
+		vector<vector<pair<int, int> > > sticks;
+		vector<int> buttons;
+		if (menu.options.game.joystick()) {
+			const JOYSTICK_INFO& joystick = joy[0];
+			for (int i = 0; i < joystick.num_sticks; i++) {
+				vector<pair<int, int> > axes;
+				for (int j = 0; j < joystick.stick[i].num_axis; j++)
+					axes.push_back(pair<int, int>(joystick.stick[i].axis[j].d1, joystick.stick[i].axis[j].d2));
+				sticks.push_back(axes);
+			}
+			for (int i = 0; i < joystick.num_buttons; i++)
+				buttons.push_back(joystick.button[i].b);
 		}
 
-		int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
-		int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
-		int bpstraffic = bpsin + bpsout;
-		textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
-		textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);*/
+		client_graphics.debug_panel(fx.player, me, bpsin, bpsout, sticks, buttons);
 	}
 
 	//unlock frame mutex
@@ -3887,10 +3903,12 @@ void gameclient_c::initMenus() {
 	menu.options.name.menu		   .setCloseHook(new ClientCallback<Menu,		&gameclient_c::MCF_nameMenuClose	>(this));
 	menu.options.name.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
 	menu.options.name.name				.setHook(new ClientCallback<Textfield,	&gameclient_c::MCF_nameChange		>(this));
+	menu.options.name.randomName		.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_randomName		>(this));
 	menu.options.name.removePasswords	.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_removePasswords	>(this));
 
+	menu.options.game.menu			.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareGameMenu	>(this));
 	menu.options.game.menu			  .setOkHook(new ClientCallback<Menu,		&gameclient_c::MCF_menuCloser		>(this));
-	menu.options.game.favoriteColors	.setHook(new ClientCallback<Textarea,	&gameclient_c::MCF_favoriteColors	>(this));
+	menu.options.game.joystick			.setHook(new ClientCallback<Checkbox,   &gameclient_c::MCF_joystick			>(this));
 
 	menu.options.graphics.menu		.setOpenHook(new ClientCallback<Menu,		&gameclient_c::MCF_prepareGfxMenu	>(this));
 	menu.options.graphics.menu	   .setCloseHook(new ClientCallback<Menu,		&gameclient_c::MCF_screenModeChange	>(this));
@@ -3926,6 +3944,17 @@ void gameclient_c::MCF_prepareNameMenu(Menu&) {
 void gameclient_c::MCF_nameMenuClose(Menu&) {
 	change_name_command();
 	check_change_pass_command();
+}
+
+void gameclient_c::MCF_removePasswords(Textarea&) {
+	const int removed = remove_player_passwords(menu.options.name.name());
+	ostringstream dialog;
+	if (removed > 0)
+		dialog << removed << " password" << (removed > 1 ? "s" : "") << " removed.";
+	else
+		dialog << "No passwords found.";
+	dialog << " Press ESC.";
+	showDialog(dialog.str());
 }
 
 void gameclient_c::MCF_prepareGfxMenu(Menu&) {

@@ -26,13 +26,12 @@ std::istream& getline_smart(std::istream& in, std::string& str);
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
 
 class ClientControls {
-	NLubyte data;
-
 public:
 	ClientControls() : data(0) { }
 	NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
 	void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
 	void fromKeyboard();
+	void fromJoystick();
 	bool     isUp() const { return (data& 1)!=0; }
 	bool   isDown() const { return (data& 2)!=0; }
 	bool   isLeft() const { return (data& 4)!=0; }
@@ -40,6 +39,18 @@ public:
 	bool    isRun() const { return (data&16)!=0; }
 	bool isStrafe() const { return (data&32)!=0; }
 	bool     idle() const { return  data    ==0; }
+
+private:
+	NLubyte data;
+
+	enum {
+		up     =  1,
+		down   =  2,
+		left   =  4,
+		right  =  8,
+		run    = 16,
+		strafe = 32
+	};
 };
 
 //play area width/height
@@ -196,12 +207,12 @@ enum {
 //server record
 struct gamespy_t {
 	NLaddress addr;
-	char address[128];  //IP-address typein buffer
+	std::string address;  //IP-address typein buffer
 	bool invalid;
 	bool noresponse;
 	bool favs;  //hack
 	bool refreshed; //if data below is valid -------------
-	char info[128];
+	std::string info;
 };
 
 #endif

@@ -491,6 +491,32 @@ void ServerNetworking::send_map_time(int cid) {
 		server->send_message(cid, lebuf, count);
 }
 
+/*void ServerNetworking::send_server_settings(const ServerPlayer& player) {
+	int count = 0;
+	char lebuf[256];
+	writeByte(lebuf, count, static_cast<NLubyte>(world.config.capture_limit));
+	writeByte(lebuf, count, static_cast<NLubyte>(world.config.time_limit / 60));	// note: max time 255 mins ~ 4 hours
+	writeByte(lebuf, count, static_cast<NLubyte>(world.config.extra_time / 60));
+	NLubyte settings = 0;
+	int i = 0;
+	if (world.config.balance_teams)
+		settings |= (1 << i);
+	i++;
+	if (svp_friendly_fire)
+		settings |= (1 << i);
+	i++;
+	if (world.pupConfig.pups_drop_at_death)
+		settings |= (1 << i);
+	i++;
+	if (world.config.shadow_minimum == 0)
+		settings |= (1 << i);
+	i++;
+	if (world.pupConfig.pup_deathbringer_switch)
+		settings |= (1 << i);
+	writeByte(lebuf, count, settings);
+	server->send_message(player.cid, lebuf, count);
+}*/
+
 //enqueue a job to the master server to update a client's delta score
 void ServerNetworking::client_report_status(int id) {
 	ClientData& clid = host->getClientData(id);

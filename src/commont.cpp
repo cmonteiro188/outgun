@@ -6,12 +6,6 @@ using std::istream;
 using std::string;
 
 void ClientControls::fromKeyboard() {
-	const int up     =  1;
-	const int down   =  2;
-	const int left   =  4;
-	const int right  =  8;
-	const int run    = 16;
-	const int strafe = 32;
 	data = 0;
 	if (key[KEY_UP] || key[KEY_8_PAD])
 		data |= up;
@@ -33,6 +27,32 @@ void ClientControls::fromKeyboard() {
 		data |= run;
 	if (key[KEY_ALT] || key[KEY_ALTGR])
 		data |= strafe;
+}
+
+void ClientControls::fromJoystick() {
+	if (poll_joystick())
+		return;		// failure
+	data = 0;
+	const JOYSTICK_INFO& joystick = joy[0];
+	if (joystick.num_sticks >= 1) {
+		if (joystick.stick[0].num_axis >= 2) {
+			if (joystick.stick[0].axis[0].d1)
+				data |= left;
+			if (joystick.stick[0].axis[0].d2)
+				data |= right;
+			if (joystick.stick[0].axis[1].d1)
+				data |= up;
+			if (joystick.stick[0].axis[1].d2)
+				data |= down;
+		}
+	}
+	// The first button is for shooting, which is a bit more important than running.
+	if (joystick.num_buttons >= 2) {
+		if (joystick.button[1].b)
+			data |= run;
+		if (joystick.button[2].b)
+			data |= strafe;
+	}
 }
 
 NLaddress master_address;

@@ -4,6 +4,7 @@
 #include <string>
 #include <list>
 #include "utility.h"
+#include "world.h"
 
 // ---- client screen layout ----
 
@@ -25,6 +26,7 @@
 
 class Map;
 class MapInfo;
+class Room;
 class RectWall;
 class TriWall;
 class CircWall;
@@ -33,7 +35,11 @@ class Sounds;
 class gamespy_t;
 class clientfx_t;
 class Team;
+class Flag;
+class Powerup;
 class Message;
+class spoint_t;
+class rocket_c;
 
 class Graphics {
 public:
@@ -102,7 +108,8 @@ public:
 
 	void team_statistics(const Team* teams);
 	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
-	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout);
+	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
+					 const std::vector<std::vector<std::pair<int, int> > >& sticks, const std::vector<int>& buttons);
 
 	void map_list(const std::vector<MapInfo>& maps, int current = -1,
 				  int own_vote = -1, const std::string& edit_vote = "");
@@ -178,6 +185,8 @@ public:
 	
 	void resolution_prev();
 	void resolution_next();
+	
+	int player_color(int index) const { return col[index]; }
 	
 	BITMAP* drawbuffer() { return drawbuf; }
 

@@ -772,6 +772,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			}
 		}
 	}
+	log("10");
 
 	//green border
 	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);
@@ -1499,21 +1500,41 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 	textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[team], -1);
 }
 
-void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout) {
+void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
+						   const vector<vector<pair<int, int> > >& sticks, const vector<int>& buttons) {
 	clear_to_color(drawbuf, 0);
 
 	int line = 0;
+	const int line_h = 10;
 	for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
 		const int c = me == line ? col[COLYELLOW] : col[COLWHITE];
-		textprintf_ex(drawbuf, font, 0, line++ * 10, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
+		textprintf_ex(drawbuf, font, 0, line++ * line_h, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
 			line, player->used, player->onscreen, player->enemyvis, player->roomx, player->roomy,
 			player->lx, player->ly, player->sx, player->sy);
 	}
+	
+	line++;
+	ostringstream axis_info;
+	axis_info << "Joystick axes:";
+	for (vector<vector<pair<int, int> > >::const_iterator stick = sticks.begin(); stick != sticks.end(); ++stick) {
+		axis_info << " [";
+		for (vector<pair<int, int> >::const_iterator axis = stick->begin(); axis != stick->end(); ++axis)
+			axis_info << '(' << axis->first << ' ' << axis->second << ')';
+		axis_info << ']';
+	}
+	textout_ex(drawbuf, font, axis_info.str().c_str(), 0, line++ * line_h, col[COLINFO], -1);
+
+	line++;
+	ostringstream button_info;
+	button_info << "Joystick buttons:";
+	for (vector<int>::const_iterator but = buttons.begin(); but != buttons.end(); ++but)
+		button_info << ' ' << *but;
+	textout_ex(drawbuf, font, button_info.str().c_str(), 0, line++ * line_h, col[COLINFO], -1);
 
 	line++;
 	const int bpstraffic = bpsin + bpsout;
-	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "Traffic: %4i B/s", bpstraffic);
-	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "in %4i B/s, out %4i B/s", bpsin, bpsout);
+	textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "Traffic: %4i B/s", bpstraffic);
+	textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "in %4i B/s, out %4i B/s", bpsin, bpsout);
 }
 
 void Graphics::map_time(int seconds) {
@@ -1823,7 +1844,7 @@ void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool
 			blinkchar[0] = 0;
 
 		//server edit prompt
-		textprintf_ex(drawbuf, font, xi, yi, col[COLGREEN], -1, ":%s%s", server->address, blinkchar);
+		textprintf_ex(drawbuf, font, xi, yi, col[COLGREEN], -1, ":%s%s", server->address.c_str(), blinkchar);
 		//favs watermarks
 		if (showmaster && server->favs)
 			textout_ex(drawbuf, font, "*", xi - 12, yi, col[COLGREEN], -1);
@@ -1847,7 +1868,7 @@ void Graphics::server_list(const vector<gamespy_t>& servers, int selection, bool
 			textout_ex(drawbuf, font, "no response.", xi + (18+5)*8, yi, col[COLWHITE], -1);
 		}
 		else	//refreshed, valid, show server info
-			textout_ex(drawbuf, font, server->info, xi + (18+5)*8, yi, col[COLGREEN], -1);
+			textout_ex(drawbuf, font, server->info.c_str(), xi + (18+5)*8, yi, col[COLGREEN], -1);
 		line++;
 	}
 }

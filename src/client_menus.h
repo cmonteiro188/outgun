@@ -5,22 +5,25 @@
 
 class Menu_name {
 public:
-	Textfield name;
-	Textfield password;
-	Textarea namestatus;
-	Textarea removePasswords;
+	Textfield	name;
+	Textarea	randomName;
+	Textfield	password;
+	Textarea	namestatus;
+	Textarea	removePasswords;
 
 	Menu menu;
 
 	Menu_name() :
 		name			("Name", "", 15),
-		password		("Password", "", 15, '*'),
+		randomName		("Get random name"),
+		password		("Tournament password", "", 15, '*'),
 		namestatus		("Registration status"),
 		removePasswords	("Remove server-specific player passwords"),
 
-		menu			("Name and password")
+		menu			("Name and passwords")
 	{
 		menu.add_component(&name);
+		menu.add_component(&randomName);
 		menu.add_component(&password);
 		menu.add_component(&namestatus);
 		menu.add_component(&removePasswords);
@@ -28,13 +31,14 @@ public:
 	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
+
 class Menu_game {
 public:
-	Checkbox showNames;
-	Textarea favoriteColors;
-	Checkbox lagPrediction;
-	Slider lagPredictionAmount;
-	Checkbox joystick;
+	Checkbox	showNames;
+	Colorselect	favoriteColors;
+	Checkbox	lagPrediction;
+	Slider		lagPredictionAmount;
+	Checkbox	joystick;
 
 	Menu menu;
 
@@ -48,22 +52,22 @@ public:
 		menu				("Game options")
 	{
 		menu.add_component(&showNames);
-//defunct		menu.add_component(&favoriteColors);
+		menu.add_component(&favoriteColors);
 		menu.add_component(&lagPrediction);
 		menu.add_component(&lagPredictionAmount);
-//defunct		menu.add_component(&joystick);
+		menu.add_component(&joystick);
 	}
 	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_graphics {
 public:
-	Checkbox windowed;
-	Select resolution;
-	Select colorDepth;
-	Textarea apply;
-	Select theme;
-	Select antialiasing;
+	Checkbox	windowed;
+	Select		resolution;
+	Select		colorDepth;
+	Textarea	apply;
+	Select		theme;
+	Select		antialiasing;
 
 	Menu menu;
 
@@ -92,8 +96,8 @@ public:
 
 class Menu_sounds {
 public:
-	Checkbox enabled;
-	Select theme;
+	Checkbox	enabled;
+	Select		theme;
 
 	Menu menu;
 
@@ -111,10 +115,10 @@ public:
 
 class Menu_options {
 public:
-	Menu_name name;
-	Menu_game game;
-	Menu_graphics graphics;
-	Menu_sounds sounds;
+	Menu_name		name;
+	Menu_game		game;
+	Menu_graphics	graphics;
+	Menu_sounds		sounds;
 
 	Menu menu;
 
@@ -142,11 +146,11 @@ public:
 
 class Menu_main {
 public:
-	Textarea connect;
-	Textarea disconnect;
-	Menu_options options;
-	Textarea startServer;
-	Textarea stopServer;
+	Textarea		connect;
+	Textarea		disconnect;
+	Menu_options	options;
+	Textarea		startServer;
+	Textarea		stopServer;
 
 	Menu menu;
 
@@ -157,7 +161,7 @@ public:
 		startServer	("Start local server"),
 		stopServer	("Stop local server"),
 
-		menu		("Outgun")
+		menu		("Outgun " GAME_VERSION)
 	{
 		menu.add_component(&connect);
 		menu.add_component(&disconnect);
@@ -192,8 +196,8 @@ public:
 
 class Menu_playerPassword {
 public:
-	Textfield password;
-	Checkbox save;
+	Textfield	password;
+	Checkbox	save;
 
 	Menu menu;
 
