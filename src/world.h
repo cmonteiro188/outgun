@@ -50,17 +50,35 @@ public:
 	}
 };
 
+class CircWall {	// circular wall
+	int x, y, ro, ri;
+	float angle1, angle2;
+	Coords va1, va2, midvec;
+	float anglecos;
+	int tex, alpha;
+
+	friend void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius);
+
+public:
+	CircWall() { }
+	CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int tex_, int alpha_);
+
 	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro; }
+	void draw(BITMAP* buffer, float x0, float y0, float scale, int color) const;
+};
 
 struct Room {
 	vector<RectWall> rwalls, rground;	// ground: optional list of textures for ground [not used]
 	vector<TriWall>  twalls, tground;
+	vector<CircWall> cwalls, cground;
 
 	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
 		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
 			rwi->draw(buffer, x0, y0, xScale, yScale, color);
 		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
 			twi->draw(buffer, x0, y0, xScale, yScale, color);
+		for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
+			cwi->draw(buffer, x0, y0, xScale, color);
 	}
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
 		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
@@ -69,6 +87,9 @@ struct Room {
 		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
 			if (twi->intersects_rect(x1, y1, x2, y2))
 				return true;
+		/*for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
+			if (cwi->intersects_rect(x1, y1, x2, y2))
+				return true;*/
 		return false;
 	}
 };
