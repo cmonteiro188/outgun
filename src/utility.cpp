@@ -174,14 +174,15 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent) 
     vector<string> lines;
     if (source.empty())
         return lines;
-    size_t start = 0, end = 0;
-    while (end != string::npos) {
-        if (source.length() < start + lineLength)
+    size_t start = 0;
+    do {
+        size_t end;
+        if (source.length() <= start + lineLength)
             end = string::npos;
         else
             end = source.find_last_of(" \t", start + lineLength);
         if (end <= start)
-            end = source.find_first_of(" \t", start + lineLength);
+            end = start + lineLength;   // for no forced cutting: source.find_first_of(" \t", start + lineLength);
         string line;
         if (start == 0) // first line
             lineLength -= indent;   // next lines are shorter because of the indent
@@ -189,8 +190,10 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent) 
             line = string(indent, ' '); // apply indentation
         line += source.substr(start, end - start);
         lines.push_back(line);
-        start = end + 1;
-    }
+        if (end == string::npos)
+            break;
+        start = source.find_first_not_of(" \t", end);
+    } while (start != string::npos);
     return lines;
 }
 

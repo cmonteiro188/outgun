@@ -29,6 +29,7 @@
 
 #include "client.h"
 
+#include <memory>   // auto_ptr
 #include <nl.h>
 
 #include <pthread.h>
@@ -65,10 +66,12 @@ void thread_reader_f(client_ci* client);
 class client_ci : public client_c {
 public:
     #ifdef LEETNET_LOG
-    FileLog log;
+    std::auto_ptr<Log> logp;    // initialized with a FileLog or NoLog depending on g_leetnetLog
+    Log& log;
     #else
     NoLog log;
     #endif
+
     #ifdef LEETNET_DATA_LOG
     FILE* datalog;
     MutexHolder datalogMutex;
@@ -205,12 +208,16 @@ public:
         int packet_id;
 
         #ifdef LEETNET_DATA_LOG
-        MutexLock ml(datalogMutex);
-        static const char writeModeMarker = 'W';
-        fwrite(&writeModeMarker, sizeof(char), 1, datalog);
-        double currTime = get_time();
-        fwrite(&currTime, sizeof(double), 1, datalog);
-        station->send_packet(packet_id, datalog);
+        if (g_leetnetDataLog) {
+            MutexLock ml(datalogMutex);
+            static const char writeModeMarker = 'W';
+            fwrite(&writeModeMarker, sizeof(char), 1, datalog);
+            double currTime = get_time();
+            fwrite(&currTime, sizeof(double), 1, datalog);
+            station->send_packet(packet_id, datalog);
+        }
+        else
+            station->send_packet(packet_id, 0);
         #else
         station->send_packet(packet_id, 0);
         #endif
@@ -378,7 +385,7 @@ public:
     void process_incoming_datagram(char *udp_data, int udp_length) {
 DLOG_Scope s("CPIDg");
         #ifdef LEETNET_DATA_LOG
-        {
+        if (g_leetnetDataLog) {
             MutexLock ml(datalogMutex);
             static const char readModeMarker = 'R';
             fwrite(&readModeMarker, sizeof(char), 1, datalog);
@@ -617,13 +624,19 @@ DLOG_Scope s("CPIDg");
     //ctor
     client_ci(int thread_priority) :
         #ifdef LEETNET_LOG
-        log((wheregamedir + "log" + directory_separator + "leetclientlog.txt").c_str(), true)
+        logp(g_leetnetLog ?
+             static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetclientlog.txt").c_str(), true)) :
+             static_cast<Log*>(new NoLog())),
+        log(*logp)
         #else
         log()
         #endif
     {
         #ifdef LEETNET_DATA_LOG
-        datalog = fopen((wheregamedir + "log" + directory_separator + "leetclientdata.bin").c_str(), "wb");
+        if (g_leetnetDataLog)
+            datalog = fopen((wheregamedir + "log" + directory_separator + "leetclientdata.bin").c_str(), "wb");
+        else
+            datalog = 0;
         #endif
         station = 0;
         want_connect = false;
@@ -657,7 +670,8 @@ DLOG_Scope s("CPIDg");
         }
 
         #ifdef LEETNET_DATA_LOG
-        fclose(datalog);
+        if (datalog)
+            fclose(datalog);
         #endif
     }
 };

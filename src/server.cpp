@@ -946,7 +946,7 @@ void Server::chat(int pid, const char* sbuf) {
                 network.player_message(pid, msg_server, "/mute n     mute player with ID n");
                 network.player_message(pid, msg_server, "/smute n    silently mute player with ID n (crude!)");
                 network.player_message(pid, msg_server, "/unmute n   cancel muting of player with ID n");
-                network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've used votemap");
+                network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've voted for one");
             }
         }
         else if (!strcmp(cbuf, "info") && !info_message.empty()) {

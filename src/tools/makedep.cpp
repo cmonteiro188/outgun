@@ -152,10 +152,10 @@ void handleFile(std::string name, FILE* dst, const std::string& compileCommand) 
         fprintf(dst, "%s.o:\t%s", id.c_str(), name.c_str());
     }
     else
-        throw StrError("'%s' - only .h and .cpp files are handled");
+        throw StrError("'%s' - only .h and .cpp files are handled", name.c_str());
     FILE* src = fopen(name.c_str(), "rb");
     if (!src)
-        throw StrError("'%s' - can't open for reading");
+        throw StrError("'%s' - can't open for reading", name.c_str());
     std::string path;
     std::string::size_type pathsep = name.find_last_of('/');
     if (pathsep != std::string::npos)

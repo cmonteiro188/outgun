@@ -128,10 +128,12 @@ void thread_disconnector_f(client_t* mydata);
 class server_ci : public server_c {
 public:
     #ifdef LEETNET_LOG
-    FileLog log;
+    std::auto_ptr<Log> logp;    // initialized with a FileLog or NoLog depending on g_leetnetLog
+    Log& log;
     #else
     NoLog log;
     #endif
+
     #ifdef LEETNET_DATA_LOG
     FILE* datalog;
     MutexHolder datalogMutex;
@@ -383,9 +385,10 @@ public:
     //protocol that introduces it's own shitload). optimize your foken data, every byte saved counts!
     virtual int broadcast_frame(const char* data, int length) {
 DLOG_Scope s("BcF");
-
+ 
         #ifdef LEETNET_DATA_LOG
-        MutexLock ml(datalogMutex);
+        if (g_leetnetDataLog)
+            MutexLock ml(datalogMutex);
         #endif
 
         for (int i=0;i<MAX_CLIENTS;i++) 
@@ -394,12 +397,16 @@ DLOG_Scope s("BcF");
             int packet_id;
 
             #ifdef LEETNET_DATA_LOG
-            static const char writeModeMarker = 'W';
-            fwrite(&writeModeMarker, sizeof(char), 1, datalog);
-            double currTime = get_time();
-            fwrite(&currTime, sizeof(double), 1, datalog);
-            fwrite(&i, sizeof(int), 1, datalog);    // which client
-            client[i].station->send_packet(packet_id, datalog); // flush the packet
+            if (g_leetnetDataLog) {
+                static const char writeModeMarker = 'W';
+                fwrite(&writeModeMarker, sizeof(char), 1, datalog);
+                double currTime = get_time();
+                fwrite(&currTime, sizeof(double), 1, datalog);
+                fwrite(&i, sizeof(int), 1, datalog);    // which client
+                client[i].station->send_packet(packet_id, datalog); // flush the packet
+            }
+            else
+                client[i].station->send_packet(packet_id, 0);   // flush the packet
             #else
             client[i].station->send_packet(packet_id, 0);   // flush the packet
             #endif
@@ -420,13 +427,17 @@ DLOG_Scope s("SF");
         int packet_id;
 
         #ifdef LEETNET_DATA_LOG
-        MutexLock ml(datalogMutex);
-        static const char writeModeMarker = 'W';
-        fwrite(&writeModeMarker, sizeof(char), 1, datalog);
-        double currTime = get_time();
-        fwrite(&currTime, sizeof(double), 1, datalog);
-        fwrite(&client_id, sizeof(int), 1, datalog);    // which client
-        client[client_id].station->send_packet(packet_id, datalog); // flush the packet
+        if (g_leetnetDataLog) {
+            MutexLock ml(datalogMutex);
+            static const char writeModeMarker = 'W';
+            fwrite(&writeModeMarker, sizeof(char), 1, datalog);
+            double currTime = get_time();
+            fwrite(&currTime, sizeof(double), 1, datalog);
+            fwrite(&client_id, sizeof(int), 1, datalog);    // which client
+            client[client_id].station->send_packet(packet_id, datalog); // flush the packet
+        }
+        else
+            client[client_id].station->send_packet(packet_id, 0);   // flush the packet
         #else
         client[client_id].station->send_packet(packet_id, 0);   // flush the packet
         #endif
@@ -454,7 +465,7 @@ DLOG_Scope s("SM");
 
 
     //broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
-    virtual int broadcast_message(const char* data, int length) {
+/* disabled in Outgun to prevent problems    virtual int broadcast_message(const char* data, int length) {
 
         for (int i=0;i<MAX_CLIENTS;i++) 
         if (client[i].used)
@@ -462,7 +473,7 @@ DLOG_Scope s("SM");
 
         //ok
         return 1;
-    }
+    }*/
 
 
     //function to be called by the SFUNC_CLIENT_DATA callback
@@ -593,7 +604,7 @@ DLOG_Scope s("PIDg");
             log("DO CLIENT %i",i);
 
             #ifdef LEETNET_DATA_LOG
-            {
+            if (g_leetnetDataLog) {
                 MutexLock ml(datalogMutex);
                 static const char readModeMarker = 'R';
                 fwrite(&readModeMarker, sizeof(char), 1, datalog);
@@ -1098,14 +1109,21 @@ DLOG_Scope s("PCD_Sp");
     //ctor
     server_ci(int thread_priority) :
         #ifdef LEETNET_LOG
-        log((wheregamedir + "log" + directory_separator + "leetserverlog.txt").c_str(), true)
+        logp(g_leetnetLog ?
+             static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetserverlog.txt").c_str(), true)) :
+             static_cast<Log*>(new NoLog())),
+        log(*logp)
         #else
         log()
         #endif
     {
         #ifdef LEETNET_DATA_LOG
-        datalog = fopen((wheregamedir + "log" + directory_separator + "leetserverdata.bin").c_str(), "wb");
+        if (g_leetnetDataLog)
+            datalog = fopen((wheregamedir + "log" + directory_separator + "leetserverdata.bin").c_str(), "wb");
+        else
+            datalog = 0;
         #endif
+
         strcpy(serverinfo, "default serverinfo");
 
         //it's true...
@@ -1134,7 +1152,8 @@ DLOG_Scope s("PCD_Sp");
         }
 
         #ifdef LEETNET_DATA_LOG
-        fclose(datalog);
+        if (datalog)
+            fclose(datalog);
         #endif
     }
 };

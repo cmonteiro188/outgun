@@ -696,6 +696,8 @@ void ServerNetworking::client_report_status(int id) {
 }
 
 void ServerNetworking::broadcast_team_message(int team, const string& text) const {
+    nAssert(text.length() < max_chat_message_length);
+
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, msg_team);
@@ -727,47 +729,60 @@ void ServerNetworking::bprintf(Message_type type, const char *fs, ...) const {
     char msg[1000];
     va_start(argptr, fs);
     platVsnprintf(msg, 1000, fs, argptr);
-    va_end (argptr);
+    va_end(argptr);
 
     broadcast_text(type, msg);
 }
 
 void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) const { // bprintf for a single player
     char buf[1000];
-    buf[0] = data_text_message;
-    buf[1] = type;
     va_list argptr;
     va_start(argptr, fmt);
-    platVsnprintf(buf + 2, 1000, fmt, argptr);
+    platVsnprintf(buf, 1000, fmt, argptr);
     va_end(argptr);
-    server->send_message(world.player[pid].cid, buf, 2 + strlen(buf + 2) + 1);
+    player_message(pid, type, buf);
 }
 
 //send a single message player-printf
 void ServerNetworking::player_message(int pid, Message_type type, const string& text) const {
-    if (!world.player[pid].used)
+    if (pid != -1 && !world.player[pid].used)
         return;
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_text_message);
-    writeByte(lebuf, count, type);
-    writeStr(lebuf, count, text);
-    server->send_message(world.player[pid].cid, lebuf, count);
+    char lebuf[256];
+    if (text.length() < max_chat_message_length) {
+        int count = 0;
+        writeByte(lebuf, count, data_text_message);
+        writeByte(lebuf, count, type);
+        writeStr(lebuf, count, text);
+        if (pid == -1)
+            broadcast_message(lebuf, count);
+        else
+            server->send_message(world.player[pid].cid, lebuf, count);
+    }
+    else {
+        vector<string> lines = split_to_lines(text, 79, 4); // this makes more sense than splitting to max_chat_message_length and letting it get split again on the client end
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+            int count = 0;
+            writeByte(lebuf, count, data_text_message);
+            writeByte(lebuf, count, type);
+            writeStr(lebuf, count, *li);
+            if (pid == -1)
+                broadcast_message(lebuf, count);
+            else
+                server->send_message(world.player[pid].cid, lebuf, count);
+        }
+    }
 }
 
 void ServerNetworking::broadcast_text(Message_type type, const string& text) const {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_text_message);
-    writeByte(lebuf, count, type);
-    writeStr(lebuf, count, text);
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            server->send_message(world.player[i].cid, lebuf, count);
+    player_message(-1, type, text);
     //send to the admin shell
     if (shellssock != NL_INVALID) {
-        count = 0;
+        char* lebuf = new char[text.length() + 10];
+        int count = 0;
         writeLong(lebuf, count, STA_GAME_TEXT);
         writeStr(lebuf, count, text);
         nlWrite(shellssock, lebuf, count);
+        delete[] lebuf;
     }
 }
 

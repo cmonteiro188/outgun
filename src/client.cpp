@@ -1945,6 +1945,8 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             case data_world_reset:
+                for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+                    pi->stats().finish_stats(get_time());
                 for (int iid = 0; iid < MAX_PICKUPS; ++iid)
                     fx.item[iid].kind = Powerup::pup_unused;
                 break;
@@ -1961,8 +1963,6 @@ void Client::process_incoming_data(const char* data, int length) {
                     NLubyte caplimit, timelimit;
                     readByte(lebuf, count, caplimit);
                     readByte(lebuf, count, timelimit);
-                    for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                        pi->stats().finish_stats(get_time());
                     gameover_plaque = plaque;
 
                     string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
@@ -1978,6 +1978,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     }
                     if (!msg.empty())
                         addThreadMessage(new TM_Text(msg_info, msg));
+                    for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+                        pi->stats().finish_stats(get_time());
                 }
                 else {
                     gameover_plaque = NEXTMAP_NONE;
@@ -2166,6 +2168,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     menusel = menu_teams;
                     stats_autoshowing = true;
                 }
+                for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+                    pi->stats().finish_stats(get_time());
                 if (menu.options.game.saveStats())
                     fx.save_stats("client_stats", old_map);
                 break;

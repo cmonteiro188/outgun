@@ -97,7 +97,7 @@ public:
     virtual int send_message(int client_id, const char* data, int length) = 0;
 
     //broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
-    virtual int broadcast_message(const char* data, int length) = 0;
+// disabled in Outgun to prevent problems    virtual int broadcast_message(const char* data, int length) = 0;
 
     //function to be called by the SFUNC_CLIENT_DATA callback
     //gets the next reliable message avaliable from the given client. null if no message pending
