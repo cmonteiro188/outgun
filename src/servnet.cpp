@@ -789,9 +789,13 @@ int ServerNetworking::client_connected(int id) {
 
 	broadcast_new_player(world.player[myself]);
 
-	// New players always spawn in the base.
-	world.player[myself].respawn_to_base = true;	// don't actually spawn until the client has loaded the map and is in the game
-	world.resetPlayer(myself, -1e10);	// negative delay to cancel default delay, so that the player spawns as soon as he is ready
+	// move to a spawn spot to wait for the game
+	ServerPlayer& pl = world.player[myself];
+	WorldCoords pos = world.map.tinfo[pl.team()].spawn[rand() % world.map.tinfo[pl.team()].spawn.size()];
+	pl.roomx = pos.px; pl.roomy = pos.py; pl.lx = pos.x; pl.ly = pos.y;
+	world.resetPlayer(myself, -1e10);	// kill; negative delay to cancel default delay, so that the player spawns as soon as he is ready
+	world.player[myself].respawn_to_base = true;	// New players always spawn in the base.
+	// don't actually spawn until the client has loaded the map and is in the game
 
 	if (player_count == 2) {
 		host->ctf_game_restart();
