@@ -341,7 +341,7 @@ void TournamentPasswordManager::threadFn() {
 
         NLaddress tournamentServer;
         if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
-            nlStringToAddr("69.57.148.55", &tournamentServer);
+            nlStringToAddr("64.69.35.205", &tournamentServer);
 
         nlSetAddrPort(&tournamentServer, 80);
         nlConnect(sock, &tournamentServer);
@@ -2315,7 +2315,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 const bool wild_flag = pid & 0x80;
                 pid &= ~0x80;
-                fx.player[pid].stats().add_flag_take(get_time());
+                fx.player[pid].stats().add_flag_take(get_time(), wild_flag);
                 const int team = pid / TSIZE;
                 fx.teams[team].add_flag_take();
                 string msg;
@@ -2545,12 +2545,12 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte id;
                 readByte(lebuf, count, id);
                 const bool flag = (id & 0x80);
-                id &= ~0x80;
-                const bool dead = (id & 0x40);
-                id &= ~0x40;
+                const bool wild_flag = (id & 0x40);
+                const bool dead = (id & 0x20);
+                id &= 0x1F;
                 // todo: check id
                 Statistics& stats = fx.player[id].stats();
-                stats.set_flag(flag);
+                stats.set_flag(flag, wild_flag);
                 stats.set_dead(dead);
                 NLubyte data;
                 readByte(lebuf, count, data);

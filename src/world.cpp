@@ -348,25 +348,17 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
 bool Map::load(LogSet& log, const char* mapdir, const string& mapname) {
     const string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
 
-    FILE *fmap = fopen(fileName.c_str(), "rb");
-    if (fmap) {
-        *this = Map();
-        NLubyte lebigbuf[65536];
-        int numread = fread(lebigbuf, 1, 65536, fmap);
-        crc = nlGetCRC16(lebigbuf, numread);
-        fclose(fmap);
-        ifstream in(fileName.c_str());
-        if (in) {
-            if (!parse_file(log, in)) {
-                log.error(_("Can't load: error in map '$1'.", mapname));
-                return false;
-            }
-            in.close();
-            return true;
-        }
+    ifstream in(fileName.c_str());
+    if (!in) {
+        log("Can't find mapfile '%s'!", fileName.c_str());
+        return false;
     }
-    log("Can't find mapfile '%s'!", fileName.c_str());
-    return false;
+    *this = Map();
+    if (!parse_file(log, in)) {
+        log.error(_("Can't load: error in map '$1'.", mapname));
+        return false;
+    }
+    return true;
 }
 
 bool Map::parse_file(LogSet& log, istream& in) {
@@ -375,6 +367,7 @@ bool Map::parse_file(LogSet& log, istream& in) {
     vector<pair<string, pair<int, int> > > labels;
     vector<string> file_lines;
     vector<pair<string, vector<string> > > label_lines;
+    string crcData;
     // read lines to vectors
     while (1) {
         string line;
@@ -383,6 +376,8 @@ bool Map::parse_file(LogSet& log, istream& in) {
         line = trim(line);
         if (line.empty())
             continue;
+        crcData += line;
+        crcData += '\n';
         if (line[0] == ':') {           // new label
             const string label = line.substr(1);
             for (vector<pair<string, vector<string> > >::const_iterator li = label_lines.begin(); li != label_lines.end(); ++li)
@@ -399,6 +394,8 @@ bool Map::parse_file(LogSet& log, istream& in) {
         else                            // labels have started
             label_lines.back().second.push_back(line);
     }
+    crc = nlGetCRC16(const_cast<NLubyte*>(reinterpret_cast<const NLubyte*>(crcData.data())), crcData.length());
+    crcData.clear();    // free the memory; crcData is not needed from here on
     for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
         if (!parse_line(log, *line, label_lines, crx, cry, scalex, scaley))
             return false;
@@ -589,7 +586,6 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
-            
             room.resize(w);
             for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
                 ri->resize(h);
@@ -1139,40 +1135,42 @@ void WorldBase::stealFlag(int team, int flag, int carrier) {
 
 void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
                           bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
-    Rocket* r = &rock[i];
-    r->owner = playernum;
-    r->team = team;
-    r->power = power;
-    r->px = px;
-    r->py = py;
-    r->x = x;
-    r->y = y;
-    r->direction = dir;
+    Rocket& r = rock[i];
+    r.owner = playernum;
+    r.team = team;
+    r.power = power;
+    r.px = px;
+    r.py = py;
+    r.x = x;
+    r.y = y;
+    r.direction = dir;
 
     const double deg = dir * N_PI_4;
 
     if (xdelta) {
-        r->sx = xdelta * shot_deltax * cos(deg + N_PI_2);
-        r->sy = xdelta * shot_deltax * sin(deg + N_PI_2);
-        const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
-        r->move(1);
+        r.sx = xdelta * shot_deltax * cos(deg + N_PI_2);
+        r.sy = xdelta * shot_deltax * sin(deg + N_PI_2);
+        const double wallTime = getTimeTillWall(map.room[px][py], r, 1.);
+        r.move(1);
         if (wallTime < 1.) {
-            cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
+            cb.rocketHitWall(i, r.power, r.x, r.y, r.px, r.py);
             return;
         }
     }
 
-    r->sx = cos(deg) * physics.rocket_speed;
-    r->sy = sin(deg) * physics.rocket_speed;
+    r.sx = cos(deg) * physics.rocket_speed;
+    r.sy = sin(deg) * physics.rocket_speed;
     // advance 15 pixels before really shooting -> don't hit very close by players
     const double advance = 15. / physics.rocket_speed + double(frameAdvance);
-    const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
+    const double wallTime = getTimeTillWall(map.room[px][py], r, 1.);
     if (wallTime <= advance) {
-        r->move(wallTime);
-        cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
+        r.move(wallTime);
+        cb.rocketHitWall(i, r.power, r.x, r.y, r.px, r.py);
         return;
     }
-    r->move(advance);
+    r.move(advance);
+    if (r.x < 0 || r.x > plw || r.y < 0 || r.y > plh)
+        cb.rocketOutOfBounds(i);
 }
 
 void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids, int frameAdvance,
@@ -2534,8 +2532,11 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
                 rock[i].move(wallTime);
                 callback.rocketHitWall(i, rock[i].power, rock[i].x, rock[i].y, rock[i].px, rock[i].py);
             }
-            else
+            else {
                 rock[i].move(frames);
+                if (rock[i].x < 0 || rock[i].x > plw || rock[i].y < 0 || rock[i].y > plh)
+                    callback.rocketOutOfBounds(i);
+            }
         }
 }
 
@@ -2889,7 +2890,7 @@ void ServerWorld::simulateFrame() {
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     host->score_frag(pid, 1);   // just add some frags
-    player[pid].stats().add_flag_take(get_time());
+    player[pid].stats().add_flag_take(get_time(), team == 2);
     teams[pid / TSIZE].add_flag_take();
     net->broadcast_flag_take(player[pid], team);
     stealFlag(team, flag, pid);
@@ -3192,6 +3193,7 @@ Statistics::Statistics():
     starttime(0),
     dead(true),
     flag(false),
+    wild_flag(false),
     total_flag_carrying_time(0),
     flag_taking_time(0)
 { }
@@ -3238,21 +3240,22 @@ void Statistics::add_suicide(double time) {
 
 void Statistics::add_capture(double time) {
     nAssert(flag);
-    flag = false;
+    flag = wild_flag = false;
     ++total_captures;
     total_flag_carrying_time += time - flag_taking_time;
 }
 
-void Statistics::add_flag_take(double time) {
+void Statistics::add_flag_take(double time, bool wild) {
     nAssert(!flag);
     flag = true;
+    wild_flag = wild;
     ++total_flags_taken;
     flag_taking_time = time;
 }
 
 void Statistics::add_flag_drop(double time) {
     nAssert(flag);
-    flag = false;
+    flag = wild_flag = false;
     ++total_flags_dropped;
     total_flag_carrying_time += time - flag_taking_time;
 }
@@ -3263,7 +3266,7 @@ void Statistics::finish_stats(double time) {
         total_lifetime += time - last_spawn_time;
     }
     if (flag) {
-        flag = false;
+        flag = wild_flag = false;
         total_flag_carrying_time += time - flag_taking_time;
     }
 }

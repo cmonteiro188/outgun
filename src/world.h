@@ -220,7 +220,7 @@ public:
     void set_lifetime(double time) { total_lifetime = time; }
     void set_flag_carrying_time(double time) { total_flag_carrying_time = time; }
     void set_flag_take_time(double time) { flag_taking_time = time; }
-    void set_flag(bool f) { flag = f; }
+    void set_flag(bool f, bool wild) { nAssert(!wild || f); flag = f; wild_flag = wild; }
     void set_dead(bool d) { dead = d; }
 
     void spawn(double time) { set_spawn_time(time); nAssert(dead); dead = false; }
@@ -231,7 +231,7 @@ public:
     void add_death(bool deathbringer, double time);
     void add_suicide(double time);
     void add_capture(double time);
-    void add_flag_take(double time);
+    void add_flag_take(double time, bool wild);
     void add_flag_drop(double time);
     void add_flag_return() { ++total_flags_returned; }
     void add_carrier_kill() { ++total_flag_carriers_killed; }
@@ -271,7 +271,8 @@ public:
     double start_time() const { return starttime; }
     double flag_carrying_time(double time) const;
     double flag_take_time() const { return flag_taking_time; }
-    bool has_flag() const { return flag; }
+    bool has_flag() const { return flag; }  // true for both enemy flag and wild flag
+    bool has_wild_flag() const { return wild_flag; }
 
 private:
     int total_frags;
@@ -298,7 +299,7 @@ private:
     double saved_speed;
     double starttime;
     bool dead;
-    bool flag;
+    bool flag, wild_flag;
     double total_flag_carrying_time;
     double flag_taking_time;
 };

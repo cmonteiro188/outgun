@@ -38,5 +38,5 @@ std::string wheregamedir;
 MutexHolder nlOpenMutex;
 
 AutoBugReporting g_autoBugReporting = ABR_disabled;
-bool g_leetnetLog = true;
-bool g_leetnetDataLog = true;
+bool g_leetnetLog = false;
+bool g_leetnetDataLog = false;

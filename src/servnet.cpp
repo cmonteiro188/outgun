@@ -518,7 +518,7 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_stats);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.flag() ? 0x80 : 0x00) | (player.dead ? 0x40 : 0x00));
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
     const Statistics& stats = player.stats();
     writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
     writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
@@ -710,7 +710,7 @@ void ServerNetworking::client_report_status(int id) {
 }
 
 void ServerNetworking::broadcast_team_message(int team, const string& text) const {
-    nAssert(text.length() < max_chat_message_length);
+    nAssert(text.length() <= max_chat_message_length + maxPlayerNameLength + 2); // 2 = ": "
 
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
@@ -762,7 +762,7 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
     if (pid != -1 && !world.player[pid].used)
         return;
     char lebuf[256];
-    if (text.length() < max_chat_message_length) {
+    if (text.length() <= max_chat_message_length + maxPlayerNameLength + 2) {    // 2 = ": "
         int count = 0;
         writeByte(lebuf, count, data_text_message);
         writeByte(lebuf, count, type);
@@ -1770,7 +1770,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 
         NLaddress tournamentServer;
         if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
-            nlStringToAddr("69.57.148.55", &tournamentServer);
+            nlStringToAddr("64.69.35.205", &tournamentServer);
 
         nlSetAddrPort(&tournamentServer, 80);
         nlConnect(sock, &tournamentServer);

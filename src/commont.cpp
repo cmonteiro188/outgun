@@ -101,8 +101,6 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
         data |= strafe;
 }
 
-NLaddress master_address;
-
 istream& getline_smart(istream& in, string& str) {
     str.clear();
     while (1) {
@@ -130,7 +128,7 @@ istream& getline_skip_comments(istream& in, string& str) {
 }
 
 bool check_name(const std::string& name) {
-    if (name.length() > 15)
+    if (name.length() > maxPlayerNameLength)
         return false;
     if (name.find_first_not_of(" \xA0") == string::npos)    // Name with only spaces and no-brake spaces not allowed.
         return false;

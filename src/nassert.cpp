@@ -101,6 +101,12 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
     int len = 0;
     writeString(mbuf, len, GAME_STRING);
     writeString(mbuf, len, GAME_SHORT_VERSION);
+    #ifdef OFFICIAL_BUILD_ID
+    // please don't define OFFICIAL_BUILD_ID unless you've set up your own bug report server, configured it in MasterSettings::load, and agreed about it with whoever is keeping the server list master server your version uses so that the master won't override the setting in what is downloaded to master.txt
+    writeByte(mbuf, len, OFFICIAL_BUILD_ID);
+    #else
+    writeByte(mbuf, len, 0);
+    #endif
     writeString(mbuf, len, file);
     writeLong(mbuf, len, line);
     if (g_autoBugReporting == ABR_withDump) {
@@ -115,7 +121,8 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
         return;
     nlSetRemoteAddr(dbgSock, &g_masterSettings.bugReportAddress());
     nlWrite(dbgSock, mbuf, len);
-    #ifdef ALLEGRO_WINDOWS
+    #ifdef OFFICIAL_BUILD_ID
+    // see note about OFFICIAL_BUILD_ID above
     // the stack dumps are only useful from known executables
     if (g_autoBugReporting == ABR_withDump) {
         // generate a secondary packet with the top of stack dump information

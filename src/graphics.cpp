@@ -122,6 +122,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
     pup_sprite.resize(Powerup::pup_last_real + 1);
     plx = 0;
     ply = SCREEN_H - scale(plh) - 35;
+    //    log("csb(bkg, %d, %d, %d, %d) / %d, %d", plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)), background->w, background->h);
     roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
     minimap_w = minimap_place_w = SCREEN_W - roombg->w - 4; // 4 for left margin
     minimap_h = minimap_place_h = scale(100);
@@ -1414,7 +1415,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
         draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
         if (player.stats().has_flag()) {
             vline(drawbuf, x, y, y + 7, col[COLYELLOW]);
-            rectfill(drawbuf, x + 1, y, x + 5, y + 4, teamcol[player.team()]);
+            rectfill(drawbuf, x + 1, y, x + 5, y + 4, player.stats().has_wild_flag() ? teamcol[2] : teamcol[1 - player.team()]);
         }
         line[player.team()]++;
     }

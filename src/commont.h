@@ -45,7 +45,8 @@ bool check_name(const std::string& name);
 
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header };
 
-const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
+static const std::string::size_type maxPlayerNameLength = 15;
+static const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
 
 enum DamageType { DT_rocket, DT_deathbringer, DT_collision };
 
@@ -205,9 +206,9 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 // Game specific strings
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "1.0.0b17"
-#define GAME_VERSION "1.0.0 beta 17"
-#define GAME_SHORT_VERSION "1.0.0b17"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
+#define GAME_PROTOCOL "1.0"
+#define GAME_VERSION "1.0.0"
+#define GAME_SHORT_VERSION "1.0.0"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 #define GAME_BRANCH "base"  // this only affects the master server communications, to make it tell the correct newest version
 
 #define TK1_VERSION_STRING "v048"
