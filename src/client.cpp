@@ -1136,6 +1136,7 @@ void Client::client_disconnected(const char* data, int length) {
     // the gamestate?
     connected = false;
     gameshow = false;
+    menusel = menu_none;
 
     string description;
 
@@ -2119,6 +2120,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.clear();
+                map_vote = -1;
                 break;
             }
 
@@ -2190,28 +2192,20 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             case data_kill: {
-                NLbyte attacker, target;
+                NLubyte attacker, target;
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
-                const bool deathbringer = attacker & 0x40;
-                const bool carrier_defended = attacker & 0x20;
-                const bool flag_defended = attacker & 0x10;
-                attacker &= ~0x70;
+                const bool deathbringer = attacker & 0x80;
+                const bool carrier_defended = attacker & 0x40;
+                const bool flag_defended = attacker & 0x20;
+                attacker &= 0x1F;
                 const bool flag = target & 0x80;
                 const bool wild_flag = target & 0x40;
-                target &= ~0xC0;
-                int attacker_team;
-                bool known_attacker = false;
-                if (attacker == unknown_red_player)
-                    attacker_team = 0;
-                else if (attacker == unknown_blue_player)
-                    attacker_team = 1;
-                else {
-                    attacker_team = attacker / TSIZE;
-                    known_attacker = fx.player[attacker].used;
-                }
+                target &= 0x1F;
+                const bool attacker_team = attacker / TSIZE;
                 const bool target_team = target / TSIZE;
                 const bool same_team = (attacker_team == target_team);
+                const bool known_attacker = fx.player[attacker].used;
                 string msg;
                 if (deathbringer) {
                     if (!known_attacker)
@@ -2224,7 +2218,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
                 }
                 else {
-                    if (!known_attacker)
+                    if (!known_attacker)    // this should never happen with the current code, but it's here for future
                         msg = _("$1 was nailed.", fx.player[target].name);
                     else if (same_team)
                         msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
@@ -3094,6 +3088,7 @@ void Client::loop(volatile bool* quitFlag) {
     nAssert(quitFlag);
     quitCommand = false;
 
+    menusel = menu_none;
     openMenus.clear();
     showMenu(menu);
     gameshow = false;
@@ -3511,6 +3506,8 @@ void Client::loop(volatile bool* quitFlag) {
         } else {
             client_graphics.startDraw();
             client_graphics.clear();
+            if (!gameshow && openMenus.empty())
+                showMenu(menu);
         }
 
         const int errors = externalErrorLog.size();
@@ -4056,25 +4053,24 @@ void Client::draw_player(int pid) {
 
 //draws the game menu
 void Client::draw_game_menu() {
-    if (gameshow)
-        switch (menusel) {
-            case menu_maps: {
-                MutexDebug md("mapInfoMutex", __LINE__, log);
-                MutexLock ml(mapInfoMutex);
-                client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
-                break;
-            }
-            case menu_players:
-                client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
-                break;
-            case menu_teams:
-                client_graphics.team_statistics(fx.teams);
-                break;
-            case menu_none: // regular menus are drawn below, regardless of menusel
-                break;
-            default:
-                numAssert(0, menusel);
+    switch (menusel) {
+        case menu_maps: {
+            MutexDebug md("mapInfoMutex", __LINE__, log);
+            MutexLock ml(mapInfoMutex);
+            client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
+            break;
         }
+        case menu_players:
+            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
+            break;
+        case menu_teams:
+            client_graphics.team_statistics(fx.teams);
+            break;
+        case menu_none: // regular menus are drawn below, regardless of menusel
+            break;
+        default:
+            numAssert(0, menusel);
+    }
     if (!openMenus.empty())
         openMenus.draw(client_graphics.drawbuffer());
 }
@@ -4176,8 +4172,6 @@ void Client::MCF_menuOpener(Menu& menu) {
 
 void Client::MCF_menuCloser() {
     openMenus.close();
-    if (!gameshow && openMenus.empty())
-        showMenu(menu);
 }
 
 void Client::MCF_prepareMainMenu() {

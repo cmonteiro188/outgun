@@ -35,6 +35,7 @@ using std::vector;
 using std::list;
 using std::min;
 using std::max;
+using std::pair;
 using std::swap;
 
 double CurveFunction::operator()(double y) const {
@@ -184,7 +185,7 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
 }
 
 template<class Texturizer>
-void renderLine(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex, bool overlay) {
+void renderLine(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) {
     double minxl = min(fl(y0), fl(y1)), minxr = min(fr(y0), fr(y1));
     double maxxl = max(fl(y0), fl(y1)), maxxr = max(fr(y0), fr(y1));
     if (fl.centerExtremes() && fl.extremeY() > y0 && fl.extremeY() < y1) {
@@ -198,7 +199,7 @@ void renderLine(double y0, double y1, const BorderFunctionBase& fl, const Border
     int l0 = static_cast<int>(floor(minxl)), l1 = static_cast<int>(ceil(maxxl));
     int r0 = static_cast<int>(floor(minxr)), r1 = static_cast<int>(ceil(maxxr));
     if (l1 < r0)
-        tex.putSpan(l1, r0, 1. * (y1 - y0), overlay);
+        tex.putSpan(l1, r0, 1. * (y1 - y0));
     else if (r0 < l1) {
         tex.startPixSpan(r0);
         for (int x = r0; x < l1; ++x)
@@ -218,21 +219,21 @@ void renderLine(double y0, double y1, const BorderFunctionBase& fl, const Border
 }
 
 template<class Texturizer>
-void renderBlock(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex, bool overlay) {
+void renderBlock(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) {
     tex.setLine(static_cast<int>(floor(y0)));
     if (ceil(y0) >= y1) {
         if (y1 > y0)
-            renderLine(y0, y1, fl, fr, tex, overlay);
+            renderLine(y0, y1, fl, fr, tex);
         return;
     }
-    renderLine(y0, ceil(y0), fl, fr, tex, overlay);
+    renderLine(y0, ceil(y0), fl, fr, tex);
     tex.nextLine();
     const double y1f = floor(y1);
     for (y0 = ceil(y0); y0 < y1f; ++y0) {
-        renderLine(y0, y0 + 1, fl, fr, tex, overlay);
+        renderLine(y0, y0 + 1, fl, fr, tex);
         tex.nextLine();
     }
-    renderLine(y1f, y1, fl, fr, tex, overlay);
+    renderLine(y1f, y1, fl, fr, tex);
 }
 
 DrawElement::DrawElement(BorderFunctionBase* flp, BorderFunctionBase* frp, double y0_, double y1_, vector<int> tex) :
@@ -725,25 +726,43 @@ void PartialPixelSegment::draw(BITMAP* buf, int y) const {
             putpixel(buf, startx + i, y, pixels[i].flexColor());
 }
 
-void Texturizer::render(int texid, const DrawElement* elp, bool overlay) {
-    numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
-    const TextureData::TexdataUnion& data = texTab[texid].data();
-    switch (texTab[texid].type()) {
-        case TextureData::T_solid: {
-            SolidTexturizer tex(*this, data.s);
-            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex, overlay);
-            break;
+void Texturizer::render(const vector<int>& textures, const DrawElement* elp) {
+    if (textures.size() == 1) {
+        const int texid = textures[0];
+        numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
+        const TextureData::TexdataUnion& data = texTab[texid].data();
+        switch (texTab[texid].type()) {
+            case TextureData::T_solid: {
+                SolidTexturizer tex(*this, data.s);
+                renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+                break;
+            }
+            case TextureData::T_texture: {
+                TextureTexturizer tex(*this, data.t);
+                renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+                break;
+            }
+            case TextureData::T_flagmarker:
+            default:
+                nAssert(0);
+                break;
         }
-        case TextureData::T_texture: {
-            TextureTexturizer tex(*this, data.t);
-            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex, overlay);
-            break;
-        }
-        case TextureData::T_flagmarker: {
-            FlagmarkerTexturizer tex(*this, data.f);
-            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex, overlay);
-            break;
-        }
+    }
+    else {
+        nAssert(textures.size() > 1);
+        MultiLayerTexturizer tex(*this, textures.size());
+        for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
+            const int texid = *ti;
+            numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
+            const TextureData::TexdataUnion& data = texTab[texid].data();
+            switch (texTab[texid].type()) {
+                case TextureData::T_solid:      tex.addLayer(new SolidPixelSource(data.s));      break;
+                case TextureData::T_texture:    tex.addLayer(new TexturePixelSource(data.t));    break;
+                case TextureData::T_flagmarker: tex.addLayer(new FlagmarkerPixelSource(data.f)); break;
+                default: nAssert(0);
+            }
+        }       
+        renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
     }
 }
 
@@ -814,26 +833,6 @@ inline void Texturizer::putPix(int color, int alpha) {
     ++bx;
 }
 
-void Texturizer::blendPix(int color, int alpha) {
-    if (spanIndex == partSpan->len()) {
-        if (spanIndex < spanEnd)
-            partSpan->extend(color, alpha);
-        else {
-            nAssert(spanIndex == spanEnd);
-            startPixSpan(bx - bx0);
-            nAssert(spanIndex == 0);
-            nAssert(partSpan->len() > 0);
-            partSpan->blend(0, color, alpha);   // this opt. is the main reason empty spans aren't tolerated
-        }
-    }
-    else {
-        nAssert(spanIndex >= 0 && spanIndex < partSpan->len());
-        partSpan->blend(spanIndex, color, alpha);
-    }
-    ++spanIndex;
-    ++bx;
-}
-
 void Texturizer::finalize() {
     for (int y = 0; y < buf->h; ++y) {
         list<PartialPixelSegment>& row = partials[y];
@@ -843,13 +842,17 @@ void Texturizer::finalize() {
     }
 }
 
+pair<int, int> SolidPixelSource::getPixel() {
+    return pair<int, int>(color, 255);
+}
+
 void SolidTexturizer::putPix(double alpha) {
     putPixI(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
 }
 
-void SolidTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) { // fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+void SolidTexturizer::putSpan(int x0, int x1, double alpha) { // fills the range [x0,x1[
     nAssert(x0 < x1);   // empty spans aren't tolerated
-    if (alpha >= .999 && !overlay)
+    if (alpha >= .999)
         hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, color);
     else {
         startPixSpan(x0);
@@ -857,6 +860,26 @@ void SolidTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) { // f
         for (int x = x0; x < x1; ++x)
             putPixI(iAlpha);
     }
+}
+
+void TexturePixelSource::setLine(int y) {
+    ty = (y - ty0) % tex->h;
+}
+
+void TexturePixelSource::nextLine() {
+    if (++ty == tex->h)
+        ty = 0;
+}
+
+void TexturePixelSource::startPixSpan(int x) {  
+    tx = (x - tx0) % tex->w;
+}
+
+pair<int, int> TexturePixelSource::getPixel() {
+    const int col = getpixel(tex, tx, ty);
+    if (++tx == tex->w)
+        tx = 0;
+    return pair<int, int>(col, 255);
 }
 
 void TextureTexturizer::setLine(int y) {
@@ -870,9 +893,9 @@ void TextureTexturizer::nextLine() {
         ty = 0;
 }
 
-void TextureTexturizer::putSpan(int x0, int x1, double alpha, bool overlay) {   // fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+void TextureTexturizer::putSpan(int x0, int x1, double alpha) {   // fills the range [x0,x1[
     nAssert(x0 < x1);   // empty spans aren't tolerated
-    if (alpha >= .999 && !overlay) {
+    if (alpha >= .999) {
         drawing_mode(DRAW_MODE_COPY_PATTERN, tex, tx0, ty0);
         hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, 0);
         solid_mode();
@@ -900,47 +923,80 @@ void TextureTexturizer::putPixI(int alpha) {
         tx = 0;
 }
 
-FlagmarkerTexturizer::FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td) :
-    host(host_),
+FlagmarkerPixelSource::FlagmarkerPixelSource(const FlagmarkerTexdata& td) :
     color(td.color),
     markRadius(td.radius),
-    intensityMul(300 / td.radius / 255. * (1 << PartialPixelSegment::scale)),
+    intensityMul(300 / td.radius),
     cx(td.cx),
     cy(td.cy)
 { }
 
-void FlagmarkerTexturizer::setLine(int y) {
-    host.setLine(y);
+void FlagmarkerPixelSource::setLine(int y) {
     dy = y - cy;
     dy2 = dy * dy;
 }
 
-void FlagmarkerTexturizer::nextLine() {
-    host.nextLine();
+void FlagmarkerPixelSource::nextLine() {
     ++dy;
     dy2 = dy * dy;
 }
 
-void FlagmarkerTexturizer::putSpan(int x0, int x1, double alpha, bool) {    // fills the range [x0,x1[
+void FlagmarkerPixelSource::startPixSpan(int x) {
+    dx = x - cx;
+}
+
+pair<int, int> FlagmarkerPixelSource::getPixel() {
+    const double intensity = markRadius - sqrt(dx * dx + dy2);
+    ++dx;
+    if (intensity <= 0)
+        return pair<int, int>(0, 0);
+    else
+        return pair<int, int>(color, min(256, static_cast<int>(intensity * intensityMul)));
+}
+
+MultiLayerTexturizer::~MultiLayerTexturizer() {
+    for (vector<PixelSource*>::iterator li = layers.begin(); li != layers.end(); ++li)
+        delete *li;
+}
+
+void MultiLayerTexturizer::setLine(int y) {
+    host.setLine(y);
+    for (vector<PixelSource*>::iterator li = layers.begin(); li != layers.end(); ++li)
+        (*li)->setLine(y);
+}
+
+void MultiLayerTexturizer::nextLine() {
+    host.nextLine();
+    for (vector<PixelSource*>::iterator li = layers.begin(); li != layers.end(); ++li)
+        (*li)->nextLine();
+}
+
+void MultiLayerTexturizer::putSpan(int x0, int x1, double alpha) {  // fills the range [x0,x1[
     startPixSpan(x0);
     for (int x = x0; x < x1; ++x)
         putPix(alpha);
 }
 
-void FlagmarkerTexturizer::startPixSpan(int x) {
+void MultiLayerTexturizer::startPixSpan(int x) {
     host.startPixSpan(x);
-    dx = x - cx;
+    for (vector<PixelSource*>::iterator li = layers.begin(); li != layers.end(); ++li)
+        (*li)->startPixSpan(x);
 }
 
-void FlagmarkerTexturizer::putPix(double alpha) {   // draws at current x coord and increases it
-    const double intensity = markRadius - sqrt(dx * dx + dy2);
-    if (intensity <= 0)
-        host.putPix(0, 0);
-    else {
-        const int iAlpha = static_cast<int>(intensity * alpha * intensityMul);
-        host.blendPix(color, iAlpha);
+void MultiLayerTexturizer::putPix(double alpha) {   // draws at current x coord and increases it
+    vector<PixelSource*>::iterator li = layers.begin();
+    const int color1 = (*li)->getPixel().first;
+    int r = getr(color1), g = getg(color1), b = getb(color1);
+    for (++li; li != layers.end(); ++li) {
+        pair<int, int> layerPix = (*li)->getPixel();
+        const int newColor = layerPix.first;
+        const int newAlpha = layerPix.second;
+        const int oldAlpha = 256 - newAlpha;
+        r = (r * oldAlpha + getr(newColor) * newAlpha + 127) / 256;
+        g = (g * oldAlpha + getg(newColor) * newAlpha + 127) / 256;
+        b = (b * oldAlpha + getb(newColor) * newAlpha + 127) / 256;
     }
-    ++dx;
+    host.putPix(makecol(r, g, b), static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
 }
 
 SceneAntialiaser::~SceneAntialiaser() {
@@ -1253,13 +1309,6 @@ void SceneAntialiaser::render(Texturizer& tex) const {
         }
     }
     #endif
-    for (vector<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei) {
-        const vector<int>& textures = ei->getAllTextures();
-        if (textures.size() > 1) {
-            for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti)
-                tex.render(*ti, &*ei, true);
-        }
-        else
-            tex.render(ei->getBaseTex(), &*ei, false);
-    }
+    for (vector<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei)
+        tex.render(ei->getAllTextures(), &*ei);
 }

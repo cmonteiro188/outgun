@@ -39,7 +39,6 @@ public:
     int x0() const { return startx; }
     int len() const { return pixels.size(); }
     void add(int index, int color, int alpha) { pixels[index].add(color, alpha); }
-    void blend(int index, int color, int alpha) { pixels[index].blend(color, alpha); }
     void extend(int color, int alpha) { pixels.push_back(PartPix(color, alpha)); }
     void draw(BITMAP* buf, int y) const;
 
@@ -59,18 +58,6 @@ private:
             g += getg(color) * alpha;
             b += getb(color) * alpha;
             alphaTotal += alpha;
-        }
-        void blend(int color, int alpha) {
-            if (alpha >= scaleVal)
-                r = g = b = alphaTotal = 0;
-            else {
-                const double mul = (scaleVal - alpha) / static_cast<double>(scaleVal);
-                r = static_cast<int>(r * mul + .5);
-                g = static_cast<int>(g * mul + .5);
-                b = static_cast<int>(b * mul + .5);
-                alphaTotal = static_cast<int>(alphaTotal * mul);
-            }
-            add(color, alpha);
         }
         bool draw() const { return alphaTotal >= scaleVal / 100; }
         int color() const {
@@ -182,7 +169,7 @@ public:
     Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<TextureData>& textures)
                     : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
 
-    void render(int texid, const DrawElement* elp, bool overlay);
+    void render(const std::vector<int>& textures, const DrawElement* elp);
     void finalize();    // draws all buffered pixels (use only when no longer drawing)
 
 // semi-private: for use by rendering functions called by render() only
@@ -191,7 +178,6 @@ public:
 
     inline void startPixSpan(int x);
     inline void putPix(int color, int alpha);   // draws at current x coord and increases it
-    void blendPix(int color, int alpha);
 
     inline BITMAP* getBuf() { return buf; }
     inline int getbx() const { return bx; }

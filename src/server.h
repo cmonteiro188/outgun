@@ -90,6 +90,8 @@ class Server {
     const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems so it's often wise
     MutexHolder threadLockMutex;    // used to implement threadLock, if it is enabled
 
+    bool abortFlag;
+
     // client control
     std::vector<std::string> welcome_message;   // welcome message line by line
     std::vector<std::string> info_message;      // the message /info shows, line by line
@@ -114,7 +116,7 @@ class Server {
 
     // settings
     bool tournament;
-    bool save_stats;
+    int save_stats;
     ServerExternalSettings extConfig;   // actually, not necessary external: some may be specified in gamemod and written here
     PowerupSettings pupConfig;
     WorldSettings worldConfig;

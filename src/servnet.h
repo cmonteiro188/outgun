@@ -173,6 +173,7 @@ public:
     void broadcast_player_crap(int pid);
     void broadcast_team_change(int from, int to, bool swap) const;
 
+    void broadcast_reset_map_list();
     void broadcast_stats_ready() const;
     void broadcast_5_min_left() const;
     void broadcast_1_min_left() const;
@@ -184,8 +185,8 @@ public:
     void broadcast_flag_take(const ServerPlayer& player, int flag_team) const;
     void broadcast_flag_return(const ServerPlayer& player) const;
     void broadcast_flag_drop(const ServerPlayer& player, int flag_team) const;
-    void broadcast_kill(int attacker, int target, bool deathbringer, bool flag, bool wild_flag,
-                        bool carrier_defended, bool flag_defended) const;
+    void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
+                        bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
     void broadcast_new_player(const ServerPlayer& player) const;
     void new_player_to_admin_shell(int pid) const;  // called when the player name is known (unlike at broadcast_new_player)
@@ -238,7 +239,7 @@ public:
     void bprintf(Message_type type, const char *fs, ...) const;
     void plprintf(int pid, Message_type type, const char* fmt, ...) const;
     void player_message(int pid, Message_type type, const std::string& text) const;
-    void broadcast_message(Message_type type, const std::string& text) const;
+    void broadcast_text(Message_type type, const std::string& text) const;
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
 

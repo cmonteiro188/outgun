@@ -44,9 +44,9 @@ using std::cerr;
 // X_EXTREMECUT             is how much of each pixel edge is removed x-wise to counter imprecision (a too little cut is not fatal but does trigger an assertion)
 // JOIN_TRESHOLD            is how much gap is allowed when joining two adjacent objects to one
 // all tresholds' unit is a pixel
-// these settings currently tune the module to work with values of y up to approximately +-1e8
+// these settings currently tune the module to work with values of y up to approximately +-1e7
 // they have to be relaxed in order to gain more range
-const double INTERSECTION_TRESHOLD = .0000001;  // roughly 2^-20
+const double INTERSECTION_TRESHOLD = .0000001;  // roughly 2^-23
 const double SPLIT_TRESHOLD        = .0000002;
 const double FINAL_EXTREMECUT      = .000001;
 const double X_EXTREMECUT          = .000001;
@@ -187,7 +187,32 @@ public:
 
 typedef std::list<YSegment> SegListT;
 
-class SolidTexturizer {
+class PixelSource { // base class
+    PixelSource(const PixelSource&);    // prohibited (and not implemented anywhere)
+    PixelSource& operator=(const PixelSource&);
+
+protected:
+    PixelSource() { }
+
+public:
+    virtual void setLine(int y) = 0;
+    virtual void nextLine() = 0;
+    virtual void startPixSpan(int x) = 0;
+    virtual std::pair<int, int> getPixel() = 0;  // returns (color, alpha) of the current x coord and increases it
+};
+
+class SolidPixelSource : public PixelSource {
+    int color;
+
+public:
+    SolidPixelSource(const SolidTexdata& td) : color(td) { }
+    void setLine(int) { }
+    void nextLine() { }
+    void startPixSpan(int) { }
+    std::pair<int, int> getPixel();
+};
+
+class SolidTexturizer { // includes inlined the same operations as SolidPixelSource
     Texturizer& host;
     int color;
 
@@ -198,12 +223,26 @@ public:
 
     void setLine(int y) { host.setLine(y); }
     void nextLine() { host.nextLine(); }
-    void putSpan(int x0, int x1, double alpha, bool overlay);   // fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+    void putSpan(int x0, int x1, double alpha);   // fills the range [x0,x1[
     void startPixSpan(int x) { host.startPixSpan(x); }
     void putPix(double alpha);  // draws at current x coord and increases it
 };
 
-class TextureTexturizer {
+class TexturePixelSource : public PixelSource {
+    BITMAP* tex;    // can't set const because it can be fed to Allegro
+    int tx0, ty0;
+    int tx, ty; // active pixel in tex
+
+public:
+    TexturePixelSource(const TextureTexdata& td) : tex(td.image), tx0(td.x0), ty0(td.y0) { }
+
+    void setLine(int y);
+    void nextLine();
+    void startPixSpan(int x);
+    std::pair<int, int> getPixel();
+};
+
+class TextureTexturizer { // includes inlined the same operations as TexturePixelSource
     Texturizer& host;
     BITMAP* tex;    // can't set const because it can be fed to Allegro
     int tx0, ty0;
@@ -216,13 +255,12 @@ public:
 
     void setLine(int y);
     void nextLine();
-    void putSpan(int x0, int x1, double alpha, bool overlay);   // fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+    void putSpan(int x0, int x1, double alpha);   // fills the range [x0,x1[
     void startPixSpan(int x);
     void putPix(double alpha);  // draws at current x coord and increases it
 };
 
-class FlagmarkerTexturizer {
-    Texturizer& host;
+class FlagmarkerPixelSource : public PixelSource {
     int color;
     double markRadius;
     double intensityMul;
@@ -231,11 +269,27 @@ class FlagmarkerTexturizer {
     double dx;
 
 public:
-    FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td);
+    FlagmarkerPixelSource(const FlagmarkerTexdata& td);
 
     void setLine(int y);
     void nextLine();
-    void putSpan(int x0, int x1, double alpha, bool overlay);   // fills the range [x0,x1[ ; setting overlay (for every layer) enables multiple textures to be drawn
+    void startPixSpan(int x);
+    std::pair<int, int> getPixel();
+};
+
+class MultiLayerTexturizer {
+    Texturizer& host;
+    std::vector<PixelSource*> layers;
+
+public:
+    MultiLayerTexturizer(Texturizer& host_, int layersReserve = 2) : host(host_) { layers.reserve(layersReserve); }
+    ~MultiLayerTexturizer();
+    void addLayer(PixelSource* layerSource) { layers.push_back(layerSource); }  // ownership is transferred
+    // at least one layer is assumed, don't try to draw without calling addLayer first
+
+    void setLine(int y);
+    void nextLine();
+    void putSpan(int x0, int x1, double alpha);   // fills the range [x0,x1[
     void startPixSpan(int x);
     void putPix(double alpha);  // draws at current x coord and increases it
 };

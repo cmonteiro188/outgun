@@ -333,6 +333,11 @@ void ServerNetworking::ctf_update_teamscore(int t) const {
     broadcast_message(lebuf, count);
 }
 
+void ServerNetworking::broadcast_reset_map_list() {
+    ++maplist_revision;
+    broadcast_simple_message(data_reset_map_list);
+}
+
 // Tell that stats are ready for saving.
 void ServerNetworking::broadcast_stats_ready() const {
     broadcast_simple_message(data_stats_ready);
@@ -399,21 +404,21 @@ void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_
     broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_kill(int attacker, int target, bool deathbringer, bool flag, bool wild_flag,
-                                      bool carrier_defended, bool flag_defended) const {
+void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
+                                      bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_kill);
     // first byte, deatbringer bit, carrier defended bit, flag defended bit and attacker id
-    NLbyte attacker_info = world.player[attacker].id;
+    NLubyte attacker_info = attacker.id;
     if (deathbringer)
-        attacker_info |= 0x40;
+        attacker_info |= 0x80;
     if (carrier_defended)
-        attacker_info |= 0x20;
+        attacker_info |= 0x40;
     if (flag_defended)
-        attacker_info |= 0x10;
+        attacker_info |= 0x20;
     // second byte, flag bit, wild flag bit and target id
-    NLbyte tar_flag = world.player[target].id;
+    NLubyte tar_flag = target.id;
     if (flag)
         tar_flag |= 0x80;
     if (wild_flag)
@@ -749,7 +754,7 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::broadcast_message(Message_type type, const string& text) const {
+void ServerNetworking::broadcast_text(Message_type type, const string& text) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, type);
@@ -1196,7 +1201,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     pl.gundir = 5;
                 else if (!ctrl.isUp() && ctrl.isDown()) // + down
                     pl.gundir = 3;
-                else if (ctrl.isUp() == ctrl.isDown()) // (!up !down) or (up down)
+                else
                     pl.gundir = 4;
             }
             // right
@@ -1205,11 +1210,11 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     pl.gundir = 7;
                 else if (!ctrl.isUp() && ctrl.isDown()) // + down
                     pl.gundir = 1;
-                else if (ctrl.isUp() == ctrl.isDown()) // (!up !down) or (up down)
+                else
                     pl.gundir = 0;
             }
             // (!left !right) or (left right)
-            else if (ctrl.isLeft() == ctrl.isRight()) {
+            else {
                 if (ctrl.isUp() && !ctrl.isDown())  // + up
                     pl.gundir = 6;
                 else if (!ctrl.isUp() && ctrl.isDown()) // + down
@@ -1368,10 +1373,13 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 if (world.player[pid].mapVote != vote) {
                     if (world.player[pid].mapVote >= 0 && world.player[pid].mapVote < static_cast<int>(host->maplist().size()))
                         host->maplist()[world.player[pid].mapVote].votes_changed = true;
-                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
+                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size())) {
                         host->maplist()[vote].votes_changed = true;
-                    world.player[pid].mapVote = vote;
-                    host->check_map_exit();
+                        world.player[pid].mapVote = vote;
+                    }
+                    else
+                        world.player[pid].mapVote = -1;
+                    host->check_map_exit(); // just to update the map vote count, exiting should not actually happen (but it wouldn't hurt)
                 }
             }
             else if (code == data_fav_colors) {
@@ -2404,7 +2412,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         NLulong cid = 0;
         int pid = 0;    // pid and cid set if argPid[code]
         NLulong dwArg = 0;  // set if argDw[code]
-        //                               noop, get-functions,ch,qu,pi,kckbanmte,reset
+        //                                      noop, get-functions,ch,qu,pi,kckbanmte,reset
         static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
         static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
         const int argsLen = (argPid[code] + argDw[code]) * 4;
@@ -2432,6 +2440,9 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
             if (argDw[code])
                 readLong(rbuf, rcount, dwArg);
         }
+
+        if (threadLock)
+            threadLockMutex.lock();
 
         char answer[1000];
         int ansLen = 0;
@@ -2495,16 +2506,12 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
                 break;
             case ATS_RESET_SETTINGS: {
                 host->reset_settings(true);
-                ++maplist_revision;
-                broadcast_simple_message(data_reset_map_list);
-                for (int p = 0; p < maxplayers; ++p)
-                    if (world.player[p].used) {
-                        world.player[p].current_map_list_item = 0;  // restart sending map info, because list may have changed
-                        send_server_settings(world.player[p]);
-                    }
                 break;
             }
         }
+
+        if (threadLock)
+            threadLockMutex.unlock();
 
         if (error)
             break;
@@ -2633,7 +2640,7 @@ void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx
 
     //send message to players that received the rocket
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used && plymask & (1 << i))
+        if (world.player[i].used && (plymask & (1 << i)))
             server->send_message(world.player[i].cid, lebuf, count);
 }
 

@@ -54,9 +54,11 @@ using std::find;
 using std::ifstream;
 using std::ios;
 using std::istringstream;
+using std::list;
 using std::max;
 using std::ofstream;
 using std::ostringstream;
+using std::pair;
 using std::random_shuffle;
 using std::setfill;
 using std::setprecision;
@@ -72,6 +74,7 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     log(&normalLog, &errorLog, &securityLog),
     threadLock(config.threadLock),
     threadLockMutex(),
+    abortFlag(false),
     world(this, &network, log),
     network(this, world, log, threadLock, threadLockMutex),
     extConfig(config),
@@ -499,7 +502,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("sayadmin_enabled",        &sayadmin_enabled)),
         PT(new GS_String    ("sayadmin_comment",        &sayadmin_comment)),
         PT(new GS_Boolean   ("tournament",              &tournament)),
-        PT(new GS_Int       ("save_stats",              &save_stats, 0)),
+        PT(new GS_Int       ("save_stats",              &save_stats, 0, MAX_PLAYERS)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -602,37 +605,8 @@ bool Server::server_next_map(int reason) {
     last_vote_announce_votes = last_vote_announce_needed = 0;
     next_vote_announce_frame = 0;   // let a new announcement be made as soon as someone votes
 
-    const bool ok = load_rotation_map(currmap);
-    if (!ok) {
-        while (!maprot.empty()) {
-            maprot.erase(maprot.begin() + currmap);
-            for (int i = 0; i < maxplayers; i++) {    // update map votes
-                ServerPlayer& pl = world.player[i];
-                if (pl.used) {
-                    if (pl.mapVote > currmap) {
-                        pl.mapVote--;
-                        network.send_map_vote(pl);
-                    }
-                    else if (pl.mapVote == currmap) {
-                        pl.mapVote = -1;
-                        network.send_map_vote(pl);
-                    }
-                }
-            }
-            if (currmap >= static_cast<int>(maprot.size()))
-                currmap = 0;
-            if (load_rotation_map(currmap))
-                break;
-        }
-        if (maprot.empty())
-            return false;       // FIXME: do something better, e.g. rescan the maps directory or close the server
-        network.broadcast_simple_message(data_reset_map_list);
-        for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used) {
-                world.player[i].current_map_list_item = 0;
-                network.send_server_settings(world.player[i]);
-            }
-    }
+    if (!load_rotation_map(currmap))
+        return reset_settings(true);    // re-initialize map-list (and other settings as a side-effect); it calls back this function so the end-part has already executed
 
     // notify all players
     for (int i = 0; i < maxplayers; i++)
@@ -649,7 +623,9 @@ bool Server::server_next_map(int reason) {
     gameover = true;
     gameover_time = get_time() + game_end_delay;        // timeout for gameover plaque
 
-    return ok;
+    ctf_game_restart();
+
+    return true;
 }
 
 //check map exit by vote
@@ -670,18 +646,21 @@ void Server::check_map_exit() {
         if (world.player[p].used && world.player[p].mapVote != -1)
             ++maprot[world.player[p].mapVote].votes;
 
-    if (num_for > num_against && (world.getMapTime() >= vote_block_time || num_against == 0)) {
+    if (num_for > num_against && (world.getMapTime() >= vote_block_time || num_against == 0))
         server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
-        ctf_game_restart();
-    }
 }
 
 //----- THE REST  ----------------
 
-bool Server::reset_settings(bool reload) {  // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
+bool Server::reset_settings(bool reload) {  // set reload if reset_settings has already been called to preserve map and votes, and ensure that fixed values aren't changed
     string currMapFile;
-    if (reload)
+    list< pair<int, string> > oldVotes;    // pair<pid, map-filename>
+    if (reload) {
         currMapFile = maprot[currmap].file;
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].mapVote != -1)
+                oldVotes.push_back(pair<int, string>(i, maprot[world.player[i].mapVote].file));
+    }
 
     world.physics = PhysicalSettings(); // default values
     maprot.clear();
@@ -746,24 +725,43 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
     if (maprot.empty()) {
         log.error(_("No maps for rotation."));
+        abortFlag = true;
         return false;
     }
 
     if (random_maprot)
         random_shuffle(maprot.begin(), maprot.end());
 
-    if (reload) {   // preserve selected map if possible
-        size_t mapi;
-        for (mapi = 0; mapi < maprot.size(); ++mapi)
+    if (reload) {   // preserve selected map and restore map votes where possible
+        network.broadcast_reset_map_list(); // must be before new votes are sent (right below)
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used) {
+                world.player[i].current_map_list_item = 0;
+                network.send_server_settings(world.player[i]);
+            }
+
+        currmap = -1;   // flag so we know if it has changed or not
+        for (int mapi = 0; mapi < (int)maprot.size(); ++mapi) {
             if (maprot[mapi].file == currMapFile)
-                break;
-        if (mapi == maprot.size()) {    // not found
-            currmap = -1;
-            server_next_map(NEXTMAP_VOTE_EXIT);
-            // do not restart the game
+                currmap = mapi;
+            for (list< pair<int, string> >::iterator vi = oldVotes.begin(); vi != oldVotes.end(); ) {
+                if (vi->second == maprot[mapi].file) {
+                    ServerPlayer& pl = world.player[vi->first];
+                    pl.mapVote = mapi;
+                    network.send_map_vote(pl);  // don't care if index changed: client has zeroed its vote at reset_map_list and must be re-told it
+                    ++maprot[mapi].votes;
+                    maprot[mapi].votes_changed = true;
+                    vi = oldVotes.erase(vi);
+                }
+                else
+                    ++vi;
+            }
         }
-        else
-            currmap = mapi;
+        if (currmap == -1)  // not found
+            server_next_map(NEXTMAP_VOTE_EXIT);
+        // what is left are players whose voted map was erased from the list
+        for (list< pair<int, string> >::iterator vi = oldVotes.begin(); vi != oldVotes.end(); ++vi)
+            world.player[vi->first].mapVote = -1;   // the client knows this because of broadcast_reset_map_list above
     }
     else if (random_first_map)
         currmap = rand() % maprot.size();
@@ -800,13 +798,13 @@ bool Server::start(int target_maxplayers) {
 
     ctf_game_restart();
     world.reset_time();
-    network.sendStartGame();
 
     network.update_serverinfo();
 
     if (threadLock)
         threadLockMutex.unlock();
 
+    abortFlag = false;
     return true;
 }
 
@@ -866,9 +864,11 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
             return;
         }
         else {
-            log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
+            if (!password.empty())
+                log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
                                 tempname.c_str(), password.c_str(), addressToString(network.get_client_address(id)).c_str());
             network.sendNameAuthorizationRequest(pid);
+            return;
         }
     }
 
@@ -895,19 +895,18 @@ bool Server::isLocallyAuthorized(int pid) const {
 }
 
 bool Server::isAdmin(int pid) const {
-    return world.player[pid].localIP || authorizations.isAdmin(world.player[pid].name);
+    if (world.player[pid].localIP)
+        return true;
+    if (!authorizations.isAdmin(world.player[pid].name))
+        return false;
+    const ClientData& cld = client[world.player[pid].cid];
+    return (cld.token_have && cld.token_valid) || isLocallyAuthorized(pid);
 }
 
 void Server::chat(int pid, const char* sbuf) {
     // handle 'console' commands
     if (sbuf[0] == '/') {
-        bool admin = false;
-        ClientData& cld = client[world.player[pid].cid];
-        if ((cld.token_have && cld.token_valid) || isLocallyAuthorized(pid)) {
-            // the player surely is who his name implies, authorized either by the tournament master or the local authorization database
-            if (isAdmin(pid))
-                admin = true;
-        }
+        const bool admin = isAdmin(pid);
 
         const char* pCommand=sbuf+1;
         char cbuf[30];
@@ -1029,11 +1028,10 @@ void Server::chat(int pid, const char* sbuf) {
                 maprot[world.player[pid].mapVote].votes = 99;
                 server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
             }
-            else
+            else {
                 network.bprintf(msg_server, "%s decided it's time for a restart.", world.player[pid].name.c_str());
-            ctf_game_restart();
-            world.reset_time();
-            network.sendStartGame();
+                ctf_game_restart();
+            }
         }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);
@@ -1185,7 +1183,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
     while (server_speed_counter < 1)
         MS_SLEEP(2);
 
-    while (!*quitFlag) {
+    while (!*quitFlag && !abortFlag) {
         // generate and send frame
         simulate_and_broadcast_frame();
 
