@@ -977,6 +977,7 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 	textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
 }
 
+// ### FIXME: the blood looks ridiculous
 void Graphics::draw_player_dead(int x, int y) {
 	x = scale(x);
 	y = scale(y);
@@ -1128,7 +1129,7 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 
 void Graphics::draw_pup(const Powerup& pup, double time) {
 	// pup's shadow
-	ellipsefill(drawbuf, plx + scale(pup.x), ply + scale(pup.y + 12), scale(12), scale(3), col[COLSHADOW]);
+	//ellipsefill(drawbuf, plx + scale(pup.x), ply + scale(pup.y + 12), scale(12), scale(3), col[COLSHADOW]);
 	switch (pup.kind) {
 		case Powerup::pup_shield:		draw_pup_shield(pup.x, pup.y); break;
 		case Powerup::pup_turbo:		draw_pup_turbo(pup.x, pup.y); break;
