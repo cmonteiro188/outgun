@@ -1324,7 +1324,7 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "SCORE: %i - %i", score1, score2);
 }
 
-void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers) {
+void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings) {
 	if (!show_scoreboard)
 		return;
 
@@ -1336,11 +1336,18 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 		line_h = 8;
 
 	// captions
-	ostringstream red;
-	red << "Red Team:    " << setw(2) << teams[0].score() << " capt";
+	ostringstream red, blue;
+	red  << "Red Team:    ";
+	blue << "Blue Team:   ";
+	if (pings) {
+		red  << "  pings";
+		blue << "  pings";
+	}
+	else {
+		red  << setw(2) << teams[0].score() << " capt";
+		blue << setw(2) << teams[1].score() << " capt";
+	}
  	textout_ex(drawbuf, font, red.str().c_str(), sbx, sby, teamlcol[0], -1);
-	ostringstream blue;
-	blue << "Blue Team:   " << setw(2) << teams[1].score() << " capt";
  	textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 1) * line_h, teamlcol[1], -1);
 
 	int line[2] = { 0, 0 };
@@ -1352,7 +1359,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 		const int x = sbx;
 		const int y = sby + (line[player.team()] + 1) * line_h + player.team() * (maxplayers / 2 + 1) * line_h;
 		draw_scoreboard_name(name.str(), x, y, pcol);
-		draw_scoreboard_points(player.stats().frags(), x + 20 * 8, y, player.team());
+		draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
 		line[player.team()]++;
 	}
 }
