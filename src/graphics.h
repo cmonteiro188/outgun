@@ -20,13 +20,13 @@ class TriWall;
 class CircWall;
 class ClientPlayer;
 class Sounds;
-class clientfx_t;
+class GraphicsEffect;
 class Team;
 class Flag;
 class Powerup;
 class Message;
-class spoint_t;
-class rocket_c;
+class WorldCoords;
+class Rocket;
 
 class ScreenMode {
 public:
@@ -74,8 +74,8 @@ public:
 	void reset_playground_colors();
 	void random_playground_colors();
 
-	void predraw(const Room& room, const std::vector< std::pair<int, const spoint_t*> >& flags,
-				 const std::vector< std::pair<int, const spoint_t*> >& spawns, bool grid = false);
+	void predraw(const Room& room, const std::vector< std::pair<int, const WorldCoords*> >& flags,
+				 const std::vector< std::pair<int, const WorldCoords*> >& spawns, bool grid = false);
 
 	void draw_background();
 	void draw_empty_background();
@@ -96,7 +96,7 @@ public:
 	void draw_player_name(const std::string& name, int x, int y, int team);
 	void draw_player_dead(const ClientPlayer& player);
 
-	void draw_rocket(const rocket_c& rocket, double time);
+	void draw_rocket(const Rocket& rocket, double time);
 	void draw_gun_explosion(int x, int y, int rad);
 	void draw_deathbringer_smoke(int x, int y, double time);
 	void draw_deathbringer(int x, int y, int team, double time);
@@ -314,7 +314,7 @@ private:
 	int team_captures_size;
 	int team_captures_start;
 
-	std::list<clientfx_t> cfx, cfx_queue;
+	std::list<GraphicsEffect> cfx, cfx_queue;
 	MutexHolder cfx_queue_mutex;
 
 	std::string theme_path;

@@ -340,7 +340,7 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	return true;
 }
 
-void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags, const vector< pair<int, const spoint_t*> >& spawns, bool grid) {
+void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
 	acquire_bitmap(background);
 	clear_to_color(background, 0);
 	if (antialiasing == AA_both) {
@@ -400,7 +400,7 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			else textures.push_back(backupTexture);
 		}
 
-		for (vector< pair<int, const spoint_t*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+		for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
 			td.setFlagmarker(teamcol[fi->first], fi->second->x * scr_mul, fi->second->y * scr_mul, flagpos_radius * scr_mul);	// note: assumes 0,0,1. scaling
 			textures.push_back(td);
 		}
@@ -420,12 +420,12 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			clear_to_color(roombg, col[COLGROUND]);
 		predraw_room_ground(room);
 		// draw flag position marks
-		for (vector< pair<int, const spoint_t*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+		for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
 			draw_flagpos_mark(fi->first, fi->second->x, fi->second->y);
 		// draw walls
 		predraw_room_walls(room);
 	}
-	for (vector< pair<int, const spoint_t*> >::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
+	for (vector< pair<int, const WorldCoords*> >::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
 		circlefill(roombg, scale(si->second->x), scale(si->second->y), scale(PLAYER_RADIUS), teamcol[si->first]);
 	if (grid) {
 		for (int y = 1; y < 12; ++y)
@@ -787,15 +787,15 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			blit(buffer, backup, 0, 0, 0, 0, buffer->w, buffer->h);
 			bool flag[] = { false, false };
 			for (int t = 0; t < 2; ++t)
-				for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi)
+				for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi)
 					if (fi->px == rx && fi->py == ry) {
 						flag[t] = true;
 						break;
 					}
-			vector<spoint_t> failure[2];
+			vector<WorldCoords> failure[2];
 			if (flag[0] ^ flag[1]) {		// only one team's flags in the room
 				const int t = flag[0] ? 0 : 1;
-				for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
+				for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
 					if (fi->px != rx || fi->py != ry)
 						continue;
 					const int px = static_cast<int>(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
@@ -809,7 +809,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			}
 			else if (flag[0] && flag[1]) {	// both team's flags in the room
 				for (int t = 0; t < 2; ++t)
-					for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
+					for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
 						if (fi->px != rx || fi->py != ry)
 							continue;
 						const int px = static_cast<int>(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
@@ -822,7 +822,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 							failure[t].push_back(*fi);
 							successful = false;
 						}
-						for (vector<spoint_t>::const_iterator fj = map.tinfo[1 - t].flags.begin(); successful && fj != map.tinfo[1 - t].flags.end(); ++fj) {
+						for (vector<WorldCoords>::const_iterator fj = map.tinfo[1 - t].flags.begin(); successful && fj != map.tinfo[1 - t].flags.end(); ++fj) {
 							if (fj->px != rx || fj->py != ry)
 								continue;
 							const int px = static_cast<int>(minimap_start_x + 1 + (fj->px * plw + fj->x) / maxx * (minimap_w - 2));
@@ -854,10 +854,10 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 						continue;
 					const float roomx = float(x + 1 - xmin) / float(room_w) * plw;
 					double dist_r2 = INT_MAX;
-					for (vector<spoint_t>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
+					for (vector<WorldCoords>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
 						dist_r2 = min(dist_r2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
 					double dist_b2 = INT_MAX;
-					for (vector<spoint_t>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
+					for (vector<WorldCoords>::const_iterator fi = failure[1].begin(); fi != failure[1].end(); ++fi)
 						dist_b2 = min(dist_b2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
 					const int color = (dist_r2 < dist_b2) ? teamdcol[0] : teamdcol[1];
 					putpixel(buffer, x, y, color);
@@ -869,8 +869,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 	//draw circles (or flags) to flag positions
 	for (int t = 0; t <= 2; ++t) {
-		const vector<spoint_t>& flags = (t == 2 ? map.wild_flags : map.tinfo[t].flags);
-		for (vector<spoint_t>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+		const vector<WorldCoords>& flags = (t == 2 ? map.wild_flags : map.tinfo[t].flags);
+		for (vector<WorldCoords>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
 			const int px = static_cast<int>(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
 			const int py = static_cast<int>(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
 			if (save_map_pic) {
@@ -1167,7 +1167,7 @@ void Graphics::draw_player_name(const string& name, int x, int y, int team) {
 	print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), col[COLWHITE], teamdcol[team], -1);
 }
 
-void Graphics::draw_rocket(const rocket_c& rocket, double time) {
+void Graphics::draw_rocket(const Rocket& rocket, double time) {
 	const int x = scale(rocket.x);
 	const int y = scale(rocket.y);
 	BITMAP* sprite = (rocket.power ? power_rocket_sprite[rocket.team] : rocket_sprite[rocket.team]);
@@ -1371,7 +1371,7 @@ void Graphics::draw_scoreboard_points(int points, int x, int y, int team) {
 void Graphics::team_statistics(const Team* teams) {
 	const int line_height = 12;
 	const int w = 300;
-	const int h = min<int>(SCREEN_H - 40, (18 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
+	const int h = min<int>(SCREEN_H - 40, (19 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
 	const int x1 = mx - w / 2;
@@ -1898,7 +1898,7 @@ void Graphics::clear_fx() {
 
 //create wall explosion fx
 void Graphics::create_wallexplo(int x, int y, int px, int py) {
-	clientfx_t fx;
+	GraphicsEffect fx;
 
 	fx.type = FX_WALL_EXPLOSION;
 	fx.x = x;
@@ -1912,7 +1912,7 @@ void Graphics::create_wallexplo(int x, int y, int px, int py) {
 
 //create quad wall explosion fx
 void Graphics::create_quadwallexplo(int x, int y, int px, int py) {
-	clientfx_t fx;
+	GraphicsEffect fx;
 
 	fx.type = FX_POWER_WALL_EXPLOSION;
 	fx.x = x;
@@ -1932,7 +1932,7 @@ void Graphics::create_smoke(int x, int y, int px, int py) {
 
 //create deathbringer carrier trail fx
 void Graphics::create_deathcarrier(int x, int y, int px, int py) {
-	clientfx_t fx;
+	GraphicsEffect fx;
 
 	fx.type = FX_DEATHCARRIER_SMOKE;
 	fx.x = x;
@@ -1947,7 +1947,7 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py) {
 
 //create speed bolinha fx
 void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir) {
-	clientfx_t fx;
+	GraphicsEffect fx;
 
 	fx.type = FX_SPEED;
 	fx.x = x;
@@ -1965,7 +1965,7 @@ void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, 
 
 //create deathbringer explosion fx
 void Graphics::queue_deathbringer(int team, double start_time, int x, int y, int px, int py) {
-	clientfx_t fx;
+	GraphicsEffect fx;
 
 	fx.team = team;
 	fx.type = FX_DEATHBRINGER_EXPLOSION;
@@ -1982,7 +1982,7 @@ void Graphics::queue_deathbringer(int team, double start_time, int x, int y, int
 
 //create explosion fx
 void Graphics::queue_gunexplo(int x, int y, int px, int py) {
-	clientfx_t fx;
+	GraphicsEffect fx;
 
 	fx.type = FX_GUN_EXPLOSION;
 	fx.x = x;
@@ -2001,7 +2001,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
 	copy(cfx_queue.begin(), cfx_queue.end(), back_inserter(cfx));
 	cfx_queue.clear();
 	cfx_queue_mutex.unlock();
-	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
+	for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
 		if (fx->px != room_x || fx->py != room_y) {	// different room
 			++fx;
 			continue;
@@ -2074,7 +2074,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
 
 // draw speed effect
 void Graphics::draw_speedfx(int room_x, int room_y, double time) {
-	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
+	for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
 		if (fx->px != room_x || fx->py != room_y || fx->type != FX_SPEED) {	// different room or wrong type
 			++fx;
 			continue;

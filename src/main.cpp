@@ -399,7 +399,7 @@ int main(int argc, char *argv[]) {
 		// run client
 		clientCfg.statusOutput = statusOutputWindow;
 		serverCfg.statusOutput = statusOutputWindow;
-		gameclient = new gameclient_c(log, clientCfg, serverCfg);
+		gameclient = new Client(log, clientCfg, serverCfg);
 		if (gameclient->start()) {
 			gameclient->loop(GlobalCloseButtonHook::flagPtr());
 			gameclient->stop();

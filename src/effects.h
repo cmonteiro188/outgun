@@ -12,7 +12,7 @@ enum FX_TYPE {
 	FX_DEATHCARRIER_SMOKE
 };
 
-struct clientfx_t {
+struct GraphicsEffect {
 	FX_TYPE type;		// type of fx
 	int px, py;			// screen where it spawned. if changed when time to redraw, delete it
 	double time;		// start time

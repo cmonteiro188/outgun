@@ -5,7 +5,7 @@
 #include "commont.h"
 #include "utility.h"
 
-class gameserver_c;
+class Server;
 class LogSet;
 
 class ServerExternalSettings {
@@ -25,7 +25,7 @@ public:
 };
 
 class GameserverInterface {
-	gameserver_c* host;
+	Server* host;
 
 public:
 	GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings);

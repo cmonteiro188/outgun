@@ -38,7 +38,7 @@ using std::string;
 using std::swap;
 using std::vector;
 
-gameserver_c::gameserver_c(LogSet& hostLogs, const ServerExternalSettings& config) :
+Server::Server(LogSet& hostLogs, const ServerExternalSettings& config) :
 	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
@@ -57,11 +57,11 @@ gameserver_c::gameserver_c(LogSet& hostLogs, const ServerExternalSettings& confi
 	Thread::setCallerPriority(config.priority);
 }
 
-gameserver_c::~gameserver_c() {
+Server::~Server() {
 	errorMessage("Server had these errors: (see serverlog.txt)", errorLog);
 }
 
-void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
+void Server::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
 	if (world.player[pid].muted == mode)
 		return;
 	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
@@ -82,7 +82,7 @@ void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 =
 	world.player[pid].muted = mode;
 }
 
-void gameserver_c::kickPlayer(int pid, int admin, int minutes) {	// if minutes > 0, it's really a ban
+void Server::kickPlayer(int pid, int admin, int minutes) {	// if minutes > 0, it's really a ban
 	const char* adminName = (admin == -1 ? "The admin" : world.player[admin].name.c_str());
 	if (minutes > 0)
 		network.plprintf(pid, msg_warning, "You are BANNED from this server for %s!", approxTime(minutes * 60).c_str());
@@ -96,7 +96,7 @@ void gameserver_c::kickPlayer(int pid, int admin, int minutes) {	// if minutes >
 	world.player[pid].kickTimer = 10 * 10;
 }
 
-void gameserver_c::banPlayer(int pid, int admin, int minutes) {
+void Server::banPlayer(int pid, int admin, int minutes) {
 	authorizations.load();
 	const NLaddress addr = network.get_client_address(world.player[pid].cid);
 	authorizations.ban(addr, world.player[pid].name, minutes);
@@ -104,11 +104,11 @@ void gameserver_c::banPlayer(int pid, int admin, int minutes) {
 	kickPlayer(pid, admin, minutes);
 }
 
-bool gameserver_c::check_name_password(const string& name, const string& password) const {
+bool Server::check_name_password(const string& name, const string& password) const {
 	return authorizations.checkNamePassword(name, password);
 }
 
-void gameserver_c::ctf_game_restart() {
+void Server::ctf_game_restart() {
 	//submit all pending reports and update tournament participation flags
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
@@ -145,7 +145,7 @@ void gameserver_c::ctf_game_restart() {
 	world.reset();
 }
 
-void gameserver_c::balance_teams() {
+void Server::balance_teams() {
 	vector<int> team[2];
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
@@ -166,7 +166,7 @@ void gameserver_c::balance_teams() {
 	}
 }
 
-void gameserver_c::shuffle_teams() {	// weird system, because players table has gaps
+void Server::shuffle_teams() {	// weird system, because players table has gaps
 	vector<int> players;
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
@@ -182,7 +182,7 @@ void gameserver_c::shuffle_teams() {	// weird system, because players table has 
 }
 
 //check if team change requests can be satisfied
-void gameserver_c::check_team_changes() {
+void Server::check_team_changes() {
 	// check players in random order
 	for (int i = 0; i < maxplayers; i++)
 		check[i] = 0;
@@ -198,7 +198,7 @@ void gameserver_c::check_team_changes() {
 }
 
 // Check if a player wants to change teams and if yes, try to fullfill the wish.
-void gameserver_c::check_player_change_teams(int pid) {
+void Server::check_player_change_teams(int pid) {
 	if (!world.player[pid].used || !world.player[pid].want_change_teams)
 		return;
 	if (get_time() < world.player[pid].team_change_time) {
@@ -243,7 +243,7 @@ void gameserver_c::check_player_change_teams(int pid) {
 }
 
 //move player - move player (f rom) to empty position (t o)
-void gameserver_c::move_player(int f, int t) {
+void Server::move_player(int f, int t) {
 	//broadcast sound
 	network.broadcast_sample(SAMPLE_CHANGETEAM);
 
@@ -284,7 +284,7 @@ void gameserver_c::move_player(int f, int t) {
 }
 
 //swap players - both are valid players
-void gameserver_c::swap_players(int a, int b) {
+void Server::swap_players(int a, int b) {
 	network.broadcast_sample(SAMPLE_CHANGETEAM);
 
 	if (world.player[a].health > 0)
@@ -316,12 +316,12 @@ void gameserver_c::swap_players(int a, int b) {
 	network.move_update_player(b);
 }
 
-void gameserver_c::set_fav_colors(int pid, const vector<char>& colors) {
+void Server::set_fav_colors(int pid, const vector<char>& colors) {
 	if (world.player[pid].used)
 		world.player[pid].set_fav_colors(colors);
 }
 
-void gameserver_c::check_fav_colors(int pid) {
+void Server::check_fav_colors(int pid) {
 	ServerPlayer& player = world.player[pid];
 	if (!player.used)
 		return;
@@ -352,12 +352,12 @@ void gameserver_c::check_fav_colors(int pid) {
 	nAssert(0);		// should never go here
 }
 
-void gameserver_c::sendMessage(int pid, Message_type type, const std::string& msg) {
+void Server::sendMessage(int pid, Message_type type, const std::string& msg) {
 	network.player_message(pid, type, msg);
 }
 
 //refresh team ratings
-void gameserver_c::refresh_team_score_modifiers() {
+void Server::refresh_team_score_modifiers() {
 	double raw[2];
 	raw[0] = 0.0;
 	raw[1] = 0.0;
@@ -378,7 +378,7 @@ void gameserver_c::refresh_team_score_modifiers() {
 }
 
 //score!
-void gameserver_c::score_frag(int pid, int amount) {
+void Server::score_frag(int pid, int amount) {
 	world.player[pid].stats().add_frag(amount);
 
 	const int cid = world.player[pid].cid;
@@ -392,7 +392,7 @@ void gameserver_c::score_frag(int pid, int amount) {
 }
 
 //score! NEG FRAG (v0.4.8)
-void gameserver_c::score_neg(int p, int amount) {
+void Server::score_neg(int p, int amount) {
 	const int cid = world.player[p].cid;
 
 	// add tournament scoring delta if all criteria for tournament scoring are satisfied
@@ -402,7 +402,7 @@ void gameserver_c::score_neg(int p, int amount) {
 	}
 }
 
-bool gameserver_c::trySetMaxplayers(int val) {
+bool Server::trySetMaxplayers(int val) {
 	if (val != maxplayers && network.get_player_count() != 0) {
 		log.error("Can't change max_players while players are connected");
 		return false;
@@ -413,12 +413,12 @@ bool gameserver_c::trySetMaxplayers(int val) {
 
 bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }	// helper for load_game_mod
 
-void gameserver_c::load_game_mod() {
+void Server::load_game_mod() {
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setHostname(&network, &ServerNetworking::set_hostname);
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setServerPassword(&network, &ServerNetworking::set_server_password);
 
 	RedirectToFun1<bool, int> checkMaxplayer(checkMaxplayerSetting);
-	RedirectToMemFun1<gameserver_c, bool, int> tryMaxplayer(this, &gameserver_c::trySetMaxplayers);
+	RedirectToMemFun1<Server, bool, int> tryMaxplayer(this, &Server::trySetMaxplayers);
 
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> addWebServer(&network, &ServerNetworking::add_web_server);
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebScript(&network, &ServerNetworking::set_web_script);
@@ -524,7 +524,7 @@ void gameserver_c::load_game_mod() {
 }
 
 //load a map from the rotation list
-bool gameserver_c::load_rotation_map(int pos) {
+bool Server::load_rotation_map(int pos) {
 	const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
 	if (!ok)
 		return false;
@@ -532,7 +532,7 @@ bool gameserver_c::load_rotation_map(int pos) {
 	return true;
 }
 
-bool gameserver_c::server_next_map(int reason) {
+bool Server::server_next_map(int reason) {
 	network.update_serverinfo();
 
 	nAssert(!maprot.empty());
@@ -592,7 +592,7 @@ bool gameserver_c::server_next_map(int reason) {
 }
 
 //check map exit by vote
-void gameserver_c::check_map_exit() {
+void Server::check_map_exit() {
 	int num_for = 0, num_against = 0;
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
@@ -617,7 +617,7 @@ void gameserver_c::check_map_exit() {
 
 //----- THE REST  ----------------
 
-bool gameserver_c::reset_settings(bool keepMap) {
+bool Server::reset_settings(bool keepMap) {
 	string currMapFile;
 	if (keepMap)
 		currMapFile = maprot[currmap].file;
@@ -705,7 +705,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 }
 
 //start server
-bool gameserver_c::start(int target_maxplayers) {
+bool Server::start(int target_maxplayers) {
 	authorizations.load();
 
 	//check if maxplayers is valid
@@ -743,7 +743,7 @@ bool gameserver_c::start(int target_maxplayers) {
 	return true;
 }
 
-int gameserver_c::getLessScoredTeam() const {
+int Server::getLessScoredTeam() const {
 	if (team_smul[0] > team_smul[1])
 		return 0;
 	else if (team_smul[1] > team_smul[0])
@@ -752,7 +752,7 @@ int gameserver_c::getLessScoredTeam() const {
 		return rand() % 2;
 }
 
-void gameserver_c::game_remove_player(int pid, bool removeClient) {
+void Server::game_remove_player(int pid, bool removeClient) {
 	fav_colors[pid / TSIZE][world.player[pid].color()] = false;
 	if (removeClient)
 		client[world.player[pid].cid].reset();
@@ -760,11 +760,11 @@ void gameserver_c::game_remove_player(int pid, bool removeClient) {
 	world.removePlayer(pid);
 }
 
-void gameserver_c::disconnectPlayer(int pid, Disconnect_reason reason) {
+void Server::disconnectPlayer(int pid, Disconnect_reason reason) {
 	network.disconnect_client(world.player[pid].cid, 2, reason);
 }
 
-void gameserver_c::nameChange(int id, int pid, const string& tempname, const std::string& password) {
+void Server::nameChange(int id, int pid, const string& tempname, const std::string& password) {
 	if (tempname == world.player[pid].name)
 		return;
 	//name change flooding protection
@@ -804,24 +804,24 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 }
 
 class PlayerMessager : public LineReceiver {
-	gameserver_c& host;
+	Server& host;
 	int player;
 	Message_type type;
 
 public:
-	PlayerMessager(gameserver_c& server, int pid, Message_type mtype) : host(server), player(pid), type(mtype) { }
+	PlayerMessager(Server& server, int pid, Message_type mtype) : host(server), player(pid), type(mtype) { }
 	PlayerMessager& operator()(const std::string& str) { host.sendMessage(player, type, str); return *this; }
 };
 
-bool gameserver_c::isLocallyAuthorized(int pid) const {
+bool Server::isLocallyAuthorized(int pid) const {
 	return world.player[pid].localIP || authorizations.identifyName(world.player[pid].name) != -1;	// must have authorized because otherwise couldn't use the name
 }
 
-bool gameserver_c::isAdmin(int pid) const {
+bool Server::isAdmin(int pid) const {
 	return world.player[pid].localIP || authorizations.isAdmin(world.player[pid].name);
 }
 
-void gameserver_c::chat(int pid, const char* sbuf) {
+void Server::chat(int pid, const char* sbuf) {
 	// handle 'console' commands
 	if (sbuf[0] == '/') {
 		bool admin = false;
@@ -1016,7 +1016,7 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 	}
 }
 
-bool gameserver_c::changeRegistration(int id, const string& token) {
+bool Server::changeRegistration(int id, const string& token) {
 	const int intoken = atoi(token.c_str());
 	if (intoken == client[id].intoken)
 		return false;
@@ -1044,7 +1044,7 @@ bool gameserver_c::changeRegistration(int id, const string& token) {
 	return client[id].token_have;
 }
 
-void gameserver_c::simulate_and_broadcast_frame() {
+void Server::simulate_and_broadcast_frame() {
 	//check end of gameover plaque
 	if (gameover)
 		if (gameover_time < get_time()) {
@@ -1103,7 +1103,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 }
 
 //run something after simulate_and_broadcast
-void gameserver_c::server_think_after_broadcast() {
+void Server::server_think_after_broadcast() {
 	//check players with pending team changes
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used &&
@@ -1113,7 +1113,7 @@ void gameserver_c::server_think_after_broadcast() {
 				check_player_change_teams(i);
 }
 
-void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
+void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 	nAssert(quitFlag);
 	log("at gameserver::loop()");
 
@@ -1166,12 +1166,12 @@ void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 }
 
 //stop server
-void gameserver_c::stop() {
+void Server::stop() {
 	network.stop();
 }
 
 GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings) {
-	host = new gameserver_c(hostLog, settings);
+	host = new Server(hostLog, settings);
 }
 
 GameserverInterface::~GameserverInterface() {

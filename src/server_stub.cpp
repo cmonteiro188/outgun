@@ -20,7 +20,7 @@ using std::string;
 using std::swap;
 using std::vector;
 
-gameserver_c::gameserver_c(LogSet& hostLogs) :
+Server::Server(LogSet& hostLogs) :
 	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
@@ -31,123 +31,123 @@ gameserver_c::gameserver_c(LogSet& hostLogs) :
 {
 }
 
-gameserver_c::~gameserver_c() {
+Server::~Server() {
 }
 
-void gameserver_c::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
+void Server::mutePlayer(int pid, int mode, int admin) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
 }
 
-void gameserver_c::kickPlayer(int pid, int admin, bool ban) {
+void Server::kickPlayer(int pid, int admin, bool ban) {
 }
 
-void gameserver_c::banPlayer(int pid, int admin, int minutes) {
+void Server::banPlayer(int pid, int admin, int minutes) {
 }
 
-bool gameserver_c::check_name_password(const string& name, const string& password) const {
+bool Server::check_name_password(const string& name, const string& password) const {
 	return false;
 }
 
-void gameserver_c::ctf_game_restart() {
+void Server::ctf_game_restart() {
 }
 
 //check if team change requests can be satisfied
-void gameserver_c::check_team_changes() {
+void Server::check_team_changes() {
 }
 
 //check if a player wants to change teams and if yes, try to fullfill the wish
-void gameserver_c::check_player_change_teams(int pid) {
+void Server::check_player_change_teams(int pid) {
 }
 
 //move player - move player (f rom) to empty position (t o)
-void gameserver_c::move_player(int f, int t) {
+void Server::move_player(int f, int t) {
 }
 
 //swap players - both are valid players
-void gameserver_c::swap_players(int a, int b) {
+void Server::swap_players(int a, int b) {
 }
 
-void gameserver_c::set_fav_colors(int pid, const vector<char>& colors) {
+void Server::set_fav_colors(int pid, const vector<char>& colors) {
 }
 
-void gameserver_c::check_fav_colors(int pid) {
+void Server::check_fav_colors(int pid) {
 }
 
-void gameserver_c::sendMessage(int pid, Message_type type, const std::string& msg) {
+void Server::sendMessage(int pid, Message_type type, const std::string& msg) {
 }
 
 //refresh team ratings
-void gameserver_c::refresh_team_score_modifiers() {
+void Server::refresh_team_score_modifiers() {
 }
 
 //score!
-void gameserver_c::score_frag(int p, int amount) {
+void Server::score_frag(int p, int amount) {
 }
 
 //score! NEG FRAG (v0.4.8)
-void gameserver_c::score_neg(int p, int amount) {
+void Server::score_neg(int p, int amount) {
 }
 
-void gameserver_c::load_game_mod() {
+void Server::load_game_mod() {
 }
 
 //load a map from the rotation list
-bool gameserver_c::load_rotation_map(int pos) {
+bool Server::load_rotation_map(int pos) {
 	return false;
 }
 
-bool gameserver_c::server_next_map(int reason) {
+bool Server::server_next_map(int reason) {
 	return false;
 }
 
 //check map exit by vote
-void gameserver_c::check_map_exit() {
+void Server::check_map_exit() {
 }
 
 //----- THE REST  ----------------
 
-bool gameserver_c::reset_settings(bool keepMap) {
+bool Server::reset_settings(bool keepMap) {
 	return false;
 }
 
 //start server
-bool gameserver_c::start(int target_maxplayers) {
+bool Server::start(int target_maxplayers) {
 	return false;
 }
 
-int gameserver_c::getLessScoredTeam() const {
+int Server::getLessScoredTeam() const {
 	return 0;
 }
 
-void gameserver_c::game_remove_player(int pid) {
+void Server::game_remove_player(int pid) {
 }
 
-void gameserver_c::disconnectPlayer(int pid, Disconnect_reason reason) {
+void Server::disconnectPlayer(int pid, Disconnect_reason reason) {
 }
 
-void gameserver_c::nameChange(int id, int pid, const string& tempname, const std::string& password) {
+void Server::nameChange(int id, int pid, const string& tempname, const std::string& password) {
 }
 
-void gameserver_c::chat(int pid, const char* sbuf) {
+void Server::chat(int pid, const char* sbuf) {
 }
 
-bool gameserver_c::changeRegistration(int id, const string& token) {
+bool Server::changeRegistration(int id, const string& token) {
 	return false;
 }
 
-void gameserver_c::simulate_and_broadcast_frame() {
+void Server::simulate_and_broadcast_frame() {
 }
 
 //run something after simulate_and_broadcast
-void gameserver_c::server_think_after_broadcast() {
+void Server::server_think_after_broadcast() {
 }
 
 //loop server
 // running_flag: pointer to bool, if this bool goes to false, the loop quits.
-void gameserver_c::loop(volatile bool *quitFlag, bool acceptEsc) {
+void Server::loop(volatile bool *quitFlag, bool acceptEsc) {
 }
 
 //stop server
-void gameserver_c::stop() {
+void Server::stop() {
 }
 
 GameserverInterface::GameserverInterface(LogSet hostLog) {

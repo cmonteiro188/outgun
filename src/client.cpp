@@ -52,13 +52,13 @@ const int PASSBUFFER = 32;	//size of password file
 int benchmarkRuns = 0;
 #endif
 
-gameclient_c *gameclient;	//#fix: get rid
+Client *gameclient;	//#fix: get rid
 
 class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
-	gameclient_c& c;
+	Client& c;
 
 public:
-	ClientPhysicsCallbacks(gameclient_c& c_) : c(c_) { }
+	ClientPhysicsCallbacks(Client& c_) : c(c_) { }
 
 	bool collideToRockets() const { return false; }
 	bool gatherMovementDistance() const { return false; }
@@ -314,7 +314,7 @@ void TournamentPasswordManager::threadFn() {
 		log("exiting: TournamentPasswordManager::threadFn() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
 
-bool gamespy_t::setAddress(const string& address) {
+bool ServerListEntry::setAddress(const string& address) {
 	if (!nlStringToAddr(address.c_str(), &addr))
 		return false;
 	if (nlGetPortFromAddr(&addr) == 0)
@@ -322,7 +322,7 @@ bool gamespy_t::setAddress(const string& address) {
 	return true;
 }
 
-string gamespy_t::addressString() const {
+string ServerListEntry::addressString() const {
 	if (nlGetPortFromAddr(&addr) != DEFAULT_UDP_PORT)
 		return addressToString(addr);
 	else {
@@ -368,13 +368,13 @@ void FileDownload::finish() {
 	fp = 0;
 }
 
-gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
+Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	//securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
 	log(&normalLog, &errorLog, 0),
 	listenServer(log),
-	tournamentPassword(log, new RedirectToMemFun1<gameclient_c, void, string>(this, &gameclient_c::CB_tournamentToken), config.lowerPriority),
+	tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
@@ -434,7 +434,7 @@ gameclient_c::gameclient_c(LogSet hostLogs, const ClientExternalSettings& config
 	Thread::setCallerPriority(config.priority);
 }
 
-gameclient_c::~gameclient_c() {
+Client::~Client() {
 	log("Exiting client: destructor");
 
 	abortThreads = true;
@@ -450,7 +450,7 @@ gameclient_c::~gameclient_c() {
 	log("Exiting client: destructor exiting");
 }
 
-bool gameclient_c::start() {
+bool Client::start() {
 	extConfig.statusOutput("Outgun client");
 
 	totalframecount = 0;
@@ -545,6 +545,7 @@ bool gameclient_c::start() {
 			case CCS_SaveStats:				menu.options.game.saveStats.set(args == "1"); break;
 			case CCS_ShowStats:				menu.options.game.showStats.set(args == "1"); break;
 			case CCS_AutoGetServerList:		menu.options.game.autoGetServerList.set(args == "1"); break;
+			case CCS_ShowServerInfo:		menu.options.game.showServerInfo.set(args == "1"); break;
 
 			// graphics menu
 			case CCS_Windowed:				menu.options.graphics.windowed.set(args == "1"); break;
@@ -593,7 +594,7 @@ bool gameclient_c::start() {
 	if (fav) {
 		string addr;
 		while (getline_skip_comments(fav, addr)) {
-			gamespy_t spy;
+			ServerListEntry spy;
 			if (spy.setAddress(addr))
 				gamespy.push_back(spy);
 		}
@@ -643,14 +644,14 @@ bool gameclient_c::start() {
 }
 
 //send "client ready" message to server (when map load and/or download completes)
-void gameclient_c::send_client_ready() {
+void Client::send_client_ready() {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_client_ready);
 	client->send_message(lebuf, count);		// bem curtinha a mensagem mesmo...
 }
 
 // incoming chunk of requested file by UDP
-void gameclient_c::process_udp_download_chunk(const char* buf, int len, bool last) {
+void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
 	MutexLock ml(downloadMutex);
 	if (downloads.empty() || !downloads.front().isActive()) {
 		log.error("Server sent a file we aren't expecting");
@@ -694,7 +695,7 @@ void gameclient_c::process_udp_download_chunk(const char* buf, int len, bool las
 /* check_download: if there is a download pending, and nothing is downloading, activate it
  * call with downloadMutex locked
  */
-void gameclient_c::check_download() {	// call with downloadMutex locked
+void Client::check_download() {	// call with downloadMutex locked
 	if (downloads.empty())
 		return;
 	FileDownload& dl = downloads.front();
@@ -713,7 +714,7 @@ void gameclient_c::check_download() {	// call with downloadMutex locked
 	client->send_message(lebuf, count);
 }
 
-void gameclient_c::download_server_file(const string& type, const string& name) {
+void Client::download_server_file(const string& type, const string& name) {
 	nAssert(type == "map");
 	if (name.find_first_of("./:\\") != string::npos) {
 		log.error("Illegal file download request: map \"%s\"", name.c_str());
@@ -730,7 +731,7 @@ void gameclient_c::download_server_file(const string& type, const string& name) 
 //server tells client of current map / map change
 // client must attempt to load map from "cmaps" dir
 // if map file not there, or the CRC's don't match, ask to download the map from the server
-void gameclient_c::server_map_command(const string& mapname, NLushort server_crc) {
+void Client::server_map_command(const string& mapname, NLushort server_crc) {
 	log("Received map change: '%s'", mapname.c_str());
 
 	servermap = mapname;
@@ -760,12 +761,12 @@ void gameclient_c::server_map_command(const string& mapname, NLushort server_crc
 	download_server_file("map", mapname);
 }
 
-void gameclient_c::disconnect_command() {	// do not call from a network thread
+void Client::disconnect_command() {	// do not call from a network thread
 	//disconnect the client here if was connected, else does nothing
 	client->connect(false);
 }
 
-void gameclient_c::client_connected(char *data, int length) {
+void Client::client_connected(char *data, int length) {
 	log("Connection successful");
 
 	(void)length;
@@ -863,7 +864,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	//send name update request
 	issue_change_name_command();
 	// send registration token (if any)
-	string s = tournamentPassword.getToken();
+	const string s = tournamentPassword.getToken();
 	if (!s.empty())
 		CB_tournamentToken(s);
 	send_tournament_participation();
@@ -884,14 +885,14 @@ void gameclient_c::client_connected(char *data, int length) {
 	send_frame(true);
 }
 
-void gameclient_c::send_tournament_participation() {
+void Client::send_tournament_participation() {
 	char lebuf[8]; int count = 0;
 	writeByte(lebuf, count, data_tournament_participation);
 	writeByte(lebuf, count, menu.options.name.tournament() ? 1 : 0);
 	client->send_message(lebuf, count);
 }
 
-void gameclient_c::client_disconnected(const char* data, int length) {
+void Client::client_disconnected(const char* data, int length) {
 	//restore window title
 	extConfig.statusOutput("Outgun client");
 
@@ -924,7 +925,7 @@ void gameclient_c::client_disconnected(const char* data, int length) {
 	tournamentPassword.disconnectedFromServer();
 }
 
-void gameclient_c::connect_failed_denied(char *data, int length) {
+void Client::connect_failed_denied(char *data, int length) {
 	string message;
 	if (length > 0) {
 		int count = 0;
@@ -954,13 +955,13 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 	}
 }
 
-void gameclient_c::connect_failed_unreachable() {
+void Client::connect_failed_unreachable() {
 	nAssert(openMenus.safeTop() == &m_connectProgress.menu);
 	m_connectProgress.addLine("No response from server.");
 	log("Connecting failed: no response");
 }
 
-string gameclient_c::load_player_password(const string& name, const string& address) const {
+string Client::load_player_password(const string& name, const string& address) const {
 	ifstream in(password_file.c_str());
 	while (in) {
 		string load_name, load_address, load_password;
@@ -973,7 +974,7 @@ string gameclient_c::load_player_password(const string& name, const string& addr
 	return string();
 }
 
-vector<vector<string> > gameclient_c::load_all_player_passwords() const {
+vector<vector<string> > Client::load_all_player_passwords() const {
 	vector<vector<string> > passwords;
 	ifstream in(password_file.c_str());
 	while (1) {
@@ -994,7 +995,7 @@ vector<vector<string> > gameclient_c::load_all_player_passwords() const {
 	return passwords;
 }
 
-void gameclient_c::save_player_password(const string& name, const string& address, const string& password) const {
+void Client::save_player_password(const string& name, const string& address, const string& password) const {
 	nAssert(!name.empty() && !address.empty() && !password.empty());	// empty lines cause trouble
 	vector<vector<string> > passwd_list = load_all_player_passwords();
 	// check if player already has a password
@@ -1024,7 +1025,7 @@ void gameclient_c::save_player_password(const string& name, const string& addres
 	}
 }
 
-void gameclient_c::remove_player_password(const string& name, const string& address) const {
+void Client::remove_player_password(const string& name, const string& address) const {
 	// check if player has a password
 	const string test = load_player_password(name, address);
 	if (test.empty())
@@ -1041,7 +1042,7 @@ void gameclient_c::remove_player_password(const string& name, const string& addr
 				out << (*item)[i] << '\n';
 }
 
-int gameclient_c::remove_player_passwords(const std::string& name) const {
+int Client::remove_player_passwords(const std::string& name) const {
 	vector<vector<string> > passwd_list = load_all_player_passwords();
 	ofstream out(password_file.c_str());
 	if (!out)
@@ -1058,7 +1059,7 @@ int gameclient_c::remove_player_passwords(const std::string& name) const {
 }
 
 //connect command
-void gameclient_c::connect_command(bool loadPassword) {
+void Client::connect_command(bool loadPassword) {
 	// disconnect
 	client->connect(false);
 
@@ -1091,7 +1092,7 @@ void gameclient_c::connect_command(bool loadPassword) {
 		showMenu(m_connectProgress);
 }
 
-void gameclient_c::issue_change_name_command() {
+void Client::issue_change_name_command() {
 	if (!connected)
 		return;
 	//regular change name
@@ -1103,7 +1104,7 @@ void gameclient_c::issue_change_name_command() {
 	client->send_message(lebuf, count);
 }
 
-void gameclient_c::change_name_command() {
+void Client::change_name_command() {
 	//set new name, close menu
 	menu.options.name.name.set(trim(menu.options.name.name()));
 	const string& newName = menu.options.name.name();
@@ -1119,7 +1120,7 @@ void gameclient_c::change_name_command() {
 }
 
 //send the client's frame to server (keypresses)
-void gameclient_c::send_frame(bool newFrame) {
+void Client::send_frame(bool newFrame) {
 	char lebuf[256]; int count = 0;
 
 	ClientControls currCtrl;
@@ -1142,7 +1143,7 @@ void gameclient_c::send_frame(bool newFrame) {
 }
 
 //process incoming data
-void gameclient_c::process_incoming_data(char *data, int length) {
+void Client::process_incoming_data(char *data, int length) {
 	MutexLock ml(frame_mutex);
 
 	(void)length;
@@ -1247,7 +1248,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			fx.skipped = false;
 
 			//V 0.3.9 NEW : read screen of "me" player
-			NLubyte  scr;
+			NLubyte scr;
 			readByte(data, count, scr);		//player.x
 			fx.player[me].roomx = scr;
 			readByte(data, count, scr);		//player.y
@@ -1482,10 +1483,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					for (int i = 0; i < flags; i++) {
 						if (team == 2) {
 							if (i >= static_cast<int>(fx.wild_flags.size()))
-								fx.wild_flags.push_back(Flag(spoint_t()));
+								fx.wild_flags.push_back(Flag(WorldCoords()));
 						}
 						else if (i >= static_cast<int>(fx.teams[team].flags().size()))
-							fx.teams[team].add_flag(spoint_t());
+							fx.teams[team].add_flag(WorldCoords());
 						NLubyte carried;
 						readByte(msg, count, carried);	// 0==not carried 1==carried
 						if (carried == 0) {
@@ -1497,11 +1498,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 							readShort(msg, count, x);
 							readShort(msg, count, y);
 							if (team == 2) {
-								fx.wild_flags[i].move(spoint_t(px, py, x, y));
+								fx.wild_flags[i].move(WorldCoords(px, py, x, y));
 								fx.wild_flags[i].drop();
 							}
 							else
-								fx.teams[team].drop_flag(i, spoint_t(px, py, x, y));
+								fx.teams[team].drop_flag(i, WorldCoords(px, py, x, y));
 						}
 						else {
 							//carried: get carrier
@@ -1939,11 +1940,17 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_spawn: {
 					NLubyte pid;
 					readByte(lebuf, count, pid);
+					const bool first_time = pid & 0x80;
+					pid &= ~0x80;
 					fx.player[pid].stats().set_spawn_time(get_time());
+					if (first_time) {
+						fx.player[pid].stats().set_start_time(get_time());
+						fx.player[pid].stats().set_lifetime(0);
+					}
 					break;
 				}
 
-   				case data_team_movements_shots: {
+				case data_team_movements_shots: {
 					for (int i = 0; i < 2; i++) {
 						NLlong movement;
 						readLong(lebuf, count, movement);
@@ -2046,13 +2053,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					break;
 				}
 
-   				case data_server_settings: {
+				case data_server_settings: {
 					m_serverInfo.menu.setCaption(hostname);
 
-   					NLubyte data;
-   					ostringstream caption;
-   					ostringstream value;
-   					const int width = 22;
+					NLubyte data;
+					ostringstream caption;
+					ostringstream value;
+					const int width = 22;
 
 					readByte(lebuf, count, data);
 					caption << setw(width) << "Capture limit: ";
@@ -2103,9 +2110,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					caption << setw(width) << "Maximum weapon level: ";
 					value << (data >> i) + 1;
 					m_serverInfo.addLine(caption.str(), value.str());
-					//caption.str(""); value.str("");
 
-					showMenu(m_serverInfo);
+					if (menu.options.game.showServerInfo())
+						showMenu(m_serverInfo);
 					break;
 				}
 
@@ -2138,7 +2145,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 }
 
 //send chat message
-void gameclient_c::send_chat(const string& msg) {
+void Client::send_chat(const string& msg) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
 	writeStr(lebuf, count, msg);
@@ -2146,14 +2153,14 @@ void gameclient_c::send_chat(const string& msg) {
 }
 
 //print message to "console"
-void gameclient_c::print_message(Message_type type, const string& msg) {
+void Client::print_message(Message_type type, const string& msg) {
 	if (static_cast<int>(chatbuffer.size()) == client_graphics.chat_max_lines())
 		chatbuffer.pop_front();
 	Message message(type, msg, static_cast<int>(get_time()));
 	chatbuffer.push_back(message);
 }
 
-void gameclient_c::save_screenshot() {
+void Client::save_screenshot() {
 	string filename;
 	for (int i = 0; i < 1000; i++) {
 		// filename: screens/outgxxx.pcx
@@ -2175,14 +2182,14 @@ void gameclient_c::save_screenshot() {
 }
 
 //toggle help screen
-void gameclient_c::toggle_help() {
+void Client::toggle_help() {
 	if (openMenus.safeTop() == &menu.help.menu)
 		openMenus.close();
 	else
 		showMenu(menu.help);
 }
 
-const char* gameclient_c::refreshStatusAsString() const {
+const char* Client::refreshStatusAsString() const {
 	switch (refreshStatus) {
 		case RS_none: 		return "Inactive";
 		case RS_running:	return "Running";
@@ -2195,7 +2202,7 @@ const char* gameclient_c::refreshStatusAsString() const {
 	nAssert(0); return 0;
 }
 
-void gameclient_c::getServerListThread() {
+void Client::getServerListThread() {
 	if (LOG_THREAD_IDS)
 		log("getServerListThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
@@ -2212,7 +2219,7 @@ void gameclient_c::getServerListThread() {
 	refreshStatus = ok ? RS_none : RS_failed;
 }
 
-void gameclient_c::refreshThread() {
+void Client::refreshThread() {
 	if (LOG_THREAD_IDS)
 		log("refreshThread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
@@ -2225,7 +2232,7 @@ void gameclient_c::refreshThread() {
 }
 
 //refresh servers command
-bool gameclient_c::refresh_all_servers() {
+bool Client::refresh_all_servers() {
 	bool ok = refresh_servers(gamespy);
 	if (!abortThreads && !menu.connect.favorites())
 		if (!refresh_servers(mgamespy))
@@ -2233,7 +2240,7 @@ bool gameclient_c::refresh_all_servers() {
 	return ok;
 }
 
-class TempPingData {	// internal to gameclient_c::refresh_servers
+class TempPingData {	// internal to Client::refresh_servers
 	double st[4];	// send time
 	int rc;			// count of received packets
 	double rt;		// sum of pings (for averaging)
@@ -2247,7 +2254,7 @@ public:
 };
 
 //refresh servers command
-bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
+bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 	refreshStatus = RS_contacting;
 
 	nlOpenMutex.lock();
@@ -2353,7 +2360,7 @@ bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
 	return true;
 }
 
-bool gameclient_c::getServerList() {
+bool Client::getServerList() {
 	refreshStatus = RS_connecting;
 
 	//open a nonblocking socket
@@ -2442,7 +2449,7 @@ bool gameclient_c::getServerList() {
 	// Parse the successful response into the gamespy screen.
 	int servers_read;
 	for (servers_read = 0; servers_read < total_servers && getline_smart(response, line); servers_read++) {
-		gamespy_t spy;
+		ServerListEntry spy;
 		if (spy.setAddress(line))
 			mgamespy.push_back(spy);
 	}
@@ -2455,7 +2462,7 @@ bool gameclient_c::getServerList() {
 	return true;
 }
 
-void gameclient_c::loop(volatile bool* quitFlag) {
+void Client::loop(volatile bool* quitFlag) {
 	nAssert(quitFlag);
 	quitCommand = false;
 
@@ -2642,10 +2649,8 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 					if (!key_swap) {
 						key_swap = true;
 
-						//toggle my local option
 						want_change_teams = !want_change_teams;
 
-						//want to swap/dont want  message
 						char lebuf[16]; int count = 0;
 						if (want_change_teams)
 							writeByte(lebuf, count, data_change_team_on);
@@ -2754,10 +2759,8 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 				if (!key_votexit) {
 					key_votexit = true;
 
-					//toggle my local option
 					want_map_exit = !want_map_exit;
 
-					//want to swap/dont want  message
 					char lebuf[16]; int count = 0;
 					if (want_map_exit)
 						writeByte(lebuf, count, data_map_exit_on);
@@ -2888,7 +2891,7 @@ void gameclient_c::loop(volatile bool* quitFlag) {
 	//client exit cleanup: done at stop wich needs to be called after loop
 }
 
-void gameclient_c::stop() {
+void Client::stop() {
 	log("Client exiting: stop() called");
 
 	abortThreads = true;
@@ -2929,6 +2932,7 @@ void gameclient_c::stop() {
 		cfg << CCS_SaveStats			<< ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
 		cfg << CCS_ShowStats			<< ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
 		cfg << CCS_AutoGetServerList	<< ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
+		cfg << CCS_ShowServerInfo		<< ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
 
 		// save graphics menu settings
 		cfg << CCS_Windowed				<< ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
@@ -2950,7 +2954,7 @@ void gameclient_c::stop() {
 	fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
 	ofstream fav(fileName.c_str());
 	if (fav) {
-		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
+		for (vector<ServerListEntry>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
 			fav << spy->addressString() << '\n';
 		fav.close();
 	}
@@ -2986,7 +2990,7 @@ void gameclient_c::stop() {
 	log("Client stop() completed");
 }
 
-void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
+void Client::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
 	if (power) {
 		client_graphics.create_quadwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
 		client_sounds.play(SAMPLE_QUADWALLHIT);
@@ -2998,11 +3002,11 @@ void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, 
 	fd.rock[rid].owner = fx.rock[rid].owner = -1;	// erase from clientside simulation
 }
 
-void gameclient_c::rocketOutOfBoundsCallback(int rid) {
+void Client::rocketOutOfBoundsCallback(int rid) {
 	fd.rock[rid].owner = fx.rock[rid].owner = -1;	// erase from clientside simulation
 }
 
-void gameclient_c::playerHitWallCallback(int pid) {
+void Client::playerHitWallCallback(int pid) {
 	// play bounce sample if minimum time elapsed
 	const float currTime = get_time();	//#fix
 	if (currTime > fx.player[pid].wall_sound_time) {
@@ -3011,7 +3015,7 @@ void gameclient_c::playerHitWallCallback(int pid) {
 	}
 }
 
-void gameclient_c::playerHitPlayerCallback(int pid1, int pid2) {
+void Client::playerHitPlayerCallback(int pid1, int pid2) {
 	// play bounce sample if minimum time elapsed
 	const float currTime = get_time();	//#fix
 	if (currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) {
@@ -3020,27 +3024,27 @@ void gameclient_c::playerHitPlayerCallback(int pid1, int pid2) {
 	}
 }
 
-bool gameclient_c::shouldApplyPhysicsToPlayerCallback(int pid) {
+bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
 	return fx.player[pid].onscreen && !fx.player[pid].dead;
 }
 
-void gameclient_c::predraw() {
+void Client::predraw() {
 	if (fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
 			fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
 		return;	//#fix: this shouldn't be needed, or should be checked from a simple flag
-	vector< pair<int, const spoint_t*> > flags;
-	vector< pair<int, const spoint_t*> > spawns;
+	vector< pair<int, const WorldCoords*> > flags;
+	vector< pair<int, const WorldCoords*> > spawns;
 
 	for (int team = 0; team <= 2; team++) {
-		const vector<spoint_t>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
-		for (vector<spoint_t>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)		// flags
+		const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
+		for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)		// flags
 			if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
-				flags.push_back(pair<int, const spoint_t*>(team, &(*pi)));
+				flags.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
 		if (menu.options.graphics.mapInfoMode() && team < 2) {
-			const vector<spoint_t>& tspawn = fx.map.tinfo[team].spawn;
-			for (vector<spoint_t>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi)	// spawns
+			const vector<WorldCoords>& tspawn = fx.map.tinfo[team].spawn;
+			for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi)	// spawns
 				if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
-					spawns.push_back(pair<int, const spoint_t*>(team, &(*pi)));
+					spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
 		}
 	}
 
@@ -3048,7 +3052,7 @@ void gameclient_c::predraw() {
 }
 
 //draw the whole game screen
-void gameclient_c::draw_game_frame() {
+void Client::draw_game_frame() {
 	// hide stuff if frame skipped
 	const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
@@ -3199,7 +3203,7 @@ void gameclient_c::draw_game_frame() {
 					for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
 						if (fi->carrier() == i) {
 							// update flag position for draw
-							fx.teams[enemy].move_flag(f, spoint_t(fx.player[i].roomx, fx.player[i].roomy,
+							fx.teams[enemy].move_flag(f, WorldCoords(fx.player[i].roomx, fx.player[i].roomy,
 								static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
 
 							// draw the miniflag here
@@ -3209,7 +3213,7 @@ void gameclient_c::draw_game_frame() {
 					for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
 						if (fi->carrier() == i) {
 							// update flag position for draw
-							fi->move(spoint_t(fx.player[i].roomx, fx.player[i].roomy,
+							fi->move(WorldCoords(fx.player[i].roomx, fx.player[i].roomy,
 								static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
 
 							// draw the miniflag here
@@ -3327,7 +3331,7 @@ void gameclient_c::draw_game_frame() {
 	}
 }
 
-void gameclient_c::draw_player(int pid) {
+void Client::draw_player(int pid) {
 	ClientPlayer& player = fx.player[pid];
 	int alpha = fd.player[pid].visibility;
 	const int min_alpha_friends = 128;
@@ -3376,7 +3380,7 @@ void gameclient_c::draw_player(int pid) {
 }
 
 //draws the game menu
-void gameclient_c::draw_game_menu() {
+void Client::draw_game_menu() {
 	switch (menusel) {
 		case menu_maps: {
 			MutexLock ml(mapInfoMutex);
@@ -3398,65 +3402,65 @@ void gameclient_c::draw_game_menu() {
 	}
 }
 
-void gameclient_c::initMenus() {
-	typedef MenuCallback<gameclient_c> MCB;
+void Client::initMenus() {
+	typedef MenuCallback<Client> MCB;
 
-	menu.recursiveSetMenuOpener					(new MCB::A<Menu,			&gameclient_c::MCF_menuOpener		>(this));
+	menu.recursiveSetMenuOpener					(new MCB::A<Menu,			&Client::MCF_menuOpener		>(this));
 
-	menu.menu						.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareMainMenu	>(this));
+	menu.menu						.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareMainMenu	>(this));
 
-	menu.disconnect						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_disconnect		>(this));
-	menu.startServer					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_startServer		>(this));
-	menu.playServer						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_playServer		>(this));
-	menu.stopServer						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_stopServer		>(this));
-	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_exitOutgun		>(this));
+	menu.disconnect						.setHook(new MCB::N<Textarea,		&Client::MCF_disconnect		>(this));
+	menu.startServer					.setHook(new MCB::N<Textarea,		&Client::MCF_startServer		>(this));
+	menu.playServer						.setHook(new MCB::N<Textarea,		&Client::MCF_playServer		>(this));
+	menu.stopServer						.setHook(new MCB::N<Textarea,		&Client::MCF_stopServer		>(this));
+	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&Client::MCF_exitOutgun		>(this));
 
-	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareServerMenu>(this));
-	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareServerMenu>(this));	//#fix: inefficient!
-	menu.connect.menu			   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
-	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_prepareServerMenu>(this));
-	menu.connect.update					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_updateServers	>(this));
-	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_refreshServers	>(this));
+	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu>(this));
+	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu>(this));	//#fix: inefficient!
+	menu.connect.menu			   .setCloseHook(new MCB::N<Menu,			&Client::MCF_menuCloser		>(this));
+	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&Client::MCF_prepareServerMenu>(this));
+	menu.connect.update					.setHook(new MCB::N<Textarea,		&Client::MCF_updateServers	>(this));
+	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&Client::MCF_refreshServers	>(this));
 
-	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareAddServer	>(this));
-	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_addServer		>(this));
+	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareAddServer	>(this));
+	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_addServer		>(this));
 
-	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareNameMenu	>(this));
-	menu.options.name.menu			.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareDrawNameMenu>(this));
-	menu.options.name.menu		   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_nameMenuClose	>(this));
-	menu.options.name.name				.setHook(new MCB::N<Textfield,		&gameclient_c::MCF_nameChange		>(this));
-	menu.options.name.randomName		.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_randomName		>(this));
-	menu.options.name.removePasswords	.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_removePasswords	>(this));
+	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareNameMenu	>(this));
+	menu.options.name.menu			.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawNameMenu>(this));
+	menu.options.name.menu		   .setCloseHook(new MCB::N<Menu,			&Client::MCF_nameMenuClose	>(this));
+	menu.options.name.name				.setHook(new MCB::N<Textfield,		&Client::MCF_nameChange		>(this));
+	menu.options.name.randomName		.setHook(new MCB::N<Textarea,		&Client::MCF_randomName		>(this));
+	menu.options.name.removePasswords	.setHook(new MCB::N<Textarea,		&Client::MCF_removePasswords	>(this));
 
-	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGameMenu	>(this));
-	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_joystick			>(this));
-	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_messageLogging	>(this));
+	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGameMenu	>(this));
+	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&Client::MCF_joystick			>(this));
+	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&Client::MCF_messageLogging	>(this));
 
-	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareGfxMenu	>(this));
-	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareDrawGfxMenu>(this));
-	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&gameclient_c::MCF_screenDepthChange>(this));
-	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_screenModeChange	>(this));
-	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&gameclient_c::MCF_gfxThemeChange	>(this));
+	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGfxMenu	>(this));
+	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawGfxMenu>(this));
+	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&Client::MCF_screenModeChange	>(this));
+	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_screenModeChange	>(this));
+	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&Client::MCF_screenDepthChange>(this));
+	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&Client::MCF_screenModeChange	>(this));
+	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_gfxThemeChange	>(this));
 	typedef Select<Graphics::Antialiasing_mode> aaSelT;
-	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&gameclient_c::MCF_antialiasChange	>(this));
-	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&gameclient_c::MCF_statsBgChange	>(this));
-	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&gameclient_c::predraw				>(this));
+	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&Client::MCF_antialiasChange	>(this));
+	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&Client::MCF_statsBgChange	>(this));
+	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&Client::predraw				>(this));
 
-	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareSndMenu	>(this));
-	menu.options.sounds.enabled			.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_sndEnableChange	>(this));
-	menu.options.sounds.volume			.setHook(new MCB::N<Slider,			&gameclient_c::MCF_sndVolumeChange	>(this));
-	menu.options.sounds.theme			.setHook(new MCB::N<Select<string>,	&gameclient_c::MCF_sndThemeChange	>(this));
+	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareSndMenu	>(this));
+	menu.options.sounds.enabled			.setHook(new MCB::N<Checkbox,		&Client::MCF_sndEnableChange	>(this));
+	menu.options.sounds.volume			.setHook(new MCB::N<Slider,			&Client::MCF_sndVolumeChange	>(this));
+	menu.options.sounds.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_sndThemeChange	>(this));
 
-	m_playerPassword.menu			  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_playerPasswordAccept>(this));
-	m_serverPassword.menu			  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_serverPasswordAccept>(this));
-	m_connectProgress.accept			.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));
-	m_connectProgress.cancel			.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));
-	m_connectProgress.menu		   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_cancelConnect	>(this));
-	m_dialog.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));	// cancel not used
-	m_errors.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_clearErrors		>(this));	// cancel not used
-	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));	// cancel not used
+	m_playerPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_playerPasswordAccept>(this));
+	m_serverPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_serverPasswordAccept>(this));
+	m_connectProgress.accept			.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));
+	m_connectProgress.cancel			.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));
+	m_connectProgress.menu		   .setCloseHook(new MCB::N<Menu,			&Client::MCF_cancelConnect	>(this));
+	m_dialog.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));	// cancel not used
+	m_errors.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_clearErrors		>(this));	// cancel not used
+	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));	// cancel not used
 
 	m_errors.menu.setCaption("Errors");
 
@@ -3466,17 +3470,17 @@ void gameclient_c::initMenus() {
 	menu.options.sounds.init(client_sounds);
 }
 
-void gameclient_c::MCF_menuOpener(Menu& menu) {
+void Client::MCF_menuOpener(Menu& menu) {
 	openMenus.open(&menu);
 }
 
-void gameclient_c::MCF_menuCloser() {
+void Client::MCF_menuCloser() {
 	openMenus.close();
 	if (!gameshow && openMenus.empty())
 		showMenu(menu);
 }
 
-void gameclient_c::MCF_prepareMainMenu() {
+void Client::MCF_prepareMainMenu() {
 	if (listenServer.running()) {
 		menu.startServer.setEnable(false);
 		menu.playServer.setEnable(!connected);
@@ -3490,16 +3494,16 @@ void gameclient_c::MCF_prepareMainMenu() {
 	menu.disconnect.setEnable(connected);
 }
 
-void gameclient_c::MCF_disconnect() {
+void Client::MCF_disconnect() {
 	disconnect_command();
 }
 
-void gameclient_c::MCF_startServer() {
+void Client::MCF_startServer() {
 	if (!listenServer.running())
 		listenServer.start(serverExtConfig.port, serverExtConfig);
 }
 
-void gameclient_c::MCF_playServer() {
+void Client::MCF_playServer() {
 	if (listenServer.running()) {
 		nAssert(nlStringToAddr("127.0.0.1", &serverIP));
 		nAssert(nlSetAddrPort(&serverIP, listenServer.port()));
@@ -3508,44 +3512,44 @@ void gameclient_c::MCF_playServer() {
 	}
 }
 
-void gameclient_c::MCF_stopServer() {
+void Client::MCF_stopServer() {
 	if (listenServer.running())
 		listenServer.stop();
 }
 
-void gameclient_c::MCF_exitOutgun() {
+void Client::MCF_exitOutgun() {
 	quitCommand = true;
 }
 
-void gameclient_c::MCF_cancelConnect() {
+void Client::MCF_cancelConnect() {
 	if (!connected)
 		disconnect_command();	// will cancel the (probably) ongoing connect attempt
 }
 
-void gameclient_c::MCF_prepareNameMenu() {
+void Client::MCF_prepareNameMenu() {
 	menu.options.name.name.set(playername);
 }
 
-void gameclient_c::MCF_prepareDrawNameMenu() {
+void Client::MCF_prepareDrawNameMenu() {
 	menu.options.name.namestatus.set(tournamentPassword.statusAsString());
 }
 
-void gameclient_c::MCF_nameMenuClose() {
+void Client::MCF_nameMenuClose() {
 	change_name_command();
 	send_tournament_participation();
 }
 
-void gameclient_c::MCF_nameChange() {	// only function to clear the password
+void Client::MCF_nameChange() {	// only function to clear the password
 	menu.options.name.password.set("");
 	tournamentPassword.changeData(playername, "");
 }
 
-void gameclient_c::MCF_randomName() {
+void Client::MCF_randomName() {
 	menu.options.name.name.set(RandomName());
 	MCF_nameChange();
 }
 
-void gameclient_c::MCF_removePasswords() {
+void Client::MCF_removePasswords() {
 	const int removed = remove_player_passwords(menu.options.name.name());
 	ostringstream dialog;
 	if (removed > 0)
@@ -3557,18 +3561,18 @@ void gameclient_c::MCF_removePasswords() {
 	showMenu(m_dialog);
 }
 
-void gameclient_c::MCF_prepareGameMenu() {
+void Client::MCF_prepareGameMenu() {
 	menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
 }
 
-void gameclient_c::MCF_joystick() {
+void Client::MCF_joystick() {
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
 	else
 		remove_joystick();
 }
 
-void gameclient_c::MCF_messageLogging() {
+void Client::MCF_messageLogging() {
 	if (menu.options.game.messageLogging()) {
 		message_log.clear();	// necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
 		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
@@ -3577,28 +3581,28 @@ void gameclient_c::MCF_messageLogging() {
 		message_log.close();
 }
 
-void gameclient_c::MCF_prepareGfxMenu() {
+void Client::MCF_prepareGfxMenu() {
 	menu.options.graphics.update(client_graphics);
 }
 
-void gameclient_c::MCF_prepareDrawGfxMenu() {
+void Client::MCF_prepareDrawGfxMenu() {
 	menu.options.graphics.flipping.setEnable(!menu.options.graphics.windowed());
 }
 
-void gameclient_c::MCF_gfxThemeChange() {
+void Client::MCF_gfxThemeChange() {
 	client_graphics.select_theme(menu.options.graphics.theme());
 	predrawNeeded = true;
 }
 
-void gameclient_c::MCF_screenDepthChange() {
+void Client::MCF_screenDepthChange() {
 	menu.options.graphics.update(client_graphics);	// fetch resolutions according to the new depth
 }
 
-void gameclient_c::MCF_screenModeChange() {	// used to lose the return value
+void Client::MCF_screenModeChange() {	// used to lose the return value
 	nAssert(screenModeChange());	// it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
 }
 
-bool gameclient_c::screenModeChange() {	// returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
+bool Client::screenModeChange() {	// returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
 	if (!menu.options.graphics.newMode())
 		return true;
 
@@ -3661,34 +3665,34 @@ bool gameclient_c::screenModeChange() {	// returns true whenever Graphics is usa
 	return true;
 }
 
-void gameclient_c::MCF_antialiasChange() {
+void Client::MCF_antialiasChange() {
 	client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
 	client_graphics.update_minimap_background(fx.map);
 	predrawNeeded = true;
 }
 
-void gameclient_c::MCF_statsBgChange() {
+void Client::MCF_statsBgChange() {
 	client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
-void gameclient_c::MCF_prepareSndMenu() {
+void Client::MCF_prepareSndMenu() {
 	menu.options.sounds.update(client_sounds);
 }
 
-void gameclient_c::MCF_sndEnableChange() {
+void Client::MCF_sndEnableChange() {
 	client_sounds.setEnable(menu.options.sounds.enabled());
 }
 
-void gameclient_c::MCF_sndVolumeChange() {
+void Client::MCF_sndVolumeChange() {
 	client_sounds.setVolume(menu.options.sounds.volume());
 	client_sounds.play(SAMPLE_QUAD_FIRE);
 }
 
-void gameclient_c::MCF_sndThemeChange() {
+void Client::MCF_sndThemeChange() {
 	client_sounds.select_theme(menu.options.sounds.theme());
 }
 
-void gameclient_c::MCF_playerPasswordAccept() {
+void Client::MCF_playerPasswordAccept() {
 	nAssert(openMenus.safeTop() == &m_playerPassword.menu);
 	openMenus.close();
 	if (m_playerPassword.save())
@@ -3699,24 +3703,24 @@ void gameclient_c::MCF_playerPasswordAccept() {
 		connect_command(false);
 }
 
-void gameclient_c::MCF_serverPasswordAccept() {
+void Client::MCF_serverPasswordAccept() {
 	nAssert(openMenus.safeTop() == &m_playerPassword.menu && !connected);
 	openMenus.close();
 	connect_command(false);
 }
 
-void gameclient_c::MCF_clearErrors() {
+void Client::MCF_clearErrors() {
 	nAssert(openMenus.safeTop() == &m_errors.menu);
 	openMenus.close();
 	m_errors.clear();
 }
 
-void gameclient_c::MCF_prepareServerMenu() {
+void Client::MCF_prepareServerMenu() {
 	menu.connect.reset();
 	vector<NLaddress> addresses;
-	const vector<gamespy_t>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
+	const vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
 	serverListMutex.lock();
-	for (vector<gamespy_t>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
+	for (vector<ServerListEntry>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
 		ostringstream info;
 		info << setw(21) << left << spy->addressString() << right;
 		info << setw(4);
@@ -3734,7 +3738,7 @@ void gameclient_c::MCF_prepareServerMenu() {
 		addresses.push_back(spy->address());
 	}
 	if (!menu.connect.favorites())
-		for (vector<gamespy_t>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
+		for (vector<ServerListEntry>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
 			if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address()) == addresses.end()) {
 				ostringstream info;
 				info << setw(21) << left << spy->addressString() << right;
@@ -3753,24 +3757,24 @@ void gameclient_c::MCF_prepareServerMenu() {
 				addresses.push_back(spy->address());
 			}
 	serverListMutex.unlock();
-	typedef MenuCallback<gameclient_c> MCB;
-	typedef MenuKeyCallback<gameclient_c> MKC;
-	menu.connect.addHooks(new MCB::A<Textarea, &gameclient_c::MCF_connect>(this),
-						  new MKC::A<Textarea, &gameclient_c::MCF_addRemoveServer>(this));
+	typedef MenuCallback<Client> MCB;
+	typedef MenuKeyCallback<Client> MKC;
+	menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
+						  new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
 	const bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
 	menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
 	menu.connect.refresh.setEnable(!refreshActive);
 	menu.connect.refreshStatus.set(refreshStatusAsString());
 }
 
-void gameclient_c::MCF_prepareAddServer() {
+void Client::MCF_prepareAddServer() {
 	menu.connect.addServer.save.set(menu.connect.favorites());
 	menu.connect.addServer.address.set("");
 }
 
-void gameclient_c::MCF_addServer() {
+void Client::MCF_addServer() {
 	if (!menu.connect.addServer.address().empty()) {
-		gamespy_t spy;
+		ServerListEntry spy;
 		if (!spy.setAddress(menu.connect.addServer.address())) {
 			m_dialog.clear();
 			m_dialog.addLine("Invalid IP address.");
@@ -3789,12 +3793,12 @@ void gameclient_c::MCF_addServer() {
 	MCF_menuCloser();
 }
 
-bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) {
+bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) {
 	(void)chr;
 	if (scan == KEY_DEL) {
-		vector<gamespy_t>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
+		vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
 		const NLaddress address = menu.connect.getAddress(target);
-		for (vector<gamespy_t>::iterator spy = servers.begin(); spy != servers.end(); ++spy)
+		for (vector<ServerListEntry>::iterator spy = servers.begin(); spy != servers.end(); ++spy)
 			if (nlAddrCompare(&address, &spy->address())) {
 				servers.erase(spy);
 				break;
@@ -3803,7 +3807,7 @@ bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned cha
 	}
 	else if (scan == KEY_INSERT && !menu.connect.favorites()) {
 		const NLaddress address = menu.connect.getAddress(target);
-		for (vector<gamespy_t>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
+		for (vector<ServerListEntry>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
 			if (nlAddrCompare(&address, &spy->address())) {
 				gamespy.push_back(*spy);
 				break;
@@ -3813,27 +3817,27 @@ bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned cha
 	return false;
 }
 
-void gameclient_c::MCF_connect(Textarea& target) {
+void Client::MCF_connect(Textarea& target) {
 	serverIP = menu.connect.getAddress(target);
 	openMenus.clear();
 	connect_command(true);
 }
 
-void gameclient_c::MCF_updateServers() {
+void Client::MCF_updateServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
-		Thread::startDetachedThread_assert(RedirectToMemFun0<gameclient_c, void>(this, &gameclient_c::getServerListThread), extConfig.lowerPriority);
+		Thread::startDetachedThread_assert(RedirectToMemFun0<Client, void>(this, &Client::getServerListThread), extConfig.lowerPriority);
 	}
 }
 
-void gameclient_c::MCF_refreshServers() {
+void Client::MCF_refreshServers() {
 	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
 		refreshStatus = RS_running;
-		Thread::startDetachedThread_assert(RedirectToMemFun0<gameclient_c, void>(this, &gameclient_c::refreshThread), extConfig.lowerPriority);
+		Thread::startDetachedThread_assert(RedirectToMemFun0<Client, void>(this, &Client::refreshThread), extConfig.lowerPriority);
 	}
 }
 
-void gameclient_c::MCF_loadHelp() {
+void Client::MCF_loadHelp() {
 	menu.help.clear();
 	const string configFile = wheregamedir + "config" + directory_separator + "help.txt";
 	ifstream in(configFile.c_str());
@@ -3847,7 +3851,7 @@ void gameclient_c::MCF_loadHelp() {
 		menu.help.addLine(line);
 }
 
-void gameclient_c::CB_tournamentToken(string token) {	// callback called by tournamentPassword from another thread
+void Client::CB_tournamentToken(string token) {	// callback called by tournamentPassword from another thread
 	if (connected) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, data_registration_token);
@@ -3857,12 +3861,12 @@ void gameclient_c::CB_tournamentToken(string token) {	// callback called by tour
 	}
 }
 
-int gameclient_c::cfunc_connection_update(client_runes_t *arg) {
+int Client::cfunc_connection_update(client_runes_t *arg) {
 	gameclient->connection_update(arg);
 	return 0;
 }
 
-void gameclient_c::connection_update(client_runes_t *arg) {
+void Client::connection_update(client_runes_t *arg) {
 	int count;
 	char lebuf[256];
 
@@ -3889,7 +3893,7 @@ void gameclient_c::connection_update(client_runes_t *arg) {
 	}
 }
 
-int gameclient_c::cfunc_server_data(client_runes_t *arg) {
+int Client::cfunc_server_data(client_runes_t *arg) {
 	gameclient->process_incoming_data(arg->data, arg->length);
 	return 0;
 }

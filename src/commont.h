@@ -99,8 +99,7 @@ static const int PLAYER_RADIUS = 15;
 static const int SHIELD_RADIUS_ADD = 9;	// this is added to PLAYER_RADIUS
 static const int ROCKET_RADIUS = 4, QUAD_ROCKET_RADIUS = 6;
 
-// GAME VERSION / GAME STRING
-//
+// Game specific strings
 #define GAME_STRING "Outgun"
 #define GAME_PROTOCOL "1.0.0b1"
 #define GAME_VERSION "1.0.0 beta 1"

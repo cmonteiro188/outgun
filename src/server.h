@@ -56,7 +56,7 @@ public:
 	}
 };
 
-class gameserver_c {
+class Server {
 	FileLog normalLog;
 	SupplementaryLog<MemoryLog> errorLog;
 	SupplementaryLog<FileLog> securityLog;
@@ -102,13 +102,13 @@ class gameserver_c {
 	void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
 
 	// copying not allowed
-	gameserver_c(const gameserver_c& o);
-	gameserver_c& operator=(const gameserver_c& o);
+	Server(const Server& o);
+	Server& operator=(const Server& o);
 
 public:
 
-	gameserver_c(LogSet& hostLogs, const ServerExternalSettings& config);
-	virtual ~gameserver_c();
+	Server(LogSet& hostLogs, const ServerExternalSettings& config);
+	virtual ~Server();
 	bool start(int target_maxplayers);
 	void loop(volatile bool *quitFlag, bool quitOnEsc);
 	void stop();

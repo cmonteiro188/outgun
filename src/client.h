@@ -15,14 +15,14 @@
 #include "world.h"
 
 //server record
-class gamespy_t {
+class ServerListEntry {
 public:
 	bool		refreshed;
 	bool		noresponse;
 	int			ping;
 	std::string	info;
 
-	gamespy_t() : refreshed(false), noresponse(true), ping(0) { }
+	ServerListEntry() : refreshed(false), noresponse(true), ping(0) { }
 
 	const NLaddress& address() const { return addr; }
 	std::string addressString() const;
@@ -78,7 +78,8 @@ enum ClientCfgSetting {
 	CCS_SoundTheme,
 	CCS_ShowStats,
 	CCS_AutoGetServerList,
-	CCS_MaxCommand = CCS_AutoGetServerList
+	CCS_ShowServerInfo,
+	CCS_MaxCommand = CCS_ShowServerInfo
 };
 
 class ServerThreadOwner {
@@ -169,7 +170,7 @@ public:
 class client_c;	// of leetnet
 class client_runes_t;
 
-class gameclient_c {
+class Client {
 	friend class ClientPhysicsCallbacks;
 
 	FileLog normalLog;
@@ -251,8 +252,8 @@ class gameclient_c {
 	std::string edit_map_vote;
 	int player_stats_page;
 
-	std::vector<gamespy_t> gamespy;
-	std::vector<gamespy_t> mgamespy;	//gamespy of master server
+	std::vector<ServerListEntry> gamespy;
+	std::vector<ServerListEntry> mgamespy;	//gamespy of master server
 	MutexHolder serverListMutex;
 
 	std::string playername;	//the player's name (max name len = 16)
@@ -370,7 +371,7 @@ class gameclient_c {
 	void getServerListThread();
 	void refreshThread();
 	bool refresh_all_servers();
-	bool refresh_servers(std::vector<gamespy_t>& gamespy);
+	bool refresh_servers(std::vector<ServerListEntry>& gamespy);
 	bool getServerList();
 
 	void check_download();	// call with downloadMutex locked
@@ -402,7 +403,7 @@ public:
 	void stop();
 };
 
-extern gameclient_c *gameclient;
+extern Client *gameclient;
 
 class Message {
 public:

@@ -8,10 +8,10 @@
 
 #include <map>
 
-class gameserver_c;
-class masterjob_c;
+class Server;
+class MasterQuery;
 class Powerup;
-class rocket_c;
+class Rocket;
 class server_c;
 class ServerHelloResult;
 class ServerPlayer;
@@ -55,7 +55,7 @@ class ServerNetworking {
 							const std::string& script, const std::string& parameters, const std::string& auth = "") const;	// timeout in ms
 	NetworkResult save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) const;	// timeout in ms
 
-	gameserver_c*	host;
+	Server*	host;
 	ServerWorld&	world;
 	int				maxplayers;
 
@@ -104,8 +104,8 @@ class ServerNetworking {
 	void ping_result(int client_id, int ping_time);
 	void incoming_client_data(int id, char *data, int length);
 
-	void master_job_response(masterjob_c *j);
-	void run_masterjob_thread(masterjob_c* job);
+	void master_job_response(MasterQuery *j);
+	void run_masterjob_thread(MasterQuery* job);
 	void run_mastertalker_thread();
 
 	bool read_string_from_TCP(NLsocket sock, char *buf);
@@ -115,7 +115,7 @@ class ServerNetworking {
 	void run_website_thread();
 
 public:
-	ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs);
+	ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs);
 	~ServerNetworking();
 	void setMaxPlayers(int num) { maxplayers = num; }
 
@@ -142,7 +142,7 @@ public:
 	void broadcast_flag_drop(const ServerPlayer& player) const;
 	void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const;
 	void broadcast_suicide(const ServerPlayer& player, bool flag) const;
-	void broadcast_spawn(const ServerPlayer& player) const;
+	void broadcast_spawn(const ServerPlayer& player, bool first_time) const;
 	void send_movements_and_shots(const ServerPlayer& player) const;	// Send player's movement and shots to everyone.
 	void send_stats(const ServerPlayer& player) const;					// Send everyone's stats to player.
 	void send_team_movements_and_shots(const ServerPlayer& player) const;
@@ -161,7 +161,7 @@ public:
 	void sendStartGame();
 	void sendWeaponPower(int pid);
 	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id: array of NLubyte[shots]
-	void sendOldRocketVisible(int pid, int rid, const rocket_c& rocket);
+	void sendOldRocketVisible(int pid, int rid, const Rocket& rocket);
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 	void sendDeathbringer(int pid, const ServerPlayer& ply);
 	void sendPickupVisible(int pid, int pup_id, const Powerup& it);

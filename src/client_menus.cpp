@@ -124,6 +124,7 @@ Menu_game::Menu_game() :
 	messageLogging		("Save chat messages", false),
 	saveStats			("Save game statistics", false),
 	showStats			("Show stats after the round", false),
+	showServerInfo		("Show server info when connected", false),
 
 	autoGetServerList	("Get server list at startup", true),
 
@@ -138,6 +139,7 @@ Menu_game::Menu_game() :
 	menu.add_component(&messageLogging);
 	menu.add_component(&saveStats);
 	menu.add_component(&showStats);
+	menu.add_component(&showServerInfo);
 	ins_space();
 	menu.add_component(&autoGetServerList);
 }

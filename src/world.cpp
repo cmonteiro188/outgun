@@ -332,9 +332,9 @@ bool Map::parse_file(LogSet& log, istream& in) {
 	// Check that flags and spawn points are not on the walls.
 	bool wallError = false;
 	for (int t = 0; t < 3; t++) {
-		const vector<spoint_t>& flags = (t == 2 ? wild_flags : tinfo[t].flags);
+		const vector<WorldCoords>& flags = (t == 2 ? wild_flags : tinfo[t].flags);
 		for (int i = 0; i < static_cast<int>(flags.size()); ++i) {
-			const spoint_t& point = flags[i];
+			const WorldCoords& point = flags[i];
 			if (fall_on_wall(point.px, point.py, point.x, point.y, FLAG_RADIUS)) {
 				log.error("Team %d, flag %d on the wall.", t, i);
 				wallError = true;
@@ -343,7 +343,7 @@ bool Map::parse_file(LogSet& log, istream& in) {
 		if (t == 2)	// wild flags only; no spawn points to check
 			continue;
 		for (int i = 0; i < static_cast<int>(tinfo[t].spawn.size()); i++) {
-			const spoint_t& point = tinfo[t].spawn[i];
+			const WorldCoords& point = tinfo[t].spawn[i];
 			if (fall_on_wall(point.px, point.py, point.x, point.y, PLAYER_RADIUS)) {
 				log.error("Team %d, spawn point %d on the wall.", t, i);
 				wallError = true;
@@ -546,7 +546,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
-		spoint_t spot;
+		WorldCoords spot;
 		spot.px = rx;
 		spot.py = ry;
 		spot.x = static_cast<int>(x * plw / scalex);
@@ -562,7 +562,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
-		spoint_t flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
+		WorldCoords flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
 		if (team < 2)
 			tinfo[team].flags.push_back(flag);
 		else
@@ -967,11 +967,11 @@ BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, 
 	return genGetTimeTillWall(room, pl.lx, pl.ly, pl.sx, pl.sy, plyRadius, maxFraction);
 }
 
-double WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock, float maxFraction) {
+double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, float maxFraction) {
 	return genGetTimeTillWall(room, rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS, maxFraction).first;
 }
 
-double WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius) {
+double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius) {
 	const double dx = rock.x - pl.lx, dy = rock.y - pl.ly, r2 = collRadius * collRadius;
 	if (dx * dx + dy * dy < r2)
 		return 0;
@@ -1074,7 +1074,7 @@ void WorldBase::returnFlag(int team, int flag) {
 }
 
 void WorldBase::dropFlag(int team, int flag, int px, int py, int x, int y) {
-	const spoint_t pos(px, py, x, y);
+	const WorldCoords pos(px, py, x, y);
 	if (team == 2) {
 		wild_flags[flag].move(pos);
 		wild_flags[flag].drop();
@@ -1092,7 +1092,7 @@ void WorldBase::stealFlag(int team, int flag, int carrier) {
 
 void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
 						  bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
-	rocket_c* r = &rock[i];
+	Rocket* r = &rock[i];
 	r->owner = playernum;
 	r->team = team;
 	r->power = power;
@@ -1444,12 +1444,12 @@ bool ServerWorld::load_map(const char* mapdir, const string& mapname) {
 	const bool success = WorldBase::load_map(log, mapdir, mapname);
 	for (int t = 0; t < 2; t++) {
 		teams[t].remove_flags();
-		for (vector<spoint_t>::const_iterator pi = map.tinfo[t].flags.begin(); pi != map.tinfo[t].flags.end(); ++pi)
+		for (vector<WorldCoords>::const_iterator pi = map.tinfo[t].flags.begin(); pi != map.tinfo[t].flags.end(); ++pi)
 			teams[t].add_flag(*pi);
 	}
 	wild_flags.clear();
-	for (vector<spoint_t>::const_iterator pi = map.wild_flags.begin(); pi != map.wild_flags.end(); ++pi)
-		wild_flags.push_back(Flag(*pi));
+	for (vector<WorldCoords>::const_iterator pi = map.wild_flags.begin(); pi != map.wild_flags.end(); ++pi)
+		wild_flags.push_back(*pi);
 	return success;
 }
 
@@ -1511,11 +1511,11 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	return true;
 }
 
-void ServerWorld::respawnPlayer(int pid) {
+void ServerWorld::respawnPlayer(int pid, bool first_time) {
 	player[pid].respawn_time = -1;
 	const int team = pid / TSIZE;
 
-	spoint_t pos;
+	WorldCoords pos;
 	if (map.tinfo[team].spawn.empty())
 		player[pid].respawn_to_base = false;
 	else if (player[pid].respawn_to_base) {
@@ -1599,7 +1599,7 @@ void ServerWorld::respawnPlayer(int pid) {
 
 	player[pid].stats().set_spawn_time(get_time());
 
-	net->broadcast_spawn(player[pid]);
+	net->broadcast_spawn(player[pid], first_time);
 
 	//for all effects, player screen changed
 	game_player_screen_change(pid);
@@ -2043,7 +2043,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
-	rocket_c* r = &rock[rid];
+	Rocket* r = &rock[rid];
 	net->sendRocketDeletion(r->vislist, rid, hitx, hity, targ);
 	r->owner = -1;
 }
@@ -2159,33 +2159,33 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, f
 
 	roomPly.resize(map.w);
 	roomRock.resize(map.w);
-	for (int rx=0; rx<map.w; ++rx) {
+	for (int rx = 0; rx < map.w; ++rx) {
 		roomPly[rx].resize(map.h);
 		roomRock[rx].resize(map.h);
 	}
 
 	// add players and rockets to room structs for physics run
-	for (int i=0; i<maxplayers; i++) {
+	for (int i = 0; i < maxplayers; i++) {
 		PlayerBase& pl = player[i];
 		if (!pl.used)
 			continue;
 		if (callback.shouldApplyPhysicsToPlayer(i)) {
-			if (pl.roomx<0 || pl.roomy<0 || pl.roomx>=map.w || pl.roomy>=map.h)
+			if (pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= map.w || pl.roomy >= map.h)
 				continue;	//#fix: remove this and track why these are given sometimes
 			applyPlayerAcceleration(i);
 			roomPly[pl.roomx][pl.roomy].push_back(i);
 		}
 	}
-	for (int i=0; i<MAX_ROCKETS; i++) {
+	for (int i = 0; i < MAX_ROCKETS; i++) {
 		if (rock[i].owner == -1)
 			continue;
-		nAssert(rock[i].px>=0 && rock[i].py>=0 && rock[i].px<map.w && rock[i].py<map.h);
+		nAssert(rock[i].px >= 0 && rock[i].py >= 0 && rock[i].px < map.w && rock[i].py < map.h);
 		roomRock[rock[i].px][rock[i].py].push_back(i);
 	}
 
 	// apply physics to each room separately
-	for (int rx=0; rx<map.w; ++rx)
-		for (int ry=0; ry<map.h; ++ry)
+	for (int rx = 0; rx < map.w; ++rx)
+		for (int ry = 0; ry < map.h; ++ry)
 			applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
@@ -2308,7 +2308,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				++pi;
 		}
 		for (int ri = 0; ri < static_cast<int>(rrock.size()); ) {
-			rocket_c& r = rock[rrock[ri]];
+			Rocket& r = rock[rrock[ri]];
 			if (mt > rockMoveMax[ri]) {
 				r.move(rockMoveMax[ri] - subFrame);
 				callback.rocketHitWall(rrock[ri], r.power, r.x, r.y, r.px, r.py);
@@ -2366,7 +2366,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		}
 	}
 	for (vector<int>::const_iterator ri = rrock.begin(); ri != rrock.end(); ++ri) {
-		const rocket_c& r = rock[*ri];
+		const Rocket& r = rock[*ri];
 		if (r.x < 0 || r.x > plw || r.y < 0 || r.y > plh)
 			callback.rocketOutOfBounds(*ri);	// don't bother with removing it from rrock since the simulation is over
 	}
@@ -2530,7 +2530,7 @@ void ServerWorld::simulateFrame() {
 	applyPhysics(cb, PLAYER_RADIUS, 1.);	// 1. means apply the whole frame at once
 
 	// for each player, do misc stuff
-	for (int i=0;i<maxplayers;i++) {
+	for (int i = 0; i < maxplayers; i++) {
 		if (!player[i].used)
 			continue;
 
@@ -2961,7 +2961,7 @@ void Team::clear_stats() {
 	start_score = 0;
 }
 
-void Team::add_flag(const spoint_t& pos) {
+void Team::add_flag(const WorldCoords& pos) {
 	team_flags.push_back(Flag(pos));
 }
 
@@ -2991,12 +2991,12 @@ void Team::return_flag(int n) {
 	team_flags[n].return_to_base();
 }
 
-void Team::drop_flag(int n, const spoint_t& pos) {
+void Team::drop_flag(int n, const WorldCoords& pos) {
 	team_flags[n].move(pos);
 	team_flags[n].drop();
 }
 
-void Team::move_flag(int n, const spoint_t& pos) {
+void Team::move_flag(int n, const WorldCoords& pos) {
 	team_flags[n].move(pos);
 }
 
@@ -3009,7 +3009,7 @@ float Team::accuracy() const {
 
 // Flag
 
-Flag::Flag(const spoint_t& pos_):
+Flag::Flag(const WorldCoords& pos_):
 	status(status_at_base),
 	carrier_id(-1),
 	home_pos(pos_),

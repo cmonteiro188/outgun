@@ -67,6 +67,7 @@ public:
 	Checkbox	messageLogging;
 	Checkbox	saveStats;
 	Checkbox	showStats;
+	Checkbox	showServerInfo;
 	Checkbox	autoGetServerList;
 
 	Menu menu;

@@ -40,7 +40,7 @@ using std::string;
 using std::vector;
 
 // tournament thread job struct
-class masterjob_c {
+class MasterQuery {
 public:
 	string request;
 	enum JobType { JT_score, JT_login };
@@ -48,7 +48,7 @@ public:
 	int cid;
 };
 
-ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs) :
+ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs) :
 	host(hostp),
 	world(w),
 	log(logs),
@@ -351,11 +351,11 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag) 
 	server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
+void ServerNetworking::broadcast_spawn(const ServerPlayer& player, bool first_time) const {
 	char lebuf[64];
 	int count = 0;
 	writeByte(lebuf, count, data_spawn);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (first_time ? 0x80 : 0x00));
 	server->broadcast_message(lebuf, count);
 }
 
@@ -530,9 +530,9 @@ void ServerNetworking::client_report_status(int id) {
 		return;
 
 	//submit-- create job
-	masterjob_c* job = new masterjob_c();
+	MasterQuery* job = new MasterQuery();
 	job->cid = id;
-	job->code = masterjob_c::JT_score;
+	job->code = MasterQuery::JT_score;
 	job->request = string() +
 		"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
 		"&dscp=" + itoa(clid.delta_score) +
@@ -544,7 +544,7 @@ void ServerNetworking::client_report_status(int id) {
 	pthread_mutex_lock(&mjob_mutex);
 	mjob_count++;
 	pthread_mutex_unlock(&mjob_mutex);
-	RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
+	RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
 	Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
 
 	clid.delta_score = 0;
@@ -780,7 +780,8 @@ int ServerNetworking::client_connected(int id) {
 	}
 
 	// New players always spawn in the base.
-	world.player[myself].respawn_to_base = true;	// but don't actually spawn until the client has loaded the map and is in the game
+	world.player[myself].respawn_to_base = true;
+	world.respawnPlayer(myself, true);
 
 	if (player_count == 2) {
 		host->ctf_game_restart();
@@ -788,6 +789,7 @@ int ServerNetworking::client_connected(int id) {
 	}
 
 	host->resetPlayer(id);
+	world.player[myself].stats().set_lifetime(0);
 
 	//first update the ADMIN SHELL
 	if (shellssock != NL_INVALID) {
@@ -1075,9 +1077,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				string tok;
 				readStr(msg, count, tok);
 				if (host->changeRegistration(id, tok)) {
-					masterjob_c *job = new masterjob_c();
+					MasterQuery *job = new MasterQuery();
 					job->cid = id;
-					job->code = masterjob_c::JT_login;
+					job->code = MasterQuery::JT_login;
 					job->request = string() +
 						"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
 						"&chktk" +
@@ -1089,7 +1091,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					mjob_count++;
 					pthread_mutex_unlock(&mjob_mutex);
 
-					RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
+					RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
 					Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
 				}
 			}
@@ -1499,7 +1501,7 @@ double ServerNetworking::getTraffic() {
 	return ( server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT) ) / 1024.;
 }
 
-void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
+void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 	if (LOG_THREAD_IDS)
 		log("run_masterjob_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
 
@@ -1598,7 +1600,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 			int pid = ctop[job->cid];
 			if (pid != -1) {	// the player is still in the game
 				ClientData& clid = host->getClientData(job->cid);	//#fix: thread safety
-				if (job->code == masterjob_c::JT_login) {
+				if (job->code == MasterQuery::JT_login) {
 					log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
 					char lebuf[128]; int count = 0;
 					writeByte(lebuf, count, data_registration_response);
@@ -1606,7 +1608,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 					server->send_message(job->cid, lebuf, count);
 					clid.token_valid = true;
 				}
-				else if (job->code == masterjob_c::JT_score)
+				else if (job->code == MasterQuery::JT_score)
 					log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
 				else
 					nAssert(0);
@@ -1621,7 +1623,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		else if (response[cPos] == 'E' || response[cPos] == 'F') {
 			int pid = ctop[job->cid];
 			if (pid != -1) {
-				if (job->code == masterjob_c::JT_login)	{
+				if (job->code == MasterQuery::JT_login)	{
 					log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
 								world.player[pid].name.c_str(), get_client_address(job->cid), formatForLogging(job->request).c_str());
 					char lebuf[128]; int count = 0;
@@ -1629,14 +1631,14 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 					writeByte(lebuf, count, 0);	// registration failed
 					server->send_message(job->cid, lebuf, count);
 				}
-				else if (job->code == masterjob_c::JT_score) {
+				else if (job->code == MasterQuery::JT_score) {
 					plprintf(pid, msg_warning, "Your tournament score update was failed!");
 					log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
 				}
 				else
 					nAssert(0);
 			}
-			else if (job->code == masterjob_c::JT_score)
+			else if (job->code == MasterQuery::JT_score)
 				log("Tournament thread: Score update lost for a player that's left the server");
 			break;	// request complete
 		}
@@ -1778,6 +1780,9 @@ void ServerNetworking::run_mastertalker_thread() {
 void ServerNetworking::run_website_thread() {
 	if (LOG_THREAD_IDS)
 		log("run_website_thread() ID = %d, prio = %d", pthread_self(), threadPriority());
+
+	if (web_servers.empty() || web_script.empty())
+		return;
 
 	string localAddress;
 	if (host->config().force_ip)
@@ -2349,7 +2354,7 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 			server->send_message(world.player[i].cid, lebuf, count);
 }
 
-void ServerNetworking::sendOldRocketVisible(int pid, int rid, const rocket_c& rocket) {
+void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) {
 	char lebuf[256]; int count = 0;
 	const NLubyte shotType = (rocket.team << 1) | rocket.power;
 	writeByte(lebuf, count, data_old_rocket_visible);
