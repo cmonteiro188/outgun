@@ -1756,7 +1756,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				if (abyte != 255) {	// hit player
 					if (abyte < 250)	// blink player if not hit shield (252)
 						fx.player[abyte].hitfx = get_time() + .3;
-					client_graphics.create_gunexplo((int)rokx, (int)roky - 10, fx.rock[rockid].px, fx.rock[rockid].py);
+					client_graphics.create_gunexplo((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py);
 					client_sounds.play(SAMPLE_HIT);
 				}
 				break;
@@ -3068,11 +3068,11 @@ gameclient_c::~gameclient_c() {
 
 void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
 	if (power) {
-		graphics().create_quadwallexplo(static_cast<int>(x), static_cast<int>(y - 10), roomx, roomy);
+		graphics().create_quadwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
 		sounds().play(SAMPLE_QUADWALLHIT);
 	}
 	else {
-		graphics().create_wallexplo(static_cast<int>(x), static_cast<int>(y - 10), roomx, roomy);
+		graphics().create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
 		sounds().play(SAMPLE_WALLHIT);
 	}
 	fd.rock[rid].owner = fx.rock[rid].owner = -1;	// erase from clientside simulation
