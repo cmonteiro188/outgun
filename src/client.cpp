@@ -3602,8 +3602,8 @@ void gameclient_c::draw_game_frame() {
 
 	// Time left if time limit is on.
 	if (map_time_limit)
-		if (map_end_time > (int)get_time())
-			client_graphics.map_time(map_end_time - (int)get_time());
+		if (map_end_time > (unsigned int)get_time())
+			client_graphics.map_time(map_end_time - (unsigned int)get_time());
 		else
 			client_graphics.map_time(0);
 

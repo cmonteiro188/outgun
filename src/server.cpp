@@ -63,7 +63,6 @@ gameserver_c::gameserver_c() : world(this) {
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 
 	server_kbps_traffic = 0;		//total server traffic in kbytes/sec
-	ping_send_counter = 0;		// ping send counter
 	ping_send_client = 0;
 
 	for (int i=0; i<256; ++i)
@@ -684,6 +683,7 @@ void gameserver_c::swap_players(int a, int b) {
 		world.resetPlayer(b);
 
 	swap(world.player[a], world.player[b]);
+	world.swapRocketOwners(a, b);
 
 	//swap client id's
 	ctop[ world.player[a].cid ] = a;
@@ -1473,7 +1473,6 @@ bool gameserver_c::start(int target_maxplayers) {
 	//not showing gameover plaque to clients
 	gameover = false;
 
-	ping_send_counter = 0;
 	ping_send_client = 0;
 
 	//reset fslavesocks
@@ -1590,12 +1589,6 @@ void gameserver_c::reload_hostname() {
 		fgets(hostname, 256, cfg);
 		hostname[ strlen(hostname) - 1 ] = 0;  //replace newline with \0
 		LOG1("HOSTNAME IS = '%s'\n", hostname);
-
-		//v0.4.7: ad name (FIXME MAKEIT)
-		//fgets(hostadname, 256, cfg);
-		//hostadname[ strlen(hostadname) - 1 ] = 0;  //replace newline with \0
-		//LOG1("HOST AD NAME IS = '%s'\n", hostadname);
-
 		fclose(cfg);
 	}
 	else

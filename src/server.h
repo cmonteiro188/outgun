@@ -101,31 +101,34 @@ public:
 
 class gameserver_c {
 	// yhteydet verkkoon
-	server_c	*server;
-	char hostadname[128];
+	server_c*		server;
+
 	NLsocket		msock;
 	pthread_t		mthread;
-	double			master_talk_time;	//time to talk?
-	bool			master_pre_exiting_ok;		// if no need to kill the master socket...
+	double			master_talk_time;
+	bool			master_pre_exiting_ok;	// if no need to kill the master socket...
 	bool			master_exiting_ok;		// if no need to kill the master socket...
-	bool			master_never_talked;		// if never talked to master, then no need to unregister the server when qutting (optimization)
+	bool			master_never_talked;	// if never talked to master, then no need to unregister the server when qutting (optimization)
 	bool			mjob_exit;				//flag for all pending master jobs to quit now
-	bool			mjob_fastretry;		//flag for all pending master jobs to stop waiting and retry immediately
+	bool			mjob_fastretry;			//flag for all pending master jobs to stop waiting and retry immediately
 	int				mjob_count;
-	pthread_mutex_t	mjob_mutex;  //mutex for socket list
+	pthread_mutex_t	mjob_mutex;				//mutex for socket list
+
 	bool			file_threads_quit;		//terminate all file server threads/sockets now
 	NLsocket		filesock;
-	pthread_t		server_filemaster_thread;  // thread for server filemaster
-	pthread_mutex_t	fslavesock_mutex;  //mutex for socket list
+	pthread_t		server_filemaster_thread;
+	pthread_mutex_t	fslavesock_mutex;
 	NLsocket		fslavesock[MAX_PLAYERS];
 	pthread_t		fslavethr[MAX_PLAYERS];
+
 	NLsocket		shellmsock;
 	pthread_t		shellmthread;
 	NLsocket		shellssock;
 	pthread_t		shellsthread;
+
 	char			hostname[256];
 	double			server_kbps_traffic;
-	int				ping_send_counter, ping_send_client;
+	int				ping_send_client;
 
 	// pelaajien hallinta
 	vector<string>	welcome_message;	// welcome message line by line

@@ -1645,6 +1645,15 @@ void ServerWorld::changeRocketsOwner(int source, int target) {
 			rock[i].owner = target;
 }
 
+void ServerWorld::swapRocketOwners(int a, int b) {
+	for (int i = 0; i < MAX_ROCKETS; i++) {
+		if (rock[i].owner == a)
+			rock[i].owner = b;
+		else if (rock[i].owner == b)
+			rock[i].owner = a;
+	}
+}
+
 void ServerWorld::simulateFrame() {
 	// (-1) check powerup respawn
 	double thetime = get_time();
