@@ -57,12 +57,12 @@ class gameserver_c {
 	// pelaajien hallinta
 	std::vector<std::string> welcome_message;	// welcome message line by line
 	std::vector<std::string> info_message;		// the message /info shows, line by line
-	std::string sayadmin_comment;
-	bool sayadmin_enabled;
-	double team_smul[2];
-	NLulong next_vote_announce_frame;
-	int last_vote_announce_votes, last_vote_announce_needed;
-	ClientData client[MAX_PLAYERS];
+	std::string		sayadmin_comment;
+	bool			sayadmin_enabled;
+	double			team_smul[2];
+	NLulong 		next_vote_announce_frame;
+	int				last_vote_announce_votes, last_vote_announce_needed;
+	ClientData		client[MAX_PLAYERS];
 
 	// pelimaailma
 	ServerWorld		world;
@@ -76,12 +76,12 @@ class gameserver_c {
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;
 
-private:
 	std::vector<MapInfo> maprot;
 	int currmap;		// current map in maprot
 	bool random_maprot;
 	#ifdef SV_NAME_AUTHORIZATION
 	NameAuthorizationDatabase authorizations;
+	std::vector<std::string> admins;	// names of the admins of this server
 	#endif
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
 
@@ -98,10 +98,10 @@ public:
 	void server_think_after_broadcast();
 
 	// pelaajien hallinta
-	void mutePlayer(int pid, int mode);
-	void kickPlayer(int pid, bool ban=false);
+	void mutePlayer(int pid, int mode, int admin);
+	void kickPlayer(int pid, int admin, bool ban=false);
 	#ifdef SV_NAME_AUTHORIZATION
-	void banPlayer(int pid);
+	void banPlayer(int pid, int admin);
 	bool isBanned(int cid) const { return authorizations.isBanned(network.get_client_address(cid)); }
 	bool check_name_password(const std::string& name, const std::string& password) const;
 	#endif

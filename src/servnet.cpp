@@ -757,7 +757,7 @@ int ServerNetworking::client_connected(int id) {
 				t2++;
 		}
 
-	//put on red team, blue team, or randomize if same # of players in both teams
+	// put on red team, blue team, or randomize if same # of players in both teams
 	if (t1 < t2)
 		targ = 0;
 	else if (t1 > t2)
@@ -767,7 +767,7 @@ int ServerNetworking::client_connected(int id) {
 		targ = TSIZE * host->getLessScoredTeam();
 	}
 
-	//alloc new player : scans only slots of the team (targ...targ + 7)
+	// alloc new player : scans only slots of the team (up from targ)
 	int myself = -1;
 
 	for (i = targ; i < targ + TSIZE; i++) {
@@ -1036,7 +1036,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			int count = 0;
 			NLubyte code;
 			readByte(msg, count, code);
+			#ifdef LOG_MESSAGE_TRAFFIC
 			LOG1("MESSAGE FROM CLIENT, CODE=%i\n", code);
+			#endif
 			if (code == data_name_update) {
 				string name;
 				readStr(msg, count, name);
@@ -2864,20 +2866,20 @@ void ServerNetworking::run_shellslave_thread() {
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				readLong(rbuf, rcount, arg);
 				if (result == 8 && pid != -1)
-					host->mutePlayer(pid, arg);
+					host->mutePlayer(pid, arg, -1);
 				break;
 			case ATS_KICK_PLAYER:
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4 && pid != -1)
-					host->kickPlayer(pid);
+					host->kickPlayer(pid, -1);
 				break;
 			#ifdef SV_NAME_AUTHORIZATION
 			case ATS_BAN_PLAYER:
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4 && pid != -1)
-					host->banPlayer(pid);
+					host->banPlayer(pid, -1);
 				break;
 			#endif
 			case ATS_RESET_SETTINGS:
@@ -3155,7 +3157,6 @@ void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* da
 }
 
 void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) {
-	LOG("clientHello()\n");
 	res->customDataLength = 0;
 
 	//LOG1("hello client %i!\n", arg->client_id);

@@ -26,7 +26,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-//#define CLIENT_PREDICTION
+#define CLIENT_PREDICTION
 const float lagWanted = 1.;
 
 #ifdef NIX
@@ -746,6 +746,8 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 	LOG1("CLIENT: server_map_command : '%s'\n", mapname);
 
+	strcpy(servermap, mapname);
+
 	//try to load the map. will fail if not found
 	bool ok = fd.load_map(CLIENT_MAPS_DIR, mapname) && fx.load_map(CLIENT_MAPS_DIR, mapname);	//#fix
 
@@ -783,9 +785,6 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 
 		char dest[1024];	//full destination path for file
 		append_filename(dest, wheregamedir, fname, WHERE_PATH_SIZE);
-
-		//copy to name of map waiting -- for when download_server_file completes
-		strcpy(servermap, mapname);
 
 		//download server file -- opens new thread and TCP conection
 		download_server_file("map", mapname, dest);
@@ -1292,7 +1291,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 //connect command
 void gameclient_c::connect_command() {
-	LOG("connect_command()\n");
+
 	// disconnect
 	client->connect(false);
 
@@ -1318,11 +1317,7 @@ void gameclient_c::connect_command() {
 		address += port.str();
 	}
 
-	LOG("connect_command() 1\n");
-
 	client->set_server_address(address.c_str());
-
-	LOG("connect_command() 2\n");
 
 	//set connect-data (goes in every connect packet): outgun game name and version strings
 	char lebuf[256]; int count = 0;
@@ -1339,20 +1334,15 @@ void gameclient_c::connect_command() {
 			remove_player_password(playername);
 	}
 
-	LOG("connect_command() 3\n");
-
 	client->set_connect_data(lebuf, count);
-	LOG("connect_command() 4\n");
 
 	client->connect(true);
-	LOG("connect_command() 5\n");
 
 	// set flags, show dialog...
 	trying_connection = true;
 	dialogmessage = "Trying to connect... ESC = cancel";
 	dialogmessage2.clear();
 	set_menu(menu_dialog);
-	LOG("connect_command() OK\n");
 }
 
 //send player token message
@@ -1722,7 +1712,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//get msg code
 			readByte(msg, count, code);
 
+			#ifdef LOG_MESSAGE_TRAFFIC
 			LOG1("SERVER MESSAGE CODE = %i\n", code);
+			#endif
 
 			//parse rest of message
 			switch (static_cast<Network_data_codes>(code)) {
@@ -2123,7 +2115,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					mapinfo.width = width;
 					mapinfo.height = height;
 					mapinfo.votes = votes;
+					pthread_mutex_lock(&mapInfoMutex);
 					maps.push_back(mapinfo);
+					pthread_mutex_unlock(&mapInfoMutex);
 					break;
 				}
 
@@ -3423,7 +3417,7 @@ gameclient_c::gameclient_c():
 	chaterasetime = 0;				// time to erase a chat message from the list
 
 	pthread_mutex_init(&frame_mutex, 0);
-
+	pthread_mutex_init(&mapInfoMutex, 0);
 	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
 	udpdq_size = 0;
 	message_logging = false;
@@ -3438,7 +3432,7 @@ gameclient_c::~gameclient_c() {
 	}
 
 	pthread_mutex_destroy(&frame_mutex);
-
+	pthread_mutex_destroy(&mapInfoMutex);
 	pthread_mutex_destroy(&udpdq_mutex);
 }
 
@@ -4047,7 +4041,9 @@ void gameclient_c::draw_game_menu() {
 			client_graphics.password_menu_save("Player password for " + playername, edit_player_password.length(), save_pl_password, save_password_selected);
 			break;
 		case menu_maps:
+			pthread_mutex_lock(&mapInfoMutex);
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
+			pthread_mutex_unlock(&mapInfoMutex);
 			break;
 		case menu_players:
 			client_graphics.draw_statistics(fx.player, player_stats_page, static_cast<int>(get_time()));

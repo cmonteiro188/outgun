@@ -33,6 +33,7 @@
 #include "nl.h"				// HawkNL
 //#include "stdio.h"		//for printf debugging  (FIXME - move to log)
 #include "../nassert.h"
+#include "pthread.h"
 
 // buffer size limitations (stupid hardcoded but works)
 //
@@ -399,6 +400,7 @@ public:
 	#ifdef EXTRA_RELIABLE_STORAGE
 	NLulong reliable_size;	// total size of reliable messages in reliable[], plus 6 bytes extra for each
 	std::queue<data_ci*> extra_reliables;
+	pthread_mutex_t queue_mutex;
 	void erase_extra_reliables() {
 		while (!extra_reliables.empty()) {
 			delete extra_reliables.front();
@@ -446,6 +448,9 @@ public:
 
 	//ctor
 	station_ci() {
+		#ifdef EXTRA_RELIABLE_STORAGE
+		pthread_mutex_init(&queue_mutex, 0);
+		#endif
 		sendsock = NL_INVALID_SOCKET;		//to avoid reset_state to close an invalid socket
 		reset_state();
 	}
@@ -454,6 +459,7 @@ public:
 	virtual ~station_ci() {
 		#ifdef EXTRA_RELIABLE_STORAGE
 		erase_extra_reliables();
+		pthread_mutex_destroy(&queue_mutex);
 		#endif
 		
 		//FIXME -- what else?
@@ -726,6 +732,7 @@ DLOG_Scope s("UPIP_A");
 						nAssert((int)reliable_size >= reliable[i].message.getlen() + 6);
 						reliable_size -= reliable[i].message.getlen() + 6;
 						// check if there's a message on the extra queue that can be sent now
+						pthread_mutex_lock(&queue_mutex);
 						if (!extra_reliables.empty() && can_add_reliable(extra_reliables.front()->getlen())) {
 							reliable[i].id = idgen_reliable_send++;
 							data_ci* msg = extra_reliables.front();
@@ -757,6 +764,7 @@ DLOG_Scope s("UPIP_A");
 							reliable[i].message.clear();
 							reliable_count--;
 						}
+						pthread_mutex_unlock(&queue_mutex);
 						#else
 						reliable[i].id = -1;
 						reliable[i].message.clear();
@@ -789,9 +797,13 @@ DLOG_Scope s("UWR");
 		nAssert(length <= MAX_MESSAGE_SIZE);
 
 		#ifdef EXTRA_RELIABLE_STORAGE
+		pthread_mutex_lock(&queue_mutex);
 		if (reliable_count<MAXMSG && can_add_reliable(length) && extra_reliables.empty())
 		#endif
 		{
+			#ifdef EXTRA_RELIABLE_STORAGE
+			pthread_mutex_unlock(&queue_mutex);
+			#endif
 			//find slot in reliable
 			//
 			for (int i=0; i<MAXMSG; i++) 
@@ -802,6 +814,9 @@ DLOG_Scope s("UWR");
 				reliable_size += length + 6;
 				return 1;						//ok
 			}
+			#ifdef EXTRA_RELIABLE_STORAGE
+			nAssert(0);
+			#endif
 		}
 
 		// can't add to the standard send buffer
@@ -809,6 +824,7 @@ DLOG_Scope s("UWR");
 		data_ci* msg = new data_ci();
 		msg->set(data, (NLshort)length);
 		extra_reliables.push(msg);
+		pthread_mutex_unlock(&queue_mutex);
 		return 1;
 		#else
 		return 0;

@@ -356,7 +356,11 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 			scene.addCircWall(*cwi, cwi->texture());
 
 		// add flag markers as overlays
-//#@
+		const float fr = flagpos_radius * scr_mul;
+		for (int fi = 0; fi < static_cast<int>(flags.size()); ++fi) {
+			const float fx = flags[fi].second->x * scr_mul, fy = flags[fi].second->y * scr_mul;
+			scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size(), true);
+		}
 
 		// add walls
 		const int texShift = floor_texture.size();
@@ -371,33 +375,36 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 		scene.clipAll();
 
 		// prepare the textures
-		//#fix: optimize from here down in the case of no texturing
-		vector<BITMAP*> textures, tempTex;	//#fix: these tables should be pre-created at texture load time
-		BITMAP* backupTexture = floor_texture.front();
-		if (!backupTexture) {
-			backupTexture = create_bitmap(1, 1);
-			putpixel(backupTexture, 0, 0, col[COLGROUND]);
-			tempTex.push_back(backupTexture);	// the bitmap must exist until the picture is finished
-		}
-		for (vector<BITMAP*>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti)
-			textures.push_back(*ti ? *ti : backupTexture);
-		backupTexture = wall_texture.front();
-		if (!backupTexture) {
-			backupTexture = create_bitmap(1, 1);
-			putpixel(backupTexture, 0, 0, col[COLWALL]);
-			tempTex.push_back(backupTexture);
-		}
-		for (vector<BITMAP*>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti)
-			textures.push_back(*ti ? *ti : backupTexture);
+		vector<TextureData> textures;
 
+		TextureData backupTexture;
+		TextureData td;
+		if (floor_texture.front())
+			backupTexture.setTexture(floor_texture.front());
+		else
+			backupTexture.setSolid(col[COLGROUND]);
+		for (vector<BITMAP*>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti) {
+			if (*ti) { td.setTexture(*ti); textures.push_back(td); }
+			else textures.push_back(backupTexture);
+		}
+
+		if (wall_texture.front())
+			backupTexture.setTexture(wall_texture.front());
+		else
+			backupTexture.setSolid(col[COLWALL]);
+		for (vector<BITMAP*>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti) {
+			if (*ti) { td.setTexture(*ti); textures.push_back(td); }
+			else textures.push_back(backupTexture);
+		}
+
+		for (vector< pair<int, const spoint_t*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+			td.setFlagmarker(teamcol[fi->first], fi->second->x * scr_mul, fi->second->y * scr_mul, flagpos_radius * scr_mul);	// note: assumes 0,0,1. scaling
+			textures.push_back(td);
+		}
 		// draw
-		PlainTexTexturizer tex(roombg, 0, 0, textures);
+		Texturizer tex(roombg, 0, 0, textures);
 		scene.render(tex);
 		tex.finalize();
-
-		// free temporary textures
-		for (vector<BITMAP*>::const_iterator ti = tempTex.begin(); ti != tempTex.end(); ++ti)
-			destroy_bitmap(*ti);
 	}
 	else {
 		// draw floor
@@ -723,11 +730,12 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 		}
 
 		// draw
-		vector<int> colors;
-		colors.push_back(0);	// ground
-		colors.push_back(col[COLDARKGREEN]);	// walls
-		colors.push_back(room_border_col);	// room boundaries
-		PlainColorTexturizer tex(buffer, 0, 0, colors);
+		vector<TextureData> colors;
+		TextureData td;
+		td.setSolid(0);					colors.push_back(td);	// ground
+		td.setSolid(col[COLDARKGREEN]);	colors.push_back(td);	// walls
+		td.setSolid(room_border_col);	colors.push_back(td);	// room boundaries
+		Texturizer tex(buffer, 0, 0, colors);
 		scene.render(tex);
 		tex.finalize();
 	}
@@ -1129,7 +1137,7 @@ void Graphics::draw_pup(const Powerup& pup, double time) {
 		case Powerup::pup_weapon:		draw_pup_weapon(pup.x, pup.y, time); break;
 		case Powerup::pup_health:		draw_pup_health(pup.x, pup.y, time); break;
 		case Powerup::pup_deathbringer:	draw_pup_deathbringer(pup.x, pup.y); break;
-		default: ;
+		default: nAssert(0);
 	}
 }
 

@@ -186,7 +186,7 @@ bool Map::load(const char *mapdir, const string& mapname) {
 
 	//append all that to the root dir of the game
 	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
-	FILE *fmap = fopen(dest, "r");	// ### FIXME: r or rb ??
+	FILE *fmap = fopen(dest, "rb");
 	if (fmap) {
 		*this = Map();
 		NLubyte lebigbuf[65536];
@@ -1674,7 +1674,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
 			break;
 		}
-		default: ;
+		default: nAssert(0);
 	}
 
 	// unused item

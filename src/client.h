@@ -83,6 +83,7 @@ class gameclient_c {
 	NLulong fdp, fdp_max;
 	NLulong max_world_score, max_world_rank;
 
+	pthread_mutex_t mapInfoMutex;
 	std::vector<MapInfo> maps;
 	int current_map;
 	int map_vote;

@@ -3,6 +3,7 @@
 
 //#define WATCH_CONNECTION
 //#define SEND_FRAMEOFFSET
+//#define LOG_MESSAGE_TRAFFIC
 
 enum Network_data_codes {
 	data_name_update,

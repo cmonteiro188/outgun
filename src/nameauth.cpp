@@ -51,7 +51,14 @@ bool NameAuthorizationDatabase::addEntry(const Entry& e) {
 	return true;
 }
 
+void NameAuthorizationDatabase::clear() {
+	db.clear();
+	banned.addresses.clear();
+	// don't clear softBanned
+}
+
 bool NameAuthorizationDatabase::load() {
+	clear();
 	ifstream in("auth.txt");
 	if (!in) {
 		LOG("*** CAN'T READ AUTH.TXT\n");
@@ -114,6 +121,28 @@ bool NameAuthorizationDatabase::save() const {
 	return true;
 }
 
+bool NameAuthorizationDatabase::checkNamePassword(const string& nameUpr, const string& password) const {
+	for (vector<Entry>::const_iterator dbi = db.begin(); dbi != db.end(); ++dbi)
+		if (dbi->nameUpr == nameUpr) {
+			if (dbi->password == password)
+				return true;
+			else
+				return false;
+		}
+	return true;	// name not found, password not needed
+}
+
+bool NameAuthorizationDatabase::clearIPs(const string& nameUpr, const string& password) {
+	for (vector<Entry>::iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
+		if (dbi->nameUpr==nameUpr) {
+			if (dbi->password!=password)
+				return false;
+			dbi->addresses.clear();
+			return true;
+		}
+	return false;
+}
+
 bool NameAuthorizationDatabase::addIP(const string& nameUpr, const string& password, NLaddress addr) {	// must be an existing name
 	for (vector<Entry>::iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
 		if (dbi->nameUpr==nameUpr) {
@@ -124,17 +153,6 @@ bool NameAuthorizationDatabase::addIP(const string& nameUpr, const string& passw
 			return true;
 		}
 	return false;
-}
-
-bool NameAuthorizationDatabase::checkNamePassword(const string& nameUpr, const string& password) const {
-	for (vector<Entry>::const_iterator dbi = db.begin(); dbi != db.end(); ++dbi)
-		if (dbi->nameUpr == nameUpr) {
-			if (dbi->password == password)
-				return true;
-			else
-				return false;
-		}
-	return true;	// name not found, password not needed
 }
 
 int NameAuthorizationDatabase::identifyName(const string& name) const {
@@ -191,11 +209,14 @@ bool NameAuthorizationDatabase::authorize(int idx, NLaddress addr) const {
 
 bool NameAuthorizationDatabase::isBanned(NLaddress addr) const {
 	nlSetAddrPort(&addr, 0);
-	return banned.hasAddress(addr);
+	return banned.hasAddress(addr) || softBanned.hasAddress(addr);
 }
 
-void NameAuthorizationDatabase::ban(NLaddress addr) {
+void NameAuthorizationDatabase::ban(NLaddress addr, bool hard) {
 	nlSetAddrPort(&addr, 0);
-	banned.addresses.push_back(addr);
+	if (hard)
+		banned.addresses.push_back(addr);
+	else
+		softBanned.addresses.push_back(addr);
 }
 
