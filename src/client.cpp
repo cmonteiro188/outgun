@@ -1972,7 +1972,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		fx.player[me].oldy = fx.player[me].roomy;
 
 		// predraw new room
-		client_graphics.predraw_room(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+		predraw();
 	}
 
 	//this is a HACK:
@@ -2752,6 +2752,8 @@ void gameclient_c::loop() {
 							client_graphics.reset_playground_colors();
 						else
 							client_graphics.random_playground_colors();
+						// predraw new colours
+						predraw();
 					}
 
 					// ins == change name
@@ -3116,6 +3118,18 @@ bool gameclient_c::shouldApplyPhysicsToPlayerCallback(int pid) {
 	return fx.player[pid].onscreen;
 }
 
+void gameclient_c::predraw() {
+	client_graphics.draw_playground();
+	// draw flag position mark
+	for (int team = 0; team < 2; team++)
+		if (fx.player[me].roomx == fx.map.tinfo[team].flag.px && fx.player[me].roomy == fx.map.tinfo[team].flag.py)
+			client_graphics.draw_flagpos_mark(team, fx.map.tinfo[team].flag.x, fx.map.tinfo[team].flag.y);
+	// draw walls
+	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
+		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.w)
+			client_graphics.predraw_room(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+}
+
 //draw the whole game screen
 void gameclient_c::draw_game_frame() {
 	// erase old chat messages (this shouldn't be here really but wtf..)
@@ -3134,7 +3148,6 @@ void gameclient_c::draw_game_frame() {
 
 	// the playground: border, walls and pits
 	if (hide_game) {
-		// draw playground
 		client_graphics.draw_empty_playground();
 
 		// game over message
@@ -3156,17 +3169,8 @@ void gameclient_c::draw_game_frame() {
 			client_graphics.draw_loading_map_message(text.str());
 		}
 	}
-	else {
-		client_graphics.draw_playground();
-
-		// place of flag
-		for (int team = 0; team < 2; team++)
-			if (fx.player[me].roomx == fx.map.tinfo[team].flag.px && fx.player[me].roomy == fx.map.tinfo[team].flag.py)
-				client_graphics.draw_flagpos_mark(team, fx.map.tinfo[team].flag.x, fx.map.tinfo[team].flag.y);
-
-		// map walls
+	else
 		client_graphics.draw_room();
-	}
 
 	// frame is valid?
 	if (!hide_game)		// do not draw if map not set yet
@@ -3377,13 +3381,8 @@ void gameclient_c::draw_game_frame() {
 		//
 		for (int ry = 0; ry < fx.map.h; ry++)
 			for (int rx = 0; rx < fx.map.w; rx++)
-				if (!roomvis[ry * fx.map.w + rx]) {
-					int x1 = 1 + rx * (client_graphics.minimap_width() - 1) / fx.map.w;
-					int y1 = 1 + ry * (client_graphics.minimap_height() - 1) / fx.map.h;
-					int x2 = 1 + (rx + 1) * (client_graphics.minimap_width() - 1) / fx.map.w - 1;
-					int y2 = 1 + (ry + 1) * (client_graphics.minimap_height() - 1) / fx.map.h - 1;
-					client_graphics.draw_minimap_room(x1, y1, x2, y2);
-				}
+				if (!roomvis[ry * fx.map.w + rx])
+					client_graphics.draw_minimap_room(fx.map, rx, ry);
 	}//!hide_game
 
 	//

@@ -9,13 +9,13 @@ class Map;
 class Mappic {
 	std::vector<std::string> smaps;	// server maps
 
-	std::vector<std::string> Mappic::load_maps(const std::string& dir);
+	std::vector<std::string> load_maps(const std::string& dir);
 
 	void find_maps();
 	void save_pictures() const;
 
 public:
-	Mappic::Mappic() { }
+	Mappic() { }
 
 	void run();
 };

@@ -166,6 +166,7 @@ public:
 	void toggle_help();
 	void show_progress(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
 	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
+	void predraw();
 	void draw_game_frame();
 	void draw_game_menu();
 	void update_scoreboard();

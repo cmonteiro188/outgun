@@ -38,7 +38,6 @@ class Graphics {
 	int minimap_start_x, minimap_start_y;
 
 	BITMAP* roombg;		// room background draw buffer
-	int transparent;
 
 	BITMAP* flagpos_buf[2];
 	static const int flagpos_radius = 30;
@@ -112,10 +111,10 @@ class Graphics {
 	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
 	void menu_caption();
 
-	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol);
-	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol);
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 
-	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, bool centring);
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 
 public:
 	Graphics(int scr_w = RESOL_X, int scr_h = RESOL_Y);
@@ -151,7 +150,7 @@ public:
 	void update_minimap_background(const Map& map);
 	void draw_minimap_player(int x, int y, int team, int player);
 	void draw_minimap_me(int x, int y, int team, double time);
-	void draw_minimap_room(int x1, int y1, int x2, int y2);
+	void draw_minimap_room(const Map& map, int rx, int ry);
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
 	void draw_player_shadow(const ClientPlayer& player, int alpha);

@@ -10,7 +10,7 @@
 //#define FULLMODE GFX_DIRECTX_ACCEL
 
 #ifdef NIX	// use GDI graphics mode instead of DirectX - works better on my computer, slows things down on all computers
-#define WINMODE GFX_GDI       // can't pageflip
+#define WINMODE GFX_GDI		// can't pageflip
 void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
 	text_mode(bg);
 	va_list argptr;
@@ -57,8 +57,8 @@ Graphics::Graphics(int scr_w, int scr_h):
 	minimap_h = minimap_place_h = 100;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
 	roombg = create_bitmap(plw, plh);
-	transparent = bitmap_mask_color(roombg);
 	setcolors();
+	reset_playground_colors();
 }
 
 Graphics::~Graphics() {
@@ -108,8 +108,8 @@ void Graphics::setcolors() {
 	col[COLMENUWHITE] = makecol(0xC0, 0xC0, 0xC0);
 	col[COLMENUGRAY] = makecol(0x68,0x68,0x68);
 	col[COLMENUBLACK] = makecol(0x40,0x40,0x40);
-	col[COLGROUND_DEF] = col[COLGROUND] = makecol(0x10, 0x40, 0);
-	col[COLWALL_DEF] = col[COLWALL] = makecol(0x30, 0xC0, 0);
+	col[COLGROUND_DEF] = makecol(0x10, 0x40, 0);
+	col[COLWALL_DEF] = makecol(0x30, 0xC0, 0);
 	col[COLNOLIFE] = makecol(0, 0, 0);
 	col[COLDARKGRAY] = makecol(0x30, 0x30, 0x30);
 	col[COLSHADOW] = makecol(0x18, 0x18, 0x18);
@@ -214,7 +214,7 @@ bool Graphics::reset_video_mode() {
 
 					char elmsg[4096];
 					sprintf(elmsg, "ERROR: cannot initialize graphics! reasons:\n1 = '%s'\n2 = '%s'\n3 = '%s'\n4 = '%s'",
-     					err[0].c_str(), err[1].c_str(), err[2].c_str(), err[3].c_str());
+					err[0].c_str(), err[1].c_str(), err[2].c_str(), err[3].c_str());
 					allegro_message(elmsg);
 					return false;	// FATAL error
 				}
@@ -267,6 +267,7 @@ bool Graphics::reset_video_mode() {
 		page_flipping = true;
 	}
 	setcolors();
+	flagpos_ready = false;
 
 	return true; //ok
 }
@@ -329,11 +330,14 @@ void Graphics::draw_minimap_me(int x, int y, int team, double time) {
 		circlefill(drawbuf, x, y, 2, 0);
 }
 
-void Graphics::draw_minimap_room(int x1, int y1, int x2, int y2) {
+void Graphics::draw_minimap_room(const Map& map, int rx, int ry) {
+	const int x1 = mmx + minimap_start_x + 1 + rx * (minimap_w - 1) / map.w;
+	const int y1 = mmy + minimap_start_y + 1 + ry * (minimap_h - 1) / map.h;
+	const int x2 = mmx + minimap_start_x + 1 + (rx + 1) * (minimap_w - 1) / map.w - 1;
+	const int y2 = mmy + minimap_start_y + 1 + (ry + 1) * (minimap_h - 1) / map.h - 1;
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, 0x38);
-	rectfill(drawbuf, mmx + minimap_start_x + x1, mmy + minimap_start_y + y1,
-			 mmx + minimap_start_x + x2, mmy + minimap_start_y + y2, col[COLFOGOFWAR]);
+	rectfill(drawbuf, x1, y1, x2, y2, col[COLFOGOFWAR]);
 	solid_mode();
 }
 
@@ -366,9 +370,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	float room_w = float(minimap_w - 2) / map.w;
 	float room_h = float(minimap_h - 2) / map.h;
 	for (int i = 1; i < map.w; i++)
-		line(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, int(minimap_start_x + 1 + room_w * i), minimap_start_y + minimap_h, col[COLSHADOW]);
+		vline(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, minimap_start_y + minimap_h, col[COLSHADOW]);
 	for (int i = 1; i < map.h; i++)
-		line(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, int(minimap_start_y + 1 + room_h * i), col[COLSHADOW]);
+		hline(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, col[COLSHADOW]);
 
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
@@ -436,7 +440,6 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 		floodfill(buffer, blue_px, blue_py, col[COLBBLUE]);
 	}
 	if (save_map_pic) {
-		//const int scale =
 		//draw flagpoles
 		rectfill(buffer,  red_px,  red_py - 5,  red_px,  red_py, col[COLYELLOW]);
 		rectfill(buffer, blue_px, blue_py - 5, blue_px, blue_py, col[COLYELLOW]);
@@ -618,7 +621,7 @@ void Graphics::draw_shield(int x, int y, int r, int alpha) {
 }
 
 void Graphics::draw_player_name(const string& name, int x, int y, int team) {
-	print_text_border_centre(name, plx + x, ply + y - PLAYER_RADIUS - 10, col[COLWHITE], teamdcol[team]);
+	print_text_border_centre(name, plx + x, ply + y - PLAYER_RADIUS - 10, col[COLWHITE], teamdcol[team], -1);
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
@@ -639,25 +642,22 @@ void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 	}
 }
 
-void Graphics::draw_playground() {
-	rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
-}
-
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 	build_flagpos_marks();	// draw flag position mark sprites
-	set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
-	blit(flagpos_buf[team], drawbuf, 0, 0,
-		plx + flag_x - flagpos_radius, ply + flag_y - flagpos_radius, 2 * flagpos_radius, 2 * flagpos_radius);
-	set_clip(drawbuf, 0, 0, drawbuf->w, drawbuf->h);
+	blit(flagpos_buf[team], roombg, 0, 0,
+		flag_x - flagpos_radius, flag_y - flagpos_radius, 2 * flagpos_radius, 2 * flagpos_radius);
+}
+
+void Graphics::draw_playground() {
+	clear_to_color(roombg, col[COLGROUND]);
 }
 
 void Graphics::predraw_room(const Room& room) {
-	clear_to_color(roombg, transparent);
 	room.draw(roombg, 0, 0, 1., 1., col[COLWALL]);
 }
 
 void Graphics::draw_room() {
-	masked_blit(roombg, drawbuf, 0, 0, plx, ply, roombg->w, roombg->h);
+	blit(roombg, drawbuf, 0, 0, plx, ply, roombg->w, roombg->h);
 }
 
 void Graphics::draw_pup(const pickup_c& pup, double time) {
@@ -675,7 +675,6 @@ void Graphics::draw_pup(const pickup_c& pup, double time) {
 }
 
 void Graphics::draw_pup_shield(int x, int y) {
-	// makecol(rand(),rand(),rand()) calls changed
 	draw_shield(x, y, 14);
 	circlefill(drawbuf, plx + x, ply + y, 12, col[COLGREEN]);
 }
@@ -817,9 +816,13 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players) {
 	int line_height = 10;
 
 	// frags and ping work, other stats are just layout testing
-	string text = "      Frags Ping Cap Kil Dea  Acc   Dist Time";
-	print_text_border(string("Red Team  ") + text, x_left, y1 + line_height, teamlcol[0], teamdcol[0]);
-	print_text_border(string("Blue Team ") + text, x_left, y1 + h / 2 + line_height, teamlcol[1], teamdcol[1]);
+	const string text = "      Frags Ping Cap Kil Dea  Acc   Dist Time";
+	const string red = string("Red Team  ") + text;
+	const string blue = string("Blue Team ") + text;
+	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height + 2, teamdcol[0]);
+	textout_ex(drawbuf, font, red.c_str(), x_left, y1 + line_height, col[COLWHITE], -1);
+	rectfill(drawbuf, x1, y1 + h / 2 + line_height - 4, x2, y1 + h / 2 + 2 * line_height + 2, teamdcol[1]);
+	textout_ex(drawbuf, font, blue.c_str(), x_left, y1 + h / 2 + line_height, col[COLWHITE], -1);
 
 	int i = 0;
 	for (vector<ClientPlayer>::const_iterator p = players.begin(); p != players.end(); p++, i++) {
@@ -934,32 +937,32 @@ void Graphics::print_chat_input(int line, const string& message) {
 	const int x = 3;
 	const int y = 3;
 	const int lh = 11;
-	print_text_border(message, x, y + line * lh, col[COLWHITE], 0);
+	print_text_border(message, x, y + line * lh, col[COLWHITE], 0, -1);
 }
 
-void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol) {
-	print_text_border(text, x, y, textcol, bordercol, false);
+void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+	print_text_border(text, x, y, textcol, bordercol, bgcol, false);
 }
 
-void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol) {
-	print_text_border(text, x, y, textcol, bordercol, true);
+void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+	print_text_border(text, x, y, textcol, bordercol, bgcol, true);
 }
 
-void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, bool centring) {
+void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring) {
 	void (*print)(BITMAP*, const FONT*, int, int, int, int, const char*, ...);
 	if (centring)
 		print = textprintf_centre_ex;
 	else
 		print = textprintf_ex;
+	if (bgcol != -1)
+		print(drawbuf, font, x, y, textcol, bgcol, "%s", text.c_str());
 	// nice border
-	print(drawbuf, font, x + 1, y + 0, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x + 1, y + 1, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x + 0, y + 1, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x - 1, y + 1, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x - 1, y + 0, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x - 1, y - 1, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x + 0, y - 1, bordercol, -1, "%s", text.c_str());
-	print(drawbuf, font, x + 1, y - 1, bordercol, -1, "%s", text.c_str());
+	for (int i = -1; i <= 1; i++)
+		for (int j = -1; j <= 1; j++) {
+			if (i == 0 && j == 0)
+				continue;
+			print(drawbuf, font, x + i, y + j, bordercol, -1, "%s", text.c_str());
+		}
 	// text itself
 	print(drawbuf, font, x, y, textcol, -1, "%s", text.c_str());
 }
