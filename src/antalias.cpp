@@ -15,9 +15,12 @@ using std::swap;
 
 //#define DEBUG_SPLIT
 //#define DEBUG_OVERLAP
-//#define CERR_DEBUG
-//#include <iostream>
-//using std::cerr;
+//#define DEBUG_RENDER
+/*
+#define CERR_DEBUG
+#include <iostream>
+using std::cerr;
+*/
 
 // INTERSECTION_TRESHOLD	is how much inside a segment an intersection is allowed (must allow for rounding errors)
 // SPLIT_TRESHOLD			is how much y-borders are allowed to deviate (must exceed the precision of the given y coords)
@@ -333,7 +336,7 @@ void PlainTexTexturizer::putSpan(int x0, int x1, double alpha) {	// fills the ra
 	nAssert(x0 < x1);	// empty spans aren't tolerated
 	if (alpha >= .999) {
 		drawing_mode(DRAW_MODE_COPY_PATTERN, tex, 0, 0);
-		hline(buf, x0 + bx0, by, x1 + bx0, 0);
+		hline(buf, x0 + bx0, by, x1 + bx0 - 1, 0);
 		solid_mode();
 	}
 	else {
@@ -431,7 +434,7 @@ void PlainColorTexturizer::nextLine() {
 void PlainColorTexturizer::putSpan(int x0, int x1, double alpha) {	// fills the range [x0,x1[
 	nAssert(x0 < x1);	// empty spans aren't tolerated
 	if (alpha >= .999)
-		hline(buf, x0 + bx0, by, x1 + bx0, color);
+		hline(buf, x0 + bx0, by, x1 + bx0 - 1, color);
 	else {
 		startPixSpan(x0);
 		int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
@@ -1290,6 +1293,19 @@ void SceneAntialiaser::addCircWallClipped(const CircWall& wall, int texture) {
 template<class Texturizer>
 void SceneAntialiaser::renderTemplate(Texturizer& tex) const {
 	vector<DrawElement> drawEls = assembleScene(objects);
+	#ifdef DEBUG_RENDER
+	if (drawEls.size() < 50) {
+		cerr << "rendering " << drawEls.size() << " elements:\n\n";
+		for (int de = 0; de < (int)drawEls.size(); ++de) {
+			const DrawElement& el = drawEls[de];
+			cerr << "Element " << de + 1 << ":\n";
+			cerr << "y-range [" << el.getY0() << ".." << el.getY1() << "] tex: " << el.getTex() << '\n';
+			cerr << "left:  "; el.getLeft().debug();
+			cerr << "right: "; el.getRight().debug();
+			cerr << '\n';
+		}
+	}
+	#endif
 	for (vector<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei) {
 		tex.setTex(ei->getTex());
 		renderBlock(ei->getY0(), ei->getY1(), ei->getLeft(), ei->getRight(), tex);

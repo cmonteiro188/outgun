@@ -318,7 +318,10 @@ bool runMonitor(int port, bool disableMessagebox) {
 	} catch (...) {
 		printf("<unknown exception>\n");
 	}
-	printf("%s\n", nlGetErrorStr(nlGetError()));
+	if (nlGetError() == NL_SYSTEM_ERROR)
+		printf("sys: %s\n", nlGetSystemErrorStr(nlGetSystemError()));
+	else
+		printf("nl: %s\n", nlGetErrorStr(nlGetError()));
 	nlClose(sock);
 	return false;
   }

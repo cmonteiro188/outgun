@@ -620,8 +620,6 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 }
 
 bool ServerNetworking::start() {
-	ping_send_client = 0;
-
 	for (int i=0; i<256; ++i)
 		ctop[i]=-1;
 	player_count = 0;
@@ -2854,7 +2852,7 @@ void ServerNetworking::run_shellslave_thread() {
 				result = nlRead(shellssock, rbuf, 8);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				readLong(rbuf, rcount, arg);
-				if (result == 8)
+				if (result == 8 && pid != -1)
 					host->mutePlayer(pid, arg);
 				break;
 			case ATS_KICK_PLAYER:

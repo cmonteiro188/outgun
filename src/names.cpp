@@ -1,11 +1,3 @@
-
-// ***** FORTIFY !!! *****
-
-#include "fortfy22/fortify.h"
-
-// ***** FORTIFY !!! *****
-
-
 #include <string>
 
 int Random(int velho)

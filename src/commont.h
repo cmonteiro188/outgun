@@ -8,10 +8,9 @@
 #include <winalleg.h>
 #endif
 
-#include "fortfy22/fortify.h"
-
 #include <vector>
 #include <list>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <iomanip>

@@ -1,5 +1,6 @@
 MINGW = 1
-# if you are compiling for Linux, comment out the above line
+STLPORT = 1
+# if you are compiling for Linux, comment out the above lines
 
 ifndef CFLAGS
 #distro: CFLAGS = -mcpu=pentium -Wall -W -O2 -ffast-math
@@ -10,17 +11,35 @@ ifdef STATIC_ALLEGRO
 #ifndef DYNAMIC_ALLEGRO
  # if you want to use static_allegro in Linux, you'll have to
  # find out what to put on the libs-line yourself...
- LIBS = -lalleg_s -lNL -lpthreadGC -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 -ldinput -lddraw -ldxguid -lwinmm -ldsound
- EXTRA_CFLAGS = -DALLEGRO_STATICLINK
+ ifdef STLPORT
+  LIBS = -lstlport_mingw32_static -lalleg_s -lNL -lpthreadGC -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 -ldinput -lddraw -ldxguid -lwinmm -ldsound
+  EXTRA_CFLAGS = -I$(MINGDIR)/include/stlport -DALLEGRO_STATICLINK
+ else
+  LIBS = -lalleg_s -lNL -lpthreadGC -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 -ldinput -lddraw -ldxguid -lwinmm -ldsound
+  EXTRA_CFLAGS = -DALLEGRO_STATICLINK
+ endif
 else
  ifdef MINGW
-  LIBS = -lalleg -lNL -lpthreadGC
+  ifdef STLPORT
+   LIBS = -lalleg -lNL -lpthreadGC -lstlport_mingw32_static
+   EXTRA_CFLAGS = -I$(MINGDIR)/include/stlport
+  else
+   LIBS = -lalleg -lNL -lpthreadGC
+  endif
  else
   LIBS = `allegro-config --libs` -lNL
  endif
 endif
 
-OBJS = antalias.o world.o servnet.o server.o graphics.o commont.o client.o main.o names.o nameauth.o sounds.o mappic.o nassert.o
+LEETNET_OBJS = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
+	leetnet/rudp.o leetnet/server.o leetnet/Thread.o leetnet/timefunc.o \
+	leetnet/Time.o leetnet/TimerCallback.o leetnet/Timer.o \
+	leetnet/dlog.o
+
+OBJS = antalias.o world.o servnet.o server.o graphics.o commont.o \
+	client.o main.o names.o nameauth.o sounds.o mappic.o nassert.o \
+	$(LEETNET_OBJS)
+
 MON_OBJS = srvmonit.o nassert.o
 
 ifdef MINGW
@@ -28,11 +47,6 @@ ifdef MINGW
  #distro: LFLAGS = -mwindows
  LFLAGS = $(OUTGUN_LINK_FLAGS)
 endif
-
-LEETNET = leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
-	leetnet/rudp.o leetnet/server.o leetnet/Thread.o leetnet/timefunc.o \
-	leetnet/Time.o leetnet/TimerCallback.o leetnet/Timer.o \
-	leetnet/dlog.o
 
 all: og mon
 og: outgun.exe
@@ -43,7 +57,7 @@ outgun.exe: $(OBJS) $(EXTRA_OBJS)
 	$(COPY_OUTGUN_EXE)
 
 srvmonit.exe: $(MON_OBJS)
-	g++ -mconsole -s -o $@ $(MON_OBJS) -lNL
+	g++ -mconsole -s -o $@ $(MON_OBJS) $(LIBS)
 
 %.res: %.rc
 	windres -i $< -O coff -o $@
@@ -66,6 +80,7 @@ world_inc =	world.h 	$(network_inc)	$(nassert_inc)	$(commont_inc)
 mappic_inc =	mappic.h
 
 OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
+LEETNETCOMPILE = $(OBJCOMPILE)
 
 antalias.o:	antalias.cpp	$(world_inc)	$(antalias_inc)
 	$(OBJCOMPILE)
@@ -95,6 +110,29 @@ srvmonit.o:	srvmonit.cpp	$(admshell_inc)	$(nassert_inc)
 	$(OBJCOMPILE)
 world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(nassert_inc)	$(server_inc)
 	$(OBJCOMPILE)
+
+leetnet/client.o:	leetnet/client.cpp
+	$(LEETNETCOMPILE)
+leetnet/ConditionVariable.o: leetnet/ConditionVariable.cpp
+	$(LEETNETCOMPILE)
+leetnet/Mutex.o:	leetnet/Mutex.cpp
+	$(LEETNETCOMPILE)
+leetnet/rudp.o: 	leetnet/rudp.cpp
+	$(LEETNETCOMPILE)
+leetnet/server.o:	leetnet/server.cpp
+	$(LEETNETCOMPILE)
+leetnet/Thread.o:	leetnet/Thread.cpp
+	$(LEETNETCOMPILE)
+leetnet/timefunc.o:	leetnet/timefunc.cpp
+	$(LEETNETCOMPILE)
+leetnet/Time.o: 	leetnet/Time.cpp
+	$(LEETNETCOMPILE)
+leetnet/TimerCallback.o: leetnet/TimerCallback.cpp
+	$(LEETNETCOMPILE)
+leetnet/Timer.o:	leetnet/Timer.cpp
+	$(LEETNETCOMPILE)
+leetnet/dlog.o: 	leetnet/dlog.cpp
+	$(LEETNETCOMPILE)
 
 PHONY: clean
 
