@@ -1543,9 +1543,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                     if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
                            (world.player[j].visibility > 10 || world.player[j].flag()))
                         normalView[t] |= 1 << j;
-                continue;
             }
-            if (!world.player[i].item_shadow() || world.player[i].flag())
+            else if (!world.player[i].item_shadow() || world.player[i].flag())
                 shadowView[t] += static_cast<NLulong>(1 << i);
         }
         shadowView[t] |= normalView[t];
