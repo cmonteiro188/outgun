@@ -129,11 +129,6 @@ void gameserver_c::ctf_game_restart() {
 
 	network.sendWorldReset();	// must be before world.reset() because world.reset() already sends initializations
 	world.reset();
-
-	network.ctf_update_teamscore(0);
-	network.ctf_update_teamscore(1);
-
-	network.send_map_time(-1);
 }
 
 void gameserver_c::balance_teams() {
@@ -398,13 +393,12 @@ void gameserver_c::refresh_team_score_modifiers() {
 //score!
 void gameserver_c::score_frag(int p, int amount) {
 	//add regular frags amount
-	world.player[p].frags += amount;
+	world.player[p].stats().add_frag(amount);
 
 	//v0.4.4 -- add score to the player's score accumulator
 	//v0.4.7: DO NOT add score if map is not valid for scoring
 	if (world.map.valid_for_scoring)
 	if (network.get_player_count() >= 2) { //v0.4.7.1 : skip the scoring if only one player present
-
 		//refresh team ratings
 		refresh_team_score_modifiers();
 
@@ -417,13 +411,6 @@ void gameserver_c::score_frag(int p, int amount) {
 
 		//refresh "inteiro version"
 		client[cid].delta_score = (int)(client[cid].fdp);
-
-		//DEBUGz
-		//char lix[256];
-		//sprintf(lix, "%s scores +%.4f for %.4f +delta", world.player[p].name.c_str(), parcela, client[cid].fdp);
-		//network.broadcast_message(lix);
-
-		//client[cid].delta_score += amount;		//just add the frags for now
 	}
 }
 
@@ -461,8 +448,6 @@ void gameserver_c::score_neg(int p, int amount) {
 }
 
 void gameserver_c::load_game_mod() {
-	const int default_capture_limit = worldConfig.getCaptureLimit();
-
 	string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
 	ifstream in(filename.c_str());
 	if (in) {
@@ -471,9 +456,8 @@ void gameserver_c::load_game_mod() {
 		log("Loading game mod: '%s'", filename.c_str());
 
 		string line, cmd;
-		while (in) {
-			getline_smart(in, line);
-			if (line.empty() || line[0] == ';')	//skip blank and comment
+		while (getline_smart(in, line)) {
+			if (line[0] == ';')	// skip comment
 				continue;
 			else if (command)
 				cmd = line;
@@ -507,6 +491,12 @@ void gameserver_c::load_game_mod() {
 					svp_maxspeed_turborun = val;
 				else if (cmd == "flag_penalty")
 					svp_flag_penalty = val;
+				else if (cmd == "player_collisions") {
+					if (ival == 0 || ival == 1)
+						svp_player_collisions = ival == 1 ? true : false;
+					else
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
+				}
 				else if (cmd == "friendly_fire") {
 					if (ival == 0 || ival == 1)
 						svp_friendly_fire = ival == 1 ? true : false;
@@ -596,6 +586,12 @@ void gameserver_c::load_game_mod() {
 				else if (cmd == "sudden_death") {
 					if (ival == 0 || ival == 1)
 						worldConfig.sudden_death = ival == 1 ? true : false;
+					else
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
+				}
+				else if (cmd == "game_end_delay") {
+					if (ival >= 0)
+						game_end_delay = ival;
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -735,10 +731,6 @@ void gameserver_c::load_game_mod() {
 
 		log("Game mod file read.");
 
-		// game without capture and time limit is not allowed
-		if (worldConfig.getCaptureLimit() == 0 && worldConfig.getTimeLimit() == 0)
-			worldConfig.capture_limit = default_capture_limit;
-
 		in.close();
 	}
 	else
@@ -802,7 +794,7 @@ bool gameserver_c::server_next_map(int reason) {
 
 	//important: server is showing gameover plaque. nobody should move or receive world frames
 	gameover = true;
-	gameover_time = get_time() + 5.0;		//5 secods timeout for gameover plaque
+	gameover_time = get_time() + game_end_delay;		// timeout for gameover plaque
 
 	char lix[256];
 	sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap].title.c_str(), currmap+1, maprot.size());
@@ -849,6 +841,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 
 	vote_block_time = 0;	// no limit
 	idlekick_time = 0;		// no limit
+	game_end_delay = 5;
 
 	random_maprot = false;
 	// reset server rotation list
@@ -1014,7 +1007,7 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	bool entered_game = world.player[pid].name.empty();
 
 	// Name with only whitespaces not allowed.
-	if (tempname.find_first_not_of("  \t") == string::npos)
+	if (tempname.find_first_not_of("  \t") == string::npos)	// space, no-brake space, tab
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
 		#ifdef SV_NAME_AUTHORIZATION
@@ -1269,6 +1262,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	if (gameover)
 		if (gameover_time < get_time()) {
 			gameover = false;
+			world.reset_time();
 			network.sendEndGameover();
 		}
 	if (!gameover)

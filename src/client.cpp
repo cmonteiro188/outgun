@@ -33,6 +33,7 @@ using std::list;
 using std::max;
 using std::min;
 using std::ofstream;
+using std::ostream;
 using std::ostringstream;
 using std::pair;
 using std::right;
@@ -297,7 +298,6 @@ log("Query: %s", query.c_str());
 }
 
 bool gameclient_c::force_exit = false;
-const size_t gameclient_c::chat_size = 32;
 
 gameclient_c::gameclient_c(LogSet hostLogs):
 	normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
@@ -407,7 +407,7 @@ bool gameclient_c::start() {
 	client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
 
 	//try to load the client's password
-	string fileName = wheregamedir + "password.bin";
+	string fileName = wheregamedir + "config" + directory_separator + "password.bin";
 	int c;
 	FILE *psf = fopen(fileName.c_str(), "rb");
 	if (psf) {
@@ -467,6 +467,8 @@ bool gameclient_c::start() {
 			menu.options.game.joystick.set(line == "1");
 		if (getline_smart(cfg, line))
 			menu.options.game.messageLogging.set(line == "1");
+		if (getline_smart(cfg, line))
+			menu.options.game.saveStats.set(line == "1");
 
 		// read graphics menu settings
 		if (getline_smart(cfg, line))
@@ -551,16 +553,13 @@ bool gameclient_c::start() {
 	if (!screenModeChange())
 		return false;
 	client_sounds.select_theme(menu.options.sounds.theme());
-log("SCBC");//#debug
+
 	set_close_button_callback(gameclient_c::close_button_callback);
 
-log("IJ");//#debug
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
-log("MLO");//#debug
 	if (menu.options.game.messageLogging())
 		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
-log("EXIT");//#debug
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	MCF_updateServers();
@@ -783,34 +782,26 @@ void gameclient_c::update_scoreboard() {
 
 	// fill each team
 	for (int t=0;t<2;t++)	{
-
-		//team delta
 		int td = t * TSIZE;
 
-		//itera do 1o ao 8o slot
 		for (int s=td;s<TSIZE+td;s++) {
-
-			//itera do 1o jogador ao 8o jogador do time
-			//busca o maior que ainda nao foi usado
 			int maxfrag = -666;
 			int maxwho = -1;
 			for (int i=td;i<TSIZE+td;i++)
 			if (fx.player[i].used)
-			if (!scoreused[i])		// ainda nao usado
-			if (fx.player[i].frags > maxfrag) {
-				//achou maior
-				maxfrag = fx.player[i].frags;
+			if (!scoreused[i])
+			if (fx.player[i].stats().frags() > maxfrag) {
+				maxfrag = fx.player[i].stats().frags();
 				maxwho = i;
 			}
 
-			//aloca se achou
 			if (maxwho != -1) {
 				scoreboard[s] = maxwho;
 				scoreused[maxwho] = true;
 			}
 
-		}//itera slots
-	}//itera times
+		}
+	}
 }
 
 //disconnect command
@@ -850,7 +841,7 @@ void gameclient_c::client_connected(char *data, int length) {
 		client->send_message(lebuf, count);
 	}
 
-	chat_visible = 8;
+	show_all_messages = false;
 
 	//set window title: the hostname
 	ostringstream caption;
@@ -889,13 +880,18 @@ void gameclient_c::client_connected(char *data, int length) {
 	chatbuffer.clear();
 
 	//reset world data
+	// teams
+	for (int i = 0; i < 2; i++) {
+		fx.teams[i].clear_stats();
+		fx.teams[i].remove_flags();
+	}
 	// players
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		fx.player[i].clear(false, i, "(name unknown)", i / TSIZE);
 	players_sb.clear();
 	// powerups
-	for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-		fx.item[iid].kind = Powerup::pup_unused;
+	for (int i = 0; i < MAX_PICKUPS; ++i)
+		fx.item[i].kind = Powerup::pup_unused;
 
 	//reset FPS count vars
 	framecount = 0;
@@ -1093,6 +1089,81 @@ int gameclient_c::remove_player_passwords(const std::string& name) const {
 				out << (*item)[i] << '\n';
 	log("%s's player passwords removed.", name.c_str());
 	return removed;
+}
+
+// Save stats in HTML file.
+void gameclient_c::save_stats() const {
+	const string date_time = date_and_time();
+	const string date = date_time.substr(0, date_time.find(' '));
+	const string time = date_time.substr(date_time.find(' ') + 1);
+	const string filename = wheregamedir + "stats" + directory_separator + date + ".html";
+	// Check if the stats file exists.
+	ifstream in(filename.c_str());
+	const bool print_html_begin = !in;
+	in.close();
+
+	ofstream out(filename.c_str(), ios::app);
+	if (!out) {
+		log.error("Could not open the statistics file: %s", filename.c_str());
+		return;
+	}
+
+	if (print_html_begin) {
+		out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
+		out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
+		out << "<LINK REL=\"stylesheet\" HREF=\"outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
+		out << "<H1>Outgun statistics " << date << "</H1>\n\n";
+	}
+	out << "<H2>" << time << ' ' << old_map << "</H2>\n\n";
+
+	out << "<H3>Team stats</H3>\n\n";
+	const Team& red = fx.teams[0];
+	const Team& blue = fx.teams[1];
+	out << "<TABLE BORDER>\n <TR><TH>Team<TH>Red<TH>Blue\n";
+	print_team_stats_row(out, "Captures",		red.score(), blue.score());
+	print_team_stats_row(out, "Kills",			red.kills(), blue.kills());
+	print_team_stats_row(out, "Deaths",			red.deaths(), blue.deaths());
+	print_team_stats_row(out, "Suicides",		red.suicides(), blue.suicides());
+	print_team_stats_row(out, "Flags taken",	red.flags_taken(), blue.flags_taken());
+	print_team_stats_row(out, "Flags dropped",	red.flags_dropped(), blue.flags_dropped());
+	print_team_stats_row(out, "Flags returned",	red.flags_returned(), blue.flags_returned());
+	print_team_stats_row(out, "Shots",			red.shots(), blue.shots());
+	print_team_stats_row(out, "Hit accuracy",	static_cast<int>(100. * red.accuracy() + 0.5), static_cast<int>(100. * blue.accuracy() + 0.5), "%");
+	print_team_stats_row(out, "Shots taken",	red.shots_taken(), blue.shots_taken());
+	print_team_stats_row(out, "Total movement",	static_cast<int>(red.movement()), static_cast<int>(blue.movement()), " u");
+	out << "</TABLE>\n\n";
+
+	out << "<H3>Player stats</H3>\n\n";
+	out << "<TABLE BORDER>\n <TR><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
+	for (vector<ClientPlayer>::const_iterator pl = fx.player.begin(); pl != fx.player.end(); ++pl) {
+		if (!pl->used)
+			continue;
+		out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << pl->name;
+		const Statistics& stats = pl->stats();
+		out << "<TD>" << stats.frags();
+		out << "<TD>" << stats.captures();
+		out << "<TD>" << stats.kills();
+		out << "<TD>" << stats.deaths();
+		out << "<TD>" << stats.suicides();
+		out << "<TD>" << stats.flags_taken();
+		out << "<TD>" << stats.flags_dropped();
+		out << "<TD>" << stats.flags_returned();
+		out << "<TD>" << stats.carriers_killed();
+		out << "<TD>" << stats.cons_kills();
+		out << "<TD>" << stats.cons_deaths();
+		out << "<TD>" << stats.shots();
+		out << "<TD>" << std::setprecision(0) << std::fixed << stats.accuracy() << '%';
+		out << "<TD>" << stats.shots_taken();
+		out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement() << " u";
+	}
+	out << "</TABLE>\n\n";
+}
+
+void gameclient_c::print_team_stats_row(ostream& out, const string& header, int amount1, int amount2, const string& postfix) const {
+	out << " <TR><TH>" << header;
+	out << "<TD ALIGN=\"center\">" << amount1 << postfix;
+	out << "<TD ALIGN=\"center\">" << amount2 << postfix;
+	out << '\n';
 }
 
 //connect command
@@ -1521,8 +1592,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					me = pid;
 
 					NLubyte color;
-					readByte(msg, count, color);	//"who am I"
-					fx.player[pid].set_color(color);
+					readByte(msg, count, color);
+					if (color < MAX_PLAYERS / 2)
+						fx.player[pid].set_color(color);
+					else
+						log("Invalid colour (%d) for player %d (me).", color, pid);
 
 					NLchar map_nr;
 					readByte(msg, count, map_nr);	//current map number
@@ -1531,10 +1605,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//reset want-change-teams: this message is send when players are swapped also
 					want_change_teams = false;
 
-					readByte(msg, count, abyte);	//team 0 score
+					readByte(msg, count, abyte);
 					fx.teams[0].set_score(abyte);
-					readByte(msg, count, abyte);	//team 1 score
+					fx.teams[0].set_base_score(abyte);
+					readByte(msg, count, abyte);
 					fx.teams[1].set_score(abyte);
+					fx.teams[1].set_base_score(abyte);
 
 					//server physics parameters
 					readFloat(msg, count, aflo);
@@ -1566,6 +1642,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(msg, count, abyte);
 					svp_friendly_fire = abyte & 0x01;
 					svp_friendly_db = abyte & 0x02;
+					svp_player_collisions = abyte & 0x04;
 
 					// room is probably changed
 					fx.player[me].oldx = -1;
@@ -1581,7 +1658,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_frags_update:
 					readByte(msg, count, pid);	// what player
 					readLong(msg, count, fragz);	// new frag value
-					fx.player[pid].frags = fragz;
+					fx.player[pid].stats().set_frags(fragz);
 					update_scoreboard();		// update clientside scoreboard
 					break;
 
@@ -1738,14 +1815,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//server commands client to change map
 				case data_map_change:
+					old_map = fx.map.title;
 					map_ready = false;	// map NOT ready anymore: must load/change
 					want_map_exit = false;		// and player does not want to exit the map anymore
 					fx.teams[0].remove_flags();
 					fx.teams[1].remove_flags();
-					fx.teams[0].clear();
-					fx.teams[1].clear();
 					fx.wild_flags.clear();
-					readShort(lebuf, count, usho);				//read CRC16 of map
+					readShort(lebuf, count, usho);			//read CRC16 of map
 					readString(lebuf, count, mapname);		//read map name
 					server_map_command(mapname, usho);
 					NLchar map_nr;
@@ -1755,8 +1831,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						map_vote = -1;
 					fx.player[me].oldx = -1;
 					fx.player[me].oldy = -1;
-					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-						pi->stats().clear();
 					break;
 
 				case data_world_reset:
@@ -1773,14 +1847,21 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						red_final_score = abyte;
 						readByte(lebuf, count, abyte);  //BLUE team final score
 						blue_final_score = abyte;
+						menusel = menu_teams;		// show stats
+						if (menu.options.game.saveStats())
+							save_stats();
 					}
 					else
 						gameover_plaque = NEXTMAP_NONE;
 					break;
 
-				//server hides gameover plaque
+				//server hides gameover plaque, the game starts
 				case data_gameover_hide:
 					gameover_plaque = NEXTMAP_NONE;		//hide
+					fx.teams[0].clear_stats();
+					fx.teams[1].clear_stats();
+					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+						pi->stats().clear();
 					break;
 
 				//deathbringer shot
@@ -1826,7 +1907,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
 					readLong(lebuf, count, max_world_rank);		//world players count
 					readLong(lebuf, count, max_world_score);		//world score max
-					fx.player[pid].set_color(color);
+					if (color < MAX_PLAYERS / 2)
+						fx.player[pid].set_color(color);
+					else
+						log("Invalid colour (%d) for player %d.", color, pid);
 					fx.player[pid].reg_status = (char)abyte;
 					fx.player[pid].rank = (int)prank;
 					fx.player[pid].score = (int)pscore;
@@ -1882,7 +1966,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_capture: {
 					NLchar pid;
 					readByte(lebuf, count, pid);
-					fx.player[pid].stats().add_capture();
+					fx.player[pid].stats().add_capture(get_time());
 					fx.teams[pid / TSIZE].add_score(get_time() - map_start_time, fx.player[pid].name);
 					break;
 				}
@@ -1901,16 +1985,18 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.teams[target / TSIZE].add_death();
 					if (flag) {
 						fx.player[attacker].stats().add_carrier_kill();
-						fx.player[target].stats().add_flag_drop();
+						fx.player[target].stats().add_flag_drop(get_time());
 						fx.teams[target / TSIZE].add_flag_drop();
 					}
+					if (attacker == me && fx.player[attacker].stats().current_cons_kills() % 10 == 0)
+						client_sounds.play(SAMPLE_KILLING_SPREE);
 					break;
 				}
 
 				case data_flag_take: {
 					NLchar pid;
 					readByte(lebuf, count, pid);
-					fx.player[pid].stats().add_flag_take();
+					fx.player[pid].stats().add_flag_take(get_time());
 					fx.teams[pid / TSIZE].add_flag_take();
 					break;
 				}
@@ -1926,7 +2012,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_flag_drop: {
 					NLchar pid;
 					readByte(lebuf, count, pid);
-					fx.player[pid].stats().add_flag_drop();
+					fx.player[pid].stats().add_flag_drop(get_time());
 					fx.teams[pid / TSIZE].add_flag_drop();
 					break;
 				}
@@ -1939,7 +2025,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
 					fx.teams[pid / TSIZE].add_suicide();
 					if (flag) {
-						fx.player[pid].stats().add_flag_drop();
+						fx.player[pid].stats().add_flag_drop(get_time());
 						fx.teams[pid / TSIZE].add_flag_drop();
 					}
 					break;
@@ -1949,6 +2035,41 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					NLchar pid;
 					readByte(lebuf, count, pid);
 					fx.player[pid].stats().set_spawn_time(static_cast<int>(get_time()));
+					break;
+				}
+
+   				case data_team_movements_shots: {
+					for (int i = 0; i < 2; i++) {
+						NLlong movement;
+						readLong(lebuf, count, movement);
+						fx.teams[i].set_movement(movement);
+						NLshort data;
+						readShort(lebuf, count, data);
+						fx.teams[i].set_shots(data);
+						readShort(lebuf, count, data);
+						fx.teams[i].set_hits(data);
+						readShort(lebuf, count, data);
+						fx.teams[i].set_shots_taken(data);
+					}
+					break;
+				}
+
+				case data_team_stats: {
+					for (int i = 0; i < 2; i++) {
+						NLubyte data;
+						readByte(lebuf, count, data);
+						fx.teams[i].set_kills(data);
+						readByte(lebuf, count, data);
+						fx.teams[i].set_deaths(data);
+						readByte(lebuf, count, data);
+						fx.teams[i].set_suicides(data);
+						readByte(lebuf, count, data);
+						fx.teams[i].set_flags_taken(data);
+						readByte(lebuf, count, data);
+						fx.teams[i].set_flags_dropped(data);
+						readByte(lebuf, count, data);
+						fx.teams[i].set_flags_returned(data);
+					}
 					break;
 				}
 
@@ -1974,31 +2095,39 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					for (int i = 0; i < MAX_PLAYERS; i++) {
 						if (!fx.player[i].used)
 							continue;
+						Statistics& stats = fx.player[i].stats();
 						NLubyte data;
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_kills(data);
+						stats.set_kills(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_deaths(data);
+						stats.set_deaths(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_cons_kills(data);
+						stats.set_cons_kills(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_current_cons_kills(data);
+						stats.set_current_cons_kills(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_cons_deaths(data);
+						stats.set_cons_deaths(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_current_cons_deaths(data);
+						stats.set_current_cons_deaths(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_suicides(data);
+						stats.set_suicides(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_captures(data);
+						stats.set_captures(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_flags_taken(data);
+						stats.set_flags_taken(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_flags_dropped(data);
+						stats.set_flags_dropped(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_flags_returned(data);
+						stats.set_flags_returned(data);
 						readByte(lebuf, count, data);
-						fx.player[i].stats().set_carriers_killed(data);
+						stats.set_carriers_killed(data);
+						int ldata;
+						readLong(lebuf, count, ldata);
+						stats.set_start_time(get_time() - ldata);
+						readLong(lebuf, count, ldata);
+						stats.set_lifetime(ldata);
+						readLong(lebuf, count, ldata);
+						stats.set_flag_carrying_time(ldata);
 					}
 					break;
 				}
@@ -2010,7 +2139,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				default:
-					log.security("Unknown server message code = %i!!", code);
+					log.security("Unknown server message code: %i!", code);
 					break;
 			}
 		}
@@ -2059,7 +2188,7 @@ void gameclient_c::send_chat(const string& msg) {
 
 //print message to "console"
 void gameclient_c::print_message(Message_type type, const string& msg) {
-	if (chatbuffer.size() == chat_size)
+	if (static_cast<int>(chatbuffer.size()) == client_graphics.chat_max_lines())
 		chatbuffer.pop_front();
 	Message message(type, msg, static_cast<int>(get_time()));
 	chatbuffer.push_back(message);
@@ -2130,6 +2259,7 @@ void gameclient_c::getServerListThread() {
 }
 
 void gameclient_c::refreshThread() {
+	log("refreshThread() ID = %d", pthread_self());
 	nAssert(refreshStatus == RS_running);
 	bool ok = refresh_all_servers();
 	refreshStatus = ok ? RS_none : RS_failed;
@@ -2498,7 +2628,7 @@ void gameclient_c::loop() {
 							if (key[KEY_UP] || key[KEY_LEFT] || key[KEY_PGUP])
 								player_stats_page = max(0, player_stats_page - 1);
 							if (key[KEY_DOWN] || key[KEY_RIGHT] || key[KEY_PGDN])
-								player_stats_page = min(3, player_stats_page + 1);
+								player_stats_page = min(4, player_stats_page + 1);
 							break;
 						case menu_teams:
 							if (key[KEY_UP])
@@ -2645,10 +2775,7 @@ void gameclient_c::loop() {
 
 					// Insert: show more messages
 					if (sc == KEY_INSERT) {
-						if (chat_visible < chat_size)
-							chat_visible = chat_size;
-						else
-							chat_visible = 8;
+						show_all_messages = !show_all_messages;
 					}
 
 					// F11: screenshot
@@ -2859,6 +2986,7 @@ void gameclient_c::stop() {
 		cfg << menu.options.game.lagPredictionAmount() << '\n';
 		cfg << (menu.options.game.joystick() ? 1 : 0) << '\n';
 		cfg << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
+		cfg << (menu.options.game.saveStats() ? 1 : 0) << '\n';
 
 		// save graphics menu settings
 		cfg << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
@@ -2914,12 +3042,12 @@ void gameclient_c::stop() {
 
 void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
 	if (power) {
-		graphics().create_quadwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
-		sounds().play(SAMPLE_QUADWALLHIT);
+		client_graphics.create_quadwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
+		client_sounds.play(SAMPLE_QUADWALLHIT);
 	}
 	else {
-		graphics().create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
-		sounds().play(SAMPLE_WALLHIT);
+		client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
+		client_sounds.play(SAMPLE_WALLHIT);
 	}
 	fd.rock[rid].owner = fx.rock[rid].owner = -1;	// erase from clientside simulation
 }
@@ -3002,7 +3130,7 @@ void gameclient_c::draw_game_frame() {
 		// draw dead players, except ice creams
 		for (int i = 0; i < maxplayers; i++) {
 			if (fx.player[i].used && fx.player[i].onscreen && fx.player[i].dead) {
-				if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
+				if (fx.player[i].stats().frags() % 10 == 0 && fx.player[i].stats().frags() >= 10)
 					;	// draw later
 				else
 					client_graphics.draw_player_dead(fx.player[i]);
@@ -3130,8 +3258,12 @@ void gameclient_c::draw_game_frame() {
 							client_graphics.draw_mini_flag(2, *fi, fx.map);
 						}
 
-					if (i != me)
-						client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, fx.player[i].color());
+					if (i != me) {
+						if (fx.player[i].color() >= 0 && fx.player[i].color() < MAX_PLAYERS / 2)	// Check because the server may have sent invalid colour.
+							client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, fx.player[i].color());
+						else
+							log("Invalid colour (%d) for player %d.", fx.player[i].color(), i);
+					}
 					else // myself: draw differently
 						client_graphics.draw_minimap_me(fx.map, fx.player[i], i / TSIZE, get_time());
 				}
@@ -3225,8 +3357,8 @@ void gameclient_c::draw_game_frame() {
 	//FPS
 	client_graphics.draw_fps(FPS);
 
-	// Time left if time limit is on.
-	if (map_time_limit)
+	// Time left if time limit is on and the game is running.
+	if (map_time_limit && gameover_plaque == NEXTMAP_NONE)
 		if (map_end_time > static_cast<unsigned int>(get_time()))
 			client_graphics.map_time(map_end_time - static_cast<unsigned int>(get_time()));
 		else
@@ -3269,12 +3401,13 @@ void gameclient_c::draw_game_frame() {
 	}
 
 	// the HUD: message output
+	const int chat_visible = show_all_messages ? client_graphics.chat_max_lines() : client_graphics.chat_lines();
 	int start = static_cast<int>(chatbuffer.size()) - static_cast<int>(chat_visible);
 	if (start < 0)
 		start = 0;
 	list<Message>::const_iterator msg = chatbuffer.begin();
 	for (int i = 0; i < start; ++i, ++msg);
-	if (chat_visible == 8)
+	if (!show_all_messages)	// drop old messages
 		for (; msg != chatbuffer.end(); ++msg)
 			if (get_time() < msg->time() + 80)
 				break;
@@ -3453,19 +3586,23 @@ void gameclient_c::draw_player(int i) {
 		if (fi->carrier() == i)
 			client_graphics.draw_flag(2, static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly) + 15);
 	if (fx.player[i].dead) {	// draw only ice creams
-		if (fx.player[i].frags >= 10 && fx.player[i].frags % 10 == 0)
+		if (fx.player[i].stats().frags() % 10 == 0 && fx.player[i].stats().frags() >= 10)
 			client_graphics.draw_virou_sorvete(static_cast<int>(player.lx), static_cast<int>(player.ly));
 	}
 	else {
-		// turbo effect
-		if (player.item_speed && (fabs(player.sx) > svp_maxspeed || fabs(player.sy) > svp_maxspeed) &&
-					get_time() > player.speed_drop_time) {
-			fx.player[i].speed_drop_time = get_time() + 0.05;
-			client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, player.color(), player.gundir);
-		}
+		if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {	// Check because the server may have sent invalid colour.
+			// turbo effect
+			if (player.item_speed && (fabs(player.sx) > svp_maxspeed || fabs(player.sy) > svp_maxspeed) &&
+						get_time() > player.speed_drop_time) {
+				fx.player[i].speed_drop_time = get_time() + 0.05;
+					client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, player.color(), player.gundir);
+			}
 
-		//draw player
-		client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
+			//draw player
+			client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
+		}
+		else
+			log("Invalid colour (%d) for player %d.", player.color(), i);
 
 		//draw deathbringer carrier effect
 		if (player.item_deathbringer && get_time() > player.death_drop_time) {
@@ -3670,6 +3807,13 @@ bool gameclient_c::screenModeChange() {	// the return value should be tested at 
 	}
 	client_graphics.update_minimap_background(fx.map);
 	predraw();
+	const int rate = get_refresh_rate();
+	ostringstream ost;
+	if (rate == 0)
+		ost << "unknown";
+	else
+		ost << get_refresh_rate() << " Hz";
+	menu.options.graphics.refreshRate.set(ost.str());
 	return true;
 }
 

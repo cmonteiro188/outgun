@@ -5,13 +5,17 @@
 #include "sounds.h"
 #include "client_menus.h"
 
+using std::pair;
+using std::string;
+using std::vector;
+
 // definition for internal use
 class StringSelectInserter : public LineReceiver {
-	Select<std::string>& dst;
+	Select<string>& dst;
 
 public:
-	StringSelectInserter(Select<std::string>& dst_) : dst(dst_) { }
-	StringSelectInserter& operator()(const std::string& str) { dst.addOption(str, str); return *this; }
+	StringSelectInserter(Select<string>& dst_) : dst(dst_) { }
+	StringSelectInserter& operator()(const string& str) { dst.addOption(str, str); return *this; }
 };
 
 Menu_addServer::Menu_addServer() :
@@ -37,8 +41,8 @@ Menu_serverList::Menu_serverList() :
 	reset();
 }
 
-void Menu_serverList::add(const std::string& address, const std::string& serverInfo) {
-	servers.push_back(std::pair<std::string, Textarea>(address, Textarea(serverInfo)));
+void Menu_serverList::add(const string& address, const string& serverInfo) {
+	servers.push_back(pair<string, Textarea>(address, Textarea(serverInfo)));
 }
 
 void Menu_serverList::reset() {
@@ -53,19 +57,19 @@ void Menu_serverList::reset() {
 }
 
 void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) {
-	for (std::vector<std::pair<std::string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+	for (vector<pair<string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
 		servi->second.setHook(hook->clone());
 		menu.add_component(&servi->second);
 	}
 	delete hook;
 }
 
-std::string Menu_serverList::getAddress(const Textarea& target) {
-	for (std::vector<std::pair<std::string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+string Menu_serverList::getAddress(const Textarea& target) {
+	for (vector<pair<string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
 		if (&servi->second == &target)
 			return servi->first;
 	}
-	return std::string();
+	return string();
 }
 
 void Menu_serverList::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
@@ -96,6 +100,7 @@ Menu_game::Menu_game() :
 	lagPredictionAmount	("Lag prediction amount", 0, 10, 10),
 	joystick			("Enable joystick control", false),
 	messageLogging		("Save chat messages", false),
+	saveStats			("Save game statistics", false),
 
 	menu				("Game options")
 {
@@ -105,6 +110,7 @@ Menu_game::Menu_game() :
 	menu.add_component(&lagPredictionAmount);
 	menu.add_component(&joystick);
 	menu.add_component(&messageLogging);
+	menu.add_component(&saveStats);
 }
 
 Menu_graphics::Menu_graphics() :
@@ -114,6 +120,7 @@ Menu_graphics::Menu_graphics() :
 	colorDepth	("Color depth"),
 	desktopDepth(" desktop", itoa(desktop_color_depth()) + "-bit"),
 	resolution	("Screen size"),
+	refreshRate	("Refresh rate"),
 	apply		("Apply changes"),
 	theme		("Theme"),
 	antialiasing("Antialiasing"),
@@ -131,16 +138,17 @@ Menu_graphics::Menu_graphics() :
 	menu.add_component(&colorDepth);
 	menu.add_component(&desktopDepth);
 	menu.add_component(&resolution);
+	menu.add_component(&refreshRate);
 	menu.add_component(&apply);
 	menu.add_component(&theme);
 	menu.add_component(&antialiasing);
 }
 
 void Menu_graphics::init(const Graphics& gfx) {
-	const std::vector<ScreenMode> modes = gfx.getResolutions(colorDepth());
+	const vector<ScreenMode> modes = gfx.getResolutions(colorDepth());
 	nAssert(!modes.empty());
 	resolution.clearOptions();
-	for (std::vector<ScreenMode>::const_iterator mode = modes.begin(); mode != modes.end(); ++mode)
+	for (vector<ScreenMode>::const_iterator mode = modes.begin(); mode != modes.end(); ++mode)
 		resolution.addOption(itoa(mode->width) + '×' + itoa(mode->height), *mode);
 	theme.clearOptions();
 	StringSelectInserter ins(theme);
@@ -149,7 +157,7 @@ void Menu_graphics::init(const Graphics& gfx) {
 
 void Menu_graphics::update(const Graphics& gfx) {	// tries to keep the selected resolution and theme
 	ScreenMode oldmode = resolution();
-	std::string oldtheme = theme();
+	string oldtheme = theme();
 	init(gfx);
 	resolution.set(oldmode);	// may fail; ignore
 	theme.set(oldtheme);		// may fail; ignore
@@ -183,7 +191,7 @@ void Menu_sounds::init(const Sounds& snd) {
 }
 
 void Menu_sounds::update(const Sounds& snd) {	// tries to keep the selected theme
-	std::string oldTheme = theme();
+	string oldTheme = theme();
 	init(snd);
 	theme.set(oldTheme);
 }
@@ -239,10 +247,10 @@ Menu_text::Menu_text() :
 	menu	("Outgun " GAME_VERSION)
 { }
 
-void Menu_text::addLine(std::string line, bool cancelable) {
+void Menu_text::addLine(string line, bool cancelable) {
 	lines.push_back(Textarea(line));
 	menu.clear_components();
-	for (std::vector<Textarea>::iterator li = lines.begin(); li != lines.end(); ++li)
+	for (vector<Textarea>::iterator li = lines.begin(); li != lines.end(); ++li)
 		menu.add_component(&*li);
 	if (cancelable)
 		menu.add_component(&cancel);
@@ -254,13 +262,13 @@ Menu_playerPassword::Menu_playerPassword() :
 	password	("Password", "", 15, '*'),
 	save		("Save password"),
 
-	menu		(std::string())	// caption is set by setup()
+	menu		(string())	// caption is set by setup()
 {
 	menu.add_component(&password);
 	menu.add_component(&save);
 }
 
-void Menu_playerPassword::setup(std::string plyName, bool saveChecked) {
+void Menu_playerPassword::setup(string plyName, bool saveChecked) {
 	menu.setCaption("Player password for " + plyName);
 	password.set("");
 	save.set(saveChecked);
@@ -272,5 +280,23 @@ Menu_serverPassword::Menu_serverPassword() :
 	menu		("Server password")
 {
 	menu.add_component(&password);
+}
+
+Menu_serverInfo::Menu_serverInfo() :
+	menu		("Server info")
+{ }
+
+void Menu_serverInfo::add(const string& name, const string& value) {
+	info.push_back(Textarea(name, value));
+}
+
+void Menu_serverInfo::reset() {
+	menu.clear_components();
+	info.clear();
+}
+
+void Menu_serverInfo::finish() {
+	for (vector<Textarea>::iterator infoi = info.begin(); infoi != info.end(); ++infoi)
+		menu.add_component(&(*infoi));
 }
 

@@ -130,6 +130,8 @@ public:
 	void broadcast_spawn(const ServerPlayer& player) const;
 	void send_movements_and_shots(const ServerPlayer& player) const;
 	void send_stats(const ServerPlayer& player) const;
+	void send_team_movements_and_shots(const ServerPlayer& player) const;
+	void send_team_stats(const ServerPlayer& player) const;
 
 	void send_map_info(const ServerPlayer& player);
 	void broadcast_map_votes_update();

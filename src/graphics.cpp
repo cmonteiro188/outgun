@@ -47,7 +47,7 @@ Graphics::Graphics(LogSet logs):
 	show_chat_messages(true),
 	show_scoreboard(true),
 	show_minimap(true),
-	map_list_size(27),
+	map_list_size(20),
 	map_list_start(0),
 	team_captures_size(16),
 	team_captures_start(0),
@@ -87,8 +87,10 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	}
 
 	scr_mul = static_cast<double>(width) / 640;
-	floor_texture.resize(4);
-	wall_texture.resize(1);
+	if (SCREEN_H - scr_mul * plh < 35)			// the window is too low for playground
+		scr_mul = static_cast<double>(SCREEN_H - 35 - 8) / 354;	// leave one line for messages
+	floor_texture.resize(8);
+	wall_texture.resize(8);
 	for (int t = 0; t < 2; t++)
 		player_sprite[t].resize(MAX_PLAYERS / 2);
 	pup_sprite.resize(Powerup::pup_last_real + 1);
@@ -97,7 +99,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	background = create_bitmap(SCREEN_W, SCREEN_H);
 	nAssert(background);
 	roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
-	minimap_w = minimap_place_w = SCREEN_W - roombg->w;	// scale(160)
+	minimap_w = minimap_place_w = SCREEN_W - roombg->w;
 	minimap_h = minimap_place_h = scale(100);
 	mmx = SCREEN_W - minimap_w;
 	if (mmx > 8 * 80)	// check if minimap fits to the right of chat messages
@@ -722,9 +724,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			float by = minimap_start_y + 1 + y * plh * ymul;
 			for (int x = 0; x < map.w; x++) {
 				float bx = minimap_start_x + 1 + x * plw * xmul;
-				set_clip(buffer, static_cast<int>(bx), static_cast<int>(by), static_cast<int>(bx + room_w), static_cast<int>(by + room_h));
+				set_clip_rect(buffer, static_cast<int>(bx), static_cast<int>(by), static_cast<int>(bx + room_w), static_cast<int>(by + room_h));
 				draw_room_walls(buffer, map.room[x][y], bx, by, xmul, col[COLDARKGREEN], false);
-				set_clip(buffer, 0, 0, buffer->w, buffer->h);
+				set_clip_rect(buffer, 0, 0, buffer->w, buffer->h);
 			}
 		}
 	}
@@ -868,8 +870,11 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	BITMAP* sprite = 0;
 	if (item_quad && player_sprite_power && static_cast<int>(time * 10) % 2)
 		sprite = player_sprite_power;
-	else
+	else {
+		nAssert(team == 0 || team == 1);
+		nAssert(pli >= 0 && pli < MAX_PLAYERS / 2);
 		sprite = player_sprite[team][pli];
+	}
 	if (sprite) {
 		if (alpha < 255)
 			rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(gundir * 32), alpha);
@@ -932,17 +937,6 @@ void Graphics::draw_player_shadow(const ClientPlayer& player, int alpha) {
 	solid_mode();
 }
 
-void Graphics::draw_virou_sorvete(int x, int y) {
-	x = scale(x);
-	y = scale(y);
-	ellipsefill(drawbuf, plx + x, ply + y, 6, 15, col[COLORA]);
-	circlefill(drawbuf, plx + x - 8, ply + y - 10, 8, col[COLBLUE]);
-	circlefill(drawbuf, plx + x + 8, ply + y - 10, 8, col[COLMAG]);
-	circlefill(drawbuf, plx + x + 0, ply + y - 20, 8, col[COLGREEN]);
-	textout_centre_ex(drawbuf, font, "VIROU", plx + x + 0, ply + y - 48, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
-}
-
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
 	set_write_alpha_blender();
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -957,6 +951,7 @@ void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
 	// make room so that rotating won't clip the corners off
 	//const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
 	//const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
+	nAssert(sprite);
 	nAssert(sprite->w == sprite->h);	// if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
 	const int size = sprite->h + sprite->h / 2;
 	Bitmap buffer = create_bitmap(size, size);
@@ -1003,6 +998,21 @@ void Graphics::draw_player_dead(const ClientPlayer& player) {
 	}
 }
 
+void Graphics::draw_virou_sorvete(int x, int y) {
+	x = scale(x);
+	y = scale(y);
+	if (ice_cream)
+		draw_sprite(drawbuf, ice_cream, plx + x - ice_cream->w / 2, ply + y - ice_cream->h / 2);
+	else {
+		ellipsefill(drawbuf, plx + x, ply + y, 6, 15, col[COLORA]);
+		circlefill(drawbuf, plx + x - 8, ply + y - 10, 8, col[COLBLUE]);
+		circlefill(drawbuf, plx + x + 8, ply + y - 10, 8, col[COLMAG]);
+		circlefill(drawbuf, plx + x + 0, ply + y - 20, 8, col[COLGREEN]);
+		textout_centre_ex(drawbuf, font, "VIROU", plx + x + 0, ply + y - 48, col[COLWHITE], -1);
+		textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
+	}
+}
+
 void Graphics::draw_gun_explosion(int x, int y, int rad) {
 	x = scale(x);
 	y = scale(y);
@@ -1035,7 +1045,7 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
 	int maxxd = max(x, scale(plw) - x);
 	int maxyd = max(y, scale(plh) - y);
 	if (maxxd * maxxd + maxyd * maxyd >= rad * rad) {
-		set_clip(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
+		set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
 		//brightening ring
 		for (int e = 0; e < scale(30); e++, rad++) {
 			int co;
@@ -1056,7 +1066,7 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
 			circle(drawbuf, plx + x + 1, ply + y, rad, co);
 			circle(drawbuf, plx + x, ply + y + 1, rad, co);
 		}
-		set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
+		set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 	}
 }
 
@@ -1075,7 +1085,7 @@ void Graphics::draw_deathbringer_affected(int x, int y, int team) {
 void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
 	x = scale(x);
 	y = scale(y);
-	set_clip(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
+	set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
 	//darken ground
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	for (int r = scale(50); r >= 0; r -= 5) {
@@ -1083,7 +1093,7 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y) {
 		circlefill(drawbuf, plx + x, ply + y, r, 0);
 	}
 	solid_mode();
-	set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
+	set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 }
 
 void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int direction) {
@@ -1317,7 +1327,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 		const int x = sbx;
 		const int y = sby + (line[player.team()] + 1) * line_h + player.team() * (maxplayers / 2 + 1) * line_h;
 		draw_scoreboard_name(name.str(), x, y, pcol);
-		draw_scoreboard_points(player.frags, x + 20 * 8, y, player.team());
+		draw_scoreboard_points(player.stats().frags(), x + 20 * 8, y, player.team());
 		line[player.team()]++;
 	}
 }
@@ -1361,17 +1371,25 @@ void Graphics::team_statistics(const Team* teams) {
 	textout_centre_ex(drawbuf, font, "Flags Taken", mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Flags Dropped", mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Flags Returned", mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Shots", mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Hit accuracy", mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Shots taken", mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
 	for (int t = 0; t < 2; t++) {
+		const Team& team = teams[t];
 		line = 5;
 		const int x = (t == 0 ? (3 * x1 + x2) / 4 : (x1 + 3 * x2) / 4);
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].score());
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].kills());
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].deaths());
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].suicides());
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_taken());
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_dropped());
-		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_returned());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.suicides());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_taken());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_dropped());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_returned());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
+		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
 	}
 
 	line++;
@@ -1383,7 +1401,7 @@ void Graphics::team_statistics(const Team* teams) {
 	if (team_captures_start < 0)
 		team_captures_start = 0;
 
-	int red_score = 0, blue_score = 0;
+	int red_score = teams[0].base_score(), blue_score = teams[1].base_score();
 	int pos = 0;
 
 	for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ; pos++) {
@@ -1427,8 +1445,11 @@ void Graphics::team_statistics(const Team* teams) {
 }
 
 void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, int time) {
+	// Preferred line height is 12.
+	// Lines needed: every player, 3 captions, 4 empty lines and page number.
+	const int h = min(12 * (maxplayers + 8), SCREEN_H);
+	const int line_h = h / (maxplayers + 8);
 	const int w = 540;
-	const int h = 420;
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
 	const int x1 = mx - w / 2;
@@ -1439,8 +1460,6 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, in
 
 	rectfill(drawbuf, x1, y1, x2, y2, 0);
 
-	const int line_height = 12;
-
 	// frags and ping work, other stats are just layout testing
 	string caption;
 	switch (page) {
@@ -1448,24 +1467,25 @@ void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, in
 		case 1: caption = "Flags Taken Dropped Returned Carriers killed"; break;
 		case 2: caption = "Cons. kills and deaths  Shots Accuracy Taken"; break;
 		case 3: caption = "Movement   Speed     Playtime  Av. lifetime"; break;
+		case 4: caption = "Rank Power Score"; break;
 	}
 	const string red =  string("Red Team        ") + caption;
 	const string blue = string("Blue Team       ") + caption;
-	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, teamdcol[0]);
-	textout_ex(drawbuf, font, red.c_str(), x_left, y1 + line_height, col[COLWHITE], -1);
-	rectfill(drawbuf, x1, y1 + h / 2 + line_height - 4, x2, y1 + h / 2 + 2 * line_height, teamdcol[1]);
-	textout_ex(drawbuf, font, blue.c_str(), x_left, y1 + h / 2 + line_height, col[COLWHITE], -1);
+	rectfill(drawbuf, x1, y1 + line_h - 4, x2, y1 + 2 * line_h, teamdcol[0]);
+	textout_ex(drawbuf, font, red.c_str(), x_left, y1 + line_h, col[COLWHITE], -1);
+	rectfill(drawbuf, x1, y1 + h / 2 + line_h - 4, x2, y1 + h / 2 + 2 * line_h, teamdcol[1]);
+	textout_ex(drawbuf, font, blue.c_str(), x_left, y1 + h / 2 + line_h, col[COLWHITE], -1);
 
 	int i = 0;
 	for (vector<ClientPlayer>::const_iterator p = players.begin(); p != players.end(); p++, i++) {
-		const int y = y1 + 3 * line_height + line_height * (i % TSIZE) + (i / TSIZE) * h / 2;
-		if (p->used)
+		const int y = y1 + 3 * line_h + line_h * (i % TSIZE) + p->team() * h / 2;
+		//if (p->used)
 			draw_player_statistics(*p, i / TSIZE, x_left, y, page, time);
 	}
 
 	ostringstream page_num;
-	page_num << page + 1 << '/' << 4;
-	textout_right_ex(drawbuf, font, page_num.str().c_str(), x2 - 8, y2 - 2 * line_height, col[COLGREEN], -1);
+	page_num << page + 1 << '/' << 5;
+	textout_right_ex(drawbuf, font, page_num.str().c_str(), x2 - 8, y2 - 2 * line_h, col[COLGREEN], -1);
 }
 
 void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time) {
@@ -1474,7 +1494,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 	switch (page) {
 		case 0:
 			stats << setw(4) << player.ping << ' ';
-			stats << setw(5) << player.frags << ' ';
+			stats << setw(5) << player.stats().frags() << ' ';
 			stats << setw(5) << player.stats().captures() << ' ';
 			stats << setw(7) << player.stats().kills() << ' ';
 			stats << setw(5) << player.stats().deaths() << ' ';
@@ -1485,6 +1505,8 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 			stats << setw(7) << player.stats().flags_dropped() << ' ';
 			stats << setw(7) << player.stats().flags_returned() << ' ';
 			stats << setw(8) << player.stats().carriers_killed() << ' ';
+			stats << setw(3) << static_cast<int>(player.stats().flag_carrying_time(time)) / 60 << ':';
+			stats << setw(2) << setfill('0') << static_cast<int>(player.stats().flag_carrying_time(time)) % 60;
 			break;
 		case 2: {
 			ostringstream kills;
@@ -1501,11 +1523,18 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 			break;
 		}
 		case 3:
-			stats << setw(6) << static_cast<int>(player.stats().movement()) / PLAYER_RADIUS / 2 << " u ";
+			stats << setw(6) << static_cast<int>(player.stats().movement()) / (2 * PLAYER_RADIUS) << " u ";
 			stats << setw(5) << setprecision(2) << std::fixed << player.stats().speed(time) << " u/s ";
-			stats << setw(6) << player.stats().playtime(time) / 60 << " min ";
-			stats << setw(3) << player.stats().average_lifetime(time) / 60 << ':';
-			stats << setw(2) << setfill('0') << player.stats().average_lifetime(time) % 60 << ' ';
+			stats << setw(6) << static_cast<int>(player.stats().playtime(time)) / 60 << " min ";
+			stats << setw(3) << static_cast<int>(player.stats().average_lifetime(time)) / 60 << ':';
+			stats << setw(2) << setfill('0') << static_cast<int>(player.stats().average_lifetime(time)) % 60 << ' ';
+			break;
+		case 4:
+			if (player.reg_status != ' ' && player.reg_status != '?') {
+				stats << setw(4) << player.rank;
+				stats << setw(4) << (player.score + 1.0) / (player.neg_score + 1.0);
+				stats << setw(4) << player.score - player.neg_score;
+			}
 			break;
 	}
 	textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[team], -1);
@@ -1557,8 +1586,9 @@ void Graphics::draw_fps(double fps) {
 }
 
 void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
+	const int line_height = 12;
 	const int w = 540;
-	const int h = 420;
+	const int h = map_list_size * line_height + 96;
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
 	const int x1 = mx - w / 2;
@@ -1568,8 +1598,6 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 	const int x_left = x1 + 30;
 
 	rectfill(drawbuf, x1, y1, x2, y2, 0);
-
-	const int line_height = 12;
 
 	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
 	textout_centre_ex(drawbuf, font, "SERVER MAP LIST", mx, y1 + line_height, col[COLWHITE], -1);
@@ -2121,7 +2149,7 @@ void Graphics::load_pictures(const string& path) {
 		return;
 	load_floor_textures(path);
 	load_wall_textures(path);
-	load_player_sprites(path + "player.pcx", path + "team.pcx", path + "personal.pcx");
+	load_player_sprites(path + "player.pcx", path + "player_team.pcx", path + "player_personal.pcx");
 	load_shield_sprites(path);
 	load_dead_sprites(path);
 	load_rocket_sprites(path);
@@ -2129,14 +2157,27 @@ void Graphics::load_pictures(const string& path) {
 }
 
 void Graphics::load_floor_textures(const string& path) {
-	floor_texture[0] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
-	floor_texture[1] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
-	floor_texture[2] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
-	floor_texture[3] = load_bitmap((path + "floor_ice.pcx").c_str(), NULL);
+	int i = 0;
+	floor_texture[i++] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_red.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_blue.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_ice.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_sand.pcx").c_str(), NULL);
+	floor_texture[i++] = load_bitmap((path + "floor_mud.pcx").c_str(), NULL);
 }
 
 void Graphics::load_wall_textures(const string& path) {
-	wall_texture[0] = load_bitmap((path + "wall.pcx").c_str(), NULL);
+	int i = 0;
+	wall_texture[i++] = load_bitmap((path + "wall_normal1.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_normal2.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_normal3.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_red.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_blue.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_metal.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_wood.pcx").c_str(), NULL);
+	wall_texture[i++] = load_bitmap((path + "wall_rubber.pcx").c_str(), NULL);
 }
 
 BITMAP* Graphics::get_floor_texture(int texid) {
@@ -2212,6 +2253,7 @@ void Graphics::load_shield_sprites(const string& path) {
 
 void Graphics::load_dead_sprites(const string& path) {
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
+	ice_cream = scale_sprite(path + "ice_cream.pcx", size, size);
 	Bitmap picture = scale_sprite(path + "dead.pcx", size, size);
 	if (!picture)
 		return;
@@ -2320,6 +2362,7 @@ void Graphics::unload_shield_sprites() {
 void Graphics::unload_dead_sprites() {
 	for (int i = 0; i < 2; i++)
 		dead_sprite[i].free();
+	ice_cream.free();
 }
 
 void Graphics::unload_rocket_sprites() {

@@ -84,7 +84,7 @@ bool check_dir(const string& dir) {
 }
 
 int main(int argc, char *argv[]) {
-	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
+ 	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
 
 	srand((unsigned)time(0));
 
@@ -120,6 +120,7 @@ int main(int argc, char *argv[]) {
 	FileLog logFile(wheregamedir + "log" + directory_separator + "log.txt", true);
 	LogSet log(&logFile, &logFile, &logFile);
 
+	log("main() ID = %d", pthread_self());
 	log("Outgun log file. Game string: %s, protocol: %s, version: %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
 	bool showinfo = false;
@@ -359,6 +360,8 @@ int main(int argc, char *argv[]) {
 			allegro_message("ERROR: directory '%s' not found.\n\nPlease create this directory.\n\nThe game cannot run without it.", CLIENT_MAPS_DIR);
 			return 0;
 		}
+		if (!check_dir("stats"))
+			log.error("Directory 'stats' not found.");
 
 		//window title
 		server_status_string("Outgun client - CTRL+F12 to quit");

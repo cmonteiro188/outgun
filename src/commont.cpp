@@ -68,6 +68,7 @@ double svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
 double svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun;
 double svp_flag_penalty;
 bool   svp_friendly_fire, svp_friendly_db;
+bool   svp_player_collisions;
 
 void set_default_physics() {
 	svp_fric = 1.5;
@@ -85,6 +86,7 @@ void set_default_physics() {
 	svp_flag_penalty = 3.0;
 	svp_friendly_fire = false;
 	svp_friendly_db = false;
+	svp_player_collisions = false;
 }
 
 int maxplayers = MAX_PLAYERS;		// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)

@@ -273,7 +273,7 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, bool active) const {
 }
 
 int Colorselect::width() const {
-	return (caption.length() + 2) * char_w + options.size() * 14;
+	return (caption.length() + 2) * char_w + options.size() * 12;
 }
 
 int Colorselect::height() const {

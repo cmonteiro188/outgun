@@ -19,7 +19,10 @@ public:
 	RectWall() { }
 	RectWall(float a_, float b_, float c_, float d_, int tex_, int alpha_)
 			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) std::swap(a, c); if (d<b) std::swap(b, d); }
+
 	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
+	bool intersects_circ(double x, double y, double r) const;
+
 	float x1() const { return a; }
 	float y1() const { return b; }
 	float x2() const { return c; }
@@ -88,6 +91,7 @@ struct Room {
 	std::vector<CircWall> cwalls, cground;
 
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const;	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
+	bool fall_on_wall(int x, int y, int r) const;	// for circle
 };
 
 //entity locale
@@ -131,6 +135,11 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 		nAssert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
+	bool fall_on_wall(int px, int py, int x, int y, int r) const {
+if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track why these are given sometimes
+		nAssert(px>=0 && py>=0 && px<w && py<h);
+		return room[px][py].fall_on_wall(x, y, r);
+	}
 	bool load(LogSet& log, const char *mapdir, const std::string& mapname);
 };
 
@@ -151,6 +160,7 @@ public:
 
 	void clear();
 
+	void set_frags(int n) { total_frags = n; }
 	void set_kills(int n) { total_kills = n; }
 	void set_deaths(int n) { total_deaths = n; }
 	void set_cons_kills(int n) { most_consecutive_kills = n; }
@@ -167,15 +177,18 @@ public:
 	void set_hits(int n) { total_hits = n; }
 	void set_shots_taken(int n) { total_shots_taken = n; }
 	void set_movement(double amount) { total_movement = amount; }
-	void set_spawn_time(int time) { last_spawn_time = time; dead = false; }
-	void set_start_time(int time) { starttime = time; }
+	void set_spawn_time(float time) { last_spawn_time = time; dead = false; }
+	void set_start_time(float time) { starttime = time; }
+	void set_lifetime(float time) { total_lifetime = time; }
+	void set_flag_carrying_time(double time) { total_flag_carrying_time = time; }
 
+	void add_frag(int n = 1) { total_frags += n; }
 	void add_kill(bool deathbringer);
-	void add_death(bool deathbringer, int time);
-	void add_suicide(int time);
-	void add_capture() { ++total_captures; }
-	void add_flag_take() { ++total_flags_taken; }
-	void add_flag_drop() { ++total_flags_dropped; }
+	void add_death(bool deathbringer, double time);
+	void add_suicide(double time);
+	void add_capture(double time);
+	void add_flag_take(double time);
+	void add_flag_drop(double time);
 	void add_flag_return() { ++total_flags_returned; }
 	void add_carrier_kill() { ++total_flag_carriers_killed; }
 	void add_shot() { ++total_shots; }
@@ -183,6 +196,9 @@ public:
 	void add_shot_take() { ++total_shots_taken; }
 	void add_movement(double amount) { total_movement += amount; }
 
+	void take_frag(int n = 1) { total_frags -= n; }
+
+	int frags() const { return total_frags; }
 	int kills() const { return total_kills; }
 	int deaths() const { return total_deaths; }
 	int cons_kills() const { return most_consecutive_kills; }
@@ -199,15 +215,17 @@ public:
 	int hits() const { return total_hits; }
 	float accuracy() const;
 	int shots_taken() const { return total_shots_taken; }
-	int spawn_time() const { return last_spawn_time; }
-	int lifetime(int time) const;
-	int average_lifetime(int time) const;
-	int playtime(int time) const;
-	double movement() const;
-	float speed(int time) const;
-	int start_time() const { return starttime; }
+	float spawn_time() const { return last_spawn_time; }
+	float lifetime(double time) const;			// in seconds
+	float average_lifetime(double time) const;	// in seconds
+	float playtime(double time) const;			// in seconds
+	double movement() const;					// in Outgun units
+	float speed(double time) const;				// in Outgun units per second
+	float start_time() const { return starttime; }
+	double flag_carrying_time(double time) const;
 
 private:
+	int total_frags;
 	int total_kills;
 	int total_deaths;
 	int total_deathbringer_kills;
@@ -225,11 +243,14 @@ private:
 	int total_shots;
 	int total_hits;
 	int total_shots_taken;
-	int last_spawn_time;
-	int total_lifetime;
+	float last_spawn_time;
+	float total_lifetime;
 	double total_movement;
-	int starttime;
+	float starttime;
 	bool dead;
+	bool flag;
+	double total_flag_carrying_time;
+	double flag_taking_time;
 };
 
 class PlayerBase {
@@ -257,7 +278,7 @@ public:
 	int id;
 	std::string name;
 	int ping;
-	int frags;
+	//int frags;
 	bool dead;
 	char reg_status;
 	int score, rank;
@@ -442,11 +463,22 @@ class Team {
 public:
 	Team();
 
-	void clear();
+	void clear_stats();
 
-	void set_score(int s) { points = s; }
+	void set_score(int n) { points = n; }
+ 	void set_kills(int n) { total_kills = n; }
+	void set_deaths(int n) { total_deaths = n; }
+	void set_suicides(int n) { total_suicides = n; }
+	void set_flags_taken(int n) { total_flags_taken = n; }
+	void set_flags_dropped(int n) { total_flags_dropped = n; }
+	void set_flags_returned(int n) { total_flags_returned = n; }
+	void set_shots(int n) { total_shots = n; }
+	void set_hits(int n) { total_hits = n; }
+	void set_shots_taken(int n) { total_shots_taken = n; }
+	void set_base_score(int n) { start_score = n; }
+	void set_movement(double amount) { total_movement = amount; }
+
 	void add_score(double time, const std::string& player);
-
 	void add_kill() { ++total_kills; }
 	void add_death() { ++total_deaths; }
 	void add_suicide() { ++total_suicides; ++total_deaths; }
@@ -455,6 +487,8 @@ public:
 	void add_flag_return() { ++total_flags_returned; }
 	void add_shot() { ++total_shots; }
 	void add_hit() { ++total_hits; }
+	void add_shot_take() { ++total_shots_taken; }
+	void add_movement(double amount) { total_movement += amount; }
 
 	void add_flag(const spoint_t& pos);
 	void remove_flags();
@@ -476,11 +510,15 @@ public:
 	int flags_returned() const { return total_flags_returned; }
 	int shots() const { return total_shots; }
 	int hits() const { return total_hits; }
+	int shots_taken() const { return total_shots_taken; }
+	double movement() const { return total_movement; }
+	float accuracy() const;
 
 	const Flag& flag(int n) const { return team_flags[n]; }
 	const std::vector<Flag>& flags() const { return team_flags; }
 
 	const std::vector<std::pair<int, std::string> >& captures() const { return caps; }
+	int base_score() const { return start_score; }
 
 private:
 	int points;
@@ -492,8 +530,11 @@ private:
 	int total_flags_returned;
 	int total_shots;
 	int total_hits;
+	int total_shots_taken;
+	double total_movement;
 	std::vector<Flag> team_flags;
 	std::vector<std::pair<int, std::string> > caps;	// time and player name
+	int start_score;	// for players who join in the middle of the game
 };
 
 class Powerup {
@@ -559,8 +600,10 @@ class WorldBase {
 	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction);
 	static double getTimeTillWall(const Room& room, const rocket_c& rock, float maxFraction);
 	static double getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius);
+	static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
 	void applyPlayerAcceleration(int pid);
 	void executeBounce(PlayerBase& ply, const BounceData& b, double plyRadius);	// needs plyRadius as a shortcut to b.second's length
+	void executeBounce(PlayerBase& pl1, PlayerBase& pl2) const;
 	void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 
 protected:
@@ -645,6 +688,9 @@ public:
 	int getCaptureLimit() const { return capture_limit; }
 	NLulong getTimeLimit() const { return time_limit; }
 	NLulong getExtraTime() const { return extra_time; }
+	
+	bool balanceTeams() const { return balance_teams; }
+	bool suddenDeath() const { return sudden_death; }
 };
 
 class ServerNetworking;
@@ -678,6 +724,9 @@ public:
 
 	void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
 
+	const WorldSettings& getConfig() const { return config; }
+	const PowerupSettings& getPupConfig() const { return pupConfig; }
+
 	// common (virtual in base) extended functions
 	bool load_map(const char *mapdir, const std::string& mapname);
 	void returnAllFlags();
@@ -691,6 +740,7 @@ public:
 
 	// server specific functions
 	void reset();
+	void reset_time() { map_start_time = frame; }
 	void respawnPlayer(int pid);
 	void printTimeStatus(LineReceiver& printer);
 

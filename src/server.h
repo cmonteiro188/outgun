@@ -69,6 +69,7 @@ class gameserver_c {
 	NLulong 		next_vote_announce_frame;
 	int				last_vote_announce_votes, last_vote_announce_needed;
 	int				idlekick_time;
+	int				game_end_delay;
 	ClientData		client[MAX_PLAYERS];
 	std::vector<bool> fav_colors[2];
 

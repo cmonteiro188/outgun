@@ -108,6 +108,7 @@ extern double svp_fric_turbo, svp_accel_turbo, svp_maxspeed_turbo;
 extern double svp_fric_turborun, svp_accel_turborun, svp_maxspeed_turborun;
 extern double svp_flag_penalty;
 extern bool   svp_friendly_fire, svp_friendly_db;
+extern bool   svp_player_collisions;
 
 void set_default_physics();
 

@@ -47,6 +47,7 @@ enum Network_data_code {
 	data_map_votes_update,
 	data_map_vote,
 	data_stats,
+	data_team_stats,
 	data_capture,
 	data_kill,
 	data_flag_take,
@@ -54,6 +55,7 @@ enum Network_data_code {
 	data_flag_drop,
 	data_spawn,
 	data_movements_shots,
+	data_team_movements_shots,
 	data_fav_colors,
 	data_name_authorization_request,
 	data_server_settings

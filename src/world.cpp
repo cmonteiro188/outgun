@@ -12,11 +12,11 @@
 #include "nassert.h"
 #include "utility.h"
 
+#define PHYS_NEW
 #define PHYS_VECTOR_ACC
 #define PHYS_VECTOR_ACC_TEST
 
-//same as PLAYER RADIUS (15) + ROCKET RADIUS (3) - 1
-const int shot_deltax = 17;
+const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
 const float minimum_grab_to_capture_time = 6.0;
@@ -87,6 +87,26 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
 	return (maxy >= miny);
 }
 
+bool RectWall::intersects_circ(double x, double y, double r) const {
+	if (x - r <= c && x + r >= a && y - r <= d && y + r >= b) {
+		if (x >= a && x <= c)
+			return true;
+		if (y >= b && y <= d)
+			return true;
+		// Check the corners.
+		const double r2 = r * r;
+		if ((x - a) * (x - a) + (y - b) * (y - b) <= r2)
+			return true;
+		if ((x - c) * (x - c) + (y - b) * (y - b) <= r2)
+			return true;
+		if ((x - a) * (x - a) + (y - d) * (y - d) <= r2)
+			return true;
+		if ((x - c) * (x - c) + (y - d) * (y - d) <= r2)
+			return true;
+	}
+	return false;
+}
+
 TriWall::TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_)
 		: p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3), tex(tex_), alpha(alpha_) {
 	if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// 1, 2 sorted
@@ -155,17 +175,32 @@ CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float a
  */
 bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const {
 	// more crude check against the wall's bounding rectangle would be: return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro;
-	double rwr = (x2 - x1) / 2., rhr = (y2 - y1) / 2.;
-	double rr = sqrt( rwr*rwr + rhr*rhr );
-	double rcx = x1 + rwr, rcy = y1 + rhr;
-	double dx = rcx - x, dy = rcy - y;
-	double dcr = sqrt( dx*dx + dy*dy );	// this is the radius of the rect bound-circle center in relation to the wall center
+	const double rwr = (x2 - x1) / 2., rhr = (y2 - y1) / 2.;
+	const double rr = sqrt( rwr*rwr + rhr*rhr );
+	const double rcx = x1 + rwr, rcy = y1 + rhr;
+	const double dx = rcx - x, dy = rcy - y;
+	const double dcr = sqrt( dx*dx + dy*dy );	// this is the radius of the rect bound-circle center in relation to the wall center
 	// if the extended rectangle is wholly within the wall inner bounding circle (r=ri), there's no intersection
 	if (dcr + rr < ri)
 		return false;
 	// now if the extended rectangle and the wall bounding circle (r=ro) overlap, there is an intersection, otherwise not
-	if (dcr - rr < ro)
-		return true;
+	if (dcr - rr < ro) {
+		if (angle[0] == angle[1])
+			return true;
+		const double avx[] = { x1 - x, x2 - x, x1 - x, x2 - x };
+		const double avy[] = { -y1 + y, -y2 + y, -y2 + y, -y1 + y };
+		for (int i = 0; i < 4; i++) {
+			double a = asin(avx[i] / sqrt(avx[i] * avx[i] + avy[i] * avy[i])) * 180 / M_PI;
+			if (avx[i] < 0)
+				a = 180 - a;
+			a = fmod(90 - a, 360);
+			if (angle[0] < angle[1] && (a >= angle[0] && a <= angle[1]))
+				return true;
+			if (angle[0] > angle[1] && (a <= angle[1] || a >= angle[0]))
+				return true;
+		}
+		return false;
+	}
 	return false;
 }
 
@@ -178,6 +213,19 @@ bool Room::fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is
 			return true;
 	for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
 		if (cwi->intersects_rect(x1, y1, x2, y2))
+			return true;
+	return false;
+}
+
+bool Room::fall_on_wall(int x, int y, int r) const {
+	for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
+		if (rwi->intersects_circ(x, y, r))
+			return true;
+	for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
+		if (twi->intersects_rect(x - r, y - r, x + r, y + r))	// ### FIXME: make intersects_circ
+			return true;
+	for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
+		if (cwi->intersects_rect(x - r, y - r, x + r, y + r))	// ### FIXME: make intersects_circ
 			return true;
 	return false;
 }
@@ -263,7 +311,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		if (!ist)
 			alpha = 255;
 		ist >> nullc;
-		if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255) {
+		if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
@@ -286,7 +334,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		if (!ist)
 			alpha = 255;
 		ist >> nullc;
-		if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255) {
+		if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
@@ -326,7 +374,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 		if (a2 < 0)
 			a2 += 360;
 		ist >> nullc;
-		if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255) {
+		if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid > 7) {
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
@@ -497,7 +545,6 @@ bool MapInfo::load(LogSet& log, string mapName) {
 
 void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team_id) {
 	ping = 0;
-	frags = 0;
 	id = _pid;
 	name = _name;
 	item_deathbringer = item_shield = item_quad = item_speed = false;
@@ -863,17 +910,35 @@ double WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock, float 
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius) {
-	double dx = rock.x-pl.lx, dy = rock.y-pl.ly, r2 = collRadius*collRadius;
-	if (dx*dx + dy*dy < r2)
+	const double dx = rock.x - pl.lx, dy = rock.y - pl.ly, r2 = collRadius * collRadius;
+	if (dx * dx + dy * dy < r2)
 		return 0;
-	double mx = pl.sx-rock.sx, my = pl.sy-rock.sy;
+	const double mx = pl.sx-rock.sx, my = pl.sy - rock.sy;
 
-	double m2 = mx*mx + my*my;
-	double mdotd = mx*dx + my*dy;
-	double d2 = dx*dx + dy*dy;
-	double disc = mdotd*mdotd - m2*(d2-r2);
+	const double m2 = mx * mx + my * my;
+	const double mdotd = mx * dx + my * dy;
+	const double d2 = dx * dx + dy * dy;
+	const double disc = mdotd * mdotd - m2 * (d2 - r2);
 	if (disc >= 0) {	// there are real solutions
-		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away)
+		double t = (mdotd - sqrt(disc)) / m2;	// the collision with smaller t (the larger t is when going away)
+		if (t >= 0)
+			return t;
+	}
+	return 1e99;
+}
+
+double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius) {
+	const double dx = pl2.lx - pl1.lx, dy = pl2.ly - pl1.ly, r2 = collRadius * collRadius;
+	if (dx * dx + dy * dy < r2)
+		return 1e99;
+	const double mx = pl1.sx - pl2.sx, my = pl1.sy - pl2.sy;
+
+	const double m2 = mx * mx + my * my;
+	const double mdotd = mx * dx + my * dy;
+	const double d2 = dx * dx + dy * dy;
+	const double disc = mdotd * mdotd - m2 * (d2 - r2);
+	if (disc >= 0) {	// there are real solutions
+		const double t = (mdotd - sqrt(disc)) / m2;	// the collision with smaller t (the larger t is when going away)
 		if (t >= 0)
 			return t;
 	}
@@ -932,48 +997,15 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
 
 	#ifdef PHYS_VECTOR_ACC
-
-	// a more physically correct model
-
-	#ifdef PHYS_VECTOR_ACC_TEST
-
-	// model 1 by Huntta
-
-	player_friction = 0.1;
-	player_accel    = 1.75; //1.5;
-
-	if (turbo)
-		if (h->controls.isRun())
-			player_accel *= 2.75;
-		else
-			player_accel *= 1.75;
-	else if (h->controls.isRun())
-		player_accel *= 1.25;
-
-	if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
-		xAcc /= sqrt(2.);
-		yAcc /= sqrt(2.);
-	}
-
-	h->sx -= player_friction * h->sx;
-	h->sy -= player_friction * h->sy;
-
-	if (!deathbringer_affected) {
-		h->sx += xAcc * player_accel;
-		h->sy += yAcc * player_accel;
-	}
-
- 	#else
-
-	// model 2 by Nix
-
 	// new correcting coefficients : reduce friction and total acceleration
-	player_maxspeed *= 1.2;
+	/*player_maxspeed *= 1.2;
 	player_friction *=  .5;
 	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
 
 	// acceleration
 	if (!deathbringer_affected) {
+		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
+		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
 		float mul = player_accel;
 		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
 			mul /= sqrt(2.);
@@ -1002,9 +1034,85 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			h->sy *= mul;
 		}
 	}
+	*/#ifdef PHYS_VECTOR_ACC_TEST
+
+	player_friction = 0.125;
+	const float air_friction = 0.125;
+	player_accel    = 2.25; //2.12;
+
+	if (turbo)
+		if (h->controls.isRun())
+			player_accel *= 2.75;
+		else
+			player_accel *= 1.5;
+	else if (h->controls.isRun())
+		player_accel *= 1.8333;
+	if (h->controls.isRun() && carryFlag)
+		player_accel *= 0.9;
+
+	if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
+		xAcc /= sqrt(2.);
+		yAcc /= sqrt(2.);
+	}
+	if (h->sx > 0)
+		h->sx = max(h->sx - player_friction, 0.);
+	else if (h->sx < 0)
+		h->sx = min(h->sx + player_friction, 0.);
+	if (h->sy > 0)
+		h->sy = max(h->sy - player_friction, 0.);
+	else if (h->sy < 0)
+		h->sy = min(h->sy + player_friction, 0.);
+
+	h->sx -= air_friction * h->sx;
+	h->sy -= air_friction * h->sy;
+
+	if (!deathbringer_affected) {
+		h->sx += xAcc * player_accel;
+		h->sy += yAcc * player_accel;
+	}
+
+ 	#else
+
+	// this is a more physically correct model by Nix
+
+	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
+	player_maxspeed *= 1.2;
+	player_friction *= 1.2;
+	player_accel    *= 1.2;
+	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
+
+	// friction
+	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+	if (spd > 0) {
+		float mul;
+		if (spd <= player_friction)
+			mul = 0.;
+		else
+			mul = 1. - player_friction/spd;
+		h->sx *= mul;
+		h->sy *= mul;
+	}
+
+	// acceleration
+	if (!deathbringer_affected && spd<player_maxspeed) {
+		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
+		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
+		float mul = player_accel;
+		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
+			mul /= sqrt(2.);
+
+		h->sx += float(xAcc)*mul;
+		h->sy += float(yAcc)*mul;
+		spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+
+		if (spd > player_maxspeed) {
+			float mul = player_maxspeed/spd;
+			h->sx *= mul;
+			h->sy *= mul;
+		}
+	}
 
 	#endif	// PHYS_VECTOR_ACC_TEST
-
 	#else	// PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
@@ -1120,7 +1228,7 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
 		{ 2, { -1, +1, -2, +2, -3, +3 } },
 		{ 3, { -1, +1, -2, +2, -3, +3 } }
 	};
-	const RocketFormation& form = formations[pow-1];
+	const RocketFormation& form = formations[pow - 1];
 
 	if (form.nForward == 1)
 		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameAdvance, cb);
@@ -1267,6 +1375,8 @@ void WorldSettings::print(LineReceiver& printer) const {
 		printer("- Teams will be balanced at the start of each round.");
 	if (svp_friendly_fire)
 		printer("- Friendly fire is on.");
+	if (svp_player_collisions)
+		printer("- Players can collide each other.");
 	if (shadow_minimum == 0)
 		printer("- A player using the shadow power-up gets totally invisible.");
 }
@@ -1292,16 +1402,14 @@ public:
 void ServerWorld::reset() {
 	// zero teamscores
 	returnAllFlags();
-	teams[0].clear();
-	teams[1].clear();
+	teams[0].clear_stats();
+	teams[1].clear_stats();
 
 	for (int i=0;i<maxplayers;i++)
 		if (player[i].used) {
 			//kill - to respawn
 			player[i].respawn_to_base = true;
 			resetPlayer(i);
-			//zero score
-			player[i].frags = 0;
 			player[i].stats().clear();
 		}
 
@@ -1313,14 +1421,12 @@ void ServerWorld::reset() {
 	for (int i=0;i<MAX_PICKUPS;i++)
 		item[i].kind = Powerup::pup_unused;
 	check_pickup_creation(true);
-
-	map_start_time = frame;
 }
 
 void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	// server uptime
-	unsigned long uptime = frame/10/60;	// minutes
-	int days = uptime / 60 / 24;
+	const unsigned long uptime = frame/10/60;	// minutes
+	const int days = uptime / 60 / 24;
 	ostringstream server_time;
 	server_time << "The server has been up for ";
 	if (days > 0)
@@ -1331,7 +1437,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	server_time << '.';
 	printer(server_time.str());
 	// map time
-	int seconds = getMapTime() / 10;
+	const int seconds = getMapTime() / 10;
 	ostringstream map_time;
 	map_time << "Map time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
 	if (config.getTimeLimit() == 0)
@@ -1360,7 +1466,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 
 bool ServerWorld::load_map(const char *mapdir, const string& mapname) {
 	map_start_time = frame;
-	bool success = WorldBase::load_map(log, mapdir, mapname);
+	const bool success = WorldBase::load_map(log, mapdir, mapname);
 	for (int t = 0; t < 2; t++) {
 		teams[t].remove_flags();
 		for (vector<spoint_t>::const_iterator pi = map.tinfo[t].flags.begin(); pi != map.tinfo[t].flags.end(); ++pi)
@@ -1418,38 +1524,40 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	}
 	net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
 	net->broadcast_sample(SAMPLE_CTF_LOST);
-	net->broadcast_flag_drop(player[pid]);
 	dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
 	player[pid].drop_flag();
-	player[pid].stats().add_flag_drop();
+	player[pid].stats().add_flag_drop(get_time());
 	teams[pid / TSIZE].add_flag_drop();
-	if (purpose)
-		player[pid].frags--;
+	if (purpose) {
+		net->broadcast_flag_drop(player[pid]);	// If player dies, clients know the flag is dropped.
+		player[pid].stats().take_frag();
+	}
 	return true;
 }
 
 void ServerWorld::respawnPlayer(int pid) {
 	player[pid].respawn_time = -1;
-	int t = pid/TSIZE;	// team
+	const int team = pid / TSIZE;
 
 	spoint_t pos;
-	if (map.tinfo[t].spawn.empty())
+	if (map.tinfo[team].spawn.empty())
 		player[pid].respawn_to_base = false;
 	else if (player[pid].respawn_to_base) {
 		//choose a team spawn point
-		if (++map.tinfo[t].lastspawn >= map.tinfo[t].spawn.size())
-			map.tinfo[t].lastspawn = 0;
-		pos = map.tinfo[t].spawn[ map.tinfo[t].lastspawn ];	// the point
+		if (++map.tinfo[team].lastspawn >= map.tinfo[team].spawn.size())
+			map.tinfo[team].lastspawn = 0;
+		pos = map.tinfo[team].spawn[map.tinfo[team].lastspawn];	// the point
 	}
 
 	//if was killed or map spawn point places player over a wall
-	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-20, pos.x+20, pos.y+20)) {
+	//if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x - PLAYER_RADIUS, pos.y - PLAYER_RADIUS, pos.x + PLAYER_RADIUS, pos.y + PLAYER_RADIUS)) {
+	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS)) {
 		// generate a random spot for respawn:
 		// - unnocupied screen
 		// - away from walls
 
 		//calculate room touch matrix
-		vector<bool> roompop(map.w*map.h, false);
+		vector<bool> roompop(map.w * map.h, false);
 		for (int i = 0; i < maxplayers; i++)
 			if (player[i].used && player[i].roomx >= 0 && player[i].roomy >= 0 && player[i].roomx < map.w && player[i].roomy < map.h)
 				roompop[player[i].roomy * map.w + player[i].roomx] = true;
@@ -1460,16 +1568,19 @@ void ServerWorld::respawnPlayer(int pid) {
 			int ridx;
 			do {
 				ridx = rand() % (map.w*map.h);
-			} while ((runaway-- > 200) && (roompop[ridx] == true));	//keep trying until unnocupied (==false)
-			pos.px = ridx%map.w;
-			pos.py = ridx/map.w;
+			} while (runaway-- > 200 && roompop[ridx]);	//keep trying until unnocupied (==false)
+			pos.px = ridx % map.w;
+			pos.py = ridx / map.w;
 
-			//find a suitable coordinate -- middle square
-			pos.x = plw / 8 + rand() % (3 * plw / 4);
-			pos.y = plh / 8 + rand() % (3 * plh / 4);
+			//find a suitable coordinates
+			//pos.x = plw / 8 + rand() % (3 * plw / 4);
+			//pos.y = plh / 8 + rand() % (3 * plh / 4);
+			pos.x = PLAYER_RADIUS + rand() % (plw - 2 * PLAYER_RADIUS);
+			pos.y = PLAYER_RADIUS + rand() % (plh - 2 * PLAYER_RADIUS);
 
 			//do a check for walls, maybe retrying another screen if hits a wall
-			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-20, pos.x+20, pos.y+20))
+			//if (!map.fall_on_wall(pos.px, pos.py, pos.x - PLAYER_RADIUS, pos.y - PLAYER_RADIUS, pos.x + PLAYER_RADIUS, pos.y + PLAYER_RADIUS))
+			if (!map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS))
 				break;	//success!
 
 			//fall on wall true, keep trying...
@@ -1494,9 +1605,9 @@ void ServerWorld::respawnPlayer(int pid) {
 	//reset player attributes
 	player[pid].health = 100;
 	player[pid].energy = 100;
-	player[pid].megabonus = 0;  //balaca megahealth
+	player[pid].megabonus = 0;
 
-	player[pid].weapon = 0;		//default weapon
+	player[pid].weapon = 0;
 
 	net->sendWeaponPower(pid);
 
@@ -1601,11 +1712,13 @@ void ServerWorld::respawn_pickup(int p) {
 			continue;
 
 		//find a suitable coordinate -- middle square
-		itemx = plw / 8 + rand() % (3 * plw / 4);
-		itemy = plh / 8 + rand() % (3 * plh / 4);
+		//itemx = plw / 8 + rand() % (3 * plw / 4);
+		//itemy = plh / 8 + rand() % (3 * plh / 4);
+		itemx = 16 + rand() % (plw - 32);
+		itemy = 16 + rand() % (plh - 32);
 
 		//do a check for walls, maybe retrying another screen if hits a wall
-		hit = map.fall_on_wall(px, py, itemx - 20, itemy - 20, itemx + 20, itemy + 20);
+		hit = map.fall_on_wall(px, py, itemx - 16, itemy - 16, itemx + 16, itemy + 16);
 		if (!hit)
 			break;
 		if (--runaway < 0) {
@@ -1828,7 +1941,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	if (player[target].health > 0)
 		return;
 
-	bool same_team = (target / TSIZE == attacker / TSIZE);
+	const bool same_team = (target / TSIZE == attacker / TSIZE);
 	if (!same_team)
 		host->score_frag(attacker, 1);		// frag to attacker for the kill
 	else
@@ -1902,7 +2015,7 @@ void ServerWorld::suicide(int pid) {
 	if (player[pid].health > 0) {
 		bool flag = player[pid].flag();
 		killPlayer(pid, true);
-		player[pid].frags--;
+		player[pid].stats().take_frag();
 		player[pid].stats().add_suicide(static_cast<int>(get_time()));
 		teams[pid / TSIZE].add_suicide();
 		net->broadcast_suicide(player[pid], flag);
@@ -1910,13 +2023,13 @@ void ServerWorld::suicide(int pid) {
 }
 
 NLubyte ServerWorld::getFreeRocket() {
-	for (int i=0; i<MAX_ROCKETS; i++)
+	for (int i = 0; i < MAX_ROCKETS; i++)
 		if (rock[i].owner == -1) {
 			rock[i].owner = 0;
 			return i;
 		}
 	log("Rocket overwrite!");
-	int i = rand() % MAX_ROCKETS;
+	const int i = rand() % MAX_ROCKETS;
 	rock[i].owner = 0;
 	return i;
 }
@@ -1971,6 +2084,7 @@ void ServerWorld::swapRocketOwners(int a, int b) {
 
 void ServerWorld::addMovementDistanceCallback(int pid, float dist) {
 	player[pid].stats().add_movement(dist);
+	teams[pid / TSIZE].add_movement(dist);
 }
 
 void ServerWorld::playerScreenChangeCallback(int pid) {
@@ -2020,12 +2134,37 @@ void WorldBase::executeBounce(PlayerBase& ply, const BounceData& b, double plyRa
 	// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
 	// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
 	const Coords& bounceVec = b.second;
-	double mul = 2. * (ply.sx*bounceVec.first + ply.sy*bounceVec.second) / (plyRadius*plyRadius);
+	const double mul = 2. * (ply.sx*bounceVec.first + ply.sy*bounceVec.second) / (plyRadius*plyRadius);
 	ply.sx -= mul*bounceVec.first;
 	ply.sy -= mul*bounceVec.second;
 	// lose some speed too
 	ply.sx *= .95;
 	ply.sy *= .95;
+}
+
+// Bounce two players from each other.
+void WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2) const {
+	const Coords ds(pl2.lx - pl1.lx, pl2.ly - pl1.ly);
+	const double r = sqrt(ds.first * ds.first + ds.second * ds.second);
+
+	// player 1
+	double tVar = (pl1.sy * ds.second + pl1.sx * ds.first) / (r * r);   // (vx1·rx + vy1·ry)/r = k1
+	const double k1 = r * tVar;
+	const Coords v1(pl1.sx - ds.first * tVar, pl1.sy - ds.second * tVar);
+	// player 2
+	tVar = (-pl2.sy * ds.second - pl2.sx * ds.first) / (r * r);
+	const double k2 = r * tVar;
+	const Coords v2(pl2.sx + ds.first * tVar, pl2.sy + ds.second * tVar);
+
+	const double newk1 = -k2 - k2;
+	const double newk2 = -k1 - k1;
+
+	// new speed components, lose some speed too
+	pl1.sx = 0.8 * (v1.first  + newk1 * ds.first  / r);    // vx=sx+kx, kx/k = rx/r
+	pl1.sy = 0.8 * (v1.second + newk1 * ds.second / r);
+
+	pl2.sx = 0.8 * (v2.first  - newk2 * ds.first  / r);
+	pl2.sy = 0.8 * (v2.second - newk2 * ds.second / r);
 }
 
 void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction) {
@@ -2089,7 +2228,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		double minBounce = fraction + 1;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
 		int bPly=0, bPlyI=-1;	// which player it is, pid and room-table-index
 		for (uint pi=0; pi<rply.size(); ++pi) {
-			double bt = plyMoveMax[pi].first;
+			const double bt = plyMoveMax[pi].first;
 			if (bt < minBounce) {
 				minBounce = bt;
 				bPlyI = pi;
@@ -2103,9 +2242,9 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 		int cPly=0, cPlyI=-1, cRock=0, cRockI=-1;	// which player and rocket they are, pid/rid and room-table-indices
 		if (callback.collideToRockets()) {
 			for (uint pi=0; pi<rply.size(); ++pi) {
-				int pid = rply[pi];
+				const int pid = rply[pi];
 				for (uint ri=0; ri<rrock.size(); ++ri) {
-					int rid = rrock[ri];
+					const int rid = rrock[ri];
 					if (rock[rid].team == pid / TSIZE && (!svp_friendly_fire || rock[rid].owner == pid))	// friendly rocket
 						continue;
 					double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
@@ -2122,14 +2261,38 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 			minCollision += subFrame;	// it was calculated in forward time, now it's in absolute frame time as are player movements
 		}
 
+		// find out next player-player collision
+		double minPlyCollision = fraction + 1;	// at what time the first player-player collision occurs (forward time: 1-subFrame is end of frame)
+		int pcPly=0, pcPlyI=-1, pcTarg=0, pcTargI=-1;	// which players they are, pid and room-table-indices
+		if (svp_player_collisions) {
+			for (uint pi = 0; pi < rply.size(); ++pi) {
+				const int pid = rply[pi];
+				for (uint ti = pi + 1; ti < rply.size(); ++ti) {
+					const int tid = rply[ti];
+					double time = getTimeTillCollision(player[pid], player[tid], 2 * plyRadius);
+					if (time < minPlyCollision) {
+						minPlyCollision = time;
+						pcPlyI = pi;
+						pcPly = rply[pi];
+						pcTargI = ti;
+						pcTarg = rply[ti];
+					}
+				}
+			}
+			nAssert(minPlyCollision >= 0.);
+			minPlyCollision += subFrame;	// it was calculated in forward time, now it's in absolute frame time as are player movements
+		}
+
 		// execute movement
 
 		// find the next event
 		if (minBounce < subFrame + .01)	// avoid infinite bouncing; this could be done more delicately (based on rounds spent)
 			minBounce = subFrame + .01;	// it's also possible that this causes some bugs
-		const double eventTime = min(minCollision, minBounce);
+		if (minPlyCollision < subFrame + .01)	// do the same for player collisions
+			minPlyCollision = subFrame + .01;
+		const double eventTime = min(min(minCollision, minBounce), minPlyCollision);
 		const double mt = min<double>(fraction, eventTime);	// mt is where subFrame will be advanced to for the next round
-		nAssert(mt >= subFrame-.0001);
+		nAssert(mt >= subFrame - .0001);
 		for (int pi = 0; pi < static_cast<int>(rply.size()); ) {
 			// don't move more than mt or more than plyMoveMax-.001 (-.001 to stay out of walls)
 			const double plTime = min(plyMoveMax[pi].first - .001, mt);
@@ -2190,7 +2353,19 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 
 		// execute collision or bounce
 		int plyChanged;
-		if (minCollision < minBounce) {	// the event is a collision
+		if (minPlyCollision < minBounce && minPlyCollision < minCollision) {	// the event is a player-player collision
+			if (pcPlyI != -1 && pcTargI != -1) {
+				nAssert(pcPlyI < static_cast<int>(rply.size()));
+				nAssert(pcTargI < static_cast<int>(rply.size()));
+				executeBounce(player[pcPly], player[pcTarg]);
+				plyMoveMax[pcPlyI] = getTimeTillBounce(room, player[rply[pcPlyI]], plyRadius, fraction - subFrame);
+				plyMoveMax[pcPlyI].first += subFrame;
+				plyMoveMax[pcTargI] = getTimeTillBounce(room, player[rply[pcTargI]], plyRadius, fraction - subFrame);
+				plyMoveMax[pcTargI].first += subFrame;
+			}
+			plyChanged = -1;
+		}
+		else if (minCollision < minBounce) {	// the event is a player-rocket collision
 			if (cRockI != -1 && cPlyI != -1) {
 				nAssert(cRockI < static_cast<int>(rrock.size()));
 				nAssert(cPlyI < static_cast<int>(rply.size()));
@@ -2263,10 +2438,10 @@ void ServerWorld::simulateFrame() {
 			player[i].talk_hotness = 1.0;
 
 		//check frags changed
-		if (player[i].oldfrags != player[i].frags) {
+		if (player[i].oldfrags != player[i].stats().frags()) {
 			//updated
-			player[i].oldfrags = player[i].frags;
-			net->sendFragUpdate(i, player[i].frags);
+			player[i].oldfrags = player[i].stats().frags();
+			net->sendFragUpdate(i, player[i].stats().frags());
 		}
 
 		// check powerups expired
@@ -2618,7 +2793,7 @@ void ServerWorld::simulateFrame() {
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 	host->score_frag(pid, 1);	// just add some frags
-	player[pid].stats().add_flag_take();
+	player[pid].stats().add_flag_take(get_time());
 	teams[pid / TSIZE].add_flag_take();
 	net->bprintf(msg_info, "%s GOT THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
 	net->broadcast_flag_take(player[pid]);
@@ -2648,7 +2823,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 				host->score_neg(h, 1);	// small neg point penalty for your flag being captured
 		}
 	host->score_frag(pid, 3);
-	player[pid].stats().add_capture();
+	player[pid].stats().add_capture(get_time());
 	player[pid].drop_flag();
 	teams[myteam].add_score(getMapTime(), player[pid].name);
 	returnFlag(team, flag);
@@ -2705,10 +2880,10 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 // Team
 
 Team::Team() {
-	clear();
+	clear_stats();
 }
 
-void Team::clear() {
+void Team::clear_stats() {
 	points = 0;
 	total_kills = 0;
 	total_deaths = 0;
@@ -2718,7 +2893,10 @@ void Team::clear() {
 	total_flags_returned = 0;
 	total_shots = 0;
 	total_hits = 0;
+	total_shots_taken = 0;
+	total_movement = 0;
 	caps.clear();
+	start_score = 0;
 }
 
 void Team::add_flag(const spoint_t& pos) {
@@ -2760,6 +2938,13 @@ void Team::move_flag(int n, const spoint_t& pos) {
 	team_flags[n].move(pos);
 }
 
+float Team::accuracy() const {
+	if (total_shots == 0)
+		return 0;
+	else
+		return static_cast<float>(total_hits) / total_shots;
+}
+
 // Flag
 
 Flag::Flag(const spoint_t& pos_):
@@ -2795,6 +2980,7 @@ void Flag::drop() {
 // Statistics
 
 Statistics::Statistics():
+	total_frags(0),
 	total_kills(0),
 	total_deaths(0),
 	total_deathbringer_kills(0),
@@ -2816,11 +3002,14 @@ Statistics::Statistics():
 	total_lifetime(0),
 	total_movement(0),
 	starttime(0),
-	dead(false)
+	dead(false),
+	flag(false),
+	total_flag_carrying_time(0),
+	flag_taking_time(0)
 { }
 
 void Statistics::clear() {
-	const int time = starttime;
+	const float time = starttime;
 	*this = Statistics();
 	starttime = time;
 }
@@ -2834,7 +3023,7 @@ void Statistics::add_kill(bool deathbringer) {
 		++total_deathbringer_kills;
 }
 
-void Statistics::add_death(bool deathbringer, int time) {
+void Statistics::add_death(bool deathbringer, double time) {
 	++total_deaths;
 	if (++current_consecutive_deaths > most_consecutive_deaths);
 		most_consecutive_deaths = current_consecutive_deaths;
@@ -2845,9 +3034,27 @@ void Statistics::add_death(bool deathbringer, int time) {
 	total_lifetime += time - last_spawn_time;
 }
 
-void Statistics::add_suicide(int time) {
+void Statistics::add_suicide(double time) {
 	add_death(false, time);
 	++total_suicides;
+}
+
+void Statistics::add_capture(double time) {
+	flag = false;
+	++total_captures;
+	total_flag_carrying_time += time - flag_taking_time;
+}
+
+void Statistics::add_flag_take(double time) {
+	flag = true;
+	++total_flags_taken;
+	flag_taking_time = time;
+}
+
+void Statistics::add_flag_drop(double time) {
+	flag = false;
+	++total_flags_dropped;
+	total_flag_carrying_time += time - flag_taking_time;
 }
 
 float Statistics::accuracy() const {
@@ -2857,18 +3064,18 @@ float Statistics::accuracy() const {
 		return static_cast<float>(total_hits) / total_shots;
 }
 
-int Statistics::lifetime(int time) const {
+float Statistics::lifetime(double time) const {
 	if (dead)
 		return total_lifetime;
 	else
-		return total_lifetime + time - last_spawn_time;
+		return total_lifetime + (time - last_spawn_time);
 }
 
-int Statistics::average_lifetime(int time) const {
+float Statistics::average_lifetime(double time) const {
 	return lifetime(time) / (total_deaths + 1);
 }
 
-int Statistics::playtime(int time) const {
+float Statistics::playtime(double time) const {
 	return time - starttime;
 }
 
@@ -2876,7 +3083,14 @@ double Statistics::movement() const {
 	return total_movement;
 }
 
-float Statistics::speed(int time) const {
+float Statistics::speed(double time) const {
 	return movement() / lifetime(time) / PLAYER_RADIUS / 2.;
+}
+
+double Statistics::flag_carrying_time(double time) const {
+	if (!flag)
+		return total_flag_carrying_time;
+	else
+		return total_flag_carrying_time + (time - flag_taking_time);
 }
 

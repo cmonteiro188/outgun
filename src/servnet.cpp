@@ -162,12 +162,15 @@ void ServerNetworking::send_me_packet(int pid) {
 	writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
 	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
 	writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
-	NLubyte ff_db = 0;
+	// friendly fire, friendly deathbringer and player collisions
+	NLubyte ff_db_pc = 0;
 	if (svp_friendly_fire)
-		ff_db |= 0x01;
+		ff_db_pc |= 0x01;
 	if (svp_friendly_db)
-		ff_db |= 0x02;
-	writeByte(lebuf, count, ff_db);
+		ff_db_pc |= 0x02;
+	if (svp_player_collisions)
+		ff_db_pc |= 0x04;
+	writeByte(lebuf, count, ff_db_pc);
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
@@ -247,7 +250,7 @@ void ServerNetworking::move_update_player(int a, bool silent) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, data_frags_update);
 		writeByte(lebuf, count, a);		// what player id
-		writeLong(lebuf, count, world.player[a].frags);
+		writeLong(lebuf, count, world.player[a].stats().frags());
 		server->broadcast_message(lebuf, count);
 
 		//v0.4.5 : atualiza registration char / score / rank
@@ -400,33 +403,68 @@ void ServerNetworking::send_movements_and_shots(const ServerPlayer& player) cons
 	writeByte(lebuf, count, data_movements_shots);
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
-			writeLong(lebuf, count, static_cast<NLlong>(world.player[i].stats().movement()));
-			writeShort(lebuf, count, static_cast<NLshort>(world.player[i].stats().shots()));
-			writeShort(lebuf, count, static_cast<NLshort>(world.player[i].stats().hits()));
-			writeShort(lebuf, count, static_cast<NLshort>(world.player[i].stats().shots_taken()));
+			const Statistics& stats = world.player[i].stats();
+			writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
+			writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
+			writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
+			writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
 		}
 	server->send_message(player.cid, lebuf, count);
 }
 
 void ServerNetworking::send_stats(const ServerPlayer& player) const {
-	char lebuf[256];
+	char lebuf[512];
 	int count = 0;
 	writeByte(lebuf, count, data_stats);
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().kills()));
-			writeByte(lebuf, count, static_cast<NLshort>(world.player[i].stats().deaths()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().cons_kills()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().current_cons_kills()));
-			writeByte(lebuf, count, static_cast<NLshort>(world.player[i].stats().cons_deaths()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().current_cons_deaths()));
-			writeByte(lebuf, count, static_cast<NLshort>(world.player[i].stats().suicides()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().captures()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().flags_taken()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().flags_dropped()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().flags_returned()));
-			writeByte(lebuf, count, static_cast<NLubyte>(world.player[i].stats().carriers_killed()));
+			const Statistics& stats = world.player[i].stats();
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_kills()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_kills()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_deaths()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_deaths()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.suicides()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.captures()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_taken()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_dropped()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_returned()));
+			writeByte(lebuf, count, static_cast<NLubyte>(stats.carriers_killed()));
+			writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
+			writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
+			writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
 		}
+	server->send_message(player.cid, lebuf, count);
+}
+
+void ServerNetworking::send_team_movements_and_shots(const ServerPlayer& player) const {
+	char lebuf[256];
+	int count = 0;
+	writeByte(lebuf, count, data_team_movements_shots);
+	for (int i = 0; i < 2; i++) {
+		const Team& team = world.teams[i];
+		writeLong(lebuf, count, static_cast<NLlong>(team.movement()));
+		writeShort(lebuf, count, static_cast<NLshort>(team.shots()));
+		writeShort(lebuf, count, static_cast<NLshort>(team.hits()));
+		writeShort(lebuf, count, static_cast<NLshort>(team.shots_taken()));
+	}
+	server->send_message(player.cid, lebuf, count);
+}
+
+void ServerNetworking::send_team_stats(const ServerPlayer& player) const {
+	char lebuf[256];
+	int count = 0;
+	writeByte(lebuf, count, data_team_stats);
+	for (int i = 0; i < 2; i++) {
+		const Team& team = world.teams[i];
+		writeByte(lebuf, count, static_cast<NLubyte>(team.kills()));
+		writeByte(lebuf, count, static_cast<NLubyte>(team.deaths()));
+		writeByte(lebuf, count, static_cast<NLubyte>(team.suicides()));
+		writeByte(lebuf, count, static_cast<NLubyte>(team.flags_taken()));
+		writeByte(lebuf, count, static_cast<NLubyte>(team.flags_dropped()));
+		writeByte(lebuf, count, static_cast<NLubyte>(team.flags_returned()));
+	}
 	server->send_message(player.cid, lebuf, count);
 }
 
@@ -491,31 +529,34 @@ void ServerNetworking::send_map_time(int cid) {
 		server->send_message(cid, lebuf, count);
 }
 
-/*void ServerNetworking::send_server_settings(const ServerPlayer& player) {
+void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 	int count = 0;
 	char lebuf[256];
-	writeByte(lebuf, count, static_cast<NLubyte>(world.config.capture_limit));
-	writeByte(lebuf, count, static_cast<NLubyte>(world.config.time_limit / 60));	// note: max time 255 mins ~ 4 hours
-	writeByte(lebuf, count, static_cast<NLubyte>(world.config.extra_time / 60));
+	const WorldSettings& config = world.getConfig();
+	const PowerupSettings& pupConfig = world.getPupConfig();
+	writeByte(lebuf, count, data_server_settings);
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 60));	// note: max time 255 mins ~ 4 hours
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 60));
 	NLubyte settings = 0;
 	int i = 0;
-	if (world.config.balance_teams)
+	if (config.balanceTeams())
 		settings |= (1 << i);
 	i++;
 	if (svp_friendly_fire)
 		settings |= (1 << i);
 	i++;
-	if (world.pupConfig.pups_drop_at_death)
+	if (pupConfig.pups_drop_at_death)
 		settings |= (1 << i);
 	i++;
-	if (world.config.shadow_minimum == 0)
+	if (config.getShadowMinimum() == 0)
 		settings |= (1 << i);
 	i++;
-	if (world.pupConfig.pup_deathbringer_switch)
+	if (pupConfig.pup_deathbringer_switch)
 		settings |= (1 << i);
 	writeByte(lebuf, count, settings);
 	server->send_message(player.cid, lebuf, count);
-}*/
+}
 
 //enqueue a job to the master server to update a client's delta score
 void ServerNetworking::client_report_status(int id) {
@@ -530,11 +571,13 @@ void ServerNetworking::client_report_status(int id) {
 	masterjob_c* job = new masterjob_c();
 	job->cid = id;
 	job->code = 2;
-	sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\n\n", TK1_VERSION_STRING, clid.delta_score, clid.neg_delta_score, world.player[ ctop [id] ].name.c_str(), clid.token);
+	sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\r\n",
+			url_encode(TK1_VERSION_STRING).c_str(), clid.delta_score, clid.neg_delta_score,
+			url_encode(world.player[ctop[id]].name).c_str(), url_encode(clid.token).c_str());
 
-	pthread_mutex_lock ( &mjob_mutex );
+	pthread_mutex_lock(&mjob_mutex);
 	mjob_count++;
-	pthread_mutex_unlock ( &mjob_mutex );
+	pthread_mutex_unlock(&mjob_mutex);
 	RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
 	Thread::startDetachedThread_assert(rmf, job);
 
@@ -836,7 +879,7 @@ int ServerNetworking::client_connected(int id) {
 		count = 0;
 		writeByte(lebuf, count, data_frags_update);
 		writeByte(lebuf, count, i);		// what player id
-		writeLong(lebuf, count, world.player[i].frags);
+		writeLong(lebuf, count, world.player[i].stats().frags());
 		server->send_message(id, lebuf, count);
 
 		send_player_crap_update(id, i);
@@ -850,6 +893,7 @@ int ServerNetworking::client_connected(int id) {
 	update_serverinfo();
 	send_map_time(id);
 	send_stats(world.player[myself]);
+	send_team_stats(world.player[myself]);
 	world.player[myself].current_map_list_item = 0;	// the first map info to be sent
 	return myself;
 }
@@ -876,7 +920,7 @@ void ServerNetworking::client_disconnected(int id) {
 		nlWrite(shellssock, lebuf, count);
 	}
 
-	bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].frags);
+	bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].stats().frags());
 	broadcast_sample(SAMPLE_LEFTGAME);
 
 	//report the latest player achievements to the master server
@@ -1126,11 +1170,13 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					masterjob_c *job = new masterjob_c();
 					job->cid = id;
 					job->code = 1;
-					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\n\n", TK1_VERSION_STRING, world.player[ ctop [id] ].name.c_str(), tok.c_str());
+					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\r\n",
+							url_encode(TK1_VERSION_STRING).c_str(), url_encode(world.player[ctop[id]].name).c_str(),
+							url_encode(tok).c_str());
 
-					pthread_mutex_lock ( &mjob_mutex );
+					pthread_mutex_lock(&mjob_mutex);
 					mjob_count++;
-					pthread_mutex_unlock ( &mjob_mutex );
+					pthread_mutex_unlock(&mjob_mutex);
 
 					RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
 					Thread::startDetachedThread_assert(rmf, job);
@@ -1198,6 +1244,7 @@ void ServerNetworking::sendEndGameover() {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_gameover_hide);
 	server->broadcast_message(lebuf, count);
+	send_map_time(-1);
 }
 
 //simulate and broadcast frame
@@ -1502,8 +1549,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	// stats update
 	if (world.frame / MAX_PLAYERS % 5 == 0) {
 		const int pid = world.frame % MAX_PLAYERS;
-		if (world.player[pid].used)
+		if (world.player[pid].used) {
 			send_movements_and_shots(world.player[pid]);
+			send_team_movements_and_shots(world.player[pid]);
+		}
 	}
 
 	// PING: v0.4.1
@@ -1525,6 +1574,7 @@ double ServerNetworking::getTraffic() {
 
 //a master job response is obtained: parse it
 void ServerNetworking::master_job_response(masterjob_c *j) {
+	log("master_job_response() ID = %d", pthread_self());
 	if (ctop[j->cid] == -1)	// client no longer connected
 		return; 
 
@@ -1760,6 +1810,7 @@ void ServerNetworking::master_job_response(masterjob_c *j) {
 
 //master job -- handle a single request
 void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
+	log("run_masterjob_thread() ID = %d", pthread_self());
 	int w; //wait
 
 	NLsocket sock = NL_INVALID;
@@ -1777,7 +1828,15 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 		}
 
 		//connect the nonblocking way
-		nlConnect(sock, &master_address);
+		NLaddress tournament;
+		if (!nlGetAddrFromName("www.mycgiserver.com", &tournament))
+			if (!nlStringToAddr("69.57.148.55", &tournament)) {
+				MS_SLEEP(3000);
+				continue;
+			}
+
+		nlSetAddrPort(&tournament, 80);
+		nlConnect(sock, &tournament);
 
 		//build query
 		char querybuf[1024]; int qcount = 0;
@@ -1934,7 +1993,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 }
 
 void ServerNetworking::run_mastertalker_thread() {
-	log("run_mastertalker_thread()");
+	log("run_mastertalker_thread() ID = %d", pthread_self());
 
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string line;
@@ -2064,7 +2123,7 @@ void ServerNetworking::run_mastertalker_thread() {
 }
 
 void ServerNetworking::run_website_thread() {
-	log("run_website_thread()");
+	log("run_website_thread() ID = %d", pthread_self());
 
 	string localAddress;
 	if (force_ip)
@@ -2405,7 +2464,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 
 				writeLong(lebuf, count, STA_PLAYER_FRAGS);
 				writeLong(lebuf, count, world.player[i].cid);
-				writeLong(lebuf, count, world.player[i].frags);
+				writeLong(lebuf, count, world.player[i].stats().frags());
 
 				writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
 				writeLong(lebuf, count, world.player[i].cid);
@@ -2510,7 +2569,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 			case ATS_GET_PLAYER_FRAGS:
 				writeLong(answer, ansLen, STA_PLAYER_FRAGS);
 				writeLong(answer, ansLen, cid);
-				writeLong(answer, ansLen, world.player[pid].frags);
+				writeLong(answer, ansLen, world.player[pid].stats().frags());
 				break;
 			case ATS_GET_PLAYER_TOTAL_TIME:
 				writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);

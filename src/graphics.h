@@ -182,9 +182,11 @@ public:
 
 	Antialiasing_mode antialiasing_mode() const { return antialiasing; }
 	void set_antialiasing(Antialiasing_mode mode) { antialiasing = mode; }
-	
-	int player_color(int index) const { return col[index]; }
-	
+
+	int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
+	int chat_lines() const { return ply / 11; }
+	int chat_max_lines() const { return (ply + plh) / 11; }
+
 	BITMAP* drawbuffer() { return drawbuf; }
 
 	// public only for Mappic
@@ -296,6 +298,7 @@ private:
 	std::vector<Bitmap> player_sprite[2];
 	Bitmap shield_sprite[2];
 	Bitmap dead_sprite[2];
+	Bitmap ice_cream;
 	Bitmap rocket_sprite[2];
 	Bitmap power_rocket_sprite[2];
 

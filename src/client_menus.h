@@ -63,6 +63,7 @@ public:
 	Slider		lagPredictionAmount;
 	Checkbox	joystick;
 	Checkbox	messageLogging;
+	Checkbox	saveStats;
 
 	Menu menu;
 
@@ -80,6 +81,7 @@ public:
 	Select<int>			colorDepth;
 	Textarea			desktopDepth;
 	Select<ScreenMode>	resolution;
+	Textarea			refreshRate;
 	Textarea			apply;
 	Select<std::string>	theme;
 	Select<Graphics::Antialiasing_mode> antialiasing;
@@ -169,6 +171,21 @@ public:
 	Menu menu;
 
 	Menu_serverPassword();
+};
+
+class Menu_serverInfo {
+	std::vector<Textarea> info;
+
+public:
+	Menu menu;
+
+	Menu_serverInfo();
+
+	void add(const std::string& address, const std::string& serverInfo);
+	void reset();
+	void finish();
+
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 #endif	// CLIENT_MENUS_H_INC

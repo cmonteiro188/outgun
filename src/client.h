@@ -153,6 +153,9 @@ class gameclient_c {
 	void remove_player_password(const std::string& name, const std::string& address) const;
 	int remove_player_passwords(const std::string& name) const;
 
+	void save_stats() const;
+	void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
+
 	ServerThreadOwner listenServer;
 
 	// world
@@ -175,6 +178,7 @@ class gameclient_c {
 	NLulong svFrameHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
 	volatile bool connected;
 	bool map_ready;
+	std::string old_map;
 	char servermap[64]; //last map command from server
 
 	pthread_mutex_t udpdq_mutex;
@@ -239,8 +243,7 @@ class gameclient_c {
 
 	std::string talkbuffer;
 	std::list<Message> chatbuffer;
-	static const std::size_t chat_size;
-	std::size_t chat_visible;
+	bool show_all_messages;
 	Graphics client_graphics;
 	bool screenshot;
 	Sounds client_sounds;
@@ -335,11 +338,8 @@ public:
 	void download_server_file(const char* type, const char* name, const char* dest);
 	void server_map_command(const char* mapname, NLushort server_crc);
 
-	// sounds
-	Sounds& sounds() { return client_sounds; }
-
 	// GUI
-	Graphics& graphics() { return client_graphics; }
+	//Graphics& graphics() { return client_graphics; }
 
 	void erase_first_message();
 	void print_message(Message_type type, const std::string& msg);
