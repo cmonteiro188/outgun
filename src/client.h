@@ -226,8 +226,8 @@ class Client {
 	bool want_change_teams;
 	bool want_map_exit;
 	bool map_time_limit;
-	NLulong map_start_time;
-	NLulong map_end_time;
+	int map_start_time;
+	int map_end_time;
 
 	// GUI
 	Menu_main menu;
