@@ -720,11 +720,11 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	//calculate new minimap size (133×100 for maps with n×n rooms)
 	if (map.w > map.h) {
 		minimap_w = minimap_place_w;
-		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 2) * map.h * 3) / map.w / 4 + 2.);
+		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 2) * map.h * 3) / map.w / 4 + 2.);	// important not to round
 	}
 	else {
 		minimap_h = minimap_place_h;
-		minimap_w = static_cast<int>(static_cast<float>((minimap_h - 2) * map.w * 4) / map.h / 3 + 2.);
+		minimap_w = static_cast<int>(static_cast<float>((minimap_h - 2) * map.w * 4) / map.h / 3 + 2.);	// important not to round
 	}
 
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
@@ -745,7 +745,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 		scene.addRectangle(0, 0, maxx, maxy, 0);
 
 		// add room boundaries
-		const float halfPixw = .49999 / xmul, halfPixh = .49999 / ymul;
+		const float halfPixw = .49999 / xmul, halfPixh = .49999 / xmul;
 		for (int i = 1; i < map.w; i++)
 			scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
 		for (int i = 1; i < map.h; i++)
@@ -753,7 +753,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 		// add walls
 		for (int y = 0; y < map.h; y++) {
-			const float by = minimap_start_y + 1 + y * plh * ymul;
+			const float by = minimap_start_y + 1 + y * plh * xmul;
 			for (int x = 0; x < map.w; x++) {
 				const float bx = minimap_start_x + 1 + x * plw * xmul;
 				scene.setScaling(bx, by, xmul);

@@ -725,13 +725,13 @@ void Texturizer::render(int texid, const DrawElement* elp, bool overlay) {
 }
 
 inline void Texturizer::setLine(int y) {
-	nAssert(y >= 0 && y < buf->h);
+	nAssert(y >= 0 && y < buf->h);	// can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
 	by = by0 + y;
 }
 
 inline void Texturizer::nextLine() {
 	++by;
-	nAssert(by < buf->h);
+	nAssert(by < buf->h);	// can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
 }
 
 void Texturizer::startPixSpan(int x) {

@@ -26,7 +26,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-//#define CLIENT_PREDICTION
+#define CLIENT_PREDICTION
 const float lagWanted = .5;
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0

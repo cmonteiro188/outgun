@@ -21,8 +21,8 @@ using std::cerr;
 // all tresholds' unit is a pixel
 // these settings currently tune the module to work with values of y up to approximately +-1e8
 // they have to be relaxed in order to gain more range
-const double INTERSECTION_TRESHOLD = .00000001;	// roughly 2^-27
-const double SPLIT_TRESHOLD        = .0000001;
+const double INTERSECTION_TRESHOLD = .0000001;	// roughly 2^-20
+const double SPLIT_TRESHOLD        = .0000002;
 const double FINAL_EXTREMECUT      = .000001;
 const double JOIN_TRESHOLD         = .001;
 
