@@ -100,13 +100,13 @@ gameclient_c::gameclient_c():
 	lastpackettime = 0;
 
 	//menu showing?
-	menu = menu_main;		//menu screen #
+	menu = menu_main;
 
 	//game showing?
 	gameshow = false;
 
 	//frames and seconds for FPS counter
-	FPS=0;
+	FPS = 0;
 	framecount = 0;
 	totalframecount = 0;
 	frameCountStartTime = 0;
