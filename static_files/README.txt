@@ -1,140 +1,87 @@
-********************************************************************************
+*******************************************************************************
           
     OUTGUN
 
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
-********************************************************************************
+*******************************************************************************
+                                                      [ 1.0.0 beta 2004-04-19 ]
 
 
 -------------------------
 Project homepages:
 -------------------------
 
- The official Outgun site
+The official Outgun site
+   http://outgun.sf.net/en/
 
-	http://www.amok.com.br/outgun/en/
+Outgun development by Nix and Huntta
+   http://koti.mbnet.fi/outgun/
 
- Outgun development by Nix and Huntta
-
-	http://koti.mbnet.fi/npr/outgun/
+Outgun 1.0.0 beta testing page
+   http://koti.mbnet.fi/outgun/1.0.0_beta/
 
 
 -------------------------
-Notes for 0.5.0-E:
+Notes for 1.0.0 beta:
 -------------------------
 
- This release is based on and compatible with 0.5.0 by Spinal. All code since
-   0.5.0 is by Nix (more) and Huntta (less).
+This is a beta version. It contains bugs, and will be outdated fast. Use it at
+your own risk! See http://koti.mbnet.fi/outgun/1.0.0_beta/ for more information
+about the beta, instructions for reporting bugs, and the newest version.
 
- There may be bugs both old and new. Please report them to Nix <npr1@suomi24.fi>
-   after checking http://koti.mbnet.fi/npr/outgun/ for newer versions.
+See the HTML help in the doc directory for some information on running the
+server and customizing the game. More information will appear there before the
+final release, though.
 
- If you want to configure Outgun to understand your keyboard, edit allegro.cfg.
+If you want to configure Outgun to understand your keyboard, edit allegro.cfg.
 
- This version has a new maploader function that detects some map file errors
-   that the 0.5.0 doesn't. To encourage correctness, such maps can not be used
-   on a server with this version. Playing on erroneus maps in other servers is
-   not restricted. Some of the maps distributed with 0.5.0 have these problems,
-   so do use those that came with 0.5.0-E. If a map does not load, look at
-   out_svr.log (dedicated servers) or out_cli.log (listen servers) to see which
-   line is the offending one.
+All available maps aren't used on a server by default. You can select from the
+cmaps folder the maps you want to use, and copy them to the maps folder.
 
- See the end of this file for a list of most noticable new features in 0.5.0-E.
+If you are an author of one of the maps on this package, and want your map
+removed from the distribution or updated, or the credits changed, contact us at
+outgun@mbnet.fi. Also feel free to send us new maps to be included with the
+game. Especially good ones. ;)
+
+This game is free software under GPL. See the file COPYING for more details.
+NOTE: during the initial stages of beta, the sources are available only by
+asking us, because we don't see distributing the current sources useful. There
+are no up to date compilation instructions and they don't compile on Linux yet.
+We ask you to be patient and wait for the final release. But we will send them
+if you ask, we have to because they're under GPL and not all our code.
 
 
 -------------------------
 CREDITS:
 -------------------------
 
- Programming by
-	Fabio "Spinal" Cecin <fcecin@inf.ufrgs.br> <frcecin@terra.com.br>
-	Niko "Nix" Ritari <npr1@suomi24.fi>
-	Jani "Huntta" Rivinoja <janir@mbnet.fi>
+Programming for 0.5.0 by
+   Fabio "Spinal" Cecin <fcecin@inf.ufrgs.br> <frcecin@terra.com.br>
+   Random Name Routine(TM) by Renato Hentschke <renato@amok.com.br>
 
- Featuring sound theme by Visa-Valtteri Pimiä <visa.pimia@www.fi>
+Programming for 1.0.0 by
+   Niko Ritari (Nix) <npr1@suomi24.fi>
+   Jani Rivinoja (Huntta) <janir@mbnet.fi>
 
- GNU/Linux work in 0.5.0 by Rafael Jannone <jannone@inf.ufrgs.br>
+Graphics themes by Jani Rivinoja and Joonas Rivinoja.
 
- Random Name Routine(TM) by Renato Hentschke <renato@amok.com.br>
+Sound theme by Visa-Valtteri Pimiä <visa.pimia@www.fi>
 
- Included maps by Fabio Cecin, JoL-PHIN, Flyer-DH, Huntta, Juggis, Jakke,
-   EVILKAIOH and DEVIL
+Maps by Fabio Cecin, JoL-PHIN, Flyer-DH, Huntta, Juggis, Jakke, evilKaioh,
+Devil, MK-Headshot (unBugger) and Luque.
 
- This game uses the excellent libraries:
-  * Allegro - http://alleg.sourceforge.net
-  * HawkNL - http://www.hawksoft.com/hawknl 
-  * GNE - http://www.rit.edu/~jpw9607/gne/
-  * Pthreads-win32 - http://sources.redhat.com/pthreads-win32
+Beta testers: You! Get your name here by reporting a new bug. :)
 
+This game uses the excellent libraries:
+ * Allegro - http://alleg.sourceforge.net/
+ * HawkNL - http://www.hawksoft.com/hawknl/
+ * GNE - http://www.rit.edu/~jpw9607/gne/
+ * Pthreads-win32 - http://sources.redhat.com/pthreads-win32/
 
--------------------------
-SPECIAL THANKS:
--------------------------
+The executable and DLLs have been packed to almost 50% of their original size
+using UPX - http://upx.sourceforge.net/
 
- Special thanks to Amok Entertainment (http://www.amok.com.br) for sponsoring
-   the first game server.
-
- Special thanks to hardMOB <http://www.hardmob.com.br> for sponsoring the second
-   (but much better) game server! :-) Thanks to Jefferson "JReZIN" Ietto Novo
-   <jrezin@hardmob.com.br> for running the hardMOB server!
-
- Thanks to Paulo Zaffari (Amok Entertainment) for helping in debugging (the
-   0.4.0 "win-nt killer" bug!), testing and giving game design suggestions.
-
- Thanks JoL-PHIN, Flyer-DH and others for the Outgun maps included with the game
-   distribution!
-
- Thanks to Ricky Piller <superpiller@hotmail.com> for the first-ever server
-   outside Brazil, in USA (a kick-ass cable connection, by the way!)
-
- Finally, thanks to ALL players and supporters!
-
-
--------------------------
-New in 0.5.0-E
--------------------------
-
-
- Gameplay affecting server features
-
- - Selectable capture limit and time limit (optional).
- - The maximum number and effective time of power-ups can be set in gamemod.txt.
- - Number of power-ups can be set in percents of map size (to reduce them in
-   smaller maps).
- - Picking up a second deathbringer cancels the effect (optional).
- - Shadow power-up can be set to make the player totally invisible.
- - Power-ups are never inside walls.
- - Power-ups lying on the ground don't change.
-
-
- Other server features
-
- - Server can have more than 32 maps in the list.
- - Map rotation can be fixed or random.
- - Welcome message to players entering the server.
- - Setting to inhibit map changes for some time for each map.
- - Server admin can kick, ban and mute players.
- - Optional player name registering in the server.
- - Empty or invalid player names are not allowed.
- - Pings are measured accurately.
- - Some bugs and vulnerabilities are fixed, and some smaller features added.
- - Console commands:
-	/help      List the supported commands.
-	/info      Shows info about the server.
-	/config    Shows some info about server configuration, e.g. capture
-	           limit and time limit.
-	/stats     See your stats.
-	/mapinfo   Shows info about a map.
-	/time      Shows the server uptime, the map time and time left.
-	/votemap   Vote a map or see the maplist and votes.
-	/sayadmin  Send a message to the server admin.
-
-
- Client side features
-
- - Flag sites are marked on the ground and shown more intelligently in the
-   minimap.
- - Option to log messages in a file. Start outgun with the parameter -log
- - Support for high Ascii characters (e.g. ä, é, ñ). Edit allegro.cfg to set up
-   your keyboard.
+The HawkNL NL.dll shipped with Outgun is modified by Nix to avoid problems
+(sockets that are left open) with at least Windows 98 SE. Sources for the
+modified version are at http://koti.mbnet.fi/outgun/HawkNL168src_Nix.zip
