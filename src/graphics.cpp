@@ -3,7 +3,7 @@
 #include "world.h"
 #include "effects.h"
 #include "sounds.h"
-#include "server.h"
+#include "antalias.h"
 #include "graphics.h"
 
 #define PATTERNED_PLAYER
@@ -33,9 +33,26 @@ void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, in
 	va_end(argptr);
 	textout_centre(bmp, f, xbuf, x, y, color);
 }
+void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+	text_mode(bg);
+	va_list argptr;
+	char xbuf[16384];
+	va_start(argptr, format);
+	vsprintf(xbuf, format, argptr);
+	va_end(argptr);
+	textout_right(bmp, f, xbuf, x, y, color);
+}
 void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
 	text_mode(bg);
 	textout(bmp, f, text, x, y, color);
+}
+void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+	text_mode(bg);
+	textout_centre(bmp, f, text, x, y, color);
+}
+void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+	text_mode(bg);
+	textout_right(bmp, f, text, x, y, color);
 }
 #else
 #define WINMODE GFX_AUTODETECT_WINDOWED
@@ -62,7 +79,8 @@ Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	vidpage1(0),
 	vidpage2(0),
 	backbuf(0),
-	no_theme(false)
+	no_theme(false),
+	antialiasing(AA_both)
 {
 	floor_texture.resize(4, 0);
 	wall_texture.resize(1, 0);
@@ -310,15 +328,84 @@ bool Graphics::reset_video_mode() {
 	return true; //ok
 }
 
-void Graphics::draw_playground() {
+void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags) {
 	clear_to_color(background, 0);
-	if (floor_texture.front()) {
-		drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture.front(), 0, 0);
-		rectfill(roombg, 0, 0, roombg->w - 1, roombg->h - 1, col[COLGROUND]);
-		solid_mode();
+	if (antialiasing == AA_both) {
+		SceneAntialiaser scene;
+		scene.setScaling(0, 0, 1.);
+
+		// add bottom ground to drawing system
+		scene.addRectangle(0, 0, plw, plh, 0);
+
+		// add additional ground textures
+		for (vector<RectWall>::const_iterator rwi = room.rground.begin(); rwi != room.rground.end(); ++rwi)
+			scene.addRectWall(*rwi, rwi->texture());
+		for (vector< TriWall>::const_iterator twi = room.tground.begin(); twi != room.tground.end(); ++twi)
+			scene.addTriWall (*twi, twi->texture());
+		for (vector<CircWall>::const_iterator cwi = room.cground.begin(); cwi != room.cground.end(); ++cwi)
+			scene.addCircWall(*cwi, cwi->texture());
+
+		// add flag markers as overlays
+//#@
+
+		// add walls
+		const int texShift = floor_texture.size();
+		for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
+			scene.addRectWall(*rwi, rwi->texture() + texShift);
+		for (vector< TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
+			scene.addTriWall (*twi, twi->texture() + texShift);
+		for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
+			scene.addCircWall(*cwi, cwi->texture() + texShift);
+
+		scene.setClipping(0, 0, plw, plh);
+		scene.clipAll();
+
+		// prepare the textures
+		//#fix: optimize from here down in the case of no texturing
+		vector<BITMAP*> textures, tempTex;	//#fix: these tables should be pre-created at texture load time
+		BITMAP* backupTexture = floor_texture.front();
+		if (!backupTexture) {
+			backupTexture = create_bitmap(1, 1);
+			putpixel(backupTexture, 0, 0, col[COLGROUND]);
+			tempTex.push_back(backupTexture);	// the bitmap must exist until the picture is finished
+		}
+		for (vector<BITMAP*>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti)
+			textures.push_back(*ti ? *ti : backupTexture);
+		backupTexture = wall_texture.front();
+		if (!backupTexture) {
+			backupTexture = create_bitmap(1, 1);
+			putpixel(backupTexture, 0, 0, col[COLWALL]);
+			tempTex.push_back(backupTexture);
+		}
+		for (vector<BITMAP*>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti)
+			textures.push_back(*ti ? *ti : backupTexture);
+
+		// draw
+		PlainTexTexturizer tex(roombg, 0, 0, textures);
+		scene.render(tex);
+		tex.finalize();
+
+		// free temporary textures
+		for (vector<BITMAP*>::const_iterator ti = tempTex.begin(); ti != tempTex.end(); ++ti)
+			destroy_bitmap(*ti);
 	}
-	else
-		clear_to_color(roombg, col[COLGROUND]);
+	else {
+		// draw floor
+		if (floor_texture.front()) {
+			drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture.front(), 0, 0);
+			rectfill(roombg, 0, 0, roombg->w - 1, roombg->h - 1, col[COLGROUND]);
+			solid_mode();
+		}
+		else
+			clear_to_color(roombg, col[COLGROUND]);
+		predraw_room_ground(room);
+		// draw flag position marks
+		for (vector< pair<int, const spoint_t*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+			draw_flagpos_mark(fi->first, fi->second->x, fi->second->y);
+		// draw walls
+		predraw_room_walls(room);
+	}
+	draw_minimap_background();
 }
 
 void Graphics::draw_empty_background() {
@@ -376,10 +463,10 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, floa
 }
 
 void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
-	const int x = wall.X();
-	const int y = wall.Y();
-	const int ro = wall.radius();
-	const int ri = wall.radius_in();
+	const float x = wall.X();
+	const float y = wall.Y();
+	const float ro = wall.radius();
+	const float ri = wall.radius_in();
 	const float* const angle = wall.angles();
 	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
 		if (texture)
@@ -569,6 +656,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	//black background
 	clear_to_color(buffer, 0);
 
+	if (map.w == 0 || map.h == 0)
+		return;
+
 	//calculate new minimap size (133×100 for maps with n×n rooms)
 	if (map.w > map.h) {
 		minimap_w = minimap_place_w;
@@ -579,29 +669,72 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 		minimap_w = static_cast<int>(static_cast<float>(minimap_h * map.w * 4) / map.h / 3 + 0.5);
 	}
 
-	//draw room boundaries
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
 	float room_w = float(minimap_w - 2) / map.w;
 	float room_h = float(minimap_h - 2) / map.h;
-	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : col[COLSHADOW];
-	for (int i = 1; i < map.w; i++)
-		vline(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, minimap_start_y + minimap_h, room_border_col);
-	for (int i = 1; i < map.h; i++)
-		hline(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, room_border_col);
+	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
-
-	//draw solid walls
 	float xmul = float(minimap_w - 2) / maxx, ymul = float(minimap_h - 2) / maxy;
-	for (int y = 0; y < map.h; y++) {
-		float by = minimap_start_y + 1 + y * plh * ymul;
-		for (int x = 0; x < map.w; x++) {
-			float bx = minimap_start_x + 1 + x * plw * xmul;
-			set_clip(buffer, (int)bx, (int)by, int(bx + room_w), int(by + room_h));
-			draw_room_walls(buffer, map.room[x][y], bx, by, xmul, col[COLDARKGREEN], false);
-			set_clip(buffer, 0, 0, buffer->w, buffer->h);
+
+	if (antialiasing != AA_none) {
+		SceneAntialiaser scene;
+		scene.setScaling(minimap_start_x + 1, minimap_start_y + 1, xmul);
+
+		// add background
+		scene.addRectangle(0, 0, maxx, maxy, 0);
+
+		// add room boundaries
+		const float halfPixw = .49999 / xmul, halfPixh = .49999 / ymul;
+		for (int i = 1; i < map.w; i++)
+			scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
+		for (int i = 1; i < map.h; i++)
+			scene.addRectangle(0, plh * i - halfPixh, maxx, plh * i + halfPixh, 2);
+
+		// add walls
+		for (int y = 0; y < map.h; y++) {
+			const float by = minimap_start_y + 1 + y * plh * ymul;
+			for (int x = 0; x < map.w; x++) {
+				const float bx = minimap_start_x + 1 + x * plw * xmul;
+				scene.setScaling(bx, by, xmul);
+				scene.setClipping(0, 0, plw, plh);
+				const Room& room = map.room[x][y];
+				for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
+					scene.addRectWallClipped(*rwi, 1);
+				for (vector< TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
+					scene.addTriWallClipped (*twi, 1);
+				for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
+					scene.addCircWallClipped(*cwi, 1);
+			}
+		}
+
+		// draw
+		vector<int> colors;
+		colors.push_back(0);	// ground
+		colors.push_back(col[COLDARKGREEN]);	// walls
+		colors.push_back(room_border_col);	// room boundaries
+		PlainColorTexturizer tex(buffer, 0, 0, colors);
+		scene.render(tex);
+		tex.finalize();
+	}
+	else {
+		//draw room boundaries
+		for (int i = 1; i < map.w; i++)
+			vline(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, minimap_start_y + minimap_h, room_border_col);
+		for (int i = 1; i < map.h; i++)
+			hline(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, room_border_col);
+
+		//draw solid walls
+		for (int y = 0; y < map.h; y++) {
+			float by = minimap_start_y + 1 + y * plh * ymul;
+			for (int x = 0; x < map.w; x++) {
+				float bx = minimap_start_x + 1 + x * plw * xmul;
+				set_clip(buffer, (int)bx, (int)by, int(bx + room_w), int(by + room_h));
+				draw_room_walls(buffer, map.room[x][y], bx, by, xmul, col[COLDARKGREEN], false);
+				set_clip(buffer, 0, 0, buffer->w, buffer->h);
+			}
 		}
 	}
 
@@ -1248,7 +1381,7 @@ void Graphics::draw_fps(double fps) {
 	textprintf_ex(drawbuf, font, plx + 10, ply + plh - 14, 0, -1, "FPS:%3.0f", fps);
 }
 
-void Graphics::map_list(const vector<gameserver_c::MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
+void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
 	const int w = 540;
 	const int h = 420;
 	const int mx = SCREEN_W / 2;
@@ -1278,7 +1411,7 @@ void Graphics::map_list(const vector<gameserver_c::MapInfo>& maps, int current, 
 	for (int i = map_list_start; i < static_cast<int>(maps.size()) && i < map_list_start + map_list_size; ++i) {
 		ostringstream mapline;
 		mapline << setw(2) << i + 1 << ' ' << setw(2);
-		const gameserver_c::MapInfo& map = maps[i];
+		const MapInfo& map = maps[i];
 		if (map.votes > 0)
 			mapline << map.votes;
 		else
@@ -1690,10 +1823,13 @@ void Graphics::main_menu(bool connected, const string& address, const string& pl
 		textprintf_ex(drawbuf, font, 150, 312-DELY, col[COLWHITE], -1, "  [ 7 ]   Change graphics theme: (%s)", themedir.c_str());
 		textprintf_centre_ex(drawbuf, font, 150+180, 324-DELY, col[COLGREEN], -1, "'%s'", theme_name.c_str());
 	}
+	textprintf_ex(drawbuf, font, 150, 338-DELY, col[COLWHITE], -1, "  [ 8 ]   Toggle antialiasing: (%s)", antialiasing == AA_none ? "off" : antialiasing == AA_map ? "map" : "on");
 
+/*#fix: change the menu system so that everything fits :)
 	textout_ex(drawbuf, font, "Hit CONTROL+F12 to EXIT THE GAME", 150, 354-DELY, col[COLWHITE], -1);
 	textout_ex(drawbuf, font, "Hit ESC to HIDE OR SHOW THIS MENU", 150, 369-DELY, col[COLWHITE], -1);
 	textout_ex(drawbuf, font, "Hit F1 to SHOW THE HELP SCREEN", 150, 384-DELY, col[COLORA], -1);
+*/
 }
 
 // show two-line message
@@ -1999,6 +2135,15 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	return failure;
 }
 
+void Graphics::toggleAntialiasing() {
+	if (antialiasing == AA_none)
+		antialiasing = AA_map;
+	else if (antialiasing == AA_map)
+		antialiasing = AA_both;
+	else
+		antialiasing = AA_none;
+}
+
 // Theme functions
 
 void Graphics::search_themes() {
@@ -2072,15 +2217,9 @@ void Graphics::load_theme(const string& dirname) {
 	char dest[WHERE_PATH_SIZE];
 	append_filename(dest, wheregamedir, des_file.c_str(), WHERE_PATH_SIZE);
 
-	string name;
 	ifstream in(dest);
-	if (in) {
-		getline_smart(in, name);
-		if (name.empty())
-			name = "(unnamed theme)";
-		in.close();
-	}
-	theme_name = name;
+	if (!getline_smart(in, theme_name))
+		theme_name = "(unnamed theme)";
 	LOG1("Loaded graphics theme from '%s'.\n", des_file.c_str());
 }
 

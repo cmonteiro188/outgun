@@ -7,23 +7,6 @@
 //#define DEBUG_RANKING
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
 
-gameserver_c::MapInfo::MapInfo() : votes(0), votes_changed(false) { }
-
-bool gameserver_c::MapInfo::load(string mapName) {
-	Map map;
-	bool ok = map.load(SERVER_MAPS_DIR, mapName);
-	if (!ok)
-		return false;
-	file = mapName;
-	title = map.title;
-	author = map.author;
-	width = map.w;
-	height = map.h;
-	votes = 0;
-	votes_changed = false;
-	return true;
-}
-
 gameserver_c::gameserver_c() : world(this, &network), network(this, world) {
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
@@ -88,6 +71,7 @@ void gameserver_c::ctf_game_restart() {
 
 	network.broadcast_sample(SAMPLE_CTF_GAMEOVER);
 
+	network.sendWorldReset();	// must be before world.reset() because world.reset() already sends initializations
 	world.reset();
 
 	network.ctf_update_teamscore(0);
@@ -549,7 +533,7 @@ void gameserver_c::load_game_mod() {
 		in.close();
 	}
 	else
-		LOG("Can't open game mod file!\n");
+		LOG("Can't open game mod file gamemod.txt!\n");
 	world.setConfig(worldConfig, pupConfig);
 }
 

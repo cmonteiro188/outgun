@@ -67,6 +67,17 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
 	return (maxy >= miny);
 }
 
+TriWall::TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_)
+		: p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3), tex(tex_), alpha(alpha_) {
+	if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// 1, 2 sorted
+	if (p3y < p2y) {
+		swap(p2x, p3x); swap(p2y, p3y);	// 1, 3 and 2, 3 sorted
+		if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// all sorted
+	}
+	boundx1 = min(p1x, min(p2x, p3x)), boundy1 = min(p1y, min(p2y, p3y));
+	boundx2 = max(p1x, max(p2x, p3x)), boundy2 = max(p1y, max(p2y, p3y));
+}
+
 bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) const {
 	nAssert(ry1<=ry2 && rx1<=rx2);
 	nAssert(p1y<=p2y && p2y<=p3y);
@@ -92,7 +103,7 @@ bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) co
 	return false;
 }
 
-CircWall::CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int tex_, int alpha_):
+CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_) :
 	x(x_),
 	y(y_),
 	ro(ro_),
@@ -138,6 +149,19 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
 	return false;
 }
 
+bool Room::fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
+	for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
+		if (rwi->intersects_rect(x1, y1, x2, y2))
+			return true;
+	for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
+		if (twi->intersects_rect(x1, y1, x2, y2))
+			return true;
+	for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
+		if (cwi->intersects_rect(x1, y1, x2, y2))
+			return true;
+	return false;
+}
+
 bool Map::load(const char *mapdir, const string& mapname) {
 	char lebuffer[1024];
 	char dest[WHERE_PATH_SIZE];
@@ -179,7 +203,7 @@ bool Map::parse_file(istream& in) {
 	while (1) {
 		string line;
 		getline_smart(in, line);
-		if (line.empty() || line[0] == ';')		// empty line or comment
+		if (line[0] == ';')		// comment
 			continue;
 		if (line[0] == ':') {	// a label is found
 			current_label = line.substr(1);
@@ -211,13 +235,13 @@ bool Map::parse_file(istream& in) {
 					if (labels[i].first == current_label) {
 						Room& rm = room[labels[i].second.first][labels[i].second.second];
 						vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
-						wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
+						wvec.push_back(RectWall(x1, y1, x2, y2, texid, alpha));
 					}
 			}
 			else {
 				Room& rm = room[crx][cry];
 				vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
-				wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
+				wvec.push_back(RectWall(x1, y1, x2, y2, texid, alpha));
 			}
 		}
 		else if (line[0] == 'T') {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex alpha] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
@@ -246,13 +270,13 @@ bool Map::parse_file(istream& in) {
 					if (labels[i].first == current_label) {
 						Room& rm = room[labels[i].second.first][labels[i].second.second];
 						vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-						wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+						wvec.push_back(TriWall(x1, y1, x2, y2, x3, y3, texid, alpha));
 					}
 			}
 			else {
 				Room& rm = room[crx][cry];
 				vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-				wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+				wvec.push_back(TriWall(x1, y1, x2, y2, x3, y3, texid, alpha));
 			}
 		}
 		else if (line[0] == 'C') {	// C (W|G) x y or [ir [a1 a2 [tex alpha]]] : circular wall (W) or ground tex (G)
@@ -301,13 +325,13 @@ bool Map::parse_file(istream& in) {
 					if (labels[i].first == current_label) {
 						Room& rm = room[labels[i].second.first][labels[i].second.second];
 						vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-						wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
+						wvec.push_back(CircWall(x, y, ro, ri, a1, a2, texid, alpha));
 					}
 			}
 			else {
 				Room& rm = room[crx][cry];
 				vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-				wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
+				wvec.push_back(CircWall(x, y, ro, ri, a1, a2, texid, alpha));
 			}
 		}
 		else if (line[0] == 'R') {	// R x y : set room pointer to (x,y)
@@ -440,6 +464,122 @@ bool Map::parse_file(istream& in) {
 		if (!in)	// end-of-file or error
 			return true;
 	}
+}
+
+MapInfo::MapInfo() : votes(0), votes_changed(false) { }
+
+bool MapInfo::load(string mapName) {
+	Map map;
+	bool ok = map.load(SERVER_MAPS_DIR, mapName);
+	if (!ok)
+		return false;
+	file = mapName;
+	title = map.title;
+	author = map.author;
+	width = map.w;
+	height = map.h;
+	votes = 0;
+	votes_changed = false;
+	return true;
+}
+
+void ServerPlayer::reset_message_queue_timing() {	// make messages already on queue appear instantly
+	for (DMQueueT::iterator m=delayedMessages.begin(); m!=delayedMessages.end(); ++m)
+		m->first=0;
+}
+
+void ServerPlayer::add_to_queue(const std::string& str) {
+	int time;	// in server frames (1/10 sec)
+	if (delayedMessages.size()<=5)
+		time=0;
+	else
+		time=30;
+	delayedMessages.push_back(pair<int, string>(time, str));
+}
+
+void ServerPlayer::queue_printf(const char* fmt, ...) {
+	char buf[16385];
+	va_list argptr;
+	va_start(argptr, fmt);
+	vsprintf(buf, fmt, argptr);
+	va_end(argptr);
+	add_to_queue(string(buf));
+}
+
+void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name) {
+	PlayerBase::clear(enable, _pid, _name);
+
+	attack = false;
+	oldfrags = -666;
+	want_map_exit = false;		//by default don't want change maps
+	mapVote=-1;
+	delayedMessages.clear();
+	kickTimer=0;
+	muted=0;
+	want_change_teams = false;	// don't want to change teams yet
+	team_change_time = 0;
+	team_change_pending = false;
+	next_shoot_time = 0;
+	talk_temp = 0.0;
+	talk_hotness = 1.0;
+	cid=_cid;
+	waitnametime = get_time() - 666.0;	//can change name right now
+
+	total_kills = 0;
+	total_deaths = 0;
+	most_consecutive_kills = 0;
+	current_consecutive_kills = 0;
+	most_consecutive_deaths = 0;
+	current_consecutive_deaths = 0;
+	total_suicides = 0;
+	total_captures = 0;
+	total_flags_taken = 0;
+	total_flags_dropped = 0;
+	total_flags_returned = 0;
+	total_flag_carriers_killed = 0;
+	total_shots = 0;
+	total_hits = 0;
+	total_shots_taken = 0;
+	total_movement = 0;
+	start_time = static_cast<int>(get_time());
+	last_spawn_time = start_time;
+	lifetime = 0;
+
+	lastClientFrame = 0;
+	#ifdef SEND_FRAMEOFFSET
+	frameOffset = 0;
+	#endif
+	awaiting_client_ready = false;
+	item_deathbringer_time = 0;
+	deathbringer_end = 0;
+	deathbringer_attacker = 0;
+	item_quad_time = item_speed_time = item_helm_time = 0;
+	health = energy = 0;
+	megabonus = 0;
+	weapon = 0;
+	drop_key = false;
+	dropped_flag = false;
+	respawn_time = 0;
+	respawn_to_base = false;
+	carrying_flag = false;
+}
+
+void ClientPlayer::clear(bool enable, int _pid, const std::string& _name) {
+	PlayerBase::clear(enable, _pid, _name);
+
+	item_quad_time = item_speed_time = item_helm_time = 0;
+	health = energy = 0;
+	weapon = 0;
+
+	speed_drop_time = wall_sound_time = 0;
+	onscreen = false;
+	enemyvis = 0;
+	deathbringer_affected = false;
+	death_drop_time = 0;
+	hitfx = 0;
+	drawptr = drawused = 0;
+	old_dead = false;
+	oldx = oldy = 0;
 }
 
 /* bounceFromPoint():

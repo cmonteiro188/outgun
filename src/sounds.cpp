@@ -94,15 +94,9 @@ void Sounds::load_theme(const string& dir) {
 	char dest[WHERE_PATH_SIZE];
 	append_filename(dest, wheregamedir, des_file.c_str(), WHERE_PATH_SIZE);
 
-	string name;
 	ifstream in(dest);
-	if (in) {
-		getline_smart(in, name);
-		if (name.empty())
-			name = "(unnamed theme)";
-		in.close();
-	}
-	themename = name;
+	if (!getline_smart(in, themename))
+		themename = "(unnamed theme)";
 	LOG1("Loaded sound theme from '%s'.\n", des_file.c_str());
 
 	//play a sample

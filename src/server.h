@@ -76,16 +76,6 @@ class gameserver_c {
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;
 
-public:
-	struct MapInfo {
-		string title, author, file;
-		int width, height;
-		int votes;
-		bool votes_changed;
-		MapInfo();
-		bool load(string mapName);
-	};
-
 private:
 	vector<MapInfo> maprot;
 	int currmap;		// current map in maprot

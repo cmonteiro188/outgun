@@ -3,7 +3,6 @@
 
 #include <string>
 #include <list>
-#include "server.h"
 
 // ---- client screen layout ----
 
@@ -24,6 +23,7 @@
 #define sby (mmy + 110)         // + XXX = minimap panel height
 
 class Map;
+class MapInfo;
 class RectWall;
 class TriWall;
 class CircWall;
@@ -53,7 +53,7 @@ public:
 	void reset_playground_colors();
 	void random_playground_colors();
 
-	void draw_playground();
+	void predraw(const Room& room, const std::vector< std::pair<int, const spoint_t*> >& flags);
 
 	void draw_background();
 	void draw_empty_background();
@@ -106,7 +106,7 @@ public:
 	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
 	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout);
 
-	void map_list(const vector<gameserver_c::MapInfo>& maps, int current = -1,
+	void map_list(const std::vector<MapInfo>& maps, int current = -1,
 				  int own_vote = -1, const std::string& edit_vote = "");
 
 	void map_list_prev();
@@ -162,6 +162,7 @@ public:
 	void set_theme_dir(const std::string& dir);
 	const std::string& theme_dir() const { return themedir; }
 	bool basic() const { return no_theme; }
+	void toggleAntialiasing();
 
 private:
 	void build_flagpos_marks();
@@ -245,6 +246,8 @@ private:
     al_ffblk themeffblk;	// for al_find*
     bool valid_theme;		// if theme_dir points to valid dir
     bool no_theme;
+
+	enum { AA_none, AA_map, AA_both } antialiasing;
 
 	//colors
 	enum {

@@ -149,6 +149,7 @@ public:
 	void ctf_update_teamscore(int t);
 	void move_update_player(int a);
 	void client_report_status(int id);
+	void sendWorldReset();
 	void sendEndGameover();
 	void sendWeaponPower(int pid);
 	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id: array of NLubyte[shots]

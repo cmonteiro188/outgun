@@ -1,7 +1,7 @@
 #ifndef NETWORK_H_INC
 #define NETWORK_H_INC
 
-#define WATCH_CONNECTION
+//#define WATCH_CONNECTION
 //#define SEND_FRAMEOFFSET
 
 enum Network_data_codes {
@@ -19,6 +19,7 @@ enum Network_data_codes {
 	data_pup_timer,
 	data_weapon_change,
 	data_map_change,
+	data_world_reset,
 	data_gameover_show,
 	data_gameover_hide,
 	data_deathbringer,

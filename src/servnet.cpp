@@ -419,7 +419,7 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) {
 	int count = 0;
 	char lebuf[256];
 	writeByte(lebuf, count, data_map_list);
-	const gameserver_c::MapInfo& map = host->maplist()[player.current_map_list_item];
+	const MapInfo& map = host->maplist()[player.current_map_list_item];
 	writeStr(lebuf, count, map.title);
 	writeStr(lebuf, count, map.author);
 	writeByte(lebuf, count, static_cast<NLchar>(map.width));
@@ -432,7 +432,7 @@ void ServerNetworking::broadcast_map_votes_update() {
 	// check changed votes
 	vector<pair<NLchar, NLchar> > votes;	// map number and votes
 	NLchar i = 0;
-	for (vector<gameserver_c::MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
+	for (vector<MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
 		if (mi->votes_changed) {
 			votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
 			mi->votes_changed = false;
@@ -595,7 +595,6 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 	int count = 0;
 	writeByte(lebuf, count, data_map_change);
 
-	writeByte(lebuf, count, 2);   // file map format
 	writeShort(lebuf, count, world.map.crc);
 	writeString(lebuf, count, mapname);
 	writeByte(lebuf, count, static_cast<NLchar>(host->current_map_nr()));
@@ -673,8 +672,8 @@ bool ServerNetworking::start() {
 
 	//start website thread
 	websock = NL_INVALID;		//not opened
-	pthread_create(&webthread, 0, thread_website_f, this);
 	website_exiting_ok = false;
+	pthread_create(&webthread, 0, thread_website_f, this);
 
 	//shell socket
 	//v0.4.2 : new port
@@ -1196,6 +1195,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 
 void ServerNetworking::disconnect_client(int cid, int timeout) {
 	server->disconnect_client(cid, timeout);
+}
+
+void ServerNetworking::sendWorldReset() {
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, data_world_reset);
+	server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::sendEndGameover() {
@@ -2506,7 +2511,7 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 
 string ServerNetworking::website_maplist() const {
     ostringstream maps;
-    for (vector<gameserver_c::MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
+    for (vector<MapInfo>::const_iterator m = host->maplist().begin(); m != host->maplist().end(); m++) {
         if (m != host->maplist().begin())
             maps << '\n';
         maps << m->title;
@@ -2630,7 +2635,6 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread() {
-
 	LOG("\nrun_shellmaster_thread() STARTED\n");
 
 	while (1) {
@@ -2932,7 +2936,7 @@ void ServerNetworking::stop() {
 	if (server)
 		server->stop(3);
 	else
-		throw 8384;
+		nAssert(0);
 
 	//reset client_c struct (closes files...)
 	for (int i=0; i<MAX_PLAYERS; i++)

@@ -118,4 +118,3 @@ istream& getline_smart(istream& in, string& str) {
 		str += c;
 	}
 }
-

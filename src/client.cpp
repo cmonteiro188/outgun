@@ -9,13 +9,20 @@
 #include "network.h"
 #include "nassert.h"
 
-//#define CLIENT_PREDICTION
-const float lagWanted = .5;
+//#define ROOM_CHANGE_BENCHMARK
+#define DISABLE_AUTOMATIC_SERVER_SEARCH
+
+#define CLIENT_PREDICTION
+const float lagWanted = 1.;
 
 #ifdef NIX
 void set_close_button_callback(void (*fn)()) {
 	set_window_close_hook(fn);
 }
+#endif
+
+#ifdef ROOM_CHANGE_BENCHMARK
+int benchmarkRuns = 0;
 #endif
 
 gameclient_c *gameclient;	//#fix: get rid
@@ -200,7 +207,9 @@ bool gameclient_c::start() {
 	client_graphics.search_themes();
 
 	//refresh master!
+	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	get_servers_from_master();
+	#endif
 
 	return true;
 }
@@ -669,7 +678,7 @@ void gameclient_c::client_udp_download(download_runes_t  *rune) {
 
 	//error that will never happen even in a million years
 	LOG("BAD BAD **ERROR** : UDPDQ IS FULL");
-	throw 66640;	//BAD ERROR
+	nAssert(0);	//BAD ERROR
 
 	pthread_mutex_unlock ( &udpdq_mutex );
 }
@@ -1298,6 +1307,7 @@ void gameclient_c::send_frame(bool newFrame) {
 	if (newFrame)
 		++clFrameSent;
 	controlHistory[clFrameSent].fromKeyboard();
+	svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
 
 	writeByte(lebuf, count, clFrameSent);
 	writeByte(lebuf, count, controlHistory[clFrameSent].toNetwork(false));
@@ -1342,11 +1352,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	//overwrite always the newer frames
 	// TARGET FRAME: just one
 	if (svframe > fx.frame) {
-		frameReceiveTime = get_time();
-		int currentLag = static_cast<NLubyte>(clFrameSent - clFrameWorld);
-		nAssert(currentLag < 128);
-		averageLag = averageLag*.99 + currentLag*.01;
-
 		nAssert(fx.frame == (int)fx.frame);
 
 		ClientPhysicsCallbacks cb(*this);
@@ -1373,6 +1378,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		//----- PLAYER SPECIFIC DATA -----
 
 		readByte(data, count, clFrameWorld);
+		frameReceiveTime = get_time();
+		int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 100ul);	// bound because svFrameHistory has invalid frame# at connect to server
+		averageLag = averageLag*.99 + currentLag*.01;
+
 		#ifdef SEND_FRAMEOFFSET
 		NLubyte fo;
 		readByte(data, count, fo);
@@ -1855,24 +1864,21 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					want_map_exit = false;		// and player does not want to exit the map anymore
 					fx.teams[0].remove_flags();
 					fx.teams[1].remove_flags();
-					readByte(lebuf, count, abyte);			// read map kind (1=builtin 2=custom)
-					if (abyte == 2) {
-						readShort(lebuf, count, usho);				//read CRC16 of map
-						readString(lebuf, count, mapname);		//read map name
-						server_map_command(mapname, usho);
-						NLchar map_nr;
-						readByte(lebuf, count, map_nr);
-						current_map = map_nr;
-						if (map_vote == current_map)
-							map_vote = -1;
-					}
-					else {
-						//FIXME: unknown map kind
-					}
-					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-						fx.item[iid].kind = 0;
+					readShort(lebuf, count, usho);				//read CRC16 of map
+					readString(lebuf, count, mapname);		//read map name
+					server_map_command(mapname, usho);
+					NLchar map_nr;
+					readByte(lebuf, count, map_nr);
+					current_map = map_nr;
+					if (map_vote == current_map)
+						map_vote = -1;
 					fx.player[me].oldx = -1;
 					fx.player[me].oldy = -1;
+					break;
+					
+				case data_world_reset:
+					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
+						fx.item[iid].kind = 0;
 					break;
 
 				//server shows gameover plaque
@@ -1986,7 +1992,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				// server map list
 				case data_map_list: {
 					NLchar width, height, votes;
-					gameserver_c::MapInfo mapinfo;
+					MapInfo mapinfo;
 					readStr(lebuf, count, mapinfo.title);
 					readStr(lebuf, count, mapinfo.author);
 					readByte(lebuf, count, width);
@@ -2556,7 +2562,7 @@ void gameclient_c::loop() {
 	client_netsend_counter = 0;
 
 	//loop
-	bool quick_fix, key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
+	bool key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
 	int i;
 	while (notquit && !force_exit) {
@@ -2583,9 +2589,7 @@ void gameclient_c::loop() {
 
 		// (1) loop doing input/sleep before next simulation/draw time
 		//
-		quick_fix = true;
 		do {
-
 			//quit key
 			if ((key[KEY_LCONTROL]) || (key[KEY_RCONTROL]))
 			if (key[KEY_F12]) {
@@ -2672,6 +2676,11 @@ void gameclient_c::loop() {
 								case '6': client_sounds.next_theme(); break;
 								case '7':
 									client_graphics.next_theme();
+									predraw();
+									break;
+								case '8':
+									client_graphics.toggleAntialiasing();
+									client_graphics.update_minimap_background(fx.map);
 									predraw();
 									break;
 								default:;
@@ -3048,9 +3057,7 @@ void gameclient_c::loop() {
 				kesc = false;
 
 			//sleep a bit
-			if (quick_fix)
-				quick_fix = false;
-			else
+			if (speed_counter < 1)
 				MS_SLEEP(2);				// *** OPTIMIZE THIS ***
 
 		} while (speed_counter < 1);
@@ -3108,6 +3115,10 @@ void gameclient_c::loop() {
 			//LOG("draw_game_frame()\n");
 			draw_game_frame(); // draw game frame
 			//LOG("exit draw_game_frame()\n");
+			#ifdef ROOM_CHANGE_BENCHMARK
+			if (benchmarkRuns >= 500)
+				notquit = false;
+			#endif
 		} else {
 			client_graphics.clear();
 			//int co = makecol(0x22, 0x22, 0x22);
@@ -3329,21 +3340,15 @@ bool gameclient_c::shouldApplyPhysicsToPlayerCallback(int pid) {
 }
 
 void gameclient_c::predraw() {
-	client_graphics.draw_playground();
-	// draw walls
-	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
-		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.h)
-			client_graphics.predraw_room_ground(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
-	// draw flag position mark
+	if (fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
+			fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
+		return;	//#fix: this shouldn't be needed, or should be checked from a simple flag
+	vector< pair<int, const spoint_t*> > flags;
 	for (int team = 0; team < 2; team++)
 		for (vector<spoint_t>::const_iterator pi = fx.map.tinfo[team].flags.begin(); pi != fx.map.tinfo[team].flags.end(); ++pi)
 			if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
-				client_graphics.draw_flagpos_mark(team, pi->x, pi->y);
-	// draw walls
-	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
-		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.h)
-			client_graphics.predraw_room_walls(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
-	client_graphics.draw_minimap_background();
+				flags.push_back(pair<int, const spoint_t*>(team, &(*pi)));
+	client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], flags);
 }
 
 //draw the whole game screen
@@ -3382,9 +3387,13 @@ void gameclient_c::draw_game_frame() {
 			client_graphics.draw_loading_map_message(text.str());
 		}
 	}
-	else
+	else {
+		#ifdef ROOM_CHANGE_BENCHMARK
+		predraw();
+		++benchmarkRuns;
+		#endif
 		client_graphics.draw_background();
-
+	}
 	// frame is valid?
 	if (!hide_game && fd.frame >= 0) {
 		// FIXME: y-ordering of draw not maintained

@@ -177,6 +177,25 @@ extern volatile int speed_counter;
 extern volatile int client_netsend_counter;
 extern volatile unsigned long time_counter;
 
+class ProfileTimer {
+	const char* n;
+	unsigned long val;
+
+public:
+	ProfileTimer(const char* name) : n(name), val(0) { }
+	~ProfileTimer() { std::cerr << n << " : " << val << '\n'; }
+	unsigned long* getPtr() { return &val; }
+};
+
+class Profiler {
+	unsigned long* sump;
+	unsigned long start;
+
+public:
+	Profiler(ProfileTimer& timer) : sump(timer.getPtr()), start(time_counter) { }
+	~Profiler() { *sump += time_counter - start; }
+};
+
 //server_next_map() reasons
 enum {
     NEXTMAP_NONE,
@@ -257,4 +276,3 @@ struct gamespy_t {
 std::istream& getline_smart(std::istream& in, std::string& str);
 
 #endif
-

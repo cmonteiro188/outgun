@@ -3,24 +3,29 @@
 
 #include "network.h"	//#fix: needed for possible definition of SEND_FRAMEOFFSET
 #include "nassert.h"
+#include <vector>
+#include <list>
+#include <string>
+#include <algorithm>
+#include "commont.h"
 
-typedef pair<double, double> Coords;
-typedef pair<double, Coords> BounceData;
+typedef std::pair<double, double> Coords;
+typedef std::pair<double, Coords> BounceData;
 
 class RectWall {	// rectangular wall
 public:
 	RectWall() { }
-	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_)
-			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) swap(a, c); if (d<b) swap(b, d); }
+	RectWall(float a_, float b_, float c_, float d_, int tex_, int alpha_)
+			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) std::swap(a, c); if (d<b) std::swap(b, d); }
 	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
-	int x1() const { return a; }
-	int y1() const { return b; }
-	int x2() const { return c; }
-	int y2() const { return d; }
+	float x1() const { return a; }
+	float y1() const { return b; }
+	float x2() const { return c; }
+	float y2() const { return d; }
 	int texture() const { return tex; }
 
 private:
-	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
+	float a, b, c, d;	// rectangle coords (a,b)->(c,d)
 	int tex;	// texture id
 	int alpha;
 
@@ -30,28 +35,20 @@ private:
 class TriWall {	// triangular wall
 public:
 	TriWall() { }
-	TriWall(int x1, int y1, int x2, int y2, int x3, int y3, int tex_, int alpha_)
-			: p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3), tex(tex_), alpha(alpha_) {
-		if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// 1, 2 sorted
-		if (p3y < p2y) {
-			swap(p2x, p3x); swap(p2y, p3y);	// 1, 3 and 2, 3 sorted
-			if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// all sorted
-		}
-		boundx1=min(p1x, min(p2x, p3x)), boundy1=min(p1y, min(p2y, p3y));
-		boundx2=max(p1x, max(p2x, p3x)), boundy2=max(p1y, max(p2y, p3y));
-	}
+	TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_);
+
 	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;
-	int x1() const { return p1x; }
-	int y1() const { return p1y; }
-	int x2() const { return p2x; }
-	int y2() const { return p2y; }
-	int x3() const { return p3x; }
-	int y3() const { return p3y; }
+	float x1() const { return p1x; }
+	float y1() const { return p1y; }
+	float x2() const { return p2x; }
+	float y2() const { return p2y; }
+	float x3() const { return p3x; }
+	float y3() const { return p3y; }
 	int texture() const { return tex; }
 
 private:
-	int p1x, p1y, p2x, p2y, p3x, p3y;
-	int boundx1, boundy1, boundx2, boundy2;
+	float p1x, p1y, p2x, p2y, p3x, p3y;
+	float boundx1, boundy1, boundx2, boundy2;
 	int tex, alpha;
 
 	friend void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
@@ -60,21 +57,21 @@ private:
 class CircWall {	// circular wall
 public:
 	CircWall() { }
-	CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int tex_, int alpha_);
+	CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_);
 
 	bool intersects_rect(double x1, double y1, double x2, double y2) const;
 
-	int X() const { return x; }
-	int Y() const { return y; }
-	int radius() const { return ro; }
-	int radius_in() const { return ri; }
+	float X() const { return x; }
+	float Y() const { return y; }
+	float radius() const { return ro; }
+	float radius_in() const { return ri; }
 	const float* angles() const { return angle; }
 	const Coords& angle_vector_1() const { return va1; }
 	const Coords& angle_vector_2() const { return va2; }
 	int texture() const { return tex; }
 
 private:
-	int x, y, ro, ri;
+	float x, y, ro, ri;
 	float angle[2];
 	Coords va1, va2, midvec;
 	float anglecos;
@@ -84,22 +81,11 @@ private:
 };
 
 struct Room {
-	vector<RectWall> rwalls, rground;	// ground: optional list of textures for ground [not used]
-	vector<TriWall>  twalls, tground;
-	vector<CircWall> cwalls, cground;
+	std::vector<RectWall> rwalls, rground;	// ground: optional list of textures for ground
+	std::vector<TriWall>  twalls, tground;
+	std::vector<CircWall> cwalls, cground;
 
-	bool fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
-		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
-			if (rwi->intersects_rect(x1, y1, x2, y2))
-				return true;
-		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
-			if (twi->intersects_rect(x1, y1, x2, y2))
-				return true;
-		for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
-			if (cwi->intersects_rect(x1, y1, x2, y2))
-				return true;
-		return false;
-	}
+	bool fall_on_wall(int x1, int y1, int x2, int y2) const;	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
 };
 
 //entity locale
@@ -125,10 +111,10 @@ class Map {
 public:
 	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?
 	teaminfo_t tinfo[2];	//team information for red=0 and blue=1 teams
-	vector< vector<Room> > room;	// accessed by [x][y]
+	std::vector< std::vector<Room> > room;	// accessed by [x][y]
 
-	string title;	//map title
-	string author;
+	std::string title;	//map title
+	std::string author;
 	int	ver;	// map version
 	int w, h;	// width height
 	NLushort crc;	//map's 16bit CRC
@@ -140,7 +126,18 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 		nAssert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
-	bool load(const char *mapdir, const string& mapname);
+	bool load(const char *mapdir, const std::string& mapname);
+};
+
+class MapInfo {
+public:
+	std::string title, author, file;
+	int width, height;
+	int votes;
+	bool votes_changed;
+
+	MapInfo();
+	bool load(std::string mapName);
 };
 
 class Statistics {
@@ -252,7 +249,7 @@ public:
 // get rid of (or move elsewhere)
 	bool used;
 	int id;
-	string name;
+	std::string name;
 	int ping;
 	int frags;
 	bool dead;
@@ -262,7 +259,7 @@ public:
 
 	virtual ~PlayerBase() { }
 	void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
-	void clear(bool enable, int _pid, const string& _name) {
+	void clear(bool enable, int _pid, const std::string& _name) {
 		ping = 0;
 		frags = 0;
 		id = _pid;
@@ -314,7 +311,7 @@ public:
 	size_t current_map_list_item;
 
 	int mapVote;
-	typedef list< pair<int, string> > DMQueueT;
+	typedef std::list< std::pair<int, std::string> > DMQueueT;
 	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
 	int kickTimer;
 	int muted;	// 0 = no, 1 = yes, 2 = silently
@@ -365,84 +362,10 @@ public:
 	bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
 	//#fix: move these to a message queue type, store in client data, not player data
-	void reset_message_queue_timing() {	// make messages already on queue appear instantly
-		for (DMQueueT::iterator m=delayedMessages.begin(); m!=delayedMessages.end(); ++m)
-			m->first=0;
-	}
-	void add_to_queue(const string& str) {
-		int time;	// in server frames (1/10 sec)
-		if (delayedMessages.size()<=5)
-			time=0;
-		else
-			time=30;
-		delayedMessages.push_back(pair<int, string>(time, str));
-	}
-	void queue_printf(const char* fmt, ...) {
-		char buf[16385];
-		va_list argptr;
-		va_start(argptr, fmt);
-		vsprintf(buf, fmt, argptr);
-		va_end(argptr);
-		add_to_queue(string(buf));
-	}
-
-	void clear(bool enable, int _pid, int _cid, const string& _name) {
-		PlayerBase::clear(enable, _pid, _name);
-
-		attack = false;
-		oldfrags = -666;
-		want_map_exit = false;		//by default don't want change maps
-		mapVote=-1;
-		delayedMessages.clear();
-		kickTimer=0;
-		muted=0;
-		want_change_teams = false;	// don't want to change teams yet
-		team_change_time = 0;
-		team_change_pending = false;
-		next_shoot_time = 0;
-		talk_temp = 0.0;
-		talk_hotness = 1.0;
-		cid=_cid;
-		waitnametime = get_time() - 666.0;	//can change name right now
-
-		total_kills = 0;
-		total_deaths = 0;
-		most_consecutive_kills = 0;
-		current_consecutive_kills = 0;
-		most_consecutive_deaths = 0;
-		current_consecutive_deaths = 0;
-		total_suicides = 0;
-		total_captures = 0;
-		total_flags_taken = 0;
-		total_flags_dropped = 0;
-		total_flags_returned = 0;
-		total_flag_carriers_killed = 0;
-		total_shots = 0;
-		total_hits = 0;
-		total_shots_taken = 0;
-		total_movement = 0;
-		start_time = static_cast<int>(get_time());
-		last_spawn_time = start_time;
-		lifetime = 0;
-
-		lastClientFrame = 0;
-		#ifdef SEND_FRAMEOFFSET
-		frameOffset = 0;
-		#endif
-		awaiting_client_ready = false;
-		item_deathbringer_time = 0;
-		deathbringer_end = 0;
-		deathbringer_attacker = 0;
-		item_quad_time = item_speed_time = item_helm_time = 0;
-		health = energy = 0;
-		megabonus = 0;
-		weapon = 0;
-		drop_key = false;
-		dropped_flag = false;
-		respawn_time = 0;
-		respawn_to_base = false;
-		carrying_flag = false;
-	}
+	void reset_message_queue_timing();	// make messages already on queue appear instantly
+	void add_to_queue(const std::string& str);
+	void queue_printf(const char* fmt, ...);
+	void clear(bool enable, int _pid, int _cid, const std::string& _name);
 
 	void take_flag() { carrying_flag = true; }
 	void drop_flag() { carrying_flag = false; }
@@ -457,7 +380,7 @@ class PlayerQueueAdder : public LineReceiver {
 
 public:
 	PlayerQueueAdder(ServerPlayer& player) : ply(player) { }
-	PlayerQueueAdder& operator()(const string& str) { ply.add_to_queue(str); return *this; }
+	PlayerQueueAdder& operator()(const std::string& str) { ply.add_to_queue(str); return *this; }
 };
 
 class ClientPlayer : public PlayerBase {
@@ -484,23 +407,7 @@ public:
 
 	bool under_deathbringer_effect(double curr_time) const { (void)curr_time; return deathbringer_affected; }
 
-	void clear(bool enable, int _pid, const string& _name) {
-		PlayerBase::clear(enable, _pid, _name);
-
-		item_quad_time = item_speed_time = item_helm_time = 0;
-		health = energy = 0;
-		weapon = 0;
-
-		speed_drop_time = wall_sound_time = 0;
-		onscreen = false;
-		enemyvis = 0;
-		deathbringer_affected = false;
-		death_drop_time = 0;
-		hitfx = 0;
-		drawptr = drawused = 0;
-		old_dead = false;
-		oldx = oldy = 0;
-	}
+	void clear(bool enable, int _pid, const std::string& _name);
 };
 
 // a rocket-shot
@@ -657,7 +564,7 @@ class WorldBase {
 	static double getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius);
 	void applyPlayerAcceleration(int pid);
 	void executeBounce(PlayerBase& ply, const BounceData& b, double plyRadius);	// needs plyRadius as a shortcut to b.second's length
-	void applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
+	void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 
 protected:
 	WorldBase() { }
@@ -679,7 +586,7 @@ public:
 										int frameAdvance, int team, bool power, int px, int py, int x, int y);
 
 	void run_server_player_physics(int pid);
-	virtual bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
+	virtual bool load_map(const char *mapdir, const std::string& mapname) { return map.load(mapdir, mapname); }
 	virtual void returnAllFlags();
 	virtual void returnFlag(int team, int flag);
 	virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
@@ -745,7 +652,7 @@ public:
 	void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
 
 	// common (virtual in base) extended functions
-	bool load_map(const char *mapdir, const string& mapname);
+	bool load_map(const char *mapdir, const std::string& mapname);
 	void returnAllFlags();
 	void returnFlag(int team, int flag);
 	void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
@@ -791,7 +698,7 @@ public:
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
 	double frame;
 
-	vector<ClientPlayer> player;
+	std::vector<ClientPlayer> player;
 	ClientWorld() : skipped(true), player(MAX_PLAYERS) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 	// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 	void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
