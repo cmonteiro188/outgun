@@ -651,7 +651,11 @@ struct TriWall {	// triangular wall
 	TriWall() { }
 	TriWall(int x1_, int y1_, int x2_, int y2_, int x3_, int y3_, int tex_, int alpha_)
 			: x1(x1_), y1(y1_), x2(x2_), y2(y2_), x3(x3_), y3(y3_), tex(tex_), alpha(alpha_) {
-		assert(y1<=y2 && y2<=y3);
+		if (y2<y1) { swap(x1, x2); swap(y1, y2); }	// 1, 2 sorted
+		if (y3<y2) {
+			swap(x2, x3); swap(y2, y3);	// 1, 3 and 2, 3 sorted
+			if (y2<y1) { swap(x1, x2); swap(y1, y2); }	// all sorted
+		}
 		boundx1=min(x1, min(x2, x3)), boundy1=min(y1, min(y2, y3));
 		boundx2=max(x1, min(x2, x3)), boundy2=max(y1, min(y2, y3));
 	}
@@ -676,7 +680,7 @@ for (float y=miny; y<maxy; y+=(maxy-miny)/10.) {
  float lx = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1);
  float rx = rx1 + (y-ry1)*(rx2-rx1)/(ry2-ry1);
  assert(lx<=rx);
-}#@
+}
 	// first narrow the range by lx(y) <= rectx2
 	if (lx1 == lx2) {	// can't formulate a value for intersection-y
 		if (lx1 > rectx2)	// lx(y) <= rectx2 identically false => no solutions
@@ -1041,7 +1045,7 @@ void Map::draw_minimap(BITMAP* buffer) const {
  * A) the circle hits the wall proper with it's center projection on the line
  * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
  *
- * A: | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | = r , taking the smaller solution of t and making sure the point is on the line
+ * A: | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | / | (dx2,dy2)-(dx1,dy1) | = r , taking the smaller solution of t and making sure the point is on the line
  * B: | t(mx,my)-(dx,dy) | = r , taking the smaller solution of t (if any real solution exists)
  *
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) )
@@ -1049,18 +1053,19 @@ void Map::draw_minimap(BITMAP* buffer) const {
 typedef pair<double, double> Coords;
 pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {	// d=distance, m=movement
 	// check for solution A (if there is one, there is no need to check B)
-	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) + dy1(dx2-dx1) +-R
+	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|(dx2,dy2)-(dx1,dy1)|
 	double diffx = dx2-dx1, diffy = dy2-dy1;
 	double div = mx*diffy - my*diffx;
 	if (div == 0)	// movement parallel to the line => no collision
 		return pair<double, Coords>(1., Coords());
-	double rBase = ( dx1*diffy + dy1*diffx ) / div;
-	double rAdd = r / div;
+	double rBase = ( dx1*diffy - dy1*diffx ) / div;
+	double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
 	double t;
 	if (rBase - rAdd >= 0)	// select the first 'collision' with t>0 (the possible second one would not be a collision since we would be going away)
 		t = rBase - rAdd;
 	else
 		t = rBase + rAdd;
+// fprintf(stderr, "d1: %f,%f ; d2: %f,%f ; m: %f,%f ; rBase: %f ; rAdd %f ; t %f\n", dx1, dy1, dx2, dy2, mx, my, rBase, rAdd, t);
 	assert(t >= 0);
 	// make sure we are not off an end of the line
 	// this can surely be calculated in a simpler way, but this first came to mind
@@ -1071,8 +1076,8 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 	// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
 	// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
 	double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-	if (k>=0 && k<=1)
-		return pair<double, Coords>(t, Coords(dx1+k*diffx, dy1+k*diffy));
+	if (k>=0. && k<=1.)
+		return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
 
 	double dist=1.;
 	Coords collisionCoords;
@@ -1104,10 +1109,6 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 			collisionCoords=Coords(dx2-t*mx, dy2-t*my);
 		}
 	}
-	#ifndef NDEBUG
-	double dnn=collisionCoords.first, dnp=collisionCoords.second;
-	assert(fabs(dnn*dnn+dnp*dnp-r*r)<.0001 || dist>=1.);
-	#endif
 	return pair<double, Coords>(dist, collisionCoords);
 }
 
@@ -1138,66 +1139,59 @@ bool NR_wallcorrect(int p, Map* map, double *x, double *y, double *sx, double *s
 			// check more carefully
 			pair<double, Coords> rv;
 			rv.first = 1.;
-			if (mx>0 && wi->a>stx) {	// check vertical wall a
-				rv = calculateDisplacement(wi->a - stx, wi->b - sty, wi->d - sty,  mx, my, plyRadius);	// n=x, p=y
-				// rv is already in room coordinates
-			}
-			else if (mx<0 && wi->c<stx) {	// check vertical wall c
-				rv = calculateDisplacement(stx - wi->c, wi->b - sty, wi->d - sty, -mx, my, plyRadius);	// n=-x, p=y
-				rv.second.first *= -1;	// n: -x -> x
-			}
+			if (mx>0 && wi->a>stx)	// check vertical wall a
+				rv = calculateDisplacement(wi->a - stx, wi->b - sty, wi->a - stx, wi->d - sty, mx, my, plyRadius);
+			else if (mx<0 && wi->c<stx)	// check vertical wall c
+				rv = calculateDisplacement(wi->c - stx, wi->b - sty, wi->c - stx, wi->d - sty, mx, my, plyRadius);
 			if (rv.first < minMovement) {
 				minMovement = rv.first;
 				bounceVec = rv.second;
 			}
-			if (my>0 && wi->b>sty) {	// check horizontal wall b
-				rv = calculateDisplacement(wi->b - sty, wi->a - stx, wi->c - stx,  my, mx, plyRadius);	// n=y, p=x
-				// rv is already in reverse room coordinates
-			}
-			else if (my<0 && wi->d<sty) {	// check horizontal wall d
-				rv = calculateDisplacement(sty - wi->d, wi->a - stx, wi->c - stx, -my, mx, plyRadius);	// n=-y, p=x
-				rv.second.first *= -1;	// n: -y -> y
-			}
+			if (my>0 && wi->b>sty)	// check horizontal wall b
+				rv = calculateDisplacement(wi->a - stx, wi->b - sty, wi->c - stx, wi->b - sty, mx, my, plyRadius);
+			else if (my<0 && wi->d<sty)	// check horizontal wall d
+				rv = calculateDisplacement(wi->a - stx, wi->d - sty, wi->c - stx, wi->d - sty, mx, my, plyRadius);
 			if (rv.first < minMovement) {
 				minMovement = rv.first;
-				swap(rv.second.first, rv.second.second);	// was x/y-flipped
 				bounceVec = rv.second;
 			}
+			#ifndef NDEBUG
+			if (minMovement<1.) {
+				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
+if (fabs(dx*dx+dy*dy-r*r)>=.0001)
+ printf("dx: %f  dy: %f\n", dx, dy);
+				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			}
+			#endif
 		}
-/*
 		for (vector<TriWall>::const_iterator wi=r.twalls.begin(); wi!=r.twalls.end(); ++wi) {	// go through triangular walls separately
 			// fast and crude bounding-box style check first
 			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 				continue;
 			// check more carefully
 			pair<double, Coords> rv;
-			rv.first = 1.;
-			double trans[2];
-			calcTransform(trans, wi->x1, wi->y1, wi->x2, wi->y2);
-			double d1[2], d2[2], m[2];
-			transform(d1, trans, wi->x1, wi->y1); transform(d2, trans, wi->x2, wi->y2); transform(m, mx, my);
-			assert(fabs(d1[0]-d2[0])<.0001);
-			rv = calculateDisplacement(d1[0], d1[1], d2[1], m[0], m[1], plyRadius);
+			rv = calculateDisplacement(wi->x1 - stx, wi->y1 - sty, wi->x2 - stx, wi->y2 - sty, mx, my, plyRadius);	// wall p1-p2
 			if (rv.first < minMovement) {
 				minMovement = rv.first;
-				// inverse transform
-				double invt[2] = { trans[0], -trans[1] };
-				transform(d1, invt, rv.second.first, rv.second.second);
-				bounceVec.first=d1[0];
-				bounceVec.second=d1[1];
+				bounceVec = rv.second;
 			}
-
-
-
-
-
-
-			rv = rotateAndCalculate(wi->x1, wi->y1, wi->x3, wi->y3, stx, sty, mx, my, plyRadius);
-			if (rv.first < minMovement) { minMovement = rv.first; bounceVec = rv.second; }
-			rv = rotateAndCalculate(wi->x2, wi->y2, wi->x3, wi->y3, stx, sty, mx, my, plyRadius);
-			if (rv.first < minMovement) { minMovement = rv.first; bounceVec = rv.second; }
+			rv = calculateDisplacement(wi->x1 - stx, wi->y1 - sty, wi->x3 - stx, wi->y3 - sty, mx, my, plyRadius);	// wall p1-p3
+			if (rv.first < minMovement) {
+				minMovement = rv.first;
+				bounceVec = rv.second;
+			}
+			rv = calculateDisplacement(wi->x2 - stx, wi->y2 - sty, wi->x3 - stx, wi->y3 - sty, mx, my, plyRadius);	// wall p2-p3
+			if (rv.first < minMovement) {
+				minMovement = rv.first;
+				bounceVec = rv.second;
+			}
+			#ifndef NDEBUG
+			if (minMovement<1.) {
+				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
+				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+			}
+			#endif
 		}
-*/
 		assert(minMovement>=0. && minMovement<=1.);
 		stx+=mx*minMovement*.999;	// make sure we aren't going the least bit inside a wall :)
 		sty+=my*minMovement*.999;
@@ -6392,8 +6386,6 @@ hd->y=h->y+hd->sy;
 		if (hd->x < 0) hd->x = 0;
 		else if (hd->x > plw) hd->x = plw;
 
-		//#NR lots done to relocate the y-coordinate so that it represents the wanted place of shadow (bottom of player)
-		//    which is how it is interpreted elsewhere; but at the same time fix the bouncing and room enter/exit
 		//move y
 		hd->y = h->y + hd->sy;
 		if (hd->y-NR_SHIFTY < 0) hd->y = 0 +NR_SHIFTY;

@@ -1,10 +1,11 @@
 LIBS = -lalleg -lNL -lpthreadGC
-CFLAGS = -O2 -Wno-deprecated
+CFLAGS = -Wall -O2 -Wno-deprecated -DAL_FUNC_DEPRECATED=AL_FUNC -DAL_PRINTFUNC_DEPRECATED=AL_PRINTFUNC -DAL_INLINE_DEPRECATED=AL_INLINE
 OBJS = \
 	names.o \
 	outgun.o \
+	nameauth.o
 
-PUBOBJS = names.o pubsrvog.o
+PUBOBJS = names.o pubsrvog.o nameauth.o
 
 LEENET = \
 	leetnet/client.o \
@@ -27,6 +28,7 @@ mon: srvmonit.exe
 outgun.exe: $(OBJS)
 	g++ -mconsole $(LEENET) -o $@ $(OBJS) $(LIBS)
 	cp outgun.exe ../test
+	cp outgun.exe ../client.exe
 
 pubsrvog.exe: $(PUBOBJS)
 	g++ -mwindows $(LEENET) -o $@ $(PUBOBJS) $(LIBS)

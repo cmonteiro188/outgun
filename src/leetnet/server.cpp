@@ -1081,6 +1081,10 @@ public:
 		//ok
 		return 1;
 	}
+
+	virtual NLaddress get_client_address(int client_id) const {
+		return client[client_id].addr;
+	}
 	
 	//-------- internal functions --------
 

@@ -56,6 +56,8 @@ enum {
 	NUM_OF_SFUNC
 };
 
+struct _NLaddress;
+typedef struct _NLaddress NLaddress;
 
 // server class interface
 class server_c {
@@ -110,13 +112,15 @@ public:
 	virtual char* receive_message(int client_id, int *length) = 0;
 
 	//ping a client. results come in the SFUNC_PING_RESULT callback
-	//current accuracy is proportional to the resolution of time.h's clock() function
+	//current accuracy is proportional to the resolution of time.h's clock() function	//#NR: not
 	virtual int ping_client(int client_id) = 0;
 
 	//get a statistic from sockets. stat = HawkNL socket-stats id
 	//this function returns the sum of all sockets active in the server. no per-client
 	//results available for now.
 	virtual int get_socket_stat(int stat) = 0;
+
+	virtual NLaddress get_client_address(int client_id) const = 0;
 };
 
 
