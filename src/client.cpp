@@ -3414,61 +3414,61 @@ void Client::draw_game_menu() {
 void Client::initMenus() {
 	typedef MenuCallback<Client> MCB;
 
-	menu.recursiveSetMenuOpener					(new MCB::A<Menu,			&Client::MCF_menuOpener		>(this));
+	menu.recursiveSetMenuOpener					(new MCB::A<Menu,			&Client::MCF_menuOpener				>(this));
 
-	menu.menu						.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareMainMenu	>(this));
+	menu.menu						.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareMainMenu		>(this));
 
-	menu.disconnect						.setHook(new MCB::N<Textarea,		&Client::MCF_disconnect		>(this));
-	menu.startServer					.setHook(new MCB::N<Textarea,		&Client::MCF_startServer		>(this));
-	menu.playServer						.setHook(new MCB::N<Textarea,		&Client::MCF_playServer		>(this));
-	menu.stopServer						.setHook(new MCB::N<Textarea,		&Client::MCF_stopServer		>(this));
-	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&Client::MCF_exitOutgun		>(this));
+	menu.disconnect						.setHook(new MCB::N<Textarea,		&Client::MCF_disconnect				>(this));
+	menu.startServer					.setHook(new MCB::N<Textarea,		&Client::MCF_startServer			>(this));
+	menu.playServer						.setHook(new MCB::N<Textarea,		&Client::MCF_playServer				>(this));
+	menu.stopServer						.setHook(new MCB::N<Textarea,		&Client::MCF_stopServer				>(this));
+	menu.exitOutgun						.setHook(new MCB::N<Textarea,		&Client::MCF_exitOutgun				>(this));
 
-	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu>(this));
-	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu>(this));	//#fix: inefficient!
-	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&Client::MCF_prepareServerMenu>(this));
-	menu.connect.update					.setHook(new MCB::N<Textarea,		&Client::MCF_updateServers	>(this));
-	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&Client::MCF_refreshServers	>(this));
+	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu		>(this));
+	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareServerMenu		>(this));	//#fix: inefficient!
+	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&Client::MCF_prepareServerMenu		>(this));
+	menu.connect.update					.setHook(new MCB::N<Textarea,		&Client::MCF_updateServers			>(this));
+	menu.connect.refresh				.setHook(new MCB::N<Textarea,		&Client::MCF_refreshServers			>(this));
 
-	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareAddServer	>(this));
-	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_addServer		>(this));
+	menu.connect.addServer.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareAddServer		>(this));
+	menu.connect.addServer.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_addServer				>(this));
 
-	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareNameMenu	>(this));
-	menu.options.name.menu			.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawNameMenu>(this));
-	menu.options.name.menu		   .setCloseHook(new MCB::N<Menu,			&Client::MCF_nameMenuClose	>(this));
-	menu.options.name.name				.setHook(new MCB::N<Textfield,		&Client::MCF_nameChange		>(this));
-	menu.options.name.randomName		.setHook(new MCB::N<Textarea,		&Client::MCF_randomName		>(this));
-	menu.options.name.removePasswords	.setHook(new MCB::N<Textarea,		&Client::MCF_removePasswords	>(this));
+	menu.options.name.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareNameMenu		>(this));
+	menu.options.name.menu			.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawNameMenu	>(this));
+	menu.options.name.menu		   .setCloseHook(new MCB::N<Menu,			&Client::MCF_nameMenuClose			>(this));
+	menu.options.name.name				.setHook(new MCB::N<Textfield,		&Client::MCF_nameChange				>(this));
+	menu.options.name.randomName		.setHook(new MCB::N<Textarea,		&Client::MCF_randomName				>(this));
+	menu.options.name.removePasswords	.setHook(new MCB::N<Textarea,		&Client::MCF_removePasswords		>(this));
 
-	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGameMenu	>(this));
-	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&Client::MCF_joystick			>(this));
-	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&Client::MCF_messageLogging	>(this));
+	menu.options.game.menu			.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGameMenu		>(this));
+	menu.options.game.joystick			.setHook(new MCB::N<Checkbox,		&Client::MCF_joystick				>(this));
+	menu.options.game.messageLogging	.setHook(new MCB::N<Checkbox,		&Client::MCF_messageLogging			>(this));
 
-	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGfxMenu	>(this));
-	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawGfxMenu>(this));
-	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&Client::MCF_screenModeChange	>(this));
-	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_screenModeChange	>(this));
-	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&Client::MCF_screenDepthChange>(this));
-	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&Client::MCF_screenModeChange	>(this));
-	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_gfxThemeChange	>(this));
+	menu.options.graphics.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareGfxMenu			>(this));
+	menu.options.graphics.menu		.setDrawHook(new MCB::N<Menu,			&Client::MCF_prepareDrawGfxMenu		>(this));
+	menu.options.graphics.menu	   .setCloseHook(new MCB::N<Menu,			&Client::MCF_screenModeChange		>(this));
+	menu.options.graphics.menu		  .setOkHook(new MCB::N<Menu,			&Client::MCF_screenModeChange		>(this));
+	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&Client::MCF_screenDepthChange		>(this));
+	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&Client::MCF_screenModeChange		>(this));
+	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_gfxThemeChange			>(this));
 	typedef Select<Graphics::Antialiasing_mode> aaSelT;
-	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&Client::MCF_antialiasChange	>(this));
-	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&Client::MCF_statsBgChange	>(this));
-	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&Client::predraw				>(this));
+	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&Client::MCF_antialiasChange		>(this));
+	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&Client::MCF_statsBgChange			>(this));
+	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&Client::predraw					>(this));
 
-	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareSndMenu	>(this));
-	menu.options.sounds.enabled			.setHook(new MCB::N<Checkbox,		&Client::MCF_sndEnableChange	>(this));
-	menu.options.sounds.volume			.setHook(new MCB::N<Slider,			&Client::MCF_sndVolumeChange	>(this));
-	menu.options.sounds.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_sndThemeChange	>(this));
+	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&Client::MCF_prepareSndMenu			>(this));
+	menu.options.sounds.enabled			.setHook(new MCB::N<Checkbox,		&Client::MCF_sndEnableChange		>(this));
+	menu.options.sounds.volume			.setHook(new MCB::N<Slider,			&Client::MCF_sndVolumeChange		>(this));
+	menu.options.sounds.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_sndThemeChange			>(this));
 
-	m_playerPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_playerPasswordAccept>(this));
-	m_serverPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_serverPasswordAccept>(this));
-	m_connectProgress.accept			.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));
-	m_connectProgress.cancel			.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));
-	m_connectProgress.menu		   .setCloseHook(new MCB::N<Menu,			&Client::MCF_cancelConnect	>(this));
-	m_dialog.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));	// cancel not used
-	m_errors.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_clearErrors		>(this));	// cancel not used
-	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser		>(this));	// cancel not used
+	m_playerPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_playerPasswordAccept	>(this));
+	m_serverPassword.menu			  .setOkHook(new MCB::N<Menu,			&Client::MCF_serverPasswordAccept	>(this));
+	m_connectProgress.accept			.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser				>(this));
+	m_connectProgress.cancel			.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser				>(this));
+	m_connectProgress.menu		   .setCloseHook(new MCB::N<Menu,			&Client::MCF_cancelConnect			>(this));
+	m_dialog.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser				>(this));	// cancel not used
+	m_errors.accept						.setHook(new MCB::N<Textarea,		&Client::MCF_clearErrors			>(this));	// cancel not used
+	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&Client::MCF_menuCloser				>(this));	// cancel not used
 
 	m_errors.menu.setCaption("Errors");
 
@@ -3832,7 +3832,6 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
 
 void Client::MCF_connect(Textarea& target) {
 	serverIP = menu.connect.getAddress(target);
-	openMenus.clear();
 	connect_command(true);
 }
 
