@@ -8,7 +8,7 @@ Pelaajan ohjaus
  Liikkuminen            nuolet tai numeronäppäimet
  Ampuminen              Control
  Juokseminen            Shift
- Sivuttaisliike         Alt
+ Sivuttaisliike         Alt tai Alt Gr
  
 Muut näppäimet
  
@@ -20,6 +20,7 @@ Muut näppäimet
  Karttalista            F2
  Joukkuetilastot        F3
  Pelaajatilastot        F4
+ Palvelimen asetukset   F5
  Äänestä kartan vaihtoa F8
  Kuvankaappaus          F11
  Näytä enemmän viestejä Insert
@@ -27,23 +28,26 @@ Muut näppäimet
 Pelin idea
  
  Kuulut joko punaiseen tai siniseen joukkueeseen. Tavoitteesi on
- auttaa joukkueesi voittoon ryöstämällä vastustajan lippu.
+ auttaa joukkueesi voittoon ryöstämällä vastustajan lippu. Lipun
+ ryöstö onnistuu hakemalla se oman joukkueen kotipesään, kunhan
+ oma lippu on tallella.
  
 Terveys ja energia
  
- Pelaaja kuolee, jos hänen terveytensä putoaa nollaan. Energiaa
+ Pelaaja kuolee, kun hänen terveytensä putoaa nollaan. Energiaa
  käytetään juoksemiseen, ampumiseen ja suojan ylläpitämiseen.
- Terveys ja energia palautuvat vähitelleen 200:een.
+ Terveys ja energia palautuvat vähitellen 200:een.
  
 Kartta
  
- Oikeassa yläkulmassa on kartta. Siinä näkyvät kaikki ne
- pelaajat, jotka joukkueesi jäsenet näkevät. Jos sinulla on 
- varjo, näet myös vastustajat, joilla ei ole varjoa.
+ Oikeassa yläkulmassa on kartta. Siinä näkyvät joukkuetoverisi ja
+ ne vastustajat, jotka he näkevät. Jos sinulla on varjo, näet
+ kaikki varjottomat vastustajat.
  
 Herkut
  
- Silloin tällöin maassa näkyy erilaisia esineitä.
+ Silloin tällöin maassa näkyy erilaisia esineitä. Niitä kannattaa
+ kerätä, sillä niistä saa mukavia lisäominaisuuksia.
  
  lisäammus       yksi ammus lisää ja lisää energiaa
  turbo           lisää nopeutta
@@ -51,12 +55,5 @@ Herkut
  tehoammukset    ammukset tekevät enemmän vahinkoa
  lääkepaketti    lisää terveyttä ja energiaa
  suoja           terveys ei kulu niin kauan kuin suoja on ehjä
- savupommi       räjähtää kuollessa ja vahingoittaa ruudussa 
+ savupommi       räjähtää kuollessa ja vahingoittaa huoneessa
                  olevia pelaajia
- 
-Valikot
- 
-Palvelinlista
- 
- Palvelinlistassa näkyvät kaikki maailman julkiset
- Outgun-palvelimet.

@@ -1,3 +1,4 @@
+; This is an Outgun translation file.
 ; Original copyright © 2004 Jani Rivinoja, Niko Ritari
 ; Translation copyright © 2004 Thomaz de Oliveira dos Reis
 ; Contato: E-Mails: thommy@globo.com, thor27@ibest.com.br (serve como MSNM)
@@ -27,8 +28,8 @@ Connectado à $1 ($2)
 
 ; Used in the window title bar when server is running, like:
 ; ERRORS:2  1/16p 1.4k/s v1.0.0 port:25000 ESC:quit
-; Values are $1/$2: number of players, $3: amount of traffic, $4: Outgun version.
-; First and/or last part are added conditionally.
+; Values are $1/$2: number of players, $3: amount of traffic, $4: Outgun
+; version. First and/or last part are added conditionally.
 ERROS:$1
 $1/$2j $3k/s v$4 porta:$5
 ESC: Sair
@@ -48,8 +49,8 @@ semanas
 ano
 anos
 
-; Abbreviated time units. Up to 10 characters in addition to "$1" is allowed, but
-; short is strongly preferred.
+; Abbreviated time units. Up to 10 characters in addition to "$1" is allowed,
+; but short is strongly preferred.
 $1 s
 $1 min
 
@@ -207,8 +208,8 @@ Tempo do poder
 Tempo adicional do poder
 Tempo máximo do poder
 
-; Used in server settings dialog (F5) as the value of powerups, minimum powerups or
-; maximum powerups, when they are set as a percentage of map size.
+; Used in server settings dialog (F5) as the value of powerups, minimum
+; powerups or maximum powerups, when they are set as a percentage of map size.
 $1% das salas
 
 ; Used in the connection progress dialog. No limit; over 76 chars gets wrapped.
@@ -278,15 +279,15 @@ esquivar
 
 ; Used in the error collection dialogs. The last two are only used in the main
 ; program error dialog which is shown for example when invalid command line
-; arguments are used. "(server)" is prepended to server generated error messages
-; within the client.
+; arguments are used. "(server)" is prepended to server generated error
+; messages within the client.
 Erros
 (servidor)
 + $1 mais
 Veja o diretório 'log' para maiores informações.
 
-; Used in an external dialog to contain an "assertion failed" message. No length
-; restriction.
+; Used in an external dialog to contain an "assertion failed" message. No
+; length restriction.
 Erro interno
 Isso é resultado de um bug no outgun. Para ajudar a concertar, por-favor, envie o assert.log e o stackdump.bin do diretório log e diga oque você estava fazendo para outgun@mbnet.fi (Por-favor, envie em inglês)
 
@@ -295,10 +296,10 @@ Isso é resultado de um bug no outgun. Para ajudar a concertar, por-favor, envie 
 $1 senha removida.
 Nenhuma senha encontrada.
 
-; Used in a simple dialog, started from the language menu. Actually, this is used
-; in the target language, so it's the first thing users see of the translation. If
-; you must, this is a good place to also put information about the translation.
-; No length restriction: will be wrapped.
+; Used in a simple dialog, started from the language menu. Actually, this is
+; used in the target language, so it's the first thing users see of the
+; translation. If you must, this is a good place to also put information about
+; the translation. No length restriction: will be wrapped.
 Por-favor, feche e reinicie o Outgun para completar a alteração do idioma.
 
 ; Used in the local server menu to indicate the IP address is not public:
@@ -463,9 +464,9 @@ SORVETE!
 Saúde $1
 Energia $1
 
-; Recommended max length 10 with 3-digit $1. If more length is required, you have
-; to pad Weapon below with spaces from the left so they don't overlap (but don't
-; grow Weapon past 14). Looks nice if these three are the same length.
+; Recommended max length 10 with 3-digit $1. If more length is required, you
+; have to pad Weapon below with spaces from the left so they don't overlap (but
+; don't grow Weapon past 14). Looks nice if these three are the same length.
 Força  $1
 Turbo  $1
 Sombra $1
@@ -599,14 +600,14 @@ Saved map pictures to the directory 'mappic'.
 -mappic não pode ser combinado com outras opções de linha de comando.
 -maxp precisa ser seguido de um espaço e o número de jogadores.
 -maxp X: X precisa ser um número impar entre 2 e $1.
--port precisa ser seguido de espaço e um número de porta
+-port precisa ser seguido de espaço e um número de porta.
 -port X: X precisa estar entre 1 e 65535.
 A prioridade escolhida, $1 não está dentro dos limites do sistema. Rode com -info para mais informações.
-Unknown command-line argument '$1'.
+Argumento '$1' da linha de comando inválido.
 
 ; Overview statements about failing processes.
-Não foi possível adicionar '$1' para a rotação de mapas
-Não foi possível carregar: erro no mapa '$1'
+Não foi possível adicionar '$1' para a rotação de mapas.
+Não foi possível carregar: erro no mapa '$1'.
 Não foi possível iniciar o servidor de escuta.
 Não foi possível inciar o cliente.
 Não foi possível iniciar o servidor.
@@ -614,8 +615,8 @@ Não foi possível salvar as figuras do mapa para o diretório 'mappic'.
 Comunicador mestre: Tetando forçar um IP privado $1. Não é possível comunicar com o servidor mestre...
 
 ; Graphic mode errors.
-Não foi possível iniciar a resolução $1×$2×$3 em qualquer modo
-Não foi possível iniciar a resolução $1×$2×$3 no modo $4 ; alterado para $5
+Não foi possível iniciar a resolução $1×$2×$3 em qualquer modo.
+Não foi possível iniciar a resolução $1×$2×$3 no modo $4; alterado para $5.
 
 ; Used as $4 and $5 in the previous message.
 telacheia backbuffered 
@@ -623,17 +624,17 @@ telacheia flipped
 janela
 
 ; Missing files.
-Não foi possivel abrir o arquivo gamemod: '$1'
-Não foi possível ler '$1'
+Não foi possivel abrir o arquivo gamemod: '$1'.
+Não foi possível ler '$1'.
 
 ; Gamemod format errors.
-Configuração do gamemod desconhecida: '$1'
-Não é possível alterar $1 para '$2' - Esperado $3
+Configuração do gamemod desconhecida: '$1'.
+Não é possível alterar $1 para '$2' - Esperado $3.
 
 ; Different expectations used as $3 in the previous message.
 0 ou 1
 $1 ou $2
-one of no, balance and shuffle
+um entre no, balance e shuffle
 um número inteiro e ímpar entre 2 e $1
 um número inteiro
 um número inteiro, maior que $1
@@ -645,20 +646,20 @@ um número real, maior que $1
 um número real, menor que $1
 um número real, entre $1 e $2, inclusive
 um número real ou 'x %' onde x 0 ou superior
-Endereço de ip sem :port
+endereço de ip sem :port
 
 ; Added to some of the above, where outside the normal range, 0 is allowed.
 , ou 0
 
 ; Map format errors.
-linha inválida no mapa: $1
+Linha inválida no mapa: $1
 Label '$1' não encontrado: $2
 Label line não é permitido no label block: $1
 Está faltando a altura, largura ou título do mapa.
-Autor do mapa redefinido
-Altura do mapa redefinida
-Título do mapa redefinido
-largura do mapa redefinida
+Autor do mapa redefinido.
+Altura do mapa redefinida.
+Título do mapa redefinido.
+Largura do mapa redefinida.
 Room line não é permitido no label block: $1
 Time $1, bandeira $2 na parede.
 Time $1, ponto de nascimento $2 na parede.
@@ -669,19 +670,19 @@ Linha do mapa irreconhecível: $1
 O mapa não é válido: Captura estantânea da bandeira é possível.
 
 ; Other file format errors.
-'$1', do master.txt não é um endereço de IP válido
-Admin shell: caracteres não imprimiveis, mensagem ignorada
+'$1', do master.txt não é um endereço de IP válido.
+Admin shell: caracteres não imprimiveis, mensagem ignorada.
 Alpha bitmaps precisa ser imagens na escala de cinza de 8-bit; $1 is $2-bit.
 Comando de ban inválido (Endereço de IP) no auth.txt: "$1"
 Linha inválida (sem nome) no auth.txt: "$1"
-Sintaxe inválida no client.cfg ("$1")
+Sintaxe inválida no client.cfg ("$1").
 Comando de usuário inválido (sem senha) no auth.txt: "$1"
 Salvador de figuras do mapa: Mapa '$1' não é um arquivo válido de mapa.
 Erro de sintaxe no gfxmodes.txt, linha '$1'.
 Tradução $1 não pode ser lida.
-Dado desconhecido em client.cfg ("$1")
+Dado desconhecido em client.cfg ("$1").
 Comando desconhecido "$1" no auth.txt
-Modo não utilizável no gfxmodes.txt : $1×$2×$3 (precisa ser no mínimo 640×400 com 16, 24 ou 32 de bits)
+Modo não utilizável no gfxmodes.txt : $1×$2×$3 (precisa ser no mínimo 640×400 com 16, 24 ou 32 de bits).
 Altura e largura das texturas precisam ser potência de 2; a textura do chão $1 é $2×$3.
 Altura e largura das texturas precisam ser potência de 2; a textura da parede $1 é $2×$3.
 
@@ -689,15 +690,16 @@ Altura e largura das texturas precisam ser potência de 2; a textura da parede $1
 Não é possível alterar max_players enquanto os jogadores estão conectados.
 Não foi possível colocar o servidor para rodar em segundo plano.
 Comunicador mestre:Você possuí uma versão inválida do Outgun. O servidor não o aceitará na lista mestre. Por-favor, atualize.
-Sem mapas para rotação
+Sem mapas para rotação.
 
-; Network errors. Most of these can occur in normal operation when there's something
-; wrong with the network or a remote server. Where it's not clear what $1 is, it is a
-; message in English, telling what went wrong within the network subsystem.
+; Network errors. Most of these can occur in normal operation when there's
+; something wrong with the network or a remote server. Where it's not clear
+; what $1 is, it is a message in English, telling what went wrong within the
+; network subsystem.
 Não foi possível iniciar HawkNL. $1
 Sem rede de IP.
-Admin shell: Não foi possível abrir o soquete na porta $1
-Admin shell: Não foi possível alterar o soquete para o modo de escuta..
+Admin shell: Não foi possível abrir o soquete na porta $1.
+Admin shell: Não foi possível alterar o soquete para o modo de escuta.
 Admin shell: leitura falhou. Motivo: $1
 Admin shell: Falhou enviando resposta. Motivo: $1
 Não foi possível conectar no servidor mestre. $1
@@ -713,18 +715,18 @@ Website thread: Não foi possível abrir o soquete para conectar ao servidor do we
 Website thread: (Sair) Não foi possível conectar ao servidor do website.
 Website thread: (Sair) Não foi possível abrir o soquete para o servidor do website.
 
-; Rare external network errors. These may happen but there's rarely anything the user
-; can do to fix them.
+; Rare external network errors. These may happen but there's rarely anything
+; the user can do to fix them.
 Incorrect data received from master server.
 Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.
 Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.
 
 ; File writing errors. These should be quite rare.
-Não foi possível abrir $1 para gravação
-Não foi possível salvar a senha do jogador para $1!
-Não foi possível gravar '$1'
+Não foi possível abrir $1 para gravação.
+Não foi possível salvar a senha do jogador para '$1'!
+Não foi possível gravar '$1'.
 config/language.txt não pode ser gravado.
-Erro gravando para $1.
+Erro gravando para '$1'.
 Arquivo baixado: Não é possível abrir '$1' para gravação.
 Salvador de figuras do mapa:Não é possível salvar a figura do mapa para '$1'.
 O diretório '$1' não foi encontrado e não pode ser criado.
@@ -734,8 +736,8 @@ O diretório '$1' não foi encontrado e não pode ser criado.
 ;
 ; These need not be translated. Length restrictions are different on each item.
 
-; Server shutdown messages. These are briefly shown as the window title while the
-; server is shutting down. In rare cases they take longer to disappear.
+; Server shutdown messages. These are briefly shown as the window title while
+; the server is shutting down. In rare cases they take longer to disappear.
 Shutdown: ABORTING $1 tournament updates
 Shutdown: admin shell threads
 Shutdown: main thread
@@ -744,10 +746,11 @@ Shutdown: net server
 Shutdown: waiting for $1 tournament updates
 Shutdown: website thread
 
-; Comment written to auth.txt. It may be sensible to translate this in case you're
-; translating the entire Outgun distribution with other configuration files too.
+; Comment written to auth.txt. It may be sensible to translate this in case
+; you're translating the entire Outgun distribution with other configuration
+; files too.
 This file is automatically rewritten whenever the ban list changes.
 To reserve a name add a row:
 user <name> <tab> <password>  or  admin <name> [<tab> <password>]
 where <tab> is a tabulator character.
-Passwordless admins need to authenticate by logging in to the tournament
+Passwordless admins need to authenticate by logging in to the tournament.

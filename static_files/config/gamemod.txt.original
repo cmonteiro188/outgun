@@ -1,7 +1,7 @@
 ; Outgun server configuration file ("gamemod")
 ;
 ; Each line is either a comment (starting with ';') or a command and its
-; argument separated by a space or a tab. See doc\gamemod.html for
+; argument separated by a space or a tab. See doc/gamemod.html for
 ; information on the effect of different commands.
 
 ; ------------------
@@ -10,15 +10,16 @@
 
 ; server_name: default: Anonymous host
 ; max_players: an even number between 2 and 32, default: 16 or from arguments
-; welcome_message, info_message: max 79 characters per line, default: none
-; sayadmin_comment: max 30 characters, default: none
-; server_website, server_password: default: none
-; sayadmin_enabled, tournament, save_stats: 1 to enable, 0 to disable
-;   defaults: sayadmin_enabled 0, tournament 1, save_stats 0
+; welcome_message, info_message, sayadmin_comment: default: none
+; sayadmin_enabled: 1 to enable, 0 to disable, default: 0
+; server_password: max 15 characters, default: none
+; tournament: 1 to enable, 0 to disable, default: 1
+; save_stats: 1 to 32, or 0 to disable, default: 0
 ; idlekick_time: seconds, 10 or more, or 0 to disable, default: 120
-; server_port: 1 to 65535, default: 25000 or from arguments
-; server_ip: default: none or from arguments
-; private_server: 1 to enable, 0 to disable, default: 0 or from arguments
+; idlekick_playerlimit: 1 to 32, default: 4
+; server_port: 1 to 65535, default: 25000
+; server_ip: default: autodetected
+; private_server: 1 to enable, 0 to disable, default: 0
 
 server_name Anonymous host
 ;max_players 16
@@ -30,10 +31,10 @@ sayadmin_enabled 0
 tournament 1
 save_stats 0
 idlekick_time 120
-;server_port 25000
+idlekick_playerlimit 4
+server_port 25000
 ;server_ip ip
-;private_server 0
-;server_website http://www.example.net/foo/
+private_server 0
 
 ; -----------------
 ;  SERVER WEB SITE
@@ -42,11 +43,13 @@ idlekick_time 120
 ; See http://koti.mbnet.fi/outgun/documentation/script.html for instructions to
 ; configuring your website and these settings to work together.
 
+; server_website: a valid URL, default: none 
 ; web_server: server's host name or IP, default: none
 ; web_script: path of the script on the server, default: none
 ; web_auth: username, ':', password, default: none
 ; web_refresh: minutes, at least 1, default: 2
 
+;server_website http://www.example.net/foo/
 ;web_server www.example.net
 ;web_script /path/script.php
 ;web_auth user:pass
@@ -56,8 +59,8 @@ web_refresh 2
 ;  MAP ROTATION
 ; --------------
 
-; map: one map name without path or .txt per line, default: none (all maps)
-; random_maprot: 1 to enable, 0 to disable, default: 0
+; map: one map name per line without path or .txt, default: none (all maps)
+; random_maprot: 0 to disable, 1 to enable, 2 for random first map, default: 0
 ; vote_block_time: minutes, default: 0
 
 ;map tutorial
@@ -73,7 +76,7 @@ vote_block_time 0
 ; extra_time: minutes (allows 0), default: 0
 ; sudden_death: 1 to enable, 0 to disable, default: 0
 ; game_end_delay: seconds (allows 0), default: 5
-; balance_teams: no, balance or shuffle, default: no
+; balance_teams: no, balance, or shuffle, default: no
 ; friendly_fire, friendly_deathbringer: (float or %) multiplier, default: 0
 ; respawn_time: (float) seconds, default: 2.0
 ; waiting_time_deathbringer: (float) seconds, default: 4.0
@@ -138,7 +141,7 @@ pup_chance_deathbringer 11
 ;   multipliers to acceleration, defaults: 0.10, 0.50
 ; run_acceleration, turbo_acceleration, flag_acceleration: (float)
 ;   multipliers to acceleration, defaults: 1.75, 1.45, 0.91
-; player_collisions: 1 to enable, 0 to disable, default: 0
+; player_collisions: 1 to enable, 0 to disable, default: 1
 
 friction     0.20
 drag         0.16
@@ -151,4 +154,4 @@ run_acceleration   1.75
 turbo_acceleration 1.45
 flag_acceleration  0.91
 
-player_collisions 0
+player_collisions 1

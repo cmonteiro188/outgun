@@ -3,3 +3,4 @@
 ; user <name> <tab> <password>  or  admin <name> [<tab> <password>]
 ; where <tab> is a tabulator character.
 ; Passwordless admins need to authenticate by logging in to the tournament
+

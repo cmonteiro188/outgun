@@ -70,4 +70,4 @@ Se você ver algum item pelo chão, pegue-o. Ele é um item de poder.
  mega-saude      mais saude e energia
  escudo          sua saúde é protegida enquanto o escudo durar
  encaminhador    mata os adversários que ficarem na mesma sala quando
- de mortes       você morre
+   de mortes       você morre
