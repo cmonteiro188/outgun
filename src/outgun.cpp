@@ -435,7 +435,7 @@ char wheregamedir[WHERE_PATH_SIZE];
 //function that resets the video mode
 bool reset_video_mode();
 
-#define CTF_NUMBER_OF_CAPTURES 8
+#define CTF_DEFAULT_NUMBER_OF_CAPTURES 8
 
 // server game phisics parameters
 double  svp_fric, svp_accel, svp_maxspeed;
@@ -2361,9 +2361,16 @@ public:
 	NLulong next_vote_announce_frame;
 	int last_vote_announce_votes, last_vote_announce_needed;
 
+    //#JR: map start time
+    NLulong map_start_time;
+
 	//server showing gameover plaque?
 	bool	gameover;
 	double		gameover_time;		//timeout for gameover plaque
+
+    //#JR: server parameters: time and capture limits
+    NLulong time_limit;
+    int capture_limit;
 
 	//server parameters: powerups
 	int pups_min, pups_respawn_time, pup_chance_shield, pup_chance_turbo, pup_chance_shadow, 
@@ -3133,7 +3140,7 @@ public:
 	//update team scores
 	void ctf_update_teamscore(int t) {
 
-		if (world.flag[t].score == CTF_NUMBER_OF_CAPTURES) {
+		if (world.flag[t].score == capture_limit) {
 
 			//change map!
 			server_next_map(NEXTMAP_CAPTURE_LIMIT);
@@ -3864,6 +3871,13 @@ public:
 		sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
 		broadcast_message(lix);
 
+		//tell players the capture and time limit
+		if (time_limit == 0)
+		    sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME", capture_limit);
+		else
+		    sprintf(lix, "@ICAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %i MINUTES", capture_limit, time_limit / 10 / 60);
+		broadcast_message(lix);
+
 		//sound
 		broadcast_sample(SAMPLE_CTF_GAMEOVER);
 
@@ -3876,6 +3890,9 @@ public:
 		// return all flags
 		ctf_return_flag(0);
 		ctf_return_flag(1);
+
+        // reset map start time
+        map_start_time = frame;
 
 		// zero all player frags and kill them
 		for (i=0;i<maxplayers;i++) 
@@ -4468,7 +4485,9 @@ public:
 					else if (!strcmp(s, "pup_chance_weapon")) cmd = 21;
 					else if (!strcmp(s, "pup_chance_megahealth")) cmd = 22;
 					else if (!strcmp(s, "pup_chance_deathbringer")) cmd = 23;
-					else if (!strcmp(s, "welcome_message")) cmd = 24;
+					else if (!strcmp(s, "time_limit")) cmd = 24;
+					else if (!strcmp(s, "capture_limit")) cmd = 25;
+					else if (!strcmp(s, "welcome_message")) cmd = 26;
 					else 
 						cmd = 0;
 
@@ -4567,6 +4586,14 @@ public:
 						pup_chance_deathbringer = ival;
 					}
 					else if (cmd == 24) {
+					    if (ival >= 0)
+                            time_limit = 60 * 10 * ival; // convert minutes to frames
+					}
+					else if (cmd == 25) {
+					    if (ival > 0)
+                            capture_limit = ival;
+					}
+					else if (cmd == 26) {
                         welcome_message.push_back(s);
 					}
 				}
@@ -4709,6 +4736,9 @@ public:
 			send_map_change_message(i, reason);
 
 		broadcast_message(lix);
+		
+		// reset map start time
+		map_start_time = frame;
 	}
 
 	//check map exit by vote
@@ -4822,6 +4852,10 @@ public:
 		pup_chance_weapon					= 18;
 		pup_chance_megahealth			= 13;
 		pup_chance_deathbringer		= 11;
+
+        // default time and capture limits
+        time_limit = 0;               // no time limit
+        capture_limit = CTF_DEFAULT_NUMBER_OF_CAPTURES;
 
 		// reset server rotation list
 		maprots = 0;
@@ -5938,6 +5972,7 @@ public:
 							player[pid].queue_printf(  "/config      current server configuration");
 							player[pid].queue_printf(  "/mapinfo n   information about map n (default: current map)");
 							player[pid].queue_printf(  "/votemap n   vote for the next map to be n (default: list maps and votes)");
+							player[pid].queue_printf(  "/time        check current map time and time left");
 							player[pid].queue_printf(  "/sayadmin t  forward \"t\" to the server admin (in English or Finnish, please)");
 						}
 						else if (!strcmp(cbuf, "info")) {
@@ -5949,6 +5984,11 @@ public:
 							player[pid].queue_printf(  "type /config to see current server settings");
 						}
 						else if (!strcmp(cbuf, "config")) {
+							player[pid].queue_printf("@TFlag capture limit: %i", capture_limit);
+							if (time_limit == 0)
+							    player[pid].queue_printf("@TNo map time limit.");
+							else
+							    player[pid].queue_printf("@TMap time limit: %i min", time_limit / 10 / 60);
 							player[pid].queue_printf("@TThese non-standard gameplay affecting features are on at this moment:");
 							#ifdef NR_PUP_TIME_ADDS
 							player[pid].queue_printf(  "* pickup items add %d seconds to what's left", NR_ITEM_TIME);
@@ -5967,7 +6007,7 @@ public:
 								FILE* logp=fopen("msglog.txt", "at+");
 								time_t tt=time(0);
 								struct tm* tmb=localtime(&tt);
-								fprintf(logp, "%d%02d%02d %02d:%02d:%02d  %s: %s\n", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday,
+								fprintf(logp, "%d-%02d-%02d %02d:%02d:%02d  %s: %s\n", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday,
 										tmb->tm_hour, tmb->tm_min, tmb->tm_sec, player[pid].name, pCommand);
 								fclose(logp);
 								if (shellssock) {
@@ -6046,6 +6086,28 @@ public:
 									player[pid].queue_printf("@IPress F4 to actually vote for a mapchange");
 							}
 						}
+						else if (!strcmp(cbuf, "time")) {
+ 						    int seconds = (frame - map_start_time) / 10;
+   						    int remaining_seconds = (time_limit / 10 - seconds);
+    						char map_time[20];
+    						sprintf(map_time, "@TMap time: %d:%02d.", seconds / 60, seconds % 60);
+						    if (time_limit == 0)
+                                player[pid].queue_printf("%s There is no time limit.", map_time);
+                            else {
+                                // time limit not very useful when only one player
+                                int players = 0;
+                                for (int i = 0; i < maxplayers; i++)
+                                    if (player[i].used)
+                                        players++;
+                                if (players == 1)
+                                    player[pid].queue_printf("%s No time limit at the moment as you are the only player.", map_time);
+   						        else if (remaining_seconds < 0) // if time is out and game continues, it must be sudden death
+                                    player[pid].queue_printf("%s Sudden death.", map_time);
+                                else
+                                    player[pid].queue_printf("%s Time left: %d:%02d.", map_time, 
+                                                remaining_seconds / 60, remaining_seconds % 60);
+                            }
+			            }
 						else
 							player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
 					}
@@ -7102,7 +7164,10 @@ public:
 					ctf_return_flag(enemyteam);
 
 					//message
-					bprintf("@I%s CAPTURED THE %s FLAG!", player[i].name, teamname[enemyteam]);
+					string one_more;
+					if (world.flag[myteam].score == capture_limit - 2) // points update later
+                        one_more = " One more to win!";
+					bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name, teamname[enemyteam], one_more.c_str());
 
 					//count
 					player[i].total_captures++;
@@ -7145,15 +7210,32 @@ public:
 				bprintf("@I*** %d/%d votes for mapchange", votes, players);
 			}
 		}
+        int players = 0;
 		//#NR check delayed messages
 		for (int i=0; i<maxplayers; ++i)
 			if (player[i].used && !player[i].isbot) {
+			    players++;
 				player_t::DMQueueT& dm=player[i].delayedMessages;
 				while (dm.size() && --dm.begin()->first<0) {
 					player_message(i, dm.begin()->second.c_str());
 					dm.erase(dm.begin());
 				}
 			}
+			else if (player[i].used)
+                players++;
+        if (players > 1 && time_limit > 0) {
+            if (time_limit >= 600 * 10 && frame - map_start_time == time_limit - 300 * 10)
+                bprintf("@I*** Five minutes left in the game");
+            if (time_limit > 60 * 10 && frame - map_start_time == time_limit - 60 * 10)
+                bprintf("@I*** One minute left in the game");
+            else if (time_limit > 30 * 10 && frame - map_start_time == time_limit - 30 * 10)
+                bprintf("@I*** 30 seconds left in the game");
+            else if (frame - map_start_time > time_limit) {
+                bprintf("@I*** Time out - CTF game over");
+                server_next_map(NEXTMAP_CAPTURE_LIMIT);
+    			ctf_game_restart();
+			}
+        }
 
 		// (2)  broadcast the frame
 		//
