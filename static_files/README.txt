@@ -5,7 +5,7 @@
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
 *******************************************************************************
-                                                      [ 1.0.0 beta 2004-12-09 ]
+                                                      [ 1.0.0 beta 2004-12-14 ]
 
 
 -------------------------
@@ -18,8 +18,8 @@ Outgun 1.0.0 beta testing page
 Outgun development by Nix and Huntta
    http://koti.mbnet.fi/outgun/
 
-The official Outgun site
-   http://outgun.sf.net/en/
+The original Outgun site
+   http://outgun.sf.net/
 
 
 -------------------------
@@ -33,9 +33,9 @@ about the beta, instructions for reporting bugs, and the newest version.
 See the HTML help in the doc directory for full documentation.
 
 All available maps aren't used on a server by default. You can select from the
-cmaps folder the maps you want to use, and copy them to the maps folder. Visit
-http://koti.mbnet.fi/outgun/extras/1.0.html for more maps, and also sound and
-graphics themes.
+cmaps directory the maps you want to use, and copy them to the maps directory.
+Visit http://koti.mbnet.fi/outgun/extras/1.0.html for more maps, and also sound
+and graphics themes.
 
 If you are an author of one of the maps on this package, and want your map
 removed from the distribution or updated, or the credits changed, contact us at
@@ -57,6 +57,7 @@ Programming for 0.5.0 by
 Programming for 1.0.0 by
    Niko Ritari (Nix) <npr1@suomi24.fi>
    Jani Rivinoja (Huntta) <janir@mbnet.fi>
+   Special player collision effects by Fabio "Spinal" Cecin
 
 Graphics themes by
    Jani Rivinoja (Huntta)
@@ -70,12 +71,13 @@ Translations by
    Portuguese (BR) - Thomaz de Oliveira dos Reis (ThOR27) <thommy@globo.com>
 
 Maps by
-   Huntta, Joonas, PHIN, evilKaioh, Flyer-DH, Juggis, Fabio Cecin, Luque,
+   Huntta, Joonas, PHiN, evilKaioh, Flyer-DH, Juggis, Fabio Cecin, Luque,
    MK-HeadShot (unBugger), Jakke, and Devil
 
 1.0.0 beta testers (in decreasing order of bugs reported)
    ThOR27 (very much deserving of his own line),
-   Caio Monteiro "Nosferatu", Joonas, Spinal, MM-coiote, PHIN, rFrota
+   Caio Monteiro "Nosferatu", Joonas, Spinal, MM-coiote, PHiN, rFrota,
+   Detonador, K4(Maicon)
    You. Get your name here by reporting a new bug. :)
 
 This game uses the excellent libraries:

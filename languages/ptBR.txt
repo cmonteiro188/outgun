@@ -55,20 +55,27 @@ $1 s
 $1 min
 
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
-; refresh rate and in the local server menu for IP address, 'none' (meaning
-; "not set"), 'on', and 'off' in the server settings dialog (F5). OK and
-; Cancel are used in the menus, in their usual UI meaning. All may be
-; used elsewhere in a similar context in the future.
+; refresh rate and in the local server menu for IP address; 'private' and
+; 'invalid' are also for IP address; 'none' (meaning "not set"), 'on', and
+; 'off' in the server settings dialog (F5), as well as 'special' which is
+; used for the player collisions setting. 'Disabled', 'minimal', and 'complete'
+; are currently values of the automatic bug reporting policy setting. OK and
+; Cancel are used in the menus, in their usual UI meaning. All may be used
+; elsewhere in a similar context in the future.
 ; Lengths up to 25 characters are ok, but short is preferred.
 OK
 Cancelar
 desconhecido
-Privativo
-Inválido
+privativo
+inválido
 nenhum
 ligado
 desligado
-Especial
+especial
+desabilitado
+mínimo
+completo
+
 
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
 ;
@@ -93,7 +100,10 @@ Atualizar servidores
 Atualizar estado
 Mostrar servidores favoritos
 Entrar o IP manualmente
+
+; IP address is used in both the add server dialog and the local server menu.
 Endereço de IP
+
 Adicionar a lista de servidores favoritos
 Adicionar Servidor
 
@@ -166,6 +176,9 @@ Volume
 Alterar Idiona
 Idioma
 
+Política da reportagem de bugs
+Reportagem automática de bugs
+
 Servidor local (rodando)
 Servidor local
 Adicionar a lista pública de servidores
@@ -197,7 +210,7 @@ Limite de captura
 Limite de tempo
 Tempo extra
 Colisão de jogadores
-Tiro Amigo
+Tiro do parceiro
 Times balanceados
 Soltar poderes
 Sombre invisível
@@ -304,10 +317,6 @@ Nenhuma senha encontrada.
 ; the translation. No length restriction: will be wrapped.
 Por-favor, feche e reinicie o Outgun para completar a alteração do idioma.
 
-; Used in the local server menu to indicate the IP address is not public:
-; Detected address (private) 192.168.0.1
-(privativo) $1
-
 ; Used in a simple dialog message when an invalid IP address is entered.
 Indereço de IP inválido.
 
@@ -348,14 +357,14 @@ $1 LARGOU A BANDEIRA VERMELHA!
 $1 LARGOU A BANDEIRA AZUL!
 $1 LARGOU A BANDEIRA SELVAGEM!
 $1 foi morto.
-$1 foi morto pelo amigo $2.
+$1 foi morto pelo parceiro $2.
 $1 foi morto pelo $2.
 $1 levou choque.
-$1 levou choque do amigo $2.
-$1 recebeu um impacto mortal."
-$1 recebeu um impacto mortal do parceiro $2."
-$1 recebeu um impacto mortal de $2."
+$1 levou choque do parceiro $2.
 $1 levou choque do $2.
+$1 recebeu um impacto mortal.
+$1 recebeu um impacto mortal do parceiro $2.
+$1 recebeu um impacto mortal do $2.
 $1 defendeu o carregador vermelho.
 $1 defendeu o carregador azul.
 $1 defendeu a bandeira vermelha.
@@ -617,7 +626,6 @@ Não foi possível iniciar o servidor de escuta.
 Não foi possível inciar o cliente.
 Não foi possível iniciar o servidor.
 Não foi possível salvar as figuras do mapa para o diretório 'mappic'.
-Comunicador mestre: Tetando forçar um IP privado $1. Não é possível comunicar com o servidor mestre...
 
 ; Graphic mode errors.
 Não foi possível iniciar a resolução $1×$2×$3 em qualquer modo.
@@ -640,7 +648,7 @@ Não é possível alterar $1 para '$2' - Esperado $3.
 0 ou 1
 $1 ou $2
 um entre no, balance e shuffle
-um entre no, normal, e special
+um entre no, normal e special
 um número inteiro e ímpar entre 2 e $1
 um número inteiro
 um número inteiro, maior que $1

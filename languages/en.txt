@@ -53,17 +53,26 @@ $1 s
 $1 min
 
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
-; refresh rate and in the local server menu for IP address, 'none' (meaning
-; "not set"), 'on', and 'off' in the server settings dialog (F5). OK and
-; Cancel are used in the menus, in their usual UI meaning. All may be
-; used elsewhere in a similar context in the future.
+; refresh rate and in the local server menu for IP address; 'private' and
+; 'invalid' are also for IP address; 'none' (meaning "not set"), 'on', and
+; 'off' in the server settings dialog (F5), as well as 'special' which is
+; used for the player collisions setting. 'Disabled', 'minimal', and 'complete'
+; are currently values of the automatic bug reporting policy setting. OK and
+; Cancel are used in the menus, in their usual UI meaning. All may be used
+; elsewhere in a similar context in the future.
 ; Lengths up to 25 characters are ok, but short is preferred.
 OK
 Cancel
 unknown
+private
+invalid
 none
 on
 off
+special
+disabled
+minimal
+complete
 
 
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
@@ -89,7 +98,10 @@ Refresh servers
 Refresh status
 Show favorite servers
 Manually enter IP
+
+; IP address is used in both the add server dialog and the local server menu.
 IP address
+
 Add to favorite list
 Add server
 
@@ -162,11 +174,14 @@ Volume
 Change language
 Language
 
+Bug report policy
+Automatic bug reporting
+
 Local server (running)
 Local server
 Add to public serverlist
 Server port
-Detected address
+Autodetect IP
 Start server
 Play on the server
 Stop server
@@ -300,10 +315,6 @@ No passwords found.
 ; the translation. No length restriction: will be wrapped.
 Please close and restart Outgun to complete the change of language.
 
-; Used in the local server menu to indicate the IP address is not public:
-; Detected address (private) 192.168.0.1
-(private) $1
-
 ; Used in a simple dialog message when an invalid IP address is entered.
 Invalid IP address.
 
@@ -349,6 +360,9 @@ $1 was nailed by $2.
 $1 was choked.
 $1 was choked by teammate $2.
 $1 was choked by $2.
+$1 received a mortal blow.
+$1 received a mortal blow from teammate $2.
+$1 received a mortal blow from $2.
 $1 defends the red carrier.
 $1 defends the blue carrier.
 $1 defends the red flag.
@@ -610,7 +624,6 @@ Can't start listen server.
 Can't start the client.
 Can't start the server.
 Could not save map pictures to the directory 'mappic'.
-Master talker: Tried to force a private IP $1. Not talking to master server...
 
 ; Graphic mode errors.
 Couldn't initialize resolution $1×$2×$3 in any mode.
@@ -632,7 +645,8 @@ Can't set $1 to '$2' - expecting $3.
 ; Different expectations used as $3 in the previous message.
 0 or 1
 $1 or $2
-one of no, balance and shuffle
+one of no, balance, and shuffle
+one of no, normal, and special
 an even integer between 2 and $1
 an integer
 an integer, at least $1
@@ -680,7 +694,7 @@ Syntax error in gfxmodes.txt, line '$1'.
 Translation $1 can't be read.
 Unknown data in client.cfg ("$1").
 Unrecognized command "$1" in auth.txt
-Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32)
+Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32).
 Width and height of textures must be powers of 2; floor texture $1 is $2×$3.
 Width and height of textures must be powers of 2; wall texture $1 is $2×$3.
 

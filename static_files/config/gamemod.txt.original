@@ -141,7 +141,7 @@ pup_chance_deathbringer 11
 ;   multipliers to acceleration, defaults: 0.10, 0.50
 ; run_acceleration, turbo_acceleration, flag_acceleration: (float)
 ;   multipliers to acceleration, defaults: 1.75, 1.45, 0.91
-; player_collisions: 1 to enable, 0 to disable, default: 1
+; player_collisions: no, normal, or special, default: normal
 
 friction     0.20
 drag         0.16
@@ -154,4 +154,4 @@ run_acceleration   1.75
 turbo_acceleration 1.45
 flag_acceleration  0.91
 
-player_collisions 1
+player_collisions normal

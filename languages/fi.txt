@@ -53,17 +53,26 @@ $1 s
 $1 min
 
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
-; refresh rate and in the local server menu for IP address, 'none' (meaning
-; "not set"), 'on', and 'off' in the server settings dialog (F5). OK and
-; Cancel are used in the menus, in their usual UI meaning. All may be
-; used elsewhere in a similar context in the future.
+; refresh rate and in the local server menu for IP address; 'private' and
+; 'invalid' are also for IP address; 'none' (meaning "not set"), 'on', and
+; 'off' in the server settings dialog (F5), as well as 'special' which is
+; used for the player collisions setting. 'Disabled', 'minimal', and 'complete'
+; are currently values of the automatic bug reporting policy setting. OK and
+; Cancel are used in the menus, in their usual UI meaning. All may be used
+; elsewhere in a similar context in the future.
 ; Lengths up to 25 characters are ok, but short is preferred.
 Selvä
 Peru
 tuntematon
+yksityinen
+virheellinen
 ei
 päällä
 pois
+erikoinen
+pois päältä
+minimaalinen
+täysi
 
 
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
@@ -89,7 +98,10 @@ Päivitä palvelimet
 Päivityksen vaihe
 Näytä suosikkipalvelimet
 Syötä IP-osoite
+
+; IP address is used in both the add server dialog and the local server menu.
 IP-osoite
+
 Lisää suosikkilistaan
 Lisää palvelin
 
@@ -162,11 +174,14 @@ Voimakkuus
 Vaihda kieltä
 Kieli
 
+Bugiraportointi
+Automaattinen bugiraportointi
+
 Oma palvelin (käynnissä)
 Oma palvelin
 Lisää julkiseen palvelinlistaan
 Palvelimen portti
-Tunnistettu osoite
+Automaattinen osoite
 Käynnistä palvelin
 Pelaa palvelimella
 Sulje palvelin
@@ -300,10 +315,6 @@ Salasanoja ei ole.
 ; the translation. No length restriction: will be wrapped.
 Sulje Outgun ja käynnistä se uudelleen, niin kielivalinta tulee voimaan.
 
-; Used in the local server menu to indicate the IP address is not public:
-; Detected address (private) 192.168.0.1
-(yksityinen) $1
-
 ; Used in a simple dialog message when an invalid IP address is entered.
 Virheellinen IP-osoite.
 
@@ -349,6 +360,9 @@ $1 kuoli, tappaja $2.
 $1 tukehtui.
 $1 tukehtui, tappaja joukkuetoveri $2.
 $1 tukehtui, tappaja $2.
+$1 tönittiin hengiltä.
+$1 tönittiin hengiltä, tappaja joukkuetoveri $2.
+$1 tönittiin hengiltä, tappaja $2.
 $1 suojaa punaista lipunkantajaa.
 $1 suojaa sinistä lipunkantajaa.
 $1 suojaa punaista lippua.
@@ -610,7 +624,6 @@ Palvelin ei käynnisty.
 Asiakasohjelma ei käynnisty.
 Palvelin ei käynnisty.
 Karttakuvat eivät tallentuneet hakemistoon "mappic".
-Pääpalvelinyhteys: Käytössä yksityinen IP-osoite $1, joten pääpalvelimelle ei lähetetä mitään.
 
 ; Graphic mode errors.
 Näyttötila $1×$2×$3 ei alustu.
@@ -633,6 +646,7 @@ Asetus $1 ei voi saada arvoa "$2" - sen pitää olla $3.
 0 tai 1
 $1 tai $2
 joko no, balance tai shuffle
+joko no, normal tai special
 parillinen kokonaisluku 2 - $1
 kokonaisluku
 kokonaisluku, vähintään $1
