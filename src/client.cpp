@@ -1951,6 +1951,7 @@ void Client::process_incoming_data(char *data, int length) {
 				case data_new_player: {
 					NLubyte pid;
 					readByte(lebuf, count, pid);
+					fx.player[pid].stats().clear();
 					fx.player[pid].stats().set_start_time(get_time());
 					fx.player[pid].stats().set_lifetime(0);
 				}
