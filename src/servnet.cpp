@@ -283,6 +283,13 @@ void ServerNetworking::broadcast_screen_sample(int p, int code) const {
     broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
 }
 
+void ServerNetworking::broadcast_screen_power_collision(int p) const {
+    char lebuf[64]; int count = 0;
+    writeByte(lebuf, count, data_power_collision);
+    writeByte(lebuf, count, p);
+    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
+}
+
 //send current flag status (cid == -1 : broadcast)
 void ServerNetworking::ctf_net_flag_status(int cid, int team) const {
     //just resetting server state -- no update needed
@@ -1902,22 +1909,10 @@ void ServerNetworking::run_mastertalker_thread() {
     in.close();
 
     // determine the public IP to send to master
-    string localAddress;
-    if (!host->config().force_ip_name.empty()) {    // use IP manually given to the program
-        if (check_private_IP(host->config().force_ip_name)) {
-            log.error(_("Master talker: Tried to force a private IP $1. Not talking to master server...", host->config().force_ip_name));
-            return;
-        }
-        log("Master talker: Forcing IP to %s", host->config().force_ip_name.c_str());
-
-        localAddress = host->config().force_ip_name;
-    }
-    else {
-        localAddress = getPublicIP(log);
-        if (localAddress.empty()) {
-            log("Master talker: No public IP address. Not talking to master server.");
-            return;
-        }
+    const string& localAddress = host->config().ipAddress;
+    if (check_private_IP(localAddress)) {
+        log("Master talker: No public IP address. Not talking to master server.");
+        return;
     }
 
     bool master_never_talked = true;
@@ -2046,17 +2041,8 @@ void ServerNetworking::run_website_thread() {
     if (web_servers.empty() || web_script.empty())
         return;
 
-    string localAddress;
-    if (!host->config().force_ip_name.empty())
-        localAddress = host->config().force_ip_name;
-    else {
-        localAddress = getPublicIP(log);
-        if (localAddress.empty()) {
-            NLaddress myadr;
-            get_self_IP(&myadr);
-            localAddress = addressToString(myadr);
-        }
-    }
+    const string& localAddress = host->config().ipAddress;
+    // use it even if not public
 
     NLaddress website_address;
     double website_talk_time = 0.0;
@@ -2807,12 +2793,12 @@ void ServerNetworking::sfunc_client_connected(void* customp, int client_id) {
         sn->threadLockMutex.unlock();
 }
 
-void ServerNetworking::sfunc_client_disconnected(void* customp, int client_id) {
+void ServerNetworking::sfunc_client_disconnected(void* customp, int client_id, bool reentrant) {
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
-    if (sn->threadLock)
+    if (sn->threadLock && !reentrant)
         sn->threadLockMutex.lock();
     sn->client_disconnected(client_id);
-    if (sn->threadLock)
+    if (sn->threadLock && !reentrant)
         sn->threadLockMutex.unlock();
 }
 

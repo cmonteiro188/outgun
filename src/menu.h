@@ -176,9 +176,11 @@ private:
 // the Textfield keyhook is only called with keys not handled otherwise (= non-printables other than backspace)
 class Textfield : public Component, public MenuHookable<Textfield>, public KeyHookable<Textfield> {
 public:
-    Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0): Component(caption_), value(init_text), maxlen(fieldLength), maskChar(mask) { }
+    Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask) { }
     void set(const std::string& text) { value = text; }
     const std::string& operator()() const { return value; }
+
+    void setTail(const std::string& text) { tail = text; }
 
     // inherited interface
     bool needsNumberKeys() const { return true; }
@@ -188,8 +190,8 @@ public:
     bool handleKey(char scan, unsigned char chr);
 
 private:
-    std::string value;
-    int maxlen;
+    std::string value, tail;
+    int maxlen, tailSpace;
     char maskChar;  // 0 for no masking
 };
 

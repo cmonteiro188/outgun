@@ -304,7 +304,7 @@ private:
 
 class PlayerBase {
 protected:
-    PlayerBase() { }
+    PlayerBase() { clear(false, 0, "", 0); }
 
     int team_nr;
     int personal_color;
@@ -400,6 +400,8 @@ public:
     double talk_temp;
     double talk_hotness;
 
+    ServerPlayer() { clear(false, 0, 0, "", 0); }
+
     bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
     void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
@@ -418,6 +420,8 @@ private:
 
 class ClientPlayer : public PlayerBase {
 public:
+    ClientPlayer() { clear(false, 0, "", 0); }
+
     bool deathbringer_affected;
     double next_smoke_effect_time;
     double next_turbo_effect_time;
@@ -619,7 +623,7 @@ public:
     double fric, drag, accel;
     double brake_mul, turn_mul, run_mul, turbo_mul, flag_mul;
     double friendly_fire, friendly_db;
-    bool player_collisions;
+    enum PlayerCollisions { PC_none, PC_normal, PC_special } player_collisions;
 
     double max_run_speed;   // max speed without turbo, for turbo effect in client
 
@@ -631,6 +635,12 @@ public:
 
 class PhysicsCallbacksBase {
 public:
+    struct PlayerHitResult {
+        std::pair<bool, bool> deaths;
+        double bounceStrength1, bounceStrength2;
+        PlayerHitResult(bool dead1, bool dead2, double s1, double s2) : deaths(std::pair<bool, bool>(dead1, dead2)), bounceStrength1(s1), bounceStrength2(s2) { }
+    };
+
     virtual ~PhysicsCallbacksBase() { }
     virtual bool collideToRockets() const =0;   // should player to rocket collisions be checked at all
     virtual bool gatherMovementDistance() const =0; // should addMovementDistance be called with player movements
@@ -640,7 +650,7 @@ public:
     virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0;   // caller doesn't remove the rocket
     virtual bool rocketHitPlayer(int rid, int pid) =0;  // returns true if player dies (to be removed from further simulation)
     virtual void playerHitWall(int pid) =0;
-    virtual void playerHitPlayer(int pid1, int pid2) =0;
+    virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) =0;
     virtual void rocketOutOfBounds(int rid) =0; // caller doesn't remove the rocket
     virtual bool shouldApplyPhysicsToPlayer(int pid) =0;    // returns true physics should be run to player pid
 };
@@ -655,7 +665,7 @@ class WorldBase {
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
     void applyPlayerAcceleration(int pid);
     void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius); // needs plyRadius as a shortcut to bounceVec's length
-    void executeBounce(PlayerBase& pl1, PlayerBase& pl2) const;
+    std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const; // returns pair(p1-dead, p2-dead)
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction);
 
     void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
@@ -822,6 +832,7 @@ public:
     void playerScreenChangeCallback(int pid);
     void rocketHitWallCallback(int rid);
     bool rocketHitPlayerCallback(int rid, int pid);
+    PhysicsCallbacksBase::PlayerHitResult playerHitPlayerCallback(int pid1, int pid2, double speed);
     void rocketOutOfBoundsCallback(int rid);
     bool shouldApplyPhysicsToPlayerCallback(int pid);
 };

@@ -229,6 +229,15 @@ private:
     WorldSettings::Team_balance* var;
 };
 
+class GS_Collisions : public GamemodSetting {
+public:
+    GS_Collisions(const std::string& name, PhysicalSettings::PlayerCollisions* pVar) : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet& log, const std::string& value);
+
+private:
+    PhysicalSettings::PlayerCollisions* var;
+};
+
 class GS_Percentage : public GamemodSetting {
 public:
     GS_Percentage(const std::string& name, double* pVar) : GamemodSetting(name), var(pVar) { }

@@ -105,7 +105,8 @@ enum Network_data_code {
     data_map_change_info,
     data_broken_map,
     data_reserved_range_first,  // reserve some codes for extensions that are otherwise protocol compatible
-    data_reserved_range_last = data_broken_map + 20    // make sure you don't use more!
+    data_reserved_range_last = data_reserved_range_first + 20,  // make sure you don't use more!
+    data_power_collision
 };
 
 enum Disconnect_reason {

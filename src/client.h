@@ -115,7 +115,9 @@ enum ClientCfgSetting {
     CCS_ServerPublic,
     CCS_ServerPort,
     CCS_KeyboardLayout,
-    CCS_MaxCommand = CCS_KeyboardLayout
+    CCS_ServerAddress,
+    CCS_AutodetectAddress,
+    CCS_MaxCommand = CCS_AutodetectAddress
 };
 
 class ServerThreadOwner {

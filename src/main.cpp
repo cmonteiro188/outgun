@@ -223,6 +223,12 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
 
+    serverCfg.ipAddress = getPublicIP(log, false);
+    if (serverCfg.ipAddress.empty()) {
+        LogSet noLogSet(0, 0, 0);   // don't log this second round which would just duplicate information
+        serverCfg.ipAddress = getPublicIP(noLogSet, true);
+    }
+
     // check args
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-ded"))
@@ -297,7 +303,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else if (!strcmp(argv[i], "-ip")) {
             if (++i < argc) {
                 if (isValidIP(argv[i])) {
-                    serverCfg.force_ip_name = argv[i];
+                    serverCfg.ipAddress = argv[i];
                     serverCfg.ipForced = true;
                 }
                 else

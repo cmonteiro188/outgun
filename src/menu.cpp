@@ -351,14 +351,16 @@ void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
         textout_ex(buffer, font, string(value.length(), maskChar).c_str(), x, y, col_value, -1);
     else
         textout_ex(buffer, font, value.c_str(), x, y, col_value, -1);
+    x += value.length() * char_w;
     if (active) {
-        x += value.length() * char_w;
         textout_ex(buffer, font, "_", x, y, col_value, -1); // cursor
+        x += char_w;
     }
+    textout_ex(buffer, font, tail.c_str(), x, y, col_value, -1);
 }
 
 int Textfield::width() const {
-    return (caption.length() + 2 + maxlen + 1) * char_w;    // 2 for ": " and 1 for cursor
+    return (caption.length() + 2 + maxlen + 1 + max(tailSpace, (int)tail.length())) * char_w;    // 2 for ": " and 1 for cursor
 }
 
 int Textfield::height() const {

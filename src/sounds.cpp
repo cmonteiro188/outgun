@@ -113,6 +113,7 @@ bool Sounds::try_init() {
     if (allegroSoundInitialized)
         return true;
     log("Initializing sound.");
+    set_volume_per_voice(0);
     if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
         log("Install_sound failed. Sound disabled.");
         return false;

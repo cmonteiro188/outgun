@@ -217,7 +217,8 @@ class Menu_ownServer {
 public:
     Checkbox        pub;
     NumberEntry     port;
-    StaticText      address;
+    Textfield       address;
+    Checkbox        autoIP;
     Textarea        start;
     Textarea        play;
     Textarea        stop;
@@ -225,15 +226,14 @@ public:
     Menu menu;
 
     Menu_ownServer();
-    void init(const std::string& externalAddress, bool priv);
+    void init(const std::string& detectedAddress);
     void refreshCaption(bool serverRunning);
     void refreshEnables(bool serverRunning, bool connected);
 
     void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 
 private:
-    std::string ip;
-    bool privateIP;
+    std::string detectedIP;
 };
 
 class Menu_main {

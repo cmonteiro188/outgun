@@ -113,6 +113,19 @@ bool GS_Balance::set(LogSet& log, const string& value) {
     return true;
 }
 
+bool GS_Collisions::set(LogSet& log, const string& value) {
+    const string tval = trim(value);
+    if (tval == "no" || tval == "0")
+        *var = PhysicalSettings::PC_none;
+    else if (tval == "normal" || tval == "1")
+        *var = PhysicalSettings::PC_normal;
+    else if (tval == "special" || tval == "2")
+        *var = PhysicalSettings::PC_special;
+    else
+        return basicErrorMessage(log, value, _("one of no, normal and special"));
+    return true;
+}
+
 bool GS_Percentage::set(LogSet& log, const string& value) {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));

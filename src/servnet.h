@@ -67,7 +67,7 @@ class ServerNetworking {
     // server callbacks
     static void sfunc_client_hello          (void* customp, int client_id, char* data, int length, ServerHelloResult* res);
     static void sfunc_client_connected      (void* customp, int client_id);
-    static void sfunc_client_disconnected   (void* customp, int client_id);
+    static void sfunc_client_disconnected   (void* customp, int client_id, bool reentrant);
     static void sfunc_client_data           (void* customp, int client_id, char* data, int length);
     static void sfunc_client_lag_status     (void* customp, int client_id, int status);
     static void sfunc_client_ping_result    (void* customp, int client_id, int pingtime);
@@ -234,6 +234,7 @@ public:
 
     void broadcast_sample(int code) const;
     void broadcast_screen_sample(int p, int code) const;
+    void broadcast_screen_power_collision(int p) const;
     void broadcast_team_message(int team, const std::string& text) const;
     void broadcast_screen_message(int px, int py, char *lebuf, int count) const;
     void bprintf(Message_type type, const char *fs, ...) const;

@@ -28,11 +28,13 @@
 #include <vector>
 
 #include "incalleg.h"
-#include "menu.h"
-#include "utility.h"
 #include "graphics.h"
-#include "sounds.h"
 #include "language.h"
+#include "menu.h"
+#include "network.h"
+#include "sounds.h"
+#include "utility.h"
+
 #include "client_menus.h"
 
 using std::ostringstream;
@@ -54,7 +56,7 @@ Spacer g_menuSpace(5);
 #define ins_space() menu.add_component(&g_menuSpace);
 
 Menu_addServer::Menu_addServer() :
-    address     (_("IP address"), "", 21),
+    address     (_("IP address"), "", 21),   // max. IP address 123.123.123.123:12345 = 21 chars
     save        (_("Add to favorite list")),
 
     menu        (_("Add server"), false)
@@ -388,7 +390,8 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
 Menu_ownServer::Menu_ownServer() :
     pub     (_("Add to public serverlist"), false),
     port    (_("Server port"), 1, 65535, DEFAULT_UDP_PORT),
-    address (_("Detected address")),
+    address (_("IP address"), "", 15, 0, 20),   // max. IP address 123.123.123.123 = 15 chars, reserve for tail (:port and/or 'comment') 20 chars
+    autoIP  (_("Autodetect IP"), true),
 
     start   (_("Start server")),
     play    (_("Play on the server")),
@@ -399,18 +402,15 @@ Menu_ownServer::Menu_ownServer() :
     menu.add_component(&pub);
     menu.add_component(&port);
     menu.add_component(&address);
+    menu.add_component(&autoIP);
     ins_space();
     menu.add_component(&start);
     menu.add_component(&play);
     menu.add_component(&stop);
 }
 
-void Menu_ownServer::init(const std::string& externalAddress, bool priv) {
-    privateIP = priv;
-    if (priv && !externalAddress.empty())
-        ip = _("(private) $1", externalAddress);
-    else
-        ip = externalAddress;   // the case of empty ip is handled specially in the drawing code
+void Menu_ownServer::init(const std::string& detectedAddress) {
+    detectedIP = detectedAddress;
 }
 
 void Menu_ownServer::refreshCaption(bool serverRunning) {
@@ -419,14 +419,19 @@ void Menu_ownServer::refreshCaption(bool serverRunning) {
     else
         menu.setCaption(_("Local server"));
     // this could be a separate function but it really doesn't hurt to update the address field here
-    if (ip.empty())
-        address.set(_("unknown"));
+    if (autoIP())
+        address.set(detectedIP);
+    if (address().empty())
+        address.setTail(_("unknown"));
     else {
-        ostringstream os;
-        os << ip;
+        string tail;
         if (port() != DEFAULT_UDP_PORT)
-            os << ':' << port();
-        address.set(os.str());
+            tail = ":" + itoa(port());
+        if (!isValidIP(address()))
+            tail += " (" + _("invalid") + ')';
+        else if (check_private_IP(address()))
+            tail += " (" + _("private") + ')';
+        address.setTail(tail);
     }
 }
 
@@ -434,18 +439,22 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) {
     if (serverRunning) {
         pub.setEnable(false);
         port.setEnable(false);
+        address.setEnable(false);
+        autoIP.setEnable(false);
         start.setEnable(false);
         play.setEnable(!connected);
         stop.setEnable(true);
     }
     else {
-        if (privateIP) {
+        if (!isValidIP(address()) || check_private_IP(address())) {
             pub.set(false);
             pub.setEnable(false);
         }
         else
             pub.setEnable(true);
         port.setEnable(true);
+        address.setEnable(!autoIP());
+        autoIP.setEnable(true);
         start.setEnable(true);
         play.setEnable(false);
         stop.setEnable(false);

@@ -403,7 +403,7 @@ bool Server::trySetMaxplayers(int val) {
 bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }    // helper for load_game_mod
 bool checkForceIpValue(const std::string& val) { return isValidIP(val); }
 
-bool Server::setForceIP(const std::string& val) { extConfig.force_ip_name = val; return true; }
+bool Server::setForceIP(const std::string& val) { extConfig.ipAddress = val; return true; }
 void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
 
 void Server::load_game_mod(bool reload) {
@@ -458,7 +458,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Double    ("run_acceleration",        &world.physics.run_mul)),
         PT(new GS_Double    ("turbo_acceleration",      &world.physics.turbo_mul)),
         PT(new GS_Double    ("flag_acceleration",       &world.physics.flag_mul)),
-        PT(new GS_Boolean   ("player_collisions",       &world.physics.player_collisions)),
+        PT(new GS_Collisions("player_collisions",       &world.physics.player_collisions)),
         PT(new GS_Percentage("friendly_fire",           &world.physics.friendly_fire)),
         PT(new GS_Percentage("friendly_deathbringer",   &world.physics.friendly_db)),
         PT(new GS_Map       ("map",                     &maprot)),

@@ -36,7 +36,6 @@
 
 #include "incalleg.h"
 #include "leetnet/client.h"
-#include "leetnet/rudp.h"   // get_self_IP
 #include "leetnet/sleep.h"  // sleep util
 #include "commont.h"
 #include "debug.h"
@@ -128,7 +127,7 @@ public:
     void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
     bool rocketHitPlayer(int, int) { return false; }
     void playerHitWall(int pid) { c.playerHitWallCallback(pid); }
-    void playerHitPlayer(int pid1, int pid2) { c.playerHitPlayerCallback(pid1, pid2); }
+    PlayerHitResult playerHitPlayer(int pid1, int pid2, double) { c.playerHitPlayerCallback(pid1, pid2); return PlayerHitResult(false, false, 1., 1.); }
     void rocketOutOfBounds(int rid) { c.rocketOutOfBoundsCallback(rid); }
     bool shouldApplyPhysicsToPlayer(int pid) { return c.shouldApplyPhysicsToPlayerCallback(pid); }
 };
@@ -517,7 +516,8 @@ void TM_ServerSettings::execute(Client* cl) const {
     addLine(cl, _("Time limit"          ), (timelimit == 0) ? _("none") : _("$1 min", itoa(timelimit)));
     if (timelimit != 0)
         addLine(cl, _("Extra-time"      ), (extratime == 0) ? _("none") : _("$1 min", itoa(extratime)));
-    addLine(cl, _("Player collisions"   ),  cl->fx.physics.player_collisions ? _("on") : _("off"));
+    addLine(cl, _("Player collisions"   ),  cl->fx.physics.player_collisions == PhysicalSettings::PC_none ? _("off") :
+                                            cl->fx.physics.player_collisions == PhysicalSettings::PC_normal ? _("on") : _("special"));
     addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : (itoa(iround(100. * cl->fx.physics.friendly_fire)) + '%'));
 
     const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer") };
@@ -727,7 +727,6 @@ bool Client::start() {
         string args;
         command >> settingId;
         command.ignore();   // eat separator (space)
-        getline(command, args);
         if (!command || settingId < 0) {
             log.error(_("Invalid syntax in client.cfg (\"$1\").", line));
             continue;
@@ -736,6 +735,7 @@ bool Client::start() {
             log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
+        getline(command, args); // this might fail, but that only means there is an empty string
         switch (static_cast<ClientCfgSetting>(settingId)) {
             // name menu
             case CCS_PlayerName:            if (check_name(args)) playername = args; break;
@@ -814,6 +814,8 @@ bool Client::start() {
             // local server menu
             case CCS_ServerPublic:          menu.ownServer.pub.set(args == "1"); break;
             case CCS_ServerPort:            menu.ownServer.port.boundSet(atoi(args)); break;
+            case CCS_ServerAddress:         menu.ownServer.address.set(args); break;
+            case CCS_AutodetectAddress:     menu.ownServer.autoIP.set(args == "1"); break;
             default:    nAssert(0); // must handle all values up to the highest known
         }
     }
@@ -875,6 +877,10 @@ bool Client::start() {
         menu.ownServer.pub.set(!serverExtConfig.privateserver);
     if (serverExtConfig.portForced)
         menu.ownServer.port.set(serverExtConfig.port);  // assume caller to take care of limiting to proper range (1..65535)
+    if (serverExtConfig.ipForced) {
+        menu.ownServer.autoIP.set(false);
+        menu.ownServer.address.set(serverExtConfig.ipAddress);
+    }
 
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
@@ -1853,6 +1859,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 break;
             }
 
+            case data_power_collision: {
+                NLubyte target;
+                readByte(lebuf, count, target);
+                fx.player[target].hitfx = get_time() + .3;
+                addThreadMessage(new TM_Sound(SAMPLE_HIT));
+            }
+
             case data_score_update: {
                 NLubyte team;
                 NLubyte score;
@@ -2361,6 +2374,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 }
+                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
                 break;
             }
 
@@ -3611,6 +3625,8 @@ void Client::stop() {
         // save local server menu settings
         cfg << CCS_ServerPublic         << ' ' << (menu.ownServer.pub() ? 1 : 0) << '\n';
         cfg << CCS_ServerPort           << ' ' <<  menu.ownServer.port() << '\n';
+        cfg << CCS_ServerAddress        << ' ' <<  menu.ownServer.address() << '\n';
+        cfg << CCS_AutodetectAddress    << ' ' << (menu.ownServer.autoIP() ? 1 : 0) << '\n';
 
         cfg.close();
     }
@@ -3696,7 +3712,7 @@ bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
 }
 
 void Client::predraw() {
-    if (fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
+    if (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
             fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
         return; //#fix: this shouldn't be needed, or should be checked from a simple flag
     vector< pair<int, const WorldCoords*> > flags;
@@ -4158,16 +4174,7 @@ void Client::initMenus() {
 
     menu.options.graphics.init(client_graphics);
     menu.options.sounds.init(client_sounds);
-
-    // find the most probable external IP to show in the local server menu
-    string addr = serverExtConfig.force_ip_name;
-    if (addr.empty())
-        addr = getPublicIP(log, false);
-    if (addr.empty()) { // no public address, will have to do with another external address (if any)
-        LogSet noLogSet(0, 0, 0);   // don't log this second round which would just duplicate information
-        addr = getPublicIP(noLogSet, true);
-    }
-    menu.ownServer.init(addr, addr.empty() || check_private_IP(addr));  // check for private here to include the check to force_ip_name
+    menu.ownServer.init(serverExtConfig.ipAddress);
 }
 
 void Client::MCF_menuOpener(Menu& menu) {
@@ -4639,7 +4646,8 @@ void Client::MCF_startServer() {
     if (!listenServer.running()) {
         serverExtConfig.privateserver = menu.ownServer.pub() ? 0 : 1;
         serverExtConfig.port = menu.ownServer.port();
-        serverExtConfig.privSettingForced = serverExtConfig.portForced = true;
+        serverExtConfig.ipAddress = menu.ownServer.address();
+        serverExtConfig.privSettingForced = serverExtConfig.portForced = serverExtConfig.ipForced = true;
         serverExtConfig.showErrorCount = false;
         listenServer.start(serverExtConfig.port, serverExtConfig);
     }

@@ -338,7 +338,7 @@ public:
         //call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
         // DO NOT CALL if client not connected
         if (client[client_id].connected_knows)
-            disconnectedCallback(customp, client_id);
+            disconnectedCallback(customp, client_id, true);
 
         //disconnect the client - this flags that the client is disconnected by the server but the
         // client at first doesn't know this. will keep sending disconnect packets to client
@@ -975,7 +975,7 @@ DLOG_Scope s("PCD_Sp");
                         //call the "client disconnected" callback (1 of 2 : client-initiated disconnection)
                         // DO NOT CALL if client not connected
                         if (client[cid].connected_knows)
-                            disconnectedCallback(customp, cid);
+                            disconnectedCallback(customp, cid, false);
 
                         //mark 3 second countdown for client dropping
                         //this var is checked by the reader thread

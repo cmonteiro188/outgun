@@ -43,7 +43,7 @@ public:
 
     typedef void helloCallbackT         (void* customp, int client_id, char* data, int length, ServerHelloResult* res);
     typedef void connectedCallbackT     (void* customp, int client_id);
-    typedef void disconnectedCallbackT  (void* customp, int client_id);
+    typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is an user one
     typedef void dataCallbackT          (void* customp, int client_id, char* data, int length);
     typedef void lagStatusCallbackT     (void* customp, int client_id, int status);
     typedef void pingResultCallbackT    (void* customp, int client_id, int pingtime);

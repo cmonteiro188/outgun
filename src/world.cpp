@@ -1,7 +1,7 @@
 /*
  *  world.cpp
  *
- *  Copyright (C) 2002 - Fabio Reis Cecin
+ *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
@@ -1216,7 +1216,7 @@ PhysicalSettings::PhysicalSettings() :
     flag_mul    (0.91),
     friendly_fire(0.),
     friendly_db(0.),
-    player_collisions(true)
+    player_collisions(PC_normal)
 {
     calc_max_run_speed();
 }
@@ -1239,7 +1239,12 @@ void PhysicalSettings::read(char* lebuf, int& count) {
 
     NLubyte collisions = 0;
     readByte(lebuf, count, collisions);
-    player_collisions = (collisions & 0x01) != 0;
+    switch (collisions & 0x03) {
+        case 0: player_collisions = PC_none; break;
+        case 1: player_collisions = PC_normal; break;
+        case 3: player_collisions = PC_special; break; // 3 to keep protocol compatibility, where bit 0 means collisions on/off
+        default: nAssert(0);
+    }
 
     calc_max_run_speed();
 }
@@ -1256,7 +1261,7 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
     safeWriteFloat(lebuf, count, friendly_fire);
     safeWriteFloat(lebuf, count, friendly_db);
 
-    const NLubyte collisions = (player_collisions ? 0x01 : 0x00);
+    const NLubyte collisions = (player_collisions == PC_none ? 0x00 : player_collisions == PC_normal ? 0x01 : 0x03);
     writeByte(lebuf, count, collisions);
 }
 
@@ -1347,7 +1352,7 @@ public:
     void rocketHitWall(int rid, bool, double, double, int, int) { w.rocketHitWallCallback(rid); }
     bool rocketHitPlayer(int rid, int pid) { return w.rocketHitPlayerCallback(rid, pid); }
     void playerHitWall(int) { }
-    void playerHitPlayer(int, int) { }
+    PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) { return w.playerHitPlayerCallback(pid1, pid2, speed); }
     void rocketOutOfBounds(int rid) { w.rocketOutOfBoundsCallback(rid); }
     bool shouldApplyPhysicsToPlayer(int pid) { return w.shouldApplyPhysicsToPlayerCallback(pid); }
 };
@@ -1878,6 +1883,9 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
 }
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {   // inflict normal or deathbringer damage on target
+    if (player[target].health <= 0)
+        return;
+
     // shadow powerup: show player
     if (player[target].item_shadow())
         player[target].visibility = maximum_shadow_visibility;
@@ -1916,10 +1924,10 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
     if (!same_team) {
         for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
             if (player[i].used && player[i].flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
-                    carrier_defended = true;
-                    host->score_frag(attacker, 1);
-                    break;  // only one frag even for defending multiple carriers
-                }
+                carrier_defended = true;
+                host->score_frag(attacker, 1);
+                break;  // only one frag even for defending multiple carriers
+            }
         for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
             if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
                 flag_defended = true;
@@ -2084,210 +2092,116 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
     return player[pid].health <= 0;
 }
 
-#if 0
-void playerHitPlayer(int a, int b) {
+PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int pid1, int pid2, double speed) {
+    if (physics.player_collisions != PhysicalSettings::PC_special)
+        return PhysicsCallbacksBase::PlayerHitResult(false, false, 1., 1.);
 
-	bool toss_a = false;
-	bool toss_b = false;
+    ServerPlayer& pl1 = player[pid1];
+    ServerPlayer& pl2 = player[pid2];
 
-	//when an invisible player collides with an enemy player, it becomes 
-	//visible for a while. 
-	//
-	//also, colliding with a teammate that doesn't have the shadow will give
-	// the shadow bonus for a short time (3 secs)
-	if (w.player[a].item_shadow()) {
+    nAssert(pl1.health > 0 && pl2.health > 0);
 
-		if (w.player[a].team() != w.player[b].team())
-			w.player[a].visibility = maximum_shadow_visibility;
+    bool toss_a = false;
+    bool toss_b = false;
 
-		//share free shadow if has enough shadow time left (greater
-		// than the bonus time)
-		if (w.player[a].team() == w.player[b].team())
-			if (w.player[b].item_shadow() == false)
-				if (w.player[a].item_shadow_time > get_time() + 3.0) {
-    						
-					// FIXME: this is on the shadow item pickup code
-					// net->sendPupTime(pl.id, it.kind, itemTime);
-					// net->broadcast_screen_sample(pl.id, SAMPLE_SHADOW_ON);
-					// also:
-					//  pl.visibility = config.getShadowMinimum();
+    // when an invisible player collides with an enemy player, it becomes visible for a while.
+    // also, colliding with a teammate that doesn't have the shadow will give the shadow bonus for a short time (3 secs)
+    const double shadowTransferTime = 3.0;
+    if (pl1.item_shadow()) {
+        if (pl1.team() != pl2.team())
+            pl1.visibility = maximum_shadow_visibility;
+        else if (!pl2.item_shadow() && pl1.item_shadow_time > get_time() + shadowTransferTime) {
+            // share free shadow if has enough shadow time left (greater than the bonus time)
+            pl2.visibility = config.getShadowMinimum();
+            pl2.item_shadow_time = get_time() + shadowTransferTime;
+            net->sendPupTime(pid2, Powerup::pup_shadow, shadowTransferTime);
+            net->broadcast_screen_sample(pid2, SAMPLE_SHADOW_ON);
+        }
+    }
+    if (pl2.item_shadow()) {
+        if (pl1.team() != pl2.team())
+            pl2.visibility = maximum_shadow_visibility;
+        else if (!pl1.item_shadow() && pl2.item_shadow_time > get_time() + shadowTransferTime) {
+            pl1.visibility = config.getShadowMinimum();
+            pl1.item_shadow_time = get_time() + shadowTransferTime;
+            net->sendPupTime(pid1, Powerup::pup_shadow, shadowTransferTime);
+            net->broadcast_screen_sample(pid1, SAMPLE_SHADOW_ON);
+        }
+    }
 
-					w.player[b].visibility = maximum_shadow_visibility;
-					w.player[b].item_shadow_time = get_time() + 3.0;
-				}
-	}
-	if (w.player[b].item_shadow()) {
+    // when a turbo player collides with another, the target's speed resulting from the collision is amplified somewhat (just for fun... maybe)
+    if (pl1.item_turbo)
+        toss_b = true;
+    if (pl2.item_turbo)
+        toss_a = true;
 
-		if (w.player[a].team() != w.player[b].team())
-			w.player[b].visibility = maximum_shadow_visibility;
+    const double deathbringerEffectTime = 1.0;
+    if (pl1.team() != pl2.team()) {
+        // deathbringer player colliding with an enemy player without deathbringer causes a short "deathbringer infection"
+        if (pl1.item_deathbringer && !pl2.item_deathbringer) {
+            pl2.deathbringer_end = pl2.next_shoot_time = get_time() + deathbringerEffectTime;
+            pl2.deathbringer_attacker = pid1;
+            // amplify the collision result to help on casting both players apart
+            toss_a = true;
+            toss_b = true;
+            // FIXME: maybe should discard the "bounce" sound of the player collision in this case, so they don't overlap.
+            net->broadcast_screen_sample(pid2, SAMPLE_HITDEATHBRINGER);
+        }
+        else if (pl2.item_deathbringer && !pl1.item_deathbringer) {
+            pl1.deathbringer_end = pl1.next_shoot_time = get_time() + deathbringerEffectTime;
+            pl1.deathbringer_attacker = pid2;
+            toss_a = true;
+            toss_b = true;
+            net->broadcast_screen_sample(pid1, SAMPLE_HITDEATHBRINGER);
+        }
 
-		//share free shadow if has enough shadow time left (greater
-		// than the bonus time)
-		if (w.player[a].team() == w.player[b].team())
-			if (w.player[a].item_shadow() == false) 
-				if (w.player[b].item_shadow_time > get_time() + 3.0) {
-    						
-					// FIXME: 
-					//  update timer of the affected player & play the "shadow on" sound
-					// net->sendPupTime(pl.id, it.kind, itemTime);
-					// net->broadcast_screen_sample(pl.id, SAMPLE_SHADOW_ON);
+        // shielded player (S) that is not infected by the deathbringer and collides with another (t) enemy player that is not carrying the deathbringer powerup, will cause:
+        //  - S's shield is damaged by amount coldam (shield-hit / shield-down fx is played)
+        //  - t is damaged by amount coldam and "tossed"
+        // where coldam is proportional to the "strength" of the collision
+        const int shieldColdam = static_cast<int>(speed * 1.);
+        if (pl1.item_shield && pl1.deathbringer_end < get_time() && !pl2.item_deathbringer) {
+            toss_b = true;
 
-					w.player[a].visibility = maximum_shadow_visibility;
-					w.player[a].item_shadow_time = get_time() + 3.0;
-				}
-	}
+            // FIXME: these will play the shield hit/lost samples as needed, so maybe should get rid of the "bounce" sound that is generated by the caller of this callback
 
-	//when a turbo player collides with another, the target's speed resulting
-	// from the collision is amplified somewhat (just for fun... maybe)
-	if (w.player[a].item_turbo)
-		toss_b = true;
-	if (w.player[b].item_turbo)
-		toss_a = true;
+            damagePlayer(pid1, pid2, shieldColdam, false);
+            damagePlayer(pid2, pid1, shieldColdam, false);
+        }
+        // works both ways
+        if (pl2.item_shield && pl2.deathbringer_end < get_time() && !pl1.item_deathbringer) {
+            toss_a = true;
 
-	// checks for enemy players
-	if (w.player[a].team() != w.player[b].team()) {
-	
-		//deathbringer player colliding with an enemy player without deathbringer
-		//causes a short "deathbringer infection"
-		if ((w.player[a].item_deathbringer) && (!(w.player[b].item_deathbringer))) {
-			w.player[b].deathbringer_end = w.player[b].next_shoot_time = get_time() + 1.0;
-			w.player[b].deathbringer_attacker = a;
-			//amplify the collision result to help on casting both players apart
-			toss_a = true;
-			toss_b = true;
-			// FIXME: sound. maybe also should discard the "bounce" sound of the player 
-			//  collision in this case, so they don't overlap.
-			//w.net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-		}
-		else if ((w.player[b].item_deathbringer) && (!(w.player[a].item_deathbringer))) {
-			w.player[a].deathbringer_end = w.player[a].next_shoot_time = get_time() + 1.0;
-			w.player[a].deathbringer_attacker = b;
-			//amplify the collision result to help on casting both players apart
-			toss_a = true;
-			toss_b = true;
-			// FIXME: sound. maybe also should discard the "bounce" sound of the player 
-			//  collision in this case, so they don't overlap.
-			//w.net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-		}
+            damagePlayer(pid1, pid2, shieldColdam, false);
+            damagePlayer(pid2, pid1, shieldColdam, false);
+        }
 
-		//shielded player (S) that is not infected by the deathbringer and 
-		// collides with another (t) enemy player that is not carrying
-		// the deathbringer powerup, will cause:
-		// - S's shield is damaged by amount coldam (shield-hit / shield-down fx is played)
-		// - t is damaged by amount coldam and "tossed"
-		// where coldam is proportional to the "strength" of the collision 
-		// (which should be greater if any or 
-		//  both of the players were running pretty fast)
-		if ((w.player[a].item_shield) && (w.player[a].deathbringer_end < get_time()) && (w.player[b].item_deathbringer == false)) {
+        // humiliation hit/kill:
+        //
+        // non-shielded, non-deathbringer infected and quad-damage carrying "player X" that runs into an "enemy player Y" that is
+        // non-shielded, non-deathbringer carrier, and non-quad-damage carrying will cause the same effect as Y being hit by a non-quaded rocket fired by X 
+        //  - blink target / freeze gun / do damage
+        //  - play quad-rocket or rocket-hit sample
+        const int quadColdam = static_cast<int>(speed * 4.0);
+        if (pl1.item_power && !pl1.item_shield && pl1.deathbringer_end < get_time() && !pl2.item_deathbringer &&
+                !pl2.item_shield && !pl2.item_power) {
+            damagePlayer(pid2, pid1, quadColdam, false);
+            pl2.next_shoot_time = get_time() + 1.0; // freeze target gun
+            toss_b = true;
+            net->broadcast_screen_power_collision(pid2);
+        }
+        // same thing but inverting a / b
+        if (pl2.item_power && !pl2.item_shield && pl2.deathbringer_end < get_time() && !pl1.item_deathbringer &&
+                !pl1.item_shield && !pl1.item_power) {
+            damagePlayer(pid1, pid2, quadColdam, false);
+            pl1.next_shoot_time = get_time() + 1.0; // freeze target gun
+            toss_a = true;
+            net->broadcast_screen_power_collision(pid1);
+        }
+    }
 
-			// FIXME: should be proportional to the "strength" of the collision
-			int coldam = 35;
-
-			toss_b = true;
-
-			// FIXME: these will play the shield hit/lost samples as needed, so
-			//  maybe should get rid of the "bounce" sound that is generated by 
-			//  the caller of this callback
-			//
-			// if any of the players is dead, don't do it (avoid assert)
-			if ((w.player[a].health > 0) && (w.player[b].health > 0)) {
-				w.damagePlayer(a, b, coldam, false);
-				w.damagePlayer(b, a, coldam, false);
-			}
-		}
-		// works both ways
-		if ((w.player[b].item_shield) && (w.player[b].deathbringer_end < get_time()) && (w.player[a].item_deathbringer == false)) {
-
-			// FIXME: should be proportional to the "strength" of the collision
-			//  and the configured rocket damage
-			int coldam = 35;
-
-			toss_a = true;
-
-			// FIXME: these will play the shield hit/lost samples as needed, so
-			//  maybe should get rid of the "bounce" sound that is generated by 
-			//  the caller of this callback
-			//
-			// if any of the players is dead, don't do it (avoid assert)
-			if ((w.player[a].health > 0) && (w.player[b].health > 0)) {
-				w.damagePlayer(a, b, coldam, false);
-				w.damagePlayer(b, a, coldam, false);
-			}
-		}
-
-		// humiliation hit/kill:
-		//
-		// non-shielded, non-deathbringer infected and quad-damage carrying "player X"
-		//    that runs into an "enemy player Y" that is
-		// non-shielded, non-deathbringer carrier, and non-quad-damage carrying
-		//    will cause the same effect as Y being hit by a non-quaded rocket 
-		//    fired by X 
-		//    - blink target / freeze gun / do damage
-		//    - play quad-rocket or rocket-hit sample
-		if (
-				(w.player[a].item_power) &&      // quaded attacker
-				(w.player[a].item_shield == false) && // non-shielded attacker
-				(w.player[a].deathbringer_end < get_time()) &&   //"attacker" not suffering from deathbringer infection
-				(w.player[b].item_deathbringer == false) && // non-deathbringer carrier victim
-				(w.player[b].item_shield == false) &&       // non-shield carrier victim
-				(w.player[b].item_power == false) &&        // non-quaded victim
-				(w.player[a].health > 0) && (w.player[b].health > 0)  // avoiding "!dead" assert
-			 ) 
-		{
-			// FIXME: should be proportional to the "strength" of the collision						
-			int coldam = 70;
-
-			// do damage
-			w.damagePlayer(b, a, coldam, false);
-			// freeze target gun
-			w.player[b].next_shoot_time = get_time() + 1.0;
-
-			// toss target
-			toss_b = true;
-
-			// FIXME: blink affected player (b) on the client side, if possible
-			// FIXME: play rocket-hit / quaded-rocket-hit sample on clients
-		}
-		// same thing but inverting a / b
-		if (
-				(w.player[b].item_power) &&      // quaded attacker
-				(w.player[b].item_shield == false) && // non-shielded attacker
-				(w.player[b].deathbringer_end < get_time()) &&   //"attacker" not suffering from deathbringer infection
-				(w.player[a].item_deathbringer == false) && // non-deathbringer carrier victim
-				(w.player[a].item_shield == false) &&       // non-shield carrier victim
-				(w.player[a].item_power == false) &&        // non-quaded victim
-				(w.player[a].health > 0) && (w.player[b].health > 0)  // avoiding "!dead" assert
-			 ) 
-		{
-			// FIXME: should be proportional to the "strength" of the collision						
-			int coldam = 70;
-
-			// do damage
-			w.damagePlayer(a, b, coldam, false);
-			// freeze target gun
-			w.player[a].next_shoot_time = get_time() + 1.0;
-
-			// toss target
-			toss_a = true;
-
-			// FIXME: blink affected player (a) on the client side, if possible
-			// FIXME: play rocket-hit / quaded-rocket-hit sample on clients
-		}
-	}
-
-	//amplify collision
-	// NEED TO FIXME: this can cause a player to be tossed through a wall
-	/*
-	if (toss_a) {
-		w.player[a].sx *= 2.0;
-		w.player[a].sy *= 2.0;
-	}
-	if (toss_b) {
-		w.player[b].sx *= 2.0;
-		w.player[b].sy *= 2.0;
-	} */
+    return PhysicsCallbacksBase::PlayerHitResult(pl1.dead, pl2.dead, toss_a ? 2. : 1., toss_b ? 2. : 1.);
 }
-#endif
 
 void ServerWorld::rocketOutOfBoundsCallback(int rid) {
     rock[rid].owner = -1;
@@ -2310,7 +2224,7 @@ void WorldBase::executeBounce(PlayerBase& ply, const Coords& bounceVec, double p
 }
 
 // Bounce two players from each other.
-void WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2) const {
+pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const {
     // the formulas come simplified from a more complex bounce physics system, so the comments here aren't very descriptive
     const Coords ds(pl2.lx - pl1.lx, pl2.ly - pl1.ly);
     const double r = sqrt(ds.first * ds.first + ds.second * ds.second);
@@ -2324,15 +2238,21 @@ void WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2) const {
     const double k2 = r * tVar;
     const Coords v2(pl2.sx + ds.first * tVar, pl2.sy + ds.second * tVar);
 
-    const double newk1 = -k2;   // should there be a mass difference this would be more complicated
-    const double newk2 = -k1;
+    const PhysicsCallbacksBase::PlayerHitResult res = callback.playerHitPlayer(pl1.id, pl2.id, fabs(k2 - k1));
 
-    // new speed components, lose some speed too
-    pl1.sx = 0.9 * (v1.first  + newk1 * ds.first  / r);    // vx=sx+kx, kx/k = rx/r
-    pl1.sy = 0.9 * (v1.second + newk1 * ds.second / r);
+    const double newk1 = -k2 * res.bounceStrength1;   // should there be a mass difference this would be more complicated
+    const double newk2 = -k1 * res.bounceStrength2;
 
-    pl2.sx = 0.9 * (v2.first  - newk2 * ds.first  / r);
-    pl2.sy = 0.9 * (v2.second - newk2 * ds.second / r);
+    static const double baseSpeedMul = .9;
+
+    // new speed components
+    pl1.sx = baseSpeedMul * (v1.first  + newk1 * ds.first  / r);    // vx=sx+kx, kx/k = rx/r
+    pl1.sy = baseSpeedMul * (v1.second + newk1 * ds.second / r);
+
+    pl2.sx = baseSpeedMul * (v2.first  - newk2 * ds.first  / r);
+    pl2.sy = baseSpeedMul * (v2.second - newk2 * ds.second / r);
+
+    return res.deaths;
 }
 
 void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction) {
@@ -2433,7 +2353,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
         // find out next player-player collision
         double minPlyCollision = fraction + 1.; // at what time the first player-player collision occurs (forward time: 1-subFrame is end of frame)
         int pcPly1 = 0, pcPly1I = -1, pcPly2 = 0, pcPly2I = -1; // which players they are, pids and room-table-indices
-        if (physics.player_collisions) {
+        if (physics.player_collisions != PhysicalSettings::PC_none) {
             for (uint pi = 0; pi < rply.size(); ++pi) {
                 const int pid = rply[pi];
                 for (uint ti = pi + 1; ti < rply.size(); ++ti) {
@@ -2520,12 +2440,25 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             if (pcPly1I != -1 && pcPly2I != -1) {
                 nAssert(pcPly1I < static_cast<int>(rply.size()));
                 nAssert(pcPly2I < static_cast<int>(rply.size()));
-                executeBounce(player[pcPly1], player[pcPly2]);
-                plyMoveMax[pcPly1I] = getTimeTillBounce(room, player[rply[pcPly1I]], plyRadius, fraction - subFrame);
-                plyMoveMax[pcPly1I].first += subFrame;  // keep the table in absolute frame time
-                plyMoveMax[pcPly2I] = getTimeTillBounce(room, player[rply[pcPly2I]], plyRadius, fraction - subFrame);
-                plyMoveMax[pcPly2I].first += subFrame;  // keep the table in absolute frame time
-                callback.playerHitPlayer(pcPly1, pcPly2);
+                const pair<bool, bool> dead = executeBounce(player[pcPly1], player[pcPly2], callback);
+                if (dead.first) {
+                    rply.erase(rply.begin() + pcPly1I);
+                    plyMoveMax.erase(plyMoveMax.begin() + pcPly1I);
+                    if (pcPly2I > pcPly1I)
+                        --pcPly2I;
+                }
+                else {
+                    plyMoveMax[pcPly1I] = getTimeTillBounce(room, player[rply[pcPly1I]], plyRadius, fraction - subFrame);
+                    plyMoveMax[pcPly1I].first += subFrame;  // keep the table in absolute frame time
+                }
+                if (dead.second) {
+                    rply.erase(rply.begin() + pcPly2I);
+                    plyMoveMax.erase(plyMoveMax.begin() + pcPly2I);
+                }
+                else {
+                    plyMoveMax[pcPly2I] = getTimeTillBounce(room, player[rply[pcPly2I]], plyRadius, fraction - subFrame);
+                    plyMoveMax[pcPly2I].first += subFrame;  // keep the table in absolute frame time
+                }
             }
         }
         else if (minCollision < minBounce) {    // the event is a player-rocket collision
@@ -2685,6 +2618,24 @@ void ServerWorld::simulateFrame() {
                     }
                 }
         }
+    }
+
+    ServerPhysicsCallbacks cb(*this);
+    applyPhysics(cb, PLAYER_RADIUS, 1.);    // 1. means apply the whole frame at once
+
+    // for each player, do misc stuff
+    for (int i = 0; i < maxplayers; i++) {
+        ServerPlayer& pl = player[i];
+        if (!pl.used)
+            continue;
+
+        //check if dead/respawn
+        if (pl.health <= 0) {
+            if (pl.respawn_time < get_time() && !pl.awaiting_client_ready)
+                respawnPlayer(i);       //time to respawn player
+            else
+                continue;
+        }
 
         // check for player weapons fire time
         if (player[i].attack && player[i].health > 0 && get_time() > player[i].next_shoot_time) {
@@ -2712,24 +2663,6 @@ void ServerWorld::simulateFrame() {
                 player[i].visibility = maximum_shadow_visibility;
 
             shootRockets(i, numshots);
-        }
-    }
-
-    ServerPhysicsCallbacks cb(*this);
-    applyPhysics(cb, PLAYER_RADIUS, 1.);    // 1. means apply the whole frame at once
-
-    // for each player, do misc stuff
-    for (int i = 0; i < maxplayers; i++) {
-        ServerPlayer& pl = player[i];
-        if (!pl.used)
-            continue;
-
-        //check if dead/respawn
-        if (pl.health <= 0) {
-            if (pl.respawn_time < get_time() && !pl.awaiting_client_ready)
-                respawnPlayer(i);       //time to respawn player
-            else
-                continue;
         }
 
         // check don't regen because of deathbringer
