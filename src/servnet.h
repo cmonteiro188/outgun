@@ -145,7 +145,9 @@ public:
 	void broadcast_new_player(const ServerPlayer& player) const;
 	void broadcast_spawn(const ServerPlayer& player) const;
 	void send_movements_and_shots(const ServerPlayer& player) const;	// Send player's movement and shots to everyone.
+	void broadcast_stats(const ServerPlayer& player) const;				// Send player's stats to everyone.
 	void send_stats(const ServerPlayer& player) const;					// Send everyone's stats to player.
+	void send_stats(const ServerPlayer& player, int cid) const;			// Send player's stats to client cid.
 	void send_team_movements_and_shots(const ServerPlayer& player) const;
 	void send_team_stats(const ServerPlayer& player) const;
 
