@@ -38,7 +38,9 @@ using std::swap;
 using std::vector;
 
 bool compare_players(const PlayerBase* a, const PlayerBase* b) {
-	return a->team() < b->team() || a->stats().frags() > b->stats().frags();
+	if (a->team() != b->team())
+		return a->team() < b->team();
+	return a->stats().frags() > b->stats().frags();
 }
 
 /* subIntersection:
@@ -2861,7 +2863,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
 	if (print_html_begin) {
 		out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
 		out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
-		out << "<LINK REL=\"stylesheet\" HREF=\"outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
+		out << "<LINK REL=\"stylesheet\" HREF=\"../config/outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
 		out << "<H1>Outgun statistics " << date << "</H1>\n\n";
 	}
 	out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << map_name << "</H2>\n\n";
@@ -2894,7 +2896,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
 	for (vector<const PlayerBase*>::const_iterator pl = players.begin(); pl != players.end(); ++pl) {
 		if (!(*pl)->used)
 			continue;
-		if (team == 0 && (*pl)->team() == 0) {
+		if (team == 0 && (*pl)->team() == 0) {		// red players should be first
 			out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Red team\n";
 			team++;
 		}
@@ -2931,13 +2933,6 @@ void WorldBase::print_team_stats_row(ostream& out, const string& header, int amo
 	out << "<TD ALIGN=\"center\">" << amount2 << postfix;
 	out << '\n';
 }
-
-/*void ClientWorld::save_stats(const string& dir, const Team* teams, const vector<ClientPlayer*>& players, const string& map_name) const {
-	vector<PlayerBase*> plb;
-	for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi)
-		plb.push_back(*pi);
-	WorldBase::save_stats(dir, teams, plb, map_name);
-}*/
 
 // Team
 
@@ -3080,7 +3075,7 @@ void Statistics::clear() {
 
 void Statistics::add_kill(bool deathbringer) {
 	++total_kills;
-	if (++current_consecutive_kills > most_consecutive_kills);
+	if (++current_consecutive_kills > most_consecutive_kills)
 		most_consecutive_kills = current_consecutive_kills;
 	current_consecutive_deaths = 0;
 	if (deathbringer)
@@ -3089,7 +3084,7 @@ void Statistics::add_kill(bool deathbringer) {
 
 void Statistics::add_death(bool deathbringer, double time) {
 	++total_deaths;
-	if (++current_consecutive_deaths > most_consecutive_deaths);
+	if (++current_consecutive_deaths > most_consecutive_deaths)
 		most_consecutive_deaths = current_consecutive_deaths;
 	current_consecutive_kills = 0;
 	if (deathbringer)
