@@ -391,6 +391,8 @@ int main(int argc, char *argv[]) {
 			allegro_message("Error: directory '%s' not found.\nPlease create this directory.\nThe game can't run without it.", CLIENT_MAPS_DIR);
 			return 0;
 		}
+		if (!check_dir("screens"))
+			log.error("Directory 'screens' not found.");
 		if (!check_dir("client_stats"))
 			log.error("Directory 'client_stats' not found.");
 		if (!check_dir("server_stats"))
