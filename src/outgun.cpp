@@ -1096,17 +1096,17 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 	double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
 	double t = rBase - fabs(rAdd);	// the collision with smaller t (the other would be going away)
 	if (t >= 0) {
-		// make sure we are not off an end of the line
-		// this can surely be calculated in a simpler way, but this first came to mind
-		// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
-		// | t*m - collp |  minimum (=r)
-		// | t*m - p1 - k(p2-p1) |  minimum (=r)
-		// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
-		// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
-		// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
-		double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-		if (k>=0. && k<=1.)
-			return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+	// make sure we are not off an end of the line
+	// this can surely be calculated in a simpler way, but this first came to mind
+	// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
+	// | t*m - collp |  minimum (=r)
+	// | t*m - p1 - k(p2-p1) |  minimum (=r)
+	// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
+	// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
+	// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
+	double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
+	if (k>=0. && k<=1.)
+		return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
 	}
 
 	double dist=1.;
@@ -1544,7 +1544,13 @@ struct player_t {
 	//admin shell stats
 	int		total_kills;
 	int		total_deaths;
+	int		total_suicides;
 	int		total_captures;
+	int		total_flags_taken;
+	int		total_flags_dropped;
+	int		total_shots;
+	int		total_hits;
+	int		total_shots_taken;
 	int		start_time;
 
 	void reset_message_queue_timing() {	// make messages already on queue appear instantly
@@ -1594,7 +1600,10 @@ struct player_t {
 			//default stats
 		total_kills = 0;
 		total_deaths = 0;
+		total_suicides = 0;
 		total_captures = 0;
+		total_flags_taken = 0;
+		total_flags_dropped = 0;
 		start_time = (int)get_time();
 
 		// BOTZ: bot ou nao?
@@ -1704,7 +1713,7 @@ public:
 
 // a player's sprite state
 struct hero_t {
-	int tx, ty;		//tela X,Y
+	int			tx, ty;		//tela X,Y
 	double x, y, sx, sy;	// position and speed
 	double ox, oy;	// old coords: garantidamente NAO em paredes
 	bool l, r, u, d;	// left, right, up, down keypresses (player acceleration vectrs)
@@ -2312,6 +2321,7 @@ public:
 	bool pups_min_percentage, pups_max_percentage;
 	int pup_add_time, pup_max_time;
 	bool pup_deathbringer_switch;
+	double respawn_time, waiting_time_deathbringer;
 
 	//ctor
 	gameserver_c() {
@@ -2357,9 +2367,9 @@ public:
 		for (int i=0; i<MAX_PLAYERS; ++i)
 			if (player[i].used && !player[i].isbot && i!=pid) {
 				if (mode == 0)
-					plprintf(i, "@IThe admin has unmuted %s (s/he can send messages again)", player[pid].name);
+					plprintf(i, "@IThe admin has unmuted %s", player[pid].name);
 				else
-					plprintf(i, "@IThe admin has muted %s (s/he can't send messages)", player[pid].name);
+					plprintf(i, "@IThe admin has muted %s", player[pid].name);
 			}
 		player[pid].muted = mode;
 	}
@@ -2373,7 +2383,7 @@ public:
 		}
 		for (int i=0; i<MAX_PLAYERS; ++i)
 			if (player[i].used && !player[i].isbot && i!=pid)
-				plprintf(i, "@IThe admin has %s %s (disconnect in 10)", ban?"banned":"kicked", player[pid].name);
+				plprintf(i, "@IThe admin has %s %s (disconnect in 10 seconds)", ban?"banned":"kicked", player[pid].name);
 		player[pid].kickTimer = 10*10;
 	}
 
@@ -3325,6 +3335,8 @@ public:
 	//versao 0.1.2
 	void game_shoot_rocket(int playernum, int shots, int px, int py, int x, int y, int gundir) {
 
+		player[playernum].total_shots++;
+
 		//ids alocados pra shots
 		NLubyte		sid[16];
 
@@ -3466,6 +3478,8 @@ public:
 
 			//drop the flag
 			ctf_drop_flag(enemyteam, player[pid].x, player[pid].y, (int)world.hero[pid].x, (int)world.hero[pid].y);
+
+			player[pid].total_flags_dropped++;
 
 			return true;
 		}
@@ -3615,11 +3629,14 @@ public:
 		//no score penalty
 		if (damage == 666666)
 			no_death_penalty = true;
-
 		// take deathbringer out if move/swap players
-		if (damage == 333333) {
+		else if (damage == 333333) {
 			player[target].item_deathbringer = false;
 			no_death_penalty = true;	//no score penalty
+		}
+		else if (target != attacker) {	// no shots for suicides
+			player[attacker].total_hits++;
+			player[target].total_shots_taken++;
 		}
 
 		//HELM powerup: show player
@@ -3766,7 +3783,7 @@ public:
 			}
 
 			//respawn target in a few seconds
-			player[target].respawn_time = get_time() + 2.0;
+			player[target].respawn_time = get_time() + respawn_time;
 			if (damage == 666666)
 				player[target].respawn_to_base = true;	//special respawn-to-base damage
 			else
@@ -3779,7 +3796,7 @@ public:
 				player[target].item_deathbringer_time = frame;
 
 				//delay respawn, so you can watch the PAIN! THE HORROR! HAHAHAHAHAHHAHA!
-				player[target].respawn_time = get_time() + 6.0;
+				player[target].respawn_time += waiting_time_deathbringer;
 
 				//deathbringer message
 				char lebuf[256]; int count = 0;
@@ -4441,6 +4458,8 @@ public:
 					else if (!strcmp(s, "pup_deathbringer_switch")) cmd = 31;
 					else if (!strcmp(s, "random_maprot")) cmd = 32;
 					else if (!strcmp(s, "vote_block_time")) cmd = 33;
+					else if (!strcmp(s, "respawn_time")) cmd = 34;
+					else if (!strcmp(s, "waiting_time_deathbringer")) cmd = 35;
 					else {
 						LOG1("*** Bad command in gamemod: %s\n", s);
 						cmd = 0;
@@ -4596,6 +4615,14 @@ public:
 					else if (cmd == 33) {
 						if (ival >= 0)
 							vote_block_time = 60*10*ival;	// minutes to frames
+					}
+					else if (cmd == 34) {
+						if (val >= 0)
+							respawn_time = val;
+					}
+					else if (cmd == 35) {
+						if (val >= 0)
+							waiting_time_deathbringer = val;
 					}
 				}
 
@@ -4831,6 +4858,9 @@ public:
 		pup_chance_deathbringer = 11;
 
 		pup_deathbringer_switch = true;
+
+		respawn_time = 2.0;
+		waiting_time_deathbringer = 4.0;
 
 		// default time and capture limits
 		time_limit = 0;	// no time limit
@@ -5984,6 +6014,7 @@ public:
 							if (!info_message.empty())
 								player[pid].queue_printf("/info       information about this server");
 							player[pid].queue_printf("/config     current server configuration");
+							player[pid].queue_printf("/stats      see your stats");
 							player[pid].queue_printf("/mapinfo n  information about map n (default: current map)");
 							player[pid].queue_printf("/votemap n  vote for the next map to be n (default: list maps and votes)");
 							player[pid].queue_printf("/time       check server uptime, current map time and time left on the map");
@@ -6115,7 +6146,7 @@ public:
 							server_time << "@IThe server has been up for ";
 							if (days > 0)
 								server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
-							server_time << uptime / 60 << ':' << setfill('0') << setw(2) << uptime % 60;
+							server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
 							if (days == 0)
 								server_time << " hours";
 							server_time << '.';
@@ -6143,6 +6174,31 @@ public:
 								}
 							}
 							player[pid].add_to_queue(map_time.str());
+						}
+						else if (!strcmp(cbuf, "stats")) {
+							int playing_time = (int)get_time() - player[pid].start_time;  // seconds
+							int lifetime = playing_time / (player[pid].total_deaths + 1);
+							player[pid].queue_printf("Your stats: %d captures, %d kills, %d deaths, %d suicides",
+								player[pid].total_captures,
+								player[pid].total_kills,
+								player[pid].total_deaths,
+								player[pid].total_suicides);
+							player[pid].queue_printf("Flags: %d taken, %d dropped",
+								player[pid].total_flags_taken,
+								player[pid].total_flags_dropped);
+							int accuracy = 0;
+							if (player[pid].total_shots > 0)
+								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
+							player[pid].queue_printf("Shots: %d shot, accuracy %d %%, %d taken",
+								player[pid].total_shots,
+								accuracy,
+								player[pid].total_shots_taken);
+							player[pid].queue_printf("You have played %d minutes. Your average lifetime is %d:%02d.",
+								playing_time / 60,
+								lifetime / 60,
+								lifetime % 60);
+							// Add more stats: flags taken and dropped, flag carrying time, travelled distance,
+							// shots, shot accuracy, shots taken, flag carriers killed, suicides, etc.
 						}
 						#ifdef NR_NAME_AUTHORIZATION
 						else if (!strcmp(cbuf, "auth")) {
@@ -6229,11 +6285,10 @@ public:
 
 					//only if alive still
 					if (player[pid].health > 0) {
-
 						game_damage_player(pid, pid, 30000);
-
+						player[pid].total_deaths++;
+						player[pid].total_suicides++;
 						//frag penalty
-						//if (player[pid].frags > 0)
 						player[pid].frags--;
 					}
 				}
@@ -6999,7 +7054,7 @@ public:
 				if (player[i].health < 0)
 					player[i].health = 0;
 				else if (player[i].health > 300)
-					player[i].health = 200;
+					player[i].health = 300;
 
 				//limit energy 0 .. 300
 				if (player[i].energy < 0)
@@ -7044,6 +7099,8 @@ public:
 
 					//FLAG STOLEN!
 					score_frag(i, 1);	// just add some frags
+					
+					player[i].total_flags_taken++;
 
 					bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
 
@@ -11249,38 +11306,37 @@ public:
 			//regular ground
 			else
 			*/
-				rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
+			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 			// place of flag
 			set_trans_blender(0, 0, 0, 128);
 			if (player[me].x==map.tinfo[0].flag.px && player[me].y==map.tinfo[0].flag.py) {
-				#ifdef CL_SMOOTH_FLAGPOS
+			#ifdef CL_SMOOTH_FLAGPOS
 				int r = getr(col[COLGROUND]);
 				const int g = getg(col[COLGROUND]);
 				const int b = getb(col[COLGROUND]);
-#define SMOOTH_STEP 3
-				for (int i = 30; i >= 0; i-=SMOOTH_STEP) {
-					r = min(r + 10*SMOOTH_STEP, 255);
+				for (int i = 30; i >= 0; i--) {
+					r = min(r + 10, 255);
 					int c = makecol(r, g, b);
 					circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, i, c);
 				}
-				#else
+			#else
 				circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, 20, col[COLBRED]);
-				#endif
+			#endif
 			}
 			if (player[me].x==map.tinfo[1].flag.px && player[me].y==map.tinfo[1].flag.py) {
-				#ifdef CL_SMOOTH_FLAGPOS
+			#ifdef CL_SMOOTH_FLAGPOS
 				const int r = getr(col[COLGROUND]);
 				const int g = getg(col[COLGROUND]);
 				int b = getb(col[COLGROUND]);
-				for (int i = 30; i >= 0; i-=SMOOTH_STEP) {
-					b = min(b + 10*SMOOTH_STEP, 255);
+				for (int i = 30; i >= 0; i--) {
+					b = min(b + 10, 255);
 					int c = makecol(r, g, b);
 					circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, i, c);
 				}
-				#else
+			#else
 				circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, 20, col[COLBBLUE]);
-				#endif
+			#endif
 			}
 			solid_mode();
 
@@ -11524,7 +11580,7 @@ public:
 					int alpha = 255;
 					if (player[i].item_helm > 0) {
 						drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-						alpha = player[i].item_helm;
+						alpha = player[i].item_helm - 1;
 						if (me >= 0)
 						if (i/TSIZE == me/TSIZE)	// teammate or myself
 						if (alpha < MIN_ALPHA_FRIENDS) alpha = MIN_ALPHA_FRIENDS;
@@ -12117,7 +12173,7 @@ public:
 		if (talkbuffer[0] != 0) {
 
 			static char themsg[128];
-			sprintf(themsg, "say: %s_", talkbuffer);
+			sprintf(themsg, "Say: %s_", talkbuffer);
 
 			//nice border
 			textprintf(drawbuf, font, +1+3, +0+3+top*11, 0, "%s", themsg);
@@ -12145,8 +12201,8 @@ public:
 
 		// V0.4.4 : player scores overlay
 		if (key[KEY_TAB]) {
-			//drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-			//set_trans_blender(0,0,0,230);
+			drawing_mode(DRAW_MODE_TRANS, 0,0,0);
+			set_trans_blender(0,0,0,150);
 
 			int w = 440;
 			int h = 420;
@@ -12160,7 +12216,7 @@ public:
 
 			rectfill(drawbuf, x1,y1,x2,y2, 0);
 
-			//solid_mode();
+			solid_mode();
 
 			int XLEFTPAD = x1+40;
 			int YDEL;
