@@ -81,6 +81,8 @@ int main(int argc, char *argv[]) {
 	set_uformat(U_ASCII);
 
 	allegro_init();
+	set_window_close_button(TRUE);
+	set_window_close_hook(closeButtonCallback);
 	install_keyboard();
 	install_timer();
 

@@ -51,6 +51,10 @@ bool sound_inited = false;		//install_sound succeeded?
 bool force_ip = false;		//force IP?
 char force_ip_name[32];		//force IP to what?
 
+volatile bool force_exit = false;	// this is set true when the user tries to close the window
+
+void closeButtonCallback() { force_exit = true; }
+
 void server_status_string(char *str) {
 	if (textserver)
 		printf("%s\n",str);

@@ -641,8 +641,11 @@ bool gameserver_c::server_next_map(int reason) {
 	if (maxVotes==0)
 		currmap=(currmap+1)%maprot.size();
 	else {
-		if (winners.size()>1)
-			winners.erase(find(winners.begin(), winners.end(), currmap));
+		if (winners.size()>1) {
+			vector<int>::iterator it = find(winners.begin(), winners.end(), currmap);
+			if (it != winners.end())
+				winners.erase(it);
+		}
 		currmap=winners[rand()%winners.size()];
 	}
 	// clear votes for the current map
@@ -1258,8 +1261,7 @@ void gameserver_c::loop(volatile bool *running_flag) {
 
 	LOG("GAMESERVER::LOOP() (2)\n");
 
-	while ( (*running_flag) == true )	{
-
+	while (*running_flag && !force_exit) {
 		// generate and send frame
 		simulate_and_broadcast_frame();
 

@@ -114,7 +114,7 @@ public:
 	void client_report_status(int id);
 	void sendEndGameover();
 	void sendWeaponPower(int pid);
-	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id: array of NLubyte[shots]
+	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y, int bsx, int bsy);	// sid = shot-id: array of NLubyte[shots]
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 	void sendDeathbringer(int pid, const ServerPlayer& ply);
 	void sendPickupVisible(int pid, int pup_id, const pickup_c& it);

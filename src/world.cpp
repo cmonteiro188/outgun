@@ -6,7 +6,10 @@
 #define PHYS_NEW
 //#define PHYS_VECTOR_ACC
 
-#define PLAYER_RADIUS 15	// must be defined for graphics too if changed
+// radii must be defined for graphics too if changed
+#define PLAYER_RADIUS 15
+#define SHIELD_RADIUS 24
+#define ROCKET_RADIUS 4
 
 //same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
 #define SHOT_DELTAX 17  // V0.4.8 : A HAIR LESS!
@@ -494,7 +497,7 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
  * d? = distance vector of the point, m? = movement vector of the circle, r = radius of the circle
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
-pair<double, Coords> bounceFromPoint(double dx, double dy, double mx, double my, double r) {
+BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r) {
 	double m2 = mx*mx + my*my, r2 = r*r;
 	double mdotd = mx*dx + my*dy;
 	double d2 = dx*dx + dy*dy;
@@ -502,9 +505,9 @@ pair<double, Coords> bounceFromPoint(double dx, double dy, double mx, double my,
 	if (disc >= 0) {	// there are real solutions
 		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
 		if (t >= 0)
-			return pair<double, Coords>(t, Coords(dx-t*mx, dy-t*my));
+			return BounceData(t, Coords(dx-t*mx, dy-t*my));
 	}
-	return pair<double, Coords>(1e99, Coords());	// no collision
+	return BounceData(1e99, Coords());	// no collision
 }
 
 /* bounceFromLine():
@@ -527,7 +530,7 @@ pair<double, Coords> bounceFromPoint(double dx, double dy, double mx, double my,
  * d?? = distance vectors of the line's end-points, m? = movement vector of the circle, r = radius of the circle
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
-pair<double, Coords> bounceFromLine(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {
+BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {
 	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|(dx2,dy2)-(dx1,dy1)|
 	double diffx = dx2-dx1, diffy = dy2-dy1;
 	double div = mx*diffy - my*diffx;
@@ -546,10 +549,10 @@ pair<double, Coords> bounceFromLine(double dx1, double dy1, double dx2, double d
 			// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)^2 + (dy2-dy1)^2 ]
 			double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
 			if (k>=0. && k<=1.)
-				return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+				return BounceData(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
 		}
 	}
-	return pair<double, Coords>(1e99, Coords());	// no collision
+	return BounceData(1e99, Coords());	// no collision
 }
 
 /* bounceFromArc():
@@ -565,18 +568,16 @@ pair<double, Coords> bounceFromLine(double dx1, double dy1, double dx2, double d
  *           `    |     }
  *                 \    } ar
  *                  \___}
- * either
- * A) the circle hits the arc proper with it's center ar+cr (if outside) or ar-cr (if inside) and within the given angle from arc center vector
- * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
  *
- * A: | t(mx,my)-(dx,dy) | = ar+-cr , taking the smaller solution of t and making sure the position is within the given angle from av
- * B: | t(mx,my)-(dx,dy) | = cr , taking the smaller solution of t (if any real solution exists)
+ * the circle hits the arc proper with it's center ar+cr (if outside) or ar-cr (if inside) and within the given angle from arc center vector
+ *
+ * | t(mx,my)-(dx,dy) | = ar+-cr , taking the smaller solution of t and making sure the position is within the given angle from av
  *
  * d? = distance vector of the arc's radial center, m? = movement vector of the circle, ar = radius of the arc, cr = radius of the moving circle
  * av = arc center unit vector, ahwcos = cosine of half arc width
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
-pair<double, Coords> bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) {
+BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) {
 	// check for solution A (if there is one, there is no need to check B)
 	double bounceRad = ar + (outside?cr:-cr);
 	double m2 = mx*mx + my*my, r2 = bounceRad*bounceRad;
@@ -599,17 +600,17 @@ pair<double, Coords> bounceFromArc(double dx, double dy, double mx, double my, c
 				// length = cr
 				// (xd,yd) = along that vector, direction from radial center to center of circle, length bounceRad
 				double mul = (ar-bounceRad)/bounceRad;
-				return pair<double, Coords>(t, Coords(xd*mul, yd*mul));
+				return BounceData(t, Coords(xd*mul, yd*mul));
 			}
 		}
 	}
-	return pair<double, Coords>(1e99, Coords());
+	return BounceData(1e99, Coords());
 }
 
-void tryBounce(double* minMovement, Coords* bounceVec, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius) {
-	#define add_rv() if (rv.first < *minMovement) { *minMovement = rv.first; *bounceVec = rv.second; }
+void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	#define add_rv() if (rv.first < bd->first) *bd = rv;
 
-	pair<double, Coords> rv;
+	BounceData rv;
 	rv.first = 1e99;
 	bool onLine = false;
 	if (mx>0 && w.a>stx)	// check vertical wall a
@@ -642,10 +643,10 @@ void tryBounce(double* minMovement, Coords* bounceVec, const RectWall& w, double
 	#undef add_rv
 }
 
-void tryBounce(double* minMovement, Coords* bounceVec, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius) {
-	#define add_rv() if (rv.first < *minMovement) { *minMovement = rv.first; *bounceVec = rv.second; }
+void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	#define add_rv() if (rv.first < bd->first) *bd = rv;
 
-	pair<double, Coords> rv;
+	BounceData rv;
 	rv = bounceFromLine(w.p1x - stx, w.p1y - sty, w.p2x - stx, w.p2y - sty, mx, my, plyRadius);	// wall p1-p2
 	add_rv();
 	rv = bounceFromLine(w.p1x - stx, w.p1y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p1-p3
@@ -662,10 +663,10 @@ void tryBounce(double* minMovement, Coords* bounceVec, const TriWall& w, double 
 	#undef add_rv
 }
 
-void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius) {
-	#define add_rv() if (rv.first < *minMovement) { *minMovement = rv.first; *bounceVec = rv.second; }
+void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	#define add_rv() if (rv.first < bd->first) *bd = rv;
 
-	pair<double, Coords> rv;
+	BounceData rv;
 	// outside
 	rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ro, plyRadius, true);
 	add_rv();
@@ -687,8 +688,8 @@ void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double
 	rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// side wall at angle va2
-	p1x = w.x + w.ro*w.va2.first - stx, p1y = w.y - w.ro*w.va2.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
-	p2x = w.x + w.ri*w.va2.first - stx, p2y = w.y - w.ri*w.va2.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
+	p1x = w.x + w.ro*w.va2.first - stx, p1y = w.y - w.ro*w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
+	p2x = w.x + w.ri*w.va2.first - stx, p2y = w.y - w.ri*w.va2.second - sty;	//NOTE: - ...*w.va2.second because va2.second is in reversed coordinates
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// corners at angle va2
@@ -700,172 +701,92 @@ void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double
 	#undef add_rv
 }
 
-bool new_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy, double plyRadius) {
-	double stx = *x, sty = *y-PHYS_SHIFTY;	// position in real coordinates
-	double mx = *sx, my = *sy;	// speed
+BounceData WorldBase::genGetTimeTillWall(const Room& room, float x, float y, float mx, float my, float radius) {
+	BounceData bd;
+	bd.first = 1e99;
+
 	if (mx == 0 && my == 0)
-		return false;
+		return bd;
 
-	bool bounced = false;
-	double movementLeft = fraction;
+	Coords bbox0(min(x-radius, x+mx-radius), min(y-radius, y+my-radius)),
+	       bbox1(max(x+radius, x+mx+radius), max(y+radius, y+my+radius));
 
-	for (;;) {
-		double minMovement = movementLeft;
-		Coords bounceVec;
-		Coords bbox0(min(stx-plyRadius, stx+mx-plyRadius), min(sty-plyRadius, sty+my-plyRadius)),
-		       bbox1(max(stx+plyRadius, stx+mx+plyRadius), max(sty+plyRadius, sty+my+plyRadius));
-		for (vector<RectWall>::const_iterator wi=r.rwalls.begin(); wi!=r.rwalls.end(); ++wi) {	// go through rectangular walls first
-			// fast and crude bounding-box style check first
-			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
-				continue;
-			// check more carefully
-			tryBounce(&minMovement, &bounceVec, *wi, stx, sty, mx, my, plyRadius);
-			#ifndef NDEBUG
-			if (minMovement < movementLeft) {
-				double dx = bounceVec.first, dy = bounceVec.second, r = plyRadius;
-				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
-			}
-			#endif
+	for (vector<RectWall>::const_iterator wi=room.rwalls.begin(); wi!=room.rwalls.end(); ++wi) {	// go through rectangular walls
+		// fast and crude bounding-box style check first
+		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
+			continue;
+		// check more carefully
+		tryBounce(&bd, *wi, x, y, mx, my, radius);
+		#ifndef NDEBUG
+		if (bd.first < 1e10) {
+			double dx = bd.second.first, dy = bd.second.second, r = radius;
+			assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 		}
-		for (vector<TriWall>::const_iterator wi=r.twalls.begin(); wi!=r.twalls.end(); ++wi) {	// go through triangular walls separately
-			// fast and crude bounding-box style check first
-			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
-				continue;
-			// check more carefully
-			tryBounce(&minMovement, &bounceVec, *wi, stx, sty, mx, my, plyRadius);
-			#ifndef NDEBUG
-			if (minMovement < movementLeft) {
-				double dx = bounceVec.first, dy = bounceVec.second, r = plyRadius;
-				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
-			}
-			#endif
-		}
-		for (vector<CircWall>::const_iterator wi=r.cwalls.begin(); wi!=r.cwalls.end(); ++wi) {	// go through circular walls separately
-			// fast and crude bounding-box style check first
-			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
-				continue;
-			// check more carefully
-			tryBounce(&minMovement, &bounceVec, *wi, stx, sty, mx, my, plyRadius);
-			#ifndef NDEBUG
-			if (minMovement < movementLeft) {
-				double dx = bounceVec.first, dy = bounceVec.second, r = plyRadius;
-				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
-			}
-			#endif
-		}
-		assert(minMovement>=0. && minMovement<=movementLeft);
-		double move = minMovement - .001;	// make sure we aren't going the least bit inside a wall :)
-		if (move > 0) {
-			stx += mx*move;
-			sty += my*move;
-		}
-		if (stx < 0)    { sty -=      stx *my/mx; stx =   0; break; }
-		if (stx >= plw) { sty -= (stx-plw)*my/mx; stx = plw; break; }
-		if (sty < 0)    { stx -=      sty *mx/my; sty =   0; break; }
-		if (sty >= plh) { stx -= (sty-plh)*mx/my; sty = plh; break; }
-		if (minMovement >= movementLeft*.999)	// not bounced
-			break;
-		bounced = true;
-		// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
-		// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
-		double mul = 2. * (mx*bounceVec.first + my*bounceVec.second) / (plyRadius*plyRadius);
-		mx -= mul*bounceVec.first;
-		my -= mul*bounceVec.second;
-		// lose some speed too
-		mx *= .95;
-		my *= .95;
-		movementLeft -= minMovement+.01;	// don't bounce over 100 times in any conditions
-		if (movementLeft <= 0)
-			break;
+		#endif
 	}
-	*x = stx;
-	*y = sty + PHYS_SHIFTY;
-	*sx = mx;
-	*sy = my;
-	return bounced;
+	for (vector<TriWall>::const_iterator wi=room.twalls.begin(); wi!=room.twalls.end(); ++wi) {	// go through triangular walls
+		// fast and crude bounding-box style check first
+		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
+			continue;
+		// check more carefully
+		tryBounce(&bd, *wi, x, y, mx, my, radius);
+		#ifndef NDEBUG
+		if (bd.first < 1e10) {
+			double dx = bd.second.first, dy = bd.second.second, r = radius;
+			assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+		}
+		#endif
+	}
+	for (vector<CircWall>::const_iterator wi=room.cwalls.begin(); wi!=room.cwalls.end(); ++wi) {	// go through circular walls
+		// fast and crude bounding-box style check first
+		if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
+			continue;
+		// check more carefully
+		tryBounce(&bd, *wi, x, y, mx, my, radius);
+		#ifndef NDEBUG
+		if (bd.first < 1e10) {
+			double dx = bd.second.first, dy = bd.second.second, r = radius;
+			assert(fabs(dx*dx+dy*dy-r*r)<.0001);
+		}
+		#endif
+	}
+
+	assert(bd.first>=0.);
+	return bd;
 }
 
-//wall hit?
-bool wallhit(double x, double y, const RectWall &w) { int ix=(int)x, iy=(int)y; return w.intersects_rect(ix, iy, ix, iy); }
-
-//wall collision correction
-bool old_wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy, double *ox, double *oy) {
-	//delta old to new (ok)
-	double tx,ty;
-	tx = (*ox) - (*x);
-	ty = (*oy) - (*y);
-
-	if (tx==0. && ty==0.) {
-		*x = *ox;
-		*y = *oy;
-		return false;
-	}
-
-	//deltas for pushing out of walls: normalize
-	double dx, dy;
-	if (fabs(tx) > fabs(ty)) {
-		dx = 2*tx / fabs(tx); // ==1.0
-		dy = 2*ty / fabs(tx);		// 0 <= val <= 1
-	}
-	else {
-		dx = 2*tx / fabs(ty);	// 0 <= val <= 1
-		dy = 2*ty / fabs(ty);	// ==1.0
-	}
-
-	bool ever_had_wall_hit = false;
-	bool had_wall_hit; //keep pushing out until no wall hit
-	const Room* r = &room;
-
-	int runaway = 10;
-	do {
-
-		had_wall_hit = false;
-		bool y_solved = false;
-
-		for (int w=0;w<(int)r->rwalls.size();w++) {
-			int runaw = 100;
-			while (wallhit((*x),(*y)-PHYS_SHIFTY,r->rwalls[w])) {
-				had_wall_hit = true;
-				(*x) += dx;
-				y_solved = false;
-				if (!(wallhit((*x),(*y)-PHYS_SHIFTY,r->rwalls[w])))
-				break;
-				(*y) += dy;
-				y_solved = true;
-				runaw--;
-				if (runaw < 0) {
-					(*x) = (*ox);
-					(*y) = (*oy);
-					return false;
-				}
-			}
-		}
-		if (had_wall_hit) {
-			ever_had_wall_hit = true;
-			if (y_solved)
-				(*sy) *= -1;
-			else
-				(*sx) *= -1;
-		}
-		runaway--;
-		if (runaway < 0) {
-			(*x) = (*ox);
-			(*y) = (*oy);
-			return false;
-		}
-	} while (had_wall_hit);
-	if (ever_had_wall_hit) {
-		if (((*x) <= 0.01) || ((*x) >= ((double)plw) - 0.01) || ((*y)-PHYS_SHIFTY <= 0.01) || ((*y)-PHYS_SHIFTY >= ((double)plh) - 0.01)) {
-			(*x) = (*ox);
-			(*y) = (*oy);
-		}
-		(*ox) = (*x);
-		(*oy) = (*y);
-	}
-	return ever_had_wall_hit;
+BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, float plyRadius) {
+	return genGetTimeTillWall(room, pl.lx, pl.ly-PHYS_SHIFTY, pl.sx, pl.sy, plyRadius);
 }
 
-bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, double plyRadius) {
+float WorldBase::getTimeTillWall(const Room& room, const rocket_c& rock) {
+	return genGetTimeTillWall(room, rock.x, rock.y-PHYS_SHIFTY, rock.sx, rock.sy, ROCKET_RADIUS).first;
+}
+
+float WorldBase::getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, float collRadius) {
+	float dx = rock.x-pl.lx, dy = rock.y-pl.ly, r2 = collRadius*collRadius;
+	if (dx*dx + dy*dy < r2)
+		return 0;
+	float mx = pl.sx-rock.sx, my = pl.sy-rock.sy;
+
+	double m2 = mx*mx + my*my;
+	double mdotd = mx*dx + my*dy;
+	double d2 = dx*dx + dy*dy;
+	double disc = mdotd*mdotd - m2*(d2-r2);
+	if (disc >= 0) {	// there are real solutions
+		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away)
+		if (t >= 0)
+			return t;
+	}
+	return 1e99;
+}
+
+void WorldBase::applyPlayerAcceleration(int pid) {
+	PlayerBase* h = player[pid].getPtr();
+	bool turbo = h->item_speed;
+	bool carryFlag = flag[1-(pid/TSIZE)].carried && flag[1-(pid/TSIZE)].carrier == pid;
+	bool deathbringer_affected = h->under_deathbringer_effect(get_time());
+
 	//select effective physics vars for the player
 	float player_accel, player_friction, player_maxspeed;
 	if (h->run) {
@@ -965,174 +886,6 @@ bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo
 	}
 
 	#endif	// PHYS_VECTOR_ACC else
-
-	//wall collision correction
-	return new_wallcorrect(room, fraction, &h->lx, &h->ly, &h->sx, &h->sy, plyRadius);
-}
-
-bool applyOldPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
-	//select effective physics vars for the player
-	//
-	float player_accel;
-	float player_friction;
-	float player_maxspeed;
-	if (h->run) {
-		if (turbo) {
-			player_accel    = svp_accel_turborun;
-			player_friction = svp_fric_turborun;
-			player_maxspeed = svp_maxspeed_turborun;
-		}
-		else {
-			player_accel    = svp_accel_run;
-			player_friction = svp_fric_run;
-			player_maxspeed = svp_maxspeed_run;
-		}
-	}
-	else {
-		if (turbo) {
-			player_accel    = svp_accel_turbo;
-			player_friction = svp_fric_turbo;
-			player_maxspeed = svp_maxspeed_turbo;
-		}
-		else {
-			player_accel    = svp_accel;
-			player_friction = svp_fric;
-			player_maxspeed = svp_maxspeed;
-		}
-	}
-	//flag carrier disadvantage when running
-	if (h->run && carryFlag)
-		player_maxspeed -= svp_flag_penalty;
-
-	//friction x - apply if l xor r
-	#ifndef ALWAYS_FRICTION
-	if ( ((int)h->l + (int)h->r != 1) || (fabs(h->sx) > player_maxspeed) ) {
-	#endif
-		if (h->sx > 0) {
-			//h->sx -= sv_frictionx * boots_accel_bonus;
-			h->sx -= player_friction * fraction;
-			if (h->sx < 0) h->sx = 0;
-		}
-		else if (h->sx < 0) {
-			//h->sx += sv_frictionx * boots_accel_bonus;
-			h->sx += player_friction * fraction;
-			if (h->sx > 0) h->sx = 0;
-		}
-	#ifndef ALWAYS_FRICTION
-	}
-	#endif
-
-	//friction y
-	#ifndef ALWAYS_FRICTION
-	if ( ((int)h->u + (int)h->d != 1) || (fabs(h->sy) > player_maxspeed) ){
-	#endif
-		if (h->sy > 0) {
-			//h->sy -= sv_frictiony * boots_accel_bonus;
-			h->sy -= player_friction * fraction;
-			if (h->sy < 0) h->sy = 0;
-		}
-		else if (h->sy < 0) {
-			//h->sy += sv_frictiony * boots_accel_bonus;
-			h->sy += player_friction * fraction;
-			if (h->sy > 0) h->sy = 0;
-		}
-	#ifndef ALWAYS_FRICTION
-	}
-	#endif
-
-	//deathbringer penalty : no movement. move only if not in effect
-	if (!deathbringer_affected) {
-
-		//accelerate x if not over maximum speed
-		if ((h->l) && (h->sx > -player_maxspeed))
-			h->sx -= player_accel * fraction;
-		if ((h->r) && (h->sx < +player_maxspeed))
-			h->sx += player_accel * fraction;
-		//accelerate y if not over maximum speed
-		if ((h->u) && (h->sy > -player_maxspeed))
-			h->sy -= player_accel * fraction;
-		if ((h->d) && (h->sy < +player_maxspeed))
-			h->sy += player_accel * fraction;
-	}
-
-	//DEBUG
-	//if (h->sx > +player_maxspeed) h->sx = +player_maxspeed;
-	//if (h->sx < -player_maxspeed) h->sx = -player_maxspeed;
-	//if (h->sy > +player_maxspeed) h->sy = +player_maxspeed;
-	//if (h->sy < -player_maxspeed) h->sy = -player_maxspeed;
-
-	//save ox,oy
-	double ox = h->lx;
-	double oy = h->ly;
-
-	//move x
-	h->lx += h->sx * fraction;
-	if (h->lx < 0) h->lx = 0;
-	else if (h->lx > plw) h->lx = plw;
-
-	//move y
-	h->ly += h->sy * fraction;
-	if (h->ly-PHYS_SHIFTY < 0) h->ly = 0+PHYS_SHIFTY;
-	else if (h->ly-PHYS_SHIFTY > plh) h->ly = plh+PHYS_SHIFTY;
-
-	//wall collision correction
-	return old_wallcorrect(room, &h->lx, &h->ly, &h->sx, &h->sy, &ox, &oy);
-}
-
-bool WorldBase::applyPhysics(int pid, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, double plyRadius) {
-	#ifdef PHYS_NEW
-	return applyNewPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected, plyRadius);
-	#else
-	(void)plyRadius;
-	return applyOldPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected);
-	#endif
-}
-
-
-//run a physics frame simulation step for a player
-void WorldBase::run_server_player_physics(int i) {	// player id
-	PlayerBase* hd = player[i].getPtr();
-
-	if (hd->roomx<0 || hd->roomy<0 || hd->roomx>=map.w || hd->roomy>=map.h) return;	//#fix: remove this and track why these are given sometimes
-	const Room& room = map.room[hd->roomx][hd->roomy];
-
-	bool carryFlag = flag[1-(i/TSIZE)].carried && flag[1-(i/TSIZE)].carrier == i;
-	bool deathbringerAffected = hd->under_deathbringer_effect(get_time());
-
-	float startx = hd->lx, starty = hd->ly;
-
-	applyPhysics(i, room, 1., hd->item_speed, carryFlag, deathbringerAffected, PLAYER_RADIUS);
-
-	ServerPlayer* spp = dynamic_cast<ServerPlayer*>(hd);	//#fix
-	if (spp) {
-		float xd = hd->lx - startx;
-		float yd = hd->ly - starty;
-		spp->total_movement += sqrt( xd*xd + yd*yd );
-	}
-
-	//check room change x
-	if (int(hd->lx) == plw) {
-		hd->lx = 1;
-		if (++hd->roomx >= map.w)
-			hd->roomx = 0;
-	}
-	else if (int(hd->lx) == 0) {
-		hd->lx = plw - 1;
-		if (--hd->roomx < 0)
-			hd->roomx = map.w - 1;
-	}
-
-	//check room change y
-	if (int(hd->ly)-PHYS_SHIFTY == plh) {
-		hd->ly = 1 +PHYS_SHIFTY;
-		if (++hd->roomy >= map.h)
-			hd->roomy = 0;
-	}
-	else if (int(hd->ly)-PHYS_SHIFTY == 0) {
-		hd->ly = plh - 1 +PHYS_SHIFTY;
-		if (--hd->roomy < 0)
-			hd->roomy = map.h - 1;
-	}
 }
 
 void WorldBase::returnFlag(int team) {
@@ -1156,7 +909,8 @@ void WorldBase::stealFlag(int team, int carrier) {
 	flag[team].atbase = false;		// not at base (not needed / paranoia)
 }
 
-void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y, bool power, int dir, int xdelta, NLulong frameno) {
+void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y, int bsx, int bsy,
+													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
 	rocket_c* r = &rock[i];
 	r->owner = playernum;
 	r->team = team;
@@ -1165,26 +919,35 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	r->py = py;
 	r->x = x;
 	r->y = y;
-	r->deg = dir * PIOIT;
-	r->hit_time = 0;
 
-	// client side
-	r->cl_time = frameno;
+	float deg = dir * PIOIT;
 
-	//speed nos eixos: constante depende da direcao
-	r->sx = cos(r->deg) * ROCKET_SPEED;
-	r->sy = sin(r->deg) * ROCKET_SPEED;
+	if (xdelta) {
+		r->sx = xdelta * SHOT_DELTAX * cos(deg + PI/2);
+		r->sy = xdelta * SHOT_DELTAX * sin(deg + PI/2);
+		float wallTime = getTimeTillWall(map.room[px][py], *r);
+		if (wallTime < 1.) {
+			r->move(wallTime);
+			cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
+			return;
+		}
+		r->move(1);
+	}
 
-	//deslocamento a 90graus
-	r->x += xdelta * SHOT_DELTAX * cos(r->deg + PI/2);
-	r->y += xdelta * SHOT_DELTAX * sin(r->deg + PI/2);
-
-	// advance 0,5 frame
-	r->x += r->sx * .5;
-	r->y += r->sy * .5;
+	r->sx = bsx + cos(deg) * ROCKET_SPEED;
+	r->sy = bsy + sin(deg) * ROCKET_SPEED;
+	float advance = .5 + float(frameAdvance);
+	float wallTime = getTimeTillWall(map.room[px][py], *r);
+	if (wallTime <= advance) {
+		r->move(wallTime);
+		cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
+		return;
+	}
+	r->move(advance);
 }
 
-void WorldBase::shootRockets(int playernum, int pow, int dir, NLubyte* rids, NLulong frameno, int team, bool power, int px, int py, int x, int y) {
+void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids, int frameAdvance,
+																	int team, bool power, int px, int py, int x, int y, int bsx, int bsy) {
 	struct RocketFormation {
 		int nForward;
 		int directions[6];
@@ -1203,19 +966,19 @@ void WorldBase::shootRockets(int playernum, int pow, int dir, NLubyte* rids, NLu
 	const RocketFormation& form = formations[pow-1];
 
 	if (form.nForward == 1)
-		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameno);
+		addRocket(rids[0], playernum, team, px, py, x, y, bsx, bsy, power, dir,  0, frameAdvance, cb);
 	else if (form.nForward == 2) {
-		addRocket(rids[0], playernum, team, px, py, x, y, power, dir, -1, frameno);
-		addRocket(rids[1], playernum, team, px, py, x, y, power, dir, +1, frameno);
+		addRocket(rids[0], playernum, team, px, py, x, y, bsx, bsy, power, dir, -1, frameAdvance, cb);
+		addRocket(rids[1], playernum, team, px, py, x, y, bsx, bsy, power, dir, +1, frameAdvance, cb);
 	}
 	else {
-		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameno);
-		addRocket(rids[1], playernum, team, px, py, x, y, power, dir, -2, frameno);
-		addRocket(rids[2], playernum, team, px, py, x, y, power, dir, +2, frameno);
+		addRocket(rids[0], playernum, team, px, py, x, y, bsx, bsy, power, dir,  0, frameAdvance, cb);
+		addRocket(rids[1], playernum, team, px, py, x, y, bsx, bsy, power, dir, -2, frameAdvance, cb);
+		addRocket(rids[2], playernum, team, px, py, x, y, bsx, bsy, power, dir, +2, frameAdvance, cb);
 	}
 	const int* dirp = &form.directions[0];
 	for (int ri = form.nForward; ri < pow; ++ri, ++dirp)
-		addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + *dirp, 0, frameno);
+		addRocket(rids[ri], playernum, team, px, py, x, y, bsx, bsy, power, dir + *dirp, 0, frameAdvance, cb);
 }
 
 void PowerupSettings::reset() {
@@ -1315,6 +1078,23 @@ void WorldSettings::print(LineReceiver& printer) const {
 	if (shadow_minimum == 1)
 		printer("- A player using the shadow power-up gets totally invisible");
 }
+
+class ServerPhysicsCallbacks : public PhysicsCallbacksBase {
+	ServerWorld& w;
+
+public:
+	ServerPhysicsCallbacks(ServerWorld& w_) : w(w_) { }
+
+	bool collideToRockets() const { return true; }
+	bool gatherMovementDistance() const { return true; }
+	void addMovementDistance(int pid, float dist) { w.addMovementDistanceCallback(pid, dist); }
+	void playerScreenChange(int pid) { w.playerScreenChangeCallback(pid); }
+	void rocketHitWall(int rid, bool, float, float, int, int) { w.rocketHitWallCallback(rid); }
+	bool rocketHitPlayer(int rid, int pid) { return w.rocketHitPlayerCallback(rid, pid); }
+	void playerHitWall(int) { }
+	void rocketOutOfBounds(int rid) { w.rocketOutOfBoundsCallback(rid); }
+	bool shouldApplyPhysicsToPlayer(int pid) { return w.shouldApplyPhysicsToPlayerCallback(pid); }
+};
 
 void ServerWorld::reset() {
 	// zero teamscores
@@ -1721,65 +1501,11 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 //game player screen changed
 // --> send any pickups on screen
 void ServerWorld::game_player_screen_change(int p) {
-
 	//check for new pickups visible
-	for (int i=0;i<MAX_PICKUPS;i++) {
+	for (int i=0; i<MAX_PICKUPS; i++) {
 		pickup_c *it = &item[i];
-		if (it->kind)		// item exists
-		if (it->kind != 255)		// item not respawning
-		if (it->px == player[p].roomx) // item on screen that player is entering
-		if (it->py == player[p].roomy) {
-
-			#ifndef SV_NO_PUP_SWITCHING
-			//broadcast_message("sending powerup update\n");
-
-			//v0.1.2: PRIMEIRO verifica se tem mais alguem nessa tela. se nao
-			//  tiver, verifica se nao seria interessante mudar o "kind" do item
-			//muda WHILE item alvo eh powerup cujo time do jogador eh > 30
-			bool temjog = false;
-			for (int j=0;j<maxplayers;j++)
-			if (j != p)
-			if (player[j].used)
-			if (player[j].roomx == player[p].roomx)
-			if (player[j].roomy == player[p].roomy) {
-				temjog = true;
-				break;
-			}
-
-			int original = it->kind;
-
-			if (!temjog) {
-				bool non_satisfactory;
-				do {
-					non_satisfactory = false;
-
-					if ((it->kind == 1) && (player[p].health >= 80) && (player[p].energy >= 30) && (player[p].item_shield))//hide if just using as extra battery or not seriously injured
-						non_satisfactory = true;
-					else if ((it->kind == 2) && (player[p].item_speed) && (player[p].item_speed_time - get_time() > 40.0))
-						non_satisfactory = true;
-					else if ((it->kind == 3) && (player[p].item_helm) && (player[p].item_helm_time - get_time() > 40.0))
-						non_satisfactory = true;
-					else if ((it->kind == 4) && (player[p].item_quad) && (player[p].item_quad_time - get_time() > 40.0))
-						non_satisfactory = true;
-					else if ((it->kind == 6) && (player[p].health + (rand() % 70) >= 300))//if 300 non-satisf. but if >200, less chance of seeing another one
-						non_satisfactory = true;
-					else if ((it->kind == 7) && (player[p].item_deathbringer))
-						non_satisfactory = true;
-
-					//re-choose item type
-					if (non_satisfactory)
-						it->kind = (NLubyte)choose_powerup_kind();
-
-				} while (non_satisfactory);
-
-				//if loop choosed "weapon" powerup (item 5) but you are at maximum, then keep the original choice
-				if ((it->kind == 5) && (player[p].weapon >= 8))
-					it->kind = (NLubyte)original;
-			}
-			#endif	// SV_NO_PUP_SWITCHING
-
+		if (it->kind && it->kind!=255 && it->px==player[p].roomx && it->py==player[p].roomy)
 			net->sendPickupVisible(p, i, item[i]);
-		}
 	}
 }
 
@@ -1919,6 +1645,7 @@ NLubyte ServerWorld::getFreeRocket() {
 
 void ServerWorld::shootRockets(int pid, int shots) {
 	int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
+	int bsx = static_cast<int>(player[pid].sx), bsy = static_cast<int>(player[pid].sy);
 
 	player[pid].total_shots++;
 
@@ -1926,7 +1653,8 @@ void ServerWorld::shootRockets(int pid, int shots) {
 	for (int i = 0; i < shots; ++i)
 		sid[i] = getFreeRocket();
 
-	WorldBase::shootRockets(pid, shots, player[pid].gundir, sid, frame, pid/TSIZE, player[pid].item_quad, px, py, x, y);
+	ServerPhysicsCallbacks cb(*this);
+	WorldBase::shootRockets(cb, pid, shots, player[pid].gundir, sid, 0, pid/TSIZE, player[pid].item_quad, px, py, x, y, bsx, bsy);
 
 	//build people-that-know DOUBLE WORD (32bits == 32players max)
 	//send message to players on the same screen
@@ -1939,7 +1667,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
 	for (int k=0;k<shots;k++)
 		rock[ sid[k] ].vislist = vislist;
 
-	net->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y);
+	net->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y, bsx, bsy);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
@@ -1961,6 +1689,233 @@ void ServerWorld::swapRocketOwners(int a, int b) {
 		else if (rock[i].owner == b)
 			rock[i].owner = a;
 	}
+}
+
+void ServerWorld::addMovementDistanceCallback(int pid, float dist) {
+	player[pid].total_movement += dist;
+}
+
+void ServerWorld::playerScreenChangeCallback(int pid) {
+	game_player_screen_change(pid);
+}
+
+void ServerWorld::rocketHitWallCallback(int rid) {
+	rock[rid].owner = -1;
+}
+
+bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
+	//record wether the player had shield, if yes, will not blink him
+	bool had_shield = player[pid].item_shield;
+
+	//default damage to the target: 70
+	int damage = 70;
+//	if (player[rock[rid].owner].item_deathbringer)
+//		damage = 50;
+	if (rock[rid].power)
+		damage *= 2;
+
+	damagePlayer(pid, rock[rid].owner, damage, false);
+	player[rock[rid].owner].total_hits++;
+	player[pid].total_shots_taken++;
+
+	//if player not dead, push him
+	if (player[pid].health > 0) {
+		player[pid].sx += rock[rid].sx * .5;
+		player[pid].sy += rock[rid].sy * .5;
+	}
+
+	if (had_shield)
+		deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, 252);		//do not blink
+	else
+		deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, pid);		//blink
+	return player[pid].health<=0;
+}
+
+void ServerWorld::rocketOutOfBoundsCallback(int rid) {
+	rock[rid].owner = -1;
+}
+
+bool ServerWorld::shouldApplyPhysicsToPlayerCallback(int pid) {
+	return player[pid].health > 0;
+}
+
+void WorldBase::executeBounce(PlayerBase& ply, const BounceData& b, float plyRadius) {	// needs plyRadius as a shortcut to b.second's length
+	// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
+	// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
+	const Coords& bounceVec = b.second;
+	double mul = 2. * (ply.sx*bounceVec.first + ply.sy*bounceVec.second) / (plyRadius*plyRadius);
+	ply.sx -= mul*bounceVec.first;
+	ply.sy -= mul*bounceVec.second;
+	// lose some speed too
+	ply.sx *= .95;
+	ply.sy *= .95;
+}
+
+void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, float plyRadius, float fraction) {
+	// note: design decision: vector is used extensively instead of list, to provide access by index
+	//       it shouldn't harm since the vectors are short and anything is rarely erased
+	vector< vector< vector<int> > > roomPly, roomRock;	// player id's for players in room, rocket id's for rockets in room
+
+	roomPly.resize(map.w);
+	roomRock.resize(map.w);
+	for (int rx=0; rx<map.w; ++rx) {
+		roomPly[rx].resize(map.h);
+		roomRock[rx].resize(map.h);
+	}
+
+	// add players and rockets to room structs for physics run
+	for (int i=0; i<maxplayers; i++) {
+		PlayerBase& pl = player[i];
+		if (!pl.used)
+			continue;
+		if (callback.shouldApplyPhysicsToPlayer(i)) {
+			if (pl.roomx<0 || pl.roomy<0 || pl.roomx>=map.w || pl.roomy>=map.h)
+				continue;	//#fix: remove this and track why these are given sometimes
+			applyPlayerAcceleration(i);
+			roomPly[pl.roomx][pl.roomy].push_back(i);
+		}
+	}
+	for (int i=0;i<MAX_ROCKETS;i++) {
+		if (rock[i].owner == -1)
+			continue;
+		assert(rock[i].px>=0 && rock[i].py>=0 && rock[i].px<map.w && rock[i].py<map.h);
+		roomRock[rock[i].px][rock[i].py].push_back(i);
+	}
+
+	// apply physics to each room separately
+	for (int rx=0; rx<map.w; ++rx)
+		for (int ry=0; ry<map.h; ++ry)
+			applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
+}
+
+void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, float plyRadius, float fraction) {
+	vector<BounceData> plyMoveMax;	// plyMoveMax changes when player bounces
+	vector<float> rockMoveMax;	// rockMoveMax is fixed
+
+	typedef unsigned int uint;	// for loop counters, to disable the brainless 'signed vs unsigned comparison' warning by G++
+
+	for (vector<int>::const_iterator pi=rply.begin(); pi!=rply.end(); ++pi)
+		plyMoveMax.push_back(getTimeTillBounce(room, player[*pi], plyRadius));
+	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri)
+		rockMoveMax.push_back(getTimeTillWall(room, rock[*ri]));
+
+	float subFrame = 0.;	// signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
+	for (;;) {	//#fix: optimize this loop, esp. for client
+		// find out next player-wall collision
+		float minBounce = 2.;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
+		int bPly=0, bPlyI=0;	// which player it is, pid and room-table-index
+		for (uint pi=0; pi<rply.size(); ++pi) {
+			float bt = plyMoveMax[pi].first;
+			if (bt < minBounce) {
+				minBounce = bt;
+				bPlyI = pi;
+				bPly = rply[pi];
+			}
+		}
+
+		// find out next player-rocket collision
+		float minCollision = 2.;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
+		int cPly=0, cPlyI=0, cRock=0, cRockI=0;	// which player and rocket they are, pid/rid and room-table-indices
+		if (callback.collideToRockets()) {
+			for (uint pi=0; pi<rply.size(); ++pi) {
+				int pid = rply[pi];
+				for (uint ri=0; ri<rrock.size(); ++ri) {
+					int rid = rrock[ri];
+					if (rock[rid].team == pid/TSIZE)	// friendly rocket
+						continue;
+					float time = getTimeTillCollision(player[pid], rock[rid], static_cast<PlayerBase&>(player[pid]).item_shield?SHIELD_RADIUS:plyRadius);
+					if (time < minCollision && time < rockMoveMax[ri]) {
+						minCollision = time;
+						cPlyI = pi;
+						cPly = rply[pi];
+						cRockI = ri;
+						cRock = rrock[ri];
+					}
+				}
+			}
+			minCollision += subFrame;	// it was calculated in forward time, now it's in absolute frame time as are player movements
+		}
+
+		// execute movement
+		float mt = min(fraction, min<float>(minCollision, minBounce + .01));	// time of the next event (add .01 to minBounce to not bounce infinitely)
+		for (uint pi=0; pi<rply.size(); ++pi) {
+			// don't move more than mt or more than plyMoveMax-.001 but don't move backwards (-.001 to stay out of walls)
+			float amount = bound<float>(plyMoveMax[pi].first - .001, subFrame, mt);
+			PlayerBase& pl = player[rply[pi]];
+			pl.move(amount - subFrame);
+			if (callback.gatherMovementDistance())
+				callback.addMovementDistance(rply[pi], (amount - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
+			// check room change
+			bool rch = false;
+			if (pl.lx < 0)   { pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
+			if (pl.lx > plw) { pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
+			if (pl.ly < 0)   { pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
+			if (pl.ly > plh) { pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
+			if (rch) {
+				callback.playerScreenChange(rply[pi]);
+				rply.erase(rply.begin() + pi);
+				plyMoveMax.erase(plyMoveMax.begin() + pi);
+			}
+		}
+		for (uint ri=0; ri<rrock.size(); ) {
+			rocket_c& r = rock[rrock[ri]];
+			if (mt > rockMoveMax[ri]) {
+				r.move(rockMoveMax[ri] - subFrame);
+				callback.rocketHitWall(rrock[ri], r.power, r.x, r.y, r.px, r.py);
+				rrock.erase(rrock.begin() + ri);
+				rockMoveMax.erase(rockMoveMax.begin() + ri);
+				// continue with the same index (which points to the next rocket now)
+			}
+			else {
+				r.move(mt - subFrame);
+				++ri;
+			}
+		}
+		subFrame = mt;
+		if (subFrame > fraction*.999)
+			break;
+
+		// execute collision or bounce
+		int plyChanged;
+		if (minCollision < minBounce) {	// the event is a collision
+			if (callback.rocketHitPlayer(cRock, cPly)) {	// true if player is dead
+				rply.erase(rply.begin() + cPlyI);
+				plyMoveMax.erase(plyMoveMax.begin() + cPlyI);
+				plyChanged = -1;	// no player needs recalculation since the changed player was removed
+			}
+			else
+				plyChanged = cPlyI;
+			rrock.erase(rrock.begin() + cRockI);
+			rockMoveMax.erase(rockMoveMax.begin() + cRockI);
+		}
+		else {	// the event is a bounce
+			executeBounce(player[bPly], plyMoveMax[bPlyI], plyRadius);
+			callback.playerHitWall(bPly);
+			plyChanged = bPlyI;
+		}
+		if (plyChanged != -1) {
+			plyMoveMax[plyChanged] = getTimeTillBounce(room, player[rply[plyChanged]], plyRadius);
+			plyMoveMax[plyChanged].first += subFrame;	// keep the table in absolute frame time
+		}
+	}
+	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri) {
+		const rocket_c& r = rock[*ri];
+		if (r.x<-20 || r.x>plw+20 || r.y<-20 || r.y>plh+20)
+			callback.rocketOutOfBounds(*ri);	// don't bother with removing it from rrock since the simulation is over
+	}
+}
+
+void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
+	for (int i = 0; i < MAX_ROCKETS; ++i)
+		if (rock[i].owner != -1) {
+			float wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i]);
+			if (wallTime < frames) {
+				rock[i].move(wallTime);
+				callback.rocketHitWall(i, rock[i].power, rock[i].x, rock[i].y, rock[i].px, rock[i].py);
+			}
+			else
+				rock[i].move(frames);
+		}
 }
 
 void ServerWorld::simulateFrame() {
@@ -2107,119 +2062,12 @@ void ServerWorld::simulateFrame() {
 
 			shootRockets(i, numshots);
 		}
-
 	}
 
+	ServerPhysicsCallbacks cb(*this);
+	applyPhysics(cb, PLAYER_RADIUS, 1.);	// 1. means apply the whole frame at once
 
-	// (1)  simulate (calculate) the next frame
-	//
-
-	// for each ROCKET, update position
-	//
-	for (int i=0;i<MAX_ROCKETS;i++) {
-		if (rock[i].owner == -1)
-			continue;
-
-		//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
-		int t;
-		for (t=0;t<10;t++)
-		{
-			//move-se
-			rock[i].x += rock[i].sx / 10.0;
-			rock[i].y += rock[i].sy / 10.0;
-
-			//out of bounds
-			if ((rock[i].x < -20) || (rock[i].y < -20) || (rock[i].x > plw + 20) || (rock[i].y > plh + 20)) {
-				rock[i].owner = -1;	//just remove it. clients will figure out the same
-
-				//broadcast_message("SE FOI");
-
-				//2-loop break
-				t=999;break;
-			}
-
-			//wall hit - remove
-			#if !defined(PHYS_NEW)
-			if (map.fall_on_wall(rock[i].px, rock[i].py, (int)rock[i].x, (int)rock[i].y, (int)rock[i].x, (int)rock[i].y)) {
-				rock[i].owner=-1;
-				t=999;break;
-			}
-			#endif
-			#ifdef PHYS_NEW
-			if (map.fall_on_wall(rock[i].px, rock[i].py, (int)rock[i].x-2, (int)rock[i].y-PHYS_SHIFTY-2, (int)rock[i].x+2, (int)rock[i].y-PHYS_SHIFTY+2)) {
-				rock[i].owner=-1;
-				t=999;
-				break;
-			}
-			#endif
-
-			// check if a player (alive) is hit by this rocket now
-			//
-			//sqrt( (ex - x)*(ex - x) + (ey - y)*(ey - y) ). Acho que é isto...
-
-			for (int p=0;p<maxplayers;p++)
-			if (player[p].used)
-			if (player[p].health > 0)		// alive
-			if (rock[i].team != (p/TSIZE)) // shot is from opposing team
-			if (rock[i].px == player[p].roomx) // in same screen
-			if (rock[i].py == player[p].roomy)
-			{
-				//calculate distance rocket<->target center
-				double ex = player[p].lx;
-				double ey = player[p].ly - 15.0;
-				double rx = rock[i].x;
-				double ry = rock[i].y - 15.0;
-				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
-
-				//the number is the sum of the two balls bounding boxes radiuses (15 player + 3 rocket's)
-				if (dt <= 18.0)
-				{
-					//record wether the player had shield, if yes, will not blink him
-					bool had_shield = player[p].item_shield;
-
-					//default damage to the target: 70
-					int damage = 70;
-
-/*					//v0.4.0: dano 50 se esta com o deathbringer
-					if (player[rock[i].owner].item_deathbringer)
-						damage = 50;*/
-
-					if (rock[i].power)
-						damage *= 2;
-
-					//do damage
-					damagePlayer(p, rock[i].owner, damage, false);
-
-					player[rock[i].owner].total_hits++;
-					player[p].total_shots_taken++;
-
-					//if player not dead, push him
-					if (player[p].health > 0) {
-						if (((player[p].sx > 0) && (rock[i].sx < 0)) || ((player[p].sx < 0) && (rock[i].sx > 0)))
-							player[p].sx = 0;
-						if (((player[p].sy > 0) && (rock[i].sy < 0)) || ((player[p].sy < 0) && (rock[i].sy > 0)))
-							player[p].sy = 0;
-						player[p].sx += rock[i].sx / 3.0;
-						player[p].sy += rock[i].sy / 3.0;
-					}
-
-					//delete shot
-					if (had_shield)
-						deleteRocket(i, (NLshort)rock[i].x, (NLshort)rock[i].y, 252);		//do not blink
-					else
-						deleteRocket(i, (NLshort)rock[i].x, (NLshort)rock[i].y, p);			//blink
-
-					//2-loop break
-					t=999;break;
-				}
-			}
-
-		}
-	}
-
-	// for each player, update positions & speeds
-	//
-
+	// for each player, do misc stuff
 	for (int i=0;i<maxplayers;i++) {
 		if (!player[i].used)
 			continue;
@@ -2232,19 +2080,6 @@ void ServerWorld::simulateFrame() {
 				respawnPlayer(i);		//time to respawn player
 			else
 				continue;
-		}
-		// player alive: do stuff for alive players
-		// IN : copia player screen p/ hero screen
-		int oldroomx = player[i].roomx;
-		int oldroomy = player[i].roomy;
-
-		// run server physics frame
-		run_server_player_physics(i);
-
-		//OUT : copy screen information from hero back to player
-		if (player[i].roomx!=oldroomx || player[i].roomy!=oldroomy) {
-			//player screen changed check
-			game_player_screen_change(i);
 		}
 
 		// check don't regen because of deathbringer
@@ -2468,79 +2303,45 @@ void ServerWorld::simulateFrame() {
 #include "client.h"
 //#fix: include needed for funny callback activities - get rid!
 
-void ClientWorld::extrapolate(ClientWorld& source, double currTime, gameclient_c* host) {
+void ClientWorld::extrapolate(ClientWorld& source, double currTime, PhysicsCallbacksBase& physCallbacks) {
 	if (source.skipped) {
 		skipped = true;
 		return;
 	}
 
-	if (source.frame > 0) {	// valid? (#fix)
-		time = currTime;
-		double frameDiff = (time - source.time) * 10.;
-		frame = source.frame + frameDiff;
+	if (source.frame <= 0)	// invalid? (#fix)
+		return;
 
-		// extrapolate players
-		for (int i=0; i<maxplayers; i++)
-			if (source.player[i].onscreen) {
-				player[i] = source.player[i];
+	time = currTime;
+	double frameDiff = (time - source.time) * 10.;
+	frame = source.frame + frameDiff;
 
-				if (player[i].roomx<0 || player[i].roomy<0 || player[i].roomx>=map.w || player[i].roomy>=map.h) continue;	//#fix: remove this and track why these are given sometimes
-				const Room& room = map.room[player[i].roomx][player[i].roomy];
-				bool carryFlag = source.flag[1-(i/TSIZE)].carried && source.flag[1-(i/TSIZE)].carrier == i;
+	for (int i=0; i<2; ++i)
+		flag[i] = source.flag[i];
 
-				//delta counter
-				double dc, f;
-				dc = frameDiff;
+	for (int i=0; i<maxplayers; i++) {
+		if (source.player[i].onscreen)
+			player[i] = source.player[i];
+		else
+			player[i].used = false;
+	}
+	for (int i=0;i<MAX_ROCKETS;i++) {
+		if (source.rock[i].owner == -1)
+			rock[i].owner = -1;
+		else
+			rock[i] = source.rock[i];
+	}
 
-				while (dc > 0) {
-					//calc amount of movement
-					f = dc;
-					if (f > 1.0)
-						f = 1.0;
+	//delta counter
+	double dc, f;
+	dc = frameDiff;
 
-					//dec dc
-					dc -= 1.0;
-
-					//run physics
-					if (applyPhysics(i, room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected, PLAYER_RADIUS-1.)) {	// -1. to counter problems in bouncing caused by inaccurate positions over network
-						//player bounced: play bounce sample if minimum time elapsed
-						if (currTime > player[i].wall_sound_time) {
-							source.player[i].wall_sound_time = currTime + 0.2;
-							host->sound(SAMPLE_WALLBOUNCE);
-						}
-					}
-				}
-			}
-
-		// extrapolate rockets
-		for (int i=0;i<MAX_ROCKETS;i++) {
-			if (source.rock[i].owner == -1)
-				continue;
-
-			rocket_c *rd = &rock[i];
-			rocket_c *rx = &source.rock[i];
-
-			rd->x = (int)( rx->x + (frame - rx->cl_time) * cos(rx->deg) * ROCKET_SPEED );
-			rd->y = (int)( rx->y + (frame - rx->cl_time) * sin(rx->deg) * ROCKET_SPEED );
-
-			#ifdef PHYS_NEW
-			if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-PHYS_SHIFTY-2, (int)rd->x+2, (int)rd->y-PHYS_SHIFTY+2)) {
-			#else
-			if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
-			#endif
-				if (rx->power) {
-					host->graphics().create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
-					host->sounds().play(SAMPLE_QUADWALLHIT);
-				}
-				else {
-					host->graphics().create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
-					host->sounds().play(SAMPLE_WALLHIT);
-				}
-				rx->owner = -1;	// erase from clientside simulation
-			}
-			else if ((rd->x < 0) || (rd->y < 5) || (rd->x > plw) || (rd->y > plh))
-				rx->owner = -1;	// erase from clientside simulation
-		}
+	while (dc > 0) {
+		f = dc;
+		if (f > 1.0)
+			f = 1.0;
+		dc -= 1.0;
+		applyPhysics(physCallbacks, PLAYER_RADIUS-1., f);	// -1. to counter problems in bouncing caused by inaccurate positions over network
 	}
 }
 

@@ -8,7 +8,24 @@
 #include "leetnet/sleep.h"	// sleep util
 #include "client.h"
 
-gameclient_c *gameclient;
+gameclient_c *gameclient;	//#fix: get rid
+
+class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
+	gameclient_c& c;
+
+public:
+	ClientPhysicsCallbacks(gameclient_c& c_) : c(c_) { }
+
+	bool collideToRockets() const { return false; }
+	bool gatherMovementDistance() const { return false; }
+	void addMovementDistance(int, float) { }
+	void playerScreenChange(int) { }
+	void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
+	bool rocketHitPlayer(int, int) { return false; }
+	void playerHitWall(int pid) { c.playerHitWallCallback(pid); }
+	void rocketOutOfBounds(int rid) { c.rocketOutOfBoundsCallback(rid); }
+	bool shouldApplyPhysicsToPlayer(int pid) { return c.shouldApplyPhysicsToPlayerCallback(pid); }
+};
 
 // client callbacks
 int cfunc_connection_update(client_runes_t *arg);
@@ -1307,6 +1324,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	// TARGET FRAME: just one
 	if (svframe > fx.frame)
 	{
+		assert(fx.frame == (int)fx.frame);
+		ClientPhysicsCallbacks cb(*this);
+		fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
 		fx.frame = svframe;
 		fx.time  = get_time();		//hope it's good enough... needed 10ms clock (1/100 sec) at least.
 
@@ -1702,9 +1722,14 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readByte(lebuf, count, rpy);
 				readShort(lebuf, count, rx);
 				readShort(lebuf, count, ry);
+				NLubyte byte;
+				readByte(lebuf, count, byte);
+				int bsx = byte - 128;
+				readByte(lebuf, count, byte);
+				int bsy = byte - 128;
 
-				//rebuild client-side shot
-				fx.shootRockets(0, rpow, rdir, rids, frameno, team, power, rpx, rpy, rx, ry);
+				ClientPhysicsCallbacks cb(*this);
+				fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame-frameno), team, power, rpx, rpy, rx, ry, bsx, bsy);
 
 				//play sound if rocket on screen
 				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
@@ -1995,7 +2020,6 @@ void gameclient_c::save_screenshot() {
 		}
 	}
 
-	// nice message
 	ostringstream message;
 	if (client_graphics.save_screenshot(filename))
 		message << "Saved screenshot to " << filename << '.';
@@ -2347,8 +2371,7 @@ void gameclient_c::loop() {
 	bool quick_fix, key_fire=false, key_kill=false, key_swap=false, key_votexit=false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
 	int i;
-	while (notquit) {
-
+	while (notquit && !force_exit) {
 		//LOG("** another loop()...\n");
 
 		// (-1) try to release "reverse" voices that have finished playing
@@ -2733,12 +2756,6 @@ void gameclient_c::loop() {
 						strcpy(editplayername, lerud_abloxon.c_str());
 						change_name_command();
 					}
-					else if (sc == KEY_PGUP) {
-						//v0.4.9 DEBUGGING: request broadcast my crap
-						char lebuf[4]; int count = 0;
-						writeByte(lebuf, count, 33);		// 33 = "refresh crap"
-						client->send_message(lebuf, count);
-					}
 					else if (sc == KEY_F3) {
 						option_show_names = !option_show_names;
 					}
@@ -2828,7 +2845,8 @@ void gameclient_c::loop() {
 		if (gameshow) {
 			//LOG("** ...calc game frame\n");
 			pthread_mutex_lock( &frame_mutex );
-			fd.extrapolate(fx, get_time(), this);
+			ClientPhysicsCallbacks cb(*this);
+			fd.extrapolate(fx, get_time(), cb);
 			pthread_mutex_unlock( &frame_mutex );
 			//LOG("** ...game frame calced ok\n");
 		}
@@ -3038,6 +3056,35 @@ gameclient_c::~gameclient_c() {
 	pthread_mutex_destroy(&frame_mutex);
 
 	pthread_mutex_destroy(&udpdq_mutex);
+}
+
+void gameclient_c::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
+	if (power) {
+		graphics().create_quadwallexplo(static_cast<int>(x), static_cast<int>(y - 10), roomx, roomy);
+		sounds().play(SAMPLE_QUADWALLHIT);
+	}
+	else {
+		graphics().create_wallexplo(static_cast<int>(x), static_cast<int>(y - 10), roomx, roomy);
+		sounds().play(SAMPLE_WALLHIT);
+	}
+	fd.rock[rid].owner = fx.rock[rid].owner = -1;	// erase from clientside simulation
+}
+
+void gameclient_c::rocketOutOfBoundsCallback(int rid) {
+	fd.rock[rid].owner = fx.rock[rid].owner = -1;	// erase from clientside simulation
+}
+
+void gameclient_c::playerHitWallCallback(int pid) {
+	// play bounce sample if minimum time elapsed
+	float currTime = get_time();	//#fix
+	if (currTime > fx.player[pid].wall_sound_time) {
+		fx.player[pid].wall_sound_time = currTime + 0.2;
+		sound(SAMPLE_WALLBOUNCE);
+	}
+}
+
+bool gameclient_c::shouldApplyPhysicsToPlayerCallback(int pid) {
+	return fx.player[pid].onscreen;
 }
 
 //draw the whole game screen

@@ -145,6 +145,10 @@ extern bool sound_inited;	//install_sound succeeded?
 extern bool force_ip;		//force IP?
 extern char force_ip_name[32];	//force IP to what?
 
+extern volatile bool force_exit;	// this is set true when the user tries to close the window
+
+void closeButtonCallback();
+
 void server_status_string(char *str);
 double get_time();
 

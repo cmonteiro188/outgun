@@ -561,7 +561,7 @@ void ServerNetworking::reload_hostname() {
 		fclose(cfg);
 	}
 	else
-		strcpy(hostname, "ANONYMOUS HOST");
+		strcpy(hostname, "Anonymous host");
 
 	//update serverinfo
 	update_serverinfo();
@@ -628,10 +628,6 @@ int ServerNetworking::client_connected(int id) {
 
 			myself = i;
 
-			// spawn player
-			world.player[i].respawn_to_base = true;
-			world.respawnPlayer(i);
-
 			//reset keypresses
 			world.player[i].l = 0;
 			world.player[i].r = 0;
@@ -644,6 +640,8 @@ int ServerNetworking::client_connected(int id) {
 			break;
 		}
 	}
+
+	send_map_change_message(myself, NEXTMAP_NONE, host->getCurrentMapFile().c_str());
 
 	// internal error can be detected if no player is free (used == false)
 	//0.4.7: normal behavior (bots...)
@@ -685,10 +683,6 @@ int ServerNetworking::client_connected(int id) {
 	ctf_net_flag_status(id, 0);
 	ctf_net_flag_status(id, 1);
 
-	// MAP NAME+CRC !!! VERY IMPORTANT
-	//
-	send_map_change_message(myself, NEXTMAP_NONE, host->getCurrentMapFile().c_str());
-
 	// - all other player's names
 	// - all other player's frags
 
@@ -723,6 +717,10 @@ int ServerNetworking::client_connected(int id) {
 
 	//send map time left if there is a time limit
 	send_map_time(id);
+
+	// spawn player
+	world.player[myself].respawn_to_base = true;
+	world.respawnPlayer(myself);
 
 	//ok!
 	//
@@ -1004,12 +1002,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					pthread_mutex_unlock ( &mjob_mutex );
 					pthread_create (&mjob_thread, 0, thread_masterjob_f, mjtd);	//#fix: make detached since it will never be joined
 				}
-			}
-			//V0.4.9: DEBUGGING the TAB ranking stuff
-			else if (code == 33) {
-				player_message( ctop[id], "Refreshed your crap...");
-				//broadcast his crap
-				broadcast_player_crap( ctop[id] );
 			}
 			// drop flag
 			else if (code == 34) {
@@ -2576,7 +2568,8 @@ void ServerNetworking::sendWeaponPower(int pid) {
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
+void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power,
+												int px, int py, int x, int y, int bsx, int bsy) {	// sid = shot-id; array of NLubyte[shots]
 	//assembly multi-rocket message
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
@@ -2594,6 +2587,8 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
 	writeByte(lebuf, count, (NLubyte)py);
 	writeShort(lebuf, count, (NLshort)x);
 	writeShort(lebuf, count, (NLshort)y);
+	writeByte(lebuf, count, static_cast<NLubyte>(bsx + 128));
+	writeByte(lebuf, count, static_cast<NLubyte>(bsy + 128));
 
 	for (int p=0; p<maxplayers; p++)
 		if (world.player[p].used && world.player[p].roomx==px && world.player[p].roomy==py)

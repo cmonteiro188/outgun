@@ -4,13 +4,14 @@
 #include <cassert>
 
 typedef pair<double, double> Coords;
+typedef pair<double, Coords> BounceData;
 
 class RectWall {	// rectangular wall
 	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
 	int tex;	// texture id
 	int alpha;
 
-	friend void tryBounce(double* minMovement, Coords* bounceVec, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius);
+	friend void tryBounce(BounceData* bd, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius);
 
 public:
 	RectWall() { }
@@ -27,7 +28,7 @@ class TriWall {	// triangular wall
 	int boundx1, boundy1, boundx2, boundy2;
 	int tex, alpha;
 
-	friend void tryBounce(double* minMovement, Coords* bounceVec, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
+	friend void tryBounce(BounceData* bd, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
 
 public:
 	TriWall() { }
@@ -52,12 +53,12 @@ public:
 
 class CircWall {	// circular wall
 	int x, y, ro, ri;
-	float angle1, angle2;
+	float angle[2];
 	Coords va1, va2, midvec;
 	float anglecos;
 	int tex, alpha;
 
-	friend void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius);
+	friend void tryBounce(BounceData* bd, const CircWall& w, double stx, double sty, double mx, double my, double plyRadius);
 
 public:
 	CircWall() { }
@@ -110,12 +111,12 @@ struct teaminfo_t {
 };
 
 class Map {
-	bool parse_label(FILE *f, const char *label, int crx, int cry);	// crx,cry = "current room pointer"
+	bool parse_label(FILE *f, const char *label, int crx = 0, int cry = 0, float scalex = 1, float scaley = 1);	// crx,cry = "current room pointer"
 
 public:
 	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?
 	teaminfo_t tinfo[2];	//team information for red=0 and blue=1 teams
-	vector< vector<Room> > room;
+	vector< vector<Room> > room;	// accessed by [x][y]
 
 	string title;	//map title
 	int	ver;	// map version
@@ -161,6 +162,7 @@ public:
 	int neg_score;
 
 	virtual ~PlayerBase() { }
+	void move(float fraction) { lx += sx*fraction; ly += sy*fraction; }
 	void clear(bool enable, int _pid, const string& _name) {
 		ping = 0;
 		frags = 0;
@@ -381,18 +383,13 @@ public:
 	bool power;
 
 	NLulong vislist;	//notification list (bitfield, bit0=player0, bit1=player1... etc.)
-	NLshort hitx, hity;	//hit position
 	int px, py;			//screen coords
 	double x, y;		//start position or current position
-	double d;			//v0.1.2 - how long it moved (in pixels) since creation
-	double deg;			//v0.1.2 - em graus : direcao
 	double sx, sy;		//speed
 	NLulong time;		//time of shot or current time
-	double cl_time;		//time for effective calculation on clientside (not always integer)
-	double hit_time;	//time-of-hit do rocket clientside
-	int hit_target;		//hit_target. se ==255, ninguem em particular.  se ==254 hit wall
 
 	rocket_c() { owner = -1; }
+	void move(float fraction) { x += sx*fraction; y += sy*fraction; }
 };
 
 struct ctflag_t {
@@ -445,14 +442,37 @@ public:
 	operator const Type&() const { assert(ptr); return *ptr; }
 };
 
+class PhysicsCallbacksBase {
+public:
+	virtual bool collideToRockets() const =0;	// should player to rocket collisions be checked at all
+	virtual bool gatherMovementDistance() const =0;	// should addMovementDistance be called with player movements
+	virtual void addMovementDistance(int pid, float dist) =0;	// player pid has moved the distance dist
+	virtual void playerScreenChange(int pid) =0;	// player pid has moved to a new room (called max. once per frame per player)
+	virtual void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) =0;	// caller doesn't remove the rocket
+	virtual bool rocketHitPlayer(int rid, int pid) =0;	// returns true if player dies (to be removed from further simulation)
+	virtual void playerHitWall(int pid) =0;
+	virtual void rocketOutOfBounds(int rid) =0;	// caller doesn't remove the rocket
+	virtual bool shouldApplyPhysicsToPlayer(int pid) =0;	// returns true physics should be run to player pid
+};
+
 class WorldBase {
-	void addRocket(int i, int playernum, int team, int px, int py, int x, int y, bool power, int dir, int xdelta, NLulong frameno);
+	void addRocket(int i, int playernum, int team, int px, int py, int x, int y, int bsx, int bsy,
+													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
+
+	static BounceData genGetTimeTillWall(const Room& room, float x, float y, float mx, float my, float radius);
+	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, float plyRadius);
+	static float getTimeTillWall(const Room& room, const rocket_c& rock);
+	static float getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, float collRadius);
+	void applyPlayerAcceleration(int pid);
+	void executeBounce(PlayerBase& ply, const BounceData& b, float plyRadius);	// needs plyRadius as a shortcut to b.second's length
+	void applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, float plyRadius, float fraction);
 
 protected:
 	WorldBase() { }
 
 public:
-	bool applyPhysics(int i, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, double plyRadius);
+	void applyPhysics(PhysicsCallbacksBase& callback, float plyRadius, float fraction);
+	void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback);
 
 	Map map;
 
@@ -463,7 +483,8 @@ public:
 
 	virtual ~WorldBase() { }
 
-	void shootRockets(int playernum, int pow, int dir, NLubyte* rids, NLulong frameno, int team, bool power, int px, int py, int x, int y);
+	void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids,
+										int frameAdvance, int team, bool power, int px, int py, int x, int y, int bsx, int bsy);
 
 	void run_server_player_physics(int pid);
 	virtual bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
@@ -562,6 +583,13 @@ public:
 	void swapRocketOwners(int a, int b);
 
 	void simulateFrame();
+
+	void addMovementDistanceCallback(int pid, float dist);
+	void playerScreenChangeCallback(int pid);
+	void rocketHitWallCallback(int rid);
+	bool rocketHitPlayerCallback(int rid, int pid);
+	void rocketOutOfBoundsCallback(int rid);
+	bool shouldApplyPhysicsToPlayerCallback(int pid);
 };
 
 class gameclient_c;	//#fix: get rid of this callback system
@@ -574,7 +602,7 @@ public:
 
 	ClientPlayer player[MAX_PLAYERS];
 	ClientWorld() { time = 0; for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
-	void extrapolate(ClientWorld& source, double currTime, gameclient_c* host);
+	void extrapolate(ClientWorld& source, double currTime, PhysicsCallbacksBase& physCallbacks);
 };
 
 #endif

@@ -109,6 +109,12 @@ public:
 	void loop();
 	void stop();
 
+	// world	//#fix: should these be moved to ClientWorld?
+	void rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy);
+	void rocketOutOfBoundsCallback(int rid);
+	void playerHitWallCallback(int pid);
+	bool shouldApplyPhysicsToPlayerCallback(int pid);
+
 	// network
 	void connect_command();
 	void disconnect_command();
