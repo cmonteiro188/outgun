@@ -639,7 +639,7 @@ DLOG_Scope s("PIDg");
 
         //se nao for special packet, nao aceita
         if (packid != 0) {  //special packet
-            log(" NOT SPECIAL PACKET",i);
+            log(" NOT SPECIAL PACKET");
             return 1;
         }
 
@@ -665,7 +665,7 @@ DLOG_Scope s("PIDg");
         // se aqui nao for pedido de conexao, nao aceita
         //
         if (smsgid != 1) {  //"hello! I want to connect!"
-            log(" NOT HELLO PACKET",i);
+            log(" NOT HELLO PACKET");
             return 1;       
         }
 
@@ -688,7 +688,7 @@ DLOG_Scope s("PIDg");
         //verifica se LEETNET_VERSION match
         readLong(packet, count, leetversion);   // leetnet version
         if (leetversion != LEETNET_VERSION) {
-            log("Client connection ignored: LEETNET_VERSION mismatch. c=%i s=%i", leetversion, LEETNET_VERSION);
+            log("Client connection ignored: LEETNET_VERSION mismatch. c=%lu s=%u", leetversion, LEETNET_VERSION);
             return 1;
         }
 
@@ -998,7 +998,7 @@ DLOG_Scope s("PCD_Sp");
 
             default:
                 //FIXME: unknown code!
-                log("WTF!?!? %i", code);
+                log("WTF!?!? %lu", code);
                 break;
             }
         }

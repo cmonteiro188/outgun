@@ -31,6 +31,12 @@
 
 // try to keep the includes down: if new includes are needed, consider a separate header
 
+#ifdef __GNUC__
+#define PRINTF_FORMAT(a, b) __attribute__ ((format (printf, a, b)))
+#else
+#define PRINTF_FORMAT(a, b)
+#endif
+
 template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb ? hb : val; }
 
 int atoi(const std::string& str);
@@ -88,9 +94,9 @@ public:
     LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }  // null pointers are allowed
     ~LogSet() { }
 
-    void operator()(const char* fmt, ...);
+    void operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);
     void error(const std::string);
-    void security(const char* fmt, ...);
+    void security(const char* fmt, ...) PRINTF_FORMAT(2, 3);
 
     Log* accessNormal() { return normalLog; }
     Log* accessError() { return errorLog; }

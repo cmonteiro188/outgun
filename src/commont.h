@@ -56,7 +56,7 @@ public:
     ClientControls() : data(0) { }
     NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
     void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
-    void fromKeyboard(bool use_pad);
+    void fromKeyboard(bool use_pad, bool use_cursor_keys);
     void fromJoystick(int moving_stick, int run_button, int strafe_button); // uses pseudo button ids like readJoystickButton
     bool     isUp() const { return (data & up    ) != 0; }
     bool   isDown() const { return (data & down  ) != 0; }

@@ -238,8 +238,8 @@ public:
     void broadcast_screen_power_collision(int p) const;
     void broadcast_team_message(int team, const std::string& text) const;
     void broadcast_screen_message(int px, int py, char *lebuf, int count) const;
-    void bprintf(Message_type type, const char *fs, ...) const;
-    void plprintf(int pid, Message_type type, const char* fmt, ...) const;
+    void bprintf(Message_type type, const char *fs, ...) const PRINTF_FORMAT(3, 4);
+    void plprintf(int pid, Message_type type, const char* fmt, ...) const PRINTF_FORMAT(4, 5);
     void player_message(int pid, Message_type type, const std::string& text) const;
     void broadcast_text(Message_type type, const std::string& text) const;
 

@@ -663,7 +663,7 @@ class WorldBase {
 
     static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction);
     static double getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction);
-    /*static*/ double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
+    static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
     void limitPlayerSpeed(PlayerBase& pl) const;  // hard limit to somewhat acceptable values; required to call when physically incorrect changes are made
     void applyPlayerAcceleration(int pid);

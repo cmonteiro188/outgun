@@ -39,6 +39,7 @@
 
 #include "nassert.h"
 
+#ifndef DISABLE_ENHANCED_NASSERT
 unsigned long* stackGuardHackPtr;
 
 void stackDump(FILE* dst) { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
@@ -60,6 +61,7 @@ int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
         writeLong(buf, bufSize, *stackPtr);
     return bufSize;
 }
+#endif
 
 void nasprintf(const char* file, int line, const char* expr, ...) {
     // display to console (should be safest, but rarely visible on Windows)

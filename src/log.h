@@ -30,6 +30,7 @@
 #include <cstdarg>
 #include <nl.h>
 #include "mutex.h"
+#include "utility.h"
 
 class Log { // base class
     mutable MutexHolder m;
@@ -49,7 +50,7 @@ public:
     Log() : nLines(0) { }
     virtual ~Log() { }
     void put(const std::string& str);
-    void operator()(const char* fmt, ...);
+    void operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);
     void operator()(const char* fmt, va_list args);
     int numLines() const;
 };

@@ -1378,9 +1378,9 @@ void Client::change_name_command() {
     tournamentPassword.changeData(playername, menu.options.name.password());
 }
 
-ClientControls Client::readControls() {
+ClientControls Client::readControls(bool useCursorKeys) {
     ClientControls ctrl;
-    ctrl.fromKeyboard(menu.options.controls.keypadMoving());
+    ctrl.fromKeyboard(menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
     return ctrl;
@@ -1391,8 +1391,8 @@ void Client::send_frame(bool newFrame) {
     char lebuf[256]; int count = 0;
 
     ClientControls currCtrl;
-    if (menusel == menu_none && openMenus.empty())  // don't move when menu or similar is open
-        currCtrl = readControls();
+    if (openMenus.empty())  // don't move at all when a real menu is open
+        currCtrl = readControls(menusel == menu_none);  // reserve cursor keys for stats screen or similar
 
     if (newFrame) {
         ++clFrameSent;
@@ -1646,6 +1646,8 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
                         addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
                     }
+                    else if (fx.player[pid].name != " ")    // " " is the case with players already in game when connecting
+                        addThreadMessage(new TM_Text(msg_info, _("$1 changed name to $2.", fx.player[pid].name, name)));
                     fx.player[pid].name = name;
                 }
                 else
@@ -3123,12 +3125,12 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     if (handled)
         return;
     if (menusel != menu_none)
-        handleInfoScreenKeypress(sc, ch, withControl, alt_sequence);
-    else
-        handleGameKeypress(sc, ch, withControl, alt_sequence);
+        if (handleInfoScreenKeypress(sc, ch, withControl, alt_sequence))
+            return;
+    handleGameKeypress(sc, ch, withControl, alt_sequence);
 }
 
-void Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
     (void)(withControl&alt_sequence);
     switch (menusel) {
         break; case menu_maps:
@@ -3156,9 +3158,12 @@ void Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                     }
                 }
                 break; default:
-                    if (isdigit(ch) && edit_map_vote.size() < 3)
+                    if (!isdigit(ch))
+                        return false;
+                    if (edit_map_vote.size() < 3)
                         edit_map_vote += ch;
             }
+            return true;
         break; case menu_players:
             if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
                 player_stats_page = max(0, player_stats_page - 1);
@@ -3166,14 +3171,22 @@ void Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                 player_stats_page = min(3, player_stats_page + 1);
             else if (sc == KEY_TAB)
                 player_stats_page = (player_stats_page + 1) % 4;
+            else
+                return false;
+            return true;
         break; case menu_teams:
             if (sc == KEY_UP || sc == KEY_PGUP)
                 client_graphics.team_captures_prev();
-            if (sc == KEY_DOWN || sc == KEY_PGDN)
+            else if (sc == KEY_DOWN || sc == KEY_PGDN)
                 client_graphics.team_captures_next();
+            else
+                return false;
+            return true;
         break; case menu_none: // regular menu, if any, handled elsewhere
+            return false;
         break; default:
             nAssert(0);
+            return false;
     }
 }
 
@@ -3268,7 +3281,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 alt_sequence = false;
 
             // handle current keypresses (only used in game)
-            if (openMenus.empty() && menusel == menu_none) {
+            if (openMenus.empty()) {
                 bool sendnow = false;
 
                 // control == fire
@@ -3284,12 +3297,14 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                     sendnow = true;
                 }
 
-                const bool dropFlag = key[KEY_PGDN];
-                if (dropFlag != prevDropFlag) {
-                    prevDropFlag = dropFlag;
-                    char lebuf[16]; int count = 0;
-                    writeByte(lebuf, count, dropFlag ? data_drop_flag : data_stop_drop_flag);
-                    client->send_message(lebuf, count);
+                if (menusel == menu_none) { // page down is reserved for stats screens
+                    const bool dropFlag = key[KEY_PGDN];
+                    if (dropFlag != prevDropFlag) {
+                        prevDropFlag = dropFlag;
+                        char lebuf[16]; int count = 0;
+                        writeByte(lebuf, count, dropFlag ? data_drop_flag : data_stop_drop_flag);
+                        client->send_message(lebuf, count);
+                    }
                 }
 
                 // l,r,u,d,fire game keys
@@ -4122,7 +4137,7 @@ void Client::MCF_prepareGameMenu() {
 }
 
 void Client::MCF_prepareControlsMenu() {
-    ClientControls ctrl = readControls();
+    ClientControls ctrl = readControls(true);
     string active;
     if (ctrl.isUp())
         active += _("up")     + ' ';

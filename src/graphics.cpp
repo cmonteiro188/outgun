@@ -1438,7 +1438,7 @@ void Graphics::team_statistics(const Team* teams) {
     const int y2 = my + h / 2;
     const int team_captures_size = h / line_height - 17;
 
-    if (stats_alpha >= 0) {
+    if (stats_alpha > 0) {
         if (stats_alpha < 255) {
             drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
             set_trans_blender(0, 0, 0, stats_alpha);
@@ -1555,7 +1555,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     const int x_left = x1 + x_margin;
     const int team1y = y1 + line_h, team2y = team1y + (3 + maxplayers / 2 + 1) * line_h, pageNumY = team2y + (3 + maxplayers / 2) * line_h;
 
-    if (stats_alpha >= 0) {
+    if (stats_alpha > 0) {
         if (stats_alpha < 255) {
             drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
             set_trans_blender(0, 0, 0, stats_alpha);
@@ -1719,7 +1719,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
     const int y2 = my + h / 2;
     const int x_left = x1 + 30;
 
-    if (stats_alpha >= 0) {
+    if (stats_alpha > 0) {
         if (stats_alpha < 255) {
             drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
             set_trans_blender(0, 0, 0, stats_alpha);

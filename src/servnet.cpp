@@ -1874,11 +1874,13 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
             if (pid != -1) {
                 if (job->code == MasterQuery::JT_login) {
                     log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
-                                world.player[pid].name.c_str(), get_client_address(job->cid), formatForLogging(job->request).c_str());
+                                world.player[pid].name.c_str(), addressToString(get_client_address(job->cid)).c_str(), formatForLogging(job->request).c_str());
                     char lebuf[128]; int count = 0;
                     writeByte(lebuf, count, data_registration_response);
                     writeByte(lebuf, count, 0); // registration failed
                     server->send_message(job->cid, lebuf, count);
+                    host->getClientData(job->cid).token_have = false;
+                    broadcast_player_crap(pid);
                 }
                 else if (job->code == MasterQuery::JT_score) {
                     send_tournament_update_failed(pid);

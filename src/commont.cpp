@@ -44,16 +44,26 @@ bool readJoystickButton(int button) {
     return (button > 0 && !poll_joystick() && button <= joy[0].num_buttons && joy[0].button[button - 1].b);
 }
 
-void ClientControls::fromKeyboard(bool use_pad) {
-    if (key[KEY_UP] || (key[KEY_8_PAD] && use_pad))
-        data |= up;
-    if (key[KEY_DOWN] || ((key[KEY_2_PAD] || key[KEY_5_PAD]) && use_pad))
-        data |= down;
-    if (key[KEY_LEFT] || (key[KEY_4_PAD] && use_pad))
-        data |= left;
-    if (key[KEY_RIGHT] || (key[KEY_6_PAD] && use_pad))
-        data |= right;
+void ClientControls::fromKeyboard(bool use_pad, bool use_cursor_keys) {
+    if (use_cursor_keys) {
+        if (key[KEY_UP])
+            data |= up;
+        if (key[KEY_DOWN])
+            data |= down;
+        if (key[KEY_LEFT])
+            data |= left;
+        if (key[KEY_RIGHT])
+            data |= right;
+    }
     if (use_pad) {
+        if (key[KEY_8_PAD] && use_pad)
+            data |= up;
+        if (key[KEY_2_PAD] || key[KEY_5_PAD])
+            data |= down;
+        if (key[KEY_4_PAD])
+            data |= left;
+        if (key[KEY_6_PAD])
+            data |= right;
         if (key[KEY_7_PAD])
             data |= up | left;
         if (key[KEY_9_PAD])

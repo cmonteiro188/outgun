@@ -27,10 +27,14 @@
 #include <cstdarg>
 #include <string>
 
+#include "utility.h"
+
 int platMkdir(const char* path);
 int platStricmp(const char* s1, const char* s2);
 int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg);
 void platMessageBox(const std::string& caption, const std::string& text);
+
+inline int platSnprintf(char* buf, size_t count, const char* fmt, ...) PRINTF_FORMAT(3, 4);
 
 inline int platSnprintf(char* buf, size_t count, const char* fmt, ...) {
     va_list args;

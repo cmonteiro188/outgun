@@ -47,8 +47,10 @@ void MutexHolder::doLogAction(char operation) { // from mutex.h
 }
 
 void logThreadEvent(bool exit, const char* function, Log& log) {
-    if (LOG_THREAD_IDS)
-        log("%s%s() ID = %d, prio = %d", exit ? "exiting: " : "", function, pthread_self(), Thread::getCallerPriority());
+    if (LOG_THREAD_IDS) {
+        const pthread_t threadIdP = pthread_self();
+        log("%s%s() ID = %d, prio = %d", exit ? "exiting: " : "", function, *reinterpret_cast<const int*>(&threadIdP), Thread::getCallerPriority());
+    }
 }
 
 void logThreadEvent(bool exit, const char* function, LogSet& log) {
