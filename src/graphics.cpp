@@ -1402,9 +1402,9 @@ void Graphics::team_statistics(const Team* teams) {
 	textout_centre_ex(drawbuf, font, "Kills",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Deaths",         mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Suicides",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags Taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags Dropped",  mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags Returned", mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Flags taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Flags dropped",  mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Flags returned", mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Shots",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Hit accuracy",   mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Shots taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
