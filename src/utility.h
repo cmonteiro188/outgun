@@ -52,8 +52,11 @@ std::string approxTime(int seconds);
 // Convert string to uppercase.
 std::string toupper(std::string str);
 
-// Trim beginning and trailing whitespaces.
+// Strip beginning and trailing whitespaces.
 std::string trim(std::string str);
+
+// Replace all occurences of s1 to s2 in text.
+std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
 
 bool find_nonprintable_char(const std::string& str);
 bool is_nonprintable_char(unsigned char c);

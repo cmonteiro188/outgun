@@ -249,9 +249,17 @@ void ServerNetworking::move_update_player(int a, bool silent) {
     broadcast_stats(world.player[a]);
     broadcast_movements_and_shots(world.player[a]);
 
-    //message; ### FIXME: Move to client?
+    //message; ### FIXME: Move to client and check if the player dropped the flag.
     if (!silent)
-        bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
+        broadcast_team_change(a);
+        //bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
+}
+
+void ServerNetworking::broadcast_team_change(int pid) {
+    char lebuf[64]; int count = 0;
+    writeByte(lebuf, count, data_team_change);
+    writeByte(lebuf, count, static_cast<NLubyte>(pid));
+    server->broadcast_message(lebuf, count);
 }
 
 //broadcast a sample
@@ -328,19 +336,62 @@ void ServerNetworking::broadcast_stats_ready() const {
     server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_capture(const ServerPlayer& player) const {
+void ServerNetworking::broadcast_5_min_left() const {
     char lebuf[64];
     int count = 0;
-    writeByte(lebuf, count, data_capture);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    writeByte(lebuf, count, data_5_min_left);
     server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_flag_take(const ServerPlayer& player) const {
+void ServerNetworking::broadcast_1_min_left() const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_1_min_left);
+    server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_30_s_left() const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_30_s_left);
+    server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_time_out() const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_time_out);
+    server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_extra_time_out() const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_extra_time_out);
+    server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_normal_time_out(bool sudden_death) const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_normal_time_out);
+    writeByte(lebuf, count, sudden_death ? 0x01 : 0x00);
+    server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team) const {
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_capture);
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
+    server->broadcast_message(lebuf, count);
+}
+
+void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_flag_take);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
     server->broadcast_message(lebuf, count);
 }
 
@@ -353,16 +404,16 @@ void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const {
 }
 
 // player dropped the flag on purpose
-void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player) const {
+void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_team) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_flag_drop);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
     server->broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                                      bool deathbringer, bool flag, bool carrier_defended, bool flag_defended) const {
+                                      bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_kill);
@@ -374,22 +425,26 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
         attacker_info |= 0x40;
     if (flag_defended)
         attacker_info |= 0x20;
-    // second byte, flag bit and target id
+    // second byte, flag bit, wild flag bit and target id
     NLubyte tar_flag = target.id;
     if (flag)
         tar_flag |= 0x80;
+    if (wild_flag)
+        tar_flag |= 0x40;
     writeByte(lebuf, count, attacker_info);
     writeByte(lebuf, count, tar_flag);
     server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag) const {
+void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_suicide);
     NLubyte id_flag = player.id;
     if (flag)
         id_flag |= 0x80;
+    if (wild_flag)
+        id_flag |= 0x40;
     writeByte(lebuf, count, id_flag);
     server->broadcast_message(lebuf, count);
 }
@@ -916,7 +971,7 @@ int ServerNetworking::client_connected(int id) {
 
     const vector<string>& welcome_message = host->getWelcomeMessage();
     for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
-        player_message(myself, msg_info, *line);
+        player_message(myself, msg_server, *line);
 
     host->check_team_changes();
     update_serverinfo();
@@ -948,7 +1003,7 @@ void ServerNetworking::client_disconnected(int id) {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_player_left);
     writeByte(lebuf, count, static_cast<NLubyte>(pid));
-    writeLong(lebuf, count, world.player[pid].stats().frags());
+    writeLong(lebuf, count, static_cast<NLlong>(world.player[pid].stats().frags()));
     server->send_message(id, lebuf, count);
     broadcast_sample(SAMPLE_LEFTGAME);  // ### FIXME: Move to client?
 

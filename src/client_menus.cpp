@@ -485,7 +485,7 @@ Menu_playerPassword::Menu_playerPassword() :
 }
 
 void Menu_playerPassword::setup(const string& plyName, bool saveChecked) {
-    menu.setCaption(_("Player password for") + ' ' + plyName);
+    menu.setCaption(_("Player password for $1", plyName));
     password.set("");
     save.set(saveChecked);
 }

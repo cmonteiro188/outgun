@@ -1598,8 +1598,8 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
     dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
     player[pid].stats().add_flag_drop(get_time());
     teams[pid / TSIZE].add_flag_drop();
-    if (purpose) {
-        net->broadcast_flag_drop(player[pid]);  // If player dies, clients know the flag is dropped.
+    if (purpose) {  // If player dies other way, clients know the flag is dropped.
+        net->broadcast_flag_drop(player[pid], team);
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }
     return true;
@@ -2042,18 +2042,24 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
             }
     }
     const bool flag = player[target].flag();
+    bool wild_flag = false;
     if (flag) {
         player[attacker].stats().add_carrier_kill();
         if (!same_team)
             host->score_frag(attacker, 1);  // extra frag for fragging a carrier
         else
             host->score_frag(attacker, -1); // extra penalty for fragging own carrier
+        for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+            if (fi->carrier() == target) {
+                wild_flag = true;
+                break;
+            }
     }
 
     if (deathbringer)
         net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);   // ### FIXME: Move to client?
 
-    net->broadcast_kill(player[attacker], player[target], deathbringer, flag, carrier_defended, flag_defended);
+    net->broadcast_kill(player[attacker], player[target], deathbringer, flag, wild_flag, carrier_defended, flag_defended);
 
     player[attacker].stats().add_kill(deathbringer);
     teams[atteam].add_kill();
@@ -2075,12 +2081,19 @@ void ServerWorld::removePlayer(int pid) {
 
 void ServerWorld::suicide(int pid) {
     if (player[pid].health > 0) {
-        bool flag = player[pid].flag();
+        const bool flag = player[pid].flag();
+        bool wild_flag = false;
+        if (flag)
+            for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+                if (fi->carrier() == pid) {
+                    wild_flag = true;
+                    break;
+                }
         killPlayer(pid, true);
         host->score_frag(pid, -1);
         player[pid].stats().add_suicide(static_cast<int>(get_time()));
         teams[pid / TSIZE].add_suicide();
-        net->broadcast_suicide(player[pid], flag);
+        net->broadcast_suicide(player[pid], flag, wild_flag);
     }
 }
 
@@ -2805,33 +2818,29 @@ void ServerWorld::simulateFrame() {
         }
     }
 
-    // check time limit; ### FIXME: Move to client?
+    // check time limit
     const NLulong time_limit = config.getTimeLimit();
     if (host->get_player_count() > 1 && time_limit > 0) {
         const int timeLeft = getTimeLeft();
-        if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10) {
-            net->bprintf(msg_info, "*** Five minutes remaining");
-            net->broadcast_sample(SAMPLE_5_MIN_LEFT);
-        }
-        else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10) {
-            net->bprintf(msg_info, "*** One minute remaining");
-            net->broadcast_sample(SAMPLE_1_MIN_LEFT);
-        }
+        if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
+            net->broadcast_5_min_left();
+        else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
+            net->broadcast_1_min_left();
         else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
-            net->bprintf(msg_info, "*** 30 seconds remaining");
+            net->broadcast_30_s_left();
         // game ends if time is over and (the game is not tied or there is no extra-time)
         else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.sudden_death))) {
-            net->bprintf(msg_info, "*** Time out - CTF game over");
+            net->broadcast_time_out();
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
             host->ctf_game_restart();
         }
         else if (getExtraTimeLeft() == 0 && config.extra_time > 0) {
-            net->bprintf(msg_info, "*** Extra-time out - CTF game over");
+            net->broadcast_extra_time_out();
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
             host->ctf_game_restart();
         }
         else if (timeLeft == 0) {
-            net->bprintf(msg_info, "*** Normal time out - extra-time started");
+            net->broadcast_normal_time_out(config.sudden_death);
             net->send_map_time(-1);
         }
     }
@@ -2841,7 +2850,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     host->score_frag(pid, 1);   // just add some frags
     player[pid].stats().add_flag_take(get_time());
     teams[pid / TSIZE].add_flag_take();
-    net->broadcast_flag_take(player[pid]);
+    net->broadcast_flag_take(player[pid], team);
     stealFlag(team, flag, pid);
     player[pid].take_flag();
     // shadow powerup: show player
@@ -2878,7 +2887,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     teams[myteam].add_score(getMapTime(), player[pid].name);
     returnFlag(team, flag);
 
-    net->broadcast_capture(player[pid]);
+    net->broadcast_capture(player[pid], team);
 
     net->ctf_update_teamscore(myteam);      // this function can decide to restart the game
     net->broadcast_sample(SAMPLE_CTF_CAPTURE);  // ### FIXME: Move to client?

@@ -24,6 +24,8 @@
 #include "incalleg.h"
 #include <fstream>
 #include "commont.h"
+#include "utility.h"
+
 #include "language.h"
 
 using std::ifstream;
@@ -42,14 +44,14 @@ string Language::get_text(const string& text) const {
 bool Language::load(const string& lang) {
     texts.clear();
     lang_code = "en";
-	if (lang == lang_code)
-		return true;
+    if (lang == lang_code)  // English - no need to load the same phrases as in the code.
+        return true;
     const string dir = wheregamedir + "config" + directory_separator + "languages" + directory_separator;
-	const string defname = dir + "en.txt";
-	const string translname = dir + lang + ".txt";
+    const string defname = dir + "en.txt";
+    const string translname = dir + lang + ".txt";
     ifstream def(defname.c_str());
 	if (!def) {
-		allegro_message("%s not found.\nCan't load a language without the English reference.\nContinuing without a translation.", defname.c_str());
+        allegro_message("%s not found.\nCan't load a language without the English reference.\nContinuing without a translation.", defname.c_str());
         return false;
     }
     ifstream transl(translname.c_str());
@@ -61,7 +63,7 @@ bool Language::load(const string& lang) {
     while (getline_skip_comments(def, key) && getline_skip_comments(transl, value))
         texts[key] = value;
     if (def) {
-        allegro_message("Language file for '%s' is invalid.\n%s contains more phrases than %s.\nContinuing without translation.", lang.c_str(), translname.c_str(), defname.c_str());
+        allegro_message("Language file for '%s' is invalid.\n%s contains less phrases than %s.\nContinuing without translation.", lang.c_str(), translname.c_str(), defname.c_str());
         texts.clear();
         return false;
     }
@@ -72,3 +74,16 @@ bool Language::load(const string& lang) {
 string _(const string& text) {
     return language.get_text(text);
 }
+
+string _(const string& text, const string& t1) {
+    string translation = _(text);
+    translation = replace_all(translation, "$1", t1);
+    return translation;
+}
+
+string _(const string& text, const string& t1, const string& t2) {
+    string translation = _(text, t1);
+    translation = replace_all(translation, "$2", t2);
+    return translation;
+}
+

@@ -1350,7 +1350,7 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
         default: c = col[COLMENUGRAY]; break;
     }
     textout_centre_ex(drawbuf, font, text.c_str(), plx + plw / 2, ply + plh / 2 - 40, c, -1);
-    textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "%s %i - %i", _("SCORE").c_str(), score1, score2);
+    textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 - 20, c, -1, "%s", _("SCORE $1 - $2", itoa(score1), itoa(score2)).c_str());
 }
 
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
@@ -1587,7 +1587,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     }
 
     if (page == 3 && max_world_rank > 0)
-        textprintf_ex(drawbuf, font, x_left, pageNumY, col[COLGREEN], -1, "%d %s", max_world_rank, _("players in the tournament").c_str());
+        textprintf_ex(drawbuf, font, x_left, pageNumY, col[COLGREEN], -1, "%s", _("$1 players in the tournament.", itoa(max_world_rank)).c_str());
 
     ostringstream page_num;
     page_num << page + 1 << '/' << 4;
@@ -1655,13 +1655,14 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
 
     int line = 0;
     const int line_h = 10;
+    const int margin = 8;
     for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
         const int c = me == line ? col[COLYELLOW] : col[COLWHITE];
-        textprintf_ex(drawbuf, font, 0, line++ * line_h, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
+        textprintf_ex(drawbuf, font, margin, line++ * line_h, c, -1, "p. %2i u=%i ons=%i evs=%lu sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
             line, player->used, player->onscreen, player->enemyvis, player->roomx, player->roomy,
             player->lx, player->ly, player->sx, player->sy);
     }
-    
+
     line++;
     ostringstream axis_info;
     axis_info << _("Joystick axes") << ':';
@@ -1671,19 +1672,19 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
             axis_info << '(' << axis->first << ' ' << axis->second << ')';
         axis_info << ']';
     }
-    textout_ex(drawbuf, font, axis_info.str().c_str(), 0, line++ * line_h, col[COLINFO], -1);
+    textout_ex(drawbuf, font, axis_info.str().c_str(), margin, line++ * line_h, col[COLINFO], -1);
 
     line++;
     ostringstream button_info;
     button_info << _("Joystick buttons") << ':';
     for (vector<int>::const_iterator but = buttons.begin(); but != buttons.end(); ++but)
         button_info << ' ' << *but;
-    textout_ex(drawbuf, font, button_info.str().c_str(), 0, line++ * line_h, col[COLINFO], -1);
+    textout_ex(drawbuf, font, button_info.str().c_str(), margin, line++ * line_h, col[COLINFO], -1);
 
     line++;
     const int bpstraffic = bpsin + bpsout;
-    textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "%s: %4i B/s", _("Traffic").c_str(), bpstraffic);
-    textprintf_ex(drawbuf, font, 0, line++ * line_h, col[COLINFO], -1, "%s %4i B/s, %s %4i B/s", _("in").c_str(), bpsin, _("out").c_str(), bpsout);
+    textprintf_ex(drawbuf, font, margin, line++ * line_h, col[COLINFO], -1, "%s: %4i B/s", _("Traffic").c_str(), bpstraffic);
+    textprintf_ex(drawbuf, font, margin, line++ * line_h, col[COLINFO], -1, "%s %4i B/s, %s %4i B/s", _("in").c_str(), bpsin, _("out").c_str(), bpsout);
 }
 
 void Graphics::map_time(int seconds) {
@@ -1784,7 +1785,7 @@ void Graphics::draw_change_team_message(double time) {
         c = col[COLRED];
     else
         c = col[COLWHITE];
-    textout_centre_ex(drawbuf, font, _("CHANGE").c_str(), plx + scale(plw - 6 * 8 + 10),     ply + scale(plh - 18), c, -1);
+    textout_centre_ex(drawbuf, font, _("CHANGE").c_str(), plx + scale(plw - 6 * 8 + 10), ply + scale(plh - 18), c, -1);
     textout_centre_ex(drawbuf, font, _("TEAMS").c_str(),  plx + scale(plw - 6 * 8 + 10), ply + scale(plh -  9), c, -1);
 }
 
@@ -1794,7 +1795,7 @@ void Graphics::draw_change_map_message(double time) {
         c = col[COLRED];
     else
         c = col[COLWHITE];
-    textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 64 - 6 * 8),     ply + scale(plh - 18), c, -1);
+    textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 64 - 6 * 8), ply + scale(plh - 18), c, -1);
     textout_centre_ex(drawbuf, font, _("MAP").c_str(),  plx + scale(plw - 64 - 6 * 8), ply + scale(plh -  9), c, -1);
 }
 
@@ -1870,7 +1871,8 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         case msg_warning: c = col[COLLRED]; break;
         case msg_team: c = col[COLYELLOW]; break;
         case msg_info: c = col[COLGREEN]; break;
-        case msg_header: c = col[COLYELLOW]; break;
+        case msg_header: c = makecol(0x88, 0xFF, 0xFF); break;
+        case msg_server: c = col[COLCYAN]; break;
         case msg_normal: default: c = col[COLORA];
     }
     print_text_border(message, x, y, c, 0, -1);

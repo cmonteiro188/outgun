@@ -95,6 +95,15 @@ string trim(string str) {
     return str;
 }
 
+string replace_all(string text, const string& s1, const string& s2) {
+    string::size_type pos = 0;
+    while ((pos = text.find(s1, pos)) != string::npos) {
+        text = text.replace(pos, s1.length(), s2);
+        pos += s1.length();
+    }
+    return text;
+}
+
 bool find_nonprintable_char(const string& str) {
     for (string::const_iterator s = str.begin(); s != str.end(); ++s)
         if (is_nonprintable_char(*s))
@@ -299,3 +308,4 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
     textout_right(bmp, f, text, x, y, color);
 }
 #endif  // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+

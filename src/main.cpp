@@ -53,21 +53,21 @@ void increment_server_speed_counter() {
 bool set_shitty_mode(LogSet log) {
     int DTC = desktop_color_depth();
 
-    set_color_depth( DTC );
+    set_color_depth(DTC);
 
     if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
         log("Could not set gfx mode 320x240 windowed.. try 1 with %i", DTC);
     else
         return true;    // OK
 
-    if ((DTC == 16) || (DTC == 15)) {
+    if (DTC == 16 || DTC == 15) {
 
         if (DTC == 15)
             DTC = 16;
         else
             DTC = 15;
 
-        set_color_depth( DTC );
+        set_color_depth(DTC);
 
         if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
             log("Could not set gfx mode 320x240 windowed.. try 2 with %i", DTC);
@@ -78,7 +78,7 @@ bool set_shitty_mode(LogSet log) {
     // WARNING: this can be buggy for multiple dedicated servers.
     DTC = 8;
 
-    set_color_depth( DTC );
+    set_color_depth(DTC);
 
     if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0)) {
         log("Could not set gfx mode 320x240 windowed.. tried with %i", DTC);
@@ -100,7 +100,7 @@ bool check_dir(const string& dir) {
     const string directory = wheregamedir + dir;
     al_ffblk mapffblk;
     const int result = al_findfirst(directory.c_str(), &mapffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-    bool exists = (result == 0 && (mapffblk.attrib & FA_DIREC));
+    const bool exists = (result == 0 && (mapffblk.attrib & FA_DIREC));
     al_findclose(&mapffblk);
     if (exists)
         return true;
@@ -335,12 +335,12 @@ int main(int argc, char *argv[]) {
     install_int_ex(increment_server_speed_counter, BPS_TO_TIMER(10));       //10Hz
 
     // get system thread priorities
-    int             pmin = sched_get_priority_min(SCHED_OTHER);
-    int             pmax = sched_get_priority_max(SCHED_OTHER);
-    int             policy;
-    sched_param     param;
-    int             rc = pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
-    int             pdef = param.sched_priority;
+    int         pmin = sched_get_priority_min(SCHED_OTHER);
+    int         pmax = sched_get_priority_max(SCHED_OTHER);
+    int         policy;
+    sched_param param;
+    int         rc = pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    int         pdef = param.sched_priority;
     log("Thread priorities:");
     log("   rc = %i policy = %i (%i)", rc, policy, SCHED_OTHER);
     log("   pmin %i pmax %i pdef = %i", pmin, pmax, pdef);
@@ -348,10 +348,8 @@ int main(int argc, char *argv[]) {
     //show info
     if (showinfo) {
         //get all local addresses
-        NLaddress *locals;
         NLint locsize;
-
-        locals = nlGetAllLocalAddr(&locsize);
+        const NLaddress *locals = nlGetAllLocalAddr(&locsize);
 
         char infobuf[2048];
         platSnprintf(infobuf, 2048,
@@ -365,8 +363,8 @@ int main(int argc, char *argv[]) {
             "Local addresses:\n",
                 pmin, pmax, pdef);
 
-        for (int z = 0; z < locsize; z++) {
-            strcat(infobuf, addressToString(locals[z]).c_str());
+        for (int i = 0; i < locsize; i++) {
+            strcat(infobuf, addressToString(locals[i]).c_str());
             strcat(infobuf, "\n");
         }
 

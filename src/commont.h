@@ -42,7 +42,7 @@ std::istream& getline_skip_comments(std::istream& in, std::string& str);
 // Check player name validity.
 bool check_name(const std::string& name);
 
-enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_header };
+enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header };
 
 const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
 

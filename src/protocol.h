@@ -87,8 +87,15 @@ enum Network_data_code {
     data_reset_map_list,
     data_stats_ready,
     data_player_left,
+    data_team_change,
+    data_5_min_left,
+    data_1_min_left,
+    data_30_s_left,
+    data_time_out,
+    data_extra_time_out,
+    data_normal_time_out,
     data_reserved_range_first,  // reserve some codes for extensions that are otherwise protocol compatible
-    data_reserved_range_last = data_player_left + 20    // make sure you don't use more!
+    data_reserved_range_last = data_normal_time_out + 20    // make sure you don't use more!
 };
 
 enum Disconnect_reason {

@@ -164,15 +164,22 @@ public:
     void broadcast_player_name(int pid);
     void send_player_crap_update(int cid, int pid);
     void broadcast_player_crap(int pid);
+    void broadcast_team_change(int pid);
 
     void broadcast_stats_ready() const;
-    void broadcast_capture(const ServerPlayer& player) const;
-    void broadcast_flag_take(const ServerPlayer& player) const;
+    void broadcast_5_min_left() const;
+    void broadcast_1_min_left() const;
+    void broadcast_30_s_left() const;
+    void broadcast_time_out() const;
+    void broadcast_extra_time_out() const;
+    void broadcast_normal_time_out(bool sudden_death) const;
+    void broadcast_capture(const ServerPlayer& player, int flag_team) const;
+    void broadcast_flag_take(const ServerPlayer& player, int flag_team) const;
     void broadcast_flag_return(const ServerPlayer& player) const;
-    void broadcast_flag_drop(const ServerPlayer& player) const;
+    void broadcast_flag_drop(const ServerPlayer& player, int flag_team) const;
     void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                        bool deathbringer, bool flag, bool carrier_defended, bool flag_defended) const;
-    void broadcast_suicide(const ServerPlayer& player, bool flag) const;
+                        bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
+    void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
     void broadcast_new_player(const ServerPlayer& player) const;
     void broadcast_spawn(const ServerPlayer& player) const;
     void broadcast_movements_and_shots(const ServerPlayer& player) const;   // Send player's movement and shots to everyone.
