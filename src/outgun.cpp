@@ -1,3 +1,10 @@
+//#define NR_CLIET_AFFECTING
+
+//#NR
+#define WELCOME_MESSAGE_1 "@TWelcome to Nix's Outgun server in Finland"
+#define WELCOME_MESSAGE_2 "The server is slightly modified from the official 0.5.0"
+#define WELCOME_MESSAGE_3 "Contact me at npr1@suomi24.fi if there are any problems"
+
 /*
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -483,7 +490,12 @@ int			maxplayers = MAX_PLAYERS;		// the maximum number of players configured for
 
 #define MAX_ROCKETS 256		// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
+#ifdef NR_CLIET_AFFECTING
+#define MAX_PICKUPS 256
+#else
 #define MAX_PICKUPS MAX_PLAYERS	// the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
+#endif
+
 int			maxpickups;							// the maximum number of pickups (function of maxplayers)
 
 #define MAX_TEAM_SPAWNS 8		// maximum different team spawn points
@@ -813,7 +825,6 @@ class map_c { public:
 	}
 
 	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) {
-
 		for (int w=0;w<WALLMAX;w++)
 		if (room[px][py].wall[w].a != -1)
 		{
@@ -2157,6 +2168,11 @@ public:
 
 		//map file type
 		if (!strcmp(ftype, "map")) {
+			//#NR
+			if (strpbrk(fname, "./:\\")!=NULL) {
+				LOG1("*!*!*!* ILLEGAL FILE DOWNLOAD ATTEMPT: MAP \"%s\"\n", fname);
+				return -1;	//#should also kick their butt for that
+			}
 
 			char lebuffer[1024];
 			char dest[WHERE_PATH_SIZE];
@@ -2173,10 +2189,13 @@ public:
 			if (fmap) {
 				int amount = fread(lebuf, 1, 65536, fmap);
 				fclose(fmap);
+				LOG1("UPLOADING MAP \"%s\" (SV)\n", fname);
 				return amount;	//size read!
 			}			
-			else 
+			else {
+				LOG1("FAILED MAP DOWNLOAD ATTEMPT \"%s\" (SV)\n", fname);
 				return -1;	//can't read!
+			}
 		}
 
 		// don't know type!
@@ -3568,6 +3587,11 @@ public:
 		for (i=0;i<MAX_ROCKETS;i++)
 			world.rock[i].owner = -1;
 
+		//#NR: remove and regenerate powerups
+		for (i=0;i<MAX_PICKUPS;i++)
+			world.item[i].kind = 0;
+		check_pickup_creation();
+
 		//update the ADMIN SHELL
 		if (shellssock) {
 			char lebuf[256]; int count = 0;
@@ -3668,7 +3692,6 @@ public:
 		world.item[p].py = py;
 		world.item[p].x = itemx;	//copy from randomized position
 		world.item[p].y = itemy;
-
 		//screen-change message of players in the screen the powerup arrived
 		//fixes "invisible powerup" problem, I hope
 		for (i=0;i<maxplayers;i++)
@@ -4164,7 +4187,7 @@ public:
 					}
 					else if (cmd == 15) {
 						if (ival >= 0)
-						if (ival < MAX_PLAYERS)
+						if (ival < MAX_PICKUPS)
 							pups_min = ival;
 					}
 					else if (cmd == 16) {
@@ -5288,6 +5311,11 @@ public:
 				//crap update
 				send_player_crap_update(id, i);
 			}
+
+			//#NR
+			server->send_message(id, "\x02" WELCOME_MESSAGE_1, sizeof(WELCOME_MESSAGE_1)/sizeof(char)+1);
+			server->send_message(id, "\x02" WELCOME_MESSAGE_2, sizeof(WELCOME_MESSAGE_2)/sizeof(char)+1);
+			server->send_message(id, "\x02" WELCOME_MESSAGE_3, sizeof(WELCOME_MESSAGE_3)/sizeof(char)+1);
 		}
 
 		//check for team changes
