@@ -29,11 +29,14 @@
 #include <cstdlib>
 
 #include "incalleg.h"
-#include "utility.h"
 #include "commont.h"
+#include "language.h"
 #include "nassert.h"
+#include "network.h"
+#include "utility.h"
 
 using std::cout;
+using std::ifstream;
 using std::istream;
 using std::string;
 
@@ -150,3 +153,87 @@ bool GlobalDisplaySwitchHook::readAndClear() {
         flag = false;
     return f;
 }
+
+void MasterSettings::load(LogSet& log) {
+    static const char* defaultName = "koti.mbnet.fi";
+    static const char* defaultIP = "194.100.161.5";
+    static const int defaultPort = 80;
+    static const char* defaultQueryScript = "/outgun/servers/";
+    static const char* defaultSubmitScript = "/outgun/servers/submit.php";
+    static const char* defaultBugName = "-";
+    static const char* defaultBugIP = "130.233.18.23";
+    static const int defaultBugPort = 24900;
+
+    log("Reading config/master.txt");
+    ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
+
+    string name, ip, bugName, bugIP;
+    if (!getline_skip_comments(in, name))
+        name = defaultName;
+    if (!getline_skip_comments(in, ip))
+        ip = defaultIP;
+    else if (!isValidIP(ip, true, 1)) {
+        log.error(_("'$1', given in master.txt is not a valid IP address.", ip));
+        ip = defaultIP;
+    }
+    if (!getline_skip_comments(in, queryScript))
+        queryScript = defaultQueryScript;
+    if (!getline_skip_comments(in, submitScript))
+        submitScript = defaultSubmitScript;
+
+    if (!getline_skip_comments(in, bugName))
+        bugName = defaultBugName;
+    if (!getline_skip_comments(in, bugIP))
+        bugIP = defaultBugIP;
+    else if (!isValidIP(ip, true, 1)) {
+        log.error(_("'$1', given in master.txt is not a valid IP address.", bugIP));
+        bugIP = defaultBugIP;
+    }
+
+    in.close();
+
+    FILE *fp = fopen((wheregamedir + "config" + directory_separator + "master.txt").c_str(), "rb");
+    if (fp) {
+        static const int bufSize = 1024;    // the first kbyte should be enough to distinguish versions, even if the file at some point gets this large
+        NLubyte buf[bufSize];
+        const int numread = fread(buf, 1, bufSize, fp);
+        fclose(fp);
+        configCRC = nlGetCRC16(buf, numread);
+    }
+    else
+        configCRC = 0;
+
+    log("Resolving master server address...");
+    try {
+        if (name.length() < 3)
+            masterAddress.valid = NL_FALSE;
+        else
+            nlGetAddrFromName(name.c_str(), &masterAddress);
+        if (bugName.length() < 3)
+            bugAddress.valid = NL_FALSE;
+        else
+            nlGetAddrFromName(bugName.c_str(), &bugAddress);
+    } catch (...) {
+        log("Caught exception probably on nlGetAddrFromNameAsync()");
+        masterAddress.valid = bugAddress.valid = NL_FALSE;
+    }
+
+    if (masterAddress.valid == NL_FALSE) {
+        if (name.length() >= 3)
+            log("Can't resolve master server DNS name to IP.");
+        nlStringToAddr(ip.c_str(), &masterAddress);
+    }
+    if (bugAddress.valid == NL_FALSE) {
+        if (bugName.length() >= 3)
+            log("Can't resolve bug report server DNS name to IP.");
+        nlStringToAddr(bugIP.c_str(), &bugAddress);
+    }
+    if (nlGetPortFromAddr(&masterAddress) == 0) // port is unspecified or an error occured
+        nlSetAddrPort(&masterAddress, defaultPort);
+    if (nlGetPortFromAddr(&bugAddress) == 0) // port is unspecified or an error occured
+        nlSetAddrPort(&bugAddress, defaultBugPort);
+    log("Master server address set: %s (%s), port %d.", name.c_str(), ip.c_str(), nlGetPortFromAddr(&masterAddress));
+    log("Bug report server address set: %s (%s), port %d.", bugName.c_str(), bugIP.c_str(), nlGetPortFromAddr(&bugAddress));
+}
+
+MasterSettings g_masterSettings;

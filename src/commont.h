@@ -46,6 +46,8 @@ enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg
 
 const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
 
+enum DamageType { DT_rocket, DT_deathbringer, DT_collision };
+
 bool readJoystickButton(int button);    // operates on pseudo button ids that are Allegro button id + 1; returns false on all non-button-mapped indices
 
 class ClientControls {
@@ -127,6 +129,27 @@ public:
     static bool readAndClear();
 };
 
+class LogSet;
+
+class MasterSettings {
+    NLaddress masterAddress;
+    std::string queryScript;
+    std::string submitScript;
+    NLaddress bugAddress;
+    int configCRC;
+
+public:
+    const NLaddress& address() const { return masterAddress; }
+    const std::string& query() const { return queryScript; }
+    const std::string& submit() const { return submitScript; }
+    const NLaddress& bugReportAddress() const { return bugAddress; }
+    int crc() const { return configCRC; }
+
+    void load(LogSet& log);
+};
+
+extern MasterSettings g_masterSettings;
+
 static const int plw = 472, plh = 354;  // play area width/height
 
 static const int PLAYER_RADIUS = 15;
@@ -148,9 +171,6 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 //the default game port
 const NLushort DEFAULT_UDP_PORT = 25000;
-
-//the master server address
-extern NLaddress master_address;
 
 //directories for save/load maps
 #define SERVER_MAPS_DIR "maps"
@@ -235,6 +255,8 @@ enum {
     SAMPLE_1_MIN_LEFT,
 
     SAMPLE_KILLING_SPREE,
+
+    SAMPLE_COLLISION_DAMAGE,
 
     NUM_OF_SAMPLES
 };

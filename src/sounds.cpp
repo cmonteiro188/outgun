@@ -134,6 +134,7 @@ void Sounds::load_samples(const string& path) {
     load_outgun_sample(path, "hit", SAMPLE_HIT);
     load_outgun_sample(path, "wallhit", SAMPLE_WALLHIT);
     load_outgun_sample(path, "qwallhit", SAMPLE_POWERWALLHIT);
+    load_outgun_sample(path, "colldam", SAMPLE_COLLISION_DAMAGE);
 
     load_outgun_sample(path, "getdb", SAMPLE_GETDEATHBRINGER);
     load_outgun_sample(path, "usedb", SAMPLE_USEDEATHBRINGER);

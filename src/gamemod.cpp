@@ -109,7 +109,7 @@ bool GS_Balance::set(LogSet& log, const string& value) {
     else if (tval == "shuffle")
         *var = WorldSettings::TB_balance_and_shuffle;
     else
-        return basicErrorMessage(log, value, _("one of no, balance and shuffle"));
+        return basicErrorMessage(log, value, _("one of no, balance, and shuffle"));
     return true;
 }
 
@@ -122,7 +122,7 @@ bool GS_Collisions::set(LogSet& log, const string& value) {
     else if (tval == "special" || tval == "2")
         *var = PhysicalSettings::PC_special;
     else
-        return basicErrorMessage(log, value, _("one of no, normal and special"));
+        return basicErrorMessage(log, value, _("one of no, normal, and special"));
     return true;
 }
 

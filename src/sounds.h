@@ -37,6 +37,8 @@ public:
 
     void play(int s) const;
 
+    bool sampleExists(int s) const { return sample[s] != 0; }
+
     void search_themes(LineReceiver& dst) const;
     void select_theme(const std::string& dir);
 

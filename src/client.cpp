@@ -1218,6 +1218,7 @@ void Client::connect_failed_denied(const char* data, int length) {
                 break;
             case reject_wrong_server_password:
                 message = _("Wrong server password.");
+                m_serverPassword.password.set("");
                 break;
             default: nAssert(0);
             }
@@ -1863,7 +1864,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte target;
                 readByte(lebuf, count, target);
                 fx.player[target].hitfx = get_time() + .3;
-                addThreadMessage(new TM_Sound(SAMPLE_HIT));
+                addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
             }
 
             case data_score_update: {
@@ -2212,19 +2213,19 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte attacker, target;
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
-                const bool deathbringer = attacker & 0x80;
+                const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
                 const bool carrier_defended = attacker & 0x40;
                 const bool flag_defended = attacker & 0x20;
-                attacker &= 0x1F;
                 const bool flag = target & 0x80;
                 const bool wild_flag = target & 0x40;
+                attacker &= 0x1F;
                 target &= 0x1F;
                 const bool attacker_team = attacker / TSIZE;
                 const bool target_team = target / TSIZE;
                 const bool same_team = (attacker_team == target_team);
                 const bool known_attacker = fx.player[attacker].used;
                 string msg;
-                if (deathbringer) {
+                if (cause == DT_deathbringer) {
                     if (!known_attacker)
                         msg = _("$1 was choked.", fx.player[target].name);
                     else if (same_team)
@@ -2234,7 +2235,18 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (fx.player[target].onscreen)
                         addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
                 }
+                else if (cause == DT_collision) {
+                    if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
+                        msg = _("$1 received a mortal blow.", fx.player[target].name);
+                    else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
+                        msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
+                    else
+                        msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
+                    if (fx.player[target].onscreen)
+                        addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+                }
                 else {
+                    nAssert(cause == DT_rocket);
                     if (!known_attacker)    // this should never happen with the current code, but it's here for future
                         msg = _("$1 was nailed.", fx.player[target].name);
                     else if (same_team)
@@ -2267,9 +2279,9 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 if (known_attacker)
-                    fx.player[attacker].stats().add_kill(deathbringer);
+                    fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
                 fx.teams[attacker_team].add_kill();
-                fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
+                fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(get_time()));
                 fx.teams[target_team].add_death();
                 if (flag) {
                     if (known_attacker)
@@ -3007,23 +3019,17 @@ bool Client::getServerList() {
     }
 
     //connect the nonblocking way
-    if (nlConnect(sock, &master_address) == NL_FALSE) {
+    if (nlConnect(sock, &g_masterSettings.address()) == NL_FALSE) {
         log.error(_("Can't connect to master server. $1", getNlErrorString()));
         nlClose(sock);
         sock = NL_INVALID;
         return false;
     }
     
-    ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
-    string skip;
-    string master_script;
-    if (!getline_skip_comments(in, skip) || !getline_skip_comments(in, skip) || !getline_skip_comments(in, master_script))
-        master_script = "/outgun/servers/";
-    in.close();
-
     //build query
     ostringstream request;
-    request << "GET " << master_script << "?simple&branch=" << url_encode(GAME_BRANCH) << "&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
+    request << "GET " << g_masterSettings.query() << "?simple&branch=" << url_encode(GAME_BRANCH) << "&master=" << itoa(g_masterSettings.crc())
+            << "&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
     request << "User-Agent: " << GAME_STRING << '/' << GAME_BRANCH << ' ' << GAME_VERSION << "\r\n";
     request << "Connection: close\r\n\r\n";
 
@@ -3075,7 +3081,37 @@ bool Client::parseServerList(istream& response) {
     if (line != GAME_VERSION)
         menu.newVersion.set(_("New version: $1", line));
 
-    // The second line is the total number of servers.
+    // The second line is the number of lines in the new master.txt, or 0 if there is no new master.txt.
+    getline_smart(response, line);
+    int masterTxtLen;
+    {
+        istringstream is(line);
+        is >> masterTxtLen;
+        if (!is || is.peek() != eof_ch || masterTxtLen < 0 || masterTxtLen > 30)
+            return false;
+    }
+    if (masterTxtLen != 0) {
+        vector<string> masterTxt;
+        for (int i = 0; i < masterTxtLen; ++i) {
+            getline_smart(response, line);
+            masterTxt.push_back(line);
+        }
+        if (!getline_smart(response, line) || line != "--- end")
+            return false;
+        ofstream os((wheregamedir + "config" + directory_separator + "master.txt").c_str());
+        if (os) {
+            for (vector<string>::const_iterator li = masterTxt.begin(); li != masterTxt.end(); ++li)
+                os << *li << '\n';
+            const bool err = !os;
+            os.close();
+            if (err)    // try to remove the failed file and therefore return to default settings (which may be different from what were previously, but what can we do)
+                delete_file((wheregamedir + "config" + directory_separator + "master.txt").c_str());
+            else
+                g_masterSettings.load(log);
+        }
+    }
+
+    // After master.txt is the total number of servers.
     getline_smart(response, line);
     istringstream is(line);
     int total_servers;
@@ -3102,13 +3138,18 @@ bool Client::parseServerList(istream& response) {
     return (servers_read == total_servers);
 }
 
-void Client::loop(volatile bool* quitFlag) {
+void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     nAssert(quitFlag);
     quitCommand = false;
 
     menusel = menu_none;
     openMenus.clear();
-    showMenu(menu);
+    if (firstTimeSplash) {
+        menu.options.bugReports.policy.set(ABR_minimal);
+        showMenu(menu.options.bugReports);
+    }
+    else
+        showMenu(menu);
     gameshow = false;
 
     const unsigned long sendFrameStep = 20; // 20 steps of 200 Hz clock equals the 10 Hz server clock
@@ -4154,6 +4195,9 @@ void Client::initMenus() {
     menu.options.language.menu     .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptLanguage         >(this));
     menu.options.language.menu        .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
 
+    menu.options.bugReports.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptBugReporting     >(this));   // save instantly because it has its own file
+    menu.options.bugReports.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
+
     menu.ownServer.menu             .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareOwnServerMenu   >(this));
     menu.ownServer.start                .setHook(new MCB::N<Textarea,       &Client::MCF_startServer            >(this));
     menu.ownServer.play                 .setHook(new MCB::N<Textarea,       &Client::MCF_playServer             >(this));
@@ -4171,6 +4215,7 @@ void Client::initMenus() {
     m_errors.menu.setCaption(_("Errors"));
 
     loadHelp();
+    loadSplashScreen();
 
     menu.options.graphics.init(client_graphics);
     menu.options.sounds.init(client_sounds);
@@ -4464,6 +4509,23 @@ void Client::MCF_acceptLanguage() {
         log.error(_("config/language.txt can't be written."));
 }
 
+void Client::MCF_acceptBugReporting() {
+    g_autoBugReporting = menu.options.bugReports.policy();
+    const string main_cfg_file = wheregamedir + "config" + directory_separator + "maincfg.txt";
+    ofstream os(main_cfg_file.c_str());
+    if (os) {
+        switch (g_autoBugReporting) {
+            case ABR_disabled: os << "autobugreporting disabled"; break;
+            case ABR_minimal:  os << "autobugreporting minimal" ; break;
+            case ABR_withDump: os << "autobugreporting complete"; break;
+            default: nAssert(0);
+        }
+        os << '\n';
+    }
+    else
+        log.error(_("Can't open $1 for writing.", main_cfg_file));
+}
+
 void Client::MCF_playerPasswordAccept() {
     openMenus.close(&m_playerPassword.menu);
     if (m_playerPassword.save())
@@ -4583,6 +4645,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
     }
     if (scan == KEY_ENTER) {    // connect to the address
         serverIP = spy.address();
+        m_serverPassword.password.set("");
         connect_command(true);
     }
     else if (scan == KEY_INSERT) {  // add the server to the list shown below
@@ -4620,6 +4683,7 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
 
 void Client::MCF_connect(Textarea& target) {
     serverIP = menu.connect.getAddress(target);
+    m_serverPassword.password.set("");
     connect_command(true);
 }
 
@@ -4658,6 +4722,7 @@ void Client::MCF_playServer() {
         nAssert(nlStringToAddr("127.0.0.1", &serverIP));
         nAssert(nlSetAddrPort(&serverIP, listenServer.port()));
         openMenus.clear();
+        m_serverPassword.password.set("");
         connect_command(true);
     }
 }
@@ -4679,6 +4744,43 @@ void Client::loadHelp() {
     string line;
     while (getline_smart(in, line))
         menu.help.addLine(line);
+}
+
+void Client::loadSplashScreen() {
+    menu.options.bugReports.clear();
+    const string splashFile = wheregamedir + "languages" + directory_separator + "splash." + language.code() + ".txt";
+    ifstream in(splashFile.c_str());
+    if (in) {
+        string line;
+        while (getline_smart(in, line))
+            menu.options.bugReports.addLine(line);
+    }
+    else {
+        static const char* msg[] = {
+            GAME_STRING " " GAME_VERSION ", copyright © 2002-2004 multiple authors.",
+            "",
+            "Outgun is free software under the GNU GPL, and you are welcome to",
+            "redistribute it under certain conditions. Outgun comes with ABSOLUTELY",
+            "NO WARRANTY. For details, see the accompanying file COPYING.",
+            "",
+            "To help us remove any remaining bugs, you can let Outgun automatically",
+            "send us a notification when an unexpected failure occurs. You can choose",
+            "between no reporting, minimal information, and a complete report. The",
+            "minimal information includes no more than the file name and line number",
+            "of the failing assertion, and the version of Outgun. The complete report",
+            "also includes a copy of Outgun's stack. This information is only used to",
+            "find the cause of the failure. We can't contact you for more information,",
+            "so it is recommended to also send an e-mail with more details.",
+            "",
+            "Choose the preferred mode below with left and right arrow keys, and close",
+            "the menu with Enter or ESC. After the first time of starting Outgun, you",
+            "can find this screen from the Options menu.",
+            "",
+            0
+        };
+        for (const char** line = msg; *line; ++line)
+            menu.options.bugReports.addLine(*line);
+    }
 }
 
 void Client::openMessageLog() {

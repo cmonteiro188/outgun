@@ -24,6 +24,7 @@
  */
 
 #include "commont.h"
+#include "debugconfig.h"
 #include "mutex.h"
 
 // put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
@@ -36,5 +37,6 @@ std::string wheregamedir;
 
 MutexHolder nlOpenMutex;
 
+AutoBugReporting g_autoBugReporting = ABR_disabled;
 bool g_leetnetLog = true;
 bool g_leetnetDataLog = true;

@@ -208,7 +208,7 @@ public:
         int packet_id;
 
         #ifdef LEETNET_DATA_LOG
-        if (g_leetnetDataLog) {
+        if (datalog) {
             MutexLock ml(datalogMutex);
             static const char writeModeMarker = 'W';
             fwrite(&writeModeMarker, sizeof(char), 1, datalog);
@@ -385,7 +385,7 @@ public:
     void process_incoming_datagram(char *udp_data, int udp_length) {
 DLOG_Scope s("CPIDg");
         #ifdef LEETNET_DATA_LOG
-        if (g_leetnetDataLog) {
+        if (datalog) {
             MutexLock ml(datalogMutex);
             static const char readModeMarker = 'R';
             fwrite(&readModeMarker, sizeof(char), 1, datalog);

@@ -28,8 +28,11 @@
 #include "incalleg.h"
 
 #ifndef DISABLE_ENHANCED_NASSERT
+#include <nl.h>
 #include "commont.h"
+#include "debugconfig.h"
 #include "language.h"
+#include "mutex.h"
 #include "platform.h"
 #include "utility.h"
 #endif
@@ -47,17 +50,30 @@ void stackDump(FILE* dst) { // makes heavy assumptions about processor architect
     }
 }
 
-void nasprintf(const char* expr, ...) {
+int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
+    unsigned long unused;
+    bufCap -= 4;    // make it better work as a stopper
+    int bufSize = 0;
+    unsigned long* stackPtr = (&unused) + 1;
+    writeLong(buf, bufSize, reinterpret_cast<unsigned long>(stackPtr));
+    for (; *stackPtr != STACK_GUARD && bufSize <= bufCap; ++stackPtr)
+        writeLong(buf, bufSize, *stackPtr);
+    return bufSize;
+}
+
+void nasprintf(const char* file, int line, const char* expr, ...) {
     // display to console (should be safest, but rarely visible on Windows)
+    fprintf(stderr, "Assertion failed: ");
     va_list argptr;
     va_start(argptr, expr);
     vfprintf(stderr, expr, argptr);
     va_end(argptr);
+    fprintf(stderr, ", file %s, line %d\n", file, line);
     #ifndef DISABLE_ENHANCED_NASSERT
     // save to assert.log
     FILE* asfile = fopen((wheregamedir + "log" + directory_separator + "assert.log").c_str(), "at");
     if (asfile) {
-        fprintf(asfile, "%s  %s  ", date_and_time().c_str(), GAME_SHORT_VERSION);
+        fprintf(asfile, "%s  %s  %s:%d ", date_and_time().c_str(), GAME_SHORT_VERSION, file, line);
         va_start(argptr, expr);
         vfprintf(asfile, expr, argptr);
         va_end(argptr);
@@ -70,40 +86,74 @@ void nasprintf(const char* expr, ...) {
     }
     // display using messageBox
     va_start(argptr, expr);
-    char buf[10000];
+    char* buf = new char[10000];    // must allocate from heap, otherwise this fills the stack dump; no need to free as we're already exiting
     platVsnprintf(buf, 10000, expr, argptr);
     va_end(argptr);
-    messageBox(_("Internal error"), std::string(buf) + '\n' + _("This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi"));
+    messageBox(_("Internal error"), std::string("Assertion failed: ") + std::string(buf) + ", file " + file + ", line " + itoa(line) + '\n' +
+               _("This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi"));
+    // finally, throw it to the net and hope it's caught
+    if (g_autoBugReporting == ABR_disabled || strcmp(GAME_BRANCH, "base"))
+        return;
+    static const int stackDumpSize = 10000; // it splits into 7 Ethernet frames and so has a good chance of getting lost, but much less size isn't useful
+    char* mbuf = new char[stackDumpSize];   // must allocate from heap, otherwise this fills the stack dump; no need to free as we're already exiting
+    int len = 0;
+    writeString(mbuf, len, GAME_STRING);
+    writeString(mbuf, len, GAME_SHORT_VERSION);
+    writeString(mbuf, len, file);
+    writeLong(mbuf, len, line);
+    if (g_autoBugReporting == ABR_withDump) {
+        buf[200] = '\0';    // truncate extremely long messages
+        writeString(mbuf, len, buf);
+    }
+    nlOpenMutex.lock();
+    nlDisable(NL_BLOCKING_IO);
+    NLsocket dbgSock = nlOpen(0, NL_UNRELIABLE);
+    nlOpenMutex.unlock();
+    if (dbgSock == NL_INVALID)
+        return;
+    nlSetRemoteAddr(dbgSock, &g_masterSettings.bugReportAddress());
+    nlWrite(dbgSock, mbuf, len);
+    #ifdef ALLEGRO_WINDOWS
+    // the stack dumps are only useful from known executables
+    if (g_autoBugReporting == ABR_withDump) {
+        // generate a secondary packet with the top of stack dump information
+        len = stackDump(mbuf, stackDumpSize);
+        nlWrite(dbgSock, mbuf, len);
+    }
+    #endif
+    nlClose(dbgSock);
     #endif // DISABLE_ENHANCED_NASSERT
 }
 
 #define ARGP(num) const char* name##num, int val##num
 
 void nAssertFail(const char* expr, const char* file, int line) {
-    nasprintf("Assertion failed: %s, file %s, line %d\n", expr, file, line);
+    nasprintf(file, line, "%s",
+              expr);
     exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), const char* file, int line) {
-    nasprintf("Assertion failed: %s (%s==%d), file %s, line %d\n", expr, name1, val1, file, line);
+    nasprintf(file, line, "%s (%s==%d)",
+              expr, name1, val1);
     exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), const char* file, int line) {
-    nasprintf("Assertion failed: %s (%s==%d, %s==%d), file %s, line %d\n",
-                                                expr, name1, val1, name2, val2, file, line);
+    nasprintf(file, line, "%s (%s==%d, %s==%d)",
+              expr, name1, val1, name2, val2);
     exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), const char* file, int line) {
-    nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d), file %s, line %d\n",
-                                    expr, name1, val1, name2, val2, name3, val3, file, line);
+    nasprintf(file, line, "%s (%s==%d, %s==%d, %s==%d)",
+              expr, name1, val1, name2, val2, name3, val3);
     exit(-1);
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const char* file, int line) {
-    nasprintf("Assertion failed: %s (%s==%d, %s==%d, %s==%d, %s==%d), file %s, line %d\n",
-                                    expr, name1, val1, name2, val2, name3, val3, name4, val4, file, line);
+    nasprintf(file, line, "%s (%s==%d, %s==%d, %s==%d, %s==%d)",
+              expr, name1, val1, name2, val2, name3, val3, name4, val4);
     exit(-1);
 }
 

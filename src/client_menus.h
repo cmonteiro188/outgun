@@ -183,14 +183,31 @@ public:
     void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
+class Menu_bugReportPolicy {
+    std::vector<std::string> lines;
+
+public:
+    Textobject text;
+    Select<AutoBugReporting> policy;
+
+    Menu menu;
+
+    Menu_bugReportPolicy();
+    void clear() { lines.clear(); }
+    void addLine(const std::string& line);
+
+    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+};
+
 class Menu_options {
 public:
-    Menu_name       name;
-    Menu_game       game;
-    Menu_controls   controls;
-    Menu_graphics   graphics;
-    Menu_sounds     sounds;
-    Menu_language   language;
+    Menu_name            name;
+    Menu_game            game;
+    Menu_controls        controls;
+    Menu_graphics        graphics;
+    Menu_sounds          sounds;
+    Menu_language        language;
+    Menu_bugReportPolicy bugReports;
 
     Menu menu;
 

@@ -412,24 +412,26 @@ void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_
 }
 
 void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                                      bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const {
+                                      DamageType cause, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_kill);
-    // first byte, deatbringer bit, carrier defended bit, flag defended bit and attacker id
+    // first byte: deatbringer bit, carrier defended bit, flag defended bit, and attacker id
     NLubyte attacker_info = attacker.id;
-    if (deathbringer)
+    if (cause == DT_deathbringer)
         attacker_info |= 0x80;
     if (carrier_defended)
         attacker_info |= 0x40;
     if (flag_defended)
         attacker_info |= 0x20;
-    // second byte, flag bit, wild flag bit and target id
+    // second byte: flag bit, wild flag bit, collision bit, and target id
     NLubyte tar_flag = target.id;
     if (flag)
         tar_flag |= 0x80;
     if (wild_flag)
         tar_flag |= 0x40;
+    if (cause == DT_collision)
+        tar_flag |= 0x20;
     writeByte(lebuf, count, attacker_info);
     writeByte(lebuf, count, tar_flag);
     broadcast_message(lebuf, count);
@@ -1901,16 +1903,8 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 void ServerNetworking::run_mastertalker_thread() {
     logThreadStart("run_mastertalker_thread", log);
 
-    ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
-    string line;
-    string master_script;
-    if (!getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, line) || !getline_skip_comments(in, master_script))
-        master_script = "/outgun/servers/submit.php";
-    in.close();
-
-    // determine the public IP to send to master
     const string& localAddress = host->config().ipAddress;
-    if (check_private_IP(localAddress)) {
+    if (!isValidIP(localAddress) || check_private_IP(localAddress)) {
         log("Master talker: No public IP address. Not talking to master server.");
         return;
     }
@@ -1938,7 +1932,7 @@ void ServerNetworking::run_mastertalker_thread() {
             continue;
         }
 
-        if (nlConnect(msock, &master_address) == NL_FALSE) {
+        if (nlConnect(msock, &g_masterSettings.address()) == NL_FALSE) {
             log("Master talker: Can't connect to master server.");
             nlClose(msock);
             continue;
@@ -1950,7 +1944,7 @@ void ServerNetworking::run_mastertalker_thread() {
         // build and send data
         map<string, string> parameters = master_parameters(localAddress);
         const string data = build_http_data(parameters);
-        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, master_script, data);
+        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.submit(), data);
         if (result != NR_ok)
             log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         else {
@@ -2001,7 +1995,7 @@ void ServerNetworking::run_mastertalker_thread() {
     }
 
     //connect
-    if (nlConnect(msock, &master_address) == NL_FALSE) {
+    if (nlConnect(msock, &g_masterSettings.address()) == NL_FALSE) {
         log.error(_("Master talker: (Quit) Can't connect to master server."));
         nlClose(msock);
         return;
@@ -2010,7 +2004,7 @@ void ServerNetworking::run_mastertalker_thread() {
     // send quit message
     map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
     const string data = build_http_data(parameters);
-    NetworkResult result = post_http_data(msock, 0, 5000, master_script, data); // only 5 seconds allowed; it's not so crucial
+    NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
     if (result != NR_ok)
         log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
     else {

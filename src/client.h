@@ -390,6 +390,7 @@ class Client {
     void MCF_prepareSndMenu();
     void MCF_refreshLanguages();
     void MCF_acceptLanguage();
+    void MCF_acceptBugReporting();
     void MCF_prepareServerMenu();
     void MCF_updateServers();
     void MCF_refreshServers();
@@ -406,6 +407,7 @@ class Client {
     void MCF_stopServer();
 
     void loadHelp();
+    void loadSplashScreen();
     void openMessageLog();
     void closeMessageLog();
     void CB_tournamentToken(std::string token); // callback called by tournamentPassword from another thread
@@ -474,7 +476,7 @@ public:
     Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_);
     ~Client();
     bool start();
-    void loop(volatile bool* quitFlag);
+    void loop(volatile bool* quitFlag, bool firstTimeSplash);
     void stop();
 };
 

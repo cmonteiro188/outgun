@@ -68,7 +68,7 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
     const int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
     nAssert(n == 2);
     if (n != 2)
-        return false;
+        return true;
     // private IP ranges:
     //  10.  0.0.0  -   10.255.255.255
     // 172. 16.0.0  -  172. 31.255.255

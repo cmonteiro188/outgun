@@ -192,6 +192,26 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
     logThreadStart("main", log);
 
+    bool showFirstTimeSplash = true;
+    {
+        const string main_cfg_file = wheregamedir + "config" + directory_separator + "maincfg.txt";
+        ifstream in(main_cfg_file.c_str());
+        string line;
+        if (getline_skip_comments(in, line)) {
+            showFirstTimeSplash = false;
+            if (line == "autobugreporting disabled")
+                g_autoBugReporting = ABR_disabled;
+            else if (line == "autobugreporting minimal")
+                g_autoBugReporting = ABR_minimal;
+            else if (line == "autobugreporting complete")
+                g_autoBugReporting = ABR_withDump;
+            else {
+                showFirstTimeSplash = true;
+                g_autoBugReporting = ABR_disabled;
+            }
+        }
+    }
+
     check_dir("config", log);
     check_dir("languages", log);
 
@@ -222,12 +242,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     bool targetprio_specified = false;
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
-
-    serverCfg.ipAddress = getPublicIP(log, false);
-    if (serverCfg.ipAddress.empty()) {
-        LogSet noLogSet(0, 0, 0);   // don't log this second round which would just duplicate information
-        serverCfg.ipAddress = getPublicIP(noLogSet, true);
-    }
 
     // check args
     for (int i = 1; i < argc; i++) {
@@ -356,36 +370,14 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     // enable statistics
     nlEnable(NL_SOCKET_STATS);
 
-    {
-        // resolve master server address
-        log("Resolving master server address...");
-        ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
-        string name, address;
-        if (!getline_skip_comments(in, name))
-            name = "koti.mbnet.fi";
-        if (!getline_skip_comments(in, address))
-            address = "194.100.161.5";
-        else if (!isValidIP(address, true, 1)) {
-            log.error(_("'$1', given in master.txt is not a valid IP address.", address.c_str()));
-            address = "194.100.161.5";
-        }
-        in.close();
-        try {
-            nlGetAddrFromName(name.c_str(), &master_address);
-        } catch (...) {
-            log("Caught exception probably on nlGetAddrFromNameAsync()");
-            master_address.valid = NL_FALSE;
-        }
-
-        if (master_address.valid == NL_FALSE) {
-            log("Can't resolve master server DNS name to IP.");
-            nlStringToAddr(address.c_str(), &master_address);
-        }
-
-        if (nlGetPortFromAddr(&master_address) == 0)    // port is unspecified or an error occured
-            nlSetAddrPort(&master_address, 80);
-        log("Master server address set: %s (%s), port %d.", name.c_str(), address.c_str(), nlGetPortFromAddr(&master_address));
+    if (serverCfg.ipAddress.empty())
+        serverCfg.ipAddress = getPublicIP(log, false);
+    if (serverCfg.ipAddress.empty()) {
+        LogSet noLogSet(0, 0, 0);   // don't log this second round which would just duplicate information
+        serverCfg.ipAddress = getPublicIP(noLogSet, true);
     }
+
+    g_masterSettings.load(log);
 
     // install higher-accuracy timer interrupt
     LOCK_VARIABLE(time_counter);
@@ -515,7 +507,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         serverCfg.statusOutput = statusOutputWindow;
         gameclient = new Client(log, clientCfg, serverCfg, memoryErrorLog);
         if (gameclient->start()) {
-            gameclient->loop(GlobalCloseButtonHook::flagPtr());
+            gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
             gameclient->stop();
         }
         else

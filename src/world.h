@@ -811,7 +811,7 @@ public:
 
     void resetPlayer(int target, double time_penalty = 0.); // take the player out of the game; the clients must be informed and this function doesn't do that
     void killPlayer(int target, bool time_penalty); // kill the player in the usual way with score penalties and deathbringer effect; the clients must be informed and this function doesn't do that
-    void damagePlayer(int target, int attacker, int damage, bool deathbringer);
+    void damagePlayer(int target, int attacker, int damage, DamageType type);
     void removePlayer(int pid);
     void suicide(int pid);
     void respawn_pickup(int p);

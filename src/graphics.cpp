@@ -189,7 +189,7 @@ void Graphics::setColors() {
     col[COLGREEN]  = makecol(0x00, 0xFF, 0x00);
     col[COLYELLOW] = makecol(0xFF, 0xFF, 0x00);
     col[COLWHITE]  = makecol(0xFF, 0xFF, 0xFF);
-    col[COLMAG]    = makecol(0xFF, 0x00, 0xFF);
+    col[COLMAG]    = makecol(0xFF, 0x08, 0xFF); // can't use pure magenta, it will end up transparent in the themes
     col[COLCYAN]   = makecol(0x00, 0xFF, 0xFF);
     col[COLORA]    = makecol(0xFF, 0xA0, 0x00);
     col[COLLRED]   = makecol(0xFF, 0x55, 0x44);
@@ -1391,16 +1391,16 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
         blue << setw(caption_width - blue.str().length()) << _("$1 capt", itoa_w(teams[1].score(), 3));
     }
     textout_ex(drawbuf, font,  red.str().c_str(), sbx, sby                                , teamlcol[0], -1);
-    textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 1) * line_h, teamlcol[1], -1);
+    textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 2) * line_h, teamlcol[1], -1);
 
-    int line[2] = { 0, 0 };
+    int line[2] = { 1, 1 };
     for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi) {
         const ClientPlayer& player = **pi;
         ostringstream name;
         name << player.name.substr(0, 15);
         const int pcol = col[player.color()];
         const int x = sbx;
-        const int y = sby + (line[player.team()] + 1) * line_h + player.team() * (maxplayers / 2 + 1) * line_h;
+        const int y = sby + line[player.team()] * line_h + player.team() * (maxplayers / 2 + 2) * line_h;
         draw_scoreboard_name(name.str(), x, y, pcol, (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth()));
         draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
         line[player.team()]++;

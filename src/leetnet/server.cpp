@@ -387,7 +387,7 @@ public:
 DLOG_Scope s("BcF");
  
         #ifdef LEETNET_DATA_LOG
-        if (g_leetnetDataLog)
+        if (datalog)
             MutexLock ml(datalogMutex);
         #endif
 
@@ -397,7 +397,7 @@ DLOG_Scope s("BcF");
             int packet_id;
 
             #ifdef LEETNET_DATA_LOG
-            if (g_leetnetDataLog) {
+            if (datalog) {
                 static const char writeModeMarker = 'W';
                 fwrite(&writeModeMarker, sizeof(char), 1, datalog);
                 double currTime = get_time();
@@ -427,7 +427,7 @@ DLOG_Scope s("SF");
         int packet_id;
 
         #ifdef LEETNET_DATA_LOG
-        if (g_leetnetDataLog) {
+        if (datalog) {
             MutexLock ml(datalogMutex);
             static const char writeModeMarker = 'W';
             fwrite(&writeModeMarker, sizeof(char), 1, datalog);
@@ -604,7 +604,7 @@ DLOG_Scope s("PIDg");
             log("DO CLIENT %i",i);
 
             #ifdef LEETNET_DATA_LOG
-            if (g_leetnetDataLog) {
+            if (datalog) {
                 MutexLock ml(datalogMutex);
                 static const char readModeMarker = 'R';
                 fwrite(&readModeMarker, sizeof(char), 1, datalog);

@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "incalleg.h"
+#include "debugconfig.h"    // for AutoBugReporting
 #include "graphics.h"
 #include "language.h"
 #include "menu.h"
@@ -357,15 +358,45 @@ Menu_language::Menu_language() :
     // it's callers responsibility to set up the choices for language
 }
 
-Menu_options::Menu_options() :
-    name    (),
-    game    (),
-    controls(),
-    graphics(),
-    sounds  (),
-    language(),
+Menu_bugReportPolicy::Menu_bugReportPolicy() :
+    text    (),
+    policy  (_("Automatic bug reporting")),
 
-    menu    (_("Options"), true)
+    menu    (_("Bug report policy"), false)
+{
+    menu.add_component(&text);
+    menu.add_component(&policy);
+
+    policy.addOption(_("disabled"), ABR_disabled);
+    policy.addOption(_("minimal" ), ABR_minimal);
+    policy.addOption(_("complete"), ABR_withDump);
+    policy.set(g_autoBugReporting);
+}
+
+void Menu_bugReportPolicy::addLine(const string& line) {
+    lines.push_back(line);
+
+    const int oldSel = menu.selection();
+    menu.clear_components();
+    text = Textobject();
+    for (vector<string>::iterator li = lines.begin(); li != lines.end(); ++li)
+        text.addLine(*li);
+    text.setEnable(false);
+    menu.add_component(&text);
+    menu.add_component(&policy);
+    menu.setSelection(oldSel);
+}
+
+Menu_options::Menu_options() :
+    name      (),
+    game      (),
+    controls  (),
+    graphics  (),
+    sounds    (),
+    language  (),
+    bugReports(),
+
+    menu      (_("Options"), true)
 {
     menu.add_component(&name.menu);
     menu.add_component(&game.menu);
@@ -375,16 +406,18 @@ Menu_options::Menu_options() :
     menu.add_component(&sounds.menu);
     ins_space();
     menu.add_component(&language.menu);
+    menu.add_component(&bugReports.menu);
 }
 
 void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
     menu.setHook(opener);
-    name    .recursiveSetMenuOpener(opener->clone());
-    game    .recursiveSetMenuOpener(opener->clone());
-    controls.recursiveSetMenuOpener(opener->clone());
-    graphics.recursiveSetMenuOpener(opener->clone());
-    sounds  .recursiveSetMenuOpener(opener->clone());
-    language.recursiveSetMenuOpener(opener->clone());
+    name      .recursiveSetMenuOpener(opener->clone());
+    game      .recursiveSetMenuOpener(opener->clone());
+    controls  .recursiveSetMenuOpener(opener->clone());
+    graphics  .recursiveSetMenuOpener(opener->clone());
+    sounds    .recursiveSetMenuOpener(opener->clone());
+    language  .recursiveSetMenuOpener(opener->clone());
+    bugReports.recursiveSetMenuOpener(opener->clone());
 }
 
 Menu_ownServer::Menu_ownServer() :

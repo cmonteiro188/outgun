@@ -38,6 +38,10 @@ static const bool WATCH_CONNECTION = false;
 // briefly log message types when receiving (both client and server; LEETNET_DATA_LOG does the same much better but the logs aren't as easy to read)
 static const bool LOG_MESSAGE_TRAFFIC = false;
 
+// what to report over the net in the event of an assertion
+enum AutoBugReporting { ABR_disabled, ABR_minimal, ABR_withDump };
+extern AutoBugReporting g_autoBugReporting;
+
 
 // Leetnet specific settings:
 
