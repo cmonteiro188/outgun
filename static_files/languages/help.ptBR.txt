@@ -1,0 +1,61 @@
+Para mais informações acesse as fontes:
+ Documentação do jogo              diretório 'doc' (em Inglês)
+ Site original do outgun           http://outgun.sf.net/
+ desenvolvimento por Nix e Huntta  http://koti.mbnet.fi/outgun/
+ 
+ Problemas na tradução para o português, por favor fale com:
+ ThOR27 - Thomaz de Oliveira dos Reis
+ Contatos: 
+ E-Mails: thommy@globo.com, thor27@ibest.com.br (serve como MSNM)
+ ICQ: 117089308 - YIM: thommybill - Jabber: thor27@jabber.org
+
+  
+Controles
+ 
+ Movimentos         Setas ou keypad
+ Atirar             Control
+ Correr             Shift
+ Esquivar           Alt ou AltGr
+ 
+Outras Teclas
+ 
+ Falar              Apenas digite sua mensagem e aperte enter.
+ Falar para o Time  Inicie sua mensagem com um ponto ('.').
+ Mudar de time      End (se seu time estiver com mais jogadores)
+ Suicidar           Delete
+ Largar a bandeira  Page Down
+ Lista de mapas     F2
+ Estado do time     F3
+ Estado do jogador  F4
+ Info do servidor   F5
+ Votar para a 
+ mudança de mapas   F8
+ Screenshot         F11
+ Mais mensagens     Insert
+ 
+Conceito do Jogo
+ 
+ Você é membro de um time, ou vermelho ou azul, escolhido para 
+ você aleatoreamente quando conecta. Seu objetivo é ajudar o seu 
+ time ganhar, capturando a bandeira inimiga. Para capturar a 
+ bandeira, um membro do seu time precisa roubar a bandeira inimiga
+ e traze-la para a bandeira do time, desde que sua bandeira não 
+ tenha sido roubada! Capiche?
+ 
+Saúe e energia
+ 
+Se sua saúde chegar a zero, você morre. A energia é usada para correr
+atirar e também uma proteção para sua saúde quando você tiver o poder 
+do escudo (você saberá quando ve-lo). Saúde e energia se regenera com 
+o tempo.
+
+ 
+Mini-mapa
+ 
+ Na diagonal superior direita da tela está o mini-mapa. Ele mostra
+ todos os jogadores que vocês e seus parceiros de time podem ver.
+ (e ainda mais com o poder da sombra).
+ 
+Poderes
+ 
+Se você ver algum item pelo chão, pegue-o. Ele é um item de poder.
