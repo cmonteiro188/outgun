@@ -1,6 +1,8 @@
 #ifndef SERVNET_H_INC
 #define SERVNET_H_INC
 
+#include <map>
+
 class gameserver_c;
 class masterjob_c;
 class server_c;
@@ -49,6 +51,13 @@ class ServerNetworking {
 	static void* thread_shellmaster_f(void* arg);
 	static void* thread_shellslave_f(void* arg);
 
+	//thread for server website interaction
+	static void* thread_website_f(void* arg);
+
+	std::map<std::string, std::string> website_parameters(const std::string& address) const;
+	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
+	NLint post_http_data(const std::string& script, const std::string& parameters) const;
+
 	gameserver_c*	host;
 	ServerWorld&	world;
 
@@ -57,6 +66,7 @@ class ServerNetworking {
 	NLsocket		msock;
 	pthread_t		mthread;
 	double			master_talk_time;
+
 	bool			master_pre_exiting_ok;	// if no need to kill the master socket...
 	bool			master_exiting_ok;		// if no need to kill the master socket...
 	bool			master_never_talked;	// if never talked to master, then no need to unregister the server when qutting (optimization)
@@ -79,6 +89,10 @@ class ServerNetworking {
 	pthread_t		shellmthread;
 	NLsocket		shellssock;
 	pthread_t		shellsthread;
+	NLsocket		websock;
+	pthread_t		webthread;
+	
+	bool			website_exiting_ok;
 
 	char			hostname[256];
 	int				ping_send_client;
@@ -150,11 +164,15 @@ public:
 	void run_shellmaster_thread();
 	void run_shellslave_thread();
 
+	void run_website_thread();
+
 	void broadcast_frame(bool gameRunning);
 
 	void reload_hostname();
 	NLaddress get_client_address(int cid) const;
 	int get_player_count() const { return player_count; }
 };
+
+bool is_url_safe(char c);
 
 #endif

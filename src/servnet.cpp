@@ -1,3 +1,4 @@
+#include <cctype>
 #include <cassert>
 
 #include "commont.h"
@@ -526,6 +527,10 @@ bool ServerNetworking::start() {
 		master_never_talked = true;		//not talked yet
 		pthread_create(&mthread, 0, thread_mastertalker_f, this);
 	}
+
+	//start website thread
+	websock = NL_INVALID;		//not opened
+	pthread_create(&webthread, 0, thread_website_f, this);
 
 	//shell socket
 	//v0.4.2 : new port
@@ -1919,7 +1924,7 @@ void ServerNetworking::run_mastertalker_thread() {
 			nlDisable(NL_BLOCKING_IO);
 			if (msock == NL_INVALID) {
 				LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO MASTER SERVER!!\n");
-				continue;
+				break; //continue;
 			}
 
 			//LOG("MASTER TALKER: socket open\n");
@@ -1933,7 +1938,7 @@ void ServerNetworking::run_mastertalker_thread() {
 				LOG("SERVER CAN'T CONNECT TO WWW.MYCGISERVER.COM:80 !!!\n");
 				nlClose(msock);
 				msock = NL_INVALID;
-				continue;
+				break; //continue;
 			}
 
 			//LOG("MASTER TALKER: socket connected\n");
@@ -2014,7 +2019,6 @@ void ServerNetworking::run_mastertalker_thread() {
 			nlClose(msock);
 			msock = NL_INVALID;
 		}
-
 		//no: sleep a bit
 		MS_SLEEP(500);
 	}
@@ -2145,6 +2149,258 @@ void ServerNetworking::run_mastertalker_thread() {
 	//close socket
 	nlClose(msock);
 	msock = NL_INVALID;
+}
+
+void ServerNetworking::run_website_thread() {
+	LOG("run_website_thread()\n");
+
+	string address;
+	if (force_ip)
+		address = force_ip_name;
+	else {
+		//don't force: resolve
+		NLaddress myadr;
+		get_self_IP(&myadr);
+		char addr[NL_MAX_STRING_LENGTH];
+		nlAddrToString(&myadr, addr);
+		address = addr;
+	}
+
+	// load web script location
+	ifstream in("website.txt");
+	if (!in) {
+		LOG("Can not open website.txt.\n");
+		return;
+	}
+	string site_name, site_ip, site_script;
+	if (!getline(in, site_name) || !getline(in, site_ip) || !getline(in, site_script)) {
+		LOG("No valid format in website.txt.\n");
+		return;
+	}
+	in.close();
+	if (site_script.empty() || (site_name.empty() && site_ip.empty())) {
+		LOG("No script or site location in website.txt.\n");
+		return;
+	}
+
+	NLaddress website_address;
+	double website_talk_time = 0.0;
+
+	do {
+		if (get_time() > website_talk_time) {
+			website_talk_time = get_time() + 2 * 60.0;		// 2 minutes
+			LOG("Start sending information to server website.\n");
+			nlEnable(NL_BLOCKING_IO);
+			websock = nlOpen(0, NL_RELIABLE);
+			nlDisable(NL_BLOCKING_IO);
+			if (websock == NL_INVALID) {
+				LOG("SERVER CAN'T OPEN SOCKET TO CONNECT TO SERVER WEBSITE!\n");
+				continue;
+			}
+			nlGetAddrFromName(site_name.c_str(), &website_address);
+			int web_port = nlGetPortFromAddr(&website_address);
+			if (!web_port)
+				web_port = 80;
+			nlSetAddrPort(&website_address, web_port);
+			if (nlConnect(websock, &website_address) == NL_FALSE) {		// connect
+				LOG2("SERVER CAN'T CONNECT TO %s:%d! Trying by IP address.\n", site_name.c_str(), web_port);
+				nlStringToAddr(site_ip.c_str(), &website_address);
+				web_port = nlGetPortFromAddr(&website_address);
+				if (!web_port)
+					web_port = 80;
+				nlSetAddrPort(&website_address, web_port);
+				if (nlConnect(websock, &website_address) == NL_FALSE) {	// connect to IP address
+					nlClose(websock);
+					websock = NL_INVALID;
+					LOG2("SERVER CAN'T CONNECT TO %s:%d!\n", site_ip.c_str(), web_port);
+					continue;
+				}
+				else {	// save new name for web server
+					NLchar new_name[NL_MAX_STRING_LENGTH];
+					nlGetNameFromAddr(&website_address, new_name);
+					if (new_name && site_name != new_name) {
+						ofstream out("website.txt");
+						out << new_name << '\n' << site_ip << '\n' << site_script << '\n';
+						out.close();
+						LOG2("Saved new name (%s) for IP address %s.\n", new_name, site_ip.c_str());
+					}
+				}
+			}
+			else {	// save new IP address for web server
+				NLchar new_address[NL_MAX_STRING_LENGTH];
+				nlAddrToString(&website_address, new_address);
+				if (site_ip != new_address) {
+					ofstream out("website.txt");
+					out << site_name << '\n' << new_address << '\n' << site_script << '\n';
+					out.close();
+					LOG2("Saved new IP address (%s) for %s.\n", new_address, site_name.c_str());
+				}
+			}
+			// build parameters
+			// for simplicity, use only A-Z, a-z, 0-9 and characters $-_.+!*'(), in parameter names
+			// otherwise you have to URL encode them here
+			const map<string, string> parameters = website_parameters(address);
+			const string data = build_http_data(parameters);
+			NLint result = post_http_data(site_script, data);
+			LOG("Sent information to server website:\n");
+			LOG1("%s", data.c_str());
+			LOG1("Result: %i\n", result);
+
+			// save response to a file
+			const double timeout = get_time() + 60.0;
+			ofstream out("web.log");
+			char lebuf[65536];
+			for (int n = 0; ; n++) {
+				// read
+				result = nlRead(websock, &(lebuf[n]), 1);
+				if (result != 1) {
+					LOG1("MASTER TALKER: ERROR r=%i\n", result);
+					break;
+				}
+				// save
+				out << static_cast<char>(lebuf[n]);
+
+				// quit if timeout
+				if (get_time() > timeout)
+					break;
+
+				// quit if told to
+				if (file_threads_quit)
+					break;
+			}
+			out.close();
+			nlClose(websock);
+			websock = NL_INVALID;
+		}
+
+		//no: sleep a bit
+		MS_SLEEP(500);
+	} while (!file_threads_quit);
+
+	LOG("Website thread: time to say goodbye\n");
+
+	//qutting: close the socket
+	if (websock != NL_INVALID) {
+		LOG("Website thread: bye 1\n");
+		nlClose(websock);
+		websock = NL_INVALID;
+	}
+
+	//quitting: send server shutdown message to web script
+	//open socket
+	//nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
+	nlEnable(NL_BLOCKING_IO);
+	websock = nlOpen(0, NL_RELIABLE);
+	nlDisable(NL_BLOCKING_IO);
+
+	if (websock == NL_INVALID) {
+		LOG("(QUIT) SERVER CAN'T OPEN SOCKET TO CONNECT TO SERVER WEBSITE!\n");
+		website_exiting_ok = true;
+		return;
+	}
+
+	//connect
+	if (nlConnect(websock, &website_address) == NL_FALSE) {		//connect
+		LOG1("(QUIT) SERVER CAN'T CONNECT TO %s:80!\n", site_name.c_str());
+		nlClose(websock);
+		websock = NL_INVALID;
+		website_exiting_ok = true;
+		return;
+	}
+
+	// send quit message
+	const string quit = "quit=1\r\n";
+	NLint result = post_http_data(site_script, quit);
+	LOG("Sent information to server website:\n");
+	LOG1("%s", quit.c_str());
+	LOG1("Result: %i\n", result);
+
+	// save response to a file
+	const double timeout = get_time() + 60.0;
+	ofstream out("web.log");
+	char lebuf[65536];
+	for (int n = 0; ; n++) {
+		// read
+		result = nlRead(websock, &(lebuf[n]), 1);
+		if (result != 1) {
+			LOG1("MASTER TALKER: ERROR r=%i\n", result);
+			break;
+		}
+		// save
+		out << static_cast<char>(lebuf[n]);
+
+		// quit if timeout
+		if (get_time() > timeout)
+			break;
+	}
+
+	//close socket
+	nlClose(websock);
+	websock = NL_INVALID;
+
+	website_exiting_ok = true;
+}
+
+map<string, string> ServerNetworking::website_parameters(const string& address) const {
+	map<string, string> parameters;
+	parameters["name"] = hostname;
+	parameters["ip"] = address;
+	ostringstream p;
+	p << port;
+	parameters["port"] = p.str();
+	ostringstream pc;
+	pc << player_count;
+	parameters["players"] = pc.str();
+	ostringstream mpc;
+	mpc << maxplayers;
+	parameters["max_players"] = mpc.str();
+	parameters["version"] = GAME_VERSION;
+	ostringstream upt;
+	upt << world.frame / 10;
+	parameters["uptime"] = upt.str();
+	parameters["map"] = host->current_map().title;
+	parameters["info"] = "Test server";
+	return parameters;
+}
+
+string ServerNetworking::build_http_data(const map<string, string>& parameters) const {
+	// URL encode parameter values
+	ostringstream param_line;
+	for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
+		//param_line << i->first << '=';
+		for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++) {
+			if (is_url_safe(*s))		// send safe characters as they are
+				param_line << *s;
+			else if (*s == ' ')			// spaces to + characters
+				param_line << '+';
+			else						// encode unsafe characters to %xx
+				param_line << "%" << hex << static_cast<int>(static_cast<unsigned char>(*s));
+		}
+		param_line << '=';
+		for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++) {
+			if (is_url_safe(*s))		// send safe characters as they are
+				param_line << *s;
+			else if (*s == ' ')			// spaces to + characters
+				param_line << '+';
+			else						// encode unsafe characters to %xx
+				param_line << "%" << hex << static_cast<int>(static_cast<unsigned char>(*s));
+		}
+		param_line << '&';
+	}
+	param_line << "\r\n";
+	return param_line.str();
+}
+
+NLint ServerNetworking::post_http_data(const string& script, const string& parameters) const {
+	char lebuf[65536]; int count = 0;
+	ostringstream data;
+	data << "POST " << script << " HTTP/1.0\r\n";
+	data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
+	data << "Content-Type: application/x-www-form-urlencoded\r\n";
+	data << "Content-Length: " << parameters.length() << "\r\n\r\n";
+	writeStr(lebuf, count, data.str()); count--;
+	writeStr(lebuf, count, parameters); count--;
+	return nlWrite(websock, lebuf, count);
 }
 
 //read a string from a blocking TCP stream, one char at a time
@@ -2472,6 +2728,7 @@ void ServerNetworking::stop() {
 	// flag so threads will quit themselves
 	master_pre_exiting_ok = false;
 	master_exiting_ok = false;
+	website_exiting_ok = false;
 	file_threads_quit = true;	//quit stuff now
 
 	//close TCP connection with the server admin shell
@@ -2492,8 +2749,20 @@ void ServerNetworking::stop() {
 	LOG("GAMESERVER JOINING SHELL-SLAVE THREAD...\n");
 	pthread_join( shellsthread, 0 );
 
+	//thread for website interface
+	for (int waitcount = 0; !website_exiting_ok; waitcount++) {
+		if (waitcount > 30) {		// 30 * 100ms = 3 seconds
+			LOG("TIRED OF WAITING...\n");
+			//kill the socket
+			server_status_string("Shutdown: Website Socket");
+			nlClose(websock);		//close AGAIN (it's a different one)
+			websock = NL_INVALID;
+			break;
+		}
+		MS_SLEEP(100);
+	}
+
 	//thread for TCP connection that server uses to register it's IP on the master-server
-	//
 	if (!privateserver) {
 
 		//MS_SLEEP(1000);	//wait a bit for the slave thread to catch up
@@ -2779,4 +3048,25 @@ void* ServerNetworking::thread_masterjob_f(void* arg) {
 	return 0;
 }
 
+
+//============================================================
+//  server website interaction thread
+//============================================================
+
+void* ServerNetworking::thread_website_f(void* arg) {
+	((ServerNetworking*)arg)->run_website_thread();
+	return 0;
+}
+
+
+bool is_url_safe(char c) {
+	if (c >= 'a' && c <= 'z')
+		return true;
+	else if (c >= 'A' && c <= 'Z')
+		return true;
+	else if (c >= '0' && c <= '9')
+		return true;
+	const string safe_characters = "$-_.+!*'(),";
+	return safe_characters.find(c) != string::npos;
+}
 
