@@ -3744,7 +3744,7 @@ void gameclient_c::draw_game_frame() {
 						}
 
 					if (i != me)
-						client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, i % TSIZE);
+						client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, fx.player[i].color());
 					else // myself: draw differently
 						client_graphics.draw_minimap_me(fx.map, fx.player[i], i / TSIZE, get_time());
 				}
@@ -4074,7 +4074,7 @@ void gameclient_c::draw_player(int i) {
 		if (player.item_speed && (fabs(player.sx) > svp_maxspeed || fabs(player.sy) > svp_maxspeed) &&
 					get_time() > player.speed_drop_time) {
 			fx.player[i].speed_drop_time = get_time() + 0.05;
-			client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, i % TSIZE, player.gundir);
+			client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, player.color(), player.gundir);
 		}
 
 		//draw player
