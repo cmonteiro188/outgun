@@ -6838,7 +6838,7 @@ public:
 		{
 			rocket_c *rock = &(world.rock[i]);
 
-			#ifdef NR_SUPPORT_OLD_CLIENTS
+			#if defined(NR_SERVER_PHYSICS) && defined(NR_SUPPORT_OLD_CLIENTS)
 			bool NR_hit=false;
 			#endif
 			//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
@@ -6860,21 +6860,23 @@ public:
 				}
 
 				//wall hit - remove
-				#ifdef NR_SUPPORT_OLD_CLIENTS
+				#if !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
 					rock->owner=-1;
 					t=999;break;
 				}
-				#if NR_SHIFTY != 0
-				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2))	//#NR
-					NR_hit=true;
 				#endif
-				#else
+				#ifdef NR_SERVER_PHYSICS
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2)) {
+					#ifdef NR_SUPPORT_OLD_CLIENTS
+					NR_hit=true;
+					#else
 					rock->owner=-1;
-					t=999;break;
+					t=999;
+					break;
+					#endif
 				}
-				#endif
+				#endif	// NR_SERVER_PHYSICS
 
 				// check if a player (alive) is hit by this rocket now
 				//
@@ -6938,7 +6940,7 @@ public:
 				}
 
 			}
-			#ifdef NR_SUPPORT_OLD_CLIENTS
+			#if defined(NR_SERVER_PHYSICS) && defined(NR_SUPPORT_OLD_CLIENTS)
 			if (t==10 && NR_hit)	//# ugly fix to remove rockets inside walls under new physics, only when clients won't
 				game_delete_rocket(i, (int)rock->x, (int)rock->y, 255);
 			#endif
