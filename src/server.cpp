@@ -1215,15 +1215,13 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 //run something after simulate_and_broadcast
 void gameserver_c::server_think_after_broadcast() {
-	int i;
-
 	//check players with pending team changes
-	for (i=0;i<maxplayers;i++)
-	if (world.player[i].used)
-	if (world.player[i].team_change_pending)
-	if (world.player[i].want_change_teams)
-	if (world.player[i].team_change_time < get_time())
-		check_player_change_teams(i);
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used &&
+			world.player[i].team_change_pending &&
+			world.player[i].want_change_teams &&
+			world.player[i].team_change_time < get_time())
+				check_player_change_teams(i);
 }
 
 //loop server
