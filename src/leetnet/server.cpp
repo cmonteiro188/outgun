@@ -1,0 +1,1291 @@
+/*
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
+ */
+
+/*
+
+	A Game Server
+
+	uses RUDP (rudp.cpp , rudp.h)
+	uses HawkNL (http://www.hawksoft.com/hawknl)
+		
+	must be used to implement an actual game's server
+
+	don't subclass it, it's an abstract interface. make your own class that has an
+	internal instance of server_c
+
+*/
+
+#include "pthread.h"
+
+#include "leetnet.h"
+
+#include "server.h"
+
+#include "nl.h"
+
+#include "rudp.h"
+
+#include "stdio.h"
+
+#include "timefunc.h"
+
+#include "sleep.h"
+
+
+
+//#define STATION_PANIC
+
+
+
+// max (absolute) clients that can connect to a server
+#define  MAX_CLIENTS 16
+
+#define LOG_NOLOG  //enable this to comment out logging to server_c.log
+#define LOG_EXPR server_c_log
+#define LOG_TIMEFUNC get_timeh()
+#include "log.h"
+FILE *server_c_log;
+
+class server_ci;
+
+// client record struct for server
+struct client_t {
+
+	volatile bool		used;				// "true" if there is a client connected in this slot
+
+	int							id;					// the client's id (index on the array)
+
+	// the 4 variables below encode the client's connection state
+	//
+	volatile bool		connected;	// if the client has already said "hello!" and been accepted by gameclient
+															// this DOES NOT mean that the client is still connected! (talk about misleading...)
+															// it means that the CONNECTION PROTOCOL has been completed on the server side
+	volatile bool		connected_knows;	// the client knows he is connected. discard all "want connect" packets etc.
+	volatile bool		told_disconnect;		// client already told that he wants to disconnect or, a "disconnect"
+																			// packet was already received from the client
+	volatile bool		server_disconnected; // set to true when the server kicks the client. told_disconnect may
+																			 // be false at that point.
+
+	double					ping_start_time;		//time of last ping request from gameserver
+
+	server_ci				*server;		// the server instance (for the thread)
+
+	NLaddress				addr;					//client's address, to resolve incoming packets
+	
+	pthread_t				thread;			// the slave thread
+
+	pthread_t				discthread;		// the disconnector thread
+
+	volatile int		discleft;			// disconnection packets left to send
+
+	station_c				*station;		// rudp station for communicating with the client
+
+	double					droptime;		// time to drop / valid if told_disconnect == true OR server_disconnected == true
+
+	double					lastpackettime;	// time of last packet, for droptimeout/lagtimeout
+
+	bool						in_lag;			// if client is lagged
+
+	//mutex for the station object and condition variable
+	pthread_mutex_t	station_mutex;
+
+	//condition variable
+	//pthread_cond_t	station_cond_hasdata;
+	
+	//thread must quit flag
+	volatile bool		quitflag;
+};
+
+
+// server thread (master)
+void *thread_master_f (void *arg);
+
+//client message processor (slaves)
+void *thread_slave_f (void *arg);
+
+//client disconnectors
+void *thread_disconnector_f (void *arg);
+
+//server_c implementation
+class server_ci : public server_c {
+public:
+
+	// number of clients allocated
+	int		num_clients;	
+
+	// the server UDP socket
+	NLsocket			servsock;
+
+	//serverinfo buffer
+	char					serverinfo[2048];
+
+	// callback list
+	callback_t		gamesfunc[NUM_OF_SFUNC];
+
+	// UDP reader thread
+	pthread_t					reader_thread;
+
+	// client structures - one for each client
+	client_t					client[MAX_CLIENTS];
+
+	//server is stopping
+	volatile bool			server_stopped;
+
+	//timeout configs
+	int lagtimeout;
+	int droptimeout;
+
+	//------------------------
+	// GAME SERVER API
+	//------------------------
+
+	//set a callback. you must set all the callbacks before calling start()
+	//this "callback_id" thing is because I don't want to write this as a 100-parameter function) call
+	// it a 100 times instead :-)
+	virtual int set_callback(int callback_id, callback_t callback_function) {
+		if (callback_id < 0) return 0;
+		if (callback_id >= NUM_OF_SFUNC) return 0;
+		gamesfunc[callback_id] = callback_function;
+		return 1;
+	}
+
+	//set the client timeouts in seconds. lagtime = time in secs without receiving packets that generates
+	// SFUNC_CLIENT_LAG_STATUS callbacks. droptime = time in secs w/o recv. packets that before kicking the client
+	// to disable lag-time notification, use 0. recommended droptime is 5 to 10 seconds
+	// OBS: make sure your app has the client sending packets regularly or else he might be dropped without
+	//      being really unreachable. 10 times faster than the droptime is a good lower bound. if there is no
+	//			frame data, just send some kind of "no-op" packet.
+	virtual int set_client_timeout(int lagtime, int droptime) {
+		lagtimeout = lagtime;
+		droptimeout = droptime;
+		return 0;
+	}
+
+	//set serverinfo string
+	virtual void set_server_info(char *info) {
+		strcpy(serverinfo, info);
+	}	
+	
+	//start up the server at given port
+	virtual int start(int port) {
+
+		//if not stopped, quit
+		if (!server_stopped) {
+			LOG("SERVER NOT STOPPED: CANT START SERVER_CI");
+			return 0;
+		}
+
+		//not stopped now
+		server_stopped = false;
+
+		//free
+		num_clients = 0;
+
+		//timeout defaults
+		set_client_timeout(5, 10);
+
+		//open the server socket
+		servsock = nlOpen(port, NL_UNRELIABLE);
+		if (servsock == NL_INVALID) {
+			LOG("server_ci::start(): cannot nlOpen server socket!\n");
+			return 0;  // error
+		} 
+
+		//create and start all client threads
+		for (int i=0;i<MAX_CLIENTS;i++) {
+
+			client[i].used = false;				// free player slot
+			client[i].id = i;							// id (for thread)
+			client[i].server = this;			// server (for thread)
+			pthread_mutex_init(&client[i].station_mutex, 0);
+			//pthread_cond_init(&client[i].station_cond_hasdata, 0);
+			//client[i].station = new_station_c();		// create station -- NAO, isso cria qdo cara conecta!
+			//client[i].station = 0;
+			client[i].quitflag = false;			// don't quit yet
+			client[i].in_lag	= false;			// not in lag
+									
+			// create the slave thread
+			pthread_create(&client[i].thread, 0, thread_slave_f, (void *)&client[i]);
+
+			// disconnector thread is zero. IMPORTANT so the thread is not deleted if not created
+			client[i].discthread = 0;
+		}
+
+		//create and start the master thread
+		pthread_create(&reader_thread, 0, thread_master_f, (void *)this);
+
+		//ok
+		return 1;
+	}
+
+	//stops the server. parameter is number of seconds to wait for all clients to gently disconnect
+	virtual int stop(int disconnect_clients_timeout) {
+
+		LOG("server_ci::stop()\n");
+
+		//if stopped, quit
+		if (server_stopped)
+			return 0;
+
+		LOG("server_ci::stop() mesmo\n");
+
+		//disconnect all clients (network "disconnect msg" / wait)
+
+		// signal threads to stop now
+		server_stopped = true;		
+      int i;
+		for (i=0;i<MAX_CLIENTS;i++) {
+			client[i].quitflag = true; //set flag
+			LOG1("server_ci::stop() -- signal %i\n", i);
+			//pthread_cond_signal( &client[i].station_cond_hasdata ); //slap the thread
+		}
+
+		LOG("server_ci::stop() -- joining master thread\n");
+
+		// join with master thread
+		pthread_join(reader_thread, 0);
+
+		LOG("server_ci::stop() - joined with master thread\n");
+
+		// join with slave/disconnector threads and delete the client stuff 
+		for (i=0;i<MAX_CLIENTS;i++) {
+			
+			// join
+			pthread_join(client[i].thread, 0);
+
+			LOG1("server_ci::stop() - joined with slave %i thread\n", i);
+
+			// wait all client disconnect packets to be sent
+			if (client[i].discthread != 0) {
+				pthread_join(client[i].discthread, 0);
+				client[i].discthread = 0;
+				LOG1("server_ci::stop() - joined with disconnector %i thread\n", i);
+			}
+
+			// cleanup
+			// - aqui pode deletar, nao existe mais nenhuma thread (master,slave,disconnector...)
+			//
+			
+			//MUDANDO: apenas reseta station
+#ifndef STATION_PANIC
+			client[i].station->reset_state();
+#else
+			if (client[i].station)
+				delete client[i].station;
+			client[i].station = new_station_c();
+#endif
+			
+			//if (client[i].station)
+			//delete client[i].station;
+			//client[i].station = 0;
+
+			pthread_mutex_destroy(&client[i].station_mutex);
+			//pthread_cond_destroy(&client[i].station_cond_hasdata);
+		}
+	
+		LOG("server_ci::stop() -- closing server socket\n");
+		
+		// close the server's socket (DEBUG FIXME: catch error)
+		nlClose(servsock);
+
+		LOG("server_ci::stop() -- server socket closed\n");
+
+		//ok
+		return 1;
+	}
+
+	//disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
+	virtual int disconnect_client(int client_id, int timeout) {
+
+		//call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
+		// DO NOT CALL if client not connected
+		if (client[client_id].connected_knows) {
+			runes_t args;
+			args.client_id = client_id;
+			args.data = 0;
+			args.length = 0;
+			gamesfunc[SFUNC_CLIENT_DISCONNECTED](&args);
+		}
+
+		//disconnect the client - this flags that the client is disconnected by the server but the
+		// client at first doesn't know this. will keep sending disconnect packets to client
+		// until a timeout occurs or when the first disconnect packet is received from the client
+		// in wich moment client[id].told_disconnect is set to TRUE (was false).
+		//
+		// this flag also makes any regular game-connection packets from the client to be discarded.
+		client[client_id].server_disconnected = true;
+
+		//countdown for client dropping - this var is checked by the reader thread
+		//
+		client[client_id].droptime = get_timeh() + ((double)timeout);
+
+		// send any disconnection packets only if the client ever sent a data packet (connected_knows = true)
+		// because if the client never sent data, probably it must think it's not even connected
+		// so we just sit idle for a couple of seconds before nuking the connection, because the client
+		// may still contact us. if he does, we send a disconnect packet
+		if (!client[client_id].connected_knows)
+			return 1;
+
+		// disconnection packets to send
+		//
+		if (timeout > 1)
+			client[client_id].discleft = 10;
+		else if (timeout < 1)
+			client[client_id].discleft = 1;
+		else
+			client[client_id].discleft = 5;
+
+		//spawn disconnector thread
+		//
+		pthread_create(&client[client_id].discthread, 0, thread_disconnector_f, (void *)&client[client_id]);
+
+		LOG2("disconnect_client %i droptime = %.2f\n", client_id, client[client_id].droptime);
+
+		//ok
+		return 1;
+	}
+
+	//broadcast the given game frame (along with lotsa other stuff like enqueued reliable messages and acks)
+	//to all connected clients. this must be called by a "sender" thread in a fairly regular interval of time,
+	//like say 100ms for a 10Hz (update freq.) server. do not load too much shit in the packet, a 300-byte
+	//packet is ok I guess, a 500-byte is too much IMHO (remember to give room for the reliable messages/ack
+	//protocol that introduces it's own shitload). optimize your foken data, every byte saved counts!
+	virtual int broadcast_frame(char* data, int length) {
+
+		for (int i=0;i<MAX_CLIENTS;i++) 
+		if (client[i].used) {
+			client[i].station->write(data, length);	// set frame data
+			int packet_id;
+			client[i].station->send_packet(packet_id);	// flush the packet
+		}
+
+		//ok
+		return 1;
+	}
+
+		//send frame method - when broadcast_frame doesn't quite cut it
+	virtual int send_frame(int client_id, char* data, int length) {
+
+		if (!client[client_id].used)
+			return 0;	// client not used (?)
+
+		client[client_id].station->write(data, length);	//set frame data
+		int packet_id;
+		client[client_id].station->send_packet(packet_id);	// flush the packet
+
+		//ok
+		return 1;
+	}
+
+	//sends the given reliable message to the given client. reliable = heavy, do not use for frequent
+	//world update data. use for gamestate changes, talk messages and other stuff the client can't miss, or
+	//stuff he can even miss but it's better if he doesn't and the message is so infrequent and small that
+	//it's worth it.
+	virtual int send_message(int client_id, char* data, int length) {
+
+		//FIXME 1. assert here: client[client_id].used == true
+		//			2. use station mutex ?
+
+		//and that's it!
+		client[client_id].station->writer(data, length);
+
+		//ok
+		return 1;
+	}
+
+
+	//broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
+	virtual int broadcast_message(char* data, int length) {
+
+		for (int i=0;i<MAX_CLIENTS;i++) 
+		if (client[i].used)
+			send_message(i, data, length);
+
+		//ok
+		return 1;
+	}
+
+
+	//function to be called by the SFUNC_CLIENT_DATA callback
+	//gets the next reliable message avaliable from the given client. null if no message pending
+	virtual char* receive_message(int client_id, int *length) {
+
+		data_c *data = client[client_id].station->read_reliable();
+
+		if (data == 0)	// no messages
+			return 0;
+
+		//debug
+		LOG2("server->receive_message(clid=%i) length = %i\n", client_id, data->getlen());
+
+		(*length) = data->getlen();	//return length
+		return data->getbuf();	// return buffer
+	}
+
+	//ping a client. results come in the SFUNC_PING_RESULT callback
+	virtual int ping_client(int client_id) {
+
+		data_c	*dat = new_data_c();
+
+		dat->addlong(0);			//special packet
+		dat->addlong(666);		// ping request
+		
+		client[client_id].station->send_raw_packet(dat);		
+
+		client[client_id].ping_start_time = get_timeh();
+
+		delete dat;
+
+		//ok
+		return 1;	
+	}
+
+	//get a statistic from sockets. stat = HawkNL socket-stats id
+	//this function returns the sum of all sockets active in the server. no per-client
+	//results available for now.
+	virtual int get_socket_stat(int stat) {
+
+		int thestat = 0;
+
+		if (servsock == NL_INVALID) return 0;
+		if (server_stopped) return 0;
+
+		//add serversocket
+		thestat = nlGetSocketStat(servsock, stat);
+
+		//add all active client sockets
+		for (int i=0;i<MAX_CLIENTS;i++)
+		if (client[i].used) 
+		if (client[i].station)
+		{
+			NLsocket clsock = client[i].station->get_nl_socket();
+			if (clsock != NL_INVALID) 
+				thestat += nlGetSocketStat(clsock, stat);
+		}
+
+		return thestat;
+	}
+
+	//------------------------
+	// server slave-disconnector thread API (temp thread that sends disconnection packets to the client
+	//------------------------
+	bool try_send_disconnect(int id) {
+
+		//check client not used for whatever reason -- this is PARANOIA
+		if (!client[id].used)
+			return true;
+
+		//check client acked already
+		if (client[id].told_disconnect)
+			return true;
+
+		//check stop now
+		if (client[id].discleft <= 0)
+			return true;
+
+		//send the disconnection packet
+		LOG1("sent in try_send_disconnect(%i)...\n", id);
+		data_c *reply = new_data_c();
+		reply->addlong(0);		//"special packet"
+		reply->addlong(2);		//"you are now disconnected"
+		client[id].station->send_raw_packet(reply);
+		delete reply;
+
+		//keep running if packets left to send, else stop
+		//
+		return ((--client[id].discleft) <= 0);
+	}
+
+	//------------------------
+	// server master thread API (thread that read all incoming stuff from network and hands it to a slave)
+	//------------------------
+
+	//incoming datagram from UDP socket
+	virtual int process_incoming_datagram(char* packet, int length) {
+
+		//MAKEIT
+		//
+		//o que pode acontecer
+		// - forward de mensagem para existing client -- verifica remoteaddress da serversocket
+		//    do client, foi updateada agora. -- e signal client
+		// - se client unknown e SERVER FULL, dah reply aqui mesmo
+		// - se client unknown, "aloca" novo client para uma thread agora mesmo e já passa a mensagem
+		//	 pra ela. a thread lida com conexao tambem.
+		// mensagem 0 666 = ping request
+		// mensagem 0 200 = serverinfo request
+
+		//extract remote address from server socket
+		NLaddress remoteaddr;
+		nlGetRemoteAddr(servsock, &remoteaddr);
+
+		char adst[256];
+		nlAddrToString(&remoteaddr, adst);
+
+		//debug
+		int count = 0;
+		NLulong packid, smsgid, leetversion;
+		readLong(packet, count, packid);	//packet id
+		readLong(packet, count, smsgid);	// special message id (if packet id == 0)
+		LOG4("INCOMING: %s size=%i (%i,%i) -- ", adst, length, packid, smsgid);
+
+		// verifica se a mensagem eh de algum client conhecido
+      int i;
+		for (i=0;i<MAX_CLIENTS;i++) 
+		if (client[i].used)
+		if (NL_TRUE == nlAddrCompare(&remoteaddr, &client[i].addr)) {
+			LOG1("DO CLIENT %i\n",i);
+			
+			//achou: pertence a um client conectado, copia para a station, que a thread
+			// ira' processá-lo. obs: "station" precisa ser locket
+
+			//set packet, slap slave
+			pthread_mutex_lock( &client[i].station_mutex );
+
+			//pode ser null aqui  (free slave  lock/delete/unlock)
+			if (client[i].station)
+				client[i].station->set_incoming_packet(packet, length);
+
+			//pthread_cond_signal ( &client[i].station_cond_hasdata );  //slap the slave
+			pthread_mutex_unlock( &client[i].station_mutex );
+
+			// ok
+			return 1;
+		}
+
+		//nao eh de client conhecido - verifica server full
+		//"server full" reply message
+		if (num_clients >= MAX_CLIENTS) {
+
+			//send ENGINE SERVER FULL to client
+			char lebuf[64]; int count = 0;
+			writeLong(lebuf, count, 0);				//"special packet"
+			writeLong(lebuf, count, 201);			//"connection rejected - engine server FULL"
+
+			//send
+			nlSetRemoteAddr(servsock, &remoteaddr);
+			char lix[1000];
+			nlAddrToString(&remoteaddr, lix);
+			nlWrite(servsock, lebuf, count);
+
+			LOG2("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***\n", num_clients, lix);
+
+			return 1;
+		}
+
+		//se nao for 0,1 packet, nao aceita
+		if (packid != 0) {	//special packet
+			LOG1(" NOT SPECIAL PACKET\n",i);
+			return 1;
+		}
+		
+		//serverinfo request : answer
+		if (smsgid == 200) {
+			NLubyte a,b;
+			readByte(packet, count, a);		//clientside gamespy entry (lazyness)
+			readByte(packet, count, b);		//packet try #
+
+			char lebuf[512]; int count = 0;
+			writeLong(lebuf, count, 0);
+			writeLong(lebuf, count, 200);
+			writeByte(lebuf, count, a);
+			writeByte(lebuf, count, b);
+			writeString(lebuf, count, serverinfo);
+			//send
+			nlSetRemoteAddr(servsock, &remoteaddr);
+			char lix[1000];
+			nlAddrToString(&remoteaddr, lix);
+			LOG1("SENDING REPLY TO CLIENT AT %s\n", lix);
+			nlWrite(servsock, lebuf, count);
+			return 1;
+		}
+
+		if (smsgid != 1) {	//"hello! I want to connect!"
+			LOG1(" NOT HELLO PACKET\n",i);
+			return 1;		
+		}
+
+		//verifica se LEETNET_VERSION match
+		readLong(packet, count, leetversion);	// leetnet version
+		if (leetversion != LEETNET_VERSION) {
+			LOG2("Client connection ignored: LEETNET_VERSION mismatch. c=%i s=%i\n", leetversion, LEETNET_VERSION);
+			return 1;
+		}
+
+		//server com espaco, aloca um cara pra ele
+//#define	DEBUG_THE_THING
+
+#ifdef  DEBUG_THE_THING
+	static int bla = 0;
+	i = bla++;
+#else
+		for (i=0;i<MAX_CLIENTS;i++) 
+		{
+#endif
+			//lock client
+			pthread_mutex_lock( &client[i].station_mutex );
+
+			if (!client[i].used)
+			{
+				// mais um jogador
+				num_clients++;
+
+				LOG2("NEW CLIENT %i  (total=%i)\n", i, num_clients);
+
+				//zero'ing state
+				client[i].id = i;					// the client's id (index on the array)
+				client[i].ping_start_time = 0;		//time of last ping request from gameserver
+				client[i].server = this;		// the server instance (for the thread)
+				//client[i].thread = 0;			// the slave thread
+				//client[i].discthread = 0;		// the disconnector thread
+				client[i].discleft = 0;			// disconnection packets left to send
+				client[i].droptime = 0;		// time to drop / valid if told_disconnect == true OR server_disconnected == true
+				client[i].quitflag = false; //thread must quit flag
+				
+				// aloca jogador para thread
+				nlGetRemoteAddr(servsock, &client[i].addr);		//set address
+				client[i].connected = false;				// must negotiate connection (client must first say "hello" :-)
+				client[i].connected_knows = false;		// did not receive game data packet yet when TRUE the
+																							// server knows that the client knows that he was accepted
+				client[i].told_disconnect = false;		// set to true when a packet "I want to disconnect" is first received
+																							// from the client
+				client[i].server_disconnected = false;	//set to true when the server takes the initiative and kicks the 
+																								// client. now must wait the ack (disconnect packet) from the client also (a.k.a. told_disconnect == true condition)
+
+				client[i].discthread = 0;		// NEW: the disconnector thread
+				client[i].in_lag = false;			// not in lag
+				client[i].lastpackettime = get_timeh();		// last packet time is this one plus a bonus...
+
+				// new station - create & init
+				
+				// MUDANDO: apenas reseta client station
+#ifndef STATION_PANIC
+			client[i].station->reset_state();
+#else
+			if (client[i].station)
+				delete client[i].station;
+			client[i].station = new_station_c();
+#endif
+
+				//if (client[i].station) {
+					//LOG1("PROCESS INCOMING DATAGRAM: client %i station was not null!\n", i);
+					//delete client[i].station;
+					//client[i].station = 0;
+				//}		
+				//client[i].station = new_station_c();
+
+				char	adrstr[NL_MAX_STRING_LENGTH];				//set station remote address
+				nlAddrToString(&client[i].addr, adrstr);		//set station remote address
+				client[i].station->set_remote_address(adrstr);	//set station remote address
+
+				//set packet & slap slave
+				//pthread_mutex_lock( &client[i].station_mutex );
+				client[i].station->set_incoming_packet(packet, length); //set packet
+				//pthread_cond_signal ( &client[i].station_cond_hasdata ); //slap the slave
+				//pthread_mutex_unlock( &client[i].station_mutex );
+
+				// agora ta valido p/ outras threads
+				client[i].used = true;
+
+				//ok - unlock client
+				pthread_mutex_unlock( &client[i].station_mutex );
+				return 1;
+			}
+
+			//unlock client
+			pthread_mutex_unlock( &client[i].station_mutex );
+#ifndef DEBUG_THE_THING
+		}
+#endif
+
+		//WEIRD WEIRD fail: num_clients esta mentindo para baixo
+		return 0;
+
+	}
+
+	//checks if master thread should quit
+	virtual bool reader_thread_quit() {
+
+		//FIXME: THIS IS JUST PLAIN WASTE OF CPU!
+		//
+		double curr_time = get_timeh();
+		for (int i=0;i<MAX_CLIENTS;i++)
+		if (client[i].used) {
+		
+				//HACK: check when it's droptime for a client 
+				if ((client[i].told_disconnect) || (client[i].server_disconnected))	// disconnection started by either side
+				if (client[i].droptime < curr_time) {
+					//bye
+					LOG1("droptime: client %i's slave freed.\n", i);
+					free_slave(i);
+				}
+
+				//HACK: check for lagged call
+				if (lagtimeout > 0)
+				if (!client[i].in_lag)
+				if ( ((int)(curr_time - client[i].lastpackettime)) > lagtimeout ) {
+					//lag flag
+					client[i].in_lag = true;
+
+					//lag on callback - only if CONNECTED! (called SFUNC_CLIENT_CONNECTED callback...)
+					if (client[i].connected_knows) {
+						runes_t args;
+						args.client_id = i;
+						args.status = 1;	//entered lag
+						gamesfunc[SFUNC_CLIENT_LAG_STATUS](&args);
+					}
+				}
+				
+				//HACK: check for client dropped due to timeout
+				if (droptimeout > 0)
+				if (! ((client[i].told_disconnect) || (client[i].server_disconnected)) )	// disconnection not started by either side
+				if ( ((int)(curr_time - client[i].lastpackettime)) > droptimeout ) // drop timeout
+				{
+					//dropped callback - only if CONNECTED! (called SFUNC_CLIENT_CONNECTED callback...)
+					if (client[i].connected_knows) {
+						runes_t args;
+						args.client_id = i;
+						args.status = 2;	//dropped / timeout
+						gamesfunc[SFUNC_CLIENT_LAG_STATUS](&args);
+					}
+
+					//disconnect the client - 3 sec timeout
+					disconnect_client(i, 3);
+				}
+		}
+
+		//keep running?
+		return server_stopped;
+	}
+
+	//returns the serversocket
+	NLsocket get_server_socket() {
+		return servsock;
+	}
+
+	//------------------------
+	// server slave thread API (threads that read from one client)
+	//------------------------
+
+	//process data from a client (on the client's station)
+	virtual int process_client_data(int cid) {
+
+		//FIXME: no futuro: READ, UNLOCK, PROCESS e nao READ, PROCESS, UNLOCK
+
+		//FIXME: read and process all the stuff from the station
+		//			 - process_incoming_packet() -- unreliable client's frame 
+		//			 - read_reliable() -- process all decoded client messages (new messages
+		//					are created on process...() so call this later
+
+		
+		//get the client's unreliable data frame from the station
+		//
+		bool is_special; //check if packet is a special packet (connection packet)
+		int len;
+		char *data = client[cid].station->process_incoming_packet(&len, &is_special);
+
+		// HACK: no new packet in the station
+		//
+		if (len == -1)
+			return 1;
+
+		//check lag off, if client connected_knows and not disconnected
+		//
+		if (client[cid].connected)  // this if is just paranoia
+		if (client[cid].connected_knows)
+		if (!client[cid].server_disconnected)
+		if (!client[cid].told_disconnect)
+		{
+			client[cid].lastpackettime = get_timeh();	//update last packet receive time
+			if (client[cid].in_lag) {
+				//"your lag's off!"
+				client[cid].in_lag = false;
+
+				//callback lag status update
+				runes_t args;
+				args.client_id = cid;
+				args.status = 0;	//exited lag zone
+				gamesfunc[SFUNC_CLIENT_LAG_STATUS](&args);
+			}
+		}
+
+		//special packet?
+		//
+		
+		//some vars
+		runes_t	args;
+		runes_t *result;
+		data_c *reply;
+
+		if (is_special) {
+
+			// get the special code
+			NLulong code;
+			int count = 4;	//skip "0"
+			readLong(data, count, code);
+
+			//switch
+			switch (code) {
+			case 666:	// "pong"  (from previous ping request)
+
+				args.client_id = cid;
+				args.pingtime = (int)( (get_timeh() - client[cid].ping_start_time) * 1000 );
+
+				gamesfunc[SFUNC_CLIENT_PING_RESULT](&args);
+				break;
+			case 1:
+
+				//connection request discard if:
+				//		client knows he is connected
+				//		client disconnected somehow
+				LOG1("client %i CONNECTION (I)\n", cid);
+				if (!client[cid].connected_knows)
+				if (!client[cid].server_disconnected)
+				if (!client[cid].told_disconnect)
+				{
+
+					//LOG1("CALLING SFUNC CALLBACK LEN = %i\n", len);
+				
+					args.client_id		= cid;
+					args.data					= &(data[16]); //skip 0/1/leetversion/size-of-custom
+					args.length				= (len - 16);	//skipped 0/1/leetversion/size-of-custom
+					result = (runes_t *)gamesfunc[SFUNC_CLIENT_HELLO](&args);
+
+					LOG1("client %i CONNECTION (II)\n", cid);
+
+					//if accepted (result id == client id)
+					if (result->client_id == args.client_id) {
+						
+						//connected!
+						client[cid].connected = true;
+
+						//send hello packet back to the client
+						LOG("SENT CONNECTION ACCEPTED 0/3 to client_ci\n");
+						reply = new_data_c();
+						reply->addlong(0);  //"special packet"
+						reply->addlong(3);	//"connection accepted"
+						if (result->length > 0)
+							reply->add(result->data, result->length);	// custom game data
+						
+						LOG1("station debuginfo = %s\n", client[cid].station->debug_info());
+
+						int ok = client[cid].station->send_raw_packet(reply);
+
+						if (ok == 0) {
+							LOG("ERROR: send_raw_packet() failed!!\n");
+						}
+						else {
+							LOG("send_raw_packet() was OK!\n");
+						}
+
+						delete reply;
+					}
+					else {
+
+						//send CONNECTION_REJECTED to client
+						reply = new_data_c();
+						reply->addlong(0);		//"special packet"
+						reply->addlong(4);		//"connection rejected"
+						if (result->length > 0)
+							reply->add(result->data, result->length);	 // custom "connection denied" information
+						client[cid].station->send_raw_packet(reply);
+						delete reply;
+						
+						//return this thread/client slot to the free pool
+						if (client[cid].used == true) {
+							LOG1("client %i's slave freed : receive CONNECT but REJECT!\n", cid);
+							free_slave(cid);
+						}
+						else
+							LOG1("free_slave(%i) with used == false!\n", cid);
+					}
+				}
+				break;
+
+			case 2:
+				//if disconnection initiated by server
+				if (client[cid].server_disconnected) {
+
+					//disconnection request
+					LOG("(server_disconnected) client 0-2 received\n");
+
+					//client now knows
+					client[cid].told_disconnect = true;
+
+					// callback already called
+					// no reply needed
+					// client droptime : now/soon (paranoia)
+					client[cid].droptime = get_timeh() + 0.5;
+				}
+				//client-initiated disconnection
+				else { 
+
+					//disconnection request
+					LOG("(client disconnection) client 0-2 received, replying.\n");
+
+					//set "client is disconnected"
+					if (!client[cid].told_disconnect) {
+						
+						//disconnection request
+						LOG("(client disconnection) told_disconnect == true\n");
+						
+						client[cid].told_disconnect = true;
+
+						//call the "client disconnected" callback (1 of 2 : client-initiated disconnection)
+						// DO NOT CALL if client not connected
+						if (client[cid].connected_knows) {
+							runes_t args;
+							args.client_id = cid;
+							args.data = 0;
+							args.length = 0;
+							gamesfunc[SFUNC_CLIENT_DISCONNECTED](&args);
+						}
+
+						//mark 3 second countdown for client dropping
+						//this var is checked by the reader thread
+						// this is already set if server_disconnected == true
+						client[cid].droptime = get_timeh() + 3.0;
+					}
+					
+					//reply: ok, you are disconnected
+					LOG1("sent disconnect that client %i initiated..\n", cid);
+					reply = new_data_c();
+					reply->addlong(0);		//"special packet"
+					reply->addlong(2);		//"you are now disconnected"
+					client[cid].station->send_raw_packet(reply);
+					delete reply;
+
+				}
+				break;
+
+			default:
+				//FIXME: unknown code!
+				LOG1("WTF!?!? %i\n", code);
+				break;
+			}
+		}
+		//regular packet - must be already connected and not disconnected
+		//AND the slot must be used, OF COURSE!
+		else if (client[cid].used) {
+			if (client[cid].connected == false) {
+				
+				//data packet before connection: just discard (may be receiving out of order?)
+				// FIXME REVIEW THIS FUCKING THING
+
+				// PROVAVELMENTE esses packet que chegam ANTES do PRIMEIRO 'hello' são:
+				//  1 - pacotes que nunca foram enviados de verdade (invencao do server/ station)
+				//  2 - bugs de envio do client
+				// etc.?
+
+				/*
+				reply = new_data_c();
+				reply->addlong(0);		//"special packet"
+				reply->addlong(2);		//"you are now disconnected"
+				client[cid].station->send_raw_packet(reply);
+				delete reply;
+
+				//dealloc this slave
+				LOG1("client %i's slave freed : receive data W/O CONNECTED!\n", cid);
+				free_slave(cid);		
+				*/
+			}
+			else if (client[cid].server_disconnected == true) {
+				
+				// do nothing, a thread should be already spitting "disconnect" packets to the client
+			}
+			else if (client[cid].told_disconnect == true) {
+
+				// this could occur if 1) the client is nuts 2) a data packet sent before the
+				// disconnection request arrived first. in any case just ignore it since the
+				// client connection is already doomed.
+			}
+			else { 
+
+				//-- it's a regular data packet --
+
+				//if disconnected state, reply the disconnect packet
+				if ((client[cid].server_disconnected) || (client[cid].told_disconnect)) {
+
+					// make a favour for the client
+					LOG1("client %i datapacket - replying 'disconnected already'\n", cid);
+					reply = new_data_c();
+					reply->addlong(0);		//"special packet"
+					reply->addlong(2);		//"you are now disconnected"
+					client[cid].station->send_raw_packet(reply);
+					delete reply;
+				}
+				else {
+
+					//for the callbacks below
+					runes_t		args;
+					args.client_id = cid;
+
+					//it's a data packet, so the client knows he is connected already
+					//- discard "want connect" incoming packets (don't reply)
+					//- send the "client connected" event to the gameserver
+					if (client[cid].connected_knows == false) {
+
+						//we know that the client knows that his connection was accepted
+						client[cid].connected_knows = true;
+
+						//call gameserver "client connected" callback
+						args.data = 0;
+						args.length = 0;
+						gamesfunc[SFUNC_CLIENT_CONNECTED](&args);
+					}
+
+					// send the data to the gameserver 
+					// call SFUNC_CLIENT_DATA callback
+					//	
+					args.data = data;
+					args.length = len; 
+					gamesfunc[SFUNC_CLIENT_DATA](&args);
+				}
+			}	
+		}
+
+		//ok
+		return 1;
+	}
+	
+	//-------- internal functions --------
+
+	//free slave thread
+	void free_slave(int id) {
+
+		//if disconnector alive, join with it
+		if (client[id].discthread != 0) {
+			client[id].discleft = 0;	//paranoia
+			pthread_join(client[id].discthread, 0);
+			client[id].discthread = 0;
+		}
+
+		pthread_mutex_lock ( &client[id].station_mutex );
+
+		//free slave
+		client[id].used = false;
+
+		//delete the station. a new one will be created when other client connects
+		//MUDANDO: apenas reset
+#ifndef STATION_PANIC
+			client[id].station->reset_state();
+#else
+			if (client[id].station)
+				delete client[id].station;
+			client[id].station = new_station_c();
+#endif
+
+		//if (client[id].station) {
+//			delete client[id].station;
+//			client[id].station = 0;
+//		}
+//		else {
+//			LOG1("WARNING: free_slave %i STATION ALREADY ZERO!!\n", id);
+//		}			
+
+		num_clients--;
+		LOG2("slave %i freed, clients now = %i\n", id, num_clients);
+
+		pthread_mutex_unlock ( &client[id].station_mutex );
+	}
+	
+
+	//------------------------
+	// etc.
+	//------------------------
+	
+	//ctor
+	server_ci() {
+		strcpy(serverinfo, "default serverinfo");
+		LOG_OPEN("server_c.log");
+		LOG("class server_ci : debug logfile.\n");
+
+		//it's true...
+		server_stopped = true;
+
+		//create all station objects
+		for (int i=0;i<MAX_CLIENTS;i++) {
+			client[i].station = new_station_c();
+		}
+	}
+
+	//dtor
+	virtual ~server_ci() {
+		
+		//stop if was running - isso deve garantir que nao tem mais nenhuma
+		//thread maluca mexendo com os objetos tipo client[i].station
+		stop(3);
+
+		//delete all station objects
+		for (int i=0;i<MAX_CLIENTS;i++) {
+			delete client[i].station;
+			client[i].station = 0;
+		}
+			
+		//close logs
+		LOG_CLOSE();
+	}
+};
+
+
+//reader (master) thread - one per server
+#define THREAD_READER_BUFSIZE 8192
+void *thread_master_f (void *arg)
+{
+	//server
+	server_ci *server = (server_ci*)arg;
+
+	//get socket to read from
+	NLsocket servsock = server->get_server_socket();
+
+	//read buffer
+	char	buffer[THREAD_READER_BUFSIZE];
+	NLint amount; //amount read
+
+	//loop
+	while (1) {
+
+		//read from socket
+		amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
+		
+		// test quit
+		if (server->reader_thread_quit()) 
+			break;
+
+		// if no data, keep reading
+		while (amount == 0) {
+
+			//sleep a bit
+			MS_SLEEP(2);
+			
+			//read from socket
+			amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
+
+			// test quit
+			if (server->reader_thread_quit()) {
+				//exit reader
+				pthread_exit(0);
+				return 0;
+			}				
+		}
+
+		// check for error
+		if (amount == NL_INVALID) {
+			//DEBUG FIXME: error in nlGetError
+		}
+		// process packet
+		else {
+
+			//MS_SLEEP(50); // lag
+
+			server->process_incoming_datagram(buffer, amount);
+		}
+	}
+
+	//exit reader
+	pthread_exit(0);
+	return 0;
+}
+
+//client message processor (slave) thread - one for each client
+//arg: pointer to thread_client_arg_t
+void *thread_slave_f (void *arg)
+{
+	//my data record
+	client_t *mydata = (client_t *)arg;
+
+	//server
+	server_ci *server = mydata->server;
+
+	//my id
+	int myid = mydata->id;
+
+	//loop
+	while (mydata->quitflag == false) {
+
+		// LOOP 0: stop server
+		// LOOP 1: work (with the station etc.) only if client structure is set to "used"
+		//  				if not used, just jump to the sleep part again
+
+		//lock (to condvar)
+		//pthread_mutex_lock ( &mydata->station_mutex );
+
+		//JUST WASTE DA FOKKEN CPU
+		//wait for "work now!" signal from master
+		//pthread_cond_wait ( &mydata->station_cond_hasdata, &mydata->station_mutex );
+		MS_SLEEP(5);
+
+		//check quit
+		//if (mydata->quitflag) 
+		//	break;
+
+		//LOG1("SLAVE %i slapped...\n", myid);
+
+		//check if the thread/client slot is still being used
+		if (mydata->used) {
+
+			//LOG1("SLAVE %i working...\n", myid);
+
+			//process the data -- it's on the station
+			server->process_client_data(myid);
+
+			//unlock
+			//pthread_mutex_unlock( &mydata->station_mutex );
+		}
+	}
+
+	//exit slave
+	pthread_exit(0);
+	return 0;
+}
+
+//client disconnector auxiliary thread. bombards
+// client with "disconnect now!" packets
+void *thread_disconnector_f(void *arg) {
+
+	//my data record
+	client_t *mydata = (client_t *)arg;
+
+	//server
+	server_ci *server = mydata->server;
+
+	//loop
+	while (1) {
+
+		//try / should quit?
+		if (server->try_send_disconnect(mydata->id))
+			break;
+
+		//sleep a bit
+		MS_SLEEP(100);
+	}
+
+	//exit
+	pthread_exit(0);
+	return 0;
+}
+
+
+// server factory
+server_c *new_server_c() {
+	server_c* x = new server_ci();
+	return x;
+}
+
+
+
+
