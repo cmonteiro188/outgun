@@ -1531,8 +1531,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 			//update this player's px,py,x,y
 			//ignore self and anybody onscreen -- because then I've got better accuracy
-			if (who != me)
-			if (!fx.player[who].onscreen) {
+			if (who != me && !fx.player[who].onscreen) {
 				fx.player[who].roomx = whox / (255/fx.map.w);	//screen = 0..255 / (WXMAX/255)
 				fx.player[who].roomy = whoy / (255/fx.map.h);
 				fx.player[who].lx = (whox % (255/fx.map.w)) * plw / (255/fx.map.w);	//posicao dentro da tela especifica
@@ -3359,7 +3358,7 @@ void gameclient_c::draw_game_frame() {
 				client_graphics.draw_scores("RED TEAM WINS", 0, red_final_score, blue_final_score);
 			else if (blue_final_score > red_final_score)
 				client_graphics.draw_scores("BLUE TEAM WINS", 1, blue_final_score, red_final_score);
-			else	// to consider: purple colour
+			else
 				client_graphics.draw_scores("GAME TIED", -1, blue_final_score, red_final_score);
 		}
 		else
@@ -3376,9 +3375,7 @@ void gameclient_c::draw_game_frame() {
 		client_graphics.draw_background();
 
 	// frame is valid?
-	if (!hide_game)		// do not draw if map not set yet
-	if (fd.frame >= 0) {
-
+	if (!hide_game && fd.frame >= 0) {
 		// FIXME: y-ordering of draw not maintained
 		// draw any item pickups
 		//
@@ -3550,13 +3547,6 @@ void gameclient_c::draw_game_frame() {
 				if (fx.player[i].used && fx.player[i].roomx >= 0 && fx.player[i].roomy >= 0 && fx.player[i].roomx < fx.map.w && fx.player[i].roomy < fx.map.h &&
 						(i / TSIZE == me / TSIZE || (fx.player[me].enemyvis & (1 << (i % TSIZE))))) {
 					roomvis[fx.player[i].roomy * fx.map.w + fx.player[i].roomx] = true;
-
-					// coord on minimap
-					/*double px, py;
-					px = ((double)fx.player[i].roomx * (double)plw + fx.player[i].lx) / ((double)plw * fx.map.w);
-					py = ((double)fx.player[i].roomy * (double)plh + fx.player[i].ly) / ((double)plh * fx.map.h);
-					int pix = int(mmx + 1 + px * (client_graphics.minimap_width() - 2));
-					int piy = int(mmy + 1 + py * (client_graphics.minimap_height() - 2));*/
 
 					//verifica se o jogador a ser desenhado é um carrier de flag inimiga
 					const int enemy = 1 - i / TSIZE;

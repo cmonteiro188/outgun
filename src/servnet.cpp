@@ -1282,10 +1282,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	int lecount;	//count after "count"
 
 	//stuff for minimap update: my team's enemy team view
-	static int tviter[2] = { 0 , 0 };
+	static int tviter[2] = { 0, 0 };
 	static int helmiter = 0;		// HELM ITERATOR : manda todo mundo!
-	int tview[2][MAX_PLAYERS/2];		//[time][inimigo# visto? 1-8]
-	NLushort	tview_bits[2];	//enemy view SHORT (bitfield for the 8 enemies of each team(0,1))
+	bool tview[2][MAX_PLAYERS / 2];	//[time][inimigo# visto? 1-8]
+	NLushort tview_bits[2];			//enemy view SHORT (bitfield for the 8 enemies of each team(0,1))
 
 	//HELM PATCH: the "helm view" bytes for both teams - if somebody has helm, he will se
 	//  helmview[] for his team
@@ -1297,67 +1297,33 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		helmiter++;
 		if (helmiter > maxplayers - 1)
 			helmiter = 0;
-		if (world.player[helmiter].used) {
-			//fix: helm nao enxerga outros helms, a nao ser com a flag
-			//ou seja: so mostra (break) se:  NAO TEM HELM   ou   TEM FLAG
-			/* ### REMOVE ###
-			const Team& team = world.teams[1 - helmiter / TSIZE];
-			bool out = false;
-			for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
-				if (!world.player[helmiter].item_helm() || fi->carrier() == helmiter) {
-					out = true;
-					break;
-				}
-			if (out)
-				break;*/
-			if (!world.player[helmiter].item_helm() || world.player[helmiter].flag())
-				break;
-		}
+		if (world.player[helmiter].used && !world.player[helmiter].item_helm() || world.player[helmiter].flag())
+			break;
 	} while (runaway-- > 0);
 
-	int t;
-
 	//atualiza tview E HELMVIEW
-	for (t=0;t<2;t++) {		// p/ cada time
-
+	for (int t = 0; t < 2; t++) {
 		tview_bits[t] = 0;
-
 		helmview[t] = 0;		//default zero
 
 		for (int i = 0; i < maxplayers; i++)			// p/ cada inimigo desse time
-		if (i / TSIZE == 1 - t && world.player[i].used) {
-			// ---- helmview -----
-			// mostra se NAO TEM HELM ou SE TA COM FLAG
-			if (!world.player[i].item_helm() || world.player[i].flag())
-				helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
-			/* ### REMOVE
-			const Team& team = world.teams[1 - i / TSIZE];
-			for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
-				if (!world.player[i].item_helm() || fi->carrier() == i) {
-					//adiciona bit
+			if (i / TSIZE == 1 - t && world.player[i].used) {
+				// ---- helmview -----
+				// mostra se NAO TEM HELM ou SE TA COM FLAG
+				if (!world.player[i].item_helm() || world.player[i].flag())
 					helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
-				}*/
 
-			// ---- tview -----
-			tview[t][i] = 0;		// default = nao visto
+				// ---- tview -----
+				tview[t][i % TSIZE] = false;		// invisible
 
-			for (int j = 0; j < maxplayers; j++)
-				if (j / TSIZE == t && world.player[j].used) {
-					if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)	{
-						//se o cara tem helm E NAO TEM FLAG, nao aparece!!
-						const Team& team = world.teams[1 - i / TSIZE];
-						for (vector<Flag>::const_iterator fi = team.flags().begin(); fi != team.flags().end(); ++fi)
-							if (world.player[i].visibility == 0 && fi->carrier() != i) {
-								//invisible
-							}
-							else {
-								//visible
-								tview[t][i % TSIZE] = 1;	//visto!
-								tview_bits[t] += static_cast<NLushort>(1 << (i % TSIZE));		//seta bit de "visto"
+				for (int j = 0; j < maxplayers; j++)
+					if (j / TSIZE == t && world.player[j].used)
+						if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy)
+							if (world.player[i].visibility > 0 || world.player[i].flag()) { // visible
+								tview[t][i % TSIZE] = true;
+								tview_bits[t] |= (1 << (i % TSIZE));	// set visibility bit
 								break;
 							}
-					}
-				}
 		}
 
 		//avanca tviter do time p/ escolher alguem
@@ -1365,25 +1331,19 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		do {
 			//avanca proximo candidato a envio
 			tviter[t]++;
-			if (tviter[t] < 0)
-				tviter[t] = 0;
 			if (tviter[t] >= maxplayers)
 				tviter[t] = 0;
 
 			//testa se o candidato se aplica ao visor minimap do time
 			//testa apenas used players
 			if (world.player[tviter[t]].used) {
-
-				//do meu time? envia, tenho q saber todos do meu time
-				if (tviter[t]/TSIZE == t)
+				// same team, OK
+				if (tviter[t] / TSIZE == t)
 					break;
-
-				//inimigo? so se estiver na visao do time
-				if (tviter[t]/TSIZE == 1-t)
-				if (tview[t][ tviter[t]%TSIZE] == 1)
+				// enemy team, check if visible
+				if (tviter[t] / TSIZE == 1 - t && tview[t][tviter[t] % TSIZE])
 					break;
 			}
-
 		} while (runaway-- > 0);
 	}
 
@@ -1427,9 +1387,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		// send almost empty frame if client not ready (leave bandwidth for data transfer) OR IF
 		// server showing gameover plaque
 		if (!skip_frame) {
-
 			// NEW: 0.3.9 : send before players_onscreen 2 bytes with the screen of self
-			//
 			NLubyte scr;
 			scr = ((NLubyte)world.player[i].roomx);
 			writeByte(lebuf, lecount, scr);	//player.x (screen)
@@ -1444,7 +1402,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			writeLong(lebuf, lecount, 0);
 
 			for (int j = 0; j < maxplayers; j++) {
-				// player j exists, in same room, visibility > 0 or in same team or has a flag
+				// player j exists, in same room, visible or in same team or has a flag
 				if ((players_present & (1 << j)) != 0 &&
 						world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
 						(world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].flag())) {
@@ -1517,7 +1475,6 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			//ELMO: visao alem do alcance!!
 			NLubyte who;
 			if (world.player[i].item_helm()) {
-
 				//team "viewed enemies" do meu time (i/TSIZE)
 				//writeByte(lebuf, lecount, 255);		// todos!!!
 				//FIX: helm nao enxerga todo mundo nao
@@ -1533,7 +1490,6 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 			}
 			//sem elmo: visao normal
 			else {
-
 				//team "viewed enemies" do meu time (i/TSIZE)
 				writeShort(lebuf, lecount, tview_bits[i/TSIZE]);
 

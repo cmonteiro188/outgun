@@ -1555,13 +1555,6 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 			break;		// only one message
 		}
 	const bool flag = player[target].flag();
-	/* ### REMOVE ###
-	for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
-		if (fi->carrier() == target) {
-			host->score_frag(attacker, 1);	// extra frag for fragging a carrier
-			player[attacker].total_flag_carriers_killed++;
-			flag = true;
-		}*/
 	if (flag) {
 		host->score_frag(attacker, 1);	// extra frag for fragging a carrier
 		player[attacker].total_flag_carriers_killed++;
@@ -2225,17 +2218,9 @@ void ServerWorld::simulateFrame() {
 				game_touch_pickup(i, k);		//COOL!
 			}
 
-		/* ### REMOVE ###
-		bool already_carrying = false;
-		for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi)
-			if (fi->carrier() == i) {
-				already_carrying = true;
-				break;
-			}*/
 		// --> CTF FLAG STEAL touch other team's flag
 		// enemy flag dropped (at base or somewhere)
 		bool touches_flag = false;
-		//if (!already_carrying) {
 		if (!player[i].flag()) {
 			int f = 0;
 			for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
