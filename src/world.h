@@ -619,7 +619,7 @@ class PhysicalSettings {
 public:
 	float fric, drag, accel;
 	float brake_mul, run_mul, turbo_mul, flag_mul;
-	bool friendly_fire, friendly_db;
+	float friendly_fire, friendly_db;
 	bool player_collisions;
 
 	float max_run_speed;	// max speed without turbo, for turbo effect in client

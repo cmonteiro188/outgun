@@ -1178,8 +1178,8 @@ PhysicalSettings::PhysicalSettings() :
 	run_mul		(1.77),
 	turbo_mul	(1.45),
 	flag_mul	(0.900),
-	friendly_fire(false),
-	friendly_db(false),
+	friendly_fire(0.),
+	friendly_db(0.),
 	player_collisions(false)
 {
 	calc_max_run_speed();
@@ -1197,12 +1197,12 @@ void PhysicalSettings::read(char* lebuf, int& count) {
 	readFloat(lebuf, count, run_mul);
 	readFloat(lebuf, count, turbo_mul);
 	readFloat(lebuf, count, flag_mul);
+	readFloat(lebuf, count, friendly_fire);
+	readFloat(lebuf, count, friendly_db);
 
-	NLubyte ff_db_pc = 0;
-	readByte(lebuf, count, ff_db_pc);
-	friendly_fire		= (ff_db_pc & 0x01) != 0;
-	friendly_db			= (ff_db_pc & 0x02) != 0;
-	player_collisions	= (ff_db_pc & 0x04) != 0;
+	NLubyte collisions = 0;
+	readByte(lebuf, count, collisions);
+	player_collisions = (collisions & 0x01) != 0;
 
 	calc_max_run_speed();
 }
@@ -1215,19 +1215,15 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
 	writeFloat(lebuf, count, run_mul);
 	writeFloat(lebuf, count, turbo_mul);
 	writeFloat(lebuf, count, flag_mul);
+	writeFloat(lebuf, count, friendly_fire);
+	writeFloat(lebuf, count, friendly_db);
 
-	NLubyte ff_db_pc = 0;
-	if (friendly_fire)
-		ff_db_pc |= 0x01;
-	if (friendly_db)
-		ff_db_pc |= 0x02;
-	if (player_collisions)
-		ff_db_pc |= 0x04;
-	writeByte(lebuf, count, ff_db_pc);
+	const NLubyte collisions = (player_collisions ? 0x01 : 0x00);
+	writeByte(lebuf, count, collisions);
 }
 
 void PhysicalSettings::print(LineReceiver& printer) const {
-	if (friendly_fire)
+	if (friendly_fire > 0.)
 		printer("- Friendly fire is on.");
 	if (player_collisions)
 		printer("- Players can collide with each other.");
@@ -2244,7 +2240,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				const int pid = rply[pi];
 				for (uint ri = 0; ri < rrock.size(); ++ri) {
 					const int rid = rrock[ri];
-					if (rock[rid].team == pid / TSIZE && (!physics.friendly_fire || rock[rid].owner == pid))	// friendly rocket
+					if (rock[rid].team == pid / TSIZE && (physics.friendly_fire == 0. || rock[rid].owner == pid))	// friendly rocket
 						continue;
 					const bool shield = static_cast<PlayerBase&>(player[pid]).item_shield;
 					const double time = getTimeTillCollision(player[pid], rock[rid], ROCKET_RADIUS + plyRadius + (shield ? SHIELD_RADIUS_ADD : 0));
@@ -2483,7 +2479,7 @@ void ServerWorld::simulateFrame() {
 			// the donut radius...radius-50
 			for (int v = 0; v < maxplayers; v++)
 				//enemy players only if friendly deathbringer is off
-				if ((v/TSIZE != i/TSIZE || physics.friendly_db) && player[v].used && player[v].health > 0 &&
+				if ((v/TSIZE != i/TSIZE || physics.friendly_db > 0.) && player[v].used && player[v].health > 0 &&
 								player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
 								player[v].deathbringer_end < get_time()) {
 					//calculate player distance to the deathbringer core
@@ -2500,8 +2496,9 @@ void ServerWorld::simulateFrame() {
 						player[v].deathbringer_attacker = i;
 
 						// time of effect ; also freeze his gun for this same amount of time
+						const float mul = (v / TSIZE == i / TSIZE ? physics.friendly_db : 1.);
 						player[v].deathbringer_end = player[v].next_shoot_time =
-							get_time() + pupConfig.pup_deathbringer_time - 0.5 + rand() % 1000 / 1000.;
+							get_time() + mul * (pupConfig.pup_deathbringer_time - 0.5 + rand() % 1000 / 1000.);
 
 						// calc recoil:
 						const double tx = player[v].lx - player[i].lx;

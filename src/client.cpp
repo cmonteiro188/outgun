@@ -532,7 +532,10 @@ void TM_ServerSettings::execute(Client* cl) const {
 	caption.str(""); value.str("");
 
 	caption << setw(width) << "Friendly fire: ";
-	value << (cl->fx.physics.friendly_fire ? "on" : "off");
+	if (cl->fx.physics.friendly_fire == 0.)
+		value << "off";
+	else
+		value << std::fixed << std::setprecision(0) << 100. * cl->fx.physics.friendly_fire << '%';
 	cl->m_serverInfo.addLine(caption.str(), value.str());
 	caption.str(""); value.str("");
 

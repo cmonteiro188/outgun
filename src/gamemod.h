@@ -189,6 +189,15 @@ private:
 	WorldSettings::Team_balance* var;
 };
 
+class GS_Percentage : public GamemodSetting {
+public:
+	GS_Percentage(const std::string& name, float* pVar) : GamemodSetting(name), var(pVar) { }
+	bool set(LogSet& log, const std::string& value);
+
+private:
+	float* var;
+};
+
 // template implementation
 
 template<class ValT>

@@ -110,3 +110,25 @@ bool GS_Balance::set(LogSet& log, const string& value) {
 		return basicErrorMessage(log, value, "one of no, balance and shuffle");
 	return true;
 }
+
+bool GS_Percentage::set(LogSet& log, const string& value) {
+	static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
+	istringstream rd(trim(value));
+	float val;
+	rd >> val;
+	if (rd && rd.peek() == eof_ch) {
+		if (val >= 0.) {
+			*var = val;
+			return true;
+		}
+	}
+	else {
+		char ch;
+		rd >> ch;
+		if (rd && ch == '%' && rd.peek() == eof_ch && val >= 0.) {
+			*var = val / 100.;
+			return true;
+		}
+	}
+	return basicErrorMessage(log, value, string() + "a real number or 'x %' with x 0 or greater");
+}
