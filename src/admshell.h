@@ -23,6 +23,9 @@ enum {
 	ATS_SERVER_CHAT,									//server is saying <string chat line>
 	ATS_QUIT,							//QUIT flag, very important. on receiving, should close socket and quit
 	ATS_GET_PINGS,	//#NR
+	ATS_KICK_PLAYER,	//#NR
+	ATS_BAN_PLAYER,	//#NR
+	ATS_MUTE_PLAYER,	//#NR
 
 	NUMBER_OF_ATS
 };
@@ -47,6 +50,7 @@ enum {
 	STA_QUIT,							//QUIT flag, very important. on receiving, should close socket and quit
 	STA_PLAYER_PING,	//#NR
 	STA_ADMIN_MESSAGE,	//#NR
+	STA_PLAYER_IP,	//#NR
 
 	NUMBER_OF_STA
 };
