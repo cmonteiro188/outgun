@@ -1,4 +1,3 @@
-#include <string>
 #include "names.h"
 
 using std::string;
