@@ -471,6 +471,7 @@ void Server::load_game_mod(bool reload) {
 		PT(new GS_Float		("friction",				&world.physics.fric)),
 		PT(new GS_Float		("drag",					&world.physics.drag)),
 		PT(new GS_Float		("acceleration",			&world.physics.accel)),
+		PT(new GS_Float		("brake_acceleration",		&world.physics.brake_mul)),
 		PT(new GS_Float		("run_acceleration",		&world.physics.run_mul)),
 		PT(new GS_Float		("turbo_acceleration",		&world.physics.turbo_mul)),
 		PT(new GS_Float		("flag_acceleration",		&world.physics.flag_mul)),

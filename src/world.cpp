@@ -1057,6 +1057,10 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			xAcc /= sqrt(2.);
 			yAcc /= sqrt(2.);
 		}
+		if (h->sx * xAcc < 0)			// check if acceleration is opposite from speed
+			xAcc *= physics.brake_mul;
+		if (h->sy * yAcc < 0)
+			yAcc *= physics.brake_mul;
 		h->sx += xAcc * player_accel;
 		h->sy += yAcc * player_accel;
 	}
@@ -1170,6 +1174,7 @@ PhysicalSettings::PhysicalSettings() :
 	fric		(0.0900),
 	drag		(0.0900),
 	accel		(1.44),
+	brake_mul	(0.50),
 	run_mul		(1.77),
 	turbo_mul	(1.45),
 	flag_mul	(0.900),
@@ -1188,6 +1193,7 @@ void PhysicalSettings::read(char* lebuf, int& count) {
 	readFloat(lebuf, count, fric);
 	readFloat(lebuf, count, drag);
 	readFloat(lebuf, count, accel);
+	readFloat(lebuf, count, brake_mul);
 	readFloat(lebuf, count, run_mul);
 	readFloat(lebuf, count, turbo_mul);
 	readFloat(lebuf, count, flag_mul);
@@ -1205,6 +1211,7 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
 	writeFloat(lebuf, count, fric);
 	writeFloat(lebuf, count, drag);
 	writeFloat(lebuf, count, accel);
+	writeFloat(lebuf, count, brake_mul);
 	writeFloat(lebuf, count, run_mul);
 	writeFloat(lebuf, count, turbo_mul);
 	writeFloat(lebuf, count, flag_mul);

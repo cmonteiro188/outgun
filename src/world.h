@@ -618,7 +618,7 @@ public:
 class PhysicalSettings {
 public:
 	float fric, drag, accel;
-	float run_mul, turbo_mul, flag_mul;
+	float brake_mul, run_mul, turbo_mul, flag_mul;
 	bool friendly_fire, friendly_db;
 	bool player_collisions;
 
