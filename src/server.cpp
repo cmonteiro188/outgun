@@ -13,6 +13,7 @@ using std::max;
 using std::ostringstream;
 using std::random_shuffle;
 using std::setfill;
+using std::setprecision;
 using std::setw;
 using std::string;
 using std::swap;
@@ -1256,13 +1257,14 @@ void gameserver_c::loop(volatile bool *running_flag) {
 
 		//update dedserver wintitle
 		if (world.frame % 10 == 0) {
-			double traffic = network.getTraffic();
 			//update bar
-			char elbuf[128];
-			sprintf(elbuf, "%i/%ip %.1fk/s v%s port:%i ESC:quit", network.get_player_count(), maxplayers, traffic, GAME_VERSION, port);
-
-			//V0.5.0 : -text  flag
-			server_status_string(elbuf);
+			ostringstream status;
+			status << network.get_player_count() << '/' << maxplayers << "p ";
+			status << setprecision(1) << network.getTraffic() << "k/s v" << GAME_VERSION;
+			status << " port:" << port;
+			if (dedserver)
+				status << " ESC:quit";
+			server_status_string(status.str());
 		}
 
 		// executa algo para todos os players
