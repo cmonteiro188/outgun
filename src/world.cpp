@@ -167,7 +167,6 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			continue;
 		char nullc;	// to be used at ends of sscanf to make sure there is nothing extra on the line
 		if (s[0]=='W' || s[0]=='G') {	// W x1 y1 x2 y2 [tex alpha] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
-			// required: x1<x2, y1<y2
 			float x1, y1, x2, y2;
 			int texid, alpha;
 			int n = sscanf(s+1, " %f %f %f %f %i %i %c", &x1, &y1, &x2, &y2, &texid, &alpha, &nullc);
@@ -187,7 +186,6 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			continue;
 		}
 		if (s[0]=='T') {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex alpha] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
-			// required: y1<=y2, y2<=y3
 			char type;
 			float x1, y1, x2, y2, x3, y3;
 			int texid, alpha;
@@ -315,9 +313,39 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 	}
 }
 
-/* calculateDisplacement():
+/* bounceFromPoint():
  *
- * calculates how many times the vector (mx,my) can be traveled until wall (dx1,dy1)-(dx2,dy2) is hit by a circle of radius r (max value considered is 1.)
+ * calculates how many times the vector (mx,my) can be traveled until point (dx,dy) is hit by a circle of radius r
+ *
+ *
+ *        (mx,my)      __--
+ *          \    __--^^
+ *         __+-^^  + -(dx,dy)
+ *     +-^^
+ *   (0,0)
+ *  
+ * | t(mx,my)-(dx,dy) | = r
+ * take the smaller solution of t (if any real solution exists)
+ *
+ * d? = distance vector of the point, m? = movement vector of the circle, r = radius of the circle
+ * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
+ */
+pair<double, Coords> bounceFromPoint(double dx, double dy, double mx, double my, double r) {
+	double m2 = mx*mx + my*my, r2 = r*r;
+	double mdotd = mx*dx + my*dy;
+	double d2 = dx*dx + dy*dy;
+	double disc = mdotd*mdotd - m2*(d2-r2);
+	if (disc >= 0) {	// there are real solutions
+		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
+		if (t >= 0)
+			return pair<double, Coords>(t, Coords(dx-t*mx, dy-t*my));
+	}
+	return pair<double, Coords>(1e99, Coords());	// no collision
+}
+
+/* bounceFromLine():
+ *
+ * calculates how many times the vector (mx,my) can be traveled until wall (dx1,dy1)-(dx2,dy2) is hit by a circle of radius r
  *
  *
  *        (mx,my)      __--
@@ -328,21 +356,18 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
  *             /
  *           wall
  *  
- * either
- * A) the circle hits the wall proper with it's center projection on the line
- * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
+ * the circle hits the wall proper with it's center projection on the line
+ * | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | / | (dx2,dy2)-(dx1,dy1) | = r
+ * take the smaller solution of t and make sure the point is on the line
  *
- * A: | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | / | (dx2,dy2)-(dx1,dy1) | = r , taking the smaller solution of t and making sure the point is on the line
- * B: | t(mx,my)-(dx,dy) | = r , taking the smaller solution of t (if any real solution exists)
- *
- * returns: pair( t, pair(collisionn-centern, collisionp-centerp) )
+ * d?? = distance vectors of the line's end-points, m? = movement vector of the circle, r = radius of the circle
+ * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
-pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {	// d=distance, m=movement
-	// check for solution A (if there is one, there is no need to check B)
+pair<double, Coords> bounceFromLine(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {
 	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|(dx2,dy2)-(dx1,dy1)|
 	double diffx = dx2-dx1, diffy = dy2-dy1;
 	double div = mx*diffy - my*diffx;
-	if (div != 0) {	// div == 0 <=> movement is parallel to the line => no type A collisions possible
+	if (div != 0) {	// div == 0 <=> movement is parallel to the line => no collisions possible
 		double rBase = ( dx1*diffy - dy1*diffx ) / div;
 		double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
 		double t = rBase - fabs(rAdd);	// the collision with smaller t (the larger t is when going away from the line)
@@ -360,78 +385,108 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 				return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
 		}
 	}
+	return pair<double, Coords>(1e99, Coords());	// no collision
+}
 
-	double dist = 1.;
-	Coords collisionCoords;
-	// check for solution B
-	// for dp1:
-	double m2 = mx*mx + my*my, r2 = r*r;	// same for dp2
-	double mdotd = mx*dx1 + my*dy1;
-	double d2 = dx1*dx1 + dy1*dy1;
+/* bounceFromArc():
+ *
+ * calculates how many times the vector (mx,my) can be traveled until the arc is hit by a circle of radius cr
+ *
+ *
+ *        (mx,my)      __--
+ *          \    __--^^
+ *         __+-^^   /^^^^
+ *     +-^^        /   
+ *   (0,0) av,____|____.<-- (dx,dy)
+ *           `    |     }
+ *                 \    } ar
+ *                  \___}
+ * either
+ * A) the circle hits the arc proper with it's center ar+cr (if outside) or ar-cr (if inside) and within the given angle from arc center vector
+ * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
+ *
+ * A: | t(mx,my)-(dx,dy) | = ar+-cr , taking the smaller solution of t and making sure the position is within the given angle from av
+ * B: | t(mx,my)-(dx,dy) | = cr , taking the smaller solution of t (if any real solution exists)
+ *
+ * d? = distance vector of the arc's radial center, m? = movement vector of the circle, ar = radius of the arc, cr = radius of the moving circle
+ * av = arc center unit vector, ahwcos = cosine of half arc width
+ * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
+ */
+pair<double, Coords> bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) {
+	// check for solution A (if there is one, there is no need to check B)
+	double bounceRad = ar + (outside?cr:-cr);
+	double m2 = mx*mx + my*my, r2 = bounceRad*bounceRad;
+	double mdotd = mx*dx + my*dy;
+	double d2 = dx*dx + dy*dy;
 	double disc = mdotd*mdotd - m2*(d2-r2);
 	if (disc >= 0) {	// there are real solutions
-		double t = (mdotd-sqrt(disc))/m2;	// select smaller t
-		if (t < 0)
-			t = (mdotd+sqrt(disc))/m2;
-		if (t>=0 && t<dist) {
-			dist = t;
-			collisionCoords = Coords(dx1-t*mx, dy1-t*my);
+		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
+		if (t >= 0) {
+			// make sure the point is within the given angle from av
+			// [ (t(mx,my) - (dx,dy)) dot av ] / [ |t(mx,my) - (dx,dy)| * |av| ] >= ahwcos
+			double xd = t*mx - dx, yd = t*my - dy;
+			double dot = xd*av.first + yd*av.second;
+			if (dot >= ahwcos * bounceRad)	// |(dx,dy) - t(mx,my)| = bounceRad, |av| = 1
+				return pair<double, Coords>(t, Coords(-xd, -yd));
 		}
 	}
-	// for dp2:
-	mdotd = mx*dx2 + my*dy2;
-	d2 = dx2*dx2 + dy2*dy2;
-	disc = mdotd*mdotd - m2*(d2-r2);
-	if (disc >= 0) {	// there are real solutions
-		double t = (mdotd-sqrt(disc))/m2;	// select smaller t
-		if (t < 0)
-			t = (mdotd+sqrt(disc))/m2;
-		if (t>=0 && t<dist) {
-			dist = t;
-			collisionCoords = Coords(dx2-t*mx, dy2-t*my);
-		}
-	}
-	return pair<double, Coords>(dist, collisionCoords);
+	return pair<double, Coords>(1e99, Coords());
 }
 
 void tryBounce(double* minMovement, Coords* bounceVec, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	#define add_rv() if (rv.first < *minMovement) { *minMovement = rv.first; *bounceVec = rv.second; }
+
 	pair<double, Coords> rv;
-	rv.first = 1.;
+	rv.first = 1e99;
+	bool onLine = false;
 	if (mx>0 && w.a>stx)	// check vertical wall a
-		rv = calculateDisplacement(w.a - stx, w.b - sty, w.a - stx, w.d - sty, mx, my, plyRadius);
+		rv = bounceFromLine(w.a - stx, w.b - sty, w.a - stx, w.d - sty, mx, my, plyRadius);
 	else if (mx<0 && w.c<stx)	// check vertical wall c
-		rv = calculateDisplacement(w.c - stx, w.b - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
-	if (rv.first < *minMovement) {
-		*minMovement = rv.first;
-		*bounceVec = rv.second;
+		rv = bounceFromLine(w.c - stx, w.b - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
+	if (rv.first < 1e10) {
+		onLine = true;
+		add_rv();
 	}
 	if (my>0 && w.b>sty)	// check horizontal wall b
-		rv = calculateDisplacement(w.a - stx, w.b - sty, w.c - stx, w.b - sty, mx, my, plyRadius);
+		rv = bounceFromLine(w.a - stx, w.b - sty, w.c - stx, w.b - sty, mx, my, plyRadius);
 	else if (my<0 && w.d<sty)	// check horizontal wall d
-		rv = calculateDisplacement(w.a - stx, w.d - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
-	if (rv.first < *minMovement) {
-		*minMovement = rv.first;
-		*bounceVec = rv.second;
+		rv = bounceFromLine(w.a - stx, w.d - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
+	if (rv.first < 1e10) {
+		onLine = true;
+		add_rv();
 	}
+	if (!onLine) {	// check corners
+		rv = bounceFromPoint(w.a - stx, w.b - sty, mx, my, plyRadius);
+		add_rv();
+		rv = bounceFromPoint(w.c - stx, w.b - sty, mx, my, plyRadius);
+		add_rv();
+		rv = bounceFromPoint(w.a - stx, w.d - sty, mx, my, plyRadius);
+		add_rv();
+		rv = bounceFromPoint(w.c - stx, w.d - sty, mx, my, plyRadius);
+		add_rv();
+	}
+
+	#undef add_rv
 }
 
 void tryBounce(double* minMovement, Coords* bounceVec, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	#define add_rv() if (rv.first < *minMovement) { *minMovement = rv.first; *bounceVec = rv.second; }
+
 	pair<double, Coords> rv;
-	rv = calculateDisplacement(w.p1x - stx, w.p1y - sty, w.p2x - stx, w.p2y - sty, mx, my, plyRadius);	// wall p1-p2
-	if (rv.first < *minMovement) {
-		*minMovement = rv.first;
-		*bounceVec = rv.second;
-	}
-	rv = calculateDisplacement(w.p1x - stx, w.p1y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p1-p3
-	if (rv.first < *minMovement) {
-		*minMovement = rv.first;
-		*bounceVec = rv.second;
-	}
-	rv = calculateDisplacement(w.p2x - stx, w.p2y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p2-p3
-	if (rv.first < *minMovement) {
-		*minMovement = rv.first;
-		*bounceVec = rv.second;
-	}
+	rv = bounceFromLine(w.p1x - stx, w.p1y - sty, w.p2x - stx, w.p2y - sty, mx, my, plyRadius);	// wall p1-p2
+	add_rv();
+	rv = bounceFromLine(w.p1x - stx, w.p1y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p1-p3
+	add_rv();
+	rv = bounceFromLine(w.p2x - stx, w.p2y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p2-p3
+	add_rv();
+	rv = bounceFromPoint(w.p1x - stx, w.p1y - sty, mx, my, plyRadius);
+	add_rv();
+	rv = bounceFromPoint(w.p2x - stx, w.p2y - sty, mx, my, plyRadius);
+	add_rv();
+	rv = bounceFromPoint(w.p3x - stx, w.p3y - sty, mx, my, plyRadius);
+	add_rv();
+
+	#undef add_rv
 }
 
 bool new_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy, double plyRadius) {
@@ -813,8 +868,6 @@ bool WorldBase::applyPhysics(int pid, const Room& room, float fraction, bool tur
 //run a physics frame simulation step for a player
 void WorldBase::run_server_player_physics(int i) {	// player id
 	PlayerBase* hd = player[i].getPtr();
-
-	if (hd->roomx<0 || hd->roomy<0 || hd->roomx>=map.w || hd->roomy>=map.h) return;	//#fix: remove this and track why these are given sometimes
 	const Room& room = map.room[hd->roomx][hd->roomy];
 
 	bool carryFlag = flag[1-(i/TSIZE)].carried && flag[1-(i/TSIZE)].carrier == i;
@@ -1934,13 +1987,89 @@ void ServerWorld::simulateFrame() {
 					t=999;break;
 				}
 			}
-
 		}
 	}
 
-	// for each player, update positions & speeds
-	//
+	vector< vector< vector<int> > > physRoomPly, physRoomRock;	// player id's for players in room, rocket id's for rockets in room
 
+	for (int rx=0; rx<map.w; ++rx) {
+		physRoomPly[rx].resize(map.h);
+		physRoomRock[rx].resize(map.h);
+	}
+
+	// add players and rockets to room structs for physics run
+	for (int i=0; i<maxplayers; i++) {
+		if (!player[i].used)
+			continue;
+		if (player[i].health > 0) {
+			if (player[i].roomx<0 || player[i].roomy<0 || player[i].roomx>=map.w || player[i].roomy>=map.h)
+				continue;	//#fix: remove this and track why these are given sometimes
+			accelerate(i);
+			physRoomPly[player[i].roomx][player[i].roomy].push_back(i);
+		}
+	}
+	for (int i=0;i<MAX_ROCKETS;i++) {
+		if (rock[i].owner == -1)
+			continue;
+		physRoomRock[rock[i].px][rock[i].py].push_back(i);
+	}
+
+	// apply physics to each room separately
+	for (int rx=0; rx<map.w; ++rx)
+		for (int ry=0; ry<map.h; ++ry) {
+			vector<int>& rply = physRoomPly[rx][ry];
+			vector<int>& rrock = physRoomRock[rx][ry];
+#@
+	PlayerBase* hd = player[i].getPtr();
+	const Room& room = map.room[hd->roomx][hd->roomy];
+
+	bool carryFlag = flag[1-(i/TSIZE)].carried && flag[1-(i/TSIZE)].carrier == i;
+	bool deathbringerAffected = hd->under_deathbringer_effect(get_time());
+
+	float startx = hd->lx, starty = hd->ly;
+
+	applyPhysics(i, room, 1., hd->item_speed, carryFlag, deathbringerAffected, PLAYER_RADIUS);
+
+	ServerPlayer* spp = dynamic_cast<ServerPlayer*>(hd);	//#fix
+	if (spp) {
+		float xd = hd->lx - startx;
+		float yd = hd->ly - starty;
+		spp->total_movement += sqrt( xd*xd + yd*yd );
+	}
+
+	//check room change x
+	if (int(hd->lx) == plw) {
+		hd->lx = 1;
+		if (++hd->roomx >= map.w)
+			hd->roomx = 0;
+	}
+	else if (int(hd->lx) == 0) {
+		hd->lx = plw - 1;
+		if (--hd->roomx < 0)
+			hd->roomx = map.w - 1;
+	}
+
+	//check room change y
+	if (int(hd->ly)-PHYS_SHIFTY == plh) {
+		hd->ly = 1 +PHYS_SHIFTY;
+		if (++hd->roomy >= map.h)
+			hd->roomy = 0;
+	}
+	else if (int(hd->ly)-PHYS_SHIFTY == 0) {
+		hd->ly = plh - 1 +PHYS_SHIFTY;
+		if (--hd->roomy < 0)
+			hd->roomy = map.h - 1;
+	}
+
+			run_server_player_physics(i);
+			if (ply->roomx!=rx || ply->roomy!=ry) {
+				game_player_screen_change(*pli);
+				rply.erase(pli);
+				//###
+			}
+		}
+
+	// for each player, do misc stuff
 	for (int i=0;i<maxplayers;i++) {
 		if (!player[i].used)
 			continue;
@@ -1953,19 +2082,6 @@ void ServerWorld::simulateFrame() {
 				respawnPlayer(i);		//time to respawn player
 			else
 				continue;
-		}
-		// player alive: do stuff for alive players
-		// IN : copia player screen p/ hero screen
-		int oldroomx = player[i].roomx;
-		int oldroomy = player[i].roomy;
-
-		// run server physics frame
-		run_server_player_physics(i);
-
-		//OUT : copy screen information from hero back to player
-		if (player[i].roomx!=oldroomx || player[i].roomy!=oldroomy) {
-			//player screen changed check
-			game_player_screen_change(i);
 		}
 
 		// check don't regen because of deathbringer

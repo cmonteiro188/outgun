@@ -60,7 +60,7 @@ struct Room {
 		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
 			twi->draw(buffer, x0, y0, xScale, yScale, color);
 	}
-	bool fall_on_wall(int x1, int y1, int x2, int y2) const {
+	bool fall_on_wall(int x1, int y1, int x2, int y2) const {	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
 		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
 			if (rwi->intersects_rect(x1, y1, x2, y2))
 				return true;
