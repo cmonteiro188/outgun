@@ -680,19 +680,12 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
     rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, teamcol[team]);
 }
 
-void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player, double frame) {
+void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
     const int a = scale(1);
     const int b = a / 2;
-    const int start_fadeout = 10;   // frames
-    if (frame > player.posUpdated + start_fadeout) {
-        const int alpha = 255 - (frame - player.posUpdated - start_fadeout) * 255 / start_fadeout;
-        set_trans_blender(0, 0, 0, alpha);
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    }
     rectfill(drawbuf, coords.first - a, coords.second - a, coords.first + a, coords.second + a, teamcol[player.team()]);
     rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
-    solid_mode();
 }
 
 void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
@@ -713,13 +706,15 @@ pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const Cli
     return pair<int, int>(x, y);
 }
 
-void Graphics::draw_minimap_room(const Map& map, int rx, int ry) {
+void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibility) {
+    if (visibility >= .99)
+        return;
     const int x1 = mmx + minimap_start_x +  rx      * minimap_w / map.w;
     const int y1 = mmy + minimap_start_y +  ry      * minimap_h / map.h;
     const int x2 = mmx + minimap_start_x + (rx + 1) * minimap_w / map.w - 1;
     const int y2 = mmy + minimap_start_y + (ry + 1) * minimap_h / map.h - 1;
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, 0x38);
+    set_trans_blender(0, 0, 0, static_cast<int>(0x38 * (1. - visibility)));
     rectfill(drawbuf, x1, y1, x2, y2, col[COLFOGOFWAR]);
     solid_mode();
 }

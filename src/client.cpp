@@ -3788,48 +3788,61 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             if (!fi->carried())
                 client_graphics.draw_mini_flag(2, *fi, fx.map);
 
-        vector<bool> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? true : false);
+        vector<NLubyte> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
 
         // draw all teammates and enemies on screens where there are teammates
         if (me >= 0 && fx.frame >= 0)
-            for (int i = 0; i < maxplayers; i++)
-                if (fx.player[i].used && fx.player[i].roomx >= 0 && fx.player[i].roomy >= 0 && fx.player[i].roomx < fx.map.w && fx.player[i].roomy < fx.map.h &&
-                        fx.player[i].posUpdated > fx.frame - 20) {
-                    roomvis[fx.player[i].roomy * fx.map.w + fx.player[i].roomx] = true;
+            for (int i = 0; i < maxplayers; i++) {
+                const ClientPlayer& pl = fx.player[i];
+                if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - 20) {
+                    if (pl.onscreen && i / TSIZE != me / TSIZE && pl.visibility < 10)  // visibility is valid only if onscreen
+                        continue;
+                    static const int max_time = 20; // frames
+                    static const int start_fadeout = 10;   // frames
+                    int alpha;
+                    if (fx.frame > pl.posUpdated + start_fadeout)
+                        alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
+                    else
+                        alpha = 255;
+                    if (roomvis[pl.roomy * fx.map.w + pl.roomx] < alpha)
+                        roomvis[pl.roomy * fx.map.w + pl.roomx] = alpha;
+
+                    if (alpha != 255) {
+                        set_trans_blender(0, 0, 0, alpha);
+                        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+                    }
 
                     const int enemy = 1 - i / TSIZE;
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            fx.teams[enemy].move_flag(f, WorldCoords(fx.player[i].roomx, fx.player[i].roomy,
-                                static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
-
+                            fx.teams[enemy].move_flag(f, WorldCoords(pl.roomx, pl.roomy, static_cast<int>(pl.lx), static_cast<int>(pl.ly)));
                             client_graphics.draw_mini_flag(enemy, *fi, fx.map);
                         }
 
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            fi->move(WorldCoords(fx.player[i].roomx, fx.player[i].roomy,
-                                static_cast<int>(fx.player[i].lx), static_cast<int>(fx.player[i].ly)));
-
+                            fi->move(WorldCoords(pl.roomx, pl.roomy, static_cast<int>(pl.lx), static_cast<int>(pl.ly)));
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
                     if (i != me) {
-                        if (fx.player[i].color() >= 0 && fx.player[i].color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                            client_graphics.draw_minimap_player(fx.map, fx.player[i], fx.frame);
+                        if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
+                            client_graphics.draw_minimap_player(fx.map, pl);
                     }
                     else // myself: draw differently
-                        client_graphics.draw_minimap_me(fx.map, fx.player[i], get_time());
+                        client_graphics.draw_minimap_me(fx.map, pl, get_time());
+
+                    solid_mode();
                 }
+            }
 
         // paint fog of war in all invisible rooms
         for (int ry = 0; ry < fx.map.h; ry++)
             for (int rx = 0; rx < fx.map.w; rx++)
-                if (!roomvis[ry * fx.map.w + rx])
-                    client_graphics.draw_minimap_room(fx.map, rx, ry);
+                client_graphics.draw_minimap_room(fx.map, rx, ry, roomvis[ry * fx.map.w + rx] / 255.);
     }//!hide_game
 
     client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB], menu.options.game.underlineMasterAuth(), menu.options.game.underlineServerAuth());
