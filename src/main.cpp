@@ -500,10 +500,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else {
             if (!set_shitty_mode(log))  // if 320×240 mode can't be set, use textserver
                 serverCfg.statusOutput = statusOutputText;
-            else {
-                GlobalDisplaySwitchHook::install();
+            else
                 serverCfg.statusOutput = statusOutputWindow;
-            }
         }
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
@@ -514,6 +512,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         }
         else
             log("Switch_backamnesia set ok.");
+
+        if (serverCfg.statusOutput == statusOutputWindow)
+            GlobalDisplaySwitchHook::install();
 
         if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
             return;
