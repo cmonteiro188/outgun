@@ -48,7 +48,7 @@ void Mappic::save_pictures() const {
 	set_color_depth(16);
 	Graphics graphics;
 	graphics.setcolors();
-	string dir("screens");
+	string dir("mappics");
 	dir += directory_separator;
 	for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
 		string picture = dir + *name + ".pcx";
