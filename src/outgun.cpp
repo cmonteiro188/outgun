@@ -1,35 +1,35 @@
 #ifdef PUBLIC_SERVER
 
-//#define NR_SERVER_PHYSICS
-//#define NR_PHYS_VECTOR_ACC
-#define NR_SUPPORT_OLD_CLIENTS
+//#define SV_SERVER_PHYSICS
+//#define SV_PHYS_VECTOR_ACC
+#define SV_SUPPORT_OLD_CLIENTS
 
 #else
 
-#define NR_SERVER_PHYSICS
-//#define NR_PHYS_VECTOR_ACC
-//#define NR_SUPPORT_OLD_CLIENTS
-#define NR_CLIENT_SERVER_EXTENSIONS
+#define SV_SERVER_PHYSICS
+//#define SV_PHYS_VECTOR_ACC
+//#define SV_SUPPORT_OLD_CLIENTS
+#define CLIENT_SERVER_EXTENSIONS
 
 #endif
 
 
 // ---- server side defines
 
-#define NR_CONSOLE	// console commands
-#define NR_NAME_AUTHORIZATION
+#define SV_CONSOLE	// console commands
+#define SV_NAME_AUTHORIZATION
 
-#define NR_NO_PUP_SWITCHING
-#define NR_VOTE_ANNOUNCE_INTERVAL 5
+#define SV_NO_PUP_SWITCHING
+#define SV_VOTE_ANNOUNCE_INTERVAL 5
+#define SV_SHADOW_MINIMUM_NORMAL 7
 
 // ---- client side defines
 
-#define NR_SUPPORT_OLD_SERVERS
+#define CL_SUPPORT_OLD_SERVERS
 #define CL_MINIMAP_FLAGPOS
 #define CL_SHOW_FLAGPOS
-#define FLAGPOS_RAD 30
+#define CL_FLAGPOS_RAD 30
 //#define CL_SHOW_TIME_LEFT
-#define SHADOW_MINIMUM_NORMAL 7
 
 // ----
 
@@ -39,23 +39,23 @@
 #include <sstream>
 #include <iomanip>
 
-/* NR_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
-#ifdef NR_SERVER_PHYSICS
-#define NR_SHIFTY 15
+/* SV_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
+#ifdef SV_SERVER_PHYSICS
+#define SV_SHIFTY 15
 #else
-#define NR_SHIFTY 0
+#define SV_SHIFTY 0
 #endif
 
-#ifdef NR_SUPPORT_OLD_CLIENTS
-#define COMPAT_PCNT "%%"
-#define NR_SUPPORT_OLD_SERVERS
+#ifdef SV_SUPPORT_OLD_CLIENTS
+#define SV_COMPAT_PCNT "%%"
+#define CL_SUPPORT_OLD_SERVERS
 #else
-#define COMPAT_PCNT "%"
-#define NR_CLIENT_SERVER_EXTENSIONS
+#define SV_COMPAT_PCNT "%"
+#define CLIENT_SERVER_EXTENSIONS
 #endif
 
 
-#ifdef NR_NAME_AUTHORIZATION
+#ifdef SV_NAME_AUTHORIZATION
 #include "nameauth.h"
 #endif
 
@@ -1167,7 +1167,7 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy) {
 	static const double plyRadius=15;
 
-	double stx=*x, sty=*y-NR_SHIFTY;	// position in real coordinates
+	double stx=*x, sty=*y-SV_SHIFTY;	// position in real coordinates
 	double mx=*sx, my=*sy;	// speed
 
 	bool bounced=false;
@@ -1259,13 +1259,13 @@ bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double
 			break;
 	}
 	*x = stx;
-	*y = sty + NR_SHIFTY;
+	*y = sty + SV_SHIFTY;
 	*sx = mx;
 	*sy = my;
 	return bounced;
 }
 
-#if !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
+#if !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
 
 //wall hit?
 bool wallhit(double x, double y, const RectWall &w) { int ix=(int)x, iy=(int)y; return w.intersects_rect(ix, iy, ix, iy); }
@@ -1306,11 +1306,11 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 
 		for (int w=0;w<(int)r->rwalls.size();w++) {
 			int runaw = 100;
-			while (wallhit((*x),(*y)-NR_SHIFTY,r->rwalls[w])) {
+			while (wallhit((*x),(*y)-SV_SHIFTY,r->rwalls[w])) {
 				had_wall_hit = true;
 				(*x) += dx;
 				y_solved = false;
-				if (!(wallhit((*x),(*y)-NR_SHIFTY,r->rwalls[w])))
+				if (!(wallhit((*x),(*y)-SV_SHIFTY,r->rwalls[w])))
 				break;
 				(*y) += dy;
 				y_solved = true;
@@ -1337,7 +1337,7 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 		}
 	} while (had_wall_hit);
 	if (ever_had_wall_hit) {
-		if (((*x) <= 0.01) || ((*x) >= ((double)plw) - 0.01) || ((*y)-NR_SHIFTY <= 0.01) || ((*y)-NR_SHIFTY >= ((double)plh) - 0.01)) {
+		if (((*x) <= 0.01) || ((*x) >= ((double)plw) - 0.01) || ((*y)-SV_SHIFTY <= 0.01) || ((*y)-SV_SHIFTY >= ((double)plh) - 0.01)) {
 			(*x) = (*ox);
 			(*y) = (*oy);
 		}
@@ -1347,7 +1347,7 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 	return ever_had_wall_hit;
 }
 
-#endif	// !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
+#endif	// !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
 
 //draw a wall, solid or nonsolid, texid, lum, in a map
 void drawwall_tex(Map *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
@@ -1482,7 +1482,7 @@ struct player_t {
 
 	bool			want_map_exit; //server side - player quer sair p/ proximo mapa na rotacao
 
-	#ifdef NR_CONSOLE
+	#ifdef SV_CONSOLE
 	int mapVote;
 	typedef list< pair<int, string> > DMQueueT;
 	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
@@ -1611,7 +1611,7 @@ struct player_t {
 		frags = 0;	//reset score ?
 		oldfrags = -666;
 		want_map_exit = false;		//by default don't want change maps
-		#ifdef NR_CONSOLE
+		#ifdef SV_CONSOLE
 		mapVote=-1;
 		delayedMessages.clear();
 		#endif
@@ -1971,7 +1971,7 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 
 	int xAcc = (h->r?1:0) - (h->l?1:0), yAcc = (h->d?1:0) - (h->u?1:0);
 
-	#ifdef NR_PHYS_VECTOR_ACC
+	#ifdef SV_PHYS_VECTOR_ACC
 
 	// this is a more physically correct model by Nix
 
@@ -2010,7 +2010,7 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 		}
 	}
 
-	#else	// NR_PHYS_VECTOR_ACC
+	#else	// SV_PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
 
@@ -2037,13 +2037,13 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 			h->sy += float(yAcc)*player_accel;
 	}
 
-	#endif	// NR_PHYS_VECTOR_ACC else
+	#endif	// SV_PHYS_VECTOR_ACC else
 
 	//wall collision correction
 	return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy);
 }
 
-#if !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
+#if !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
 bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
 	//
@@ -2146,13 +2146,13 @@ bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo
 
 	//move y
 	h->y += h->sy * fraction;
-	if (h->y-NR_SHIFTY < 0) h->y = 0+NR_SHIFTY;
-	else if (h->y-NR_SHIFTY > plh) h->y = plh+NR_SHIFTY;
+	if (h->y-SV_SHIFTY < 0) h->y = 0+SV_SHIFTY;
+	else if (h->y-SV_SHIFTY > plh) h->y = plh+SV_SHIFTY;
 
 	//wall collision correction
 	return wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
 }
-#endif	// !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
+#endif	// !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
 
 //************************************************************
 //  server stuff
@@ -2333,7 +2333,7 @@ public:
 	vector<MapInfo> maprot;
 	int currmap;		// current map in maprot
 
-	#ifdef NR_NAME_AUTHORIZATION
+	#ifdef SV_NAME_AUTHORIZATION
 	NameAuthorizationDatabase authorizations;
 	#endif
 	bool random_maprot;
@@ -2425,7 +2425,7 @@ public:
 		player[pid].kickTimer = 10*10;
 	}
 
-	#ifdef NR_NAME_AUTHORIZATION
+	#ifdef SV_NAME_AUTHORIZATION
 	void banPlayer(int pid) {
 		authorizations.ban(server->get_client_address(player[pid].cid));
 		authorizations.save();
@@ -3200,7 +3200,7 @@ public:
 		}
 
 		//if was killed or map spawn point places player over a wall
-		if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-NR_SHIFTY-20, pos.x+20, pos.y-NR_SHIFTY+20)) {
+		if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-SV_SHIFTY-20, pos.x+20, pos.y-SV_SHIFTY+20)) {
 			// generate a random spot for respawn:
 			// - unnocupied screen
 			// - away from walls
@@ -3224,10 +3224,10 @@ public:
 
 				//find a suitable coordinate -- middle square
 				pos.x = plw / 8 + rand() % (3 * plw / 4);
-				pos.y = plh / 8 + rand() % (3 * plh / 4) +NR_SHIFTY;
+				pos.y = plh / 8 + rand() % (3 * plh / 4) +SV_SHIFTY;
 
 				//do a check for walls, maybe retrying another screen if hits a wall
-				if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-NR_SHIFTY-20, pos.x+20, pos.y-NR_SHIFTY+20))
+				if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-SV_SHIFTY-20, pos.x+20, pos.y-SV_SHIFTY+20))
 					break;	//success!
 
 				//fall on wall true, keep trying...
@@ -3275,7 +3275,7 @@ public:
 
 		player[pid].last_spawn_time = (int)get_time();
 
-		#ifdef NR_SUPPORT_OLD_CLIENTS
+		#ifdef SV_SUPPORT_OLD_CLIENTS
 		// clear pup-list (the default client won't do it)
 		for (int iid=0; iid<MAX_PICKUPS; ++iid) {
 			char lebuf[256]; int count=0;
@@ -3666,6 +3666,9 @@ public:
 
 		ctf_drop_flag_if_any(target);
 		player[target].respawn_time = get_time() + respawn_time + time_penalty;
+		if (player[target].last_spawn_time < get_time())
+			player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
+		player[target].last_spawn_time = (int)get_time() + 999;	// make sure the dead time is not calculated as lifetime
 	}
 
 	void game_kill_player(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
@@ -3676,7 +3679,6 @@ public:
 		if (++player[target].current_consecutive_deaths > player[target].most_consecutive_deaths)
 			player[target].most_consecutive_deaths = player[target].current_consecutive_deaths;
 		player[target].current_consecutive_kills = 0;
-		player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
 
 		if (player[target].item_deathbringer) {
 			//record time to simulate the deathbringer explosion
@@ -4178,7 +4180,7 @@ public:
 			if (it->px == player[p].x) // item on screen that player is entering
 			if (it->py == player[p].y) {
 
-				#ifndef NR_NO_PUP_SWITCHING
+				#ifndef SV_NO_PUP_SWITCHING
 				//broadcast_message("sending powerup update\n");
 
 				//v0.1.2: PRIMEIRO verifica se tem mais alguem nessa tela. se nao
@@ -4224,7 +4226,7 @@ public:
 					if ((it->kind == 5) && (player[p].weapon >= 8))
 						it->kind = (NLubyte)original;
 				}
-				#endif	// NR_NO_PUP_SWITCHING
+				#endif	// SV_NO_PUP_SWITCHING
 
 				//send a "item on the screen" message
 				if (!player[p].isbot) {
@@ -4584,7 +4586,7 @@ public:
 					}
 					else if (cmd == 36) {
 						if (ival == 0 || ival == 1)
-							shadow_minimum = ival==1?1:SHADOW_MINIMUM_NORMAL;
+							shadow_minimum = ival==1?1:SV_SHADOW_MINIMUM_NORMAL;
 						else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 					}
 					else if (cmd == 37) {
@@ -4659,7 +4661,7 @@ public:
 
 		assert(!maprot.empty());
 
-		#ifdef NR_CONSOLE
+		#ifdef SV_CONSOLE
 		vector<int> winners;
 		int maxVotes=0;
 		for (int m=0; m<(int)maprot.size(); ++m) {
@@ -4722,7 +4724,7 @@ public:
 					num_against++;
 			}
 
-		#ifdef NR_CONSOLE
+		#ifdef SV_CONSOLE
 		// this could be done elsewhere, but this function is called whenever votes change
 		for (int m=0; m<(int)maprot.size(); ++m)
 			maprot[m].votes=0;
@@ -4762,7 +4764,7 @@ public:
 		pup_chance_deathbringer = 11;
 
 		pup_deathbringer_switch = true;
-		shadow_minimum = SHADOW_MINIMUM_NORMAL;
+		shadow_minimum = SV_SHADOW_MINIMUM_NORMAL;
 
 		respawn_time = 2.0;
 		waiting_time_deathbringer = 4.0;
@@ -4802,7 +4804,7 @@ public:
 
 			al_ffblk mapffblk;	//for al_find*
 
-			int result = al_findfirst(dest, &mapffblk, FA_ARCH);
+			int result = al_findfirst(dest, &mapffblk, FA_ARCH|FA_RDONLY);
 			while (result == 0) {
 				//char *replace_extension(char *dest, const char *filename, const char *ext, int size
 				replace_extension(nameBuf, mapffblk.name, "", 500);
@@ -4835,7 +4837,7 @@ public:
 	//start server
 	bool start(int target_maxplayers) {
 
-		#ifdef NR_NAME_AUTHORIZATION
+		#ifdef SV_NAME_AUTHORIZATION
 		authorizations.load();
 		#endif
 
@@ -5861,11 +5863,11 @@ public:
 						//readString(msg, count, player[pid].name); //name update request
 						strcpy(player[pid].name, "(invalid name)");
 						if (strpbrk(tempname, "%@")!=NULL)
-							player[pid].add_to_queue("@WSorry, this server doesn't accept " COMPAT_PCNT " or @ in a name");
+							player[pid].add_to_queue("@WSorry, this server doesn't accept " SV_COMPAT_PCNT " or @ in a name");
 						else if (strspnp(tempname, " ")==NULL)
 							player[pid].add_to_queue("@WPlease enter a name");
 						else {
-							#ifdef NR_NAME_AUTHORIZATION
+							#ifdef SV_NAME_AUTHORIZATION
 							int nid=authorizations.identifyName(tempname);
 							if (nid==-1 || authorizations.authorize(nid, server->get_client_address(id)))
 								strcpy(player[pid].name, tempname);
@@ -5913,7 +5915,7 @@ public:
 				}
 				//chat!
 				else if (code == 2) {
-					#ifdef NR_SUPPORT_OLD_CLIENTS
+					#ifdef SV_SUPPORT_OLD_CLIENTS
 					// remove single %'s
 					char sbuf[strlen(msg+1)+1];
 					int si=0, mi=1;
@@ -5931,7 +5933,7 @@ public:
 					#else
 					const char* sbuf=msg+1;
 					#endif
-					#ifdef NR_CONSOLE
+					#ifdef SV_CONSOLE
 					// handle 'console' commands
 					if (player[pid].delayedMessages.size()>2) {
 						player[pid].delayedMessages.clear();
@@ -5996,12 +5998,12 @@ public:
 							if (shadow_minimum == 1)
 								player[pid].queue_printf("A player using the shadow power-up gets totally invisible");
 							ostringstream pupstr;
-							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << COMPAT_PCNT;
-							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << COMPAT_PCNT;
+							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << SV_COMPAT_PCNT;
+							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << SV_COMPAT_PCNT;
 							if (pups_min_percentage || pups_max_percentage)
-								pupstr << " (" COMPAT_PCNT " of map size)";
+								pupstr << " (" SV_COMPAT_PCNT " of map size)";
 							player[pid].add_to_queue(pupstr.str());
-							#ifdef NR_SERVER_PHYSICS
+							#ifdef SV_SERVER_PHYSICS
 							player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
 							#endif
 						}
@@ -6156,7 +6158,7 @@ public:
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
-							player[pid].queue_printf("Shots: %d shot, accuracy %d" COMPAT_PCNT COMPAT_PCNT ", %d taken",
+							player[pid].queue_printf("Shots: %d shot, accuracy %d" SV_COMPAT_PCNT SV_COMPAT_PCNT ", %d taken",
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
@@ -6172,7 +6174,7 @@ public:
 								av_lifetime % 60);
 							// Add more stats: flag carrying time, etc.
 						}
-						#ifdef NR_NAME_AUTHORIZATION
+						#ifdef SV_NAME_AUTHORIZATION
 						else if (!strcmp(cbuf, "auth")) {
 							string nameUpr;
 							for (; *pCommand && *pCommand!=','; ++pCommand)
@@ -6444,7 +6446,7 @@ public:
 						//broadcast his crap
 						broadcast_player_crap( ctop[id] );
 				}
-				#ifdef NR_CLIENT_SERVER_EXTENSIONS
+				#ifdef CLIENT_SERVER_EXTENSIONS
 				// drop flag
 				else if (code == 34) {
 					player[pid].dropped_flag = true;
@@ -6491,10 +6493,10 @@ public:
 
 		float startx = hd->x, starty = hd->y;
 
-		#ifdef NR_SERVER_PHYSICS
+		#ifdef SV_SERVER_PHYSICS
 			bool realBounce = NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 
-			#ifdef NR_SUPPORT_OLD_CLIENTS
+			#ifdef SV_SUPPORT_OLD_CLIENTS
 			if (realBounce) {
 				hero_t testHero = src->hero[i];
 				bool clientBounce = applyDefaultPhysics(&testHero, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
@@ -6530,13 +6532,13 @@ public:
 		}
 
 		//check room change y
-		if (int(hd->y)-NR_SHIFTY == plh) {
-			hd->y = 1 +NR_SHIFTY;
+		if (int(hd->y)-SV_SHIFTY == plh) {
+			hd->y = 1 +SV_SHIFTY;
 			if (++hd->ty >= map.h)
 				hd->ty = 0;
 		}
-		else if (int(hd->y)-NR_SHIFTY == 0) {
-			hd->y = plh - 1 +NR_SHIFTY;
+		else if (int(hd->y)-SV_SHIFTY == 0) {
+			hd->y = plh - 1 +SV_SHIFTY;
 			if (--hd->ty < 0)
 				hd->ty = map.h - 1;
 		}
@@ -6669,7 +6671,7 @@ public:
 						double tx = world.hero[v].x - world.hero[i].x;
 						double ty = world.hero[v].y - world.hero[i].y;
 
-						double mul = 60. / sqrt( tx*tx + ty*ty );	// set speed to 60
+						double mul = 40. / sqrt( tx*tx + ty*ty );	// set speed to 40
 						world.hero[v].sx = tx * mul;
 						world.hero[v].sy = ty * mul;
 					}
@@ -6729,7 +6731,7 @@ public:
 		{
 			rocket_c *rock = &(world.rock[i]);
 
-			#if defined(NR_SERVER_PHYSICS) && defined(NR_SUPPORT_OLD_CLIENTS)
+			#if defined(SV_SERVER_PHYSICS) && defined(SV_SUPPORT_OLD_CLIENTS)
 			bool NR_hit=false;
 			#endif
 			//run ten times for better collision accuracy (UGLY UGLY UGLY HACK)
@@ -6751,15 +6753,15 @@ public:
 				}
 
 				//wall hit - remove
-				#if !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
+				#if !defined(SV_SERVER_PHYSICS) || defined(SV_SUPPORT_OLD_CLIENTS)
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
 					rock->owner=-1;
 					t=999;break;
 				}
 				#endif
-				#ifdef NR_SERVER_PHYSICS
-				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2)) {
-					#ifdef NR_SUPPORT_OLD_CLIENTS
+				#ifdef SV_SERVER_PHYSICS
+				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-SV_SHIFTY-2, (int)rock->x+2, (int)rock->y-SV_SHIFTY+2)) {
+					#ifdef SV_SUPPORT_OLD_CLIENTS
 					NR_hit=true;
 					#else
 					rock->owner=-1;
@@ -6767,7 +6769,7 @@ public:
 					break;
 					#endif
 				}
-				#endif	// NR_SERVER_PHYSICS
+				#endif	// SV_SERVER_PHYSICS
 
 				// check if a player (alive) is hit by this rocket now
 				//
@@ -6832,7 +6834,7 @@ public:
 				}
 
 			}
-			#if defined(NR_SERVER_PHYSICS) && defined(NR_SUPPORT_OLD_CLIENTS)
+			#if defined(SV_SERVER_PHYSICS) && defined(SV_SUPPORT_OLD_CLIENTS)
 			if (t==10 && NR_hit)	//# ugly fix to remove rockets inside walls under new physics, only when clients won't
 				game_delete_rocket(i, (int)rock->x, (int)rock->y, 255);
 			#endif
@@ -7147,7 +7149,7 @@ public:
 			if (votes!=last_vote_announce_votes || (players!=last_vote_announce_needed && votes!=0)) {
 				last_vote_announce_votes=votes;
 				last_vote_announce_needed=players;
-				next_vote_announce_frame=frame+NR_VOTE_ANNOUNCE_INTERVAL*10;
+				next_vote_announce_frame=frame+SV_VOTE_ANNOUNCE_INTERVAL*10;
 				ostringstream voteinfo;
 				voteinfo << "@I*** " << votes << '/' << players << " votes for mapchange";
 				if (map_start_time+vote_block_time >= frame)
@@ -9021,7 +9023,7 @@ int sfunc_client_hello(runes_t *arg) {
 			result.data = &(lebuf[0]);			//custom deny data
 			result.length = count;
 		}
-		#ifdef NR_NAME_AUTHORIZATION
+		#ifdef SV_NAME_AUTHORIZATION
 		else if (gameserver->authorizations.isBanned(gameserver->server->get_client_address(arg->client_id))) {
 			result.client_id = -1;	// not accepted
 			count=0;
@@ -9609,41 +9611,24 @@ public:
 		for (int n=0;n<NUM_OF_SAMPLES;n++)
 			sample[n] = 0;
 
-		//attempt to position search at the last theme directory
+		//try the last theme directory first
 		char themepath[512];
 		make_sfx_theme_path(themepath, sfxthemedir);
 
 		LOG1("\ntheme searching '%s'\n", themepath);
 
-		if (al_findfirst(themepath, &sfxthemeffblk, FA_DIREC)) {
-
-			//sound theme not found. find the first one
-			// skip "previous" and "current" DOS dirs
+		if (0==al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY))
+			set_theme_dir(0);	// OK: load ; 0 = no change
+		else {
+			// sound theme not found. find the first one
 			make_sfx_theme_path(themepath, "*.*");
 
-			int result;
-			result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC);
-			LOG2("res = %i   name = %s", result, sfxthemeffblk.name);
-			if ((!strcmp(sfxthemeffblk.name, ".")) || (!strcmp(sfxthemeffblk.name, "..")))
-				result = al_findnext(&sfxthemeffblk);
-			LOG2("res = %i   name = %s", result, sfxthemeffblk.name);
-			if ((!strcmp(sfxthemeffblk.name, ".")) || (!strcmp(sfxthemeffblk.name, "..")))
-				result = al_findnext(&sfxthemeffblk);
-			LOG2("res = %i   name = %s", result, sfxthemeffblk.name);
-
-			if (result)
-			{
-				//no themes at all
-				//do nothing
-			}
-			else {
-				//found one
-				set_theme_dir(sfxthemeffblk.name);
-			}
-		}
-		else {
-			//found, so load it.
-			set_theme_dir(0);		//0=sfxthemedir already set
+			int result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
+			for (; result==0; result = al_findnext(&sfxthemeffblk))
+				if ((sfxthemeffblk.attrib&FA_DIREC) && strcmp(sfxthemeffblk.name, ".")!=0 && strcmp(sfxthemeffblk.name, "..")!=0) {
+					set_theme_dir(sfxthemeffblk.name);
+					break;
+				}
 		}
 
 		//refresh master!
@@ -10432,49 +10417,36 @@ public:
 	}
 
 	void next_sfx_theme() {
-
 		char themepath[512];
-		int result;
 
 		//no valid theme, just give up...
-		if (!validtheme) {
+		if (!validtheme)
 			return;
-		}
+
+		bool round1 = true;
 
 		make_sfx_theme_path(themepath, sfxthemedir);
-		result = al_findnext(&sfxthemeffblk);
-
-		if (result) {
-			//not found, go back to first ones...
-			//sound theme not found. find the first one
-			// skip "previous" and "current" DOS dirs
-			make_sfx_theme_path(themepath, "*.*");
-
-			LOG1("\ntheme searching '%s'\n", themepath);
-
-			result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC);
-			LOG2("res = %i   name = %s", result, sfxthemeffblk.name);
-			if ((!strcmp(sfxthemeffblk.name, ".")) || (!strcmp(sfxthemeffblk.name, "..")))
-				result = al_findnext(&sfxthemeffblk);
-			LOG2("res = %i   name = %s", result, sfxthemeffblk.name);
-			if ((!strcmp(sfxthemeffblk.name, ".")) || (!strcmp(sfxthemeffblk.name, "..")))
-				result = al_findnext(&sfxthemeffblk);
-			LOG2("res = %i   name = %s", result, sfxthemeffblk.name);
-
-			if (result)
-			{
-				//no themes at all
-				validtheme = false;
-
+		for (;;) {
+			int result = al_findnext(&sfxthemeffblk);
+			if (result) {
+				//not found, go back to first ones...
+				if (!round1) {
+					validtheme = false;
+					return;
+				}
+				round1 = false;
+				make_sfx_theme_path(themepath, "*.*");
+				result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
+				if (result) {
+					validtheme = false;
+					return;
+				}
 			}
-			else {
+			if ((sfxthemeffblk.attrib&FA_DIREC) && strcmp(sfxthemeffblk.name, ".")!=0 && strcmp(sfxthemeffblk.name, "..")!=0) {
 				set_theme_dir(sfxthemeffblk.name);
+				break;
 			}
 		}
-		else
-			//found
-			set_theme_dir(sfxthemeffblk.name);
-
 	}
 
 	void make_sfx_theme_path(char *themepath, char *themedir) {
@@ -10913,7 +10885,7 @@ public:
 					dc -= 1.0;
 
 					//run physics
-					#ifdef NR_SERVER_PHYSICS
+					#ifdef SV_SERVER_PHYSICS
 					if (NR_applyPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 						//player bounced: play bounce sample if minimum time elapsed
 						if (get_time() > player[i].wall_sound_time) {
@@ -10921,7 +10893,7 @@ public:
 							sound(SAMPLE_WALLBOUNCE);
 						}
 					}
-					#else	// NR_SERVER_PHYSICS
+					#else	// SV_SERVER_PHYSICS
 					if (applyDefaultPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 						//player bounced: play bounce sample if minimum time elapsed
 						if (get_time() > player[i].wall_sound_time) {
@@ -10929,7 +10901,7 @@ public:
 							sound(SAMPLE_WALLBOUNCE);
 						}
 					}
-					#endif	// NR_SERVER_PHYSICS else
+					#endif	// SV_SERVER_PHYSICS else
 				}
 			}
 
@@ -10993,7 +10965,11 @@ public:
 				else if (!rx->dontdraw) {
 
 					//0.3.9: check rocket hit a wall (clientside) if not vanished already
-					if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-NR_SHIFTY-2, (int)rd->x+2, (int)rd->y-NR_SHIFTY+2)) {
+					#ifdef SV_SERVER_PHYSICS
+					if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-SV_SHIFTY-2, (int)rd->x+2, (int)rd->y-SV_SHIFTY+2)) {
+					#else
+					if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-SV_SHIFTY, (int)rd->x, (int)rd->y-SV_SHIFTY)) {
+					#endif
 						//probably hit wall
 						rx->dontdraw = true;
 						rx->clremove = get_time() + 5.0;
@@ -11218,12 +11194,12 @@ public:
 					check_flagpos_marks();
 					int flag_x = map.tinfo[team].flag.x;
 					int flag_y = map.tinfo[team].flag.y;
-					int x1 = max(0, FLAGPOS_RAD - flag_x);
-					int y1 = max(0, FLAGPOS_RAD - flag_y);
-					int x2 = min(2 * FLAGPOS_RAD, plw - flag_x + FLAGPOS_RAD + 1);
-					int y2 = min(2 * FLAGPOS_RAD, plh - flag_y + FLAGPOS_RAD + 1);
+					int x1 = max(0, CL_FLAGPOS_RAD - flag_x);
+					int y1 = max(0, CL_FLAGPOS_RAD - flag_y);
+					int x2 = min(2 * CL_FLAGPOS_RAD, plw - flag_x + CL_FLAGPOS_RAD + 1);
+					int y2 = min(2 * CL_FLAGPOS_RAD, plh - flag_y + CL_FLAGPOS_RAD + 1);
 					blit(flagpos_buf[team], drawbuf, x1, y1,
-						plx + flag_x - FLAGPOS_RAD + x1, ply + flag_y - FLAGPOS_RAD + y1, x2 - x1, y2 - y1);
+						plx + flag_x - CL_FLAGPOS_RAD + x1, ply + flag_y - CL_FLAGPOS_RAD + y1, x2 - x1, y2 - y1);
 				}
 
 			// map walls
@@ -13665,7 +13641,7 @@ public:
 					else {
 						//FIXME: unknown map kind
 					}
-					#ifndef NR_SUPPORT_OLD_SERVERS
+					#ifndef CL_SUPPORT_OLD_SERVERS
 					for (int iid=0; iid<MAX_PICKUPS; ++iid)
 						fx.item[iid].kind = 0;
 					#endif
@@ -13831,7 +13807,17 @@ public:
 		// i points to first shift target (0 if no spaces were found)
 		for (++i; i<CHAT_SIZE; ++i)
 			strcpy(chatbuffer[i-1], chatbuffer[i]);
+		#ifdef CL_SUPPORT_OLD_SERVERS
+		for (char* dst=chatbuffer[CHAT_SIZE-1];; ++msg, ++dst) {
+			*dst = *msg;
+			if (*msg == '\0')
+				break;
+			if (*msg == '%' && *(msg+1) == '%')
+				++msg;
+		}
+		#else
 		strcpy(chatbuffer[CHAT_SIZE-1], msg);
+		#endif
 		chaterasetime = get_time() + 10.0;
 	}
 
@@ -15009,7 +14995,7 @@ public:
 
 void gameclient_c::check_flagpos_marks() {
 	if (!flagpos_ready) {
-		const int radius = FLAGPOS_RAD;
+		const int radius = CL_FLAGPOS_RAD;
 		for (int i = 0; i < 2; i++) {
 			if (!flagpos_buf[i])
   				flagpos_buf[i] = create_bitmap(2 * radius, 2 * radius);
@@ -15622,8 +15608,8 @@ int main(int argc, char *argv[]) {
 		append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
 		LOG1("CMAPS DIR IS = '%s'\n", dest);
 		al_ffblk mapffblk;	//for al_find*
-		int result = al_findfirst(dest, &mapffblk, FA_DIREC | FA_ARCH);
-		if (result != 0) {
+		int result = al_findfirst(dest, &mapffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
+		if (result != 0 || !(mapffblk.attrib&FA_DIREC)) {
 			allegro_message("Error: directory '%s' not found\n\nPlease create this directory.\n\nThe game cannot run without it.", dest);
 			return 0;
 		}
