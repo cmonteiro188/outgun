@@ -47,6 +47,7 @@ function downandinstall {
 			echo
 		} fi
 		if [ -f "$filename" ]; then {
+			rm -rf "$subdir"
 			if [ "`tar -zxf "$filename" 2>&1`" == "" ]; then {
 				cd $subdir
 				if { $compile1 && $compile2; } then {
@@ -58,13 +59,14 @@ function downandinstall {
 						} fi
 					}
 					else {
-						if ! su root -c "$install" && ! su root -c "$install"; then {
+						echo
+						echo "Enter root password"
+						if ! su root -c "$install && /sbin/ldconfig" && ! su root -c "$install && /sbin/ldconfig"; then {
 							echo
 							echo "Problem installing $name."
 							exit 1
 						} fi
 					} fi
-					/sbin/ldconfig
 					echo
 					echo "$name installed. Running the script again to see if everything is OK."
 					echo
@@ -178,14 +180,13 @@ echo "Compiling test program. . ."
 g++ hawk.check.cpp -o hawk.check.bin -lNL -pthread
 
 if ! [ -f "./hawk.check.bin" ]; then {
-	downandinstall "HawkNL" "make -f makefile.linux" "true" "make -f makefile.linux install" "http://www.hawksoft.com/hawknl/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_hawknl_src.tar.gz" "./outgun_1.0_hawknl_src.tar.gz" "./hawknl*/"
+	downandinstall "HawkNL" "make -f makefile.linux" "true" "make -f makefile.linux install" "http://www.hawksoft.com/hawknl/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_hawknl_src.tar.gz" "./outgun_1.0_hawknl_src.tar.gz" "./hawknl*"
 	exit 0
 } fi
 
 echo "Running test program. . ."
 if { ./hawk.check.bin; } then {
 	echo "Running just fine. HawkNL is OK."
-	echo
 }
 else {
 	echo
@@ -193,7 +194,6 @@ else {
     echo "         but will not run."
 	echo "         (Re)install a new version of HawkNL (http://www.hawksoft.com/hawknl/)"
 	echo "         and test it again, or try to resolve the error otherwise."
-	echo
 } fi
 
 echo
@@ -203,14 +203,13 @@ echo "Compiling test program. . ."
 g++ allegro.check.cpp -o allegro.check.bin `allegro-config --libs`
 
 if ! [ -f "./allegro.check.bin" ]; then {
-	downandinstall "Allegro" "./configure" "make" "make install" "http://alleg.sf.net/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_allegro_src.tar.gz" "./outgun_1.0_allegro_src.tar.gz" "./allegro-*/"
+	downandinstall "Allegro" "./configure" "make" "make install" "http://alleg.sf.net/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_allegro_src.tar.gz" "./outgun_1.0_allegro_src.tar.gz" "./allegro-*"
 	exit 0
 } fi
 
 echo "Running test program. . ."
 if [ "`./allegro.check.bin 2>&1`" == "" ]; then {
 	echo "Running just fine. Allegro is OK."
-	echo
 }
 else {
 	echo
@@ -218,7 +217,6 @@ else {
 	echo "         but will not run."
 	echo "         (Re)install a newer version of Allegro (http://alleg.sf.net/) and"
 	echo "         test it again, or try to resolve the error otherwise."
-	echo
 } fi
 
 echo
@@ -227,10 +225,12 @@ echo "you should be playing soon. Or not so soon, depending of your machine spee
 echo "In my XP2200+ with 512 DDR 400, this process takes almost 5 minutes."
 echo
 echo "Compiling Outgun. . ."
+rm -f outgun
 cd ./src
-make LINUX=1
+make -B LINUX=1
 
 if [ -f "../outgun" ]; then {
+	echo
 	echo "Outgun compiled fine. You should run now by typing ./outgun"
 	echo
 	echo "Have a nice play!"
