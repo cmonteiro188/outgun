@@ -72,10 +72,11 @@ Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	ply(90),*/
 	minimap_start_x(0),
 	minimap_start_y(0),
-	flagpos_ready(false),
 	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
+	team_captures_size(16),
+	team_captures_start(0),
 	vidpage1(0),
 	vidpage2(0),
 	backbuf(0),
@@ -88,8 +89,6 @@ Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
 	if (reset_video)
 		reset_video_mode();
-	flagpos_buf[0] = 0;
-	flagpos_buf[1] = 0;
 	drawbuf = create_bitmap(scr_w, scr_h);
 	background = create_bitmap(scr_w, scr_h);
 	roombg = create_sub_bitmap(background, plx, ply, plw, plh);
@@ -104,8 +103,6 @@ Graphics::~Graphics() {
 	destroy_bitmap(drawbuf);
 	destroy_bitmap(background);
 	destroy_bitmap(minibg);
-	destroy_bitmap(flagpos_buf[0]);
-	destroy_bitmap(flagpos_buf[1]);
 	unload_pictures();
 }
 
@@ -175,13 +172,11 @@ void Graphics::setcolors() {
 void Graphics::reset_playground_colors() {
 	col[COLGROUND] = col[COLGROUND_DEF];
 	col[COLWALL] = col[COLWALL_DEF];
-	flagpos_ready = false;
 }
 
 void Graphics::random_playground_colors() {
 	col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
 	col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
-	flagpos_ready = false;
 }
 
 void Graphics::clear() {
@@ -320,8 +315,6 @@ bool Graphics::reset_video_mode() {
 	// restore playground colours
 	col[COLGROUND] = makecol(ground_r, ground_g, ground_b);
 	col[COLWALL] = makecol(wall_r, wall_g, wall_b);
-
-	flagpos_ready = false;
 
 	load_pictures();
 
@@ -494,19 +487,19 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		// quarters             3 4
 		float ang1 = angle[0];
 		float ang2 = angle[1];
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 1
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 1
 			rectfill(cbuff, int(scale * ro), 0, int(scale * 2 * ro), int(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 2
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 2
 			rectfill(cbuff, 0, 0, int(scale * ro), int(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 3
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 3
 			rectfill(cbuff, 0, int(scale * ro), int(scale * ro), int(scale * 2 * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 4
+		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 4
 			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
 		// remove the rest unnecessary sectors of the circle
 		const float k = 1.5;
@@ -1063,25 +1056,20 @@ void Graphics::draw_rocket(const rocket_c& rocket, double time) {
 }
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
-	if (!floor_texture.front()) {
-		build_flagpos_marks();	// draw flag position mark sprites
-		blit(flagpos_buf[team], roombg, 0, 0,
-			flag_x - flagpos_radius, flag_y - flagpos_radius, 2 * flagpos_radius, 2 * flagpos_radius);
-	}
-	else {
-		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-		int alpha = 0;
-		const int step = 10;
-		for (int i = flagpos_radius; i >= 0; i--) {
-			drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture.front(), 0, 0);
-			circlefill(roombg, flag_x, flag_y, i, teamcol[team]);
-			drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-			set_trans_blender(0, 0, 0, alpha);
-			circlefill(roombg, flag_x, flag_y, i, teamcol[team]);
-			alpha = min(alpha + step, 255);
+	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+	const int step = 300 / flagpos_radius;
+	for (int y = flag_y - flagpos_radius; y < flag_y + flagpos_radius; y++)
+		for (int x = flag_x - flagpos_radius; x < flag_x + flagpos_radius; x++) {
+			const int dx = flag_x - x;
+			const int dy = flag_y - y;
+			const float dist = sqrt(static_cast<float>(dx * dx + dy * dy));
+			if (dist > flagpos_radius)
+				continue;
+			const int alpha = static_cast<int>(step * (flagpos_radius - dist));
+			set_trans_blender(0, 0, 0, min(alpha, 255));
+			putpixel(roombg, x, y, teamcol[team]);
 		}
-		solid_mode();
-	}
+	solid_mode();
 }
 
 void Graphics::draw_pup(const pickup_c& pup, double time) {
@@ -1269,30 +1257,56 @@ void Graphics::team_statistics(const Team* teams) {
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_dropped());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", teams[t].flags_returned());
 	}
+
 	line++;
+	const int team_captures_start_y = y1 + line * line_height;
+
+	const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
+	if (team_captures_start >= total_captures - team_captures_size)
+		team_captures_start = total_captures - team_captures_size;
+	if (team_captures_start < 0)
+		team_captures_start = 0;
+
 	int red_score = 0, blue_score = 0;
-	for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ; ) {
+	int pos = 0;
+
+	for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ; pos++) {
+		const bool skip = (pos < team_captures_start || pos >= team_captures_start + team_captures_size);
 		ostringstream message;
-		int color;
+		int color = 0;
 		if (red != teams[0].captures().end() && (blue == teams[1].captures().end() || red->first <= blue->first)) {
 			++red_score;
-			color = teamlcol[0];
-			message << setw(3) << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60;
-			message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
-			message << red->second;
+			if (!skip) {
+				color = teamlcol[0];
+				message << setw(3) << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60;
+				message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+				message << red->second;
+			}
 			++red;
 		}
 		else if (blue != teams[1].captures().end() && (red == teams[0].captures().end() || blue->first <= red->first)) {
 			++blue_score;
-			color = teamlcol[1];
-			message << setw(3) << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60;
-			message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
-			message << blue->second;
+			if (!skip) {
+				color = teamlcol[1];
+				message << setw(3) << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60;
+				message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+				message << blue->second;
+			}
 			++blue;
 		}
 		else
 			break;
-		textout_ex(drawbuf, font, message.str().c_str(), (3 * x1 + x2) / 4, y1 + line++ * line_height, color, -1);
+		if (!skip)
+			textout_ex(drawbuf, font, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
+	}
+	// draw scrollbar if there are more maps than visible on the screen
+	if (team_captures_size < total_captures) {
+		const int x = x2 - 30;
+		const int y = team_captures_start_y;
+		const int height = team_captures_size * line_height;
+		const int bar_y = static_cast<int>(static_cast<float>(height * team_captures_start) / total_captures + 0.5);
+		const int bar_h = static_cast<int>(static_cast<float>(height * team_captures_size) / total_captures + 0.5);
+		scrollbar(x, y, height, bar_y, bar_h, col[COLGREEN], col[COLDARKGREEN]);
 	}
 }
 
@@ -1472,6 +1486,14 @@ void Graphics::map_list_prev() {
 
 void Graphics::map_list_next() {
 	++map_list_start;
+}
+
+void Graphics::team_captures_prev() {
+	--team_captures_start;
+}
+
+void Graphics::team_captures_next() {
+	++team_captures_start;
 }
 
 void Graphics::draw_player_power(double val) {
@@ -1894,11 +1916,11 @@ void Graphics::name_password_menu(const string& name, int password_len, bool nam
 		draw_player(130 + 37 * i, 230, 1, i, 7, 0., 0, 255, 0.);*/
 }
 
-void Graphics::server_password_menu(int password_len) {
+void Graphics::password_menu(const string& caption, int password_len) {
 	menu_caption();
 	const string password(password_len, '*');
 	ostringstream line;
-	line << "Server password: " << password << '_';
+	line << caption << ": " << password << '_';
 	textout_ex(drawbuf, font, line.str().c_str(), 150, 230, col[COLWHITE], -1);
 	textout_ex(drawbuf, font, "Esc to cancel.", 150, 250, col[COLWHITE], -1);
 }
@@ -1916,32 +1938,6 @@ void Graphics::show_progress(const string& t1, const string& t2, const string& t
 	textout_centre_ex(screen, font, t2.c_str(), 320, 240     , fg, -1);
 	textout_centre_ex(screen, font, t3.c_str(), 320, 240 + 25, fg, -1);
 	release_screen();
-}
-
-void Graphics::build_flagpos_marks() {
-	if (!flagpos_ready) {
-		const int radius = flagpos_radius;
-		for (int i = 0; i < 2; i++) {
-			if (!flagpos_buf[i])
-  				flagpos_buf[i] = create_bitmap(2 * radius, 2 * radius);
-			clear_to_color(flagpos_buf[i], col[COLGROUND]);
-		}
-		int r1, r2;
-		int b1, b2;
-		r1 = r2 = getr(col[COLGROUND]);
-		const int g = getg(col[COLGROUND]);
-		b1 = b2 = getb(col[COLGROUND]);
-		const int step = 10;
-		for (int i = radius; i >= 0; i--) {
-			// red flag
-			r1 = min(r1 + step, 255);
-			circlefill(flagpos_buf[0], radius, radius, i, makecol(r1, g, b1));
-			// blue flag
-			b2 = min(b2 + step, 255);
-			circlefill(flagpos_buf[1], radius, radius, i, makecol(r2, g, b2));
-		}
-		flagpos_ready = true;
-	}
 }
 
 bool Graphics::save_screenshot(const string& filename) const {

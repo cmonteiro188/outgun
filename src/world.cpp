@@ -219,10 +219,10 @@ bool Map::parse_file(istream& in) {
 			new_label.first = label;
 			label_lines.push_back(new_label);
 		}
-		else if (!label_lines.empty())	// labels have started
-			label_lines.back().second.push_back(line);
-		else							// no labels yet
+		else if (label_lines.empty())	// no labels yet
 			file_lines.push_back(line);
+		else							// labels have started
+			label_lines.back().second.push_back(line);
 	}
 	for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
 		if (!parse_line(*line, label_lines, crx, cry, scalex, scaley))
@@ -291,13 +291,12 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 		ist >> type >> x >> y >> ro;
 		bool ok = ist;
 		ist >> ri;
-		if (!ist) {
+		if (!ist)
 			ri = a1 = a2 = 0;
-		}
 		else {
 			ist >> a1;
 			if (!ist)
-				a1 = 0;
+				a1 = a2 = 0;
 			else {
 				ist >> a2;
 				if (!ist)
@@ -2497,6 +2496,7 @@ void ServerWorld::simulateFrame() {
 					if (teams[myteam].score() >= config.getCaptureLimit()) {
 						host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 						host->ctf_game_restart();
+						return;
 					}
 				}
 		}
@@ -2507,9 +2507,9 @@ void ServerWorld::simulateFrame() {
 	for (int i=0; i<maxplayers; ++i)
 		if (player[i].used)
 			++players;
-	NLulong time_limit = config.getTimeLimit();
+	const NLulong time_limit = config.getTimeLimit();
 	if (players > 1 && time_limit > 0) {
-		int timeLeft = getTimeLeft();
+		const int timeLeft = getTimeLeft();
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
 			net->bprintf("@I*** Five minutes left in the game");
 		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)

@@ -102,7 +102,8 @@ public:
 	void kickPlayer(int pid, bool ban=false);
 	#ifdef SV_NAME_AUTHORIZATION
 	void banPlayer(int pid);
-	bool isBanned(int cid) { return authorizations.isBanned(network.get_client_address(cid)); }
+	bool isBanned(int cid) const { return authorizations.isBanned(network.get_client_address(cid)); }
+	bool check_name_password(const std::string& name, const std::string& password) const;
 	#endif
 
    int check[MAX_PLAYERS];

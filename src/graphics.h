@@ -112,6 +112,9 @@ public:
 	void map_list_prev();
 	void map_list_next();
 
+	void team_captures_prev();
+	void team_captures_next();
+
 	void draw_player_power(double val);
 	void draw_player_turbo(double val);
 	void draw_player_shadow(double val);
@@ -150,7 +153,7 @@ public:
 	void public_servers(const std::vector<gamespy_t>& servers, int selection);
 	void favourite_servers(const std::vector<gamespy_t>& servers, int selection);
 	void name_password_menu(const std::string& name, int password_len, bool name_selected, const std::string& namestatus);
-	void server_password_menu(int password_len);
+	void password_menu(const std::string& caption, int password_len);
 	void game_help();
 	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
 	void dialog(const std::string& t1, const std::string& t2);
@@ -165,7 +168,6 @@ public:
 	void toggleAntialiasing();
 
 private:
-	void build_flagpos_marks();
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
 	// texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
@@ -221,9 +223,7 @@ private:
 
 	BITMAP* roombg;		// room background sub-bitmap
 
-	BITMAP* flagpos_buf[2];
 	static const int flagpos_radius = 30;
-	bool flagpos_ready;
 
 	std::vector<BITMAP*> floor_texture;
 	std::vector<BITMAP*> wall_texture;
@@ -232,6 +232,9 @@ private:
 
 	int map_list_size;
 	int map_list_start;
+	
+	int team_captures_size;
+	int team_captures_start;
 
 	// drawing screens
 	BITMAP* vidpage1;
@@ -244,7 +247,6 @@ private:
     std::string themedir;
     std::string theme_name;
     al_ffblk themeffblk;	// for al_find*
-    bool valid_theme;		// if theme_dir points to valid dir
     bool no_theme;
 
 	enum { AA_none, AA_map, AA_both } antialiasing;

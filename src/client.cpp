@@ -983,14 +983,20 @@ void gameclient_c::connect_failed_denied(char *data, int length) {
 	// show a message
 	dialogmessage = "Connection refused. Press ESC.";
 	dialogmessage2 = message;
-	if (message == "PASSWORD")
+
+	if (message == "SERVER PASSWORD")
 		set_menu(menu_server_password);
-	else
+	else if (message == "PLAYER PASSWORD")
+		set_menu(menu_player_password);
+	else {
 		set_menu(menu_dialog);
+		// clear passwords to avoid sending them everywhere
+		edit_server_password.clear();
+		edit_player_password.clear();
+	}
 }
 
 void gameclient_c::connect_failed_unreachable() {
-
 	//not trying anymore
 	trying_connection = false;
 
@@ -1199,13 +1205,10 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 //connect command
 void gameclient_c::connect_command() {
-
 	// disconnect
-	//
 	client->connect(false);
 
 	// copy gamespy address
-	//
 	if (showmaster)
 		address = mgamespy[gi].address;
 	else
@@ -1233,10 +1236,11 @@ void gameclient_c::connect_command() {
 	char lebuf[256]; int count = 0;
 	writeString(lebuf, count, GAME_STRING);
 	writeString(lebuf, count, GAME_PROTOCOL);
-	if (!edit_server_password.empty()) {
+	writeStr(lebuf, count, playername);
+	if (!edit_server_password.empty())
 		writeStr(lebuf, count, edit_server_password);
-		edit_server_password.clear();	// clear password to avoid sending it everywhere
-	}
+	if (!edit_player_password.empty())
+		writeStr(lebuf, count, edit_player_password);
 
 	client->set_connect_data(lebuf, count);
 
@@ -1865,6 +1869,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					want_map_exit = false;		// and player does not want to exit the map anymore
 					fx.teams[0].remove_flags();
 					fx.teams[1].remove_flags();
+					fx.teams[0].clear();
+					fx.teams[1].clear();
 					readShort(lebuf, count, usho);				//read CRC16 of map
 					readString(lebuf, count, mapname);		//read map name
 					server_map_command(mapname, usho);
@@ -2622,8 +2628,6 @@ void gameclient_c::loop() {
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
 			else if (menu != menu_none) {
 				while (keypressed()) {
-					string lerud_abloxon;
-
 					//get key
 					int ch = readkey();
 					int sc = ch >> 8;	//scancode
@@ -2698,21 +2702,14 @@ void gameclient_c::loop() {
 								i = strlen(mgamespy[gi].address);
 							else
 								i = strlen(gamespy[gi].address);
-							if (
-										//v0.4.2: including +6 chars for :xxxxx (port)
-										(i < 21)
-										//(i < 16)	// max length of IP address typein
-										&&
-										//v0.4.2 ":" para port#
-										(((ch >= '0') && (ch <= '9')) || (ch == '.') || (ch == ':'))
-							) {
+							if (i < 21 && (isdigit(ch) || ch == '.' || ch == ':')) {
 								if (showmaster) {
-									mgamespy[gi].address[i] = (char)ch;
+									mgamespy[gi].address[i] = static_cast<char>(ch);
 									mgamespy[gi].address[i+1] = 0;
 									mgamespy[gi].refreshed = false;
 								}
 								else {
-									gamespy[gi].address[i] = (char)ch;
+									gamespy[gi].address[i] = static_cast<char>(ch);
 									gamespy[gi].address[i+1] = 0;
 									gamespy[gi].refreshed = false;
 								}
@@ -2744,6 +2741,8 @@ void gameclient_c::loop() {
 								}
 							}
 							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
+								edit_server_password.clear();
+								edit_player_password.clear();
 								connect_command();
 							}
 							else if (sc == KEY_TAB) {
@@ -2771,11 +2770,10 @@ void gameclient_c::loop() {
 								i = editplayerpass.length();
 
 							if (((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) || (ch == '-') || (ch == '_')) {
-
 								if (name_selected) {
 									if (i < 15) {
 										editplayername += static_cast<char>(ch);
-										editplayerpass = ""; //reset password after editing name
+										editplayerpass.clear(); //reset password after editing name
 									}
 								}
 								else {
@@ -2787,7 +2785,7 @@ void gameclient_c::loop() {
 								if (i > 0) {
 									if (name_selected) {
 										editplayername.erase(editplayername.end() - 1);
-										editplayerpass = ""; //reset password after editing name
+										editplayerpass.clear(); //reset password after editing name
 									}
 									else
 										editplayerpass.erase(editplayerpass.end() - 1);
@@ -2802,7 +2800,7 @@ void gameclient_c::loop() {
 							else if (sc == KEY_TAB)		// switch fields
 								name_selected = !name_selected;
 							break;
-						// server password requesting dialog
+						// server and player password requesting dialogs
 						case menu_server_password:
 							if (sc == KEY_BACKSPACE && !edit_server_password.empty())
 								edit_server_password.erase(edit_server_password.end() - 1);
@@ -2810,6 +2808,14 @@ void gameclient_c::loop() {
 								connect_command();
 							else if (ch >= 32)
 								edit_server_password += static_cast<char>(ch);
+							break;
+						case menu_player_password:
+							if (sc == KEY_BACKSPACE && !edit_player_password.empty())
+								edit_player_password.erase(edit_player_password.end() - 1);
+							else if ((sc == KEY_ENTER || sc == KEY_ENTER_PAD) && !edit_player_password.empty())
+								connect_command();
+							else if (ch >= 32)
+								edit_player_password += static_cast<char>(ch);
 							break;
 						case menu_maps:
 							if (key[KEY_UP])
@@ -2824,11 +2830,9 @@ void gameclient_c::loop() {
 							}
 							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
 								int new_vote = atoi(edit_map_vote.c_str()) - 1;
-								edit_map_vote = "";
-								if (new_vote != map_vote && (new_vote >= 0 && new_vote < static_cast<int>(maps.size()) ||
-												map_vote >= 0 && map_vote < static_cast<int>(maps.size()))) {
+								edit_map_vote.clear();
+								if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
 									map_vote = new_vote;
-
 									// send map vote
 									char lebuf[16];
 									int count = 0;
@@ -2839,11 +2843,16 @@ void gameclient_c::loop() {
 							}
 							break;
 						case menu_players:
-							if (key[KEY_UP])
+							if (key[KEY_UP] || key[KEY_LEFT])
 								player_stats_page = max(0, player_stats_page - 1);
-							if (key[KEY_DOWN])
+							if (key[KEY_DOWN] || key[KEY_RIGHT])
 								player_stats_page = min(3, player_stats_page + 1);
 							break;
+						case menu_teams:
+							if (key[KEY_UP])
+								client_graphics.team_captures_prev();
+							if (key[KEY_DOWN])
+								client_graphics.team_captures_next();
 						default:;
 					}
 				}
@@ -3052,7 +3061,8 @@ void gameclient_c::loop() {
 					else if (menu == menu_none)		// no menu, show
 						set_menu(menu_main);
 					else {		// menu
-						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list || menu == menu_server_password)
+						if (menu == menu_dialog || menu == menu_name_password || menu == menu_server_list ||
+											menu == menu_server_password || menu == menu_player_password)
 							set_menu(menu_main);	// go back one screen
 						else if (gameshow || menu != menu_main)
 							set_menu(menu_none);	// hide menu
@@ -3167,7 +3177,6 @@ void gameclient_c::loop() {
 
 //stop
 void gameclient_c::stop() {
-
 	//at least disconnect
 	disconnect_command();
 
@@ -3915,7 +3924,10 @@ void gameclient_c::draw_game_menu() {
 			client_graphics.name_password_menu(editplayername, editplayerpass.length(), name_selected, namestatus);
 			break;
 		case menu_server_password:
-			client_graphics.server_password_menu(edit_server_password.length());
+			client_graphics.password_menu("Server password", edit_server_password.length());
+			break;
+		case menu_player_password:
+			client_graphics.password_menu("Player password for " + playername, edit_player_password.length());
 			break;
 		case menu_maps:
 			client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);

@@ -44,11 +44,17 @@ void gameserver_c::kickPlayer(int pid, bool ban) {
 }
 
 #ifdef SV_NAME_AUTHORIZATION
+
 void gameserver_c::banPlayer(int pid) {
 	authorizations.ban(network.get_client_address(world.player[pid].cid));
 	authorizations.save();
 	kickPlayer(pid, true);
 }
+
+bool gameserver_c::check_name_password(const string& name, const string& password) const {
+	return authorizations.checkNamePassword(name, password);
+}
+
 #endif
 
 void gameserver_c::ctf_game_restart() {

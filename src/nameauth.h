@@ -31,6 +31,7 @@ public:
     bool save() const;
 
     bool addIP(const string& nameUpr, const string& password, NLaddress addr);  // must be an existing name
+    bool NameAuthorizationDatabase::checkNamePassword(const string& nameUpr, const string& password) const;
 
 	int identifyName(const string& name) const;
     string getName(int idx) const { return db[idx].nameUpr; }

@@ -274,4 +274,7 @@ struct gamespy_t {
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str);
 
+// Convert string to uppercase.
+string toupper(string str);
+
 #endif

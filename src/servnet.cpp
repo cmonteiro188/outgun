@@ -512,7 +512,6 @@ void ServerNetworking::client_report_status(int id) {
 
 //broadcast team message
 void ServerNetworking::broadcast_team_message(int team, char *text) {
-
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
 	writeString(lebuf, count, text);
@@ -592,7 +591,6 @@ void ServerNetworking::broadcast_message(const char *text) {
 
 //send map change message to a player
 void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) {
-
 	char lebuf[256];
 	int count = 0;
 	writeByte(lebuf, count, data_map_change);
@@ -3166,7 +3164,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		readStr(data, count, stri);	//read gamestring
 
 	if (stri != GAME_STRING) {
-		LOG2("GAME STRINGS DONT MATCH: %s and %s\n", GAME_STRING, stri.c_str());
+		LOG2("Game strings don't match! Server '%s' and player '%s'\n", GAME_STRING, stri.c_str());
 		res->accepted = false;		// not accepted
 
 		temp << "Different game: '" << stri.c_str() << '\'';
@@ -3199,20 +3197,35 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		}
 		#endif
 		else {
+			string name;
+			if (length - count > 0)
+				readStr(data, count, name);	//read player's name
 			string password;
 			if (!server_password.empty() && length - count > 0)
 				readStr(data, count, password);
 			if (server_password.empty() || server_password == password) {
-				res->accepted = true;
-				writeByte(res->customData, res->customDataLength, ((NLubyte)maxplayers));
-				writeStr(res->customData, res->customDataLength, hostname);
+				string player_password;
+				if (length - count > 0)
+					readStr(data, count, player_password);
+				if (host->check_name_password(toupper(name), player_password)) {
+					res->accepted = true;
+					writeByte(res->customData, res->customDataLength, (static_cast<NLubyte>(maxplayers)));
+					writeStr(res->customData, res->customDataLength, hostname);
+				}
+				else {
+					res->accepted = false;
+					if (player_password.empty())
+						writeStr(res->customData, res->customDataLength, "PLAYER PASSWORD");
+					else
+						writeStr(res->customData, res->customDataLength, "Wrong player password");
+				}
 			}
 			else {
 				res->accepted = false;
 				if (password.empty())
-					writeStr(res->customData, res->customDataLength, "PASSWORD");
+					writeStr(res->customData, res->customDataLength, "SERVER PASSWORD");
 				else
-					writeStr(res->customData, res->customDataLength, "Wrong password");
+					writeStr(res->customData, res->customDataLength, "Wrong server password");
 			}
 		}
 	}

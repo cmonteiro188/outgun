@@ -123,6 +123,17 @@ bool NameAuthorizationDatabase::addIP(const string& nameUpr, const string& passw
 	return false;
 }
 
+bool NameAuthorizationDatabase::checkNamePassword(const string& nameUpr, const string& password) const {
+	for (vector<Entry>::const_iterator dbi = db.begin(); dbi != db.end(); ++dbi)
+		if (dbi->nameUpr == nameUpr) {
+			if (dbi->password == password)
+				return true;
+			else
+				return false;
+		}
+	return true;	// name not found, password not needed
+}
+
 int NameAuthorizationDatabase::identifyName(const string& name) const {
 	static const char fromTab[]="!|012357";
 	static const char   toTab[]="IIOIZEST";

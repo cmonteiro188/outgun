@@ -31,7 +31,8 @@ enum Menu_selection {
 	menu_maps,
 	menu_players,
 	menu_teams,
-	menu_server_password
+	menu_server_password,
+	menu_player_password
 };
 
 class client_c;	// of leetnet
@@ -112,6 +113,7 @@ class gameclient_c {
 	std::string editplayername;
 	std::string address;	//server IP address
 	std::string edit_server_password;
+	std::string edit_player_password;
 	std::string dialogmessage;
 	std::string dialogmessage2;
 	std::string talkbuffer;

@@ -121,3 +121,10 @@ istream& getline_smart(istream& in, string& str) {
 		str += c;
 	}
 }
+
+string toupper(string str) {
+	for (string::iterator s = str.begin(); s != str.end(); ++s)
+		*s = toupper(*s);
+	return str;
+}
+
