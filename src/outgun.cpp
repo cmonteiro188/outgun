@@ -228,7 +228,7 @@ fica pro outgun II ...
 
 // ***** FORTIFY !!! *****
 
-#include "FORTFY22/FORTIFY.H"
+#include "fortfy22/fortify.h"
 
 // ***** FORTIFY !!! *****
 
@@ -308,10 +308,10 @@ fica pro outgun II ...
 
 #include "nl.h"				// HawkNL
 
-#include <leetnet/server.h>		// l33t server
-#include <leetnet/client.h>		// l33t client
-#include <leetnet/rudp.h>			// get_self_I
-#include <leetnet/sleep.h>		// sleep util
+#include "leetnet/server.h"		// l33t server
+#include "leetnet/client.h"		// l33t client
+#include "leetnet/rudp.h"			// get_self_I
+#include "leetnet/sleep.h"		// sleep util
 
 #include "string.h"
 #include "math.h"
@@ -330,7 +330,7 @@ using namespace std;
 //#define LOG_NOLOG		// uncomment to disable logging
 #define LOG_EXPR game_log
 #define LOG_TIMEFUNC get_time()
-#include <leetnet/log.h>
+#include "leetnet/log.h"
 FILE *game_log;
 
 #if defined ALLEGRO_WINDOWS || WIN32 || WIN64
@@ -1583,7 +1583,7 @@ bool load_map_parse_label(FILE *f, char *label, map_c *map) {
 									b = (int)(y1 * (double)plh);
 									c = (int)(x2 * (double)plw);
 									d = (int)(y2 * (double)plh);
-									drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d, texid, alpha);
+									drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d,(int) texid, alpha);
 								}
 							}
 							else {
@@ -15087,3 +15087,4 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 } END_OF_MAIN();
+
