@@ -9,7 +9,7 @@
 #include "gameserver_interface.h"
 
 //#define DEBUG_RANKING
-#define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
+const int minimum_positive_score_for_ranking = 100;
 
 using std::endl;
 using std::find;
@@ -368,7 +368,7 @@ void gameserver_c::refresh_team_score_modifiers() {
 	for (int p = 0; p < maxplayers; p++)
 		if (world.player[p].used) {
 			// use "1.0" rating for anybody with less than 100 positive points
-			if (client[world.player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
+			if (client[world.player[p].cid].score < minimum_positive_score_for_ranking)
 				raw[p / TSIZE] += DEFAULT_PLAYER_RATE;
 			else
 				raw[p / TSIZE] += (client[world.player[p].cid].score + 1.0) / (client[world.player[p].cid].neg_score + 1.0);
@@ -707,6 +707,8 @@ void gameserver_c::load_game_mod() {
 				}
 				else if (cmd == "sayadmin_comment")
 					sayadmin_comment = line;
+				else if (cmd == "server_website")
+					server_website_url = line;
 				else
 					log.error("*** Bad command in gamemod: %s", cmd.c_str());
 			}
@@ -838,11 +840,13 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	// reset server rotation list
 	currmap = 0;
 
-	sayadmin_comment = string();
+	sayadmin_comment.clear();
 	sayadmin_enabled = false;
 
 	welcome_message.clear();
 	info_message.clear();
+
+	server_website_url.clear();
 
 	maprot.clear();
 

@@ -92,6 +92,7 @@ class gameserver_c {
 	std::vector<std::string> admins;	// names of the admins of this server
 	#endif
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
+	std::string server_website_url;	// the URL of the server website to be sent to master server
 
 	// copying not allowed
 	gameserver_c(const gameserver_c& o);
@@ -157,6 +158,8 @@ public:
 
 	const std::vector<std::string>& getWelcomeMessage() const { return welcome_message; }
 	std::string getTeamName(int team) const { return world.getTeamName(team); }
+
+	const std::string& server_website() const { return server_website_url; }
 
 	void load_game_mod();
 	bool reset_settings(bool keepMap);

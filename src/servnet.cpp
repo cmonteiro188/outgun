@@ -11,12 +11,11 @@
 #include "mutex.h"
 #include "nassert.h"
 
-//delay for the server contacting the master server, in seconds
-// it is good if this delay is set to a minute or so, since this will
-// filter out people opening and closing servers frequently
-#define	DELAY_TO_REPORT_SERVER	10.0
+// Delay for the server contacting the master server, in seconds.
+// It is good if this delay is set to a minute or so, since this will
+// filter out people opening and closing servers frequently.
+const float delay_to_report_server = 10.0;
 
-using std::hex;
 using std::ifstream;
 using std::map;
 using std::max;
@@ -699,9 +698,8 @@ bool ServerNetworking::start() {
 
 	//start TCP thread for talking with master server
 	if (!privateserver) {
-		master_talk_time = get_time();
 		msock = NL_INVALID;		//not opened
-		master_talk_time = get_time() + DELAY_TO_REPORT_SERVER;	//give it a break
+		master_talk_time = get_time() + delay_to_report_server;	//give it a break
 		master_never_talked = true;		//not talked yet
 		pthread_create(&mthread, 0, thread_mastertalker_f, this);
 	}
@@ -1998,7 +1996,13 @@ bool ServerNetworking::check_private_IP(const char *address) {
 
 void ServerNetworking::run_mastertalker_thread() {
 	log("run_mastertalker_thread()");
-	const string master_script("/janir/outgun/submit.php");	// ### FIXME: move to a file
+
+	ifstream in("master.txt");
+	string line;
+	string master_script;
+	if (!getline(in, line) || !getline(in, line) || !getline(in, line) || !getline(in, master_script))
+		master_script = "/janir/outgun/submit.php";
+	in.close();
 
 	//get my IP
 	//V0.4.4: -ip : force IP to something else
@@ -2387,10 +2391,11 @@ map<string, string> ServerNetworking::master_parameters() const {
 	mpc << maxplayers;
 	parameters["max_players"] = mpc.str();
 	parameters["version"] = GAME_VERSION;
+	parameters["protocol"] = GAME_PROTOCOL;
 	ostringstream upt;
 	upt << world.frame / 10;
 	parameters["uptime"] = upt.str();
-	parameters["link"] = "http://koti.mbnet.fi/janir/outgun/";	//#fix
+	parameters["link"] = host->server_website();
 	return parameters;
 }
 
@@ -2479,63 +2484,6 @@ void ServerNetworking::save_http_response(NLsocket& socket, ostream& out) const 
 		// save
 		out << lebuf;
 	} while (get_time() <= timeout && !file_threads_quit);
-}
-
-void ServerNetworking::url_encode(char c, ostream& out) const {
-	if (is_url_safe(c))	// send safe characters as they are
-		out << c;
-	else if (c == ' ')	// spaces to + characters
-		out << '+';
-	else				// encode unsafe characters to %xx
-		out << '%' << hex << setw(2) << setfill('0') << static_cast<int>(static_cast<unsigned char>(c));
-}
-
-bool ServerNetworking::is_url_safe(char c) const {
-	if (c >= 'a' && c <= 'z')
-		return true;
-	else if (c >= 'A' && c <= 'Z')
-		return true;
-	else if (c >= '0' && c <= '9')
-		return true;
-	const string safe_characters = "$-_.+!*'(),";
-	return safe_characters.find(c) != string::npos;
-}
-
-string ServerNetworking::base64_encode(const string& data) const {
-	const string conversion_table("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
-	const char padding = '=';
-	string result;
-	// Convert data to 6-bit sequences. Take characters for every sequence
-	// from the conversion table.
-	for (string::const_iterator s = data.begin(); s != data.end(); s++) {
-		// first encoded byte
-		char value = (*s >> 2) & 0x3F;
-		result += conversion_table[value];
-		// second encoded byte
-		value = (*s << 4) & 0x3F;
-		s++;
-		if (s != data.end())
-			value |= (*s >> 4) & 0x0F;
-		result += conversion_table[value];
-		// third encoded byte
-		if (s != data.end()) {
-			value = (*s << 2) & 0x3F;
-			s++;
-			if (s != data.end())
-				value |= (*s >> 6) & 0x03;
-			result += conversion_table[value];
-		}
-		else
-			result += padding;
-		// fourth encoded byte
-		if (s != data.end()) {
-			value = *s & 0x3F;
-			result += conversion_table[value];
-		}
-		else
-			result += padding;
-	}
-	return result;
 }
 
 //read a string from a blocking TCP stream, one char at a time

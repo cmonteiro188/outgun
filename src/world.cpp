@@ -6,16 +6,16 @@
 #define PHYS_NEW
 //#define PHYS_VECTOR_ACC
 
-//same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
-#define SHOT_DELTAX 17  // V0.4.8 : A HAIR LESS!
+//same as PLAYER RADIUS (15) + ROCKET RADIUS (3) - 1
+const int shot_deltax = 17;
 
-//minimum time between flag steal at base and capture, to consider a map to be valid for scoring
-#define MINIMUM_GRAB_TO_CAPTURE_TIME 6.0
+//minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
+const float minimum_grab_to_capture_time = 6.0;
 
 //#define ALWAYS_FRICTION
 
-#define PI M_PI //3.1416
-#define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
+//#define PI M_PI //3.1416
+//#define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
 using std::ifstream;
 using std::istream;
@@ -131,11 +131,11 @@ CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float a
 	float a2r = angle[1] * M_PI / 180;
 	va1 = Coords(sin(a1r), cos(a1r));
 	va2 = Coords(sin(a2r), cos(a2r));
-	float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2.*M_PI);
+	float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * M_PI);
 	if (a1r == a2r)
 		anglecos = -1.;	// full circle => max width
 	else
-		anglecos = cos((a2r_greater - a1r)/2.);
+		anglecos = cos((a2r_greater - a1r) / 2.);
 	float midangle = (a2r_greater + a1r) / 2;
 	midvec = Coords(sin(midangle), cos(midangle));
 }
@@ -1056,11 +1056,11 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	r->x = x;
 	r->y = y;
 
-	float deg = dir * PIOIT;
+	float deg = dir * M_PI_4;
 
 	if (xdelta) {
-		r->sx = xdelta * SHOT_DELTAX * cos(deg + PI/2);
-		r->sy = xdelta * SHOT_DELTAX * sin(deg + PI/2);
+		r->sx = xdelta * shot_deltax * cos(deg + M_PI_2);
+		r->sy = xdelta * shot_deltax * sin(deg + M_PI_2);
 		double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 		r->move(1);
 		if (wallTime < 1.) {
@@ -2626,7 +2626,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
 void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 	const Flag& capt_flag = team == 2 ? wild_flags[flag] : teams[team].flag(flag);
 	const int myteam = pid / TSIZE;
-	if (map.valid_for_scoring && get_time() - capt_flag.grab_time() <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
+	if (map.valid_for_scoring && get_time() - capt_flag.grab_time() <= minimum_grab_to_capture_time) {
 		// this map is too small, ignore all scoring for it
 		map.valid_for_scoring = false;
 		net->broadcast_message(msg_warning, "This map is too small. Scoring for World Ranking disabled.");

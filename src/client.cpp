@@ -2547,11 +2547,18 @@ void gameclient_c::get_servers_from_master() {
 		sock = NL_INVALID;
 		return;
 	}
+	
+	ifstream in("master.txt");
+	string skip;
+	string master_script;
+	if (!getline(in, skip) || !getline(in, skip) || !getline(in, master_script))
+		master_script = "/janir/outgun/servers.php";
+	in.close();
 
 	//build query
 	char querybuf[1024]; int count = 0;
 	ostringstream request;
-	request << "GET /janir/outgun/servers.php?simple HTTP/1.0\r\n";
+	request << "GET " << master_script << "?simple&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
 	request << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
 	request << "Connection: close\r\n\r\n";
 	writeStr(querybuf, count, request.str()); count--;
@@ -2615,7 +2622,7 @@ void gameclient_c::get_servers_from_master() {
 
 	string line, empty;
 
-	// Remove HTTP headers.
+	// Skip HTTP headers.
 	while (getline(response, line, '\r') && getline(response, empty, '\n'))
 		if (line.empty())
 			break;
@@ -3827,10 +3834,11 @@ void gameclient_c::draw_game_frame() {
 void gameclient_c::draw_player(int i) {
 	const ClientPlayer& player = fx.player[i];
 	int alpha = fd.player[i].visibility;
-	if (alpha < 7)
+	const int min_alpha_friends = 128;
+	if (player.team() == fx.player[me].team() && alpha < min_alpha_friends)
+		alpha = min_alpha_friends;
+	else if (alpha < 7)
 		alpha = 7;
-	if (i / TSIZE == me / TSIZE && alpha < MIN_ALPHA_FRIENDS)
-		alpha = MIN_ALPHA_FRIENDS;
 	// draw flag if player is carrier of a flag
 	for (int t = 0; t < 2; t++)
 		for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)

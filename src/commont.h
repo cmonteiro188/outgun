@@ -76,7 +76,7 @@ private:
 
 #define PASSBUFFER  32	//size of password file
 
-#define MIN_ALPHA_FRIENDS 64
+//#define MIN_ALPHA_FRIENDS 64
 
 #define ROCKET_SPEED 50.0	//in pixels/0.1s
 

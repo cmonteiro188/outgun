@@ -1,11 +1,13 @@
-#include <string>
+#include <fstream>
 #include <sstream>
+#include <string>
 
 #include "commont.h"
 #include "server.h"
 #include "client.h"
 #include "mappic.h"
 
+using std::ifstream;
 using std::ostringstream;
 using std::string;
 
@@ -205,11 +207,17 @@ int main(int argc, char *argv[]) {
 	nlEnable(NL_SOCKET_STATS);
 
 	// resolve master server address
-	// #FIXME: read master server address from a file
+	// #FIXME: move master server resolving to connection menu
 	log("resolving master server address...");
+	ifstream in("master.txt");
+	string name, address;
+	if (!getline_smart(in, name))
+		name = "koti.mbnet.fi";
+	if (!getline_smart(in, address))
+		address = "194.100.161.5";
+	in.close();
 	try {
-		//nlGetAddrFromName("www.mycgiserver.com", &master_address);	//www.mycgiserver.com
-		nlGetAddrFromName("koti.mbnet.fi", &master_address);
+		nlGetAddrFromName(name.c_str(), &master_address);
 	} catch (...) {
 		log("caught exception probably on nlGetAddrFromNameAsync()");
 		master_address.valid = NL_FALSE;
@@ -217,13 +225,14 @@ int main(int argc, char *argv[]) {
 
 	if (master_address.valid == NL_FALSE) {
 		log("can't resolve master server address to IP.");
-		//nlStringToAddr("212.69.162.53", &master_address);					//last known resolution for www.mycgiserver.com
+		nlStringToAddr(address.c_str(), &master_address);
 	} else if (master_address.valid == NL_TRUE) {
 		log("address resolved sucessfully.");
 	}
 
-	nlSetAddrPort(&master_address, 80);													//port 80
-	log("master server address set.");
+	if (!nlGetPortFromAddr(&master_address))
+		nlSetAddrPort(&master_address, 80);
+	log("Master server address set: %s (%s), port %d.", name.c_str(), address.c_str(), nlGetPortFromAddr(&master_address));
 
 	// install higher-accuracy timer interrupt
 	LOCK_VARIABLE(speed_counter);

@@ -212,8 +212,8 @@ private:
 	BITMAP* get_floor_texture(int texid);
 	BITMAP* get_wall_texture(int texid);
 
-	void load_player_sprite(const std::string& filename_team, const std::string& filename_personal);
-	void create_player_sprite(BITMAP* sprite, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
+	void load_player_sprite(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
+	void create_player_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) const;
 
 	void unload_pictures();
 	void unload_floor_textures();

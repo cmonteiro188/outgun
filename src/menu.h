@@ -43,7 +43,6 @@ public:
 	void open() { openHook.call(*this); home(); }
 	void close() { closeHook.call(*this); }
 
-	void home();	// moves the cursor to topmost selectable item
 	void draw(BITMAP* buffer);	// no const because drawHook might modify the menu
 	void handleKeypress(char scan, char chr);
 
@@ -62,6 +61,8 @@ private:
 	int total_width() const;
 	int total_height() const;
 
+	void home();	// moves the cursor to topmost selectable item
+	void end();		// moves the cursor to the last selectable item
 	bool prev();
 	bool next();
 

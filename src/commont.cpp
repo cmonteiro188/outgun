@@ -32,7 +32,7 @@ void ClientControls::fromKeyboard() {
 void ClientControls::fromJoystick() {
 	if (poll_joystick())
 		return;		// failure
-	data = 0;
+	// Do not reset data because keyboard controls should remain.
 	const JOYSTICK_INFO& joystick = joy[0];
 	if (joystick.num_sticks >= 1) {
 		if (joystick.stick[0].num_axis >= 2) {

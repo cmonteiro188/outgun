@@ -13,7 +13,7 @@ int atoi(const std::string& str);
 std::string itoa(int val, int radix = 10);
 int iround(double value);
 
-// Returns a current time in the standard format.
+// Returns the current time in the standard format.
 std::string date_and_time();
 
 // Convert string to uppercase.
@@ -139,6 +139,14 @@ bool is_keypad(int sc);
 void rotate_angle(float& angle, float shift);
 
 double get_time();
+
+std::string url_encode(const std::string& str);
+
+void url_encode(char c, std::ostream& out);
+
+bool is_url_safe(char c);
+
+std::string base64_encode(const std::string& data);
 
 #endif
 

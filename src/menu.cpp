@@ -33,6 +33,12 @@ void Menu::home() {
 		}
 }
 
+void Menu::end() {
+	for (selected_item = static_cast<int>(components.size()) - 1; !components[selected_item]->isEnabled(); --selected_item)
+		if (selected_item == 0)
+			break;
+}
+
 bool Menu::prev() {
 	const int original = selected_item;
 	do {
@@ -117,10 +123,14 @@ col_value			= makecol(0xFF, 0xFF, 0xFF);
 }
 
 void Menu::handleKeypress(char scan, char chr) {
-	if (scan == KEY_UP)
+	if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
 		prev();
-	else if (scan == KEY_DOWN)
+	else if (scan == KEY_DOWN || scan == KEY_TAB)
 		next();
+	else if (scan == KEY_HOME)
+		home();
+	else if (scan == KEY_END)
+		end();
 	//#todo: handle number shortcuts if the active component doesn't needNumberKeys()
 	if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
 		return;
