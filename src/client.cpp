@@ -110,6 +110,24 @@ void setcolors() {
 	teamdcol[1] = col[COLBBLUE];
 }
 
+// ---- client screen layout ----
+
+//resolution
+#define RESOL_X 640
+#define RESOL_Y 480
+
+//play area offset
+#define plx 0
+#define ply 90
+
+//minimap offset
+#define mmx (plx + plw + 16)    //push 8 to left
+#define mmy ply
+
+//scoreboard offset
+#define sbx (plx + plw)
+#define sby (mmy + 110)         // + XXX = minimap panel height
+
 bool reset_video_mode() {
 
 		char err1[1024];
@@ -1681,7 +1699,7 @@ void gameclient_c::calc_game_frame() {
 				dc -= 1.0;
 
 				//run physics
-				#ifdef SV_SERVER_PHYSICS
+				#ifdef PHYS_NEW
 				if (NR_applyPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 					//player bounced: play bounce sample if minimum time elapsed
 					if (get_time() > player[i].wall_sound_time) {
@@ -1689,7 +1707,7 @@ void gameclient_c::calc_game_frame() {
 						sound(SAMPLE_WALLBOUNCE);
 					}
 				}
-				#else	// SV_SERVER_PHYSICS
+				#else	// PHYS_NEW
 				if (applyDefaultPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 					//player bounced: play bounce sample if minimum time elapsed
 					if (get_time() > player[i].wall_sound_time) {
@@ -1697,7 +1715,7 @@ void gameclient_c::calc_game_frame() {
 						sound(SAMPLE_WALLBOUNCE);
 					}
 				}
-				#endif	// SV_SERVER_PHYSICS else
+				#endif	// PHYS_NEW else
 			}
 		}
 
@@ -1761,10 +1779,10 @@ void gameclient_c::calc_game_frame() {
 			else if (!rx->dontdraw) {
 
 				//0.3.9: check rocket hit a wall (clientside) if not vanished already
-				#ifdef SV_SERVER_PHYSICS
-				if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-SV_SHIFTY-2, (int)rd->x+2, (int)rd->y-SV_SHIFTY+2)) {
+				#ifdef PHYS_NEW
+				if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-PHYS_SHIFTY-2, (int)rd->x+2, (int)rd->y-PHYS_SHIFTY+2)) {
 				#else
-				if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-SV_SHIFTY, (int)rd->x, (int)rd->y-SV_SHIFTY)) {
+				if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
 				#endif
 					//probably hit wall
 					rx->dontdraw = true;

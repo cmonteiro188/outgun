@@ -1,6 +1,15 @@
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
 
+#define SV_NAME_AUTHORIZATION   // enable player IP based filtering : name authorization and ban
+#define SV_NO_PUP_SWITCHING // disable the changing of power-ups lying on the ground
+#define SV_VOTE_ANNOUNCE_INTERVAL 5 // in seconds, how often a changing voting status will be announced
+#define SV_SHADOW_MINIMUM_NORMAL 7  // the shadow visibility factor
+
+#ifdef SV_NAME_AUTHORIZATION
+#include "nameauth.h"
+#endif
+
 //per-client struct (statically allocated to a single client)
 class oneclient_c {
 public:

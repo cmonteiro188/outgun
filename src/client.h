@@ -1,9 +1,10 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
 
-//************************************************************
-//  client stuff
-//************************************************************
+#define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
+#define CL_SHOW_FLAGPOS // show a flag position marker on the ground
+#define CL_FLAGPOS_RAD 30   // the radius of the flag position marker
+//#define CL_SHOW_TIME_LEFT
 
 // number of chat messages in the buffer
 #define CHAT_SIZE 8

@@ -514,7 +514,7 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy) {
 	static const double plyRadius=15;
 
-	double stx=*x, sty=*y-SV_SHIFTY;	// position in real coordinates
+	double stx=*x, sty=*y-PHYS_SHIFTY;	// position in real coordinates
 	double mx=*sx, my=*sy;	// speed
 
 	bool bounced=false;
@@ -606,13 +606,11 @@ bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double
 			break;
 	}
 	*x = stx;
-	*y = sty + SV_SHIFTY;
+	*y = sty + PHYS_SHIFTY;
 	*sx = mx;
 	*sy = my;
 	return bounced;
 }
-
-#if !defined(SV_SERVER_PHYSICS)
 
 //wall hit?
 bool wallhit(double x, double y, const RectWall &w) { int ix=(int)x, iy=(int)y; return w.intersects_rect(ix, iy, ix, iy); }
@@ -653,11 +651,11 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 
 		for (int w=0;w<(int)r->rwalls.size();w++) {
 			int runaw = 100;
-			while (wallhit((*x),(*y)-SV_SHIFTY,r->rwalls[w])) {
+			while (wallhit((*x),(*y)-PHYS_SHIFTY,r->rwalls[w])) {
 				had_wall_hit = true;
 				(*x) += dx;
 				y_solved = false;
-				if (!(wallhit((*x),(*y)-SV_SHIFTY,r->rwalls[w])))
+				if (!(wallhit((*x),(*y)-PHYS_SHIFTY,r->rwalls[w])))
 				break;
 				(*y) += dy;
 				y_solved = true;
@@ -684,7 +682,7 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 		}
 	} while (had_wall_hit);
 	if (ever_had_wall_hit) {
-		if (((*x) <= 0.01) || ((*x) >= ((double)plw) - 0.01) || ((*y)-SV_SHIFTY <= 0.01) || ((*y)-SV_SHIFTY >= ((double)plh) - 0.01)) {
+		if (((*x) <= 0.01) || ((*x) >= ((double)plw) - 0.01) || ((*y)-PHYS_SHIFTY <= 0.01) || ((*y)-PHYS_SHIFTY >= ((double)plh) - 0.01)) {
 			(*x) = (*ox);
 			(*y) = (*oy);
 		}
@@ -693,8 +691,6 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 	}
 	return ever_had_wall_hit;
 }
-
-#endif	// !defined(SV_SERVER_PHYSICS)
 
 // tenta carregar um mapa do arquivo OUTGUN_DIR/mapdir/mapname.TXT
 // retorna FALSE se nao conseguiu abrir ou se tava corrompido etc
@@ -762,7 +758,7 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 
 	int xAcc = (h->r?1:0) - (h->l?1:0), yAcc = (h->d?1:0) - (h->u?1:0);
 
-	#ifdef SV_PHYS_VECTOR_ACC
+	#ifdef PHYS_VECTOR_ACC
 
 	// this is a more physically correct model by Nix
 
@@ -801,7 +797,7 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 		}
 	}
 
-	#else	// SV_PHYS_VECTOR_ACC
+	#else	// PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
 
@@ -828,13 +824,12 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 			h->sy += float(yAcc)*player_accel;
 	}
 
-	#endif	// SV_PHYS_VECTOR_ACC else
+	#endif	// PHYS_VECTOR_ACC else
 
 	//wall collision correction
 	return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy);
 }
 
-#if !defined(SV_SERVER_PHYSICS)
 bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
 	//
@@ -937,11 +932,10 @@ bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo
 
 	//move y
 	h->y += h->sy * fraction;
-	if (h->y-SV_SHIFTY < 0) h->y = 0+SV_SHIFTY;
-	else if (h->y-SV_SHIFTY > plh) h->y = plh+SV_SHIFTY;
+	if (h->y-PHYS_SHIFTY < 0) h->y = 0+PHYS_SHIFTY;
+	else if (h->y-PHYS_SHIFTY > plh) h->y = plh+PHYS_SHIFTY;
 
 	//wall collision correction
 	return wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
 }
-#endif	// !defined(SV_SERVER_PHYSICS)
 

@@ -864,7 +864,7 @@ void gameserver_c::game_respawn_player(int pid) {
 	}
 
 	//if was killed or map spawn point places player over a wall
-	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-SV_SHIFTY-20, pos.x+20, pos.y-SV_SHIFTY+20)) {
+	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20)) {
 		// generate a random spot for respawn:
 		// - unnocupied screen
 		// - away from walls
@@ -888,10 +888,10 @@ void gameserver_c::game_respawn_player(int pid) {
 
 			//find a suitable coordinate -- middle square
 			pos.x = plw / 8 + rand() % (3 * plw / 4);
-			pos.y = plh / 8 + rand() % (3 * plh / 4) +SV_SHIFTY;
+			pos.y = plh / 8 + rand() % (3 * plh / 4) +PHYS_SHIFTY;
 
 			//do a check for walls, maybe retrying another screen if hits a wall
-			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-SV_SHIFTY-20, pos.x+20, pos.y-SV_SHIFTY+20))
+			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20))
 				break;	//success!
 
 			//fall on wall true, keep trying...
@@ -2272,7 +2272,6 @@ bool gameserver_c::server_next_map(int reason) {
 
 	assert(!maprot.empty());
 
-	#ifdef SV_CONSOLE
 	vector<int> winners;
 	int maxVotes=0;
 	for (int m=0; m<(int)maprot.size(); ++m) {
@@ -2298,12 +2297,6 @@ bool gameserver_c::server_next_map(int reason) {
 			player[p].mapVote=-1;
 	}
 	maprot[currmap].votes=0;
-	#else
-	if (++currmap >= (int)maprot.size()) // next map on rotation
-		currmap = 0;
-	for (int p=0; p<maxplayers; ++p)
-		player[p].want_map_exit=false;
-	#endif
 	last_vote_announce_votes = last_vote_announce_needed = 0;
 	next_vote_announce_frame = 0;	// let a new announcement be made as soon as someone votes
 
@@ -2335,14 +2328,12 @@ void gameserver_c::check_map_exit() {
 				num_against++;
 		}
 
-	#ifdef SV_CONSOLE
 	// this could be done elsewhere, but this function is called whenever votes change
 	for (int m=0; m<(int)maprot.size(); ++m)
 		maprot[m].votes=0;
 	for (int p=0; p<maxplayers; ++p)
 		if (player[p].used && player[p].mapVote!=-1)
 			++maprot[player[p].mapVote].votes;
-	#endif
 
 	if ((map_start_time+vote_block_time<frame && num_for>num_against) || (num_against==0 && num_for)) {
 		server_next_map(NEXTMAP_VOTE_EXIT);	// ignore return value
@@ -2989,7 +2980,6 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			//chat!
 			else if (code == 2) {
 				const char* sbuf=msg+1;
-				#ifdef SV_CONSOLE
 				// handle 'console' commands
 				if (player[pid].delayedMessages.size()>2) {
 					player[pid].delayedMessages.clear();
@@ -3059,7 +3049,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 						if (pups_min_percentage || pups_max_percentage)
 							pupstr << " (% of map size)";
 						player[pid].add_to_queue(pupstr.str());
-						#ifdef SV_SERVER_PHYSICS
+						#ifdef PHYS_NEW
 						player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
 						#endif
 					}
@@ -3252,9 +3242,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 					else
 						player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
 				}
-				else
-				#endif
-				if (strspnp(sbuf, " ")!=NULL) {	// ignore messages that are all spaces
+				else if (strspnp(sbuf, " ")!=NULL) {	// ignore messages that are all spaces
 					//talk flood protection
 					player[pid].talk_temp += player[pid].talk_hotness;
 					player[pid].talk_hotness += 3.0;
@@ -3533,7 +3521,7 @@ void gameserver_c::run_server_player_physics(int i, frame_t *src, frame_t *dest)
 
 	float startx = hd->x, starty = hd->y;
 
-	#ifdef SV_SERVER_PHYSICS
+	#ifdef PHYS_NEW
 		NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 	#else
 		applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
@@ -3556,13 +3544,13 @@ void gameserver_c::run_server_player_physics(int i, frame_t *src, frame_t *dest)
 	}
 
 	//check room change y
-	if (int(hd->y)-SV_SHIFTY == plh) {
-		hd->y = 1 +SV_SHIFTY;
+	if (int(hd->y)-PHYS_SHIFTY == plh) {
+		hd->y = 1 +PHYS_SHIFTY;
 		if (++hd->ty >= map.h)
 			hd->ty = 0;
 	}
-	else if (int(hd->y)-SV_SHIFTY == 0) {
-		hd->y = plh - 1 +SV_SHIFTY;
+	else if (int(hd->y)-PHYS_SHIFTY == 0) {
+		hd->y = plh - 1 +PHYS_SHIFTY;
 		if (--hd->ty < 0)
 			hd->ty = map.h - 1;
 	}
@@ -3774,14 +3762,14 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			}
 
 			//wall hit - remove
-			#if !defined(SV_SERVER_PHYSICS)
+			#if !defined(PHYS_NEW)
 			if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
 				rock->owner=-1;
 				t=999;break;
 			}
 			#endif
-			#ifdef SV_SERVER_PHYSICS
-			if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-SV_SHIFTY-2, (int)rock->x+2, (int)rock->y-SV_SHIFTY+2)) {
+			#ifdef PHYS_NEW
+			if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-PHYS_SHIFTY-2, (int)rock->x+2, (int)rock->y-PHYS_SHIFTY+2)) {
 				rock->owner=-1;
 				t=999;
 				break;

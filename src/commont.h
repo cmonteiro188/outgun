@@ -3,25 +3,15 @@
 #ifndef COMMONT_H_INC
 #define COMMONT_H_INC
 
-#define SV_SERVER_PHYSICS
-//#define SV_PHYS_VECTOR_ACC
+#define PHYS_NEW
+//#define PHYS_VECTOR_ACC
 
-// ---- server side defines
-
-#define SV_CONSOLE  // enable console commands
-#define SV_NAME_AUTHORIZATION   // enable player IP based filtering : name authorization and ban
-#define SV_NO_PUP_SWITCHING // disable the changing of power-ups lying on the ground
-#define SV_VOTE_ANNOUNCE_INTERVAL 5 // in seconds, how often a changing voting status will be announced
-#define SV_SHADOW_MINIMUM_NORMAL 7  // the shadow visibility factor
-
-// ---- client side defines
-
-#define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
-#define CL_SHOW_FLAGPOS // show a flag position marker on the ground
-#define CL_FLAGPOS_RAD 30   // the radius of the flag position marker
-//#define CL_SHOW_TIME_LEFT
-
-// ----
+/* PHYS_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
+#ifdef PHYS_NEW
+#define PHYS_SHIFTY 15
+#else
+#define PHYS_SHIFTY 0
+#endif
 
 #include <vector>
 #include <list>
@@ -29,22 +19,15 @@
 #include <sstream>
 #include <iomanip>
 
-/* SV_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
-#ifdef SV_SERVER_PHYSICS
-#define SV_SHIFTY 15
-#else
-#define SV_SHIFTY 0
-#endif
-
-#ifdef SV_NAME_AUTHORIZATION
-#include "nameauth.h"
-#endif
-
 template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
 
 // strspnp: (Watcom definition) find from str the first char not in charset
 char* strspnp(char* str, const char* charset);
 const char* strspnp(const char* str, const char* charset);
+
+//play area width/height
+#define plw 472
+#define plh 354
 
 // ***** FORTIFY !!! *****
 
@@ -147,29 +130,6 @@ extern FILE *game_log;
 #if defined ALLEGRO_WINDOWS || WIN32 || WIN64
 #include <conio.h>
 #endif
-
-// ---- client screen layout ----
-
-//resolution
-#define RESOL_X 640
-#define RESOL_Y 480
-
-//play area offset
-#define plx 0
-#define ply 90
-
-//play area width/height
-#define plw 472
-#define plh 354
-
-//minimap offset
-#define mmx (plx + plw + 16)    //push 8 to left
-#define mmy ply
-
-//scoreboard offset
-#define sbx (plx + plw)
-#define sby (mmy + 110)         // + XXX = minimap panel height
-
 
 //************************************************************
 //  common stuff
@@ -408,9 +368,7 @@ struct player_t {
 
 	bool			want_map_exit; //server side - player quer sair p/ proximo mapa na rotacao
 
-	#ifdef SV_CONSOLE
 	int mapVote;
-	#endif
 	typedef list< pair<int, string> > DMQueueT;
 	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
 	int kickTimer;
@@ -537,9 +495,7 @@ struct player_t {
 		frags = 0;	//reset score ?
 		oldfrags = -666;
 		want_map_exit = false;		//by default don't want change maps
-		#ifdef SV_CONSOLE
 		mapVote=-1;
-		#endif
 		delayedMessages.clear();
 		kickTimer=0;
 		muted=0;
@@ -764,9 +720,7 @@ public:
 
 bool load_map(const char *mapdir, const string& mapname, Map *map);
 bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected);
-#if !defined(SV_SERVER_PHYSICS)
-bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
-#endif
+bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected);
 
 extern int listen_port_running;
 extern volatile bool	listen_server_running;
