@@ -2386,7 +2386,7 @@ void gameclient_c::loop() {
 	client_netsend_counter = 0;
 
 	//loop
-	bool quick_fix, key_fire=false, key_kill=false, key_swap=false, key_votexit=false;
+	bool quick_fix, key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
 	int i;
 	while (notquit && !force_exit) {
@@ -2666,10 +2666,18 @@ void gameclient_c::loop() {
 				else key_kill = false;
 
 				// page down == drop flag
-				//
 				if (key[KEY_PGDN]) {
+					if (!key_drop_flag) {
+						key_drop_flag = true;
+						char lebuf[16]; int count = 0;
+						writeByte(lebuf, count, 34);	// 34 = drop flag
+						client->send_message(lebuf, count);
+					}
+				}
+				else if (key_drop_flag) {
+					key_drop_flag = false;
 					char lebuf[16]; int count = 0;
-					writeByte(lebuf, count, 34);	// 34 = drop flag
+					writeByte(lebuf, count, 36);		// 36 = stop dropping flag
 					client->send_message(lebuf, count);
 				}
 

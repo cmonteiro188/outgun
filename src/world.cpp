@@ -1099,7 +1099,7 @@ void ServerWorld::stealFlag(int team, int carrier) {
 	net->ctf_net_flag_status(-1, team);
 }
 
-bool ServerWorld::dropFlagIfAny(int pid) {
+bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 	int enemyteam = 1 - (pid/TSIZE);
 	if (!flag[enemyteam].carried || flag[enemyteam].carrier!=pid)
 		return false;
@@ -1107,6 +1107,8 @@ bool ServerWorld::dropFlagIfAny(int pid) {
 	net->broadcast_sample(SAMPLE_CTF_LOST);
 	dropFlag(enemyteam, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
 	player[pid].total_flags_dropped++;
+	if (purpose)
+		player[pid].frags--;
 	return true;
 }
 
@@ -2166,7 +2168,7 @@ void ServerWorld::simulateFrame() {
 			check_flag_touch(player[i].roomx, player[i].roomy, (int)h->lx, (int)h->ly, enemyteam))  // and I touch it
 		{
 			// Has player just dropped the flag or not?
-			if (!player[i].dropped_flag) {
+			if (!player[i].dropped_flag && !player[i].drop_key) {
 				//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
 				if (flag[enemyteam].atbase)
 					flag[enemyteam].grab_time = get_time();
@@ -2180,7 +2182,7 @@ void ServerWorld::simulateFrame() {
 					player[i].item_helm = 255;
 			}
 		}
-		else	// Player has removed away from the flag.
+		else if (!player[i].drop_key)
 			player[i].dropped_flag = false;
 
 		// --> CTF FLAG RETURN

@@ -231,6 +231,7 @@ public:
 	int oldfrags;	// last value informed to clients
 	int megabonus;
 
+	bool drop_key;
 	bool dropped_flag;
 	double next_shoot_time;
 	double respawn_time;
@@ -335,6 +336,7 @@ public:
 		health = energy = 0;
 		megabonus = 0;
 		weapon = 0;
+		drop_key = false;
 		dropped_flag = false;
 		respawn_time = 0;
 		respawn_to_base = false;
@@ -594,7 +596,7 @@ public:
 	bool check_flag_touch(int px, int py, int x, int y, int t);
 	void game_player_screen_change(int p);
 
-	bool dropFlagIfAny(int pid);
+	bool dropFlagIfAny(int pid, bool purpose = false);
 	void shootRockets(int pid, int numshots);
 	void deleteRocket(int r, NLshort hitx, NLshort hity, int targ);
 	void changeRocketsOwner(int source, int target);

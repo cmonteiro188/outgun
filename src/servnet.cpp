@@ -1023,9 +1023,13 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			}
 			// drop flag
 			else if (code == 34) {
+				world.player[pid].drop_key = true;
 				world.player[pid].dropped_flag = true;
-				world.dropFlagIfAny(pid);
+				world.dropFlagIfAny(pid, true);
 			}
+			// stop dropping flag
+			else if (code == 36)
+				world.player[pid].drop_key = false;
 			else {
 				//ERROR: unknown message from client
 				LOG3("ERROR: UNKNOWN MESSAGE FROM CLIENT %i CODE=%i LENGTH=%i\n", id, code, msglen);
