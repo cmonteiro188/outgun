@@ -138,11 +138,11 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
             return -1;
         }
 
-        string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
+        const string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
 
         FILE *fmap = fopen(fileName.c_str(), "rb");
         if (fmap) {
-            int amount = fread(lebuf, 1, 65536, fmap);
+            const int amount = fread(lebuf, 1, 65536, fmap);
             fclose(fmap);
             log("Uploading map \"%s\"", fname);
             return amount;
@@ -178,7 +178,7 @@ void ServerNetworking::broadcast_simple_message(Network_data_code code) const {
     broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::send_me_packet(int pid) {
+void ServerNetworking::send_me_packet(int pid) const {
     int count = 0;
     char lebuf[1024];
     writeByte(lebuf, count, data_first_packet);
@@ -191,7 +191,7 @@ void ServerNetworking::send_me_packet(int pid) {
 }
 
 //send a player name update to a client
-void ServerNetworking::send_player_name_update(int cid, int pid) {
+void ServerNetworking::send_player_name_update(int cid, int pid) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
     writeByte(lebuf, count, pid);       // what player id
@@ -200,7 +200,7 @@ void ServerNetworking::send_player_name_update(int cid, int pid) {
 }
 
 //broadcast new player name
-void ServerNetworking::broadcast_player_name(int pid) {
+void ServerNetworking::broadcast_player_name(int pid) const {
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used)
             send_player_name_update(world.player[i].cid, pid);
@@ -254,7 +254,7 @@ void ServerNetworking::move_update_player(int a) {
     ctop[world.player[a].cid] = a;
 }
 
-void ServerNetworking::broadcast_team_change(int from, int to, bool swap) {
+void ServerNetworking::broadcast_team_change(int from, int to, bool swap) const {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_team_change);
     writeByte(lebuf, count, static_cast<NLubyte>(from));
@@ -268,7 +268,7 @@ void ServerNetworking::broadcast_team_change(int from, int to, bool swap) {
 }
 
 //broadcast a sample
-void ServerNetworking::broadcast_sample(int code) {
+void ServerNetworking::broadcast_sample(int code) const {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_sound);
     writeByte(lebuf, count, static_cast<NLubyte>(code));
@@ -276,7 +276,7 @@ void ServerNetworking::broadcast_sample(int code) {
 }
 
 //play a sample to a player's screen audience
-void ServerNetworking::broadcast_screen_sample(int p, int code) {
+void ServerNetworking::broadcast_screen_sample(int p, int code) const {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_sound);
     writeByte(lebuf, count, static_cast<NLubyte>(code));
@@ -284,7 +284,7 @@ void ServerNetworking::broadcast_screen_sample(int p, int code) {
 }
 
 //send current flag status (cid == -1 : broadcast)
-void ServerNetworking::ctf_net_flag_status(int cid, int team) {
+void ServerNetworking::ctf_net_flag_status(int cid, int team) const {
     //just resetting server state -- no update needed
     if (!server)
         return;
@@ -325,7 +325,7 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
 }
 
 //update team scores
-void ServerNetworking::ctf_update_teamscore(int t) {
+void ServerNetworking::ctf_update_teamscore(int t) const {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_score_update);
     writeByte(lebuf, count, static_cast<NLubyte>(t));       // the team
@@ -399,21 +399,21 @@ void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_
     broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                                      bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const {
+void ServerNetworking::broadcast_kill(int attacker, int target, bool deathbringer, bool flag, bool wild_flag,
+                                      bool carrier_defended, bool flag_defended) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_kill);
     // first byte, deatbringer bit, carrier defended bit, flag defended bit and attacker id
-    NLubyte attacker_info = attacker.id;
+    NLbyte attacker_info = world.player[attacker].id;
     if (deathbringer)
-        attacker_info |= 0x80;
-    if (carrier_defended)
         attacker_info |= 0x40;
-    if (flag_defended)
+    if (carrier_defended)
         attacker_info |= 0x20;
+    if (flag_defended)
+        attacker_info |= 0x10;
     // second byte, flag bit, wild flag bit and target id
-    NLubyte tar_flag = target.id;
+    NLbyte tar_flag = world.player[target].id;
     if (flag)
         tar_flag |= 0x80;
     if (wild_flag)
@@ -554,7 +554,7 @@ void ServerNetworking::send_team_stats(const ServerPlayer& player) const {
     server->send_message(player.cid, lebuf, count);
 }
 
-void ServerNetworking::send_map_info(const ServerPlayer& player) {
+void ServerNetworking::send_map_info(const ServerPlayer& player) const {
     int count = 0;
     char lebuf[256];
     writeByte(lebuf, count, data_map_list);
@@ -564,6 +564,14 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) {
     writeByte(lebuf, count, static_cast<NLchar>(map.width));
     writeByte(lebuf, count, static_cast<NLchar>(map.height));
     writeByte(lebuf, count, static_cast<NLchar>(map.votes));
+    server->send_message(player.cid, lebuf, count);
+}
+
+void ServerNetworking::send_map_vote(const ServerPlayer& player) const {
+    int count = 0;
+    char lebuf[256];
+    writeByte(lebuf, count, data_map_vote);
+    writeByte(lebuf, count, static_cast<NLbyte>(player.mapVote));
     server->send_message(player.cid, lebuf, count);
 }
 
@@ -577,6 +585,9 @@ void ServerNetworking::broadcast_map_votes_update() {
             mi->votes_changed = false;
         }
 
+    if (votes.empty())
+        return;
+
     // build packet
     int count = 0;
     char lebuf[256];
@@ -588,12 +599,11 @@ void ServerNetworking::broadcast_map_votes_update() {
     }
 
     // send packet
-    if (!votes.empty())
-        broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 //send map time and time left
-void ServerNetworking::send_map_time(int cid) {
+void ServerNetworking::send_map_time(int cid) const {
     const NLulong current_time = world.getMapTime() / 10;
     NLlong time_left;
     if (world.getTimeLeft() <= 0) {
@@ -613,7 +623,7 @@ void ServerNetworking::send_map_time(int cid) {
         server->send_message(cid, lebuf, count);
 }
 
-void ServerNetworking::send_server_settings(const ServerPlayer& player) {
+void ServerNetworking::send_server_settings(const ServerPlayer& player) const {
     int count = 0;
     char lebuf[256];
     const WorldSettings& config = world.getConfig();
@@ -680,7 +690,7 @@ void ServerNetworking::client_report_status(int id) {
     clid.fdn = 0.0;
 }
 
-void ServerNetworking::broadcast_team_message(int team, const string& text) {
+void ServerNetworking::broadcast_team_message(int team, const string& text) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, msg_team);
@@ -700,14 +710,14 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) {
 }
 
 //broadcast message to all players in one screen
-void ServerNetworking::broadcast_screen_message(int px, int py, char* lebuf, int count) {
+void ServerNetworking::broadcast_screen_message(int px, int py, char* lebuf, int count) const {
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
             server->send_message(world.player[i].cid, lebuf, count);
 }
 
 // broadcast message with varargs
-void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
+void ServerNetworking::bprintf(Message_type type, const char *fs, ...) const {
     va_list argptr;
     char msg[1000];
     va_start(argptr, fs);
@@ -717,7 +727,7 @@ void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
     broadcast_text(type, msg);
 }
 
-void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) { // bprintf for a single player
+void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) const { // bprintf for a single player
     char buf[1000];
     buf[0] = data_text_message;
     buf[1] = type;
@@ -729,16 +739,17 @@ void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...
 }
 
 //send a single message player-printf
-void ServerNetworking::player_message(int pid, Message_type type, const string& text) {
+void ServerNetworking::player_message(int pid, Message_type type, const string& text) const {
+    if (!world.player[pid].used)
+        return;
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, type);
     writeStr(lebuf, count, text);
-    if (world.player[pid].used)
-        server->send_message(world.player[pid].cid, lebuf, count);
+    server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::broadcast_text(Message_type type, const string& text) {
+void ServerNetworking::broadcast_message(Message_type type, const string& text) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, type);
@@ -755,7 +766,7 @@ void ServerNetworking::broadcast_text(Message_type type, const string& text) {
     }
 }
 
-void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) {
+void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) const {
     char lebuf[256];
     int count = 0;
     writeByte(lebuf, count, data_map_change);
@@ -1133,7 +1144,7 @@ void ServerNetworking::ping_result(int client_id, int ping_time) {
     world.player[ctop[client_id]].ping = ping_time;
 }
 
-void ServerNetworking::forwardSayadminMessage(int cid, const string& message) {
+void ServerNetworking::forwardSayadminMessage(int cid, const string& message) const {
     if (shellssock == NL_INVALID)
         return;
     char lebuf[256];
@@ -1185,7 +1196,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     pl.gundir = 5;
                 else if (!ctrl.isUp() && ctrl.isDown()) // + down
                     pl.gundir = 3;
-                else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
+                else if (ctrl.isUp() == ctrl.isDown()) // (!up !down) or (up down)
                     pl.gundir = 4;
             }
             // right
@@ -1194,11 +1205,11 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     pl.gundir = 7;
                 else if (!ctrl.isUp() && ctrl.isDown()) // + down
                     pl.gundir = 1;
-                else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
+                else if (ctrl.isUp() == ctrl.isDown()) // (!up !down) or (up down)
                     pl.gundir = 0;
             }
-            //!right !left
-            else if (!ctrl.isLeft() && !ctrl.isRight()) {
+            // (!left !right) or (left right)
+            else if (ctrl.isLeft() == ctrl.isRight()) {
                 if (ctrl.isUp() && !ctrl.isDown())  // + up
                     pl.gundir = 6;
                 else if (!ctrl.isUp() && ctrl.isDown()) // + down
@@ -1208,9 +1219,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     }
 
     //2. process messages
-    char *msg;
-    int msglen;
+    char* msg;
     do {
+        int msglen;
         msg = server->receive_message(id, &msglen);
         if (msg != 0) {
             // process a client's message
@@ -1227,11 +1238,11 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             }
             else if (code == data_text_message) {
                 if (find_nonprintable_char(msg + 1)) {
-                    log("Kicked player %d for client misbehavior: sent unprintable characters", pid);
+                    log("Kicked player %d for client misbehavior: sent unprintable characters.", pid);
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
                 }
                 else if (string(msg + 1).length() > max_chat_message_length) {
-                    log("Kicked player %d for client misbehavior: sent too long message (%d characters)", pid, string(msg + 1).length());
+                    log("Kicked player %d for client misbehavior: sent too long message (%d characters).", pid, string(msg + 1).length());
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
                 }
                 else
@@ -1383,7 +1394,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
-                    log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i", pid, code, msglen);
+                    log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i.", pid, code, msglen);
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
                     break;  // don't process the rest of the messages
                 }
@@ -1401,11 +1412,11 @@ void ServerNetworking::disconnect_client(int cid, int timeout, Disconnect_reason
     server->disconnect_client(cid, timeout, reason);
 }
 
-void ServerNetworking::sendWorldReset() {
+void ServerNetworking::sendWorldReset() const {
     broadcast_simple_message(data_world_reset);
 }
 
-void ServerNetworking::sendStartGame() {
+void ServerNetworking::sendStartGame() const {
     broadcast_simple_message(data_start_game);
     send_map_time(-1);
 }
@@ -1564,11 +1575,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         // send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
         if (!skip_frame) {
             // 2 bytes with the screen of self
-            NLubyte scr;
-            scr = static_cast<NLubyte>(world.player[i].roomx);
-            writeByte(lebuf, lecount, scr);
-            scr = static_cast<NLubyte>(world.player[i].roomy);
-            writeByte(lebuf, lecount, scr);
+            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].roomx));
+            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].roomy));
 
             // player data field to indicate which players are on screen (and therefore sent on the frame)
             NLulong players_onscreen = 0;
@@ -1693,21 +1701,19 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         }
     }
 
-    // PING: v0.4.1
-    // envia um ping a cada frame, faz revezamento entre todos os players
-    ping_send_client++;     //next player
+    ping_send_client++;
     if (ping_send_client >= maxplayers)
         ping_send_client = 0;
-    if (world.player[ping_send_client].used) // valid player?
-        server->ping_client(world.player[ping_send_client].cid); //ping
+    if (world.player[ping_send_client].used)
+        server->ping_client(world.player[ping_send_client].cid);
 
     #ifdef SEND_FRAMEOFFSET
     frameSentTime = get_time();
     #endif
 }
 
-double ServerNetworking::getTraffic() {
-    return ( server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT) ) / 1024.;
+double ServerNetworking::getTraffic() const {
+    return server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT);
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
@@ -2571,7 +2577,7 @@ void ServerNetworking::stop() {
     host->config().statusOutput(_("Shutdown: main thread"));
 }
 
-void ServerNetworking::sendWeaponPower(int pid) {
+void ServerNetworking::sendWeaponPower(int pid) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_weapon_change);
     writeByte(lebuf, count, static_cast<NLubyte>(world.player[pid].weapon));
@@ -2579,7 +2585,7 @@ void ServerNetworking::sendWeaponPower(int pid) {
 }
 
 void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power,
-                                                int px, int py, int x, int y) { // sid = shot-id; array of NLubyte[shots]
+                                         int px, int py, int x, int y) const { // sid = shot-id; array of NLubyte[shots]
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_rocket_fire);
     writeByte(lebuf, count, shots);         // power and dir
@@ -2599,7 +2605,7 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
             server->send_message(world.player[i].cid, lebuf, count);
 }
 
-void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) {
+void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const {
     char lebuf[256]; int count = 0;
     const NLubyte shotType = (rocket.team << 1) | rocket.power;
     writeByte(lebuf, count, data_old_rocket_visible);
@@ -2615,7 +2621,7 @@ void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rock
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) {
+void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const {
     //assembly rocket delete message
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_rocket_delete);
@@ -2627,16 +2633,15 @@ void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx
 
     //send message to players that received the rocket
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            if (plymask & (1 << i))
-                server->send_message(world.player[i].cid, lebuf, count);
+        if (world.player[i].used && plymask & (1 << i))
+            server->send_message(world.player[i].cid, lebuf, count);
 }
 
-void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
+void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_deathbringer);
-    writeByte(lebuf, count, static_cast<NLubyte>(pid)); //team/target player
-    writeLong(lebuf, count, world.frame);       //frame # of the bringer shot (message can be delayed)
+    writeByte(lebuf, count, static_cast<NLubyte>(pid / TSIZE)); // team
+    writeLong(lebuf, count, world.frame);                       // frame # of the bringer shot (message can be delayed)
     writeByte(lebuf, count, static_cast<NLubyte>(ply.roomx));
     writeByte(lebuf, count, static_cast<NLubyte>(ply.roomy));
     writeShort(lebuf, count, static_cast<NLushort>(ply.lx));
@@ -2645,7 +2650,7 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
     broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) {
+void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_visible);
     writeByte(lebuf, count, static_cast<NLubyte>(pup_id));  //what item
@@ -2657,7 +2662,7 @@ void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it)
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
+void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_timer);
     writeByte(lebuf, count, pupType);
@@ -2665,7 +2670,7 @@ void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::sendFragUpdate(int pid, NLulong frags) {
+void ServerNetworking::sendFragUpdate(int pid, NLulong frags) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_frags_update);
     writeByte(lebuf, count, pid);       // what player id
@@ -2673,7 +2678,7 @@ void ServerNetworking::sendFragUpdate(int pid, NLulong frags) {
     broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::sendNameAuthorizationRequest(int pid) {
+void ServerNetworking::sendNameAuthorizationRequest(int pid) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_authorization_request);
     server->send_message(world.player[pid].cid, lebuf, count);

@@ -2001,17 +2001,17 @@ void Client::process_incoming_data(const char* data, int length) {
                 break;
 
             case data_deathbringer: {
-                NLubyte pid;
+                NLubyte team;
                 NLulong frameno;
                 NLubyte sx, sy;
-                readByte(lebuf, count, pid);
+                readByte(lebuf, count, team);
                 readLong(lebuf, count, frameno);    // creation frame
                 readByte(lebuf, count, sx);
                 readByte(lebuf, count, sy);
                 NLushort hx, hy;
                 readShort(lebuf, count, hx);
                 readShort(lebuf, count, hy);
-                addThreadMessage(new TM_Deathbringer(pid / TSIZE, get_time() + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
+                addThreadMessage(new TM_Deathbringer(team, get_time() + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
                 addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
                 break;
             }
@@ -2139,6 +2139,12 @@ void Client::process_incoming_data(const char* data, int length) {
                 break;
             }
 
+            case data_map_vote: {
+                NLbyte map_nr;
+                readByte(lebuf, count, map_nr);
+                map_vote = map_nr;
+            }
+
             case data_map_votes_update: {
                 NLbyte total, map_nr, votes;
                 readByte(lebuf, count, total);
@@ -2184,20 +2190,28 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             case data_kill: {
-                NLubyte attacker, target;
+                NLbyte attacker, target;
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
-                const bool deathbringer = attacker & 0x80;
-                const bool carrier_defended = attacker & 0x40;
-                const bool flag_defended = attacker & 0x20;
-                attacker &= ~0xE0;
+                const bool deathbringer = attacker & 0x40;
+                const bool carrier_defended = attacker & 0x20;
+                const bool flag_defended = attacker & 0x10;
+                attacker &= ~0x70;
                 const bool flag = target & 0x80;
                 const bool wild_flag = target & 0x40;
                 target &= ~0xC0;
-                const bool attacker_team = attacker / TSIZE;
+                int attacker_team;
+                bool known_attacker = false;
+                if (attacker == unknown_red_player)
+                    attacker_team = 0;
+                else if (attacker == unknown_blue_player)
+                    attacker_team = 1;
+                else {
+                    attacker_team = attacker / TSIZE;
+                    known_attacker = fx.player[attacker].used;
+                }
                 const bool target_team = target / TSIZE;
                 const bool same_team = (attacker_team == target_team);
-                const bool known_attacker = fx.player[attacker].used;
                 string msg;
                 if (deathbringer) {
                     if (!known_attacker)
@@ -2210,7 +2224,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
                 }
                 else {
-                    if (!known_attacker)    // this should never happen with the current code, but it's here for future
+                    if (!known_attacker)
                         msg = _("$1 was nailed.", fx.player[target].name);
                     else if (same_team)
                         msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
@@ -2241,12 +2255,14 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
-                fx.player[attacker].stats().add_kill(deathbringer);
+                if (known_attacker)
+                    fx.player[attacker].stats().add_kill(deathbringer);
                 fx.teams[attacker_team].add_kill();
                 fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
                 fx.teams[target_team].add_death();
                 if (flag) {
-                    fx.player[attacker].stats().add_carrier_kill();
+                    if (known_attacker)
+                        fx.player[attacker].stats().add_carrier_kill();
                     fx.player[target].stats().add_flag_drop(get_time());
                     fx.teams[target_team].add_flag_drop();
                     if (wild_flag)
@@ -2258,11 +2274,10 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 }
-                if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
+                if (known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
                         addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
-                    if (known_attacker)
-                        msg = _("$1 is on a killing spree!", fx.player[attacker].name);
+                    msg = _("$1 is on a killing spree!", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 break;
@@ -3157,7 +3172,7 @@ void Client::loop(volatile bool* quitFlag) {
                                     edit_map_vote.erase(edit_map_vote.end() - 1);
                             }
                             else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-                                int new_vote = atoi(edit_map_vote) - 1;
+                                const int new_vote = atoi(edit_map_vote) - 1;
                                 edit_map_vote.clear();
                                 if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
                                     map_vote = new_vote;
@@ -4041,24 +4056,25 @@ void Client::draw_player(int pid) {
 
 //draws the game menu
 void Client::draw_game_menu() {
-    switch (menusel) {
-        case menu_maps: {
-            MutexDebug md("mapInfoMutex", __LINE__, log);
-            MutexLock ml(mapInfoMutex);
-            client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
-            break;
+    if (gameshow)
+        switch (menusel) {
+            case menu_maps: {
+                MutexDebug md("mapInfoMutex", __LINE__, log);
+                MutexLock ml(mapInfoMutex);
+                client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
+                break;
+            }
+            case menu_players:
+                client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
+                break;
+            case menu_teams:
+                client_graphics.team_statistics(fx.teams);
+                break;
+            case menu_none: // regular menus are drawn below, regardless of menusel
+                break;
+            default:
+                numAssert(0, menusel);
         }
-        case menu_players:
-            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
-            break;
-        case menu_teams:
-            client_graphics.team_statistics(fx.teams);
-            break;
-        case menu_none: // regular menus are drawn below, regardless of menusel
-            break;
-        default:
-            numAssert(0, menusel);
-    }
     if (!openMenus.empty())
         openMenus.draw(client_graphics.drawbuffer());
 }

@@ -48,6 +48,11 @@ const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
 const double minimum_grab_to_capture_time = 6.0;
 
+const int maximum_shadow_visibility = 254;
+
+const int unknown_red_player  = -2;
+const int unknown_blue_player = -3;
+
 using std::ifstream;
 using std::ios;
 using std::istream;
@@ -1279,7 +1284,7 @@ void PowerupSettings::reset() {
     pup_deathbringer_switch = true;
     pup_health_bonus = 160;
     pup_power_damage = 2.0;
-    pup_weapon_max = 8; // 8 means 9 rockets
+    pup_weapon_max = 9;
     pup_deathbringer_time = 5.0;
 }
 
@@ -1878,7 +1883,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
 void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathbringer) {   // inflict normal or deathbringer damage on target
     // shadow powerup: show player
     if (player[target].item_shadow())
-        player[target].visibility = 254;
+        player[target].visibility = maximum_shadow_visibility;
 
     if (player[target].item_shield) {
         player[target].energy -= damage;
@@ -1900,18 +1905,29 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
     if (player[target].health > 0)
         return;
 
-    const bool same_team = (target / TSIZE == attacker / TSIZE);
-    if (!same_team)
-        host->score_frag(attacker, 1);      // frag to attacker for the kill
-    else
-        host->score_frag(attacker, -2);     // take two frags for killing own player
-
     const int tateam = target / TSIZE;
-    const int atteam = attacker / TSIZE;
+    int atteam;
+    bool known_attacker = false;
+    if (attacker == unknown_red_player)
+        atteam = 0;
+    else if (attacker == unknown_blue_player)
+        atteam = 1;
+    else {
+        atteam = attacker / TSIZE;
+        known_attacker = true;
+    }
+    
+    const bool same_team = atteam == tateam;
+
+    if (known_attacker)
+        if (!same_team)
+            host->score_frag(attacker, 1);      // frag to attacker for the kill
+        else
+            host->score_frag(attacker, -2);     // take two frags for killing own player
 
     //check if the enemy flag is carried in this screen(target's) by somebody that is not me
     bool carrier_defended = false, flag_defended = false;
-    if (!same_team) {
+    if (!same_team && known_attacker) {
         for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
             if (player[i].used && player[i].flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
                     carrier_defended = true;
@@ -1928,11 +1944,13 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
     const bool flag = player[target].flag();
     bool wild_flag = false;
     if (flag) {
-        player[attacker].stats().add_carrier_kill();
-        if (!same_team)
-            host->score_frag(attacker, 1);  // extra frag for fragging a carrier
-        else
-            host->score_frag(attacker, -1); // extra penalty for fragging own carrier
+        if (known_attacker) {
+            player[attacker].stats().add_carrier_kill();
+            if (!same_team)
+                host->score_frag(attacker, 1);  // extra frag for fragging a carrier
+            else
+                host->score_frag(attacker, -1); // extra penalty for fragging own carrier
+        }
         for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
             if (fi->carrier() == target) {
                 wild_flag = true;
@@ -1940,22 +1958,19 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
             }
     }
 
-    player[attacker].stats().add_kill(deathbringer);
+    if (known_attacker)
+        player[attacker].stats().add_kill(deathbringer);
     teams[atteam].add_kill();
     player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
     teams[tateam].add_death();
 
-    net->broadcast_kill(player[attacker], player[target], deathbringer, flag, wild_flag, carrier_defended, flag_defended);
+    net->broadcast_kill(attacker, target, deathbringer, flag, wild_flag, carrier_defended, flag_defended);
     killPlayer(target, false);
 }
 
 void ServerWorld::removePlayer(int pid) {
-    for (int r = 0; r < MAX_ROCKETS; r++)   // remove all shots from this player
-        if (rock[r].owner == pid)
-            deleteRocket(r, 0, 0, 255);
-
+    changeRocketsOwner(pid, pid / TSIZE == 0 ? unknown_red_player : unknown_blue_player);
     dropFlagIfAny(pid, true);
-
     player[pid].used = false;
 }
 
@@ -2063,7 +2078,8 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
     damagePlayer(pid, rock[rid].owner, damage, false);
 
     if (rock[rid].team != pid / TSIZE) {    // hitting a friend is not considered as a hit
-        player[rock[rid].owner].stats().add_hit();
+        if (rock[rid].owner != unknown_red_player && rock[rid].owner != unknown_blue_player)
+            player[rock[rid].owner].stats().add_hit();
         teams[rock[rid].team].add_hit();
     }
     player[pid].stats().add_shot_take();
@@ -2502,7 +2518,7 @@ void ServerWorld::simulateFrame() {
 
             //show shadow
             if (player[i].item_shadow())
-                player[i].visibility = 254;
+                player[i].visibility = maximum_shadow_visibility;
 
             shootRockets(i, numshots);
         }
@@ -2727,7 +2743,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     player[pid].take_flag();
     // shadow powerup: show player
     if (player[pid].item_shadow())
-        player[pid].visibility = 254;
+        player[pid].visibility = maximum_shadow_visibility;
 }
 
 void ServerWorld::player_captures_flag(int pid, int team, int flag) {

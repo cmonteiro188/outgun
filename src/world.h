@@ -845,4 +845,7 @@ public:
                 const std::vector<ClientPlayer*>& players, const std::string& map_name) const;*/
 };
 
+extern const int unknown_red_player;
+extern const int unknown_blue_player;
+
 #endif

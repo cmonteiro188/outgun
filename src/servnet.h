@@ -160,18 +160,18 @@ public:
     void stop();
 
     void update_serverinfo();
-    double getTraffic();
+    double getTraffic() const;
 
     void removePlayer(int pid); // call only when moving players around; this actually does close to nothing
     void disconnect_client(int cid, int timeout, Disconnect_reason reason);
-    int getPid(int cid) { return ctop[cid]; }   //#fix: this shouldn't be necessary
+    int getPid(int cid) const { return ctop[cid]; }   //#fix: this shouldn't be necessary
 
-    void send_me_packet(int pid);
-    void send_player_name_update(int cid, int pid);
-    void broadcast_player_name(int pid);
+    void send_me_packet(int pid) const;
+    void send_player_name_update(int cid, int pid) const;
+    void broadcast_player_name(int pid) const;
     void send_player_crap_update(int cid, int pid);
     void broadcast_player_crap(int pid);
-    void broadcast_team_change(int from, int to, bool swap);
+    void broadcast_team_change(int from, int to, bool swap) const;
 
     void broadcast_stats_ready() const;
     void broadcast_5_min_left() const;
@@ -184,8 +184,8 @@ public:
     void broadcast_flag_take(const ServerPlayer& player, int flag_team) const;
     void broadcast_flag_return(const ServerPlayer& player) const;
     void broadcast_flag_drop(const ServerPlayer& player, int flag_team) const;
-    void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                        bool deathbringer, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
+    void broadcast_kill(int attacker, int target, bool deathbringer, bool flag, bool wild_flag,
+                        bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
     void broadcast_new_player(const ServerPlayer& player) const;
     void new_player_to_admin_shell(int pid) const;  // called when the player name is known (unlike at broadcast_new_player)
@@ -198,11 +198,12 @@ public:
     void send_team_movements_and_shots(const ServerPlayer& player) const;
     void send_team_stats(const ServerPlayer& player) const;
 
-    void send_map_info(const ServerPlayer& player);
+    void send_map_info(const ServerPlayer& player) const;
+    void send_map_vote(const ServerPlayer& player) const;
     void broadcast_map_votes_update();
-    void send_map_change_message(int pid, int reason, const char* mapname);
-    void send_map_time(int cid);
-    void send_server_settings(const ServerPlayer& player);
+    void send_map_change_message(int pid, int reason, const char* mapname) const;
+    void send_map_time(int cid) const;
+    void send_server_settings(const ServerPlayer& player) const;
     void broadcast_map_change_info(int votes, int needed, int vote_block_time) const;
 
     void send_too_much_talk(int pid) const;
@@ -214,32 +215,32 @@ public:
     void send_disconnecting_message(int pid, int seconds) const;
     void broadcast_broken_map() const;
 
-    void ctf_net_flag_status(int cid, int team);
-    void ctf_update_teamscore(int t);
+    void ctf_net_flag_status(int cid, int team) const;
+    void ctf_update_teamscore(int t) const;
     void move_update_player(int a); // call after moving, a = pid after move
     void client_report_status(int id);
-    void sendWorldReset();
-    void sendStartGame();
-    void sendWeaponPower(int pid);
-    void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);    // sid = shot-id: array of NLubyte[shots]
-    void sendOldRocketVisible(int pid, int rid, const Rocket& rocket);
-    void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
-    void sendDeathbringer(int pid, const ServerPlayer& ply);
-    void sendPickupVisible(int pid, int pup_id, const Powerup& it);
-    void sendPupTime(int pid, NLubyte pupType, double timeLeft);
-    void sendFragUpdate(int pid, NLulong frags);
-    void sendNameAuthorizationRequest(int pid);
+    void sendWorldReset() const;
+    void sendStartGame() const;
+    void sendWeaponPower(int pid) const;
+    void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y) const; // sid = shot-id: array of NLubyte[shots]
+    void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const;
+    void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const;
+    void sendDeathbringer(int pid, const ServerPlayer& ply) const;
+    void sendPickupVisible(int pid, int pup_id, const Powerup& it) const;
+    void sendPupTime(int pid, NLubyte pupType, double timeLeft) const;
+    void sendFragUpdate(int pid, NLulong frags) const;
+    void sendNameAuthorizationRequest(int pid) const;
 
-    void broadcast_sample(int code);
-    void broadcast_screen_sample(int p, int code);
-    void broadcast_team_message(int team, const std::string& text);
-    void broadcast_screen_message(int px, int py, char *lebuf, int count);
-    void bprintf(Message_type type, const char *fs, ...);
-    void plprintf(int pid, Message_type type, const char* fmt, ...);
-    void player_message(int pid, Message_type type, const std::string& text);
-    void broadcast_text(Message_type type, const std::string& text);
+    void broadcast_sample(int code) const;
+    void broadcast_screen_sample(int p, int code) const;
+    void broadcast_team_message(int team, const std::string& text) const;
+    void broadcast_screen_message(int px, int py, char *lebuf, int count) const;
+    void bprintf(Message_type type, const char *fs, ...) const;
+    void plprintf(int pid, Message_type type, const char* fmt, ...) const;
+    void player_message(int pid, Message_type type, const std::string& text) const;
+    void broadcast_message(Message_type type, const std::string& text) const;
 
-    void forwardSayadminMessage(int cid, const std::string& message);
+    void forwardSayadminMessage(int cid, const std::string& message) const;
 
     void broadcast_frame(bool gameRunning);
 

@@ -499,7 +499,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("sayadmin_enabled",        &sayadmin_enabled)),
         PT(new GS_String    ("sayadmin_comment",        &sayadmin_comment)),
         PT(new GS_Boolean   ("tournament",              &tournament)),
-        PT(new GS_Boolean   ("save_stats",              &save_stats)),
+        PT(new GS_Int       ("save_stats",              &save_stats, 0)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -567,7 +567,7 @@ bool Server::server_next_map(int reason) {
     for (int i = 0; i < maxplayers; ++i)
         world.player[i].stats().finish_stats(get_time());
 
-    if (save_stats)
+    if (save_stats && network.get_player_count() >= save_stats)
         world.save_stats("server_stats", current_map().title);
 
     vector<int> winners;
@@ -602,8 +602,37 @@ bool Server::server_next_map(int reason) {
     last_vote_announce_votes = last_vote_announce_needed = 0;
     next_vote_announce_frame = 0;   // let a new announcement be made as soon as someone votes
 
-    if (!load_rotation_map(currmap))
-        return false;
+    const bool ok = load_rotation_map(currmap);
+    if (!ok) {
+        while (!maprot.empty()) {
+            maprot.erase(maprot.begin() + currmap);
+            for (int i = 0; i < maxplayers; i++) {    // update map votes
+                ServerPlayer& pl = world.player[i];
+                if (pl.used) {
+                    if (pl.mapVote > currmap) {
+                        pl.mapVote--;
+                        network.send_map_vote(pl);
+                    }
+                    else if (pl.mapVote == currmap) {
+                        pl.mapVote = -1;
+                        network.send_map_vote(pl);
+                    }
+                }
+            }
+            if (currmap >= static_cast<int>(maprot.size()))
+                currmap = 0;
+            if (load_rotation_map(currmap))
+                break;
+        }
+        if (maprot.empty())
+            return false;       // FIXME: do something better, e.g. rescan the maps directory or close the server
+        network.broadcast_simple_message(data_reset_map_list);
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used) {
+                world.player[i].current_map_list_item = 0;
+                network.send_server_settings(world.player[i]);
+            }
+    }
 
     // notify all players
     for (int i = 0; i < maxplayers; i++)
@@ -616,11 +645,11 @@ bool Server::server_next_map(int reason) {
     }
     network.broadcast_stats_ready();
 
-    //important: server is showing gameover plaque. nobody should move or receive world frames
+    // Server is showing gameover plaque. Nobody should move or receive world frames.
     gameover = true;
     gameover_time = get_time() + game_end_delay;        // timeout for gameover plaque
 
-    return true;
+    return ok;
 }
 
 //check map exit by vote
@@ -641,7 +670,7 @@ void Server::check_map_exit() {
         if (world.player[p].used && world.player[p].mapVote != -1)
             ++maprot[world.player[p].mapVote].votes;
 
-    if ((world.getMapTime() >= vote_block_time && num_for > num_against) || (num_against == 0 && num_for)) {
+    if (num_for > num_against && (world.getMapTime() >= vote_block_time || num_against == 0)) {
         server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
         ctf_game_restart();
     }
@@ -678,7 +707,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     server_website_url.clear();
 
     tournament = true;
-    save_stats = false;
+    save_stats = 0;
 
     network.clear_web_servers();
     network.set_web_refresh(2);
@@ -884,7 +913,7 @@ void Server::chat(int pid, const char* sbuf) {
         char cbuf[30];
         for (int ci = 0;; ++ci, ++pCommand) {
             if (ci == 29) {
-                cbuf[29]='\0';
+                cbuf[29] = '\0';
                 break;
             }
             if (*pCommand == ' ') {
@@ -966,10 +995,10 @@ void Server::chat(int pid, const char* sbuf) {
             if (!strcmp(cbuf, "ban")) {
                 if (!command)
                     time = 60;  // default: 60 minutes
-                if (! (command || command.eof()))
+                if (!command && !command.eof())
                     ok = false;
             }
-            else if (! (!command && command.eof()))
+            else if (command || !command.eof())
                 ok = false;
             if (!ok)
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", cbuf, !strcmp(cbuf, "ban") ? " [minutes]" : "");
@@ -1174,7 +1203,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             if (errors && extConfig.showErrorCount)
                 status << _("ERRORS:$1", itoa(errors)) << "  ";
             status << _("$1/$2p $3k/s v$4 port:$5",
-                        itoa(network.get_player_count()), itoa(maxplayers), fcvt(network.getTraffic(), 1), GAME_VERSION, itoa(extConfig.port));
+                        itoa(network.get_player_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(extConfig.port));
             if (quitOnEsc)
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());

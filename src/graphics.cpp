@@ -318,7 +318,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
             break;
         }
         if (width < 640 || height < 400 || (bits != 16 && bits != 24 && bits != 32)) {
-            log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32)",
+            log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32).",
                             itoa(width), itoa(height), itoa(bits)));
             break;
         }
@@ -2131,7 +2131,7 @@ void Graphics::draw_turbofx(int room_x, int room_y, double time) {
         if (delta > 0.3)
             fx = cfx.erase(fx);
         else {
-            int alpha = 90 - (int)(delta * 300.0);
+            const int alpha = 90 - static_cast<int>(delta * 300);
             draw_player(fx->x, fx->y, fx->col1, fx->col2, fx->gundir, time, false, alpha, time);
             ++fx;
         }
