@@ -278,7 +278,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
 		int width, height, bits;
 		char nullc;
 		ss >> width >> height >> bits;
-		bool ok = ss;
+		const bool ok = ss;
 		ss >> nullc;
 		if (!ok || ss) {
 			log.error("Syntax error in gfxmodes.txt, line '%s'.", line.c_str());
@@ -706,13 +706,14 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
-	const float room_w = float(minimap_w - 1.) / map.w;	// use -1. (not 2) to have half a pixel under the green border on every edge; this is to compensate for error in the value of minimap_? so there's no gap
-	const float room_h = float(minimap_h - 1.) / map.h;
+	const float room_w = (minimap_w - 1.) / map.w;	// use -1. (not 2) to have half a pixel under the green border on every edge; this is to compensate for error in the value of minimap_? so there's no gap
+	const float room_h = (minimap_h - 1.) / map.h;
 	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
 	const double maxx = plw * map.w;
 	const double maxy = plh * map.h;
-	float xmul = float(minimap_w - 1.) / maxx, ymul = float(minimap_h - 1.) / maxy;
+	const float xmul = (minimap_w - 1.) / maxx;
+	const float ymul = (minimap_h - 1.) / maxy;
 
 	if (antialiasing != AA_none) {
 		SceneAntialiaser scene;
@@ -764,7 +765,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 		//draw solid walls
 		for (int y = 0; y < map.h; y++) {
-			float by = minimap_start_y + 1 + y * plh * ymul;
+			const float by = minimap_start_y + 1 + y * plh * ymul;
 			for (int x = 0; x < map.w; x++) {
 				float bx = minimap_start_x + 1 + x * plw * xmul;
 				set_clip_rect(buffer, static_cast<int>(bx), static_cast<int>(by), static_cast<int>(bx + room_w), static_cast<int>(by + room_h));
@@ -830,7 +831,6 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 							const int c = getpixel(buffer, px, py);
 							if (c == teamdcol[t]) {
 								failure[t].push_back(*fi);
-								//failure[1 - t].push_back(*fj);
 								successful = false;
 								// restore map
 								blit(backup, buffer, 0, 0, 0, 0, buffer->w, buffer->h);
@@ -892,16 +892,13 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	y = scale(y);
 	int pc1 = teamcol[team];
 	int pc2 = col[pli];
-	// test different colours:
-	//pc2 = col[(int)time / 2 % 16];
 	//blink player when hit
-	double deltafx = hitfx - time;
+	const double deltafx = hitfx - time;
 	if (deltafx > 0) {
-		int rgb = static_cast<int>(70.0 + deltafx * 600.0);  // var 180
+		const int rgb = static_cast<int>(70.0 + deltafx * 600.0);  // var 180
 		pc1 = pc2 = makecol(rgb, rgb, rgb);
 	}
 	else if (item_quad) {
-		//pisca branco
 		if (static_cast<int>(time * 10) % 2) {
 			pc1 = col[COLWHITE];
 			pc2 = col[COLCYAN];
@@ -1001,11 +998,9 @@ void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
 }
 
 void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) {	// x,y are destination coords of the sprite center
-	// make room so that rotating won't clip the corners off
-	//const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
-	//const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
 	nAssert(bitmap_color_depth(sprite) == 32);
 	nAssert(sprite->w == sprite->h);	// if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
+	// make room so that rotating won't clip the corners off
 	const int size = sprite->h + sprite->h / 2;
 	Bitmap buffer = create_bitmap_ex(32, size, size);
 	nAssert(buffer);
@@ -1058,8 +1053,7 @@ void Graphics::draw_gun_explosion(int x, int y, int rad) {
 void Graphics::draw_deathbringer_smoke(int x, int y, double time) {
 	x = scale(x);
 	y = scale(y);
-	int alpha = 120 - static_cast<int>(time * 200.0);
-	alpha = max(alpha, 0);
+	const int alpha = max(0, 120 - static_cast<int>(time * 200.0));
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, alpha);
 	const double drad = 3.0 + 9.0 * (0.6 - time);
@@ -1078,8 +1072,8 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
 		rad = scale(time * 100);
 	else
 		rad = scale(100 + (time - 1.0) * (time - 1.0) * 800);
-	int maxxd = max(x, scale(plw) - x);
-	int maxyd = max(y, scale(plh) - y);
+	const int maxxd = max(x, scale(plw) - x);
+	const int maxyd = max(y, scale(plh) - y);
 	if (maxxd * maxxd + maxyd * maxyd >= rad * rad) {
 		set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
 		//brightening ring
@@ -1269,12 +1263,13 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
 		double dy = 10 * sin(deg);
 
 		// choose colour
-		int c = 0;
+		int c;
 		switch (b) {
 			case 0: c = col[COLGREEN]; break;
 			case 1: c = col[COLBLUE]; break;
 			case 2: c = col[COLRED]; break;
 			case 3: c = col[COLYELLOW]; break;
+			default: c = 0; nAssert(0);
 		}
 		// draw a ball
 		circlefill(drawbuf, plx + scale(x + dx), ply + scale(y + dy), scale(4), c);
@@ -2006,7 +2001,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
 			++fx;
 			continue;
 		}
-		double delta = time - fx->time;
+		const double delta = time - fx->time;
 		switch (fx->type) {
 			case FX_GUN_EXPLOSION:
 				if (delta > 0.4)
@@ -2079,7 +2074,7 @@ void Graphics::draw_speedfx(int room_x, int room_y, double time) {
 			++fx;
 			continue;
 		}
-		double delta = time - fx->time;
+		const double delta = time - fx->time;
 		if (delta > 0.3)
 			fx = cfx.erase(fx);
 		else {
@@ -2102,8 +2097,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	get_palette(pal);
 	minimap_place_w = old_minimap_p_w;
 	minimap_place_h = old_minimap_p_h;
-	bool failure = !save_bitmap(filename.c_str(), buffer, pal);
-	return failure;
+	return !save_bitmap(filename.c_str(), buffer, pal);
 }
 
 // Theme functions
@@ -2118,7 +2112,7 @@ void Graphics::search_themes(LineReceiver& dst) const {
 	const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
 
  	vector<string> themes;
-	struct al_ffblk ffblk;
+	al_ffblk ffblk;
 	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
 		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
 			themes.push_back(ffblk.name);
@@ -2172,6 +2166,14 @@ void Graphics::load_floor_textures(const string& path) {
 	floor_texture[i++] = load_bitmap((path + "floor_ice.pcx").c_str(), NULL);
 	floor_texture[i++] = load_bitmap((path + "floor_sand.pcx").c_str(), NULL);
 	floor_texture[i++] = load_bitmap((path + "floor_mud.pcx").c_str(), NULL);
+	// Check that width and height are powers of 2.
+	for (int i = 0; i < 8; i++) {
+		Bitmap& texture = floor_texture[i];
+		if (texture && ((texture->w & texture->w - 1) || (texture->h & texture->h - 1))) {
+			log.error("Width and height of textures must be powers of 2; floor texture %d is %d×%d.", i, texture->w, texture->h);
+			texture.free();
+		}
+	}
 }
 
 void Graphics::load_wall_textures(const string& path) {
@@ -2184,6 +2186,14 @@ void Graphics::load_wall_textures(const string& path) {
 	wall_texture[i++] = load_bitmap((path + "wall_metal.pcx").c_str(), NULL);
 	wall_texture[i++] = load_bitmap((path + "wall_wood.pcx").c_str(), NULL);
 	wall_texture[i++] = load_bitmap((path + "wall_rubber.pcx").c_str(), NULL);
+	// Check that width and height are powers of 2.
+	for (int i = 0; i < 8; i++) {
+		Bitmap& texture = wall_texture[i];
+		if (texture && ((texture->w & texture->w - 1) || (texture->h & texture->h - 1))) {
+			log.error("Width and height of textures must be powers of 2; wall texture %d is %d×%d.", i, texture->w, texture->h);
+			texture.free();
+		}
+	}
 }
 
 BITMAP* Graphics::get_floor_texture(int texid) {
@@ -2202,9 +2212,9 @@ BITMAP* Graphics::get_wall_texture(int texid) {
 
 void Graphics::load_player_sprites(const string& path) {
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
-	Bitmap common = scale_sprite(path + "player.pcx", size, size);
-	Bitmap team = scale_alpha_sprite(path + "player_team.pcx", size, size);
-	Bitmap personal = scale_alpha_sprite(path + "player_personal.pcx", size, size);
+	const Bitmap common = scale_sprite(path + "player.pcx", size, size);
+	const Bitmap team = scale_alpha_sprite(path + "player_team.pcx", size, size);
+	const Bitmap personal = scale_alpha_sprite(path + "player_personal.pcx", size, size);
 	if (common && team && personal) {
 		// Make player sprites by combining player image with team and personal colours.
 		for (int t = 0; t < 2; t++)
@@ -2339,7 +2349,7 @@ BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const
 	if (!temp)
 		return 0;
 	if (bitmap_color_depth(temp) != 8) {
-		log.error("Alpha bitmaps must be 8-bit grayscale images; %s is %d-bit", filename.c_str(), bitmap_color_depth(temp));
+		log.error("Alpha bitmaps must be 8-bit grayscale images; %s is %d-bit.", filename.c_str(), bitmap_color_depth(temp));
 		return 0;
 	}
 	BITMAP* target = create_bitmap_ex(8, x, y);
