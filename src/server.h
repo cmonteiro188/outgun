@@ -55,14 +55,14 @@ public:
 
 class gameserver_c {
 	// pelaajien hallinta
-	vector<string>	welcome_message;	// welcome message line by line
-	vector<string>	info_message;	// the message /info shows, line by line
-	string			sayadmin_comment;
-	bool			sayadmin_enabled;
-	double			team_smul[2];
-	NLulong 		next_vote_announce_frame;
-	int				last_vote_announce_votes, last_vote_announce_needed;
-	ClientData		client[MAX_PLAYERS];
+	std::vector<std::string> welcome_message;	// welcome message line by line
+	std::vector<std::string> info_message;		// the message /info shows, line by line
+	std::string sayadmin_comment;
+	bool sayadmin_enabled;
+	double team_smul[2];
+	NLulong next_vote_announce_frame;
+	int last_vote_announce_votes, last_vote_announce_needed;
+	ClientData client[MAX_PLAYERS];
 
 	// pelimaailma
 	ServerWorld		world;
@@ -77,7 +77,7 @@ class gameserver_c {
 	WorldSettings worldConfig;
 
 private:
-	vector<MapInfo> maprot;
+	std::vector<MapInfo> maprot;
 	int currmap;		// current map in maprot
 	bool random_maprot;
 	#ifdef SV_NAME_AUTHORIZATION
@@ -114,12 +114,12 @@ public:
 	void swap_players(int a, int b);
 	void game_remove_player(int pid);
 
-	void nameChange(int id, int pid, const string& tempname);
+	void nameChange(int id, int pid, const std::string& tempname);
 	void chat(int id, int pid, const char* sbuf);	//#fix: separate console handling
 
 	const ClientData& getClientData(int cid) const { return client[cid]; }
 	      ClientData& getClientData(int cid)       { return client[cid]; }
-	bool changeRegistration(int id, const string& token);	// returns true if the token is different from before
+	bool changeRegistration(int id, const std::string& token);	// returns true if the token is different from before
 	void resetPlayer(int cid) { client[cid].reset(); }
 	void clearWorldRankingDeltas();
 	void refresh_team_score_modifiers();
@@ -132,11 +132,11 @@ public:
 	bool server_next_map(int reason);
 	const MapInfo& current_map() const { return maprot[currmap]; }
 	int current_map_nr() const { return currmap; }
-	const string& getCurrentMapFile() const { return maprot[currmap].file; }
-	const vector<MapInfo>& maplist() const { return maprot; }
-	vector<MapInfo>& maplist() { return maprot; }
+	const std::string& getCurrentMapFile() const { return maprot[currmap].file; }
+	const std::vector<MapInfo>& maplist() const { return maprot; }
+	std::vector<MapInfo>& maplist() { return maprot; }
 
-	const vector<string>& getWelcomeMessage() const { return welcome_message; }
+	const std::vector<std::string>& getWelcomeMessage() const { return welcome_message; }
 
 	// asetukset
 	void load_game_mod();

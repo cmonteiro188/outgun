@@ -7,6 +7,17 @@
 //#define DEBUG_RANKING
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
 
+using std::find;
+using std::ifstream;
+using std::max;
+using std::ostringstream;
+using std::random_shuffle;
+using std::setfill;
+using std::setw;
+using std::string;
+using std::swap;
+using std::vector;
+
 gameserver_c::gameserver_c() : world(this, &network), network(this, world) {
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
@@ -723,8 +734,6 @@ bool gameserver_c::start(int target_maxplayers) {
 	authorizations.load();
 	#endif
 
-	int i;
-
 	//check if maxplayers is valid
 	if (target_maxplayers < 2)				//menos de dois
 		return false;
@@ -737,13 +746,13 @@ bool gameserver_c::start(int target_maxplayers) {
 	maxplayers = target_maxplayers;
 
 	//reset client_c struct (closes files...)
-	for (i=0;i<MAX_PLAYERS;i++)
+	for (int i = 0; i < MAX_PLAYERS; i++)
 		client[i].reset();
 
 	gameover = false;
 
-	for (i=0;i<MAX_PLAYERS;i++)
-		world.player[i].clear(false, i, 0, "");	// 0 : fake cid
+	for (int i = 0; i < MAX_PLAYERS; i++)
+		world.player[i].clear(false, i, 0, "", i / TSIZE);	// 0 : fake cid
 
 	if (!reset_settings(false))
 		return false;
@@ -1164,9 +1173,8 @@ void gameserver_c::loop(volatile bool *running_flag) {
 
 		// sleep while not time to send again
 		while (server_speed_counter <= 0) {
-
 			// sleep a bit
-			MS_SLEEP(2);			// *** OPTIMIZE THIS ***
+			MS_SLEEP(5);			// *** OPTIMIZE THIS ***
 		}
 
 		// quit? if no running-flag specified

@@ -8,11 +8,9 @@
 #include "nl.h"
 
 class NameAuthorizationDatabase {
-	typedef std::string string;
-
     struct Entry {
-        string nameUpr;
-        string password;
+        std::string nameUpr;
+        std::string password;
         std::vector<NLaddress> addresses;
 
 		void save(std::ostream& out) const;
@@ -30,11 +28,11 @@ public:
     bool load();
     bool save() const;
 
-    bool addIP(const string& nameUpr, const string& password, NLaddress addr);  // must be an existing name
-    bool NameAuthorizationDatabase::checkNamePassword(const string& nameUpr, const string& password) const;
+    bool addIP(const std::string& nameUpr, const std::string& password, NLaddress addr);  // must be an existing name
+    bool NameAuthorizationDatabase::checkNamePassword(const std::string& nameUpr, const std::string& password) const;
 
-	int identifyName(const string& name) const;
-    string getName(int idx) const { return db[idx].nameUpr; }
+	int identifyName(const std::string& name) const;
+    const std::string& getName(int idx) const { return db[idx].nameUpr; }
 	bool authorize(int idx, NLaddress addr) const;
 
 	bool isBanned(NLaddress addr) const;

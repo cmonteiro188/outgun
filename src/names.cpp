@@ -1,11 +1,11 @@
 #include <string>
 
+using std::string;
+
 int Random(int velho)
 {
   return rand()%velho;
 }
-
-using namespace std;
 
 string Vog()
 {

@@ -15,6 +15,19 @@
 // filter out people opening and closing servers frequently
 #define	DELAY_TO_REPORT_SERVER	10.0
 
+using std::hex;
+using std::ifstream;
+using std::map;
+using std::max;
+using std::ofstream;
+using std::ostream;
+using std::ostringstream;
+using std::pair;
+using std::setfill;
+using std::setw;
+using std::string;
+using std::vector;
+
 //master job struct
 class masterjob_c {
 public:
@@ -573,10 +586,10 @@ void ServerNetworking::player_message(int pid, const char *text) {
 }
 
 //broadcast message to all
-void ServerNetworking::broadcast_message(const char *text) {
+void ServerNetworking::broadcast_message(const string& text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_text_message);
-	writeString(lebuf, count, text);
+	writeStr(lebuf, count, text);
 	for (int i=0;i<maxplayers;i++)
 		if (world.player[i].used)
 			server->send_message(world.player[i].cid, lebuf, count);
@@ -584,7 +597,7 @@ void ServerNetworking::broadcast_message(const char *text) {
 	if (shellssock) {
 		count = 0;
 		writeLong(lebuf, count, STA_GAME_TEXT);
-		writeString(lebuf, count, text);
+		writeStr(lebuf, count, text);
 		nlWrite(shellssock, lebuf, count);
 	}
 }
@@ -757,7 +770,7 @@ int ServerNetworking::client_connected(int id) {
 	//alloc new player : scans only slots of the team (targ...targ + 7)
 	int myself = -1;
 
-	for (i=targ;i<(targ+TSIZE);i++) {
+	for (i = targ; i < targ + TSIZE; i++) {
 		if (!world.player[i].used) {
 			// add player to players_present
 			//players_present = players_present | (1 << i);
@@ -767,7 +780,7 @@ int ServerNetworking::client_connected(int id) {
 			cid=id;
 			ctop[cid]=i;
 
-			world.player[i].clear(true, i, cid, "");
+			world.player[i].clear(true, i, cid, "", i / TSIZE);
 
 			myself = i;
 
@@ -937,14 +950,14 @@ void ServerNetworking::newPlayer(int pid) {
 	}
 }
 
-void ServerNetworking::forwardSayadminMessage(int cid, const char* message) {
+void ServerNetworking::forwardSayadminMessage(int cid, const string& message) {
 	if (!shellssock)
 		return;
 	char lebuf[256];
-	int count=0;
+	int count = 0;
 	writeLong(lebuf, count, STA_ADMIN_MESSAGE);
 	writeLong(lebuf, count, cid);
-	writeString(lebuf, count, message);
+	writeStr(lebuf, count, message);
 	nlWrite(shellssock, lebuf, count);
 }
 
@@ -3142,6 +3155,7 @@ void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* da
 }
 
 void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) {
+	LOG("clientHello()\n");
 	res->customDataLength = 0;
 
 	//LOG1("hello client %i!\n", arg->client_id);

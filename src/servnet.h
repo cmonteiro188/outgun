@@ -166,9 +166,9 @@ public:
 	void bprintf(const char *fs, ...);
 	void plprintf(int pid, const char* fmt, ...);
 	void player_message(int pid, const char *text);
-	void broadcast_message(const char *text);
+	void broadcast_message(const std::string& text);
 
-	void forwardSayadminMessage(int cid, const char* message);
+	void forwardSayadminMessage(int cid, const std::string& message);
 
 	void newPlayer(int pid);
 	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }

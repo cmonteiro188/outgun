@@ -5,8 +5,11 @@
 #include "nameauth.h"
 #include "nassert.h"
 
-using namespace std;
-
+using std::ifstream;
+using std::ofstream;
+using std::ostream;
+using std::string;
+using std::vector;
 
 // these are from outgun.cpp, needed for LOG(...) ; argh
 #define LOG_EXPR game_log

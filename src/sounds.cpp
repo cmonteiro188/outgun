@@ -1,5 +1,6 @@
 #include "sounds.h"
 
+using std::ifstream;
 using std::string;
 
 Sounds::Sounds():

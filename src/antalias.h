@@ -68,7 +68,7 @@ private:
 			return makecol((r + scaleVal / 2) >> scale, (g + scaleVal / 2) >> scale, (b + scaleVal / 2) >> scale);
 		}
 		int flexColor() const {	// allows more than 1 alphaTotal, with a cut on high intensities
-			return makecol(min(255, (r + scaleVal / 2) >> scale), min(255, (g + scaleVal / 2) >> scale), min(255, (b + scaleVal / 2) >> scale));
+			return makecol(std::min(255, (r + scaleVal / 2) >> scale), std::min(255, (g + scaleVal / 2) >> scale), std::min(255, (b + scaleVal / 2) >> scale));
 		}
 	};
 
@@ -98,7 +98,7 @@ struct ObjectSource {
 
 class PlainTexTexturizer {
 public:
-	PlainTexTexturizer(BITMAP* buffer, int x0, int y0, vector<BITMAP*>& textures) : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
+	PlainTexTexturizer(BITMAP* buffer, int x0, int y0, std::vector<BITMAP*>& textures) : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
 	void setTex(int texid) { numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size()); tex = texTab[texid]; }
 
 	void setLine(int y);
@@ -127,7 +127,7 @@ private:
 
 class PlainColorTexturizer {
 public:
-	PlainColorTexturizer(BITMAP* buffer, int x0, int y0, vector<int>& colors) : buf(buffer), bx0(x0), by0(y0), colTab(colors), partials(buffer->h) { }
+	PlainColorTexturizer(BITMAP* buffer, int x0, int y0, std::vector<int>& colors) : buf(buffer), bx0(x0), by0(y0), colTab(colors), partials(buffer->h) { }
 	void setTex(int texid) { nAssert(texid >= 0 && texid < (int)colTab.size()); color = colTab[texid]; }
 
 	void setLine(int y);
