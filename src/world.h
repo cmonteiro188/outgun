@@ -459,14 +459,24 @@ class gameserver_c;	//#fix: get rid of this callback system
 class ServerWorld : public WorldBase {
 	gameserver_c* host;
 
+	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta);
+	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta);
+
 public:
 	ServerPlayer player[MAX_PLAYERS];
 	ServerWorld(gameserver_c* hostp) : host(hostp) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 
+	// common (virtual in base) extended functions
 	void returnFlag(int team);
 	void dropFlag(int team, int roomx, int roomy, int lx, int ly);
 	void stealFlag(int team, int carrier);
+
+	// server specific functions
 	void respawnPlayer(int pid);
+
+	bool dropFlagIfAny(int pid);
+	void shootRockets(int pid, int numshots);
+	void deleteRocket(int r, NLshort hitx, NLshort hity, int targ);
 };
 
 class ClientWorld : public WorldBase {

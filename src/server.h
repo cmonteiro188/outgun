@@ -215,6 +215,8 @@ public:
 	void broadcast_player_crap(int pid);
 	void ctf_net_flag_status(int cid, int team);
 	void sendWeaponPower(int pid);
+	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int playernum, int px, int py, int x, int y);	// sid = shot-id; array of NLubyte[shots]
+	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 
 	void broadcast_sample(int code);
 	void broadcast_screen_sample(int p, int code);
@@ -245,11 +247,6 @@ public:
 	// pelimaailma
 	int choose_powerup_kind();
 
-	void game_delete_rocket(int r, NLshort hitx, NLshort hity, int targ);
-	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta);
-	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta);
-	void game_shoot_rocket(int playernum, int shots, int px, int py, int x, int y, int gundir);
-	bool ctf_drop_flag_if_any(int pid);
 	void score_frag(int p, int amount);
 	void score_neg(int p, int amount);
 	void game_reset_player(int target, float time_penalty = 0.);

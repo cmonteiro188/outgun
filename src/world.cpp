@@ -948,6 +948,17 @@ void ServerWorld::stealFlag(int team, int carrier) {
 	host->ctf_net_flag_status(-1, team);
 }
 
+bool ServerWorld::dropFlagIfAny(int pid) {
+	int enemyteam = 1 - (pid/TSIZE);
+	if (!flag[enemyteam].carried || flag[enemyteam].carrier!=pid)
+		return false;
+	host->bprintf("@I%s LOST THE %s FLAG!", player[pid].name, teamname[enemyteam]);
+	host->broadcast_sample(SAMPLE_CTF_LOST);
+	dropFlag(enemyteam, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
+	player[pid].total_flags_dropped++;
+	return true;
+}
+
 void ServerWorld::respawnPlayer(int pid) {
 	player[pid].respawn_time = -1;
 	int t = pid/TSIZE;	// team
@@ -1036,4 +1047,144 @@ void ServerWorld::respawnPlayer(int pid) {
 	//for all effects, player screen changed
 	host->game_player_screen_change(pid);
 }
+
+void ServerWorld::make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta) {
+	rocket_c* r = &rock[i];
+	r->owner = playernum;
+	r->team = playernum/TSIZE;
+	r->px = px;
+	r->py = py;
+	r->x = x;
+	r->y = y;
+	r->deg = deg;	//direcao em RADIANOS
+	r->hit_time = 0;
+	//speed nos eixos: constante depende da direcao
+	r->sx = cos(rock->deg) * (ROCKET_SPEED);
+	r->sy = sin(rock->deg) * (ROCKET_SPEED);
+
+	//deslocamento a 90graus
+	r->x += xdelta * cos(deg + PI/2);
+	r->y += xdelta * sin(deg + PI/2);
+
+	//REMENDAO: avanca 0,5 frame  (5 vezes 1 decimo da velo (/2)
+	r->x += r->sx * 5.0 / 10.0;
+	r->y += r->sy * 5.0 / 10.0;
+}
+
+NLubyte ServerWorld::game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta) {
+	for (NLubyte i=0;i<MAX_ROCKETS;i++)
+		if (rock[i].owner == -1) { //unused
+			make_damn_rocket(i,playernum,px,py,x,y,deg,xdelta);
+			return i;
+		}
+
+	//whoops!
+	LOG("WHOOPS!\n");
+	int wtf = rand() % MAX_ROCKETS;
+	make_damn_rocket(wtf,playernum,px,py,x,y,deg,xdelta);
+	return (NLubyte)wtf;
+}
+
+void ServerWorld::shootRockets(int pid, int shots) {
+	int playernum = pid, px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly), gundir = player[pid].gundir;
+
+	player[playernum].total_shots++;
+
+	//ids alocados pra shots
+	NLubyte		sid[16];
+
+	// center degree
+	double cdeg = gundir * PIOIT;
+
+	//allocate a new rocket server-side for each shot
+	// shots = qual arma (1-9 tiros!)
+	switch (shots) {
+	case 1:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
+		break;
+	case 2:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
+		break;
+	case 3:
+		//V0.4.8 : NEW TRIPLE SHOT!
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
+		//sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
+		//sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		break;
+	case 4:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		break;
+	case 5:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		break;
+	case 6:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		break;
+	case 7:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
+		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
+		break;
+	case 8:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
+		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
+		break;
+	case 9:
+		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
+		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
+		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
+		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
+		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
+		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
+		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
+		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
+		sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
+		break;
+	}
+
+	//build people-that-know DOUBLE WORD (32bits == 32players max)
+	//send message to players on the same screen
+	NLulong  vislist = 0;
+	for (int p=0; p<maxplayers; p++)
+		if (player[p].used && player[p].roomx==px && player[p].roomy==py)
+			vislist |= (1 << p);
+
+	//mark all created rockets with the vislist
+	for (int k=0;k<shots;k++)
+		rock[ sid[k] ].vislist = vislist;
+
+	host->sendRocketMessage(shots, gundir, sid, playernum, px, py, x, y);
+}
+
+void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
+	rocket_c* r = &rock[rid];
+	host->sendRocketDeletion(r->vislist, rid, hitx, hity, targ);
+	r->owner = -1;
+}
+
 

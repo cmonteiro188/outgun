@@ -672,7 +672,7 @@ void gameserver_c::move_player(int f, int t) {
 		checount--;
 	}
 
-	ctf_drop_flag_if_any(f);
+	world.dropFlagIfAny(f);
 
 	//copy to t
 	world.player[t] = world.player[f];
@@ -803,232 +803,6 @@ void gameserver_c::ctf_update_teamscore(int t) {
 	writeByte(lebuf, count, ((NLubyte)world.flag[t].score));	//the score
 	server->broadcast_message(lebuf, count);
 }
-
-//delete a rocket
-void gameserver_c::game_delete_rocket(int r, NLshort hitx, NLshort hity, int targ) {
-
-	rocket_c *rock = &(world.rock[r]);
-
-	//assembly rocket delete message
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 8);		// 8 = rocket deletion
-	NLubyte byt = (NLubyte)r;
-	writeByte(lebuf, count, byt);		// rocket-object id
-	byt = (NLubyte)targ;
-	writeByte(lebuf, count, byt);		// player-target. if 255, no player in particular was hit
-
-	//byt = (NLubyte)framesleft;
-	//writeByte(lebuf, count, byt);		// 10-msecs' left to the client to animate
-	writeShort(lebuf, count, hitx);		// HIT X,Y OF ROCKET
-	writeShort(lebuf, count, hity);
-
-	//send message to players that received the rocket
-	for (int p=0;p<maxplayers;p++)
-	if (world.player[p].used)								//still valid player? (nao custa checar..)
-	if (rock->vislist & (1 << p))			//verifica se o bit de "conhece o rocket" ta ligado
-	{
-		// send the message to this player
-		server->send_message(world.player[p].cid, lebuf, count);
-
-		//LOG2("...sent to pl=%i rock=%i\n", p, byt);
-	}
-
-	//server-side invalidate
-	rock->owner = -1;
-}
-
-//make damn rocket v0.4.7 remendo chute brabo pra tentar consertar 1 bug
-void gameserver_c::make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta) {
-	//alloc
-	rocket_c *rock = &(world.rock[i]);
-	rock->owner = playernum;
-	rock->team = playernum/TSIZE;
-	rock->px = px;
-	rock->py = py;
-	rock->x = x;
-	rock->y = y;
-	rock->deg = deg;	//direcao em RADIANOS
-	rock->hit_time = 0;
-	//speed nos eixos: constante depende da direcao
-	rock->sx = cos(rock->deg) * (ROCKET_SPEED);
-	rock->sy = sin(rock->deg) * (ROCKET_SPEED);
-
-	//deslocamento a 90graus
-	rock->x += xdelta * cos(deg + PI/2);
-	rock->y += xdelta * sin(deg + PI/2);
-
-	//REMENDAO: avanca 0,5 frame  (5 vezes 1 decimo da velo (/2)
-	rock->x += rock->sx * 5.0 / 10.0;
-	rock->y += rock->sy * 5.0 / 10.0;
-}
-
-//shoot rocket to a certain direction
-//deg: em radianos
-//retorno: id do rocket alocado
-//XDELTA: deslocamento positivo para a direita ou negativo para a esquerda
-NLubyte gameserver_c::game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta) {
-
-	for (NLubyte i=0;i<MAX_ROCKETS;i++)
-		if (world.rock[i].owner == -1) { //unused
-			make_damn_rocket(i,playernum,px,py,x,y,deg,xdelta);
-			return i;
-		}
-
-	//whoops!
-	LOG("WHOOPS!\n");
-	int wtf = rand() % MAX_ROCKETS;
-	make_damn_rocket(wtf,playernum,px,py,x,y,deg,xdelta);
-	return (NLubyte)wtf;
-}
-
-//versao 0.1.2
-void gameserver_c::game_shoot_rocket(int playernum, int shots, int px, int py, int x, int y, int gundir) {
-
-	world.player[playernum].total_shots++;
-
-	//ids alocados pra shots
-	NLubyte		sid[16];
-
-	// center degree
-	double cdeg = gundir * PIOIT;
-
-	//allocate a new rocket server-side for each shot
-	// shots = qual arma (1-9 tiros!)
-	switch (shots) {
-	case 1:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		break;
-	case 2:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		break;
-	case 3:
-		//V0.4.8 : NEW TRIPLE SHOT!
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		//sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		//sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		break;
-	case 4:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		break;
-	case 5:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		break;
-	case 6:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		break;
-	case 7:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
-		break;
-	case 8:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
-		break;
-	case 9:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 2, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 2, 0);
-		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg + PIOIT * 3, 0);
-		sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
-		break;
-	}
-
-	//assembly multi-rocket message
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
-	NLubyte  powerdir;		//bits 0..4 = power bits 5..8=dir
-	powerdir = (NLubyte)shots;			// shots
-
-	//powerdir += (NLubyte)(gundir * 16);	//16,32,64,128
-	// AWW FUCK IT
-	int fuck = powerdir;
-	fuck += gundir * 16;
-	powerdir = (NLubyte)fuck;
-
-	//writeByte(lebuf, count, powerdir);		// power and dir
-	writeByte(lebuf, count, shots);		// power and dir
-	writeByte(lebuf, count, gundir);		// power and dir
-	for (int i=0;i<shots;i++) //MULTI ROCKETS!
-		writeByte(lebuf, count, sid[i]);		// rocket-object id (needed because client-side rockets can be deleted by the server)
-	writeLong(lebuf, count, this->frame);	// time of shot of the rocket: current (last simulated) frame
-	writeByte(lebuf, count, (NLubyte)playernum);	// owner of all rockets
-	writeByte(lebuf, count, (NLubyte)px);	//coord
-	writeByte(lebuf, count, (NLubyte)py);
-	writeShort(lebuf, count, (NLshort)x);
-	writeShort(lebuf, count, (NLshort)y);
-
-	//send to all people, build people-that-know DOUBLE WORD (32bits == 32players max)
-	//send message to players on the same screen
-	NLulong  vislist = 0;
-	for (int p=0;p<maxplayers;p++)
-	if (world.player[p].used)
-	if (world.player[p].roomx == px)
-	if (world.player[p].roomy == py) {
-		vislist += (1 << p);	// mark as sent
-		server->send_message(world.player[p].cid, lebuf, count);	// send the message to this player
-	}
-
-	//mark all created rockets with the vislist
-	for (int k=0;k<shots;k++)
-		world.rock[ sid[k] ].vislist = vislist;
-}
-
-//ctf player drops flag if carrying any
-bool gameserver_c::ctf_drop_flag_if_any(int pid) {
-
-	int enemyteam = 1 - (pid/TSIZE);
-
-	//if is carrier of enemy flag, drop it, extra frag for fragging carrier
-	if (world.flag[enemyteam].carried)		// attacker team's flag carried
-	if (world.flag[enemyteam].carrier == pid) {	//...by the target
-
-		//message
-		bprintf("@I%s LOST THE %s FLAG!", world.player[pid].name, teamname[enemyteam]);
-
-		//sound broadcast
-		broadcast_sample(SAMPLE_CTF_LOST);
-
-		//drop the flag
-		world.dropFlag(enemyteam, world.player[pid].roomx, world.player[pid].roomy, (int)world.player[pid].lx, (int)world.player[pid].ly);
-
-		world.player[pid].total_flags_dropped++;
-
-		return true;
-	}
-
-	return false;
-}
-
 
 //refresh team ratings
 void gameserver_c::refresh_team_score_modifiers() {
@@ -1171,7 +945,7 @@ void gameserver_c::game_reset_player(int target, float time_penalty) {	// take t
 	world.player[target].sx = 0;
 	world.player[target].sy = 0;
 
-	ctf_drop_flag_if_any(target);
+	world.dropFlagIfAny(target);
 	world.player[target].respawn_time = get_time() + respawn_time + time_penalty;
 	if (!world.player[target].dead) {
 		world.player[target].lifetime += (int)get_time() - world.player[target].last_spawn_time;
@@ -1181,7 +955,7 @@ void gameserver_c::game_reset_player(int target, float time_penalty) {	// take t
 
 void gameserver_c::game_kill_player(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
 	score_neg(target, 1);	// score neg points because of death
-	if (ctf_drop_flag_if_any(target))
+	if (world.dropFlagIfAny(target))
 		score_neg(target, 1);	// score neg points because of losing the flag
 	world.player[target].total_deaths++;
 	if (++world.player[target].current_consecutive_deaths > world.player[target].most_consecutive_deaths)
@@ -1291,9 +1065,9 @@ void gameserver_c::game_remove_player(int pid) {
 	//remove all shots from this player
 	for (int r=0; r<MAX_ROCKETS; r++)
 		if (world.rock[r].owner == pid)
-			game_delete_rocket(r, 0, 0, 255);
+			world.deleteRocket(r, 0, 0, 255);
 
-	ctf_drop_flag_if_any(pid);
+	world.dropFlagIfAny(pid);
 
 	//erase player
 	world.player[pid].delayedMessages.clear();
@@ -3339,7 +3113,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			// drop flag
 			else if (code == 34) {
 				world.player[pid].dropped_flag = true;
-				ctf_drop_flag_if_any(pid);
+				world.dropFlagIfAny(pid);
 			}
 			else {
 				//ERROR: unknown message from client
@@ -3529,15 +3303,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			if (world.player[i].item_helm > 0)
 				world.player[i].item_helm = 255;
 
-			//v0.1.2 shoot rocket
-			game_shoot_rocket(
-				i,						//player
-				numshots,			//quantos tiros
-				world.player[i].roomx,	//px
-				world.player[i].roomy,	//py
-				(int)world.player[i].lx,		//x
-				(int)world.player[i].ly,		//y
-				world.player[i].gundir);	//direction
+			world.shootRockets(i, numshots);
 		}
 
 	}
@@ -3638,11 +3404,10 @@ void gameserver_c::simulate_and_broadcast_frame() {
 					}
 
 					//delete shot
-					//game_delete_rocket(i, t, p);
 					if (had_shield)
-						game_delete_rocket(i, (NLshort)rock->x, (NLshort)rock->y, 252);		//do not blink
+						world.deleteRocket(i, (NLshort)rock->x, (NLshort)rock->y, 252);		//do not blink
 					else
-						game_delete_rocket(i, (NLshort)rock->x, (NLshort)rock->y, p);			//blink
+						world.deleteRocket(i, (NLshort)rock->x, (NLshort)rock->y, p);			//blink
 
 					//2-loop break
 					t=999;break;
@@ -5684,8 +5449,6 @@ void gameserver_c::stop() {
 
 		pthread_join( mthread , 0 );
 	}
-
-
 }
 
 void gameserver_c::sendWeaponPower(int pid) {
@@ -5693,6 +5456,48 @@ void gameserver_c::sendWeaponPower(int pid) {
 	writeByte(lebuf, count, 18);		//player power change
 	writeByte(lebuf, count, ((NLubyte)world.player[pid].weapon) );
 	server->send_message(world.player[pid].cid, lebuf, count);
+}
+
+void gameserver_c::sendRocketMessage(int shots, int gundir, NLubyte* sid, int playernum, int px, int py, int x, int y) {	// sid = shot-id; array of NLubyte[shots]
+	//assembly multi-rocket message
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
+	//NLubyte  powerdir;		//bits 0..4 = power bits 5..8=dir
+	//powerdir = NLubyte(shots) | NLubyte(gundir<<4);
+	//writeByte(lebuf, count, powerdir);		// power and dir
+	writeByte(lebuf, count, shots);		// power and dir
+	writeByte(lebuf, count, gundir);		// power and dir
+	for (int i=0;i<shots;i++) //MULTI ROCKETS!
+		writeByte(lebuf, count, sid[i]);		// rocket-object id (needed because client-side rockets can be deleted by the server)
+	writeLong(lebuf, count, frame);	// time of shot of the rocket: current (last simulated) frame
+	writeByte(lebuf, count, (NLubyte)playernum);	// owner of all rockets
+	writeByte(lebuf, count, (NLubyte)px);	//coord
+	writeByte(lebuf, count, (NLubyte)py);
+	writeShort(lebuf, count, (NLshort)x);
+	writeShort(lebuf, count, (NLshort)y);
+
+	for (int p=0; p<maxplayers; p++)
+		if (world.player[p].used && world.player[p].roomx==px && world.player[p].roomy==py)
+			server->send_message(world.player[p].cid, lebuf, count);
+}
+
+void gameserver_c::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) {
+	//assembly rocket delete message
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 8);		// 8 = rocket deletion
+	NLubyte byt = (NLubyte)rid;
+	writeByte(lebuf, count, byt);		// rocket-object id
+	byt = (NLubyte)targ;
+	writeByte(lebuf, count, byt);		// player-target. if 255, no player in particular was hit
+
+	writeShort(lebuf, count, hitx);		// HIT X,Y OF ROCKET
+	writeShort(lebuf, count, hity);
+
+	//send message to players that received the rocket
+	for (int p=0; p<maxplayers; p++)
+		if (world.player[p].used)	//still valid player? (nao custa checar..)
+			if (plymask & (1<<p))
+				server->send_message(world.player[p].cid, lebuf, count);
 }
 
 //get hostname: for hello
