@@ -12,7 +12,6 @@
 #include "nassert.h"
 #include "utility.h"
 
-#define PHYS_NEW
 #define PHYS_VECTOR_ACC
 #define PHYS_VECTOR_ACC_TEST
 
@@ -185,7 +184,7 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
 		return false;
 	// now if the extended rectangle and the wall bounding circle (r=ro) overlap, there is an intersection, otherwise not
 	if (dcr - rr < ro) {
-		if (angle[0] == angle[1])
+		if (angle[0] == angle[1])	// full circle
 			return true;
 		const double avx[] = { x1 - x, x2 - x, x1 - x, x2 - x };
 		const double avy[] = { -y1 + y, -y2 + y, -y2 + y, -y1 + y };
@@ -553,7 +552,7 @@ void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team
 	lx = ly = sx = sy = 0;
 	gundir = 0;
 	dead = false;
-	reg_status = enable ? '-' : ' ';
+	reg_status = '.';
 	score = 0;
 	neg_score = 0;
 	rank = 0;
@@ -997,44 +996,12 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
 
 	#ifdef PHYS_VECTOR_ACC
-	// new correcting coefficients : reduce friction and total acceleration
-	/*player_maxspeed *= 1.2;
-	player_friction *=  .5;
-	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
 
-	// acceleration
-	if (!deathbringer_affected) {
-		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
-		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
-		float mul = player_accel;
-		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
-			mul /= sqrt(2.);
+	// a more physically correct model
 
-		h->sx += float(xAcc)*mul;
-		h->sy += float(yAcc)*mul;
-	}
+	#ifdef PHYS_VECTOR_ACC_TEST
 
-	// friction
-	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
-	if (spd > 0) {
-		float mul;
-		if (spd <= player_friction)
-			mul = 0.;
-		else
-			mul = 1. - player_friction/spd;
-		h->sx *= mul;
-		h->sy *= mul;
-		spd *= mul;
-		if (spd > player_maxspeed) {	// artificial "friction" forcing a reverse acceleration to settle too great speeds
-			if (spd > player_maxspeed + player_accel)
-				mul = 1. - player_accel / spd;
-			else
-				mul = player_maxspeed / spd;
-			h->sx *= mul;
-			h->sy *= mul;
-		}
-	}
-	*/#ifdef PHYS_VECTOR_ACC_TEST
+	// model 1 by Huntta
 
 	player_friction = 0.125;
 	const float air_friction = 0.125;
@@ -1073,13 +1040,22 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 
  	#else
 
-	// this is a more physically correct model by Nix
+	// model 2 by Nix
 
-	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
+	// new correcting coefficients : reduce friction and total acceleration
 	player_maxspeed *= 1.2;
-	player_friction *= 1.2;
-	player_accel    *= 1.2;
-	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
+	player_friction *=  .5;
+	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
+
+	// acceleration
+	if (!deathbringer_affected) {
+		float mul = player_accel;
+		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
+			mul /= sqrt(2.);
+
+		h->sx += float(xAcc)*mul;
+		h->sy += float(yAcc)*mul;
+	}
 
 	// friction
 	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
@@ -1091,28 +1067,19 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			mul = 1. - player_friction/spd;
 		h->sx *= mul;
 		h->sy *= mul;
-	}
-
-	// acceleration
-	if (!deathbringer_affected && spd<player_maxspeed) {
-		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
-		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
-		float mul = player_accel;
-		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
-			mul /= sqrt(2.);
-
-		h->sx += float(xAcc)*mul;
-		h->sy += float(yAcc)*mul;
-		spd = sqrt( h->sx*h->sx + h->sy*h->sy );
-
-		if (spd > player_maxspeed) {
-			float mul = player_maxspeed/spd;
+		spd *= mul;
+		if (spd > player_maxspeed) {	// artificial "friction" forcing a reverse acceleration to settle too great speeds
+			if (spd > player_maxspeed + player_accel)
+				mul = 1. - player_accel / spd;
+			else
+				mul = player_maxspeed / spd;
 			h->sx *= mul;
 			h->sy *= mul;
 		}
 	}
 
 	#endif	// PHYS_VECTOR_ACC_TEST
+
 	#else	// PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
@@ -1376,7 +1343,7 @@ void WorldSettings::print(LineReceiver& printer) const {
 	if (svp_friendly_fire)
 		printer("- Friendly fire is on.");
 	if (svp_player_collisions)
-		printer("- Players can collide each other.");
+		printer("- Players can collide with each other.");
 	if (shadow_minimum == 0)
 		printer("- A player using the shadow power-up gets totally invisible.");
 }

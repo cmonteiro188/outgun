@@ -63,28 +63,6 @@ public:
 	void stop();
 };
 
-template<class DstType> DstType& volatile_ref_cast(volatile DstType& src) { return const_cast<DstType&>(src); }
-
-// Threadsafe: Wrapper of an object of type ObjT providing a thread safe very limited interface.
-template<class ObjT>
-class Threadsafe {
-	mutable MutexHolder mutex;
-	volatile ObjT obj;
-
-public:
-	Threadsafe() { }
-	Threadsafe(const ObjT& o) : obj(o) { }
-
-	Threadsafe& operator=(const ObjT& o) { mutex.lock(); volatile_ref_cast<ObjT>(obj) = o; mutex.unlock(); return *this; }
-	ObjT read() const { mutex.lock(); ObjT o = volatile_ref_cast<const ObjT>(obj); mutex.unlock(); return o; }	// Get a *copy* of the object
-
-	// for more complex operations, use lock(), access() and unlock()
-	void lock() const { mutex.lock(); }
-	void unlock() const { mutex.unlock(); }
-	      ObjT& access()       { return obj; }	// use obj only between lock() and unlock()
-	const ObjT& access() const { return obj; }	// use obj only between lock() and unlock()
-};
-
 class TournamentPasswordManager {
 public:
 	typedef HookFunctionHolder1<void, std::string> TokenCallbackT;	// an empty string is given to indicate no token
@@ -191,7 +169,8 @@ class gameclient_c {
 	TournamentPasswordManager tournamentPassword;
 
 	NLulong fdp, fdp_max;
-	NLulong max_world_score, max_world_rank;
+	float max_world_score;
+	NLulong max_world_rank;
 
 	pthread_mutex_t mapInfoMutex;
 	std::vector<MapInfo> maps;
@@ -339,8 +318,6 @@ public:
 	void server_map_command(const char* mapname, NLushort server_crc);
 
 	// GUI
-	//Graphics& graphics() { return client_graphics; }
-
 	void erase_first_message();
 	void print_message(Message_type type, const std::string& msg);
 

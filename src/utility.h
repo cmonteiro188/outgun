@@ -57,5 +57,7 @@ void rotate_angle(float& angle, float shift);
 
 double get_time();
 
+template<class DstType> DstType& volatile_ref_cast(volatile DstType& src) { return const_cast<DstType&>(src); }
+
 #endif
 

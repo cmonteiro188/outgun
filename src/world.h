@@ -275,7 +275,7 @@ public:
 
 // get rid of (or move elsewhere)
 	bool used;
-	int id;
+	int id;	// as in pid
 	std::string name;
 	int ping;
 	//int frags;

@@ -270,7 +270,7 @@ void gameserver_c::move_player(int f, int t) {
 	world.changeRocketsOwner(f, t);
 
 	//remove f
-	game_remove_player(f);
+	game_remove_player(f, false);
 
 	world.player[t].id = t;
 
@@ -974,9 +974,10 @@ int gameserver_c::getLessScoredTeam() const {
 		return rand() % 2;
 }
 
-void gameserver_c::game_remove_player(int pid) {
+void gameserver_c::game_remove_player(int pid, bool removeClient) {
 	fav_colors[pid / TSIZE][world.player[pid].color()] = false;
-	client[world.player[pid].cid].reset();
+	if (removeClient)
+		client[world.player[pid].cid].reset();
 	network.removePlayer(pid);
 	world.removePlayer(pid);
 }
@@ -998,9 +999,6 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	//name changed -- this means that the player is NOT REGISTERED
 	//  anymore for recording statistics
 	client[id].token_have = false;
-
-	//need to broadcast the player's crap to remove eventual '*' and stuff
-	network.broadcast_player_crap( pid );
 
 	//check if it's the first name information from client. then it
 	// must have just entered the game
@@ -1029,6 +1027,9 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	if (entered_game)
 		network.broadcast_new_player_notice(pid);
 	network.broadcast_player_name(pid);
+
+	// token removed; possibly authorized and/or admin
+	network.broadcast_player_crap(pid);
 }
 
 class PlayerMessager : public LineReceiver {
@@ -1041,13 +1042,22 @@ public:
 	PlayerMessager& operator()(const std::string& str) { host.sendMessage(player, type, str); return *this; }
 };
 
+bool gameserver_c::isLocallyAuthorized(int pid) const {
+	return authorizations.identifyName(world.player[pid].name) != -1;	// must have authorized because otherwise couldn't use the name
+}
+
+bool gameserver_c::isAdmin(int pid) const {
+	return find(admins.begin(), admins.end(), world.player[pid].name) != admins.end();
+}
+
 void gameserver_c::chat(int pid, const char* sbuf) {
 	// handle 'console' commands
 	if (sbuf[0]=='/') {
 		bool admin = false;
-		if (world.player[pid].reg_status == '*' || authorizations.identifyName(world.player[pid].name) != -1) {
+		ClientData& cld = client[world.player[pid].cid];
+		if ((cld.token_have && cld.token_valid) || isLocallyAuthorized(pid)) {
 			// the player surely is who his name implies, authorized either by the tournament master or the local authorization database
-			if (find(admins.begin(), admins.end(), world.player[pid].name) != admins.end())
+			if (isAdmin(pid))
 				admin = true;
 		}
 
@@ -1245,16 +1255,19 @@ bool gameserver_c::changeRegistration(int id, const string& token) {
 
 	// NEW (or first) REGISTRATION -- reset player report / stop reporting his old ID
 	client[id].neg_delta_score = 0;
-	client[id].delta_score = 0; //V0.4.8
-	client[id].fdp = 0.0; //V0.4.8
-	client[id].fdn = 0.0; //V0.4.8
+	client[id].delta_score = 0;
+	client[id].fdp = 0.0;
+	client[id].fdn = 0.0;
 	client[id].score = 0;
-	client[id].neg_score = 0;		//V0.4.8
+	client[id].neg_score = 0;
 	client[id].rank = 0;
 
-	client[id].token_have = true;			//token set
-	client[id].token_valid = false;		//BUT not validated yet
-	return true;
+	client[id].token_have = !token.empty();	//token set
+	client[id].token_valid = false;	//BUT not validated yet
+
+	network.broadcast_player_crap(network.getPid(id));
+
+	return client[id].token_have;
 }
 
 void gameserver_c::simulate_and_broadcast_frame() {

@@ -84,7 +84,7 @@ bool check_dir(const string& dir) {
 }
 
 int main(int argc, char *argv[]) {
- 	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
+	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
 
 	srand((unsigned)time(0));
 

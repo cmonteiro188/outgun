@@ -65,7 +65,8 @@ class ServerNetworking {
 	volatile int	mjob_count;
 	pthread_mutex_t	mjob_mutex;				//mutex for socket list
 
-	int				max_world_score, max_world_rank;
+	float			max_world_score;
+	int				max_world_rank;
 
 	ClientTransferData fileTransfer[MAX_PLAYERS];
 	volatile bool	file_threads_quit;		//#fix: this is used by all kinds of threads even though file threads no longer exist
@@ -113,6 +114,7 @@ public:
 
 	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }	// call only when moving players around; this actually does close to nothing
 	void disconnect_client(int cid, int timeout, Disconnect_reason reason);
+	int getPid(int cid) { return ctop[cid]; }	//#fix: this shouldn't be necessary
 
 	void send_me_packet(int pid);
 	void send_player_name_update(int cid, int pid);

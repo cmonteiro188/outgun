@@ -1175,15 +1175,8 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 void Graphics::draw_pup(const Powerup& pup, double time) {
 	nAssert(pup.kind >= 0 && pup.kind < static_cast<int>(pup_sprite.size()));
 	BITMAP* sprite = pup_sprite[pup.kind];
-	if (sprite) {
-/*#@7:		drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-		set_alpha_blender();
-		draw_trans_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
-		solid_mode();*/
-//18:		draw_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
-
-//		masked_blit(sprite, drawbuf, 0, 0, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2, sprite->w, sprite->h);
-	}
+	if (sprite)
+		draw_sprite(drawbuf, sprite, plx + scale(pup.x) - sprite->w / 2, ply + scale(pup.y) - sprite->h / 2);
 	else
 		switch (pup.kind) {
 			case Powerup::pup_shield:		draw_pup_shield(pup.x, pup.y); break;
@@ -1530,7 +1523,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int 
 			stats << setw(2) << setfill('0') << static_cast<int>(player.stats().average_lifetime(time)) % 60 << ' ';
 			break;
 		case 4:
-			if (player.reg_status != ' ' && player.reg_status != '?') {
+			if (player.reg_status == '*' || player.reg_status == 'A') {
 				stats << setw(4) << player.rank;
 				stats << setw(4) << (player.score + 1.0) / (player.neg_score + 1.0);
 				stats << setw(4) << player.score - player.neg_score;

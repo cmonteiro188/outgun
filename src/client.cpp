@@ -109,8 +109,6 @@ void ServerThreadOwner::stop() {
 }
 
 void TournamentPasswordManager::start() {
-	passStatus = PS_starting;
-	setToken("");
 	quitThread = false;
 	thread.start_assert(RedirectToMemFun<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn));
 }
@@ -144,12 +142,14 @@ void TournamentPasswordManager::changeData(string newName, string newPass) {
 		return;
 
 	stop();
+	setToken("");
 	if (newPass.empty()) {
 		passStatus = PS_noPassword;
 		return;
 	}
 	name = newName;
 	password = newPass;
+	passStatus = PS_starting;
 	start();
 }
 
@@ -176,6 +176,7 @@ const char* TournamentPasswordManager::statusAsString() const {
 void TournamentPasswordManager::threadFn() {
 	bool newToken = true;
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
+	
 	while (!quitThread) {
 		if (delay > 0) {
 			MS_SLEEP(500);
@@ -195,12 +196,17 @@ void TournamentPasswordManager::threadFn() {
 			continue;
 		}
 
-		nlConnect(sock, &master_address);	//#?
+
+		NLaddress tournamentServer;
+		if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
+			nlStringToAddr("69.57.148.55", &tournamentServer);
+
+		nlSetAddrPort(&tournamentServer, 80);
+		nlConnect(sock, &tournamentServer);
 
 		string query =
 			string() +
-			"GET /servlet/fcecin.tk1/index.html?" +
-			 + TK1_VERSION_STRING +
+			"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
 			'&' + (newToken?"new":"old") +
 			"&name=" + url_encode(name) +
 			"&password=" + url_encode(password) +
@@ -208,7 +214,6 @@ void TournamentPasswordManager::threadFn() {
 		passStatus = PS_sending;
 		if (newToken)
 			log("Password thread: Sending login");
-log("Query: %s", query.c_str());
 		if (!writeToUnblockingTCP(sock, query.data(), query.length(), &quitThread, 30000)) {
 			nlClose(sock);
 			if (quitThread)
@@ -222,8 +227,9 @@ log("Query: %s", query.c_str());
 		string response;
 		{
 			ostringstream respStream;
-			if (!saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000)) {
-				nlClose(sock);
+			bool result = saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000);
+			nlClose(sock);
+			if (!result) {
 				if (quitThread)
 					break;
 				log("Password thread: Error receiving response: timeout or %s", getNlErrorString());	//#fix
@@ -248,7 +254,6 @@ log("Query: %s", query.c_str());
 			}
 			response = fullResponse.substr(startPos, endPos - startPos);
 		}
-		nlClose(sock);
 
 		// parse the response
 		for (string::size_type i = 0; i < response.length(); ++i) {
@@ -267,7 +272,7 @@ log("Query: %s", query.c_str());
 		if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
 			log("Password thread: Invalid response (expecting one @-code)");
 			passStatus = PS_invalidResponse;
-			break;
+			continue;
 		}
 		++cPos;	// point to the control character after @
 		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// login ok; token follows
@@ -554,12 +559,16 @@ bool gameclient_c::start() {
 		return false;
 	client_sounds.select_theme(menu.options.sounds.theme());
 
+log("SCBC");//#debug
 	set_close_button_callback(gameclient_c::close_button_callback);
 
+log("IJ");//#debug
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
+log("MLO");//#debug
 	if (menu.options.game.messageLogging())
 		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
+log("EXIT");//#debug
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	MCF_updateServers();
@@ -799,7 +808,6 @@ void gameclient_c::update_scoreboard() {
 				scoreboard[s] = maxwho;
 				scoreused[maxwho] = true;
 			}
-
 		}
 	}
 }
@@ -1640,9 +1648,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readFloat(msg, count, aflo);
 					svp_flag_penalty = aflo;
 					readByte(msg, count, abyte);
-					svp_friendly_fire = abyte & 0x01;
-					svp_friendly_db = abyte & 0x02;
-					svp_player_collisions = abyte & 0x04;
+					svp_friendly_fire		= (abyte & 0x01) ? true : false;
+					svp_friendly_db			= (abyte & 0x02) ? true : false;
+					svp_player_collisions	= (abyte & 0x04) ? true : false;
 
 					// room is probably changed
 					fx.player[me].oldx = -1;
@@ -1906,7 +1914,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readLong(lebuf, count, pscore);		//score
 					readLong(lebuf, count, nscore);		//score	NEG v0.4.8
 					readLong(lebuf, count, max_world_rank);		//world players count
-					readLong(lebuf, count, max_world_score);		//world score max
+					readFloat(lebuf, count, max_world_score);		//world score max
 					if (color < MAX_PLAYERS / 2)
 						fx.player[pid].set_color(color);
 					else
@@ -3261,8 +3269,6 @@ void gameclient_c::draw_game_frame() {
 					if (i != me) {
 						if (fx.player[i].color() >= 0 && fx.player[i].color() < MAX_PLAYERS / 2)	// Check because the server may have sent invalid colour.
 							client_graphics.draw_minimap_player(fx.map, fx.player[i], i / TSIZE, fx.player[i].color());
-						else
-							log("Invalid colour (%d) for player %d.", fx.player[i].color(), i);
 					}
 					else // myself: draw differently
 						client_graphics.draw_minimap_me(fx.map, fx.player[i], i / TSIZE, get_time());
@@ -3417,117 +3423,6 @@ void gameclient_c::draw_game_frame() {
 	if (get_time() > lastpackettime + 1.0)
 		client_graphics.show_not_responding_message();
 
-	/*if (key[KEY_TAB]) {
-		drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-		set_trans_blender(0,0,0,150);
-
-		int w = 440;
-		int h = 420;
-		int mx = SCREEN_W / 2;
-		int my = SCREEN_H / 2;
-		int x1 = mx - w/2;
-		int y1 = my - h/2;
-		int x2 = mx + w/2;
-		int y2 = my + h/2;
-		int xc = (x1+x2)/2;
-
-		rectfill(drawbuf, x1,y1,x2,y2, 0);
-
-		solid_mode();
-
-		int XLEFTPAD = x1+40;
-		int YDEL;
-		char sorry[256];
-		int p, redt = 0, bluet = 0;
-		double redpow = 0.0, bluepow = 0.0;
-
-		// FIXME: "max world score"? "max world rating"?
-		textprintf_centre(drawbuf, font, xc, y1+10, col[COLWHITE], "Ranking - %lu players", max_world_rank); //, max_world_score);
-
-		textprintf(drawbuf, font, XLEFTPAD, y1+45, col[COLWHITE], "Rank Power Score Name            Frags Ping");
-
-		YDEL = 60;
-
-		for (p=0;p<TSIZE;p++)
-		if (scoreboard[p] >= 0)
-		{
-			int i = scoreboard[p];
-			redt++;
-
-			sorry[0]=0;
-			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
-				strcpy(sorry, " ");
-
-			if (sorry[0]==0) {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%4i %5.2f %5i %-15s %5i %4i",
-					fx.player[i].rank,
-					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
-					fx.player[i].score - fx.player[i].neg_score,
-					fx.player[i].name.c_str(),
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				//V0.4.8
-				redpow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1));
-			}
-			else {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%16s %-15s %5i %4i",
-					sorry,
-					fx.player[i].name.c_str(),
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				redpow += DEFAULT_PLAYER_RATE;//V0.4.8
-			}
-
-			//next
-			YDEL += 9;
-		}
-
-		textprintf(drawbuf, font, XLEFTPAD, y1+240, col[COLWHITE], "Rank Power Score Name            Frags Ping");
-
-		YDEL = 255;
-
-		for (p=TSIZE;p<maxplayers;p++)
-		if (scoreboard[p] >= 0)
-		{
-			bluet++;
-			int i = scoreboard[p];
-
-			sorry[0]=0;
-			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
-				strcpy(sorry, " ");
-
-			if (sorry[0]==0) {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%4i %5.2f %5i %-15s %5i %4i",
-					fx.player[i].rank,
-					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
-					fx.player[i].score - fx.player[i].neg_score,
-					fx.player[i].name.c_str(),
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				bluepow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1)); //V0.4.8
-			}
-			else {
-				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%16s %-15s %5i %4i",
-					sorry,
-					fx.player[i].name.c_str(),
-					fx.player[i].frags,
-					fx.player[i].ping
-				);
-				bluepow += DEFAULT_PLAYER_RATE;	//V0.4.8
-			}
-
-			//next
-			YDEL += 9;
-		}
-
-		//V0.4.8
-		textprintf_centre(drawbuf, font, xc, y1+30, col[COLLRED], "Red Team - Power %.2f", redpow);
-		textprintf_centre(drawbuf, font, xc, y1+225, col[COLLBLUE], "Blue Team - Power %.2f", bluepow);
-	}*/
-
 	// debug panel
 	if (key[KEY_F9]) {
 		const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
@@ -3601,8 +3496,6 @@ void gameclient_c::draw_player(int i) {
 			//draw player
 			client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
 		}
-		else
-			log("Invalid colour (%d) for player %d.", player.color(), i);
 
 		//draw deathbringer carrier effect
 		if (player.item_deathbringer && get_time() > player.death_drop_time) {

@@ -131,7 +131,7 @@ public:
 	void move_player(int f, int t);
 	void move_player_inside_team(int source, int target);
 	void swap_players(int a, int b);
-	void game_remove_player(int pid);
+	void game_remove_player(int pid, bool removeClient);
 	void check_fav_colors(int pid);
 	void set_fav_colors(int pid, const std::vector<char>& colors);
 
@@ -140,7 +140,7 @@ public:
 
 	const ClientData& getClientData(int cid) const { return client[cid]; }
 	      ClientData& getClientData(int cid)       { return client[cid]; }
-	bool changeRegistration(int id, const std::string& token);	// returns true if the token is different from before
+	bool changeRegistration(int id, const std::string& token);	// returns true if the token is different from before and non-empty
 	void resetPlayer(int cid) { client[cid].reset(); }
 	void clearWorldRankingDeltas();
 	void refresh_team_score_modifiers();
@@ -148,6 +148,8 @@ public:
 	void score_frag(int p, int amount);
 	void score_neg(int p, int amount);
 	int getLessScoredTeam() const;	// using team_smul ; call refresh_team_score_modifiers before calling this
+	bool isLocallyAuthorized(int pid) const;
+	bool isAdmin(int pid) const;
 
 	bool load_rotation_map(int pos);
 	bool server_next_map(int reason);

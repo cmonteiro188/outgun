@@ -38,27 +38,13 @@ using std::setw;
 using std::string;
 using std::vector;
 
-//master job struct
+// tournament thread job struct
 class masterjob_c {
 public:
-	char		request[512];
-
-	bool		html_end;
-
-	char		lebuf[65536];		//lebuf for collecting response
-	int			n;	// lebuf length
-
-	int			code;
-	int			cid;
-
-	//return values of the callback
-	bool		retry;
-
-	masterjob_c() {
-		lebuf[0]=0;
-		html_end = false;
-		request[0]=0;
-	}
+	string request;
+	enum JobType { JT_score, JT_login };
+	JobType code;
+	int cid;
 };
 
 ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet logs) :
@@ -202,7 +188,7 @@ void ServerNetworking::broadcast_player_name(int pid) {
 
 //send a player crap update to a client
 void ServerNetworking::send_player_crap_update(int cid, int pid) {
-	const ClientData& clid = host->getClientData(cid);
+	const ClientData& clid = host->getClientData(world.player[pid].cid);
 
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_crap_update);
@@ -210,22 +196,32 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 	// --- RECALC CRAP ---
 	//reg_status char:
 	if (clid.token_have) {
-		if (clid.token_valid)
-			world.player[pid].reg_status = '*';
+		if (clid.token_valid) {
+			if (host->isAdmin(pid))
+				world.player[pid].reg_status = 'A';
+			else
+				world.player[pid].reg_status = '*';
+		}
 		else
 			world.player[pid].reg_status = '?';
 	}
+	else if (host->isLocallyAuthorized(pid)) {
+		if (host->isAdmin(pid))
+			world.player[pid].reg_status = 'a';
+		else
+			world.player[pid].reg_status = 's';
+	}
 	else
-		world.player[pid].reg_status = ' ';
+		world.player[pid].reg_status = '.';
 
-	writeByte(lebuf, count, ((NLubyte)pid));
-	writeByte(lebuf, count, ((NLubyte)world.player[pid].color()));
-	writeByte(lebuf, count, ((NLubyte)world.player[pid].reg_status));					//regstatus
-	writeLong(lebuf, count, ((NLulong)clid.rank));		//ranking#
-	writeLong(lebuf, count, ((NLulong)clid.score));		//score POS
-	writeLong(lebuf, count, ((NLulong)clid.neg_score));		//score NEG v0.4.8
-	writeLong(lebuf, count, ((NLulong)max_world_rank));		//MAX WORLD ranking#
-	writeLong(lebuf, count, ((NLulong)max_world_score));		//MAX WORLD score
+	writeByte(lebuf, count, (NLubyte)pid);
+	writeByte(lebuf, count, (NLubyte)world.player[pid].color());
+	writeByte(lebuf, count, (NLubyte)world.player[pid].reg_status);
+	writeLong(lebuf, count, (NLulong)clid.rank);
+	writeLong(lebuf, count, (NLulong)clid.score);
+	writeLong(lebuf, count, (NLulong)clid.neg_score);
+	writeLong(lebuf, count, (NLulong)max_world_rank);
+	writeFloat(lebuf, count, max_world_score);
 
 	server->send_message(cid, lebuf, count);
 }
@@ -570,10 +566,14 @@ void ServerNetworking::client_report_status(int id) {
 	//submit-- create job
 	masterjob_c* job = new masterjob_c();
 	job->cid = id;
-	job->code = 2;
-	sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\r\n",
-			url_encode(TK1_VERSION_STRING).c_str(), clid.delta_score, clid.neg_delta_score,
-			url_encode(world.player[ctop[id]].name).c_str(), url_encode(clid.token).c_str());
+	job->code = masterjob_c::JT_score;
+	job->request = string() +
+		"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
+		"&dscp=" + itoa(clid.delta_score) +
+		"&dscn=" + itoa(clid.neg_delta_score) +
+		"&name=" + url_encode(world.player[ctop[id]].name) +
+		"&token=" + url_encode(clid.token) +
+		" HTTP/1.0\r\n\r\n";
 
 	pthread_mutex_lock(&mjob_mutex);
 	mjob_count++;
@@ -927,7 +927,7 @@ void ServerNetworking::client_disconnected(int id) {
 	client_report_status(id);
 
 	fileTransfer[id].reset();
-	host->game_remove_player(pid);
+	host->game_remove_player(pid, true);
 	//less one...
 	player_count--;
 
@@ -1161,18 +1161,15 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				string tok;
 				readStr(msg, count, tok);
 				if (host->changeRegistration(id, tok)) {
-					//v0.4.5 : atualiza registration char / score / rank
-					broadcast_player_crap( ctop[id] );
-
-					// ENQUEUE TOKEN VALIDATION IN A QUEUE THAT TALKS TO THE MASTER SERVERS
-
-					//create job
 					masterjob_c *job = new masterjob_c();
 					job->cid = id;
-					job->code = 1;
-					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\r\n",
-							url_encode(TK1_VERSION_STRING).c_str(), url_encode(world.player[ctop[id]].name).c_str(),
-							url_encode(tok).c_str());
+					job->code = masterjob_c::JT_login;
+					job->request = string() +
+						"GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
+						"&chktk" +
+						"&name=" + url_encode(world.player[ctop[id]].name) +
+						"&token=" + url_encode(tok) +
+						" HTTP/1.0\r\n\r\n";
 
 					pthread_mutex_lock(&mjob_mutex);
 					mjob_count++;
@@ -1572,423 +1569,154 @@ double ServerNetworking::getTraffic() {
 	return ( server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT) ) / 1024.;
 }
 
-//a master job response is obtained: parse it
-void ServerNetworking::master_job_response(masterjob_c *j) {
-	log("master_job_response() ID = %d", pthread_self());
-	if (ctop[j->cid] == -1)	// client no longer connected
-		return; 
-
-	int i;
-
-	//1 -- player token check
-	// RETORNO ESPERADO : @K<SCORE>#<RANKPOS>#
-
-	bool got_a_final_response = false;		//if got a final response (@F/@E/@K)
-											//if not, will retry (e.g. getting "can't contact servlet runner"
-											//or other pages describing temporary problems in the master server)
-
-	if (j->code == 1) {
-
-		//parse response
-		for (i=0;i<j->n;i++) {
-
-			if (j->lebuf[i] == '@') {
-				i++;
-
-				if ((j->lebuf[i] == 'F') || (j->lebuf[i] == 'E')) {
-
-					//FIXME: this is bad news -- deal better with it
-					got_a_final_response = true;
-
-				}
-				if (j->lebuf[i] == 'K') {
-
-					got_a_final_response = true;
-
-					ClientData& clid = host->getClientData(j->cid);
-
-					//OK!
-					char lebuf[128]; int count = 0;
-					writeByte(lebuf, count, data_registration_response);
-					writeByte(lebuf, count, 1);		// OK!
-					server->send_message(j->cid, lebuf, count);
-
-					//set this player as being recorded as of now
-					clid.token_valid = true;		//validated his token
-
-					//PARSE STUFF
-					char pb[256];
-					int  pc;
-					//PARSE: current score
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					clid.score = atoi(pb);
-					//PARSE: current NEG score   // V0.4.8 ===
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					clid.neg_score = atoi(pb);
-					//PARSE: current ranking pos
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					clid.rank = atoi(pb);
-					//PARSE: max score
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					max_world_score = atoi(pb);
-					//PARSE: max rank pos
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					max_world_rank = atoi(pb);
-
-					//v0.4.5 : atualiza registration char / score / rank
-					broadcast_player_crap( ctop [j->cid] );
-
-					//done
-					break;
-				}
-				else if (j->lebuf[i] == 'F') {
-					//FAILED!
-					char lebuf[128]; int count = 0;
-					writeByte(lebuf, count, data_registration_response);
-					writeByte(lebuf, count, 0);		// FAILED!
-					server->send_message(j->cid, lebuf, count);
-
-					//done
-					break;
-				}
-			}
-		}
-	}
-	//2 -- submit a player's report
-	// RETORNO ESPERADO : @K<SCORE>#<RANKPOS>#  (atualizados...)
-	else if (j->code == 2) {
-		//parse response
-		for (i=0;i<j->n;i++) {
-
-			if (j->lebuf[i] == '@') {
-				i++;
-				if ((j->lebuf[i] == 'F') || (j->lebuf[i] == 'E')) {
-
-					//FIXME: this is bad news -- deal better with it
-					got_a_final_response = true;
-
-				}
-				if (j->lebuf[i] == 'K') {
-
-					got_a_final_response = true;
-
-					//deltascore report: just update score/ranking
-
-					ClientData& clid = host->getClientData(j->cid);
-
-					//PARSE STUFF
-					char pb[256];
-					int  pc;
-					//PARSE: current score
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					clid.score = atoi(pb);
-					//PARSE: current NEG score  v0.4.8 !! ======
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					clid.neg_score = atoi(pb);
-					//PARSE: current ranking pos
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					clid.rank = atoi(pb);
-					//PARSE: max score
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					max_world_score = atoi(pb);
-					//PARSE: max rank pos
-					pb[0]=0;
-					pc=0;
-					i++;
-					while (j->lebuf[i] != '#') {
-						pb[pc] = j->lebuf[i];
-						pb[pc+1] = 0;
-						pc++;
-						i++;
-						if (pc > 15) break;	//improbable length
-					}
-					max_world_rank = atoi(pb);
-
-					//v0.4.5 : atualiza registration char / score / rank
-					broadcast_player_crap( ctop [j->cid] );
-
-					//done
-					break;
-				}
-				else if (j->lebuf[i] == 'F') {
-
-					//FIXME: something went wrong, DELTA SCORE LOST !!!
-					//  log this, must check reasons later
-					log.error("A player delta score update has been lost! (@F returned)!");
-
-					break;
-				}
-			}
-		}
-	}
-
-	//no definitive response: should retry
-	if (got_a_final_response == false)
-		j->retry = true;
-}
-
-//master job -- handle a single request
 void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	log("run_masterjob_thread() ID = %d", pthread_self());
-	int w; //wait
 
-	NLsocket sock = NL_INVALID;
+	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
+	
+	while (!mjob_exit) {
+		if (delay > 0) {
+			MS_SLEEP(500);
+			delay -= 500;
+			if (!mjob_fastretry)
+				continue;
+		}
+		delay = 60000;	// default to one minute
 
-	while (mjob_exit == false) {
-		//open a nonblocking socket
 		nlOpenMutex.lock();
 		nlDisable(NL_BLOCKING_IO);
-		sock = nlOpen(0, NL_RELIABLE);
+		NLsocket sock = nlOpen(0, NL_RELIABLE);
 		nlOpenMutex.unlock();
 		if (sock == NL_INVALID) {
-			//FIXME show "cant open socket to master" error
-			for (w=0;w<60*2*2;w++) { if (mjob_exit) break; if (mjob_fastretry) break; MS_SLEEP(500); }
-			continue;				//again...
+			log("Tournament thread: Can't open socket. %s", getNlErrorString());
+			delay = 10000;
+			continue;
 		}
 
-		//connect the nonblocking way
-		NLaddress tournament;
-		if (!nlGetAddrFromName("www.mycgiserver.com", &tournament))
-			if (!nlStringToAddr("69.57.148.55", &tournament)) {
-				MS_SLEEP(3000);
+		NLaddress tournamentServer;
+		if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
+			nlStringToAddr("69.57.148.55", &tournamentServer);
+
+		nlSetAddrPort(&tournamentServer, 80);
+		nlConnect(sock, &tournamentServer);
+
+		if (!writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000)) {
+			nlClose(sock);
+			if (mjob_exit)
+				break;
+			log("Tournament thread: Error sending info: timeout or %s", getNlErrorString());	//#fix
+			continue;
+		}
+
+		string response;
+		{
+			ostringstream respStream;
+			bool result = saveAllFromUnblockingTCP(sock, respStream, &mjob_exit, 30000);
+			nlClose(sock);
+			if (!result) {
+				if (mjob_exit)
+					break;
+				log("Tournament thread: Error receiving response: timeout or %s", getNlErrorString());	//#fix
 				continue;
 			}
+			string fullResponse = respStream.str();
 
-		nlSetAddrPort(&tournament, 80);
-		nlConnect(sock, &tournament);
-
-		//build query
-		char querybuf[1024]; int qcount = 0;
-		writeString(querybuf, qcount, job->request);
-		qcount--;	//take the zero out
-
-		//FIXME: LOG PROGRESS
-
-		//keep trying to write the query.
-		NLint result;
-		do {
-			result = nlWrite(sock, querybuf, qcount);
-			MS_SLEEP(50);
-
-			//qutting?
-			if (mjob_exit) break;
-
-		} while ((result == NL_INVALID) && (nlGetError() == NL_CON_PENDING));
-
-		//qutting?
-		if (mjob_exit) continue;
-
-		//FIXME: LOG PROGRESS
-
-		//try to read the reply
-		//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
-		int nostuffcound = 0;
-		int n = 0;
-		char *lebuf = &(job->lebuf[0]);
-		do {
-			//read
-			result = nlRead(sock, &(lebuf[n]), 1);
-
-			//quitting?
-			if (mjob_exit) break;
-
-			//no byte
-			if (result == 0) {
-				if (nostuffcound > 0) {
-					nostuffcound++;
-					//200 (4000*50/1000) seconds after it came some stuff but now without coming more stuff
-					// THEN: retry in a while
-					if (nostuffcound > 4000) {
-						//retry
-						lebuf[0] = 0;
-						nlClose(sock);
-						sock = NL_INVALID;
-						//FIXME: LOG PROGRESS strcpy(namestatus, "NO RESPONSE. RETRYING...");
-						for (w=0;w<3*2;w++) { if (mjob_exit) break; if (mjob_fastretry) break; MS_SLEEP(500); }
-						break;
-					}
-				}
-
-				MS_SLEEP(50);
+			// find the start and end of the body: after the last "<html>" and before the last "</html>"
+			// the original code uses full case insensivity so response.find_last_of() can't be used
+			int startPos, endPos;
+			for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)	// start at length - 7 because "</html>" must fit after that
+				if (!stricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
+					break;
+			for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
+				if (!stricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
+					break;
+			if (startPos < 6 || endPos < startPos) {
+				log("Tournament thread: Invalid response (no <html>...</html>)");
+				continue;
 			}
+			response = fullResponse.substr(startPos, endPos - startPos);
+		}
 
-			//error occured
-			if (result == NL_INVALID) {
-				//if already got html_end, no error
-				//if (html_end)  // *** FIXME: parsing the result?
-				//break;
-
-				//error: try again
-				nlClose(sock);
-				sock = NL_INVALID;
-				//FIXME: LOG PROGRESS strcpy(namestatus, "ERROR. RETRYING...");
-				for (w=0;w<3*2;w++) { if (mjob_exit) break; if (mjob_fastretry) break; MS_SLEEP(500); }
+		// parse the response
+		bool unavailable = false;
+		for (string::size_type i = 0; i < response.length(); ++i) {
+			if (response[i] < 32)
+				response[i] = '+';	// for readability in the log
+			if (!stricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
+				log("Tournament thread: Service unavailable (\"can't contact servlet runner\")");
+				unavailable = true;
 				break;
 			}
-
-			//received anything below 32: turn them into "+" signals...
-			if (lebuf[n] < 32)
-				lebuf[n] = '+';
-
-			//check for received </HTML>
-			if (n >= 6) {
-				if (
-					(lebuf[n-6] == '<') &&
-					(lebuf[n-5] == '/') &&
-					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
-					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
-					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
-					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
-					(lebuf[n-0] == '>')
-				)
-				{
-					//LOG1("CLIENT MASTER QUERY RECEIVED </HTML>! SUCCESS!! n=%i\n", n);
-					job->html_end = true;
-					lebuf[n+1] = 0;
-					//LOG1("Full response: \"%s\"\n", lebuf);
-					break;
-				}
-			}
-
-			//check for received another <HTML> : reset all stuff
-			if (n >= 5) {
-				if (
-					(lebuf[n-5] == '<') &&
-					((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
-					((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
-					((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
-					((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
-					(lebuf[n-0] == '>')
-				)
-				{
-					lebuf[n+1]=0;
-					//LOG1("** READ <HTML>, DISCARDING BUFFER '%s' **\n", lebuf);
-					n = -1;
-				}
-			}
-
-			//read next
-			n++;
-		} while (1);
-
-		//save n
-		job->n = n;
-
-		//quitting?
-		if (mjob_exit) break;
-
-		//found it?
-		if (job->html_end) {
-			//FIRST THINGS FIRST: close the socket
-			nlClose(sock);
-			sock = NL_INVALID;
-
-			//job completed: who to call?
-			job->retry = false;
-			master_job_response(job);
-
-			//check for retry -- 2 minutes wait before doing so
-			if (job->retry)
-				for (w=0;w<60*2*2;w++) { if (mjob_exit) break; if (mjob_fastretry) break; MS_SLEEP(500); }
-			else
-				break;	// ALL DONE !!
 		}
-		else {
-			//failed, just retry (go on with the loop)
+		if (unavailable)
+			continue;
+		log("Tournament thread: Received response: \"%s\"", response.c_str());
+		string::size_type cPos = response.find_first_of('@');
+		if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
+			log("Tournament thread: Invalid response (expecting one @-code)");
+			continue;
 		}
-	}//WHILE(password set)
-
-	// =====
-	//CLOSE SOCKET AND DECREMENT JOB COUNT
-	// =====
-	if (sock != NL_INVALID)
-		nlClose(sock);
-	pthread_mutex_lock ( &mjob_mutex );
-	mjob_count--;
-	pthread_mutex_unlock ( &mjob_mutex );
-
-	//job completed -- nuke it
+		++cPos;	// point to the control character after @
+		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// success; ranking data follows
+			++cPos;
+			float v[5];
+			char termChar;
+			int num = sscanf(response.c_str() + cPos, "%f#%f#%f#%f#%f%c", &v[0], &v[1], &v[2], &v[3], &v[4], &termChar);
+			if (num != 6 || termChar != '#') {
+				log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
+				continue;
+			}
+			int pid = ctop[job->cid];
+			if (pid != -1) {	// the player is still in the game
+				ClientData& clid = host->getClientData(job->cid);	//#fix: thread safety
+				if (job->code == masterjob_c::JT_login) {
+					log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
+					char lebuf[128]; int count = 0;
+					writeByte(lebuf, count, data_registration_response);
+					writeByte(lebuf, count, 1);	// registration ok
+					server->send_message(job->cid, lebuf, count);
+					clid.token_valid = true;
+				}
+				else if (job->code == masterjob_c::JT_score)
+					log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
+				else
+					nAssert(0);
+				clid.score		= static_cast<int>(v[0]);
+				clid.neg_score	= static_cast<int>(v[1]);
+				clid.rank		= static_cast<int>(v[2]);
+				max_world_score	=                  v[3] ;
+				max_world_rank	= static_cast<int>(v[4]);
+				broadcast_player_crap(pid);
+			}
+			break;	// request complete
+		}
+		else if (response[cPos] == 'E' || response[cPos] == 'F') {
+			int pid = ctop[job->cid];
+			if (pid != -1) {
+				if (job->code == masterjob_c::JT_login)	{
+					log.security("Tournament thread: Login failed for player %s", world.player[pid].name.c_str());
+					char lebuf[128]; int count = 0;
+					writeByte(lebuf, count, data_registration_response);
+					writeByte(lebuf, count, 0);	// registration failed
+					server->send_message(job->cid, lebuf, count);
+				}
+				else if (job->code == masterjob_c::JT_score) {
+					plprintf(pid, msg_warning, "Your tournament score update was failed!");
+					log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
+				}
+				else
+					nAssert(0);
+			}
+			else if (job->code == masterjob_c::JT_score)
+				log("Tournament thread: Score update lost for a player that's left the server");
+			break;	// request complete
+		}
+		else
+			log("Tournament thread: Invalid response (bad @-code)");
+	}
+	pthread_mutex_lock(&mjob_mutex);
+	--mjob_count;
+	pthread_mutex_unlock(&mjob_mutex);
 	delete job;
 }
 
