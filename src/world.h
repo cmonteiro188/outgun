@@ -184,6 +184,7 @@ public:
 	void set_flag_carrying_time(double time) { total_flag_carrying_time = time; }
 	void set_flag_take_time(double time) { flag_taking_time = time; }
 	void set_flag(bool f) { flag = f; }
+	void set_dead(bool d) { dead = d; }
 
 	void spawn(float time) { set_spawn_time(time); dead = false; }
 

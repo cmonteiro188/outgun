@@ -201,26 +201,29 @@ void ServerNetworking::broadcast_player_crap(int pid) {
 
 // messages to update moved players (players/clients with new clients/players)
 void ServerNetworking::move_update_player(int a, bool silent) {
-	if (world.player[a].used) {
-		ctop[world.player[a].cid] = a;
+	if (!world.player[a].used)
+		return;
 
-		broadcast_player_name(a);
-		send_me_packet(a);
+	ctop[world.player[a].cid] = a;
 
-		char lebuf[256]; int count = 0;
-		writeByte(lebuf, count, data_frags_update);
-		writeByte(lebuf, count, a);		// what player id
-		writeLong(lebuf, count, world.player[a].stats().frags());
-		server->broadcast_message(lebuf, count);
+	world.player[a].stats().finish_stats(get_time());
 
-		broadcast_player_crap(a);
-		broadcast_stats(world.player[a]);
-		send_movements_and_shots(world.player[a]);
+	broadcast_player_name(a);
+	send_me_packet(a);
 
-		//message
-		if (!silent)
-			bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
-	}
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, data_frags_update);
+	writeByte(lebuf, count, a);		// what player id
+	writeLong(lebuf, count, world.player[a].stats().frags());
+	server->broadcast_message(lebuf, count);
+
+	broadcast_player_crap(a);
+	broadcast_stats(world.player[a]);
+	send_movements_and_shots(world.player[a]);
+
+	//message
+	if (!silent)
+		bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
 }
 
 //broadcast a sample
@@ -407,7 +410,7 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const {
 	char lebuf[64];
 	int count = 0;
 	writeByte(lebuf, count, data_stats);
-	writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.flag() ? 0x80 : 0x00));
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.flag() ? 0x80 : 0x00) | (player.dead ? 0x40 : 0x00));
 	const Statistics& stats = player.stats();
 	writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
 	writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
@@ -423,9 +426,8 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const {
 	writeByte(lebuf, count, static_cast<NLubyte>(stats.carriers_killed()));
 	writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
 	writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
-	writeLong(lebuf, count, static_cast<NLlong>(stats.spawn_time()));
 	writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
-	writeLong(lebuf, count, static_cast<NLlong>(stats.flag_take_time()));
+	writeLong(lebuf, count, static_cast<NLlong>(get_time() - stats.flag_take_time()));
 	server->send_message(cid, lebuf, count);
 }
 
