@@ -69,6 +69,7 @@ public:
     GS_IntT(const std::string& name, ValT* pVar, ValT min_ = std::numeric_limits<ValT>::min(),
             ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0_ = false)
         : GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_), allow0(allow0_) { }
+    virtual ~GS_IntT() { }
     bool set(LogSet& log, const std::string& value);
 
 private:
@@ -78,8 +79,23 @@ private:
     bool allow0;
 };
 
+template<class ValT>
+class GS_ForwardIntT : public GS_IntT<ValT> {
+public:
+    GS_ForwardIntT(const std::string& name, HookFunctionBase1<void, int>& pVar, ValT min_ = std::numeric_limits<ValT>::min(),
+                   ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0 = false)
+        : GS_IntT<ValT>(name, &internalVal, min_, max_, mul_, add_, allow0), var(pVar) { }
+    bool set(LogSet& log, const std::string& value);
+
+private:
+    HookFunctionBase1<void, int>& var;
+    ValT internalVal;
+};
+
 typedef GS_IntT<int> GS_Int;
 typedef GS_IntT<NLulong> GS_Ulong;
+
+typedef GS_ForwardIntT<int> GS_ForwardInt;
 
 template<class ValT>
 class GS_FloatT : public GamemodSetting {
@@ -193,16 +209,6 @@ private:
     std::vector<MapInfo>* var;
 };
 
-class GS_Maprot : public GamemodSetting {
-public:
-    GS_Maprot(const std::string& name, bool* maprot, bool* start) : GamemodSetting(name), random_maprot(maprot), random_start(start) { }
-    bool set(LogSet& log, const std::string& value);
-
-private:
-    bool* random_maprot;
-    bool* random_start;
-};
-
 class GS_PowerupNum : public GamemodSetting {
 public:
     GS_PowerupNum(const std::string& name, int* pVar, bool* pPercentFlag) : GamemodSetting(name), var(pVar), percentFlag(pPercentFlag) { }
@@ -260,6 +266,14 @@ bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) {
         return false;
     }
     *var = val * mul + add;
+    return true;
+}
+
+template<class ValT>
+bool GS_ForwardIntT<ValT>::set(LogSet& log, const std::string& value) {
+    if (!GS_IntT<ValT>::set(log, value))
+        return false;
+    var(internalVal);
     return true;
 }
 

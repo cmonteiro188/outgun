@@ -157,7 +157,7 @@ public:
     void removePlayer(int pid); // call only when moving players around; this actually does close to nothing
     void disconnect_client(int cid, int timeout, Disconnect_reason reason);
     int getPid(int cid) { return ctop[cid]; }   //#fix: this shouldn't be necessary
-    
+
     void send_simple_message(Network_data_code code, int pid) const;
     void broadcast_simple_message(Network_data_code code) const;
 

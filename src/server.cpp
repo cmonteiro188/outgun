@@ -404,6 +404,7 @@ bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && 
 bool checkForceIpValue(const std::string& val) { return isValidIP(val); }
 
 bool Server::setForceIP(const std::string& val) { extConfig.force_ip_name = val; return true; }
+void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
 
 void Server::load_game_mod(bool reload) {
     RedirectToFun1<bool, const std::string&> checkForceIP(checkForceIpValue);
@@ -419,6 +420,8 @@ void Server::load_game_mod(bool reload) {
     RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebScript(&network, &ServerNetworking::set_web_script);
     RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
     RedirectToMemFun1<ServerNetworking, bool, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
+
+    RedirectToMemFun1<Server, void, int> setRandomMaprot(this, &Server::setRandomMaprot);
 
     GamemodSetting* portSetting, * ipSetting, * privSetting;
     if (reload) {
@@ -487,8 +490,8 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("pups_drop_at_death",      &pupConfig.pups_drop_at_death)),
         PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
         PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
-        PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9, 1)),
-        PT(new GS_Maprot    ("random_maprot",           &random_maprot, &random_first_map)),
+        PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9)),
+        PT(new GS_ForwardInt("random_maprot",           setRandomMaprot, 0, 2)),
         PT(new GS_Int       ("vote_block_time",         &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)), // convert minutes to frames
         PT(new GS_Int       ("idlekick_time",           &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),  // convert seconds to frames; special setting: allow 0 that is outside the normal range
         PT(new GS_Int       ("idlekick_playerlimit",    &idlekick_playerlimit, 1, MAX_PLAYERS)),
@@ -881,8 +884,7 @@ void Server::chat(int pid, const char* sbuf) {
 
         const char* pCommand=sbuf+1;
         char cbuf[30];
-        int ci;
-        for (ci = 0;; ++ci, ++pCommand) {
+        for (int ci = 0;; ++ci, ++pCommand) {
             if (ci == 29) {
                 cbuf[29]='\0';
                 break;

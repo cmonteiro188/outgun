@@ -75,28 +75,6 @@ bool GS_Map::set(LogSet& log, const string& value) {
     }
 }
 
-bool GS_Maprot::set(LogSet& log, const string& value) {
-    const int val = atoi(value);
-    switch (val) {
-        case 0:
-            *random_maprot = false;
-            *random_start = false;
-            break;
-        case 1:
-            *random_maprot = true;
-            *random_start = false;
-            break;
-        case 2:
-            *random_maprot = false;
-            *random_start = true;
-            break;
-        default:
-            log.error("", value.c_str());
-            return basicErrorMessage(log, value, "one of 0, 1 and 2");
-    }
-    return true;
-}
-
 bool GS_PowerupNum::set(LogSet& log, const string& value) {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));

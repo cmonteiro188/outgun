@@ -897,9 +897,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
                         dist_b2 = min(dist_b2, sqr(fi->y - roomy) + sqr(fi->x - roomx));
                     const double diff = dist_r2 - dist_b2;
                     if (diff < -2)
-                        putpixel(buffer, x, y, teamdcol[1]);
-                    else if (diff > 2)
                         putpixel(buffer, x, y, teamdcol[0]);
+                    else if (diff > 2)
+                        putpixel(buffer, x, y, teamdcol[1]);
                     // don't paint about equally distant pixels
                 }
             }

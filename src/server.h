@@ -128,6 +128,7 @@ class Server {
     void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
 
     bool setForceIP(const std::string& val);
+    void setRandomMaprot(int val);
 
     // copying not allowed
     Server(const Server& o);

@@ -1955,6 +1955,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         pi->stats().finish_stats(get_time());
                     gameover_plaque = plaque;
 
+                    
                     string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
                     addThreadMessage(new TM_Text(msg_info, msg));
                     msg.clear();
@@ -2631,7 +2632,7 @@ void Client::process_incoming_data(const char* data, int length) {
     }
 
     //detect screen changes / clear powerup fx's
-    if (me >= 0 && fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
+    if (me >= 0 && (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy)) {
         for (int j = 0; j < MAX_PICKUPS; j++)
             if (fx.item[j].px == fx.player[me].oldx && fx.item[j].py == fx.player[me].oldy)
                 fx.item[j].kind = Powerup::pup_unused;  // erase

@@ -113,10 +113,10 @@ string replace_all(string text, const string& s1, const string& s2) {
     return text;
 }
 
-/*string pad_to_size_left(string text, int size, char pad) {
+string pad_to_size_left (string text, int size, char pad) {
     const int add = size - text.length();
     if (add > 0)
-        text.insert(0, add, pad);
+        text.insert(0, string(add, pad));
     return text;
 }
 
@@ -125,7 +125,7 @@ string pad_to_size_right(string text, int size, char pad) {
     if (add > 0)
         text.append(add, pad);
     return text;
-}*/
+}
 
 bool find_nonprintable_char(const string& str) {
     for (string::const_iterator s = str.begin(); s != str.end(); ++s)
@@ -283,8 +283,6 @@ string approxTime(int seconds) {
         }
     }
     const string str = itoa(time) + ' ' + timeUnit;
-    /*if (time != 1)
-        str += 's';*/
     return str;
 }
 

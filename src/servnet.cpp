@@ -157,14 +157,14 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
 
 void ServerNetworking::send_simple_message(Network_data_code code, int pid) const {
     int count = 0;
-    char lebuf[64];
+    char lebuf[4];
     writeByte(lebuf, count, code);
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 void ServerNetworking::broadcast_simple_message(Network_data_code code) const {
     int count = 0;
-    char lebuf[64];
+    char lebuf[4];
     writeByte(lebuf, count, code);
     server->broadcast_message(lebuf, count);
 }
