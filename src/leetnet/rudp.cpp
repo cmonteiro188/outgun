@@ -24,6 +24,13 @@
 
 */
 
+// ***** FORTIFY !!! *****
+
+#include "../FORTFY22/FORTIFY.H"
+
+// ***** FORTIFY !!! *****
+
+
 
 #include "rudp.h"		
 #include "nl.h"				// HawkNL
@@ -43,6 +50,13 @@
 #define MAX_MESSAGE_SIZE		  256		// maximum size of a single reliable message (using more than this trashes the retransmit scheme anyways)
 
 
+// 256 x 10 = 2560 = 2,5K/s
+// obs: não tem controle se vai ser enviado 10 pacotes por segundo ou mais. ver caso do envio de
+//      teclas pelo client
+#define MAX_PACKET_SIZE	    256			//maximum size of whole packet (unreliable + acks + reliables que der)
+	
+
+
 // gets the IP of this machine
 //
 void get_self_IP(NLaddress *addr) {
@@ -55,6 +69,9 @@ void get_self_IP(NLaddress *addr) {
 
 // data class implementation
 //
+
+#define DATA_BUF_SIZE 512			//increased from 512
+
 class data_ci : public data_c {
 public:
 	
@@ -62,11 +79,11 @@ public:
 	int alen, ulen;
 
 	//data buffer
-	char buf[2048];
+	char buf[DATA_BUF_SIZE];
 
 	//extend buffer to fit additional len
 	void extend(int len) {
-		if (len + ulen > 2048) {
+		if (len + ulen > DATA_BUF_SIZE) {
 			throw 66677;
 		}
 		
@@ -141,7 +158,7 @@ public:
 	data_ci() {
 		//alen = ulen = 0;
 		//buf = 0;
-		alen = 2048;
+		alen = DATA_BUF_SIZE;
 		ulen = 0;
 	}
 
@@ -461,13 +478,27 @@ public:
 	
 		//set address to socket remoteaddress
 		sendsock = nlOpen(0, NL_UNRELIABLE);
-		if (sendsock == NL_INVALID) {
-			//FIXME: deal with error
-			//printf("station_ci: set_remote_address() == NL_INVALID!!\n");
-		}
-		else {
+		if (sendsock == NL_INVALID)
+			return 0;		//ERROR
+		else
 			nlSetRemoteAddr(sendsock, &netaddr);
-		}
+
+		//ok
+		return 1;
+	}
+
+	// set the station's remote address for sending (IP:PORT)
+	virtual int set_remote_address(NLaddress *some_addr) {
+
+		//copy address
+		memcpy(&netaddr, some_addr, sizeof(NLaddress));
+	
+		//set address to socket remoteaddress
+		sendsock = nlOpen(0, NL_UNRELIABLE);
+		if (sendsock == NL_INVALID)
+			return 0;		//ERROR
+		else
+			nlSetRemoteAddr(sendsock, &netaddr);
 
 		//ok
 		return 1;
@@ -489,7 +520,7 @@ public:
 		//printf("msg ready!\n");
 
 		//message present - create return data
-		reldata.set(&(message[index][0]), message_size[index]);
+		reldata.set(&(message[index][0]), (NLshort)message_size[index]);
 
 		//clear msg (slide window)
 		message_size[index] = -1;
@@ -612,7 +643,7 @@ public:
 		//readShort(udp_data, count, unreliable_size);			// unreliable msg size
 
 		// tamanho = udp_size(tamanho total do datagrama UDP) - count (quantidade jah parseada ate aqui)
-		unreliable_size = udp_size - count;
+		unreliable_size = ((NLshort)(udp_size - count));
 
 		char *unreliable = (udp_data + count);		// unreliable msg pointer
 
@@ -690,7 +721,7 @@ public:
 		for (int i=0; i<MAXMSG; i++) 
 		if (reliable[i].id == -1) {
 			reliable[i].id = idgen_reliable_send++;  // generate and set new unique id
-			reliable[i].message.set(data, length);					// set the data
+			reliable[i].message.set(data, (NLshort)length);					// set the data
 			reliable_count++;												// another one
 			return 1;						//ok
 		}
@@ -754,12 +785,36 @@ public:
 
 		//if (debug) printf(" rc=%i", reliable_count);
 
-		writeByte(sendbuf, count, reliable_count);	// number of reliable messages
+		//save position in buffer of reliable messages count
+		int reliable_count_position = count;
+
+		//estimated size
+		int estsize = count + unreliable.ulen;		
+		
+		writeByte(sendbuf, count, reliable_count);	// number of reliable messages (wiil be overwritten)
+
+		bool firstmsg = true;
+
 		for (i=0;i<MAXMSG;i++)	// reliable messages in queue
 		if (reliable[i].id != -1) {
-			writeLong(sendbuf, count, reliable[i].id);		//id
-			writeShort(sendbuf, count, reliable[i].message.ulen);	//size
-			writeBlock(sendbuf, count, reliable[i].message.buf, reliable[i].message.ulen);	//data
+
+			int sizeofthis = 4 + 2 + reliable[i].message.ulen; //long + short +block
+
+			//if ((firstmsg) || (estsize + sizeofthis < MAX_PACKET_SIZE)) {
+
+				//mais uma
+				writeLong(sendbuf, count, reliable[i].id);		//id
+				writeShort(sendbuf, count, (NLushort)reliable[i].message.ulen);	//size
+				writeBlock(sendbuf, count, reliable[i].message.buf, reliable[i].message.ulen);	//data
+
+				//adiciona contadores
+				estsize += sizeofthis;
+				firstmsg = false;		//escreveu a primeira
+			//}
+			//else {
+			//throw 9342;
+			//break;		//estourou o pacote -- deixa pra próxima
+			//}
 
 			//if (debug) printf("(%i,%i)",reliable[i].id, reliable[i].message.ulen);
 
@@ -863,6 +918,3 @@ station_c		*new_station_c() {
 	station_c* x = new station_ci();
 	return x;
 }
-
-
-

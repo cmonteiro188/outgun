@@ -30,7 +30,16 @@
 
 */
 
+// ***** FORTIFY !!! *****
+
+#include "../FORTFY22/FORTIFY.H"
+
+// ***** FORTIFY !!! *****
+
+
 #include "pthread.h"
+
+#include "sched.h"
 
 #include "leetnet.h"
 
@@ -46,14 +55,14 @@
 
 #include "sleep.h"
 
-
-
-//#define STATION_PANIC
-
+#include "ConditionVariable.h"
+using namespace GNE;
 
 
 // max (absolute) clients that can connect to a server
-#define  MAX_CLIENTS 16
+// change this to meet your needs
+#define  MAX_CLIENTS 32
+
 
 #define LOG_NOLOG  //enable this to comment out logging to server_c.log
 #define LOG_EXPR server_c_log
@@ -105,6 +114,7 @@ struct client_t {
 	pthread_mutex_t	station_mutex;
 
 	//condition variable
+	ConditionVariable		station_cond_hasdata;
 	//pthread_cond_t	station_cond_hasdata;
 	
 	//thread must quit flag
@@ -145,6 +155,9 @@ public:
 
 	//server is stopping
 	volatile bool			server_stopped;
+
+	//HACK (not too lousy one)
+	double			last_hack_think;
 
 	//timeout configs
 	int lagtimeout;
@@ -200,7 +213,8 @@ public:
 		set_client_timeout(5, 10);
 
 		//open the server socket
-		servsock = nlOpen(port, NL_UNRELIABLE);
+		servsock = nlOpen((NLushort)port, NL_UNRELIABLE);
+
 		if (servsock == NL_INVALID) {
 			LOG("server_ci::start(): cannot nlOpen server socket!\n");
 			return 0;  // error
@@ -213,7 +227,11 @@ public:
 			client[i].id = i;							// id (for thread)
 			client[i].server = this;			// server (for thread)
 			pthread_mutex_init(&client[i].station_mutex, 0);
+
+			//FIXME: do anything to client[i].station_cond_hasdata ??
 			//pthread_cond_init(&client[i].station_cond_hasdata, 0);
+
+
 			//client[i].station = new_station_c();		// create station -- NAO, isso cria qdo cara conecta!
 			//client[i].station = 0;
 			client[i].quitflag = false;			// don't quit yet
@@ -236,6 +254,8 @@ public:
 	//stops the server. parameter is number of seconds to wait for all clients to gently disconnect
 	virtual int stop(int disconnect_clients_timeout) {
 
+    int i;
+
 		LOG("server_ci::stop()\n");
 
 		//if stopped, quit
@@ -245,14 +265,20 @@ public:
 		LOG("server_ci::stop() mesmo\n");
 
 		//disconnect all clients (network "disconnect msg" / wait)
-
+		for (i=0;i<MAX_CLIENTS;i++) 
+		if (client[i].used)	//valid
+		if ((client[i].connected) && (!client[i].told_disconnect) && (!client[i].server_disconnected)) //still connected
+			disconnect_client(i, 3);
+		
 		// signal threads to stop now
 		server_stopped = true;		
-      int i;
 		for (i=0;i<MAX_CLIENTS;i++) {
+			
 			client[i].quitflag = true; //set flag
 			LOG1("server_ci::stop() -- signal %i\n", i);
+						
 			//pthread_cond_signal( &client[i].station_cond_hasdata ); //slap the thread
+			client[i].station_cond_hasdata.signal();
 		}
 
 		LOG("server_ci::stop() -- joining master thread\n");
@@ -282,19 +308,11 @@ public:
 			//
 			
 			//MUDANDO: apenas reseta station
-#ifndef STATION_PANIC
 			client[i].station->reset_state();
-#else
-			if (client[i].station)
-				delete client[i].station;
-			client[i].station = new_station_c();
-#endif
-			
-			//if (client[i].station)
-			//delete client[i].station;
-			//client[i].station = 0;
 
 			pthread_mutex_destroy(&client[i].station_mutex);
+			
+			//FIXME: do something to station_cond_hasdata ?
 			//pthread_cond_destroy(&client[i].station_cond_hasdata);
 		}
 	
@@ -561,10 +579,48 @@ public:
 				client[i].station->set_incoming_packet(packet, length);
 
 			//pthread_cond_signal ( &client[i].station_cond_hasdata );  //slap the slave
+			client[i].station_cond_hasdata.signal();
+
 			pthread_mutex_unlock( &client[i].station_mutex );
 
 			// ok
 			return 1;
+		}
+
+		// ==== nao eh de client conhecido: aceita soh alguns special packets ====
+
+		//se nao for special packet, nao aceita
+		if (packid != 0) {	//special packet
+			LOG1(" NOT SPECIAL PACKET\n",i);
+			return 1;
+		}
+
+		//serverinfo request : answer
+		if (smsgid == 200) {
+			NLubyte a,b;
+			readByte(packet, count, a);		//clientside gamespy entry (lazyness)
+			readByte(packet, count, b);		//packet try #
+
+			char lebuf[512]; int count = 0;
+			writeLong(lebuf, count, 0);
+			writeLong(lebuf, count, 200);
+			writeByte(lebuf, count, a);
+			writeByte(lebuf, count, b);
+			writeString(lebuf, count, serverinfo);
+			//send
+			nlSetRemoteAddr(servsock, &remoteaddr);
+			char lix[1000];
+			nlAddrToString(&remoteaddr, lix);
+			LOG1("SENDING REPLY TO CLIENT AT %s\n", lix);
+			nlWrite(servsock, lebuf, count);
+			return 1;
+		}
+
+		// se aqui nao for pedido de conexao, nao aceita
+		//
+		if (smsgid != 1) {	//"hello! I want to connect!"
+			LOG1(" NOT HELLO PACKET\n",i);
+			return 1;		
 		}
 
 		//nao eh de client conhecido - verifica server full
@@ -587,38 +643,6 @@ public:
 			return 1;
 		}
 
-		//se nao for 0,1 packet, nao aceita
-		if (packid != 0) {	//special packet
-			LOG1(" NOT SPECIAL PACKET\n",i);
-			return 1;
-		}
-		
-		//serverinfo request : answer
-		if (smsgid == 200) {
-			NLubyte a,b;
-			readByte(packet, count, a);		//clientside gamespy entry (lazyness)
-			readByte(packet, count, b);		//packet try #
-
-			char lebuf[512]; int count = 0;
-			writeLong(lebuf, count, 0);
-			writeLong(lebuf, count, 200);
-			writeByte(lebuf, count, a);
-			writeByte(lebuf, count, b);
-			writeString(lebuf, count, serverinfo);
-			//send
-			nlSetRemoteAddr(servsock, &remoteaddr);
-			char lix[1000];
-			nlAddrToString(&remoteaddr, lix);
-			LOG1("SENDING REPLY TO CLIENT AT %s\n", lix);
-			nlWrite(servsock, lebuf, count);
-			return 1;
-		}
-
-		if (smsgid != 1) {	//"hello! I want to connect!"
-			LOG1(" NOT HELLO PACKET\n",i);
-			return 1;		
-		}
-
 		//verifica se LEETNET_VERSION match
 		readLong(packet, count, leetversion);	// leetnet version
 		if (leetversion != LEETNET_VERSION) {
@@ -627,25 +651,13 @@ public:
 		}
 
 		//server com espaco, aloca um cara pra ele
-//#define	DEBUG_THE_THING
-
-#ifdef  DEBUG_THE_THING
-	static int bla = 0;
-	i = bla++;
-#else
 		for (i=0;i<MAX_CLIENTS;i++) 
 		{
-#endif
 			//lock client
 			pthread_mutex_lock( &client[i].station_mutex );
 
 			if (!client[i].used)
 			{
-				// mais um jogador
-				num_clients++;
-
-				LOG2("NEW CLIENT %i  (total=%i)\n", i, num_clients);
-
 				//zero'ing state
 				client[i].id = i;					// the client's id (index on the array)
 				client[i].ping_start_time = 0;		//time of last ping request from gameserver
@@ -657,7 +669,7 @@ public:
 				client[i].quitflag = false; //thread must quit flag
 				
 				// aloca jogador para thread
-				nlGetRemoteAddr(servsock, &client[i].addr);		//set address
+				nlGetRemoteAddr(servsock, &(client[i].addr));		//set address
 				client[i].connected = false;				// must negotiate connection (client must first say "hello" :-)
 				client[i].connected_knows = false;		// did not receive game data packet yet when TRUE the
 																							// server knows that the client knows that he was accepted
@@ -671,31 +683,29 @@ public:
 				client[i].lastpackettime = get_timeh();		// last packet time is this one plus a bonus...
 
 				// new station - create & init
-				
 				// MUDANDO: apenas reseta client station
-#ifndef STATION_PANIC
-			client[i].station->reset_state();
-#else
-			if (client[i].station)
-				delete client[i].station;
-			client[i].station = new_station_c();
-#endif
+				client[i].station->reset_state();
 
-				//if (client[i].station) {
-					//LOG1("PROCESS INCOMING DATAGRAM: client %i station was not null!\n", i);
-					//delete client[i].station;
-					//client[i].station = 0;
-				//}		
-				//client[i].station = new_station_c();
+				//set station remote address
+				//char	adrstr[NL_MAX_STRING_LENGTH];				
+				//nlAddrToString(&client[i].addr, adrstr);		
+				//client[i].station->set_remote_address(adrstr);	
+				if (client[i].station->set_remote_address(&(client[i].addr)) == 0) { 
+					LOG("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!\n");
+					return 1;		//abort connection
+				}
 
-				char	adrstr[NL_MAX_STRING_LENGTH];				//set station remote address
-				nlAddrToString(&client[i].addr, adrstr);		//set station remote address
-				client[i].station->set_remote_address(adrstr);	//set station remote address
+				// mais um jogador
+				num_clients++;
+				LOG2("NEW CLIENT %i  (total=%i)\n", i, num_clients);
 
 				//set packet & slap slave
 				//pthread_mutex_lock( &client[i].station_mutex );
 				client[i].station->set_incoming_packet(packet, length); //set packet
+				
 				//pthread_cond_signal ( &client[i].station_cond_hasdata ); //slap the slave
+				client[i].station_cond_hasdata.signal();
+
 				//pthread_mutex_unlock( &client[i].station_mutex );
 
 				// agora ta valido p/ outras threads
@@ -708,21 +718,24 @@ public:
 
 			//unlock client
 			pthread_mutex_unlock( &client[i].station_mutex );
-#ifndef DEBUG_THE_THING
 		}
-#endif
 
 		//WEIRD WEIRD fail: num_clients esta mentindo para baixo
 		return 0;
-
 	}
 
-	//checks if master thread should quit
-	virtual bool reader_thread_quit() {
+	//HACK (a better one): called by reader thread to do some thinking for the server
+	void server_think() {
 
-		//FIXME: THIS IS JUST PLAIN WASTE OF CPU!
-		//
+		//FIXME: THIS (was) JUST PLAIN WASTE OF CPU!
+		//			but we can do better....
 		double curr_time = get_timeh();
+
+		if (curr_time - last_hack_think < 0.5)		//500ms resolution is enough
+			return;
+
+		last_hack_think = curr_time;
+
 		for (int i=0;i<MAX_CLIENTS;i++)
 		if (client[i].used) {
 		
@@ -767,9 +780,6 @@ public:
 					disconnect_client(i, 3);
 				}
 		}
-
-		//keep running?
-		return server_stopped;
 	}
 
 	//returns the serversocket
@@ -1116,6 +1126,9 @@ public:
 
 		//it's true...
 		server_stopped = true;
+		
+		//init'ing var
+		last_hack_think = 0.0;
 
 		//create all station objects
 		for (int i=0;i<MAX_CLIENTS;i++) {
@@ -1162,21 +1175,26 @@ void *thread_master_f (void *arg)
 		//read from socket
 		amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
 		
+		//HACK (a better one): think for the server
+		server->server_think();
+
 		// test quit
-		if (server->reader_thread_quit()) 
+		//if (server->reader_thread_quit()) 
+		if (server->server_stopped)
 			break;
 
 		// if no data, keep reading
 		while (amount == 0) {
 
 			//sleep a bit
-			MS_SLEEP(2);
-			
+			MS_SLEEP(2);		//alternativa: blocking I/O
+						
 			//read from socket
 			amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
 
 			// test quit
-			if (server->reader_thread_quit()) {
+			//if (server->reader_thread_quit()) {
+			if (server->server_stopped) {
 				//exit reader
 				pthread_exit(0);
 				return 0;
@@ -1190,7 +1208,7 @@ void *thread_master_f (void *arg)
 		// process packet
 		else {
 
-			//MS_SLEEP(50); // lag
+			//SLEP(50); // lag
 
 			server->process_incoming_datagram(buffer, amount);
 		}
@@ -1224,10 +1242,13 @@ void *thread_slave_f (void *arg)
 		//lock (to condvar)
 		//pthread_mutex_lock ( &mydata->station_mutex );
 
-		//JUST WASTE DA FOKKEN CPU
 		//wait for "work now!" signal from master
 		//pthread_cond_wait ( &mydata->station_cond_hasdata, &mydata->station_mutex );
-		MS_SLEEP(5);
+
+		//timedwait, so it does not deadlock if something goes wrong (only the paranoids will survive! ha ha ha!)
+		mydata->station_cond_hasdata.timedWait(1000);
+		
+		//SLEEP(5);  // IMPROVED WITH CONDITION VARIABLE! THANKS TO GNE!
 
 		//check quit
 		//if (mydata->quitflag) 
@@ -1271,7 +1292,7 @@ void *thread_disconnector_f(void *arg) {
 			break;
 
 		//sleep a bit
-		MS_SLEEP(100);
+		MS_SLEEP(100);    //*** NO CPU PROBLEM HERE ***
 	}
 
 	//exit

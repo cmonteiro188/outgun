@@ -125,14 +125,20 @@ versao 0.4.8
 		- solucao: token SEM expire -- expire em 6 horas
 		- OUTRA: descobrir se nao eh o codigo de refresh token do cliente que fica rateando
 (ACHO QUE CONSERTEI) - BUG: "-92 players"...
-(ACHO QUE CONSERTEI) - BUG: scoreboard TAB mostrando scores duplicados/errados
 OK - esquema de scoring ponderado que fique legal
 OK - paginas WEB do ranking legais sem debug stuff, com todas as coisas pra deixar o treco legal
-(ACHO QUE CONSERTEI) - ranking sem bugs tipo do * que vira ?
 OK - BUG: nao salvava "port" dos enderecos no config
 
 versao 0.4.9
 ========================
+
+(AGORA FOI!) - ranking sem bug do * que vira ?
+ - BUG: scoreboard TAB mostrando scores duplicados/errados
+
+versao 0.5.0
+========================
+
+ - client & server game console! (conalleg / console)
 
  - KICK do jogador se ele fica inativo (mostrar msg na tela pedindo pra ele se mexer)
    OBS: NAO KICKAR QUEM ESTIVER __TECLANDO__ NO MENU (se ficar so com o menu aberto, kika)
@@ -228,7 +234,7 @@ fica pro outgun II ...
 
 // ***** FORTIFY !!! *****
 
-#include "fortfy22/fortify.h"
+#include "FORTFY22/FORTIFY.H"
 
 // ***** FORTIFY !!! *****
 
@@ -243,9 +249,11 @@ fica pro outgun II ...
 
 #define FULLMODE GFX_AUTODETECT
 
+//DEBUGGING ranking?
+//#define DEBUG_RANKING
 
 //TURN OFF BOTS?
-#define NO_BOTS
+//#define NO_BOTS
 
 //maximum BOTSIZE variable value, absolute
 #define MAX_BOTSIZE 8
@@ -293,8 +301,8 @@ fica pro outgun II ...
 // GAME VERSION / GAME STRING
 //
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "14"
-#define GAME_VERSION "0.4.8"
+#define GAME_PROTOCOL "15"
+#define GAME_VERSION "0.5.0"
 
 #define TK1_VERSION_STRING "v048"
 
@@ -312,6 +320,9 @@ fica pro outgun II ...
 #include "leetnet/client.h"		// l33t client
 #include "leetnet/rudp.h"			// get_self_I
 #include "leetnet/sleep.h"		// sleep util
+
+//V0.5.0: console!
+#include "conalleg.h"
 
 #include "string.h"
 #include "math.h"
@@ -496,6 +507,10 @@ bool sound_enabled = true;		// player wants sounds?
 bool no_tcp_download = true;		// V0.4.7: CHANGED DEFAULT : disable use of the TCP socket for file transfers (use the regular UDP leetnet connection)
 bool force_ip = false;		//force IP?
 char force_ip_name[32];		//force IP to what?
+
+//console switches
+bool conshow = false;			//game-client console showing?
+bool player_talk_echo = false;				//player talk echo to server console
 
 //audio samples : codes
 enum {
@@ -1258,6 +1273,16 @@ public:
 	oneclient_c() {
 		serving_udp_file = false;
 		data = 0;
+		reset();
+	}
+
+	//chamado no fim do UDP!
+	void download_reset() {
+		if ((serving_udp_file) && (data)) {
+			delete data;
+			data = 0;
+		}
+		serving_udp_file = false;
 	}
 
 	void reset() {
@@ -1268,16 +1293,17 @@ public:
 		score = 0;
 		neg_score = 0;
 		rank = 0;
+		
+		token_have = false;
+		token_valid = false;
+		token[0]=0;
+		intoken=666;
 
-		if ((serving_udp_file) && (data)) {
-			delete data;
-			data = 0;
-			serving_udp_file = false;
-		}
+		download_reset();
 	}
 
 	~oneclient_c() {
-		reset();
+		download_reset();
 	}
 };
 
@@ -1456,7 +1482,7 @@ public:
 bool getword(char *word, char *s, int &c) {
 
 	bool copied = false;
-	char *oword = word;
+//	char *oword = word;
 
 	//LOG2("gw '%s'(%i) = ", s, c);
 
@@ -1583,7 +1609,7 @@ bool load_map_parse_label(FILE *f, char *label, map_c *map) {
 									b = (int)(y1 * (double)plh);
 									c = (int)(x2 * (double)plw);
 									d = (int)(y2 * (double)plh);
-									drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d,(int) texid, alpha);
+									drawwall_tex(map, is_solid, map->rx, map->ry, a, b, c, d, (int)texid, (int)alpha);
 								}
 							}
 							else {
@@ -2061,6 +2087,12 @@ public:
 			delete server;
 			server = 0;
 		}
+	}
+
+	//host talk console command
+	void host_talk_command(char *talk) {
+
+		bprintf("@W[HOST] %s", talk);		
 	}
 
 	//v0.4.4 choose a kind from all chances
@@ -2606,12 +2638,12 @@ public:
 				//v0.4.5 : atualiza registration char / score / rank
 				broadcast_player_crap( a );
 
-				//name (NEEDED? FIXME)
-				broadcast_player_name( a );
+				//name (NEEDED? FIXME - ja tem la em cima!)
+				//broadcast_player_name( a );
 			}
 
 			//message
-			broadcast_message("@I%s moved to %s team", player[a].name, teamname[a/TSIZE]);
+			bprintf("@I%s moved to %s team", player[a].name, teamname[a/TSIZE]);
 		}
 	}
 
@@ -2717,7 +2749,7 @@ public:
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 6);	// 6 = flag status update
 
-		NLubyte te = team;
+		NLubyte te = (NLubyte)team;
 		writeByte(lebuf, count, te);	//what team
 
 		if (world.flag[team].carried)	{ //carried?
@@ -2734,16 +2766,16 @@ public:
 			writeByte(lebuf, count, 0);	//FALSE
 
 			//new flag position
-			p = world.flag[team].pos.px;		//px
+			p = (NLubyte)world.flag[team].pos.px;		//px
 			writeByte(lebuf, count, p);
 
-			p = world.flag[team].pos.py;		//py
+			p = (NLubyte)world.flag[team].pos.py;		//py
 			writeByte(lebuf, count, p);
 
-			sh = world.flag[team].pos.x;		//x
+			sh = (NLubyte)world.flag[team].pos.x;		//x
 			writeShort(lebuf, count, sh);
 
-			sh = world.flag[team].pos.y;		//y
+			sh = (NLubyte)world.flag[team].pos.y;		//y
 			writeShort(lebuf, count, sh);
 		}
 
@@ -2994,7 +3026,7 @@ public:
 		LOG("WHOOPS!\n");
 		int wtf = rand() % MAX_ROCKETS;
 		make_damn_rocket(wtf,playernum,px,py,x,y,deg,xdelta);
-		return wtf;
+		return (NLubyte)wtf;
 	}
 
 	//versao 0.1.2
@@ -3087,8 +3119,14 @@ public:
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 7);		// 7 = MULTI rocket fire
 		NLubyte  powerdir;		//bits 0..4 = power bits 5..8=dir
-		powerdir = shots;			// shots
-		powerdir += gundir * 16;	//16,32,64,128
+		powerdir = (NLubyte)shots;			// shots
+		
+		//powerdir += (NLubyte)(gundir * 16);	//16,32,64,128
+		// AWW FUCK IT
+		int fuck = powerdir;
+		fuck += gundir * 16;
+		powerdir = (NLubyte)fuck;
+
 		//writeByte(lebuf, count, powerdir);		// power and dir
 		writeByte(lebuf, count, shots);		// power and dir
 		writeByte(lebuf, count, gundir);		// power and dir
@@ -3128,7 +3166,7 @@ public:
 		if (world.flag[enemyteam].carrier == pid) {	//...by the target
 
 			//message
-			broadcast_message("@I%s LOST THE %s FLAG!", player[pid].name, teamname[enemyteam]);
+			bprintf("@I%s LOST THE %s FLAG!", player[pid].name, teamname[enemyteam]);
 
 			//sound broadcast
 			broadcast_sample(SAMPLE_CTF_LOST);
@@ -3367,7 +3405,7 @@ public:
 					if (player[p].y == player[target].y)
 					{
 						//defends the flag carrier!
-						broadcast_message("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
+						bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
 						score_frag(attacker, 1);
 					}
 				}
@@ -3382,7 +3420,7 @@ public:
 				if (world.flag[atteam].pos.py == player[target].y)
 				{
 					//defends the flag!
-					broadcast_message("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
+					bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
 					score_frag(attacker, 1);
 				}
 			}
@@ -3502,7 +3540,7 @@ public:
 
 		//final score
 		char lix[256];
-		sprintf(lix, "@ICTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
+		sprintf(lix, "@JCTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.flag[0].score, world.flag[1].score);
 		broadcast_message(lix);
 
 		//sound
@@ -3625,7 +3663,7 @@ public:
 		//kind = 1 + (rand() % NUMBER_OF_POWERUP_KINDS);  //  % x   = x different items
 			
 		//alloc powerup
-		world.item[p].kind = kind;
+		world.item[p].kind = (NLubyte)kind;
 		
 		//world.item[p].respawning = false;
 		world.item[p].px = px;
@@ -3887,13 +3925,13 @@ public:
 						
 						//re-choose item type
 						if (non_satisfactory)	
-							it->kind = choose_powerup_kind();
+							it->kind = (NLubyte)choose_powerup_kind();
 
 					} while (non_satisfactory);
 
 					//if loop choosed "weapon" powerup (item 5) but you are at maximum, then keep the original choice
 					if ((it->kind == 5) && (player[p].weapon >= 8))
-						it->kind = original;
+						it->kind = (NLubyte)original;
 				}
 
 				//send a "item on the screen" message
@@ -3948,6 +3986,7 @@ public:
 			server->send_message(player[j].cid, lebuf, count); //send the message
 	}
 
+	/*
 	//broadcast message w/ 2 string parms (lixao)
 	void broadcast_message(char *text, char *t1, char *t2) {
 		char lix[256];
@@ -3960,6 +3999,31 @@ public:
 		sprintf(lix, text, t1);
 		broadcast_message(lix);
 	}
+	*/
+	
+	// V0.4.9 : broadcast message with varargs
+	void bprintf(char *fs, ...) {
+		//vsprintf...
+		va_list argptr;
+		char msg[16384];
+		va_start(argptr, fs);
+		vsprintf(msg, fs, argptr);
+		va_end (argptr);
+
+		//broadcast it
+		broadcast_message(msg);
+	}
+
+	//send a single message player-printf
+	void player_message(int pid, char *text) {
+		char lebuf[256]; int count = 0;
+		writeByte(lebuf, count, 2);
+		writeString(lebuf, count, text);
+		if (player[pid].used)
+		if (!player[pid].isbot)	// nao para bots!
+			server->send_message(player[pid].cid, lebuf, count);
+	}
+
 	//broadcast message to all
 	void broadcast_message(char *text) {
 		char lebuf[256]; int count = 0;
@@ -3977,6 +4041,12 @@ public:
 			writeString(lebuf, count, text);
 			NLint result = nlWrite(shellssock, lebuf, count);
 		}
+
+		//console echo - important messages
+		if (strlen(text) > 2) 
+		if (text[0] == '@')
+		if (text[1] == 'J')
+			con->printf("%s\n", &text[2]);
 	}
 
 	// ---- GAME MOD -------
@@ -4220,7 +4290,7 @@ public:
 			//no map rotation - change to next built-in
 			load_default_map(&map);		// default map
 			builtin = true;
-			sprintf(lix, "Server changed map to: DEFAULT (0)");
+			sprintf(lix, "@JServer changed map to: DEFAULT (0)");
 		}
 		else {
 
@@ -4233,9 +4303,9 @@ public:
 			// attempts to load map from current position of rotation list
 			bool ok = load_rotation_map(currmap);
 			if (ok)
-				sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
+				sprintf(lix, "@JServer changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
 			else
-				sprintf(lix, "Server changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
+				sprintf(lix, "@JServer changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
 		}
 
 		// notify all players
@@ -4432,7 +4502,7 @@ public:
 
 			//open socket for accepting connections to TCP file download requests
 			//nlEnable(NL_BLOCKING_IO);
-			filesock = nlOpen(tcp_port, NL_RELIABLE);		//v0.4.2 : custom TCP port
+			filesock = nlOpen((NLushort)tcp_port, NL_RELIABLE);		//v0.4.2 : custom TCP port
 			//nlDisable(NL_BLOCKING_IO);
 			if (filesock == NL_INVALID) {
 				LOG1("CAN'T OPEN THE TCP SOCKET ON PORT %i\n", tcp_port);
@@ -4461,7 +4531,7 @@ public:
 		//v0.4.2 : new port
 		int tcp_shell_port = 24500 + (port - 25000);
 
-		shellmsock = nlOpen(tcp_shell_port, NL_RELIABLE);
+		shellmsock = nlOpen((NLushort)tcp_shell_port, NL_RELIABLE);
 		if (shellmsock == NL_INVALID) {
 			LOG1("CAN'T OPEN THE SHELL SOCKET ON PORT %i\n", tcp_shell_port);
 			return false; //oh no
@@ -5112,7 +5182,7 @@ public:
 				player[i].total_kills = 0;
 				player[i].total_deaths = 0;
 				player[i].total_captures = 0;
-				player[i].start_time = get_time();
+				player[i].start_time = (int)get_time();
 				
 				// BOTZ: bot ou nao?
 				player[i].isbot = is_bot;
@@ -5268,8 +5338,7 @@ public:
 			}
 
 			//broadcast a textual message "Player BLABLA left the game"
-			char lix[64]; 
-			broadcast_message("@I%s left the game with %s frags", player[pid].name, itoa(player[pid].frags, lix, 10));
+			bprintf("@J%s left the game with %i frags", player[pid].name, player[pid].frags);
 
 			//sound
 			broadcast_sample(SAMPLE_LEFTGAME);
@@ -5373,11 +5442,18 @@ public:
 				readByte(msg, count, code);
 				if (code == 1) {
 
+					//read the name
+					char tempname[256];
+					readString(msg, count, tempname); //name update request
+
+					//v0.4.9: IF SAME NAME: ignore it. if not, keep going
+					if (strcmp(tempname, player[pid].name))
 					//name change flooding protection
 					if (get_time() >= player[pid].waitnametime) {
 
 						//FLUSH PENDING REPORTS TO MASTER IF token_have/token_valid !!!
 						client_report_status(id);
+
 						//name changed -- this means that the player is NOT REGISTERED
 						//  anymore for recording statistics
 						client[id].token_have = false;
@@ -5391,13 +5467,15 @@ public:
 
 						// log
 						//LOG3("client %i player %i '%s' renamed to", id, pid, player[pid].name);
-						readString(msg, count, player[pid].name); //name update request
+						
+						//readString(msg, count, player[pid].name); //name update request
+						strcpy(player[pid].name, tempname);
+
 						//LOG1("'%s'\n", player[pid].name);
 
 						//send entered-game message
-						char dummy[1] = { 0 };
 						if (entered_game) {
-							broadcast_message("@I%s entered the game%s", player[pid].name, dummy);
+							bprintf("@J%s entered the game", player[pid].name);
 							//sound
 							broadcast_sample(SAMPLE_ENTERGAME);
 						}
@@ -5443,11 +5521,17 @@ public:
 						if (msg[1] == '.') {
 							sprintf(talkmsg, "@T%s: %s", player[pid].name, &(msg[2]));
 							broadcast_team_message(pid/TSIZE, talkmsg);
+
+							if (player_talk_echo)
+								con->printf("(%s) %s: %s\n", teamname[pid/TSIZE], player[pid].name, &(msg[2]));
 						}
 						//regular msg
 						else {
 							sprintf(talkmsg, "%s: %s", player[pid].name, &(msg[1]));
 							broadcast_message(talkmsg);
+
+							if (player_talk_echo)
+								con->printf("%s: %s\n", player[pid].name, &(msg[1]));
 						}
 
 						// log
@@ -5583,7 +5667,7 @@ public:
 						//check upload successful
 						if (client[id].dp >= client[id].fsize) {
 							//no more data, this was the last ack. close stuff
-							client[id].reset();	//reset the download data structs
+							client[id].download_reset();	//reset the download data structs
 											//the client will carry on from here
 						}
 						else {
@@ -5597,35 +5681,70 @@ public:
 				}
 				// v0.4.4 : client is telling his newest token
 				else if (code == 30) {
-					 
-					// NEW (or first) REGISTRATION -- reset player report / stop reporting his old ID
-					client[id].neg_delta_score = 0;
-					client[id].delta_score = 0; //V0.4.8
-					client[id].fdp = 0.0; //V0.4.8
-					client[id].fdn = 0.0; //V0.4.8
-					client[id].score = 0;
-					client[id].neg_score = 0;		//V0.4.8
-					client[id].rank = 0;
-					 
+
+					//get the token from the client
 					readString(msg, count, client[id].token);	//read the token
-					client[id].token_have = true;			//token set
-					client[id].token_valid = false;		//BUT not validated yet
+					int intoken = atoi(client[id].token); //atoi it
 
-					//v0.4.5 : atualiza registration char / score / rank
-					broadcast_player_crap( ctop[id] );
-					
-					// ENQUEUE TOKEN VALIDATION IN A QUEUE THAT TALKS TO THE MASTER SERVERS
+					//se TOKEN SET + TOKEN VALID + TOKEN IDENTICO : ignora
+					if ((client[id].token_have) && (client[id].token_valid) && (intoken == client[id].intoken)) {
+#ifdef DEBUG_RANKING
+						bprintf("%s %i %i token identico.", player[ctop[id]].name, client[id].intoken, intoken);
+#endif
+					}
+					//senao, faz a rotina de dispatch old results + set new invalid token to be validated
+					else {
 
-					//create job
-					masterjob_c *job = new masterjob_c();
-					job->cid = id;
-					job->code = 1;
-					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\n\n", TK1_VERSION_STRING, player[ ctop [id] ].name, client[id].token);
+#ifdef DEBUG_RANKING
+						//debug message
+						if ((client[id].token_have) && (client[id].token_valid))
+							bprintf("%s %i %i changes registration, submitting results...", player[ctop[id]].name, client[id].intoken, intoken);
+						else if ((client[id].token_have) && (!client[id].token_valid))
+							bprintf("%s %i %i changes registration ('?')", player[ctop[id]].name, client[id].intoken, intoken);
+						else if (!client[id].token_have)
+							bprintf("%s %i %i sends registration.", player[ctop[id]].name, client[id].intoken, intoken);
+#endif
+		
+						// v0.4.9 FIX : IF HAD previous token have/valid, then FLUSH his stats
+						client_report_status(id);
 
-					//LOG2("== MJOB CREATED : %i '''%s'''\n", id, job->request);
+						// new token
+						client[id].intoken = intoken;
 
-					pthread_t mjob_thread;
-					pthread_create (&mjob_thread, 0, thread_masterjob_f, (void *)job);
+						// NEW (or first) REGISTRATION -- reset player report / stop reporting his old ID
+						client[id].neg_delta_score = 0;
+						client[id].delta_score = 0; //V0.4.8
+						client[id].fdp = 0.0; //V0.4.8
+						client[id].fdn = 0.0; //V0.4.8
+						client[id].score = 0;
+						client[id].neg_score = 0;		//V0.4.8
+						client[id].rank = 0;
+						
+						client[id].token_have = true;			//token set
+						client[id].token_valid = false;		//BUT not validated yet
+
+						//v0.4.5 : atualiza registration char / score / rank
+						broadcast_player_crap( ctop[id] );
+
+						// ENQUEUE TOKEN VALIDATION IN A QUEUE THAT TALKS TO THE MASTER SERVERS
+
+						//create job
+						masterjob_c *job = new masterjob_c();
+						job->cid = id;
+						job->code = 1;
+						sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\n\n", TK1_VERSION_STRING, player[ ctop [id] ].name, client[id].token);
+
+						//LOG2("== MJOB CREATED : %i '''%s'''\n", id, job->request);
+
+						pthread_t mjob_thread;
+						pthread_create (&mjob_thread, 0, thread_masterjob_f, (void *)job);
+					}
+				}
+				//V0.4.9: DEBUGGING the TAB ranking stuff
+				else if (code == 33) {
+						player_message( ctop[id], "Refreshed your crap...");
+						//broadcast his crap
+						broadcast_player_crap( ctop[id] );
 				}
 				else {
 					//ERROR: unknown message from client
@@ -5812,9 +5931,7 @@ public:
 		if (thetime > world.item[i].respawn_time) {
 
 #ifdef REALLY_DEBUG_POWERUPS
-			char lixx[2000];
-			sprintf(lixx, "time to respawn item %i\n", i);
-			broadcast_message(lixx);
+			bprintf("time to respawn item %i\n", i);
 #endif
 
 			respawn_pickup(i);
@@ -5895,9 +6012,7 @@ public:
 							//give +1 frag
 							score_frag(a, 1);
 							//reason broadcast
-							char lix[256];
-							sprintf(lix, "@I%s was choked by %s", player[i].name, player[a].name);
-							broadcast_message(lix);
+							bprintf("@I%s was choked by %s", player[i].name, player[a].name);
 						}
 					}
 				}
@@ -6132,9 +6247,9 @@ public:
 						//delete shot
 						//game_delete_rocket(i, t, p);
 						if (had_shield)
-							game_delete_rocket(i, rock->x, rock->y, 252);		//do not blink
+							game_delete_rocket(i, (NLshort)rock->x, (NLshort)rock->y, 252);		//do not blink
 						else
-							game_delete_rocket(i, rock->x, rock->y, p);			//blink
+							game_delete_rocket(i, (NLshort)rock->x, (NLshort)rock->y, p);			//blink
 
 						//2-loop break
 						t=999;break;
@@ -6329,7 +6444,7 @@ public:
 				// --> CTF FLAG STEAL touch other team's flag
 				//
 				if (!world.flag[enemyteam].carried)	// enemy flag dropped (at base or somewhere)
-				if (check_flag_touch(i, player[i].x, player[i].y, h->x, h->y, enemyteam))  // and I touch it
+				if (check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, enemyteam))  // and I touch it
 				{
 					//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
 					if (world.flag[enemyteam].atbase)
@@ -6338,7 +6453,7 @@ public:
 					//FLAG STOLEN!
 					score_frag(i, 1);	// just add some frags
 
-					broadcast_message("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
+					bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
 
 					ctf_steal_flag(enemyteam, i);  //flag stolen!
 
@@ -6351,12 +6466,12 @@ public:
 				//
 				if (!world.flag[myteam].carried)	// my flag dropped
 				if (!world.flag[myteam].atbase)	// not at base
-				if (check_flag_touch(i, player[i].x, player[i].y, h->x, h->y, myteam))  // and I touch it
+				if (check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))  // and I touch it
 				{
 					//FLAG RETURNED!
 					score_frag(i, 1);	// just add some frags
 
-					broadcast_message("@I%s RETURNED THE %s FLAG!", player[i].name, teamname[myteam]);
+					bprintf("@I%s RETURNED THE %s FLAG!", player[i].name, teamname[myteam]);
 									
 					ctf_return_flag(myteam);  //flag returned
 
@@ -6370,7 +6485,7 @@ public:
 				if (world.flag[enemyteam].carrier == i)	// by me
 				if (!world.flag[myteam].carried)	// my flag dropped
 				if (world.flag[myteam].atbase)	// at my base
-				if (check_flag_touch(i, player[i].x, player[i].y, h->x, h->y, myteam))		// I touch my flag
+				if (check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))		// I touch my flag
 				{
 					//v0.4.7: detect degenerated maps
 					if (map.valid_for_scoring)		//still valid?
@@ -6407,7 +6522,7 @@ public:
 					ctf_return_flag(enemyteam);
 
 					//message
-					broadcast_message("@I%s CAPTURED THE %s FLAG!", player[i].name, teamname[enemyteam]);
+					bprintf("@I%s CAPTURED THE %s FLAG!", player[i].name, teamname[enemyteam]);
 
 					//count
 					player[i].total_captures++;
@@ -6567,7 +6682,11 @@ public:
 					 )
 				{
 					//adiciona bit
-					helmview[t] += (1 << (i%TSIZE));
+					//helmview[t] += ((NLushort) (1 << (i%TSIZE)));
+					// FUCKING TYPE CONVERSION HELL
+					int fuck = helmview[t];
+					fuck += (1 << (i%TSIZE));
+					helmview[t] = (NLushort)fuck;
 				}
 
 				// ---- tview -----
@@ -6596,7 +6715,11 @@ public:
 						{
 							//visto!
 							tview[t][i%TSIZE] = 1;	//visto!
-							tview_bits[t] += (1 << (i%TSIZE));		//seta bit de "visto"
+							//tview_bits[t] += ((NLushort) (1 << (i%TSIZE)));		//seta bit de "visto"
+							// FUCKING TYPE CONVERSION HELL
+							int fuck = tview_bits[t];
+							fuck += (1 << (i%TSIZE));
+							tview_bits[t] = (NLushort)fuck;
 							break;	
 						}
 					}
@@ -6718,12 +6841,12 @@ public:
 					hx = ((NLushort)h->x);
 					hy = ((NLushort)h->y);
 
-					xy = hx & 255;
+					xy = (NLubyte) (hx & 255);
 					writeByte(lebuf, lecount, xy);		//first 8 bits x
-					xy = hy & 255;
+					xy = (NLubyte) (hy & 255);
 					writeByte(lebuf, lecount, xy);		//first 8 bits y
 					//256+512+1024+2048 = 3840    last 4 bits mask
-					xy = ((hx & 3840) >> 8) + ((hy & 3840) >> 4); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
+					xy = (NLubyte) ( ((hx & 3840) >> 8) + ((hy & 3840) >> 4) ); //x: bit 8-11 to 0-3  y: bit 8-11 to 4-7
 					writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
  
 					//sho = ((NLshort)h->x);
@@ -6776,7 +6899,11 @@ public:
 					}
 
 					//set bits 5..7
-					keys = keys + (h->gundir * 32);
+					//keys = keys + ((NLubyte)(h->gundir * 32));
+					// FUCK NONIMPLICIT TYPE CONVERSION AND FUCK ANSI-C
+					int fuck = keys;
+					fuck += h->gundir * 32;
+					keys = (NLubyte)fuck;										
 					
 					//write keys
 					writeByte(lebuf, lecount, keys);		
@@ -6840,7 +6967,7 @@ public:
 				writeByte(lebuf, lecount, ((NLubyte)(player[i].energy & 255)));
 
 				//ping of player frame# % MAXPLAYERS
-				NLushort theping = player[frame % maxplayers].ping;
+				NLushort theping = (NLushort) player[frame % maxplayers].ping;
 				writeShort(lebuf, lecount, theping);
 			
 			}//!player[i].awaiting_client_ready
@@ -6953,6 +7080,14 @@ public:
 					bot_frame_think(bi);
 
 #endif
+
+			// input to console
+			con->read_keyboard();
+
+			// draw console
+			acquire_screen();
+			con->draw_page();
+			release_screen();
 
 			// sleep while not time to send again
 			while (server_speed_counter <= 0) {
@@ -8037,7 +8172,7 @@ public:
 
 		//v0.4.4 : flag master job threads to start trying to resolve themselves quickly
 		mjob_fastretry = true;
-		double mjmaxtime = get_time() + 5.0;		//timeout
+		double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
 		
 		set_window_title("Shutdown: Net Server");
 
@@ -9172,8 +9307,11 @@ public:
 						send_player_token();
 
 					//wait xxx minutes to send again	//*2 == halfsecond
+#ifdef DEBUG_RANKING
+					for (int busy=0;busy<20;busy++) {		//10 SECONDz
+#else
 					for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
-					//for (int busy=0;busy<3;busy++) {
+#endif
 						MS_SLEEP(500);
 						if (player_password_set == false)
 							break;
@@ -10485,7 +10623,9 @@ public:
 		default: xg=0;yg=0;
 			break;
 		}
-		xg *= 0.7; yg *= 0.7;	//preguica de digitar valores
+		xg = (int)( ((double)xg) * 0.7); 
+		yg = (int)( ((double)yg) * 0.7); 
+		
 		xg += x;
 		yg += y - 15;
 
@@ -10710,10 +10850,10 @@ public:
 						
 						//draw a ball
 						switch (b) {
-						case 0: ellipsefill(drawbuf, plx + it->x + dx, ply + it->y + dy, 4, 4, col[COLGREEN]); break;
-						case 1: ellipsefill(drawbuf, plx + it->x + dx, ply + it->y + dy, 4, 4, col[COLBLUE]); break;
-						case 2: ellipsefill(drawbuf, plx + it->x + dx, ply + it->y + dy, 4, 4, col[COLRED]); break;
-						case 3: ellipsefill(drawbuf, plx + it->x + dx, ply + it->y + dy, 4, 4, col[COLYELLOW]); break;
+						case 0: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLGREEN]); break;
+						case 1: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLBLUE]); break;
+						case 2: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLRED]); break;
+						case 3: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLYELLOW]); break;
 						}
 					}
 				}
@@ -10810,18 +10950,18 @@ public:
 				//QUAD ROCKET!
 				if (player[ fx.rock[i].owner ].item_quad) {
 					//draw rocket shadow
-					ellipsefill(drawbuf, plx + r->x, ply + r->y, 6, 3, col[COLSHADOW]);
+					ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 6, 3, col[COLSHADOW]);
 					//draw the rocket
 					if (((int)(get_time() * 30)) % 2)
-						ellipsefill(drawbuf, plx + r->x, ply + r->y - 15, 6, 6, col[COLWHITE]);	//y-12?
+						ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 6, 6, col[COLWHITE]);	//y-12?
 					else
-						ellipsefill(drawbuf, plx + r->x, ply + r->y - 15, 4, 4, teamlcol[fx.rock[i].team]); //y-12??
+						ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, 4, teamlcol[fx.rock[i].team]); //y-12??
 				}
 				else {
 					//draw rocket shadow
-					ellipsefill(drawbuf, plx + r->x, ply + r->y, 4, 2, col[COLSHADOW]);
+					ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 4, 2, col[COLSHADOW]);
 					//draw the rocket
-					ellipsefill(drawbuf, plx + r->x, ply + r->y - 15, 4, 4, teamcol[fx.rock[i].team]); //y-10??
+					ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, 4, teamcol[fx.rock[i].team]); //y-10??
 				}
 			}
 			
@@ -10887,7 +11027,7 @@ public:
 					}
 	
 					// the player's shadow: showing last valid position
-					ellipsefill(drawbuf, plx + fx.hero[i].x, ply + fx.hero[i].y, 15, 3, col[COLSHADOW]);
+					ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y, 15, 3, col[COLSHADOW]);
 
 					if (player[i].item_helm > 0)
 						solid_mode();
@@ -10897,7 +11037,7 @@ public:
 						if (fx.flag[t].carried == true)
 						if (fx.flag[t].carrier == i)
 						{
-							draw_flag_at(drawbuf, t, fd.hero[i].x, fd.hero[i].y);
+							draw_flag_at(drawbuf, t, (int)fd.hero[i].x, (int)fd.hero[i].y);
 						}
 
 					// se player morto, desenha poca de sangue
@@ -10907,16 +11047,16 @@ public:
 
 						// virou sorvete!
 						if ((player[i].frags >= 10) && (player[i].frags % 10 == 0)) {
-							ellipsefill(drawbuf, plx + fx.hero[i].x, ply + fx.hero[i].y - 15, 6, 15, col[COLORA]);
-							ellipsefill(drawbuf, plx + fx.hero[i].x - 8, ply + fx.hero[i].y - 10-15, 8, 8, col[COLBLUE]);
-							ellipsefill(drawbuf, plx + fx.hero[i].x + 8, ply + fx.hero[i].y - 10-15, 8, 8, col[COLMAG]);
-							ellipsefill(drawbuf, plx + fx.hero[i].x + 0, ply + fx.hero[i].y - 20-15, 8, 8, col[COLGREEN]);
-							textprintf_centre(drawbuf, font, plx + fx.hero[i].x + 0, ply + fx.hero[i].y - 20-43, col[COLWHITE], "VIROU");
-							textprintf_centre(drawbuf, font, plx + fx.hero[i].x + 0, ply + fx.hero[i].y - 20-33, col[COLWHITE], "SORVETE!");
+							ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 15, 6, 15, col[COLORA]);
+							ellipsefill(drawbuf, plx + (int)fx.hero[i].x - 8, ply + (int)fx.hero[i].y - 10-15, 8, 8, col[COLBLUE]);
+							ellipsefill(drawbuf, plx + (int)fx.hero[i].x + 8, ply + (int)fx.hero[i].y - 10-15, 8, 8, col[COLMAG]);
+							ellipsefill(drawbuf, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-15, 8, 8, col[COLGREEN]);
+							textprintf_centre(drawbuf, font, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-43, col[COLWHITE], "VIROU");
+							textprintf_centre(drawbuf, font, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-33, col[COLWHITE], "SORVETE!");
 						}
 						else {
-							ellipsefill(drawbuf, plx + fx.hero[i].x, ply + fx.hero[i].y, 20, 6, col[COLRED]);
-							ellipsefill(drawbuf, plx + fx.hero[i].x, ply + fx.hero[i].y - 10, 12, 12, col[COLRED]);
+							ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y, 20, 6, col[COLRED]);
+							ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 10, 12, 12, col[COLRED]);
 						}
 					}
 					// desenha player vivo
@@ -10936,7 +11076,7 @@ public:
 							player[i].speed_drop_time = get_time() + 0.05;
 
 							//solta a bolinha
-							cfx_create_speedfx(fx.hero[i].x, fx.hero[i].y, player[i].x, player[i].y, teamcol[i/TSIZE], col[i%TSIZE], fx.hero[i].gundir);
+							cfx_create_speedfx((int)fx.hero[i].x, (int)fx.hero[i].y, player[i].x, player[i].y, teamcol[i/TSIZE], col[i%TSIZE], fx.hero[i].gundir);
 						}
 						
 						//blink player when hit
@@ -10958,7 +11098,7 @@ public:
 						}
 
 						//draw player
-						draw_player(drawbuf, fd.hero[i].x, fd.hero[i].y, fd.hero[i].gundir, pc1, pc2, alpha);
+						draw_player(drawbuf, (int)fd.hero[i].x, (int)fd.hero[i].y, fd.hero[i].gundir, pc1, pc2, alpha);
 
 						//draw deathbringer carrier effect
 						if (player[i].item_deathbringer) {
@@ -10968,8 +11108,8 @@ public:
 								//tempo p/ proximo efeito
 								player[i].death_drop_time = get_time() + 0.01;
 								//drop it
-								cfx_create_deathcarrier(fd.hero[i].x + rand()%40-20, fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/TSIZE);
-								cfx_create_deathcarrier(fd.hero[i].x + rand()%40-20, fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/TSIZE);
+								cfx_create_deathcarrier((int)fd.hero[i].x + rand()%40-20, (int)fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/TSIZE);
+								cfx_create_deathcarrier((int)fd.hero[i].x + rand()%40-20, (int)fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/TSIZE);
 							}
 						}
 
@@ -10983,17 +11123,17 @@ public:
 							else
 								co = makecol(0,0,0xff);
 							for (q=0;q<5;q++)
-								ellipsefill(drawbuf, plx + fd.hero[i].x+rand()%40-20, ply + fd.hero[i].y+rand()%40-20 - 15, 15, 15, co);
+								ellipsefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, 15, co);
 							for (q=0;q<5;q++)
-								ellipsefill(drawbuf, plx + fd.hero[i].x+rand()%40-20, ply + fd.hero[i].y+rand()%40-20 - 15, 15, 15, 0);
+								ellipsefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, 15, 0);
 							solid_mode();
 						}
 
 						// SHIELD FX!!
 						if (player[i].item_shield) {
-							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
-							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
-							ellipse(drawbuf, plx + fd.hero[i].x, ply + fd.hero[i].y - 15, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
+							ellipse(drawbuf, plx + (int)fd.hero[i].x, ply + (int)fd.hero[i].y - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
+							ellipse(drawbuf, plx + (int)fd.hero[i].x, ply + (int)fd.hero[i].y - 15, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
+							ellipse(drawbuf, plx + (int)fd.hero[i].x, ply + (int)fd.hero[i].y - 15, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
 						}
 					}
 
@@ -11006,8 +11146,8 @@ public:
 							  (player[i].item_helm) && (i/TSIZE != me/TSIZE)
 						 ) )
 					{
-						int ttx = fd.hero[i].x + plx;
-						int tty = fd.hero[i].y + ply - 40;
+						int ttx = (int)fd.hero[i].x + plx;
+						int tty = (int)fd.hero[i].y + ply - 40;
 						int supercol = teamdcol[i/TSIZE];
 						int midcol = col[COLWHITE];
 
@@ -11039,7 +11179,7 @@ public:
 				drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 				for (int i=50;i>0;i -= 5) {
 					set_trans_blender(0,0,0,50-i);
-					ellipsefill(drawbuf, plx + fd.hero[o].x, ply + fd.hero[o].y - 10, i, i, 0);
+					ellipsefill(drawbuf, plx + (int)fd.hero[o].x, ply + (int)fd.hero[o].y - 10, i, i, 0);
 				}
 				solid_mode();
 				set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
@@ -11216,8 +11356,8 @@ public:
 					// update flag position for draw
 					fx.flag[enemyteam].pos.px = player[i].x;
 					fx.flag[enemyteam].pos.py = player[i].y;
-					fx.flag[enemyteam].pos.x = fx.hero[i].x;
-					fx.flag[enemyteam].pos.y = fx.hero[i].y;
+					fx.flag[enemyteam].pos.x = (int)fx.hero[i].x;
+					fx.flag[enemyteam].pos.y = (int)fx.hero[i].y;
 
 					// draw the miniflag here
 					draw_mini_flag(drawbuf, enemyteam);
@@ -11480,6 +11620,8 @@ public:
 					tcol = col[COLYELLOW];
 				else if (!strcmp(lix, "@I")) // I nformation
 					tcol = col[COLGREEN];
+				else if (!strcmp(lix, "@J")) // J = information too but more IMPORTANT
+					tcol = col[COLGREEN];
 				else if (!strcmp(lix, "@W")) // W warning
 					tcol = col[COLLRED];
 				else
@@ -11543,7 +11685,7 @@ public:
 			int XLEFTPAD = x1+40;
 			int YDEL;
 			char sorry[256];
-			int p, redu = 0, blueu = 0, redt = 0, bluet = 0;
+			int p, redt = 0, bluet = 0;
 			double redpow = 0.0, bluepow = 0.0;
 
 			// FIXME: "max world score"? "max world rating"?
@@ -12345,7 +12487,7 @@ public:
 			if (rc[i] > 0)
 				daping = (int)(1000.0 * rt[i] / rc[i]);
 			else
-				daping = -666.0;
+				daping = -666;
 			
 			char thelix[2000];
 			sprintf(thelix, "%4i %s", daping, gamespy[i].info);
@@ -12424,17 +12566,21 @@ public:
 		//name changed:
 		player_token_new = true;	//getting a NEW token, not refreshing the token
 
+		//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
+		//conectado...
+		check_change_pass_command();
+
 		//FIXME: code == 2 (?)
 		if ((namestatus_code == 1) || (namestatus_code == 3))
 			strcpy(namestatus, "NAME CHANGED...");
 		else
 			namestatus_code = 0;						//take the "*" out of the name
-			
 
 		//v0.4.4 follow-up-message: since changing name DISABLES the registration status
 		//  of the player, we need to send a new message requesting registration, if the
 		//  player has a token
-		send_player_token();
+		//v0.4.9 : substituido pelo "enter" acima do check_...()
+		//send_player_token();
 	}
 
 	//change name command
@@ -13278,6 +13424,16 @@ public:
 
 		// time to erase
 		chaterasetime = get_time() + 10.0;
+
+		//V0.5.0 LOG INTO CONSOLE 
+		if (player_talk_echo) {
+			if (strlen(msg) > 1) {
+				if (msg[0] == '@')
+					con->printf("%s\n", &msg[2]);
+				else
+					con->printf("%s\n", msg);
+			}
+		}
 	}
 
 	//save screenshot
@@ -13717,8 +13873,38 @@ public:
 					break;
 				}
 
+				////V0.5.0 HOME key (console toggle)
+				static bool key_home = false;
+				bool home_press = false;
+				if (key[KEY_HOME]) {
+					if (key_home == false) {
+						key_home = true;
+						home_press = true;
+					}
+				}
+				else
+					key_home = false;
+
+				////V0.5.0 show console
+				if ((home_press) && (!conshow)) {
+					conshow = true;
+					home_press = false;
+				}
+
+				////V0.5.0 console showing
+				if (conshow) {
+
+					//read console keyboard
+					con->read_keyboard();
+
+					//V0.5.0 home: shut off console
+					if (home_press) {
+						conshow = false;
+						home_press = false;
+					}
+				}
 				//help showing
-				if (helpshow) {
+				else if (helpshow) {
 					
 					while (keypressed()) {
 						//get key
@@ -13805,12 +13991,12 @@ public:
 								 )							
 							{
 								if (showmaster) {
-									mgamespy[gi].address[i] = ch;
+									mgamespy[gi].address[i] = (char)ch;
 									mgamespy[gi].address[i+1] = 0;
 									mgamespy[gi].refreshed = false;
 								}
 								else {
-									gamespy[gi].address[i] = ch;
+									gamespy[gi].address[i] = (char)ch;
 									gamespy[gi].address[i+1] = 0;
 									gamespy[gi].refreshed = false;
 								}
@@ -13874,14 +14060,14 @@ public:
 
 								if (namecursor[0]=='_') {
 									if (i < 15) {
-										editplayername[i] = ch;
+										editplayername[i] = (char)ch;
 										editplayername[i+1] = 0;
 										editplayerpass[0]=0; //reset password after editing name
 									}
 								}
 								else {
 									if (i < 8) {
-										editplayerpass[i] = ch;
+										editplayerpass[i] = (char)ch;
 										editplayerpass[i+1] = 0;
 									}
 								}
@@ -13897,8 +14083,10 @@ public:
 								}
 							}
 							else if (sc == KEY_ENTER) {
-								check_change_pass_command();
 								change_name_command();
+								//get it (V0.4.9) -- força um "ENTER" logo apos o cara conectar ou trocar de nome ao estar
+								//conectado...
+								check_change_pass_command();
 							}
 							else if (sc == KEY_TAB) {
 								//switch fields
@@ -14047,7 +14235,15 @@ public:
 							toggle_help();
 
 						//xuta cor
-						if (sc == KEY_HOME) {
+						//V0.5.0 : CONSOLE !
+						//if (sc == KEY_HOME) {
+
+
+
+							/*
+									
+										// lame color trick
+
 							if (key[KEY_LCONTROL]) {
 								col[COLGROUND] = makecol(0x10, 0x40, 0);
 								col[COLWALL] = makecol(0x30, 0xC0, 0);
@@ -14058,21 +14254,9 @@ public:
 
 								col[COLGROUND] = makecol(rand(),rand(),rand());
 								col[COLWALL] = makecol(rand(),rand(),rand());
-
-								/*
-								int r,g,b;
-								r = rand() % 256;
-								g = rand() % 256;
-								b = rand() % 256;
-
-								col[COLGREEN] = makecol(r,g,b);
-
-								char mes[200];
-								sprintf(mes, "%3i %3i %3i", r,g,b);
-								print_message(mes);
-								*/
 							}
-						}
+							*/
+						//}
 
 						// ins == change name
 						//
@@ -14081,6 +14265,12 @@ public:
 							strcpy(editplayername, lerud_abloxon.c_str());
 							change_name_command();
 							FreeName(lerud_abloxon);
+						}
+						else if (sc == KEY_PGUP) {
+							//v0.4.9 DEBUGGING: request broadcast my crap
+							char lebuf[4]; int count = 0;
+							writeByte(lebuf, count, 33);		// 33 = "refresh crap"
+							client->send_message(lebuf, count);
 						}
 						else if (sc == KEY_F3) {
 							option_show_names = !option_show_names;
@@ -14149,7 +14339,7 @@ public:
 						}
 						//else text add keys. max text length = 60
 						else if ((i < 60) && (ch >= 32) && (ch <= 127)) {
-							talkbuffer[i] = ch;
+							talkbuffer[i] = (char)ch;
 							talkbuffer[i+1] = 0;
 						}
 					}
@@ -14250,7 +14440,13 @@ public:
 				draw_game_menu();	// draw the game menu
 
 			if (helpshow)
-				draw_game_help();	// draw help 
+				draw_game_help();	// draw help
+
+			//V0.5.0 DRAW CONSOLE, if showing...
+			if (conshow) {
+				con->just_set_bitmap(drawbuf);
+				con->draw_page(true);
+			}
 
 			//if (page_flipping) {
 				//LOG("** releasing bitmap...");
@@ -14511,6 +14707,152 @@ void *thread_clientpassword_f(void *arg) {
 }
 
 //************************************************************
+//  conalleg :: console commands
+//************************************************************
+
+//the most rewritten function of history - get next token (cmd)
+// return: -1 syntax error, 0 empty string (no more tokens), >0 (a token extracted ok)
+// cmd: pointer to pointer to current token reading position in the command line (is modified)
+// buf: buffer for function return (the single token extracted)
+// aceitaaspas: if the command line must extract tokens with spaces but enclosed in doublequotes
+//							like:     "this is a single token"
+//
+int getcmd(char* &cmd, char *buf, bool aceitaaspas)
+{
+/*	- pula todos espacos e tabs
+	- se proximo é um " entao
+		varre até um " 
+		- se encontrar end-of-string (\0) da' erro de sintaxe
+		- se encontrar um \", traduz pra " no buf
+		- se depois do " nao tiver um espaco, tab, ou fim de string, da' erro de sintaxe tb
+	- senao
+		varre tudo ate' end-of-string ou espaco ou tab
+*/
+	int len = 0;
+   char bla;
+	bool slash = false, aspa = false;
+
+	// pula todos espacos e tabs
+   while ((*cmd==' ') || (*cmd=='\t'))	cmd++;
+
+	// se proximo e' uma aspas, entao eh string cte incluindo separadores ate' outro "
+	if (*cmd=='"')
+	{
+		// se nao aceita aspas como 1o caractere == syntax error
+		if (!aceitaaspas)	return -1;
+
+		// pula aspa inicial
+		cmd++;			
+
+		// enquanto nao acaba a string do comando
+		while (bla=*(cmd++))
+		{
+			len++;	// +1 char
+
+			if (bla=='\\')
+			{
+				if (slash) // adicao de 1 slash normal no buffer apenas
+				{
+					*(buf++)='\\';
+					slash = false;
+				}
+				else
+					slash = true;
+			}
+			else if (bla=='"') //break;
+			{
+				if (slash)	// slash: mata o \, adicao da aspa apenas
+				{
+					*(buf++)=bla;
+					slash = false;
+				}
+				else			// achou a " final
+				{
+					aspa = true;
+					break;
+				}
+			}
+			else // copia normal
+			{
+				if (slash) // "desempilha" o slash e poe ele antes do caractere
+				{
+					*(buf++)='\\';
+					slash = false;
+				}
+				*(buf++)=bla;
+			}
+		}
+		if (!aspa) // syntax error: fim de string sem "
+			return -1;  
+
+		// syntax error: " não-seguido de fim de string,
+		// espaco ou tab (letra grudada em aspa que fecha um parametro)
+		if ((*cmd != '\0') && (*cmd != ' ') && (*cmd != '\t'))
+			return -1;
+	}
+	// tudo até o separador, como era antes
+	else
+	{
+		// enquanto nao acaba a string do comando
+		while (bla=*cmd)
+		{
+			cmd++;
+			len++;	// +1 char
+			if ((bla==32) || (bla=='\t')) break;
+			*(buf++)=bla;
+		}
+	}
+	// termina string no buffer
+	*buf='\0';
+	// sucessful se nao eh cmd vazio
+	return len;
+}
+
+//careful: console may be running ontop of a client, a server, or a client/server (listen server)!
+//gameserver and gameclient pointers may be ==0, in any combination.
+void conalleg_c::interprete_command(char *cmdstr) {
+
+	char *scan = cmdstr; //command-line token cursor
+	char cmdbuf[1024];		// cmd buf
+	char *cmd = (char*)cmdbuf;
+
+	//not empty
+	if (getcmd(scan, cmd, false) > 0) {
+
+		//say : no slash
+		if (cmd[0] != '/') {
+			if (gameserver) {
+				//con->printf("[HOST] %s\n", cmdstr);
+				gameserver->host_talk_command(cmdstr);
+			}
+			else if (gameclient) {
+				//redirect as chat command...
+				gameclient->send_chat(cmdstr);				
+			}
+			else
+				printf("DOH!\n");
+		}
+		//help
+		else if ( (!strcmp(cmd, "/?")) || (!strcmp(cmd, "/help")) ) {
+			con->printf("commands:\n/toff: turn of player talk echo\n/ton: turn on player talk echo\n");
+		}
+		//toff : echo player talking to console off
+		else if (!strcmp(cmd, "/toff")) {
+			con->printf("player talk echo off\n");
+			player_talk_echo = false;
+		}
+		//ton : echo player talking to console on
+		else if (!strcmp(cmd, "/ton")) {
+			con->printf("player talk echo on\n");
+			player_talk_echo = true;
+		}
+	}
+	//help hint
+	else 
+		con->printf("For help, type '/?'\n");
+}
+
+//************************************************************
 //  mainloop
 //************************************************************
 
@@ -14558,6 +14900,9 @@ bool reset_video_mode() {
 */
 
 bool reset_video_mode() {
+
+	// turn off console
+	con->set_bitmap(0);
 
 		char err1[1024];
 		char err2[1024];
@@ -14686,7 +15031,10 @@ bool reset_video_mode() {
 			page_flipping = true;
 		}
 		setcolors();
-			
+
+		//console bmp set
+		con->set_bitmap(drawbuf);
+
 		return true; //ok
 }
 
@@ -14694,7 +15042,50 @@ bool reset_video_mode() {
 //
 bool set_shitty_mode() {
 
+	//  ======= TRY 640x480 first ===========
+	//
+
 	int DTC = desktop_color_depth();
+	
+	set_color_depth( DTC );		
+
+	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 640, 480, 0, 0))
+		LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 1 with %i", DTC)
+	else
+		return true;	// OK
+
+	if ((DTC == 16) || (DTC == 15)) {
+		
+		if (DTC == 15) 
+			DTC = 16;
+		else
+			DTC = 15;
+
+		set_color_depth( DTC );	
+
+		if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 640, 480, 0, 0))
+			LOG1("ERROR: could not set gfx mode 320x240 windowed.. try 2 with %i", DTC)
+		else
+			return true;	// OK
+	}
+
+	// the last hope. WARNING: this can be buggy for multiple dedicated servers.
+	//
+	DTC = 8;
+
+	set_color_depth( DTC );	
+
+	if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, 640, 480, 0, 0)) {
+		LOG1("ERROR: could not set gfx mode 320x240 windowed.. tried with %i", DTC);
+		//return false;	//GIVE UP
+	}
+	else
+		return true;	// OK AT LAST!!!
+
+	//  ======= TRY 320x240 then ===========
+	//
+
+	DTC = desktop_color_depth();
 	
 	set_color_depth( DTC );		
 
@@ -14929,6 +15320,9 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
+	//create console
+	create_console();
+	
 	// run server
 	//
 	if (dedserver) {
@@ -14991,6 +15385,9 @@ int main(int argc, char *argv[]) {
 		else
 			LOG("set SWITCH_BACKAMNESIA for SERVER");			
 		setcolors();
+
+		//console bmp set
+		con->set_bitmap(screen);
 
 		// run server
 		//
@@ -15082,9 +15479,11 @@ int main(int argc, char *argv[]) {
 	// exit HawkNL
 	nlShutdown();
 
+	//finish console
+	delete_console();
+
 	// log close
 	LOG_CLOSE();
 
 	return 0;
 } END_OF_MAIN();
-

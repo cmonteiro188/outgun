@@ -1,3 +1,11 @@
+
+// ***** FORTIFY !!! *****
+
+#include "FORTFY22/FORTIFY.H"
+
+// ***** FORTIFY !!! *****
+
+
 #include <string>
 
 int Random(int velho)
@@ -258,4 +266,9 @@ string RandomName(int npal)
 	nome = nome + Palavra();
 
 	return nome;
+}
+
+void FreeName(string name) {
+
+	// FIXME?
 }

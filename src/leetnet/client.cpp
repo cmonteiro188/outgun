@@ -22,6 +22,13 @@
 
 */
 
+// ***** FORTIFY !!! *****
+
+#include "../FORTFY22/FORTIFY.H"
+
+// ***** FORTIFY !!! *****
+
+
 #include "leetnet.h"
 
 #include "client.h"
@@ -29,6 +36,7 @@
 #include "nl.h"
 
 #include "pthread.h"
+#include "sched.h"
 
 #include "rudp.h"
 
@@ -135,7 +143,9 @@ public:
 				
 				//trying disconnection -- wait until after it's done
 				//this is just a hack
-				while (connect_status == 1) {	MS_SLEEP(500);	}
+				while (connect_status == 1) {	
+					MS_SLEEP(500);	// *** NO CPU PROBLEM HERE ***
+				}
 
 				LOG("starting connect sequence.\n");
 
@@ -308,9 +318,8 @@ public:
 	void start_connect() {
 
 		//trying. this should be the FIRST THING!
-		connect_status  = 2;		
-
-		char adrstr[NL_MAX_STRING_LENGTH];
+		int old_status = connect_status;
+		connect_status = 2;		
 
 		LOG("start_connect()\n");
 
@@ -319,8 +328,14 @@ public:
 		station->reset_state();
 
 		//set station remote address (opens the client's ONLY socket)
-		nlAddrToString(&serveraddr, adrstr);
-		station->set_remote_address(adrstr);
+		//char adrstr[NL_MAX_STRING_LENGTH];
+		//nlAddrToString(&serveraddr, adrstr);
+		//station->set_remote_address(adrstr);
+		if (station->set_remote_address(&serveraddr) == 0) {
+			LOG("start_connect() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!\n");
+			connect_status = old_status;	//no idea if this is needed...
+			return;
+		}
 
 		//create reader thread
 		quit_reader_thread = false;
@@ -498,7 +513,7 @@ public:
 			//wtf?
 			else {
 					//FIXME: error
-				LOG("WHAT THE FUCK 777 666 !!!!\n");
+				LOG("WTF!! 777 666 !!!!\n");
 			}
 
 		}
@@ -556,7 +571,16 @@ public:
 			return true;	
 		}
 
-		LOG("trying...\n");
+		char adst[333];
+		char remadst[333];
+		NLaddress ladr;
+		NLaddress radr;
+		nlGetLocalAddr( (station->get_nl_socket()), &ladr );
+		nlGetRemoteAddr( (station->get_nl_socket()), &radr );
+		nlAddrToString( &ladr , adst );
+		nlAddrToString( &radr , remadst );
+
+		LOG2("trying... local = '%s' remote = '%s'\n", adst, remadst);
 	 
 		//send the packet
 		data_c  *dat = new_data_c();
@@ -632,7 +656,7 @@ void *thread_connect_f(void *arg) {
 		stop = client->connect_try();
 
 		//sleep a bit before sending next try
-		MS_SLEEP(1000);
+		MS_SLEEP(1000); // *** NO CPU PROBLEM HERE ***
 	}
 
 	LOG("THREAD CONNECT QUITTING\n");
@@ -658,7 +682,7 @@ void *thread_disconnect_f(void *arg) {
 		stop = client->disconnect_try();
 
 		//sleep a bit before sending next try
-		MS_SLEEP(100);
+		MS_SLEEP(100); // *** NO CPU PROBLEM HERE ***
 	}
 
 	//nice disconnect done
@@ -699,8 +723,8 @@ void *thread_reader_f(void *arg) {
 		while (amount == 0) {
 
 			//sleep a bit
-			MS_SLEEP(1);
-			
+			MS_SLEEP(2);  //alternativa, usar BLOCKING I/O
+			   
 			//read from socket
 			amount = client->read_station(buffer, THREAD_READER_BUFSIZE); //nlRead(clsock, buffer, THREAD_READER_BUFSIZE);
 
@@ -728,7 +752,7 @@ void *thread_reader_f(void *arg) {
 		}
 		// process da packet
 		else {
-			//MS_SLEEP(50); // lag
+			//SLEEP(50); // lag
 
 			client->process_incoming_datagram(buffer, amount);
 		}

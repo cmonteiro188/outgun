@@ -100,8 +100,10 @@ public:
 	// every time you want to use it for a different client/server.
 	virtual void reset_state() = 0;
 
-	// set the station's remote address for sending. notation is "bla.bla.bla.bla:portnum"
-	virtual int set_remote_address(char* address) = 0;
+	// set the station's remote address for sending. 
+	// returns 0 if (nlOpen(0, NL_UNRELIABLE) == NL_INVALID), returns 1 otherwise
+	virtual int set_remote_address(char* address) = 0; //notation is "bla.bla.bla.bla:portnum"
+	virtual int set_remote_address(NLaddress *some_addr) = 0; //NL address struct
 
 	// non-blocking call: attempt to read data from the socket
 	// buffer/bufsize: buffer given to the routine
