@@ -1,6 +1,8 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
 
+#include "world.h"
+
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
 #define CL_FLAGPOS_RAD 30   // the radius of the flag position marker
@@ -68,7 +70,6 @@ struct gamespy_t {
 
 class gameclient_c {
 public:
-    Map     map;
     player_t player[MAX_PLAYERS];
     clientfx_t      cfx[MAX_CLIENTFX];
     int me;
@@ -79,7 +80,7 @@ public:
     char player_token[64];      // the token
     char player_password[16];
     pthread_t   passthread;
-    frame_t     fd, fx;
+    World fd, fx;	//#fix: two maps, etc.
     pthread_mutex_t     frame_mutex;
     pthread_mutex_t     udpdq_mutex;
     int udpdq_size;     //size

@@ -3,7 +3,5 @@
 
 string RandomName(int npal=-1);
 
-void FreeName(string name);
-
 #endif
 

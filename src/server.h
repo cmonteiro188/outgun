@@ -10,6 +10,8 @@
 #include "nameauth.h"
 #endif
 
+#include "world.h"
+
 //per-client struct (statically allocated to a single client)
 class oneclient_c {
 public:
@@ -77,20 +79,18 @@ public:
 class masterjob_c {
 public:
 
-	char								request[512];		//http request to be sent
+	char		request[512];
 
-	bool		html_end;			//received a response(request fullfilled)
+	bool		html_end;
 
-	char				lebuf[65536];		//lebuf for collecting response
-	int					n;			//lebuf length
+	char		lebuf[65536];		//lebuf for collecting response
+	int			n;	// lebuf length
 
-	int			code;			//job code
-
-	//VARS FOR EACH SPECIFIC JOB CODE
-	int			cid;		//code 1 - client id
+	int			code;
+	int			cid;
 
 	//return values of the callback
-	bool		retry;		//if true, wait a bit and retry
+	bool		retry;
 
 	masterjob_c() {
 		lebuf[0]=0;
@@ -100,44 +100,54 @@ public:
 };
 
 class gameserver_c {
-public:
-	Map		map;
+	// yhteydet verkkoon
 	server_c	*server;
 	char hostadname[128];
 	NLsocket		msock;
 	pthread_t		mthread;
 	double			master_talk_time;	//time to talk?
-	bool				master_pre_exiting_ok;		// if no need to kill the master socket...
-	bool				master_exiting_ok;		// if no need to kill the master socket...
-	bool				master_never_talked;		// if never talked to master, then no need to unregister the server when qutting (optimization)
-	bool							mjob_exit;				//flag for all pending master jobs to quit now
-	bool							mjob_fastretry;		//flag for all pending master jobs to stop waiting and retry immediately
-	int								mjob_count;
-	pthread_mutex_t		mjob_mutex;  //mutex for socket list
-	bool							file_threads_quit;		//terminate all file server threads/sockets now
-	NLsocket					filesock;
-	pthread_t					server_filemaster_thread;  // thread for server filemaster
-	pthread_mutex_t		fslavesock_mutex;  //mutex for socket list
-	NLsocket					fslavesock[MAX_PLAYERS];
-	pthread_t					fslavethr[MAX_PLAYERS];
+	bool			master_pre_exiting_ok;		// if no need to kill the master socket...
+	bool			master_exiting_ok;		// if no need to kill the master socket...
+	bool			master_never_talked;		// if never talked to master, then no need to unregister the server when qutting (optimization)
+	bool			mjob_exit;				//flag for all pending master jobs to quit now
+	bool			mjob_fastretry;		//flag for all pending master jobs to stop waiting and retry immediately
+	int				mjob_count;
+	pthread_mutex_t	mjob_mutex;  //mutex for socket list
+	bool			file_threads_quit;		//terminate all file server threads/sockets now
+	NLsocket		filesock;
+	pthread_t		server_filemaster_thread;  // thread for server filemaster
+	pthread_mutex_t	fslavesock_mutex;  //mutex for socket list
+	NLsocket		fslavesock[MAX_PLAYERS];
+	pthread_t		fslavethr[MAX_PLAYERS];
 	NLsocket		shellmsock;
 	pthread_t		shellmthread;
 	NLsocket		shellssock;
 	pthread_t		shellsthread;
-	char		hostname[256];
+	char			hostname[256];
+	double server_kbps_traffic;
+	int ping_send_counter, ping_send_client;
+
+	// pelaajien hallinta
 	vector<string> welcome_message;	// welcome message line by line
 	vector<string> info_message;	// the message /info shows, line by line
 	string sayadmin_comment;
 	bool sayadmin_enabled;
-	player_t	player[MAX_PLAYERS];
+	player_t		player[MAX_PLAYERS];
 	int				ctop[256];			// client id-to-player id index
 	oneclient_c	client[MAX_PLAYERS];
 	int max_world_score, max_world_rank;
 	double team_smul[2];
-	frame_t		world;
+	NLulong next_vote_announce_frame;
+	int last_vote_announce_votes, last_vote_announce_needed;
+	NLulong map_start_time;	// frame #
+
+	// pelimaailma
+	World	world;
 	NLulong		frame;
-	double server_kbps_traffic;
-	int ping_send_counter, ping_send_client;
+	bool	gameover;
+	double		gameover_time;		//timeout for gameover plaque
+
+	// asetukset
 	struct MapInfo {
 		string title, file;
 		int width, height;
@@ -147,15 +157,10 @@ public:
 	};
 	vector<MapInfo> maprot;
 	int currmap;		// current map in maprot
+	bool random_maprot;
 	#ifdef SV_NAME_AUTHORIZATION
 	NameAuthorizationDatabase authorizations;
 	#endif
-	bool random_maprot;
-	NLulong next_vote_announce_frame;
-	int last_vote_announce_votes, last_vote_announce_needed;
-	NLulong map_start_time;	// frame #
-	bool	gameover;
-	double		gameover_time;		//timeout for gameover plaque
 	NLulong time_limit;
 	int capture_limit;
 	int vote_block_time;	// how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
@@ -166,23 +171,22 @@ public:
 	bool pup_deathbringer_switch;
 	int shadow_minimum;	// smallest alpha value allowed; 1 is when even the coordinates are not sent
 	double respawn_time, waiting_time_deathbringer;
+
+public:
+
 	gameserver_c();
 	virtual ~gameserver_c();
+	bool start(int target_maxplayers);
+	void loop(volatile bool *running_flag);
+	void stop();
+
+	// pelaajien hallinta
 	void mutePlayer(int pid, int mode);
 	void kickPlayer(int pid, bool ban=false);
 	#ifdef SV_NAME_AUTHORIZATION
 	void banPlayer(int pid);
+	bool isBanned(int cid) { return authorizations.isBanned(server->get_client_address(cid)); }
 	#endif
-	int choose_powerup_kind();
-	void upload_next_file_chunk(int i);
-	int get_download_file(char *lebuf, char *ftype, char *fname);
-	void run_filemaster_thread(void *);
-	void run_fileslave_thread(void *arg);
-	void send_me_packet(int pid);
-	void send_player_name_update(int cid, int pid);
-	void broadcast_player_name(int pid);
-	void send_player_crap_update(int cid, int pid);
-	void broadcast_player_crap(int pid);
 	int check[MAX_PLAYERS];
 	int checount;
 	void check_team_changes();
@@ -190,23 +194,67 @@ public:
 	void move_update_player(int a);
 	void move_player(int f, int t);
 	void swap_players(int a, int b);
+	void ctf_update_teamscore(int t);
+	void refresh_team_score_modifiers();
+	void client_report_status(int id);
+	void check_map_exit();
+
+	bool load_rotation_map(int pos);
+	void send_map_change_message(int pid, int reason, const char* mapname);
+	bool server_next_map(int reason);
+
+	// yhteydet verkkoon
+	void upload_next_file_chunk(int i);
+	int get_download_file(char *lebuf, char *ftype, char *fname);
+	void run_filemaster_thread(void *);
+	void run_fileslave_thread(void *arg);
+	void update_serverinfo();
+	void send_me_packet(int pid);
+	void send_player_name_update(int cid, int pid);
+	void broadcast_player_name(int pid);
+	void send_player_crap_update(int cid, int pid);
+	void broadcast_player_crap(int pid);
+
 	void broadcast_sample(int code);
 	void broadcast_screen_sample(int p, int code);
+	void game_player_screen_change(int p);
+	void broadcast_team_message(int team, char *text);
+	void broadcast_screen_message(int px, int py, char *lebuf, int count);
+	void bprintf(const char *fs, ...);
+	void plprintf(int pid, const char* fmt, ...);
+	void player_message(int pid, const char *text);
+	void broadcast_message(const char *text);
+
+	int client_connected(int id);
+	void client_disconnected(int id);
+	void ping_result(int client_id, int ping_time);
+	void incoming_client_data(int id, char *data, int length);
+
+	void simulate_and_broadcast_frame();
+	void server_think_after_broadcast();
+	void master_job_response(masterjob_c *j);
+	void run_masterjob_thread(void *arg);
+	bool check_private_IP(char *address);
+	void run_mastertalker_thread(void *);
+	bool read_string_from_TCP(NLsocket sock, char *buf);
+	void run_shellmaster_thread(void *);
+	void run_shellslave_thread(void *);
+	char *get_hostname();
+
+	// pelimaailma
+	int choose_powerup_kind();
 	void ctf_net_flag_status(int cid, int team);
 	void ctf_return_flag(int team);
 	void ctf_drop_flag(int team, int px, int py, int x, int y);
 	void ctf_steal_flag(int team, int carrier);
-	void ctf_update_teamscore(int t);
 	void game_respawn_player(int pid);
 	void game_delete_rocket(int r, NLshort hitx, NLshort hity, int targ);
 	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta);
 	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta);
 	void game_shoot_rocket(int playernum, int shots, int px, int py, int x, int y, int gundir);
 	bool ctf_drop_flag_if_any(int pid);
-	void refresh_team_score_modifiers();
 	void score_frag(int p, int amount);
 	void score_neg(int p, int amount);
-	void client_report_status(int id);
 	void game_reset_player(int target, float time_penalty = 0.);
 	void game_kill_player(int target, bool time_penalty);
 	void game_damage_player(int target, int attacker, int damage, bool deathbringer);
@@ -216,40 +264,12 @@ public:
 	int pups_by_percent(int percentage) const;
 	void check_pickup_creation(bool instant);
 	void game_touch_pickup(int p, int pk);
-	void game_player_screen_change(int p);
-	void broadcast_team_message(int team, char *text);
-	void broadcast_screen_message(int px, int py, char *lebuf, int count);
-	void bprintf(const char *fs, ...);
-	void plprintf(int pid, const char* fmt, ...);
-	void player_message(int pid, const char *text);
-	void broadcast_message(const char *text);
-	void load_game_mod();
-	bool load_rotation_map(int pos);
-	void send_map_change_message(int pid, int reason, const char* mapname);
-	bool server_next_map(int reason);
-	void check_map_exit();
-	bool reset_settings();
-	bool start(int target_maxplayers);
-	void reload_hostname();
-	void update_serverinfo();
-	int client_connected(int id);
-	void client_disconnected(int id);
-	void ping_result(int client_id, int ping_time);
-	void incoming_client_data(int id, char *data, int length);
 	bool check_flag_touch(int px, int py, int x, int y, int t);
-	void run_server_player_physics(int i, frame_t *src, frame_t *dest);
-	void simulate_and_broadcast_frame();
-	void server_think_after_broadcast();
-	void loop(volatile bool *running_flag);
-	void master_job_response(masterjob_c *j);
-	void run_masterjob_thread(void *arg);
-	bool check_private_IP(char *address);
-	void run_mastertalker_thread(void *);
-	bool read_string_from_TCP(NLsocket sock, char *buf);
-	void run_shellmaster_thread(void *);
-	void run_shellslave_thread(void *);
-	void stop();
-	char *get_hostname();
+
+	// asetukset
+	void load_game_mod();
+	bool reset_settings();
+	void reload_hostname();
 };
 
 extern gameserver_c *gameserver;

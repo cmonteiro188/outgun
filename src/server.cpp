@@ -1,4 +1,5 @@
 #include "commont.h"
+#include "world.h"
 #include "server.h"
 
 //************************************************************
@@ -43,7 +44,7 @@ gameserver_c::MapInfo::MapInfo() : votes(0) { }
 
 bool gameserver_c::MapInfo::load(string mapName) {
 	Map map;
-	bool ok = load_map(SERVER_MAPS_DIR, mapName, &map);
+	bool ok = map.load(SERVER_MAPS_DIR, mapName);
 	if (!ok)
 		return false;
 	file = mapName;
@@ -57,7 +58,6 @@ bool gameserver_c::MapInfo::load(string mapName) {
 gameserver_c::gameserver_c() {
 	server = 0;
 	hostname[0]=0;	//hostname
-	//memset(&world, 0, sizeof(frame_t));		//the current frame (game world simulation state)
 	frame = 0;		// current frame count
 	next_vote_announce_frame = 0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
@@ -790,7 +790,7 @@ void gameserver_c::ctf_net_flag_status(int cid, int team) {
 void gameserver_c::ctf_return_flag(int team) {
 
 	world.flag[team].carried = false;			// not carried anymore
-	world.flag[team].pos = map.tinfo[team].flag;		// return to original position
+	world.flag[team].pos = world.map.tinfo[team].flag;		// return to original position
 	world.flag[team].atbase = true;		// yes, at base
 
 	ctf_net_flag_status(-1, team);	// broadcast new status
@@ -854,44 +854,44 @@ void gameserver_c::game_respawn_player(int pid) {
 	int t = pid/TSIZE;
 
 	spoint_t pos;
-	if (map.tinfo[t].spawn.empty())
+	if (world.map.tinfo[t].spawn.empty())
 		player[pid].respawn_to_base = false;
 	else if (player[pid].respawn_to_base) {
 		//choose a team spawn point
-		if (++map.tinfo[t].lastspawn >= map.tinfo[t].spawn.size())
-			map.tinfo[t].lastspawn = 0;
-		pos = map.tinfo[t].spawn[ map.tinfo[t].lastspawn ];	// the point
+		if (++world.map.tinfo[t].lastspawn >= world.map.tinfo[t].spawn.size())
+			world.map.tinfo[t].lastspawn = 0;
+		pos = world.map.tinfo[t].spawn[ world.map.tinfo[t].lastspawn ];	// the point
 	}
 
 	//if was killed or map spawn point places player over a wall
-	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20)) {
+	if (!player[pid].respawn_to_base || world.map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20)) {
 		// generate a random spot for respawn:
 		// - unnocupied screen
 		// - away from walls
 
 		//calculate room touch matrix
 		vector<bool> roompop;
-		roompop.resize(map.w*map.h, false);
+		roompop.resize(world.map.w*world.map.h, false);
 		for (int i=0;i<maxplayers;i++)
-			if (player[i].used && player[i].x >= 0 && player[i].y >= 0 && player[i].x < map.w && player[i].y < map.h)
-				roompop[player[i].y * map.w + player[i].x] = true;
+			if (player[i].used && player[i].x >= 0 && player[i].y >= 0 && player[i].x < world.map.w && player[i].y < world.map.h)
+				roompop[player[i].y * world.map.w + player[i].x] = true;
 
 		int runaway = 400;
 		do {
 			//find screen
 			int ridx;
 			do {
-				ridx = rand() % (map.w*map.h);
+				ridx = rand() % (world.map.w*world.map.h);
 			} while ((runaway-- > 200) && (roompop[ridx] == true));	//keep trying until unnocupied (==false)
-			pos.px = ridx%map.w;
-			pos.py = ridx/map.w;
+			pos.px = ridx%world.map.w;
+			pos.py = ridx/world.map.w;
 
 			//find a suitable coordinate -- middle square
 			pos.x = plw / 8 + rand() % (3 * plw / 4);
 			pos.y = plh / 8 + rand() % (3 * plh / 4) +PHYS_SHIFTY;
 
 			//do a check for walls, maybe retrying another screen if hits a wall
-			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20))
+			if (!world.map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20))
 				break;	//success!
 
 			//fall on wall true, keep trying...
@@ -1209,7 +1209,7 @@ void gameserver_c::score_frag(int p, int amount) {
 
 	//v0.4.4 -- add score to the player's score accumulator
 	//v0.4.7: DO NOT add score if map is not valid for scoring
-	if (map.valid_for_scoring)
+	if (world.map.valid_for_scoring)
 	if (player_count >= 2) { //v0.4.7.1 : skip the scoring if only one player present
 
 		//refresh team ratings
@@ -1242,7 +1242,7 @@ void gameserver_c::score_neg(int p, int amount) {
 
 	//v0.4.4 -- add score to the player's score accumulator
 	//v0.4.7: DO NOT add score if map is not valid for scoring
-	if (map.valid_for_scoring)
+	if (world.map.valid_for_scoring)
 	if (player_count >= 2) { //v0.4.7.1 : skip the scoring if only one player present
 
 		//refresh team ratings
@@ -1524,8 +1524,8 @@ void gameserver_c::respawn_pickup(int p) {
 	int px, py, itemx, itemy, i;
 	for (int runaway=300;; --runaway) {
 		bool hit = false;
-		px = rand() % map.w;
-		py = rand() % map.h;
+		px = rand() % world.map.w;
+		py = rand() % world.map.h;
 
 		//check for players if not tried a 100 times yet
 
@@ -1556,7 +1556,7 @@ void gameserver_c::respawn_pickup(int p) {
 		itemy = plh / 8 + rand() % (3 * plh / 4);
 
 		//do a check for walls, maybe retrying another screen if hits a wall
-		hit = map.fall_on_wall(px, py, itemx - 20, itemy - 20, itemx + 20, itemy + 20);
+		hit = world.map.fall_on_wall(px, py, itemx - 20, itemy - 20, itemx + 20, itemy + 20);
 		if (!hit)
 			break;
 		if (--runaway < 0) {
@@ -1602,7 +1602,7 @@ void gameserver_c::respawn_pickup(int p) {
 }
 
 int gameserver_c::pups_by_percent(int percentage) const {
-	int result = (map.w*map.h*percentage+50) / 100;	// +50 to round properly
+	int result = (world.map.w*world.map.h*percentage+50) / 100;	// +50 to round properly
 	if (result==0 && percentage>0)
 		return 1;
 	if (result>MAX_PICKUPS)
@@ -2222,7 +2222,7 @@ void gameserver_c::load_game_mod() {
 
 //load a map from the rotation list
 bool gameserver_c::load_rotation_map(int pos) {
-	bool ok = load_map(SERVER_MAPS_DIR, maprot[pos].file, &map);
+	bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
 	if (!ok)
 		return false;
 	LOG2("load_rotation_map() maprot[%i] = '%s'\n", pos, maprot[pos].file.c_str());
@@ -2238,7 +2238,7 @@ void gameserver_c::send_map_change_message(int pid, int reason, const char* mapn
 	writeByte(lebuf, count, 20);	// 20 = map change
 
 	writeByte(lebuf, count, 2);		// 2 = custom map message
-	writeShort(lebuf, count, map.crc);
+	writeShort(lebuf, count, world.map.crc);
 	writeString(lebuf, count, mapname);
 	server->send_message(player[pid].cid, lebuf, count);
 
@@ -3507,55 +3507,6 @@ bool gameserver_c::check_flag_touch(int px, int py, int x, int y, int t) {
 	return false;
 }
 
-//run a physics frame simulation step for a player
-void gameserver_c::run_server_player_physics(int i, frame_t *src, frame_t *dest) {	//player id, frame source, frame dest
-	if (dest != src)
-		dest->hero[i] = src->hero[i];
-	hero_t* hd = &dest->hero[i];
-
-	if (hd->tx<0 || hd->ty<0 || hd->tx>=map.w || hd->ty>=map.h) return;	//#fix: remove this and track why these are given sometimes
-	const Room& room = map.room[hd->tx][hd->ty];
-
-	bool carryFlag = src->flag[1-(i/TSIZE)].carried && src->flag[1-(i/TSIZE)].carrier == i;
-	bool deathbringerAffected = player[i].deathbringer_end >= get_time();
-
-	float startx = hd->x, starty = hd->y;
-
-	#ifdef PHYS_NEW
-		NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
-	#else
-		applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
-	#endif
-
-	float xd = hd->x - startx;
-	float yd = hd->y - starty;
-	player[i].total_movement += sqrt( xd*xd + yd*yd );
-
-	//check room change x
-	if (int(hd->x) == plw) {
-		hd->x = 1;
-		if (++hd->tx >= map.w)
-			hd->tx = 0;
-	}
-	else if (int(hd->x) == 0) {
-		hd->x = plw - 1;
-		if (--hd->tx < 0)
-			hd->tx = map.w - 1;
-	}
-
-	//check room change y
-	if (int(hd->y)-PHYS_SHIFTY == plh) {
-		hd->y = 1 +PHYS_SHIFTY;
-		if (++hd->ty >= map.h)
-			hd->ty = 0;
-	}
-	else if (int(hd->y)-PHYS_SHIFTY == 0) {
-		hd->y = plh - 1 +PHYS_SHIFTY;
-		if (--hd->ty < 0)
-			hd->ty = map.h - 1;
-	}
-}
-
 //simulate and broadcast frame
 void gameserver_c::simulate_and_broadcast_frame() {
 
@@ -3763,13 +3714,13 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 			//wall hit - remove
 			#if !defined(PHYS_NEW)
-			if (map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
+			if (world.map.fall_on_wall(rock->px, rock->py, (int)rock->x, (int)rock->y, (int)rock->x, (int)rock->y)) {
 				rock->owner=-1;
 				t=999;break;
 			}
 			#endif
 			#ifdef PHYS_NEW
-			if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-PHYS_SHIFTY-2, (int)rock->x+2, (int)rock->y-PHYS_SHIFTY+2)) {
+			if (world.map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-PHYS_SHIFTY-2, (int)rock->x+2, (int)rock->y-PHYS_SHIFTY+2)) {
 				rock->owner=-1;
 				t=999;
 				break;
@@ -3863,7 +3814,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			h->ty = player[i].y;
 
 			// run server physics frame
-			run_server_player_physics(i, &world, &world);	//player id, frame source, frame dest
+			world.run_server_player_physics(i, player[i]);
 
 			//OUT : copy screen information from hero back to player
 			if ((player[i].x != h->tx) || (player[i].y != h->ty))
@@ -4073,11 +4024,11 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			if (check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))		// I touch my flag
 			{
 				//v0.4.7: detect degenerated maps
-				if (map.valid_for_scoring)		//still valid?
+				if (world.map.valid_for_scoring)		//still valid?
 				if (get_time() - world.flag[enemyteam].grab_time <= MINIMUM_GRAB_TO_CAPTURE_TIME) {
 
 					//this map is bogus, ignore all scoring for it.
-					map.valid_for_scoring = false;
+					world.map.valid_for_scoring = false;
 					//tell people...
 					broadcast_message("@WThis map is too small. Scoring for World Ranking disabled.");
 					//zero all delta scores so far
@@ -4556,11 +4507,11 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			}
 
 			//x do cara, 0..255 (%) do mundo
-			NLubyte mx = (NLubyte)(((world.hero[who].x + ((double)(player[who].x * plw))) / (map.w*plw)) * 255.0);
+			NLubyte mx = (NLubyte)(((world.hero[who].x + ((double)(player[who].x * plw))) / (world.map.w*plw)) * 255.0);
 			writeByte(lebuf, lecount, mx);
 
 			//y do cara, 0..255 (%) do mundo
-			NLubyte my = (NLubyte)(((world.hero[who].y + ((double)(player[who].y * plh))) / (map.h*plh)) * 255.0);
+			NLubyte my = (NLubyte)(((world.hero[who].y + ((double)(player[who].y * plh))) / (world.map.h*plh)) * 255.0);
 			writeByte(lebuf, lecount, my);
 
 			//send player's BASE health (first 8 bits)
@@ -5979,7 +5930,7 @@ int sfunc_client_hello(runes_t *arg) {
 			result.length = count;
 		}
 		#ifdef SV_NAME_AUTHORIZATION
-		else if (gameserver->authorizations.isBanned(gameserver->server->get_client_address(arg->client_id))) {
+		else if (gameserver->isBanned(arg->client_id)) {
 			result.client_id = -1;	// not accepted
 			count=0;
 			writeString(lebuf, count, "You are banned");

@@ -1,4 +1,5 @@
 #include "commont.h"
+#include "world.h"
 #include "client.h"
 
 //colors
@@ -956,7 +957,7 @@ void gameclient_c::download_file_complete(download_runes_t  *r) {
 
 		//if expected map, change now
 		if (!strcmp(r->name, servermap)) {
-			bool ok = load_map(CLIENT_MAPS_DIR, r->name, &map);
+			bool ok = fd.load_map(CLIENT_MAPS_DIR, r->name) && fx.load_map(CLIENT_MAPS_DIR, r->name);	//#fix
 			if (!ok)
 				LOG1("AFTER DOWNLOAD: MAP '%s' NOT FOUND\n", r->name)
 			else {
@@ -1186,12 +1187,12 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	LOG1("CLIENT: server_map_command : '%s'", mapname);
 
 	//try to load the map. will fail if not found
-	bool ok = load_map(CLIENT_MAPS_DIR, mapname, &map);
+	bool ok = fd.load_map(CLIENT_MAPS_DIR, mapname) && fx.load_map(CLIENT_MAPS_DIR, mapname);	//#fix
 
 	if (!ok)
 		LOG1("MAP '%s' NOT FOUND\n", mapname)
-	else if (map.crc != server_crc)
-		LOG3("MAP '%s' FOUND BUT IT'S CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, map.crc, server_crc)
+	else if (fx.map.crc != server_crc)
+		LOG3("MAP '%s' FOUND BUT IT'S CRC %i DIFFERS FROM SERVER MAP CRC %i\n", mapname, fx.map.crc, server_crc)
 	else {
 		LOG1("MAP '%s' LOADED SUCESSFULLY!\n", mapname);
 
@@ -1203,7 +1204,7 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	}
 
 	// download map from server (ask file)
-	if (!ok || map.crc != server_crc) {
+	if (!ok || fx.map.crc != server_crc) {
 
 		char lix[256];
 		sprintf(lix, "Client: downloading map '%s' (CRC %i)...", mapname, server_crc);
@@ -1679,8 +1680,8 @@ void gameclient_c::calc_game_frame() {
 		if (player[i].onscreen) {	// nao eh suficiente usar platyer[i].USED !!!
 			fd.hero[i] = fx.hero[i];
 
-			if (player[i].x<0 || player[i].y<0 || player[i].x>=map.w || player[i].y>=map.h) continue;	//#fix: remove this and track why these are given sometimes
-			const Room& room = map.room[player[i].x][player[i].y];
+			if (player[i].x<0 || player[i].y<0 || player[i].x>=fx.map.w || player[i].y>=fx.map.h) continue;	//#fix: remove this and track why these are given sometimes
+			const Room& room = fx.map.room[player[i].x][player[i].y];
 			bool carryFlag = fx.flag[1-(i/TSIZE)].carried && fx.flag[1-(i/TSIZE)].carrier == i;
 
 			h = &fd.hero[i];
@@ -1699,23 +1700,13 @@ void gameclient_c::calc_game_frame() {
 				dc -= 1.0;
 
 				//run physics
-				#ifdef PHYS_NEW
-				if (NR_applyPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
+				if (fd.applyPhysics(i, room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 					//player bounced: play bounce sample if minimum time elapsed
 					if (get_time() > player[i].wall_sound_time) {
 						player[i].wall_sound_time = get_time() + 0.2;
 						sound(SAMPLE_WALLBOUNCE);
 					}
 				}
-				#else	// PHYS_NEW
-				if (applyDefaultPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
-					//player bounced: play bounce sample if minimum time elapsed
-					if (get_time() > player[i].wall_sound_time) {
-						player[i].wall_sound_time = get_time() + 0.2;
-						sound(SAMPLE_WALLBOUNCE);
-					}
-				}
-				#endif	// PHYS_NEW else
 			}
 		}
 
@@ -1780,9 +1771,9 @@ void gameclient_c::calc_game_frame() {
 
 				//0.3.9: check rocket hit a wall (clientside) if not vanished already
 				#ifdef PHYS_NEW
-				if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-PHYS_SHIFTY-2, (int)rd->x+2, (int)rd->y-PHYS_SHIFTY+2)) {
+				if (fx.map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-PHYS_SHIFTY-2, (int)rd->x+2, (int)rd->y-PHYS_SHIFTY+2)) {
 				#else
-				if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
+				if (fx.map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
 				#endif
 					//probably hit wall
 					rx->dontdraw = true;
@@ -1846,8 +1837,8 @@ void gameclient_c::draw_mini_flag(BITMAP *drawbuf, int whatteam) {
 	int f = whatteam;
 
 		double px, py;
-		px = ((double)fx.flag[f].pos.px * (double)plw + fx.flag[f].pos.x) / ((double)plw * map.w);
-		py = ((double)fx.flag[f].pos.py * (double)plh + fx.flag[f].pos.y) / ((double)plh * map.h);
+		px = ((double)fx.flag[f].pos.px * (double)plw + fx.flag[f].pos.x) / ((double)plw * fx.map.w);
+		py = ((double)fx.flag[f].pos.py * (double)plh + fx.flag[f].pos.y) / ((double)plh * fx.map.h);
 		int pix = mmx + 21 + ((int)(px*98));
 		int piy = mmy + 01 + ((int)(py*98));
 
@@ -1859,8 +1850,8 @@ void gameclient_c::draw_mini_flag(BITMAP *drawbuf, int whatteam) {
 
 //update the minimap background
 void gameclient_c::update_minimap_background() {
-	LOG2("update_minimap map.w = %i map.h = %i\n", map.w, map.h);
-	map.draw_minimap(minibg);
+	LOG2("update_minimap map.w = %i map.h = %i\n", fx.map.w, fx.map.h);
+	fx.map.draw_minimap(minibg);
 }
 
 //draws a player object
@@ -1980,34 +1971,20 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 
 		if (map_ready) {
 			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "Waiting game start - next map is:");
-			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 50, col[COLORA], "%s", map.title.c_str());
+			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 50, col[COLORA], "%s", fx.map.title.c_str());
 		}
 		else
 			textprintf_centre(drawbuf, font, plx+plw/2, ply+plh/2 + 20, col[COLGREEN], "Loading map: %lu bytes", fdp);
 	}
 	else {
-
-		// map ground
-		//
-		//0.4.0 check if base ground, then paint differently
-		/*
-		if ((player[me].x == map.tinfo[0].flag.px) && (player[me].y == map.tinfo[0].flag.py)) {
-			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLBRED]);
-		}
-		else if ((player[me].x == map.tinfo[1].flag.px) && (player[me].y == map.tinfo[1].flag.py)) {
-			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLBBLUE]);
-		}
-		//regular ground
-		else
-		*/
 		rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 		// place of flag
 		for (int team = 0; team < 2; team++)
-			if (player[me].x == map.tinfo[team].flag.px && player[me].y == map.tinfo[team].flag.py) {
+			if (player[me].x == fx.map.tinfo[team].flag.px && player[me].y == fx.map.tinfo[team].flag.py) {
 				check_flagpos_marks();
-				int flag_x = map.tinfo[team].flag.x;
-				int flag_y = map.tinfo[team].flag.y;
+				int flag_x = fx.map.tinfo[team].flag.x;
+				int flag_y = fx.map.tinfo[team].flag.y;
 				int x1 = max(0, CL_FLAGPOS_RAD - flag_x);
 				int y1 = max(0, CL_FLAGPOS_RAD - flag_y);
 				int x2 = min(2 * CL_FLAGPOS_RAD, plw - flag_x + CL_FLAGPOS_RAD + 1);
@@ -2017,8 +1994,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			}
 
 		// map walls
-		if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < map.w && player[me].y < map.h)
-			map.room[player[me].x][player[me].y].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
+		if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < fx.map.w && player[me].y < fx.map.h)
+			fx.map.room[player[me].x][player[me].y].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
 	}
 
 	// frame is valid?
@@ -2545,20 +2522,20 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			draw_mini_flag(drawbuf, f);
 
 		vector<bool> roomvis;
-		roomvis.resize(map.w*map.h, (me>=0 && player[me].item_helm>0)?true:false);
+		roomvis.resize(fx.map.w*fx.map.h, (me>=0 && player[me].item_helm>0)?true:false);
 
 		// draw all teammates and enemies on screens where there are teammates
 		//draw all the players - put a pixel where they are
 		if (me>=0 && fx.frame>=0)
 			for (int i=0;i<maxplayers;i++)
-				if (player[i].used && player[i].x>=0 && player[i].y>=0 && player[i].x<map.w && player[i].y<map.h &&
+				if (player[i].used && player[i].x>=0 && player[i].y>=0 && player[i].x<fx.map.w && player[i].y<fx.map.h &&
 						(i/TSIZE == me/TSIZE || (player[me].enemyvis & (1<<(i%TSIZE)) ))) {
-					roomvis[player[i].y*map.w+player[i].x] = true;
+					roomvis[player[i].y*fx.map.w+player[i].x] = true;
 
 					// coord on minimap
 					double px, py;
-					px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * map.w);
-					py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * map.h);
+					px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * fx.map.w);
+					py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * fx.map.h);
 					int pix = mmx + 21 + ((int)(px*98));
 					int piy = mmy +  1 + ((int)(py*98));
 
@@ -2596,16 +2573,16 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 
 		// paint fog of war in all invisible rooms
 		//
-		for (int ry=0; ry<map.h; ry++)
-			for (int rx=0; rx<map.w; rx++)
-				if (!roomvis[ry*map.w+rx]) {
+		for (int ry=0; ry<fx.map.h; ry++)
+			for (int rx=0; rx<fx.map.w; rx++)
+				if (!roomvis[ry*fx.map.w+rx]) {
 					drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 					set_trans_blender(0,0,0,0x38);
 					int a,b,c,d;
-					a = mmx+21 +  rx   *98/map.w  ;
-					b = mmy+ 1 +  ry   *98/map.h  ;
-					c = mmx+21 + (rx+1)*98/map.w-1;
-					d = mmy+ 1 + (ry+1)*98/map.h-1;
+					a = mmx+21 +  rx   *98/fx.map.w  ;
+					b = mmy+ 1 +  ry   *98/fx.map.h  ;
+					c = mmx+21 + (rx+1)*98/fx.map.w-1;
+					d = mmy+ 1 + (ry+1)*98/fx.map.h-1;
 					rectfill(drawbuf, a,b,c,d, col[COLFOGOFWAR]);
 				}
 		solid_mode();
@@ -3002,11 +2979,11 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 
 		int p;
 		for (p=0;p<maxplayers;p++) {
-			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f o=%.1f,%.1f",
+			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f",
 				p, player[p].used, player[p].onscreen, player[p].enemyvis, player[p].x, player[p].y,
 
 				//					fx.hero[p].x, fx.hero[p].y, fx.hero[p].sx, fx.hero[p].sy,
-				fd.hero[p].x, fd.hero[p].y, fd.hero[p].sx, fd.hero[p].sy, fd.hero[p].ox, fd.hero[p].oy
+				fd.hero[p].x, fd.hero[p].y, fd.hero[p].sx, fd.hero[p].sy
 				);
 		}
 
@@ -4109,10 +4086,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//ignore self and anybody onscreen -- because then I've got better accuracy
 			if (who != me)
 			if (!player[who].onscreen) {
-				player[who].x = whox / (255/map.w);	//screen = 0..255 / (WXMAX/255)
-				player[who].y = whoy / (255/map.h);
-				fx.hero[who].x = (whox % (255/map.w)) * plw / (255/map.w);	//posicao dentro da tela especifica
-				fx.hero[who].y = (whoy % (255/map.h)) * plh / (255/map.h);
+				player[who].x = whox / (255/fx.map.w);	//screen = 0..255 / (WXMAX/255)
+				player[who].y = whoy / (255/fx.map.h);
+				fx.hero[who].x = (whox % (255/fx.map.w)) * plw / (255/fx.map.w);	//posicao dentro da tela especifica
+				fx.hero[who].y = (whoy % (255/fx.map.h)) * plh / (255/fx.map.h);
 			}
 
 			//read player's health and energy
