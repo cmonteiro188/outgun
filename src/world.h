@@ -107,6 +107,8 @@ struct teaminfo_t {
 
 class Map {
 	bool parse_file(std::istream& in);
+	bool parse_line(const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > > label_lines,
+					int& crx, int& cry, float& scalex, float& scaley, bool label_block = false);
 
 public:
 	bool valid_for_scoring;	//v0.4.7: map is valid for scoring?

@@ -197,181 +197,182 @@ bool Map::load(const char *mapdir, const string& mapname) {
 
 bool Map::parse_file(istream& in) {
 	int crx = 0, cry = 0;
-	float scalex = 1, scaley = 1;
+	float scalex = 1., scaley = 1.;
 	vector<pair<string, pair<int, int> > > labels;
-	string current_label;
+	vector<string> file_lines;
+	vector<pair<string, vector<string> > > label_lines;
+	// read lines to vectors
 	while (1) {
 		string line;
-		getline_smart(in, line);
-		if (line[0] == ';')		// comment
+		if (!getline_smart(in, line))
+			break;			// end-of-file or error
+		if (line[0] == ';')		// empty line or comment
 			continue;
-		if (line[0] == ':') {	// a label is found
-			current_label = line.substr(1);
-			continue;
+		if (line[0] == ':')	{			// new label
+			pair<string, vector<string> > new_label;
+			new_label.first = line.substr(1);
+			label_lines.push_back(new_label);
 		}
-		char nullc;	// to be used to make sure there is nothing extra on the line
-		if (line[0] == 'W' || line[0] == 'G') {	// W x1 y1 x2 y2 [tex alpha] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
-			float x1, y1, x2, y2;
-			int texid, alpha;
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> x1 >> y1 >> x2 >> y2;
-			bool ok = ist;
-			ist >> texid;
-			if (!ist)
-				texid = 0;
-			ist >> alpha;
-			if (!ist)
-				alpha = 255;
-			ist >> nullc;
-			if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-			x1 *= plw / scalex; x2 *= plw / scalex;
-			y1 *= plh / scaley; y2 *= plh / scaley;
-			if (!current_label.empty()) {
-				for (int i = 0; i < static_cast<int>(labels.size()); i++)
-					if (labels[i].first == current_label) {
-						Room& rm = room[labels[i].second.first][labels[i].second.second];
-						vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
-						wvec.push_back(RectWall(x1, y1, x2, y2, texid, alpha));
-					}
-			}
-			else {
-				Room& rm = room[crx][cry];
-				vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
-				wvec.push_back(RectWall(x1, y1, x2, y2, texid, alpha));
-			}
+		else if (!label_lines.empty())	// labels have started
+			label_lines.back().second.push_back(line);
+		else							// no labels yet
+			file_lines.push_back(line);
+	}
+	for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
+		if (!parse_line(*line, label_lines, crx, cry, scalex, scaley))
+			return false;
+	return true;
+}
+
+bool Map::parse_line(const string& line, const vector<pair<string, vector<string> > > label_lines, int& crx, int& cry, float& scalex, float& scaley, bool label_block) {
+	char nullc;	// to be used to make sure there is nothing extra on the line
+	istringstream ist(line);
+	string command;
+	ist >> command;
+	if (command == "W" || command == "G") {	// W x1 y1 x2 y2 [tex [alpha]] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
+		float x1, y1, x2, y2;
+		int texid, alpha;
+		ist >> x1 >> y1 >> x2 >> y2;
+		bool ok = ist;
+		ist >> texid;
+		if (!ist)
+			texid = 0;
+		ist >> alpha;
+		if (!ist)
+			alpha = 255;
+		ist >> nullc;
+		if (!ok || ist || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
 		}
-		else if (line[0] == 'T') {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex alpha] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
-			char type;
-			float x1, y1, x2, y2, x3, y3;
-			int texid, alpha;
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
-			bool ok = ist;
-			ist >> texid;
-			if (!ist)
-				texid = 0;
-			ist >> alpha;
-			if (!ist)
-				alpha = 255;
-			ist >> nullc;
-			if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-			x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
-			y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
-			if (!current_label.empty()) {
-				for (int i = 0; i < static_cast<int>(labels.size()); i++)
-					if (labels[i].first == current_label) {
-						Room& rm = room[labels[i].second.first][labels[i].second.second];
-						vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-						wvec.push_back(TriWall(x1, y1, x2, y2, x3, y3, texid, alpha));
-					}
-			}
-			else {
-				Room& rm = room[crx][cry];
-				vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
-				wvec.push_back(TriWall(x1, y1, x2, y2, x3, y3, texid, alpha));
-			}
+		x1 *= plw / scalex; x2 *= plw / scalex;
+		y1 *= plh / scaley; y2 *= plh / scaley;
+		Room& rm = room[crx][cry];
+		vector<RectWall>& wvec = (line[0] == 'W') ? rm.rwalls : rm.rground;
+		wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
+	}
+	else if (command == "T") {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex [alpha]] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
+		char type;
+		float x1, y1, x2, y2, x3, y3;
+		int texid, alpha;
+		ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
+		bool ok = ist;
+		ist >> texid;
+		if (!ist)
+			texid = 0;
+		ist >> alpha;
+		if (!ist)
+			alpha = 255;
+		ist >> nullc;
+		if (!ok || ist || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
 		}
-		else if (line[0] == 'C') {	// C (W|G) x y or [ir [a1 a2 [tex alpha]]] : circular wall (W) or ground tex (G)
-			char type;
-			float x, y, ro, ri, a1, a2;
-			int texid, alpha;
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> type >> x >> y >> ro;
-			bool ok = ist;
-			ist >> ri;
-			if (!ist) {
-				ri = a1 = a2 = 0;
-			}
+		x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
+		y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
+		Room& rm = room[crx][cry];
+		vector<TriWall>& wvec = (type == 'W') ? rm.twalls : rm.tground;
+		wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
+	}
+	else if (command == "C") {	// C (W|G) x y or [ir [a1 a2 [tex [alpha]]]] : circular wall (W) or ground tex (G)
+		char type;
+		float x, y, ro, ri, a1, a2;
+		int texid, alpha;
+		ist >> type >> x >> y >> ro;
+		bool ok = ist;
+		ist >> ri;
+		if (!ist) {
+			ri = a1 = a2 = 0;
+		}
+		else {
+			ist >> a1;
+			if (!ist)
+				a1 = 0;
 			else {
-				ist >> a1;
+				ist >> a2;
 				if (!ist)
-					a1 = 0;
-				else {
-					ist >> a2;
-					if (!ist)
-						ok = false;
-				}
-			}
-			ist >> texid;
-			if (!ist)
-				texid = 0;
-			ist >> alpha;
-			if (!ist)
-				alpha = 255;
-			if (a1 < 0)
-				a1 += 360;
-			if (a2 < 0)
-				a2 += 360;
-			ist >> nullc;
-			if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-			x *= plw / scalex;
-			y *= plh / scaley;
-			ro *= plh / scaley;
-			ri *= plh / scaley;
-			if (!current_label.empty()) {
-				for (int i = 0; i < static_cast<int>(labels.size()); i++)
-					if (labels[i].first == current_label) {
-						Room& rm = room[labels[i].second.first][labels[i].second.second];
-						vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-						wvec.push_back(CircWall(x, y, ro, ri, a1, a2, texid, alpha));
-					}
-			}
-			else {
-				Room& rm = room[crx][cry];
-				vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
-				wvec.push_back(CircWall(x, y, ro, ri, a1, a2, texid, alpha));
+					ok = false;
 			}
 		}
-		else if (line[0] == 'R') {	// R x y : set room pointer to (x,y)
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> crx >> cry;
-			if (!ist || (ist >> nullc) || crx < 0 || crx >= w || cry < 0 || cry >= h) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
+		ist >> texid;
+		if (!ist)
+			texid = 0;
+		ist >> alpha;
+		if (!ist)
+			alpha = 255;
+		if (a1 < 0)
+			a1 += 360;
+		if (a2 < 0)
+			a2 += 360;
+		ist >> nullc;
+		if (!ok || ist || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
 		}
-		else if (line[0] == 'X') {	// X label x1 y1 [x2 y2] : add walls from label to the rectangle (x1,y1)-(x2,y2)
-			string nextlabel;
-			int rx1, ry1, rx2, ry2;
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> nextlabel >> rx1 >> ry1;
-			bool ok = ist;
-			ist >> rx2 >> ry2;
-			if (ok && !ist) {	// one room only
-				rx2 = rx1;
-				ry2 = ry1;
-			}
-			else if (!ist || (ist >> nullc) || rx1 < 0 || rx2 >= w || rx2 < rx1 || ry1 < 0 || ry2 >= h || ry2 < ry1) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-			for (int ry = ry1; ry <= ry2; ry++)
-				for (int rx = rx1; rx <= rx2; rx++) {
-					const pair<string, pair<int, int> > label(nextlabel, pair<int, int>(rx, ry));
-					labels.push_back(label);
-				}
+		x *= plw / scalex;
+		y *= plh / scaley;
+		ro *= plh / scaley;
+		ri *= plh / scaley;
+		Room& rm = room[crx][cry];
+		vector<CircWall>& wvec = (type == 'W') ? rm.cwalls : rm.cground;
+		wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
+	}
+	else if (command == "R") {	// R x y : set room pointer to (x,y)
+		if (label_block) {
+			LOG1("Room line not allowed in label block: %s\n", line.c_str());
+			return false;
 		}
-		else if (line.find("P width ") == 0) {	// P width w : set map width to w rooms #FIXME: Allow "P   width"
+		ist >> crx >> cry;
+		if (!ist || (ist >> nullc) || crx < 0 || crx >= w || cry < 0 || cry >= h) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
+		}
+	}
+	else if (command == "X") {	// X label x1 y1 [x2 y2] : add walls from label to the rectangle (x1,y1)-(x2,y2)
+		if (label_block) {
+			LOG1("Label line not allowed in label block: %s\n", line.c_str());
+			return false;
+		}
+		string nextlabel;
+		int rx1, ry1, rx2, ry2;
+		ist >> nextlabel >> rx1 >> ry1;
+		bool ok = ist;
+		ist >> rx2 >> ry2;
+		if (ok && !ist) {	// one room only
+			rx2 = rx1;
+			ry2 = ry1;
+		}
+		else if (!ist || (ist >> nullc) || rx1 < 0 || rx2 >= w || rx2 < rx1 || ry1 < 0 || ry2 >= h || ry2 < ry1) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
+		}
+		bool label_found = false;
+		for (vector<pair<string, vector<string> > >::const_iterator label = label_lines.begin(); label != label_lines.end(); ++label)
+			if (label->first == nextlabel) {
+				for (vector<string>::const_iterator label_line = label->second.begin(); label_line != label->second.end(); ++label_line)
+					for (int ry = ry1; ry <= ry2; ry++)
+						for (int rx = rx1; rx <= rx2; rx++) {
+							float sx = scalex;
+							float sy = scaley;
+							if (!parse_line(*label_line, label_lines, rx, ry, sx, sy, true))
+								return false;
+						}
+				label_found = true;
+				break;
+			}
+		if (!label_found) {
+			LOG2("Label '%s' not found: %s\n", nextlabel.c_str(), line.c_str());
+			return false;
+		}
+	}
+	else if (command == "P") {
+		string name;
+		ist >> name;
+		if (name == "width") {	// P width w : set map width to w rooms #FIXME: Allow "P   width"
 			if (w != 0) {
 				LOG("Redefined map width\n");
 				return false;
 			}
-			istringstream ist(line);
-			ist.seekg(8);
 			ist >> w;
 			if (!ist || (ist >> nullc) || w < 1) {
 				LOG1("Invalid map line: %s\n", line.c_str());
@@ -381,13 +382,11 @@ bool Map::parse_file(istream& in) {
 			for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
 				ri->resize(h);
 		}
-		else if (line.find("P height ") == 0) {	// P height h : set map height to h rooms
+		else if (name == "height") {	// P height h : set map height to h rooms
 			if (h != 0) {
 				LOG("Redefined map height\n");
 				return false;
 			}
-			istringstream ist(line);
-			ist.seekg(9);
 			ist >> h;
 			if (!ist || (ist >> nullc) || h < 1) {
 				LOG1("Invalid map line: %s\n", line.c_str());
@@ -396,74 +395,67 @@ bool Map::parse_file(istream& in) {
 			for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
 				ri->resize(h);
 		}
-		else if (line.find("P title ") == 0) {	// P title text : set map title to text
+		else if (name == "title") {	// P title text : set map title to text
 			if (!title.empty()) {
 				LOG("Redefined map title\n");
 				return false;
 			}
-			title = line.substr(8);
+			ist.get();	// remove space
+			getline(ist, title);
 		}
-		else if (line.find("P author ") == 0) {	// P author text : set map author to text
+		else if (name == "author") {	// P author text : set map author to text
 			if (!author.empty()) {
 				LOG("Redefined map author\n");
 				return false;
 			}
-			author = line.substr(9);
+			ist.get();	// remove space
+			getline(ist, author);
 		}
-		else if (line.find("spawn ") == 0) {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
-			int team, rx, ry;
-			float x, y;
-			istringstream ist(line);
-			ist.seekg(6);
-			ist >> team >> rx >> ry >> x >> y;
-			if (!ist || (ist >> nullc) || team < 0 || team > 1) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-			spoint_t spot;
-			spot.px = bound(rx, 0, w-1);
-			spot.py = bound(ry, 0, h-1);
-			spot.x = (int)(x * (double)plw / scalex);
-			spot.y = (int)(y * (double)plh / scaley);
-			tinfo[team].spawn.push_back(spot);
-		}
-		else if (line.find("flag ") == 0) {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
-			int team, rx, ry;
-			float x, y;
-			istringstream ist(line);
-			ist.seekg(5);
-			ist >> team >> rx >> ry >> x >> y;
-			if (!ist || (ist >> nullc) || team < 0 || team > 1) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-			spoint_t flag(bound(rx, 0, w-1), bound(ry, 0, h-1),
-				static_cast<int>(x * (double)plw / scalex), static_cast<int>(y * (double)plh / scaley));
-			tinfo[team].flags.push_back(flag);
-		}
-		else if (line[0] == 'V') {	// V ver : set file format version
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> ver;
-			if (!ist || (ist >> nullc)) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-		}
-		else if (line[0] == 'S') {	// S x y : set map scale
-			istringstream ist(line);
-			ist.seekg(2);
-			ist >> scalex >> scaley;
-			if (!ist || (ist >> nullc) || scalex <= 0 || scaley <= 0) {
-				LOG1("Invalid map line: %s\n", line.c_str());
-				return false;
-			}
-		}
-		else
-			LOG1("Unrecognized map line: %s\n", line.c_str());
-		if (!in)	// end-of-file or error
-			return true;
 	}
+	else if (command == "spawn") {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
+		int team, rx, ry;
+		float x, y;
+		ist >> team >> rx >> ry >> x >> y;
+		if (!ist || (ist >> nullc) || team < 0 || team > 1) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
+		}
+		spoint_t spot;
+		spot.px = bound(rx, 0, w-1);
+		spot.py = bound(ry, 0, h-1);
+		spot.x = (int)(x * (double)plw / scalex);
+		spot.y = (int)(y * (double)plh / scaley);
+		tinfo[team].spawn.push_back(spot);
+	}
+	else if (command == "flag") {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
+		int team, rx, ry;
+		float x, y;
+		ist >> team >> rx >> ry >> x >> y;
+		if (!ist || (ist >> nullc) || team < 0 || team > 1) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
+		}
+		spoint_t flag(bound(rx, 0, w-1), bound(ry, 0, h-1),
+			static_cast<int>(x * (double)plw / scalex), static_cast<int>(y * (double)plh / scaley));
+		tinfo[team].flags.push_back(flag);
+	}
+	else if (command == "V") {	// V ver : set file format version
+		ist >> ver;
+		if (!ist || (ist >> nullc)) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
+		}
+	}
+	else if (command == "S") {	// S x y : set map scale
+		ist >> scalex >> scaley;
+		if (!ist || (ist >> nullc) || scalex <= 0 || scaley <= 0) {
+			LOG1("Invalid map line: %s\n", line.c_str());
+			return false;
+		}
+	}
+	else
+		LOG1("Unrecognized map line: %s\n", line.c_str());
+	return true;
 }
 
 MapInfo::MapInfo() : votes(0), votes_changed(false) { }
