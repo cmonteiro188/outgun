@@ -26,7 +26,7 @@ using std::vector;
 //#define ROOM_CHANGE_BENCHMARK
 #define DISABLE_AUTOMATIC_SERVER_SEARCH
 
-#define CLIENT_PREDICTION
+//#define CLIENT_PREDICTION
 const float lagWanted = 1.;
 
 #ifdef NIX
@@ -1077,12 +1077,13 @@ void gameclient_c::save_player_password(const string& name, const string& addres
 	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
 		out << (*item)[0] << '\n';
 		out << (*item)[1] << '\n';
-		if ((*item)[0] == name && (*item)[1] == address)
+		if ((*item)[0] == name && (*item)[1] == address) {
 			out << password;
+			LOG2("New player password saved for %s at %s.\n", name.c_str(), address.c_str());
+		}
 		else
 			out << (*item)[2];
 		out << '\n';
-		LOG("Player password saved.\n");
 	}
 }
 
@@ -1096,8 +1097,10 @@ void gameclient_c::remove_player_password(const string& name, const string& addr
 	if (!out)
 		return;
 	for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
-		if ((*item)[0] == name && (*item)[1] == address)
+		if ((*item)[0] == name && (*item)[1] == address) {
+			LOG2("%s's player password at %s removed.\n", name.c_str(), address.c_str());
 			continue;
+		}
 		for (int i = 0; i < 3; i++)
 			out << (*item)[i] << '\n';
 	}
@@ -1301,7 +1304,6 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 //connect command
 void gameclient_c::connect_command() {
-
 	// disconnect
 	client->connect(false);
 
@@ -2768,7 +2770,7 @@ void gameclient_c::loop() {
 					switch (menu) {
 						//main menu
 						case menu_main:
-							if (key[KEY_SPACE] && sc == KEY_F8) {
+							if (key[KEY_SPACE] && sc == KEY_F8 && !listen_server_running) {
 								port++;
 								if (port > DEFAULT_UDP_PORT + 5)
 									port = DEFAULT_UDP_PORT;
