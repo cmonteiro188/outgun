@@ -438,8 +438,8 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			return false;
 		}
 		spoint_t spot;
-		spot.px = bound(rx, 0, w-1);
-		spot.py = bound(ry, 0, h-1);
+		spot.px = bound(rx, 0, w - 1);
+		spot.py = bound(ry, 0, h - 1);
 		spot.x = (int)(x * (double)plw / scalex);
 		spot.y = (int)(y * (double)plh / scaley);
 		tinfo[team].spawn.push_back(spot);
@@ -452,7 +452,7 @@ bool Map::parse_line(const string& line, const vector<pair<string, vector<string
 			LOG1("Invalid map line: %s\n", line.c_str());
 			return false;
 		}
-		spoint_t flag(bound(rx, 0, w-1), bound(ry, 0, h-1),
+		spoint_t flag(bound(rx, 0, w - 1), bound(ry, 0, h - 1),
 			static_cast<int>(x * (double)plw / scalex), static_cast<int>(y * (double)plh / scaley));
 		if (team < 2)
 			tinfo[team].flags.push_back(flag);
