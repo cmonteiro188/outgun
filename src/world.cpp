@@ -993,13 +993,13 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 
 	// friction
 	float absx=fabs(h->sx), absy=fabs(h->sy);
-	if (!xAcc || absx>=player_maxspeed) {
+	if (!xAcc || absx >= player_maxspeed || deathbringer_affected) {
 		if (absx > player_friction)
 			h->sx *= 1. - player_friction/absx;
 		else
 			h->sx = 0.;
 	}
-	if (!yAcc || absy>=player_maxspeed) {
+	if (!yAcc || absy >= player_maxspeed || deathbringer_affected) {
 		if (absy > player_friction)
 			h->sy *= 1. - player_friction/absy;
 		else
