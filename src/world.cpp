@@ -1013,9 +1013,19 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& 
 void WorldBase::applyPlayerAcceleration(int pid) {
 	PlayerBase* h = player[pid].getPtr();
 	const bool deathbringer_affected = h->under_deathbringer_effect(get_time());
-	const Team& enemy = teams[1 - pid / TSIZE];
-	bool flag_penalty = false;
-	if (h->controls.isRun()) {	// check possible flag penalty
+
+	float xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
+	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
+
+	float player_accel = physics.accel;
+	if (h->item_speed)
+		player_accel *= physics.turbo_mul;
+	if (h->controls.isRun()) {
+		player_accel *= physics.run_mul;
+
+		// check possible flag penalty
+		bool flag_penalty = false;
+		const Team& enemy = teams[1 - pid / TSIZE];
 		for (vector<Flag>::const_iterator fi = enemy.flags().begin(); fi != enemy.flags().end(); ++fi)
 			if (fi->carrier() == pid) {
 				flag_penalty = true;
@@ -1027,32 +1037,26 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 					flag_penalty = true;
 					break;
 				}
+		if (flag_penalty)
+			player_accel *= physics.flag_mul;
 	}
 
-	float xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
-	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
+	// apply drag: v -= v * drag
+	h->sx -= h->sx * physics.drag;
+	h->sy -= h->sy * physics.drag;
 
-	float player_accel = physics.accel;
-	if (h->item_speed)
-		player_accel *= physics.turbo_mul;
-	if (h->controls.isRun())
-		player_accel *= physics.run_mul;
-	if (flag_penalty)
-		player_accel *= physics.flag_mul;
+	// apply friction: v -= fric
+	double spd = sqrt(h->sx * h->sx + h->sy * h->sy);
+	if (spd <= physics.fric || spd < .001)	// the test on .001 is because fric <= 0 is allowed but spd == 0 doesn't work in the formula below
+		h->sx = h->sy = 0;
+	else {
+		// v = v - fric
+		double mul = 1 - physics.fric / spd;
+		h->sx *= mul;
+		h->sy *= mul;
+	}
 
-	if (h->sx > 0)
-		h->sx = max(h->sx - physics.fric, 0.);
-	else if (h->sx < 0)
-		h->sx = min(h->sx + physics.fric, 0.);
-	if (h->sy > 0)
-		h->sy = max(h->sy - physics.fric, 0.);
-	else if (h->sy < 0)
-		h->sy = min(h->sy + physics.fric, 0.);
-
-	h->sx -= physics.drag * h->sx;
-	h->sy -= physics.drag * h->sy;
-
-	if (!deathbringer_affected) {
+	if (!deathbringer_affected && (xAcc != 0 || yAcc != 0)) {	// no acceleration when under the db effect
 		if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
 			xAcc /= sqrt(2.);
 			yAcc /= sqrt(2.);
@@ -1070,6 +1074,43 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			xAcc = perp_x * physics.turn_mul + par_x;
 			yAcc = perp_y * physics.turn_mul + par_y;
 		}
+		/* code for directing the _final_ acceleration taking into account turn_mul and brake_mul
+		 * in practice this feels weird, so we're using the directed initial acceleration method instead
+		 *
+		if (fabs(h->sx) < .001 && fabs(h->sy) < .001) { // the player is not moving -> any direction is 'forward'
+			// just normalize the acceleration vector and we're done
+			if (xAcc != 0 && yAcc != 0) {
+				xAcc /= sqrt(2.);
+				yAcc /= sqrt(2.);
+			}
+		}
+		else {
+			// find the unit initial acceleration vector 'init' so that when scaled with turn_mul and brake_mul,
+			//   the resultant acceleration r is to the direction of a = (xAcc,yAcc)
+			// this is calculated in components parallel to and perpendicular to the current velocity as the scaling is done to those components
+			// first divide the wanted resultant acceleration direction (a) into these components
+			// component of a parallel to v: par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
+			const double v2 = h->sx * h->sx + h->sy * h->sy;
+			const double par_mul = (xAcc * h->sx + yAcc * h->sy) / v2;
+
+			// now par == par_mul * v, so |par| == par_mul * |v| ; perp is the rest of a, so |perp| = sqrt(|a|^2 - |par|^2)
+			double par2 = par_mul * par_mul * v2;
+			double perp2 = (xAcc * xAcc + yAcc * yAcc) - par2;
+
+			// if par_mul < 0, the parallel component is braking
+			const double scale_par2 = (par_mul < 0) ? physics.brake_mul * physics.brake_mul : 1.;
+			const double scale_perp2 = physics.turn_mul * physics.turn_mul;
+
+			// because r == init_par * scale_par + init_perp * scale_perp, init should be w = (par / scale_par + perp / scale_perp), normalized
+			const double w2 = par2 / scale_par2 + perp2 / scale_perp2;
+
+			// now init = par / scale_par / |w| + perp / scale_perp / |w|
+			// as noted, r == init_par * scale_par + init_perp * scale_perp == par / |w| + perp / |w| == a / |w|
+			const double a_mul = 1. / sqrt(w2);
+			xAcc *= a_mul;
+			yAcc *= a_mul;
+		}
+		*/
 		h->sx += xAcc * player_accel;
 		h->sy += yAcc * player_accel;
 	}
@@ -1180,14 +1221,14 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
 }
 
 PhysicalSettings::PhysicalSettings() :
-	fric		(0.0900),
-	drag		(0.0900),
-	accel		(1.44),
-	brake_mul	(0.50),
-	turn_mul	(1.00),
-	run_mul		(1.77),
+	fric		(0.20),
+	drag		(0.16),
+	accel		(2.60),
+	brake_mul	(0.10),
+	turn_mul	(0.50),
+	run_mul		(1.75),
 	turbo_mul	(1.45),
-	flag_mul	(0.900),
+	flag_mul	(0.91),
 	friendly_fire(0.),
 	friendly_db(0.),
 	player_collisions(false)
@@ -1235,8 +1276,17 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
 }
 
 void PhysicalSettings::print(LineReceiver& printer) const {
-	if (friendly_fire > 0.)
-		printer("- Friendly fire is on.");
+	ostringstream line;
+	if (friendly_fire > 0.) {
+		line << "- Friendly fire damage is " << std::fixed << std::setprecision(0) << 100. * friendly_fire << '%';
+		printer(line.str());
+		line.str("");
+	}
+	if (friendly_db > 0.) {
+		line << "- Friendly deathbringer damage is " << std::fixed << std::setprecision(0) << 100. * friendly_db << '%';
+		printer(line.str());
+		line.str("");
+	}
 	if (player_collisions)
 		printer("- Players can collide with each other.");
 }
@@ -2107,11 +2157,15 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 	int damage = config.rocket_damage;
 	if (rock[rid].power)
 		damage = static_cast<int>(pupConfig.pup_power_damage * damage);
+	if (rock[rid].team == pid / TSIZE)
+		damage = static_cast<int>(physics.friendly_fire * damage);
 
 	damagePlayer(pid, rock[rid].owner, damage, false);
 
-	player[rock[rid].owner].stats().add_hit();
-	teams[rock[rid].team].add_hit();
+	if (rock[rid].team != pid / TSIZE) {	// hitting a friend is not considered as a hit
+		player[rock[rid].owner].stats().add_hit();
+		teams[rock[rid].team].add_hit();
+	}
 	player[pid].stats().add_shot_take();
 	teams[pid / TSIZE].add_shot_take();
 
