@@ -25,7 +25,8 @@ END_OF_FUNCTION(increment_server_speed_counter);
 bool set_shitty_mode() {
 
 	//V0.5.0 : -text  flag
-	if (textserver) return true;
+	if (textserver)
+		return true;
 
 	int DTC = desktop_color_depth();
 
@@ -223,13 +224,7 @@ int main(int argc, char *argv[]) {
 	nlSetAddrPort(&master_address, 80);													//port 80
 	LOG("master server address set.\n");
 
-	// here must get the safest and shittiest windowed gfx mode available
-	//
-	if (set_shitty_mode() == false)
-		return 0;		//if this ever executes then the world is a sucky sucky place.
-
 	// install higher-accuracy timer interrupt
-	//
 	LOCK_VARIABLE(speed_counter);
 	LOCK_FUNCTION(increment_time_counter);
 	install_int_ex(increment_time_counter, BPS_TO_TIMER(200));		//5 ms accuracy is already 10 times better than clock()
@@ -241,7 +236,6 @@ int main(int argc, char *argv[]) {
 	install_int_ex(increment_server_speed_counter, BPS_TO_TIMER(10));		//10Hz
 
 	// get system thread priorities
-	//
 	int				pmin = sched_get_priority_min(SCHED_OTHER);
 	int				pmax = sched_get_priority_max(SCHED_OTHER);
 	int				policy;
@@ -275,12 +269,11 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	// run server
-	//
+	// run dedicated server
 	if (dedserver) {
 		// here must get the safest and shittiest windowed gfx mode available
-		if (set_shitty_mode() == false)
-			return 0;		//if this ever executes then the world is a sucky sucky place.
+		if (!set_shitty_mode())
+			textserver = true;		// if 320×240 mode can't be set, use textserver
 
 		// dedicated server - set process priority (all threads) to a higher value
 		//		--> threads filhas estao com as priorities certas? LOGAR pra  ver. senao mudar p/ INHERIT
@@ -312,7 +305,6 @@ int main(int argc, char *argv[]) {
 		LOG_OPEN(lognamebuf);
 
 		// gfx init
-		//
 		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) // allow running in the background
 		{
 			LOG("can't set SWITCH_BACKAMNESIA for SERVER\n");
@@ -327,7 +319,6 @@ int main(int argc, char *argv[]) {
 			LOG("set SWITCH_BACKAMNESIA for SERVER\n");
 
 		// run server
-		//
 		gameserver_c* gameserver = new gameserver_c();
 		if (!gameserver->start(server_maxplayers)) {
 			LOG("ERROR: cannot start gameserver!\n");
@@ -338,7 +329,6 @@ int main(int argc, char *argv[]) {
 		delete gameserver;
 	}
 	// run client
-	//
 	else {
 
 		//require CLIENT_MAPS_DIR directory
@@ -365,7 +355,6 @@ int main(int argc, char *argv[]) {
 		LOG_OPEN(lognamebuf);
 
 		// try install sound
-		//
 		if (!nosound) {
 
 			if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
@@ -382,13 +371,11 @@ int main(int argc, char *argv[]) {
 			LOG("SOUND DISABLED by command line option -nosound\n");
 
 		// install client timer
-		//
 		LOCK_VARIABLE(speed_counter);
 		LOCK_FUNCTION(increment_speed_counter);
 		install_int_ex(increment_speed_counter, BPS_TO_TIMER(targetfps));		//client MAX FPS
 
 		// run client
-		//
 		gameclient = new gameclient_c();
 		gameclient->message_logging = message_logging;
 		LOG1("Message logging is %s\n", message_logging ? "enabled" : "disabled");
