@@ -1,19 +1,25 @@
+#include "dlog.h"
+const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
+
 /*
- *  This program is free software; you can redistribute it and/or modify
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
+ *  Outgun is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
+ *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
+ *  Copyright (C) 2002 - Fabio Reis Cecin
+ *  Copyright (C) 2003 - Niko Ritari
  */
 
 /*
@@ -29,13 +35,6 @@
 	internal instance of server_c
 
 */
-
-// ***** FORTIFY !!! *****
-
-#include "../fortfy22/fortify.h"
-
-// ***** FORTIFY !!! *****
-
 
 #include "pthread.h"
 
@@ -197,7 +196,7 @@ public:
 	}
 
 	//set serverinfo string
-	virtual void set_server_info(char *info) {
+	virtual void set_server_info(const char *info) {
 		strcpy(serverinfo, info);
 	}	
 	
@@ -387,7 +386,7 @@ public:
 	//packet is ok I guess, a 500-byte is too much IMHO (remember to give room for the reliable messages/ack
 	//protocol that introduces it's own shitload). optimize your foken data, every byte saved counts!
 	virtual int broadcast_frame(const char* data, int length) {
-
+DLOG_Scope s("BcF");
 		for (int i=0;i<MAX_CLIENTS;i++) 
 		if (client[i].used) {
 			client[i].station->write(data, length);	// set frame data
@@ -401,6 +400,7 @@ public:
 
 		//send frame method - when broadcast_frame doesn't quite cut it
 	virtual int send_frame(int client_id, const char* data, int length) {
+DLOG_Scope s("SF");
 
 		if (!client[client_id].used)
 			return 0;	// client not used (?)
@@ -418,6 +418,7 @@ public:
 	//stuff he can even miss but it's better if he doesn't and the message is so infrequent and small that
 	//it's worth it.
 	virtual int send_message(int client_id, const char* data, int length) {
+DLOG_Scope s("SM");
 
 		//FIXME 1. assert here: client[client_id].used == true
 		//			2. use station mutex ?
@@ -445,6 +446,7 @@ public:
 	//function to be called by the SFUNC_CLIENT_DATA callback
 	//gets the next reliable message avaliable from the given client. null if no message pending
 	virtual char* receive_message(int client_id, int *length) {
+DLOG_Scope s("RM");
 
 		data_c *data = client[client_id].station->read_reliable();
 
@@ -538,6 +540,7 @@ public:
 
 	//incoming datagram from UDP socket
 	virtual int process_incoming_datagram(char* packet, int length) {
+DLOG_Scope s("PIDg");
 
 		//MAKEIT
 		//
@@ -590,7 +593,7 @@ public:
 			// ok
 			return 1;
 		}
-
+{ DLOG_Scope s("PIDg_S"); }
 		// ==== nao eh de client conhecido: aceita soh alguns special packets ====
 
 		//se nao for special packet, nao aceita
@@ -732,6 +735,7 @@ public:
 
 	//HACK (a better one): called by reader thread to do some thinking for the server
 	void server_think() {
+DLOG_Scope s("ST");
 
 		//FIXME: THIS (was) JUST PLAIN WASTE OF CPU!
 		//			but we can do better....
@@ -791,6 +795,7 @@ public:
 
 	//process data from a client (on the client's station)
 	virtual int process_client_data(int cid) {
+DLOG_Scope s("PCD");
 
 		//FIXME: no futuro: READ, UNLOCK, PROCESS e nao READ, PROCESS, UNLOCK
 
@@ -832,7 +837,7 @@ public:
 		//
 		
 		if (is_special) {
-
+DLOG_Scope s("PCD_Sp");
 			// get the special code
 			NLulong code;
 			int count = 4;	//skip "0"
@@ -1028,12 +1033,16 @@ public:
 						client[cid].connected_knows = true;
 
 						//call gameserver "client connected" callback
+{DLOG_Scope s("ScbCon");
 						connectedCallback(customp, cid);
+}
 					}
 
 					// send the data to the gameserver 
 					// call SFUNC_CLIENT_DATA callback
+{DLOG_Scope s("ScbDat");
 					dataCallback(customp, cid, data, len);
+}
 				}
 			}	
 		}
@@ -1133,6 +1142,7 @@ public:
 #define THREAD_READER_BUFSIZE 8192
 void *thread_master_f (void *arg)
 {
+DLOG_ScopeNegStart("TMF");
 	//server
 	server_ci *server = (server_ci*)arg;
 
@@ -1147,7 +1157,9 @@ void *thread_master_f (void *arg)
 	while (1) {
 
 		//read from socket
+{DLOG_Scope s("TMFr1");
 		amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
+}
 		
 		//HACK (a better one): think for the server
 		server->server_think();
@@ -1159,12 +1171,14 @@ void *thread_master_f (void *arg)
 
 		// if no data, keep reading
 		while (amount == 0) {
-
+{DLOG_ScopeNeg s("TMF");
 			//sleep a bit
 			MS_SLEEP(2);		//alternativa: blocking I/O
-						
+}						
 			//read from socket
+{DLOG_Scope s("TMFr2");
 			amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
+}
 
 			// test quit
 			//if (server->reader_thread_quit()) {
@@ -1172,7 +1186,7 @@ void *thread_master_f (void *arg)
 				//exit reader
 				pthread_exit(0);
 				return 0;
-			}				
+			}
 		}
 
 		// check for error
@@ -1232,7 +1246,7 @@ void *thread_slave_f (void *arg)
 
 		//check if the thread/client slot is still being used
 		if (mydata->used) {
-
+DLOG_Scope s(TSFS[myid]);
 			//LOG1("SLAVE %i working...\n", myid);
 
 			//process the data -- it's on the station

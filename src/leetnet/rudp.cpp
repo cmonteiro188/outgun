@@ -1,19 +1,24 @@
+#include "dlog.h"
+
 /*
- *  This program is free software; you can redistribute it and/or modify
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
+ *  Outgun is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
+ *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
+ *  Copyright (C) 2002 - Fabio Reis Cecin
+ *  Copyright (C) 2003 - Niko Ritari
  */
 
 /*
@@ -24,26 +29,17 @@
 
 */
 
-// ***** FORTIFY !!! *****
-
-#include "../fortfy22/fortify.h"
-
-// ***** FORTIFY !!! *****
-
-
-
 #include "rudp.h"		
 #include "nl.h"				// HawkNL
 //#include "stdio.h"		//for printf debugging  (FIXME - move to log)
-#include <cassert>
-
+#include "../nassert.h"
 
 // buffer size limitations (stupid hardcoded but works)
 //
 
 #define EXTRA_RELIABLE_STORAGE
 /* if EXTRA_RELIABLE_STORAGE is defined, reliable messages queue is split to two when more than MAXMSG messages are being sent
- * - the extra ones are separately stored in a list
+ * - the extra ones are separately stored in a queue
  * - only the first MAXMSG messages are transmitted until some of them receive acks
  * it should definitely be used if losing reliable messages can't be afforded
  */
@@ -63,7 +59,7 @@
 //      teclas pelo client
 
 #ifdef EXTRA_RELIABLE_STORAGE
-#include <list>
+#include <queue>
 #endif	
 
 
@@ -134,7 +130,7 @@ public:
 	//set data
 	void set(const data_c *datac) {
 		const data_ci* data = dynamic_cast<const data_ci*>(datac);
-		assert(data);
+		nAssert(data);
 		ulen = 0;		// reset my contents
 		extend(data->ulen);	// expand to fit other's used count
 		ulen = data->ulen;		// my used = other used
@@ -402,11 +398,12 @@ public:
 
 	#ifdef EXTRA_RELIABLE_STORAGE
 	NLulong reliable_size;	// total size of reliable messages in reliable[], plus 6 bytes extra for each
-	std::list<data_ci*> extra_reliables;
+	std::queue<data_ci*> extra_reliables;
 	void erase_extra_reliables() {
-		for (std::list<data_ci*>::iterator ri=extra_reliables.begin(); ri!=extra_reliables.end(); ++ri)
-			delete *ri;
-		extra_reliables.clear();
+		while (!extra_reliables.empty()) {
+			delete extra_reliables.front();
+			extra_reliables.pop();
+		}
 	}
 	bool can_add_reliable(NLulong msgsize) const { return reliable_size==0 || reliable_size + msgsize < MAX_PACKET_SIZE; }
 	#endif
@@ -473,7 +470,7 @@ public:
 	// - implement "sliding window" for reliable message total ordering
 	// messages are internally enqueued for later retrieval
 	void process_incoming_message(NLulong msgid, char* msgdata, int msgsize) {
-
+DLOG_Scope s("UPIM");
 		//printf("process_incoming_message id=%i cur=%i siz=%i\n", msgid, msg_current, msgsize);
 
 		//check message old discard 
@@ -497,7 +494,6 @@ public:
 			return;
 
 		//printf("not duplicate, saved at index.\n");
-
 		//save the message
 		message_size[index] = msgsize;
 		memcpy(&(message[index][0]), msgdata, msgsize);
@@ -539,6 +535,7 @@ public:
 
 	// read a reliable message from the queue
 	virtual data_c *read_reliable() {
+DLOG_Scope s("URR");
 
 		//calc index of the message in the array
 		// 1st message is "1", arrays start at 0 (so, -1)
@@ -567,7 +564,8 @@ public:
 
 	// sets UDP raw packet that arrived from network
 	virtual int set_incoming_packet(char *data, int size) {
-		
+DLOG_Scope s("USIP");
+
 		// ok!
 		is_packet_set = true;
 
@@ -582,6 +580,7 @@ public:
 	// returns special == true if it's a "connection" packet (id == 0)
 	// returns 0/length==-1 if called twice before calling set_incoming_packet again
 	virtual char* process_incoming_packet(int *size, bool *special) {
+DLOG_Scope s("UPIP");
 
 		int i;
 
@@ -719,20 +718,39 @@ public:
 					//
 					//if (spid == acks_a) {
 					if (spid == packet_acks[a]) {
-
+DLOG_Scope s("UPIP_A");
 						//acked! remove message from buffer
 						//
 						#ifdef EXTRA_RELIABLE_STORAGE
 						reliable[i].sends_clear();
-						assert((int)reliable_size >= reliable[i].message.getlen() + 6);
+						nAssert((int)reliable_size >= reliable[i].message.getlen() + 6);
 						reliable_size -= reliable[i].message.getlen() + 6;
+						// check if there's a message on the extra queue that can be sent now
 						if (!extra_reliables.empty() && can_add_reliable(extra_reliables.front()->getlen())) {
 							reliable[i].id = idgen_reliable_send++;
 							data_ci* msg = extra_reliables.front();
-							extra_reliables.pop_front();
+							extra_reliables.pop();
 							reliable[i].message.set(msg);
 							delete msg;
 							reliable_size += reliable[i].message.getlen() + 6;
+							if (reliable_count < MAXMSG &&
+									!extra_reliables.empty() &&
+									can_add_reliable(extra_reliables.front()->getlen()))
+							{
+								for (int rel = 0; rel < MAXMSG; ++rel)	// fill empty spots from queue while possible
+									if (reliable[rel].id == -1) {
+										reliable[rel].id = idgen_reliable_send++;
+										data_ci* msg = extra_reliables.front();
+										extra_reliables.pop();
+										reliable[rel].message.set(msg);
+										delete msg;
+										reliable_size += reliable[rel].message.getlen() + 6;
+										if (++reliable_count == MAXMSG ||
+												extra_reliables.empty() ||
+												!can_add_reliable(extra_reliables.front()->getlen()))
+											break;
+									}
+							}
 						}
 						else {
 							reliable[i].id = -1;
@@ -767,10 +785,11 @@ public:
 
 	// append reliable message to the packet buffer
 	virtual int writer(const char *data, int length) {
-		assert(length <= MAX_MESSAGE_SIZE);
+DLOG_Scope s("UWR");
+		nAssert(length <= MAX_MESSAGE_SIZE);
 
 		#ifdef EXTRA_RELIABLE_STORAGE
-		if (reliable_count<MAXMSG && can_add_reliable(length))
+		if (reliable_count<MAXMSG && can_add_reliable(length) && extra_reliables.empty())
 		#endif
 		{
 			//find slot in reliable
@@ -785,11 +804,11 @@ public:
 			}
 		}
 
-		// not enought space in the reliable msgs buffer
+		// can't add to the standard send buffer
 		#ifdef EXTRA_RELIABLE_STORAGE
 		data_ci* msg = new data_ci();
 		msg->set(data, (NLshort)length);
-		extra_reliables.push_back(msg);
+		extra_reliables.push(msg);
 		return 1;
 		#else
 		return 0;
@@ -799,6 +818,7 @@ public:
 	// append unreliable data to the packet buffer
 	//virtual int write(data_c* data) {
 	virtual int write(const char *data, int length) {
+DLOG_Scope s("UW");
 
 		//piece o'cake
 		//unreliable.add(((data_ci*)data)->buf, ((data_ci*)data)->ulen);
@@ -811,6 +831,7 @@ public:
 	// flush the pending packet buffer as an UDP packet to the remote address, returns "id"
 	// for the assigned packet id
 	virtual int send_packet(int& id) {
+DLOG_Scope s("USP");
 
 		int i;
 
@@ -872,7 +893,11 @@ public:
 		// send the packet
 		//
 		nlSetRemoteAddr(sendsock, &netaddr);
-		NLint result = nlWrite(sendsock, sendbuf, count);
+//		NLint result = nlWrite(sendsock, sendbuf, count);
+NLint result;
+{DLOG_Scope s("USPw");
+result = nlWrite(sendsock, sendbuf, count);
+}
 		if (result == NL_INVALID) {
 			//FIXME: deal with error
 			//printf("station_ci: send_packet() == NL_INVALID!!\n");
@@ -898,7 +923,11 @@ public:
 		//fix remote addr (changed by reads)
 		nlSetRemoteAddr(sendsock, &netaddr);
 
-		NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
+//		NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
+NLint result;
+{DLOG_Scope s("SRPw");
+result = nlWrite(sendsock, data->getbuf(), data->getlen());
+}
 		if (result == NL_INVALID) {
 			// FAILED
 			return 0;
@@ -913,6 +942,7 @@ public:
 	// buffer/bufsize: buffer given to the routine
 	// int return: value of nlRead()... :-)
 	virtual int receive_packet(char *buffer, int bufsize) {
+DLOG_Scope s("URPr");
 
 		int fakek = nlRead(sendsock, buffer, bufsize);
 		return fakek;

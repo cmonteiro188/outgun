@@ -1,19 +1,22 @@
 /*
- *  This program is free software; you can redistribute it and/or modify
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
+ *  Outgun is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
+ *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
+ *  Copyright (C) 2002 - Fabio Reis Cecin
+ *  Copyright (C) 2003 - Niko Ritari
  */
 
 /*
@@ -62,7 +65,7 @@ public:
 	virtual int set_client_timeout(int lagtime, int droptime) = 0;
 
 	//set serverinfo string
-	virtual void set_server_info(char *info) = 0;
+	virtual void set_server_info(const char *info) = 0;
 	
 	//start up the server at given port
 	virtual int start(int port) = 0;

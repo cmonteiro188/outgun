@@ -1,19 +1,24 @@
+#include "dlog.h"
+
 /*
- *  This program is free software; you can redistribute it and/or modify
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
+ *  Outgun is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
+ *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
+ *  Modified by Niko Ritari 2003
  */
 
 /*
@@ -21,13 +26,6 @@
 	a network game client engine 
 
 */
-
-// ***** FORTIFY !!! *****
-
-#include "../fortfy22/fortify.h"
-
-// ***** FORTIFY !!! *****
-
 
 #include "leetnet.h"
 
@@ -374,7 +372,7 @@ public:
 
 	//process datagram read by reader thread
 	void process_incoming_datagram(char *udp_data, int udp_length) {
-
+DLOG_Scope s("CPIDg");
 		//DEBUG
 		int fubar = 0;
 		NLulong l1, l2;
@@ -698,7 +696,7 @@ void *thread_disconnect_f(void *arg) {
 //reader thread function
 #define THREAD_READER_BUFSIZE 8192
 void *thread_reader_f(void *arg) {
-
+DLOG_ScopeNegStart("CTR");
 	LOG("READER_STARTED\n");
 
 	//arg is client
@@ -707,36 +705,15 @@ void *thread_reader_f(void *arg) {
 	//read buffer
 	char	buffer[THREAD_READER_BUFSIZE];
 	NLint amount; //amount read
-	
-	while (1) {
 
+	while (!client->reader_thread_quit()) {
 		//read from socket
 		amount = client->read_station(buffer, THREAD_READER_BUFSIZE); //nlRead(clsock, buffer, THREAD_READER_BUFSIZE);
 
-		//LOG1("R=%i\n", amount);
-
-		// test quit
-		if (client->reader_thread_quit()) 
-			break;
-
-		// if no data, keep reading
-		while (amount == 0) {
-
-			//sleep a bit
+		if (amount == 0) {
+DLOG_ScopeNeg s("CTR");
 			MS_SLEEP(2);  //alternativa, usar BLOCKING I/O
-			   
-			//read from socket
-			amount = client->read_station(buffer, THREAD_READER_BUFSIZE); //nlRead(clsock, buffer, THREAD_READER_BUFSIZE);
-
-			//LOG1("R=%i\n", amount);
-
-			// test quit
-			if (client->reader_thread_quit()) {
-				LOG("READER QUITTING!!!!\n");
-				//exit reader
-				pthread_exit(0);
-				return 0;
-			}
+			continue;
 		}
 
 		// check for error
