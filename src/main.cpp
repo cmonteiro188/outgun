@@ -114,6 +114,10 @@ int main(int argc, char *argv[]) {
 	nlEnable(NL_SOCKET_STATS);
 
 	bool message_logging = false;
+	bool showinfo = false;
+	bool defaultprio = false;	//select default server threads priority
+	int targetprio = 0;
+	bool targetprio_specified = false;
 
 	// check args
 	//
@@ -131,6 +135,7 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-prio")) {
 			if (++i<argc) {
 				targetprio = strtol(argv[i], NULL, 10);
+				targetprio_specified = true;
 			}
 		}
 		else if (!strcmp(argv[i], "-win"))
@@ -168,10 +173,6 @@ int main(int argc, char *argv[]) {
 		}
 		else if (!strcmp(argv[i], "-nosound"))
 			nosound = true;
-		else if (!strcmp(argv[i], "-notcp"))
-			no_tcp_download = true;
-		else if (!strcmp(argv[i], "-yestcp"))
-			no_tcp_download = false;
 		else if (!strcmp(argv[i], "-ip")) {
 			if (++i<argc) {
 				force_ip = true;			//force IP
@@ -223,20 +224,19 @@ int main(int argc, char *argv[]) {
 
 	// get system thread priorities
 	//
-	int						pmin = sched_get_priority_min(SCHED_OTHER);
-	int						pmax = sched_get_priority_max(SCHED_OTHER);
-	int						policy;
-	pthread_t			tme = pthread_self();
+	int				pmin = sched_get_priority_min(SCHED_OTHER);
+	int				pmax = sched_get_priority_max(SCHED_OTHER);
+	int				policy;
+	pthread_t		tme = pthread_self();
 	sched_param		param;
-	int						rc = pthread_getschedparam(tme, &policy, &param); // get priority of current thread (wich is the default value)
-	int						pdef = param.sched_priority;
+	int				rc = pthread_getschedparam(tme, &policy, &param); // get priority of current thread (wich is the default value)
+	int				pdef = param.sched_priority;
 	LOG("\nThread priorities:");
 	LOG4("   rc = %i policy = %i OTHER=%i sched_prio = %i\n", rc, policy, SCHED_OTHER, param.sched_priority);
 	LOG3("   pmin %i pmax %i pdef = %i\n", pmin, pmax, pdef);
 
 	//show info
 	if (showinfo) {
-
 		//get all local addresses
 		NLaddress *locals;
 		NLint     locsize;
@@ -260,31 +260,20 @@ int main(int argc, char *argv[]) {
 	// run server
 	//
 	if (dedserver) {
-
 		// here must get the safest and shittiest windowed gfx mode available
-		//
 		if (set_shitty_mode() == false)
 			return 0;		//if this ever executes then the world is a sucky sucky place.
 
 		// dedicated server - set process priority (all threads) to a higher value
 		//		--> threads filhas estao com as priorities certas? LOGAR pra  ver. senao mudar p/ INHERIT
-		int ptarg;
-
-		//change default priority?
 		if (!defaultprio) {
-
-			//if -prio parameter is unspecified
-			if (targetprio == TARGET_PRIO_UNSPECIFIED) {
-
+			int ptarg;
+			if (!targetprio_specified) {	//if -prio parameter is unspecified
 				//guess one below system maximum (wich usually means realtime and should never be used really)
-				//
-				if (pmin < pmax) { // pmin ..... OI! . PMAX
+				if (pmin < pmax)
 					ptarg = pmax - 1;
-				}
-				else {             // PMAX . OI! ..... pmin
+				else
 					ptarg = pmax + 1;
-				}
-
 			}
 			else
 				ptarg = targetprio;

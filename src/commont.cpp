@@ -36,7 +36,7 @@ void set_default_physics() {
 	svp_flag_penalty = 3.0;
 }
 
-int			maxplayers = MAX_PLAYERS;		// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
+int maxplayers = MAX_PLAYERS;		// the maximum number of players configured for this server (must be <= MAX_PLAYERS and an EVEN NUMBER == NUMERO PAR)
 
 bool dedserver = false;		//dedicated server? -ded
 bool textserver = false;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
@@ -46,13 +46,8 @@ bool trypageflip = false;	//try page flipping? -flip / -dbuf
 bool nosound = false;			//disable sound? -nosound
 int targetfps = 60;			//target (MAX) frames-per-second
 int port = DEFAULT_UDP_PORT;				//the server port
-bool showinfo = false;		//apenas show info e desliga server
-bool defaultprio = false;	//select default server threads priority
-int targetprio = TARGET_PRIO_UNSPECIFIED;	//unspecified
 int server_maxplayers = 16;		//default maxplayers of the server
 bool sound_inited = false;		//install_sound succeeded?
-bool sound_enabled = true;		// player wants sounds?
-bool no_tcp_download = true;		// V0.4.7: CHANGED DEFAULT : disable use of the TCP socket for file transfers (use the regular UDP leetnet connection)
 bool force_ip = false;		//force IP?
 char force_ip_name[32];		//force IP to what?
 
@@ -78,5 +73,3 @@ double get_time() {
 }
 
 char teamname[2][5];
-
-

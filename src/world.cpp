@@ -4,9 +4,11 @@
 #define PHYS_NEW
 //#define PHYS_VECTOR_ACC
 
+#define PLAYER_RADIUS 15	// must be defined for graphics too if changed
+
 /* PHYS_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
 #ifdef PHYS_NEW
-#define PHYS_SHIFTY 15
+#define PHYS_SHIFTY PLAYER_RADIUS
 #else
 #define PHYS_SHIFTY 0
 #endif
@@ -64,7 +66,7 @@ bool subIntersection(float lx1, float ly1,  float lx2, float ly2,  float rx1, fl
 
 bool TriWall::intersects_rect(float rx1, float ry1, float rx2, float ry2) const {
 	assert(ry1<=ry2 && rx1<=rx2);
-	assert(y1<=y2 && y2<=y3);
+	assert(p1y<=p2y && p2y<=p3y);
 	if (rx1>boundx2 || rx2<boundx1 || ry1>boundy2 || ry2<boundy1)
 		return false;
 	/* idea: triangle is split in two triangles: y<=y2 and y>=y2
@@ -72,16 +74,16 @@ bool TriWall::intersects_rect(float rx1, float ry1, float rx2, float ry2) const 
 	 * for each edge there may be a region [yi0, yi1] where (for a right side edge) xr(y)>=x1
 	 * if those regions overlap with each other and [ry1, ry2], there exists an intersection
 	 */
-	if (x2 < x1 + (y2-y1) * (x3-x1) / (y3-y1)) {	// p2 is left to the p1-p3 line
-		if (subIntersection(x1,y1, x2,y2, x1,y1, x3,y3, rx1, ry1, rx2, ry2))	// part y<=y2 : L,R sides p1-p2, p1-p3
+	if (p2x < p1x + (p2y-p1y) * (p3x-p1x) / (p3y-p1y)) {	// p2 is left to the p1-p3 line
+		if (subIntersection(p1x,p1y, p2x,p2y, p1x,p1y, p3x,p3y, rx1, ry1, rx2, ry2))	// part y<=p2y : L,R sides p1-p2, p1-p3
 			return true;
-		if (subIntersection(x2,y2, x3,y3, x1,y1, x3,y3, rx1, ry1, rx2, ry2))	// part y>=y2 : L,R sides p2-p3, p1-p3
+		if (subIntersection(p2x,p2y, p3x,p3y, p1x,p1y, p3x,p3y, rx1, ry1, rx2, ry2))	// part y>=p2y : L,R sides p2-p3, p1-p3
 			return true;
 	}
 	else {
-		if (subIntersection(x1,y1, x3,y3, x1,y1, x2,y2, rx1, ry1, rx2, ry2))	// part y<=y2 : L,R sides p1-p3, p1-p2
+		if (subIntersection(p1x,p1y, p3x,p3y, p1x,p1y, p2x,p2y, rx1, ry1, rx2, ry2))	// part y<=p2y : L,R sides p1-p3, p1-p2
 			return true;
-		if (subIntersection(x1,y1, x3,y3, x2,y2, x3,y3, rx1, ry1, rx2, ry2))	// part y>=y2 : L,R sides p1-p3, p2-p3
+		if (subIntersection(p1x,p1y, p3x,p3y, p2x,p2y, p3x,p3y, rx1, ry1, rx2, ry2))	// part y>=p2y : L,R sides p1-p3, p2-p3
 			return true;
 	}
 	return false;
@@ -306,10 +308,8 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
  *     +-^^      .>|
  *   (0,0)      /  + -(dx2,dy2)
  *             /
- * p         wall
- * |
- * +--n
- *
+ *           wall
+ *  
  * either
  * A) the circle hits the wall proper with it's center projection on the line
  * B) the circle hits one of the corners where it's center is at distance r from the corner the first time
@@ -319,75 +319,114 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
  *
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) )
  */
-typedef pair<double, double> Coords;
 pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) {	// d=distance, m=movement
 	// check for solution A (if there is one, there is no need to check B)
 	// t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|(dx2,dy2)-(dx1,dy1)|
 	double diffx = dx2-dx1, diffy = dy2-dy1;
 	double div = mx*diffy - my*diffx;
-	if (div == 0)	// movement parallel to the line => no collision
-		return pair<double, Coords>(999., Coords());
-	double rBase = ( dx1*diffy - dy1*diffx ) / div;
-	double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
-	double t = rBase - fabs(rAdd);	// the collision with smaller t (the other would be going away)
-	if (t >= 0) {
-		// make sure we are not off an end of the line
-		// this can surely be calculated in a simpler way, but this first came to mind
-		// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
-		// | t*m - collp |  minimum (=r)
-		// | t*m - p1 - k(p2-p1) |  minimum (=r)
-		// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
-		// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
-		// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
-		double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-		if (k>=0. && k<=1.)
-			return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+	if (div != 0) {	// div == 0 <=> movement is parallel to the line => no type A collisions possible
+		double rBase = ( dx1*diffy - dy1*diffx ) / div;
+		double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
+		double t = rBase - fabs(rAdd);	// the collision with smaller t (the larger t is when going away from the line)
+		if (t >= 0) {
+			// make sure we are not off an end of the line
+			// this can surely be calculated in a simpler way, but this first came to mind
+			// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
+			// | t*m - collp |  minimum (=r)
+			// | t*m - p1 - k(p2-p1) |  minimum (=r)
+			// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
+			// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the expression above *(-.5))
+			// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)^2 + (dy2-dy1)^2 ]
+			double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
+			if (k>=0. && k<=1.)
+				return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+		}
 	}
 
-	double dist=1.;
+	double dist = 1.;
 	Coords collisionCoords;
 	// check for solution B
 	// for dp1:
-	double m2=mx*mx+my*my, r2=r*r;	// same for dp2
-	double mdotd=mx*dx1+my*dy1;
-	double d2=dx1*dx1+dy1*dy1;
-	double disc=mdotd*mdotd-m2*(d2-r2);
-	if (disc>=0) {	// there are real solutions
-		t=(mdotd-sqrt(disc))/m2;	// select smaller t
-		if (t<0)
-			t=(mdotd+sqrt(disc))/m2;
+	double m2 = mx*mx + my*my, r2 = r*r;	// same for dp2
+	double mdotd = mx*dx1 + my*dy1;
+	double d2 = dx1*dx1 + dy1*dy1;
+	double disc = mdotd*mdotd - m2*(d2-r2);
+	if (disc >= 0) {	// there are real solutions
+		double t = (mdotd-sqrt(disc))/m2;	// select smaller t
+		if (t < 0)
+			t = (mdotd+sqrt(disc))/m2;
 		if (t>=0 && t<dist) {
-			dist=t;
-			collisionCoords=Coords(dx1-t*mx, dy1-t*my);
+			dist = t;
+			collisionCoords = Coords(dx1-t*mx, dy1-t*my);
 		}
 	}
 	// for dp2:
-	mdotd=mx*dx2+my*dy2;
-	d2=dx2*dx2+dy2*dy2;
-	disc=mdotd*mdotd-m2*(d2-r2);
-	if (disc>=0) {	// there are real solutions
-		t=(mdotd-sqrt(disc))/m2;	// select smaller t
-		if (t<0)
-			t=(mdotd+sqrt(disc))/m2;
+	mdotd = mx*dx2 + my*dy2;
+	d2 = dx2*dx2 + dy2*dy2;
+	disc = mdotd*mdotd - m2*(d2-r2);
+	if (disc >= 0) {	// there are real solutions
+		double t = (mdotd-sqrt(disc))/m2;	// select smaller t
+		if (t < 0)
+			t = (mdotd+sqrt(disc))/m2;
 		if (t>=0 && t<dist) {
-			dist=t;
-			collisionCoords=Coords(dx2-t*mx, dy2-t*my);
+			dist = t;
+			collisionCoords = Coords(dx2-t*mx, dy2-t*my);
 		}
 	}
 	return pair<double, Coords>(dist, collisionCoords);
 }
 
-bool new_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy) {
-	static const double plyRadius=15;
+void tryBounce(double* minMovement, Coords* bounceVec, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	pair<double, Coords> rv;
+	rv.first = 1.;
+	if (mx>0 && w.a>stx)	// check vertical wall a
+		rv = calculateDisplacement(w.a - stx, w.b - sty, w.a - stx, w.d - sty, mx, my, plyRadius);
+	else if (mx<0 && w.c<stx)	// check vertical wall c
+		rv = calculateDisplacement(w.c - stx, w.b - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
+	if (rv.first < *minMovement) {
+		*minMovement = rv.first;
+		*bounceVec = rv.second;
+	}
+	if (my>0 && w.b>sty)	// check horizontal wall b
+		rv = calculateDisplacement(w.a - stx, w.b - sty, w.c - stx, w.b - sty, mx, my, plyRadius);
+	else if (my<0 && w.d<sty)	// check horizontal wall d
+		rv = calculateDisplacement(w.a - stx, w.d - sty, w.c - stx, w.d - sty, mx, my, plyRadius);
+	if (rv.first < *minMovement) {
+		*minMovement = rv.first;
+		*bounceVec = rv.second;
+	}
+}
 
-	double stx=*x, sty=*y-PHYS_SHIFTY;	// position in real coordinates
-	double mx=*sx, my=*sy;	// speed
+void tryBounce(double* minMovement, Coords* bounceVec, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius) {
+	pair<double, Coords> rv;
+	rv = calculateDisplacement(w.p1x - stx, w.p1y - sty, w.p2x - stx, w.p2y - sty, mx, my, plyRadius);	// wall p1-p2
+	if (rv.first < *minMovement) {
+		*minMovement = rv.first;
+		*bounceVec = rv.second;
+	}
+	rv = calculateDisplacement(w.p1x - stx, w.p1y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p1-p3
+	if (rv.first < *minMovement) {
+		*minMovement = rv.first;
+		*bounceVec = rv.second;
+	}
+	rv = calculateDisplacement(w.p2x - stx, w.p2y - sty, w.p3x - stx, w.p3y - sty, mx, my, plyRadius);	// wall p2-p3
+	if (rv.first < *minMovement) {
+		*minMovement = rv.first;
+		*bounceVec = rv.second;
+	}
+}
 
-	bool bounced=false;
-	double movementLeft=fraction;
+bool new_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy, double plyRadius) {
+	double stx = *x, sty = *y-PHYS_SHIFTY;	// position in real coordinates
+	double mx = *sx, my = *sy;	// speed
+	if (mx == 0 && my == 0)
+		return false;
+
+	bool bounced = false;
+	double movementLeft = fraction;
 
 	for (;;) {
-		double minMovement=movementLeft;
+		double minMovement = movementLeft;
 		Coords bounceVec;
 		Coords bbox0(min(stx-plyRadius, stx+mx-plyRadius), min(sty-plyRadius, sty+my-plyRadius)),
 		       bbox1(max(stx+plyRadius, stx+mx+plyRadius), max(sty+plyRadius, sty+my+plyRadius));
@@ -396,27 +435,10 @@ bool new_wallcorrect(const Room& r, double fraction, double *x, double *y, doubl
 			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 				continue;
 			// check more carefully
-			pair<double, Coords> rv;
-			rv.first = 1.;
-			if (mx>0 && wi->a>stx)	// check vertical wall a
-				rv = calculateDisplacement(wi->a - stx, wi->b - sty, wi->a - stx, wi->d - sty, mx, my, plyRadius);
-			else if (mx<0 && wi->c<stx)	// check vertical wall c
-				rv = calculateDisplacement(wi->c - stx, wi->b - sty, wi->c - stx, wi->d - sty, mx, my, plyRadius);
-			if (rv.first < minMovement) {
-				minMovement = rv.first;
-				bounceVec = rv.second;
-			}
-			if (my>0 && wi->b>sty)	// check horizontal wall b
-				rv = calculateDisplacement(wi->a - stx, wi->b - sty, wi->c - stx, wi->b - sty, mx, my, plyRadius);
-			else if (my<0 && wi->d<sty)	// check horizontal wall d
-				rv = calculateDisplacement(wi->a - stx, wi->d - sty, wi->c - stx, wi->d - sty, mx, my, plyRadius);
-			if (rv.first < minMovement) {
-				minMovement = rv.first;
-				bounceVec = rv.second;
-			}
+			tryBounce(&minMovement, &bounceVec, *wi, stx, sty, mx, my, plyRadius);
 			#ifndef NDEBUG
-			if (minMovement<movementLeft) {
-				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
+			if (minMovement < movementLeft) {
+				double dx = bounceVec.first, dy = bounceVec.second, r = plyRadius;
 				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 			}
 			#endif
@@ -426,49 +448,37 @@ bool new_wallcorrect(const Room& r, double fraction, double *x, double *y, doubl
 			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
 				continue;
 			// check more carefully
-			pair<double, Coords> rv;
-			rv = calculateDisplacement(wi->x1 - stx, wi->y1 - sty, wi->x2 - stx, wi->y2 - sty, mx, my, plyRadius);	// wall p1-p2
-			if (rv.first < minMovement) {
-				minMovement = rv.first;
-				bounceVec = rv.second;
-			}
-			rv = calculateDisplacement(wi->x1 - stx, wi->y1 - sty, wi->x3 - stx, wi->y3 - sty, mx, my, plyRadius);	// wall p1-p3
-			if (rv.first < minMovement) {
-				minMovement = rv.first;
-				bounceVec = rv.second;
-			}
-			rv = calculateDisplacement(wi->x2 - stx, wi->y2 - sty, wi->x3 - stx, wi->y3 - sty, mx, my, plyRadius);	// wall p2-p3
-			if (rv.first < minMovement) {
-				minMovement = rv.first;
-				bounceVec = rv.second;
-			}
+			tryBounce(&minMovement, &bounceVec, *wi, stx, sty, mx, my, plyRadius);
 			#ifndef NDEBUG
-			if (minMovement<movementLeft) {
-				double dx=bounceVec.first, dy=bounceVec.second, r=plyRadius;
+			if (minMovement < movementLeft) {
+				double dx = bounceVec.first, dy = bounceVec.second, r = plyRadius;
 				assert(fabs(dx*dx+dy*dy-r*r)<.0001);
 			}
 			#endif
 		}
 		assert(minMovement>=0. && minMovement<=movementLeft);
-		stx+=mx*minMovement*.999;	// make sure we aren't going the least bit inside a wall :)
-		sty+=my*minMovement*.999;
-		if (stx < 0)    { sty-=     stx *my/mx; stx=  0; break; }
-		if (stx >= plw) { sty-=(stx-plw)*my/mx; stx=plw; break; }
-		if (sty < 0)    { stx-=     sty *mx/my; sty=  0; break; }
-		if (sty >= plh) { stx-=(sty-plh)*mx/my; sty=plh; break; }
-		if (minMovement>=movementLeft*.999)	// not bounced
+		double move = minMovement - .001;	// make sure we aren't going the least bit inside a wall :)
+		if (move > 0) {
+			stx += mx*move;
+			sty += my*move;
+		}
+		if (stx < 0)    { sty -=      stx *my/mx; stx =   0; break; }
+		if (stx >= plw) { sty -= (stx-plw)*my/mx; stx = plw; break; }
+		if (sty < 0)    { stx -=      sty *mx/my; sty =   0; break; }
+		if (sty >= plh) { stx -= (sty-plh)*mx/my; sty = plh; break; }
+		if (minMovement >= movementLeft*.999)	// not bounced
 			break;
-		bounced=true;
+		bounced = true;
 		// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
 		// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
-		double mul=2.*(mx*bounceVec.first+my*bounceVec.second)/(plyRadius*plyRadius);
+		double mul = 2. * (mx*bounceVec.first + my*bounceVec.second) / (plyRadius*plyRadius);
 		mx -= mul*bounceVec.first;
 		my -= mul*bounceVec.second;
 		// lose some speed too
 		mx *= .95;
 		my *= .95;
-		movementLeft-=minMovement+.01;	// don't bounce over 100 times in any conditions
-		if (movementLeft<0)
+		movementLeft -= minMovement+.01;	// don't bounce over 100 times in any conditions
+		if (movementLeft <= 0)
 			break;
 	}
 	*x = stx;
@@ -558,7 +568,7 @@ bool old_wallcorrect(const Room& room, double *x, double *y, double *sx, double 
 	return ever_had_wall_hit;
 }
 
-bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, double plyRadius) {
 	//select effective physics vars for the player
 	float player_accel, player_friction, player_maxspeed;
 	if (h->run) {
@@ -660,7 +670,7 @@ bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo
 	#endif	// PHYS_VECTOR_ACC else
 
 	//wall collision correction
-	return new_wallcorrect(room, fraction, &h->lx, &h->ly, &h->sx, &h->sy);
+	return new_wallcorrect(room, fraction, &h->lx, &h->ly, &h->sx, &h->sy, plyRadius);
 }
 
 bool applyOldPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
@@ -772,10 +782,11 @@ bool applyOldPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo
 	return old_wallcorrect(room, &h->lx, &h->ly, &h->sx, &h->sy, &ox, &oy);
 }
 
-bool WorldBase::applyPhysics(int pid, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+bool WorldBase::applyPhysics(int pid, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, double plyRadius) {
 	#ifdef PHYS_NEW
-	return applyNewPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected);
+	return applyNewPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected, plyRadius);
 	#else
+	(void)plyRadius;
 	return applyOldPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected);
 	#endif
 }
@@ -793,7 +804,7 @@ void WorldBase::run_server_player_physics(int i) {	// player id
 
 	float startx = hd->lx, starty = hd->ly;
 
-	applyPhysics(i, room, 1., hd->item_speed, carryFlag, deathbringerAffected);
+	applyPhysics(i, room, 1., hd->item_speed, carryFlag, deathbringerAffected, PLAYER_RADIUS);
 
 	ServerPlayer* spp = dynamic_cast<ServerPlayer*>(hd);	//#fix
 	if (spp) {
@@ -2194,10 +2205,10 @@ void ClientWorld::extrapolate(ClientWorld& source, double currTime, gameclient_c
 					dc -= 1.0;
 
 					//run physics
-					if (applyPhysics(i, room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
+					if (applyPhysics(i, room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected, PLAYER_RADIUS-1.)) {	// -1. to counter problems in bouncing caused by inaccurate positions over network
 						//player bounced: play bounce sample if minimum time elapsed
 						if (currTime > player[i].wall_sound_time) {
-							player[i].wall_sound_time = get_time() + 0.2;
+							source.player[i].wall_sound_time = currTime + 0.2;
 							host->sound(SAMPLE_WALLBOUNCE);
 						}
 					}

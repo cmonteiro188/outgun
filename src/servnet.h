@@ -3,6 +3,8 @@
 
 class gameserver_c;
 class masterjob_c;
+class server_c;
+class ServerHelloResult;
 
 class ServerNetworking {
 	class ClientTransferData {
@@ -27,7 +29,7 @@ class ServerNetworking {
 	};
 
 	// server callbacks
-	static void sfunc_client_hello			(void* customp, int client_id, char* data, int length, server_c::HelloResult* res);
+	static void sfunc_client_hello			(void* customp, int client_id, char* data, int length, ServerHelloResult* res);
 	static void sfunc_client_connected		(void* customp, int client_id);
 	static void sfunc_client_disconnected	(void* customp, int client_id);
 	static void sfunc_client_data			(void* customp, int client_id, char* data, int length);
@@ -133,7 +135,7 @@ public:
 	void newPlayer(int pid);
 	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }
 	void disconnect_client(int cid, int timeout);
-	void clientHello(int client_id, char* data, int length, server_c::HelloResult* res);
+	void clientHello(int client_id, char* data, int length, ServerHelloResult* res);
 	int  client_connected(int id);
 	void client_disconnected(int id);
 	void ping_result(int client_id, int ping_time);
@@ -151,7 +153,7 @@ public:
 	void broadcast_frame(bool gameRunning);
 
 	void reload_hostname();
-	NLaddress get_client_address(int cid) const { return server->get_client_address(cid); }
+	NLaddress get_client_address(int cid) const;
 	int get_player_count() const { return player_count; }
 };
 

@@ -1,34 +1,51 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
-struct RectWall {	// rectangular wall
+typedef pair<double, double> Coords;
+
+class RectWall {	// rectangular wall
 	int a, b, c, d;	// rectangle coords (a,b)->(c,d)
 	int tex;	// texture id
 	int alpha;
 
+	friend void tryBounce(double* minMovement, Coords* bounceVec, const RectWall& w, double stx, double sty, double mx, double my, double plyRadius);
+
+public:
 	RectWall() { }
 	RectWall(int a_, int b_, int c_, int d_, int tex_, int alpha_)
 			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) swap(a, c); if (d<b) swap(b, d); }
 	bool intersects_rect(float x1, float y1, float x2, float y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
+	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
+		rectfill(buffer, int(x0+xScale*a), int(y0+yScale*b), int(x0+xScale*c), int(y0+yScale*d), color);
+	}
 };
 
-struct TriWall {	// triangular wall
-	int x1, y1, x2, y2, x3, y3;
+class TriWall {	// triangular wall
+	int p1x, p1y, p2x, p2y, p3x, p3y;
 	int boundx1, boundy1, boundx2, boundy2;
 	int tex, alpha;
 
+	friend void tryBounce(double* minMovement, Coords* bounceVec, const TriWall& w, double stx, double sty, double mx, double my, double plyRadius);
+
+public:
 	TriWall() { }
-	TriWall(int x1_, int y1_, int x2_, int y2_, int x3_, int y3_, int tex_, int alpha_)
-			: x1(x1_), y1(y1_), x2(x2_), y2(y2_), x3(x3_), y3(y3_), tex(tex_), alpha(alpha_) {
-		if (y2<y1) { swap(x1, x2); swap(y1, y2); }	// 1, 2 sorted
-		if (y3<y2) {
-			swap(x2, x3); swap(y2, y3);	// 1, 3 and 2, 3 sorted
-			if (y2<y1) { swap(x1, x2); swap(y1, y2); }	// all sorted
+	TriWall(int x1, int y1, int x2, int y2, int x3, int y3, int tex_, int alpha_)
+			: p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3), tex(tex_), alpha(alpha_) {
+		if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// 1, 2 sorted
+		if (p3y < p2y) {
+			swap(p2x, p3x); swap(p2y, p3y);	// 1, 3 and 2, 3 sorted
+			if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// all sorted
 		}
-		boundx1=min(x1, min(x2, x3)), boundy1=min(y1, min(y2, y3));
-		boundx2=max(x1, max(x2, x3)), boundy2=max(y1, max(y2, y3));
+		boundx1=min(p1x, min(p2x, p3x)), boundy1=min(p1y, min(p2y, p3y));
+		boundx2=max(p1x, max(p2x, p3x)), boundy2=max(p1y, max(p2y, p3y));
 	}
-	bool intersects_rect(float x1, float y1, float x2, float y2) const;
+	bool intersects_rect(float rx1, float ry1, float rx2, float ry2) const;
+	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
+		triangle(buffer,
+				int(x0+xScale*p1x), int(y0+yScale*p1y),
+				int(x0+xScale*p2x), int(y0+yScale*p2y),
+				int(x0+xScale*p3x), int(y0+yScale*p3y), color);
+	}
 };
 
 struct Room {
@@ -37,12 +54,9 @@ struct Room {
 
 	void draw(BITMAP* buffer, float x0, float y0, float xScale, float yScale, int color) const {
 		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
-			rectfill(buffer, int(x0+xScale*rwi->a), int(y0+yScale*rwi->b), int(x0+xScale*rwi->c), int(y0+yScale*rwi->d), color);
+			rwi->draw(buffer, x0, y0, xScale, yScale, color);
 		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
-			triangle(buffer,
-					int(x0+xScale*twi->x1), int(y0+yScale*twi->y1),
-					int(x0+xScale*twi->x2), int(y0+yScale*twi->y2),
-					int(x0+xScale*twi->x3), int(y0+yScale*twi->y3), color);
+			twi->draw(buffer, x0, y0, xScale, yScale, color);
 	}
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const {
 		for (vector<RectWall>::const_iterator rwi=rwalls.begin(); rwi!=rwalls.end(); ++rwi)
@@ -230,7 +244,7 @@ public:
 		add_to_queue(string(buf));
 	}
 
-	void clear(bool enable, int _pid, int _cid, const char* _name) {
+	void clear(bool enable, int _pid, int _cid, const string& _name) {
 		PlayerBase::clear(enable, _pid, _name);
 
 		attack = false;
@@ -315,7 +329,7 @@ public:
 
 	bool under_deathbringer_effect(double curr_time) const { (void)curr_time; return deathbringer_affected; }
 
-	void clear(bool enable, int _pid, const char* _name) {
+	void clear(bool enable, int _pid, const string& _name) {
 		PlayerBase::clear(enable, _pid, _name);
 
 		item_quad_time = item_speed_time = item_helm_time = 0;
@@ -413,7 +427,7 @@ protected:
 	WorldBase() { }
 
 public:
-	bool applyPhysics(int i, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected);
+	bool applyPhysics(int i, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, double plyRadius);
 
 	Map map;
 

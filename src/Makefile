@@ -1,3 +1,7 @@
+ifdef NIX
+GFX_COMPILE_EXTRA = -dNIX
+endif
+
 CFLAGS = -W -Wall -O2 -Wno-deprecated
 #CFLAGS = -W -Wall -Os -fno-default-inline -Wno-deprecated
 
@@ -24,47 +28,42 @@ outgun.exe: $(OBJS) $(EXTRA_OBJS)
 	cp outgun.exe ../test
 	cp outgun.exe ../client.exe
 
-OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
-SRCTOUCH = touch $@
-
 %.res: %.rc
 	windres -i $< -O coff -o $@
 
-#%.o: %.cpp server.h graphics.h commont.h client.h world.h names.h nameauth.h effects.h sounds.h
-#	$(OBJCOMPILE)
-
+admshell_inc =	admshell.h
+names_inc =	names.h
+commont_inc =	commont.h
+server_inc =	server.h	$(nameauth_inc)	$(world_inc)	$(servnet_inc)
+client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(world_inc)
 world_inc =	world.h
 nameauth_inc =	nameauth.h
-names_inc =	names.h
-admshell_inc =	admshell.h
-commont_inc =	commont.h	$(names_inc)	$(admshell_inc)
-server_inc =	server.h	$(nameauth_inc)	$(world_inc)
-client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(effects_inc)	$(world_inc)
-graphics_inc =	graphics.h	$(world_inc)	$(sounds_inc)
+graphics_inc =	graphics.h	$(world_inc)	$(effects_inc)	$(sounds_inc)
 sounds_inc =	sounds.h	$(commont_inc)
-effects_inc =	effects.h	$(commont_inc)	$(graphics_inc)	$(sounds_inc)
+effects_inc =	effects.h
+servnet_inc =	servnet.h
 
-server.o:	server.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)
-	$(OBJCOMPILE)
-servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)
-	$(OBJCOMPILE)
-graphics.o:	graphics.cpp	$(commont_inc)	$(graphics_inc)
-	$(OBJCOMPILE) -DNIX
-commont.o:	commont.cpp	$(commont_inc)
-	$(OBJCOMPILE)
-client.o:	client.cpp	$(commont_inc)	$(world_inc) 	$(client_inc)
+OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
+
+names.o:	names.cpp
 	$(OBJCOMPILE)
 main.o: 	main.cpp	$(commont_inc)	$(server_inc)	$(client_inc)
 	$(OBJCOMPILE)
-world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(client_inc)
+server.o:	server.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)
 	$(OBJCOMPILE)
-names.o:	names.cpp
+client.o:	client.cpp	$(commont_inc)	$(world_inc) 	$(names_inc)	$(client_inc)
+	$(OBJCOMPILE)
+commont.o:	commont.cpp	$(commont_inc)
+	$(OBJCOMPILE)
+world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(client_inc)
 	$(OBJCOMPILE)
 nameauth.o:	nameauth.cpp	$(nameauth_inc)
 	$(OBJCOMPILE)
-effects.o:	effects.cpp	$(effects_inc)
-	$(OBJCOMPILE)
+graphics.o:	graphics.cpp	$(commont_inc)	$(graphics_inc)
+	$(OBJCOMPILE) $(GFX_COMPILE_EXTRA)
 sounds.o:	sounds.cpp	$(sounds_inc)
+	$(OBJCOMPILE)
+servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)	$(admshell_inc)	$(servnet_inc)
 	$(OBJCOMPILE)
 
 PHONY: clean

@@ -5,7 +5,7 @@
 
 #include "fortfy22/fortify.h"
 
-#include <allegro.h>    // Allegro
+#include <allegro.h>
 
 #include <vector>
 #include <list>
@@ -28,14 +28,6 @@ using namespace std;
 #include <pthread.h>
 #include <sched.h>
 #include <nl.h>             // HawkNL
-
-#include "leetnet/server.h"	// l33t server
-#include "leetnet/client.h"	// l33t client
-#include "leetnet/rudp.h"	// get_self_I
-#include "leetnet/sleep.h"	// sleep util
-
-#include "names.h"
-#include "admshell.h"
 
 //log utils
 //#define LOG_NOLOG     // uncomment to disable logging
@@ -158,25 +150,18 @@ extern int          maxplayers;     // the maximum number of players configured 
 
 #define MAX_PICKUPS MAX_PLAYERS // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
 
-//arg switches (+ default values)
-extern bool dedserver;      //dedicated server? -ded
-extern bool textserver;     //textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
-extern bool privateserver;  //private server? (will not publish)
-extern bool winclient;      //windowed client?  -win / -fs
-extern bool trypageflip;    //try page flipping? -flip / -dbuf
-extern bool nosound;            //disable sound? -nosound
-extern int targetfps;           //target (MAX) frames-per-second
-extern int port;                //the server port
-extern bool showinfo;       //apenas show info e desliga server
-#define TARGET_PRIO_UNSPECIFIED -666666
-extern bool defaultprio;    //select default server threads priority
-extern int targetprio;  //unspecified
-extern int server_maxplayers;       //default maxplayers of the server
-extern bool sound_inited;       //install_sound succeeded?
-extern bool sound_enabled;      // player wants sounds?
-extern bool no_tcp_download;        // V0.4.7: CHANGED DEFAULT : disable use of the TCP socket for file transfers (use the regular UDP leetnet connection)
-extern bool force_ip;       //force IP?
-extern char force_ip_name[32];      //force IP to what?
+extern bool dedserver;		//dedicated server? -ded
+extern bool textserver;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
+extern bool privateserver;	//private server? (will not publish)
+extern bool winclient;		//windowed client?  -win / -fs
+extern bool trypageflip;	//try page flipping? -flip / -dbuf
+extern bool nosound;		//disable sound? -nosound
+extern int targetfps;		//target (MAX) frames-per-second
+extern int port;			//the server port
+extern int server_maxplayers;	//default maxplayers of the server
+extern bool sound_inited;	//install_sound succeeded?
+extern bool force_ip;		//force IP?
+extern char force_ip_name[32];	//force IP to what?
 
 void server_status_string(char *str);
 double get_time();

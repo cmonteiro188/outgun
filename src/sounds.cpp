@@ -248,7 +248,7 @@ void Sounds::unload_samples() {
 
 //play sample
 void Sounds::play(int s) const {
-	if (sound_enabled && sample[s]) {
+	if (sound_inited && sample[s]) {
 		//kill any voice playing that sample
 		stop_sample(sample[s]);
 		play_sample(sample[s], 255, 127, 1000, false);		//regular play

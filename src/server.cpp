@@ -1,5 +1,6 @@
 #include "commont.h"
 #include "world.h"
+#include "leetnet/sleep.h"	// sleep util
 #include "server.h"
 
 gameserver_c::MapInfo::MapInfo() : votes(0) { }

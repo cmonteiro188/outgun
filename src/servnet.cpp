@@ -1,5 +1,9 @@
 #include "commont.h"
 #include "server.h"
+#include "admshell.h"
+#include "leetnet/server.h"
+#include "leetnet/rudp.h"	// get_self_IP
+#include "leetnet/sleep.h"	// sleep util
 #include "servnet.h"
 
 //delay for the server contacting the master server, in seconds
@@ -2494,44 +2498,6 @@ void ServerNetworking::stop() {
 	LOG("GAMESERVER JOINING SHELL-SLAVE THREAD...\n");
 	pthread_join( shellsthread, 0 );
 
-	//file downlaod to clients threads..
-	//
-
-	//v0.4.4 : DO NOT open tcp download port if (-notcp) enabled
-	//
-	if (no_tcp_download) {
-		LOG("SKIPPING TCP FILE SOCKETS/THREADS (-notcp....)");
-	}
-	else {
-
-		LOG("GAMESERVER CLOSING FILEMASTER'S SOCKET...\n");
-
-		server_status_string("Shutdown: MFILE Socket");
-
-		nlClose(filesock);
-		LOG("GAMESERVER STOP JOIN FILEMASTER...\n");
-
-		server_status_string("Shutdown: MFILE Thread");
-
-		pthread_join( server_filemaster_thread , 0 );
-		LOG("OK!\n");
-
-		pthread_mutex_lock( &fslavesock_mutex );
-
-		for (int i=0;i<MAX_PLAYERS;i++)
-			if (fslavesock[i] != NL_INVALID) {
-				server_status_string("Shutdown: SFILE Socket");
-				nlClose(fslavesock[i]);
-				LOG2("GAMESERVER STOP JOIN FILESLAVE %i %i...", i, (int)fslavesock[i]);
-				server_status_string("Shutdown: SFILE Thread");
-				if (fslavethr[i] != (pthread_t)-1)
-					pthread_join ( fslavethr[i] , 0 );
-				LOG("OK!\n");
-			}
-
-		pthread_mutex_unlock( &fslavesock_mutex );
-	}
-
 	//thread for TCP connection that server uses to register it's IP on the master-server
 	//
 	if (!privateserver) {
@@ -2676,7 +2642,6 @@ void ServerNetworking::sendPickupVisible(int pid, int pup_id, const pickup_c& it
 	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-
 void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 17);		//powerup time indicator
@@ -2693,11 +2658,15 @@ void ServerNetworking::sendFragUpdate(int pid, NLulong frags) {
 	server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* data, int length, server_c::HelloResult* res) {
+NLaddress ServerNetworking::get_client_address(int cid) const {
+	return server->get_client_address(cid);
+}
+
+void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* data, int length, ServerHelloResult* res) {
 	((ServerNetworking*)customp)->clientHello(client_id, data, length, res);
 }
 
-void ServerNetworking::clientHello(int client_id, char* data, int length, server_c::HelloResult* res) {
+void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) {
 	(void)length;	//#fix
 	res->customDataLength = 0;
 
@@ -2753,10 +2722,6 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, server
 			res->accepted = true;
 			writeByte(res->customData, res->customDataLength, ((NLubyte)maxplayers));
 			writeString(res->customData, res->customDataLength, hostname);
-			if (no_tcp_download)
-				writeByte(res->customData, res->customDataLength, 1);	//V0.4.4 NEW: server's NOTCP flag value. 0=off 1=on
-			else
-				writeByte(res->customData, res->customDataLength, 0);	//V0.4.4 NEW: server's NOTCP flag value. 0=off 1=on
 		}
 	}
 }

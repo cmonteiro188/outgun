@@ -4,6 +4,10 @@
 
 #include "commont.h"
 #include "world.h"
+#include "names.h"
+#include "leetnet/client.h"
+#include "leetnet/rudp.h"	// get_self_IP
+#include "leetnet/sleep.h"	// sleep util
 #include "client.h"
 
 gameclient_c *gameclient;
@@ -11,9 +15,6 @@ gameclient_c *gameclient;
 // client callbacks
 int cfunc_connection_update(client_runes_t *arg);
 int cfunc_server_data(client_runes_t *arg);
-
-//client downloader thread prototype
-void *thread_clientdownloader_f(void *arg);
 
 //client password-to-token retrieval thread
 void *thread_clientpassword_f(void *arg);
@@ -691,198 +692,7 @@ void gameclient_c::download_server_file(const char *type, const char *name, char
 	strcpy(rune->name, name);
 	strcpy(rune->dest, dest);
 
-	// v0.4.4 if not using TCP socket, add to the download queue
-	if (server_no_tcp || no_tcp_download) {
-
-		//ADD TO QUEUE
-		client_udp_download(rune);
-	}
-	else {
-
-		//start new thread wich will call client_download_thread below (yes sucks but works)
-		pthread_t			downloader_thread;
-		pthread_create(&downloader_thread, 0, thread_clientdownloader_f, (void *)(rune));
-	}
-}
-
-//downloads a server file
-void gameclient_c::client_download_thread(void *arg) {
-
-	//get pointer to runes
-	download_runes_t  *r = (download_runes_t*)arg;
-
-	//open blocking, thank god, TCP connection
-	nlEnable(NL_BLOCKING_IO);
-	NLsocket sok = nlOpen(0, NL_RELIABLE);
-	nlDisable(NL_BLOCKING_IO);
-
-	if (sok == NL_INVALID) {		//d'oh!
-		LOG("ERROR client_download_thread() can't open socket!");
-
-		//disconnect client here
-		//disconnect_command();
-
-		//V0.4.4: add to UDP download queue and set to not use TCP anymore
-		no_tcp_download = true;
-		client_udp_download(r);
-
-		return;
-	}
-
-	//connect to server IP :
-
-	//v0.4.2 : custom TCP port
-	int tcp_port = 24999 - (port - 25000);
-
-	char addr_n_port[256];
-	sprintf(addr_n_port, "%s:%i", address, tcp_port);	//v0.4.2 custom TCP port
-	NLaddress addr;
-	nlStringToAddr(addr_n_port, &addr);
-
-	NLboolean ok = nlConnect(sok, &addr);
-	if (ok == NL_FALSE) {
-
-		LOG1("ERROR client_download_thread() can't connect to %s!", addr_n_port);
-
-		//disconnect socket
-		nlClose(sok);
-
-		//disconnect_command();
-
-		//V0.4.4: add to UDP download queue and set to not use TCP anymore
-		no_tcp_download = true;
-		client_udp_download(r);
-
-		return;
-	}
-
-	//request file
-	char lebuf[65536];
-	int count = 0;
-	writeByte(lebuf, count, 1);		//1 = request file download
-	writeString(lebuf, count, r->type);	//filetype
-	writeString(lebuf, count, r->name);	//filename
-	NLint result = nlWrite(sok, lebuf, count);
-	// check result of write
-	if (result != count) {
-
-		LOG("ERROR client_download_thread() send error (1)!");
-
-		nlClose(sok);
-		disconnect_command();		//FIXME make it better
-		return;
-	}
-
-	//download file
-	result = nlRead(sok, lebuf, 1);		// read response byte
-	//check result
-	if (result != 1) {
-
-		LOG1("ERROR client_download_thread() error reading response byte; result = %i", result);
-
-		nlClose(sok);
-		disconnect_command();		//FIXME make it better
-		return;
-	}
-
-	NLubyte ans;
-	count = 0;
-	readByte(lebuf, count, ans);
-
-	//FIXME: deal with other answers
-	if (ans == 2)    // 2 = file request ok, sending file
-	{
-		//read file CRC
-		result = nlRead(sok, lebuf, 2);
-		if (result != 2) {
-
-			LOG1("ERROR client_download_thread() error reading crc; result = %i", result);
-
-			nlClose(sok);
-			disconnect_command();		//FIXME make it better
-			return;
-		}
-		NLushort incrc;
-		count = 0;
-		readShort(lebuf, count, incrc);
-
-		//read file SIZE
-		result = nlRead(sok, lebuf, 4);
-		if (result != 4) {
-
-			LOG1("ERROR client_download_thread() error reading filesize; result = %i", result);
-
-			nlClose(sok);
-			disconnect_command();		//FIXME make it better
-			return;
-		}
-		NLulong filesize;
-		count = 0;
-		readLong(lebuf, count, filesize);
-
-		//read the file in 1 big chunk
-		result = nlRead(sok, lebuf, filesize);
-		if (result != (int)filesize) {
-
-			LOG2("ERROR client_download_thread() error reading file; result = %i filesize = %lu", result, filesize);
-
-			nlClose(sok);
-			disconnect_command();		//FIXME make it better
-			return;
-		}
-
-		//write to the file
-		FILE *fw = fopen(r->dest, "wb");
-//size_t fwrite(const void* ptr, size_t size, size_t nobj, FILE* stream);
-//Writes to stream stream, nobj objects of size size from array ptr. Returns number of objects written.
-		if (fw) {
-			int amount = fwrite(lebuf, 1, filesize, fw);
-
-			fclose(fw);
-
-			LOG3("client_download_thread() file '%s' written %i of %lu\n", r->dest, amount, filesize);
-
-			//file download complete
-			download_file_complete(r);
-		}
-		else {
-			//do something if can't write to the file (disconnect player/whatever)
-
-			LOG1("ERROR client_download_thread() can't write output file!! (%s)", r->dest);
-
-			nlClose(sok);
-			disconnect_command();		//FIXME make it better
-			return;
-		}
-
-		//disconnect
-		int count = 0;
-		writeByte(lebuf, count, 3);		//3 = bye
-		nlWrite(sok, lebuf, count);
-		//FIXME: check result
-
-		//wait a bit
-		MS_SLEEP(3000);
-
-		//drop connection
-		nlClose(sok);
-	}
-	else {
-		//unknown answer code
-
-		LOG1("ERROR client_download_thread() answer not 2, it's %i", ans);
-
-		nlClose(sok);
-		disconnect_command();		//FIXME make it better
-		return;
-	}
-
-	//close connection
-
-	//do stuff in the event of download complete
-
-	// FIXME: if error with connection, quit.
-
+	client_udp_download(rune);
 }
 
 //server tells client of current map / map change
@@ -1020,11 +830,6 @@ void gameclient_c::client_connected(char *data, int length) {
 	readString(data, count, hostname);
 	hostname[32]=0;		//truncate at 32 chars
 	strlen_hostname = strlen(hostname);	//for drawing
-
-	//V0.4.4: read server's NOTCP flag value
-	NLubyte noflag;
-	readByte(data, count, noflag);
-	server_no_tcp = (noflag > 0);
 
 	//set window title: the hostname
 	char lecaption[256];
@@ -3912,17 +3717,6 @@ int cfunc_server_data(client_runes_t *arg) {
 	//LOG1("client data=%i\n", arg->length);
 
 	gameclient->process_incoming_data(arg->data, arg->length);
-
-	return 0;
-}
-
-//============================================================
-//  client "download file from server" thread
-//============================================================
-
-void *thread_clientdownloader_f(void *arg) {
-
-	gameclient->client_download_thread(arg);
 
 	return 0;
 }
