@@ -341,9 +341,6 @@ public:
 	int team;
 	bool power;
 
-	bool dontdraw;		// client side
-	double clremove;
-
 	NLulong vislist;	//notification list (bitfield, bit0=player0, bit1=player1... etc.)
 	NLshort hitx, hity;	//hit position
 	int px, py;			//screen coords
@@ -410,6 +407,8 @@ public:
 };
 
 class WorldBase {
+	void addRocket(int i, int playernum, int team, int px, int py, int x, int y, bool power, int dir, int xdelta, NLulong frameno);
+
 protected:
 	WorldBase() { }
 
@@ -424,6 +423,8 @@ public:
 	pickup_c item[MAX_PICKUPS];
 
 	virtual ~WorldBase() { }
+
+	void shootRockets(int playernum, int pow, int dir, NLubyte* rids, NLulong frameno, int team, bool power, int px, int py, int x, int y);
 
 	void run_server_player_physics(int pid);
 	virtual bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
@@ -477,8 +478,7 @@ class ServerWorld : public WorldBase {
 	PowerupSettings pupConfig;
 	WorldSettings config;
 
-	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta);
-	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta);
+	NLubyte getFreeRocket();	// may give an existing rocket to overwrite if the table is full
 
 public:
 	NLulong frame;
@@ -520,6 +520,8 @@ public:
 	void ctf_game_restart();
 };
 
+class gameclient_c;	//#fix: get rid of this callback system
+
 class ClientWorld : public WorldBase {
 public:
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
@@ -528,6 +530,7 @@ public:
 
 	ClientPlayer player[MAX_PLAYERS];
 	ClientWorld() { time = 0; for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+	void extrapolate(ClientWorld& source, double currTime, gameclient_c* host);
 };
 
 #endif

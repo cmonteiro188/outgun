@@ -23,10 +23,6 @@ bool gameclient_c::start() {
 	if (!client_graphics.reset_video_mode())		// fatal error
 		return false;
 
-	//host ad
-	hostad = 0;
-	hostadname[0]=0;
-
 	// open message log file
 	if (message_logging)
 		message_log.open("message.log", ios::app);
@@ -1383,137 +1379,6 @@ void gameclient_c::update_scoreboard() {
 	}//itera times
 }
 
-//calc the game frame
-void gameclient_c::calc_game_frame() {
-
-	int i;
-
-	pthread_mutex_lock( &frame_mutex );
-
-	//frame was skipped
-	if (fx.skipped) {
-		fd.skipped = true;
-		pthread_mutex_unlock( &frame_mutex );
-		return;
-	}
-
-	//make fancy extrapolation from the most recent frame from the server
-
-	if (fx.frame > 0)	// valid?
-	{
-		//calcula framedelta (d)
-		fd.time = get_time();
-		double d = (fd.time - fx.time) / 0.1;
-
-		//just to draw
-		fd.frame = fx.frame + d;
-
-		//player extrapolation
-		//
-		for (i=0; i<maxplayers; i++)
-			if (fx.player[i].onscreen) {
-				fd.player[i] = fx.player[i];
-
-				if (fx.player[i].roomx<0 || fx.player[i].roomy<0 || fx.player[i].roomx>=fx.map.w || fx.player[i].roomy>=fx.map.h) continue;	//#fix: remove this and track why these are given sometimes
-				const Room& room = fx.map.room[fx.player[i].roomx][fx.player[i].roomy];
-				bool carryFlag = fx.flag[1-(i/TSIZE)].carried && fx.flag[1-(i/TSIZE)].carrier == i;
-
-				//delta counter
-				double dc, f;
-				dc = d;
-
-				while (dc > 0) {
-					//calc amount of movement
-					f = dc;
-					if (f > 1.0)
-						f = 1.0;
-
-					//dec dc
-					dc -= 1.0;
-
-					//run physics
-					if (fd.applyPhysics(i, room, f, fd.player[i].item_speed, carryFlag, fd.player[i].deathbringer_affected)) {
-						//player bounced: play bounce sample if minimum time elapsed
-						if (get_time() > fd.player[i].wall_sound_time) {
-							fd.player[i].wall_sound_time = get_time() + 0.2;
-							sound(SAMPLE_WALLBOUNCE);
-						}
-					}
-				}
-			}
-
-		//rocket "interpolation"?
-		//
-		for (i=0;i<MAX_ROCKETS;i++)
-		if (fx.rock[i].owner != -1)
-		{
-			rocket_c *rd = &(fd.rock[i]);
-			rocket_c *rx = &(fx.rock[i]);
-
-			//still drawing only - update pos
-			if (!rx->dontdraw) {
-				//find pos for draw
-				// pos = startpos + sin/cos deg * timetravel * speed
-				rd->x = (int)( rx->x + (fd.frame - rx->cl_time) * cos(rx->deg) * ROCKET_SPEED );
-				rd->y = (int)( rx->y + (fd.frame - rx->cl_time) * sin(rx->deg) * ROCKET_SPEED );
-			}
-
-			//SPECIAL CASE: check if rocket just died
-			if ((rx->hit_time > 0) && (get_time() > rx->hit_time))
-			{
-				rx->owner = -1;		// nao rola mais
-				rd->x = rx->hitx;	// hit coords
-				rd->y = rx->hity;
-
-				if (rx->hit_target != 255) {
-					//hit player
-					// blink player if not hit shield (252)
-					if (rx->hit_target < 250)
-						fx.player[rx->hit_target].hitfx = get_time() + 0.3;
-
-					//spawn clientside fx
-					cfx_create_gunexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
-				}
-			}
-			//else if still drawing check collisions/out of screen
-			else if (!rx->dontdraw) {
-
-				//0.3.9: check rocket hit a wall (clientside) if not vanished already
-				#ifdef PHYS_NEW
-				if (fx.map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-PHYS_SHIFTY-2, (int)rd->x+2, (int)rd->y-PHYS_SHIFTY+2)) {
-				#else
-				if (fx.map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
-				#endif
-					//probably hit wall
-					rx->dontdraw = true;
-					rx->clremove = get_time() + 5.0;
-					// IF the rocket is in the same room of "me" player
-					if (rx->px == fx.player[me].roomx)
-					if (rx->py == fx.player[me].roomy) {
-						//then SPAWN a client-side hit-wall FX for the rocket
-						if (rx->power)
-							cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
-						else
-							cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
-					}
-				}
-				// check out of screen (erase)
-				else if ((rd->x < 0) || (rd->y < 5) || (rd->x > plw) || (rd->y > plh)) {
-					rx->dontdraw = true;
-					rx->clremove = get_time() + 1.0;	//enough...
-				}
-			}
-
-			// check rocket expired
-			if (rx->dontdraw)
-			if (get_time() <= rx->clremove)
-				rx->owner = -1;	// erase from clientside simulation
-		}
-	}
-
-	pthread_mutex_unlock( &frame_mutex );
-}
-
 //show a specific menu screen
 void gameclient_c::set_menu(int menumber) {
 	menu = menumber;
@@ -1538,10 +1403,6 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//not trying anymore
 	trying_connection = false;
-
-	//no host ad yet
-	hostad = 0;
-	hostadname[0]=0;
 
 	//"data" from connection accepted:
 	//  BYTE		maxplayers
@@ -1602,7 +1463,7 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	//reset FPS count vars
 	framecount = 0;
-	starttime = get_time();
+	frameCountStartTime = get_time();
 	FPS = 666.0;
 
 	//send name update request
@@ -2013,100 +1874,6 @@ void gameclient_c::send_frame() {
 	client->send_frame(lebuf, count);
 }
 
-//helper do helper: reconstitui 1 rocket
-void gameclient_c::client_set_rocket(int id, int dir, NLulong frameno, int team, bool power, int px, int py, int x, int y, int xdelta) {
-
-	rocket_c  *rock = &fx.rock[id];
-
-	rock->hit_time = 0;
-	rock->deg = dir * PIOIT;
-
-	//REMENDO: avanca 0,5 frame
-	//rock->time = frameno;
-	rock->cl_time = (double)frameno - 0.5;	// "meio frame" atras, isto, e o tiro adianta
-																					//porque foi atirado mais antes
-
-	rock->owner = 0;
-	rock->dontdraw = false;		//DO draw...
-	rock->team = team;
-	rock->power = power;
-	rock->x = x;
-	rock->y = y;
-	rock->px = px;
-	rock->py = py;
-	rock->x += cos(rock->deg + PI/2) * xdelta;
-	rock->y += sin(rock->deg + PI/2) * xdelta;
-}
-
-//helper: reconstitui varios rockets de uma mensagem "7" tipo rocket fire.
-void gameclient_c::client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int team, bool power, int px, int py, int x, int y) {
-	switch (pow) {
-	case 1:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
-		break;
-	case 2:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
-		break;
-	case 3:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX * 2);
-		break;
-	case 4:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
-		client_set_rocket(rids[2], dir+1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[3], dir-1,frameno,team,power,px,py,x,y, 0);
-		break;
-	case 5:
-		client_set_rocket(rids[0], dir,frameno,team,px,power,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,team,px,power,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,team,px,power,py,x,y, + SHOT_DELTAX * 2);
-		client_set_rocket(rids[3], dir+2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir-2,frameno,team,power,px,py,x,y, 0);
-		break;
-	case 6:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
-		client_set_rocket(rids[2], dir+1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[3], dir-1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir+2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir-2,frameno,team,power,px,py,x,y, 0);
-		break;
-	case 7:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX * 2);
-		client_set_rocket(rids[3], dir+2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir-2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir+3,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[6], dir-3,frameno,team,power,px,py,x,y, 0);
-		break;
-	case 8:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX);
-		client_set_rocket(rids[2], dir+1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[3], dir-1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir+2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir-2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[6], dir+3,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[7], dir-3,frameno,team,power,px,py,x,y, 0);
-		break;
-	case 9:
-		client_set_rocket(rids[0], dir,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[1], dir,frameno,team,power,px,py,x,y, - SHOT_DELTAX * 2);
-		client_set_rocket(rids[2], dir,frameno,team,power,px,py,x,y, + SHOT_DELTAX * 2);
-		client_set_rocket(rids[3], dir+1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[4], dir-1,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[5], dir+2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[6], dir-2,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[7], dir+3,frameno,team,power,px,py,x,y, 0);
-		client_set_rocket(rids[8], dir-3,frameno,team,power,px,py,x,y, 0);
-		break;
-	}
-}
-
 //process incoming data
 void gameclient_c::process_incoming_data(char *data, int length) {
 	(void)length;
@@ -2373,7 +2140,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 			//switch tempvars
 			char mapname[128];
-			int rids[16]; //rocket ids pra msg 7
 			NLubyte rteampower, rpx, rpy, code, pid, team, carried, abyte, rockid, iid, rpow, rdir, sx, sy;
 			NLshort   rokx, roky;	//rocket hit msg 8
 			NLushort	usho, hx, hy;
@@ -2513,37 +2279,34 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 			//rocket fire notification
 			case 7: {
-
 				// add to clientside rocket objects list
 				//
 				//readByte(lebuf, count, rpowdir);	// rocket powerdir
 				readByte(lebuf, count, rpow);	// rocket powerdir
 				readByte(lebuf, count, rdir);	// rocket powerdir
 
-				//para cada pow, tira um id de shot pra alocar
-				for (k=0;k<rpow;k++) {
-					readByte(lebuf, count, rockid);	// rocket powerdir
-					rids[k] = (int)rockid;
-				}
+				NLubyte rids[16];
+				for (k=0;k<rpow;k++)
+					readByte(lebuf, count, rids[k]);
 
 				readLong(lebuf, count, frameno);	// frame # of shot
 				readByte(lebuf, count, rteampower);	// team (bit 1) and power (bit 0)
 
 				bool power = ((rteampower & 1) != 0);
 				int team = (rteampower & 2) >> 1;
-				readByte(lebuf, count, rpx); //px
-				readByte(lebuf, count, rpy); //py
-				readShort(lebuf, count, rx); //x
-				readShort(lebuf, count, ry); //y
+				readByte(lebuf, count, rpx);
+				readByte(lebuf, count, rpy);
+				readShort(lebuf, count, rx);
+				readShort(lebuf, count, ry);
 
 				//rebuild client-side shot
-				client_rebuild_shot(rpow, rdir, rids, frameno, team, power, rpx, rpy, rx, ry);
+				fx.shootRockets(0, rpow, rdir, rids, frameno, team, power, rpx, rpy, rx, ry);
 
 				//play sound if rocket on screen
 				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
-					if (power)	//if rocket is powered, play quad sound
+					if (power)
 						sound(SAMPLE_QUAD_FIRE);
-					else		// normal sound
+					else
 						sound(SAMPLE_FIRE);
 				break;
 			}
@@ -2555,12 +2318,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//hit position
 				readShort(lebuf, count, rokx);
 				readShort(lebuf, count, roky);
-				fx.rock[rockid].hitx = rokx;
-				fx.rock[rockid].hity = roky;
-				//signal died
-				fx.rock[rockid].hit_time = get_time(); //die now
-				//target
-				fx.rock[rockid].hit_target = abyte;
+				fx.rock[rockid].owner = -1;
+				if (abyte != 255) {	// hit player
+					if (abyte < 250)	// blink player if not hit shield (252)
+						fx.player[abyte].hitfx = get_time() + .3;
+					cfx_create_gunexplo((int)rokx, (int)roky - 10, fx.rock[rockid].px, fx.rock[rockid].py);
+				}
 				break;
 
 			//CTF team score update
@@ -3541,7 +3304,6 @@ void gameclient_c::loop() {
 
 					//change colours
 					if (sc == KEY_HOME) {
-						flagpos_ready = false;	// flag position mark colour not right anymore
 						if (key[KEY_LCONTROL] || key[KEY_RCONTROL])
 							client_graphics.reset_playground_colors();
 						else
@@ -3649,7 +3411,9 @@ void gameclient_c::loop() {
 		//
 		if (gameshow) {
 			//LOG("** ...calc game frame\n");
-			calc_game_frame(); //calculate game frame to show
+			pthread_mutex_lock( &frame_mutex );
+			fd.extrapolate(fx, get_time(), this);
+			pthread_mutex_unlock( &frame_mutex );
 			//LOG("** ...game frame calced ok\n");
 		}
 
@@ -3721,9 +3485,6 @@ void gameclient_c::stop() {
 
 	//clear all samples
 	unload_samples();
-
-	for (int i = 0; i < 2; i++)
-		destroy_bitmap(flagpos_buf[i]);
 
 	//save configuration file
 	//try to load client configuration
@@ -3826,7 +3587,7 @@ gameclient_c::gameclient_c() {
 	FPS=0;
 	framecount = 0;
 	totalframecount = 0;
-	starttime = 0;
+	frameCountStartTime = 0;
 
 	//if player wants to changeteams
 	want_change_teams = false;
@@ -3974,7 +3735,7 @@ void gameclient_c::draw_game_frame() {
 		// FIXME: y-ordering of draw not maintained
 		// draw any rockets
 		for (i = 0; i < MAX_ROCKETS; i++)
-			if (fx.rock[i].owner != -1 && !fx.rock[i].dontdraw && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
+			if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
 				fd.rock[i].team = fx.rock[i].team;
 				fd.rock[i].power = fx.rock[i].power;
 				client_graphics.draw_rocket(fd.rock[i], get_time());
@@ -4537,11 +4298,11 @@ void gameclient_c::draw_game_frame() {
 	//
 	totalframecount++;
 	framecount++;
-	double baixo = get_time() - starttime;
+	double baixo = get_time() - frameCountStartTime;
 	if (baixo > 0) {
 		if (baixo > 1.0) {
 			FPS = ((double)framecount) / baixo;
-			starttime = get_time();
+			frameCountStartTime = get_time();
 			framecount = 0;
 		}
 	}

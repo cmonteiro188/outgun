@@ -61,84 +61,115 @@ struct gamespy_t {
 };
 
 class gameclient_c {
-public:
-    clientfx_t      cfx[MAX_CLIENTFX];
-    int me;
-    bool option_show_names;
-    bool player_password_set;   //flag for the thread
-    bool player_token_new;      //TRUE if first call to token servled
-    bool player_token_set;      //TRUE if player now holds a valid token
-    char player_token[64];      // the token
-    char player_password[16];
-    pthread_t   passthread;
+	// world
     ClientWorld fd, fx;	//#fix: two maps, etc.
-    pthread_mutex_t     frame_mutex;
-    pthread_mutex_t     udpdq_mutex;
-    int udpdq_size;     //size
-    download_runes_t        *udpdq[MAX_UDPDQ];      //the udp download queue
-    int udpdq_ptr;      //current download. if -1, no current downloads
-    int ud_fp;          //file pointer for read/write
-    FILE *ud_fout;  //input or output file
+    int me;
+    pthread_mutex_t frame_mutex;
+
+	// network
+    client_c *client;
+    double lastpackettime;
+    volatile bool trying_connection;
+    volatile bool connected;
+    bool server_no_tcp;
+    bool map_ready;
+    char servermap[64]; //last map command from server
+
+    pthread_mutex_t udpdq_mutex;
+    int udpdq_size;
+    download_runes_t *udpdq[MAX_UDPDQ];	//the udp download queue
+    int udpdq_ptr;	//current download. if -1, no current downloads
+    int ud_fp;	//file pointer for read/write
+    FILE *ud_fout;	//input or output file
+
+    bool player_password_set;
+    bool player_token_new;	//TRUE if first call to token servled
+    bool player_token_set;
+    char player_token[64];
+    char player_password[16];
+    pthread_t passthread;
+
     NLulong fdp, fdp_max;
     NLulong max_world_score, max_world_rank;
-    double lastpackettime;
-    client_c *client;
+
+    bool want_change_teams;
+    bool want_map_exit;
+    bool option_show_names;
+
+	// sounds
     SAMPLE *sample[NUM_OF_SAMPLES];
     bool sample_reverse[NUM_OF_SAMPLES];
     char sfxthemedir[256];
     char sfxthemename[256];
-    al_ffblk    sfxthemeffblk;  //for al_find*
-    bool    validtheme;     // if sfxthemedir points to valid dir
+    al_ffblk sfxthemeffblk;	//for al_find*
+    bool validtheme;	// if sfxthemedir points to valid dir
+
+	// GUI
     bool menushow;
-    int menu;       //menu screen #
+    int menu;	//menu screen #
     bool gameshow;
     bool helpshow;
     double FPS;
     int framecount, totalframecount;
-    double starttime;
-    bool want_change_teams;
-    bool want_map_exit;
+    double frameCountStartTime;
+    int gameover_plaque;
+    int red_final_score, blue_final_score;
     int scoreboard[MAX_PLAYERS];
-    volatile bool trying_connection;
-    volatile bool connected;
-    char    hostname[256];
-    int     strlen_hostname;    //strlen precalculado
-    bool                showmaster;     //showing master screen (opposite: showing favourites screen)
-    bool                first_fav_refresh;      //first refresh of favorites page already done?
-    gamespy_t       gamespy[MAX_GAMESPY];
-    int                 gi; //what game entry
-    gamespy_t       mgamespy[MAX_GAMESPY];      //gamespy of masterserver
-    char playername[256]; //the player's name (max name len = 16)
-    char namestatus[64];        // v0.4.4: NAME STATUS (unregistered, registering..., registered!)
-    char editplayername[256]; //the player's name edit buffer
-    char address[256];      //server IP address
-    char dialogmessage[256];    //dialog message
-    char dialogmessage2[256];   //dialog message line 2
-    char talkbuffer[256];           // chat input buffer
-    char chatbuffer[CHAT_SIZE][256];        // last chat messages list
-    double chaterasetime;               // time to erase a chat message from the list
-    char editplayerpass[64]; //the player's password edit buffer
+    char hostname[256];
+    int strlen_hostname;
+    bool showmaster;	//showing master screen (opposite: showing favourites screen)
+    bool first_fav_refresh;	//first refresh of favorites page already done?
+    gamespy_t gamespy[MAX_GAMESPY];
+    int gi;	//what game entry
+    gamespy_t mgamespy[MAX_GAMESPY];	//gamespy of masterserver
+    char playername[256];	//the player's name (max name len = 16)
+    char namestatus[64];	// v0.4.4: NAME STATUS (unregistered, registering..., registered!)
+    char editplayername[256];
+    char address[256];	//server IP address
+    char dialogmessage[256];
+    char dialogmessage2[256];
+    char talkbuffer[256];
+    char chatbuffer[CHAT_SIZE][256];
+    double chaterasetime;
+    char editplayerpass[64];
     char namecursor[2];
     char passcursor[2];
-    int     namestatus_code;        //0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
-    BITMAP *minibg;
-    BITMAP* flagpos_buf[2];
-    bool flagpos_ready;
-    bool map_ready;
-    char servermap[64]; //last map command from server
-    int gameover_plaque;
-    int red_final_score, blue_final_score;      //final scores for showing in the gameover plaque
-    bool server_no_tcp;
-    BITMAP *hostad;
-    char    hostadname[128];
-    bool message_logging;
-    ofstream message_log;
+    int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
+    clientfx_t cfx[MAX_CLIENTFX];
     Graphics client_graphics;
 
+    ofstream message_log;
+
+public:
+    bool message_logging;
+
+	gameclient_c();
+	virtual ~gameclient_c();
     bool start();
+	void loop();
+	void stop();
+
+	// network
+    void connect_command();
+    void disconnect_command();
+    void client_connected(char *data, int length);
+    void client_disconnected();
+    void connect_failed_denied(char *data, int length);
+    void connect_failed_unreachable();
+    void refresh_command();
+    void refresh_command_2(gamespy_t *gamespy);
+    void send_player_token();
+    void issue_change_name_command();
+    void change_name_command();
     void send_client_ready();
+    void send_chat(char *msg);
+    void send_frame();
+    void process_incoming_data(char *data, int length);
+
     void check_change_pass_command();
     void client_password_thread(void *);
+	void get_servers_from_master();
+
     void process_udp_download_chunk(int last, NLulong pos, int len, char* buf);
     void client_udp_setup_download();
     void client_udp_download(download_runes_t  *rune);
@@ -146,6 +177,8 @@ public:
     void download_server_file(const char *type, const char *name, char *dest);
     void client_download_thread(void *arg);
     void server_map_command(const char *mapname, NLushort server_crc);
+
+	// sounds
     void next_sfx_theme();
     void make_sfx_theme_path(char *themepath, char *themedir);
     void set_theme_dir(char *dirname);
@@ -153,6 +186,8 @@ public:
     void load_samples();
     void unload_samples();
     void sound(int s);
+
+	// GUI
     void clear_fx();
     int get_new_cfx();
     void cfx_create_wallexplo(int x, int y, int px, int py);
@@ -161,38 +196,18 @@ public:
     void cfx_create_deathcarrier(int x, int y, int px, int py, int team);
     void cfx_create_gunexplo(int x, int y, int px, int py);
     void cfx_create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
-    void draw_game_frame();
-    void draw_game_menu();
-    void update_scoreboard();
-    void calc_game_frame();
-    void set_menu(int menumber);
-    void disconnect_command();
-    void client_connected(char *data, int length);
-    void client_disconnected();
-    void connect_failed_denied(char *data, int length);
-    void connect_failed_unreachable();
-    void refresh_command();
-    void refresh_command_2(gamespy_t *gamespy);
-    void connect_command();
-    void send_player_token();
-    void issue_change_name_command();
-    void change_name_command();
-    void send_frame();
-    void client_set_rocket(int id, int dir, NLulong frameno, int team, bool power, int px, int py, int x, int y, int xdelta);
-    void client_rebuild_shot(int pow, int dir, int *rids, NLulong frameno, int team, bool power, int px, int py, int x, int y);
-    void process_incoming_data(char *data, int length);
-    void send_chat(char *msg);
+
     void erase_first_message();
     void print_message(const char *msg);
+
     void save_screenshot();
     void toggle_help();
     void show_progress(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
 	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
-	void get_servers_from_master();
-	void loop();
-	void stop();
-	gameclient_c();
-	virtual ~gameclient_c();
+    void draw_game_frame();
+    void draw_game_menu();
+    void update_scoreboard();
+    void set_menu(int menumber);
 };
 
 extern gameclient_c *gameclient;

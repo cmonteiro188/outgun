@@ -838,6 +838,68 @@ void WorldBase::stealFlag(int team, int carrier) {
 	flag[team].atbase = false;		// not at base (not needed / paranoia)
 }
 
+void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y, bool power, int dir, int xdelta, NLulong frameno) {
+	rocket_c* r = &rock[i];
+	r->owner = playernum;
+	r->team = team;
+	r->power = power;
+	r->px = px;
+	r->py = py;
+	r->x = x;
+	r->y = y;
+	r->deg = dir * PIOIT;
+	r->hit_time = 0;
+
+	// client side
+	r->cl_time = frameno;
+
+	//speed nos eixos: constante depende da direcao
+	r->sx = cos(r->deg) * ROCKET_SPEED;
+	r->sy = sin(r->deg) * ROCKET_SPEED;
+
+	//deslocamento a 90graus
+	r->x += xdelta * SHOT_DELTAX * cos(r->deg + PI/2);
+	r->y += xdelta * SHOT_DELTAX * sin(r->deg + PI/2);
+
+	// advance 0,5 frame
+	r->x += r->sx * .5;
+	r->y += r->sy * .5;
+}
+
+void WorldBase::shootRockets(int playernum, int pow, int dir, NLubyte* rids, NLulong frameno, int team, bool power, int px, int py, int x, int y) {
+	struct RocketFormation {
+		int nForward;
+		int directions[6];
+	};
+	static const RocketFormation formations[9] = {
+		{ 1, { } },
+		{ 2, { } },
+		{ 3, { } },
+		{ 2, { -1, +1 } },
+		{ 3, { -2, +2 } },
+		{ 2, { -1, +1, -2, +2 } },
+		{ 3, { -2, +2, -3, +3 } },
+		{ 2, { -1, +1, -2, +2, -3, +3 } },
+		{ 3, { -1, +1, -2, +2, -3, +3 } }
+	};
+	const RocketFormation& form = formations[pow-1];
+
+	if (form.nForward == 1)
+		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameno);
+	else if (form.nForward == 2) {
+		addRocket(rids[0], playernum, team, px, py, x, y, power, dir, -1, frameno);
+		addRocket(rids[1], playernum, team, px, py, x, y, power, dir, +1, frameno);
+	}
+	else {
+		addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameno);
+		addRocket(rids[1], playernum, team, px, py, x, y, power, dir, -2, frameno);
+		addRocket(rids[2], playernum, team, px, py, x, y, power, dir, +2, frameno);
+	}
+	const int* dirp = &form.directions[0];
+	for (int ri = form.nForward; ri < pow; ++ri, ++dirp)
+		addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + *dirp, 0, frameno);
+}
+
 void PowerupSettings::reset() {
 	pup_add_time = 60;
 	pup_max_time = 180;
@@ -1534,126 +1596,28 @@ void ServerWorld::suicide(int pid) {
 	}
 }
 
-void ServerWorld::make_damn_rocket(int i, int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta) {
-	rocket_c* r = &rock[i];
-	r->owner = playernum;
-	r->team = playernum/TSIZE;
-	r->power = power;
-	r->px = px;
-	r->py = py;
-	r->x = x;
-	r->y = y;
-	r->deg = deg;	//direcao em RADIANOS
-	r->hit_time = 0;
-	//speed nos eixos: constante depende da direcao
-	r->sx = cos(rock->deg) * (ROCKET_SPEED);
-	r->sy = sin(rock->deg) * (ROCKET_SPEED);
-
-	//deslocamento a 90graus
-	r->x += xdelta * cos(deg + PI/2);
-	r->y += xdelta * sin(deg + PI/2);
-
-	//REMENDAO: avanca 0,5 frame  (5 vezes 1 decimo da velo (/2)
-	r->x += r->sx * 5.0 / 10.0;
-	r->y += r->sy * 5.0 / 10.0;
-}
-
-NLubyte ServerWorld::game_do_shoot_rocket(int playernum, int px, int py, int x, int y, bool power, double deg, int xdelta) {
+NLubyte ServerWorld::getFreeRocket() {
 	for (NLubyte i=0;i<MAX_ROCKETS;i++)
-		if (rock[i].owner == -1) { //unused
-			make_damn_rocket(i,playernum,px,py,x,y,power,deg,xdelta);
+		if (rock[i].owner == -1) {
+			rock[i].owner = 0;
 			return i;
 		}
-
-	//whoops!
-	LOG("WHOOPS!\n");
-	int wtf = rand() % MAX_ROCKETS;
-	make_damn_rocket(wtf,playernum,px,py,x,y,power,deg,xdelta);
-	return (NLubyte)wtf;
+	LOG("Rocket overwrite!\n");
+	int i = rand() % MAX_ROCKETS;
+	rock[i].owner = 0;
+	return i;
 }
 
 void ServerWorld::shootRockets(int pid, int shots) {
-	int playernum = pid, px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly), gundir = player[pid].gundir;
+	int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
 
-	player[playernum].total_shots++;
+	player[pid].total_shots++;
 
-	//ids alocados pra shots
-	NLubyte		sid[16];
+	NLubyte sid[16];
+	for (int i = 0; i < shots; ++i)
+		sid[i] = getFreeRocket();
 
-	// center degree
-	double cdeg = gundir * PIOIT;
-	bool power = player[pid].item_quad;
-
-	//allocate a new rocket server-side for each shot
-	// shots = qual arma (1-9 tiros!)
-	switch (shots) {
-	case 1:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
-		break;
-	case 2:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
-		break;
-	case 3:
-		//V0.4.8 : NEW TRIPLE SHOT!
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
-		//sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
-		//sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
-		break;
-	case 4:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
-		break;
-	case 5:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
-		break;
-	case 6:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
-		break;
-	case 7:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 3, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 3, 0);
-		break;
-	case 8:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 3, 0);
-		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 3, 0);
-		break;
-	case 9:
-		sid[0] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, 0);
-		sid[1] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, - SHOT_DELTAX * 2);
-		sid[2] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg, + SHOT_DELTAX * 2);
-		sid[3] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT, 0);
-		sid[4] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT, 0);
-		sid[5] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 2, 0);
-		sid[6] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 2, 0);
-		sid[7] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg + PIOIT * 3, 0);
-		sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, power, cdeg - PIOIT * 3, 0);
-		break;
-	}
+	WorldBase::shootRockets(pid, shots, player[pid].gundir, sid, frame, pid/TSIZE, player[pid].item_quad, px, py, x, y);
 
 	//build people-that-know DOUBLE WORD (32bits == 32players max)
 	//send message to players on the same screen
@@ -1666,7 +1630,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
 	for (int k=0;k<shots;k++)
 		rock[ sid[k] ].vislist = vislist;
 
-	host->sendRocketMessage(shots, gundir, sid, playernum/TSIZE, power, px, py, x, y);
+	host->sendRocketMessage(shots, player[pid].gundir, sid, pid/TSIZE, player[pid].item_quad, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
@@ -2203,5 +2167,80 @@ void ServerWorld::ctf_game_restart() {
 	host->ctf_update_teamscore(1);
 
 	map_start_time = frame;
+}
+
+#include "client.h"
+//#fix: include needed for funny callback activities - get rid!
+
+void ClientWorld::extrapolate(ClientWorld& source, double currTime, gameclient_c* host) {
+	if (source.skipped) {
+		skipped = true;
+		return;
+	}
+
+	if (source.frame > 0) {	// valid? (#fix)
+		time = currTime;
+		double frameDiff = (time - source.time) * 10.;
+		frame = source.frame + frameDiff;
+
+		// extrapolate players
+		for (int i=0; i<maxplayers; i++)
+			if (source.player[i].onscreen) {
+				player[i] = source.player[i];
+
+				if (player[i].roomx<0 || player[i].roomy<0 || player[i].roomx>=map.w || player[i].roomy>=map.h) continue;	//#fix: remove this and track why these are given sometimes
+				const Room& room = map.room[player[i].roomx][player[i].roomy];
+				bool carryFlag = source.flag[1-(i/TSIZE)].carried && source.flag[1-(i/TSIZE)].carrier == i;
+
+				//delta counter
+				double dc, f;
+				dc = frameDiff;
+
+				while (dc > 0) {
+					//calc amount of movement
+					f = dc;
+					if (f > 1.0)
+						f = 1.0;
+
+					//dec dc
+					dc -= 1.0;
+
+					//run physics
+					if (applyPhysics(i, room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
+						//player bounced: play bounce sample if minimum time elapsed
+						if (currTime > player[i].wall_sound_time) {
+							player[i].wall_sound_time = get_time() + 0.2;
+							host->sound(SAMPLE_WALLBOUNCE);
+						}
+					}
+				}
+			}
+
+		// extrapolate rockets
+		for (int i=0;i<MAX_ROCKETS;i++) {
+			if (source.rock[i].owner == -1)
+				continue;
+
+			rocket_c *rd = &rock[i];
+			rocket_c *rx = &source.rock[i];
+
+			rd->x = (int)( rx->x + (frame - rx->cl_time) * cos(rx->deg) * ROCKET_SPEED );
+			rd->y = (int)( rx->y + (frame - rx->cl_time) * sin(rx->deg) * ROCKET_SPEED );
+
+			#ifdef PHYS_NEW
+			if (map.fall_on_wall(rx->px, rx->py, (int)rd->x-2, (int)rd->y-PHYS_SHIFTY-2, (int)rd->x+2, (int)rd->y-PHYS_SHIFTY+2)) {
+			#else
+			if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
+			#endif
+				if (rx->power)
+					host->cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
+				else
+					host->cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
+				rx->owner = -1;	// erase from clientside simulation
+			}
+			else if ((rd->x < 0) || (rd->y < 5) || (rd->x > plw) || (rd->y > plh))
+				rx->owner = -1;	// erase from clientside simulation
+		}
+	}
 }
 
