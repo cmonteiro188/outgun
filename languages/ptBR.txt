@@ -6,7 +6,7 @@
 
 
 ; Language of the translation, in the target language.
-Português (Brasil) BETA 3
+Português (Brasil) [Rev. 4]
 
 
 ; You should not modify en.txt, it is the English reference file. Outgun uses
@@ -475,8 +475,8 @@ VIROU
 SORVETE!
 
 ; Max length 13 with 3-digit $1.
-Saúde $1
-Energia $1
+Saúde    $1
+Energia  $1
 
 ; Recommended max length 10 with 3-digit $1. If more length is required, you
 ; have to pad Weapon below with spaces from the left so they don't overlap (but
@@ -501,9 +501,9 @@ MAPA
 ; All 3 lines are used as one message in the middle of the screen. Max length
 ; for each line is 27 characters, use more and it's not neatly in the message
 ; box any more.
-SERVIDOR NÃO ESTÁ RESPONDENDO...
-Talvez tenha tido perda de pacote,
-ou o servidor se desconectou.
+SERVIDOR NÃO RESPONDENDO
+Perda temporária de pacotes
+ou o servidor desconectou.
 
 ; Used to produce the game screen scoreboard titles. Team names are also used
 ; in team and player stats screens (F3, F4).
@@ -512,9 +512,9 @@ ou o servidor se desconectou.
 ; The better the more room for digits in ### there is, for long games. You can
 ; drop " Team" from the team names if space is needed.
 Time vermelho
-Time azul
+Time azul    
 pings
-$1 capt
+$1 cap
 
 ; Used in the team stats screen (F3).
 ; 16 is the maximum width for most, the menu title "Team stats" can be longer.
@@ -713,7 +713,7 @@ Sem mapas para rotação.
 Não foi possível iniciar HawkNL. $1
 Sem rede de IP.
 Admin shell: Não foi possível abrir o soquete na porta $1.
-Admin shell: Não foi possível alterar o soquete para o modo de escuta..
+Admin shell: Não foi possível alterar o soquete para o modo de escuta...
 Admin shell: leitura falhou. Motivo: $1
 Admin shell: Falhou enviando resposta. Motivo: $1
 Não foi possível conectar no servidor mestre. $1
