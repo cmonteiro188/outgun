@@ -2798,8 +2798,8 @@ public:
 				do {
 					ridx = rand() % (map.w*map.h);
 				} while ((runaway-- > 200) && (roompop[ridx] == true));	//keep trying until unnocupied (==false)
-				pos.px = ridx%map.h;
-				pos.py = ridx/map.h;
+				pos.px = ridx%map.w;
+				pos.py = ridx/map.w;
 
 				//find a suitable coordinate -- middle square
 				pos.x = plw / 8 + rand() % (3 * plw / 4);
@@ -6933,7 +6933,7 @@ hd->y=h->y+hd->sy;
 				ostringstream voteinfo;
 				voteinfo << "@I*** " << votes << '/' << players << " votes for mapchange";
 				if (map_start_time+vote_block_time >= frame)
-					voteinfo << " (unanimousity required for " << (map_start_time+vote_block_time-frame+5)/10 << " more seconds)";
+					voteinfo << " (all players needed for " << (map_start_time+vote_block_time-frame+5)/10 << " more seconds)";
 				broadcast_message(voteinfo.str().c_str());
 			}
 		}
