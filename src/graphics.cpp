@@ -862,8 +862,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	destroy_bitmap(backup);
 
 	//draw circles (or flags) to flag positions
-	for (int t = 0; t < 2; ++t)
-		for (vector<spoint_t>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
+	for (int t = 0; t <= 2; ++t) {
+		const vector<spoint_t>& flags = (t == 2 ? map.wild_flags : map.tinfo[t].flags);
+		for (vector<spoint_t>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
 			int px = int(minimap_start_x + 1 + (fi->px * plw + fi->x) / maxx * (minimap_w - 2));
 			int py = int(minimap_start_y + 1 + (fi->py * plh + fi->y) / maxy * (minimap_h - 2));
 			if (save_map_pic) {
@@ -875,6 +876,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			else
 				circle(buffer, px, py, 3, teamcol[t]);
 		}
+	}
 }
 
 //draws a basic player object
