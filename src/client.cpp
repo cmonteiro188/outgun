@@ -793,14 +793,7 @@ bool Client::start() {
 			case CCS_Flipping:				menu.options.graphics.flipping.set(args == "1"); break;
 			case CCS_FPSLimit:				menu.options.graphics.fpsLimit.boundSet(atoi(args)); break;
 			case CCS_GFXTheme:				menu.options.graphics.theme.set(args); break;	// ignore error
-			case CCS_Antialiasing: {
-				int modei = atoi(args);
-				if (modei < 0 || modei > 2)
-					modei = 0;
-				Graphics::Antialiasing_mode mode = static_cast<Graphics::Antialiasing_mode>(modei);
-				menu.options.graphics.antialiasing.set(mode);
-				break;
-			}
+			case CCS_Antialiasing:			menu.options.graphics.antialiasing.set(args == "2"); break;
 			case CCS_StatsBgAlpha:			menu.options.graphics.statsBgAlpha.boundSet(atoi(args)); break;
 
 			// sound menu
@@ -1050,7 +1043,8 @@ void Client::client_connected(const char* data, int length) {	// call with frame
 	// reset gamestate?
 	connected = true;
 	gameshow = true;
-	nAssert(openMenus.safeTop() == &m_connectProgress.menu);
+	nAssert(openMenus.safeTop() != &m_errors.menu);
+	nAssert(openMenus.safeTop() == &m_connectProgress.menu || openMenus.safeTop() == &menu.help.menu);
 	openMenus.clear();
 	fx.frame = fd.frame = 0;
 	fx.skipped = fd.skipped = true;
@@ -3189,7 +3183,7 @@ void Client::stop() {
 		cfg << CCS_Flipping				<< ' ' << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
 		cfg << CCS_FPSLimit				<< ' ' << menu.options.graphics.fpsLimit() << '\n';
 		cfg << CCS_GFXTheme				<< ' ' << menu.options.graphics.theme() << '\n';
-		cfg << CCS_Antialiasing			<< ' ' << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
+		cfg << CCS_Antialiasing			<< ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
 		cfg << CCS_StatsBgAlpha			<< ' ' << menu.options.graphics.statsBgAlpha() << '\n';
 
 		// save sound menu settings
@@ -3697,8 +3691,7 @@ void Client::initMenus() {
 	menu.options.graphics.colorDepth	.setHook(new MCB::N<Select<int>,	&Client::MCF_screenDepthChange		>(this));
 	menu.options.graphics.apply			.setHook(new MCB::N<Textarea,		&Client::MCF_screenModeChange		>(this));
 	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&Client::MCF_gfxThemeChange			>(this));
-	typedef Select<Graphics::Antialiasing_mode> aaSelT;
-	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&Client::MCF_antialiasChange		>(this));
+	menu.options.graphics.antialiasing	.setHook(new MCB::N<Checkbox,		&Client::MCF_antialiasChange		>(this));
 	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&Client::MCF_statsBgChange			>(this));
 	menu.options.graphics.mapInfoMode	.setHook(new MCB::N<Checkbox,		&Client::predraw					>(this));
 

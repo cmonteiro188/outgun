@@ -326,7 +326,7 @@ private:
 
 class Textobject : public Component {
 public:
-	Textobject(): Component(""), line_h(12), start(0), visible_lines(0) { }
+	Textobject(): Component(""), start(0), visible_lines(0) { }
 	void addLine(const std::string& text) { lines.push_back(text); }
 
 	// inherited interface
@@ -338,7 +338,7 @@ public:
 
 private:
 	std::vector<std::string> lines;
-	int line_h;
+	enum { line_h = 12 };
 	mutable int start;			// these may change in drawing
 	mutable int visible_lines;
 };

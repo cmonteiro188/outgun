@@ -201,10 +201,7 @@ public:
 	void search_themes(LineReceiver& dst) const;
 	void select_theme(const std::string& name);
 
-	enum Antialiasing_mode { AA_none, AA_map, AA_both };
-
-	Antialiasing_mode antialiasing_mode() const { return antialiasing; }
-	void set_antialiasing(Antialiasing_mode mode) { antialiasing = mode; }
+	void set_antialiasing(bool enable) { antialiasing = enable; }
 
 	int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
 	
@@ -345,7 +342,7 @@ private:
 	std::string theme_name;
 	bool no_theme;
 
-	Antialiasing_mode antialiasing;
+	bool antialiasing;
 
 	int stats_alpha;
 

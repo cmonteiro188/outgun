@@ -76,7 +76,7 @@ Graphics::Graphics(LogSet logs):
 	team_captures_size(16),
 	team_captures_start(0),
 	no_theme(false),
-	antialiasing(AA_both),
+	antialiasing(true),
 	log(logs)
 { }
 
@@ -367,7 +367,7 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
 	acquire_bitmap(background);
 	clear_to_color(background, 0);
-	if (antialiasing == AA_both) {
+	if (antialiasing) {
 		SceneAntialiaser scene;
 		scene.setScaling(.01, .01, scr_mul - .02 / plh);	// cut .01 pixels from both top and bottom edge, .01 from left and something from the right...
 
@@ -737,67 +737,46 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	const double maxx = plw * map.w;
 	const double maxy = plh * map.h;
 	const float xmul = (minimap_w - 1.) / maxx;
-	const float ymul = (minimap_h - 1.) / maxy;
 
-	if (antialiasing != AA_none) {
-		SceneAntialiaser scene;
-		scene.setScaling(minimap_start_x + .5, minimap_start_y + .5, xmul);
+	SceneAntialiaser scene;
+	scene.setScaling(minimap_start_x + .5, minimap_start_y + .5, xmul);
 
-		// add background
-		scene.addRectangle(0, 0, maxx, maxy, 0);
+	// add background
+	scene.addRectangle(0, 0, maxx, maxy, 0);
 
-		// add room boundaries
-		const float halfPixw = .49999 / xmul, halfPixh = .49999 / xmul;
-		for (int i = 1; i < map.w; i++)
-			scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
-		for (int i = 1; i < map.h; i++)
-			scene.addRectangle(0, plh * i - halfPixh, maxx, plh * i + halfPixh, 2);
+	// add room boundaries
+	const float halfPixw = .49999 / xmul, halfPixh = .49999 / xmul;
+	for (int i = 1; i < map.w; i++)
+		scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
+	for (int i = 1; i < map.h; i++)
+		scene.addRectangle(0, plh * i - halfPixh, maxx, plh * i + halfPixh, 2);
 
-		// add walls
-		for (int y = 0; y < map.h; y++) {
-			const float by = minimap_start_y + .5 + y * plh * xmul;
-			for (int x = 0; x < map.w; x++) {
-				const float bx = minimap_start_x + .5 + x * plw * xmul;
-				scene.setScaling(bx, by, xmul);
-				scene.setClipping(0, 0, plw, plh);
-				const Room& room = map.room[x][y];
-				for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
-					scene.addRectWallClipped(*rwi, 1);
-				for (vector< TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
-					scene.addTriWallClipped (*twi, 1);
-				for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
-					scene.addCircWallClipped(*cwi, 1);
-			}
-		}
-
-		// draw
-		vector<TextureData> colors;
-		TextureData td;
-		td.setSolid(0);					colors.push_back(td);	// ground
-		td.setSolid(col[COLDARKGREEN]);	colors.push_back(td);	// walls
-		td.setSolid(room_border_col);	colors.push_back(td);	// room boundaries
-		Texturizer tex(buffer, 0, 0, colors);
-		scene.render(tex);
-		tex.finalize();
-	}
-	else {
-		//draw room boundaries
-		for (int i = 1; i < map.w; i++)
-			vline(buffer, static_cast<int>(minimap_start_x + 1 + room_w * i), minimap_start_y, minimap_start_y + minimap_h, room_border_col);
-		for (int i = 1; i < map.h; i++)
-			hline(buffer, minimap_start_x, static_cast<int>(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, room_border_col);
-
-		//draw solid walls
-		for (int y = 0; y < map.h; y++) {
-			const float by = minimap_start_y + 1 + y * plh * ymul;
-			for (int x = 0; x < map.w; x++) {
-				float bx = minimap_start_x + 1 + x * plw * xmul;
-				set_clip_rect(buffer, static_cast<int>(bx), static_cast<int>(by), static_cast<int>(bx + room_w), static_cast<int>(by + room_h));
-				draw_room_walls(buffer, map.room[x][y], bx, by, xmul, col[COLDARKGREEN], false);
-				set_clip_rect(buffer, 0, 0, buffer->w, buffer->h);
-			}
+	// add walls
+	for (int y = 0; y < map.h; y++) {
+		const float by = minimap_start_y + .5 + y * plh * xmul;
+		for (int x = 0; x < map.w; x++) {
+			const float bx = minimap_start_x + .5 + x * plw * xmul;
+			scene.setScaling(bx, by, xmul);
+			scene.setClipping(0, 0, plw, plh);
+			const Room& room = map.room[x][y];
+			for (vector<RectWall>::const_iterator rwi = room.rwalls.begin(); rwi != room.rwalls.end(); ++rwi)
+				scene.addRectWallClipped(*rwi, 1);
+			for (vector< TriWall>::const_iterator twi = room.twalls.begin(); twi != room.twalls.end(); ++twi)
+				scene.addTriWallClipped (*twi, 1);
+			for (vector<CircWall>::const_iterator cwi = room.cwalls.begin(); cwi != room.cwalls.end(); ++cwi)
+				scene.addCircWallClipped(*cwi, 1);
 		}
 	}
+
+	// draw
+	vector<TextureData> colors;
+	TextureData td;
+	td.setSolid(0);					colors.push_back(td);	// ground
+	td.setSolid(col[COLDARKGREEN]);	colors.push_back(td);	// walls
+	td.setSolid(room_border_col);	colors.push_back(td);	// room boundaries
+	Texturizer tex(buffer, 0, 0, colors);
+	scene.render(tex);
+	tex.finalize();
 
 	//green border
 	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);

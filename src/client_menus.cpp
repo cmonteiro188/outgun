@@ -211,7 +211,7 @@ Menu_graphics::Menu_graphics() :
 	apply		("Apply changes"),
 
 	theme		("Theme"),
-	antialiasing("Antialiasing"),
+	antialiasing("Antialiasing", true),
 	statsBgAlpha("Stats screen alpha", true, 0, 255, 255, 15),
 
 	fpsLimit	("FPS limit", false, 1, 10000, 60, 0),
@@ -219,11 +219,6 @@ Menu_graphics::Menu_graphics() :
 
 	menu		("Graphic options", true)
 {
-	antialiasing.addOption("Off", Graphics::AA_none);
-	antialiasing.addOption("Map", Graphics::AA_map);
-	antialiasing.addOption("On" , Graphics::AA_both);
-	antialiasing.set(Graphics::AA_both);
-
 	menu.add_component(&colorDepth);
 	menu.add_component(&desktopDepth);
 	menu.add_component(&resolution);

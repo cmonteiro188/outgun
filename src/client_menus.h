@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-#include "graphics.h"	// for definition of Graphics::Antialiasing_mode and mode fetching functions
+#include "graphics.h"	// for mode fetching functions
 #include "menu.h"
 
 class Menu_addServer {
@@ -131,7 +131,7 @@ public:
 	StaticText			refreshRate;
 	Textarea			apply;
 	Select<std::string>	theme;
-	Select<Graphics::Antialiasing_mode> antialiasing;
+	Checkbox			antialiasing;
 	Slider				statsBgAlpha;
 	Slider				fpsLimit;
 	Checkbox			mapInfoMode;
