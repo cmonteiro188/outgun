@@ -1056,7 +1056,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	if (config.getTimeLimit() == 0)
 		map_time << " There is no time limit.";
 	else {
-		int remaining_seconds = getTimeLeft();
+		int remaining_seconds = getTimeLeft() / 10;
 		// time limit not very useful when only one player
 		int players = 0;
 		for (int i = 0; i < maxplayers; i++)
@@ -2142,7 +2142,7 @@ void ServerWorld::simulateFrame() {
 			++players;
 	NLulong time_limit = config.getTimeLimit();
 	if (players > 1 && time_limit > 0) {
-		int timeLeft = getTimeLeft();
+		int timeLeft = getTimeLeft() / 10;
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
 			net->bprintf("@I*** Five minutes left in the game");
 		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
@@ -2220,10 +2220,14 @@ void ClientWorld::extrapolate(ClientWorld& source, double currTime, gameclient_c
 			#else
 			if (map.fall_on_wall(rx->px, rx->py, (int)rd->x, (int)rd->y-PHYS_SHIFTY, (int)rd->x, (int)rd->y-PHYS_SHIFTY)) {
 			#endif
-				if (rx->power)
-					host->eff().create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py, host->sounds());	//quad hit wall
-				else
-					host->eff().create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py, host->sounds());		//normal hit wall
+				if (rx->power) {
+					host->graphics().create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
+					host->sounds().play(SAMPLE_QUADWALLHIT);
+				}
+				else {
+					host->graphics().create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
+					host->sounds().play(SAMPLE_WALLHIT);
+				}
 				rx->owner = -1;	// erase from clientside simulation
 			}
 			else if ((rd->x < 0) || (rd->y < 5) || (rd->x > plw) || (rd->y > plh))

@@ -1094,8 +1094,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	//not showing gameover plaque
 	gameover_plaque = NEXTMAP_NONE;
 
-	//clear fx
-	effects.clear_fx();
+	//clear client side effects
+	client_graphics.clear_fx();
 }
 
 void gameclient_c::client_disconnected() {
@@ -1658,7 +1658,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//verifica se acabou de morrer - play death sound
 					if ((fx.player[i].dead) && (!fx.player[i].old_dead))
-						sound(SAMPLE_DEATH + rand() % 2);
+						client_sounds.play(SAMPLE_DEATH + rand() % 2);
 					fx.player[i].old_dead = fx.player[i].dead;
 
 					//l,r,u,d  accel
@@ -1793,7 +1793,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//don't play talk
 				}
 				else
-					sound(SAMPLE_TALK);
+					client_sounds.play(SAMPLE_TALK);
 				break;
 			}
 
@@ -1881,7 +1881,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(msg, count, abyte);	//carrier
 					fx.flag[team].carrier = abyte;
 
-					sound(SAMPLE_CTF_GOT);
+					client_sounds.play(SAMPLE_CTF_GOT);
 				}
 				break;
 
@@ -1913,9 +1913,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//play sound if rocket on screen
 				if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
 					if (power)
-						sound(SAMPLE_QUAD_FIRE);
+						client_sounds.play(SAMPLE_QUAD_FIRE);
 					else
-						sound(SAMPLE_FIRE);
+						client_sounds.play(SAMPLE_FIRE);
 				break;
 			}
 
@@ -1930,7 +1930,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				if (abyte != 255) {	// hit player
 					if (abyte < 250)	// blink player if not hit shield (252)
 						fx.player[abyte].hitfx = get_time() + .3;
-					effects.create_gunexplo((int)rokx, (int)roky - 10, fx.rock[rockid].px, fx.rock[rockid].py, client_sounds);
+					client_graphics.create_gunexplo((int)rokx, (int)roky - 10, fx.rock[rockid].px, fx.rock[rockid].py);
+					client_sounds.play(SAMPLE_HIT);
 				}
 				break;
 
@@ -1944,7 +1945,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//sound event
 			case 14:
 				readByte(lebuf, count, abyte);		// sample #
-				sound(abyte);
+				client_sounds.play(abyte);
 				break;
 
 			//pickup visible
@@ -2036,7 +2037,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readByte(lebuf, count, sy);
 				readShort(lebuf, count, hx);
 				readShort(lebuf, count, hy);
-				effects.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy, client_sounds);
+				client_graphics.create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
+				client_sounds.play(SAMPLE_USEDEATHBRINGER);
 
 				//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.player[abyte].x, (int)fx.player[abyte].y, player[abyte].x, player[abyte].y);
 				//if (player[abyte].x == player[me].x)
@@ -2211,9 +2213,9 @@ void gameclient_c::toggle_help() {
 	helpshow = !helpshow;
 
 	if (helpshow)
-		sound(SAMPLE_WEAPON_UP);
+		client_sounds.play(SAMPLE_WEAPON_UP);
 	else
-		sound(SAMPLE_FIRE);
+		client_sounds.play(SAMPLE_FIRE);
 }
 
 //show progress / press any key / dialog
@@ -2282,7 +2284,7 @@ void gameclient_c::get_servers_from_master() {
 	//log ok
 	LOG3("QUERY TO MASTER '%s', result = %i, count = %i\n", querybuf, result, qcount);
 
-	client_graphics.show_progress("Request sent.", "Waiting a reply...", "Press ESC to cancel");
+	client_graphics.show_progress("Getting updated internet server list", "Request sent. Waiting a reply...", "Press ESC to cancel");
 
 	//try to read the reply or until user presses ESC
 	//parse the response (should be <HTML><BODY> etc... with "@I @I @I ... @K" on it
@@ -3308,12 +3310,12 @@ void gameclient_c::draw_game_frame() {
 					client_graphics.draw_pup(fx.item[i], get_time());
 					//deathbringer
 					if (fx.item[i].kind == 7)
-						effects.create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
+						client_graphics.create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
       						fx.item[i].px, fx.item[i].py, 0);
 				}
 
-		// draw clientside fx -- efeitos ATRAS das coisas
-		effects.draw_speedfx(client_graphics, fx.player[me].roomx, fx.player[me].roomy, get_time());
+		// draw speed effect
+		client_graphics.draw_speedfx(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
 		// FIXME: y-ordering of draw not maintained
 		// draw any dropped flags (use fx since flags don't move)
@@ -3406,7 +3408,7 @@ void gameclient_c::draw_game_frame() {
 						//tempo minimo pra soltar outra bolinha fade
 						fx.player[i].speed_drop_time = get_time() + 0.05;
 						//solta a bolinha
-						effects.create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
+						client_graphics.create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, i / TSIZE, i % TSIZE, fx.player[i].gundir);
 					}
 
 					//draw player
@@ -3419,8 +3421,8 @@ void gameclient_c::draw_game_frame() {
 							//tempo p/ proximo efeito
 							fx.player[i].death_drop_time = get_time() + 0.01;
 							//drop it
-							effects.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
-							effects.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							client_graphics.create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
 						}
 					}
 					// draw deathbringer affected effect
@@ -3447,7 +3449,7 @@ void gameclient_c::draw_game_frame() {
 			fx.player[i].onscreen && fx.player[i].item_deathbringer)
 				client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly);
 
-	effects.draw(client_graphics, fx.player[me].roomx, fx.player[me].roomy, get_time());
+	client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
 	//do not draw stuff below if map not ready to show
 	if (!hide_game) {

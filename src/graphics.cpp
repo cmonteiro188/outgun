@@ -20,6 +20,7 @@
 
 using std::string;
 using std::vector;
+using std::list;
 
 Graphics::Graphics(int scr_w, int scr_h):
 	flagpos_ready(false)
@@ -870,17 +871,7 @@ void Graphics::print_chat_input(int line, const string& message) {
 	const int x = 3;
 	const int y = 3;
 	const int lh = 11;
-	//nice border
-	textprintf(drawbuf, font, x + 1, y + 0 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x + 1, y + 1 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x + 0, y + 1 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x - 1, y + 1 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x - 1, y + 0 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x - 1, y - 1 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x + 0, y - 1 + line * lh, 0, "%s", message.c_str());
-	textprintf(drawbuf, font, x + 1, y - 1 + line * lh, 0, "%s", message.c_str());
-	// the prompt text
-	textprintf(drawbuf, font, x, y + line * lh, col[COLWHITE], "%s", message.c_str());
+	print_text_border(message, x, y + line * lh, col[COLWHITE], 0);
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol) {
@@ -1200,5 +1191,198 @@ bool Graphics::save_screenshot(const string& filename) const {
 	int failure = save_bitmap(filename.c_str(), bmp, pal);
 	destroy_bitmap(bmp);
 	return !failure;
+}
+
+// client side effects
+
+//clear clientside fx's
+void Graphics::clear_fx() {
+	cfx.clear();
+}
+
+//create wall explosion fx
+void Graphics::create_wallexplo(int x, int y, int px, int py) {
+	clientfx_t fx;
+
+	fx.type = FX_WALL_EXPLOSION;
+	fx.x = x;
+	fx.y = y;
+	fx.time = get_time();
+	fx.px = px;
+	fx.py = py;
+
+	cfx.push_back(fx);
+}
+
+//create quad wall explosion fx
+void Graphics::create_quadwallexplo(int x, int y, int px, int py) {
+	clientfx_t fx;
+
+	fx.type = FX_POWER_WALL_EXPLOSION;
+	fx.x = x;
+	fx.y = y;
+	fx.time = get_time();
+	fx.px = px;
+	fx.py = py;
+
+	cfx.push_back(fx);
+}
+
+//create deathbringer explosion fx
+void Graphics::create_deathbringer(int owner, double start_time, int x, int y, int px, int py) {
+	clientfx_t fx;
+
+	fx.owner = owner;	//deathbringer owner
+	fx.type = FX_DEATHBRINGER_EXPLOSION;
+	fx.x = x;
+	fx.y = y;
+	fx.time = start_time;
+	fx.px = px;
+	fx.py = py;
+
+	cfx.push_back(fx);
+}
+
+//create deathbringer carrier trail fx
+void Graphics::create_deathcarrier(int x, int y, int px, int py, int team) {
+	clientfx_t fx;
+
+	fx.type = FX_DEATHCARRIER_SMOKE;
+	fx.x = x;
+	fx.y = y;
+	fx.px = px;
+	fx.py = py;
+	fx.time = get_time();
+
+	//owner: set color
+	int r = rand() %100;
+	if (team) {
+		if (r < 50)
+			fx.col1 = makecol(0,0,0xff);
+		else if (r < 75)
+			fx.col1 = makecol(0,0xff,0);
+		else
+			fx.col1 = 0;
+	} else {
+		if (r < 50)
+			fx.col1 = makecol(0xff,0,0);
+		else if (r < 75)
+			fx.col1 = makecol(0,0xff,0);
+		else
+			fx.col1 = 0;
+	}
+
+	//JUST BLACK
+	fx.col1 = 0;
+
+	cfx.push_back(fx);
+}
+
+//create explosion fx
+void Graphics::create_gunexplo(int x, int y, int px, int py) {
+	clientfx_t fx;
+
+	fx.type = FX_GUN_EXPLOSION;
+	fx.x = x;
+	fx.y = y;
+	fx.time = get_time();
+	fx.px = px;
+	fx.py = py;
+
+	cfx.push_back(fx);
+}
+
+//create speed bolinha fx
+void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir) {
+	clientfx_t fx;
+
+	fx.type = FX_SPEED;
+	fx.x = x;
+	fx.y = y;
+	fx.px = px;
+	fx.py = py;
+	fx.time = get_time();
+
+	fx.col1 = col1;
+	fx.col2 = col2;
+	fx.gundir = gundir;
+
+	cfx.push_back(fx);
+}
+
+void Graphics::draw_effects(int room_x, int room_y, double time) {
+	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); fx++)
+		// on same room
+		if (fx->px == room_x && fx->py == room_y) {
+			double delta = time - fx->time;
+			switch (fx->type) {
+				case FX_GUN_EXPLOSION:
+					if (delta > 0.4)
+						fx = cfx.erase(fx);
+					else {
+						for (int e = 0; e < 3; e++) {
+							int rad = 4 + e + (int)(delta * 40);
+							draw_gun_explosion(fx->x, fx->y, rad);
+						}
+					}
+					break;
+
+				case FX_SPEED:		// speed effect, draw another time in another function
+					break;
+
+				case FX_WALL_EXPLOSION:
+					if (delta > 0.2)
+						fx = cfx.erase(fx);
+					else {
+						for (int e = 0; e < 2; e++) {
+							int rad = 4 + e + (int)(delta * 40);
+							draw_gun_explosion(fx->x, fx->y, rad);
+						}
+					}
+					break;
+
+				case FX_POWER_WALL_EXPLOSION:
+					if (delta > 0.2)
+						fx = cfx.erase(fx);
+					else {
+						for (int e = 0; e < 3; e++) {
+							int rad = 4 + e + (int)(delta * 60);
+							draw_gun_explosion(fx->x, fx->y, rad);
+						}
+					}
+					break;
+
+				case FX_DEATHBRINGER_EXPLOSION:
+					if (delta > 3.0)
+						fx = cfx.erase(fx);
+					else
+						draw_deathbringer(fx->x, fx->y, fx->owner / TSIZE, delta);
+					break;
+
+				case FX_DEATHCARRIER_SMOKE:
+					if (delta > 0.6)
+						fx = cfx.erase(fx);
+					else
+						draw_deathbringer_smoke(fx->x, fx->y, delta);
+					break;
+			}
+		}
+}
+
+// draw speed effect
+void Graphics::draw_speedfx(int room_x, int room_y, double time) {
+	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); fx++)
+		// on same room
+		if (fx->px == room_x && fx->py == room_y) {
+			if (fx->type == FX_SPEED) {
+				double delta = time - fx->time;
+				if (delta > 0.3)
+					fx = cfx.erase(fx);
+				else {
+					int alpha = 90 - (int)(delta * 300.0);
+					draw_player(fx->x, fx->y, fx->col1, fx->col2, fx->gundir, time, false, alpha, time);
+				}
+			}
+		}
 }
 

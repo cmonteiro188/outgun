@@ -2,7 +2,9 @@
 #define GRAPHICS_H_INC
 
 #include <string>
+#include <list>
 #include "world.h"
+#include "effects.h"
 #include "sounds.h"
 
 // ---- client screen layout ----
@@ -38,6 +40,8 @@ class Graphics {
 	BITMAP* vidpage2;
 	BITMAP* backbuf;
 	bool page_flipping;
+
+    std::list<clientfx_t> cfx;
 
 	//colors
 	enum {
@@ -175,7 +179,7 @@ public:
 	void draw_change_team_message(double time);
 	void draw_change_map_message(double time);
 
-	// draw power-ups
+	// power-ups
 	void draw_pup(const pickup_c& pup, double time);
 	void draw_pup_shield(int x, int y);
 	void draw_pup_turbo(int x, int y);
@@ -184,6 +188,19 @@ public:
 	void draw_pup_weapon(int x, int y, double time);
 	void draw_pup_health(int x, int y, double time);
 	void draw_pup_deathbringer(int x, int y);
+
+	// client side effects
+	void draw_effects(int room_x, int room_y, double time);
+	void draw_speedfx(int room_x, int room_y, double time);
+
+	void clear_fx();
+
+	void create_wallexplo(int x, int y, int px, int py);
+	void create_quadwallexplo(int x, int y, int px, int py);
+	void create_deathbringer(int owner, double start_time, int x, int y, int px, int py);
+	void create_deathcarrier(int x, int y, int px, int py, int team);
+	void create_gunexplo(int x, int y, int px, int py);
+	void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
 
 	// menus
 	void main_menu(bool connected, const std::string& address, const std::string& playername, const std::string& namestatus,

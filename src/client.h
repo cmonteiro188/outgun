@@ -2,7 +2,6 @@
 #define CLIENT_H_INC
 #include "graphics.h"
 #include "sounds.h"
-#include "effects.h"
 #include "world.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
@@ -96,10 +95,9 @@ class gameclient_c {
     char namecursor[2];
     char passcursor[2];
     int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
-    clientfx_t cfx[MAX_CLIENTFX];
+
     Graphics client_graphics;
     Sounds client_sounds;
-    Effects effects;
 
     ofstream message_log;
 
@@ -141,13 +139,14 @@ public:
     void client_download_thread(void *arg);
     void server_map_command(const char *mapname, NLushort server_crc);
 
+    // graphics
+    Graphics& graphics() { return client_graphics; }
+
     // sounds
     void sound(int s) const;
     Sounds& sounds() { return client_sounds; }
 
 	// GUI
-	Effects& eff() { return effects; }
-
     void erase_first_message();
     void print_message(const char *msg);
 

@@ -498,7 +498,7 @@ public:
 	void stealFlag(int team, int carrier);
 	int getMapTime() const { return frame - map_start_time; }
 	bool isTimeLimit() const { return config.getTimeLimit() > 0; }
-	int getTimeLeft() const { return (config.getTimeLimit() - getMapTime()) / 10; }
+	int getTimeLeft() const { return config.getTimeLimit() - getMapTime(); }
 
 	// server specific functions
 	void reset();
