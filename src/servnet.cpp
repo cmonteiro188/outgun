@@ -1247,7 +1247,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	//RECALC PLAYERS PRESENT EVERY TIME
 	NLulong players_present = 0;
 	for (int pp = 0; pp < maxplayers; pp++)
-		if (world.player[pp].used && !world.player[pp].awaiting_client_ready)
+		if (world.player[pp].used)
 			players_present += (1 << pp);
 
 	// ============================
