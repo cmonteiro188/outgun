@@ -22,12 +22,14 @@
  */
 
 #include "commont.h"
-#include "world.h"
 #include "graphics.h"
+#include "language.h"
+#include "world.h"
+
 #include "mappic.h"
 
-using std::vector;
 using std::string;
+using std::vector;
 
 void Mappic::run() {
     find_maps();
@@ -70,11 +72,11 @@ void Mappic::save_pictures() const {
         string picture = dir + *name + ".pcx";
         Map mp;
         if (!mp.load(log, SERVER_MAPS_DIR, *name))
-            log.error("Map picture saver: Map '%s' is not a valid map file.", picture.c_str());
+            log.error(_("Map picture saver: Map '$1' is not a valid map file.", *name));
         else if (graphics.save_map_picture(picture, mp))
             log("Map picture saver: Saved map picture to '%s'.", picture.c_str());
         else {
-            log.error("Map picture saver: Can't save map picture to '%s'.", picture.c_str());
+            log.error(_("Map picture saver: Can't save map picture to '$1'.", picture));
             throw Save_error();
         }
     }

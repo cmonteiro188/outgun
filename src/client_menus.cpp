@@ -22,6 +22,7 @@
  *
  */
 
+#include <algorithm>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -152,7 +153,7 @@ Menu_game::Menu_game() :
     lagPrediction       (_("Lag prediction"), false),
     lagPredictionAmount (_("Lag prediction amount"), true, 0, 10, 10),
 
-    messageLogging      (_("Save chat messages"), false),
+    messageLogging      (_("Save game messages")),
     saveStats           (_("Save game statistics"), false),
     showStats           (_("Show stats after the round"), false),
     showServerInfo      (_("Show server info when connected"), false),
@@ -176,9 +177,14 @@ Menu_game::Menu_game() :
     menu.add_component(&underlineServerAuth);
     ins_space();
     menu.add_component(&autoGetServerList);
+
+    messageLogging.addOption(_("off"), ML_none);
+    messageLogging.addOption(_("chat only"), ML_chat);
+    messageLogging.addOption(_("all messages"), ML_full);
 }
 
 Menu_controls::Menu_controls() :
+    keyboardLayout      (_("Keyboard layout")),
     keypadMoving        (_("Use keypad for moving"), true),
 
     joystick            (_("Enable joystick control"), false),
@@ -188,8 +194,11 @@ Menu_controls::Menu_controls() :
     joyRun              (_("Run   "), false, 0, 16, 2),
     joyStrafe           (_("Strafe"), false, 0, 16, 3),
 
+    activeControls      (_("Active controls")),
+
     menu                (_("Controls"), true)
 {
+    menu.add_component(&keyboardLayout);
     menu.add_component(&keypadMoving);
     ins_space();
     menu.add_component(&joystick);
@@ -198,6 +207,36 @@ Menu_controls::Menu_controls() :
     menu.add_component(&joyShoot);
     menu.add_component(&joyRun);
     menu.add_component(&joyStrafe);
+    ins_space();
+    menu.add_component(&activeControls);
+
+    // add keyboard layouts in alphabetical order (depends on translation)
+    vector< pair<string, string> > layouts;
+    layouts.reserve(20);
+    layouts.push_back(pair<string, string>(_("Belgium"),          "be"));
+    layouts.push_back(pair<string, string>(_("Brazil"),           "br"));
+    layouts.push_back(pair<string, string>(_("Canada (French)"),  "cf"));
+    layouts.push_back(pair<string, string>(_("Czech Republic"),   "cz"));
+    layouts.push_back(pair<string, string>(_("Denmark"),          "de"));
+    layouts.push_back(pair<string, string>(_("Dvorak"),       "dvorak"));
+    layouts.push_back(pair<string, string>(_("Finland"),          "fi"));
+    layouts.push_back(pair<string, string>(_("France"),           "fr"));
+    layouts.push_back(pair<string, string>(_("Germany"),          "de"));
+    layouts.push_back(pair<string, string>(_("Italy"),            "it"));
+    layouts.push_back(pair<string, string>(_("Norway"),           "no"));
+    layouts.push_back(pair<string, string>(_("Poland"),           "pl"));
+    layouts.push_back(pair<string, string>(_("Portugal"),         "pt"));
+    layouts.push_back(pair<string, string>(_("Russia"),           "ru"));
+    layouts.push_back(pair<string, string>(_("Slovakia"),         "sk"));
+    layouts.push_back(pair<string, string>(_("Spain"),            "es"));
+    layouts.push_back(pair<string, string>(_("Sweden"),           "se"));
+    layouts.push_back(pair<string, string>(_("Switzerland"),      "ch"));
+    layouts.push_back(pair<string, string>(_("United Kingdom"),   "uk"));
+    layouts.push_back(pair<string, string>(_("United States"),    "us"));
+    std::sort(layouts.begin(), layouts.end());
+    for (vector< pair<string, string> >::const_iterator li = layouts.begin(); li != layouts.end(); ++li)
+        keyboardLayout.addOption(li->first, li->second);
+    keyboardLayout.set("us");
 }
 
 void Menu_graphics::reloadChoices(const Graphics& gfx) {
@@ -307,20 +346,33 @@ void Menu_sounds::update(const Sounds& snd) {   // tries to keep the selected th
     theme.set(oldTheme);
 }
 
+Menu_language::Menu_language() :
+    language(_("Language")),
+
+    menu(_("Change language"), false)
+{
+    menu.add_component(&language);
+    // it's callers responsibility to set up the choices for language
+}
+
 Menu_options::Menu_options() :
     name    (),
     game    (),
     controls(),
     graphics(),
     sounds  (),
+    language(),
 
     menu    (_("Options"), true)
 {
     menu.add_component(&name.menu);
     menu.add_component(&game.menu);
     menu.add_component(&controls.menu);
+    ins_space();
     menu.add_component(&graphics.menu);
     menu.add_component(&sounds.menu);
+    ins_space();
+    menu.add_component(&language.menu);
 }
 
 void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
@@ -330,6 +382,7 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
     controls.recursiveSetMenuOpener(opener->clone());
     graphics.recursiveSetMenuOpener(opener->clone());
     sounds  .recursiveSetMenuOpener(opener->clone());
+    language.recursiveSetMenuOpener(opener->clone());
 }
 
 Menu_ownServer::Menu_ownServer() :

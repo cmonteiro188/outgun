@@ -31,11 +31,13 @@
 #include "client.h"
 #include "commont.h"
 #include "debug.h"
+#include "debugconfig.h"    // some globals are set from commandline arguments
 #include "gameserver_interface.h"
+#include "language.h"
 #include "mappic.h"
 #include "network.h"
-#include "platform.h"   // platMkdir, messageBox
-#include "language.h"
+#include "platform.h"   // platMkdir
+#include "utility.h"
 
 using std::ifstream;
 using std::ostringstream;
@@ -104,7 +106,7 @@ bool check_dir(const string& dir, LogSet& log) {
     al_findclose(&mapffblk);
     if (exists || !platMkdir(directory.c_str()))
         return true;
-    log.error("The directory '%s' was not found and could not be created.", directory.c_str());
+    log.error(_("The directory '$1' was not found and could not be created.", directory));
     return false;
 }
 
@@ -182,7 +184,7 @@ int main(int argc, const char* argv[]) {
     innerMain(argc, argv, log, memoryErrorLog);
 
     bool err = memoryErrorLog.size() != 0;
-    errorMessage("Errors", memoryErrorLog, "See the 'log' directory for more information.");
+    errorMessage(_("Errors"), memoryErrorLog, '\n' + _("See the 'log' directory for more information."));
     return err;
 } END_OF_MAIN();
 
@@ -192,6 +194,26 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     check_dir("config", log);
     check_dir("languages", log);
+
+    int acceptedErrorCount = memoryErrorLog.size(); // this is just a flag here; final value of acceptedErrorCount is set after loading the language
+
+    {
+        const string lang_file = wheregamedir + "config" + directory_separator + "language.txt";
+        ifstream in(lang_file.c_str());
+        string lang_str;
+        if (getline_skip_comments(in, lang_str)) {
+            if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos)
+                language.load(lang_str, log);   // load() will log.error() if something goes wrong; we're not aborting if that happens, and usefully the client will pick up and show the error message
+            else
+                log.error("Invalid language '" + lang_str + "' in " + lang_file + '.');
+        }
+        in.close();
+    }
+
+    if (acceptedErrorCount == 0)    // no errors before loading the language
+        acceptedErrorCount = memoryErrorLog.size(); // accept errors in loading the language
+    else
+        acceptedErrorCount = 0;
 
     bool textserver = false;
     bool showinfo = false;
@@ -225,6 +247,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
                 targetprio_specified = true;
             }
         }
+        else if (!strcmp(argv[i], "-unsafeserver"))
+            serverCfg.threadLock = false;
         else if (!strcmp(argv[i], "-win"))
             clientCfg.winclient = 1;
         else if (!strcmp(argv[i], "-flip"))
@@ -233,38 +257,40 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             clientCfg.trypageflip = 0;
         else if (!strcmp(argv[i], "-fs"))
             clientCfg.winclient = 0;
+        else if (!strcmp(argv[i], "-defmode"))
+            clientCfg.forceDefaultGfxMode = true;
         else if (!strcmp(argv[i], "-fps")) {
             if (++i<argc) {
                 int fps = strtol(argv[i], NULL, 10);
                 if (fps < 1 || fps > 1000)
-                    log.error("-fps X: X must be in the range of 1 to 1000.");
+                    log.error(_("-fps X: X must be in the range of 1 to 1000."));
                 else
                     clientCfg.targetfps = fps;
             }
             else
-                log.error("-fps must be followed by a space and a number.");
+                log.error(_("-fps must be followed by a space and a number."));
         }
         else if (!strcmp(argv[i], "-maxp")) {
             if (++i < argc) {
                 int maxp = strtol(argv[i], NULL, 10);
                 if (maxp < 2 || maxp > MAX_PLAYERS || (maxp % 2 == 1))
-                    log.error("-maxp X: X must be an even number in the range of 2 to %d.", MAX_PLAYERS);
+                    log.error(_("-maxp X: X must be an even number in the range of 2 to $1.", itoa(MAX_PLAYERS)));
                 else
                     serverCfg.server_maxplayers = maxp;
             }
             else
-                log.error("-maxp must be followed by a space and a player count.");
+                log.error(_("-maxp must be followed by a space and a player count."));
         }
         else if (!strcmp(argv[i], "-port")) {
             if (++i < argc) {
                 serverCfg.port = strtol(argv[i], NULL, 10);
                 if (serverCfg.port < 1 || serverCfg.port > 65535)
-                    log.error("-port X: X must be in the range of 1 to 65535.");
+                    log.error(_("-port X: X must be in the range of 1 to 65535."));
                 else
                     serverCfg.portForced = true;
             }
             else
-                log.error("-port must be followed by a space and a port number.");
+                log.error(_("-port must be followed by a space and a port number."));
         }
         else if (!strcmp(argv[i], "-nosound"))
             clientCfg.nosound = true;
@@ -275,69 +301,85 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
                     serverCfg.ipForced = true;
                 }
                 else
-                    log.error("-ip X: X must be a valid IP address without :port.");
+                    log.error(_("-ip X: X must be a valid IP address without :port."));
             }
             else
-                log.error("-ip must be followed by a space and an IP address.");
+                log.error(_("-ip must be followed by a space and an IP address."));
         }
         else if (!strcmp(argv[i], "-mappic")) {
             check_dir("mappic", log);
             if (argc != 2)
-                log.error("-mappic can't be combined with other command line options.");
+                log.error(_("-mappic can't be combined with other command line options."));
 
-            if (memoryErrorLog.size())  // no point in continuing if there were errors
+            if (memoryErrorLog.size() != acceptedErrorCount)    // no point in continuing if there were errors
                 return;
 
             log("Saving map pictures");
-            set_window_title("Outgun map picture saver");
+            set_window_title(_("Outgun - Saving map pictures").c_str());
             Mappic mappic(log);
             try {
                 mappic.run();
-                messageBox("Outgun", "Saved map pictures to mappic directory.");
+                messageBox("Outgun", _("Saved map pictures to the directory 'mappic'."));
             } catch (const Mappic::Save_error& s) {
-                log.error("Could not save map pictures to the directory 'mappic'.");
+                log.error(_("Could not save map pictures to the directory 'mappic'."));
             }
             return;
         }
+        else if (!strcmp(argv[i], "-suppressmessages"))
+            g_allowBlockingMessages = false;
+        else if (!strcmp(argv[i], "-debug")) {
+            if (++i < argc) {
+                int level = strtol(argv[i], NULL, 10);
+                if (level < 0 || level > 2)
+                    log.error(_("-debug X: X must be in the range of 0 to 2."));
+                else {
+                    g_leetnetLog     = (level >= 1);
+                    g_leetnetDataLog = (level >= 2);
+                }
+            }
+            else
+                log.error(_("-debug must be followed by a space and a number."));
+        }
         else
-            log.error("Unknown command-line argument '%s'.", argv[i]);
+            log.error(_("Unknown command-line argument '$1'.", argv[i]));
     }
     if (nlInit() == NL_FALSE)
-        log.error("Can't init HawkNL. %s", getNlErrorString());
+        log.error(_("Can't init HawkNL. $1", getNlErrorString()));
     if (nlSelectNetwork(NL_IP) == NL_FALSE)
-        log.error("No IP network.");
-
+        log.error(_("No IP network."));
     // enable statistics
     nlEnable(NL_SOCKET_STATS);
 
-    // resolve master server address
-    log("Resolving master server address...");
-    ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
-    string name, address;
-    if (!getline_skip_comments(in, name))
-        name = "koti.mbnet.fi";
-    if (!getline_skip_comments(in, address))
-        address = "194.100.161.5";
-    else if (!isValidIP(address, true, 1)) {
-        log.error("'%s', given in master.txt is not a valid IP address", address.c_str());
-        address = "194.100.161.5";
-    }
-    in.close();
-    try {
-        nlGetAddrFromName(name.c_str(), &master_address);
-    } catch (...) {
-        log("Caught exception probably on nlGetAddrFromNameAsync()");
-        master_address.valid = NL_FALSE;
-    }
+    {
+        // resolve master server address
+        log("Resolving master server address...");
+        ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
+        string name, address;
+        if (!getline_skip_comments(in, name))
+            name = "koti.mbnet.fi";
+        if (!getline_skip_comments(in, address))
+            address = "194.100.161.5";
+        else if (!isValidIP(address, true, 1)) {
+            log.error(_("'$1', given in master.txt is not a valid IP address.", address.c_str()));
+            address = "194.100.161.5";
+        }
+        in.close();
+        try {
+            nlGetAddrFromName(name.c_str(), &master_address);
+        } catch (...) {
+            log("Caught exception probably on nlGetAddrFromNameAsync()");
+            master_address.valid = NL_FALSE;
+        }
 
-    if (master_address.valid == NL_FALSE) {
-        log("Can't resolve master server DNS name to IP.");
-        nlStringToAddr(address.c_str(), &master_address);
-    }
+        if (master_address.valid == NL_FALSE) {
+            log("Can't resolve master server DNS name to IP.");
+            nlStringToAddr(address.c_str(), &master_address);
+        }
 
-    if (nlGetPortFromAddr(&master_address) == 0)    // port is unspecified or an error occured
-        nlSetAddrPort(&master_address, 80);
-    log("Master server address set: %s (%s), port %d.", name.c_str(), address.c_str(), nlGetPortFromAddr(&master_address));
+        if (nlGetPortFromAddr(&master_address) == 0)    // port is unspecified or an error occured
+            nlSetAddrPort(&master_address, 80);
+        log("Master server address set: %s (%s), port %d.", name.c_str(), address.c_str(), nlGetPortFromAddr(&master_address));
+    }
 
     // install higher-accuracy timer interrupt
     LOCK_VARIABLE(time_counter);
@@ -362,31 +404,27 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     //show info
     if (showinfo) {
-        if (memoryErrorLog.size())  // not continuing if there were errors
+        if (memoryErrorLog.size() != acceptedErrorCount)  // not continuing if there were errors
             return;
 
         //get all local addresses
         NLint locsize;
         const NLaddress *locals = nlGetAllLocalAddr(&locsize);
 
-        char infobuf[2048];
-        platSnprintf(infobuf, 2048,
-            "Information:\n"
-            "\n"
-            "Thread priorities for -prio <val> parameter:\n"
-            "* Minimum -prio <val> : %i\n"
-            "* Maximum -prio <val> : %i\n"
-            "* System default (use -defaultprio) : %i\n"
-            "\n"
-            "Local addresses:\n",
-                pmin, pmax, pdef);
+        string infobuf =
+            _("Possible thread priorities (-prio <val>):") + '\n' +
+            _("* Minimum: $1", itoa(pmin)) + '\n' +
+            _("* Maximum: $1", itoa(pmax)) + '\n' +
+            _("* System default (use -defaultprio): $1", itoa(pdef)) + '\n' +
+            _("* Outgun default: $1", itoa((pmax - 1 < pmin) ? pdef : pmax - 1)) + "\n\n" +
+            _("IP addresses:") + '\n';
 
         for (int i = 0; i < locsize; i++) {
-            strcat(infobuf, addressToString(locals[i]).c_str());
-            strcat(infobuf, "\n");
+            infobuf += addressToString(locals[i]);
+            infobuf += '\n';
         }
 
-        messageBox("Information", infobuf);
+        messageBox(_("Information"), infobuf);
         return;
     }
 
@@ -401,7 +439,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
         if (ptarg < pmin || ptarg > pmax) {
             if (targetprio_specified)
-                log.error("The given priority %d isn't within system limits. Run with -info for more information.", ptarg);
+                log.error(_("The given priority $1 isn't within system limits. Run with -info for more information.", itoa(ptarg)));
             else    // this mostly happens if pmin == pmax
                 log("Couldn't set a higher priority. Using default.");
             ptarg = pdef;
@@ -419,6 +457,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     GlobalCloseButtonHook::install();
     GlobalDisplaySwitchHook::init();
 
+    check_dir(SERVER_MAPS_DIR, log);    // the client might run a server, so check these in any case
+    check_dir("server_stats" , log);
+
     // run dedicated server
     if (serverCfg.dedserver) {
         if (textserver)
@@ -432,14 +473,14 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
             if (set_display_switch_mode(SWITCH_BACKGROUND) == -1)
-                log.error("Can't set server to run in the background.");
+                log.error(_("Can't set server to run in the background."));
             else
                 log("Switch_background set ok.");
         }
         else
             log("Switch_backamnesia set ok.");
 
-        if (memoryErrorLog.size())  // no point in continuing if there were errors
+        if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
             return;
 
         // run server
@@ -449,29 +490,19 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             gameserver->stop();
         }
         else
-            log.error("Can't start the server.");
+            log.error(_("Can't start the server."));
         delete gameserver;
     }
     // run client
     else {
         check_dir(CLIENT_MAPS_DIR, log);
-        check_dir("screens", log);
-        check_dir("client_stats", log);
-        check_dir("server_stats", log);
+        check_dir("screens"      , log);
+        check_dir("graphics"     , log);
+        check_dir("sound"        , log);
+        check_dir("client_stats" , log);
 
-        if (memoryErrorLog.size())  // no point in continuing if there were errors
+        if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
             return;
-
-        const string lang_file = wheregamedir + "config" + directory_separator + "language.txt";
-        ifstream in(lang_file.c_str());
-        string lang_str;
-        if (getline_skip_comments(in, lang_str)) {
-            if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos)
-                language.load(lang_str, log);   // load() will log.error() if something goes wrong; we're not aborting if that happens, and usefully the client will pick up and show the error message
-            else
-                log.error("Invalid language '%s' in %s.", lang_str.c_str(), lang_file.c_str());
-        }
-        in.close();
 
         // run client
         clientCfg.statusOutput = statusOutputWindow;
@@ -482,7 +513,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             gameclient->stop();
         }
         else
-            log.error(_("Can't start the client.").c_str());
+            log.error(_("Can't start the client."));
         delete gameclient;
     }
 

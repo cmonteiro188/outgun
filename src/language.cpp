@@ -53,12 +53,12 @@ bool Language::load(const string& lang, LogSet& log) {
     const string translname = dir + lang + ".txt";
     ifstream def(defname.c_str());
 	if (!def) {
-        log.error("%s not found. Can't load a language without the English reference. Continuing without translation.", defname.c_str());
+        log.error(defname + " not found. Can't load a language without the English reference. Continuing without translation.");
         return false;
     }
     ifstream transl(translname.c_str());
     if (!transl) {
-        log.error("Language file for '%s' not found (%s). Continuing without translation.", lang.c_str(), translname.c_str());
+        log.error("Language file for '" + lang + "' (" + translname + ") not found. Continuing without translation.");
         return false;
     }
     for (;;) {
@@ -71,8 +71,8 @@ bool Language::load(const string& lang, LogSet& log) {
             break;
     }
     if (def || transl) {
-        log.error("Language file for '%s' is invalid, maybe for another version of Outgun. %s contains %s phrases than %s. Continuing without translation.",
-                  lang.c_str(), translname.c_str(), transl ? "more" : "less", defname.c_str());
+        log.error("Language file for '" + lang + "' is invalid, maybe for another version of Outgun. " +
+                  translname + " contains " + (transl ? "more" : "less") + " phrases than " + defname + ". Continuing without translation.");
         texts.clear();
         return false;
     }
@@ -95,4 +95,12 @@ string _(const string& text, const string& t1, const string& t2) {
 
 string _(const string& text, const string& t1, const string& t2, const string& t3) {
     return replace_all(_(text, t1, t2), "$3", t3);
+}
+
+string _(const string& text, const string& t1, const string& t2, const string& t3, const string& t4) {
+    return replace_all(_(text, t1, t2, t3), "$4", t4);
+}
+
+string _(const string& text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) {
+    return replace_all(_(text, t1, t2, t3, t4), "$5", t5);
 }

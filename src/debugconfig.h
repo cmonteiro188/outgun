@@ -41,11 +41,15 @@ static const bool LOG_MESSAGE_TRAFFIC = false;
 
 // Leetnet specific settings:
 
+// if the LEETNET_* define is disabled, the feature can't be turned on; otherwise the activation depends on initialization in globals.cpp, and commandline args
+
 // create leetclientlog.txt and leetserverlog.txt (useful mostly just for debugging Leetnet)
 #define LEETNET_LOG
+extern bool g_leetnetLog;
 
 // create leetclientdata.bin and leetserverdata.bin containing all network traffic of established connections (useful for any network debugging but the files may grow large)
 #define LEETNET_DATA_LOG
+extern bool g_leetnetDataLog;
 
 // create ./lnetdlog.bin containing timing information of Leetnet internals (not very useful and will quickly grow large)
 //#define LEETNET_ACTIVITY_LOG

@@ -28,6 +28,7 @@
 #include <nl.h>
 
 #include "commont.h"
+#include "language.h"
 #include "nameauth.h"
 #include "nassert.h"
 #include "network.h"
@@ -63,7 +64,7 @@ bool NameAuthorizationDatabase::load() {
     const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
     ifstream in(filename.c_str());
     if (!in) {
-        log.error("Can't read '%s'", filename.c_str());
+        log.error(_("Can't read '$1'.", filename));
         return false;
     }
     bool bansChanged = false;
@@ -78,7 +79,7 @@ bool NameAuthorizationDatabase::load() {
         getline(strl, name, '\t');
         name = makeComparable(name);
         if (!strl || name.empty()) {
-            log.error("Invalid line (no name) in auth.txt: \"%s\"", line.c_str());
+            log.error(_("Invalid line (no name) in auth.txt: \"$1\"", line));
             continue;
         }
         strl >> data;
@@ -86,7 +87,7 @@ bool NameAuthorizationDatabase::load() {
         command = toupper(command);
         if (command == "USER") {
             if (!dataRead)
-                log.error("Invalid user command (no password) in auth.txt: \"%s\"", line.c_str());
+                log.error(_("Invalid user command (no password) in auth.txt: \"$1\"", line));
             else
                 names.push_back(NameEntry(name, data, false));
         }
@@ -98,7 +99,7 @@ bool NameAuthorizationDatabase::load() {
         }
         else if (command == "BAN") {
             if (!dataRead || !isValidIP(data))
-                log.error("Invalid ban command (IP address) in auth.txt: \"%s\"", line.c_str());
+                log.error(_("Invalid ban command (IP address) in auth.txt: \"$1\"", line));
             else {
                 NLaddress addr;
                 if (!nlStringToAddr(data.c_str(), &addr))
@@ -115,7 +116,7 @@ bool NameAuthorizationDatabase::load() {
             }
         }
         else
-            log.error("Unrecognized command \"%s\" in auth.txt", command.c_str());
+            log.error(_("Unrecognized command \"$1\" in auth.txt", command));
     }
     if (bansChanged)
         return save();
@@ -127,16 +128,16 @@ bool NameAuthorizationDatabase::save() const {
     const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
     ofstream out(filename.c_str());
     if (!out) {
-        log.error("Can't write '%s'", filename.c_str());
+        log.error(_("Can't write '$1'.", filename));
         return false;
     }
     else
         log("Writing '%s'", filename.c_str());
-    out << "; This file is automatically rewritten whenever the ban list changes.\n"
-        << "; To reserve a name add a row:\n"
-        << "; user <name> <tab> <password>  or  admin <name> [<tab> <password>]\n"
-        << "; where <tab> is a tabulator character.\n"
-        << "; Passwordless admins need to authenticate by logging in to the tournament\n"
+    out << "; " << _("This file is automatically rewritten whenever the ban list changes.") << '\n'
+        << "; " << _("To reserve a name add a row:") << '\n'
+        << "; " << _("user <name> <tab> <password>  or  admin <name> [<tab> <password>]") << '\n'
+        << "; " << _("where <tab> is a tabulator character.") << '\n'
+        << "; " << _("Passwordless admins need to authenticate by logging in to the tournament.") << '\n'
         << '\n';
     for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
         if (bi->endTime > time(0))  // if the ban isn't in effect any more, don't save

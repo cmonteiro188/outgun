@@ -97,6 +97,7 @@ enum Network_data_code {
     data_normal_time_out,
     data_too_much_talk,
     data_mute_notification,
+    data_tournament_update_failed,
     data_player_mute,
     data_player_kick,
     data_disconnecting,

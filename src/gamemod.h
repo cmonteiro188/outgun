@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "function_utility.h"
+#include "language.h"
 #include "world.h"  // for WorldSettings::Team_balance
 
 class LogSet;
@@ -248,21 +249,21 @@ bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) {
     if (!rd || rd.peek() != eof_ch || ((val < vmin || val > vmax) && !(val == 0 && allow0))) {
         std::string orZero;
         if (allow0)
-            orZero = ", or 0";
+            orZero = _(", or 0");
         const bool minBound = (vmin != lim::min() || static_cast<double>(lim::min()) > -100000.);   // compare doubles to avoid range and signedness warnings
         const bool maxBound = (vmax != lim::max() || static_cast<double>(lim::max()) <  100000.);
         if (minBound && maxBound) {
             if (vmax == vmin + 1)
-                return basicErrorMessage(log, value, std::string() + itoa(vmin) + " or " + itoa(vmax) + orZero);
+                return basicErrorMessage(log, value, _("$1 or $2", itoa(vmin), itoa(vmax)) + orZero);
             else
-                return basicErrorMessage(log, value, std::string() + "an integer, between " + itoa(vmin) + " and " + itoa(vmax) + " inclusive" + orZero);
+                return basicErrorMessage(log, value, _("an integer, between $1 and $2, inclusive", itoa(vmin), itoa(vmax)) + orZero);
         }
         else if (maxBound)
-            return basicErrorMessage(log, value, std::string() + "an integer, at most " + itoa(vmax) + orZero);
+            return basicErrorMessage(log, value, _("an integer, at most $1", itoa(vmax)) + orZero);
         else if (minBound)
-            return basicErrorMessage(log, value, std::string() + "an integer, at least " + itoa(vmin) + orZero);
+            return basicErrorMessage(log, value, _("an integer, at least $1", itoa(vmin)) + orZero);
         else
-            return basicErrorMessage(log, value, "an integer");
+            return basicErrorMessage(log, value, _("an integer"));
         return false;
     }
     *var = val * mul + add;
@@ -285,13 +286,13 @@ bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) {
     rd >> val;
     if (!rd || rd.peek() != eof_ch || val < vmin || val > vmax) {
         if (vmin == -lim::max() && vmax == lim::max())
-            return basicErrorMessage(log, value, "a real number");
+            return basicErrorMessage(log, value, _("a real number"));
         else if (vmin == -lim::max())
-            return basicErrorMessage(log, value, std::string() + "a real number, at most " + fcvt(vmax));
+            return basicErrorMessage(log, value, _("a real number, at most $1", fcvt(vmax)));
         else if (vmax == lim::max())
-            return basicErrorMessage(log, value, std::string() + "a real number, at least " + fcvt(vmin));
+            return basicErrorMessage(log, value, _("a real number, at least $1", fcvt(vmin)));
         else
-            return basicErrorMessage(log, value, std::string() + "a real number, between " + fcvt(vmin) + " and " + fcvt(vmax) + ", inclusive");
+            return basicErrorMessage(log, value, _("a real number, between $1 and $2, inclusive", fcvt(vmin), fcvt(vmax)));
     }
     *var = val * mul + add;
     return true;

@@ -25,11 +25,12 @@
 #define PLATFORM_H_INC
 
 #include <cstdarg>
+#include <string>
 
 int platMkdir(const char* path);
 int platStricmp(const char* s1, const char* s2);
 int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg);
-void messageBox(const char* caption, const char* fmt, ...);
+void platMessageBox(const std::string& caption, const std::string& text);
 
 inline int platSnprintf(char* buf, size_t count, const char* fmt, ...) {
     va_list args;

@@ -35,3 +35,6 @@ char directory_separator;
 std::string wheregamedir;
 
 MutexHolder nlOpenMutex;
+
+bool g_leetnetLog = true;
+bool g_leetnetDataLog = true;

@@ -43,9 +43,11 @@
 using std::dec;
 using std::hex;
 using std::min;
+using std::ofstream;
 using std::ostream;
 using std::ostringstream;
 using std::setfill;
+using std::setprecision;
 using std::setw;
 using std::string;
 using std::vector;
@@ -70,7 +72,13 @@ string itoa_w(int val, int width, bool left) {
 
 string fcvt(double val) {
     ostringstream ss;
-    ss << val;
+    ss << std::fixed << val;
+    return ss.str();
+}
+
+string fcvt(double val, int precision) {
+    ostringstream ss;
+    ss << std::fixed << setprecision(precision) << val;
     return ss.str();
 }
 
@@ -197,9 +205,22 @@ const char* strspnp(const char* str, const char* charset) {
     return strspnp(const_cast<char*>(str), charset);
 }
 
-void LogSet::operator()(const char* fmt, ...) { if (!  normalLog) return; va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
-void LogSet::error     (const char* fmt, ...) { if (!   errorLog) return; va_list args; va_start(args, fmt); (*   errorLog)(fmt, args); va_end(args); }
-void LogSet::security  (const char* fmt, ...) { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
+void LogSet::operator()(const char* fmt, ... ) { if (!  normalLog) return; va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
+void LogSet::error     (const std::string msg) { if (!   errorLog) return;                                         errorLog->put(msg)  ;               }
+void LogSet::security  (const char* fmt, ... ) { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
+
+bool g_allowBlockingMessages = true;
+
+void messageBox(const string& heading, const string& msg) {
+    if (g_allowBlockingMessages)
+        platMessageBox(heading, msg);
+    else {
+        std::cerr << heading << ":\n" << msg << '\n';
+        ofstream os((wheregamedir + "log" + directory_separator + "suppressed_messages.txt").c_str(), std::ios_base::ate);
+        // ignore possible error (what could we do?)
+        os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
+    }
+}
 
 void errorMessage(const string& heading, MemoryLog& errorLog, const string& footer) {
     int errors = errorLog.size();
@@ -212,9 +233,9 @@ void errorMessage(const string& heading, MemoryLog& errorLog, const string& foot
         }
         errors = errorLog.size();
         if (errors)
-            msg << "+ " << errors << " more";
+            msg << _("+ $1 more", itoa(errors));
         msg << footer;
-        messageBox(heading.c_str(), "%s", msg.str().c_str());
+        messageBox(heading, msg.str());
     }
 }
 
@@ -224,7 +245,7 @@ bool is_keypad(int sc) {
         case KEY_2_PAD:
         case KEY_3_PAD:
         case KEY_4_PAD:
-        //case KEY_5_PAD:
+        case KEY_5_PAD:
         case KEY_6_PAD:
         case KEY_7_PAD:
         case KEY_8_PAD:

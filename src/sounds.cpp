@@ -99,7 +99,8 @@ bool Sounds::setEnable(bool enable) {
         if (!try_init())
             return false;
         enabled = true;
-        select_theme(themedir);
+        if (!themedir.empty())
+            select_theme(themedir);
     }
     else {
         unload_samples();

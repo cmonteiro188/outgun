@@ -23,11 +23,14 @@
 
 #include <direct.h>
 #include <stdio.h>
+#include <string>
 #include <string.h>
 #include <sys/types.h>
 #include <windows.h>
 
 #include "platform.h"
+
+using std::string;
 
 int platMkdir(const char* path) {
     return mkdir(path);
@@ -41,12 +44,6 @@ int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return _vsnprintf(buf, count, fmt, arg);
 }
 
-void messageBox(const char* caption, const char* fmt, ...) {
-    const int bufSize = 16384;
-    char buf[bufSize];
-    va_list argptr;
-    va_start(argptr, fmt);
-    platVsnprintf(buf, bufSize, fmt, argptr);
-    va_end(argptr);
-    MessageBox(NULL, buf, caption, MB_OK);
+void platMessageBox(const string& caption, const string& msg) {
+    MessageBox(NULL, msg.c_str(), caption.c_str(), MB_OK);
 }

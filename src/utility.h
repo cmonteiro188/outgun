@@ -37,6 +37,7 @@ int atoi(const std::string& str);
 std::string itoa(int val);
 std::string itoa_w(int val, int width, bool left = false);
 std::string fcvt(double val);
+std::string fcvt(double val, int precision);
 int iround(double value);
 int numberWidth(int num);   // how many characters num takes when printed
 
@@ -88,13 +89,17 @@ public:
     ~LogSet() { }
 
     void operator()(const char* fmt, ...);
-    void error(const char* fmt, ...);
+    void error(const std::string);
     void security(const char* fmt, ...);
 
     Log* accessNormal() { return normalLog; }
     Log* accessError() { return errorLog; }
     Log* accessSecurity() { return securityLog; }
 };
+
+extern bool g_allowBlockingMessages;    // controls all messageBox calls; disable to suppress all external message boxes (assertions included)
+
+void messageBox(const std::string& heading, const std::string& msg);
 
 class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);

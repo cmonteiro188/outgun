@@ -72,6 +72,9 @@ class ServerNetworking {
     static void sfunc_client_lag_status     (void* customp, int client_id, int status);
     static void sfunc_client_ping_result    (void* customp, int client_id, int pingtime);
 
+    const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems
+    MutexHolder& threadLockMutex;    // used to implement threadLock, if it is enabled; the mutex is external
+
     std::map<std::string, std::string> master_parameters(const std::string& address, bool quitting = false) const;
     std::map<std::string, std::string> website_parameters(const std::string& address) const;
     std::string website_maplist() const;
@@ -115,6 +118,7 @@ class ServerNetworking {
     int             player_count;
     std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
     int             localPlayers;
+    MutexHolder     addPlayerMutex;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
@@ -143,8 +147,12 @@ class ServerNetworking {
 
     void run_website_thread();
 
+    void broadcast_message(const char* data, int length) const;
+    void send_simple_message(Network_data_code code, int pid) const;
+    void broadcast_simple_message(Network_data_code code) const;
+
 public:
-    ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs);
+    ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, bool threadLock, MutexHolder& threadLockMutex);
     ~ServerNetworking();
     void setMaxPlayers(int num) { maxplayers = num; }
 
@@ -157,9 +165,6 @@ public:
     void removePlayer(int pid); // call only when moving players around; this actually does close to nothing
     void disconnect_client(int cid, int timeout, Disconnect_reason reason);
     int getPid(int cid) { return ctop[cid]; }   //#fix: this shouldn't be necessary
-
-    void send_simple_message(Network_data_code code, int pid) const;
-    void broadcast_simple_message(Network_data_code code) const;
 
     void send_me_packet(int pid);
     void send_player_name_update(int cid, int pid);
@@ -202,6 +207,7 @@ public:
 
     void send_too_much_talk(int pid) const;
     void send_mute_notification(int pid) const;
+    void send_tournament_update_failed(int pid) const;
     void broadcast_mute_message(int pid, int mode, const std::string& admin, bool inform_target) const;
     void broadcast_kick_message(int pid, int minutes, const std::string& admin) const;
     void send_idlekick_warning(int pid, int seconds) const;
@@ -231,7 +237,7 @@ public:
     void bprintf(Message_type type, const char *fs, ...);
     void plprintf(int pid, Message_type type, const char* fmt, ...);
     void player_message(int pid, Message_type type, const std::string& text);
-    void broadcast_message(Message_type type, const std::string& text);
+    void broadcast_text(Message_type type, const std::string& text);
 
     void forwardSayadminMessage(int cid, const std::string& message);
 
@@ -246,7 +252,7 @@ public:
     void add_web_server(const std::string& server) { web_servers.push_back(server); }
     void set_web_script(const std::string& script) { web_script = script; }
     void set_web_auth(const std::string& auth) { web_auth = auth; }
-    bool set_web_refresh(int refresh);
+    void set_web_refresh(int refresh);
 
     void set_server_password(const std::string& passwd) { server_password = passwd; }
 };

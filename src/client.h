@@ -114,7 +114,8 @@ enum ClientCfgSetting {
     CCS_UnderlineServerAuth,
     CCS_ServerPublic,
     CCS_ServerPort,
-    CCS_MaxCommand = CCS_ServerPort
+    CCS_KeyboardLayout,
+    CCS_MaxCommand = CCS_KeyboardLayout
 };
 
 class ServerThreadOwner {
@@ -192,6 +193,7 @@ class ClientExternalSettings {
 public:
     int winclient;      // windowed client? ; -1 = undefined, 0 = false, 1 = true (-win / -fs)
     int trypageflip;    // try page flipping? ; -1 = undefined, 0 = false, 1 = true (-flip / -dbuf)
+    bool forceDefaultGfxMode;
     bool nosound;       // disable sound? -nosound
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
@@ -199,7 +201,7 @@ public:
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
 
-    ClientExternalSettings() : winclient(-1), trypageflip(-1), nosound(false), targetfps(-1) { }
+    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1) { }
 };
 
 class Client;
@@ -335,6 +337,7 @@ class Client {
     Sounds client_sounds;
 
     std::ofstream message_log;
+    bool messageLogOpen;
 
     const ClientExternalSettings extConfig;
     ServerExternalSettings serverExtConfig;
@@ -368,6 +371,8 @@ class Client {
     void MCF_randomName();
     void MCF_removePasswords();
     void MCF_prepareGameMenu();
+    void MCF_prepareControlsMenu();
+    void MCF_keyboardLayout();
     void MCF_joystick();
     void MCF_messageLogging();
     void MCF_screenDepthChange();
@@ -381,6 +386,8 @@ class Client {
     void MCF_sndVolumeChange();
     void MCF_sndThemeChange();
     void MCF_prepareSndMenu();
+    void MCF_refreshLanguages();
+    void MCF_acceptLanguage();
     void MCF_prepareServerMenu();
     void MCF_updateServers();
     void MCF_refreshServers();
@@ -397,6 +404,8 @@ class Client {
     void MCF_stopServer();
 
     void loadHelp();
+    void openMessageLog();
+    void closeMessageLog();
     void CB_tournamentToken(std::string token); // callback called by tournamentPassword from another thread
 
     bool screenModeChange();    // the return value should be tested at the first call
@@ -456,6 +465,8 @@ class Client {
     void draw_game_frame();
     void draw_player(int pid);
     void draw_game_menu();
+
+    ClientControls readControls();
 
 public:
     Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_);

@@ -29,7 +29,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "incalleg.h"
 #include "platform.h"
+
+using std::string;
 
 int platMkdir(const char* path) {
     return mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
@@ -43,24 +46,26 @@ int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return vsnprintf(buf, count, fmt, arg);
 }
 
-void messageBox(const char* caption, const char* fmt, ...) {
-    const int bufSize = 16384;
-    char buf[bufSize];
-    va_list argptr;
-    va_start(argptr, fmt);
-    platVsnprintf(buf, bufSize, fmt, argptr);
-    va_end(argptr);
-    static const int nFuncs = 4;
-    static const char* func[nFuncs] = { "xdialog", "gdialog", "kdialog", "xmessage" };
+void platMessageBox(const string& caption, const string& msg) {
+    // The dialog tools may bug totally when given characters in wrong encoding.
+    // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message.
+    // We have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
+    char* capBuf = new char[caption.length() + 1];
+    char* msgBuf = new char[    msg.length() + 1];
+    const char* captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
+    const char*     msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
+
+    static const int nFuncs = 3;
+    static const char* func[nFuncs] = { "gdialog", "kdialog", "xmessage" };
     static int funci = 0;   // updated to whatever works; nFuncs means nothing works
     while (funci != nFuncs) {
         int lFunci = funci; // local copy as a thread safety measure
         pid_t pid = fork();
         if (pid == 0) { // child
-            if (lFunci == 3)    // xmessage
-                execlp(func[lFunci], func[lFunci], caption, ":", buf, 0);
+            if (lFunci == 2)    // xmessage
+                execlp(func[lFunci], func[lFunci], captionConv, ":", msgConv, 0);
             else
-                execlp(func[lFunci], func[lFunci], "--title", caption, "--msgbox", buf, 0);
+                execlp(func[lFunci], func[lFunci], "--title", captionConv, "--msgbox", msgConv, 0);
             _exit(EXIT_FAILURE);
         }
         if (pid == -1) {
@@ -79,5 +84,5 @@ void messageBox(const char* caption, const char* fmt, ...) {
         funci = lFunci;
     }
     // execution of any dialog failed -> print to console
-    fprintf(stderr, "%s: %s\n", caption, buf);
+    fprintf(stderr, "%s: %s\n", caption.c_str(), msg.c_str());
 }

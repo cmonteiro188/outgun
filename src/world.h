@@ -627,7 +627,6 @@ public:
     void calc_max_run_speed();
     void read(char* lebuf, int& count);
     void write(char* lebuf, int& count) const;
-    void print(LineReceiver& printer) const;
 };
 
 class PhysicsCallbacksBase {
@@ -695,8 +694,6 @@ public:
     virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
     virtual void stealFlag(int team, int flag, int carrier);
 
-    static std::string getTeamName(int team);
-
     void save_stats(const std::string& dir, const std::string& map_name) const;
 };
 
@@ -716,11 +713,10 @@ public:
     int pup_weapon_max;
 
     void reset();
-    void print(LineReceiver& printer) const;
 
     Powerup::Pup_type choose_powerup_kind() const;
-    int getMinPups(const Map& map) const { return pups_min_percentage?pups_by_percent(pups_min, map):pups_min; }
-    int getMaxPups(const Map& map) const { return pups_max_percentage?pups_by_percent(pups_max, map):pups_max; }
+    int getMinPups(const Map& map) const { return pups_min_percentage ? pups_by_percent(pups_min, map) : pups_min; }
+    int getMaxPups(const Map& map) const { return pups_max_percentage ? pups_by_percent(pups_max, map) : pups_max; }
     int getRespawnTime() const { return pups_respawn_time; }
     bool getDeathbringerSwitch() const { return pup_deathbringer_switch; }
     double addTime(double t) const { t += pup_add_time; if (t > pup_max_time) t = pup_max_time; return t; }
@@ -742,7 +738,6 @@ public:
     static const int shadow_minimum_normal;
 
     void reset();
-    void print(LineReceiver& printer) const;
 
     double getRespawnTime() const { return respawn_time; }
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }

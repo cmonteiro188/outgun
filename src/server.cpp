@@ -35,6 +35,7 @@
 #include "incalleg.h"
 #include "commont.h"
 #include "gamemod.h"
+#include "language.h"
 #include "leetnet/sleep.h"  // MS_SLEEP
 #include "nassert.h"
 #include "platform.h"
@@ -69,8 +70,10 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     errorLog(normalLog, externalErrorLog, "ERROR: ", errorPrefix),
     securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
     log(&normalLog, &errorLog, &securityLog),
+    threadLock(config.threadLock),
+    threadLockMutex(),
     world(this, &network, log),
-    network(this, world, log),
+    network(this, world, log, threadLock, threadLockMutex),
     extConfig(config),
     authorizations(log)
 {
@@ -387,7 +390,7 @@ void Server::score_neg(int p, int amount) {
 
 bool Server::trySetMaxplayers(int val) {
     if (val != maxplayers && network.get_player_count() != 0) {
-        log.error("Can't change max_players while players are connected");
+        log.error(_("Can't change max_players while players are connected."));
         return false;
     }
     setMaxPlayers(val);
@@ -413,7 +416,7 @@ void Server::load_game_mod(bool reload) {
     RedirectToMemFun1<ServerNetworking, void, const std::string&> addWebServer(&network, &ServerNetworking::add_web_server);
     RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebScript(&network, &ServerNetworking::set_web_script);
     RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
-    RedirectToMemFun1<ServerNetworking, bool, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
+    RedirectToMemFun1<ServerNetworking, void, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
 
     RedirectToMemFun1<Server, void, int> setRandomMaprot(this, &Server::setRandomMaprot);
 
@@ -431,7 +434,7 @@ void Server::load_game_mod(bool reload) {
         if (extConfig.ipForced)
             ipSetting = new GS_Ignore   ("server_ip");
         else
-            ipSetting = new GS_CheckForwardStr("server_ip", "IP address without :port", checkForceIP, setForceIP);
+            ipSetting = new GS_CheckForwardStr("server_ip", _("IP address without :port"), checkForceIP, setForceIP);
         if (extConfig.privSettingForced)
             privSetting = new GS_Ignore ("private_server");
         else
@@ -473,7 +476,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
         PT(new GS_Balance   ("balance_teams",           &worldConfig.balance_teams)),
         PT(new GS_ForwardStr("server_name",             setHostname)),
-        PT(new GS_CheckForwardInt("max_players",        string() + "an even integer between 2 and " + itoa(MAX_PLAYERS), checkMaxplayer, tryMaxplayer)),
+        PT(new GS_CheckForwardInt("max_players",        _("an even integer between 2 and $1", itoa(MAX_PLAYERS)), checkMaxplayer, tryMaxplayer)),
         PT(new GS_AddString ("welcome_message",         &welcome_message)),
         PT(new GS_AddString ("info_message",            &info_message)),
         PT(new GS_ForwardStr("server_password",         setServerPassword)),
@@ -501,7 +504,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
         PT(new GS_ForwardStr("web_auth",                setWebAuth)),
-        PT(new GS_CheckForwardInt("web_refresh",        "at least 1", setWebRefresh, setWebRefresh)),
+        PT(new GS_ForwardInt("web_refresh",             setWebRefresh, 1)),
         PT(0)
     };
     const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
@@ -517,7 +520,7 @@ void Server::load_game_mod(bool reload) {
             getline(ist, value);
             for (int si = 0;; ++si) {
                 if (&*settings[si] == 0) {  // end of settings marker
-                    log.error("Unrecognized gamemod setting: '%s'", cmd.c_str());
+                    log.error(_("Unrecognized gamemod setting: '$1'.", cmd));
                     break;
                 }
                 if (settings[si]->matchCommand(cmd)) {
@@ -543,7 +546,7 @@ void Server::load_game_mod(bool reload) {
         in.close();
     }
     else
-        log.error("Can't open game mod file: '%s'", filename.c_str());
+        log.error(_("Can't open game mod file '$1'.", filename));
     world.setConfig(worldConfig, pupConfig);
 }
 
@@ -685,7 +688,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
     // did not specify maps, scan "maps/" folder for .txt map files
     if (maprot.empty()) {
-        string searchPattern = wheregamedir + SERVER_MAPS_DIR + directory_separator + "*.txt";
+        const string searchPattern = wheregamedir + SERVER_MAPS_DIR + directory_separator + "*.txt";
 
         log("Scanning for maps: '%s'", searchPattern.c_str());
 
@@ -704,7 +707,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
                 log("Added '%s' to map rotation", nameBuf);
             }
             else
-                log.error("Can't add '%s' to map rotation", nameBuf);
+                log.error(_("Can't add '$1' to map rotation.", nameBuf));
 
             //try next
             result = al_findnext(&mapffblk);
@@ -713,7 +716,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     }
 
     if (maprot.empty()) {
-        log.error("No maps for rotation");
+        log.error(_("No maps for rotation."));
         return false;
     }
 
@@ -763,11 +766,17 @@ bool Server::start(int target_maxplayers) {
     if (!network.start())   // this must be last, because network.stop() must always be called if start() succeeds; also, priv, port and ip must be final
         return false;
 
+    if (threadLock)
+        threadLockMutex.lock();
+
     ctf_game_restart();
     world.reset_time();
     network.sendStartGame();
 
     network.update_serverinfo();
+
+    if (threadLock)
+        threadLockMutex.unlock();
 
     return true;
 }
@@ -893,8 +902,6 @@ void Server::chat(int pid, const char* sbuf) {
             network.player_message(pid, msg_server, "/help       this screen");
             if (!info_message.empty())
                 network.player_message(pid, msg_server, "/info       information about this server");
-            network.player_message(pid, msg_server, "/config     current server configuration");
-            network.player_message(pid, msg_server, "/mapinfo n  information about map n (default: current map)");
             network.player_message(pid, msg_server, "/time       check server uptime, current map time and time left on the map");
             if (sayadmin_enabled) {
                 ostringstream ostr;
@@ -905,7 +912,7 @@ void Server::chat(int pid, const char* sbuf) {
             }
             if (admin) {
                 network.player_message(pid, msg_header, "Admin commands:");
-                network.player_message(pid, msg_server, "/list       get a list of player ID's");
+                network.player_message(pid, msg_server, "/list       get a list of player IDs");
                 network.player_message(pid, msg_server, "/kick n     kick player with ID n");
                 network.player_message(pid, msg_server, "/ban n t    ban player with ID n for t minutes (default: 60)");
                 network.player_message(pid, msg_server, "/mute n     mute player with ID n");
@@ -918,14 +925,6 @@ void Server::chat(int pid, const char* sbuf) {
             network.player_message(pid, msg_header, info_message.front());
             for (vector<string>::const_iterator line = info_message.begin() + 1; line != info_message.end(); line++)
                 network.player_message(pid, msg_server, *line);
-            network.player_message(pid, msg_server, "type /config to see current server settings");
-        }
-        else if (!strcmp(cbuf, "config")) {
-            network.player_message(pid, msg_header, "Current server settings:");
-            PlayerMessager pm(*this, pid, msg_server);
-            worldConfig.print(pm);
-            world.physics.print(pm);
-            pupConfig.print(pm);
         }
         else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
             if (strspnp(pCommand, " ")) {
@@ -936,21 +935,6 @@ void Server::chat(int pid, const char* sbuf) {
             }
             else
                 network.player_message(pid, msg_server, "For example to send \"Hello!\", type /sayadmin Hello!");
-        }
-        else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
-            if (*pCommand != '\0') {
-                int mid = atoi(pCommand) - 1;
-                if (mid>=0 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
-                    network.plprintf(pid, msg_server, "Map %d is %s (%s)", mid+1, maprot[mid].title.c_str(), maprot[mid].author.c_str());
-                    network.plprintf(pid, msg_server, "%s.txt, size %d×%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);
-                }
-                else
-                    network.plprintf(pid, msg_warning, "Valid map id's are 1 to %d", maprot.size());
-            }
-            else {
-                network.plprintf(pid, msg_server, "This map is %s (%s)", maprot[currmap].title.c_str(), maprot[currmap].author.c_str());
-                network.plprintf(pid, msg_server, "%s.txt, size %d×%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
-            }
         }
         else if (!strcmp(cbuf, "time")) {
             PlayerMessager pm(*this, pid, msg_server);
@@ -1054,7 +1038,7 @@ void Server::chat(int pid, const char* sbuf) {
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_normal, msg.str());
                 else
-                    network.broadcast_message(msg_normal, msg.str());
+                    network.broadcast_text(msg_normal, msg.str());
             }
         }
     }
@@ -1159,6 +1143,9 @@ void Server::server_think_after_broadcast() {
 }
 
 void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
+    if (threadLock)
+        threadLockMutex.lock();
+
     nAssert(quitFlag);
     log("at gameserver::loop()");
 
@@ -1185,17 +1172,19 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             ostringstream status;
             const int errors = errorLog.numLines();
             if (errors && extConfig.showErrorCount)
-                status << "ERRORS:" << errors << "  ";
-            status << network.get_player_count() << '/' << maxplayers << "p ";
-            status << setprecision(1) << std::fixed << network.getTraffic() << "k/s v" << GAME_VERSION;
-            status << " port:" << extConfig.port;
+                status << _("ERRORS:$1", itoa(errors)) << "  ";
+            status << _("$1/$2p $3k/s v$4 port:$5",
+                        itoa(network.get_player_count()), itoa(maxplayers), fcvt(network.getTraffic(), 1), GAME_VERSION, itoa(extConfig.port));
             if (quitOnEsc)
-                status << " ESC:quit";
+                status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
         }
 
         // executa algo para todos os players
         server_think_after_broadcast();
+
+        if (threadLock)
+            threadLockMutex.unlock();
 
         // sleep while not time to send again
         while (server_speed_counter <= 0) {
@@ -1203,17 +1192,23 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             MS_SLEEP(2);            // *** OPTIMIZE THIS ***
         }
 
+        if (threadLock)
+            threadLockMutex.lock();
+
         if (quitOnEsc && key[KEY_ESC])
             break;
     }
 
+    if (threadLock)
+        threadLockMutex.unlock();
+
     log("exiting gameserver::loop()");
 }
 
-//stop server
 void Server::stop() {
     network.stop();
 }
+
 
 GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix) {
     host = new Server(hostLog, settings, externalErrorLog, errorPrefix);

@@ -99,6 +99,7 @@ using std::pair;
 using std::right;
 using std::setfill;
 using std::setw;
+using std::sort;
 using std::stable_sort;
 using std::string;
 using std::vector;
@@ -187,9 +188,15 @@ public:
 
 class TM_ServerSettings : public ThreadMessage {
     NLubyte caplimit, timelimit, extratime, misc1;
+    NLushort pupMin, pupMax, pupAddTime, pupMaxTime;
+
+    void addLine(Client* cl, const std::string& caption, const std::string& value) const;
 
 public:
-    TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLubyte misc1_) : caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_) { }
+    TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLubyte misc1_,
+                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_) :
+        caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
+        pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_) { }
     void execute(Client* cl) const;
 };
 
@@ -207,9 +214,9 @@ public:
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
     logThreadStart("ServerThreadOwner::threadFn", log);
 
-    GameserverInterface gameserver(log, config, *log.accessError(), "(server) ");
+    GameserverInterface gameserver(log, config, *log.accessError(), _("(server)") + ' ');
     if (!gameserver.start(config.server_maxplayers)) {
-        log.error("Can't start listen server");
+        log.error(_("Can't start listen server."));
         quitFlag = true;
     }
     else {
@@ -497,62 +504,45 @@ void FileDownload::finish() {
     fp = 0;
 }
 
+void TM_ServerSettings::addLine(Client* cl, const std::string& caption, const std::string& value) const {
+    const int capWidth = 25;
+    cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth) + ':', value);
+}
+
 void TM_ServerSettings::execute(Client* cl) const {
     cl->m_serverInfo.clear();
     cl->m_serverInfo.menu.setCaption(cl->hostname);
 
-    ostringstream caption;
-    ostringstream value;
-    const int width = 25;
-
-    caption << setw(width) << _("Capture limit") << ':';
-    if (caplimit == 0)
-        value << _("none");
-    else
-        value << static_cast<int>(caplimit);
-    cl->m_serverInfo.addLine(caption.str(), value.str());
-    caption.str(""); value.str("");
-
-    caption << setw(width) << _("Time limit") << ':';
-    if (timelimit == 0)
-        value << _("none");
-    else
-        value << static_cast<int>(timelimit) << " min";
-    cl->m_serverInfo.addLine(caption.str(), value.str());
-    caption.str(""); value.str("");
-
-    caption << setw(width) << _("Extra-time") << ':';
-    if (extratime == 0)
-        value << _("none");
-    else
-        value << static_cast<int>(extratime) << " min";
-    cl->m_serverInfo.addLine(caption.str(), value.str());
-    caption.str(""); value.str("");
-
-    caption << setw(width) << _("Player collisions") << ':';
-    value << (cl->fx.physics.player_collisions ? _("on") : _("off"));
-    cl->m_serverInfo.addLine(caption.str(), value.str());
-    caption.str(""); value.str("");
-
-    caption << setw(width) << _("Friendly fire") << ':';
-    if (cl->fx.physics.friendly_fire == 0.)
-        value << _("off");
-    else
-        value << std::fixed << std::setprecision(0) << 100. * cl->fx.physics.friendly_fire << '%';
-    cl->m_serverInfo.addLine(caption.str(), value.str());
-    caption.str(""); value.str("");
+    addLine(cl, _("Capture limit"       ), ( caplimit == 0) ? _("none") :             itoa( caplimit));
+    addLine(cl, _("Time limit"          ), (timelimit == 0) ? _("none") : _("$1 min", itoa(timelimit)));
+    if (timelimit != 0)
+        addLine(cl, _("Extra-time"      ), (extratime == 0) ? _("none") : _("$1 min", itoa(extratime)));
+    addLine(cl, _("Player collisions"   ),  cl->fx.physics.player_collisions ? _("on") : _("off"));
+    addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : (itoa(iround(100. * cl->fx.physics.friendly_fire)) + '%'));
 
     const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer") };
     int i;
-    for (i = 0; i < 4; i++) {
-        caption << setw(width) << caps[i] << ':';
-        value << ((misc1 & (1 << i)) ? _("on") : _("off"));
-        cl->m_serverInfo.addLine(caption.str(), value.str());
-        caption.str(""); value.str("");
+    for (i = 0; i < 4; i++)
+        addLine(cl, caps[i], (misc1 & (1 << i)) ? _("on") : _("off"));
+
+    addLine(cl, _("Maximum weapon level"), itoa(misc1 >> i));
+
+    const bool pupMinP = pupMin >= 100,
+               pupMaxP = pupMax >= 100;
+    const int pupMinV = pupMinP ? pupMin - 100 : pupMin,
+              pupMaxV = pupMaxP ? pupMax - 100 : pupMax;
+    const bool constPowerups = (pupMaxV == 0 || (pupMinP == pupMaxP && pupMin >= pupMax));
+    string maxTitle;
+    if (!constPowerups)
+        addLine(cl,                             _("Minimum powerups"), (pupMinP && pupMinV != 0) ? _("$1% of rooms", itoa(pupMinV)) : itoa(pupMinV));
+    addLine(cl, constPowerups ? _("Powerups") : _("Maximum powerups"), (pupMaxP && pupMaxV != 0) ? _("$1% of rooms", itoa(pupMaxV)) : itoa(pupMaxV));
+
+    if (pupMaxV != 0) {
+        const bool constPowerupTime = (pupMaxTime <= pupAddTime);
+        if (!constPowerupTime)
+            addLine(cl,                                    _("Powerup add time"), _("$1 s", itoa(pupAddTime)));
+        addLine(cl, constPowerupTime ? _("Powerup time") : _("Powerup max time"), _("$1 s", itoa(pupMaxTime)));
     }
-    caption << setw(width) << _("Maximum weapon level") << ':';
-    value << (misc1 >> i);
-    cl->m_serverInfo.addLine(caption.str(), value.str());
 
     if (cl->menu.options.game.showServerInfo())
         cl->showMenu(cl->m_serverInfo);
@@ -613,6 +603,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     mapChanged(false),
     predrawNeeded(false),
     client_sounds(log),
+    messageLogOpen(false),
     extConfig(config),
     serverExtConfig(serverConfig)
 {
@@ -679,7 +670,7 @@ bool Client::start() {
     framecount = 0;
 
     clFrameSent = clFrameWorld = 0;
-    fx.frame = fd.frame = 0;
+    fx.frame = fd.frame = -1;
     frameReceiveTime = 0;
 
     #ifdef SEND_FRAMEOFFSET
@@ -738,11 +729,11 @@ bool Client::start() {
         command.ignore();   // eat separator (space)
         getline(command, args);
         if (!command || settingId < 0) {
-            log.error("Invalid syntax in client.cfg (\"%s\")", line.c_str());
+            log.error(_("Invalid syntax in client.cfg (\"$1\").", line));
             continue;
         }
         if (settingId > CCS_MaxCommand) {
-            log.error("Unknown data in client.cfg (\"%s\")", line.c_str());
+            log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
         switch (static_cast<ClientCfgSetting>(settingId)) {
@@ -765,7 +756,7 @@ bool Client::start() {
             }
             case CCS_LagPrediction:         menu.options.game.lagPrediction.set(args == "1"); break;
             case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args)); break;
-            case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1"); break;
+            case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none); break;
             case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1"); break;
             case CCS_ShowStats:             menu.options.game.showStats.set(args == "1"); break;
             case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1"); break;
@@ -774,6 +765,12 @@ bool Client::start() {
             case CCS_AutoGetServerList:     menu.options.game.autoGetServerList.set(args == "1"); break;
 
             // controls menu
+            case CCS_KeyboardLayout:
+                if (!menu.options.controls.keyboardLayout.set(args)) {  // it is possible to have a layout Outgun doesn't know about
+                    menu.options.controls.keyboardLayout.addOption(_("unknown ($1)", args), args);
+                    nAssert(menu.options.controls.keyboardLayout.set(args));
+                }
+                break;
             case CCS_KeypadMoving:          menu.options.controls.keypadMoving.set(args == "1"); break;
             case CCS_Joystick:              menu.options.controls.joystick.set(args == "1"); break;
             case CCS_JoystickMove:          menu.options.controls.joyMove.boundSet(atoi(args)); break;
@@ -784,6 +781,8 @@ bool Client::start() {
             // graphics menu
             case CCS_Windowed:              menu.options.graphics.windowed.set(args == "1"); break;
             case CCS_GFXMode: {
+                if (extConfig.forceDefaultGfxMode)
+                    break;
                 istringstream is(args);
                 int width, height, depth;
                 is >> width >> height >> depth;
@@ -838,8 +837,8 @@ bool Client::start() {
     tournamentPassword.changeData(playername, menu.options.name.password());
 
     // game
-    if (menu.options.game.messageLogging())
-        message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
+    if (menu.options.game.messageLogging() != Menu_game::ML_none)
+        openMessageLog();
     for (int i = 0; i < 16; i++)
         if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
             fav_colors.push_back(i);
@@ -847,6 +846,7 @@ bool Client::start() {
         menu.options.game.favoriteColors.addOption(*col);
 
     // controls
+    MCF_keyboardLayout();
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
 
@@ -900,7 +900,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
     }
     FileDownload& dl = downloads.front();
     if (!dl.save(buf, len)) {
-        log.error("Error writing to %s.", dl.fullName.c_str());
+        log.error(_("Error writing to '$1'.", dl.fullName));
         addThreadMessage(new TM_DoDisconnect());
         return;
     }
@@ -915,7 +915,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
             if (dl.shortName == servermap) {
                 const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
                 if (!ok) {
-                    log.error("After download: map '%s' not found", dl.shortName.c_str());
+                    log.error("After download: map '" + dl.shortName + "' not found");
                     addThreadMessage(new TM_DoDisconnect());
                     return;
                 }
@@ -942,7 +942,7 @@ void Client::check_download() { // call with downloadMutex locked
     if (dl.isActive())
         return;
     if (!dl.start()) {
-        log.error("File download: Can't open '%s' for writing.", dl.fullName.c_str());
+        log.error(_("File download: Can't open '$1' for writing.", dl.fullName));
         addThreadMessage(new TM_DoDisconnect());
         return;
     }
@@ -957,7 +957,7 @@ void Client::check_download() { // call with downloadMutex locked
 void Client::download_server_file(const string& type, const string& name) {
     nAssert(type == "map");
     if (name.find_first_of("./:\\") != string::npos) {
-        log.error("Illegal file download request: map \"%s\"", name.c_str());
+        log.error("Illegal file download request: map \"" + name + "\"");
         addThreadMessage(new TM_DoDisconnect());
         return;
     }
@@ -1012,7 +1012,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     (void)length;
 
     //"data" from connection accepted:
-    //  BYTE        maxplayers
+    //  BYTE    maxplayers
     //  STRING  hostname
     int count = 0;
     NLubyte maxpl;
@@ -1021,7 +1021,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     readStr(data, count, hostname);
     m_serverInfo.clear();
-    m_serverInfo.addLine("");
+    m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten when config information
 
     if (!menu.options.game.favoriteColors.values().empty()) {
         char lebuf[256]; int count = 0;
@@ -1063,9 +1063,9 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     connected = true;
     gameshow = true;
     openMenus.clear();  // connect progress menu is showing; exceptions are when it's been closed and the disconnect is still pending, and when help is opened on top of it
-    fx.frame = fd.frame = 0;
+    fx.frame = fd.frame = -1;
     fx.skipped = fd.skipped = true;
-    me = -1;    //don't know who am I
+    me = -1;    // will be corrected from the first frame
 
     //reset chat buffer
     talkbuffer.clear();
@@ -1282,7 +1282,7 @@ void Client::save_player_password(const string& name, const string& address, con
     }
     ofstream out(password_file.c_str());
     if (!out) {
-        log.error("Can't save player password to %s!", password_file.c_str());
+        log.error(_("Can't save player password to '$1'!", password_file));
         return;
     }
     for (vector<vector<string> >::const_iterator item = passwd_list.begin(); item != passwd_list.end(); ++item) {
@@ -1388,16 +1388,21 @@ void Client::change_name_command() {
     tournamentPassword.changeData(playername, menu.options.name.password());
 }
 
+ClientControls Client::readControls() {
+    ClientControls ctrl;
+    ctrl.fromKeyboard(menu.options.controls.keypadMoving());
+    if (menu.options.controls.joystick())
+        ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
+    return ctrl;
+}
+
 //send the client's frame to server (keypresses)
 void Client::send_frame(bool newFrame) {
     char lebuf[256]; int count = 0;
 
     ClientControls currCtrl;
-    if (menusel == menu_none && openMenus.empty()) {    // don't move when menu or similar is open
-        currCtrl.fromKeyboard(menu.options.controls.keypadMoving());
-        if (menu.options.controls.joystick())
-            currCtrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun() - 1, menu.options.controls.joyStrafe() - 1);
-    }
+    if (menusel == menu_none && openMenus.empty())  // don't move when menu or similar is open
+        currCtrl = readControls();
 
     if (newFrame) {
         ++clFrameSent;
@@ -1416,9 +1421,6 @@ void Client::process_incoming_data(const char* data, int length) {
     MutexLock ml(frameMutex);
 
     (void)length;
-
-    //this is a HACK:
-    int whatme = 0; //#fix: can this be removed?
 
     // (0) update lastpackettime
     lastpackettime = get_time();
@@ -1453,7 +1455,7 @@ void Client::process_incoming_data(const char* data, int length) {
         readByte(data, count, clFrameWorld);
         frameReceiveTime = get_time();
         const int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 50ul);    // bound because svFrameHistory has invalid frame# at connect to server
-        averageLag = averageLag*.99 + currentLag*.01;
+        averageLag = averageLag * .99 + currentLag * .01;
 
         #ifdef SEND_FRAMEOFFSET
         NLubyte fo;
@@ -1483,12 +1485,8 @@ void Client::process_incoming_data(const char* data, int length) {
 
         //read "me" (v0.3.9 tentando espantar bug com tiro de canhao!)
         // BITS 3..8 == what player id
-        whatme = xtra >> 3;
-
-        // v0.4.1: ISSO AQUI TAVA FALTANDO. como que tu vai ler um monte de coisa
-        //  dependente do "me" sem ter ele definido??????
-        //
-        me = whatme;
+        if (me == -1)   // only read this when just connected to the server; otherwise, changes in "me" should be taken in only with the change teams message
+            me = xtra >> 3;
 
         //EMPTY FRAME? if yes, do something about it, if not, parse it
         if (empty_frame_cause_not_ready_yet)
@@ -1660,7 +1658,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.player[pid].name = name;
                 }
                 else
-                    log.error("Invalid name for player %d.", pid);
+                    log.error("Invalid name for player " + itoa(pid) + '.');
                 break;
             }
 
@@ -1676,10 +1674,6 @@ void Client::process_incoming_data(const char* data, int length) {
                     break;
                 }
                 addThreadMessage(new TM_Text(type, chatmsg));
-                if (menu.options.game.messageLogging())
-                    message_log << date_and_time() << "  " << chatmsg << endl;
-
-                //talk sound
                 if (type == msg_team || type == msg_normal)
                     addThreadMessage(new TM_Sound(SAMPLE_TALK));
                 break;
@@ -2057,7 +2051,14 @@ void Client::process_incoming_data(const char* data, int length) {
                     log("Invalid colour (%d) for player %d.", color, pid);
                 ClientLoginStatus ls;
                 ls.fromNetwork(regStatus);
-                if (pid == me && fx.player[pid].reg_status != ls) {
+                const ClientLoginStatus& os = fx.player[me].reg_status;
+                const bool newMePrintout =
+                    pid == me &&
+                    (ls.token() != os.token() ||
+                     (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.tournament() != os.tournament())) ||
+                     ls.localAuth() != os.localAuth() ||
+                     ls.admin() != os.admin());
+                if (newMePrintout) {
                     ostringstream msg;
                     msg << _("Status") << ": ";
                     if (ls.token()) {
@@ -2435,12 +2436,14 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     log("Invalid colour (%d) for player %d.", col1, to);
                 fx.player[to].stats().kill(static_cast<int>(get_time()), true);
+                fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
                 if (swap) {
                     if (col2 < MAX_PLAYERS / 2)
                         fx.player[from].set_color(col2);
                     else
                         log("Invalid colour (%d) for player %d.", col2, from);
                     fx.player[from].stats().kill(static_cast<int>(get_time()), true);
+                    fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
                 }
 
                 break;
@@ -2561,13 +2564,18 @@ void Client::process_incoming_data(const char* data, int length) {
 
             case data_server_settings: {
                 NLubyte caplimit, timelimit, extratime, misc1;
+                NLushort pupMin, pupMax, pupAddTime, pupMaxTime;
                 readByte(lebuf, count, caplimit);
                 readByte(lebuf, count, timelimit);
                 readByte(lebuf, count, extratime);
                 readByte(lebuf, count, misc1);
+                readShort(lebuf, count, pupMin);
+                readShort(lebuf, count, pupMax);
+                readShort(lebuf, count, pupAddTime);
+                readShort(lebuf, count, pupMaxTime);
                 fx.physics.read(lebuf, count);
                 fd.physics = fx.physics;
-                addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1));
+                addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
                 break;
             }
 
@@ -2616,7 +2624,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, vote_block_time);
                 string msg = _("*** $1/$2 votes for mapchange.", itoa(votes), itoa(needed));
                 if (vote_block_time > 0)
-                    msg += " " +_("(All players needed for $1 more seconds.)", itoa(vote_block_time));
+                    msg += ' ' + _("(All players needed for $1 more seconds.)", itoa(vote_block_time));
                 addThreadMessage(new TM_Text(msg_info, msg));
                 break;
             }
@@ -2632,7 +2640,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 addThreadMessage(new TM_Text(msg_warning, msg));
                 break;
             }
-        
+
+            case data_tournament_update_failed: {
+                const string msg = _("Updating your tournament score failed!");
+                addThreadMessage(new TM_Text(msg_warning, msg));
+                break;
+            }
+
             case data_player_mute: {
                 NLubyte pid, mode;
                 string admin;
@@ -2712,7 +2726,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
             default:
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
-                    log.error("Server sent an unknown message code: %i, length %i", code, msglen);
+                    log.error("Server sent an unknown message code: " + itoa(code) + ", length " + itoa(msglen));
                     addThreadMessage(new TM_DoDisconnect());
                     return; // don't process the rest of the messages
                 }
@@ -2720,8 +2734,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 break;
         }
     }
-
-    me = whatme;    // hack
 }
 
 //send chat message
@@ -2734,6 +2746,11 @@ void Client::send_chat(const string& msg) {
 
 //print message to "console"
 void Client::print_message(Message_type type, const string& msg) {
+    if (menu.options.game.messageLogging() != Menu_game::ML_none) {
+        if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
+            message_log << date_and_time() << "  " << msg << endl;
+    }
+
     const vector<string> lines = split_to_lines(msg, 79, 4);
     while (chatbuffer.size() > client_graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
@@ -2860,7 +2877,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
     nlOpenMutex.unlock();
 
     if (sock == NL_INVALID) {
-        log.error("Can't open socket for refreshing servers. %s", getNlErrorString());
+        log.error(_("Can't open socket for refreshing servers. $1", getNlErrorString()));
         return false;
     }
 
@@ -2958,13 +2975,13 @@ bool Client::getServerList() {
     NLsocket sock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
     if (sock == NL_INVALID) {
-        log.error("Client can't open socket to connect to master server. %s", getNlErrorString());
+        log.error(_("Can't open socket to connect to master server. $1", getNlErrorString()));
         return false;
     }
 
     //connect the nonblocking way
     if (nlConnect(sock, &master_address) == NL_FALSE) {
-        log.error("Client can't connect to master server. %s", getNlErrorString());
+        log.error(_("Can't connect to master server. $1", getNlErrorString()));
         nlClose(sock);
         sock = NL_INVALID;
         return false;
@@ -2979,8 +2996,8 @@ bool Client::getServerList() {
 
     //build query
     ostringstream request;
-    request << "GET " << master_script << "?simple&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
-    request << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
+    request << "GET " << master_script << "?simple&branch=" << url_encode(GAME_BRANCH) << "&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
+    request << "User-Agent: " << GAME_STRING << '/' << GAME_BRANCH << ' ' << GAME_VERSION << "\r\n";
     request << "Connection: close\r\n\r\n";
 
     NetworkResult result = writeToUnblockingTCP(sock, request.str().data(), request.str().length(), &abortThreads, 30000);
@@ -3009,7 +3026,7 @@ bool Client::getServerList() {
     if (parseServerList(response))
         return true;
     else {
-        log.error("Incorrect data received from master server.");
+        log.error(_("Incorrect data received from master server."));
         return false;
     }
 }
@@ -3029,7 +3046,7 @@ bool Client::parseServerList(istream& response) {
     if (line.empty())
         return false;
     if (line != GAME_VERSION)
-        menu.newVersion.set(string() + "New version: " + line);
+        menu.newVersion.set(_("New version: $1", line));
 
     // The second line is the total number of servers.
     getline_smart(response, line);
@@ -3178,10 +3195,8 @@ void Client::loop(volatile bool* quitFlag) {
 
                 // control == fire
                 bool fire = key[KEY_LCONTROL] || key[KEY_RCONTROL];
-                if (!fire && menu.options.controls.joystick() && menu.options.controls.joyShoot() != 0 && !poll_joystick() &&
-                    joy[0].num_buttons > menu.options.controls.joyShoot() - 1 &&
-                    joy[0].button[menu.options.controls.joyShoot() - 1].b)
-                        fire = true;
+                if (!fire && menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot()))
+                    fire = true;
 
                 if (fire) {
                     if (!key_fire) {
@@ -3544,7 +3559,7 @@ void Client::stop() {
         }
         cfg << CCS_LagPrediction        << ' ' << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
         cfg << CCS_LagPredictionAmount  << ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
-        cfg << CCS_MessageLogging       << ' ' << (menu.options.game.messageLogging() ? 1 : 0) << '\n';
+        cfg << CCS_MessageLogging       << ' ' << ((menu.options.game.messageLogging() == Menu_game::ML_full) ? 1 : (menu.options.game.messageLogging() == Menu_game::ML_chat) ? 2 : 0) << '\n';
         cfg << CCS_SaveStats            << ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
         cfg << CCS_ShowStats            << ' ' << (menu.options.game.showStats() ? 1 : 0) << '\n';
         cfg << CCS_ShowServerInfo       << ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
@@ -3553,32 +3568,33 @@ void Client::stop() {
         cfg << CCS_AutoGetServerList    << ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
 
         // save controls menu settings
+        cfg << CCS_KeyboardLayout       << ' ' <<  menu.options.controls.keyboardLayout() << '\n';
         cfg << CCS_KeypadMoving         << ' ' << (menu.options.controls.keypadMoving() ? 1 : 0) << '\n';
         cfg << CCS_Joystick             << ' ' << (menu.options.controls.joystick() ? 1 : 0) << '\n';
-        cfg << CCS_JoystickMove         << ' ' << menu.options.controls.joyMove() << '\n';
-        cfg << CCS_JoystickShoot        << ' ' << menu.options.controls.joyShoot() << '\n';
-        cfg << CCS_JoystickRun          << ' ' << menu.options.controls.joyRun() << '\n';
-        cfg << CCS_JoystickStrafe       << ' ' << menu.options.controls.joyStrafe() << '\n';
+        cfg << CCS_JoystickMove         << ' ' <<  menu.options.controls.joyMove() << '\n';
+        cfg << CCS_JoystickShoot        << ' ' <<  menu.options.controls.joyShoot() << '\n';
+        cfg << CCS_JoystickRun          << ' ' <<  menu.options.controls.joyRun() << '\n';
+        cfg << CCS_JoystickStrafe       << ' ' <<  menu.options.controls.joyStrafe() << '\n';
 
         // save graphics menu settings
         cfg << CCS_Windowed             << ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
         ScreenMode mode = menu.options.graphics.resolution();
-        cfg << CCS_GFXMode              << ' ' << mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
+        cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
         cfg << CCS_Flipping             << ' ' << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
-        cfg << CCS_FPSLimit             << ' ' << menu.options.graphics.fpsLimit() << '\n';
-        cfg << CCS_GFXTheme             << ' ' << menu.options.graphics.theme() << '\n';
+        cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
+        cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
-        cfg << CCS_StatsBgAlpha         << ' ' << menu.options.graphics.statsBgAlpha() << '\n';
+        cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
 
         // save sound menu settings
         cfg << CCS_SoundEnabled         << ' ' << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
-        cfg << CCS_Volume               << ' ' << menu.options.sounds.volume() << '\n';
-        cfg << CCS_SoundTheme           << ' ' << menu.options.sounds.theme() << '\n';
+        cfg << CCS_Volume               << ' ' <<  menu.options.sounds.volume() << '\n';
+        cfg << CCS_SoundTheme           << ' ' <<  menu.options.sounds.theme() << '\n';
 
         // save local server menu settings
         cfg << CCS_ServerPublic         << ' ' << (menu.ownServer.pub() ? 1 : 0) << '\n';
-        cfg << CCS_ServerPort           << ' ' << menu.ownServer.port() << '\n';
+        cfg << CCS_ServerPort           << ' ' <<  menu.ownServer.port() << '\n';
 
         cfg.close();
     }
@@ -3608,7 +3624,7 @@ void Client::stop() {
         fclose(psf);
     }
     else
-        log.error("Can't open %s for writing", fileName.c_str());
+        log.error(_("Can't open $1 for writing.", fileName));
 
     {
         MutexDebug md("downloadMutex", __LINE__, log);
@@ -3616,8 +3632,8 @@ void Client::stop() {
         downloads.clear();
     }
 
-    if (menu.options.game.messageLogging())
-        message_log.close();
+    if (menu.options.game.messageLogging() != Menu_game::ML_none)
+        closeMessageLog();
 
     if (listenServer.running())
         listenServer.stop();
@@ -4078,8 +4094,11 @@ void Client::initMenus() {
     menu.options.name.removePasswords   .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
 
     menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGameMenu        >(this));
-    menu.options.game.messageLogging    .setHook(new MCB::N<Checkbox,       &Client::MCF_messageLogging         >(this));
+    typedef Select<Menu_game::MessageLoggingMode> mlComponentT;
+    menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &Client::MCF_messageLogging         >(this));
 
+    menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareControlsMenu    >(this));
+    menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &Client::MCF_keyboardLayout         >(this));
     menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &Client::MCF_joystick               >(this));
 
     menu.options.graphics.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxMenu         >(this));
@@ -4098,6 +4117,10 @@ void Client::initMenus() {
     menu.options.sounds.enabled         .setHook(new MCB::N<Checkbox,       &Client::MCF_sndEnableChange        >(this));
     menu.options.sounds.volume          .setHook(new MCB::N<Slider,         &Client::MCF_sndVolumeChange        >(this));
     menu.options.sounds.theme           .setHook(new MCB::N<Select<string>, &Client::MCF_sndThemeChange         >(this));
+
+    menu.options.language.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_refreshLanguages       >(this));
+    menu.options.language.menu     .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptLanguage         >(this));
+    menu.options.language.menu        .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
 
     menu.ownServer.menu             .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareOwnServerMenu   >(this));
     menu.ownServer.start                .setHook(new MCB::N<Textarea,       &Client::MCF_startServer            >(this));
@@ -4200,6 +4223,38 @@ void Client::MCF_prepareGameMenu() {
     menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
 }
 
+void Client::MCF_prepareControlsMenu() {
+    ClientControls ctrl = readControls();
+    string active;
+    if (ctrl.isUp())
+        active += _("up")     + ' ';
+    if (ctrl.isDown())
+        active += _("down")   + ' ';
+    if (ctrl.isLeft())
+        active += _("left")   + ' ';
+    if (ctrl.isRight())
+        active += _("right")  + ' ';
+    if (ctrl.isRun())
+        active += _("run")    + ' ';
+    if (ctrl.isStrafe())
+        active += _("strafe") + ' ';
+    if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot())))
+        active += _("shoot")  + ' ';
+    if (menu.options.controls.joystick()) {
+        for (int button = 1; button <= 16; ++button)
+            if (readJoystickButton(button))
+                active += itoa(button) + ' ';
+    }
+    menu.options.controls.activeControls.set(active);
+}
+
+void Client::MCF_keyboardLayout() {
+    const string cfg = string("[system]\nkeyboard=") + menu.options.controls.keyboardLayout() + '\n';
+    remove_keyboard();
+    override_config_data(cfg.data(), cfg.length());
+    install_keyboard();
+}
+
 void Client::MCF_joystick() {
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
@@ -4208,12 +4263,10 @@ void Client::MCF_joystick() {
 }
 
 void Client::MCF_messageLogging() {
-    if (menu.options.game.messageLogging()) {
-        message_log.clear();    // necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
-        message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
-    }
+    if (menu.options.game.messageLogging() != Menu_game::ML_none)
+        openMessageLog();
     else
-        message_log.close();
+        closeMessageLog();
 }
 
 void Client::MCF_prepareGfxMenu() {
@@ -4251,10 +4304,10 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
     for (int nTry = 0;; ++nTry) {
         if (client_graphics.init(res.width, res.height, depth, win(), flip())) {
             if (nTry != 0)
-                log.error("Couldn't initialize resolution %d×%d×%d in %s mode; reverted to %s",
-                        res.width, res.height, depth,
-                        owin  ? "windowed" : (oflip  ? "flipped fullscreen" : "backbuffered fullscreen"),
-                        win() ? "windowed" : (flip() ? "flipped fullscreen" : "backbuffered fullscreen"));
+                log.error(_("Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.",
+                            itoa(res.width), itoa(res.height), itoa(depth),
+                            owin  ? _("windowed") : (oflip  ? _("flipped fullscreen") : _("backbuffered fullscreen")),
+                            win() ? _("windowed") : (flip() ? _("flipped fullscreen") : _("backbuffered fullscreen"))));
             break;
         }
         switch (nTry) { // try in order: [switch flip], switch windowed, [switch flip]
@@ -4274,7 +4327,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
                 }
                 nTry = 3;   // no point in changing flipping when windowed, skip round
             case 3:
-                log.error("Couldn't initialize resolution %d×%d×%d in any mode", res.width, res.height, depth);
+                log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
                 if (workingGfxMode.used()) {    // revert to working mode
                     const GFXMode& wm = workingGfxMode;
                     nAssert(menu.options.graphics.colorDepth.set(wm.depth));
@@ -4295,7 +4348,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
     if (rate == 0)
         ost << _("unknown");
     else
-        ost << rate << " Hz";
+        ost << _("$1 Hz", itoa(rate));
     menu.options.graphics.refreshRate.set(ost.str());
     return true;
 }
@@ -4325,6 +4378,69 @@ void Client::MCF_sndVolumeChange() {
 
 void Client::MCF_sndThemeChange() {
     client_sounds.select_theme(menu.options.sounds.theme());
+}
+
+bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) {  // helper to MCF_refreshLanguages
+    // don't care about the language code (it isn't visible anyway), and use a case insensitive order
+    return platStricmp(t1.first.c_str(), t2.first.c_str()) < 0;
+}
+
+void Client::MCF_refreshLanguages() {
+    menu.options.language.language.clearOptions();
+    menu.options.language.language.addOption("English", "en");   // global default when there's nothing in language.txt
+
+    // search the languages directory for translations to add
+    const string searchPattern = wheregamedir + "languages" + directory_separator + "*.txt";
+    log("Scanning for translations: '%s'", searchPattern.c_str());
+    vector< pair<string, string> > translations;
+
+    al_ffblk ffblk;
+    for (int error = al_findfirst(searchPattern.c_str(), &ffblk, FA_ARCH | FA_RDONLY); !error; error = al_findnext(&ffblk)) {
+        char nameBuf[500];
+        replace_extension(nameBuf, ffblk.name, "", 500);
+        nameBuf[strlen(nameBuf) - 1] = '\0';    // erase last '.'
+        if (strchr(nameBuf, '.') || !strcmp(nameBuf, "en"))   // skip help.language.txt and possible similar files, and of course English which was added first
+            continue;
+        // fetch language name
+        string langName;
+        const string langFile = wheregamedir + "languages" + directory_separator + nameBuf + ".txt";
+        ifstream lang(langFile.c_str());
+        if (lang && getline_skip_comments(lang, langName))
+            translations.push_back(pair<string, string>(langName, nameBuf));
+        else
+            log.error(_("Translation $1 can't be read.", langFile));
+    }
+    al_findclose(&ffblk);
+
+    // add found languages to options
+    sort(translations.begin(), translations.end(), translationSort);
+    for (vector< pair<string, string> >::const_iterator ti = translations.begin(); ti != translations.end(); ++ti)
+        menu.options.language.language.addOption(ti->first, ti->second);
+
+    // fetch the currently chosen language from language.txt (because after changing it can be different from the loaded language)
+    string lang;
+    ifstream langConfig((wheregamedir + "config" + directory_separator + "language.txt").c_str());
+    if (langConfig && getline_skip_comments(langConfig, lang))
+        menu.options.language.language.set(lang); // ignore possible failure
+}
+
+void Client::MCF_acceptLanguage() {
+    Language newLang;
+    const string lang = menu.options.language.language();
+    if (!newLang.load(lang, log))
+        return; // load already logs an error message
+    ofstream langConfig((wheregamedir + "config" + directory_separator + "language.txt").c_str());
+    if (langConfig) {
+        langConfig << lang << '\n';
+        langConfig.close();
+        if (lang != language.code()) {  // what is currently loaded; what was previously in language.txt has no significance
+            m_dialog.clear();
+            m_dialog.wrapLine(newLang.get_text("Please close and restart Outgun to complete the change of language."));
+            showMenu(m_dialog);
+        }
+    }
+    else
+        log.error(_("config/language.txt can't be written."));
 }
 
 void Client::MCF_playerPasswordAccept() {
@@ -4541,6 +4657,21 @@ void Client::loadHelp() {
     string line;
     while (getline_smart(in, line))
         menu.help.addLine(line);
+}
+
+void Client::openMessageLog() {
+    if (!messageLogOpen) {
+        message_log.clear();    // necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
+        message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
+        messageLogOpen = true;
+    }
+}
+
+void Client::closeMessageLog() {
+    if (messageLogOpen) {
+        message_log.close();
+        messageLogOpen = false;
+    }
 }
 
 void Client::CB_tournamentToken(string token) { // callback called by tournamentPassword from another thread

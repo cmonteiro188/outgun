@@ -87,6 +87,9 @@ class Server {
     SupplementaryLog<FileLog> securityLog;
     LogSet log;
 
+    const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems so it's often wise
+    MutexHolder threadLockMutex;    // used to implement threadLock, if it is enabled
+
     // client control
     std::vector<std::string> welcome_message;   // welcome message line by line
     std::vector<std::string> info_message;      // the message /info shows, line by line
@@ -194,7 +197,6 @@ public:
     std::vector<MapInfo>& maplist() { return maprot; }
 
     const std::vector<std::string>& getWelcomeMessage() const { return welcome_message; }
-    std::string getTeamName(int team) const { return world.getTeamName(team); }
 
     const std::string& server_website() const { return server_website_url; }
 

@@ -46,13 +46,15 @@ enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg
 
 const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
 
+bool readJoystickButton(int button);    // operates on pseudo button ids that are Allegro button id + 1; returns false on all non-button-mapped indices
+
 class ClientControls {
 public:
     ClientControls() : data(0) { }
     NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
     void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
     void fromKeyboard(bool use_pad);
-    void fromJoystick(int moving_stick, int run_button, int strafe_button);
+    void fromJoystick(int moving_stick, int run_button, int strafe_button); // uses pseudo button ids like readJoystickButton
     bool     isUp() const { return (data & up    ) != 0; }
     bool   isDown() const { return (data & down  ) != 0; }
     bool   isLeft() const { return (data & left  ) != 0; }
@@ -133,9 +135,10 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 // Game specific strings
 #define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "1.0.0b13"
-#define GAME_VERSION "1.0.0 beta 13"
-#define GAME_SHORT_VERSION "1.0.0b13"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
+#define GAME_PROTOCOL "1.0.0b14"
+#define GAME_VERSION "1.0.0 beta 14"
+#define GAME_SHORT_VERSION "1.0.0b14"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
+#define GAME_BRANCH "base"  // this only affects the master server communications, to make it tell the correct newest version
 
 #define TK1_VERSION_STRING "v048"
 

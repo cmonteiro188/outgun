@@ -65,9 +65,9 @@ private:
                 r = g = b = alphaTotal = 0;
             else {
                 const double mul = (scaleVal - alpha) / static_cast<double>(scaleVal);
-                r = static_cast<int>(r * mul);
-                g = static_cast<int>(g * mul);
-                b = static_cast<int>(b * mul);
+                r = static_cast<int>(r * mul + .5);
+                g = static_cast<int>(g * mul + .5);
+                b = static_cast<int>(b * mul + .5);
                 alphaTotal = static_cast<int>(alphaTotal * mul);
             }
             add(color, alpha);

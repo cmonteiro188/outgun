@@ -50,6 +50,7 @@ std::string _(const std::string& text);
 std::string _(const std::string& text, const std::string& t1);
 std::string _(const std::string& text, const std::string& t1, const std::string& t2);
 std::string _(const std::string& text, const std::string& t1, const std::string& t2, const std::string& t3);
+std::string _(const std::string& text, const std::string& t1, const std::string& t2, const std::string& t3, const std::string& t4);
+std::string _(const std::string& text, const std::string& t1, const std::string& t2, const std::string& t3, const std::string& t4, const std::string& t5);
 
 #endif
-

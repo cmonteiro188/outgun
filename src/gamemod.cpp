@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string>
 
+#include "language.h"
 #include "server.h"
 #include "servnet.h"
 #include "world.h"
@@ -37,7 +38,7 @@ using std::istringstream;
 using std::string;
 
 bool GamemodSetting::basicErrorMessage(LogSet& log, const string& value, const string& expect) {    // always returns false to provide easy returns
-    log.error("Can't set %s to '%s' - expecting %s", name.c_str(), value.c_str(), expect.c_str());
+    log.error(_("Can't set $1 to '$2' - expecting $3.", name, value, expect));
     return false;
 }
 
@@ -48,7 +49,7 @@ bool GS_Boolean::set(LogSet& log, const string& value) {
     else if (tval == "0")
         *var = false;
     else
-        return basicErrorMessage(log, value, "0 or 1");
+        return basicErrorMessage(log, value, _("0 or 1"));
     return true;
 }
 
@@ -66,11 +67,11 @@ bool GS_Map::set(LogSet& log, const string& value) {
     MapInfo mi;
     if (mi.load(log, trim(value))) {
         var->push_back(mi);
-        log("Added '%s' to map rotation", value.c_str());
+        log("Added '%s' to map rotation.", value.c_str());
         return true;
     }
     else {
-        log.error("Can't add '%s' to map rotation", value.c_str());
+        log.error(_("Can't add '$1' to map rotation.", value));
         return false;
     }
 }
@@ -96,7 +97,7 @@ bool GS_PowerupNum::set(LogSet& log, const string& value) {
             return true;
         }
     }
-    return basicErrorMessage(log, value, string() + "an integer between 0 and " + itoa(MAX_PICKUPS) + ", or 'n %' with n 0 or greater");
+    return basicErrorMessage(log, value, _("an integer between 0 and $1, or 'n %' with n 0 or greater", itoa(MAX_PICKUPS)));
 }
 
 bool GS_Balance::set(LogSet& log, const string& value) {
@@ -108,7 +109,7 @@ bool GS_Balance::set(LogSet& log, const string& value) {
     else if (tval == "shuffle")
         *var = WorldSettings::TB_balance_and_shuffle;
     else
-        return basicErrorMessage(log, value, "one of no, balance and shuffle");
+        return basicErrorMessage(log, value, _("one of no, balance and shuffle"));
     return true;
 }
 
@@ -131,5 +132,5 @@ bool GS_Percentage::set(LogSet& log, const string& value) {
             return true;
         }
     }
-    return basicErrorMessage(log, value, string() + "a real number or 'x %' with x 0 or greater");
+    return basicErrorMessage(log, value, _("a real number or 'x %' with x 0 or greater"));
 }

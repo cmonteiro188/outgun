@@ -84,11 +84,17 @@ public:
 
 class Menu_game {
 public:
+    enum MessageLoggingMode {
+        ML_none,
+        ML_chat,
+        ML_full
+    };
+
     Checkbox    showNames;
     Colorselect favoriteColors;
     Checkbox    lagPrediction;
     Slider      lagPredictionAmount;
-    Checkbox    messageLogging;
+    Select<MessageLoggingMode>  messageLogging;
     Checkbox    saveStats;
     Checkbox    showStats;
     Checkbox    showServerInfo;
@@ -104,13 +110,15 @@ public:
 
 class Menu_controls {
 public:
-    Checkbox    keypadMoving;
-    Checkbox    joystick;
-    Slider      joyMove;
-    StaticText  joyText;
-    Slider      joyShoot;
-    Slider      joyRun;
-    Slider      joyStrafe;
+    Select<std::string> keyboardLayout;
+    Checkbox            keypadMoving;
+    Checkbox            joystick;
+    Slider              joyMove;
+    StaticText          joyText;
+    Slider              joyShoot;
+    Slider              joyRun;
+    Slider              joyStrafe;
+    StaticText          activeControls;
 
     Menu menu;
 
@@ -165,6 +173,16 @@ public:
     void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
+class Menu_language {
+public:
+    Select<std::string> language;
+
+    Menu menu;
+
+    Menu_language();
+    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+};
+
 class Menu_options {
 public:
     Menu_name       name;
@@ -172,6 +190,7 @@ public:
     Menu_controls   controls;
     Menu_graphics   graphics;
     Menu_sounds     sounds;
+    Menu_language   language;
 
     Menu menu;
 

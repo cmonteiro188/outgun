@@ -40,12 +40,13 @@
 #include "debug.h"
 #include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
+#include "language.h"
 #include "mutex.h"
 #include "nassert.h"
 #include "network.h"
-#include "server.h"
 #include "platform.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
+#include "server.h"
 #include "servnet.h"
 #include "thread.h"
 
@@ -75,11 +76,13 @@ public:
     int cid;
 };
 
-ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs) :
+ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, bool threadLock_, MutexHolder& threadLockMutex_) :
+    threadLock(threadLock_),
+    threadLockMutex(threadLockMutex_),
     host(hostp),
     world(w),
     log(logs),
-    hostname("Anonymous host"),
+    hostname("Anonymous host"), // not translated - a server's language is irrelevant to clients
     player_count(0),
     localPlayers(0),
     maplist_revision(0),
@@ -155,6 +158,12 @@ int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
     }
 }
 
+void ServerNetworking::broadcast_message(const char* data, int length) const {
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used)
+            server->send_message(world.player[i].cid, data, length);
+}
+
 void ServerNetworking::send_simple_message(Network_data_code code, int pid) const {
     int count = 0;
     char lebuf[4];
@@ -166,7 +175,7 @@ void ServerNetworking::broadcast_simple_message(Network_data_code code) const {
     int count = 0;
     char lebuf[4];
     writeByte(lebuf, count, code);
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::send_me_packet(int pid) {
@@ -231,7 +240,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
     writeLong(lebuf, count, (NLulong)max_world_rank);
 
     if (cid == -1)
-        server->broadcast_message(lebuf, count);
+        broadcast_message(lebuf, count);
     else
         server->send_message(cid, lebuf, count);
 }
@@ -255,7 +264,7 @@ void ServerNetworking::broadcast_team_change(int from, int to, bool swap) {
         writeByte(lebuf, count, static_cast<NLubyte>(world.player[from].color()));
     else
         writeByte(lebuf, count, 255);
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 //broadcast a sample
@@ -263,7 +272,7 @@ void ServerNetworking::broadcast_sample(int code) {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_sound);
     writeByte(lebuf, count, static_cast<NLubyte>(code));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 //play a sample to a player's screen audience
@@ -310,7 +319,7 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) {
         }
 
     if (cid == -1)
-        server->broadcast_message(lebuf, count);
+        broadcast_message(lebuf, count);
     else
         server->send_message(cid, lebuf, count);
 }
@@ -321,7 +330,7 @@ void ServerNetworking::ctf_update_teamscore(int t) {
     writeByte(lebuf, count, data_score_update);
     writeByte(lebuf, count, static_cast<NLubyte>(t));       // the team
     writeByte(lebuf, count, static_cast<NLubyte>(world.teams[t].score()));  //the score
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 // Tell that stats are ready for saving.
@@ -354,7 +363,7 @@ void ServerNetworking::broadcast_normal_time_out(bool sudden_death) const {
     int count = 0;
     writeByte(lebuf, count, data_normal_time_out);
     writeByte(lebuf, count, sudden_death ? 0x01 : 0x00);
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team) const {
@@ -362,7 +371,7 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
     int count = 0;
     writeByte(lebuf, count, data_capture);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const {
@@ -370,7 +379,7 @@ void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_
     int count = 0;
     writeByte(lebuf, count, data_flag_take);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const {
@@ -378,7 +387,7 @@ void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const {
     int count = 0;
     writeByte(lebuf, count, data_flag_return);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 // player dropped the flag on purpose
@@ -387,7 +396,7 @@ void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_
     int count = 0;
     writeByte(lebuf, count, data_flag_drop);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
@@ -411,7 +420,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
         tar_flag |= 0x40;
     writeByte(lebuf, count, attacker_info);
     writeByte(lebuf, count, tar_flag);
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const {
@@ -424,7 +433,7 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
     if (wild_flag)
         id_flag |= 0x40;
     writeByte(lebuf, count, id_flag);
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
@@ -432,7 +441,7 @@ void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
     int count = 0;
     writeByte(lebuf, count, data_new_player);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::new_player_to_admin_shell(int pid) const {
@@ -451,7 +460,7 @@ void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_player_left);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
@@ -459,7 +468,7 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
     int count = 0;
     writeByte(lebuf, count, data_spawn);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 // Send player's movement and shots to everyone.
@@ -473,7 +482,7 @@ void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player)
     writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
     writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
     writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 // Send player's stats to everyone.
@@ -580,7 +589,7 @@ void ServerNetworking::broadcast_map_votes_update() {
 
     // send packet
     if (!votes.empty())
-        server->broadcast_message(lebuf, count);
+        broadcast_message(lebuf, count);
 }
 
 //send map time and time left
@@ -599,7 +608,7 @@ void ServerNetworking::send_map_time(int cid) {
     writeLong(lebuf, count, current_time);
     writeLong(lebuf, count, time_left);
     if (cid == -1)
-        server->broadcast_message(lebuf, count);
+        broadcast_message(lebuf, count);
     else
         server->send_message(cid, lebuf, count);
 }
@@ -629,6 +638,10 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
     i++;
     settings |= (pupConfig.pup_weapon_max << i);
     writeByte(lebuf, count, settings);
+    writeShort(lebuf, count, pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
+    writeShort(lebuf, count, pupConfig.pups_max + (pupConfig.pups_max_percentage ? 100 : 0));
+    writeShort(lebuf, count, pupConfig.pup_add_time);
+    writeShort(lebuf, count, pupConfig.pup_max_time);
     world.physics.write(lebuf, count);
     server->send_message(player.cid, lebuf, count);
 }
@@ -701,7 +714,7 @@ void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
     platVsnprintf(msg, 1000, fs, argptr);
     va_end (argptr);
 
-    broadcast_message(type, msg);
+    broadcast_text(type, msg);
 }
 
 void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...) { // bprintf for a single player
@@ -725,7 +738,7 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
         server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::broadcast_message(Message_type type, const string& text) {
+void ServerNetworking::broadcast_text(Message_type type, const string& text) {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, type);
@@ -793,6 +806,10 @@ void ServerNetworking::send_mute_notification(int pid) const {
     send_simple_message(data_mute_notification, pid);
 }
 
+void ServerNetworking::send_tournament_update_failed(int pid) const {
+    send_simple_message(data_tournament_update_failed, pid);
+}
+
 void ServerNetworking::broadcast_mute_message(int pid, int mode, const string& admin, bool inform_target) const {
     char lebuf[256];
     int count = 0;
@@ -814,7 +831,7 @@ void ServerNetworking::broadcast_kick_message(int pid, int minutes, const string
     writeLong(lebuf, count, static_cast<NLlong>(minutes));
     writeStr(lebuf, count, admin);
 
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::send_idlekick_warning(int pid, int seconds) const {
@@ -865,7 +882,7 @@ bool ServerNetworking::start() {
     server->set_client_timeout(5, 10);
 
     if (!server->start(host->config().port)) {
-        log.error("Can't start network server on port %d.", host->config().port);
+        log.error(_("Can't start network server on port $1.", itoa(host->config().port)));
         return false;
     }
 
@@ -892,7 +909,7 @@ bool ServerNetworking::start() {
 //reload hostname
 void ServerNetworking::set_hostname(const string& name) {
     if (name.empty())
-        hostname = "Anonymous host";
+        hostname = "Anonymous host"; // not translated - a server's language is irrelevant to clients
     else
         hostname = name;
     log("Hostname: %s", hostname.c_str());
@@ -917,6 +934,8 @@ void ServerNetworking::update_serverinfo() {
 }
 
 int ServerNetworking::client_connected(int id) {
+    addPlayerMutex.lock();
+
     //2TEAM: check wich team to put player
     int t1 = 0;     //red team count
     int t2 = 0;     //blue team count
@@ -944,21 +963,31 @@ int ServerNetworking::client_connected(int id) {
 
     for (int i = targ; i < targ + TSIZE; i++)
         if (!world.player[i].used) {
-            // init player
-            const int cid = id;
-            ctop[cid] = i;
             myself = i;
-
-            world.player[i].clear(true, i, cid, "", i / TSIZE);
-            world.player[i].localIP = isLocalIP(get_client_address(cid));
-            player_count++;
-
-            world.player[i].controls = ClientControls();    // reset keypresses
-            world.check_pickup_creation(false);             // check pickup creation
             break;
         }
-    nAssert(myself != -1);
 
+    nAssert(myself != -1);
+    const int cid = id;
+    ctop[cid] = myself;
+
+    // send players_present before "myself" is present, so new_player can be broadcast to "myself" too
+    NLulong players_present = 0;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            players_present |= (1 << i);
+    char lebuf[8];
+    int count = 0;
+    writeByte(lebuf, count, data_players_present);
+    writeLong(lebuf, count, players_present);
+    server->send_message(cid, lebuf, count);
+
+    world.player[myself].clear(true, myself, cid, "", myself / TSIZE);
+
+    addPlayerMutex.unlock();
+
+    player_count++;
+    world.player[myself].localIP = isLocalIP(get_client_address(cid));
     if (world.player[myself].localIP)
         ++localPlayers;
     else {
@@ -983,17 +1012,6 @@ int ServerNetworking::client_connected(int id) {
     broadcast_new_player(world.player[myself]);
 
     // can't abort from this point on... anything that can abort should be above
-
-    // send basic information of which players there are, so the client has a basis to fill with later information
-    NLulong players_present = 0;
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            players_present |= (1 << i);
-    char lebuf[8];
-    int count = 0;
-    writeByte(lebuf, count, data_players_present);
-    writeLong(lebuf, count, players_present);
-    server->send_message(id, lebuf, count);
 
     world.player[myself].respawn_to_base = true;
     world.respawnPlayer(myself, true);    // move to a spawn spot to wait for the game
@@ -1058,6 +1076,7 @@ int ServerNetworking::client_connected(int id) {
     send_stats(world.player[myself]);
     send_team_stats(world.player[myself]);
     world.player[myself].current_map_list_item = 0; // the first map info to be sent
+    world.check_pickup_creation(false);             // check pickup creation
     return myself;
 }
 
@@ -1383,15 +1402,11 @@ void ServerNetworking::disconnect_client(int cid, int timeout, Disconnect_reason
 }
 
 void ServerNetworking::sendWorldReset() {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_world_reset);
-    server->broadcast_message(lebuf, count);
+    broadcast_simple_message(data_world_reset);
 }
 
 void ServerNetworking::sendStartGame() {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_start_game);
-    server->broadcast_message(lebuf, count);
+    broadcast_simple_message(data_start_game);
     send_map_time(-1);
 }
 
@@ -1825,7 +1840,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
                     server->send_message(job->cid, lebuf, count);
                 }
                 else if (job->code == MasterQuery::JT_score) {
-                    plprintf(pid, msg_warning, "Updating your tournament score failed!");
+                    send_tournament_update_failed(pid);
                     log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
                 }
                 else
@@ -1861,7 +1876,7 @@ void ServerNetworking::run_mastertalker_thread() {
     string localAddress;
     if (!host->config().force_ip_name.empty()) {    // use IP manually given to the program
         if (check_private_IP(host->config().force_ip_name)) {
-            log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
+            log.error(_("Master talker: Tried to force a private IP $1. Not talking to master server...", host->config().force_ip_name));
             return;
         }
         log("Master talker: Forcing IP to %s", host->config().force_ip_name.c_str());
@@ -1895,12 +1910,12 @@ void ServerNetworking::run_mastertalker_thread() {
         NLsocket msock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (msock == NL_INVALID) {
-            log.error("Master talker: Server can't open socket to connect to master server.");
+            log.error(_("Master talker: Can't open socket to connect to master server."));
             continue;
         }
 
         if (nlConnect(msock, &master_address) == NL_FALSE) {
-            log.error("Master talker: Server can't connect to master server.");
+            log("Master talker: Can't connect to master server.");
             nlClose(msock);
             continue;
         }
@@ -1927,12 +1942,12 @@ void ServerNetworking::run_mastertalker_thread() {
                 out << response.str();
                 out.close();
                 if (response.str().find("VERSION ERROR") != string::npos) {
-                    log.error("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update.");
+                    log.error(_("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update."));
                     nlClose(msock);
                     return;
                 }
                 if (response.str().find("[OK]") == string::npos)
-                    log.error("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.");
+                    log.error(_("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument."));
             }
             else {
                 log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
@@ -1957,13 +1972,13 @@ void ServerNetworking::run_mastertalker_thread() {
     nlOpenMutex.unlock();
 
     if (msock == NL_INVALID) {
-        log.error("Master talker: (Quit) Server can't open socket to connect to master server.");
+        log.error(_("Master talker: (Quit) Can't open socket to connect to master server."));
         return;
     }
 
     //connect
     if (nlConnect(msock, &master_address) == NL_FALSE) {
-        log.error("Master talker: (Quit) Server can't connect to master server.");
+        log.error(_("Master talker: (Quit) Can't connect to master server."));
         nlClose(msock);
         return;
     }
@@ -1973,7 +1988,7 @@ void ServerNetworking::run_mastertalker_thread() {
     const string data = build_http_data(parameters);
     NetworkResult result = post_http_data(msock, 0, 5000, master_script, data); // only 5 seconds allowed; it's not so crucial
     if (result != NR_ok)
-        log("Master talker: (Quit) Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+        log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
     else {
         std::stringstream response;
         result = save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
@@ -1987,10 +2002,10 @@ void ServerNetworking::run_mastertalker_thread() {
             out << response.str();
             out.close();
             if (response.str().find("[OK]") == string::npos)
-                log.error("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.");
+                log.error(_("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log."));
         }
         else
-            log("Master talker: (Quit) Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+            log.error(_("Master talker: (Quit) Error while waiting for a response: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
     }
 
     nlClose(msock);
@@ -2036,7 +2051,7 @@ void ServerNetworking::run_website_thread() {
         NLsocket websock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (websock == NL_INVALID) {
-            log.error("Website thread: Server can't open socket to connect to server website.");
+            log.error(_("Website thread: Can't open socket to connect to server website."));
             continue;
         }
         bool success = false;
@@ -2058,7 +2073,7 @@ void ServerNetworking::run_website_thread() {
             nAssert(nlSetAddrPort(&website_address, web_port));
         }
         if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {       // connect
-            log.error("Website thread: Server can't connect to the web server! Reason: %s", getNlErrorString());
+            log("Website thread: Server can't connect to server website! Reason: %s", getNlErrorString());
             nlClose(websock);
             continue;
         }
@@ -2100,13 +2115,13 @@ void ServerNetworking::run_website_thread() {
     nlOpenMutex.unlock();
 
     if (websock == NL_INVALID) {
-        log.error("Website thread: (Quit) Server can't open socket to connect to server website.");
+        log.error(_("Website thread: (Quit) Can't open socket to connect to server website."));
         return;
     }
 
     //connect
     if (nlConnect(websock, &website_address) == NL_FALSE) {
-        log.error("Website thread: (Quit) Server can't connect to the web server.");
+        log.error(_("Website thread: (Quit) Can't connect to server website."));
         nlClose(websock);
         return;
     }
@@ -2256,11 +2271,11 @@ void ServerNetworking::run_shellmaster_thread(int port) {
     NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
     nlOpenMutex.unlock();
     if (shellmsock == NL_INVALID) {
-        log.error("Admin shell: Can't open socket on port %i", port);
+        log.error(_("Admin shell: Can't open socket on port $1.", itoa(port)));
         return;
     }
     if (!nlListen(shellmsock)) {
-        log.error("Admin shell: Can't set socket to listen mode");
+        log.error(_("Admin shell: Can't set socket to listen mode."));
         return;
     }
 
@@ -2352,7 +2367,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         NLint result = nlRead(shellssock, rbuf, 4);
 
         if (result == NL_INVALID) {
-            log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
+            log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
             break;
         }
 
@@ -2371,7 +2386,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
 
         // parse the code
         if (code >= NUMBER_OF_ATS) {
-            log.error("Admin shell: invalid command %d", code);
+            log.error("Admin shell: invalid command " + itoa(code));
             break;
         }
 
@@ -2392,9 +2407,9 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
             result = nlRead(shellssock, rbuf, argsLen);
             if (result != argsLen) {
                 if (result == NL_INVALID)
-                    log.error("Admin shell: read failed. Reason: %s", getNlErrorString());
+                    log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
                 else
-                    log.error("Admin shell: bad data length (args: %d/%d)", result, argsLen);
+                    log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
                 break;
             }
             rcount = 0;
@@ -2444,12 +2459,12 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
             case ATS_SERVER_CHAT: {
                 char buf[500];
                 if (!read_string_from_TCP(shellssock, buf)) {
-                    log.error("Admin shell: unterminated string");
+                    log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
                     error = true;
                 }
                 else {
                     if (find_nonprintable_char(buf))
-                        log.error("Admin shell: unprintable characters, message ignored");
+                        log.error(_("Admin shell: unprintable characters, message ignored."));
                     else
                         bprintf(msg_normal, "ADMIN: %s", buf);
                 }
@@ -2475,9 +2490,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
             case ATS_RESET_SETTINGS: {
                 host->reset_settings(true);
                 ++maplist_revision;
-                char lebuf[16]; int count = 0;
-                writeByte(lebuf, count, data_reset_map_list);
-                server->broadcast_message(lebuf, count);
+                broadcast_simple_message(data_reset_map_list);
                 for (int p = 0; p < maxplayers; ++p)
                     if (world.player[p].used) {
                         world.player[p].current_map_list_item = 0;  // restart sending map info, because list may have changed
@@ -2493,7 +2506,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         if (ansLen) {
             result = nlWrite(shellssock, answer, ansLen);
             if (result != ansLen) {
-                log.error("Admin shell: sending response failed. Reason: %s", getNlErrorString());
+                log.error(_("Admin shell: sending response failed. Reason: $1", getNlErrorString()));
                 break;
             }
         }
@@ -2517,7 +2530,7 @@ void ServerNetworking::stop() {
     mjob_fastretry = true;
     const double mjmaxtime = get_time() + 30.0;     //timeout : 30 seconds
 
-    host->config().statusOutput("Shutdown: net server");
+    host->config().statusOutput(_("Shutdown: net server"));
 
     if (server)
         server->stop(3);
@@ -2531,35 +2544,31 @@ void ServerNetworking::stop() {
     file_threads_quit = true;   // flag so threads will quit themselves
 
     //close TCP connection with the server admin shell
-    host->config().statusOutput("Shutdown: admin shell threads");
+    host->config().statusOutput(_("Shutdown: admin shell threads"));
     shellmthread.join();
 
     //wait for all master jobs to complete nicely
     while (mjob_count > 0 && get_time() < mjmaxtime) {
-        char lix[200];
-        platSnprintf(lix, 200, "Shutdown: waiting for %d tournament updates", mjob_count);
-        host->config().statusOutput(lix);
+        host->config().statusOutput(_("Shutdown: waiting for $1 tournament updates", itoa(mjob_count)));
         MS_SLEEP(100);
     }
 
     //clean up jobs
     mjob_exit = true;       //MUST terminate -- abort
     while (mjob_count > 0) {
-        char lix[200];
-        platSnprintf(lix, 200, "Shutdown: ABORTING %d tournament updates", mjob_count);
-        host->config().statusOutput(lix);
+        host->config().statusOutput(_("Shutdown: ABORTING $1 tournament updates", itoa(mjob_count)));
         MS_SLEEP(100);
     }
 
     if (!host->config().privateserver) {
-        host->config().statusOutput("Shutdown: master talker thread");
+        host->config().statusOutput(_("Shutdown: master talker thread"));
         mthread.join();
     }
 
-    host->config().statusOutput("Shutdown: website thread");
+    host->config().statusOutput(_("Shutdown: website thread"));
     webthread.join();
 
-    host->config().statusOutput("Shutdown: main thread");
+    host->config().statusOutput(_("Shutdown: main thread"));
 }
 
 void ServerNetworking::sendWeaponPower(int pid) {
@@ -2633,7 +2642,7 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
     writeShort(lebuf, count, static_cast<NLushort>(ply.lx));
     writeShort(lebuf, count, static_cast<NLushort>(ply.ly));
 
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) {
@@ -2661,7 +2670,7 @@ void ServerNetworking::sendFragUpdate(int pid, NLulong frags) {
     writeByte(lebuf, count, data_frags_update);
     writeByte(lebuf, count, pid);       // what player id
     writeLong(lebuf, count, frags);
-    server->broadcast_message(lebuf, count);
+    broadcast_message(lebuf, count);
 }
 
 void ServerNetworking::sendNameAuthorizationRequest(int pid) {
@@ -2754,15 +2763,30 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 }
 
 void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* data, int length, ServerHelloResult* res) {
-    ((ServerNetworking*)customp)->clientHello(client_id, data, length, res);
+    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    sn->clientHello(client_id, data, length, res);
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
 }
 
 void ServerNetworking::sfunc_client_connected(void* customp, int client_id) {
-    ((ServerNetworking*)customp)->client_connected(client_id);
+    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    sn->client_connected(client_id);
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
 }
 
 void ServerNetworking::sfunc_client_disconnected(void* customp, int client_id) {
-    ((ServerNetworking*)customp)->client_disconnected(client_id);
+    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    sn->client_disconnected(client_id);
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
 }
 
 void ServerNetworking::sfunc_client_lag_status(void* customp, int client_id, int status) {
@@ -2770,18 +2794,25 @@ void ServerNetworking::sfunc_client_lag_status(void* customp, int client_id, int
 }
 
 void ServerNetworking::sfunc_client_data(void* customp, int client_id, char* data, int length) {
-    ((ServerNetworking*)customp)->incoming_client_data(client_id, data, length);
+    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    sn->incoming_client_data(client_id, data, length);
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
 }
 
 void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, int pingtime) {
-    ((ServerNetworking*)customp)->ping_result(client_id, pingtime);
+    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    sn->ping_result(client_id, pingtime);
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
 }
 
-bool ServerNetworking::set_web_refresh(int refresh) {
-    if (refresh >= 1) {
-        web_refresh = refresh;
-        return true;
-    }
-    return false;
+void ServerNetworking::set_web_refresh(int refresh) {
+    nAssert(refresh >= 1);
+    web_refresh = refresh;
 }
 

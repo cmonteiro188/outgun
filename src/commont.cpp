@@ -37,11 +37,14 @@ using std::cout;
 using std::istream;
 using std::string;
 
+bool readJoystickButton(int button) {
+    return (button > 0 && !poll_joystick() && button <= joy[0].num_buttons && joy[0].button[button - 1].b);
+}
+
 void ClientControls::fromKeyboard(bool use_pad) {
-    data = 0;
     if (key[KEY_UP] || (key[KEY_8_PAD] && use_pad))
         data |= up;
-    if (key[KEY_DOWN] || (key[KEY_2_PAD] && use_pad))
+    if (key[KEY_DOWN] || ((key[KEY_2_PAD] || key[KEY_5_PAD]) && use_pad))
         data |= down;
     if (key[KEY_LEFT] || (key[KEY_4_PAD] && use_pad))
         data |= left;
@@ -66,7 +69,6 @@ void ClientControls::fromKeyboard(bool use_pad) {
 void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_button) {
     if (poll_joystick())
         return;     // failure
-    // Do not reset data because keyboard controls should remain.
     const JOYSTICK_INFO& joystick = joy[0];
     if (joystick.num_sticks > moving_stick) {
         if (joystick.stick[moving_stick].num_axis >= 2) {
@@ -80,9 +82,9 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
                 data |= down;
         }
     }
-    if (run_button != -1 && joystick.num_buttons > run_button && joystick.button[run_button].b)
+    if (readJoystickButton(run_button))
         data |= run;
-    if (strafe_button != -1 && joystick.num_buttons > strafe_button && joystick.button[strafe_button].b)
+    if (readJoystickButton(strafe_button))
         data |= strafe;
 }
 
