@@ -122,7 +122,7 @@ public:
 	void draw_change_map_message(double time);
 
 	// power-ups
-	void draw_pup(const pickup_c& pup, double time);
+	void draw_pup(const Powerup& pup, double time);
 	void draw_pup_shield(int x, int y);
 	void draw_pup_turbo(int x, int y);
 	void draw_pup_shadow(int x, int y, double time);

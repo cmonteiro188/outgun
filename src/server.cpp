@@ -502,6 +502,12 @@ void gameserver_c::load_game_mod() {
 					else
 						LOG1("Can't set pup_deathbringer_switch to %d\n", ival);
 				}
+				else if (cmd == "pups_drop_at_death") {
+					if (ival == 0 || ival == 1)
+						pupConfig.pups_drop_at_death = ival == 1 ? true : false;
+					else
+						LOG1("Can't set pups_drop_at_death to %d\n", ival);
+				}
 				else if (cmd == "random_maprot") {
 					if (ival == 0 || ival == 1)
 						random_maprot = ival == 1 ? true : false;

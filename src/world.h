@@ -516,20 +516,21 @@ private:
 	std::vector<std::pair<int, std::string> > caps;	// time and player name
 };
 
-//pickups
-class pickup_c {
+//powerups
+class Powerup {
 public:
+	enum Pup_type { pup_unused, pup_shield, pup_turbo, pup_shadow, pup_power, pup_weapon, pup_health, pup_deathbringer, pup_respawning };
 
-	NLubyte kind;		// type of powerup  0==unused     255=valid, but respawning
+	Pup_type kind;	// type of powerup
 
-	double		respawn_time;		// time to respawn
+	double respawn_time;		// time to respawn
 
-	int				px;	//screen
-	int				py;
-	int				x;	//position
-	int				y;
+	int px;	//screen
+	int py;
+	int x;	//position
+	int y;
 
-	pickup_c() { kind=0; }
+	Powerup(): kind(pup_unused) { }
 };
 
 template<class Type> class PointerContainer {	// doesn't delete the objects!
@@ -583,7 +584,7 @@ public:
 	PointerContainer<PlayerBase> player[MAX_PLAYERS];
 	Team teams[2];
 	rocket_c rock[MAX_ROCKETS];
-	pickup_c item[MAX_PICKUPS];
+	Powerup item[MAX_PICKUPS];
 
 	virtual ~WorldBase() { }
 
@@ -607,11 +608,12 @@ public:
 	bool pups_min_percentage, pups_max_percentage;
 	int pup_add_time, pup_max_time;
 	bool pup_deathbringer_switch;
+	bool pups_drop_at_death;
 
 	void reset();
 	void print(LineReceiver& printer) const;
 
-	int choose_powerup_kind() const;
+	Powerup::Pup_type choose_powerup_kind() const;
 	int getMinPups(const Map& map) const { return pups_min_percentage?pups_by_percent(pups_min, map):pups_min; }
 	int getMaxPups(const Map& map) const { return pups_max_percentage?pups_by_percent(pups_max, map):pups_max; }
 	int getRespawnTime() const { return pups_respawn_time; }
@@ -646,6 +648,7 @@ class ServerWorld : public WorldBase {
 	WorldSettings config;
 
 	NLubyte getFreeRocket();	// may give an existing rocket to overwrite if the table is full
+	void drop_pickup(const ServerPlayer& player);
 
 public:
 	NLulong frame;

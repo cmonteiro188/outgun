@@ -98,16 +98,16 @@ Graphics::Graphics(int scr_w, int scr_h, bool reset_video):
 	if (reset_video)
 		reset_video_mode();
 	plx = 0;
-	ply = SCREEN_H - scale(plh) - 35;
+	ply = scr_h - scale(plh) - 35;
 	drawbuf = create_bitmap(scr_w, scr_h);
 	background = create_bitmap(scr_w, scr_h);
 	roombg = create_sub_bitmap(background, plx, ply, scale(plw), scale(plh));
 	minimap_w = minimap_place_w = scale(160);
 	minimap_h = minimap_place_h = scale(100);
-	mmx = scr_w - minimap_w;
+	mmx = scr_w - minimap_w - 4;
 	mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
-	sbx = SCREEN_W - 21 * 8 + 4;
+	sbx = scr_w - 21 * 8 + 4;
 	sby = mmy + minimap_place_h + 10;
 	setcolors();
 	reset_playground_colors();
@@ -1118,17 +1118,18 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 	solid_mode();
 }
 
-void Graphics::draw_pup(const pickup_c& pup, double time) {
+void Graphics::draw_pup(const Powerup& pup, double time) {
 	// pup's shadow
 	ellipsefill(drawbuf, plx + scale(pup.x), ply + scale(pup.y + 12), scale(12), scale(3), col[COLSHADOW]);
 	switch (pup.kind) {
-		case 1: draw_pup_shield(pup.x, pup.y); break;		// shield
-		case 2:	draw_pup_turbo(pup.x, pup.y); break; 		// turbo
-		case 3: draw_pup_shadow(pup.x, pup.y, time); break;	// shadow
-		case 4: draw_pup_power(pup.x, pup.y, time); break;	// power
-		case 5: draw_pup_weapon(pup.x, pup.y, time); break;	// weapon upgrade
-		case 6: draw_pup_health(pup.x, pup.y, time); break;	// megahealth
-		case 7: draw_pup_deathbringer(pup.x, pup.y); break;	// deathbringer
+		case Powerup::pup_shield:		draw_pup_shield(pup.x, pup.y); break;
+		case Powerup::pup_turbo:		draw_pup_turbo(pup.x, pup.y); break;
+		case Powerup::pup_shadow:		draw_pup_shadow(pup.x, pup.y, time); break;
+		case Powerup::pup_power:		draw_pup_power(pup.x, pup.y, time); break;
+		case Powerup::pup_weapon:		draw_pup_weapon(pup.x, pup.y, time); break;
+		case Powerup::pup_health:		draw_pup_health(pup.x, pup.y, time); break;
+		case Powerup::pup_deathbringer:	draw_pup_deathbringer(pup.x, pup.y); break;
+		default: ;
 	}
 }
 

@@ -1935,7 +1935,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//print_message("POWERUP_VISIBLE!!!");
 					readByte(lebuf, count, iid);		// item id
 					readByte(lebuf, count, abyte);		// kind
-					fx.item[iid].kind = abyte;
+					fx.item[iid].kind = static_cast<Powerup::Pup_type>(abyte);
 					readByte(lebuf, count, abyte);		// screen x
 					fx.item[iid].px = abyte;
 					readByte(lebuf, count, abyte);		// screen y
@@ -1949,7 +1949,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//pickup picked
 				case data_pup_picked:
 					readByte(lebuf, count, iid);
-					fx.item[iid].kind = 0;		// no more!
+					fx.item[iid].kind = Powerup::pup_unused;		// no more!
 					break;
 
 				//powerup clientside timer set
@@ -1996,7 +1996,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					
 				case data_world_reset:
 					for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-						fx.item[iid].kind = 0;
+						fx.item[iid].kind = Powerup::pup_unused;
 					break;
 
 				//server shows gameover plaque
@@ -2284,7 +2284,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 		for (int j=0;j<MAX_PICKUPS;j++)
 			if (fx.item[j].px==fx.player[me].oldx && fx.item[j].py==fx.player[me].oldy)
-				fx.item[j].kind = 0;	// erase
+				fx.item[j].kind = Powerup::pup_unused;	// erase
 
 		//set new old's
 		fx.player[me].oldx = fx.player[me].roomx;
@@ -3534,11 +3534,10 @@ void gameclient_c::draw_game_frame() {
 		if (me >= 0)
 			for (int i = 0; i < MAX_PICKUPS; i++)
 				// used power-ups, not respawning, on my screen
-				if (fx.item[i].kind > 0 && fx.item[i].kind != 255 &&
+				if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
 						fx.item[i].px == fx.player[me].roomx && fx.item[i].py == fx.player[me].roomy) {
 					client_graphics.draw_pup(fx.item[i], get_time());
-					//deathbringer
-					if (fx.item[i].kind == 7)
+					if (fx.item[i].kind == Powerup::pup_deathbringer)
 						client_graphics.create_deathcarrier(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
       						fx.item[i].px, fx.item[i].py, 0);
 				}

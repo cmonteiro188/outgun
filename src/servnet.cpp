@@ -3118,7 +3118,7 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) {
 	server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::sendPickupVisible(int pid, int pup_id, const pickup_c& it) {
+void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_pup_visible);
 	writeByte(lebuf, count, (NLubyte)pup_id);	//what item

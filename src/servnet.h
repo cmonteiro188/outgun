@@ -155,7 +155,7 @@ public:
 	void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y);	// sid = shot-id: array of NLubyte[shots]
 	void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ);
 	void sendDeathbringer(int pid, const ServerPlayer& ply);
-	void sendPickupVisible(int pid, int pup_id, const pickup_c& it);
+	void sendPickupVisible(int pid, int pup_id, const Powerup& it);
 	void sendPupTime(int pid, NLubyte pupType, double timeLeft);
 	void sendFragUpdate(int pid, NLulong frags);
 

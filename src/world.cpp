@@ -1124,6 +1124,11 @@ void PowerupSettings::print(LineReceiver& printer) const {
 	else
 		line << "- Power-up time is " << pup_max_time << " seconds";
 	printer(line.str());
+	if (pups_drop_at_death) {
+		line.str("");
+		line << "- Some power-ups are dropped when player dies";
+		printer(line.str());
+	}
 	if (pup_deathbringer_switch) {
 		line.str("");
 		line << "- Picking up a second deathbringer power-up cancels the effect";
@@ -1137,26 +1142,26 @@ void PowerupSettings::print(LineReceiver& printer) const {
 	printer(line.str());
 }
 
-int PowerupSettings::choose_powerup_kind() const {
+Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
 	int max = pup_chance_shield + pup_chance_turbo + pup_chance_shadow + pup_chance_power
 						+ pup_chance_weapon + pup_chance_megahealth + pup_chance_deathbringer;
 
 	int chance = 1 + rand() % max;		//1..100 por exemplo se max = 100
 
 	chance -= pup_chance_shield;
-	if (chance <= 0) return 1;
+	if (chance <= 0) return Powerup::pup_shield;
 	chance -= pup_chance_turbo;
-	if (chance <= 0) return 2;
+	if (chance <= 0) return Powerup::pup_turbo;
 	chance -= pup_chance_shadow;
-	if (chance <= 0) return 3;
+	if (chance <= 0) return Powerup::pup_shadow;
 	chance -= pup_chance_power;
-	if (chance <= 0) return 4;
+	if (chance <= 0) return Powerup::pup_power;
 	chance -= pup_chance_weapon;
-	if (chance <= 0) return 5;
+	if (chance <= 0) return Powerup::pup_weapon;
 	chance -= pup_chance_megahealth;
-	if (chance <= 0) return 6;
+	if (chance <= 0) return Powerup::pup_health;
 	//chance -= pup_chance_deathbringer;
-	return 7;
+	return Powerup::pup_deathbringer;
 }
 
 int PowerupSettings::pups_by_percent(int percentage, const Map& map) const {
@@ -1234,7 +1239,7 @@ void ServerWorld::reset() {
 
 	// remove and regenerate powerups
 	for (int i=0;i<MAX_PICKUPS;i++)
-		item[i].kind = 0;
+		item[i].kind = Powerup::pup_unused;
 	check_pickup_creation(true);
 
 	map_start_time = frame;
@@ -1444,12 +1449,44 @@ bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, int x, int 
 	return false;
 }
 
+// drop turbo, shadow, power or weapon power-up if player has one of them
+void ServerWorld::drop_pickup(const ServerPlayer& player) {
+	vector<Powerup::Pup_type> player_items;
+	if (player.item_shield)			// only at suicides
+		player_items.push_back(Powerup::pup_shield);
+	if (player.item_speed && player.item_speed_time >= pupConfig.pup_add_time)
+		player_items.push_back(Powerup::pup_turbo);
+	if (player.item_helm() && player.item_speed_time >= pupConfig.pup_add_time)
+		player_items.push_back(Powerup::pup_shadow);
+	if (player.item_quad && player.item_speed_time >= pupConfig.pup_add_time)
+		player_items.push_back(Powerup::pup_power);
+	if (player.weapon >= 1)			// 1 means double weapon
+		player_items.push_back(Powerup::pup_weapon);
+
+	if (player_items.empty())	// nothing to drop
+		return;
+
+	for (int p = 0; p < MAX_PICKUPS; p++)
+		if (item[p].kind == Powerup::pup_unused) {
+			item[p].kind = player_items[rand() % player_items.size()];
+			item[p].px = player.roomx;
+			item[p].py = player.roomy;
+			item[p].x = static_cast<int>(player.lx);
+			item[p].y = static_cast<int>(player.ly);
+			// inform players
+			for (int i = 0; i < maxplayers; i++)
+				if (this->player[i].used && this->player[i].roomx == item[p].px && this->player[i].roomy == item[p].py)
+					net->sendPickupVisible(i, p, item[p]);
+			break;
+		}
+}
+
 void ServerWorld::respawn_pickup(int p) {
-	item[p].kind = 0;
+	item[p].kind = Powerup::pup_unused;
 
 	//find a screen with no players and no other powerups
-	int px, py, itemx, itemy, i;
-	for (int runaway=300;; --runaway) {
+	int px, py, itemx, itemy;
+	for (int runaway = 300; ; --runaway) {
 		bool hit = false;
 		px = rand() % map.w;
 		py = rand() % map.h;
@@ -1457,9 +1494,9 @@ void ServerWorld::respawn_pickup(int p) {
 		//check for players if not tried a 100 times yet
 
 		//check players
-		if (runaway>200)
-			for (i=0; i<maxplayers; i++)
-				if (player[i].used && player[i].roomx==px && player[i].roomy==py) {
+		if (runaway > 200)
+			for (int i = 0; i < maxplayers; i++)
+				if (player[i].used && player[i].roomx == px && player[i].roomy == py) {
 					hit = true;
 					break;
 				}
@@ -1469,9 +1506,9 @@ void ServerWorld::respawn_pickup(int p) {
 		//check for items if not tried 200 times yet
 
 		//check items if no players found
-		if (runaway>100)
-			for (i=0;i<MAX_PICKUPS;i++)
-				if (item[i].kind!=0 && item[i].px==px && item[i].py==py) {
+		if (runaway > 100)
+			for (int i = 0; i < MAX_PICKUPS; i++)
+				if (item[i].kind != Powerup::pup_unused && item[i].px == px && item[i].py == py) {
 					hit = true;
 					break;
 				}
@@ -1491,34 +1528,33 @@ void ServerWorld::respawn_pickup(int p) {
 			return;
 		}
 	}
-	int kind = pupConfig.choose_powerup_kind();
-	item[p].kind = (NLubyte)kind;
+	item[p].kind = pupConfig.choose_powerup_kind();
 	item[p].px = px;
 	item[p].py = py;
 	item[p].x = itemx;	//copy from randomized position
 	item[p].y = itemy;
 	//screen-change message of players in the screen the powerup arrived
 	//fixes "invisible powerup" problem, I hope
-	for (i=0;i<maxplayers;i++)
-		if (player[i].used && player[i].roomx==px && player[i].roomy==py)
+	for (int i = 0; i < maxplayers; i++)
+		if (player[i].used && player[i].roomx == px && player[i].roomy == py)
 			net->sendPickupVisible(i, p, item[p]);
 }
 
 // verifica powerups unused por jogadores presentes
 void ServerWorld::check_pickup_creation(bool instant) {
-	int i, pc, ic;
+	int pc, ic;
 
 	//count number of players
 	pc = 0;
-	for (i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (player[i].used)
 			pc++;
 
 	//count number of items
 	// TEST SERVER FUK : change "if" to :    if (player[i].used)
 	ic = 0;
-	for (i=0;i<MAX_PICKUPS;i++)
-		if (item[i].kind != 0)	//0=unused 255=respawning 1..6(?)=spawned/kind
+	for (int i = 0; i < MAX_PICKUPS; i++)
+		if (item[i].kind != Powerup::pup_unused)
 			ic++;
 
 	int real_min = pupConfig.getMinPups(map);
@@ -1530,9 +1566,9 @@ void ServerWorld::check_pickup_creation(bool instant) {
 	if (ic >= real_min)
 		return;
 	//while number of players > number of pickups: create a pickup and ic++
-	for (i=0; i<MAX_PICKUPS; i++)
-		if (item[i].kind == 0) {
-			item[i].kind = 255;
+	for (int i = 0; i < MAX_PICKUPS;  i++)
+		if (item[i].kind == Powerup::pup_unused) {
+			item[i].kind = Powerup::pup_respawning;
 			if (instant)
 				respawn_pickup(i);
 			else
@@ -1544,7 +1580,7 @@ void ServerWorld::check_pickup_creation(bool instant) {
 
 // player i touches a pickup p!
 void ServerWorld::game_touch_pickup(int p, int pk) {
-	pickup_c *it = &item[pk];
+	Powerup *it = &item[pk];
 
 	//send "item removed" message to all players on the current screen
 	//
@@ -1554,7 +1590,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 	net->broadcast_screen_message(it->px, it->py, lebuf, count);
 
 	switch (it->kind) {
-		case 1: {	// shield
+		case Powerup::pup_shield: {
 			player[p].item_shield = true;
 
 			//increase health to minimum of 100
@@ -1571,7 +1607,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
 			break;
 		}
-		case 2: {	// turbo
+		case Powerup::pup_turbo: {
 			double itemTime = player[p].item_speed_time-get_time();
 			if (!player[p].item_speed || itemTime<0)
 				itemTime = 0;
@@ -1584,7 +1620,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
 			break;
 		}
-		case 3:	{	// shadow
+		case Powerup::pup_shadow: {
 			double itemTime = player[p].item_helm_time - get_time();
 			if (!player[p].item_helm() || itemTime < 0)
 				itemTime = 0;
@@ -1597,7 +1633,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_HELM_ON);
 			break;
 		}
-		case 4:	{	// power
+		case Powerup::pup_power: {
 			double itemTime = player[p].item_quad_time-get_time();
 			if (!player[p].item_quad || itemTime<0)
 				itemTime = 0;
@@ -1610,7 +1646,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_QUAD_ON);
 			break;
 		}
-		case 5:	{	// weapon
+		case Powerup::pup_weapon: {
 			if (player[p].weapon < 8)	// test for max (shots=weapon+1, entao p/ shots max 9, weapon max = 8)
 				player[p].weapon++;	//increase weapon power
 
@@ -1624,12 +1660,12 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
 			break;
 		}
-		case 6:	{	// megahealth
+		case Powerup::pup_health: {
 			player[p].megabonus += 160;
 			net->broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
 			break;
 		}
-		case 7: {	// deathbringer
+		case Powerup::pup_deathbringer: {
 			if (pupConfig.getDeathbringerSwitch())
 				player[p].item_deathbringer = !player[p].item_deathbringer;
 			else
@@ -1638,10 +1674,11 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 			net->broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
 			break;
 		}
+		default: ;
 	}
 
 	// unused item
-	it->kind = 0;
+	it->kind = Powerup::pup_unused;
 
 	// check pickup creation
 	check_pickup_creation(false);
@@ -1651,10 +1688,11 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 // --> send any pickups on screen
 void ServerWorld::game_player_screen_change(int p) {
 	//check for new pickups visible
-	for (int i=0; i<MAX_PICKUPS; i++) {
-		pickup_c *it = &item[i];
-		if (it->kind && it->kind!=255 && it->px==player[p].roomx && it->py==player[p].roomy)
-			net->sendPickupVisible(p, i, item[i]);
+	for (int i = 0; i < MAX_PICKUPS; i++) {
+		const Powerup& it = item[i];
+		if (it.kind != Powerup::pup_unused && it.kind != Powerup::pup_respawning &&
+			it.px == player[p].roomx && it.py == player[p].roomy)
+				net->sendPickupVisible(p, i, item[i]);
 	}
 }
 
@@ -1692,6 +1730,9 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player
 		player[target].item_deathbringer_time = frame;
 		net->sendDeathbringer(target, player[target]);
 	}
+
+	if (pupConfig.pups_drop_at_death)
+		drop_pickup(player[target]);
 
 	resetPlayer(target, (player[target].item_deathbringer || time_penalty)?config.getDeathbringerWaitingTime():0);
 }
@@ -2151,7 +2192,7 @@ void ServerWorld::simulateFrame() {
 	// (-1) check powerup respawn
 	double thetime = get_time();
 	for (int i=0;i<MAX_PICKUPS;i++)
-		if (item[i].kind == 255 && thetime > item[i].respawn_time)
+		if (item[i].kind == Powerup::pup_respawning && thetime > item[i].respawn_time)
 			respawn_pickup(i);
 
 	// (0) do stuff for every player
@@ -2412,8 +2453,8 @@ void ServerWorld::simulateFrame() {
 		int prad = 10;	//pickup item radius
 
 		for (int k=0;k<MAX_PICKUPS;k++)
-			if (item[k].kind > 0)	//valid item
-			if (item[k].kind != 255) // not respawning
+			if (item[k].kind != Powerup::pup_unused)
+			if (item[k].kind != Powerup::pup_respawning)
 			if (item[k].px == player[i].roomx)		// player's screen
 			if (item[k].py == player[i].roomy)
 			//x,y == center of powerup!
