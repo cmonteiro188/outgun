@@ -443,10 +443,8 @@ int main(int argc, char *argv[]) {
         ifstream in(lang_file.c_str());
         string lang_str;
         if (getline_skip_comments(in, lang_str)) {
-            if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos) {
-                if (!language.load(lang_str))
-                    allegro_message("Language file not found for '%s' (specified in %s).\nBoth config/languages/en.txt and config/languages/%s.txt are needed.\nUsing English.", lang_str.c_str(), lang_file.c_str(), lang_str.c_str());
-            }
+            if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos)
+                language.load(lang_str);	// load() will bug the user if something goes wrong
             else
                 log.error("Invalid language '%s' in %s.", lang_str.c_str(), lang_file.c_str());
         }

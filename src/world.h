@@ -313,7 +313,7 @@ public:
     bool item_deathbringer;
     bool item_shield;
     bool item_power;
-    bool item_speed;
+    bool item_turbo;
     int visibility;     // alpha
 
     int roomx, roomy;
@@ -359,7 +359,7 @@ public:
     bool attack;    // if player is holding attack button
 
     double item_power_time;
-    double item_speed_time;
+    double item_turbo_time;
     double item_shadow_time;
 
     long item_deathbringer_time;    // explosion of this players deathbringer
@@ -418,8 +418,8 @@ private:
 class ClientPlayer : public PlayerBase {
 public:
     bool deathbringer_affected;
-    double death_drop_time;
-    double speed_drop_time;
+    double next_smoke_effect_time;
+    double next_turbo_effect_time;
     double wall_sound_time;
     double player_sound_time;
     bool onscreen;
@@ -432,7 +432,7 @@ public:
 
     // get rid of these since they are only known for the local player
     double item_power_time;
-    double item_speed_time;
+    double item_turbo_time;
     double item_shadow_time;
     int health;
     int energy;

@@ -184,7 +184,7 @@ public:
 
     // client side effects
     void draw_effects(int room_x, int room_y, double time);
-    void draw_speedfx(int room_x, int room_y, double time);
+    void draw_turbofx(int room_x, int room_y, double time);
 
     void clear_fx();
 
@@ -192,7 +192,7 @@ public:
     void create_powerwallexplo(int x, int y, int px, int py);
     void create_smoke(int x, int y, int px, int py);
     void create_deathcarrier(int x, int y, int px, int py);
-    void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
+    void create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir);
     void create_deathbringer(int team, double start_time, int x, int y, int px, int py);
     void create_gunexplo(int x, int y, int px, int py);
 

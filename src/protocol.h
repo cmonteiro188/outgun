@@ -27,8 +27,6 @@
 
 #include "leetnet/server.h"
 
-static const bool WATCH_CONNECTION = false;
-static const bool LOG_MESSAGE_TRAFFIC = true;
 #define SEND_FRAMEOFFSET    // effects some structures -> must be a define
 
 enum Network_data_code {

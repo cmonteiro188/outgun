@@ -32,6 +32,12 @@ static const bool LOG_THREAD_IDS = false;
 // create ./mutexlog.bin containing information on every lock and unlock operation on a MutexHolder, including thread ID
 static const bool LOG_MUTEX_LOCKUNLOCK = false;
 
+// report on missing or wrongly ordered packets (both client and server)
+static const bool WATCH_CONNECTION = false;
+
+// briefly log message types when receiving (both client and server; LEETNET_DATA_LOG does the same much better but the logs aren't as easy to read)
+static const bool LOG_MESSAGE_TRAFFIC = false;
+
 
 // Leetnet specific settings:
 

@@ -21,6 +21,7 @@
  *
  */
 
+#include "incalleg.h"
 #include <fstream>
 #include "commont.h"
 #include "language.h"
@@ -39,16 +40,32 @@ string Language::get_text(const string& text) const {
 }
 
 bool Language::load(const string& lang) {
-    lang_code = lang;
     texts.clear();
+    lang_code = "en";
+	if (lang == lang_code)
+		return true;
     const string dir = wheregamedir + "config" + directory_separator + "languages" + directory_separator;
-    ifstream def((dir + "en.txt").c_str());
-    ifstream transl((dir + lang_code + ".txt").c_str());
-    if (!def || !transl)
+	const string defname = dir + "en.txt";
+	const string translname = dir + lang + ".txt";
+    ifstream def(defname.c_str());
+	if (!def) {
+		allegro_message("%s not found.\nCan't load a language without the English reference.\nContinuing without a translation.", defname.c_str());
         return false;
+    }
+    ifstream transl(translname.c_str());
+    if (!transl) {
+        allegro_message("Language file for '%s' not found (%s).\nContinuing without translation.", lang.c_str(), translname.c_str());
+        return false;
+    }
     string key, value;
-    while (getline_smart(def, key) && getline_smart(transl, value))
+    while (getline_skip_comments(def, key) && getline_skip_comments(transl, value))
         texts[key] = value;
+    if (def) {
+        allegro_message("Language file for '%s' is invalid.\n%s contains more phrases than %s.\nContinuing without translation.", lang.c_str(), translname.c_str(), defname.c_str());
+        texts.clear();
+        return false;
+    }
+    lang_code = lang;
     return true;
 }
 

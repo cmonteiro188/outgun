@@ -1373,10 +1373,10 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     }
     else {
         ostringstream points;
-        points << setw(2) << teams[0].score() << _(" capt");
+        points << teams[0].score() << _(" capt");
         red << setw(caption_width - red.str().length()) << points.str();
         points.str("");
-        points << setw(2) << teams[1].score() << _(" capt");
+        points << teams[1].score() << _(" capt");
         blue << setw(caption_width - blue.str().length()) << points.str();
     }
     textout_ex(drawbuf, font, red.str().c_str(), sbx, sby, teamlcol[0], -1);
@@ -1398,7 +1398,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 
 void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol, bool underline) {
     if (underline)
-        hline(drawbuf, x, y + 8, x + 8 * name.length() - 1, pcol);
+        hline(drawbuf, x, y + 8, x + 8 * name.length() - 2, pcol);
     textout_ex(drawbuf, font, name.c_str(), x, y, pcol, -1);
 }
 
@@ -1565,7 +1565,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
                 break;
         case 3: caption1 = _("          Average        Tournament");
                 caption2 = _("Playtime lifetime    rank  power  score");
-                //           |00000 min   00:00    0000  00.00 -00000  |
+                //           |00000 min   00:00    0000  00.00 -00000 |
                 break;
         default: nAssert(0);
     }
@@ -1635,7 +1635,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
         case 3:
             //            Average        Tournament
             //  Playtime lifetime    rank  power  score
-            // |00000 min   00:00    0000  00.00 -00000  |
+            // |00000 min   00:00    0000  00.00 -00000 |
             stats << setw(5) << static_cast<int>(st.playtime(time)) / 60 << " min"
                   << setw(5) << static_cast<int>(st.average_lifetime(time)) / 60 << ':'
                   << setw(2) << setfill('0') << static_cast<int>(st.average_lifetime(time)) % 60 << setfill(' ');
@@ -1721,6 +1721,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 
     ostringstream caption;
     caption << _(" Nr Vote Title                Size  Author");
+    //           |000 00 * <--------20--------> 00×00 <------------27----------->|
     textout_ex(drawbuf, font, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
 
     if (map_list_start >= static_cast<int>(maps.size()) - map_list_size)
@@ -1730,7 +1731,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 
     for (int i = map_list_start; i < static_cast<int>(maps.size()) && i < map_list_start + map_list_size; ++i) {
         ostringstream mapline;
-        mapline << setw(2) << i + 1 << ' ' << setw(2);
+        mapline << setw(3) << i + 1 << ' ' << setw(2);
         const MapInfo& map = maps[i];
         if (map.votes > 0)
             mapline << map.votes;
@@ -1762,19 +1763,19 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 }
 
 void Graphics::draw_player_power(double val) {
-    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "%-7s%3.0f", _("Power").c_str(), val);
+    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "%-6s %3.0f", _("Power").c_str(), val);
 }
 
 void Graphics::draw_player_turbo(double val) {
-    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "%-7s%3.0f", _("Turbo").c_str(), val);
+    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "%-6s %3.0f", _("Turbo").c_str(), val);
 }
 
 void Graphics::draw_player_shadow(double val) {
-    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "%-7s%3.0f", _("Shadow").c_str(), val);
+    textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "%-6s %3.0f", _("Shadow").c_str(), val);
 }
 
 void Graphics::draw_player_weapon(int level) {
-    textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "%-8s%i", _("Weapon").c_str(), level);
+    textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "%-7s %i", _("Weapon").c_str(), level);
 }
 
 void Graphics::draw_change_team_message(double time) {
@@ -1793,15 +1794,15 @@ void Graphics::draw_change_map_message(double time) {
         c = col[COLRED];
     else
         c = col[COLWHITE];
-    textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 70 - 6 * 8 + 6),     ply + scale(plh - 18), c, -1);
-    textout_centre_ex(drawbuf, font, _("MAP").c_str(),  plx + scale(plw - 70 - 6 * 8 + 6), ply + scale(plh -  9), c, -1);
+    textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 64 - 6 * 8),     ply + scale(plh - 18), c, -1);
+    textout_centre_ex(drawbuf, font, _("MAP").c_str(),  plx + scale(plw - 64 - 6 * 8), ply + scale(plh -  9), c, -1);
 }
 
 void Graphics::draw_player_health(int health) {
     const int x0 = indicators_x + 10;
     const int y0 = indicators_y;
     // health value
-    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-8s%5i", _("Health").c_str(), health);
+    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-9s %3i", _("Health").c_str(), health);
     // health bar
     rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
     if (health == 0)
@@ -1823,7 +1824,7 @@ void Graphics::draw_player_energy(int energy) {
     const int x0 = indicators_x + 10 + 14 * 8;
     const int y0 = indicators_y;
     // energy value
-    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-8s%5i", _("Energy").c_str(), energy);
+    textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "%-9s %3i", _("Energy").c_str(), energy);
     // energy bar
     rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
     if (energy == 0)
@@ -1845,21 +1846,21 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     if (!show_chat_messages)
         return;
     const int line_height = 11;
-    const int marginal = 3;
+    const int margin = 3;
     int line = 0;
     for (; msg != end; ++msg, ++line) {
         if (msg->text().empty())
             continue;
 
         // print the message
-        print_chat_message(msg->type(), msg->text(), marginal, marginal + line * line_height);
+        print_chat_message(msg->type(), msg->text(), margin, margin + line * line_height);
     }
     if (!talkbuffer.empty()) {
         ostringstream message;
         message << _("Say") << ": " << talkbuffer << '_';
         const vector<string> lines = split_to_lines(message.str(), 79, 0);
         for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line)
-            print_chat_input(*li, marginal, marginal + line * line_height);
+            print_chat_input(*li, margin, margin + line * line_height);
     }
 }
 
@@ -1986,11 +1987,10 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py) {
     cfx.push_back(fx);
 }
 
-//create speed bolinha fx
-void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir) {
+void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir) {
     GraphicsEffect fx;
 
-    fx.type = FX_SPEED;
+    fx.type = FX_TURBO;
     fx.x = x;
     fx.y = y;
     fx.px = px;
@@ -2053,7 +2053,7 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
                 }
                 break;
 
-            case FX_SPEED:      // speed effect, draw another time in another function
+            case FX_TURBO:      // turbo effect, draw another time in another function
                 ++fx;
                 break;
 
@@ -2105,10 +2105,9 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
     }
 }
 
-// draw speed effect
-void Graphics::draw_speedfx(int room_x, int room_y, double time) {
+void Graphics::draw_turbofx(int room_x, int room_y, double time) {
     for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
-        if (fx->px != room_x || fx->py != room_y || fx->type != FX_SPEED) { // different room or wrong type
+        if (fx->px != room_x || fx->py != room_y || fx->type != FX_TURBO) { // different room or wrong type
             ++fx;
             continue;
         }
@@ -2163,8 +2162,10 @@ void Graphics::search_themes(LineReceiver& dst) const {
 
 void Graphics::select_theme(const string& dir) {
     unload_pictures();
-    if (dir == _("<no theme>"))
+    if (dir == _("<no theme>")) {
         no_theme = true;
+        theme_name.clear();
+    }
     else {
         no_theme = false;
         load_theme(dir.c_str());

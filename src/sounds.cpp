@@ -24,6 +24,7 @@
  */
 
 #include <algorithm>
+#include "language.h"
 #include "sounds.h"
 
 using std::ifstream;
@@ -60,7 +61,7 @@ void Sounds::search_themes(LineReceiver& dst) const {
             themes.push_back(ffblk.name);
     al_findclose(&ffblk);
     if (themes.empty()) {
-        dst("<no themes found>");
+        dst(_("<no themes found>"));
         return;
     }
     sort(themes.begin(), themes.end());
@@ -73,7 +74,7 @@ void Sounds::select_theme(const string& dir) {
 
     themedir = dir;
 
-    if (dir == "<no themes found>") {
+    if (dir == _("<no themes found>")) {
         themename.clear();
         return;
     }
@@ -82,7 +83,7 @@ void Sounds::select_theme(const string& dir) {
 
     ifstream in((path + "theme.txt").c_str());
     if (!getline_skip_comments(in, themename))
-        themename = "(unnamed theme)";
+        themename = _("(unnamed theme)");
 
     if (enabled) {
         load_samples(path);
@@ -110,6 +111,7 @@ bool Sounds::setEnable(bool enable) {
 bool Sounds::try_init() {
     if (allegroSoundInitialized)
         return true;
+    log("Initializing sound.");
     if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
         log("Install_sound failed. Sound disabled.");
         return false;
@@ -210,4 +212,3 @@ void Sounds::play(int s) const {
         play_sample(sample[s], volume, 127, 1000, false);   // regular play
     }
 }
-

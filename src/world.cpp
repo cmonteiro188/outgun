@@ -689,7 +689,7 @@ void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team
     ping = 0;
     id = _pid;
     name = _name;
-    item_deathbringer = item_shield = item_power = item_speed = false;
+    item_deathbringer = item_shield = item_power = item_turbo = false;
     visibility = 255;
     roomx = roomy = 0;
     lx = ly = sx = sy = 0;
@@ -732,7 +732,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     item_deathbringer_time = 0;
     deathbringer_end = 0;
     deathbringer_attacker = 0;
-    item_power_time = item_speed_time = item_shadow_time = 0;
+    item_power_time = item_turbo_time = item_shadow_time = 0;
     health = energy = 0;
     megabonus = 0;
     weapon = 0;
@@ -746,15 +746,15 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 }
 
 void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int team_id) {
-    item_power_time = item_speed_time = item_shadow_time = 0;
+    item_power_time = item_turbo_time = item_shadow_time = 0;
     health = energy = 0;
     weapon = 0;
 
-    speed_drop_time = wall_sound_time = player_sound_time = 0;
+    next_turbo_effect_time = wall_sound_time = player_sound_time = 0;
     onscreen = false;
     enemyvis = 0;
     deathbringer_affected = false;
-    death_drop_time = 0;
+    next_smoke_effect_time = 0;
     hitfx = 0;
     drawptr = drawused = 0;
     old_dead = false;
@@ -1042,7 +1042,7 @@ void WorldBase::applyPlayerAcceleration(int pid) {
     double yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
 
     double player_accel = physics.accel;
-    if (h->item_speed)
+    if (h->item_turbo)
         player_accel *= physics.turbo_mul;
     if (h->controls.isRun()) {
         player_accel *= physics.run_mul;
@@ -1682,7 +1682,7 @@ void ServerWorld::respawnPlayer(int pid) {
 
     player[pid].item_shield = false;
     player[pid].item_power = false;
-    player[pid].item_speed = false;
+    player[pid].item_turbo = false;
     player[pid].visibility = 255;
     player[pid].item_deathbringer = false;
     player[pid].deathbringer_end = 0;
@@ -1717,7 +1717,7 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
     vector<Powerup::Pup_type> player_items;
     if (player.item_shield)         // only at suicides
         player_items.push_back(Powerup::pup_shield);
-    if (player.item_speed && player.item_speed_time - get_time() >= pupConfig.pup_add_time / 2)
+    if (player.item_turbo && player.item_turbo_time - get_time() >= pupConfig.pup_add_time / 2)
         player_items.push_back(Powerup::pup_turbo);
     if (player.item_shadow() && player.item_shadow_time - get_time() >= pupConfig.pup_add_time / 2)
         player_items.push_back(Powerup::pup_shadow);
@@ -1864,13 +1864,13 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
             break;
         }
         case Powerup::pup_turbo: {
-            double itemTime = pl.item_speed_time - get_time();
-            if (!pl.item_speed || itemTime < 0)
+            double itemTime = pl.item_turbo_time - get_time();
+            if (!pl.item_turbo || itemTime < 0)
                 itemTime = 0;
             itemTime = pupConfig.addTime(itemTime);
 
-            pl.item_speed = true;
-            pl.item_speed_time = get_time() + itemTime;
+            pl.item_turbo = true;
+            pl.item_turbo_time = get_time() + itemTime;
 
             net->sendPupTime(pl.id, it.kind, itemTime);
             net->broadcast_screen_sample(pl.id, SAMPLE_TURBO_ON);
@@ -1962,7 +1962,7 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
 
     player[target].visibility = 255;
     player[target].item_power = false;
-    player[target].item_speed = false;
+    player[target].item_turbo = false;
     // deathbringer is not removed until respawn because the flag is needed
 
     //stop all speed
@@ -2502,9 +2502,9 @@ void ServerWorld::simulateFrame() {
         }
 
         // check powerups expired
-        if (player[i].item_speed)
-            if (get_time() > player[i].item_speed_time) {
-                player[i].item_speed = false;
+        if (player[i].item_turbo)
+            if (get_time() > player[i].item_turbo_time) {
+                player[i].item_turbo = false;
                 net->broadcast_screen_sample(i, SAMPLE_TURBO_OFF);
             }
         if (player[i].item_power)

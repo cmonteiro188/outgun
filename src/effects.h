@@ -29,7 +29,7 @@
 
 enum FX_TYPE {
     FX_GUN_EXPLOSION,
-    FX_SPEED,
+    FX_TURBO,
     FX_WALL_EXPLOSION,
     FX_POWER_WALL_EXPLOSION,
     FX_DEATHBRINGER_EXPLOSION,
@@ -45,11 +45,9 @@ struct GraphicsEffect {
     int x;  // screen x  of fx
     int y;  // screen y  of fx
 
-    //speed fx
-    int col1, col2, gundir;
-
-    //deathbringer color
     int team;
+    // for turbo effect
+    int col1, col2, gundir;
 };
 
 #endif // EFFECTS_H_INC

@@ -40,7 +40,9 @@
 #include "leetnet/sleep.h"  // sleep util
 #include "commont.h"
 #include "debug.h"
+#include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
 #include "gameserver_interface.h"
+#include "language.h"
 #include "names.h"
 #include "nassert.h"
 #include "network.h"
@@ -48,7 +50,6 @@
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "utility.h"
 #include "world.h"
-#include "language.h"
 
 #include "client.h"
 
@@ -1081,7 +1082,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     }
     // players
     for (int i = 0; i < MAX_PLAYERS; i++)
-        fx.player[i].clear(false, i, _("(name unknown)"), i / TSIZE);
+        fx.player[i].clear(false, i, " ", i / TSIZE);
     players_sb.clear();
     // powerups
     for (int i = 0; i < MAX_PICKUPS; ++i)
@@ -1548,7 +1549,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 h.deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
                 // ITEMS: movido para este byte
                 h.item_shield = (extra & 8) != 0;
-                h.item_speed = (extra & 16) != 0;
+                h.item_turbo = (extra & 16) != 0;
                 h.item_power = (extra & 32) != 0;
 
                 //verifica se acabou de morrer - play death sound
@@ -1892,7 +1893,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, time);  //amount of time
                 if (me >= 0) {
                     if (iid == Powerup::pup_turbo)
-                        fx.player[me].item_speed_time = get_time() + time;
+                        fx.player[me].item_turbo_time = get_time() + time;
                     else if (iid == Powerup::pup_shadow)
                         fx.player[me].item_shadow_time = get_time() + time;
                     else if (iid == Powerup::pup_power)
@@ -2155,67 +2156,76 @@ void Client::process_incoming_data(const char* data, int length) {
                 attacker &= ~0xE0;
                 const bool flag = target & 0x80;
                 target &= ~0x80;
+                const bool attacker_team = attacker / TSIZE;
+                const bool target_team = target / TSIZE;
+                const bool same_team = (attacker_team == target_team);
+                const bool known_attacker = fx.player[attacker].used;
                 ostringstream msg;
-                msg << fx.player[target].name;
-                if (deathbringer)
-                    if (attacker / TSIZE == target / TSIZE)
-                        msg << _(" was choked by teammate ");
+                msg << fx.player[target].name << ' ';
+                if (deathbringer) {
+                    if (!known_attacker)
+                        msg << _("was choked.");
+                    else if (same_team)
+                        msg << _("was choked by teammate");
                     else
-                        msg << _(" was choked by ");
-                else
-                    if (attacker / TSIZE == target / TSIZE)
-                        msg << _(" was nailed by teammate ");
+                        msg << _("was choked by");
+                }
+                else {
+                    nAssert(known_attacker);
+                    if (same_team)
+                        msg << _("was nailed by teammate");
                     else
-                        msg << _(" was nailed by ");
-                msg << fx.player[attacker].name << '.';
+                        msg << _("was nailed by");
+                }
+                if (known_attacker)
+                    msg << ' ' << fx.player[attacker].name << '.';
                 addThreadMessage(new TM_Text(msg_info, msg.str()));
                 if (carrier_defended) {
                     ostringstream msg;
-                    msg << fx.player[attacker].name;
-                    if (attacker / TSIZE == 0)
-                        msg << _(" defends the red carrier.");
+                    msg << fx.player[attacker].name << ' ';
+                    if (attacker_team == 0)
+                        msg << _("defends the red carrier.");
                     else
-                        msg << _(" defends the blue carrier.");
+                        msg << _("defends the blue carrier.");
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 if (flag_defended) {
                     ostringstream msg;
-                    msg << fx.player[attacker].name;
-                    if (attacker / TSIZE == 0)
-                        msg << _(" defends the red flag.");
+                    msg << fx.player[attacker].name << ' ';
+                    if (attacker_team == 0)
+                        msg << _("defends the red flag.");
                     else
-                        msg << _(" defends the blue flag.");
+                        msg << _("defends the blue flag.");
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 if (fx.player[target].stats().current_cons_kills() >= 10) {
                     ostringstream msg;
-                    msg << fx.player[target].name.c_str() << _("'s killing spree was ended by ") << fx.player[attacker].name.c_str() << '.';
+                    msg << fx.player[target].name.c_str() << _("'s killing spree was ended by") << ' ' << fx.player[attacker].name.c_str() << '.';
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 fx.player[attacker].stats().add_kill(deathbringer);
-                fx.teams[attacker / TSIZE].add_kill();
+                fx.teams[attacker_team].add_kill();
                 fx.player[target].stats().add_death(deathbringer, static_cast<int>(get_time()));
-                fx.teams[target / TSIZE].add_death();
+                fx.teams[target_team].add_death();
                 if (flag) {
                     fx.player[attacker].stats().add_carrier_kill();
                     fx.player[target].stats().add_flag_drop(get_time());
-                    const int team = target / TSIZE;
-                    fx.teams[team].add_flag_drop();
+                    fx.teams[target_team].add_flag_drop();
                     ostringstream msg;
-                    msg << fx.player[target].name;
-                    if (1 - team == 0)
-                        msg << _(" LOST THE RED FLAG!");
-                    else if (1 - team == 1)
-                        msg << _(" LOST THE BLUE FLAG!");
+                    msg << fx.player[target].name << ' ';
+                    if (1 - target_team == 0)
+                        msg << _("LOST THE RED FLAG!");
+                    else if (1 - target_team == 1)
+                        msg << _("LOST THE BLUE FLAG!");
                     else
-                        msg << _(" LOST THE WILD FLAG!");
+                        msg << _("LOST THE WILD FLAG!");
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
                         addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
                     ostringstream msg;
-                    msg << fx.player[attacker].name.c_str() << _(" is on a killing spree!");
+                    msg << fx.player[attacker].name.c_str() << ' ' << _("is on a killing spree!");
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 break;
@@ -2505,9 +2515,9 @@ void Client::save_screenshot() {
 
     ostringstream message;
     if (client_graphics.save_screenshot(filename))
-        message << _("Saved screenshot to ") << filename << '.';
+        message << _("Saved screenshot to") << ' ' << filename << '.';
     else
-        message << _("Could not save screenshot to ") << filename << '.';
+        message << _("Could not save screenshot to") << ' ' << filename << '.';
     print_message(msg_warning, message.str().c_str());
 }
 
@@ -3468,7 +3478,7 @@ void Client::draw_game_frame() {
             MutexLock ml(downloadMutex);
             if (!downloads.empty() && downloads.front().isActive()) {
                 ostringstream text;
-                text << _("Loading map") << ": " << downloads.front().progress() << _(" bytes");
+                text << _("Loading map") << ": " << downloads.front().progress() << ' ' << _("bytes");
                 client_graphics.draw_loading_map_message(text.str());
             }
         }
@@ -3505,8 +3515,8 @@ void Client::draw_game_frame() {
                             fx.item[i].px, fx.item[i].py);
                 }
 
-        // draw speed effect
-        client_graphics.draw_speedfx(fx.player[me].roomx, fx.player[me].roomy, get_time());
+        // draw turbo effect
+        client_graphics.draw_turbofx(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
         // draw any dropped flags (use fx since flags don't move)
         for (int t = 0; t < 2; t++)
@@ -3649,8 +3659,8 @@ void Client::draw_game_frame() {
             if (val < 0) val = 0;
             client_graphics.draw_player_power(val);
         }
-        if (fx.player[me].item_speed) {
-            double val = fx.player[me].item_speed_time - get_time();
+        if (fx.player[me].item_turbo) {
+            double val = fx.player[me].item_turbo_time - get_time();
             if (val < 0) val = 0;
             client_graphics.draw_player_turbo(val);
         }
@@ -3747,10 +3757,10 @@ void Client::draw_player(int pid) {
     else {
         if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
             // turbo effect
-            if (player.item_speed && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
-                        get_time() > player.speed_drop_time) {
-                player.speed_drop_time = get_time() + 0.05;
-                    client_graphics.create_speedfx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir);
+            if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
+                        get_time() > player.next_turbo_effect_time) {
+                player.next_turbo_effect_time = get_time() + 0.05;
+                    client_graphics.create_turbofx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir);
             }
 
             //draw player
@@ -3758,8 +3768,8 @@ void Client::draw_player(int pid) {
         }
 
         //draw deathbringer carrier effect
-        if (player.item_deathbringer && get_time() > player.death_drop_time) {
-            player.death_drop_time = get_time() + 0.01;
+        if (player.item_deathbringer && get_time() > player.next_smoke_effect_time) {
+            player.next_smoke_effect_time = get_time() + 0.01;
             for (int i = 0; i < 2; i++)
                 client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy);
         }
@@ -3935,7 +3945,7 @@ void Client::MCF_removePasswords() {
     const int removed = remove_player_passwords(menu.options.name.name());
     ostringstream dialog;
     if (removed > 0)
-        dialog << removed << ' ' << (removed == 1 ? _("password") : _("passwords")) << ' ' << _("removed") << '.';
+        dialog << removed << ' ' << (removed == 1 ? _("password removed") : _("passwords removed")) << '.';
     else
         dialog << _("No passwords found.");
     m_dialog.clear();
@@ -4107,17 +4117,18 @@ void Client::MCF_prepareServerMenu() {
     serverListMutex.lock();
     for (vector<ServerListEntry>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
         ostringstream info;
-        info << setw(21) << left << spy->addressString() << right;
+        info << setw(21) << left << spy->addressString() << right << ' ';
         info << setw(4);
         if (spy->ping > 0)
             info << spy->ping;
         else
             info << '?';
         if (spy->refreshed) {
+            info << ' ';
             if (spy->noresponse)
-                info << ' ' << _("no response");
+                info << _("no response");
             else
-                info << ' ' << spy->info;
+                info << spy->info;
         }
         menu.connect.add(spy->address(), info.str());
         addresses.push_back(spy->address());
@@ -4126,17 +4137,18 @@ void Client::MCF_prepareServerMenu() {
         for (vector<ServerListEntry>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
             if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address()) == addresses.end()) {
                 ostringstream info;
-                info << setw(21) << left << spy->addressString() << right;
+                info << setw(21) << left << spy->addressString() << right << ' ';
                 info << setw(4);
                 if (spy->ping > 0)
                     info << spy->ping;
                 else
                     info << '?';
                 if (spy->refreshed) {
+                    info << ' ';
                     if (spy->noresponse)
-                        info << ' ' << _("no response");
+                        info << _("no response");
                     else
-                        info << ' ' << spy->info;
+                        info << spy->info;
                 }
                 menu.connect.add(spy->address(), info.str());
                 addresses.push_back(spy->address());

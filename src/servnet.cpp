@@ -38,6 +38,7 @@
 #include "admshell.h"
 #include "commont.h"
 #include "debug.h"
+#include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
 #include "mutex.h"
 #include "nassert.h"
@@ -901,6 +902,8 @@ int ServerNetworking::client_connected(int id) {
         if (i == myself)
             continue;
 
+        send_player_name_update(id, i);
+
         //frags update
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, data_frags_update);
@@ -1312,7 +1315,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     //         1   has deathbringer?
     //         2   affected by deathbringer?
     //         3   has shield?
-    //         4   has speed?
+    //         4   has turbo?
     //         5   has power?
     //         6..7   FREE BITS
     //       BYTE   keys (aceleracao/bitfield)
@@ -1359,37 +1362,29 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
     //stuff for minimap update: my team's enemy team view
     static int tviter[2] = { 0, 0 };
-    static int helmiter = 0;        // HELM ITERATOR : manda todo mundo!
-    bool tview[2][MAX_PLAYERS / 2]; //[time][inimigo# visto? 1-8]
+    static int shadowiter = 0;
+    bool tview[2][MAX_PLAYERS / 2];
     NLushort tview_bits[2];         //enemy view SHORT (bitfield for the 8 enemies of each team(0,1))
+    NLushort shadowview[2];
 
-    //HELM PATCH: the "helm view" bytes for both teams - if somebody has helm, he will se
-    //  helmview[] for his team
-    NLushort helmview[2];
-
-    //atualiza HELM ITERATOR - para em um player valido ou entao qualquer um
     int runaway = maxplayers + 1;
     do {
-        helmiter++;
-        if (helmiter > maxplayers - 1)
-            helmiter = 0;
-        if (world.player[helmiter].used && !world.player[helmiter].item_shadow() || world.player[helmiter].flag())
+        shadowiter++;
+        if (shadowiter > maxplayers - 1)
+            shadowiter = 0;
+        if (world.player[shadowiter].used && !world.player[shadowiter].item_shadow() || world.player[shadowiter].flag())
             break;
     } while (runaway-- > 0);
 
-    //atualiza tview E HELMVIEW
     for (int t = 0; t < 2; t++) {
         tview_bits[t] = 0;
-        helmview[t] = 0;        //default zero
+        shadowview[t] = 0;
 
-        for (int i = 0; i < maxplayers; i++)            // p/ cada inimigo desse time
+        for (int i = 0; i < maxplayers; i++)
             if (i / TSIZE == 1 - t && world.player[i].used) {
-                // ---- helmview -----
-                // mostra se NAO TEM HELM ou SE TA COM FLAG
                 if (!world.player[i].item_shadow() || world.player[i].flag())
-                    helmview[t] += static_cast<NLushort>(1 << (i % TSIZE));
+                    shadowview[t] += static_cast<NLushort>(1 << (i % TSIZE));
 
-                // ---- tview -----
                 tview[t][i % TSIZE] = false;        // invisible
 
                 for (int j = 0; j < maxplayers; j++)
@@ -1402,18 +1397,13 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                             }
         }
 
-        //avanca tviter do time p/ escolher alguem
         int runaway = maxplayers + 3;
         do {
-            //avanca proximo candidato a envio
             tviter[t]++;
             if (tviter[t] >= maxplayers)
                 tviter[t] = 0;
 
-            //testa se o candidato se aplica ao visor minimap do time
-            //testa apenas used players
             if (world.player[tviter[t]].used) {
-                // same team, OK
                 if (tviter[t] / TSIZE == t)
                     break;
                 // enemy team, check if visible
@@ -1506,7 +1496,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         extra |= 4;
                     if (world.player[j].item_shield)
                         extra |= 8;
-                    if (world.player[j].item_speed)
+                    if (world.player[j].item_turbo)
                         extra |= 16;
                     if (world.player[j].item_power)
                         extra |= 32;
@@ -1531,8 +1521,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
             NLubyte who;
             if (world.player[i].item_shadow()) {
-                writeShort(lebuf, lecount, helmview[i/TSIZE] | tview_bits[i/TSIZE]);
-                who = static_cast<NLubyte>(helmiter);
+                writeShort(lebuf, lecount, shadowview[i/TSIZE] | tview_bits[i/TSIZE]);
+                who = static_cast<NLubyte>(shadowiter);
                 writeByte(lebuf, lecount, who);
             }
             else {

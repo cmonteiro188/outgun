@@ -73,7 +73,7 @@ Menu_serverList::Menu_serverList() :
 
     keyHelp         (_("Insert = add to favorites    Delete = remove server")),
 
-    caption         (_("IP address           Ping D Players Vers. Host name")),
+    caption         (_("IP address            Ping D Players Vers. Host name")),
 
     menu            (_("Server list"), true)
 {
@@ -367,7 +367,7 @@ void Menu_ownServer::refreshCaption(bool serverRunning) {
         menu.setCaption(_("Local server"));
     // this could be a separate function but it really doesn't hurt to update the address field here
     if (ip.empty())
-        address.set(_("(unknown)"));
+        address.set(_("unknown"));
     else {
         ostringstream os;
         os << ip;
