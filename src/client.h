@@ -95,6 +95,7 @@ class gameclient_c {
 	char passcursor[2];
 	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 	Graphics client_graphics;
+	bool screenshot;
 	Sounds client_sounds;
 
 	ofstream message_log;

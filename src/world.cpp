@@ -115,13 +115,13 @@ CircWall::CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int
 	y(y_),
 	ro(ro_),
 	ri(ri_),
-	angle1(ang1),
-	angle2(ang2),
 	tex(tex_),
 	alpha(alpha_)
 {
-	float a1r = angle1 * M_PI / 180;
-	float a2r = angle2 * M_PI / 180;
+	angle[0] = ang1;
+	angle[1] = ang2;
+	float a1r = angle[0] * M_PI / 180;
+	float a2r = angle[1] * M_PI / 180;
 	va1 = Coords(sin(a1r), cos(a1r));
 	va2 = Coords(sin(a2r), cos(a2r));
 	float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2.*M_PI);
@@ -134,89 +134,88 @@ CircWall::CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int
 }
 
 void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) const {
-	if (ri == 0 && angle1 == angle2) {	// simple filled circle
+	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
 		circlefill(buffer, int(x0 + scale * x), int(y0 + scale * y), int(scale * ro), color);
 		return;
 	}
+	// ring or sector
 	BITMAP* cbuff = create_bitmap(int(2 * scale * ro) + 1, int(2 * scale * ro) + 1);
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
 	circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ro), color);
-	if (ri > 0)					// ring
+	if (ri > 0)						// ring
 		circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ri), transparent);
-	if (angle1 != angle2) {		// sector
-		const double x1 = va1.first;
-		const double y1 = va1.second;
-		const double x2 = va2.first;
-		const double y2 = va2.second;
+	if (angle[0] != angle[1]) {		// sector
+		const double x[] = { va1.first, va2.first };
+		const double y[] = { va1.second, va2.second };
 		// remove unnecessary   2 1
 		// quarters             3 4
-		float ang1 = angle1;
-		float ang2 = angle2;
-		if ((x1 < 0 || y1 < 0) && (x2 < 0 || y2 < 0) && ang1 < ang2)	// quarter 1
+		float ang1 = angle[0];
+		float ang2 = angle[1];
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 1
 			rectfill(cbuff, int(scale * ro), 0, int(scale * 2 * ro), int(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if ((x1 > 0 || y1 < 0) && (x2 > 0 || y2 < 0) && ang1 < ang2)	// quarter 2
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 2
 			rectfill(cbuff, 0, 0, int(scale * ro), int(scale * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if ((x1 > 0 || y1 > 0) && (x2 > 0 || y2 > 0) && ang1 < ang2)	// quarter 3
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 3
 			rectfill(cbuff, 0, int(scale * ro), int(scale * ro), int(scale * 2 * ro), transparent);
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
-		if ((x1 < 0 || y1 > 0) && (x2 < 0 || y2 > 0) && ang1 < ang2)	// quarter 4
-			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
+		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 4
+			rectfill(cbuff, int(scale * ro), int(scale * ro + 0.5), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
 		// remove the rest unnecessary sectors of the circle
 		const float k = 1.5;
-		int tx, ty;
-		float diff = angle2 - angle1;
+		float diff = angle[1] - angle[0];
 		if (diff < 0)
 			diff += 360;
-		if (x1 * x2 > 0 && y1 * y2 > 0 && diff > 90) {	// angles in same quarter
+		if (x[0] * x[1] > 0 && y[0] * y[1] > 0 && diff > 90) {	// remove a sector (<90°) between the angles
 			triangle(cbuff, int(scale * ro), int(scale * ro),
-					int(scale * (ro + k * x1 * ro)), int(scale * (ro + k * (-y1) * ro)),
-					int(scale * (ro + k * x2 * ro)), int(scale * (ro + k * (-y2) * ro)), transparent);
+					int(scale * (ro + k * x[0] * ro)), int(scale * (ro + k * (-y[0]) * ro)),
+					int(scale * (ro + k * x[1] * ro)), int(scale * (ro + k * (-y[1]) * ro)), transparent);
 		}
-		else {								// angles in different quarters
-			if (x1 > 0 && y1 > 0) {
-				tx = 0;
-				ty = 1;
+		else {											// remove sectors between the angles and n·90°
+			for (int i = 0; i < 2; i++) {
+				int tx, ty;
+				if (angle[i] < 90) {
+					tx = 0 + i;
+					ty = 1 - i;
+				}
+				else if (angle[i] > 270) {
+					tx = -1 + i;
+					ty = 0 + i;
+				}
+				else if (angle[i] > 180 && angle[i] < 270) {
+					tx = 0 - i;
+					ty = -1 + i;
+				}
+				else if (angle[i] > 90 && angle[i] < 180) {
+					tx = 1 - i;
+					ty = 0 - i;
+				}
+				else {
+					tx = 0;
+					ty = 0;
+				}
+				if (tx != 0 || ty != 0)
+					triangle(cbuff, int(scale * ro), int(scale * ro),
+						int(scale * (ro + k * x[i] * ro)), int(scale * (ro + k * (-y[i]) * ro)),
+						int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
 			}
-			else if (x1 < 0 && y1 > 0) {
-				tx = -1;
-				ty = 0;
-			}
-			else if (x1 < 0 && y1 < 0) {
-				tx = 0;
-				ty = -1;
-			}
-			else {
-				tx = 1;
-				ty = 0;
-			}
-			triangle(cbuff, int(scale * ro), int(scale * ro),
-					int(scale * (ro + k * x1 * ro)), int(scale * (ro + k * (-y1) * ro)),
-					int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
-			if (x2 > 0 && y2 > 0) {
-				tx = 1;
-				ty = 0;
-			}
-			else if (x2 < 0 && y2 > 0) {
-				tx = 0;
-				ty = 1;
-			}
-			else if (x2 < 0 && y2 < 0) {
-				tx = -1;
-				ty = 0;
-			}
-			else {
-				tx = 0;
-				ty = -1;
-			}
-			triangle(cbuff, int(scale * ro), int(scale * ro),
-					int(scale * (ro + k * x2 * ro)), int(scale * (ro + k * (-y2) * ro)),
-					int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
+		}
+		// draw back removed lines at n·90°
+		const int corr = (ri == 0 ? 0 : 1);		// pixel correction when ri > 0
+		for (int i = 0; i < 2; i++) {
+			if (angle[i] == 0)
+				vline(cbuff, int(scale * ro), int(scale * (ro - ri)) - corr, 0, color);
+			else if (angle[i] == 90)
+				hline(cbuff, int(scale * (ro + ri)) + corr, int(scale * ro), int(scale * 2 * ro), color);
+			else if (angle[i] == 180)
+				vline(cbuff, int(scale * ro), int(scale * (ro + ri)) + corr, int(scale * 2 * ro), color);
+			else if (angle[i] == 270)
+				hline(cbuff, int(scale * (ro - ri)) - corr, int(scale * ro), 0, color);
 		}
 	}
 	masked_blit(cbuff, buffer, 0, 0, int(x0 + scale * (x - ro)), int(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
@@ -242,7 +241,7 @@ bool Map::load(const char *mapdir, const string& mapname) {
 		int numread = fread((void*)lebigbuf, 1, 65536, fmap);
 		crc = nlGetCRC16((NLubyte*)lebigbuf, numread);
 		rewind(fmap);
-		bool ok = parse_label(fmap, 0, 0, 0);
+		bool ok = parse_label(fmap, 0);
 		fclose(fmap);
 		if (!ok) {
 			LOG1("Error loading map '%s'\n", mapname.c_str());
@@ -257,7 +256,7 @@ bool Map::load(const char *mapdir, const string& mapname) {
 	}
 }
 
-bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	// crx,cry = "current room pointer"
+bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float scalex, float scaley) {	// crx,cry = "current room pointer"
 	rewind(f);
 	for (;;) {
 		char s[1024];
@@ -299,8 +298,8 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
-			x1 *= plw; x2 *= plw;
-			y1 *= plh; y2 *= plh;
+			x1 *= plw / scalex; x2 *= plw / scalex;
+			y1 *= plh / scaley; y2 *= plh / scaley;
 			Room& rm = room[crx][cry];
 			vector<RectWall>& wvec = (s[0]=='W') ? rm.rwalls : rm.rground;
 			wvec.push_back(RectWall(int(x1), int(y1), int(x2), int(y2), texid, alpha));
@@ -319,8 +318,8 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
-			x1 *= plw; x2 *= plw; x3 *= plw;
-			y1 *= plh; y2 *= plh; y3 *= plh;
+			x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
+			y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
 			Room& rm = room[crx][cry];
 			vector<TriWall>& wvec = (type=='W') ? rm.twalls : rm.tground;
 			wvec.push_back(TriWall(int(x1), int(y1), int(x2), int(y2), int(x3), int(y3), texid, alpha));
@@ -346,14 +345,14 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 				a1 += 360;
 			if (a2 < 0)
 				a2 += 360;
-			if ((n != 9 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1<0 || a2<0 || a1>=360 || a2>=360) {
+			if ((n != 9 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
-			x *= plw;
-			y *= plh;
-			ro *= plh;
-			ri *= plh;
+			x *= plw / scalex;
+			y *= plh / scaley;
+			ro *= plh / scaley;
+			ri *= plh / scaley;
 			Room& rm = room[crx][cry];
 			vector<CircWall>& wvec = (type=='W') ? rm.cwalls : rm.cground;
 			wvec.push_back(CircWall(int(x), int(y), int(ro), int(ri), a1, a2, texid, alpha));
@@ -382,7 +381,7 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			long filepos = ftell(f);
 			for (int ry=ry1; ry<=ry2; ry++)
 				for (int rx=rx1; rx<=rx2; rx++)
-					if (!parse_label(f, nextlabel, rx, ry))
+					if (!parse_label(f, nextlabel, rx, ry, scalex, scaley))
 						return false;
 			fseek(f, filepos, SEEK_SET);
 			crx=rx2; cry=ry2;	// compatibility with original sloppy specs (needed?)
@@ -436,8 +435,8 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			spoint_t spot;
 			spot.px = bound(rx, 0, w-1);
 			spot.py = bound(ry, 0, h-1);
-			spot.x = (int)(x * (double)plw);
-			spot.y = (int)(y * (double)plh);
+			spot.x = (int)(x * (double)plw / scaley);
+			spot.y = (int)(y * (double)plh / scaley);
 			tinfo[team].spawn.push_back(spot);
 			continue;
 		}
@@ -451,8 +450,8 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 			}
 			tinfo[team].flag.px = bound(rx, 0, w-1);
 			tinfo[team].flag.py = bound(ry, 0, h-1);
-			tinfo[team].flag.x = (int)(x * (double)plw);
-			tinfo[team].flag.y = (int)(y * (double)plh);
+			tinfo[team].flag.x = (int)(x * (double)plw / scalex);
+			tinfo[team].flag.y = (int)(y * (double)plh / scaley);
 			continue;
 		}
 		if (s[0]=='V') {	// V ver : set file format version
@@ -461,6 +460,17 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
+			continue;
+		}
+		if (s[0]=='S') {	// S x y : set map scale
+			float sx, sy;
+			int n = sscanf(s+1, " %f %f %c", &sx, &sy, &nullc);
+			if (n != 2 || sx <= 0 || sy <= 0) {
+				LOG1("Invalid map line: %s\n", s);
+				return false;
+			}
+			scalex = sx;
+			scaley = sy;
 			continue;
 		}
 		LOG1("Unrecognized map line: %s\n", s);
@@ -664,7 +674,7 @@ void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double
 		rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ri, plyRadius, false);
 		add_rv();
 	}
-	if (w.angle1 == w.angle2)	// no sectoring
+	if (w.angle[0] == w.angle[1])	// no sectoring
 		return;
 	double p1x = w.x + w.ro*w.va1.first - stx, p1y = w.y - w.ro*w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
 	double p2x = w.x + w.ri*w.va1.first - stx, p2y = w.y - w.ri*w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates

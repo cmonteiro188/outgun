@@ -1,4 +1,7 @@
 #include "commont.h"
+#include "world.h"
+#include "effects.h"
+#include "sounds.h"
 #include "graphics.h"
 
 //macros for allegro video mode
@@ -45,7 +48,9 @@ Graphics::Graphics(int scr_w, int scr_h):
 	flagpos_buf[0] = 0;
 	flagpos_buf[1] = 0;
 	drawbuf = create_bitmap(scr_w, scr_h);
-	minibg = create_bitmap(100, 100);
+	minimap_w = 133;
+	minimap_h = 100;
+	minibg = create_bitmap(minimap_w, minimap_h);
 	setcolors();
 }
 
@@ -288,8 +293,8 @@ void Graphics::draw_flag(int team, int x, int y) {
 void Graphics::draw_mini_flag(int team, const ctflag_t& flag, const Map& map) {
 	const double px = ((double)flag.pos.px * (double)plw + flag.pos.x) / ((double)plw * map.w);
 	const double py = ((double)flag.pos.py * (double)plh + flag.pos.y) / ((double)plh * map.h);
-	const int pix = mmx + 21 + ((int)(px * 98));
-	const int piy = mmy + 01 + ((int)(py * 98));
+	const int pix = int(mmx + 1 + px * (minimap_w - 2));
+	const int piy = int(mmy + 1 + py * (minimap_h - 2));
 	//draw flagpole
 	rectfill(drawbuf, pix, piy - 5, pix, piy, col[COLYELLOW]);
 	//draw the flag itself
@@ -320,7 +325,7 @@ void Graphics::draw_minimap_room(int x1, int y1, int x2, int y2) {
 }
 
 void Graphics::draw_minimap_background() {
-	blit(minibg, drawbuf, 0, 0, mmx + 20, mmy, minibg->w, minibg->h);
+	blit(minibg, drawbuf, 0, 0, mmx, mmy, minibg->w, minibg->h);
 }
 
 void Graphics::update_minimap_background(const Map& map) {
@@ -331,13 +336,13 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	//black background
 	clear_to_color(buffer, 0);
 
-	//draw screen boundaries
-	int MMSCRW = (int)(98.0 / map.w);
-	int MMSCRH = (int)(98.0 / map.h);
+	//draw room boundaries
+	float room_w = float(minimap_w - 2) / map.w;
+	float room_h = float(minimap_h - 2) / map.h;
 	for (int i = 1; i < map.w; i++)
-		line(buffer, 2 + MMSCRW * i, 1, 2 + MMSCRW * i, 100, col[COLSHADOW]);
+		line(buffer, int(1 + room_w * i), 0, int(1 + room_w * i), minimap_h, col[COLSHADOW]);
 	for (int i = 1; i < map.h; i++)
-		line(buffer, 1, 2 + MMSCRH * i, 100, 2 + MMSCRH * i, col[COLSHADOW]);
+		line(buffer, 0, int(1 + room_h * i), minimap_w, int(1 + room_h * i), col[COLSHADOW]);
 
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
@@ -349,14 +354,14 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 		if (red_rx == blue_rx && red_ry == blue_ry) {
 			// for lack of mathematical enthusiasm, the half-way line is not calculated analytically; instead, determine each pixel individually (slow)
 			// this is OK since this function is called once per map instead of every frame
-			int xmin = 2 + MMSCRW * red_rx, xmax = MMSCRW * (red_rx + 1);
-			int ymin = 2 + MMSCRH * red_ry, ymax = MMSCRH * (red_ry + 1);
+			int xmin = int(2 + room_w * red_rx), xmax = int(room_w * (red_rx + 1));
+			int ymin = int(2 + room_h * red_ry), ymax = int(room_h * (red_ry + 1));
 			for (int y = ymin; y <= ymax; ++y) {
-				float roomy = float(y + 1 - ymin) / float(MMSCRH) * plh;
+				float roomy = float(y + 1 - ymin) / float(room_h) * plh;
 				float ydist_r2 = pow(map.tinfo[0].flag.y - roomy, 2);
 				float ydist_b2 = pow(map.tinfo[1].flag.y - roomy, 2);
 				for (int x = xmin; x <= xmax; ++x) {
-					float roomx = float(x + 1 - xmin) / float(MMSCRW) * plw;
+					float roomx = float(x + 1 - xmin) / float(room_w) * plw;
 					float xdist_r2 = pow(map.tinfo[0].flag.x - roomx, 2);
 					float xdist_b2 = pow(map.tinfo[1].flag.x - roomx, 2);
 					int color = (xdist_r2 + ydist_r2 < xdist_b2 + ydist_b2) ? col[COLBRED] : col[COLBBLUE];
@@ -365,28 +370,30 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 			}
 		}
 		else {
-			rectfill(buffer, 2 + MMSCRW * red_rx,  2 + MMSCRH * red_ry,  MMSCRW * (red_rx + 1),  MMSCRH * (red_ry + 1),  col[COLBRED]);
-			rectfill(buffer, 2 + MMSCRW * blue_rx, 2 + MMSCRH * blue_ry, MMSCRW * (blue_rx + 1), MMSCRH * (blue_ry + 1), col[COLBBLUE]);
+			rectfill(buffer, int(2 + room_w * red_rx),  int(2 + room_h * red_ry),  int(room_w * (red_rx + 1)),  int(room_h * (red_ry + 1)),  col[COLBRED]);
+			rectfill(buffer, int(2 + room_w * blue_rx), int(2 + room_h * blue_ry), int(room_w * (blue_rx + 1)), int(room_h * (blue_ry + 1)), col[COLBBLUE]);
 		}
 	}
 
 	//draw solid walls
-	float xmul = 98. / maxx, ymul = 98. / maxy;
+	float xmul = float(minimap_w - 2) / maxx, ymul = float(minimap_h - 2) / maxy;
 	for (int y = 0; y < map.h; y++) {
 		float by = 1. + y * plh * ymul;
 		for (int x = 0; x < map.w; x++) {
 			float bx = 1. + x * plw * xmul;
+			set_clip(buffer, (int)bx, (int)by, int(bx + room_w), int(by + room_h));
 			map.room[x][y].draw(buffer, bx, by, xmul, ymul, makecol(0x00, 0x77, 0x00));
+			set_clip(buffer, 0, 0, buffer->w, buffer->h);
 		}
 	}
 
 	//green border
 	rect(buffer, 0, 0, buffer->w -1, buffer->h -1, col[COLGREEN]);
 
-	int  red_px = int(1 + (map.tinfo[0].flag.px * plw + map.tinfo[0].flag.x) / maxx * 98.);
-	int  red_py = int(1 + (map.tinfo[0].flag.py * plh + map.tinfo[0].flag.y) / maxy * 98.);
-	int blue_px = int(1 + (map.tinfo[1].flag.px * plw + map.tinfo[1].flag.x) / maxx * 98.);
-	int blue_py = int(1 + (map.tinfo[1].flag.py * plh + map.tinfo[1].flag.y) / maxy * 98.);
+	int  red_px = int(1 + (map.tinfo[0].flag.px * plw + map.tinfo[0].flag.x) / maxx * (minimap_w - 2));
+	int  red_py = int(1 + (map.tinfo[0].flag.py * plh + map.tinfo[0].flag.y) / maxy * (minimap_h - 2));
+	int blue_px = int(1 + (map.tinfo[1].flag.px * plw + map.tinfo[1].flag.x) / maxx * (minimap_w - 2));
+	int blue_py = int(1 + (map.tinfo[1].flag.py * plh + map.tinfo[1].flag.y) / maxy * (minimap_h - 2));
 	if (!flagPaintSimple) {
 		if (getpixel(buffer, red_px, red_py) != 0) {	// is painted with any color
 			update_minimap_background(buffer, map, true);	// restart with basic painting
@@ -599,17 +606,16 @@ void Graphics::draw_playground() {
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 	build_flagpos_marks();	// draw flag position mark sprites
-	// below is a homegrown clipping system; could as well use the Allegro one...
-	int x1 = max(0, flagpos_radius - flag_x);
-	int y1 = max(0, flagpos_radius - flag_y);
-	int x2 = min(2 * flagpos_radius, plw - flag_x + flagpos_radius + 1);
-	int y2 = min(2 * flagpos_radius, plh - flag_y + flagpos_radius + 1);
-	blit(flagpos_buf[team], drawbuf, x1, y1,
-		plx + flag_x - flagpos_radius + x1, ply + flag_y - flagpos_radius + y1, x2 - x1, y2 - y1);
+	set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
+	blit(flagpos_buf[team], drawbuf, 0, 0,
+		plx + flag_x - flagpos_radius, ply + flag_y - flagpos_radius, 2 * flagpos_radius, 2 * flagpos_radius);
+	set_clip(drawbuf, 0, 0, drawbuf->w, drawbuf->h);
 }
 
 void Graphics::draw_walls(const Room& room) {
+	set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
 	room.draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
+	set_clip(drawbuf, 0, 0, drawbuf->w, drawbuf->h);
 }
 
 void Graphics::draw_pup(const pickup_c& pup, double time) {
@@ -718,6 +724,10 @@ void Graphics::draw_one_line_message(const string& message) {
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) {
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 + 20, col[COLGREEN], -1, "%s", caption.c_str());
 	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 + 50, col[COLORA], -1, "%s", map.c_str());
+}
+
+void Graphics::draw_loading_map_message(const string& text) {
+	textprintf_centre_ex(drawbuf, font, plx + plw / 2, ply + plh / 2 + 70, col[COLGREEN], -1, "%s", text.c_str());
 }
 
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
@@ -1202,15 +1212,10 @@ void Graphics::build_flagpos_marks() {
 	}
 }
 
-//save screenshot
 bool Graphics::save_screenshot(const string& filename) const {
-	BITMAP *bmp;
 	PALETTE pal;
 	get_palette(pal);
-	bmp = create_sub_bitmap(screen, 0, 0, SCREEN_W, SCREEN_H);
-	int failure = save_bitmap(filename.c_str(), bmp, pal);
-	destroy_bitmap(bmp);
-	return !failure;
+	return !save_bitmap(filename.c_str(), drawbuf, pal);
 }
 
 // client side effects

@@ -3,9 +3,6 @@
 
 #include <string>
 #include <list>
-#include "world.h"
-#include "effects.h"
-#include "sounds.h"
 
 // ---- client screen layout ----
 
@@ -18,18 +15,25 @@
 #define ply 90
 
 //minimap offset
-#define mmx (plx + plw + 16)    //push 8 to left
+#define mmx (plx + plw + 16)
 #define mmy ply
 
 //scoreboard offset
 #define sbx (plx + plw)
 #define sby (mmy + 110)         // + XXX = minimap panel height
 
+class Map;
+class ClientPlayer;
+class Sounds;
+class gamespy_t;
+class clientfx_t;
+
 class Graphics {
 	BITMAP* drawbuf;
 	BITMAP* minibg;
 	//int plw, plh;
 	//int plx, ply;
+	int minimap_w, minimap_h;
 
 	BITMAP* flagpos_buf[2];
 	static const int flagpos_radius = 30;
@@ -113,9 +117,12 @@ public:
 	~Graphics();
 	
 	BITMAP* drawbuffer() const { return drawbuf; }
+	
+	int minimap_width() const { return minimap_w; }
+	int minimap_height() const { return minimap_h; }
 
 	void draw_screen() const;
-	bool save_screenshot(const string& filename) const;
+	bool save_screenshot(const std::string& filename) const;
 
 	bool reset_video_mode();
 	void clear();
@@ -143,6 +150,8 @@ public:
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
 	void draw_player_shadow(const ClientPlayer& player, int alpha);
 	void draw_player_name(const std::string& name, int x, int y, int team);
+	void draw_player_dead(int x, int y);
+
 	void draw_rocket(const rocket_c& rocket, double time);
 	void draw_gun_explosion(int x, int y, int rad);
 	void draw_deathbringer_smoke(int x, int y, double time);
@@ -155,15 +164,14 @@ public:
 	void draw_deathbringer_carrier_effect(int x, int y);
 	void draw_shield(int x, int y, int r, int alpha = 255);
 
-	void draw_player_dead(int x, int y);
-
 	void draw_virou_sorvete(int x, int y);
 
 	void draw_one_line_message(const std::string& message);
 	void draw_waiting_map_message(const std::string& caption, const std::string& map);
+	void draw_loading_map_message(const std::string& text);
 	void show_not_responding_message();
 	void draw_scores(const std::string& text, int col, int score1, int score2);
-	void print_chat_message(int line, const string& message, MESSAGE_TYPE type);
+	void print_chat_message(int line, const std::string& message, MESSAGE_TYPE type);
 	void print_chat_input(int line, const std::string& message);
 
 	void draw_scoreboard_caption(int team, const std::string& caption);

@@ -389,9 +389,8 @@ void gameclient_c::client_password_thread(void *) {
 			strcpy(namestatus, "RECEIVED RESPONSE!");
 
 			bool ok = false, wrongid = false, unavailable = false;
-			int i;
 			LOG1("RECV RESPONSE n = %i\n", n);
-			for (i=0;i<n;i++) {
+			for (int i = 0; i < n; i++) {
 
 				//0.4.7: "can't contact servlet runner.." > service unavailable
 				if ((i>21)
@@ -698,7 +697,7 @@ void gameclient_c::download_server_file(const char *type, const char *name, char
 // if map file not there, or the CRC's don't match, ask to download the map from the server
 void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) {
 
-	LOG1("CLIENT: server_map_command : '%s'", mapname);
+	LOG1("CLIENT: server_map_command : '%s'\n", mapname);
 
 	//try to load the map. will fail if not found
 	bool ok = fd.load_map(CLIENT_MAPS_DIR, mapname) && fx.load_map(CLIENT_MAPS_DIR, mapname);	//#fix
@@ -834,9 +833,9 @@ void gameclient_c::client_connected(char *data, int length) {
 	sprintf(lecaption, "Connected to: %s (%s)", hostname, address);
 	server_status_string(lecaption);
 
-	int i;
 	//default scoreboard state
-	for (i=0;i<MAX_PLAYERS;i++)	scoreboard[i]=i;
+	for (int i = 0; i < MAX_PLAYERS; i++)
+		scoreboard[i] = i;
 
 	//don't want to change teams by default
 	want_change_teams = false;
@@ -858,15 +857,15 @@ void gameclient_c::client_connected(char *data, int length) {
 	menushow = false;  // hide menu
 
 	//reset chat buffer
-	talkbuffer[0]=0;
-	for (i=0;i<CHAT_SIZE;i++)
-		chatbuffer[i][0]=0;
+	talkbuffer[0] = 0;
+	for (int i = 0; i < CHAT_SIZE; i++)
+		chatbuffer[i][0] = 0;
 	chaterasetime = get_time() + 10.0;
 
 	//reset world data
 	// players
 
-	for (i=0;i<MAX_PLAYERS;i++)
+	for (int i = 0; i < MAX_PLAYERS; i++)
 		fx.player[i].clear(false, i, "(name unknown)");
 
 	//reset FPS count vars
@@ -991,31 +990,29 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 	char lix[256];
 	strcpy(dinfo, "D=");
 
-	int i;
-
 	// no response from all calc addresses num_valid
 	//
 	double st[MAX_GAMESPY][4];	//send time
 	int	rc[MAX_GAMESPY];		//resposta count
 	double rt[MAX_GAMESPY];		//resposta time
 	int num_valid = 0;
-	for (i=0;i<MAX_GAMESPY;i++) {
+	for (int i = 0; i < MAX_GAMESPY; i++) {
 
-		rc[i]=0;	//no responses
-		rt[i]=0;	//no time
+		rc[i] = 0;	//no responses
+		rt[i] = 0;	//no time
 
 		gamespy[i].noresponse = true;
 		gamespy[i].invalid = true; // invalid entry for default
 		gamespy[i].refreshed = true;	//refreshed now
 
-		nlOpen(0,0);//force invalid enum error
+		nlOpen(0, 0);//force invalid enum error
 
 		nlStringToAddr(gamespy[i].address, &gamespy[i].addr);
 
 		//test if the address is invalid (important)
 		if (nlGetError() == NL_INVALID_ENUM) {
 
-			nlOpen(0,0);//force invalid enum error
+			nlOpen(0, 0);//force invalid enum error
 
 			//v0.4.2: if address has no port or has invalid port, set it to the default value (25000)
 			int door = nlGetPortFromAddr(&gamespy[i].addr);
@@ -1037,10 +1034,10 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 		// (1) SEND
 		//
-		for (int i=0;i<MAX_GAMESPY;i++)
+		for (int i = 0; i < MAX_GAMESPY; i++)
 		if (!gamespy[i].invalid)
 		{
-			int count =0;
+			int count = 0;
 			writeLong(lebuf, count, 0);			//special packet
 			writeLong(lebuf, count, 200);		//serverinfo request
 			writeByte(lebuf, count, (NLubyte)i);		//connect entry (am I lazy or what)
@@ -1058,7 +1055,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 		//(2) pause before each send
 		//
-	for (int bla=0;bla<20;bla++)
+	for (int bla = 0; bla < 20; bla++)
 	{
 		MS_SLEEP(5);			//*** NO CPU PROBLEM HERE ***
 
@@ -1070,8 +1067,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 		do {
 			am = nlRead(sock, lebuf, 512);
 			if (am > 0) {
-
-				strcat(dinfo,"R,");
+				strcat(dinfo, "R,");
 
 				int count = 0;
 				NLulong along;
@@ -1086,7 +1082,7 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 						//add to ping statistics
 						rc[i]++;
-						rt[i] += ( get_time() - st[i][pack] );
+						rt[i] += get_time() - st[i][pack];
 
 						if (gamespy[i].noresponse)	//dec replies expected count
 							num_valid--;
@@ -1147,18 +1143,17 @@ void gameclient_c::refresh_command_2(gamespy_t *gamespy) {
 
 	// add ping to statistics
 	//
-	for (i=0;i<MAX_GAMESPY;i++)
-	if (!gamespy[i].noresponse)	//got at least 1 response?
-	{
-		int daping;
-		if (rc[i] > 0)
-			daping = (int)(1000.0 * rt[i] / rc[i]);
-		else
-			daping = -666;
+	for (int i = 0; i < MAX_GAMESPY; i++)
+		if (!gamespy[i].noresponse)	{	//got at least 1 response?
+			int daping;
+			if (rc[i] > 0)
+				daping = (int)(1000.0 * rt[i] / rc[i]);
+			else
+				daping = -666;
 
-		char thelix[2000];
-		sprintf(thelix, "%4i %s", daping, gamespy[i].info);
-		strcpy(gamespy[i].info, thelix);
+			char thelix[2000];
+			sprintf(thelix, "%4i %s", daping, gamespy[i].info);
+			strcpy(gamespy[i].info, thelix);
 	}
 
 	nlClose(sock);
@@ -1317,8 +1312,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 		NLulong	players_present;		//LONG players present (32 players max)
 		readLong(data, count, players_present);
-		int i;
-		for (i=0;i<maxplayers;i++) {
+		for (int i = 0; i < maxplayers; i++) {
 			//decode players_present: sets if "player" record is used or not, in clientside
 			if (players_present & (1 << i))
 				fx.player[i].used = true;
@@ -1393,8 +1387,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			readLong(data, count, players_onscreen);
 
 			//decode players_onscreen and update player data
-			for (i=0;i<maxplayers;i++) {
-
+			for (int i = 0; i < maxplayers; i++) {
 				//decode players_onscreen: sets if "player" record is there to be read
 				if (players_onscreen & (1 << i))
 					fx.player[i].onscreen = true;
@@ -1974,13 +1967,13 @@ void gameclient_c::erase_first_message() {
 //print message to "console"
 void gameclient_c::print_message(const char *msg) {
 	int i;
-	for (i=CHAT_SIZE-1; i>0; --i)
-		if (chatbuffer[i][0]=='\0')
+	for (i = CHAT_SIZE - 1; i > 0; --i)
+		if (chatbuffer[i][0] == '\0')
 			break;
 	// i points to first shift target (0 if no spaces were found)
-	for (++i; i<CHAT_SIZE; ++i)
-		strcpy(chatbuffer[i-1], chatbuffer[i]);
-	strcpy(chatbuffer[CHAT_SIZE-1], msg);
+	for (++i; i < CHAT_SIZE; ++i)
+		strcpy(chatbuffer[i - 1], chatbuffer[i]);
+	strcpy(chatbuffer[CHAT_SIZE - 1], msg);
 	chaterasetime = get_time() + 10.0;
 }
 
@@ -2002,6 +1995,7 @@ void gameclient_c::save_screenshot() {
 		}
 	}
 
+	// nice message
 	ostringstream message;
 	if (client_graphics.save_screenshot(filename))
 		message << "Saved screenshot to " << filename << '.';
@@ -2037,8 +2031,6 @@ void gameclient_c::show_dialog(char *t1, char *t2, char *t3, int fg, int bg) {
 
 //GET SERVERS FROM MASTER!!!
 void gameclient_c::get_servers_from_master() {
-
-	int i = 0;
 	NLsocket sock;
 
 	//open a nonblocking socket
@@ -2198,8 +2190,8 @@ void gameclient_c::get_servers_from_master() {
 
 	//clear the old gamespy master screen
 	//
-	for (int j=0;j<MAX_GAMESPY;j++) {
-		mgamespy[j].address[0]=0;
+	for (int j = 0; j < MAX_GAMESPY; j++) {
+		mgamespy[j].address[0] = 0;
 		mgamespy[j].refreshed = false;
 		mgamespy[j].invalid = false;	//don't know the status yet
 		mgamespy[j].favs = false;
@@ -2270,7 +2262,7 @@ void gameclient_c::get_servers_from_master() {
 
 			//scan for duplicate: then ignore
 			bool dup = false;
-			for (i=0;i<MAX_GAMESPY;i++)
+			for (int i = 0; i < MAX_GAMESPY; i++)
 				if (!strcmp(gamespy[f].address, mgamespy[i].address)) {
 					dup = true;		//dup
 					break;
@@ -2404,7 +2396,7 @@ void gameclient_c::loop() {
 						toggle_help();
 					//screenshot
 					else if (sc == KEY_F11)
-						save_screenshot();
+						screenshot = true;
 				}
 			}
 			//menu keypresses (from char buf) - ESC already dealed with, ignore
@@ -2419,7 +2411,7 @@ void gameclient_c::loop() {
 
 					//screenshot
 					if (sc == KEY_F11)
-						save_screenshot();
+						screenshot = true;
 
 					//toggle help
 					if (sc == KEY_F1)
@@ -2752,7 +2744,7 @@ void gameclient_c::loop() {
 					}
 					// F11:screenshot
 					else if (sc == KEY_F11) {
-						save_screenshot();
+						screenshot = true;
 					}
 					//backspace erase one
 					else if (sc == KEY_BACKSPACE) {
@@ -2885,7 +2877,11 @@ void gameclient_c::loop() {
 				drawbuf = vidpage1;
 		}
 		else*/
-			client_graphics.draw_screen();
+		client_graphics.draw_screen();
+		if (screenshot) {
+			save_screenshot();
+			screenshot = false;
+		}
 	}
 
 	//client exit cleanup: done at stop wich needs to be called after loop
@@ -2967,7 +2963,9 @@ void gameclient_c::stop() {
 }
 
 //ctor
-gameclient_c::gameclient_c() {
+gameclient_c::gameclient_c():
+	screenshot(false)
+{
 
 	//net client
 	client = 0;
@@ -3075,12 +3073,11 @@ void gameclient_c::draw_game_frame() {
 		else
 			client_graphics.draw_one_line_message("Connecting...");
 
-		if (map_ready)
-			client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
-		else {
+		client_graphics.draw_waiting_map_message("Waiting game start - next map is:", fx.map.title);
+		if (!map_ready) {
 			ostringstream text;
 			text << "Loading map: " << fdp << " bytes";
-			client_graphics.draw_one_line_message(text.str());
+			client_graphics.draw_loading_map_message(text.str());
 		}
 	}
 	else {
@@ -3100,13 +3097,11 @@ void gameclient_c::draw_game_frame() {
 	if (!hide_game)		// do not draw if map not set yet
 	if (fd.frame >= 0) {
 
-		int i;
-
 		// FIXME: y-ordering of draw not maintained
 		// draw any item pickups
 		//
 		if (me >= 0)
-			for (i=0;i<MAX_PICKUPS;i++)
+			for (int i = 0; i < MAX_PICKUPS; i++)
 				// used power-ups, not respawning, on my screen
 				if (fx.item[i].kind > 0 && fx.item[i].kind != 255 &&
 						fx.item[i].px == fx.player[me].roomx && fx.item[i].py == fx.player[me].roomy) {
@@ -3123,14 +3118,14 @@ void gameclient_c::draw_game_frame() {
 		// FIXME: y-ordering of draw not maintained
 		// draw any dropped flags (use fx since flags don't move)
 		//
-		for (int t=0;t<2;t++)
+		for (int t = 0; t < 2; t++)
 			// not carried, on same screen
 			if (!fx.flag[t].carried && fx.flag[t].pos.px == fx.player[me].roomx && fx.flag[t].pos.py == fx.player[me].roomy)
 				client_graphics.draw_flag(t, fx.flag[t].pos.x, fx.flag[t].pos.y);
 
 		// FIXME: y-ordering of draw not maintained
 		// draw any rockets
-		for (i = 0; i < MAX_ROCKETS; i++)
+		for (int i = 0; i < MAX_ROCKETS; i++)
 			if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
 				fd.rock[i].team = fx.rock[i].team;
 				fd.rock[i].power = fx.rock[i].power;
@@ -3139,7 +3134,7 @@ void gameclient_c::draw_game_frame() {
 
 		// sort order of drawing of the players
 		//
-		for (i=0;i<maxplayers;i++) {
+		for (int i = 0; i < maxplayers; i++) {
 			fd.player[i].drawused = 0;
 			fd.player[i].drawptr = -1;
 		}
@@ -3147,11 +3142,12 @@ void gameclient_c::draw_game_frame() {
 		double miny;
 		int minyid;
 
-		for (i=0;i<maxplayers;i++) {
+		int i;
+		for (i = 0; i < maxplayers; i++) {
 			minyid = -1;
 			miny = 999999;
 
-			for (int j=0;j<maxplayers;j++)
+			for (int j = 0; j < maxplayers; j++)
 			if (fd.player[j].used)	{
 				if (fd.player[j].drawused == 0)
 				if (fd.player[j].ly < miny) {
@@ -3169,7 +3165,7 @@ void gameclient_c::draw_game_frame() {
 
 		// the PLAY AREA: the players!
 		//
-		for (int k=0;k<maxplayers;k++) {
+		for (int k = 0; k < maxplayers; k++) {
 
 			//HACK REMENDEX: predict item_helm
 			if (fx.player[i].item_helm > 0) {
@@ -3280,8 +3276,8 @@ void gameclient_c::draw_game_frame() {
 					double px, py;
 					px = ((double)fx.player[i].roomx * (double)plw + fx.player[i].lx) / ((double)plw * fx.map.w);
 					py = ((double)fx.player[i].roomy * (double)plh + fx.player[i].ly) / ((double)plh * fx.map.h);
-					int pix = mmx + 21 + ((int)(px*98));
-					int piy = mmy +  1 + ((int)(py*98));
+					int pix = int(mmx + 1 + px * (client_graphics.minimap_width() - 2));
+					int piy = int(mmy + 1 + py * (client_graphics.minimap_height() - 2));
 
 					//verifica se o jogador a ser desenhado é um carrier de flag inimiga
 					int enemyteam = 1-i/TSIZE;
@@ -3307,10 +3303,10 @@ void gameclient_c::draw_game_frame() {
 		for (int ry = 0; ry < fx.map.h; ry++)
 			for (int rx = 0; rx < fx.map.w; rx++)
 				if (!roomvis[ry * fx.map.w + rx]) {
-					int x1 = 21 + rx * 98 / fx.map.w;
-					int y1 = 1 + ry * 98 / fx.map.h;
-					int x2 = 21 + (rx + 1) * 98 / fx.map.w - 1;
-					int y2 = 1 + (ry + 1) * 98 / fx.map.h - 1;
+					int x1 = 1 + rx * (client_graphics.minimap_width() - 1) / fx.map.w;
+					int y1 = 1 + ry * (client_graphics.minimap_height() - 1) / fx.map.h;
+					int x2 = 1 + (rx + 1) * (client_graphics.minimap_width() - 1) / fx.map.w - 1;
+					int y2 = 1 + (ry + 1) * (client_graphics.minimap_height() - 1) / fx.map.h - 1;
 					client_graphics.draw_minimap_room(x1, y1, x2, y2);
 				}
 	}//!hide_game
