@@ -5,6 +5,9 @@
 #include "leetnet/sleep.h"	// sleep util
 #include "server.h"
 
+//#define DEBUG_RANKING
+#define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
+
 gameserver_c::MapInfo::MapInfo() : votes(0) { }
 
 bool gameserver_c::MapInfo::load(string mapName) {

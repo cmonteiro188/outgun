@@ -72,26 +72,8 @@ inline void writeStr(char* buf, int& count, const string& src) {
 #define plw 472
 #define plh 354
 
-//DEBUGGING ranking?
-//#define DEBUG_RANKING
-
-//same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
-#define SHOT_DELTAX 17  // V0.4.8 : A HAIR LESS!
-
-//minimum time between flag steal at base and capture, to consider a map to be valid for scoring
-#define MINIMUM_GRAB_TO_CAPTURE_TIME 6.0
-
 //RANKING defines
 #define DEFAULT_PLAYER_RATE 1.0
-#define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
-
-//#define SWITCH_PAUSE_CLIENT
-
-//#define ALWAYS_FRICTION
-
-#define PI M_PI //3.1416
-
-#define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
 #define PASSBUFFER  32      //size of password file
 

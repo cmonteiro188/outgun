@@ -8,12 +8,23 @@
 
 #define PLAYER_RADIUS 15	// must be defined for graphics too if changed
 
+//same as PLAYER RADIUS (15) + ROCKET RADIUS (3)
+#define SHOT_DELTAX 17  // V0.4.8 : A HAIR LESS!
+
+//minimum time between flag steal at base and capture, to consider a map to be valid for scoring
+#define MINIMUM_GRAB_TO_CAPTURE_TIME 6.0
+
 /* PHYS_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
 #ifdef PHYS_NEW
 #define PHYS_SHIFTY PLAYER_RADIUS
 #else
 #define PHYS_SHIFTY 0
 #endif
+
+//#define ALWAYS_FRICTION
+
+#define PI M_PI //3.1416
+#define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
 /* subIntersection:
  * returns true if the area between lines (lx1,ly1)-(lx2,ly2) and (rx1,ry1)-(rx2,ry2) intersects the rectangle (rectx1,recty1)-(rectx2,recty2)

@@ -1984,24 +1984,20 @@ void gameclient_c::print_message(const char *msg) {
 	chaterasetime = get_time() + 10.0;
 }
 
-//save screenshot
 void gameclient_c::save_screenshot() {
-	// FIXME: check also if outgxxx.tga directories exist
 	// FIXME: save all screenshots to a subdirectory
 	// FIXME: taking a screenshot causes about one second delay in the game
 	// FIXME: make screenshots possible everywhere in the game
-	// find the filename
 	string filename;
 	for (int i = 0; i < 1000; i++) {
 		ostringstream fname;
 		fname << "outg" << setfill('0') << setw(3) << i << ".tga";
-		if (!exists(fname.str().c_str())) {
+		if (!file_exists(fname.str().c_str(), FA_ARCH|FA_DIREC|FA_RDONLY|FA_HIDDEN|FA_SYSTEM, 0)) {
 			filename = fname.str();
 			break;
 		}
 	}
 
-	// nice message
 	ostringstream message;
 	if (client_graphics.save_screenshot(filename))
 		message << "Saved screenshot to " << filename << '.';

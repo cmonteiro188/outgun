@@ -15,7 +15,7 @@ void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color
 	va_start(argptr, format);
 	vsprintf(xbuf, format, argptr);
 	va_end(argptr);
-	textprintf(bmp, f, x, y, color, "%s", xbuf);
+	textout(bmp, f, xbuf, x, y, color);
 }
 void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
 	text_mode(bg);
@@ -24,13 +24,15 @@ void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, in
 	va_start(argptr, format);
 	vsprintf(xbuf, format, argptr);
 	va_end(argptr);
-	textprintf_centre(bmp, f, x, y, color, "%s", xbuf);
+	textout_centre(bmp, f, xbuf, x, y, color);
 }
 #else
 #define WINMODE GFX_AUTODETECT_WINDOWED
 #endif
 
 #define FULLMODE GFX_AUTODETECT
+
+//#define SWITCH_PAUSE_CLIENT
 
 using std::string;
 using std::vector;
