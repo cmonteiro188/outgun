@@ -124,9 +124,13 @@ CircWall::CircWall(int x_, int y_, int ro_, int ri_, float ang1, float ang2, int
 	float a2r = angle2 * M_PI / 180;
 	va1 = Coords(sin(a1r), cos(a1r));
 	va2 = Coords(sin(a2r), cos(a2r));
-	int midangle = (a2r - a1r) / 2;
-	anglecos = cos(midangle);
-	midvec = Coords(sin(midangle), anglecos);
+	float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2.*M_PI);
+	if (a1r == a2r)
+		anglecos = -1.;	// full circle => max width
+	else
+		anglecos = cos((a2r_greater - a1r)/2.);
+	float midangle = (a2r_greater + a1r) / 2;
+	midvec = Coords(sin(midangle), cos(midangle));
 }
 
 void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) const {
@@ -166,44 +170,54 @@ void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) 
 		// remove the rest unnecessary sectors of the circle
 		const float k = 1.5;
 		int tx, ty;
-		if (x1 > 0 && y1 > 0) {
-			tx = 0;
-			ty = 1;
+		float diff = angle2 - angle1;
+		if (diff < 0)
+			diff += 360;
+		if (x1 * x2 > 0 && y1 * y2 > 0 && diff > 90) {	// angles in same quarter
+			triangle(cbuff, int(scale * ro), int(scale * ro),
+					int(scale * (ro + k * x1 * ro)), int(scale * (ro + k * (-y1) * ro)),
+					int(scale * (ro + k * x2 * ro)), int(scale * (ro + k * (-y2) * ro)), transparent);
 		}
-		else if (x1 < 0 && y1 > 0) {
-			tx = -1;
-			ty = 0;
+		else {								// angles in different quarters
+			if (x1 > 0 && y1 > 0) {
+				tx = 0;
+				ty = 1;
+			}
+			else if (x1 < 0 && y1 > 0) {
+				tx = -1;
+				ty = 0;
+			}
+			else if (x1 < 0 && y1 < 0) {
+				tx = 0;
+				ty = -1;
+			}
+			else {
+				tx = 1;
+				ty = 0;
+			}
+			triangle(cbuff, int(scale * ro), int(scale * ro),
+					int(scale * (ro + k * x1 * ro)), int(scale * (ro + k * (-y1) * ro)),
+					int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
+			if (x2 > 0 && y2 > 0) {
+				tx = 1;
+				ty = 0;
+			}
+			else if (x2 < 0 && y2 > 0) {
+				tx = 0;
+				ty = 1;
+			}
+			else if (x2 < 0 && y2 < 0) {
+				tx = -1;
+				ty = 0;
+			}
+			else {
+				tx = 0;
+				ty = -1;
+			}
+			triangle(cbuff, int(scale * ro), int(scale * ro),
+					int(scale * (ro + k * x2 * ro)), int(scale * (ro + k * (-y2) * ro)),
+					int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
 		}
-		else if (x1 < 0 && y1 < 0) {
-			tx = 0;
-			ty = -1;
-		}
-		else {
-			tx = 1;
-			ty = 0;
-		}
-		triangle(cbuff, int(scale * ro), int(scale * ro),
-				int(scale * (ro + k * x1 * ro)), int(scale * (ro + k * (-y1) * ro)),
-				int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
-		if (x2 > 0 && y2 > 0) {
-			tx = 1;
-			ty = 0;
-		}
-		else if (x2 < 0 && y2 > 0) {
-			tx = 0;
-			ty = 1;
-		}
-		else if (x2 < 0 && y2 < 0) {
-			tx = -1;
-			ty = 0;
-		}
-		else {
-			tx = 0;
-			ty = -1;
-		}
-		triangle(cbuff, int(scale * ro), int(scale * ro),
-				int(scale * (ro + k * x2 * ro)), int(scale * (ro + k * (-y2) * ro)),
-				int(scale * (ro + k * tx * ro)), int(scale * (ro + k * (-ty) * ro)), transparent);
 	}
 	masked_blit(cbuff, buffer, 0, 0, int(x0 + scale * (x - ro)), int(y0 + scale * (y - ro)), cbuff->w, cbuff->h);
 	destroy_bitmap(cbuff);
@@ -328,11 +342,11 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 					break;
 				default: break;
 			}
-			while (a1 < 0)
+			if (a1 < 0)
 				a1 += 360;
-			while (a2 < 0)
+			if (a2 < 0)
 				a2 += 360;
-			if ((n != 9 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri >= ro || (a1 != 0 && a1 == a2)) {
+			if ((n != 9 && n != 7 && n != 5 && n != 4) || ro <= 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1<0 || a2<0 || a1>=360 || a2>=360) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
@@ -560,12 +574,16 @@ pair<double, Coords> bounceFromArc(double dx, double dy, double mx, double my, c
 	double d2 = dx*dx + dy*dy;
 	double disc = mdotd*mdotd - m2*(d2-r2);
 	if (disc >= 0) {	// there are real solutions
-		double t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the point)
+		double t;
+		if (outside)
+			t = (mdotd-sqrt(disc))/m2;	// the collision with smaller t (the larger t is when going away from the center)
+		else
+			t = (mdotd+sqrt(disc))/m2;	// the collision with larger t (the smaller t is when going towards the center)
 		if (t >= 0) {
 			// make sure the point is within the given angle from av
 			// [ (t(mx,my) - (dx,dy)) dot av ] / [ |t(mx,my) - (dx,dy)| * |av| ] >= ahwcos
 			double xd = t*mx - dx, yd = t*my - dy;
-			double dot = xd*av.first + yd*av.second;
+			double dot = xd*av.first - yd*av.second;	//NOTE: - because av.second is in reversed coordinates
 			if (dot >= ahwcos * bounceRad) {	// |(dx,dy) - t(mx,my)| = bounceRad, |av| = 1
 				// calc the vector from t(mx,my) to collision point:
 				// length = cr
@@ -642,10 +660,14 @@ void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double
 	rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ro, plyRadius, true);
 	add_rv();
 	// inside
-	rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ri, plyRadius, false);
-	add_rv();
-	double p1x = w.x + w.ro*va1.first - stx, py1 = w.y + w.ro*va1.second - sty;
-	double p2x = w.x + w.ri*va1.first - stx, py2 = w.y + w.ri*va1.second - sty;
+	if (w.ri > plyRadius) {
+		rv = bounceFromArc(w.x - stx, w.y - sty, mx, my, w.midvec, w.anglecos, w.ri, plyRadius, false);
+		add_rv();
+	}
+	if (w.angle1 == w.angle2)	// no sectoring
+		return;
+	double p1x = w.x + w.ro*w.va1.first - stx, p1y = w.y - w.ro*w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
+	double p2x = w.x + w.ri*w.va1.first - stx, p2y = w.y - w.ri*w.va1.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
 	// side wall at angle va1
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
@@ -655,8 +677,8 @@ void tryBounce(double* minMovement, Coords* bounceVec, const CircWall& w, double
 	rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// side wall at angle va2
-	p1x = w.x + w.ro*va2.first - stx, py1 = w.y + w.ro*va2.second - sty;
-	p2x = w.x + w.ri*va2.first - stx, py2 = w.y + w.ri*va2.second - sty;
+	p1x = w.x + w.ro*w.va2.first - stx, p1y = w.y - w.ro*w.va2.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
+	p2x = w.x + w.ri*w.va2.first - stx, p2y = w.y - w.ri*w.va2.second - sty;	//NOTE: - ...*w.va1.second because va1.second is in reversed coordinates
 	rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
 	add_rv();
 	// corners at angle va2

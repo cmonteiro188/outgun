@@ -87,9 +87,9 @@ struct Room {
 		for (vector<TriWall>::const_iterator twi=twalls.begin(); twi!=twalls.end(); ++twi)
 			if (twi->intersects_rect(x1, y1, x2, y2))
 				return true;
-		/*for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
+		for (vector<CircWall>::const_iterator cwi=cwalls.begin(); cwi!=cwalls.end(); ++cwi)
 			if (cwi->intersects_rect(x1, y1, x2, y2))
-				return true;*/
+				return true;
 		return false;
 	}
 };
