@@ -10,9 +10,9 @@
 
 #define NR_NO_PUP_SWITCHING
 #define NR_VOTE_ANNOUNCE_INTERVAL 5
-#define NR_SERVER_PHYSICS
+//#define NR_SERVER_PHYSICS
 //#define NR_PHYS_VECTOR_ACC
-//#define NR_SUPPORT_OLD_CLIENTS
+#define NR_SUPPORT_OLD_CLIENTS
 //#define NR_FIX_BOUNCING	// makes a difference only when nr_server_physics not defined
 
 // ---- client side defines
@@ -1096,17 +1096,17 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 	double rAdd = r * sqrt(diffx*diffx+diffy*diffy) / div;
 	double t = rBase - fabs(rAdd);	// the collision with smaller t (the other would be going away)
 	if (t >= 0) {
-	// make sure we are not off an end of the line
-	// this can surely be calculated in a simpler way, but this first came to mind
-	// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
-	// | t*m - collp |  minimum (=r)
-	// | t*m - p1 - k(p2-p1) |  minimum (=r)
-	// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
-	// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
-	// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
-	double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
-	if (k>=0. && k<=1.)
-		return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
+		// make sure we are not off an end of the line
+		// this can surely be calculated in a simpler way, but this first came to mind
+		// collp = p1 + k(p2-p1)	0<=k<=1 if on the line
+		// | t*m - collp |  minimum (=r)
+		// | t*m - p1 - k(p2-p1) |  minimum (=r)
+		// ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
+		// (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the one above)
+		// (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)(dx2-dx1) + (dy2-dy1)*(dy2-dy1) ]
+		double k = ( diffx*(t*mx-dx1) + diffy*(t*my-dy1) ) / (diffx*diffx + diffy*diffy);
+		if (k>=0. && k<=1.)
+			return pair<double, Coords>(t, Coords(dx1+k*diffx-t*mx, dy1+k*diffy-t*my));
 	}
 
 	double dist=1.;
@@ -1606,6 +1606,10 @@ struct player_t {
 		total_captures = 0;
 		total_flags_taken = 0;
 		total_flags_dropped = 0;
+		total_shots = 0;
+		total_hits = 0;
+		total_shots_taken = 0;
+
 		start_time = (int)get_time();
 
 		// BOTZ: bot ou nao?
@@ -1716,7 +1720,7 @@ public:
 
 // a player's sprite state
 struct hero_t {
-	int			tx, ty;		//tela X,Y
+	int tx, ty;		//tela X,Y
 	double x, y, sx, sy;	// position and speed
 	double ox, oy;	// old coords: garantidamente NAO em paredes
 	bool l, r, u, d;	// left, right, up, down keypresses (player acceleration vectrs)
@@ -2323,7 +2327,7 @@ public:
 			pup_chance_power, pup_chance_weapon, pup_chance_megahealth, pup_chance_deathbringer;
 	bool pups_min_percentage, pups_max_percentage;
 	int pup_add_time, pup_max_time;
-	bool pup_deathbringer_switch;
+	bool pup_deathbringer_switch, pup_shadow_invisibility;
 	double respawn_time, waiting_time_deathbringer;
 
 	//ctor
@@ -4464,6 +4468,7 @@ public:
 					else if (!strcmp(s, "vote_block_time")) cmd = 33;
 					else if (!strcmp(s, "respawn_time")) cmd = 34;
 					else if (!strcmp(s, "waiting_time_deathbringer")) cmd = 35;
+					else if (!strcmp(s, "pup_shadow_invisibility")) cmd = 36;
 					else {
 						LOG1("*** Bad command in gamemod: %s\n", s);
 						cmd = 0;
@@ -4627,6 +4632,11 @@ public:
 					else if (cmd == 35) {
 						if (val >= 0)
 							waiting_time_deathbringer = val;
+					}
+					else if (cmd == 36) {
+						if (ival == 0 || ival == 1)
+							pup_shadow_invisibility = ival==1?true:false;
+						else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 					}
 				}
 
@@ -4862,6 +4872,7 @@ public:
 		pup_chance_deathbringer = 11;
 
 		pup_deathbringer_switch = true;
+		pup_shadow_invisibility = false;
 
 		respawn_time = 2.0;
 		waiting_time_deathbringer = 4.0;
@@ -6042,6 +6053,8 @@ public:
 								player[pid].queue_printf("Power-up time is %d seconds", pup_max_time);
 							if (pup_deathbringer_switch)
 								player[pid].queue_printf("Picking up a second deathbringer power-up cancels the effect");
+							if (pup_shadow_invisibility)
+								player[pid].queue_printf("A player using the shadow power-up gets totally invisible");
 							ostringstream pupstr;
 							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << "%%";
 							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << "%%";
@@ -6193,7 +6206,7 @@ public:
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
-							player[pid].queue_printf("Shots: %d shot, accuracy %d %%, %d taken",
+							player[pid].queue_printf("Shots: %d shot, accuracy %d %%%%, %d taken",
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
@@ -6652,7 +6665,7 @@ public:
 			//
 			if (player[i].item_helm > 0) {
 				player[i].item_helm -= 10;		//slowly fades....
-				if (player[i].item_helm < 0)	// minimum
+				if (player[i].item_helm < 1)	// minimum
 					player[i].item_helm = 1;
 			}
 
@@ -6840,8 +6853,10 @@ public:
 					rock->owner=-1;
 					t=999;break;
 				}
+				#if NR_SHIFTY != 0
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2))	//#NR
 					NR_hit=true;
+				#endif
 				#else
 				if (map.fall_on_wall(rock->px, rock->py, (int)rock->x-2, (int)rock->y-NR_SHIFTY-2, (int)rock->x+2, (int)rock->y-NR_SHIFTY+2)) {
 					rock->owner=-1;
@@ -7111,7 +7126,7 @@ public:
 
 						//FLAG STOLEN!
 						score_frag(i, 1);	// just add some frags
-					
+
 						player[i].total_flags_taken++;
 
 						bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
@@ -7513,19 +7528,8 @@ public:
 						&&
 						(player[j].y == player[i].y)
 						&&
-						(
-							(player[j].item_helm != 1)
-							||
-							(i/TSIZE == j/TSIZE)
-							||
-							(
-								(world.flag[1-j/TSIZE].carried)
-								&&
-								(world.flag[1-j/TSIZE].carrier == j)
-							)
-						)
-					)
-				{
+						(!pup_shadow_invisibility || player[j].item_helm != 1 || i/TSIZE == j/TSIZE ||
+								(world.flag[1-j/TSIZE].carried && world.flag[1-j/TSIZE].carrier == j)) ) {
 					//add to players_onscreen
 					players_onscreen += (1 << j);
 
@@ -8225,32 +8229,17 @@ public:
 
 	//check for private IP
 	bool check_private_IP(char *address) {
-		//192.168.x.x +++ 172.16.x.x ATÉ 172.31.x.x +++ 10.x.x.x : bloquear
-		char cbuf[333];
-		char cbuf2[333];
-		strcpy(cbuf, address);
-		cbuf[8]=0;
-		if (!strcmp(cbuf, "192.168.")) {
-			return true;
-		}
-		else {
-			strcpy(cbuf, address);
-			cbuf[3]=0;
-			if (!strcmp(cbuf, "10.")) {
-				return true;
-			}
-			else {
-				strcpy(cbuf, address);
-				cbuf[7]=0;
-				for (int ipn=16;ipn<32;ipn++) {
-					sprintf(cbuf2, "172.%i.", ipn);
-					if (!strcmp(cbuf, cbuf2))
-						return true;
-				}
-			}
-		}
-		//not private
-		return false;
+		int i1, i2;
+		int n=sscanf(address, "%d.%d.", &i1, &i2);
+		assert(n==2);
+		if (n != 2)
+			return false;
+		// private IP ranges:
+		// 10.0.0.0        -   10.255.255.255
+		// 172.16.0.0      -   172.31.255.255
+		// 192.168.0.0     -   192.168.255.255
+		// 169.254.0.0     -   169.254.255.255 [used by Microsoft DHCP client]
+		return (i1==10 || (i1==172 && i2>=16 && i2<=31) || (i1==192 && i2==168) || (i1==169 && i2==254));
 	}
 
 	//master server talker thread
@@ -11331,7 +11320,7 @@ public:
 			//regular ground
 			else
 			*/
-			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
+				rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 			// place of flag
 			for (int team = 0; team < 2; team++)
@@ -11345,7 +11334,7 @@ public:
 					int y2 = min(2 * FLAGPOS_RAD, plh - flag_y + FLAGPOS_RAD + 1);
 					blit(flagpos_buf[team], drawbuf, x1, y1,
 						plx + flag_x - FLAGPOS_RAD + x1, ply + flag_y - FLAGPOS_RAD + y1, x2 - x1, y2 - y1);
-				}
+			}
 
 			// map walls
 			if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < map.w && player[me].y < map.h)
