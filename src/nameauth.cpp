@@ -75,7 +75,7 @@ bool NameAuthorizationDatabase::load() {
 				e=Entry();
 			}
 			eActive=true;
-			for (int i=5; i<line.length(); ++i)
+			for (string::size_type i=5; i<line.length(); ++i)
 				e.nameUpr+=toupper(line[i]);
 			continue;
 		}

@@ -18,6 +18,8 @@
 
 #define CL_MINIMAP_FLAGPOS
 #define CL_SHOW_FLAGPOS
+#define CL_SMOOTH_FLAGPOS
+//#define CL_SHOW_TIME_LEFT
 
 // ----
 
@@ -222,9 +224,9 @@ fica pro outgun II ...
 
 //#define ALWAYS_FRICTION
 
-#define PI 3.1416
+#define PI M_PI //3.1416
 
-#define PIOIT 0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
+#define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
 #define PASSBUFFER	32		//size of password file
 
@@ -342,8 +344,6 @@ char wheregamedir[WHERE_PATH_SIZE];
 
 //function that resets the video mode
 bool reset_video_mode();
-
-#define CTF_DEFAULT_NUMBER_OF_CAPTURES 8
 
 // server game phisics parameters
 double svp_fric, svp_accel, svp_maxspeed;
@@ -996,12 +996,25 @@ void Map::draw_minimap(BITMAP* buffer) const {
 
 	//draw bases
 	#ifdef CL_MINIMAP_FLAGPOS
-	float fx = tinfo[0].flag.px * plw + tinfo[0].flag.x;
-	float fy = tinfo[0].flag.py * plh + tinfo[0].flag.y;
-	ellipsefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, 4, col[COLRED]);
-	fx = tinfo[1].flag.px * plw + tinfo[1].flag.x;
-	fy = tinfo[1].flag.py * plh + tinfo[1].flag.y;
-	ellipsefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, 4, col[COLBLUE]);
+	int red_x = tinfo[0].flag.px;
+	int red_y = tinfo[0].flag.py;
+	int blue_x = tinfo[1].flag.px;
+	int blue_y = tinfo[1].flag.py;
+	bool same_room = false;
+	// Are both maps in the same room?
+	if (red_x == blue_x && red_y == blue_y) {
+		same_room = true; /*
+		float fx = tinfo[0].flag.px * plw + tinfo[0].flag.x;
+		float fy = tinfo[0].flag.py * plh + tinfo[0].flag.y;
+		circlefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, col[COLRED]);
+		fx = tinfo[1].flag.px * plw + tinfo[1].flag.x;
+		fy = tinfo[1].flag.py * plh + tinfo[1].flag.y;
+		circlefill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), 4, col[COLBLUE]);*/
+	}
+	else {
+		rectfill(buffer, 2+ MMSCRW * red_x, 2+ MMSCRH * red_y, MMSCRW * (red_x + 1), MMSCRH * (red_y + 1), col[COLBRED]);
+		rectfill(buffer, 2+ MMSCRW * blue_x, 2+ MMSCRH * blue_y, MMSCRW * (blue_x + 1), MMSCRH * (blue_y + 1), col[COLBBLUE]);
+	}
 	#else
 	int fx = tinfo[0].flag.px;
 	int fy = tinfo[0].flag.py;
@@ -1023,6 +1036,17 @@ void Map::draw_minimap(BITMAP* buffer) const {
 
 	//green border
 	rect(buffer, 0, 0, buffer->w -1, buffer->h -1, col[COLGREEN]);
+
+	#ifdef CL_MINIMAP_FLAGPOS
+	if (same_room) {
+		float fx = tinfo[0].flag.px * plw + tinfo[0].flag.x;
+		float fy = tinfo[0].flag.py * plh + tinfo[0].flag.y;
+		floodfill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), col[COLBRED]);
+		fx = tinfo[1].flag.px * plw + tinfo[1].flag.x;
+		fy = tinfo[1].flag.py * plh + tinfo[1].flag.y;
+		floodfill(buffer, int(1 + fx/maxx*98.), int(1 + fy/maxy*98.), col[COLBBLUE]);
+	}
+	#endif
 }
 
 //#NR: new function for use by NR_wallcorrect()
@@ -2062,6 +2086,7 @@ public:
 	#ifdef NR_CONSOLE
 	struct MapInfo {
 		string title, file;
+		int width, height;
 		int votes;
 		MapInfo() : votes(0) { }
 	};
@@ -4615,7 +4640,7 @@ public:
 
 		// default time and capture limits
 		time_limit = 0;	// no time limit
-		capture_limit = CTF_DEFAULT_NUMBER_OF_CAPTURES;
+		capture_limit = 8;
 
 		vote_block_time = 0;	// no limit
 
@@ -4678,6 +4703,8 @@ public:
 			load_rotation_map(p);
 			mapinfo[p].title=map.title;
 			mapinfo[p].file=maprot[p];
+			mapinfo[p].width=map.w;
+			mapinfo[p].height=map.h;
 		}
 		#endif
 
@@ -5760,7 +5787,7 @@ public:
 //							                          123456789*123456789*123456789*123456789*123456789*123456789*123456789*123456789*
 							player[pid].queue_printf("@TConsole commands available on this server:");
 							player[pid].queue_printf("/help       this screen");
-							if (info_message.size())
+							if (!info_message.empty())
 								player[pid].queue_printf("/info       information about this server");
 							player[pid].queue_printf("/config     current server configuration");
 							player[pid].queue_printf("/mapinfo n  information about map n (default: current map)");
@@ -5768,7 +5795,7 @@ public:
 							player[pid].queue_printf("/time       check server uptime, current map time and time left on the map");
 							player[pid].queue_printf("/sayadmin   send a message to the server admin (in English or Finnish, please)");
 						}
-						else if (!strcmp(cbuf, "info") && info_message.size()) {
+						else if (!strcmp(cbuf, "info") && !info_message.empty()) {
 							for (vector<string>::const_iterator line=info_message.begin(); line!=info_message.end(); line++)
 								player[pid].add_to_queue(*line);
 							player[pid].add_to_queue("type /config to see current server settings");
@@ -5818,15 +5845,19 @@ public:
 								player[pid].queue_printf("@IFor example to send \"Hello!\", type /sayadmin Hello!");
 						}
 						else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
-						if (*pCommand!='\0') {
-							int mid=atoi(pCommand)-1;
-							if (mid>=0 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0')
-								player[pid].queue_printf("@IMap %d is %s (%s.txt)", mid+1, mapinfo[mid].title.c_str(), mapinfo[mid].file.c_str());
-							else
-								player[pid].queue_printf("@WValid map id's are 1 to %d", maprots);
-						}
-						else
-							player[pid].queue_printf("@IThis map is %s (%s)", mapinfo[currmap].title.c_str(), mapinfo[currmap].file.c_str());
+							if (*pCommand!='\0') {
+								int mid=atoi(pCommand)-1;
+								if (mid>=0 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0') {
+									player[pid].queue_printf("@IMap %d is %s", mid+1, mapinfo[mid].title.c_str());
+									player[pid].queue_printf("@I%s.txt, size %dx%d", mapinfo[mid].file.c_str(), mapinfo[mid].width, mapinfo[mid].height);
+								}
+								else
+									player[pid].queue_printf("@WValid map id's are 1 to %d", maprots);
+							}
+							else {
+								player[pid].queue_printf("@IThis map is %s", mapinfo[currmap].title.c_str());
+								player[pid].queue_printf("@I%s.txt, size %dx%d", mapinfo[currmap].file.c_str(), mapinfo[currmap].width, mapinfo[currmap].height);
+							}
 							player[pid].queue_printf("@IType /votemap to see a list of all maps");
 						}
 						else if (!strcmp(cbuf, "votemap")) {
@@ -5883,8 +5914,19 @@ public:
 							}
 						}
 						else if (!strcmp(cbuf, "time")) {
+							// server uptime
 							unsigned long uptime = frame/10/60;	// minutes
-							player[pid].queue_printf("@IThe server has been up for %d:%02d hours.", uptime/60, uptime%60);
+							int days = uptime / 60 / 24;
+							ostringstream server_time;
+							server_time << "@IThe server has been up for ";
+							if (days > 0)
+								server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
+							server_time << uptime / 60 << ':' << setfill('0') << setw(2) << uptime % 60;
+							if (days == 0)
+								server_time << " hours";
+							server_time << '.';
+							player[pid].add_to_queue(server_time.str());
+							// map time
 							int seconds = (frame - map_start_time) / 10;
 							int remaining_seconds = (time_limit / 10 - seconds);
 							ostringstream map_time;
@@ -5997,8 +6039,8 @@ public:
 						game_damage_player(pid, pid, 30000);
 
 						//frag penalty
-						if (player[pid].frags > 0)
-							player[pid].frags--;
+						//if (player[pid].frags > 0)
+						player[pid].frags--;
 					}
 				}
 				//-attack
@@ -11197,9 +11239,9 @@ public:
 		// the player is an ugly thin ellipse! 30=player's height x2 (60)
 		// REMENDO: nao vai ter eixo Z mesmo....
 		// outer color: team color
-		ellipsefill(drawbuf, plx + x, ply + y - 15 - 0, 15, 15, pc1);
+		circlefill(drawbuf, plx + x, ply + y - 15 - 0, 15, pc1);
 		// inner color: self color
-		ellipsefill(drawbuf, plx + x, ply + y - 15 - 0, 10, 10, pc2);
+		circlefill(drawbuf, plx + x, ply + y - 15 - 0, 10, pc2);
 
 		//desenha arma depois se dir 0,1,2,3,4
 		if (gundir < 5) {
@@ -11299,14 +11341,38 @@ public:
 			//regular ground
 			else
 			*/
-				rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
+			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 			// place of flag
 			set_trans_blender(0, 0, 0, 128);
-			if (player[me].x==map.tinfo[0].flag.px && player[me].y==map.tinfo[0].flag.py)
-				ellipsefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, 20, 20, col[COLBRED]);
-			if (player[me].x==map.tinfo[1].flag.px && player[me].y==map.tinfo[1].flag.py)
-				ellipsefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, 20, 20, col[COLBBLUE]);
+			if (player[me].x==map.tinfo[0].flag.px && player[me].y==map.tinfo[0].flag.py) {
+			#ifdef CL_SMOOTH_FLAGPOS
+				int r = getr(col[COLGROUND]);
+				const int g = getg(col[COLGROUND]);
+				const int b = getb(col[COLGROUND]);
+				for (int i = 30; i >= 0; i--) {
+					r = min(r + 10, 255);
+					int c = makecol(r, g, b);
+					circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, i, c);
+				}
+			#else
+				circlefill(drawbuf, plx+map.tinfo[0].flag.x, ply+map.tinfo[0].flag.y, 20, col[COLBRED]);
+			#endif
+			}
+			if (player[me].x==map.tinfo[1].flag.px && player[me].y==map.tinfo[1].flag.py) {
+			#ifdef CL_SMOOTH_FLAGPOS
+				const int r = getr(col[COLGROUND]);
+				const int g = getg(col[COLGROUND]);
+				int b = getb(col[COLGROUND]);
+				for (int i = 30; i >= 0; i--) {
+					b = min(b + 10, 255);
+					int c = makecol(r, g, b);
+					circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, i, c);
+				}
+			#else
+				circlefill(drawbuf, plx+map.tinfo[1].flag.x, ply+map.tinfo[1].flag.y, 20, col[COLBBLUE]);
+			#endif
+			}
 			solid_mode();
 
 			// map walls
@@ -11342,15 +11408,15 @@ public:
 					ellipse(drawbuf, plx + it->x, ply + it->y, 14+rand()%5, 14+rand()%5, makecol(rand(),rand(),rand()));
 					ellipse(drawbuf, plx + it->x, ply + it->y, 14+rand()%9, 14+rand()%9, makecol(rand(),rand(),rand()));
 
-					ellipsefill(drawbuf, plx + it->x, ply + it->y, 12, 12, col[COLGREEN]);
+					circlefill(drawbuf, plx + it->x, ply + it->y, 12, col[COLGREEN]);
 
 				}
 				//boots
 				else if (it->kind == 2) {
 
-					ellipsefill(drawbuf, plx + it->x + rand()%6-3, ply + it->y + rand()%6-3, 12, 12, col[COLDARKORA]);
-					ellipsefill(drawbuf, plx + it->x + rand()%8-4, ply + it->y + rand()%8-4, 12, 12, col[COLORA]);
-					ellipsefill(drawbuf, plx + it->x + rand()%12-6, ply + it->y + rand()%12-6, 12, 12, col[COLYELLOW]);
+					circlefill(drawbuf, plx + it->x + rand()%6-3, ply + it->y + rand()%6-3, 12, col[COLDARKORA]);
+					circlefill(drawbuf, plx + it->x + rand()%8-4, ply + it->y + rand()%8-4, 12, col[COLORA]);
+					circlefill(drawbuf, plx + it->x + rand()%12-6, ply + it->y + rand()%12-6, 12, col[COLYELLOW]);
 				}
 				//helm
 				else if (it->kind == 3) {
@@ -11360,16 +11426,16 @@ public:
 					if (alpha > 200)
 						alpha = 400 - alpha;
 					set_trans_blender(0,0,0,55+alpha);
-					ellipsefill(drawbuf, plx + it->x, ply + it->y, 12, 12, col[COLMAG]);
+					circlefill(drawbuf, plx + it->x, ply + it->y, 12, col[COLMAG]);
 					solid_mode();
 				}
 				//instant kill shots
 				else if (it->kind == 4) {
 
 					if (((int)(get_time() * 30)) % 2)
-						ellipsefill(drawbuf, plx + it->x, ply + it->y, 13, 13, col[COLWHITE]);
+						circlefill(drawbuf, plx + it->x, ply + it->y, 13, col[COLWHITE]);
 					else
-						ellipsefill(drawbuf, plx + it->x, ply + it->y, 11, 11, col[COLCYAN]);
+						circlefill(drawbuf, plx + it->x, ply + it->y, 11, col[COLCYAN]);
 				}
 				//weapon upgrade
 				else if (it->kind == 5) {
@@ -11388,10 +11454,10 @@ public:
 
 						//draw a ball
 						switch (b) {
-						case 0: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLGREEN]); break;
-						case 1: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLBLUE]); break;
-						case 2: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLRED]); break;
-						case 3: ellipsefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, 4, col[COLYELLOW]); break;
+						case 0: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLGREEN]); break;
+						case 1: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLBLUE]); break;
+						case 2: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLRED]); break;
+						case 3: circlefill(drawbuf, plx + it->x + (int)dx, ply + it->y + (int)dy, 4, col[COLYELLOW]); break;
 						}
 					}
 				}
@@ -11422,7 +11488,7 @@ public:
 				else if (it->kind == 7) {
 
 					//bola preta
-					ellipsefill(drawbuf, plx + it->x, ply + it->y, 12, 12, makecol(0x22,0x33,0x22));
+					circlefill(drawbuf, plx + it->x, ply + it->y, 12, makecol(0x22,0x33,0x22));
 
 					//smoke da bola preta
 					cfx_create_deathcarrier(it->x + rand()%30-15, it->y + rand()%30-5, it->px, it->py, 0);
@@ -11483,15 +11549,15 @@ public:
 					ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 6, 3, col[COLSHADOW]);
 					//draw the rocket
 					if (((int)(get_time() * 30)) % 2)
-						ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 6, 6, col[COLWHITE]);	//y-12?
+						circlefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 6, col[COLWHITE]);	//y-12?
 					else
-						ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, 4, teamlcol[fx.rock[i].team]); //y-12??
+						circlefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, teamlcol[fx.rock[i].team]); //y-12??
 				}
 				else {
 					//draw rocket shadow
 					ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 4, 2, col[COLSHADOW]);
 					//draw the rocket
-					ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, 4, teamcol[fx.rock[i].team]); //y-10??
+					circlefill(drawbuf, plx + (int)r->x, ply + (int)r->y - 15, 4, teamcol[fx.rock[i].team]); //y-10??
 				}
 			}
 
@@ -11578,15 +11644,15 @@ public:
 						// virou sorvete!
 						if ((player[i].frags >= 10) && (player[i].frags % 10 == 0)) {
 							ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 15, 6, 15, col[COLORA]);
-							ellipsefill(drawbuf, plx + (int)fx.hero[i].x - 8, ply + (int)fx.hero[i].y - 10-15, 8, 8, col[COLBLUE]);
-							ellipsefill(drawbuf, plx + (int)fx.hero[i].x + 8, ply + (int)fx.hero[i].y - 10-15, 8, 8, col[COLMAG]);
-							ellipsefill(drawbuf, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-15, 8, 8, col[COLGREEN]);
+							circlefill(drawbuf, plx + (int)fx.hero[i].x - 8, ply + (int)fx.hero[i].y - 10-15, 8, col[COLBLUE]);
+							circlefill(drawbuf, plx + (int)fx.hero[i].x + 8, ply + (int)fx.hero[i].y - 10-15, 8, col[COLMAG]);
+							circlefill(drawbuf, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-15, 8, col[COLGREEN]);
 							textprintf_centre(drawbuf, font, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-43, col[COLWHITE], "VIROU");
 							textprintf_centre(drawbuf, font, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-33, col[COLWHITE], "SORVETE!");
 						}
 						else {
 							ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y, 20, 6, col[COLRED]);
-							ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 10, 12, 12, col[COLRED]);
+							circlefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 10, 12, col[COLRED]);
 						}
 					}
 					// desenha player vivo
@@ -11653,9 +11719,9 @@ public:
 							else
 								co = makecol(0,0,0xff);
 							for (q=0;q<5;q++)
-								ellipsefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, 15, co);
+								circlefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, co);
 							for (q=0;q<5;q++)
-								ellipsefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, 15, 0);
+								circlefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, 0);
 							solid_mode();
 						}
 
@@ -11706,7 +11772,7 @@ public:
 				drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 				for (int i=50;i>0;i -= 5) {
 					set_trans_blender(0,0,0,50-i);
-					ellipsefill(drawbuf, plx + (int)fd.hero[o].x, ply + (int)fd.hero[o].y - 10, i, i, 0);
+					circlefill(drawbuf, plx + (int)fd.hero[o].x, ply + (int)fd.hero[o].y - 10, i, 0);
 				}
 				solid_mode();
 				set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
@@ -11731,7 +11797,7 @@ public:
 					else {
 						for (int e=0;e<3;e++) {
 							int rad = 4 + e + (int)(delta * 40);
-							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, rad, makecol(rand(),rand(),rand()));
+							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, makecol(rand(),rand(),rand()));
 						}
 					}
 				}
@@ -11744,7 +11810,7 @@ public:
 					else {
 						for (int e=0;e<2;e++) {
 							int rad = 4 + e + (int)(delta * 40);
-							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, rad, makecol(rand(),rand(),rand()));
+							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, makecol(rand(),rand(),rand()));
 						}
 					}
 				}
@@ -11757,7 +11823,7 @@ public:
 					else {
 						for (int e=0;e<3;e++) {
 							int rad = 4 + e + (int)(delta * 60);
-							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, rad, makecol(rand(),rand(),rand()));
+							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, makecol(rand(),rand(),rand()));
 						}
 					}
 				}
@@ -11775,7 +11841,7 @@ public:
 						double drad = (3.0 + 9.0 * (0.6 - delta));
 						int rad = (int)drad;
 						int subdist = (int)( (96.0 - drad * 8.0) );
-						ellipsefill(drawbuf, plx + cfx[i].x, ply + cfx[i].y - subdist, rad, rad, cfx[i].col1);
+						circlefill(drawbuf, plx + cfx[i].x, ply + cfx[i].y - subdist, rad, cfx[i].col1);
 						solid_mode();
 					}
 				}
@@ -11800,7 +11866,7 @@ public:
 								co = makecol(0,0,14+8*e);
 							else
 								co = makecol(14+8*e,0,0);
-							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y,   rad, rad, co);
+							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
 							//ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
 							//ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
 							rad++;
@@ -11811,9 +11877,9 @@ public:
 								co = makecol(0,0,255-14*e);
 							else
 								co = makecol(255-14*e,0,0);
-							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y,   rad, rad, co);
-							ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
-							ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
+							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
+							circle(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, co);
+							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, co);
 							rad++;
 						}
 						set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
@@ -11879,11 +11945,11 @@ public:
 						else {
 							//myself: draw differently
 							if ( (int(get_time() * 15)) % 3 > 0 ) {
-								ellipsefill(drawbuf, pix, piy, 2, 2, col[COLYELLOW]);
-								ellipsefill(drawbuf, pix, piy, 1, 1, teamlcol[i/TSIZE]);
+								circlefill(drawbuf, pix, piy, 2, col[COLYELLOW]);
+								circlefill(drawbuf, pix, piy, 1, teamlcol[i/TSIZE]);
 							}
 							else
-								ellipsefill(drawbuf, pix, piy, 2, 2, 0);
+								circlefill(drawbuf, pix, piy, 2, 0);
 						}
 					}
 
@@ -11993,6 +12059,12 @@ public:
 
 		//FPS
 		textprintf(drawbuf, font, plx+10, ply+plh-14, 0, "FPS:%3.0f", FPS);
+
+#ifdef CL_SHOW_TIME_LEFT
+		// Time left if time limit is on.
+		if (time_limit > 0)
+			textprintf(drawbuf, font, plx+10, ply+6, 0, "TIME: %3d:%02d", seconds / 60, seconds % 60);
+#endif
 
 		// QUAD DAMAGE
 		if (me >= 0) {
@@ -12136,7 +12208,7 @@ public:
 		if (talkbuffer[0] != 0) {
 
 			static char themsg[128];
-			sprintf(themsg, "say: %s_", talkbuffer);
+			sprintf(themsg, "Say: %s_", talkbuffer);
 
 			//nice border
 			textprintf(drawbuf, font, +1+3, +0+3+top*11, 0, themsg);
@@ -12357,7 +12429,7 @@ public:
 		textprintf(drawbuf, font, x+100, y+100, col[COLWHITE], "Outgun : HELP      --> Press ESC or F1 to go back. <--");
 
 		textprintf(drawbuf, font, x+100, y+120, col[COLWHITE], "For more information access Outgun's website at:");
-		textprintf(drawbuf, font, x+100, y+130, col[COLGREEN], "                http://www.inf.ufrgs.br/~fcecin/outgun");
+		textprintf(drawbuf, font, x+100, y+130, col[COLGREEN], "                http://www.amok.com.br/outgun/en/");
 
 #ifndef NO_BOTS
 
@@ -12382,7 +12454,7 @@ public:
 
 		textprintf(drawbuf, font, x+100, y+260, col[COLWHITE], "GAME CONCEPT: You are a member of a team, either RED or BLUE,");
 		textprintf(drawbuf, font, x+100, y+270, col[COLWHITE], " assigned to you at random when you connect. Your goal is to");
-		textprintf(drawbuf, font, x+100, y+280, col[COLWHITE], " help your team to win, by capturing eight (8) times the ememy");
+		textprintf(drawbuf, font, x+100, y+280, col[COLWHITE], " help your team to win, by capturing 8 (default) times the ememy");
 		textprintf(drawbuf, font, x+100, y+290, col[COLWHITE], " flag. To capture the flag, a member of your team must steal");
 		textprintf(drawbuf, font, x+100, y+300, col[COLWHITE], " the enemy flag and bring it to your team's flag, provided your");
 		textprintf(drawbuf, font, x+100, y+310, col[COLWHITE], " flag has not been stolen already! Capiche?");
@@ -13881,7 +13953,7 @@ public:
 
 		// find top
 		int top = 0;
-		if (strlen(msg) == 0)
+		if (msg[0] == '\0')
 			top = CHAT_SIZE;
 		else {
 			for (int i=0;i<CHAT_SIZE;i++)
@@ -13900,7 +13972,7 @@ public:
 		strcpy(chatbuffer[top], msg);
 
 		// print message to log, if it is not empty
-		if (strlen(msg) != 0) {
+		if (msg[0] != '\0') {
 			// date and time
 			time_t tt = time(0);
 			struct tm* tmb = localtime(&tt);
@@ -14213,7 +14285,7 @@ public:
 		int f = 0;	//favorites entry
 		int minf = m;		//first favorites entry
 		while ((m < MAX_GAMESPY) && (f < MAX_GAMESPY)) {		//slot in master list
-			if (strlen(gamespy[f].address) > 0) {
+			if (gamespy[f].address[0] != '\0') {
 
 				//scan for duplicate: then ignore
 				bool dup = false;
@@ -14680,18 +14752,17 @@ public:
 						if (sc == KEY_F1)
 							toggle_help();
 
-						//xuta cor
+						//change colours
 						if (sc == KEY_HOME) {
-							if (key[KEY_LCONTROL]) {
+							if (key[KEY_LCONTROL] || key[KEY_RCONTROL]) {
 								col[COLGROUND] = makecol(0x10, 0x40, 0);
 								col[COLWALL] = makecol(0x30, 0xC0, 0);
 
 								//col[COLGREEN] = makecol(0,0xff,0);
 							}
 							else {
-
-								col[COLGROUND] = makecol(rand(),rand(),rand());
-								col[COLWALL] = makecol(rand(),rand(),rand());
+								col[COLGROUND] = makecol(rand() % 256, rand() % 256, rand() % 256);
+								col[COLWALL] = makecol(rand() % 256, rand() % 256, rand() % 256);
 
 								/*
 								int r,g,b;
@@ -14772,23 +14843,19 @@ public:
 						else if (sc == KEY_F11) {
 							save_screenshot();
 						}
-						//del key: delete
-						else if (sc == KEY_DEL) {
-							talkbuffer[0]=0;
-						}
 						//backspace erase one
 						else if (sc == KEY_BACKSPACE) {
 							if (i>0) talkbuffer[i-1] = 0;
 						}
 						//enter key: submit text
-						else if (sc == KEY_ENTER) {
+						else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
 							if (i > 0) {
 								send_chat(talkbuffer);
 								talkbuffer[0]=0;
 							}
 						}
 						//else text add keys. max text length = 60
-						else if ((i < 60) && (ch >= 32) && (ch <= 127)) {
+						else if (i < 60 && ch >= 32) {
 							talkbuffer[i] = (char)ch;
 							talkbuffer[i+1] = 0;
 						}
@@ -14800,9 +14867,8 @@ public:
 				if (key[KEY_ESC]) {
 					if (!kesc) {
 						kesc = true;
-						if (strlen(talkbuffer) > 0) { // cancel chat
-							talkbuffer[0]=0;
-						}
+						if (talkbuffer[0] != '\0') // cancel chat
+							talkbuffer[0] = '\0';
 						else if (trying_connection) {		//trying connection
 							trying_connection = false;	//not anymore
 
@@ -14950,7 +15016,7 @@ public:
 				fprintf(cfg, "NO_SFX_THEME_DIR\n");
 
 			//v0.4.7: empty name?
-			if (strlen(playername) > 0)
+			if (playername[0] != '\0')
 				fprintf(cfg, "%s\n", playername);
 			else
 				fprintf(cfg, "Unnamed_Bastard\n");
@@ -15391,6 +15457,9 @@ int main(int argc, char *argv[]) {
 	gameserver = 0;
 
 	//LOG_OPEN("outgun.log");
+
+	// Set the text encoding format for Allegro as 8 bit Ascii
+	set_uformat(U_ASCII);
 
 	allegro_init();
 	install_keyboard();
