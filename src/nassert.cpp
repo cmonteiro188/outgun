@@ -5,6 +5,12 @@
 #include <cstdlib>	// exit
 #include <ctime>
 
+void stackDump(FILE* dst) {	// makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
+	unsigned long unused;
+	for (unsigned long* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr)
+		fprintf(dst, "%p %08lX\n", stackPtr, *stackPtr);
+}
+
 void nasprintf(const char* expr, ...) {
 	va_list argptr;
 	va_start(argptr, expr);
@@ -18,6 +24,9 @@ void nasprintf(const char* expr, ...) {
 		va_start(argptr, expr);
 		vfprintf(asfile, expr, argptr);
 		va_end(argptr);
+		fprintf(asfile, "Stack dump:\n");
+		stackDump(asfile);
+		fprintf(asfile, "\n\n");
 		fclose(asfile);
 	}
 }

@@ -69,6 +69,8 @@ bool set_shitty_mode(LogSet log) {
 }
 
 int main(int argc, char *argv[]) {
+	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
+
 	FileLog logFile("log.txt", true);
 	LogSet log(&logFile, &logFile, &logFile);
 
