@@ -1,13 +1,13 @@
 ;
 ; tetris.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 4
 P height 4
-P title Tetris, by JR Oja
+P title Tetris, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 0 0 0.5 0.5

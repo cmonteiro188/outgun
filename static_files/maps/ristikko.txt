@@ -1,13 +1,13 @@
 ;
 ; ristikko.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 3
 P height 3
-P title Ristikko, by JR Oja
+P title Ristikko, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 1 1 0.25 0.25

@@ -3,6 +3,9 @@
 ;
 ; By Flyer-DH
 ; Colaboração JoL-PHIN
+;
+; "X cl 0 0 0 6" fixed by Nix
+
 
 V 1
 P width 6
@@ -31,7 +34,7 @@ spawn 1 5 5 0.6 0.4
 
 X def 0 0 5 5
 
-X cl 0 0 0 6
+X cl 0 0 0 5
 X cl 1 2  
 X cl 2 5 
 X cl 3 3

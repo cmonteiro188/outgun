@@ -1,13 +1,13 @@
 ;
 ; siksak.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 6
 P height 5
-P title Siksak, by JR Oja 2003
+P title Siksak, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 0 2 0.5 0.5

@@ -1,13 +1,13 @@
 ;
 ; kierto.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 5
 P height 5
-P title Kierto, by JR Oja
+P title Kierto, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 1 1 0.5 0.5

@@ -1,13 +1,13 @@
 ;
 ; palikka.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 5
 P height 5
-P title Palikka, by JR Oja
+P title Palikka, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 2 0 0.5 0.5

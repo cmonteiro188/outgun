@@ -1,13 +1,13 @@
 ;
 ; seina.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 4
 P height 5
-P title Seina, by JR Oja
+P title Seina, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 1 2 0.5 0.5

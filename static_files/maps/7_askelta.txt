@@ -1,13 +1,13 @@
 ;
 ; 7_askelta.txt
 ;
-; By JR Oja
+; By Huntta (aka JR Oja)
 ;
 
 V 1
 P width 4
 P height 4
-P title 7 askelta, by JR Oja
+P title 7 askelta, by Huntta 2003
 
 ; punainen lippu ja syntymäpaikat
 flag  0 1 1 0.5 0.5
