@@ -1672,6 +1672,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readFloat(msg, count, aflo);
 				svp_flag_penalty = aflo;
 
+				// room is probably changed
+				fx.player[me].oldx = -1;
+				fx.player[me].oldy = -1;
+
 				//update scoreboard!
 				update_scoreboard();
 
@@ -1838,6 +1842,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 				for (int iid=0; iid<MAX_PICKUPS; ++iid)
 					fx.item[iid].kind = 0;
+				fx.player[me].oldx = -1;
+				fx.player[me].oldy = -1;
 				break;
 
 			//server shows gameover plaque
@@ -1850,6 +1856,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(lebuf, count, abyte);  //BLUE team final score
 					blue_final_score = abyte;
 				}
+				else
+					gameover_plaque = NEXTMAP_NONE;
 				break;
 
 			//server hides gameover plaque
@@ -1973,6 +1981,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		//set new old's
 		fx.player[me].oldx = fx.player[me].roomx;
 		fx.player[me].oldy = fx.player[me].roomy;
+
+		// predraw new room
+		client_graphics.predraw_room(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
 	}
 
 	//this is a HACK:
@@ -3149,8 +3160,7 @@ void gameclient_c::draw_game_frame() {
 				client_graphics.draw_flagpos_mark(team, fx.map.tinfo[team].flag.x, fx.map.tinfo[team].flag.y);
 
 		// map walls
-		if (fx.player[me].roomx >= 0 && fx.player[me].roomy >= 0 && fx.player[me].roomx < fx.map.w && fx.player[me].roomy < fx.map.h)
-			client_graphics.draw_walls(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+		client_graphics.draw_room();
 	}
 
 	// frame is valid?

@@ -29,13 +29,16 @@ class gamespy_t;
 class clientfx_t;
 
 class Graphics {
-	BITMAP* drawbuf;
-	BITMAP* minibg;
+	BITMAP* drawbuf;	// main draw buffer
+	BITMAP* minibg;		// minimap draw buffer
 	//int plw, plh;
 	//int plx, ply;
 	int minimap_w, minimap_h;
 	int minimap_place_w, minimap_place_h;
 	int minimap_start_x, minimap_start_y;
+
+	BITMAP* roombg;		// room background draw buffer
+	int transparent;
 
 	BITMAP* flagpos_buf[2];
 	static const int flagpos_radius = 30;
@@ -104,7 +107,7 @@ class Graphics {
 	int	col[NUM_OF_COL];
 
 	void build_flagpos_marks();
-	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple);
+	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
 
 	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
 	void menu_caption();
@@ -138,7 +141,8 @@ public:
 	void draw_playground();
 	void draw_empty_playground();
 
-	void draw_walls(const Room& room);
+	void predraw_room(const Room& room);
+	void draw_room();
 
 	void draw_flag(int team, int x, int y);
 	void draw_flagpos_mark(int team, int flag_x, int flag_y);
@@ -224,6 +228,8 @@ public:
 	void game_help();
 	void show_progress(const std::string& t1, const std::string& t2, const std::string& t3, int fg = -1, int bg = 0);
 	void dialog(const std::string& t1, const std::string& t2);
+	
+	bool save_map_picture(const string& filename, const Map& map);
 };
 
 #endif // GRAPHICS_H_INC

@@ -1,6 +1,7 @@
 #include "commont.h"
 #include "server.h"
 #include "client.h"
+#include "mappic.h"
 
 void increment_time_counter() {
 	time_counter++;
@@ -99,7 +100,7 @@ int main(int argc, char *argv[]) {
 	append_filename(lognamebuf, wheregamedir, "outgun.log", WHERE_PATH_SIZE);
 	LOG_OPEN(lognamebuf);
 
-	LOG3("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
+	LOG3("OUTGUN LOG FILE. STRING %s PROTOCOL %s VERSION %s\n", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
 	if (nlInit() == NL_FALSE) {
 		LOG("ERROR: cannot init HawkNL!\n");
@@ -182,6 +183,10 @@ int main(int argc, char *argv[]) {
 		}
 		else if (!strcmp(argv[i], "-log"))
 			message_logging = true;
+		else if (!strcmp(argv[i], "-mappic")) {
+			Mappic mappic;
+			mappic.run();
+		}
 		else
 			LOG2("WARNING: command-line argument #%i is unknown ('%s')\n", i, argv[i]);
 	}
@@ -285,7 +290,7 @@ int main(int argc, char *argv[]) {
 			LOG1("\nNEW PRIORITY VALUE SET FOR DEDICATED SERVER: %i\n", ptarg);
 		}
 		else
-			LOG("\n-defaultprio: Leaving thread priorities on their default values");
+			LOG("\n-defaultprio: Leaving thread priorities on their default values\n");
 
 		// log
 		LOG_CLOSE();
@@ -298,16 +303,16 @@ int main(int argc, char *argv[]) {
 		//
 		if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) // allow running in the background
 		{
-			LOG("can't set SWITCH_BACKAMNESIA for SERVER");
+			LOG("can't set SWITCH_BACKAMNESIA for SERVER\n");
 			if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) {
 				LOG("ERROR: server window cannot run in the background!\n");
 				return 0;
 			}
 			else
-				LOG("set SWITCH_BACKGROUND for SERVER");
+				LOG("set SWITCH_BACKGROUND for SERVER\n");
 		}
 		else
-			LOG("set SWITCH_BACKAMNESIA for SERVER");
+			LOG("set SWITCH_BACKAMNESIA for SERVER\n");
 
 		// run server
 		//

@@ -20,7 +20,7 @@ else
  endif
 endif
 
-OBJS = world.o servnet.o server.o graphics.o commont.o client.o main.o names.o nameauth.o sounds.o nassert.o
+OBJS = world.o servnet.o server.o graphics.o commont.o client.o main.o names.o nameauth.o sounds.o mappic.o nassert.o
 MON_OBJS = srvmonit.o nassert.o
 
 ifdef MINGW
@@ -51,7 +51,7 @@ admshell_inc =	admshell.h
 client_inc =	client.h	$(graphics_inc)	$(sounds_inc)	$(world_inc)
 commont_inc =	commont.h
 effects_inc =	effects.h
-graphics_inc =	graphics.h	$(world_inc)	$(effects_inc)	$(sounds_inc)
+graphics_inc =	graphics.h
 nameauth_inc =	nameauth.h
 names_inc =	names.h
 nassert_inc =	nassert.h
@@ -59,6 +59,7 @@ server_inc =	server.h	$(nameauth_inc)	$(world_inc)	$(servnet_inc)
 servnet_inc =	servnet.h
 sounds_inc =	sounds.h	$(commont_inc)
 world_inc =	world.h 	$(nassert_inc)
+mappic_inc =	mappic.h
 
 OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
@@ -83,6 +84,8 @@ servnet.o:	servnet.cpp	$(commont_inc)	$(server_inc)	$(admshell_inc)	$(servnet_in
 sounds.o:	sounds.cpp	$(sounds_inc)
 	$(OBJCOMPILE)
 world.o:	world.cpp	$(commont_inc)	$(world_inc) 	$(server_inc)	$(client_inc)	$(nassert_inc)
+	$(OBJCOMPILE)
+mappic.o:	mappic.cpp	$(mappic_inc)	$(commont_inc)	$(world_inc)	$(graphics_inc)
 	$(OBJCOMPILE)
 
 srvmonit.o:	srvmonit.cpp	$(admshell_inc)	$(nassert_inc)

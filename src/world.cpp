@@ -157,7 +157,7 @@ void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) 
 	clear_to_color(cbuff, transparent);
 	circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ro), color);
 	if (ri > 0)						// ring
-		circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ri), transparent);
+		circlefill(cbuff, int(scale * ro), int(scale * ro), int(scale * ri) - 1, transparent);
 	if (angle[0] != angle[1]) {		// sector
 		const double x[] = { va1.first, va2.first };
 		const double y[] = { va1.second, va2.second };
@@ -178,7 +178,7 @@ void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) 
 		rotate_angle(ang1, 90);
 		rotate_angle(ang2, 90);
 		if (ang1 >= 90 && (ang1 < ang2 || ang2 == 0))	// quarter 4
-			rectfill(cbuff, int(scale * ro), int(scale * ro + 0.5), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
+			rectfill(cbuff, int(scale * ro), int(scale * ro), int(scale * 2 * ro), int(scale * 2 * ro), transparent);
 		// remove the rest unnecessary sectors of the circle
 		const float k = 1.5;
 		float diff = angle[1] - angle[0];
@@ -219,16 +219,15 @@ void CircWall::draw(BITMAP* buffer, float x0, float y0, float scale, int color) 
 			}
 		}
 		// draw back removed lines at n·90°
-		const int corr = (ri == 0 ? 0 : 1);		// pixel correction when ri > 0
 		for (int i = 0; i < 2; i++) {
 			if (angle[i] == 0)
-				vline(cbuff, int(scale * ro), int(scale * (ro - ri)) - corr, 0, color);
+				vline(cbuff, int(scale * ro), int(scale * (ro - ri)), 0, color);
 			else if (angle[i] == 90)
-				hline(cbuff, int(scale * (ro + ri)) + corr, int(scale * ro), int(scale * 2 * ro), color);
+				hline(cbuff, int(scale * (ro + ri)), int(scale * ro), int(scale * 2 * ro), color);
 			else if (angle[i] == 180)
-				vline(cbuff, int(scale * ro), int(scale * (ro + ri)) + corr, int(scale * 2 * ro), color);
+				vline(cbuff, int(scale * ro), int(scale * (ro + ri)), int(scale * 2 * ro), color);
 			else if (angle[i] == 270)
-				hline(cbuff, int(scale * (ro - ri)) - corr, int(scale * ro), 0, color);
+				hline(cbuff, int(scale * (ro - ri)), int(scale * ro), 0, color);
 		}
 	}
 	masked_blit(cbuff, buffer, 0, 0, int(x0 + scale * (x - ro)), int(y0 + scale * (y - ro)), cbuff->w, cbuff->h);

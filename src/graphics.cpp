@@ -44,7 +44,10 @@ using std::list;
 Graphics::Graphics(int scr_w, int scr_h):
 	minimap_start_x(0),
 	minimap_start_y(0),
-	flagpos_ready(false)
+	flagpos_ready(false),
+	vidpage1(0),
+	vidpage2(0),
+	backbuf(0)
 {
 	reset_video_mode();
 	flagpos_buf[0] = 0;
@@ -53,12 +56,15 @@ Graphics::Graphics(int scr_w, int scr_h):
 	minimap_w = minimap_place_w = 160;
 	minimap_h = minimap_place_h = 100;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
+	roombg = create_bitmap(plw, plh);
+	transparent = bitmap_mask_color(roombg);
 	setcolors();
 }
 
 Graphics::~Graphics() {
 	destroy_bitmap(drawbuf);
 	destroy_bitmap(minibg);
+	destroy_bitmap(roombg);
 	destroy_bitmap(flagpos_buf[0]);
 	destroy_bitmap(flagpos_buf[1]);
 }
@@ -339,7 +345,7 @@ void Graphics::update_minimap_background(const Map& map) {
 	update_minimap_background(minibg, map, false);
 }
 
-void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple) {
+void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic) {
 	//black background
 	clear_to_color(buffer, col[COLSHADOW]);
 
@@ -429,8 +435,19 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 		}
 		floodfill(buffer, blue_px, blue_py, col[COLBBLUE]);
 	}
-	circle(buffer,  red_px,  red_py, 3, col[COLRED ]);
-	circle(buffer, blue_px, blue_py, 3, col[COLBLUE]);
+	if (save_map_pic) {
+		//const int scale =
+		//draw flagpoles
+		rectfill(buffer,  red_px,  red_py - 5,  red_px,  red_py, col[COLYELLOW]);
+		rectfill(buffer, blue_px, blue_py - 5, blue_px, blue_py, col[COLYELLOW]);
+		//draw the flags
+		rectfill(buffer,  red_px + 1,  red_py - 5,  red_px + 5,  red_py - 2, teamcol[0]);
+		rectfill(buffer, blue_px + 1, blue_py - 5, blue_px + 5, blue_py - 2, teamcol[1]);
+	}
+	else {
+		circle(buffer,  red_px,  red_py, 3, col[COLRED ]);
+		circle(buffer, blue_px, blue_py, 3, col[COLBLUE]);
+	}
 }
 
 //draws a basic player object
@@ -634,10 +651,13 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 	set_clip(drawbuf, 0, 0, drawbuf->w, drawbuf->h);
 }
 
-void Graphics::draw_walls(const Room& room) {
-	set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
-	room.draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
-	set_clip(drawbuf, 0, 0, drawbuf->w, drawbuf->h);
+void Graphics::predraw_room(const Room& room) {
+	clear_to_color(roombg, transparent);
+	room.draw(roombg, 0, 0, 1., 1., col[COLWALL]);
+}
+
+void Graphics::draw_room() {
+	masked_blit(roombg, drawbuf, 0, 0, plx, ply, roombg->w, roombg->h);
 }
 
 void Graphics::draw_pup(const pickup_c& pup, double time) {
@@ -861,9 +881,11 @@ void Graphics::draw_change_map_message(double time) {
 
 void Graphics::draw_player_health(int health) {
 	// health value
-	textprintf_ex(drawbuf, font, 10, ply + plh + 5, col[COLWHITE], -1, "Health: %4i", health);
+	textprintf_ex(drawbuf, font, 10, ply + plh + 5, col[COLWHITE], -1, "Health: %5i", health);
 	// health bar
 	rectfill(drawbuf, 10, ply + plh + 18, 10 + 100, ply + plh + 18 + 10, col[COLNOLIFE]);
+	if (health == 0)
+		return;
 	// health 0...100
 	int targ = min(health, 100);
 	rectfill(drawbuf, 10, ply + plh + 18, 10 + targ, ply + plh + 18 + 10, col[COLRED]);
@@ -879,9 +901,11 @@ void Graphics::draw_player_health(int health) {
 
 void Graphics::draw_player_energy(int energy) {
 	// energy value
-	textprintf_ex(drawbuf, font, 10 + 14 * 8, ply + plh + 5, col[COLWHITE], -1, "Energy: %4i", energy);
+	textprintf_ex(drawbuf, font, 10 + 14 * 8, ply + plh + 5, col[COLWHITE], -1, "Energy: %5i", energy);
 	// energy bar
 	rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + 100, ply + plh + 18 + 10, col[COLNOLIFE]);
+	if (energy == 0)
+		return;
 	//barra azul 0..100
 	int targ = min(energy, 100);
 	rectfill(drawbuf, 10 + 14 * 8, ply + plh + 18, 10 + 14 * 8 + targ, ply + plh + 18 + 10, col[COLBLUE]);
@@ -1431,5 +1455,20 @@ void Graphics::draw_speedfx(int room_x, int room_y, double time) {
 				}
 			}
 		}
+}
+
+bool Graphics::save_map_picture(const string& filename, const Map& map) {
+	const int old_minimap_p_w = minimap_place_w;
+	const int old_minimap_p_h = minimap_place_h;
+	minimap_place_w *= 2;
+	minimap_place_h *= 2;
+	BITMAP* buffer = create_bitmap(minimap_place_w, minimap_place_h);
+	update_minimap_background(buffer, map, false, true);
+	BITMAP* clip = create_sub_bitmap(buffer, minimap_start_x, minimap_start_y, minimap_w, minimap_h);
+	PALETTE pal;
+	get_palette(pal);
+	minimap_place_w = old_minimap_p_w;
+	minimap_place_h = old_minimap_p_h;
+	return !save_bitmap(filename.c_str(), clip, pal);
 }
 

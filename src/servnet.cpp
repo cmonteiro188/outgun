@@ -899,6 +899,8 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					world.player[pid].want_change_teams = true;
 					//network.broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], world.player[pid].name.c_str());
 					host->check_team_changes();
+					pid = ctop[id];
+					h = &world.player[pid];
 				}
 			}
 			// want changeteams off
@@ -2331,6 +2333,7 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	upt << world.frame / 10;
 	parameters["uptime"] = upt.str();
 	parameters["map"] = host->current_map().title;
+	parameters["mapfile"] = host->getCurrentMapFile();
 	parameters["info"] = "Test server";
 	return parameters;
 }
