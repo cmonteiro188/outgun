@@ -86,6 +86,11 @@ int main(int argc, char *argv[]) {
 	install_keyboard();
 	install_timer();
 
+	// Check what the directory separator is.
+	char stuff[2] = { 0 };
+	put_backslash(stuff);
+	directory_separator = stuff[0];
+
 	// find out where we are
 	//
 	char *exespec = new char[2048];
@@ -186,6 +191,8 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp(argv[i], "-mappic")) {
 			Mappic mappic;
 			mappic.run();
+			allegro_message("Saved map pictures to screens directory.");
+			return 0;
 		}
 		else
 			LOG2("WARNING: command-line argument #%i is unknown ('%s')\n", i, argv[i]);

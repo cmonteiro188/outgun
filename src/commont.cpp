@@ -31,6 +31,8 @@ const char* strspnp(const char* str, const char* charset) {
 	return strspnp(const_cast<char*>(str), charset);
 }
 
+char directory_separator;
+
 FILE *game_log;
 NLaddress		master_address;
 char wheregamedir[WHERE_PATH_SIZE];

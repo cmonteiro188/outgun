@@ -164,42 +164,37 @@ bool gameclient_c::start() {
 	append_filename(dest, wheregamedir, "clconfig.txt", WHERE_PATH_SIZE);
 	LOG1("dest for clconfig.txt = %s\n", dest);
 
-	FILE *cfg = fopen(dest, "r");
+	ifstream cfg(dest);
 	if (cfg) {
-		char lebuf[4096];
-
-		//read starting directory name
-		char sfxthemedir[256];
-		sfxthemedir[0]=0;
-		if (fgets(sfxthemedir, 256, cfg)) { // load sucessful
-			//ok
-			sfxthemedir[strlen(sfxthemedir) - 1] = 0;
-			client_sounds.set_themedir(sfxthemedir);
-			LOG1("sfxthemedir default = %s\n", client_sounds.theme_dir().c_str());
+		string dir;
+		//read sound theme directory name
+		if (getline(cfg, dir)) {
+			client_sounds.set_themedir(dir);
+			LOG1("Sound theme directory default = %s\n", dir.c_str());
 		}
 
-		//read name
-		if (fscanf(cfg, "%s", lebuf) == 1) { //if load sucessful
-			lebuf[15]=0;		// max needed for name=15!
+		//read graphics theme directory name
+		if (getline(cfg, dir)) {
+			//client_graphics.set_themedir(dir);
+			LOG1("Graphics theme directory default = %s\n", dir.c_str());
+		}
 
-			//if not an asterisk, load name
-			if (strcmp(lebuf, "*"))	{
-				randomname=false;
-				strcpy(playername, lebuf);
-			}
+		//read player name
+		string name;
+		if (getline(cfg, name)) {
+			randomname = false;
+			strncpy(playername, name.c_str(), 15);
 		}
 
 		//read addresses
-		for (int i=0;i<MAX_GAMESPY;i++) {
-
-			if (fscanf(cfg, "%s", lebuf) == 1) {
-				lebuf[21]=0;		// max needed for IP=15!
-				strcpy(gamespy[i].address, lebuf);
-				strcpy(mgamespy[i].address, lebuf); //copy to master list too!
+		for (int i = 0; i < MAX_GAMESPY; i++) {
+			string address;
+			if (getline(cfg, address)) {
+				strncpy(gamespy[i].address, address.c_str(), 127);
+				strncpy(mgamespy[i].address, address.c_str(), 127); //copy to master list too!
 			}
 		}
-
-		fclose(cfg);
+		cfg.close();
 	}
 
 	//give a random name
@@ -209,6 +204,7 @@ bool gameclient_c::start() {
 	}
 
 	client_sounds.search_themes();
+	client_graphics.search_themes();
 
 	//refresh master!
 	get_servers_from_master();
@@ -2049,13 +2045,11 @@ void gameclient_c::save_screenshot() {
 	// FIXME: make screenshots possible everywhere in the game
 	string filename;
 	for (int i = 0; i < 1000; i++) {
+		// filename: screens/outgxxx.pcx
 		ostringstream fname;
-		fname << "screens";
-		char a[2] = { 0 };
-		put_backslash(a);
-		fname << a;
+		fname << "screens" << directory_separator;
 		fname << "outg" << setfill('0') << setw(3) << i << ".pcx";
-		if (!file_exists(fname.str().c_str(), FA_ARCH|FA_DIREC|FA_HIDDEN|FA_RDONLY|FA_SYSTEM, 0)) {
+		if (!file_exists(fname.str().c_str(), FA_ARCH | FA_DIREC | FA_HIDDEN | FA_RDONLY | FA_SYSTEM, 0)) {
 			filename = fname.str();
 			break;
 		}
@@ -2496,27 +2490,31 @@ void gameclient_c::loop() {
 							change_name_command();
 						}
 						switch (ch) {
-						case '1': set_menu(1); break;
-						case '2': disconnect_command(); break;
-						case '3':
-							strcpy(editplayername, playername);
-							strcpy(editplayerpass, player_password);
-							strcpy(namecursor, "_");
-							strcpy(passcursor, "");
-							set_menu(3);
-							break;
-						case '4': // start/stop listenserver
-							if (listen_server_running)
-								listen_stop();
-							else
-								listen_start();
-							break;
-						case '5':
-							winclient = !winclient;
-							client_graphics.reset_video_mode();
-							break;
-						case '6': client_sounds.next_sfx_theme(); break;
-						default:;
+							case '1': set_menu(1); break;
+							case '2': disconnect_command(); break;
+							case '3':
+								strcpy(editplayername, playername);
+								strcpy(editplayerpass, player_password);
+								strcpy(namecursor, "_");
+								strcpy(passcursor, "");
+								set_menu(3);
+								break;
+							case '4': // start/stop listenserver
+								if (listen_server_running)
+									listen_stop();
+								else
+									listen_start();
+								break;
+							case '5':
+								winclient = !winclient;
+								client_graphics.reset_video_mode();
+								break;
+							case '6': client_sounds.next_sfx_theme(); break;
+							case '7':
+								client_graphics.next_theme();
+								predraw();
+								break;
+							default:;
 						}
 						break;
 					//connect screen
@@ -2975,26 +2973,27 @@ void gameclient_c::stop() {
 	append_filename(dest, wheregamedir, "clconfig.txt", WHERE_PATH_SIZE);
 	LOG1("dest for clconfig.txt OUT = %s\n", dest);
 
-	FILE *cfg = fopen(dest, "w");
+	ofstream cfg(dest);
 	if (cfg) {
-
-		//0.4.7: no theme dir?
-		if (client_sounds.valid())
-			fprintf(cfg, "%s\n", client_sounds.theme_dir().c_str());
+		if (client_sounds.no_sounds())
+			cfg << "-\n";
 		else
-			fprintf(cfg, "NO_SFX_THEME_DIR\n");
+			cfg << client_sounds.theme_dir() << '\n';
+		if (client_graphics.basic())
+			cfg << "-\n";
+		else
+			cfg << client_graphics.theme_dir() << '\n';
 
-		//v0.4.7: empty name?
 		if (playername[0] != '\0')
-			fprintf(cfg, "%s\n", playername);
+			cfg << playername << '\n';
 		else
-			fprintf(cfg, "Unnamed_Bastard\n");
+			cfg << "Unnamed_Bastard\n";
 
-		for (int i=0;i<MAX_GAMESPY;i++) {
-			LOG1("SAVING GAMESPY ADDRESS = '%s'\n", gamespy[i].address);
-			fprintf(cfg, "%s\n", gamespy[i].address);
+		for (int i = 0; i < MAX_GAMESPY; i++) {
+			LOG1("Saving gamespy address = '%s'\n", gamespy[i].address);
+			cfg << gamespy[i].address << '\n';
 		}
-		fclose(cfg);
+		cfg.close();
 	}
 
 	//save client's password
@@ -3151,6 +3150,7 @@ void gameclient_c::predraw() {
 	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
 		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.h)
 			client_graphics.predraw_room(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
+	client_graphics.draw_minimap_background();
 }
 
 //draw the whole game screen
@@ -3162,16 +3162,13 @@ void gameclient_c::draw_game_frame() {
 	//lock frame mutex
 	pthread_mutex_lock( &frame_mutex );
 
-	// game screen background
-	client_graphics.draw_background();
-
 	// hiding stuff?
 	// v0.4.1 : hide stuff if frame skipped
 	bool hide_game = !map_ready || gameover_plaque!=NEXTMAP_NONE || fx.skipped || me<0 || me>maxplayers;
 
 	// the playground: border, walls and pits
 	if (hide_game) {
-		client_graphics.draw_empty_playground();
+		client_graphics.draw_empty_background();
 
 		// game over message
 		if ((gameover_plaque == NEXTMAP_CAPTURE_LIMIT) || (gameover_plaque == NEXTMAP_VOTE_EXIT)) {
@@ -3193,7 +3190,7 @@ void gameclient_c::draw_game_frame() {
 		}
 	}
 	else
-		client_graphics.draw_room();
+		client_graphics.draw_background();
 
 	// frame is valid?
 	if (!hide_game)		// do not draw if map not set yet
@@ -3355,7 +3352,7 @@ void gameclient_c::draw_game_frame() {
 	//do not draw stuff below if map not ready to show
 	if (!hide_game) {
 		// the MINIMAP
-		client_graphics.draw_minimap_background();
+		//client_graphics.draw_minimap_background();
 
 		//draw the miniflags
 		// - qualquer flag no chao (na base ou nao, carried == false)

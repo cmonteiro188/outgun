@@ -3,7 +3,8 @@
 using std::string;
 
 Sounds::Sounds():
-	validtheme(false)
+	validtheme(false),
+	no_theme(false)
 {
 	//no samples loaded -- important so unload_samples don't crash
 	for (int i = 0; i < NUM_OF_SAMPLES; i++)
@@ -66,6 +67,11 @@ void Sounds::next_sfx_theme() {
 				validtheme = false;
 				return;
 			}
+			no_theme = !no_theme;
+			if (no_theme) {
+				unload_samples();
+				return;
+			}
 			round1 = false;
 			make_sfx_theme_path(themepath, "*.*");
 			result = al_findfirst(themepath, &sfxthemeffblk, FA_DIREC|FA_ARCH|FA_RDONLY);
@@ -99,7 +105,6 @@ void Sounds::make_sfx_theme_path(char* themepath, const char* themedir) {
 void Sounds::set_theme_dir(char *dirname) {
 
 	if (dirname)
-		//strcpy(sfxthemedir, dirname);
 		sfxthemedir = dirname;
 
 	validtheme = true;
@@ -242,8 +247,10 @@ void Sounds::unload_samples() {
 	if (!sound_inited)
 		return;
 	for (int i = 0; i < NUM_OF_SAMPLES; i++)
-		if (sample[i])
+		if (sample[i]) {
 			destroy_sample(sample[i]);
+			sample[i] = 0;
+		}
 }
 
 //play sample
@@ -257,5 +264,7 @@ void Sounds::play(int s) const {
 
 void Sounds::set_themedir(const string& dir) {
 	sfxthemedir = dir;
+	if (dir == "-")
+		no_theme = true;
 }
 

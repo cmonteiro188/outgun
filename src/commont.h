@@ -33,10 +33,6 @@ using namespace std;
 #include "leetnet/log.h"
 extern FILE *game_log;
 
-#if defined ALLEGRO_WINDOWS || WIN32 || WIN64
-//#include <conio.h>
-#endif
-
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
 
 class ClientControls {
@@ -129,6 +125,8 @@ extern NLaddress        master_address;
 //directories for save/load maps
 #define SERVER_MAPS_DIR "maps"
 #define CLIENT_MAPS_DIR "cmaps"
+
+extern char directory_separator;
 
 //root path (game executable path)
 #define WHERE_PATH_SIZE 256

@@ -54,13 +54,12 @@ public:
 	void load_floor_texture(const std::string& filename);
 	void load_wall_texture(const std::string& filename);
 
-	void draw_background();
-
 	void draw_playground();
-	void draw_empty_playground();
+
+	void draw_background();
+	void draw_empty_background();
 
 	void predraw_room(const Room& room);
-	void draw_room();
 
 	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
 	void draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, bool texture);
@@ -154,8 +153,31 @@ public:
 	
 	bool save_map_picture(const string& filename, const Map& map);
 
+	void search_themes();
+	void next_theme();
+	void set_themedir(const std::string& dir);
+	const std::string& theme_dir() const { return themedir; }
+	bool basic() const { return no_theme; }
+
 private:
+	void build_flagpos_marks();
+	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
+
+	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
+	void menu_caption();
+
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+
+	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
+
+	void make_theme_path(char* theme_path, const std::string& theme_dir);
+	void set_theme_dir(const string& dirname);
+	void load_pictures();
+	void unload_pictures();
+
 	BITMAP* drawbuf;	// main draw buffer
+	BITMAP* background;	// draw buffer for floor, walls and minimap
 	BITMAP* minibg;		// minimap draw buffer
 	//int plw, plh;
 	//int plx, ply;
@@ -163,7 +185,7 @@ private:
 	int minimap_place_w, minimap_place_h;
 	int minimap_start_x, minimap_start_y;
 
-	BITMAP* roombg;		// room background draw buffer
+	BITMAP* roombg;		// room background sub-bitmap
 
 	BITMAP* flagpos_buf[2];
 	static const int flagpos_radius = 30;
@@ -179,6 +201,12 @@ private:
 	bool page_flipping;
 
     std::list<clientfx_t> cfx;
+
+    std::string themedir;
+    std::string theme_name;
+    al_ffblk themeffblk;	// for al_find*
+    bool valid_theme;		// if theme_dir points to valid dir
+    bool no_theme;
 
 	//colors
 	enum {
@@ -229,21 +257,10 @@ private:
 	};
 
 	int teamcol[2];
-	int teamlcol[2];	//light colours for statusbar
-	int teamdcol[2];	//dark colours for player name
+	int teamlcol[2];	// light colours for statusbar
+	int teamdcol[2];	// dark colours for player name
 
 	int	col[NUM_OF_COL];
-
-	void build_flagpos_marks();
-	void update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple, bool save_map_pic = false);
-
-	void server_list(const std::vector<gamespy_t>& servers, int selection, bool showmaster);
-	void menu_caption();
-
-	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
-	void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
-
-	void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 };
 
 #endif // GRAPHICS_H_INC
