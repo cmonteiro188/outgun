@@ -16,13 +16,13 @@ using std::string;
 
 void ClientControls::fromKeyboard(bool use_pad) {
 	data = 0;
-	if (key[KEY_UP] || key[KEY_8_PAD])
+	if (key[KEY_UP] || (key[KEY_8_PAD] && use_pad))
 		data |= up;
-	if (key[KEY_DOWN] || key[KEY_2_PAD])
+	if (key[KEY_DOWN] || (key[KEY_2_PAD] && use_pad))
 		data |= down;
-	if (key[KEY_LEFT] || key[KEY_4_PAD])
+	if (key[KEY_LEFT] || (key[KEY_4_PAD] && use_pad))
 		data |= left;
-	if (key[KEY_RIGHT] || key[KEY_6_PAD])
+	if (key[KEY_RIGHT] || (key[KEY_6_PAD] && use_pad))
 		data |= right;
 	if (use_pad) {
 		if (key[KEY_7_PAD])

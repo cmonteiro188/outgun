@@ -1018,7 +1018,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			}
 			else if (code == data_text_message) {
 				if (find_nonprintable_char(msg + 1)) {
-					log("Kicked player %d for client disbehavior: sent unprintable characters", pid);
+					log("Kicked player %d for client misbehavior: sent unprintable characters", pid);
 					host->disconnectPlayer(pid, disconnect_client_misbehavior);
 				}
 				else
@@ -1063,7 +1063,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				readString(msg, count, ftype);
 				readString(msg, count, fname);
 				if (fileTransfer[id].serving_udp_file) {
-					log("Kicked player %d for client disbehavior: already downloading", pid);
+					log("Kicked player %d for client misbehavior: already downloading", pid);
 					host->disconnectPlayer(pid, disconnect_client_misbehavior);
 					break;	// don't process the rest of the messages
 				}
@@ -1073,7 +1073,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					char buffy[65536];		//buffy is our friend buffer
 					int fsize = get_download_file((char *)buffy, ftype, fname);
 					if (fsize == -1) {
-						log("Kicked player %d for client disbehavior: invalid download attempt", pid);
+						log("Kicked player %d for client misbehavior: invalid download attempt", pid);
 						host->disconnectPlayer(pid, disconnect_client_misbehavior);	// don't process the rest of the messages
 					}
 					else {
@@ -1169,7 +1169,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			}
 			else {
 				if (code < data_reserved_range_first || code > data_reserved_range_last) {
-					log("Kicked player %d for client disbehavior: an unknown message code: %i, length %i", pid, code, msglen);
+					log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i", pid, code, msglen);
 					host->disconnectPlayer(pid, disconnect_client_misbehavior);
 					break;	// don't process the rest of the messages
 				}
@@ -2491,11 +2491,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		writeStr(res->customData, res->customDataLength, temp.str());
 	}
 	else {
-		if (length - count > 0)
-			readStr(data, count, stri);	//read protocol string
-		else
-			stri.clear();
-
+		readStr(data, count, stri);	//read protocol string
 		if (stri != GAME_PROTOCOL) {
 			log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'", GAME_PROTOCOL, stri.c_str());
 			res->accepted = false;
@@ -2517,19 +2513,16 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 		}
 		else {
 			string name;
-			if (length - count > 0)
-				readStr(data, count, name);	//read player's name
+			readStr(data, count, name);	//read player's name
 			string password;
-			if (!server_password.empty() && length - count > 0)
-				readStr(data, count, password);
+			readStr(data, count, password);
 			if (!check_name(name)) {
 				res->accepted = false;
 				// no need to explain, the client must not allow this
 			}
 			else if (password == server_password) {
 				string player_password;
-				if (length - count > 0)
-					readStr(data, count, player_password);
+				readStr(data, count, player_password);
 				if (host->check_name_password(name, player_password)) {
 					res->accepted = true;
 					writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));

@@ -1243,12 +1243,10 @@ void Client::connect_command(bool loadPassword) {
 	writeString(lebuf, count, GAME_STRING);
 	writeString(lebuf, count, GAME_PROTOCOL);
 	writeStr(lebuf, count, playername);
-	if (!m_serverPassword.password().empty())
-		writeStr(lebuf, count, m_serverPassword.password());
+	writeStr(lebuf, count, m_serverPassword.password());	// empty or not, it's needed
 	if (loadPassword)
 		m_playerPassword.password.set(load_player_password(playername, strAddress)); 
-	if (!m_playerPassword.password().empty())
-		writeStr(lebuf, count, m_playerPassword.password());
+	writeStr(lebuf, count, m_playerPassword.password());	// empty or not, it's needed
 
 	client->set_connect_data(lebuf, count);
 
@@ -2385,6 +2383,22 @@ public:
 bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 	refreshStatus = RS_contacting;
 
+	serverListMutex.lock();
+
+	const int nServers = static_cast<int>(gamespy.size());
+	vector<TempPingData> tempd(nServers);
+	int pending = nServers;			// count of valid entries still waiting for a response
+
+	for (int i = 0; i < nServers; i++) {
+		gamespy[i].refreshed = true;
+		gamespy[i].ping = 0;
+	}
+
+	serverListMutex.unlock();
+
+	if (pending == 0)
+		return true;
+
 	nlOpenMutex.lock();
 	nlDisable(NL_BLOCKING_IO);
 	NLsocket sock = nlOpen(0, NL_UNRELIABLE);
@@ -2397,23 +2411,10 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 
 	char lebuf[512];
 
-	serverListMutex.lock();
-
-	const int nServers = static_cast<int>(gamespy.size());
-	vector<TempPingData> tempd(nServers);
-	int num_valid = 0;			// count of valid entries still waiting for a response
-
-	for (int i = 0; i < nServers; i++) {
-		gamespy[i].refreshed = true;
-		gamespy[i].ping = 0;
-		num_valid++;
-	}
-
-	serverListMutex.unlock();
-
 	for (int round = 0; round < 20; round++) {	// each round takes .1 seconds
 		if (abortThreads) {
 			log("Refreshing servers aborted: client exiting.");
+			nlClose(sock);
 			return false;
 		}
 
@@ -2431,7 +2432,8 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 				tempd[i].send(round);
 			}
 		}
-		else if (num_valid <= 0)	// all done
+
+		if (pending == 0)
 			break;
 
 		// parse received responses
@@ -2467,7 +2469,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 				readStr(lebuf, count, gamespy[index].info);
 
 				if (tempd[index].received() == 0)	// first reply -> server has changed to being valid
-					num_valid--;
+					pending--;
 
 				tempd[index].receive(pack);
 				gamespy[index].ping = tempd[index].ping();
@@ -2709,7 +2711,7 @@ void Client::loop(volatile bool* quitFlag) {
 
 				// control == fire
 				bool fire = key[KEY_LCONTROL] || key[KEY_RCONTROL];
-				if (!fire && menu.options.controls.joystick() && !poll_joystick() &&
+				if (!fire && menu.options.controls.joystick() && menu.options.controls.joyShoot() != 0 && !poll_joystick() &&
 					joy[0].num_buttons > menu.options.controls.joyShoot() - 1 &&
 					joy[0].button[menu.options.controls.joyShoot() - 1].b)
 						fire = true;
@@ -3316,13 +3318,15 @@ void Client::draw_game_frame() {
 		client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
 		if (menu.options.game.showNames())	// Draw player names but not for invisible enemies.
-			for (int i = 0; i < maxplayers; i++)
-				if (fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
-					fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy && fx.player[i].onscreen && !fx.player[i].dead) {
-					const int ttx = static_cast<int>(fd.player[i].lx);
-					const int tty = static_cast<int>(fd.player[i].ly);
-					client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
-				}
+			for (int i = 0; i < maxplayers; i++) {
+				if (!fx.player[i].used || !fx.player[i].onscreen || fx.player[i].dead ||
+					fx.player[i].roomx != fx.player[me].roomx || fx.player[i].roomy != fx.player[me].roomy ||
+					(fx.player[i].visibility < 200 && i / TSIZE != me / TSIZE))
+						continue;
+				const int ttx = static_cast<int>(fd.player[i].lx);
+				const int tty = static_cast<int>(fd.player[i].ly);
+				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
+			}
 	}
 
 	//do not draw stuff below if map not ready to show
@@ -3855,7 +3859,7 @@ void Client::MCF_playerPasswordAccept() {
 }
 
 void Client::MCF_serverPasswordAccept() {
-	nAssert(openMenus.safeTop() == &m_playerPassword.menu && !connected);
+	nAssert(openMenus.safeTop() == &m_serverPassword.menu && !connected);
 	openMenus.close();
 	connect_command(false);
 }

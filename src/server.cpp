@@ -741,6 +741,7 @@ bool Server::start(int target_maxplayers) {
 		return false;
 
 	ctf_game_restart();
+	world.reset_time();
 	network.sendStartGame();
 
  	network.update_serverinfo();
@@ -788,7 +789,7 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
 	const bool entered_game = world.player[pid].name.empty();
 
 	if (!check_name(tempname)) {
-		log("Kicked player %d for client disbehavior: attempted invalid name '%s'", pid, tempname.c_str());
+		log("Kicked player %d for client misbehavior: attempted invalid name '%s'", pid, tempname.c_str());
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 		return;
 	}
@@ -798,7 +799,7 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
 			world.player[pid].waitnametime = get_time() + 1.0;
 		}
 		else if (entered_game) {
-			log("Kicked player %d for client disbehavior: authorization changed between entering the game and first name change", pid);
+			log("Kicked player %d for client misbehavior: authorization changed between entering the game and first name change", pid);
 			disconnectPlayer(pid, disconnect_client_misbehavior);
 			return;
 		}
@@ -990,6 +991,7 @@ void Server::chat(int pid, const char* sbuf) {
 			else
 				network.bprintf(msg_info, "%s decided it's time for a restart", world.player[pid].name.c_str());
 			ctf_game_restart();
+			world.reset_time();
 			network.sendStartGame();
 		}
 		else

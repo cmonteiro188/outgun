@@ -48,7 +48,9 @@ typedef GS_IntT<NLulong> GS_Ulong;
 template<class ValT>
 class GS_FloatT : public GamemodSetting {
 public:
-	GS_FloatT(const std::string& name, ValT* pVar, float min_ = FLT_MIN, float max_ = FLT_MAX, float mul_ = 1., float add_ = 0.)
+	typedef std::numeric_limits<ValT> lim;
+
+	GS_FloatT(const std::string& name, ValT* pVar, float min_ = lim::min(), float max_ = lim::max(), float mul_ = 1., float add_ = 0.)
 		: GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_) { }
 	bool set(LogSet& log, const std::string& value);
 
@@ -186,11 +188,11 @@ bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) {
 	float val;
 	rd >> val;
 	if (!rd || rd.peek() != eof_ch || val < vmin || val > vmax) {
-		if (vmin == FLT_MIN && vmax == FLT_MAX)
+		if (vmin == lim::min() && vmax == lim::max())
 			return basicErrorMessage(log, value, "a real number");
-		else if (vmin == FLT_MIN)
+		else if (vmin == lim::min())
 			return basicErrorMessage(log, value, std::string() + "a real number, at most " + fcvt(vmax));
-		else if (vmax == FLT_MAX)
+		else if (vmax == lim::max())
 			return basicErrorMessage(log, value, std::string() + "a real number, at least " + fcvt(vmin));
 		else
 			return basicErrorMessage(log, value, std::string() + "a real number, between " + fcvt(vmin) + " and " + fcvt(vmax) + ", inclusive");
