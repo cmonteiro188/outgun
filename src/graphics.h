@@ -3,6 +3,9 @@
 
 #include <string>
 #include <list>
+#include <vector>
+
+#include "incalleg.h"
 #include "utility.h"
 #include "world.h"
 
@@ -170,6 +173,7 @@ public:
 	void setColors();
 
 private:
+	static void unload_bitmap(BITMAP*& bitmap);
 	void unload_bitmaps();
 
 	bool reset_video_mode(int width, int height, int depth, bool windowed);
@@ -221,23 +225,31 @@ private:
 	void unload_player_sprites();
 
 	int scale(double value) const;
+	
+	// drawing screens
+	BITMAP* vidpage1;
+	BITMAP* vidpage2;
+	BITMAP* backbuf;
+	bool page_flipping;
 
 	BITMAP* drawbuf;	// main draw buffer
 	BITMAP* background;	// draw buffer for floor, walls and minimap
 	BITMAP* minibg;		// minimap draw buffer
+
 	BITMAP* roombg;		// room background sub-bitmap
 
 	int plx, ply;		// playground position on the screen
 	int mmx, mmy;		// minimap position
 	int sbx, sby;		// scoreboard position
-	bool show_chat_messages;
-	bool show_scoreboard;
-	bool show_minimap;
 
 	int minimap_w, minimap_h;
 	int minimap_place_w, minimap_place_h;
 	int minimap_start_x, minimap_start_y;
 	int indicators_x, indicators_y;
+
+	bool show_chat_messages;
+	bool show_scoreboard;
+	bool show_minimap;
 
 	static const int flagpos_radius = 30;
 	double scr_mul;	// screen size multiplier
@@ -252,12 +264,6 @@ private:
 	
 	int team_captures_size;
 	int team_captures_start;
-
-	// drawing screens
-	BITMAP* vidpage1;
-	BITMAP* vidpage2;
-	BITMAP* backbuf;
-	bool page_flipping;
 
 	std::list<clientfx_t> cfx;
 

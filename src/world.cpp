@@ -1,3 +1,12 @@
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include <cmath>
+
 #include "commont.h"
 #include "world.h"
 #include "nassert.h"

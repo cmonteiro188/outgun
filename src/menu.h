@@ -7,6 +7,7 @@
 #include "utility.h"	// for Hook
 
 class Graphics;
+class BITMAP;
 
 // Base class of menu components
 class Component {
@@ -38,8 +39,8 @@ class Menu : public Component, public Hookable<Menu> {
 public:
 	Menu(const std::string& caption_): Component(caption_), selected_item(0) { }
 
-	void add_component(Component* comp) { components.push_back(comp); }
 	void clear_components() { components.clear(); }
+	void add_component(Component* comp) { components.push_back(comp); }
 
 	void open() { openHook.call(*this); home(); }
 	void close() { closeHook.call(*this); }
@@ -76,7 +77,8 @@ private:
 class MenuStack {
 public:
 	bool empty() const { return st.empty(); }
-	Menu* top() const { return st.top(); }
+	Menu* top() const { nAssert(!st.empty()); return st.top(); }
+	Menu* safeTop() const { if (st.empty()) return 0; return st.top(); }
 	void open(Menu* menu) { menu->open(); st.push(menu); }
 	void close() { nAssert(!empty()); Menu* menu = st.top(); st.pop(); menu->close(); }
 	void clear() { while (!empty()) close(); }
@@ -213,18 +215,12 @@ private:
 	std::string text;
 };
 
-// template implementation
-
-template<class ValueT>
-bool Select<ValueT>::set(const ValueT& value) {
-	for (int i = 0; i < (int)values.size(); ++i)
-		if (values[i] == value) {
-			selected = i;
-			return true;
-		}
-	return false;
-}
-
+// this template does the necessary wrapping of member function references to be given to Components as callbacks
+// MenuCallback<UserClass>::A<ComponentType, &UserClass::handlerFunction>(userClassInstance)
+//		calls void userClassInstance.handlerFunction(ComponentType&)
+// MenuCallback<UserClass>::N<ComponentType, &UserClass::handlerFunction>(userClassInstance)
+//		calls void userClassInstance.handlerFunction()
+//		used when the component reference is not needed
 template<class CallClassT>
 class MenuCallback {
 public:
@@ -250,6 +246,18 @@ public:
 		CallClassT* host;
 	};
 };
+
+// template implementation
+
+template<class ValueT>
+bool Select<ValueT>::set(const ValueT& value) {
+	for (int i = 0; i < (int)values.size(); ++i)
+		if (values[i] == value) {
+			selected = i;
+			return true;
+		}
+	return false;
+}
 
 #endif // MENU_H_INC
 

@@ -1,5 +1,6 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
+
 #include "graphics.h"
 #include "sounds.h"
 #include "world.h"
@@ -86,7 +87,6 @@ class gameclient_c {
 	double frameReceiveTime;	// when fx was received
 	ClientControls controlHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
 	NLulong svFrameHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
-	volatile bool trying_connection;
 	volatile bool connected;
 	bool map_ready;
 	char servermap[64]; //last map command from server
@@ -103,7 +103,7 @@ class gameclient_c {
 	bool player_token_set;
 	char player_token[64];
 	std::string player_password;
-	pthread_t passthread;
+	Thread passthread;
 
 	NLulong fdp, fdp_max;
 	NLulong max_world_score, max_world_rank;
@@ -122,10 +122,14 @@ class gameclient_c {
 
 	// GUI
 	Menu_main menu;
-	Menu_dialog m_dialog;
+	Menu_text m_connectProgress;
+	Menu_text m_dialog;	// take care not to open multiple dialogs (same goes to other menus too)
+	Menu_text m_errors;
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
+
 	MenuStack openMenus;
+
 	Menu_selection menusel;	// a special screen rather than menu: maplist, stats
 	bool gameshow;
 	bool helpshow;
@@ -148,6 +152,9 @@ class gameclient_c {
 	std::string address;	//server IP address
 	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 
+	enum RefreshStatus { RS_none, RS_aborted, RS_failed, RS_contacting, RS_connecting, RS_receiving };
+	volatile RefreshStatus refreshStatus;	// thread communication variable
+
 	std::string password_file;
 
 	std::string talkbuffer;
@@ -167,11 +174,12 @@ class gameclient_c {
 
 	// menu callback functions
 	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
-	void MCF_menuCloser() { openMenus.close(); }
+	void MCF_menuCloser() { openMenus.close(); if (!gameshow && openMenus.empty()) showMenu(menu); }
 	void MCF_connect(Textarea& target);
+	void MCF_cancelConnect();
 	void MCF_disconnect() { disconnect_command(); }
-	void MCF_startServer() { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
-	void MCF_stopServer() { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
+	void MCF_startServer() { if (!listenServer.running()) listenServer.start(port); }
+	void MCF_stopServer() { if (listenServer.running()) listenServer.stop(); }
 	void MCF_prepareMainMenu();
 	void MCF_prepareNameMenu();
 	void MCF_nameMenuClose();
@@ -185,11 +193,16 @@ class gameclient_c {
 	void MCF_gfxThemeChange();
 	void MCF_antialiasChange();
 	void MCF_prepareGfxMenu();
+	void MCF_sndEnableChange();
+	void MCF_sndVolumeChange();
 	void MCF_sndThemeChange();
 	void MCF_prepareSndMenu();
 	void MCF_prepareServerMenu();
 	void MCF_updateServers() { if (!menu.connect.favorites()) get_servers_from_master(); MCF_prepareServerMenu(); }
 	void MCF_refreshServers() { refresh_command(); MCF_prepareServerMenu(); }
+	void MCF_playerPasswordAccept();
+	void MCF_serverPasswordAccept();
+	void MCF_clearErrors();
 
 	bool screenModeChange();	// the return value should be tested at the first call
 
@@ -209,7 +222,7 @@ public:
 	bool shouldApplyPhysicsToPlayerCallback(int pid);
 
 	// network
-	void connect_command();
+	void connect_command(bool loadPassword);
 	void disconnect_command();
 	void connection_update(client_runes_t *arg);
 	void client_connected(char* data, int length);
@@ -227,7 +240,7 @@ public:
 	void process_incoming_data(char* data, int length);
 
 	void check_change_pass_command();
-	void client_password_thread(void *);
+	void client_password_thread();
 	void get_servers_from_master();
 
 	void process_udp_download_chunk(int last, NLulong pos, int len, char* buf);
@@ -249,10 +262,7 @@ public:
 
 	void save_screenshot();
 	void toggle_help();
-	void show_progress(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
-	void show_dialog(char *t1, char *t2, char *t3, int fg = -1, int bg = 0);
-	void showDialog(const std::string row1, const std::string row2 = std::string());
-	template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
+	template<class MenuT> void showMenu(MenuT& menu) { nAssert(openMenus.safeTop() != &m_connectProgress.menu); openMenus.open(&menu.menu); }
 	void predraw();
 	void draw_game_frame();
 	void draw_player(int pid);

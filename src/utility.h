@@ -42,6 +42,8 @@ public:
 class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog);
 
+const char* getNlErrorString();
+
 class LineReceiver {
 protected:
 	LineReceiver() { }

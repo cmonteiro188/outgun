@@ -8,7 +8,9 @@ using std::vector;
 
 Sounds::Sounds(LogSet logs):
 	log(logs),
-	no_theme(false)
+	enabled(false),
+	allegroSoundInitialized(false),
+	volume(255)
 {
 	//no samples loaded -- important so unload_samples don't crash
 	for (int i = 0; i < NUM_OF_SAMPLES; i++)
@@ -19,13 +21,7 @@ Sounds::~Sounds() {
 	unload_samples();
 }
 
-const string& Sounds::theme_name() const {
-	return themename;
-}
-
 void Sounds::search_themes(LineReceiver& dst) const {
-	bool found = false;
-
 	const string searchPattern = wheregamedir + "sound" + directory_separator + "*.*";
 
 	log("Sound theme searching: '%s'", searchPattern.c_str());
@@ -35,11 +31,9 @@ void Sounds::search_themes(LineReceiver& dst) const {
  	vector<string> themes;
 	struct al_ffblk ffblk;
 	for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
-		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, "..")) {
+		if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
 			themes.push_back(ffblk.name);
-			found = true;
-		}
-	if (!found) {
+	if (themes.empty()) {
 		dst("<no themes found>");
 		return;
 	}
@@ -49,63 +43,63 @@ void Sounds::search_themes(LineReceiver& dst) const {
 }
 
 void Sounds::select_theme(const string& dir) {
-	load_theme(dir.c_str());
-}
+	unload_samples();
 
-void Sounds::load_theme(const string& dir) {
-	unload_samples();		//unload old (if any)
+	themedir = dir;
+
+	if (dir == "<no themes found>") {
+		themename.clear();
+		return;
+	}
 
 	string path = wheregamedir + "sound" + directory_separator + dir + directory_separator;
 
-	load_samples(path);			//load new
-
-	// load sfx theme description
-	string des_file = path + "theme.txt";
-
-	ifstream in(des_file.c_str());
+	ifstream in((path + "theme.txt").c_str());
 	if (!getline_smart(in, themename))
 		themename = "(unnamed theme)";
-	log("Loaded sound theme '%s'.", dir.c_str());
 
-	//play a sample
-	if (!no_theme)
+	if (enabled) {
+		load_samples(path);
+		log("Loaded sound theme '%s'.", dir.c_str());
 		play(rand() % NUM_OF_SAMPLES);
-}
-
-//append the correct path
-SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect, bool reverse) {
-	string fileName = path + fname + ".wav";
-
-	//try load
-	SAMPLE* ret = sample[slot] = load_sample(fileName.c_str());
-
-	//sample must be played in reverse?
-	sample_reverse[slot] = reverse;
-
-	//V0.3.10: if not found, look for .txt redirect
-	if (try_redirect && ret == 0) {	// don't go into endless loop
-		string textName = path + fname + ".txt";
-
-		ifstream in(textName.c_str());
-		if (in) {
-			string redir_name;
-			getline_smart(in, redir_name);
-			in.close();
-
-			bool is_reversed = false;
-
-			//retry once ("false": don't try redirect again if fails)
-			return load_outgun_sample(path, redir_name.c_str(), slot, false, is_reversed);
-		}
 	}
-
-	return ret;
 }
 
-//sample try loads
+bool Sounds::setEnable(bool enable) {
+	if (enable == enabled)
+		return true;
+	if (enable) {
+		if (!try_init())
+			return false;
+		enabled = true;
+		select_theme(themedir);
+	}
+	else {
+		unload_samples();
+		enabled = false;
+	}
+	return true;
+}
+
+bool Sounds::try_init() {
+	if (allegroSoundInitialized)
+		return true;
+	if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
+		log("INSTALL_SOUND failed. no sound.");
+		return false;
+	}
+	else {
+		log("INSTALL_SOUND ok.");
+		allegroSoundInitialized = true;
+		return true;
+	}
+}
+
 void Sounds::load_samples(const string& path) {
-	if (!sound_inited)
+	if (!enabled)
 		return;
+	nAssert(allegroSoundInitialized);
+
 	load_outgun_sample(path, "fire", SAMPLE_FIRE);
 	load_outgun_sample(path, "hit", SAMPLE_HIT);
 	load_outgun_sample(path, "wallhit", SAMPLE_WALLHIT);
@@ -145,9 +139,29 @@ void Sounds::load_samples(const string& path) {
 	load_outgun_sample(path, "gameover", SAMPLE_CTF_GAMEOVER);
 }
 
-//unload samples
+SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) {
+	string fileName = path + fname + ".wav";
+
+	SAMPLE* ret = sample[slot] = load_sample(fileName.c_str());
+
+	if (try_redirect && ret == 0) {	// if not found, look for .txt redirect
+		string textName = path + fname + ".txt";
+
+		ifstream in(textName.c_str());
+		if (in) {
+			string redir_name;
+			getline_smart(in, redir_name);
+			in.close();
+
+			return load_outgun_sample(path, redir_name.c_str(), slot, false);	// no more redirections (avoid endless loops)
+		}
+	}
+
+	return ret;
+}
+
 void Sounds::unload_samples() {
-	if (!sound_inited)
+	if (!allegroSoundInitialized)
 		return;
 	for (int i = 0; i < NUM_OF_SAMPLES; i++)
 		if (sample[i]) {
@@ -156,12 +170,11 @@ void Sounds::unload_samples() {
 		}
 }
 
-//play sample
 void Sounds::play(int s) const {
-	if (sound_inited && sample[s]) {
-		//kill any voice playing that sample
-		stop_sample(sample[s]);
-		play_sample(sample[s], 255, 127, 1000, false);		//regular play
+	if (enabled && sample[s]) {
+		nAssert(allegroSoundInitialized);
+		stop_sample(sample[s]);	// kill any voice playing that sample
+		play_sample(sample[s], volume, 127, 1000, false);	// regular play
 	}
 }
 

@@ -8,8 +8,11 @@
 
 void stackDump(FILE* dst) {	// makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
 	unsigned long unused;
-	for (unsigned long* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr)
-		fprintf(dst, " %p %08lX", stackPtr, *stackPtr);
+	for (unsigned long* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
+		unsigned long value = *stackPtr;
+		fwrite(&stackPtr, sizeof(stackPtr), 1, dst);
+		fwrite(&value, sizeof(value), 1, dst);
+	}
 }
 
 void nasprintf(const char* expr, ...) {
@@ -27,17 +30,19 @@ void nasprintf(const char* expr, ...) {
 		va_start(argptr, expr);
 		vfprintf(asfile, expr, argptr);
 		va_end(argptr);
-		fprintf(asfile, "Stack dump:");
-		stackDump(asfile);
-		fprintf(asfile, "\n\n\n");
 		fclose(asfile);
+		FILE* stdump = fopen("stackdump.bin", "wb");
+		if (stdump) {
+			stackDump(stdump);
+			fclose(stdump);
+		}
 	}
 	// display using allegro_message
 	va_start(argptr, expr);
 	char buf[4096];
 	vsprintf(buf, expr, argptr);
 	va_end(argptr);
-	allegro_message("%s\nTo help us fix this, please send assert.log and describe what you were doing to npr1@suomi24.fi", buf);
+	allegro_message("%s\nTo help us fix this, please send assert.log and stackdump.bin and describe what you were doing to npr1@suomi24.fi", buf);
 }
 
 #define ARGP(num) const char* name##num, int val##num

@@ -1,3 +1,10 @@
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
 #include <cctype>
 
 #include "commont.h"
@@ -9,12 +16,13 @@
 #include "network.h"
 #include "servnet.h"
 #include "mutex.h"
+#include "thread.h"
 #include "nassert.h"
 
 // Delay for the server contacting the master server, in seconds.
 // It is good if this delay is set to a minute or so, since this will
 // filter out people opening and closing servers frequently.
-const float delay_to_report_server = 10.0;
+const float delay_to_report_server = 3.0;
 
 using std::ifstream;
 using std::map;
@@ -57,12 +65,14 @@ ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet l
 	#ifdef SEND_FRAMEOFFSET
 	frameSentTime = 0;	// no meaning
 	#endif
-	pthread_mutex_init(&fslavesock_mutex, 0);
 	pthread_mutex_init(&mjob_mutex, 0);
 }
 
 ServerNetworking::~ServerNetworking() {
-	pthread_mutex_destroy(&fslavesock_mutex);
+nAssert(!mthread.isRunning());
+nAssert(!shellmthread.isRunning());
+nAssert(!shellsthread.isRunning());
+nAssert(!webthread.isRunning());
 	pthread_mutex_destroy(&mjob_mutex);
 	if (server) {
 		delete server;
@@ -71,7 +81,6 @@ ServerNetworking::~ServerNetworking() {
 }
 
 void ServerNetworking::upload_next_file_chunk(int i) {
-
 	int CHUNKSIZE = 128;		// the max chunk size in bytes
 
 	//actual size sent
@@ -516,27 +525,17 @@ void ServerNetworking::client_report_status(int id) {
 		return;
 
 	//submit-- create job
-	masterjob_c *job = new masterjob_c();
+	masterjob_c* job = new masterjob_c();
 	job->cid = id;
-	job->code = 2;		// probably a code for mastejob thread
-
-	//V0.4.8: envia POS e NEG deltascore
+	job->code = 2;
 	sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\n\n", TK1_VERSION_STRING, clid.delta_score, clid.neg_delta_score, world.player[ ctop [id] ].name.c_str(), clid.token);
 
-	pthread_t mjob_thread;
-	MasterjobThreadData* mjtd = new MasterjobThreadData;
-	mjtd->host = this;
-	mjtd->job = job;
 	pthread_mutex_lock ( &mjob_mutex );
 	mjob_count++;
 	pthread_mutex_unlock ( &mjob_mutex );
-	pthread_create (&mjob_thread, 0, thread_masterjob_f, mjtd);	//#fix: make detached since it will never be joined
+	RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
+	Thread::startDetachedThread_assert(rmf, job);
 
-	//assume new score computed
-	//clid.score += clid.delta_score;
-	// NOT! new score will come...
-
-	//reset the delta
 	clid.delta_score = 0;
 	clid.neg_delta_score = 0;
 	clid.fdp = 0.0;
@@ -664,11 +663,6 @@ bool ServerNetworking::start() {
 	for (int i = 0; i < MAX_PLAYERS; ++i)
 		fileTransfer[i].reset();
 
-	//reset fslavesocks
-	for (int ss=0;ss<MAX_PLAYERS;ss++)
-		fslavesock[ss] = NL_INVALID;			//inicializa
-	file_threads_quit = false;	//not yet
-
 	// start server
 	server = new_server_c();
 
@@ -691,27 +685,7 @@ bool ServerNetworking::start() {
 	mjob_exit = false;				//flag for all pending master jobs to quit now
 	mjob_fastretry = false;		//flag for all pending master jobs to stop waiting and retry immediately
 
-	//v0.4.2 : calc TCP PORT
-
-	NLboolean ok;
-
-	//start TCP thread for talking with master server
-	if (!privateserver) {
-		msock = NL_INVALID;		//not opened
-		master_talk_time = get_time() + delay_to_report_server;	//give it a break
-		master_never_talked = true;		//not talked yet
-		pthread_create(&mthread, 0, thread_mastertalker_f, this);
-	}
-
-	//start website thread
-	websock = NL_INVALID;		//not opened
-	website_exiting_ok = false;
-	pthread_create(&webthread, 0, thread_website_f, this);
-
-	//shell socket
-	//v0.4.2 : new port
 	int tcp_shell_port = port - 500;
-
 	nlOpenMutex.lock();
 	nlDisable(NL_BLOCKING_IO);
 	shellmsock = nlOpen((NLushort)tcp_shell_port, NL_RELIABLE);
@@ -720,16 +694,30 @@ bool ServerNetworking::start() {
 		log.error("Can't open the shell socket on port %i", tcp_shell_port);
 		return false; //oh no
 	}
-	ok = nlListen(shellmsock);
-	if (!ok) {
+	if (!nlListen(shellmsock)) {
 		log.error("Can't set shell socket to listen mode");
 		return false; //oh no
 	}
 	shellssock = NL_INVALID;
 
 	//start TCP shell master and slave threads
-	pthread_create(&shellmthread, 0, thread_shellmaster_f, this);
-	pthread_create(&shellsthread, 0, thread_shellslave_f, this);
+	shellmthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_shellmaster_thread));
+	shellsthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_shellslave_thread));
+
+	//start TCP thread for talking with master server
+	if (!privateserver) {
+		msock = NL_INVALID;		//not opened
+		master_talk_time = get_time() + delay_to_report_server;	//give it a break
+		master_never_talked = true;		//not talked yet
+
+		mthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread));
+	}
+
+	//start website thread
+	websock = NL_INVALID;		//not opened
+	website_exiting_ok = false;
+	webthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_website_thread));
+
 	return true;
 }
 
@@ -1165,14 +1153,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					job->code = 1;
 					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\n\n", TK1_VERSION_STRING, world.player[ ctop [id] ].name.c_str(), tok.c_str());
 
-					pthread_t mjob_thread;
-					MasterjobThreadData* mjtd = new MasterjobThreadData;
-					mjtd->host = this;
-					mjtd->job = job;
 					pthread_mutex_lock ( &mjob_mutex );
 					mjob_count++;
 					pthread_mutex_unlock ( &mjob_mutex );
-					pthread_create (&mjob_thread, 0, thread_masterjob_f, mjtd);	//#fix: make detached since it will never be joined
+
+					RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
+					Thread::startDetachedThread_assert(rmf, job);
 				}
 			}
 			// drop flag
@@ -1999,7 +1985,7 @@ void ServerNetworking::run_mastertalker_thread() {
 	ifstream in("master.txt");
 	string line;
 	string master_script;
-	if (!getline(in, line) || !getline(in, line) || !getline(in, line) || !getline(in, master_script))
+	if (!getline_smart(in, line) || !getline_smart(in, line) || !getline_smart(in, line) || !getline_smart(in, master_script))
 		master_script = "/janir/outgun/submit.php";
 	in.close();
 
@@ -2219,12 +2205,12 @@ void ServerNetworking::run_website_thread() {
 		return;
 	}
 	string site_name, site_ip, site_script, site_auth;
-	if (!getline(in, site_name) || !getline(in, site_ip) || !getline(in, site_script)) {
+	if (!getline_smart(in, site_name) || !getline_smart(in, site_ip) || !getline_smart(in, site_script)) {
 		log.error("Website thread: No valid format in %s. Quit.", web_settings.c_str());
 		website_exiting_ok = true;
 		return;
 	}
-	getline(in, site_auth);
+	getline_smart(in, site_auth);
 	in.close();
 	if (site_script.empty() || (site_name.empty() && site_ip.empty())) {
 		log.error("Website thread: No script or site location in %s. Quit.", web_settings.c_str());
@@ -2815,7 +2801,7 @@ void ServerNetworking::stop() {
 	server_status_string("Shutdown: MSHELL Thread");
 
 	log("GAMESERVER JOINING SHELL-MASTER THREAD...");
-	pthread_join( shellmthread, 0 );
+	shellmthread.join();
 
 	server_status_string("Shutdown: SSHELL Socket");
 
@@ -2826,7 +2812,7 @@ void ServerNetworking::stop() {
 	server_status_string("Shutdown: SSHELL Thread");
 
 	log("GAMESERVER JOINING SHELL-SLAVE THREAD...");
-	pthread_join( shellsthread, 0 );
+	shellsthread.join();
 
 	//thread for website interface
 	for (int waitcount = 0; !website_exiting_ok; waitcount++) {
@@ -2905,8 +2891,9 @@ void ServerNetworking::stop() {
 
 		server_status_string("(Kill this window if not closing)");
 
-		pthread_join( mthread , 0 );
+		mthread.join();
 	}
+	webthread.join();
 }
 
 void ServerNetworking::sendWeaponPower(int pid) {
@@ -3117,51 +3104,5 @@ void ServerNetworking::sfunc_client_data(void* customp, int client_id, char* dat
 
 void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, int pingtime) {
 	((ServerNetworking*)customp)->ping_result(client_id, pingtime);
-}
-
-//============================================================
-//  TCP server admin shell interaction thread
-//============================================================
-
-//thread for server shell connections
-void* ServerNetworking::thread_shellmaster_f(void* arg) {
-	((ServerNetworking*)arg)->run_shellmaster_thread();
-	return 0;
-}
-
-void* ServerNetworking::thread_shellslave_f(void* arg) {
-	((ServerNetworking*)arg)->run_shellslave_thread();
-	return 0;
-}
-
-//============================================================
-//  TCP master server (web servlet) interaction thread -- LIST SERVER
-//============================================================
-
-//thread for master server interaction
-void* ServerNetworking::thread_mastertalker_f(void* arg) {
-	((ServerNetworking*)arg)->run_mastertalker_thread();
-	return 0;
-}
-
-//============================================================
-//  a single independent job to the master server
-//============================================================
-
-void* ServerNetworking::thread_masterjob_f(void* arg) {
-	MasterjobThreadData* p = static_cast<MasterjobThreadData*>(arg);
-	p->host->run_masterjob_thread(p->job);
-	delete p;
-	return 0;
-}
-
-
-//============================================================
-//  server website interaction thread
-//============================================================
-
-void* ServerNetworking::thread_website_f(void* arg) {
-	((ServerNetworking*)arg)->run_website_thread();
-	return 0;
 }
 

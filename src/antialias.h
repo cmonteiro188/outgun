@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <list>
+#include "incalleg.h"
 
 // // // // internal definitions
 

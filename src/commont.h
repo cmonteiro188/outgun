@@ -3,21 +3,9 @@
 #ifndef COMMONT_H_INC
 #define COMMONT_H_INC
 
-#include "incalleg.h"
-#include <vector>
-#include <list>
 #include <iostream>
 #include <fstream>
-#include <sstream>
-#include <iomanip>
 #include <string>
-
-#include <cstdio>
-#include <cstring>
-#include <cmath>
-
-#include <pthread.h>
-#include <sched.h>
 #include <nl.h>
 
 // Reads a line, stops to \n or \r and skips empty lines.
@@ -141,7 +129,6 @@ extern bool nosound;		//disable sound? -nosound
 extern int targetfps;		//target (MAX) frames-per-second
 extern int port;			//the server port
 extern int server_maxplayers;	//default maxplayers of the server
-extern bool sound_inited;	//install_sound succeeded?
 extern bool force_ip;		//force IP?
 extern char force_ip_name[32];	//force IP to what?
 

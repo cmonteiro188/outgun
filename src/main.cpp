@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string>
 
+#include "incalleg.h"
 #include "commont.h"
 #include "server.h"
 #include "client.h"
@@ -165,7 +166,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if (!strcmp(argv[i], "-nosound"))
-			nosound = true;
+			nosound = true;	//#fix: forward to client
 		else if (!strcmp(argv[i], "-ip")) {
 			if (++i<argc) {
 				force_ip = true;			//force IP
@@ -342,21 +343,6 @@ int main(int argc, char *argv[]) {
 
 		//window title
 		server_status_string("Outgun client - CTRL+F12 to quit");
-
-		// try install sound
-		if (!nosound) {
-			if (install_sound(DIGI_AUTODETECT, MIDI_NONE, 0)) {
-			//if (install_sound(DIGI_WAVOUTID(0), MIDI_NONE, 0)) {
-				log("INSTALL_SOUND failed. no sound.");
-				sound_inited = false;
-			}
-			else {
-				log("INSTALL_SOUND ok.");
-				sound_inited = true;
-			}
-		}
-		else
-			log("SOUND DISABLED by command line option -nosound");
 
 		// install client timer
 		LOCK_VARIABLE(speed_counter);

@@ -1,4 +1,9 @@
+#include <iostream>
+#include <string>
+
 #include <cstdlib>
+
+#include "incalleg.h"
 #include "commont.h"
 
 using std::cout;
@@ -93,7 +98,6 @@ bool nosound = false;			//disable sound? -nosound
 int targetfps = 60;			//target (MAX) frames-per-second
 int port = DEFAULT_UDP_PORT;				//the server port
 int server_maxplayers = 16;		//default maxplayers of the server
-bool sound_inited = false;		//install_sound succeeded?
 bool force_ip = false;		//force IP?
 char force_ip_name[32];		//force IP to what?
 
@@ -127,6 +131,11 @@ istream& getline_smart(istream& in, string& str) {
 		}
 		str += c;
 	}
+}
+
+FileReader::FileReader(const string& filename) {
+	string s = wheregamedir + filename;
+	file.open(s.c_str());
 }
 
 //#fix: some error handling?

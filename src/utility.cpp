@@ -1,12 +1,17 @@
-#include "incalleg.h"
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+
 #include <cstdarg>
 #include <cstdlib>
-#include <string>
-#include <sstream>
-#include <iostream>
+#include <ctime>
+
+#include "incalleg.h"
 #include "log.h"
 #include "commont.h"	// for time_counter
 #include "utility.h"
+#include "thread.h"	// threadRandomize() from there is implemented here
 
 using std::hex;
 using std::min;
@@ -65,6 +70,13 @@ void errorMessage(const string& heading, MemoryLog& errorLog) {
 	}
 }
 
+const char* getNlErrorString() {
+	if (nlGetError() == NL_SYSTEM_ERROR)
+		return nlGetSystemErrorStr(nlGetSystemError());
+	else
+		return nlGetErrorStr(nlGetError());
+}
+
 bool is_keypad(int sc) {
 	switch (sc) {
 		case KEY_1_PAD:
@@ -101,11 +113,6 @@ string date_and_time() {
 	char time_str[time_w + 1];
 	strftime(time_str, time_w, "%Y-%m-%d %H:%M:%S", tmb);
 	return time_str;
-}
-
-FileReader::FileReader(const string& filename) {
-	string s = wheregamedir + filename;
-	file.open(s.c_str());
 }
 
 string url_encode(const string& str) {
@@ -170,6 +177,10 @@ string base64_encode(const string& data) {
 			result += padding;
 	}
 	return result;
+}
+
+void threadRandomize() {	// declared in thread.h
+	srand(time(0));
 }
 
 // definitions for incalleg.h

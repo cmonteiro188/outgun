@@ -1,3 +1,11 @@
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "incalleg.h"
 #include "commont.h"
 #include "world.h"
 #include "leetnet/sleep.h"	// sleep util
@@ -947,7 +955,7 @@ bool gameserver_c::start(int target_maxplayers) {
 		return false;
 	if (!load_rotation_map(currmap))
 		return false;
-	if (!network.start())
+	if (!network.start())	// this must be last, because network.close() must always be called if start() succeeds
 		return false;
 
 	// reset game

@@ -1,4 +1,12 @@
+#include <fstream>
 #include <iomanip>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include <cmath>
+
+#include "incalleg.h"
 #include "commont.h"
 #include "world.h"
 #include "effects.h"
@@ -36,6 +44,9 @@ using std::string;
 using std::vector;
 
 Graphics::Graphics(LogSet logs):
+	vidpage1(0),
+	vidpage2(0),
+	backbuf(0),
 	drawbuf(0),
 	background(0),
 	minibg(0),
@@ -47,9 +58,6 @@ Graphics::Graphics(LogSet logs):
 	map_list_start(0),
 	team_captures_size(16),
 	team_captures_start(0),
-	vidpage1(0),
-	vidpage2(0),
-	backbuf(0),
 	no_theme(false),
 	antialiasing(AA_both),
 	log(logs)
@@ -62,7 +70,29 @@ Graphics::~Graphics() {
 bool Graphics::init(int width, int height, int depth, bool windowed) {
 	if (!reset_video_mode(width, height, depth, windowed))
 		return false;
+
 	unload_bitmaps();
+
+	if (trypageflip) {
+		vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
+		vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
+	}
+	if (!vidpage1 || !vidpage2) {
+		if (trypageflip)
+			log("Not enough video memory. Can't use page flipping.");
+		unload_bitmap(vidpage1);
+		unload_bitmap(vidpage2);
+		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
+		nAssert(backbuf);
+
+		drawbuf = backbuf;
+		page_flipping = false;
+	}
+	else {
+		drawbuf = vidpage1;
+		page_flipping = true;
+	}
+
 	scr_mul = static_cast<double>(width) / 640;
 	floor_texture.resize(4, 0);
 	wall_texture.resize(1, 0);
@@ -70,10 +100,9 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 		player_sprite[t].resize(MAX_PLAYERS / 2, 0);
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
-	drawbuf = create_bitmap(SCREEN_W, SCREEN_H);
 	background = create_bitmap(SCREEN_W, SCREEN_H);
-	roombg = create_sub_bitmap(background, plx, ply,
-		static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
+	nAssert(background);
+	roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
 	minimap_w = minimap_place_w = scale(160);
 	minimap_h = minimap_place_h = scale(100);
 	mmx = SCREEN_W - minimap_w - 4;
@@ -82,6 +111,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	else
 		mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
+	nAssert(minibg);
 	sbx = SCREEN_W - (20 * 8 + 4);	// scoreboard is 20 characters wide
 	sby = mmy + minimap_place_h + 10;
 	indicators_x = 0;
@@ -93,23 +123,19 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 	return true;
 }
 
+void Graphics::unload_bitmap(BITMAP*& bitmap) {
+	if (bitmap) {
+		destroy_bitmap(bitmap);
+		bitmap = 0;
+	}
+}
+
 void Graphics::unload_bitmaps() {
-	if (drawbuf) {
-		destroy_bitmap(drawbuf);
-		drawbuf = 0;
-	}
-	if (background) {
-		destroy_bitmap(background);
-		background = 0;
-	}
-	if (minibg) {
-		destroy_bitmap(minibg);
-		minibg = 0;
-	}
-	if (vidpage2) {
-		destroy_bitmap(minibg);
-		minibg = 0;
-	}
+	unload_bitmap(vidpage1);
+	unload_bitmap(vidpage2);
+	unload_bitmap(backbuf);
+	unload_bitmap(background);
+	unload_bitmap(minibg);
 	unload_pictures();
 }
 
@@ -251,19 +277,6 @@ vector<ScreenMode> Graphics::getResolutions(int depth) const {	// returns a sort
 }
 
 bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed) {
-	if (vidpage1) {
-		destroy_bitmap(vidpage1);
-		vidpage1 = 0;
-	}
-	if (vidpage2) {
-		destroy_bitmap(vidpage2);
-		vidpage2 = 0;
-	}
-	if (backbuf) {
-		destroy_bitmap(backbuf);
-		backbuf = 0;
-	}
-
 	log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed ? "windowed" : "fullscreen");
 	set_color_depth(depth);
 	if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, 0, 0)) {
@@ -275,12 +288,14 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 				return false;
 			}
 		}
+		else
+			return false;
 	}
 
 	#ifndef SWITCH_PAUSE_CLIENT
 	if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
 		if (set_display_switch_mode(SWITCH_BACKGROUND) == -1) { // allow running in the background
-			log.error("Client cannot run in the background!");
+			log("Client cannot run in the background!");
 			return false; // FATAL
 		}
 		else
@@ -289,45 +304,6 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	else
 		log("Switch_backamnesia set ok.");
 	#endif
-
-	//attempt to create two video bitmaps, else use RAM backbuffer
-	if (trypageflip) {
-		vidpage1 = create_video_bitmap(SCREEN_W, SCREEN_H);
-		vidpage2 = create_video_bitmap(SCREEN_W, SCREEN_H);
-		log("create vidpage1=%p vidpage2=%p", vidpage1, vidpage2);
-	}
-
-	//delete any partial video pages
-	if (!vidpage1 || !vidpage2) {
-		if (trypageflip)
-			log("Page flipping: not enough video memory. Using bruteforce doublebuffering.");
-		else
-			log("Using safe mode video -- double-buffering (option -dbuf). For page flipping use -flip.");
-
-		if (vidpage1) {
-			destroy_bitmap(vidpage1);
-			vidpage1 = 0;
-		}
-		if (vidpage2) {
-			destroy_bitmap(vidpage2);
-			vidpage2 = 0;
-		}
-
-		//create RAM backbuffer
-		backbuf = create_bitmap(SCREEN_W, SCREEN_H);
-		if (!backbuf) {
-			log.error("Cannot create memory backbuffer!");
-			return false; // FATAL
-		}
-		drawbuf = backbuf;
-		backbuf = 0;
-		page_flipping = false;
-	}
-	else {
-		drawbuf = vidpage1;
-		vidpage1 = 0;
-		page_flipping = true;
-	}
 
 	return true;
 }
@@ -489,6 +465,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 	}
 	// ring or sector
 	BITMAP* cbuff = create_bitmap(iround(2 * scale * ro) + 1, iround(2 * scale * ro) + 1);
+	nAssert(cbuff);
 	const int transparent = bitmap_mask_color(cbuff);
 	clear_to_color(cbuff, transparent);
 	if (texture)
@@ -760,6 +737,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 	// draw bases
 	BITMAP* backup = create_bitmap(minimap_place_w, minimap_place_w);
+	nAssert(backup);
 
 	for (int ry = 0; ry < map.h; ++ry)
 		for (int rx = 0; rx < map.w; ++rx) {
@@ -919,6 +897,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	if (sprite) {
 		if (alpha < 255) {
 			BITMAP* buffer = create_bitmap(sprite->w, sprite->h);
+			nAssert(buffer);
 			const int transparent = bitmap_mask_color(drawbuf);
 			clear_to_color(buffer, transparent);
 			rotate_sprite(buffer, sprite, 0, 0, itofix(gundir * 32));
@@ -998,7 +977,6 @@ void Graphics::draw_virou_sorvete(int x, int y) {
 	textout_centre_ex(drawbuf, font, "SORVETE!", plx + x + 0, ply + y - 38, col[COLWHITE], -1);
 }
 
-// ### FIXME: blood looks ridiculous
 void Graphics::draw_player_dead(int x, int y) {
 	x = scale(x);
 	y = scale(y);
@@ -1009,10 +987,6 @@ void Graphics::draw_player_dead(int x, int y) {
 	ellipsefill(drawbuf, plx + x                , ply + y - plrScale / 30, plrScale / 8, plrScale / 10, col[COLRED]);
 	ellipsefill(drawbuf, plx + x + plrScale / 50, ply + y + plrScale / 40, plrScale / 8, plrScale / 10, col[COLRED]);
 	solid_mode();
-	/*
-	ellipsefill(drawbuf, plx + x, ply + y + scale(PLAYER_RADIUS * 4 / 5), 20, 6, col[COLRED]);
-	circlefill(drawbuf, plx + x, ply + y, scale(PLAYER_RADIUS * 4 / 5), col[COLRED]);
-	*/
 }
 
 void Graphics::draw_gun_explosion(int x, int y, int rad) {
@@ -2042,6 +2016,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
 	minimap_place_w = map.w * 60 + 2;
 	minimap_place_h = map.h * 45 + 2;
 	BITMAP* buffer = create_bitmap(minimap_place_w, minimap_place_h);
+	nAssert(buffer);
 	update_minimap_background(buffer, map, true);
 	PALETTE pal;
 	get_palette(pal);
@@ -2144,32 +2119,28 @@ void Graphics::load_player_sprite(const string& filename_common, const string& f
 		BITMAP* common = create_bitmap(size, size);
 		BITMAP* team = create_bitmap(size, size);
 		BITMAP* personal = create_bitmap(size, size);
-		if (common && team && personal) {
-			clear_to_color(common, transparent);
-			clear_to_color(team, transparent);
-			clear_to_color(personal, transparent);
-			// Resize player images.
-			stretch_sprite(common, common_base, 0, 0, size, size);
-			stretch_sprite(team, team_base, 0, 0, size, size);
-			stretch_sprite(personal, personal_base, 0, 0, size, size);
-			// Make player sprites by combining player image with team and personal colours.
-			for (int t = 0; t < 2; t++)
-				for (int p = 0; p < MAX_PLAYERS / 2; p++) {
-					player_sprite[t][p] = create_bitmap(size, size);
-					clear_to_color(player_sprite[t][p], transparent);
-					create_player_sprite(player_sprite[t][p], common, team, personal, teamcol[t], col[p]);
-				}
-			// Make a sprite for player with power.
-			player_sprite_power = create_bitmap(size, size);
-			clear_to_color(player_sprite_power, transparent);
-			create_player_sprite(player_sprite_power, common, team, personal, col[COLWHITE], col[COLCYAN]);
-		}
-		if (common)
-			destroy_bitmap(common);
-		if (team)
-			destroy_bitmap(team);
-		if (personal)
-			destroy_bitmap(personal);
+		nAssert(common && team && personal);
+		clear_to_color(common, transparent);
+		clear_to_color(team, transparent);
+		clear_to_color(personal, transparent);
+		// Resize player images.
+		stretch_sprite(common, common_base, 0, 0, size, size);
+		stretch_sprite(team, team_base, 0, 0, size, size);
+		stretch_sprite(personal, personal_base, 0, 0, size, size);
+		// Make player sprites by combining player image with team and personal colours.
+		for (int t = 0; t < 2; t++)
+			for (int p = 0; p < MAX_PLAYERS / 2; p++) {
+				player_sprite[t][p] = create_bitmap(size, size);
+				clear_to_color(player_sprite[t][p], transparent);
+				create_player_sprite(player_sprite[t][p], common, team, personal, teamcol[t], col[p]);
+			}
+		// Make a sprite for player with power.
+		player_sprite_power = create_bitmap(size, size);
+		clear_to_color(player_sprite_power, transparent);
+		create_player_sprite(player_sprite_power, common, team, personal, col[COLWHITE], col[COLCYAN]);
+		destroy_bitmap(common);
+		destroy_bitmap(team);
+		destroy_bitmap(personal);
 	}
 	if (common_base)
 		destroy_bitmap(common_base);
@@ -2205,34 +2176,23 @@ void Graphics::unload_pictures() {
 
 void Graphics::unload_floor_textures() {
 	for (vector<BITMAP*>::iterator pl = floor_texture.begin(); pl != floor_texture.end(); ++pl)
-		if (*pl) {
-			destroy_bitmap(*pl);
-			*pl = 0;
-		}
+		unload_bitmap(*pl);
 }
 
 void Graphics::unload_wall_textures() {
 	for (vector<BITMAP*>::iterator pl = wall_texture.begin(); pl != wall_texture.end(); ++pl)
-		if (*pl) {
-			destroy_bitmap(*pl);
-			*pl = 0;
-		}
+		unload_bitmap(*pl);
 }
 
 void Graphics::unload_player_sprites() {
 	for (int t = 0; t < 2; t++)
 		for (vector<BITMAP*>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
-			if (*pl) {
-				destroy_bitmap(*pl);
-				*pl = 0;
-			}
-	if (player_sprite_power) {
-		destroy_bitmap(player_sprite_power);
-		player_sprite_power = 0;
-	}
+			unload_bitmap(*pl);
+	unload_bitmap(player_sprite_power);
 }
 
 inline int Graphics::scale(double value) const {
 	return static_cast<int>(scr_mul * value + 0.5);
 }
+
 

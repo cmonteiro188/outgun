@@ -2,6 +2,7 @@
 #define SERVNET_H_INC
 
 #include "network.h"
+#include "thread.h"
 
 #include <map>
 
@@ -40,22 +41,6 @@ class ServerNetworking {
 	static void sfunc_client_lag_status		(void* customp, int client_id, int status);
 	static void sfunc_client_ping_result	(void* customp, int client_id, int pingtime);
 
-	//master job (ACCOUNT/STATS SERVER)
-	struct MasterjobThreadData {
-		ServerNetworking* host;
-		masterjob_c* job;
-	};
-	static void* thread_masterjob_f(void* arg);
-	//thread for master server interaction (LIST SERVER)
-	static void* thread_mastertalker_f(void* arg);
-
-	//thread for server shell connections
-	static void* thread_shellmaster_f(void* arg);
-	static void* thread_shellslave_f(void* arg);
-
-	//thread for server website interaction
-	static void* thread_website_f(void* arg);
-
 	std::map<std::string, std::string> master_parameters() const;
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string website_maplist() const;
@@ -75,7 +60,7 @@ class ServerNetworking {
 	#endif
 
 	NLsocket		msock;
-	pthread_t		mthread;
+	Thread			mthread;
 	double			master_talk_time;
 	bool			master_pre_exiting_ok;	// if no need to kill the master socket...
 	bool			master_exiting_ok;		// if no need to kill the master socket...
@@ -88,19 +73,14 @@ class ServerNetworking {
 	int				max_world_score, max_world_rank;
 
 	ClientTransferData fileTransfer[MAX_PLAYERS];
-	bool			file_threads_quit;		//terminate all file server threads/sockets now
-	NLsocket		filesock;
-	pthread_t		server_filemaster_thread;
-	pthread_mutex_t	fslavesock_mutex;
-	NLsocket		fslavesock[MAX_PLAYERS];
-	pthread_t		fslavethr[MAX_PLAYERS];
+	bool			file_threads_quit;		//#fix: this is used by all kinds of threads even though file threads no longer exist
 
 	NLsocket		shellmsock;
-	pthread_t		shellmthread;
+	Thread			shellmthread;
 	NLsocket		shellssock;
-	pthread_t		shellsthread;
+	Thread			shellsthread;
 	NLsocket		websock;
-	pthread_t		webthread;
+	Thread			webthread;
 	
 	bool			website_exiting_ok;
 
@@ -119,8 +99,6 @@ public:
 
 	void upload_next_file_chunk(int i);
 	int  get_download_file(char *lebuf, char *ftype, char *fname);
-	void run_filemaster_thread();
-	void run_fileslave_thread(void *arg);
 
 	void update_serverinfo();
 	double getTraffic();
