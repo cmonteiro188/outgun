@@ -3237,8 +3237,8 @@ void Client::draw_game_frame() {
 
 	// Time left if time limit is on and the game is running.
 	if (map_time_limit && gameover_plaque == NEXTMAP_NONE)
-		if (map_end_time > static_cast<unsigned int>(get_time()))
-			client_graphics.map_time(map_end_time - static_cast<unsigned int>(get_time()));
+		if (map_end_time > get_time())
+			client_graphics.map_time(map_end_time - static_cast<int>(get_time()));
 		else
 			client_graphics.map_time(0);
 
@@ -3260,14 +3260,11 @@ void Client::draw_game_frame() {
 			client_graphics.draw_player_shadow(val);
 		}
 
-		//WEAPON LEVEL
-		client_graphics.draw_player_weapon(fx.player[me].weapon + 1);
+		client_graphics.draw_player_weapon(fx.player[me].weapon + 1);	// weapon level
 	}
 
-	//show "want change teams" flag if active
 	if (want_change_teams)
 		client_graphics.draw_change_team_message(get_time());
-	//show "want change map" flag if active
 	if (want_map_exit)
 		client_graphics.draw_change_map_message(get_time());
 
