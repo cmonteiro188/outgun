@@ -563,14 +563,14 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         }
         for (vector<pair<string, vector<string> > >::const_iterator label = label_lines.begin(); label != label_lines.end(); ++label)
             if (label->first == nextlabel) {
-                for (vector<string>::const_iterator label_line = label->second.begin(); label_line != label->second.end(); ++label_line)
-                    for (int ry = ry1; ry <= ry2; ry++)
-                        for (int rx = rx1; rx <= rx2; rx++) {
-                            double sx = scalex;
-                            double sy = scaley;
+                for (int ry = ry1; ry <= ry2; ry++)
+                    for (int rx = rx1; rx <= rx2; rx++) {
+                        double sx = scalex;
+                        double sy = scaley;
+                        for (vector<string>::const_iterator label_line = label->second.begin(); label_line != label->second.end(); ++label_line)
                             if (!parse_line(log, *label_line, label_lines, rx, ry, sx, sy, true))
                                 return false;
-                        }
+                    }
                 return true;
             }
         log.error(_("Label '$1' not found: $2", nextlabel, line));
