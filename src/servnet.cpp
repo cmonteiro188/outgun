@@ -452,7 +452,6 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const {
 	writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
 	writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
 	writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
-	writeLong(lebuf, count, static_cast<NLlong>(get_time() - stats.flag_take_time()));
 	server->send_message(cid, lebuf, count);
 }
 

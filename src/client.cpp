@@ -2308,8 +2308,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				stats.set_spawn_time(get_time());
 				readLong(lebuf, count, ldata);
 				stats.set_flag_carrying_time(ldata);
-				readLong(lebuf, count, ldata);
-				stats.set_flag_take_time(get_time() - ldata);
+				stats.set_flag_take_time(get_time());
 				break;
 			}
 

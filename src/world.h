@@ -211,7 +211,7 @@ public:
 	void set_flag(bool f) { flag = f; }
 	void set_dead(bool d) { dead = d; }
 
-	void spawn(float time) { set_spawn_time(time); nAssert(dead); dead = false; }
+	void spawn(float time) { set_spawn_time(time); dead = false; }
 
 	void add_frag(int n = 1) { total_frags += n; }
 	void add_kill(bool deathbringer);
