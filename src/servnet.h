@@ -170,7 +170,8 @@ public:
     void broadcast_flag_take(const ServerPlayer& player) const;
     void broadcast_flag_return(const ServerPlayer& player) const;
     void broadcast_flag_drop(const ServerPlayer& player) const;
-    void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const;
+    void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
+                        bool deathbringer, bool flag, bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag) const;
     void broadcast_new_player(const ServerPlayer& player) const;
     void broadcast_spawn(const ServerPlayer& player) const;

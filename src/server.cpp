@@ -146,7 +146,7 @@ void Server::ctf_game_restart() {
         }
 
     ostringstream msg;
-    msg << "CTF GAME OVER - FINAL SCORE: RED " << world.teams[0].score() << " - BLUE " << world.teams[1].score();
+    msg << "CTF GAME OVER - FINAL SCORE: RED " << world.teams[0].score() << " - BLUE " << world.teams[1].score();   // ### FIXME: Move to client
     network.broadcast_message(msg_info, msg.str());
 
     if (worldConfig.balanceTeams()) {
@@ -601,6 +601,9 @@ bool Server::server_next_map(int reason) {
 
     nAssert(!maprot.empty());
 
+    for (int i = 0; i < maxplayers; ++i)
+        world.player[i].stats().finish_stats(get_time());
+
     if (save_stats)
         world.save_stats("server_stats", current_map().title);
 
@@ -655,7 +658,7 @@ bool Server::server_next_map(int reason) {
     gameover_time = get_time() + game_end_delay;        // timeout for gameover plaque
 
     ostringstream msg;
-    msg << "Server changed map to: " << maprot[currmap].title << " (" << currmap + 1 << " of " << maprot.size() << ')';
+    msg << "Server changed map to " << maprot[currmap].title << " (" << currmap + 1 << " of " << maprot.size() << ')';
     network.broadcast_message(msg_info, msg.str());
 
     return true;

@@ -248,7 +248,7 @@ void ServerNetworking::move_update_player(int a, bool silent) {
     broadcast_stats(world.player[a]);
     broadcast_movements_and_shots(world.player[a]);
 
-    //message
+    //message; ### FIXME: Move to client?
     if (!silent)
         bprintf(msg_info, "%s moved to %s team", world.player[a].name.c_str(), host->getTeamName(a / TSIZE).c_str());
 }
@@ -360,19 +360,24 @@ void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player) const {
     server->broadcast_message(lebuf, count);
 }
 
-void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const {
+void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
+                                      bool deathbringer, bool flag, bool carrier_defended, bool flag_defended) const {
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_kill);
-    // first byte, deatbringer bit and attacker id
-    NLubyte att_db = attacker.id;
+    // first byte, deatbringer bit, carrier defended bit, flag defended bit and attacker id
+    NLubyte attacker_info = attacker.id;
     if (deathbringer)
-        att_db |= 0x80;
+        attacker_info |= 0x80;
+    if (carrier_defended)
+        attacker_info |= 0x40;
+    if (flag_defended)
+        attacker_info |= 0x20;
     // second byte, flag bit and target id
     NLubyte tar_flag = target.id;
     if (flag)
         tar_flag |= 0x80;
-    writeByte(lebuf, count, att_db);
+    writeByte(lebuf, count, attacker_info);
     writeByte(lebuf, count, tar_flag);
     server->broadcast_message(lebuf, count);
 }
@@ -896,8 +901,6 @@ int ServerNetworking::client_connected(int id) {
         if (i == myself)
             continue;
 
-        send_player_name_update(id, i);
-
         //frags update
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, data_frags_update);
@@ -938,8 +941,13 @@ void ServerNetworking::client_disconnected(int id) {
         nlWrite(shellssock, lebuf, count);
     }
 
-    bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].stats().frags());
-    broadcast_sample(SAMPLE_LEFTGAME);
+    //bprintf(msg_info, "%s left the game with %i frags", world.player[pid].name.c_str(), world.player[pid].stats().frags());
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_player_left);
+    writeByte(lebuf, count, static_cast<NLubyte>(pid));
+    writeLong(lebuf, count, world.player[pid].stats().frags());
+    server->send_message(id, lebuf, count);
+    broadcast_sample(SAMPLE_LEFTGAME);  // ### FIXME: Move to client?
 
     //report the latest player achievements to the master server
     client_report_status(id);
@@ -977,7 +985,7 @@ void ServerNetworking::ping_result(int client_id, int ping_time) {
 }
 
 void ServerNetworking::broadcast_new_player_notice(int pid) {
-    bprintf(msg_info, "%s entered the game", world.player[pid].name.c_str());
+    broadcast_new_player(world.player[pid]);
     broadcast_sample(SAMPLE_ENTERGAME);
     if (shellssock != NL_INVALID) {
         char lebuf[256]; int count = 0;

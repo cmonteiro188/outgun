@@ -1593,7 +1593,6 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
             }
     }
     nAssert(flag != -1);
-    net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
     net->broadcast_sample(SAMPLE_CTF_LOST);
     player[pid].drop_flag();    // moved this before dropFlag in hopes to alleviate the assertion 3 lines up
     dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
@@ -2027,18 +2026,19 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
     const int atteam = attacker / TSIZE;
 
     //check if the enemy flag is carried in this screen(target's) by somebody that is not me
+    bool carrier_defended = false, flag_defended = false;
     if (!same_team) {
         for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
             if (player[i].used && player[i].flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
-                    net->bprintf(msg_info, "%s DEFENDS THE %s CARRIER", player[attacker].name.c_str(), getTeamName(atteam).c_str());
+                    carrier_defended = true;
                     host->score_frag(attacker, 1);
-                    break;  // only one message
+                    break;  // only one frag even for defending multiple carriers
                 }
         for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
             if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-                net->bprintf(msg_info, "%s DEFENDS THE %s FLAG", player[attacker].name.c_str(), getTeamName(atteam).c_str());
+                flag_defended = true;
                 host->score_frag(attacker, 1);
-                break;      // only one message
+                break;      // only one frag even for defending multiple flags
             }
     }
     const bool flag = player[target].flag();
@@ -2050,25 +2050,10 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
             host->score_frag(attacker, -1); // extra penalty for fragging own carrier
     }
 
-    if (deathbringer) {
-        if (player[attacker].used) {
-            if (!same_team)
-                net->bprintf(msg_info, "%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
-            else
-                net->bprintf(msg_info, "%s was choked by teammate %s", player[target].name.c_str(), player[attacker].name.c_str());
-        }
-        else
-            net->bprintf(msg_info, "%s was choked", player[target].name.c_str());
-        net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
-    }
-    else {
-        if (!same_team)
-            net->bprintf(msg_info, "%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
-        else
-            net->bprintf(msg_info, "%s was nailed by teammate %s", player[target].name.c_str(), player[attacker].name.c_str());
-    }
+    if (deathbringer)
+        net->broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);   // ### FIXME: Move to client?
 
-    net->broadcast_kill(player[attacker], player[target], deathbringer, flag);
+    net->broadcast_kill(player[attacker], player[target], deathbringer, flag, carrier_defended, flag_defended);
 
     player[attacker].stats().add_kill(deathbringer);
     teams[atteam].add_kill();
@@ -2790,7 +2775,6 @@ void ServerWorld::simulateFrame() {
                 host->score_frag(i, 1); // just add some frags
                 player[i].stats().add_flag_return();
                 teams[myteam].add_flag_return();
-                net->bprintf(msg_info, "%s RETURNED THE %s FLAG!", player[i].name.c_str(), getTeamName(myteam).c_str());
                 net->broadcast_flag_return(player[i]);
                 returnFlag(myteam, f);  //flag returned
                 net->broadcast_sample(SAMPLE_CTF_RETURN);
@@ -2821,7 +2805,7 @@ void ServerWorld::simulateFrame() {
         }
     }
 
-    // check time limit
+    // check time limit; ### FIXME: Move to client?
     const NLulong time_limit = config.getTimeLimit();
     if (host->get_player_count() > 1 && time_limit > 0) {
         const int timeLeft = getTimeLeft();
@@ -2857,7 +2841,6 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     host->score_frag(pid, 1);   // just add some frags
     player[pid].stats().add_flag_take(get_time());
     teams[pid / TSIZE].add_flag_take();
-    net->bprintf(msg_info, "%s GOT THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
     net->broadcast_flag_take(player[pid]);
     stealFlag(team, flag, pid);
     player[pid].take_flag();
@@ -2876,7 +2859,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
             host->score_frag(pid, -10);
             suicide(pid);
             returnFlag(team, flag);
-            net->bprintf(msg_warning, "This map is broken. There is an instantly capturable flag. Avoid it.");
+            net->bprintf(msg_warning, "This map is broken. There is an instantly capturable flag. Avoid it.");  // ### FIXME: To client?
         }
         return;
     }
@@ -2895,15 +2878,10 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     teams[myteam].add_score(getMapTime(), player[pid].name);
     returnFlag(team, flag);
 
-    ostringstream msg;
-    msg << player[pid].name << " CAPTURED THE " << getTeamName(team) << " FLAG!";
-    if (teams[myteam].score() == config.getCaptureLimit() - 1)
-        msg << " One more to win!";
-    net->broadcast_message(msg_info, msg.str());
     net->broadcast_capture(player[pid]);
 
     net->ctf_update_teamscore(myteam);      // this function can decide to restart the game
-    net->broadcast_sample(SAMPLE_CTF_CAPTURE);
+    net->broadcast_sample(SAMPLE_CTF_CAPTURE);  // ### FIXME: Move to client?
 }
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me

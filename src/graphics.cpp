@@ -1447,7 +1447,7 @@ void Graphics::team_statistics(const Team* teams) {
     textout_centre_ex(drawbuf, font, _("Hit accuracy").c_str(),   mx, y1 + line++ * line_height, col[COLWHITE], -1);
     textout_centre_ex(drawbuf, font, _("Shots taken").c_str(),    mx, y1 + line++ * line_height, col[COLWHITE], -1);
     textout_centre_ex(drawbuf, font, _("Movement").c_str(),       mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Power").c_str(),          mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, font, _("Team power").c_str(),          mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
     for (int t = 0; t < 2; t++) {
         const Team& team = teams[t];

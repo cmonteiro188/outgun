@@ -1717,8 +1717,8 @@ void Client::process_incoming_data(const char* data, int length) {
             case data_flag_update: {
                 NLubyte team;
                 NLbyte flags;
-                readByte(lebuf, count, team);       // team of the flag
-                readByte(lebuf, count, flags);  // how many flags
+                readByte(lebuf, count, team);
+                readByte(lebuf, count, flags);
                 for (int i = 0; i < flags; i++) {
                     if (team == 2) {
                         if (i >= static_cast<int>(fx.wild_flags.size()))
@@ -2131,7 +2131,17 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().add_capture(get_time());
-                fx.teams[pid / TSIZE].add_score(get_time() - map_start_time, fx.player[pid].name);
+                const int team = pid / TSIZE;
+                fx.teams[team].add_score(get_time() - map_start_time, fx.player[pid].name);
+                ostringstream msg;
+                msg << fx.player[pid].name;
+                if (1 - team == 0)
+                    msg << _(" CAPTURED THE RED FLAG!");
+                else if (1 - team == 1)
+                    msg << _(" CAPTURED THE BLUE FLAG!");
+                else
+                    msg << _(" CAPTURED THE WILD FLAG!");
+                addThreadMessage(new TM_Text(msg_info, msg.str()));
                 break;
             }
 
@@ -2140,12 +2150,46 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
                 const bool deathbringer = attacker & 0x80;
-                attacker &= ~0x80;
+                const bool carrier_defended = attacker & 0x40;
+                const bool flag_defended = attacker & 0x20;
+                attacker &= ~0xE0;
                 const bool flag = target & 0x80;
                 target &= ~0x80;
+                ostringstream msg;
+                msg << fx.player[target].name;
+                if (deathbringer)
+                    if (attacker / TSIZE == target / TSIZE)
+                        msg << _(" was choked by teammate ");
+                    else
+                        msg << _(" was choked by ");
+                else
+                    if (attacker / TSIZE == target / TSIZE)
+                        msg << _(" was nailed by teammate ");
+                    else
+                        msg << _(" was nailed by ");
+                msg << fx.player[attacker].name << '.';
+                addThreadMessage(new TM_Text(msg_info, msg.str()));
+                if (carrier_defended) {
+                    ostringstream msg;
+                    msg << fx.player[attacker].name;
+                    if (attacker / TSIZE == 0)
+                        msg << _(" defends the red carrier.");
+                    else
+                        msg << _(" defends the blue carrier.");
+                    addThreadMessage(new TM_Text(msg_info, msg.str()));
+                }
+                if (flag_defended) {
+                    ostringstream msg;
+                    msg << fx.player[attacker].name;
+                    if (attacker / TSIZE == 0)
+                        msg << _(" defends the red flag.");
+                    else
+                        msg << _(" defends the blue flag.");
+                    addThreadMessage(new TM_Text(msg_info, msg.str()));
+                }
                 if (fx.player[target].stats().current_cons_kills() >= 10) {
                     ostringstream msg;
-                    msg << fx.player[target].name.c_str() << _("'s killing spree was ended by") << ' ' << fx.player[attacker].name.c_str() << '.';
+                    msg << fx.player[target].name.c_str() << _("'s killing spree was ended by ") << fx.player[attacker].name.c_str() << '.';
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 fx.player[attacker].stats().add_kill(deathbringer);
@@ -2155,7 +2199,17 @@ void Client::process_incoming_data(const char* data, int length) {
                 if (flag) {
                     fx.player[attacker].stats().add_carrier_kill();
                     fx.player[target].stats().add_flag_drop(get_time());
-                    fx.teams[target / TSIZE].add_flag_drop();
+                    const int team = target / TSIZE;
+                    fx.teams[team].add_flag_drop();
+                    ostringstream msg;
+                    msg << fx.player[target].name;
+                    if (1 - team == 0)
+                        msg << _(" LOST THE RED FLAG!");
+                    else if (1 - team == 1)
+                        msg << _(" LOST THE BLUE FLAG!");
+                    else
+                        msg << _(" LOST THE WILD FLAG!");
+                    addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 if (fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
@@ -2171,7 +2225,17 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().add_flag_take(get_time());
-                fx.teams[pid / TSIZE].add_flag_take();
+                const int team = pid / TSIZE;
+                fx.teams[team].add_flag_take();
+                ostringstream msg;
+                msg << fx.player[pid].name;
+                if (1 - team == 0)
+                    msg << _(" GOT THE RED FLAG!");
+                else if (1 - team == 1)
+                    msg << _(" GOT THE BLUE FLAG!");
+                else
+                    msg << _(" GOT THE WILD FLAG!");
+                addThreadMessage(new TM_Text(msg_info, msg.str()));
                 break;
             }
 
@@ -2180,6 +2244,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().add_flag_return();
                 fx.teams[pid / TSIZE].add_flag_return();
+                ostringstream msg;
+                msg << fx.player[pid].name;
+                if (pid / TSIZE == 0)
+                    msg << _(" RETURNED THE RED FLAG!");
+                else
+                    msg << _(" RETURNED THE BLUE FLAG!");
+                addThreadMessage(new TM_Text(msg_info, msg.str()));
                 break;
             }
 
@@ -2187,7 +2258,17 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().add_flag_drop(get_time());
-                fx.teams[pid / TSIZE].add_flag_drop();
+                const int team = pid / TSIZE;
+                fx.teams[team].add_flag_drop();
+                ostringstream msg;
+                msg << fx.player[pid].name;
+                if (1 - team == 0)
+                    msg << _(" DROPPED THE RED FLAG!");
+                else if (1 - team == 1)
+                    msg << _(" DROPPED THE BLUE FLAG!");
+                else
+                    msg << _(" DROPPED THE WILD FLAG!");
+                addThreadMessage(new TM_Text(msg_info, msg.str()));
                 break;
             }
 
@@ -2196,16 +2277,26 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 const bool flag = pid & 0x80;
                 pid &= ~0x80;
+                const int team = pid / TSIZE;
                 if (fx.player[pid].stats().current_cons_kills() >= 10) {
                     ostringstream msg;
                     msg << fx.player[pid].name.c_str() << _("'s killing spree was ended.");
                     addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
-                fx.teams[pid / TSIZE].add_suicide();
+                fx.teams[team].add_suicide();
                 if (flag) {
                     fx.player[pid].stats().add_flag_drop(get_time());
-                    fx.teams[pid / TSIZE].add_flag_drop();
+                    fx.teams[team].add_flag_drop();
+                    ostringstream msg;
+                    msg << fx.player[pid].name;
+                    if (1 - team == 0)
+                        msg << _(" LOST THE RED FLAG!");
+                    else if (1 - team == 1)
+                        msg << _(" LOST THE BLUE FLAG!");
+                    else
+                        msg << _(" LOST THE WILD FLAG!");
+                    addThreadMessage(new TM_Text(msg_info, msg.str()));
                 }
                 break;
             }
@@ -2216,6 +2307,18 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[pid].stats().clear();
                 fx.player[pid].stats().set_start_time(get_time());
                 fx.player[pid].stats().set_lifetime(0);
+                /*ostringstream msg;
+                msg << fx.player[pid].name << _(" entered the game.");
+                addThreadMessage(new TM_Text(msg_info, msg.str()));*/
+                break;
+            }
+
+            case data_player_left: {
+                NLubyte pid;
+                readByte(lebuf, count, pid);
+                ostringstream msg;
+                msg << fx.player[pid].name << _(" left the game with ") << fx.player[pid].stats().frags() << _(" frags.");
+                addThreadMessage(new TM_Text(msg_info, msg.str()));
                 break;
             }
 
