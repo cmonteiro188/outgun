@@ -740,13 +740,13 @@ void ServerNetworking::reload_hostname() {
 void ServerNetworking::update_serverinfo() {
 	//v0.4.8 UGLY FIX : count all players again, check for discrepancy
 	int pc = 0;
-	for (int i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used == true)
 			pc++;
 	nAssert(pc == player_count);
 
 	ostringstream info;
-	info << setw(2) << player_count << ' ' << setw(7) << GAME_VERSION << '/' << hostname;
+	info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_VERSION << ' ' << hostname;
 	server->set_server_info(info.str().c_str());
 }
 
@@ -835,7 +835,7 @@ int ServerNetworking::client_connected(int id) {
 		writeLong(lebuf, count, world.player[myself].cid);
 		nlWrite(shellssock, lebuf, count);
 	}
-	
+
 	host->check_fav_colors(myself);
 
 	//update the player with world information
@@ -923,11 +923,9 @@ void ServerNetworking::client_disconnected(int id) {
 
 //client ping result
 void ServerNetworking::ping_result(int client_id, int ping_time) {
-	if (ctop[client_id]==-1)
+	if (ctop[client_id] == -1)
 		return;
-
-	//save result
-	world.player[ ctop[client_id] ].ping = ping_time;
+	world.player[ctop[client_id]].ping = ping_time;
 }
 
 void ServerNetworking::newPlayer(int pid) {
@@ -1061,7 +1059,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			else if (code == data_change_team_on) {
 				if (!world.player[pid].want_change_teams) {
 					world.player[pid].want_change_teams = true;
-					//network.broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], world.player[pid].name.c_str());
 					host->check_team_changes();
 					pid = ctop[id];
 				}
@@ -1071,7 +1068,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				if (world.player[pid].want_change_teams) {
 					world.player[pid].want_change_teams = false;
 					world.player[pid].team_change_pending = false; //so pra garantir
-					//network.broadcast_message("@I%s player '%s' don't want to change teams", teamname[pid/TSIZE], world.player[pid].name.c_str());
 				}
 			}
 			// "client ready" message
@@ -1128,7 +1124,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				NLulong ackpos;
 				readLong(msg, count, ackpos);
 				if (fileTransfer[id].old_dp == ackpos) {
-
 					//check upload successful
 					if (fileTransfer[id].dp >= fileTransfer[id].fsize) {
 						//no more data, this was the last ack. close stuff
@@ -1568,8 +1563,8 @@ void ServerNetworking::master_job_response(masterjob_c *j) {
 	// RETORNO ESPERADO : @K<SCORE>#<RANKPOS>#
 
 	bool got_a_final_response = false;		//if got a final response (@F/@E/@K)
-																				//if not, will retry (e.g. getting "can't contact servlet runner"
-																				//or other pages describing temporary problems in the master server)
+											//if not, will retry (e.g. getting "can't contact servlet runner"
+											//or other pages describing temporary problems in the master server)
 
 	if (j->code == 1) {
 
@@ -1990,6 +1985,7 @@ bool ServerNetworking::check_private_IP(const char *address) {
 
 void ServerNetworking::run_mastertalker_thread() {
 	log("run_mastertalker_thread()");
+	const string master_script("/janir/outgun/submit.php");	// ### FIXME: move to a file
 
 	//get my IP
 	//V0.4.4: -ip : force IP to something else
@@ -1997,16 +1993,16 @@ void ServerNetworking::run_mastertalker_thread() {
 	if (force_ip) {
 		strcpy(address, force_ip_name);		//force IP
 
-		log("Forcing IP to value %s", force_ip_name);
+		log("Master talker: Forcing IP to value %s", force_ip_name);
 		NLaddress testAddr;
 		if (!nlStringToAddr(address, &testAddr) || strchr(address, ':')) {
-			log.error("Tried to force an invalid IP %s: not talking to master server...", address);
+			log.error("Master talker: Tried to force an invalid IP %s: not talking to master server...", address);
 			msock = NL_INVALID;	//???
 			master_exiting_ok = true;
 			return;
 		}
 		if (check_private_IP(address)) {
-			log.error("Tried to force a private IP %s: not talking to master server...", address);
+			log.error("Master talker: Tried to force a private IP %s: not talking to master server...", address);
 			msock = NL_INVALID;	//???
 			master_exiting_ok = true;
 			return;
@@ -2027,27 +2023,26 @@ void ServerNetworking::run_mastertalker_thread() {
 
 		//private ip?
 		if (privateip) {
-
 			//don't despair! check for all IPs
-			NLaddress *locals;
+			NLaddress* locals;
 			NLint locsize;
 			locals = nlGetAllLocalAddr(&locsize);
 
 			for (int z=0;z<locsize;z++) {
 				nlAddrToString( &(locals[z]) , address );
-				log("Checking local : %s ...", address);
+				log("Master talker: Checking local: %s", address);
 				privateip = check_private_IP(address);
 				if (!privateip)	{
-					log("NOT PRIVATE! this is good");
+					log("Master talker: Public address.");
 					break;	//success! "address" now has non-private address string
 				}
 				else
-					log("PRIVATE! sucks... trying next...");
+					log("Master talker: Private address, trying next.");
 			}
 
 			//still??
 			if (privateip) {
-				log("PRIVATE IP: %s, (and all others): not talking to master server...", address);
+				log("Master talker: Private IP %s (and all others): not talking to master server.", address);
 				msock = NL_INVALID;	//???
 				master_exiting_ok = true;
 				return;
@@ -2062,12 +2057,8 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	//while not time to quit
 	while (!file_threads_quit) {
-
 		//time to update with master server?
 		if (get_time() > master_talk_time) {
-
-			//LOG("MASTER TALKER: time to talk\n");
-
 			//schedule next
 			master_talk_time = get_time() + 3 * 60.0 ;		//3 minutes
 
@@ -2078,40 +2069,21 @@ void ServerNetworking::run_mastertalker_thread() {
 			nlDisable(NL_BLOCKING_IO);
 			nlOpenMutex.unlock();
 			if (msock == NL_INVALID) {
-				log.error("Server can't open socket to connect to master server");
+				log.error("Master talker: Server can't open socket to connect to master server.");
 				continue;
 			}
 
 			//LOG("MASTER TALKER: socket open\n");
 
 			//connect
-			//NLaddress masadr;
-			//nlGetAddrFromName("www.mycgiserver.com", &masadr);	//www.mycgiserver.com
-			//nlStringToAddr("212.69.162.53", &masadr);
-			//nlSetAddrPort(&masadr, 80);													//port 80
 			if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
-				log.error("Server can't connect to www.mycgiserver.com:80");
+				log.error("Master talker: Server can't connect to master server.");
 				nlClose(msock);
 				msock = NL_INVALID;
 				continue;
 			}
 
 			//LOG("MASTER TALKER: socket connected\n");
-
-			//built the state
-			char state[1024];
-			sprintf(state, "%i/%i players - %s - v%s", player_count, maxplayers, hostname.c_str(), GAME_VERSION);
-			for (int h=0; state[h]; h++)
-				if (state[h] == ' ')	//switch spaces to plus'es
-					state[h] = '+';
-
-			//build the GET request
-			char query[1024];
-			sprintf(query, "GET /servlet/fcecin.m3/index.html?add=%s&pass=1111&st=%s\n\n", address, state);
-			char lebuf[65536]; int count = 0;
-			writeString(lebuf, count, query);
-			//erase the 0
-			count--;
 
 			//chance to give up
 			if (file_threads_quit)
@@ -2120,55 +2092,21 @@ void ServerNetworking::run_mastertalker_thread() {
 			//now we have talked
 			master_never_talked = false;
 
-			//send it
-			NLint result = nlWrite(msock, lebuf, count);
-			//LOG3("WROTE TO MASTER '%s', result = %i, count = %i\n", query, result, count);
-			//LOG2("MASTER TALKER: wrote to master %i,%i\n", result, count);
+			// build and send data
+			map<string, string> parameters = master_parameters();
+			const string data = build_http_data(parameters);
+			NLint result = post_http_data(msock, master_script, data);
 
-			//parse the response (should be <HTML><BODY> etc... with "@K" on it
-			int n=0;
-			double timeout = get_time() + 60.0;
-			do {
+			log("Master talker: Sent information to master server:");
+			log("%s", data.c_str());
+			log("Result: %i", result);
+			if (result == -1)
+				master_talk_time = get_time() + 15.0;		// 15 seconds
 
-				//read
-				result = nlRead(msock, &(lebuf[n]), 1);
-				if (result != 1) {
-					log.error("Master talker: error r=%i", result);
-					break;
-				}
-
-				//check for received </HTML>
-				if (n > 8) {
-					if (
-						(lebuf[n-6] == '<') &&
-						(lebuf[n-5] == '/') &&
-						((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
-						((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
-						((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
-						((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
-						(lebuf[n-0] == '>')
-					)
-					{
-
-						//LOG("MASTER TALKER: </HTML>\n");
-						lebuf[n+1] = 0;
-						//LOG1("Full response: \"%s\"\n", lebuf);
-						break;
-					}
-				}
-
-				//read next
-				n++;
-
-				//quit if timeout
-				if (get_time() > timeout)
-					break;
-
-				//quit if told to
-				if (file_threads_quit)
-					break;
-
-			} while (1);
+			// save response to a file
+			ofstream out("master.log");
+			save_http_response(msock, out);
+			out.close();
 
 			//close socket
 			nlClose(msock);
@@ -2178,14 +2116,14 @@ void ServerNetworking::run_mastertalker_thread() {
 		MS_SLEEP(500);
 	}
 
-	log("MASTER TALKER: time to say goodbye");
+	log("Master talker: time to say goodbye.");
 
 	//master is pre-exiting, no need to do the first socket closure
 	master_pre_exiting_ok = true;
 
 	//qutting: close the socket
 	if (msock != NL_INVALID) {
-		log("MASTER TALKER: bye 1");
+		log("Master talker: bye 1");
 		nlClose(msock);
 		msock = NL_INVALID;
 	}
@@ -2197,108 +2135,41 @@ void ServerNetworking::run_mastertalker_thread() {
 		return;
 	}
 
-	log("MASTER TALKER: bye 2");
+	log("Master talker: bye 2");
 
 	//quitting: delete my IP from master so clients won't see it
 	//open socket
 	nlOpenMutex.lock();
-	nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
+	nlEnable(NL_BLOCKING_IO);
 	msock = nlOpen(0, NL_RELIABLE);
+	nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
 	nlOpenMutex.unlock();
 
 	if (msock == NL_INVALID) {
-		log.error("(QUIT) Server can't open socket to connect to master server");
+		log.error("Master talker: (Quit) Server can't open socket to connect to master server.");
 		return;
 	}
 
 	//connect
-	//NLaddress masadr;
-	//nlGetAddrFromName("www.mycgiserver.com", &masadr);	//www.mycgiserver.com
-	//nlStringToAddr("212.69.162.53", &masadr);
-	//nlSetAddrPort(&masadr, 80);													//port 80
 	if (nlConnect(msock, &master_address) == NL_FALSE) {		//connect
-		log.error("(QUIT) Server can't connect to www.mycgiserver.com:80");
+		log.error("Master talker: (Quit) Server can't connect to master server.");
 		nlClose(msock);
 		msock = NL_INVALID;
 		return;
 	}
 
-	//build the GET request
-	char query[1024];
-	sprintf(query, "GET /servlet/fcecin.m3/index.html?del=%s&pass=1111\n\n", address);
-	char lebuf[65536]; int count = 0;
-	writeString(lebuf, count, query);
-	//erase the 0
-	count--;
+	// send quit message
+	ostringstream quit;
+	quit << "port=" << port << "&quit=1\r\n";
+	NLint result = post_http_data(msock, master_script, quit.str());
+	log("Master talker: Sent information to master server:");
+	log("%s", quit.str().c_str());
+	log("Result: %i", result);
 
-	//send it
-
-	NLint result;
-	double querytimeout = get_time() + 5.0;
-
-	do {
-		MS_SLEEP(50);
-		result = nlWrite(msock, lebuf, count);
-	} while ((result == NL_INVALID) && (get_time() < querytimeout));
-
-	if (get_time() >= querytimeout) {
-
-		log.error("(QUIT) query timeout");
-
-		//master exited OK!
-		master_exiting_ok = true;
-
-		//close socket
-		nlClose(msock);
-		msock = NL_INVALID;
-		return;
-	}
-
-	log("(QUIT) Wrote to master '%s', result = %i, count = %i", query, result, count);
-
-	//parse the response (should be <HTML><BODY> etc... with "@K" on it
-	double timeout = get_time() + 5.0;
-	int n=0;
-	do {
-
-		//read
-		result = nlRead(msock, &(lebuf[n]), 1);
-		if (result == NL_INVALID) {
-			log.error("(QUIT) error reading response, result = %i", result);
-			break;
-		}
-		//timeout?
-		if (get_time() > timeout)
-			break;
-		//nothing to read
-		if (result == 0) {
-			MS_SLEEP(10);
-			continue;
-		}
-
-		//check for received </HTML>
-		if (n > 8) {
-			if (
-				(lebuf[n-6] == '<') &&
-				(lebuf[n-5] == '/') &&
-				((lebuf[n-4] == 'h') || (lebuf[n-4] == 'H')) &&
-				((lebuf[n-3] == 't') || (lebuf[n-3] == 'T')) &&
-				((lebuf[n-2] == 'm') || (lebuf[n-2] == 'M')) &&
-				((lebuf[n-1] == 'l') || (lebuf[n-1] == 'L')) &&
-				(lebuf[n-0] == '>')
-			)
-			{
-				log("(QUIT) RECEIVED </HTML>! SUCCESS!!");
-				lebuf[n+1] = 0;
-				//LOG1("(QUIT) Full response: \"%s\"\n", lebuf);
-				break;
-			}
-		}
-
-		//read next
-		n++;
-
-	} while (1);
+	// save response to a file
+	ofstream out("master.log");
+	save_http_response(msock, out);
+	out.close();
 
 	//master exited OK!
 	master_exiting_ok = true;
@@ -2416,16 +2287,16 @@ void ServerNetworking::run_website_thread() {
 				first_connection = false;
 			}
 			const string data = build_http_data(parameters);
-			NLint result = post_http_data(site_script, data, site_auth);
+			NLint result = post_http_data(websock, site_script, data, site_auth);
 			log("Website thread: Sent information to server website:");
-			log("\t%s", data.c_str());
-			log("\tResult: %i", result);
+			log("%s", data.c_str());
+			log("Result: %i", result);
 			if (result == -1)
 				website_talk_time = get_time() + 15.0;		// 15 seconds
 
 			// save response to a file
 			ofstream out("web.log");
-			save_http_response(out);
+			save_http_response(websock, out);
 			out.close();
 
 			//close socket
@@ -2456,7 +2327,7 @@ void ServerNetworking::run_website_thread() {
 	nlOpenMutex.unlock();
 
 	if (websock == NL_INVALID) {
-		log.error("Website thread: (Quite) Server can't open socket to connect to server website!");
+		log.error("Website thread: (Quit) Server can't open socket to connect to server website!");
 		website_exiting_ok = true;
 		return;
 	}
@@ -2472,14 +2343,14 @@ void ServerNetworking::run_website_thread() {
 
 	// send quit message
 	const string quit = "quit=1\r\n";
-	NLint result = post_http_data(site_script, quit, site_auth);
+	NLint result = post_http_data(websock, site_script, quit, site_auth);
 	log("Website thread: Sent information to server website:");
-	log("\t%s", quit.c_str());
-	log("\tResult: %i", result);
+	log("%s", quit.c_str());
+	log("Result: %i", result);
 
 	// save response to a file
 	ofstream out("web.log");
-	save_http_response(out);
+	save_http_response(websock, out);
 	out.close();
 
 	//close socket
@@ -2487,6 +2358,27 @@ void ServerNetworking::run_website_thread() {
 	websock = NL_INVALID;
 
 	website_exiting_ok = true;
+}
+
+map<string, string> ServerNetworking::master_parameters() const {
+	map<string, string> parameters;
+	parameters["name"] = hostname;
+	//parameters["ip"] = address;
+	ostringstream p;
+	p << port;
+	parameters["port"] = p.str();
+	ostringstream pc;
+	pc << player_count;
+	parameters["players"] = pc.str();
+	ostringstream mpc;
+	mpc << maxplayers;
+	parameters["max_players"] = mpc.str();
+	parameters["version"] = GAME_VERSION;
+	ostringstream upt;
+	upt << world.frame / 10;
+	parameters["uptime"] = upt.str();
+	parameters["link"] = "http://koti.mbnet.fi/janir/outgun/";	//#fix
+	return parameters;
 }
 
 map<string, string> ServerNetworking::website_parameters(const string& address) const {
@@ -2545,32 +2437,35 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 	return param_line.str();
 }
 
-NLint ServerNetworking::post_http_data(const string& script, string parameters, const string& auth) const {
+NLint ServerNetworking::post_http_data(NLsocket& socket, const string& script, const string& parameters, const string& auth) const {
 	char lebuf[65536]; int count = 0;
 	ostringstream data;
-	const string password = base64_encode(auth);
 	data << "POST " << script << " HTTP/1.0\r\n";
 	data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
-	data << "Authorization: Basic " << password << "\r\n";
+	if (!auth.empty())
+		data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
+	data << "Connection: close\r\n";
 	data << "Content-Type: application/x-www-form-urlencoded\r\n";
 	data << "Content-Length: " << parameters.length() << "\r\n\r\n";
 	writeStr(lebuf, count, data.str()); count--;
 	writeStr(lebuf, count, parameters); count--;
-	return nlWrite(websock, lebuf, count);
+	return nlWrite(socket, lebuf, count);
 }
 
-void ServerNetworking::save_http_response(ostream& out) const {
+void ServerNetworking::save_http_response(NLsocket& socket, ostream& out) const {
 	const double timeout = get_time() + 60.0;
 	const int buffer_size = 511;
 	char lebuf[buffer_size + 1];
 	NLint result;
 	do {
 		// read
-		result = nlRead(websock, lebuf, buffer_size);
+		result = nlRead(socket, lebuf, buffer_size);
+		if (result == NL_INVALID)
+			break;
 		lebuf[result] = '\0';
 		// save
 		out << lebuf;
-	} while (result == buffer_size && get_time() <= timeout && !file_threads_quit);
+	} while (get_time() <= timeout && !file_threads_quit);
 }
 
 void ServerNetworking::url_encode(char c, ostream& out) const {
@@ -2781,110 +2676,110 @@ void ServerNetworking::run_shellslave_thread() {
 
 			//parse it
 			switch (code) {
-			case ATS_NOOP:						//0= no-op
-				break;
-			case ATS_GET_PLAYER_FRAGS:		//1... request the frags amount of a player <int id>
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4) {
-					if (world.player[pid].used) {
-						answer = true; //ADMIN SHELL
-						writeLong(lebuf, count, STA_PLAYER_FRAGS);
-						writeLong(lebuf, count, world.player[pid].cid);
-						writeLong(lebuf, count, world.player[pid].frags);
+				case ATS_NOOP:						//0= no-op
+					break;
+				case ATS_GET_PLAYER_FRAGS:		//1... request the frags amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						if (world.player[pid].used) {
+							answer = true; //ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_FRAGS);
+							writeLong(lebuf, count, world.player[pid].cid);
+							writeLong(lebuf, count, world.player[pid].frags);
+						}
 					}
-				}
-				break;
-			case ATS_GET_PLAYER_TOTAL_TIME:		//request the frags amount of a player <int id>
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4) {
-					if (world.player[pid].used) {
-						answer = true;
-						writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
-						writeLong(lebuf, count, world.player[pid].cid);
-						delta = (int)(get_time() - world.player[pid].start_time);
-						writeLong(lebuf, count, delta);
+					break;
+				case ATS_GET_PLAYER_TOTAL_TIME:		//request the frags amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						if (world.player[pid].used) {
+							answer = true;
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
+							writeLong(lebuf, count, world.player[pid].cid);
+							delta = (int)(get_time() - world.player[pid].start_time);
+							writeLong(lebuf, count, delta);
+						}
 					}
-				}
-				break;
-			case ATS_GET_PLAYER_TOTAL_KILLS:		//request the total kills amount of a player <int id>
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4) {
-					if (world.player[pid].used) {
-						answer = true;//ADMIN SHELL
-						writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
-						writeLong(lebuf, count, world.player[pid].cid);
-						writeLong(lebuf, count, world.player[pid].total_kills);
+					break;
+				case ATS_GET_PLAYER_TOTAL_KILLS:		//request the total kills amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						if (world.player[pid].used) {
+							answer = true;//ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
+							writeLong(lebuf, count, world.player[pid].cid);
+							writeLong(lebuf, count, world.player[pid].total_kills);
+						}
 					}
-				}
-				break;
-			case ATS_GET_PLAYER_TOTAL_DEATHS:		//request the total deaths amount of a player <int id>
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4) {
-					if (world.player[pid].used) {
-						answer = true;//ADMIN SHELL
-						writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
-						writeLong(lebuf, count, world.player[pid].cid);
-						writeLong(lebuf, count, world.player[pid].total_deaths);
+					break;
+				case ATS_GET_PLAYER_TOTAL_DEATHS:		//request the total deaths amount of a player <int id>
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						if (world.player[pid].used) {
+							answer = true;//ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
+							writeLong(lebuf, count, world.player[pid].cid);
+							writeLong(lebuf, count, world.player[pid].total_deaths);
+						}
 					}
-				}
-				break;
-			case ATS_GET_PLAYER_TOTAL_CAPTURES:		//request the total captures amount of a player <int id>				}
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4) {
-					if (world.player[pid].used) {
-						answer = true;//ADMIN SHELL
-						writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
-						writeLong(lebuf, count, world.player[pid].cid);
-						writeLong(lebuf, count, world.player[pid].total_captures);
+					break;
+				case ATS_GET_PLAYER_TOTAL_CAPTURES:		//request the total captures amount of a player <int id>				}
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4) {
+						if (world.player[pid].used) {
+							answer = true;//ADMIN SHELL
+							writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
+							writeLong(lebuf, count, world.player[pid].cid);
+							writeLong(lebuf, count, world.player[pid].total_captures);
+						}
 					}
-				}
-				break;
-			case ATS_SERVER_CHAT:									//server is saying <string chat line>
-				read_string_from_TCP(shellssock, (char *)chat);
-				sprintf(lechat, "ADMIN: %s", chat);
-				broadcast_message(msg_normal, lechat);
-				break;
-			case ATS_GET_PINGS:
-				for (int p=0; p<maxplayers; ++p)
-					if (world.player[p].used) {
-						answer=true;
-						writeLong(lebuf, count, STA_PLAYER_PING);
-						writeLong(lebuf, count, world.player[p].cid);
-						writeLong(lebuf, count, world.player[p].ping);
-					}
-				break;
-			case ATS_MUTE_PLAYER:
-				result = nlRead(shellssock, rbuf, 8);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				readLong(rbuf, rcount, arg);
-				if (result == 8 && pid != -1)
-					host->mutePlayer(pid, arg, -1);
-				break;
-			case ATS_KICK_PLAYER:
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4 && pid != -1)
-					host->kickPlayer(pid, -1);
-				break;
-			#ifdef SV_NAME_AUTHORIZATION
-			case ATS_BAN_PLAYER:
-				result = nlRead(shellssock, rbuf, 4);
-				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
-				if (result == 4 && pid != -1)
-					host->banPlayer(pid, -1);
-				break;
-			#endif
-			case ATS_RESET_SETTINGS:
-				host->reset_settings(true);
-				break;
-			case ATS_QUIT:
-				should_quit = true;
-				break;
+					break;
+				case ATS_SERVER_CHAT:									//server is saying <string chat line>
+					read_string_from_TCP(shellssock, (char *)chat);
+					sprintf(lechat, "ADMIN: %s", chat);
+					broadcast_message(msg_normal, lechat);
+					break;
+				case ATS_GET_PINGS:
+					for (int p=0; p<maxplayers; ++p)
+						if (world.player[p].used) {
+							answer=true;
+							writeLong(lebuf, count, STA_PLAYER_PING);
+							writeLong(lebuf, count, world.player[p].cid);
+							writeLong(lebuf, count, world.player[p].ping);
+						}
+					break;
+				case ATS_MUTE_PLAYER:
+					result = nlRead(shellssock, rbuf, 8);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					readLong(rbuf, rcount, arg);
+					if (result == 8 && pid != -1)
+						host->mutePlayer(pid, arg, -1);
+					break;
+				case ATS_KICK_PLAYER:
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4 && pid != -1)
+						host->kickPlayer(pid, -1);
+					break;
+				#ifdef SV_NAME_AUTHORIZATION
+				case ATS_BAN_PLAYER:
+					result = nlRead(shellssock, rbuf, 4);
+					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
+					if (result == 4 && pid != -1)
+						host->banPlayer(pid, -1);
+					break;
+				#endif
+				case ATS_RESET_SETTINGS:
+					host->reset_settings(true);
+					break;
+				case ATS_QUIT:
+					should_quit = true;
+					break;
 			}
 
 			//quitting?

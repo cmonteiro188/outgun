@@ -81,6 +81,15 @@ double get_time() {
 	return ((double)time_counter) / 200.0;
 }
 
+string date_and_time() {
+	time_t tt = time(0);
+	const tm* tmb = localtime(&tt);
+	const int time_w = 20;
+	char time_str[time_w + 1];
+	strftime(time_str, time_w, "%Y-%m-%d %H:%M:%S", tmb);
+	return time_str;
+}
+
 // definitions for incalleg.h
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0

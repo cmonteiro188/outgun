@@ -1153,18 +1153,18 @@ void PowerupSettings::reset() {
 void PowerupSettings::print(LineReceiver& printer) const {
 	ostringstream line;
 	if (pup_max_time > pup_add_time)
-		line << "- Power-ups add " << pup_add_time << " seconds to what's left, with a maximum of " << pup_max_time << " seconds";
+		line << "- Power-ups add " << pup_add_time << " seconds to what's left, with a maximum of " << pup_max_time << " seconds.";
 	else
-		line << "- Power-up time is " << pup_max_time << " seconds";
+		line << "- Power-up time is " << pup_max_time << " seconds.";
 	printer(line.str());
 	if (pups_drop_at_death) {
 		line.str("");
-		line << "- Some power-ups are dropped when player dies";
+		line << "- Some power-ups are dropped when player dies.";
 		printer(line.str());
 	}
 	if (pup_deathbringer_switch) {
 		line.str("");
-		line << "- Picking up a second deathbringer power-up cancels the effect";
+		line << "- Picking up a second deathbringer power-up cancels the effect.";
 		printer(line.str());
 	}
 	line.str("");
@@ -1220,6 +1220,7 @@ void WorldSettings::reset() {
 	extra_time = 0;
 	sudden_death = 0;
 	capture_limit = 8;
+	balance_teams = false;
 }
 
 void WorldSettings::print(LineReceiver& printer) const {
@@ -1249,10 +1250,12 @@ void WorldSettings::print(LineReceiver& printer) const {
 		printer(line.str());
 		line.str("");
 	}
+	if (balance_teams)
+		printer("- Teams will be balanced at the start of each round.");
 	if (svp_friendly_fire)
-		printer("- Friendly fire is on");
-	if (shadow_minimum == 1)
-		printer("- A player using the shadow power-up gets totally invisible");
+		printer("- Friendly fire is on.");
+	if (shadow_minimum == 0)
+		printer("- A player using the shadow power-up gets totally invisible.");
 }
 
 class ServerPhysicsCallbacks : public PhysicsCallbacksBase {
@@ -2593,11 +2596,11 @@ void ServerWorld::simulateFrame() {
 	if (host->get_player_count() > 1 && time_limit > 0) {
 		const int timeLeft = getTimeLeft();
 		if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
-			net->bprintf(msg_info, "*** Five minutes left in the game");
+			net->bprintf(msg_info, "*** Five minutes remaining");
 		else if (time_limit >=  2*60 * 10 && timeLeft ==   60 * 10)
-			net->bprintf(msg_info, "*** One minute left in the game");
+			net->bprintf(msg_info, "*** One minute remaining");
 		else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
-			net->bprintf(msg_info, "*** 30 seconds left in the game");
+			net->bprintf(msg_info, "*** 30 seconds remaining");
 		// game ends if time is over and (the game is not tied or there is no extra-time)
 		else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.sudden_death))) {
 			net->bprintf(msg_info, "*** Time out - CTF game over");

@@ -122,6 +122,8 @@ public:
 
    int check[MAX_PLAYERS];
    int checount;
+
+	void balance_teams();
 	void check_team_changes();
 	void check_player_change_teams(int pid);
 	void move_player(int f, int t);

@@ -11,9 +11,12 @@
 //#define DEBUG_RANKING
 #define MINIMUM_POSITIVE_SCORE_FOR_RANKING 100
 
+using std::endl;
 using std::find;
 using std::ifstream;
+using std::ios;
 using std::max;
+using std::ofstream;
 using std::ostringstream;
 using std::random_shuffle;
 using std::setfill;
@@ -94,16 +97,17 @@ bool gameserver_c::check_name_password(const string& name, const string& passwor
 #endif
 
 void gameserver_c::ctf_game_restart() {
-	int i;
-
 	//submit all pending reports
-	for (i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			network.client_report_status(world.player[i].cid);
 
 	char lix[256];
-	sprintf(lix, "CTF GAME RESTARTED - FINAL SCORE:   %i RED x %i BLUE !", world.teams[0].score(), world.teams[1].score());
+	sprintf(lix, "CTF GAME OVER - FINAL SCORE: RED %i - BLUE %i", world.teams[0].score(), world.teams[1].score());
 	network.broadcast_message(msg_info, lix);
+
+	if (worldConfig.balance_teams)
+		balance_teams();
 
 	if (worldConfig.getTimeLimit() == 0)
 		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
@@ -122,6 +126,27 @@ void gameserver_c::ctf_game_restart() {
 	network.ctf_update_teamscore(1);
 
 	network.send_map_time(-1);
+}
+
+void gameserver_c::balance_teams() {
+	vector<int> team[2];
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used)
+			team[i / TSIZE].push_back(i);
+	int difference = team[0].size() - team[1].size();
+	const int bigger_team = (difference > 0 ? 0 : 1);
+	while (difference > 1 || difference < -1) {
+		const int victim = rand() % team[bigger_team].size();
+		// Find a free slot in another team and move victim there.
+		for (int i = (1 - bigger_team) * TSIZE; i < (2 - bigger_team) * TSIZE; i++)
+			if (!world.player[i].used) {
+				move_player(team[bigger_team][victim], i);
+				team[1 - bigger_team].push_back(team[bigger_team][victim]);
+				team[bigger_team].erase(team[bigger_team].begin() + victim);
+				break;
+			}
+		difference = team[0].size() - team[1].size();
+	}
 }
 
 //check if team change requests can be satisfied
@@ -569,6 +594,12 @@ void gameserver_c::load_game_mod() {
 				else if (cmd == "capture_limit") {
 					if (ival >= 0)
 						worldConfig.capture_limit = ival;
+					else
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
+				}
+				else if (cmd == "balance_teams") {
+					if (ival == 0 || ival == 1)
+						worldConfig.balance_teams = ival == 1 ? true : false;
 					else
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
@@ -1075,12 +1106,8 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		}
 		else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
 			if (strspnp(pCommand, " ")!=NULL) {
-				FILE* logp=fopen("sayadmin.log", "at+");
-				time_t tt=time(0);
-				struct tm* tmb=localtime(&tt);
-				fprintf(logp, "%d-%02d-%02d %02d:%02d:%02d  %s: %s\n", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday,
-						tmb->tm_hour, tmb->tm_min, tmb->tm_sec, world.player[pid].name.c_str(), pCommand);
-				fclose(logp);
+				ofstream log("sayadmin.log", ios::out | ios::app);
+				log << date_and_time() << "  " << world.player[pid].name << ": " << pCommand << endl;
 				network.forwardSayadminMessage(world.player[pid].cid, pCommand);
 				network.player_message(pid, msg_info, "Your message has been logged. Thank you for your feedback!");
 			}

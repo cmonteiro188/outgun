@@ -38,7 +38,7 @@ public:
 
 	void add_component(Component* comp) { components.push_back(comp); }
 
-	void open() { openHook.call(*this); }
+	void open() { openHook.call(*this); home(); }
 	void close() { closeHook.call(*this); }
 
 	void home();	// moves the cursor to topmost selectable item
@@ -68,7 +68,7 @@ private:
 
 	Hook<Menu> drawHook, openHook, closeHook, okHook;
 };
-#include <iostream>
+
 class MenuStack {
 public:
 	bool empty() const { return st.empty(); }

@@ -12,6 +12,9 @@ template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val;
 int atoi(const std::string& str);
 int iround(double value);
 
+// Returns a current time in the standard format.
+std::string date_and_time();
+
 // Convert string to uppercase.
 std::string toupper(std::string str);
 

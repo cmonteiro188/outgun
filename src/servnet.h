@@ -56,11 +56,12 @@ class ServerNetworking {
 	//thread for server website interaction
 	static void* thread_website_f(void* arg);
 
+	std::map<std::string, std::string> master_parameters() const;
 	std::map<std::string, std::string> website_parameters(const std::string& address) const;
 	std::string website_maplist() const;
 	std::string build_http_data(const std::map<std::string, std::string>& parameters) const;
-	NLint post_http_data(const std::string& script, std::string parameters, const std::string& auth) const;
-	void save_http_response(std::ostream& out) const;
+	NLint post_http_data(NLsocket& socket, const std::string& script, const std::string& parameters, const std::string& auth = "") const;
+	void save_http_response(NLsocket& socket, std::ostream& out) const;
 	void url_encode(char c, std::ostream& out) const;
 	bool is_url_safe(char c) const;
 	std::string base64_encode(const std::string& data) const;

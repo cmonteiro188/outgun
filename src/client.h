@@ -170,7 +170,7 @@ class gameclient_c {
 	// menu callback functions
 	void MCF_menuOpener(Menu& menu) { openMenus.open(&menu); }
 	void MCF_menuCloser(Menu&) { openMenus.close(); }
-	template<class ArgT> void MCF_connect(ArgT&) { openMenus.clear(); connect_command(); }
+	template<class ArgT> void MCF_connect(ArgT&) { openMenus.clear(); connect_command(); }	//#fix: menu!
 	void MCF_disconnect(Textarea&) { disconnect_command(); }
 	void MCF_startServer(Textarea&) { nAssert(!listenServer.running()); if (!listenServer.running()) listenServer.start(port); }
 	void MCF_stopServer(Textarea&) { nAssert(listenServer.running()); if (listenServer.running()) listenServer.stop(); }
@@ -185,7 +185,7 @@ class gameclient_c {
 	void MCF_prepareGfxMenu(Menu&);
 	void MCF_screenModeChange(Menu&) { screenModeChange(); }
 	void MCF_sndThemeChange(Select&) { }	//#fix: action!
-	void MCF_prepareSndMenu(Menu&) { }	//#fix: action!
+	void MCF_prepareSndMenu(Menu&);
 
 	void screenModeChange() { }	//#fix: action!
 

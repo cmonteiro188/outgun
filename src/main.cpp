@@ -211,7 +211,8 @@ int main(int argc, char *argv[]) {
 	// #FIXME: read master server address from a file
 	log("resolving master server address...");
 	try {
-		nlGetAddrFromName("www.mycgiserver.com", &master_address);	//www.mycgiserver.com
+		//nlGetAddrFromName("www.mycgiserver.com", &master_address);	//www.mycgiserver.com
+		nlGetAddrFromName("koti.mbnet.fi", &master_address);
 	} catch (...) {
 		log("caught exception probably on nlGetAddrFromNameAsync()");
 		master_address.valid = NL_FALSE;
@@ -219,7 +220,7 @@ int main(int argc, char *argv[]) {
 
 	if (master_address.valid == NL_FALSE) {
 		log("can't resolve master server address to IP.");
-		nlStringToAddr("212.69.162.53", &master_address);					//last known resolution for www.mycgiserver.com
+		//nlStringToAddr("212.69.162.53", &master_address);					//last known resolution for www.mycgiserver.com
 	} else if (master_address.valid == NL_TRUE) {
 		log("address resolved sucessfully.");
 	}

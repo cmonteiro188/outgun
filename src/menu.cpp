@@ -12,11 +12,7 @@ using std::vector;
 const int char_w = 8;
 const int line_h = 12;
 
-int col_background	= makecol(0x30, 0x30, 0x30);
-int col_caption		= makecol(0x30, 0xFF, 0x30);
-int col_active		= makecol(0x80, 0xFF, 0x80);
-int col_disabled	= makecol(0x30, 0x70, 0x30);
-int col_value		= makecol(0x30, 0xA0, 0x30);
+int col_background, col_borderShadow, col_borderHighlight, col_menuCaption, col_caption, col_active, col_disabled, col_value;
 
 int Component::captionColor(bool active) const {
 	if (!isEnabled())
@@ -28,14 +24,14 @@ int Component::captionColor(bool active) const {
 
 void Menu::home() {
 	for (selected_item = 0; !components[selected_item]->isEnabled(); ++selected_item)
-		if (selected_item >= static_cast<int>(components.size())) {
+		if (selected_item >= static_cast<int>(components.size()) - 1) {
 			selected_item = 0;	// maybe this isn't needed
 			return;
 		}
 }
 
 bool Menu::prev() {
-	int original = selected_item;
+	const int original = selected_item;
 	do {
 		--selected_item;
 		if (selected_item < 0) {
@@ -47,7 +43,7 @@ bool Menu::prev() {
 }
 
 bool Menu::next() {
-	int original = selected_item;
+	const int original = selected_item;
 	do {
 		++selected_item;
 		if (selected_item >= static_cast<int>(components.size())) {
@@ -59,23 +55,26 @@ bool Menu::next() {
 }
 
 void Menu::draw(BITMAP* buffer) {
-col_background	= makecol(0x30, 0x30, 0x30);
-col_caption		= makecol(0x30, 0xFF, 0x30);
-col_active		= makecol(0x80, 0xFF, 0x80);
-col_disabled	= makecol(0x30, 0x70, 0x30);
-col_value		= makecol(0x30, 0xA0, 0x30);
+col_background		= makecol(0x30, 0x30, 0x30);
+col_borderShadow	= makecol(0x50, 0x50, 0x50);
+col_borderHighlight	= makecol(0xA0, 0xA0, 0xA0);
+col_menuCaption 	= makecol(0xC0, 0xFF, 0xC0);
+col_caption			= makecol(0x30, 0xFF, 0x30);
+col_active			= makecol(0x80, 0xFF, 0x80);
+col_disabled		= makecol(0x30, 0x70, 0x30);
+col_value			= makecol(0x30, 0xA0, 0x30);
 	drawHook.call(*this);
 
 	if (!components[selected_item]->isEnabled())	// a disabled component can not be active
 		if (!next())	// try moving down first - feels intuitive
-			prev();	// if it fails, so be it
+			prev();	// if this fails too, so be it
 
 	// calculate menu width and height
-	const int padding = 12;
+	const int padding = 30;
 	const int max_width = buffer->w;
-	const int min_width = total_width() + padding * 2;
+	const int min_width = total_width() + 2 * padding;
 	const int max_height = buffer->h;
-	const int min_height = total_height() + padding * 2;
+	const int min_height = total_height() + 2 * padding;
 	const int w = min(max_width, min_width);
 	const int h = min(max_height, min_height);
 	const int mx = max_width / 2;
@@ -86,18 +85,23 @@ col_value		= makecol(0x30, 0xA0, 0x30);
 	const int y2 = my + h / 2;
 
 	rectfill(buffer, x1, y1, x2, y2, col_background);
+	hline(buffer, x1 + 1, y1 + 1, x2 - 1, col_borderHighlight);
+	vline(buffer, x1 + 1, y1 + 1, y2 - 1, col_borderHighlight);
+	hline(buffer, x1 + 1, y2 - 1, x2 - 1, col_borderShadow);
+	vline(buffer, x2 - 1, y1 + 1, y2 - 1, col_borderShadow);
 
+	const int x_start = x1 + padding;
 	int y = y1 + padding;
 
 	// draw caption
-	textout_centre_ex(buffer, font, caption.c_str(), mx, y, col_caption, -1);
+	textout_centre_ex(buffer, font, caption.c_str(), mx, y, col_menuCaption, -1);
 	y += 2 * line_h;
 
 	// draw components
 	for (int compi = 0; compi < static_cast<int>(components.size()); ++compi) {
 		Component* component = components[compi];
 		//#todo: show shortcut numbers if the active component doesn't needNumberKeys()
-		component->draw(buffer, x1 + padding, y, compi == selected_item);
+		component->draw(buffer, x_start, y, compi == selected_item);
 		y += component->height();
 	}
 }
@@ -247,8 +251,8 @@ int Slider::height() const {
 
 void Slider::draw(BITMAP* buffer, int x, int y, bool active) const {
 	textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-	int x0 = x + (caption.length() + 1) * char_w;
-	int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
+	const int x0 = x + (caption.length() + 1) * char_w;
+	const int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
 	rect(buffer, x0, y, x + width() - 1, y + height() - 1, captionColor(active));
 	if (barLength)
 		rectfill(buffer, x0 + 1, y + 1, x0 + barLength, y + height() - 2, col_value);

@@ -53,12 +53,12 @@ void Mappic::save_pictures() const {
 	for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
 		string picture = dir + *name + ".pcx";
 		Map mp;
-		mp.load(log, SERVER_MAPS_DIR, *name);
-		if (graphics.save_map_picture(picture, mp)) {
-			log("Saved map picture to '%s'", picture.c_str());
-		}
+		if (!mp.load(log, SERVER_MAPS_DIR, *name))
+			log.error("Map '%s' is not a valid map file.", picture.c_str());
+		else if (graphics.save_map_picture(picture, mp))
+			log("Saved map picture to '%s'.", picture.c_str());
 		else {
-			log.error("Can't save map picture to '%s'", picture.c_str());
+			log.error("Can't save map picture to '%s'.", picture.c_str());
 			throw Save_error();
 		}
 	}

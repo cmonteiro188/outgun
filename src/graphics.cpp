@@ -75,7 +75,7 @@ bool Graphics::init() {
 	minimap_w = minimap_place_w = scale(160);
 	minimap_h = minimap_place_h = scale(100);
 	mmx = SCREEN_W - minimap_w - 4;
-	if (SCREEN_W > 8 * 80)	// check if minimap fits to the right of chat messages
+	if (mmx > 8 * 80)	// check if minimap fits to the right of chat messages
 		mmy = 2;
 	else
 		mmy = ply;
@@ -1122,7 +1122,7 @@ void Graphics::draw_shield(int x, int y, int r, int alpha, int team) {
 void Graphics::draw_player_name(const string& name, int x, int y, int team) {
 	x = scale(x);
 	y = scale(y);
-	print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS - 10), col[COLWHITE], teamdcol[team], -1);
+	print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), col[COLWHITE], teamdcol[team], -1);
 }
 
 void Graphics::draw_rocket(const rocket_c& rocket, double time) {
@@ -1512,8 +1512,8 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
 
 	line++;
 	const int bpstraffic = bpsin + bpsout;
-	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "Traffic: %4i b/s", bpstraffic);
-	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "in %4i b/s, out %4i b/s", bpsin, bpsout);
+	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "Traffic: %4i B/s", bpstraffic);
+	textprintf_ex(drawbuf, font, 0, line++ * 10, col[COLINFO], -1, "in %4i B/s, out %4i B/s", bpsin, bpsout);
 }
 
 void Graphics::map_time(int seconds) {

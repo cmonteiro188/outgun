@@ -45,9 +45,8 @@ void FileLog::add(const string& str) {
 	if (!fp)
 		return;
 	if (printDate) {
-		time_t tt=time(0);
-		struct tm* tmb=localtime(&tt);
-		fprintf(fp, "%d-%02d-%02d %02d:%02d:%02d ", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
+		fputs(date_and_time().c_str(), fp);
+		fputc(' ', fp);
 	}
 	fprintf(fp, "%9.2f: %s\n", get_time(), str.c_str());
 	fflush(fp);

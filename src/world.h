@@ -267,6 +267,7 @@ public:
 	void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
 	void clear(bool enable, int _pid, const std::string& _name, int team_id);
 
+	void set_team(int t) { team_nr = t; }
 	void set_color(int c) { personal_color = c; }
 
 	const Statistics& stats() const { return player_stats; }
@@ -620,6 +621,7 @@ public:
 	NLulong extra_time;
 	bool sudden_death;
 	int capture_limit;
+	bool balance_teams;
 
 	static const int shadow_minimum_normal;
 
