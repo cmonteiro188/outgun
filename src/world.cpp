@@ -271,7 +271,7 @@ bool Room::fall_on_wall(int x, int y, int r) const {
 	return false;
 }
 
-bool Map::load(LogSet& log, const char *mapdir, const string& mapname) {
+bool Map::load(LogSet& log, const char* mapdir, const string& mapname) {
 	const string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
 
 	FILE *fmap = fopen(fileName.c_str(), "rb");
@@ -1164,9 +1164,9 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
 }
 
 PhysicalSettings::PhysicalSettings() :
-	fric		(0.125),
-	drag		(0.125),
-	accel		(2.00),
+	fric		(0.0900),
+	drag		(0.0900),
+	accel		(1.44),
 	run_mul		(1.77),
 	turbo_mul	(1.45),
 	flag_mul	(0.900),
@@ -1439,7 +1439,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 	printer(map_time.str());
 }
 
-bool ServerWorld::load_map(const char *mapdir, const string& mapname) {
+bool ServerWorld::load_map(const char* mapdir, const string& mapname) {
 	map_start_time = frame;
 	const bool success = WorldBase::load_map(log, mapdir, mapname);
 	for (int t = 0; t < 2; t++) {
@@ -1497,6 +1497,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 				break;
 			}
 	}
+	nAssert(flag != -1);
 	net->bprintf(msg_info, "%s LOST THE %s FLAG!", player[pid].name.c_str(), getTeamName(team).c_str());
 	net->broadcast_sample(SAMPLE_CTF_LOST);
 	dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
@@ -1542,7 +1543,7 @@ void ServerWorld::respawnPlayer(int pid) {
 			//find screen
 			int ridx;
 			do {
-				ridx = rand() % (map.w*map.h);
+				ridx = rand() % (map.w * map.h);
 			} while (runaway-- > 200 && roompop[ridx]);	//keep trying until unnocupied (==false)
 			pos.px = ridx % map.w;
 			pos.py = ridx / map.w;
@@ -1739,104 +1740,106 @@ void ServerWorld::check_pickup_creation(bool instant) {
 		}
 }
 
-void ServerWorld::game_touch_pickup(int p, int pk) {
-	Powerup *it = &item[pk];
+void ServerWorld::game_touch_pickup(int pid, int pk) {
+	Powerup& it = item[pk];
 
 	//send "item removed" message to all players on the current screen
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_pup_picked);
-	writeByte(lebuf, count, (NLubyte)pk);	//what item id
-	net->broadcast_screen_message(it->px, it->py, lebuf, count);
+	writeByte(lebuf, count, static_cast<NLubyte>(pk));	//what item id
+	net->broadcast_screen_message(it.px, it.py, lebuf, count);
 
-	switch (it->kind) {
+	ServerPlayer& pl = player[pid];
+
+	switch (it.kind) {
 		case Powerup::pup_shield: {
-			player[p].item_shield = true;
+			pl.item_shield = true;
 
 			//increase health to minimum of 100
-			if (player[p].health < 100)
-				player[p].health = 100;		//full health
+			if (pl.health < 100)
+				pl.health = 100;		//full health
 
 			//increase energy +100
-			if (player[p].energy < 200) {
-				player[p].energy += 100;
-				if (player[p].energy > 200)
-					player[p].energy = 200;
+			if (pl.energy < 200) {
+				pl.energy += 100;
+				if (pl.energy > 200)
+					pl.energy = 200;
 			}
 
-			net->broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
+			net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_PICKUP);
 			break;
 		}
 		case Powerup::pup_turbo: {
-			double itemTime = player[p].item_speed_time - get_time();
-			if (!player[p].item_speed || itemTime < 0)
+			double itemTime = pl.item_speed_time - get_time();
+			if (!pl.item_speed || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
-			player[p].item_speed = true;
-			player[p].item_speed_time = get_time() + itemTime;
+			pl.item_speed = true;
+			pl.item_speed_time = get_time() + itemTime;
 
-			net->sendPupTime(p, it->kind, itemTime);
-			net->broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
+			net->sendPupTime(pl.id, it.kind, itemTime);
+			net->broadcast_screen_sample(pl.id, SAMPLE_BOOTS_ON);
 			break;
 		}
 		case Powerup::pup_shadow: {
-			double itemTime = player[p].item_helm_time - get_time();
-			if (!player[p].item_helm() || itemTime < 0)
+			double itemTime = pl.item_helm_time - get_time();
+			if (!pl.item_helm() || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
-			player[p].visibility = config.getShadowMinimum();
-			player[p].item_helm_time = get_time() + itemTime;
+			pl.visibility = config.getShadowMinimum();
+			pl.item_helm_time = get_time() + itemTime;
 
-			net->sendPupTime(p, it->kind, itemTime);
-			net->broadcast_screen_sample(p, SAMPLE_HELM_ON);
+			net->sendPupTime(pl.id, it.kind, itemTime);
+			net->broadcast_screen_sample(pl.id, SAMPLE_HELM_ON);
 			break;
 		}
 		case Powerup::pup_power: {
-			double itemTime = player[p].item_quad_time-get_time();
-			if (!player[p].item_quad || itemTime < 0)
+			double itemTime = pl.item_quad_time - get_time();
+			if (!pl.item_quad || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
-			player[p].item_quad = true;
-			player[p].item_quad_time = get_time() + itemTime;
+			pl.item_quad = true;
+			pl.item_quad_time = get_time() + itemTime;
 
-			net->sendPupTime(p, it->kind, itemTime);
-			net->broadcast_screen_sample(p, SAMPLE_QUAD_ON);
+			net->sendPupTime(pl.id, it.kind, itemTime);
+			net->broadcast_screen_sample(pl.id, SAMPLE_QUAD_ON);
 			break;
 		}
 		case Powerup::pup_weapon: {
-			if (player[p].energy < 200) {
-				player[p].energy += 100;
-				if (player[p].energy > 200)
-					player[p].energy = 200;
+			if (pl.energy < 200) {
+				pl.energy += 100;
+				if (pl.energy > 200)
+					pl.energy = 200;
 			}
-			if (player[p].weapon < pupConfig.pup_weapon_max) {
-				player[p].weapon++;
-				net->sendWeaponPower(p);
+			if (pl.weapon < pupConfig.pup_weapon_max) {
+				pl.weapon++;
+				net->sendWeaponPower(pl.id);
 			}
-			net->broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
+			net->broadcast_screen_sample(pl.id, SAMPLE_WEAPON_UP);
 			break;
 		}
 		case Powerup::pup_health: {
-			player[p].megabonus += pupConfig.pup_health_bonus;
-			net->broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
+			pl.megabonus += pupConfig.pup_health_bonus;
+			net->broadcast_screen_sample(pl.id, SAMPLE_MEGAHEALTH);
 			break;
 		}
 		case Powerup::pup_deathbringer: {
 			if (pupConfig.getDeathbringerSwitch())
-				player[p].item_deathbringer = !player[p].item_deathbringer;
+				pl.item_deathbringer = !pl.item_deathbringer;
 			else
-				player[p].item_deathbringer = true;
+				pl.item_deathbringer = true;
 
-			net->broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
+			net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
 			break;
 		}
 		default: nAssert(0);
 	}
 
 	// unused item
-	it->kind = Powerup::pup_unused;
+	it.kind = Powerup::pup_unused;
 
 	// check pickup creation
 	check_pickup_creation(false);
@@ -2635,8 +2638,8 @@ void ServerWorld::simulateFrame() {
 		// check game object collisions
 		//---------------------------------
 
-		int myteam = i/TSIZE;
-		int enemyteam = 1 - myteam;
+		const int myteam = i / TSIZE;
+		const int enemyteam = 1 - myteam;
 
 		// --> ITEM PICKUP
 		const int touchRadius = PICKUP_RADIUS + PLAYER_RADIUS;

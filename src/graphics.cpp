@@ -2299,7 +2299,7 @@ void Graphics::load_rocket_sprites(const string& path) {
 
 // Make flag sprites by combining flag image with team colour.
 void Graphics::load_flag_sprites(const string& path) {
-	const int size = scale(50);
+	const int size = scale(100);
 	Bitmap flag = scale_sprite(path + "flag.pcx", size, size);
 	if (flag) {
 		Bitmap team = scale_alpha_sprite(path + "flag_team.pcx", size, size);

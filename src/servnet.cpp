@@ -52,7 +52,8 @@ ServerNetworking::ServerNetworking(gameserver_c* hostp, ServerWorld& w, LogSet l
 	host(hostp),
 	world(w),
 	log(logs),
-	hostname("Anonymous host")
+	hostname("Anonymous host"),
+	web_refresh(0)
 {
 	server = 0;
 	#ifdef SEND_FRAMEOFFSET
@@ -1344,7 +1345,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		NLubyte clFrame = world.player[i].lastClientFrame;
 		writeByte(lebuf, lecount, clFrame);
 		#ifdef SEND_FRAMEOFFSET
-		NLubyte fo = static_cast<NLubyte>( bound<float>(world.player[i].frameOffset, 0., .999) * 256. );
+		NLubyte fo = static_cast<NLubyte>(bound<float>(world.player[i].frameOffset, 0., .999) * 256.);
 		writeByte(lebuf, lecount, fo);
 		#endif
 
@@ -1800,74 +1801,6 @@ void ServerNetworking::run_website_thread() {
 			localAddress = addressToString(myadr);
 		}
 	}
-	vector<string> site_addresses;
-	string site_script, site_auth;
-	int site_refresh = 0;
-
-	// load web script location
-	const string web_settings(wheregamedir + "config" + directory_separator + "website.txt");
-	ifstream in(web_settings.c_str());
-	if (!in) {
-		log("Website thread: Can not open %s. Quit.", web_settings.c_str());
-		return;
-	}
-	string line;
-	while (getline_skip_comments(in, line)) {
-		istringstream ist(line);
-		string key, value;
-		ist >> key;
-		getline_smart(ist, value);
-		value = trim(value);
-		if (!ist || value.empty()) {
-			log.error("Website thread: Invalid line in %s: '%s'. Quit.", web_settings.c_str(), line.c_str());
-			return;
-		}
-		if (key == "address")
-			site_addresses.push_back(value);
-		else if (key == "script") {
-			if (!site_script.empty()) {
-				log.error("Website thread: Multiple %s lines in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
-				return;
-			}
-			site_script = value;
-		}
-		else if (key == "auth") {
-			if (!site_auth.empty()) {
-				log.error("Website thread: Multiple %s lines in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
-				return;
-			}
-			site_auth = value;
-		}
-		else if (key == "refresh") {
-			if (site_refresh != 0) {
-				log.error("Website thread: Multiple %s lines in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
-				return;
-			}
-			const int val = atoi(value);
-			if (val <= 0) {
-				log.error("Website thread: Invalid value for %s in %s: '%s'. Quit.", key.c_str(), web_settings.c_str(), line.c_str());
-				return;
-			}
-			site_refresh = val;
-		}
-		else {
-			log.error("Website thread: Invalid line in %s: '%s'. Quit.", web_settings.c_str(), line.c_str());
-			return;
-		}
-	}
-	in.close();
-	if (site_addresses.empty()) {
-		log("Website thread: No web site addresses in %s. Quit.", web_settings.c_str());
-		return;
-	}
-	if (site_script.empty()) {
-		log.error("Website thread: No script name in %s. Quit.", web_settings.c_str());
-		return;
-	}
-	if (site_refresh == 0) {
-		log.error("Website thread: No refresh time in %s. Quit.", web_settings.c_str());
-		return;
-	}
 
 	NLaddress website_address;
 	double website_talk_time = 0.0;
@@ -1879,7 +1812,7 @@ void ServerNetworking::run_website_thread() {
 		if (get_time() < website_talk_time)
 			continue;
 
-		website_talk_time = get_time() + site_refresh * 60.0;
+		website_talk_time = get_time() + web_refresh * 60.0;
 
 		log("Website thread: Start sending information to server website.");
 
@@ -1892,7 +1825,7 @@ void ServerNetworking::run_website_thread() {
 			continue;
 		}
 		bool success = false;
-		for (vector<string>::const_iterator addri = site_addresses.begin(); addri != site_addresses.end(); ++addri)
+		for (vector<string>::const_iterator addri = web_servers.begin(); addri != web_servers.end(); ++addri)
 			if (nlGetAddrFromName(addri->c_str(), &website_address)) {
 				log("Website thread: Address %s works.", addri->c_str());
 				success = true;
@@ -1922,7 +1855,7 @@ void ServerNetworking::run_website_thread() {
 			first_connection = false;
 		}
 		const string data = build_http_data(parameters);
-		NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, site_script, data, site_auth);
+		NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, web_script, data, web_auth);
 		log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(data).c_str(), result);
 		if (result == NR_ok) {
 			// save response to a file
@@ -1962,7 +1895,7 @@ void ServerNetworking::run_website_thread() {
 
 	// send quit message
 	const string quit = "quit=1\r\n";
-	const NetworkResult result = post_http_data(websock, 0, 5000, site_script, quit, site_auth);	// only 5 seconds allowed; it's not so crucial
+	const NetworkResult result = post_http_data(websock, 0, 5000, web_script, quit, web_auth);	// only 5 seconds allowed; it's not so crucial
 	log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
 	if (result == NR_ok) {
@@ -2621,5 +2554,13 @@ void ServerNetworking::sfunc_client_data(void* customp, int client_id, char* dat
 
 void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, int pingtime) {
 	((ServerNetworking*)customp)->ping_result(client_id, pingtime);
+}
+
+bool ServerNetworking::set_web_refresh(int refresh) {
+	if (refresh >= 1) {
+		web_refresh = refresh;
+		return true;
+	}
+	return false;
 }
 

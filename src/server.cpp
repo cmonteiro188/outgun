@@ -119,9 +119,9 @@ void gameserver_c::ctf_game_restart() {
 			}
 		}
 
-	char lix[256];
-	snprintf(lix, 256, "CTF GAME OVER - FINAL SCORE: RED %i - BLUE %i", world.teams[0].score(), world.teams[1].score());
-	network.broadcast_message(msg_info, lix);
+	ostringstream msg;
+	msg << "CTF GAME OVER - FINAL SCORE: RED " << world.teams[0].score() << " - BLUE " << world.teams[1].score();
+	network.broadcast_message(msg_info, msg.str());
 
 	if (worldConfig.balanceTeams()) {
 		balance_teams();
@@ -129,13 +129,15 @@ void gameserver_c::ctf_game_restart() {
 			shuffle_teams();
 	}
 
-	if (worldConfig.getTimeLimit() == 0)
-		snprintf(lix, 256, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
-	else if (worldConfig.getCaptureLimit() > 0)
-		snprintf(lix, 256, "CAPTURE %i FLAGS TO WIN THE GAME - TIME LIMIT IS %lu MINUTES", worldConfig.getCaptureLimit(), worldConfig.getTimeLimit() / 10 / 60);
-	else
-		snprintf(lix, 256, "TIME LIMIT IS %lu MINUTES", worldConfig.getTimeLimit() / 10 / 60);
-	network.broadcast_message(msg_info, lix);
+	msg.str("");
+	if (worldConfig.getCaptureLimit() > 0) {
+		msg << "CAPTURE " << worldConfig.getCaptureLimit() << " FLAGS TO WIN THE GAME";
+		if (worldConfig.getTimeLimit() > 0)
+			msg << " - ";
+	}
+	if (worldConfig.getTimeLimit() > 0)
+		msg << "TIME LIMIT IS " << worldConfig.getTimeLimit() / 10 / 60 << " MINUTES";
+	network.broadcast_message(msg_info, msg.str());
 
 	network.broadcast_sample(SAMPLE_CTF_GAMEOVER);
 
@@ -418,6 +420,11 @@ void gameserver_c::load_game_mod() {
 	RedirectToFun1<bool, int> checkMaxplayer(checkMaxplayerSetting);
 	RedirectToMemFun1<gameserver_c, bool, int> tryMaxplayer(this, &gameserver_c::trySetMaxplayers);
 
+	RedirectToMemFun1<ServerNetworking, void, const std::string&> addWebServer(&network, &ServerNetworking::add_web_server);
+	RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebScript(&network, &ServerNetworking::set_web_script);
+	RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
+	RedirectToMemFun1<ServerNetworking, bool, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
+
 	typedef std::auto_ptr<GamemodSetting> PT;
 	static PT settings[] = {
 		PT(new GS_Float		("friction",				&world.physics.fric)),
@@ -425,6 +432,7 @@ void gameserver_c::load_game_mod() {
 		PT(new GS_Float		("acceleration",			&world.physics.accel)),
 		PT(new GS_Float		("run_acceleration",		&world.physics.run_mul)),
 		PT(new GS_Float		("turbo_acceleration",		&world.physics.turbo_mul)),
+		PT(new GS_Float		("flag_acceleration",		&world.physics.flag_mul)),
 		PT(new GS_Boolean	("player_collisions",		&world.physics.player_collisions)),
 		PT(new GS_Boolean	("friendly_fire",			&world.physics.friendly_fire)),
 		PT(new GS_Boolean	("friendly_deathbringer",	&world.physics.friendly_db)),
@@ -464,16 +472,20 @@ void gameserver_c::load_game_mod() {
 		PT(new GS_Double	("respawn_time",			&worldConfig.respawn_time, 0.)),
 		PT(new GS_Double	("waiting_time_deathbringer",	&worldConfig.waiting_time_deathbringer, 0.)),
 		PT(new GS_Int		("pup_shadow_invisibility",	&worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal)),	// 0->smn, 1->0
-		PT(new GS_Int		("rocket_damage",			&worldConfig.rocket_damage, 1)),
+		PT(new GS_Int		("rocket_damage",			&worldConfig.rocket_damage, 0)),
 		PT(new GS_Boolean	("sayadmin_enabled",		&sayadmin_enabled)),
 		PT(new GS_String	("sayadmin_comment",		&sayadmin_comment)),
-		PT(new GS_String	("server_website",			&server_website_url)),
 		PT(new GS_Boolean	("tournament",				&tournament)),
 		PT(new GS_Boolean	("save_stats",				&save_stats)),
+		PT(new GS_String	("server_website",			&server_website_url)),
+		PT(new GS_ForwardStr("web_server",				addWebServer)),
+		PT(new GS_ForwardStr("web_script",				setWebScript)),
+		PT(new GS_ForwardStr("web_auth",				setWebAuth)),
+		PT(new GS_ForwardInt("web_refresh",				"at least 1", setWebRefresh, setWebRefresh)),
 		PT(0)
 	};
 
-	string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
+	const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
 	ifstream in(filename.c_str());
 	if (in) {
 		log("Loading game mod: '%s'", filename.c_str());
@@ -572,9 +584,9 @@ bool gameserver_c::server_next_map(int reason) {
 	gameover = true;
 	gameover_time = get_time() + game_end_delay;		// timeout for gameover plaque
 
-	char lix[256];
-	snprintf(lix, 256, "Server changed map to: %s (%i of %i)", maprot[currmap].title.c_str(), currmap+1, maprot.size());
-	network.broadcast_message(msg_info, lix);
+	ostringstream msg;
+	msg << "Server changed map to: " << maprot[currmap].title << " (" << currmap + 1 << " of " << maprot.size() << ')';
+	network.broadcast_message(msg_info, msg.str());
 
 	return true;
 }
@@ -635,6 +647,9 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	tournament = true;
 	save_stats = false;
 
+	network.clear_web_servers();
+	network.set_web_refresh(2);
+
 	// load server configuration from gamemod.txt
 	load_game_mod();
 
@@ -646,12 +661,12 @@ bool gameserver_c::reset_settings(bool keepMap) {
 
 		al_ffblk mapffblk;	//for al_find*
 
-		int result = al_findfirst(searchPattern.c_str(), &mapffblk, FA_ARCH|FA_RDONLY);
+		int result = al_findfirst(searchPattern.c_str(), &mapffblk, FA_ARCH | FA_RDONLY);
 		while (result == 0) {
 			char nameBuf[500];
 			//char *replace_extension(char *dest, const char *filename, const char *ext, int size
 			replace_extension(nameBuf, mapffblk.name, "", 500);
-			nameBuf[strlen(nameBuf)-1] = 0;	//take last damn '.' out
+			nameBuf[strlen(nameBuf) - 1] = 0;	// erase last '.'
 
 			MapInfo mi;
 			if (mi.load(log, nameBuf)) {
@@ -980,22 +995,21 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 		else if (world.player[pid].muted == 1)
 			network.plprintf(pid, msg_warning, "You are muted. You can't send messages.");
 		else {
-			char talkmsg[256];
-			// check for team message:
-			if (sbuf[0] == '.') {
-				snprintf(talkmsg, 256, "%s: %s", world.player[pid].name.c_str(), sbuf + 1);
+			ostringstream msg;
+			msg << world.player[pid].name << ": ";
+			if (sbuf[0] == '.') {	// team message
+				msg << sbuf + 1;
 				if (world.player[pid].muted == 2)
-					network.player_message(pid, msg_team, talkmsg);
+					network.player_message(pid, msg_team, msg.str());
 				else
-					network.broadcast_team_message(pid / TSIZE, talkmsg);
+					network.broadcast_team_message(pid / TSIZE, msg.str());
 			}
-			//regular msg
-			else {
-				snprintf(talkmsg, 256, "%s: %s", world.player[pid].name.c_str(), sbuf);
+			else {					// regular message
+				msg << sbuf;
 				if (world.player[pid].muted == 2)
-					network.player_message(pid, msg_normal, talkmsg);
+					network.player_message(pid, msg_normal, msg.str());
 				else
-					network.broadcast_message(msg_normal, talkmsg);
+					network.broadcast_message(msg_normal, msg.str());
 			}
 		}
 	}

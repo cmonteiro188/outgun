@@ -115,6 +115,7 @@ Menu_name::Menu_name() :
 }
 
 Menu_game::Menu_game() :
+	showNames			("Show player names", false),
 	favoriteColors		("Favorite colors"),
 	lagPrediction		("Lag prediction", false),
 	lagPredictionAmount	("Lag prediction amount", true, 0, 10, 10),
@@ -128,6 +129,7 @@ Menu_game::Menu_game() :
 
 	menu				("Game options")
 {
+	menu.add_component(&showNames);
 	menu.add_component(&favoriteColors);
 	menu.add_component(&lagPrediction);
 	menu.add_component(&lagPredictionAmount);
@@ -167,7 +169,6 @@ Menu_graphics::Menu_graphics() :
 	statsBgAlpha("Stats screen alpha", true, 0, 255, 255, 15),
 
 	fpsLimit	("FPS limit", false, 1, 10000, 60, 0),
-	showNames	("Show player names", false),
 	mapInfoMode	("Map info mode", false),
 
 	menu		("Graphic options")
@@ -190,7 +191,6 @@ Menu_graphics::Menu_graphics() :
 	menu.add_component(&statsBgAlpha);
 	ins_space();
 	menu.add_component(&fpsLimit);
-	menu.add_component(&showNames);
 	menu.add_component(&mapInfoMode);
 }
 

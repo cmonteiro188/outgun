@@ -89,6 +89,12 @@ class ServerNetworking {
 	int				ctop[256];			// client id-to-player id index
 	int				player_count;
 
+	// web site settings
+	std::vector<std::string> web_servers;
+	std::string web_script;
+	std::string web_auth;
+	int web_refresh;
+
 	void upload_next_file_chunk(int i);
 	int  get_download_file(char *lebuf, char *ftype, char *fname);
 
@@ -179,6 +185,12 @@ public:
 	void set_hostname(const std::string& name);
 	NLaddress get_client_address(int cid) const;
 	int get_player_count() const { return player_count; }
+
+	void clear_web_servers() { web_servers.clear(); }
+	void add_web_server(const std::string& server) { web_servers.push_back(server); }
+	void set_web_script(const std::string& script) { web_script = script; }
+	void set_web_auth(const std::string& auth) { web_auth = auth; }
+	bool set_web_refresh(int refresh);
 
 	void set_server_password(const std::string& passwd) { server_password = passwd; }
 };

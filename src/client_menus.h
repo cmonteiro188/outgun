@@ -59,6 +59,7 @@ public:
 
 class Menu_game {
 public:
+	Checkbox	showNames;
 	Colorselect	favoriteColors;
 	Checkbox	lagPrediction;
 	Slider		lagPredictionAmount;
@@ -93,7 +94,6 @@ public:
 	Select<Graphics::Antialiasing_mode> antialiasing;
 	Slider				statsBgAlpha;
 	Slider				fpsLimit;
-	Checkbox			showNames;
 	Checkbox			mapInfoMode;
 
 	Menu menu;

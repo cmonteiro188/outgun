@@ -499,6 +499,7 @@ bool gameclient_c::start() {
 			case CCS_Favorites:				menu.connect.favorites.set(args == "1"); break;
 
 			// game menu
+			case CCS_ShowNames:				menu.options.game.showNames.set(args == "1"); break;
 			case CCS_FavoriteColors: {
 				istringstream ist(args);
 				int col;
@@ -546,7 +547,6 @@ bool gameclient_c::start() {
 				break;
 			}
 			case CCS_StatsBgAlpha:			menu.options.graphics.statsBgAlpha.boundSet(atoi(args)); break;
-			case CCS_ShowNames:				menu.options.graphics.showNames.set(args == "1"); break;
 
 			// sound menu
 			case CCS_SoundEnabled:			menu.options.sounds.enabled.set(args == "1"); break;
@@ -1119,7 +1119,7 @@ void gameclient_c::connect_command(bool loadPassword) {
 
 	// start connecting to specified IP/port
 	// connection results will come through the CFUNC_CONNECTION_UPDATE callback
-	string strAddress = addressToString(serverIP);
+	const string strAddress = addressToString(serverIP);
 	client->set_server_address(strAddress.c_str());
 
 	log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(), m_serverPassword.password().empty()?"no":"yes", m_playerPassword.password().empty()?"no":"yes");
@@ -2919,6 +2919,7 @@ void gameclient_c::stop() {
 		cfg << CCS_Favorites			<< ' ' << (menu.connect.favorites() ? 1 : 0) << '\n';
 
 		// save game menu settings
+		cfg << CCS_ShowNames			<< ' ' << (menu.options.game.showNames() ? 1 : 0) << '\n';
 		{	// favorite colors
 			cfg << CCS_FavoriteColors	<< ' ';
 			if (menu.options.game.favoriteColors.values().empty())
@@ -2947,7 +2948,6 @@ void gameclient_c::stop() {
 		cfg << CCS_GFXTheme				<< ' ' << menu.options.graphics.theme() << '\n';
 		cfg << CCS_Antialiasing			<< ' ' << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
 		cfg << CCS_StatsBgAlpha			<< ' ' << menu.options.graphics.statsBgAlpha() << '\n';
-		cfg << CCS_ShowNames			<< ' ' << (menu.options.graphics.showNames() ? 1 : 0) << '\n';
 
 		// save sound menu settings
 		cfg << CCS_SoundEnabled			<< ' ' << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
@@ -3158,7 +3158,7 @@ void gameclient_c::draw_game_frame() {
 
 			//draw player's name -- nao interessa se vivo ou morto
 			//NOT an invisible enemy
-			if (menu.options.graphics.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
+			if (menu.options.game.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
 				fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
 				const int ttx = static_cast<int>(fd.player[i].lx);
 				const int tty = static_cast<int>(fd.player[i].ly);

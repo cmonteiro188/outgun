@@ -155,7 +155,7 @@ bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) {
 	std::istringstream rd(trim(value));
 	ValT val;
 	rd >> val;
-	if (!rd || rd.peek() != eof_ch || val < vmin || val > vmax) {
+	if (!rd || rd.peek() != eof_ch || ((val < vmin || val > vmax) && !(val == 0 && allow0))) {
 		std::string orZero;
 		if (allow0)
 			orZero = ", or 0";
