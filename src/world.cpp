@@ -887,7 +887,7 @@ void WorldBase::dropFlag(int team, int px, int py, int x, int y) {
 	flag[team].pos.px = px;		// dropped somewhere
 	flag[team].pos.py = py;
 	flag[team].pos.x = x;
-	flag[team].pos.y = y;
+	flag[team].pos.y = y + 15;
 	flag[team].atbase = false;		// not at base, team must touch to return (or it can be stolen)
 }
 
@@ -1273,7 +1273,7 @@ bool ServerWorld::check_flag_touch(int px, int py, int x, int y, int t) {
 	if (flag[t].pos.py != py) return false;	//screen y mismatch
 
 	int fx = flag[t].pos.x;
-	int fy = flag[t].pos.y;
+	int fy = flag[t].pos.y - 15;
 
 	if (fx > x - (PLAYER_RADIUS + 15))
 	if (fx < x + (PLAYER_RADIUS + 15))

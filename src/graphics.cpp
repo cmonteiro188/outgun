@@ -42,15 +42,17 @@ using std::vector;
 using std::list;
 
 Graphics::Graphics(int scr_w, int scr_h):
+	minimap_start_x(),
+	minimap_start_y(),
 	flagpos_ready(false)
 {
 	reset_video_mode();
 	flagpos_buf[0] = 0;
 	flagpos_buf[1] = 0;
 	drawbuf = create_bitmap(scr_w, scr_h);
-	minimap_w = 133;
-	minimap_h = 100;
-	minibg = create_bitmap(minimap_w, minimap_h);
+	minimap_w = minimap_place_w = 160;
+	minimap_h = minimap_place_h = 100;
+	minibg = create_bitmap(minimap_place_w, minimap_place_h);
 	setcolors();
 }
 
@@ -268,23 +270,23 @@ void Graphics::draw_flag(int team, int x, int y) {
 	//draw shadow
 	ellipsefill(drawbuf,
 		plx + x,
-		ply + y + 15,
+		ply + y,
 		12, 3, col[COLSHADOW]
 	);
 	//draw flagpole
 	rectfill(drawbuf,
 		plx + x - 3,
-		ply + y - 25,
+		ply + y - 40,
 		plx + x + 3,
-		ply + y + 15,
+		ply + y,
 		col[COLYELLOW]
 	);
 	//draw the flag itself
 	rectfill(drawbuf,
 		plx + x,
-		ply + y - 23,
+		ply + y - 38,
 		plx + x + 20,
-		ply + y - 5,
+		ply + y - 20,
 		teamcol[team]
 	);
 }
@@ -293,8 +295,8 @@ void Graphics::draw_flag(int team, int x, int y) {
 void Graphics::draw_mini_flag(int team, const ctflag_t& flag, const Map& map) {
 	const double px = ((double)flag.pos.px * (double)plw + flag.pos.x) / ((double)plw * map.w);
 	const double py = ((double)flag.pos.py * (double)plh + flag.pos.y) / ((double)plh * map.h);
-	const int pix = int(mmx + 1 + px * (minimap_w - 2));
-	const int piy = int(mmy + 1 + py * (minimap_h - 2));
+	const int pix = int(mmx + minimap_start_x + 1 + px * (minimap_w - 2));
+	const int piy = int(mmy + minimap_start_y + 1 + py * (minimap_h - 2));
 	//draw flagpole
 	rectfill(drawbuf, pix, piy - 5, pix, piy, col[COLYELLOW]);
 	//draw the flag itself
@@ -302,6 +304,8 @@ void Graphics::draw_mini_flag(int team, const ctflag_t& flag, const Map& map) {
 }
 
 void Graphics::draw_minimap_player(int x, int y, int team, int player) {
+	x += minimap_start_x;
+	y += minimap_start_y;
 	putpixel(drawbuf, x + 0, y + 0, teamcol[team]);	//3 pixel teamcol
 	putpixel(drawbuf, x + 1, y + 0, teamcol[team]);	//3 pixel teamcol
 	putpixel(drawbuf, x + 0, y + 1, teamcol[team]);	//3 pixel teamcol
@@ -309,6 +313,8 @@ void Graphics::draw_minimap_player(int x, int y, int team, int player) {
 }
 
 void Graphics::draw_minimap_me(int x, int y, int team, double time) {
+	x += minimap_start_x;
+	y += minimap_start_y;
 	if ((int)(time * 15) % 3 > 0) {
 		circlefill(drawbuf, x, y, 2, col[COLYELLOW]);
 		circlefill(drawbuf, x, y, 1, teamlcol[team]);
@@ -320,7 +326,8 @@ void Graphics::draw_minimap_me(int x, int y, int team, double time) {
 void Graphics::draw_minimap_room(int x1, int y1, int x2, int y2) {
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 	set_trans_blender(0, 0, 0, 0x38);
-	rectfill(drawbuf, mmx + x1, mmy + y1, mmx + x2, mmy + y2, col[COLFOGOFWAR]);
+	rectfill(drawbuf, mmx + minimap_start_x + x1, mmy + minimap_start_y + y1,
+			 mmx + minimap_start_x + x2, mmy + minimap_start_y + y2, col[COLFOGOFWAR]);
 	solid_mode();
 }
 
@@ -334,15 +341,28 @@ void Graphics::update_minimap_background(const Map& map) {
 
 void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool flagPaintSimple) {
 	//black background
-	clear_to_color(buffer, 0);
+	clear_to_color(buffer, col[COLSHADOW]);
+
+	//calculate new minimap size (133×100 for maps with n×n rooms)
+	if (map.w > map.h) {
+		minimap_w = minimap_place_w;
+		minimap_h = static_cast<int>(static_cast<float>(minimap_w * map.h * 3) / map.w / 4 + 0.5);
+	}
+	else {
+		minimap_h = minimap_place_h;
+		minimap_w = static_cast<int>(static_cast<float>(minimap_h * map.w * 4) / map.h / 3 + 0.5);
+	}
 
 	//draw room boundaries
+	minimap_start_x = (minimap_place_w - minimap_w) / 2;
+	minimap_start_y = (minimap_place_h - minimap_h) / 2;
+	rectfill(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, 0);
 	float room_w = float(minimap_w - 2) / map.w;
 	float room_h = float(minimap_h - 2) / map.h;
 	for (int i = 1; i < map.w; i++)
-		line(buffer, int(1 + room_w * i), 0, int(1 + room_w * i), minimap_h, col[COLSHADOW]);
+		line(buffer, int(minimap_start_x + 1 + room_w * i), minimap_start_y, int(minimap_start_x + room_w * i), minimap_start_y + minimap_h, col[COLSHADOW]);
 	for (int i = 1; i < map.h; i++)
-		line(buffer, 0, int(1 + room_h * i), minimap_w, int(1 + room_h * i), col[COLSHADOW]);
+		line(buffer, minimap_start_x, int(minimap_start_y + 1 + room_h * i), minimap_start_x + minimap_w, int(minimap_start_y + room_h * i), col[COLSHADOW]);
 
 	double maxx = plw * map.w;
 	double maxy = plh * map.h;
@@ -354,8 +374,8 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 		if (red_rx == blue_rx && red_ry == blue_ry) {
 			// for lack of mathematical enthusiasm, the half-way line is not calculated analytically; instead, determine each pixel individually (slow)
 			// this is OK since this function is called once per map instead of every frame
-			int xmin = int(2 + room_w * red_rx), xmax = int(room_w * (red_rx + 1));
-			int ymin = int(2 + room_h * red_ry), ymax = int(room_h * (red_ry + 1));
+			int xmin = int(minimap_start_x + 2 + room_w * red_rx), xmax = int(minimap_start_x + room_w * (red_rx + 1));
+			int ymin = int(minimap_start_y + 2 + room_h * red_ry), ymax = int(minimap_start_y + room_h * (red_ry + 1));
 			for (int y = ymin; y <= ymax; ++y) {
 				float roomy = float(y + 1 - ymin) / float(room_h) * plh;
 				float ydist_r2 = pow(map.tinfo[0].flag.y - roomy, 2);
@@ -370,17 +390,19 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 			}
 		}
 		else {
-			rectfill(buffer, int(2 + room_w * red_rx),  int(2 + room_h * red_ry),  int(room_w * (red_rx + 1)),  int(room_h * (red_ry + 1)),  col[COLBRED]);
-			rectfill(buffer, int(2 + room_w * blue_rx), int(2 + room_h * blue_ry), int(room_w * (blue_rx + 1)), int(room_h * (blue_ry + 1)), col[COLBBLUE]);
+			rectfill(buffer, int(minimap_start_x + 2 + room_w * red_rx),  int(minimap_start_y + 2 + room_h * red_ry),
+					 int(minimap_start_x + room_w * (red_rx + 1)),  int(minimap_start_y + room_h * (red_ry + 1)),  col[COLBRED]);
+			rectfill(buffer, int(minimap_start_x + 2 + room_w * blue_rx), int(minimap_start_y + 2 + room_h * blue_ry),
+					 int(minimap_start_x + room_w * (blue_rx + 1)), int(minimap_start_y + room_h * (blue_ry + 1)), col[COLBBLUE]);
 		}
 	}
 
 	//draw solid walls
 	float xmul = float(minimap_w - 2) / maxx, ymul = float(minimap_h - 2) / maxy;
 	for (int y = 0; y < map.h; y++) {
-		float by = 1. + y * plh * ymul;
+		float by = minimap_start_y + 1 + y * plh * ymul;
 		for (int x = 0; x < map.w; x++) {
-			float bx = 1. + x * plw * xmul;
+			float bx = minimap_start_x + 1 + x * plw * xmul;
 			set_clip(buffer, (int)bx, (int)by, int(bx + room_w), int(by + room_h));
 			map.room[x][y].draw(buffer, bx, by, xmul, ymul, makecol(0x00, 0x77, 0x00));
 			set_clip(buffer, 0, 0, buffer->w, buffer->h);
@@ -388,12 +410,12 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool fl
 	}
 
 	//green border
-	rect(buffer, 0, 0, buffer->w -1, buffer->h -1, col[COLGREEN]);
+	rect(buffer, minimap_start_x, minimap_start_y, minimap_start_x + minimap_w - 1, minimap_start_y + minimap_h - 1, col[COLGREEN]);
 
-	int  red_px = int(1 + (map.tinfo[0].flag.px * plw + map.tinfo[0].flag.x) / maxx * (minimap_w - 2));
-	int  red_py = int(1 + (map.tinfo[0].flag.py * plh + map.tinfo[0].flag.y) / maxy * (minimap_h - 2));
-	int blue_px = int(1 + (map.tinfo[1].flag.px * plw + map.tinfo[1].flag.x) / maxx * (minimap_w - 2));
-	int blue_py = int(1 + (map.tinfo[1].flag.py * plh + map.tinfo[1].flag.y) / maxy * (minimap_h - 2));
+	int  red_px = int(minimap_start_x + 1 + (map.tinfo[0].flag.px * plw + map.tinfo[0].flag.x) / maxx * (minimap_w - 2));
+	int  red_py = int(minimap_start_y + 1 + (map.tinfo[0].flag.py * plh + map.tinfo[0].flag.y) / maxy * (minimap_h - 2));
+	int blue_px = int(minimap_start_x + 1 + (map.tinfo[1].flag.px * plw + map.tinfo[1].flag.x) / maxx * (minimap_w - 2));
+	int blue_py = int(minimap_start_y + 1 + (map.tinfo[1].flag.py * plh + map.tinfo[1].flag.y) / maxy * (minimap_h - 2));
 	if (!flagPaintSimple) {
 		if (getpixel(buffer, red_px, red_py) != 0) {	// is painted with any color
 			update_minimap_background(buffer, map, true);	// restart with basic painting
@@ -806,15 +828,15 @@ void Graphics::draw_fps(double fps) {
 }
 
 void Graphics::draw_player_power(double val) {
-	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 5, col[COLCYAN], -1, "POWER:  %2.0f", val);
+	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 5, col[COLCYAN], -1, "POWER: %3.0f", val);
 }
 
 void Graphics::draw_player_turbo(double val) {
-	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 15, col[COLYELLOW], -1, "TURBO:  %2.0f", val);
+	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 15, col[COLYELLOW], -1, "TURBO: %3.0f", val);
 }
 
 void Graphics::draw_player_shadow(double val) {
-	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 25, col[COLMAG], -1, "SHADOW: %2.0f", val);
+	textprintf_ex(drawbuf, font, plx + 244, ply + plh + 25, col[COLMAG], -1, "SHADOW:%3.0f", val);
 }
 
 void Graphics::draw_player_weapon(int level) {

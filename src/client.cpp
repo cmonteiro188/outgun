@@ -3246,7 +3246,7 @@ void gameclient_c::draw_game_frame() {
 				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
 				for (int t = 0; t < 2; t++)
 					if (fx.flag[t].carried && fx.flag[t].carrier == i)
-						client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly);
+						client_graphics.draw_flag(t, (int)fd.player[i].lx, (int)fd.player[i].ly + 15);
 				if (fx.player[i].dead) {
 					if ((fx.player[i].frags >= 10) && (fx.player[i].frags % 10 == 0))
 						client_graphics.draw_virou_sorvete((int)fx.player[i].lx, (int)fx.player[i].ly);

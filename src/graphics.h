@@ -15,7 +15,7 @@
 #define ply 90
 
 //minimap offset
-#define mmx (plx + plw + 16)
+#define mmx (plx + plw + 4)
 #define mmy ply
 
 //scoreboard offset
@@ -34,6 +34,8 @@ class Graphics {
 	//int plw, plh;
 	//int plx, ply;
 	int minimap_w, minimap_h;
+	int minimap_place_w, minimap_place_h;
+	int minimap_start_x, minimap_start_y;
 
 	BITMAP* flagpos_buf[2];
 	static const int flagpos_radius = 30;
