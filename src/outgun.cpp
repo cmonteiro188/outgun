@@ -1,3 +1,35 @@
+/*
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Library General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
+ */
+
+/*
+
+	Outgun
+
+	A simple game with retro-graphics for net coding research purposes.
+
+	by Fábio Reis Cecin (frcecin@terra.com.br)
+	http://www.inf.ufrgs.br/~fcecin/outgun
+
+	GPL'ed version and
+	Linux packaging by Rafael Jannone (jannone@inf.ufrgs.br)
+
+*/
+
 #ifdef PUBLIC_SERVER
 
 //#define SV_SERVER_PHYSICS
@@ -16,19 +48,18 @@
 
 // ---- server side defines
 
-#define SV_CONSOLE	// console commands
-#define SV_NAME_AUTHORIZATION
-
-#define SV_NO_PUP_SWITCHING
-#define SV_VOTE_ANNOUNCE_INTERVAL 5
-#define SV_SHADOW_MINIMUM_NORMAL 7
+#define SV_CONSOLE	// enable console commands
+#define SV_NAME_AUTHORIZATION	// enable player IP based filtering : name authorization and ban
+#define SV_NO_PUP_SWITCHING	// disable the changing of power-ups lying on the ground
+#define SV_VOTE_ANNOUNCE_INTERVAL 5	// in seconds, how often a changing voting status will be announced
+#define SV_SHADOW_MINIMUM_NORMAL 7	// the shadow visibility factor
 
 // ---- client side defines
 
 #define CL_SUPPORT_OLD_SERVERS
-#define CL_MINIMAP_FLAGPOS
-#define CL_SHOW_FLAGPOS
-#define CL_FLAGPOS_RAD 30
+#define CL_MINIMAP_FLAGPOS	// paint minimap more intelligently according to flag positions
+#define CL_SHOW_FLAGPOS	// show a flag position marker on the ground
+#define CL_FLAGPOS_RAD 30	// the radius of the flag position marker
 //#define CL_SHOW_TIME_LEFT
 
 // ----
@@ -72,131 +103,6 @@ char* strspnp(char* str, const char* charset) {
 const char* strspnp(const char* str, const char* charset) {
 	return strspnp(const_cast<char*>(str), charset);
 }
-
-/*
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
- *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- */
-
-/*
-
-	Outgun
-
-	A simple game with retro-graphics for net coding research purposes.
-
-	by Fábio Reis Cecin (frcecin@terra.com.br)
-	http://www.inf.ufrgs.br/~fcecin/outgun
-
-	GPL'ed version and
-	Linux packaging by Rafael Jannone (jannone@inf.ufrgs.br)
-
-*/
-
-/*
-PROXIMAS VERSOES
-========================
-
- - BUG: scoreboard TAB mostrando scores duplicados/errados
- - KICK do jogador se ele fica inativo (mostrar msg na tela pedindo pra ele se mexer)
-   OBS: NAO KICKAR QUEM ESTIVER __TECLANDO__ NO MENU (se ficar so com o menu aberto, kika)
- - animacao do "numero" de bonus que voce ganha quando fraga alguem
- - deletacao automatica da conta se 90 dias de inatividade
-
-se possível, resolver
-========================
-
- - trafego todo na porta 25000, sou muito burro!!
- - BUG: trava o jogo com page flipping, esporadicamente (== ALLEGRO)
- - BUG: resolver o problema da conexao que faz o PING mas nao consegue conectar... (== FIREWALL)
- - BUG: testando com 31 bots + eu, da pau nos clientside FX's... (acho que falta) MAS tambem
-   deu pau dai na troca de mapa que nao trocou...!!
-
-se realmente sobrar tempo...
-========================
-
- - mostrar REFERRER STATISTICS do jogador
-
-fica pro outgun II ...
-========================
-
- - BOTS!
- - mostrar na scoreboard TAB o escore acumulado ate agora de cada player/client, que ainda está
-   para ser submetido
- - "internacionalizacao": mensagens do jogo em TXT
- - logotipo do HOST DENTRO DO JOGO (formato --> TGA, BMP OU PCX),
-   DOWNLOAD AUTOMATICO para o diretorio cmaps quando conecta
- - server MOTD (load/reload & show)
- - tentar tirar todos os diretorios e arquivos, na versao 0.4.6, pra
-   ver se nao da pau
- - TESTES: nao consegui conectar nos servidores 45/46 lá em casa, tentando da
-   amok com os clientes 45/46. o local/remote address da socket de envio
-   (cliente 46 com client_c.log) tava certo:
-   143.54.83.238:1029 / 1030 / 1031 (3 tentativas) remote
-   200.176.34.176:25000 / 200.176.34.176:25001
- - quando troca de mapa e o cara ganha seu score, aparecer na tela um sumario do score dele no minimo
-   SCORE +300 por exemplo (se possivel com os modificadores)
- - suporte completo para registro, administracao e exibição de CLÃS (WEB e INGAME)
- - gerar sumário de resultados do país e do clã no final do dia, junto no dayrank.html
- - incluir um elemento de incentivo para a expansão do clã (mais referrals)
- - CALCULAR A MÉDIA DO SCORE MUNDIAL
- - GRAVAR NA CONTA DO CARA e mostrar na tela de login e public profile O HISCORE DE TODOS OS TEMPOS DO CARA junto com o dia!!
- - TESTAR NA AMOK:
-   - se pedir TCP vai ter o timeout e vai pedir via UDP depois mesmo...
-   - CLIENTE apos primeiro timeout SEMPRE pede por UDP, os proximos mapas.
- - telas 4x4 que viram uma so. ideia de JoL- .... (?) (MUITO BOA IDEIA)
- - estudar um esquema de "classes", de repente uma opcao de modalidade: com ou sem classes
- - paredes destrutiveis?
- - chao de gelo?
- - chao speedup?
- - chao teleport?
- - weapon pick-up item: classe de itens que, ao pegar, trocam a arma do jogador. por exemplo, laser
-   beam e hellblaze(flamethrower), sendo que todas as armas tem um significado diferente para os
-   diferentes power levels (1 a 9), e as armas que nao sao o tiro default tem tempo: apos X segundos
-   o jogador perde a arma.
- - aumentar o timeout da gameover plaque e fazer que os jogadores podem pedir pra continuar o
-   jogo de uma vez teclando TIRO
- - "DESLIGAR" O JOGADOR DO JOGO, isto eh nao desenhar ele em lugar nenhum, enquanto ele estiver
-    fazendo DOWNLOAD de mapas. nao spawnar a bolinha de fato no jogo
- - embonitar as telas de map loading e gameover plaque
-   - top fragger / most valuable player / dar uma olhada nessas coisas
- - usar aquela janelinha 320x200 do servidor pra exibir status do tipo
-   - players overall: numero de jogadores que ja entraram no servidor
-    - players today
-    - media da sessao de jogo, dos que já saíram: overall
-    - meida da sessao de jogo today
-    - server utilization overall (tempo com 1 jogador, tempo com 2 jogadores ... tempo com 16
-      jogadores dai faz a media)
-    - server utilization today
-    - server bandwidth mean overall
-    - server bandwidth mean today
-    - server up time
- - enviar essas informacoes para o master server, codificadas no query de add mesmo
- - mudar todas as sockets TCP BLOCKING para NONBLOCKING, pra nao ter coisa ficando trancada.
- - menus (GUI) legal e muito melhor que a atual (jogar a atual no lixo)
-   - GUI no geral muito mais bonita, mudar tudo
- - CONSOLE para o jogo
- - CONFIGURACAO DE TECLAS (tela GUI pra isso)
- - adicionar suporte para joystick : detectar e sair usando (ver allegro)
- - BUG: fazer do map loading uma rotina que nao f*** a memoria carregando info's mal formuladas
-   de salas explicacao anterior:
-   bug: load_map escreve merda no map.filename carregando o mapa gerado pelo renato por exemplo.
-        basicamente o load_map_bla_label(..) inicial q loada o mapa escreve sobre o name (zeros,
-        transforma em uma string null). ENTAO: tirar o map.PROTEKT e consertar o map_load
-
-*/
 
 // ***** FORTIFY !!! *****
 
@@ -286,8 +192,8 @@ fica pro outgun II ...
 #include "string.h"
 #include "math.h"
 
-#include "pthread/pthread.h"
-#include "pthread/sched.h"
+#include "pthread.h"
+#include "sched.h"
 
 #include <string>
 using namespace std;
@@ -901,7 +807,7 @@ bool Map::parse_label(FILE *f, const char *scan_label, int crx=0, int cry=0) {	/
 				rx2 = rx1;
 				ry2 = ry1;
 			}
-			else if (n!=5 || rx1<0 || rx2>=w || rx2<rx1 || ry1<0 || ry2>=h || ry2<ry1) {
+			if ((n!=3 && n!=5) || rx1<0 || rx2>=w || rx2<rx1 || ry1<0 || ry2>=h || ry2<ry1) {
 				LOG1("Invalid map line: %s\n", s);
 				return false;
 			}
@@ -1484,9 +1390,9 @@ struct player_t {
 
 	#ifdef SV_CONSOLE
 	int mapVote;
+	#endif
 	typedef list< pair<int, string> > DMQueueT;
 	DMQueueT delayedMessages;	// int is the # of server frames the message has delay after the previous one
-	#endif
 	int kickTimer;
 	int muted;	// 0 = no, 1 = yes, 2 = silently
 
@@ -1550,7 +1456,7 @@ struct player_t {
 
 	int		megabonus;	// bonus left de health e energy
 
-	bool	dead;		//dead? zframe byte == 255  clientside only
+	bool    dead;
 	bool	old_dead;		// to detect time to play death sound
 
 	bool	dropped_flag;   // Has player dropped the flag?
@@ -1613,8 +1519,8 @@ struct player_t {
 		want_map_exit = false;		//by default don't want change maps
 		#ifdef SV_CONSOLE
 		mapVote=-1;
-		delayedMessages.clear();
 		#endif
+		delayedMessages.clear();
 		kickTimer=0;
 		muted=0;
 		want_change_teams = false;	// don't want to change teams yet
@@ -3274,6 +3180,7 @@ public:
 		player[pid].respawn_to_base = false;
 
 		player[pid].last_spawn_time = (int)get_time();
+		player[pid].dead = false;
 
 		#ifdef SV_SUPPORT_OLD_CLIENTS
 		// clear pup-list (the default client won't do it)
@@ -3666,9 +3573,10 @@ public:
 
 		ctf_drop_flag_if_any(target);
 		player[target].respawn_time = get_time() + respawn_time + time_penalty;
-		if (player[target].last_spawn_time < get_time())
+		if (!player[target].dead) {
 			player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
-		player[target].last_spawn_time = (int)get_time() + 999;	// make sure the dead time is not calculated as lifetime
+			player[target].dead = true;
+		}
 	}
 
 	void game_kill_player(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
@@ -4688,7 +4596,7 @@ public:
 		}
 		maprot[currmap].votes=0;
 		#else
-		if (++currmap >= maprot.size())	// next map on rotation
+		if (++currmap >= (int)maprot.size()) // next map on rotation
 			currmap = 0;
 		for (int p=0; p<maxplayers; ++p)
 			player[p].want_map_exit=false;
@@ -5984,21 +5892,21 @@ public:
 						}
 						else if (!strcmp(cbuf, "config")) {
 							player[pid].queue_printf("@TCurrent server settings:");
-							player[pid].queue_printf("Flag capture limit: %i", capture_limit);
+							player[pid].queue_printf("- Flag capture limit: %i", capture_limit);
 							if (time_limit == 0)
-								player[pid].queue_printf("No map time limit.");
+								player[pid].queue_printf("- No map time limit.");
 							else
-								player[pid].queue_printf("Map time limit: %i min", time_limit / 10 / 60);
+								player[pid].queue_printf("- Map time limit: %i min", time_limit / 10 / 60);
 							if (pup_max_time > pup_add_time)
-								player[pid].queue_printf("Power-ups add %d seconds to what's left, with a maximum of %d seconds", pup_add_time, pup_max_time);
+								player[pid].queue_printf("- Power-ups add %d seconds to what's left, with a maximum of %d seconds", pup_add_time, pup_max_time);
 							else
-								player[pid].queue_printf("Power-up time is %d seconds", pup_max_time);
+								player[pid].queue_printf("- Power-up time is %d seconds", pup_max_time);
 							if (pup_deathbringer_switch)
-								player[pid].queue_printf("Picking up a second deathbringer power-up cancels the effect");
+								player[pid].queue_printf("- Picking up a second deathbringer power-up cancels the effect");
 							if (shadow_minimum == 1)
-								player[pid].queue_printf("A player using the shadow power-up gets totally invisible");
+								player[pid].queue_printf("- A player using the shadow power-up gets totally invisible");
 							ostringstream pupstr;
-							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << SV_COMPAT_PCNT;
+							pupstr << "- Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << SV_COMPAT_PCNT;
 							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << SV_COMPAT_PCNT;
 							if (pups_min_percentage || pups_max_percentage)
 								pupstr << " (" SV_COMPAT_PCNT " of map size)";
@@ -6137,20 +6045,20 @@ public:
 						else if (!strcmp(cbuf, "stats")) {
 							int playing_time = (int)get_time() - player[pid].start_time;  // seconds
 							int lifetime = player[pid].lifetime;
-							if (player[pid].respawn_time < get_time())
+							if (!player[pid].dead)
 								lifetime += (int)get_time() - player[pid].last_spawn_time;
-							player[pid].queue_printf("Your stats: %d captures, %d kills, %d deaths, %d suicides",
+							player[pid].queue_printf("@TYour stats: %d captures, %d kills, %d deaths, %d suicides",
 								player[pid].total_captures,
 								player[pid].total_kills,
 								player[pid].total_deaths,
 								player[pid].total_suicides);
-							player[pid].queue_printf("Enemy flags: %d taken, %d dropped",
+							player[pid].queue_printf(" Enemy flags: %d taken, %d dropped",
 								player[pid].total_flags_taken,
 								player[pid].total_flags_dropped);
-							player[pid].queue_printf("Own flags: %d returned, %d carriers killed",
+							player[pid].queue_printf(" Own flags: %d returned, %d carriers killed",
 								player[pid].total_flags_returned,
 								player[pid].total_flag_carriers_killed);
-							player[pid].queue_printf("Consecutive kills: %d (%d), deaths: %d (%d)",
+							player[pid].queue_printf(" Consecutive kills: %d (%d), deaths: %d (%d)",
 								player[pid].most_consecutive_kills,
 								player[pid].current_consecutive_kills,
 								player[pid].most_consecutive_deaths,
@@ -6158,15 +6066,15 @@ public:
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
-							player[pid].queue_printf("Shots: %d shot, accuracy %d" SV_COMPAT_PCNT SV_COMPAT_PCNT ", %d taken",
+							player[pid].queue_printf(" Shots: %d shot, accuracy %d" SV_COMPAT_PCNT SV_COMPAT_PCNT ", %d taken",
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
-							player[pid].queue_printf("Distance travelled: %.0lf units, average speed %.2lf units/s.",
+							player[pid].queue_printf(" Distance travelled: %.0lf units, average speed %.2lf units/s.",
 								player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
 								player[pid].total_movement/30./double(lifetime));
 							int av_lifetime = lifetime / (player[pid].total_deaths + 1);
-							player[pid].queue_printf("You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
+							player[pid].queue_printf(" You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
 								playing_time / 60,
 								lifetime / 60,
 								lifetime % 60,
@@ -8715,12 +8623,14 @@ public:
 					if (result == 4)
 						kickPlayer(pid);
 					break;
+				#ifdef SV_NAME_AUTHORIZATION
 				case ATS_BAN_PLAYER:
 					result = nlRead(shellssock, rbuf, 4);
 					rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 					if (result == 4)
 						banPlayer(pid);
 					break;
+				#endif
 				case ATS_RESET_SETTINGS:
 					{
 						string currMapFile = maprot[currmap].file;
@@ -12250,8 +12160,11 @@ public:
 
 		textprintf(drawbuf, font, x+100, y+100, col[COLWHITE], "Outgun : HELP      --> Press ESC or F1 to go back. <--");
 
-		textprintf(drawbuf, font, x+100, y+120, col[COLWHITE], "For more information access Outgun's website at:");
-		textprintf(drawbuf, font, x+100, y+130, col[COLGREEN], "                http://www.amok.com.br/outgun/en/");
+		textprintf(drawbuf, font, x+100, y+120, col[COLWHITE], "For more information access these websites:");
+		textprintf(drawbuf, font, x+100, y+130, col[COLWHITE], "  the original Outgun website");
+		textprintf(drawbuf, font, x+364, y+130, col[COLGREEN], "http://www.amok.com.br/outgun/en/");
+		textprintf(drawbuf, font, x+100, y+140, col[COLWHITE], "  Nix's Outgun development page");
+		textprintf(drawbuf, font, x+364, y+140, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
 
 #ifndef NO_BOTS
 
@@ -12311,7 +12224,7 @@ public:
 			rect(drawbuf, 101, 71, 541, 411, col[COLMENUBLACK]);
 			rectfill(drawbuf, 100, 70, 540, 410, col[COLMENUGRAY]);
 			textprintf(drawbuf, font, 150, 120, col[COLWHITE], "Outgun         version %s", GAME_VERSION);
-			textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://www.amok.com.br/outgun/en/");
+			textprintf(drawbuf, font, 150, 135, col[COLGREEN], "http://koti.mbnet.fi/npr/outgun/");
 		}
 
 		if (menu == 0) {
@@ -13787,7 +13700,20 @@ public:
 	void send_chat(char *msg) {
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 2);	//want to chat!
+		#ifdef CL_SUPPORT_OLD_SERVERS
+		for (char* dst=lebuf+1;; ++dst, ++msg) {	// duplicate percent signs
+			*dst = *msg;
+			++count;
+			if (*msg == '\0')
+				break;
+			if (*msg == '%') {
+				*(++dst) = '%';
+				++count;
+			}
+		}
+		#else
 		writeString(lebuf, count, msg);	// the message
+		#endif
 		client->send_message(lebuf, count);
 	}
 
