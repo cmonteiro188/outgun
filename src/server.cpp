@@ -507,9 +507,6 @@ void Server::load_game_mod() {
 			}
 		}
 
-		if (pupConfig.pup_weapon_max == 0)
-			pupConfig.pup_chance_weapon = 0;
-
 		const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
 						+ pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
 		if (chanceSum == 0)
@@ -932,7 +929,7 @@ void Server::chat(int pid, const char* sbuf) {
 				int bufi = 0;
 				for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
 					if (world.player[ppid].used) {
-						snprintf(buf + bufi, 26, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
+						snprintf(buf + bufi, 27, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
 						bufi += 26;
 						++onrow;
 					}
@@ -944,16 +941,16 @@ void Server::chat(int pid, const char* sbuf) {
 					|| !strcmp(cbuf, "smute") || !strcmp(cbuf, "unmute")) && admin) {
 			istringstream command(pCommand);
 			int ppid;
-			int time = 0;	// used only for bans
+			int time = 60;	// used only for bans; default: 1 hour
 			command >> ppid;
 			bool ok = command;
+			command >> time;
 			if (!strcmp(cbuf, "ban")) {
-				command >> time;
-				if (command.eof())
-					time = 60;	// default: 1 hour
-				else if (!command)
+				if (! (command || command.eof()))
 					ok = false;
 			}
+			else if (! (!command && command.eof()))
+				ok = false;
 			if (!ok)
 				network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", cbuf, !strcmp(cbuf, "ban") ? " [minutes]" : "");
 			else if (ppid < 0 || ppid >= MAX_PLAYERS || !world.player[ppid].used)
