@@ -17,6 +17,7 @@ bool gameserver_c::MapInfo::load(string mapName) {
 		return false;
 	file = mapName;
 	title = map.title;
+	author = map.author;
 	width = map.w;
 	height = map.h;
 	votes = 0;
@@ -731,7 +732,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 	load_game_mod();
 
 	// did not specify maps, scan "maps/" folder for .txt map files
-	if (maprot.size() == 0) {
+	if (maprot.empty()) {
 		char mappath[256];
 		strcpy(mappath, SERVER_MAPS_DIR);  // maps
 		put_backslash(mappath);					// maps/
@@ -763,7 +764,7 @@ bool gameserver_c::reset_settings(bool keepMap) {
 		}
 	}
 
-	if (maprot.size() == 0) {
+	if (maprot.empty()) {
 		LOG("No maps for rotation\n");
 		return false;
 	}
@@ -968,15 +969,15 @@ void gameserver_c::chat(int id, int pid, const char* sbuf) {
 			if (*pCommand!='\0') {
 				int mid=atoi(pCommand)-1;
 				if (mid>=0 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
-					world.player[pid].queue_printf("@IMap %d is %s", mid+1, maprot[mid].title.c_str());
-					world.player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);
+					world.player[pid].queue_printf("@IMap %d is %s (%s)", mid+1, maprot[mid].title.c_str(), maprot[mid].author.c_str());
+					world.player[pid].queue_printf("@I%s.txt, size %d×%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);
 				}
 				else
 					world.player[pid].queue_printf("@WValid map id's are 1 to %d", maprot.size());
 			}
 			else {
-				world.player[pid].queue_printf("@IThis map is %s", maprot[currmap].title.c_str());
-				world.player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
+				world.player[pid].queue_printf("@IThis map is %s (%s)", maprot[currmap].title.c_str(), maprot[currmap].author.c_str());
+				world.player[pid].queue_printf("@I%s.txt, size %d×%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
 			}
 			world.player[pid].queue_printf("@IType /votemap to see a list of all maps");
 		}

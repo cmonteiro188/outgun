@@ -76,7 +76,7 @@ class gameserver_c {
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;
 	struct MapInfo {
-		string title, file;
+		string title, author, file;
 		int width, height;
 		int votes;
 		MapInfo();
@@ -110,8 +110,8 @@ public:
 	bool isBanned(int cid) { return authorizations.isBanned(network.get_client_address(cid)); }
 	#endif
 
-   int check[MAX_PLAYERS];
-   int checount;
+	int check[MAX_PLAYERS];
+	int checount;
 	void check_team_changes();
 	void check_player_change_teams(int pid);
 	void move_player(int f, int t);
@@ -134,6 +134,7 @@ public:
 
 	bool load_rotation_map(int pos);
 	bool server_next_map(int reason);
+	const MapInfo& current_map() const { return maprot[currmap]; }
 	const string& getCurrentMapFile() const { return maprot[currmap].file; }
 
 	const vector<string>& getWelcomeMessage() const { return welcome_message; }

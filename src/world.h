@@ -119,6 +119,7 @@ public:
 	vector< vector<Room> > room;	// accessed by [x][y]
 
 	string title;	//map title
+	string author;
 	int	ver;	// map version
 	int w, h;	// width height
 	NLushort crc;	//map's 16bit CRC

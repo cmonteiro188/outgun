@@ -408,11 +408,19 @@ bool Map::parse_label(FILE* f, const char* scan_label, int crx, int cry, float s
 			continue;
 		}
 		if (!strncmp(s, "P title ", 8)) {	// P title text : set map title to text
-			if (title.length()) {
+			if (!title.empty()) {
 				LOG("Redefined map title\n");
 				return false;
 			}
 			title=string(s+8);
+			continue;
+		}
+		if (!strncmp(s, "P author ", 9)) {	// P author text : set map author to text
+			if (!author.empty()) {
+				LOG("Redefined map author\n");
+				return false;
+			}
+			author=string(s+9);
 			continue;
 		}
 		if (!strncmp(s, "spawn ", 6)) {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
