@@ -7,8 +7,9 @@
 #else
 
 #define NR_SERVER_PHYSICS
-#define NR_PHYS_VECTOR_ACC
+//#define NR_PHYS_VECTOR_ACC
 //#define NR_SUPPORT_OLD_CLIENTS
+#define NR_CLIENT_SERVER_EXTENSIONS
 
 #endif
 
@@ -23,12 +24,12 @@
 
 // ---- client side defines
 
+#define NR_SUPPORT_OLD_SERVERS
 #define CL_MINIMAP_FLAGPOS
 #define CL_SHOW_FLAGPOS
 #define FLAGPOS_RAD 30
 //#define CL_SHOW_TIME_LEFT
 #define SHADOW_MINIMUM_NORMAL 7
-#define NR_SUPPORT_OLD_SERVERS
 
 // ----
 
@@ -47,8 +48,10 @@
 
 #ifdef NR_SUPPORT_OLD_CLIENTS
 #define COMPAT_PCNT "%%"
+#define NR_SUPPORT_OLD_SERVERS
 #else
 #define COMPAT_PCNT "%"
+#define NR_CLIENT_SERVER_EXTENSIONS
 #endif
 
 
@@ -1574,6 +1577,7 @@ struct player_t {
 	int		total_shots;
 	int		total_hits;
 	int		total_shots_taken;
+	double	total_movement;
 	int		start_time;
 
 	void reset_message_queue_timing() {	// make messages already on queue appear instantly
@@ -1632,6 +1636,7 @@ struct player_t {
 		total_shots = 0;
 		total_hits = 0;
 		total_shots_taken = 0;
+		total_movement = 0;
 		start_time = (int)get_time();
 
 		// BOTZ: bot ou nao?
@@ -1967,7 +1972,7 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 	// friction
 	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
 	float mul;
-	if (spd < player_friction)
+	if (spd <= player_friction)
 		mul = 0.;
 	else
 		mul = 1. - player_friction/spd;
@@ -3491,7 +3496,6 @@ public:
 			//drop the flag
 			ctf_drop_flag(enemyteam, player[pid].x, player[pid].y, (int)world.hero[pid].x, (int)world.hero[pid].y);
 
-			player[pid].dropped_flag = true;
 			player[pid].total_flags_dropped++;
 
 			return true;
@@ -6110,7 +6114,6 @@ public:
 						}
 						else if (!strcmp(cbuf, "stats")) {
 							int playing_time = (int)get_time() - player[pid].start_time;  // seconds
-							int lifetime = playing_time / (player[pid].total_deaths + 1);
 							player[pid].queue_printf("Your stats: %d captures, %d kills, %d deaths, %d suicides",
 								player[pid].total_captures,
 								player[pid].total_kills,
@@ -6129,6 +6132,10 @@ public:
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
+							player[pid].queue_printf("Distance travelled: %.0lf, average speed %.2lf/s.",
+								player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
+								player[pid].total_movement/30./double(playing_time));
+							int lifetime = playing_time / (player[pid].total_deaths + 1);
 							player[pid].queue_printf("You have played %d minutes. Your average lifetime is %d:%02d.",
 								playing_time / 60,
 								lifetime / 60,
@@ -6407,9 +6414,13 @@ public:
 						//broadcast his crap
 						broadcast_player_crap( ctop[id] );
 				}
+				#ifdef NR_CLIENT_SERVER_EXTENSIONS
 				// drop flag
-				else if (code == 34)
+				else if (code == 34) {
+					player[pid].dropped_flag = true;
 					ctf_drop_flag_if_any(pid);
+				}
+				#endif
 				else {
 					//ERROR: unknown message from client
 					LOG3("ERROR: UNKNOWN MESSAGE FROM CLIENT %i CODE=%i LENGTH=%i\n", id, code, msglen);
@@ -6448,6 +6459,8 @@ public:
 		bool carryFlag = src->flag[1-(i/TSIZE)].carried && src->flag[1-(i/TSIZE)].carrier == i;
 		bool deathbringerAffected = player[i].deathbringer_end >= get_time();
 
+		float startx = hd->x, starty = hd->y;
+
 		#ifdef NR_SERVER_PHYSICS
 			bool realBounce = NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 
@@ -6469,6 +6482,10 @@ public:
 		#else
 			applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 		#endif
+
+		float xd = hd->x - startx;
+		float yd = hd->y - starty;
+		player[i].total_movement += sqrt( xd*xd + yd*yd );
 
 		//check room change x
 		if (int(hd->x) == plw) {
@@ -8673,8 +8690,19 @@ public:
 						banPlayer(pid);
 					break;
 				case ATS_RESET_SETTINGS:
-					reset_settings();
-					break;
+					{
+						string currMapFile = maprot[currmap].file;
+						reset_settings();
+						size_t mapi;
+						for (mapi=0; mapi<maprot.size(); ++mapi)
+							if (maprot[mapi].file == currMapFile)
+								break;
+						if (mapi == maprot.size()) {	// not found
+							currmap = -1;
+							server_next_map(NEXTMAP_VOTE_EXIT);
+						}
+						break;
+					}
 				case ATS_QUIT:
 					should_quit = true;
 					break;
@@ -8682,7 +8710,7 @@ public:
 
 				//quitting?
 				if (should_quit) {
-					LOG("SLAVE ATS_QUIT (connction reset)\n");
+					LOG("SLAVE ATS_QUIT (connection reset)\n");
 					if (shellssock != NL_INVALID) {
 						nlClose(shellssock);
 						shellssock = NL_INVALID;
@@ -9542,7 +9570,6 @@ public:
 		if (randomname) {
 			string nome_tri_legal = RandomName();
 			strcpy(playername, nome_tri_legal.c_str() );
-			FreeName(nome_tri_legal);
 		}
 
 		//no themes set yet
@@ -13100,7 +13127,7 @@ public:
 		if (svframe > fx.frame)
 		{
 			fx.frame = svframe;
-			fx.time  = get_time();		//hope it's good enough... needed 10ms clock (1/100 sec) at least.
+			fx.time  = get_time();	//#@		//hope it's good enough... needed 10ms clock (1/100 sec) at least.
 
 			NLulong	players_present;		//LONG players present (32 players max)
 			readLong(data, count, players_present);
@@ -13376,7 +13403,7 @@ public:
 							<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
 							<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
 						// message
-						message_log << (msg[0] == '@' ? msg + 2 : msg) << '\n';
+						message_log << (chatmsg[0] == '@' ? chatmsg + 2 : chatmsg) << '\n';
 					}
 
 					//talk sound
@@ -14261,7 +14288,6 @@ public:
 								lerud_abloxon = RandomName();
 								strcpy(editplayername, lerud_abloxon.c_str());
 								change_name_command();
-								FreeName(lerud_abloxon);
 							}
 							switch (ch) {
 							case '1': set_menu(1); break;
@@ -14584,7 +14610,6 @@ public:
 							string lerud_abloxon = RandomName();
 							strcpy(editplayername, lerud_abloxon.c_str());
 							change_name_command();
-							FreeName(lerud_abloxon);
 						}
 						else if (sc == KEY_PGUP) {
 							//v0.4.9 DEBUGGING: request broadcast my crap
