@@ -48,6 +48,7 @@ class DLOG_Main { };
 #else	// DISABLE_DLOG
 
 #include <stdio.h>
+#include "../mutex.h"
 #include "../nassert.h"
 
 #include "Time.h"
@@ -55,18 +56,17 @@ class DLOG_Main { };
 
 class DLOG_Main {
 	FILE* fp;
-	pthread_mutex_t writeMutex;
+	MutexHolder writeMutex;
 
 public:
-	DLOG_Main() { pthread_mutex_init(&writeMutex, 0); fp = fopen("lnetdlog.txt", "wb"); nAssert(fp); }
-	~DLOG_Main() { pthread_mutex_destroy(&writeMutex); fclose(fp); }
+	DLOG_Main() { fp = fopen("lnetdlog.txt", "wb"); nAssert(fp); }
+	~DLOG_Main() { fclose(fp); }
 	void operator()(const char* str, char mode) {
 		int t = GNE::Timer::getCurrentTime().getTotaluSec();
-		pthread_mutex_lock(&writeMutex);
+		MutexLock ml(writeMutex);
 		fwrite(&t, sizeof(int), 1, fp);
 		fwrite(&mode, sizeof(char), 1, fp);
 		fwrite(str, sizeof(char), 7, fp);
-		pthread_mutex_unlock(&writeMutex);
 	}
 };
 

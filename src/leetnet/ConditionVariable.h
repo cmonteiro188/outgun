@@ -40,6 +40,7 @@ public:
    */
   //##ModelId=3B07538003CD
   ConditionVariable();
+  ConditionVariable(Mutex* mutex_);
 
   //##ModelId=3B07538003D0
   virtual ~ConditionVariable();

@@ -668,20 +668,15 @@ void thread_connect_f(client_ci* client) {
 	if (LOG_THREAD_IDS)
 		client->log("Leet client thread_connect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 
-	//repeat
-	bool stop = false;
-	while (!stop) {
-
-		//try
-		stop = client->connect_try();
-
-		//sleep a bit before sending next try
+	for (;;) {
+		if (client->connect_try())
+			break;
 		MS_SLEEP(1000); // *** NO CPU PROBLEM HERE ***
 	}
 
-	--client->connect_threads_running;
 	if (LOG_THREAD_IDS)
 		client->log("exiting: Leet client thread_connect_f() ID = %d, prio = %d", pthread_self(), threadPriority());
+	--client->connect_threads_running;
 }
 
 //disconnector thread function

@@ -28,6 +28,7 @@
 */
 
 #define LEETNET_DATA_LOG
+#define SIMULATED_PACKET_LOSS 0
 
 #include "dlog.h"
 
@@ -48,8 +49,6 @@
  */
 
 #define MAXMSG				  64		// capacity of to-be-acked message buffer
-#define ACKBUF				  64		// capacity of acks-to-send list (num of ulongs)
-#define SENDS				  16		// size of sends queue
 #define BIG_UDPBUF			8192		// a bigger UDP buffer
 #define MAX_PACKET_SIZE		 256		// this is not a fixed limit; it just limits the sending of >1 reliable message
 
@@ -184,162 +183,26 @@ public:
 	}
 };
 
-/*
-
-	THIS GIVES MEMORY LEAKS 
-
-	why?
-
-class data_ci : public data_c {
-public:
-	
-	//allocated length, used length
-	int alen, ulen;
-
-	//data buffer
-	char* buf;
-
-	//extend buffer to fit additional len
-	void extend(int len) {
-		// not allocated yet
-		if (alen == 0) {
-			alen = 2048;
-			buf = new char[alen];
-		}
-		// not enought allocated space : extend
-		if (alen - ulen < len) {
-			int nlen = alen + 2048;	// new len	
-			char *buf2 = new char[nlen];	// alloc new
-			memcpy(buf2, buf, ulen);	// copy old used to new
-			if (buf) delete buf;		// delete old
-			buf = buf2;		// buf points to new
-			alen = nlen;	// new alloc size
-		}
-	}
-
-	//add data
-	void add(void* data, int len) {
-		if (len == 0) 
-			return;
-		extend(len);		// extend to fit
-		memcpy(buf + ulen, data, len);	// copy data to (buf + alreay used len)
-		ulen += len;		// increase used len
-	}
-
-	//add long: watch endianess
-	void addlong(NLulong data) {
-		extend(sizeof(NLulong)); // extend to fit
-		writeLong(buf, ulen, data);
-		//ulen += sizeof(NLulong);	//previous statemente already incs ulen
-	}
-
-	//set data
-	void set(data_c *data) {
-		ulen = 0;		// reset my contents
-		extend(((data_ci*)data)->ulen);	// expand to fit other's used count
-		ulen = ((data_ci*)data)->ulen;		// my used = other used
-		memcpy(buf, ((data_ci*)data)->buf, ulen);		// copy other's data to my buffer
-	}
-
-	//set data
-	void set(char *data, NLshort len) {
-		ulen = 0;
-		extend(len);
-		ulen = len;
-		memcpy(buf, data, ulen);
-	}
-
-	//clear
-	void clear() {
-		alen = ulen = 0;
-		if (buf) { delete buf; buf = 0; }
-	}
-
-	//get data: use buf/alen/ulen with HawkNL packet reading functions
-	char* getbuf() {
-		return buf;
-	}
-
-	//get length (used)
-	int		getlen() {
-		return ulen;
-	}
-
-	//ctor
-	data_ci() {
-		alen = ulen = 0;
-		buf = 0;
-	}
-
-	//dtor
-	virtual ~data_ci() {
-		if (buf) {
-			delete buf; buf = 0;
-		}
-	}
-};
-*/
-
 // a message record for the message buffer
 //
 class msgrec {
+	int id_;			// the message id, -1 = unused
+	NLulong sent;		// id of first packet that sent this message
+	data_ci message_;	// the message's contents
+
 public:
-	int			id;				// the message id, -1 = unused
+	msgrec() { clear(); }
 
-	//data_ci sends;			
-	NLulong		sends[SENDS]; // id of all packets that sent this message yet
-	int				iter,sh,ss;				// sends circular queue iterator/head/size
+	void clear() { id_ = -1; message_.clear(); }
+	void set(int id, const data_ci* msg) { nAssert(!used()); sent = 0; id_ = id; message_.set(msg); }
+	void set(int id, const char *data, NLshort len) { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
+	void send(NLulong frame) { nAssert(frame != 0); if (sent == 0) sent = frame; else nAssert(sent < frame); }
 
-	data_ci message;		// the message's contents
-
-	//sends queue add
-	void sends_add(NLulong x) {
-		// not full yet
-		if (ss <= SENDS) {
-			sends[ss] = x; // set value
-			ss++;	// size inc
-		}
-		// already full
-		else {
-			sh++;	// advance head & tail..
-			if (sh >= SENDS) sh -= SENDS;	//..wrapping them around
-		}
-	}
-
-	//sends queue clear
-	void sends_clear() {
-		sh = 0;
-		ss = 0;
-		iter = 0;
-	}
-
-	//sends queue getfirst FALSE if nothing else
-	bool sends_first(NLulong *val) {
-		iter = 0;
-		return sends_next(val);
-	}	
-
-	//sends queue getnext FALSE if nothing else
-	bool sends_next(NLulong *val) {
-		// no elements
-		if (ss == 0) return false;
-		// if iter >= size, stop
-		if (iter >= ss) return false;
-		// index: head + iter
-		int i = sh + iter;
-		// wrap around
-		if (i >= SENDS) i -= SENDS;
-		// next iter
-		iter++;
-		// get
-		(*val) = sends[i];
-		return true;
-	}
-
-	msgrec() {
-		id = -1;
-		sends_clear();
-	}
+	bool used() const { return id_ != -1; }
+	bool sentBefore(NLulong id) const { return sent != 0 && sent <= id; } // sent == 0 means not sent at all
+	int id() const { return id_; }
+	const data_ci& message() const { return message_; }
+	int msgSize() const { return message_.getlen(); }
 };
 
 // station class implementation
@@ -371,9 +234,8 @@ public:
 	// for process_incoming_packet()
 	bool is_packet_set;
 
-	// packets received with reliable messages that need acks to be sent
-	NLshort acksinbuf;
-	NLulong ackbuf[ACKBUF];
+	// the last packet received, to be acked
+	NLulong ack;
 
 	//the UDP packet set
 	char	udp_data[BIG_UDPBUF];
@@ -402,7 +264,7 @@ public:
 	#ifdef EXTRA_RELIABLE_STORAGE
 	NLulong reliable_size;	// total size of reliable messages in reliable[], plus 6 bytes extra for each
 	std::queue<data_ci*> extra_reliables;
-	pthread_mutex_t queue_mutex;
+	MutexHolder queue_mutex;
 	void erase_extra_reliables() {
 		while (!extra_reliables.empty()) {
 			delete extra_reliables.front();
@@ -423,10 +285,8 @@ public:
 		}		
 
 		//reset msgrecs!
-		for (int m=0;m<MAXMSG;m++) {
-			reliable[m].id = -1;
-			reliable[m].sends_clear();
-		}
+		for (int m=0;m<MAXMSG;m++)
+			reliable[m].clear();
 		#ifdef EXTRA_RELIABLE_STORAGE
 		reliable_size = 0;
 		erase_extra_reliables();
@@ -440,7 +300,7 @@ public:
 		is_packet_set = false;
 		idgen_reliable_send = 1;
 		idgen_packet_send = 1;
-		acksinbuf = 0;
+		ack = 0;
 		reliable_count = 0;
 		//clear incoming messages
 		msg_current = 1;
@@ -450,9 +310,6 @@ public:
 
 	//ctor
 	station_ci() {
-		#ifdef EXTRA_RELIABLE_STORAGE
-		pthread_mutex_init(&queue_mutex, 0);
-		#endif
 		sendsock = NL_INVALID_SOCKET;		//to avoid reset_state to close an invalid socket
 		reset_state();
 	}
@@ -461,7 +318,6 @@ public:
 	virtual ~station_ci() {
 		#ifdef EXTRA_RELIABLE_STORAGE
 		erase_extra_reliables();
-		pthread_mutex_destroy(&queue_mutex);
 		#endif
 		
 		//FIXME -- what else?
@@ -610,23 +466,20 @@ DLOG_Scope s("UPIP");
 
 		// (1) parse the packet:
 		//
-		// NLulong										packet_id
-		// NLshort										number of acks
-		// NLulong[number of acks]		list of acked just received packet_ids
-		// NLbyte											number of reliable messages
+		// NLulong							packet_id
+		// NLulong							acked packet (latest received by remote)
+		// NLbyte							number of reliable messages
 		// for each reliable message:
-		//    NLulong									message id
-		//		NLshort									message size
+		//		NLulong						message id
+		//		NLshort						message size
 		//		NLbyte[message size]		the reliable message data
-		// (FIX: NLshort										unreliable data size --- inferido do packet size!!!)
-		// NLbyte[unreliable data size]					all the unreliable data glued in a big chunk
+		// (FIX: NLshort					unreliable data size --- inferido do packet size!!!)
+		// NLbyte[unreliable data size]		all the unreliable data glued in a big chunk
 		//
 
-		// list of acks in the packet. they are used just in this function
-		NLulong packet_acks[256];
-		int			num_packet_acks;
 		NLint count = 0;  //packet parse count
 		NLulong packet_id;  //the packet id
+		NLulong packet_ack;
 
 //		int debug = 1;
 
@@ -646,15 +499,7 @@ DLOG_Scope s("UPIP");
 			return udp_data;
 		}
 
-		readShort(udp_data, count, num_packet_acks);	//number of acks
-
-		//if (debug) printf("acks=%i", num_packet_acks);
-
-		for (i=0; i<num_packet_acks; i++) {
-			readLong(udp_data, count, packet_acks[i]);
-
-			//if (debug) printf(":%i", packet_acks[i]);
-		}
+		readLong(udp_data, count, packet_ack);
 		NLbyte nreliable;
 		readByte(udp_data, count, nreliable);	//number of reliable msgs
 		
@@ -695,13 +540,7 @@ DLOG_Scope s("UPIP");
 
 		//if (debug) printf(" fr=%i TOT=%i\n", unreliable_size, count);
 		
-		//(2) if the packet had reliable data, add to must-ack list
-		//		FIXED: if it's full... fuck it
-		if (nreliable > 0) 
-		if (acksinbuf < ACKBUF)	{
-			ackbuf[acksinbuf] = packet_id;
-			acksinbuf++;
-		}		
+		ack = packet_id;
 
 		//(3) for every reliable message in the buffer, check if it was acked by
 		//    this incoming data. if yes, delete it from the buffer (id = -1 and clear buffers)
@@ -710,85 +549,47 @@ DLOG_Scope s("UPIP");
 		// for every message in the outgoing buffer...
 		//
 		for (i=0; i<MAXMSG; i++) 
-		if (reliable[i].id != -1)	{
-
-			// check all acks...
-			//
-			for (int a=0; a<num_packet_acks; a++) {
-
-				//sent packet's id
-				NLulong	spid;				
-
-				// ...for all packets-that-sent of the message.
-				//
-				bool has_sends = reliable[i].sends_first(&spid);	//get one sent id
-
-				while (has_sends) {
-					
-					//test ack in packet with the sent packet id
-					//
-					//if (spid == acks_a) {
-					if (spid == packet_acks[a]) {
-DLOG_Scope s("UPIP_A");
-						//acked! remove message from buffer
-						//
-						#ifdef EXTRA_RELIABLE_STORAGE
-						reliable[i].sends_clear();
-						nAssert((int)reliable_size >= reliable[i].message.getlen() + 6);
-						reliable_size -= reliable[i].message.getlen() + 6;
-						// check if there's a message on the extra queue that can be sent now
-						pthread_mutex_lock(&queue_mutex);
-						if (!extra_reliables.empty() && can_add_reliable(extra_reliables.front()->getlen())) {
-							reliable[i].id = idgen_reliable_send++;
-							data_ci* msg = extra_reliables.front();
-							extra_reliables.pop();
-							reliable[i].message.set(msg);
-							delete msg;
-							reliable_size += reliable[i].message.getlen() + 6;
-							if (reliable_count < MAXMSG &&
-									!extra_reliables.empty() &&
-									can_add_reliable(extra_reliables.front()->getlen()))
-							{
-								for (int rel = 0; rel < MAXMSG; ++rel)	// fill empty spots from queue while possible
-									if (reliable[rel].id == -1) {
-										reliable[rel].id = idgen_reliable_send++;
-										data_ci* msg = extra_reliables.front();
-										extra_reliables.pop();
-										reliable[rel].message.set(msg);
-										delete msg;
-										reliable_size += reliable[rel].message.getlen() + 6;
-										if (++reliable_count == MAXMSG ||
-												extra_reliables.empty() ||
-												!can_add_reliable(extra_reliables.front()->getlen()))
-											break;
-									}
+			if (reliable[i].used() && reliable[i].sentBefore(packet_ack)) {
+				DLOG_Scope s("UPIP_A");
+				// acked! remove message from buffer
+				#ifdef EXTRA_RELIABLE_STORAGE
+				nAssert((int)reliable_size >= reliable[i].msgSize() + 6);
+				reliable_size -= reliable[i].msgSize() + 6;
+				reliable[i].clear();
+				// check if there's a message on the extra queue that can be sent now
+				queue_mutex.lock();
+				if (!extra_reliables.empty() && can_add_reliable(extra_reliables.front()->getlen())) {
+					data_ci* msg = extra_reliables.front();
+					extra_reliables.pop();
+					reliable[i].set(idgen_reliable_send++, msg);
+					delete msg;
+					reliable_size += reliable[i].msgSize() + 6;
+					if (reliable_count < MAXMSG &&
+							!extra_reliables.empty() &&
+							can_add_reliable(extra_reliables.front()->getlen()))
+					{
+						for (int rel = 0; rel < MAXMSG; ++rel)	// fill empty spots from queue while possible
+							if (!reliable[rel].used()) {
+								data_ci* msg = extra_reliables.front();
+								extra_reliables.pop();
+								reliable[rel].set(idgen_reliable_send++, msg);
+								delete msg;
+								reliable_size += reliable[rel].msgSize() + 6;
+								if (++reliable_count == MAXMSG ||
+										extra_reliables.empty() ||
+										!can_add_reliable(extra_reliables.front()->getlen()))
+									break;
 							}
-						}
-						else {
-							reliable[i].id = -1;
-							reliable[i].message.clear();
-							reliable_count--;
-						}
-						pthread_mutex_unlock(&queue_mutex);
-						#else
-						reliable[i].id = -1;
-						reliable[i].message.clear();
-						reliable[i].sends_clear();
-						reliable_count--;					// less one
-						#endif
-
-						//quit the two innermost iterations
-						//
-						a = num_packet_acks;
-						break;
 					}
-
-					//next sent id
-					//
-					has_sends = reliable[i].sends_next(&spid);
 				}
+				else
+					reliable_count--;
+				queue_mutex.unlock();
+				#else
+				reliable[i].clear();
+				reliable_count--;					// less one
+				#endif
 			}
-		}
 
 		//ok -return stuff
 		(*size) = unreliable_size;
@@ -802,23 +603,22 @@ DLOG_Scope s("UWR");
 		nAssert(length <= MAX_MESSAGE_SIZE);
 
 		#ifdef EXTRA_RELIABLE_STORAGE
-		pthread_mutex_lock(&queue_mutex);
+		queue_mutex.lock();
 		if (reliable_count<MAXMSG && can_add_reliable(length) && extra_reliables.empty())
 		#endif
 		{
 			#ifdef EXTRA_RELIABLE_STORAGE
-			pthread_mutex_unlock(&queue_mutex);
+			queue_mutex.unlock();
 			#endif
 			//find slot in reliable
 			//
 			for (int i=0; i<MAXMSG; i++) 
-			if (reliable[i].id == -1) {
-				reliable[i].id = idgen_reliable_send++;  // generate and set new unique id
-				reliable[i].message.set(data, (NLshort)length);					// set the data
-				reliable_count++;												// another one
-				reliable_size += length + 6;
-				return 1;						//ok
-			}
+				if (!reliable[i].used()) {
+					reliable[i].set(idgen_reliable_send++, data, (NLshort)length);
+					reliable_count++;												// another one
+					reliable_size += length + 6;
+					return 1;						//ok
+				}
 			#ifdef EXTRA_RELIABLE_STORAGE
 			nAssert(0);
 			#endif
@@ -829,7 +629,7 @@ DLOG_Scope s("UWR");
 		data_ci* msg = new data_ci();
 		msg->set(data, (NLshort)length);
 		extra_reliables.push(msg);
-		pthread_mutex_unlock(&queue_mutex);
+		queue_mutex.unlock();
 		return 1;
 		#else
 		return 0;
@@ -861,17 +661,15 @@ DLOG_Scope s("USP");
 
 		// build the packet:
 		//
-		// NLulong										packet_id
-		// NLshort										number of acks
-		// NLulong[number of acks]		list of acked just received packet_ids
-		// NLbyte											number of reliable messages
+		// NLulong							packet_id
+		// NLulong							acked packet (latest received by remote)
+		// NLbyte							number of reliable messages
 		// for each reliable message:
-		//    NLulong									message id
-		//		NLshort									message size
+		//		NLulong						message id
+		//		NLshort						message size
 		//		NLbyte[message size]		the reliable message data
-		// (FIX: NLshort										unreliable data size  -- inferido do packet size!!)
-		// NLbyte[unreliable data size]					all the unreliable data glued in a big chunk
-		//														
+		// (FIX: NLshort					unreliable data size --- inferido do packet size!!!)
+		// NLbyte[unreliable data size]		all the unreliable data glued in a big chunk
 		
 		NLint	count = 0;
 		
@@ -879,29 +677,19 @@ DLOG_Scope s("USP");
 
 		writeLong(sendbuf, count, id);	//packet id
 		
-		//if (debug) printf("SEND_PACKET: id=%i ",id);
-		
-		writeShort(sendbuf, count, acksinbuf);	//number of acks
-		
-		//if (debug) printf("acks=%i",acksinbuf);
-
-		for (i=0;i<acksinbuf;i++) {
-			//if (debug) printf(":%i", ackbuf[i]);
-
-			writeLong(sendbuf, count, ackbuf[i]);		//list of acked packet ids
-		}
+		writeLong(sendbuf, count, ack);
 
 		//if (debug) printf(" rc=%i", reliable_count);
 
 		writeByte(sendbuf, count, reliable_count);	// number of reliable messages (wiil be overwritten)
 
 		for (i=0;i<MAXMSG;i++)	// reliable messages in queue
-			if (reliable[i].id != -1) {
-				writeLong(sendbuf, count, reliable[i].id);		//id
-				writeShort(sendbuf, count, (NLushort)reliable[i].message.ulen);	//size
-				writeBlock(sendbuf, count, reliable[i].message.buf, reliable[i].message.ulen);	//data
+			if (reliable[i].used()) {
+				writeLong(sendbuf, count, reliable[i].id());		//id
+				writeShort(sendbuf, count, (NLushort)reliable[i].message().ulen);	//size
+				writeBlock(sendbuf, count, reliable[i].message().buf, reliable[i].message().ulen);	//data
 				//add this send packet id to the message's outgoing sends
-				reliable[i].sends_add((NLulong)id);
+				reliable[i].send(id);
 			}
 		
 		// FIXED: o "unreliable size" eh inferido do tamanho do datagrama UDP
@@ -914,10 +702,14 @@ DLOG_Scope s("USP");
 		// send the packet
 		//
 		nlSetRemoteAddr(sendsock, &netaddr);
-//		NLint result = nlWrite(sendsock, sendbuf, count);
-NLint result;
+		NLint result;
+		#if SIMULATED_PACKET_LOSS != 0
+		if (rand() % 100 < SIMULATED_PACKET_LOSS)
+			result = count;	// packet simulated as lost; sent ok though
+		else
+		#endif
 {DLOG_Scope s("USPw");
-result = nlWrite(sendsock, sendbuf, count);
+			result = nlWrite(sendsock, sendbuf, count);
 }
 		if (result == NL_INVALID) {
 			//FIXME: deal with error
@@ -936,10 +728,6 @@ result = nlWrite(sendsock, sendbuf, count);
 		// reset the unreliable buffer (don't delete, just invalidate)
 		//
 		unreliable.ulen = 0;
-
-		// reset the to-ack id's list
-		//
-		acksinbuf = 0;
 
 		//ok
 		return 1;

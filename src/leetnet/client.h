@@ -66,6 +66,8 @@ enum {
 //the client class
 class client_c {
 public:
+	virtual ~client_c() { }
+
 	//set a callback function.
 	virtual void set_callback(int callback_id, client_callback_t callback_function) = 0;	
 	

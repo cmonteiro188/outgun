@@ -33,6 +33,12 @@ ConditionVariable::ConditionVariable() {
   mutex = new Mutex();
 }
 
+ConditionVariable::ConditionVariable(Mutex* mutex_) {
+  valassert(pthread_cond_init( &cond, NULL ), 0);
+  ourMutex = false;
+  mutex = mutex_;
+}
+
 //##ModelId=3B07538003D0
 ConditionVariable::~ConditionVariable() {
   valassert(pthread_cond_destroy( &cond ), 0);
@@ -61,9 +67,3 @@ void ConditionVariable::signal() {
 }
 
 }
-
-
-
-
-
-

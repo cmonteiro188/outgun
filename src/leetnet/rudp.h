@@ -48,6 +48,7 @@ void get_self_IP(NLaddress *addr);
 */
 class data_c {
 public: 
+	virtual ~data_c() { }
 
 	//add data
 	virtual void add(const void* data, int len) = 0;
@@ -99,6 +100,7 @@ public:
 */ 
 class station_c {
 public:
+	virtual ~station_c() { }
 
 	// resets the state of the object. so you don't have to delete and create a new one
 	// every time you want to use it for a different client/server.

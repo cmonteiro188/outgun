@@ -55,6 +55,7 @@ const char* TSFS[32] = { "TSF0", "TSF1", "TSF2" };
 #include "Timer.h"
 #include "sleep.h"
 #include "ConditionVariable.h"
+#include "Mutex.h"
 using namespace GNE;
 
 // max (absolute) clients that can connect to a server
@@ -102,7 +103,7 @@ struct client_t {
 	bool						in_lag;			// if client is lagged
 
 	//mutex for the station object and condition variable
-	pthread_mutex_t	station_mutex;
+	Mutex	station_mutex;
 
 	//condition variable
 	ConditionVariable		station_cond_hasdata;
@@ -110,6 +111,8 @@ struct client_t {
 	
 	//thread must quit flag
 	volatile bool		quitflag;
+
+	client_t() : station_mutex(), station_cond_hasdata(&station_mutex) { }
 };
 
 
@@ -235,7 +238,6 @@ public:
 			client[i].used = false;				// free player slot
 			client[i].id = i;							// id (for thread)
 			client[i].server = this;			// server (for thread)
-			pthread_mutex_init(&client[i].station_mutex, 0);
 
 			//FIXME: do anything to client[i].station_cond_hasdata ??
 			//pthread_cond_init(&client[i].station_cond_hasdata, 0);
@@ -314,8 +316,6 @@ public:
 			//MUDANDO: apenas reseta station
 			client[i].station->reset_state();
 
-			pthread_mutex_destroy(&client[i].station_mutex);
-			
 			//FIXME: do something to station_cond_hasdata ?
 			//pthread_cond_destroy(&client[i].station_cond_hasdata);
 		}
@@ -610,7 +610,7 @@ DLOG_Scope s("PIDg");
 			// ira' processá-lo. obs: "station" precisa ser locket
 
 			//set packet, slap slave
-			pthread_mutex_lock( &client[i].station_mutex );
+			client[i].station_mutex.acquire();
 
 			//pode ser null aqui  (free slave  lock/delete/unlock)
 			if (client[i].station)
@@ -619,7 +619,7 @@ DLOG_Scope s("PIDg");
 			//pthread_cond_signal ( &client[i].station_cond_hasdata );  //slap the slave
 			client[i].station_cond_hasdata.signal();
 
-			pthread_mutex_unlock( &client[i].station_mutex );
+			client[i].station_mutex.release();
 
 			// ok
 			return 1;
@@ -686,7 +686,7 @@ DLOG_Scope s("PIDg");
 		for (i=0;i<MAX_CLIENTS;i++) 
 		{
 			//lock client
-			pthread_mutex_lock( &client[i].station_mutex );
+			client[i].station_mutex.acquire();
 
 			if (!client[i].used)
 			{
@@ -741,12 +741,12 @@ DLOG_Scope s("PIDg");
 				client[i].used = true;
 
 				//ok - unlock client
-				pthread_mutex_unlock( &client[i].station_mutex );
+				client[i].station_mutex.release();
 				return 1;
 			}
 
 			//unlock client
-			pthread_mutex_unlock( &client[i].station_mutex );
+			client[i].station_mutex.release();
 		}
 
 		//WEIRD WEIRD fail: num_clients esta mentindo para baixo
@@ -900,7 +900,7 @@ DLOG_Scope s("PCD_Sp");
 						if (res.customDataLength > 0)
 							reply->add(res.customData, res.customDataLength);	// custom game data
 						
-						log("station debuginfo = %s", client[cid].station->debug_info());
+//						log("station debuginfo = %s", client[cid].station->debug_info());
 
 						int ok = client[cid].station->send_raw_packet(reply);
 
@@ -1069,7 +1069,7 @@ DLOG_Scope s("PCD_Sp");
 			client[id].discthread.join();
 		}
 
-		pthread_mutex_lock ( &client[id].station_mutex );
+		client[id].station_mutex.acquire();
 
 		//free slave
 		client[id].used = false;
@@ -1095,7 +1095,7 @@ DLOG_Scope s("PCD_Sp");
 		num_clients--;
 		log("slave %i freed, clients now = %i", id, num_clients);
 
-		pthread_mutex_unlock ( &client[id].station_mutex );
+		client[id].station_mutex.release();
 	}
 	
 
@@ -1224,6 +1224,8 @@ void thread_slave_f(client_t* mydata)
 	//my id
 	int myid = mydata->id;
 
+	mydata->station_mutex.acquire();	// timedWait releases it for the waiting period
+
 	//loop
 	while (mydata->quitflag == false) {
 
@@ -1260,6 +1262,7 @@ DLOG_Scope s(TSFS[myid]);
 			//pthread_mutex_unlock( &mydata->station_mutex );
 		}
 	}
+	mydata->station_mutex.release();
 	if (LOG_THREAD_IDS)
 		server->log("exiting: Leet server thread_slave_f() ID = %d, prio = %d", pthread_self(), threadPriority());
 }
