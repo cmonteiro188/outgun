@@ -41,6 +41,7 @@ gameserver_c::gameserver_c(LogSet& hostLogs) :
 	log(&normalLog, &errorLog, &securityLog),
 	world(this, &network, log),
 	network(this, world, log),
+	tournament(true),
 	authorizations(log)
 {
 	hostLogs("See serverlog.txt for server's log messages");
@@ -107,15 +108,20 @@ bool gameserver_c::check_name_password(const string& name, const string& passwor
 void gameserver_c::ctf_game_restart() {
 	//submit all pending reports
 	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
+		if (world.player[i].used) {
 			network.client_report_status(world.player[i].cid);
+			client[world.player[i].cid].current_participation = client[world.player[i].cid].next_participation;
+		}
 
 	char lix[256];
 	sprintf(lix, "CTF GAME OVER - FINAL SCORE: RED %i - BLUE %i", world.teams[0].score(), world.teams[1].score());
 	network.broadcast_message(msg_info, lix);
 
-	if (worldConfig.balance_teams)
+	if (worldConfig.balanceTeams()) {
 		balance_teams();
+		if (worldConfig.balanceTeams() == WorldSettings::balance_and_shuffle)
+			shuffle_teams();
+	}
 
 	if (worldConfig.getTimeLimit() == 0)
 		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
@@ -150,6 +156,21 @@ void gameserver_c::balance_teams() {
 			}
 		difference = team[0].size() - team[1].size();
 	}
+}
+
+void gameserver_c::shuffle_teams() {
+	vector<int> players;
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used)
+			players.push_back(i);
+	vector<int> swap = players;
+	random_shuffle(swap.begin(), swap.end());
+	for (int i = 0, sw = 0; i < maxplayers; i++)
+		if (world.player[i].used) {
+			if (players[sw] / TSIZE != swap[sw] / TSIZE)
+				swap_players(players[sw], swap[sw]);
+			sw++;
+		}
 }
 
 //check if team change requests can be satisfied
@@ -602,10 +623,14 @@ void gameserver_c::load_game_mod() {
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "balance_teams") {
-					if (ival == 0 || ival == 1)
-						worldConfig.balance_teams = ival == 1 ? true : false;
+					if (line == "no")
+						worldConfig.balance_teams = WorldSettings::disabled;
+					else if (line == "balance")
+						worldConfig.balance_teams = WorldSettings::balance;
+					else if (line == "shuffle")
+						worldConfig.balance_teams = WorldSettings::balance_and_shuffle;
 					else
-						log.error("Can't set %s to %d", cmd.c_str(), ival);
+						log.error("Can't set %s to %s", cmd.c_str(), line.c_str());
 				}
 				else if (cmd == "server_name")
 					network.set_hostname(line);
@@ -721,6 +746,11 @@ void gameserver_c::load_game_mod() {
 					sayadmin_comment = line;
 				else if (cmd == "server_website")
 					server_website_url = line;
+				else if (cmd == "tournament")
+					if (ival == 0 || ival == 1)
+						tournament = ival == 1 ? true : false;
+					else
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				else
 					log.error("*** Bad command in gamemod: %s", cmd.c_str());
 			}
@@ -1005,7 +1035,7 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	bool entered_game = world.player[pid].name.empty();
 
 	// Name with only whitespaces not allowed.
-	if (tempname.find_first_not_of("  \t") == string::npos)	// space, no-brake space, tab
+	if (tempname.find_first_not_of("  \t") == string::npos || tempname.length() > 15)	// space, no-brake space, tab
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
 		#ifdef SV_NAME_AUTHORIZATION
@@ -1146,14 +1176,14 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			world.printTimeStatus(pm);
 		}
 		else if (!strcmp(cbuf, "list") && admin) {
-			network.player_message(pid, msg_header, "Players on server: ID, name");
+			network.player_message(pid, msg_header, "Players on server: ID, status, name");
 			for (int ppid = 0; ppid < MAX_PLAYERS; ) {
 				char buf[100];
 				int bufi = 0;
 				for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
 					if (world.player[ppid].used) {
-						sprintf(buf+bufi, "%2d %c%-22s", ppid, world.player[ppid].reg_status, world.player[ppid].name.c_str());
-						bufi+=26;
+						sprintf(buf + bufi, "%2d (%c) %-19s", ppid, world.player[ppid].reg_status, world.player[ppid].name.c_str());
+						bufi += 26;
 						++onrow;
 					}
 				if (bufi > 0)

@@ -31,6 +31,7 @@ enum Network_data_code {
 	data_file_ack,
 	data_registration_token,
 	data_registration_response,
+	data_tournament_participation,
 	data_crap_update,
 	data_map_time,
 	data_fire_on,

@@ -88,7 +88,6 @@ public:
 	void draw_minimap_room(const Map& map, int rx, int ry);
 
 	void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
-	void draw_player_shadow(const ClientPlayer& player, int alpha);
 	void draw_player_name(const std::string& name, int x, int y, int team);
 	void draw_player_dead(const ClientPlayer& player);
 
@@ -117,7 +116,7 @@ public:
 	void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams);
 
 	void team_statistics(const Team* teams);
-	void draw_statistics(const std::vector<ClientPlayer>& players, int page, int time);
+	void draw_statistics(const std::vector<ClientPlayer*>& players, int page, int time);
 	void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
 					 const std::vector<std::vector<std::pair<int, int> > >& sticks, const std::vector<int>& buttons);
 
@@ -162,8 +161,8 @@ public:
 	void create_wallexplo(int x, int y, int px, int py);
 	void create_quadwallexplo(int x, int y, int px, int py);
 	void create_deathbringer(int owner, double start_time, int x, int y, int px, int py);
-	void create_smoke(int x, int y, int px, int py, int team);
-	void create_deathcarrier(int x, int y, int px, int py, int team);
+	void create_smoke(int x, int y, int px, int py);
+	void create_deathcarrier(int x, int y, int px, int py);
 	void create_gunexplo(int x, int y, int px, int py);
 	void create_speedfx(int x, int y, int px, int py, int col1, int col2, int gundir);
 
@@ -176,7 +175,6 @@ public:
 
 	void search_themes(LineReceiver& dst) const;
 	void select_theme(const std::string& name);
-	bool basic() const { return no_theme; }
 
 	enum Antialiasing_mode { AA_none, AA_map, AA_both };
 
@@ -184,13 +182,17 @@ public:
 	void set_antialiasing(Antialiasing_mode mode) { antialiasing = mode; }
 
 	int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
-	int chat_lines() const { return ply / 11; }
-	int chat_max_lines() const { return (ply + plh) / 11; }
+	
+	// How many lines fit on the chat area and screen.
+	int chat_lines() const;
+	int chat_max_lines() const;
 
 	BITMAP* drawbuffer() { return drawbuf; }
 
 	// public only for Mappic
 	void setColors();
+	
+	void set_stats_alpha(int alpha) { stats_alpha = alpha; }
 
 private:
 	void unload_bitmaps();
@@ -211,7 +213,7 @@ private:
 
 	std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
-	void draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time);
+	void draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time);
 
 	void draw_scoreboard_name(const std::string& name, int x, int y, int pcol);
 	void draw_scoreboard_points(int points, int x, int y, int team);
@@ -234,10 +236,11 @@ private:
 	BITMAP* get_floor_texture(int texid);
 	BITMAP* get_wall_texture(int texid);
 
-	void load_player_sprites(const std::string& filename_common, const std::string& filename_team, const std::string& filename_personal);
+	void load_player_sprites(const std::string& path);
 	void load_shield_sprites(const std::string& path);
 	void load_dead_sprites(const std::string& path);
 	void load_rocket_sprites(const std::string& path);
+	void load_flag_sprites(const std::string& path);
 	void load_pup_sprites(const std::string& path);
 
 	BITMAP* scale_sprite(const std::string& filename, int x, int y) const;
@@ -256,6 +259,7 @@ private:
 	void unload_shield_sprites();
 	void unload_dead_sprites();
 	void unload_rocket_sprites();
+	void unload_flag_sprites();
 	void unload_pup_sprites();
 
 	int scale(double value) const;
@@ -298,9 +302,11 @@ private:
 	std::vector<Bitmap> player_sprite[2];
 	Bitmap shield_sprite[2];
 	Bitmap dead_sprite[2];
-	Bitmap ice_cream;
 	Bitmap rocket_sprite[2];
 	Bitmap power_rocket_sprite[2];
+	Bitmap flag_sprite[3];	// red, blue and wild flag
+
+	Bitmap ice_cream;
 
 	int map_list_size;
 	int map_list_start;
@@ -315,6 +321,8 @@ private:
 	bool no_theme;
 
 	Antialiasing_mode antialiasing;
+
+	int stats_alpha;
 
 	//colors
 	enum {

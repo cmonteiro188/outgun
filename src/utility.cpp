@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <algorithm>
 
 #include <cstdarg>
 #include <cstdlib>
@@ -20,6 +21,7 @@ using std::ostringstream;
 using std::setfill;
 using std::setw;
 using std::string;
+using std::transform;
 
 int atoi(const string& str) {
 	return std::atoi(str.c_str());
@@ -36,8 +38,13 @@ int iround(double value) {
 }
 
 string toupper(string str) {
-	for (string::iterator s = str.begin(); s != str.end(); ++s)
-		*s = toupper(*s);
+	transform(str.begin(), str.end(), str.begin(), (int(*)(int))toupper);
+	return str;
+}
+
+string trim(string str) {
+	str.erase(0, str.find_first_not_of(" \t\n\r"));
+	str.erase(str.find_last_not_of(" \t\n\r") + 1);
 	return str;
 }
 
@@ -59,7 +66,7 @@ void LogSet::security(const char* fmt, ...)   { va_list args; va_start(args, fmt
 void errorMessage(const string& heading, MemoryLog& errorLog) {
 	int errors = errorLog.size();
 	if (errors) {
-		std::ostringstream msg;
+		ostringstream msg;
 		msg << heading;
 		for (int count = min(errors, 10); count > 0; --count)
 			msg << '\n' << errorLog.pop();

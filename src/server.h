@@ -34,6 +34,10 @@ public:
 	int			score;					//current score POS -- SOMATORIO (né?!?!?)
 	int			neg_score;					//current score NEG 0.4.8 -- SOMATORIO (né?!?!?)
 
+	bool		current_participation;
+	bool		next_participation;
+	bool		participation_info_received;
+
 	ClientData() {
 		reset();
 	}
@@ -51,6 +55,10 @@ public:
 		token_valid = false;
 		token[0] = 0;
 		intoken = 666;
+
+		current_participation = false;
+		next_participation = false;
+		participation_info_received = false;
 	}
 };
 
@@ -80,6 +88,7 @@ class gameserver_c {
 
 	// networking
 	ServerNetworking network;
+	bool tournament;
 
 	// settings
 	PowerupSettings pupConfig;
@@ -126,6 +135,7 @@ public:
    int checount;
 
 	void balance_teams();
+	void shuffle_teams();
 	void check_team_changes();
 	void check_player_change_teams(int pid);
 	void move_player(int f, int t);
@@ -163,6 +173,8 @@ public:
 	std::string getTeamName(int team) const { return world.getTeamName(team); }
 
 	const std::string& server_website() const { return server_website_url; }
+
+	bool tournament_active() const { return tournament; }
 
 	void load_game_mod();
 	bool reset_settings(bool keepMap);

@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include <cctype>
 #include <cmath>
@@ -39,6 +40,7 @@ using std::pair;
 using std::right;
 using std::setfill;
 using std::setw;
+using std::stable_sort;
 using std::string;
 using std::vector;
 
@@ -65,6 +67,7 @@ public:
 	void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
 	bool rocketHitPlayer(int, int) { return false; }
 	void playerHitWall(int pid) { c.playerHitWallCallback(pid); }
+	void playerHitPlayer(int pid) { c.playerHitPlayerCallback(pid); }
 	void rocketOutOfBounds(int rid) { c.rocketOutOfBoundsCallback(rid); }
 	bool shouldApplyPhysicsToPlayer(int pid) { return c.shouldApplyPhysicsToPlayerCallback(pid); }
 };
@@ -72,6 +75,10 @@ public:
 // client callbacks
 int cfunc_connection_update(client_runes_t *arg);
 int cfunc_server_data(client_runes_t *arg);
+
+bool compare_players(const ClientPlayer* a, const ClientPlayer* b) {
+	return a->team() < b->team() || a->stats().frags() > b->stats().frags();
+}
 
 void ServerThreadOwner::threadFn() {
 	GameserverInterface gameserver(log);
@@ -195,7 +202,6 @@ void TournamentPasswordManager::threadFn() {
 			delay = 10000;
 			continue;
 		}
-
 
 		NLaddress tournamentServer;
 		if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
@@ -413,12 +419,11 @@ bool gameclient_c::start() {
 
 	//try to load the client's password
 	string fileName = wheregamedir + "config" + directory_separator + "password.bin";
-	int c;
 	FILE *psf = fopen(fileName.c_str(), "rb");
 	if (psf) {
 		char pas[PASSBUFFER];
-		for (c = 0; c < PASSBUFFER; c++) {
-			int cha = fgetc(psf);	// don't care about EOF yet
+		for (int c = 0; c < PASSBUFFER; c++) {
+			const int cha = fgetc(psf);	// don't care about EOF yet
 			pas[c] = static_cast<char>(255 - cha);
 		}
 		if (!feof(psf)) {
@@ -443,8 +448,12 @@ bool gameclient_c::start() {
 		// read gameclient_c internal settings
 		if (getline_smart(cfg, line) && line.find_first_not_of("  \t") != string::npos) {
 			randomname = false;
-			playername = line;
+			playername = line.substr(0, 15);
 		}
+
+		// read name menu settings
+		if (getline_smart(cfg, line))
+			menu.options.name.tournament.set(line == "1");
 
 		// read connect menu settings
 		if (getline_smart(cfg, line))
@@ -510,6 +519,13 @@ bool gameclient_c::start() {
 			menu.options.graphics.antialiasing.set(mode);
 			client_graphics.set_antialiasing(mode);
 		}
+		if (getline_smart(cfg, line)) {	// stats screen background translucency
+			int alpha = atoi(line);
+			if (alpha < 0 || alpha > 255)
+				alpha = 255;
+			menu.options.graphics.statsBgAlpha.set(alpha);
+			client_graphics.set_stats_alpha(alpha);
+		}
 
 		// read sound menu settings
 		if (getline_smart(cfg, line)) {
@@ -544,7 +560,7 @@ bool gameclient_c::start() {
 	}
 
 	if (randomname)
-		playername = RandomName();
+		playername = RandomName().substr(0, 15);
 
 	tournamentPassword.changeData(playername, menu.options.name.password());
 
@@ -559,16 +575,12 @@ bool gameclient_c::start() {
 		return false;
 	client_sounds.select_theme(menu.options.sounds.theme());
 
-log("SCBC");//#debug
 	set_close_button_callback(gameclient_c::close_button_callback);
 
-log("IJ");//#debug
 	if (menu.options.game.joystick())
 		install_joystick(JOY_TYPE_AUTODETECT);
-log("MLO");//#debug
 	if (menu.options.game.messageLogging())
 		message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
-log("EXIT");//#debug
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
 	MCF_updateServers();
@@ -780,38 +792,6 @@ void gameclient_c::server_map_command(const char *mapname, NLushort server_crc) 
 	}
 }
 
-//update the scoreboard
-void gameclient_c::update_scoreboard() {
-	//reset used players/used scoreboard entries
-	bool scoreused[MAX_PLAYERS];
-	for (int f=0;f<MAX_PLAYERS;f++) {
-		scoreused[f] = false;
-		scoreboard[f] = -1;
-	}
-
-	// fill each team
-	for (int t=0;t<2;t++)	{
-		int td = t * TSIZE;
-
-		for (int s=td;s<TSIZE+td;s++) {
-			int maxfrag = -666;
-			int maxwho = -1;
-			for (int i=td;i<TSIZE+td;i++)
-			if (fx.player[i].used)
-			if (!scoreused[i])
-			if (fx.player[i].stats().frags() > maxfrag) {
-				maxfrag = fx.player[i].stats().frags();
-				maxwho = i;
-			}
-
-			if (maxwho != -1) {
-				scoreboard[s] = maxwho;
-				scoreused[maxwho] = true;
-			}
-		}
-	}
-}
-
 //disconnect command
 void gameclient_c::disconnect_command() {
 	//disconnect the client here if was connected, else does nothing
@@ -833,6 +813,7 @@ void gameclient_c::client_connected(char *data, int length) {
 
 	readStr(data, count, hostname);
 	hostname = hostname.substr(0, 32);	//truncate at 32 chars
+	m_serverInfo.clear();
 
 	if (!menu.options.game.favoriteColors.values().empty()) {
 		char lebuf[256]; int count = 0;
@@ -855,10 +836,6 @@ void gameclient_c::client_connected(char *data, int length) {
 	ostringstream caption;
 	caption << "Connected to: " << hostname << " (" << address << ')';
 	server_status_string(caption.str());
-
-	//default scoreboard state
-	for (int i = 0; i < MAX_PLAYERS; i++)
-		scoreboard[i] = i;
 
 	//don't want to change teams by default
 	want_change_teams = false;
@@ -904,8 +881,8 @@ void gameclient_c::client_connected(char *data, int length) {
 	//reset FPS count vars
 	framecount = 0;
 	frameCountStartTime = get_time();
-	FPS = 666.0;
-	
+	FPS = 0;
+
 	//reset map time
 	map_time_limit = false;
 	map_start_time = 0;
@@ -918,9 +895,10 @@ void gameclient_c::client_connected(char *data, int length) {
 	string s = tournamentPassword.getToken();
 	if (!s.empty())
 		CB_tournamentToken(s);
+	send_tournament_participation();
 
 	map_ready = false;
-	servermap[0]=0;
+	servermap[0] = 0;
 
 	maps.clear();
 
@@ -931,6 +909,13 @@ void gameclient_c::client_connected(char *data, int length) {
 	client_graphics.clear_fx();
 
 	send_frame(true);
+}
+
+void gameclient_c::send_tournament_participation() {
+	char lebuf[8]; int count = 0;
+	writeByte(lebuf, count, data_tournament_participation);
+	writeByte(lebuf, count, menu.options.name.tournament() ? 1 : 0);
+	client->send_message(lebuf, count);
 }
 
 void gameclient_c::client_disconnected(const char* data, int length) {
@@ -1122,7 +1107,7 @@ void gameclient_c::save_stats() const {
 		out << "<LINK REL=\"stylesheet\" HREF=\"outgun.css\" TYPE=\"text/css\" TITLE=\"Outgun style\">\n\n";
 		out << "<H1>Outgun statistics " << date << "</H1>\n\n";
 	}
-	out << "<H2>" << time << ' ' << old_map << "</H2>\n\n";
+	out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << old_map << "</H2>\n\n";
 
 	out << "<H3>Team stats</H3>\n\n";
 	const Team& red = fx.teams[0];
@@ -1335,13 +1320,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 				fx.player[i].used = false;
 			}
-		}
-
-		//UGLY HACK
-		static NLulong old_players_present;
-		if (old_players_present != players_present) {
-			old_players_present = players_present;
-			update_scoreboard();
 		}
 
 		//----- PLAYER SPECIFIC DATA -----
@@ -1574,7 +1552,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				case data_name_update:
 					readByte(msg, count, pid);
 					readStr(msg, count, fx.player[pid].name);
-					update_scoreboard();		//tentando consertar bug change teams
+					fx.player[pid].name = fx.player[pid].name.substr(0, 15);
+					stable_sort(players_sb.begin(), players_sb.end(), compare_players);
 					break;
 
 				//text message
@@ -1615,10 +1594,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					readByte(msg, count, abyte);
 					fx.teams[0].set_score(abyte);
-					fx.teams[0].set_base_score(abyte);
+					if (fx.teams[0].captures().size() == 0)	// only if just joined the server
+						fx.teams[0].set_base_score(abyte);
 					readByte(msg, count, abyte);
 					fx.teams[1].set_score(abyte);
-					fx.teams[1].set_base_score(abyte);
+					if (fx.teams[1].captures().size() == 0)	// only if just joined the server
+						fx.teams[1].set_base_score(abyte);
 
 					//server physics parameters
 					readFloat(msg, count, aflo);
@@ -1656,9 +1637,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.player[me].oldx = -1;
 					fx.player[me].oldy = -1;
 
-					//update scoreboard!
-					update_scoreboard();
-
 					break;
 				}
 
@@ -1667,7 +1645,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					readByte(msg, count, pid);	// what player
 					readLong(msg, count, fragz);	// new frag value
 					fx.player[pid].stats().set_frags(fragz);
-					update_scoreboard();		// update clientside scoreboard
+					stable_sort(players_sb.begin(), players_sb.end(), compare_players);
 					break;
 
 				//CTF flag update
@@ -1859,8 +1837,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 						if (menu.options.game.saveStats())
 							save_stats();
 					}
-					else
+					else {
 						gameover_plaque = NEXTMAP_NONE;
+						if (menusel == menu_teams)
+							menusel = menu_none;
+					}
 					break;
 
 				//server hides gameover plaque, the game starts
@@ -1870,6 +1851,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					fx.teams[1].clear_stats();
 					for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
 						pi->stats().clear();
+					if (menusel == menu_teams)
+						menusel = menu_none;
 					break;
 
 				//deathbringer shot
@@ -2082,67 +2065,128 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				}
 
 				case data_movements_shots: {
-					for (int i = 0; i < MAX_PLAYERS; i++) {
-						if (!fx.player[i].used)
-							continue;
-						NLlong movement;
-						readLong(lebuf, count, movement);
-						fx.player[i].stats().set_movement(movement);
-						NLshort data;
-						readShort(lebuf, count, data);
-						fx.player[i].stats().set_shots(data);
-						readShort(lebuf, count, data);
-						fx.player[i].stats().set_hits(data);
-						readShort(lebuf, count, data);
-						fx.player[i].stats().set_shots_taken(data);
-					}
+					NLubyte id;
+					readByte(lebuf, count, id);
+					// todo: check id
+					NLlong movement;
+					readLong(lebuf, count, movement);
+					fx.player[id].stats().set_movement(movement);
+					fx.player[id].stats().save_speed(get_time());
+					NLshort data;
+					readShort(lebuf, count, data);
+					fx.player[id].stats().set_shots(data);
+					readShort(lebuf, count, data);
+					fx.player[id].stats().set_hits(data);
+					readShort(lebuf, count, data);
+					fx.player[id].stats().set_shots_taken(data);
 					break;
 				}
 
 				case data_stats: {
-					for (int i = 0; i < MAX_PLAYERS; i++) {
-						if (!fx.player[i].used)
-							continue;
-						Statistics& stats = fx.player[i].stats();
-						NLubyte data;
-						readByte(lebuf, count, data);
-						stats.set_kills(data);
-						readByte(lebuf, count, data);
-						stats.set_deaths(data);
-						readByte(lebuf, count, data);
-						stats.set_cons_kills(data);
-						readByte(lebuf, count, data);
-						stats.set_current_cons_kills(data);
-						readByte(lebuf, count, data);
-						stats.set_cons_deaths(data);
-						readByte(lebuf, count, data);
-						stats.set_current_cons_deaths(data);
-						readByte(lebuf, count, data);
-						stats.set_suicides(data);
-						readByte(lebuf, count, data);
-						stats.set_captures(data);
-						readByte(lebuf, count, data);
-						stats.set_flags_taken(data);
-						readByte(lebuf, count, data);
-						stats.set_flags_dropped(data);
-						readByte(lebuf, count, data);
-						stats.set_flags_returned(data);
-						readByte(lebuf, count, data);
-						stats.set_carriers_killed(data);
-						int ldata;
-						readLong(lebuf, count, ldata);
-						stats.set_start_time(get_time() - ldata);
-						readLong(lebuf, count, ldata);
-						stats.set_lifetime(ldata);
-						readLong(lebuf, count, ldata);
-						stats.set_flag_carrying_time(ldata);
-					}
+					NLubyte id;
+					readByte(lebuf, count, id);
+					// todo: check id
+					Statistics& stats = fx.player[id].stats();
+					NLubyte data;
+					readByte(lebuf, count, data);
+					stats.set_kills(data);
+					readByte(lebuf, count, data);
+					stats.set_deaths(data);
+					readByte(lebuf, count, data);
+					stats.set_cons_kills(data);
+					readByte(lebuf, count, data);
+					stats.set_current_cons_kills(data);
+					readByte(lebuf, count, data);
+					stats.set_cons_deaths(data);
+					readByte(lebuf, count, data);
+					stats.set_current_cons_deaths(data);
+					readByte(lebuf, count, data);
+					stats.set_suicides(data);
+					readByte(lebuf, count, data);
+					stats.set_captures(data);
+					readByte(lebuf, count, data);
+					stats.set_flags_taken(data);
+					readByte(lebuf, count, data);
+					stats.set_flags_dropped(data);
+					readByte(lebuf, count, data);
+					stats.set_flags_returned(data);
+					readByte(lebuf, count, data);
+					stats.set_carriers_killed(data);
+					int ldata;
+					readLong(lebuf, count, ldata);
+					stats.set_start_time(get_time() - ldata);
+					readLong(lebuf, count, ldata);
+					stats.set_lifetime(ldata);
+					readLong(lebuf, count, ldata);
+					stats.set_flag_carrying_time(ldata);
 					break;
 				}
 
 				case data_name_authorization_request: {
 					m_playerPassword.setup(playername, false);
 					showMenu(m_playerPassword);
+					break;
+				}
+
+   				case data_server_settings: {
+					m_serverInfo.menu.setCaption(hostname);
+
+   					NLubyte data;
+   					ostringstream line;
+   					const int width = 22;
+
+					readByte(lebuf, count, data);
+					line << setw(width) << "Capture limit: ";
+					if (data == 0)
+						line << "none";
+					else
+						line << static_cast<int>(data);
+					m_serverInfo.addLine(line.str());
+					line.str("");
+
+					readByte(lebuf, count, data);
+					line << setw(width) << "Time limit: ";
+					if (data == 0)
+						line << "none";
+					else
+						line << static_cast<int>(data) << " min";
+					m_serverInfo.addLine(line.str());
+					line.str("");
+
+					readByte(lebuf, count, data);
+					line << setw(width) << "Extra time: ";
+					if (data == 0)
+						line << "none";
+					else
+						line << static_cast<int>(data) << " min";
+					m_serverInfo.addLine(line.str());
+					line.str("");
+
+					readByte(lebuf, count, data);
+					int i = 0;
+					line << setw(width) << "Balance teams: " << ((data & (1 << i++)) ? "on" : "off");
+					m_serverInfo.addLine(line.str());
+					line.str("");
+					line << setw(width) << "Player collisions: " << (svp_player_collisions ? "on" : "off");
+					m_serverInfo.addLine(line.str());
+					line.str("");
+					line << setw(width) << "Friendly fire: " << (svp_friendly_fire ? "on" : "off");
+					m_serverInfo.addLine(line.str());
+					line.str("");
+					line << setw(width) << "Drop power-ups: " << ((data & (1 << i++)) ? "on" : "off");
+					m_serverInfo.addLine(line.str());
+					line.str("");
+					line << setw(width) << "Invisible shadow: " << ((data & (1 << i++)) ? "on" : "off");
+					m_serverInfo.addLine(line.str());
+					line.str("");
+					line << setw(width) << "Switch deathbringer: " << ((data & (1 << i++)) ? "on" : "off");
+					m_serverInfo.addLine(line.str());
+					line.str("");
+					line << setw(width) << "Maximum weapon level: " << (data >> 4) + 1;
+					m_serverInfo.addLine(line.str());
+					line.str("");
+
+					showMenu(m_serverInfo);
 					break;
 				}
 
@@ -2227,10 +2271,14 @@ void gameclient_c::save_screenshot() {
 void gameclient_c::toggle_help() {
 	helpshow = !helpshow;
 
-	if (helpshow)
+	if (helpshow) {
 		client_sounds.play(SAMPLE_WEAPON_UP);
-	else
+		showMenu(m_help);
+	}
+	else {
 		client_sounds.play(SAMPLE_FIRE);
+		openMenus.close();
+	}
 }
 
 const char* gameclient_c::refreshStatusAsString() const {
@@ -2258,9 +2306,14 @@ void gameclient_c::getServerListThread() {
 
 	// remove invalid IPs
 	serverListMutex.lock();
-	for (vector<gamespy_t>::iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
-		if (spy->invalid)
+	for (vector<gamespy_t>::iterator spy = mgamespy.begin(); spy != mgamespy.end();)
+		if (spy->invalid) {
 			spy = mgamespy.erase(spy);
+			if (spy == mgamespy.end())
+				break;
+		}
+		else
+			++spy;
 	serverListMutex.unlock();
 
 	refreshStatus = ok ? RS_none : RS_failed;
@@ -2927,9 +2980,9 @@ void gameclient_c::loop() {
 				showMenu(m_errors);
 		}
 
-		if (helpshow)
+		/*if (helpshow)
 			client_graphics.game_help();
-		else if (menusel != menu_none || !openMenus.empty())
+		else */if (menusel != menu_none || !openMenus.empty())
 			draw_game_menu();
 
 		//if (page_flipping) {
@@ -2975,6 +3028,9 @@ void gameclient_c::stop() {
 		nAssert(!playername.empty());
 		cfg << playername << '\n';
 
+		// save name menu settings
+		cfg << (menu.options.name.tournament() ? 1 : 0) << '\n';
+
 		// save connect menu settings
 		cfg << (menu.connect.favorites() ? 1 : 0) << '\n';
 
@@ -3002,6 +3058,7 @@ void gameclient_c::stop() {
 		cfg << mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
 		cfg << menu.options.graphics.theme() << '\n';
 		cfg << static_cast<int>(menu.options.graphics.antialiasing()) << '\n';
+		cfg << menu.options.graphics.statsBgAlpha() << '\n';
 
 		// save sound menu settings
 		cfg << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
@@ -3066,10 +3123,19 @@ void gameclient_c::rocketOutOfBoundsCallback(int rid) {
 
 void gameclient_c::playerHitWallCallback(int pid) {
 	// play bounce sample if minimum time elapsed
-	float currTime = get_time();	//#fix
+	const float currTime = get_time();	//#fix
 	if (currTime > fx.player[pid].wall_sound_time) {
 		fx.player[pid].wall_sound_time = currTime + 0.2;
 		client_sounds.play(SAMPLE_WALLBOUNCE);
+	}
+}
+
+void gameclient_c::playerHitPlayerCallback(int pid) {
+	// play bounce sample if minimum time elapsed
+	const float currTime = get_time();	//#fix
+	if (currTime > fx.player[pid].player_sound_time) {
+		fx.player[pid].player_sound_time = currTime + 0.2;
+		client_sounds.play(SAMPLE_PLAYERBOUNCE);
 	}
 }
 
@@ -3145,7 +3211,6 @@ void gameclient_c::draw_game_frame() {
 			}
 		}
 
-		// FIXME: y-ordering of draw not maintained
 		// draw any item pickups
 		if (me >= 0)
 			for (int i = 0; i < MAX_PICKUPS; i++)
@@ -3155,13 +3220,12 @@ void gameclient_c::draw_game_frame() {
 					client_graphics.draw_pup(fx.item[i], get_time());
 					if (fx.item[i].kind == Powerup::pup_deathbringer)
 						client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
-							fx.item[i].px, fx.item[i].py, 0);
+							fx.item[i].px, fx.item[i].py);
 				}
 
 		// draw speed effect
 		client_graphics.draw_speedfx(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
-		// FIXME: y-ordering of draw not maintained
 		// draw any dropped flags (use fx since flags don't move)
 		for (int t = 0; t < 2; t++)
 			for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
@@ -3173,7 +3237,6 @@ void gameclient_c::draw_game_frame() {
 			if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy)
 				client_graphics.draw_flag(2, fi->position().x, fi->position().y);
 
-		// FIXME: y-ordering of draw not maintained
 		// draw any rockets
 		for (int i = 0; i < MAX_ROCKETS; i++)
 			if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
@@ -3188,7 +3251,7 @@ void gameclient_c::draw_game_frame() {
 
 			//HACK REMENDEX: predict item_helm
 			if (fd.player[i].item_helm()) {
-				int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
+				const int hspd = static_cast<int>((fd.frame - fx.frame) * 10.);
 				fd.player[i].visibility = fx.player[i].visibility - hspd;
 				if (fd.player[i].visibility < 0)
 					fd.player[i].visibility = 0;
@@ -3203,8 +3266,8 @@ void gameclient_c::draw_game_frame() {
 			//NOT an invisible enemy
 			if (menu.options.game.showNames() && fx.player[i].used && !(fx.player[i].visibility < 10 && i / TSIZE != me / TSIZE) &&
 				fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy) {
-				int ttx = (int)fd.player[i].lx;
-				int tty = (int)fd.player[i].ly;
+				const int ttx = static_cast<int>(fd.player[i].lx);
+				const int tty = static_cast<int>(fd.player[i].ly);
 				client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
 			}
 		}
@@ -3282,85 +3345,8 @@ void gameclient_c::draw_game_frame() {
 					client_graphics.draw_minimap_room(fx.map, rx, ry);
 	}//!hide_game
 
-	//
-	// the SCOREBOARD
-	//
-
-	/*ostringstream red;
-	red << "Red Team:    " << setw(2) << fx.teams[0].score() << " capt";
-	client_graphics.draw_scoreboard_caption(0, red.str());
-	ostringstream blue;
-	blue << "Blue Team:   " << setw(2) << fx.teams[1].score() << " capt";
-	client_graphics.draw_scoreboard_caption(1, blue.str());*/
-
 	client_graphics.draw_scoreboard(players_sb, fx.teams);
-	/*int pix[2]; pix[0]=pix[1]=0;
-	for (int fw=0;fw<2;fw++)		//first count, then draw
-	{
-		const int NAMEYDELTA_MIN = 8;
-		int NAMEYDELTA = 12;	//default value
-		if (fw == 1) {
-			//most players in a team
-			int thepix;
-			if (pix[0] > pix[1])
-				thepix = pix[1];
-			else
-				thepix = pix[0];
-			//calc the new NAMEYDELTA
-			while (thepix * NAMEYDELTA > 16 * 8 - 8 - 2) {
-				if (NAMEYDELTA == NAMEYDELTA_MIN)
-					break;	//the minimum is the minimum...
-				NAMEYDELTA--;
-			}
-		}
 
-		for (int dp=0;dp<maxplayers;dp++)
-		{
-			// i = player #   dp = draw slot (0-7 = red team's  8-15 = blue team's)
-			int i = scoreboard[dp];
-
-			//i = dp;
-
-			//draw it
-			if (i != -1)
-			if (fx.player[i].used)
-			{
-				int what_y;
-				const int ply = 90;
-				const int mmy = ply;
-				if (i < TSIZE)
-					what_y = sby + 8 + dp * NAMEYDELTA;
-				else
-					what_y = sby + 19 * NAMEYDELTA_MIN + (dp - TSIZE) * NAMEYDELTA;
-
-				//just count
-				if (fw == 0) {
-//						if (pix[i/TSIZE] < i%TSIZE)
-//							pix[i/TSIZE] = i%TSIZE;
-					if (pix[i/TSIZE] < dp%TSIZE)
-						pix[i/TSIZE] = dp%TSIZE;
-				}
-				//draw
-				else {
-					// show name
-					client_graphics.draw_scoreboard_name(what_y, i % TSIZE, fx.player[i]);
-
-					// show frags
-					client_graphics.draw_scoreboard_points(what_y, i / TSIZE, fx.player[i].frags);
-				}
-			}
-		}
-	}*/
-
-	// the STATUSBAR : traffic
-	//
-	//int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
-	//int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
-	//int bpstraffic = bpsin + bpsout;
-	//textprintf(drawbuf, font, 72*8-2, ply+plh+  5, col[COLINFO], "BPS:%4i", bpstraffic);
-	//textprintf(drawbuf, font, 71*8-2, ply+plh+ 15, col[COLINFO], "%4i:%4i", bpsin, bpsout);
-
-	//FPS
 	client_graphics.draw_fps(FPS);
 
 	// Time left if time limit is on and the game is running.
@@ -3464,9 +3450,9 @@ void gameclient_c::draw_game_frame() {
 	}
 }
 
-void gameclient_c::draw_player(int i) {
-	const ClientPlayer& player = fx.player[i];
-	int alpha = fd.player[i].visibility;
+void gameclient_c::draw_player(int pid) {
+	ClientPlayer& player = fx.player[pid];
+	int alpha = fd.player[pid].visibility;
 	const int min_alpha_friends = 128;
 	if (player.team() == fx.player[me].team() && alpha < min_alpha_friends)
 		alpha = min_alpha_friends;
@@ -3475,13 +3461,13 @@ void gameclient_c::draw_player(int i) {
 	// draw flag if player is carrier of a flag
 	for (int t = 0; t < 2; t++)
 		for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
-			if (fi->carrier() == i)
-				client_graphics.draw_flag(t, static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly) + 15);
+			if (fi->carrier() == pid)
+				client_graphics.draw_flag(t, static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly));
 	for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-		if (fi->carrier() == i)
-			client_graphics.draw_flag(2, static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly) + 15);
-	if (fx.player[i].dead) {	// draw only ice creams
-		if (fx.player[i].stats().frags() % 10 == 0 && fx.player[i].stats().frags() >= 10)
+		if (fi->carrier() == pid)
+			client_graphics.draw_flag(2, static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly));
+	if (player.dead) {	// draw only ice creams
+		if (player.stats().frags() % 10 == 0 && player.stats().frags() >= 10)
 			client_graphics.draw_virou_sorvete(static_cast<int>(player.lx), static_cast<int>(player.ly));
 	}
 	else {
@@ -3489,26 +3475,26 @@ void gameclient_c::draw_player(int i) {
 			// turbo effect
 			if (player.item_speed && (fabs(player.sx) > svp_maxspeed || fabs(player.sy) > svp_maxspeed) &&
 						get_time() > player.speed_drop_time) {
-				fx.player[i].speed_drop_time = get_time() + 0.05;
-					client_graphics.create_speedfx(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), player.roomx, player.roomy, i / TSIZE, player.color(), player.gundir);
+				player.speed_drop_time = get_time() + 0.05;
+					client_graphics.create_speedfx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir);
 			}
 
 			//draw player
-			client_graphics.draw_player(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE, player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
+			client_graphics.draw_player(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team(), player.color(), player.gundir, player.hitfx, player.item_quad, alpha, get_time());
 		}
 
 		//draw deathbringer carrier effect
 		if (player.item_deathbringer && get_time() > player.death_drop_time) {
-			fx.player[i].death_drop_time = get_time() + 0.01;
-			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, player.roomx, player.roomy, i / TSIZE);
-			client_graphics.create_deathcarrier(static_cast<int>(fd.player[i].lx) + rand() % 40 - 20, static_cast<int>(fd.player[i].ly) + rand() % 40, player.roomx, player.roomy, i / TSIZE);
+			player.death_drop_time = get_time() + 0.01;
+			for (int i = 0; i < 2; i++)
+			client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy);
 		}
 		// draw deathbringer affected effect
 		if (player.deathbringer_affected)
-			client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), i / TSIZE);
+			client_graphics.draw_deathbringer_affected(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team());
 		// shield
 		if (player.item_shield)
-			client_graphics.draw_shield(static_cast<int>(fd.player[i].lx), static_cast<int>(fd.player[i].ly), SHIELD_RADIUS, alpha, player.team(), player.gundir);
+			client_graphics.draw_shield(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), SHIELD_RADIUS, alpha, player.team(), player.gundir);
 	}
 }
 
@@ -3521,7 +3507,7 @@ void gameclient_c::draw_game_menu() {
 			pthread_mutex_unlock(&mapInfoMutex);
 			break;
 		case menu_players:
-			client_graphics.draw_statistics(fx.player, player_stats_page, static_cast<int>(get_time()));
+			client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()));
 			break;
 		case menu_teams:
 			client_graphics.team_statistics(fx.teams);
@@ -3579,6 +3565,7 @@ void gameclient_c::initMenus() {
 	menu.options.graphics.theme			.setHook(new MCB::N<Select<string>,	&gameclient_c::MCF_gfxThemeChange	>(this));
 	typedef Select<Graphics::Antialiasing_mode> aaSelT;
 	menu.options.graphics.antialiasing	.setHook(new MCB::N<aaSelT,			&gameclient_c::MCF_antialiasChange	>(this));
+	menu.options.graphics.statsBgAlpha	.setHook(new MCB::N<Slider,			&gameclient_c::MCF_statsBgChange	>(this));
 
 	menu.options.sounds.menu		.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareSndMenu	>(this));
 	menu.options.sounds.menu		  .setOkHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
@@ -3593,8 +3580,11 @@ void gameclient_c::initMenus() {
 	m_connectProgress.menu		   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_cancelConnect	>(this));
 	m_dialog.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));	// cancel not used
 	m_errors.accept						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_clearErrors		>(this));	// cancel not used
+	m_serverInfo.accept					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_menuCloser		>(this));	// cancel not used
 
 	m_errors.menu.setCaption("Errors");
+
+	MCF_loadHelp();
 
 	menu.options.graphics.init(client_graphics);
 	menu.options.sounds.init(client_sounds);
@@ -3627,6 +3617,7 @@ void gameclient_c::MCF_prepareDrawNameMenu() {
 
 void gameclient_c::MCF_nameMenuClose() {
 	change_name_command();
+	send_tournament_participation();
 }
 
 void gameclient_c::MCF_removePasswords() {
@@ -3716,6 +3707,10 @@ void gameclient_c::MCF_antialiasChange() {
 	predraw();
 }
 
+void gameclient_c::MCF_statsBgChange() {
+	client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
+}
+
 void gameclient_c::MCF_prepareSndMenu() {
 	menu.options.sounds.update(client_sounds);
 }
@@ -3764,7 +3759,12 @@ void gameclient_c::MCF_prepareServerMenu() {
 	for (vector<gamespy_t>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
 		ostringstream info;
 		info << setw(21) << left << spy->address << right;
-		info << setw(4) << spy->ping << ' ' << spy->info;
+		info << setw(4);
+		if (spy->ping > 0)
+			info << spy->ping;
+		else
+			info << '?';
+		info << ' ' << spy->info;
 		menu.connect.add(spy->address, info.str());
 		addresses.push_back(spy->address);
 	}
@@ -3775,10 +3775,13 @@ void gameclient_c::MCF_prepareServerMenu() {
 				info << setw(21) << left << spy->address << right;
 				info << setw(4) << spy->ping << ' ' << spy->info;
 				menu.connect.add(spy->address, info.str());
+				addresses.push_back(spy->address);
 			}
 	serverListMutex.unlock();
 	typedef MenuCallback<gameclient_c> MCB;
-	menu.connect.addHooks(new MCB::A<Textarea, &gameclient_c::MCF_connect>(this));
+	typedef MenuKeyCallback<gameclient_c> MKC;
+	menu.connect.addHooks(new MCB::A<Textarea, &gameclient_c::MCF_connect>(this),
+						  new MKC::A<Textarea, &gameclient_c::MCF_addRemoveServer>(this));
 	bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
 	menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
 	menu.connect.refresh.setEnable(!refreshActive);
@@ -3806,6 +3809,33 @@ void gameclient_c::MCF_addServer() {
 	MCF_menuCloser();
 }
 
+bool gameclient_c::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) {
+	(void)chr;
+	if (menu.connect.favorites()) {
+		if (scan != KEY_DEL)
+			return false;
+		const string address = menu.connect.getAddress(target);
+		for (vector<gamespy_t>::iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
+			if (address == spy->address) {
+				gamespy.erase(spy);
+				break;
+			}
+		return true;
+	}
+	else {
+		if (scan != KEY_INSERT)
+			return false;
+		const string address = menu.connect.getAddress(target);
+		for (vector<gamespy_t>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
+			if (address == spy->address) {
+				gamespy.push_back(*spy);
+				break;
+			}
+		return true;
+	}
+	return false;
+}
+
 void gameclient_c::MCF_connect(Textarea& target) {
 	address = menu.connect.getAddress(target);
 	openMenus.clear();
@@ -3824,6 +3854,15 @@ void gameclient_c::MCF_refreshServers() {
 		refreshStatus = RS_running;
 		Thread::startDetachedThread_assert(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::refreshThread));
 	}
+}
+
+void gameclient_c::MCF_loadHelp() {
+	m_help.clear();
+	m_help.menu.setCaption("Outgun help");
+	ifstream in("config/help.txt");
+	string line;
+	while (getline_smart(in, line))
+		m_help.addLine(line);
 }
 
 void gameclient_c::CB_tournamentToken(string token) {	// callback called by tournamentPassword from another thread

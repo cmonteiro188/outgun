@@ -118,6 +118,7 @@ void Sounds::load_samples(const string& path) {
 	load_outgun_sample(path, "chanteam", SAMPLE_CHANGETEAM);
 	load_outgun_sample(path, "talk", SAMPLE_TALK);
 	load_outgun_sample(path, "wabounce", SAMPLE_WALLBOUNCE);
+	load_outgun_sample(path, "plbounce", SAMPLE_PLAYERBOUNCE);
 
 	load_outgun_sample(path, "weaponup", SAMPLE_WEAPON_UP);
 	load_outgun_sample(path, "megaheal", SAMPLE_MEGAHEALTH);

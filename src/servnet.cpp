@@ -162,7 +162,6 @@ void ServerNetworking::send_me_packet(int pid) {
 
 //send a player name update to a client
 void ServerNetworking::send_player_name_update(int cid, int pid) {
-
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_name_update);
 	writeByte(lebuf, count, pid);		// what player id
@@ -212,7 +211,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 			world.player[pid].reg_status = 's';
 	}
 	else
-		world.player[pid].reg_status = '.';
+		world.player[pid].reg_status = ' ';
 
 	writeByte(lebuf, count, (NLubyte)pid);
 	writeByte(lebuf, count, (NLubyte)world.player[pid].color());
@@ -393,27 +392,28 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
 	server->broadcast_message(lebuf, count);
 }
 
+// Send player's movement and shots to everyone.
 void ServerNetworking::send_movements_and_shots(const ServerPlayer& player) const {
 	char lebuf[64];
 	int count = 0;
 	writeByte(lebuf, count, data_movements_shots);
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used) {
-			const Statistics& stats = world.player[i].stats();
-			writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
-			writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
-			writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
-			writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
-		}
-	server->send_message(player.cid, lebuf, count);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	const Statistics& stats = player.stats();
+	writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
+	writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
+	writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
+	writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
+	server->broadcast_message(lebuf, count);
 }
 
+// Send everyone's stats to player.
 void ServerNetworking::send_stats(const ServerPlayer& player) const {
-	char lebuf[512];
-	int count = 0;
-	writeByte(lebuf, count, data_stats);
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
+			char lebuf[64];
+			int count = 0;
+			writeByte(lebuf, count, data_stats);
+			writeByte(lebuf, count, static_cast<NLubyte>(i));
 			const Statistics& stats = world.player[i].stats();
 			writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
 			writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
@@ -430,8 +430,8 @@ void ServerNetworking::send_stats(const ServerPlayer& player) const {
 			writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
 			writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
 			writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
+			server->send_message(player.cid, lebuf, count);
 		}
-	server->send_message(player.cid, lebuf, count);
 }
 
 void ServerNetworking::send_team_movements_and_shots(const ServerPlayer& player) const {
@@ -532,14 +532,11 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 	const PowerupSettings& pupConfig = world.getPupConfig();
 	writeByte(lebuf, count, data_server_settings);
 	writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 60));	// note: max time 255 mins ~ 4 hours
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 60));
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 600));	// note: max time 255 mins ~ 4 hours
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 600));
 	NLubyte settings = 0;
 	int i = 0;
 	if (config.balanceTeams())
-		settings |= (1 << i);
-	i++;
-	if (svp_friendly_fire)
 		settings |= (1 << i);
 	i++;
 	if (pupConfig.pups_drop_at_death)
@@ -550,6 +547,8 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 	i++;
 	if (pupConfig.pup_deathbringer_switch)
 		settings |= (1 << i);
+	i++;
+	settings |= (pupConfig.pup_weapon_max << 4);
 	writeByte(lebuf, count, settings);
 	server->send_message(player.cid, lebuf, count);
 }
@@ -558,7 +557,7 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 void ServerNetworking::client_report_status(int id) {
 	ClientData& clid = host->getClientData(id);
 
-	if (!clid.token_have || !clid.token_valid)
+	if (!clid.token_have || !clid.token_valid || !clid.current_participation)
 		return;
 	if (clid.delta_score == 0 && clid.neg_delta_score == 0)
 		return;
@@ -762,6 +761,10 @@ void ServerNetworking::update_serverinfo() {
 	nAssert(pc == player_count);
 
 	ostringstream info;
+	if (dedserver)
+		info << "D ";
+	else
+		info << "  ";
 	info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_VERSION << ' ' << hostname;
 	server->set_server_info(info.str().c_str());
 }
@@ -891,6 +894,7 @@ int ServerNetworking::client_connected(int id) {
 
 	host->check_team_changes();
 	update_serverinfo();
+	send_server_settings(world.player[myself]);
 	send_map_time(id);
 	send_stats(world.player[myself]);
 	send_team_stats(world.player[myself]);
@@ -1177,6 +1181,16 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 
 					RedirectToMemFun1<ServerNetworking, void, masterjob_c*> rmf(this, &ServerNetworking::run_masterjob_thread);
 					Thread::startDetachedThread_assert(rmf, job);
+				}
+			}
+			else if (code == data_tournament_participation) {
+				NLubyte data;
+				readByte(msg, count, data);
+				ClientData& clid = host->getClientData(pid);
+				clid.next_participation = data;
+				if (!clid.participation_info_received) {
+					clid.current_participation = clid.next_participation;
+					clid.participation_info_received = true;
 				}
 			}
 			// drop flag
@@ -1572,8 +1586,11 @@ double ServerNetworking::getTraffic() {
 void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	log("run_masterjob_thread() ID = %d", pthread_self());
 
+	if (!host->tournament_active())
+		mjob_exit = true;
+
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
-	
+
 	while (!mjob_exit) {
 		if (delay > 0) {
 			MS_SLEEP(500);
@@ -1754,10 +1771,6 @@ void ServerNetworking::run_mastertalker_thread() {
 			return;
 		}
 	}
-
-	// add port
-	localAddress += ':';
-	localAddress += itoa(port);
 
 	bool master_never_talked = true;
 	double master_talk_time = get_time() + delay_to_report_server;	//give it a break
@@ -2022,6 +2035,8 @@ map<string, string> ServerNetworking::master_parameters(const string& address) c
 	parameters["port"] = p.str();
 	ostringstream pc;
 	pc << player_count;
+	if (dedserver)
+		parameters["dedicated"] = "1";
 	parameters["players"] = pc.str();
 	ostringstream mpc;
 	mpc << maxplayers;
@@ -2045,6 +2060,8 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	parameters["port"] = p.str();
 	ostringstream pc;
 	pc << player_count;
+	if (dedserver)
+		parameters["dedicated"] = "1";
 	parameters["players"] = pc.str();
 	ostringstream mpc;
 	mpc << maxplayers;
@@ -2055,7 +2072,6 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	parameters["uptime"] = upt.str();
 	parameters["map"] = host->current_map().title;
 	parameters["mapfile"] = host->getCurrentMapFile();
-	parameters["info"] = "Test server";
 	ostringstream players;
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {

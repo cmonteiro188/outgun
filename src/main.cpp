@@ -224,7 +224,6 @@ int main(int argc, char *argv[]) {
 	nlEnable(NL_SOCKET_STATS);
 
 	// resolve master server address
-	// #FIXME: move master server resolving to connection menu
 	log("resolving master server address...");
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string name, address;

@@ -198,6 +198,8 @@ public:
 
 	void take_frag(int n = 1) { total_frags -= n; }
 
+	void save_speed(double time) { saved_speed = speed(time); }
+
 	int frags() const { return total_frags; }
 	int kills() const { return total_kills; }
 	int deaths() const { return total_deaths; }
@@ -221,6 +223,7 @@ public:
 	float playtime(double time) const;			// in seconds
 	double movement() const;					// in Outgun units
 	float speed(double time) const;				// in Outgun units per second
+	float old_speed() const { return saved_speed; }
 	float start_time() const { return starttime; }
 	double flag_carrying_time(double time) const;
 
@@ -246,6 +249,7 @@ private:
 	float last_spawn_time;
 	float total_lifetime;
 	double total_movement;
+	float saved_speed;
 	float starttime;
 	bool dead;
 	bool flag;
@@ -348,27 +352,6 @@ public:
 	double talk_temp;
 	double talk_hotness;
 
-	//admin shell stats
-	/*int total_kills;
-	int total_deaths;
-	int most_consecutive_kills;
-	int current_consecutive_kills;
-	int most_consecutive_deaths;
-	int current_consecutive_deaths;
-	int total_suicides;
-	int total_captures;
-	int total_flags_taken;
-	int total_flags_dropped;
-	int total_flags_returned;
-	int total_flag_carriers_killed;
-	int total_shots;
-	int total_hits;
-	int total_shots_taken;
-	int last_spawn_time;
-	int lifetime;
-	double total_movement;
-	int start_time;*/
-
 	bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
 	void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
@@ -391,6 +374,7 @@ public:
 	double death_drop_time;
 	double speed_drop_time;
 	double wall_sound_time;
+	double player_sound_time;
 	bool onscreen;
 	NLulong	enemyvis;
 	double hitfx;
@@ -668,6 +652,8 @@ public:
 
 class WorldSettings {
 public:
+	enum Team_balance { disabled, balance, balance_and_shuffle };
+
 	double respawn_time, waiting_time_deathbringer;
 	int shadow_minimum;	// smallest alpha value allowed; 0 is when even the coordinates are not sent
 	int rocket_damage;
@@ -675,7 +661,7 @@ public:
 	NLulong extra_time;
 	bool sudden_death;
 	int capture_limit;
-	bool balance_teams;
+	Team_balance balance_teams;
 
 	static const int shadow_minimum_normal;
 
@@ -688,8 +674,8 @@ public:
 	int getCaptureLimit() const { return capture_limit; }
 	NLulong getTimeLimit() const { return time_limit; }
 	NLulong getExtraTime() const { return extra_time; }
-	
-	bool balanceTeams() const { return balance_teams; }
+
+	Team_balance balanceTeams() const { return balance_teams; }
 	bool suddenDeath() const { return sudden_death; }
 };
 

@@ -35,7 +35,7 @@ public:
 	Menu_serverList();
 	void add(const std::string& address, const std::string& serverInfo);
 	void reset();
-	void addHooks(MenuHookable<Textarea>::HookFunctionT* hook);
+	void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook);
 	std::string getAddress(const Textarea& target);
 
 	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
@@ -47,6 +47,7 @@ public:
 	Textarea	randomName;
 	Textfield	password;
 	Textarea	namestatus;
+	Checkbox	tournament;
 	Textarea	removePasswords;
 
 	Menu menu;
@@ -85,6 +86,7 @@ public:
 	Textarea			apply;
 	Select<std::string>	theme;
 	Select<Graphics::Antialiasing_mode> antialiasing;
+	Slider				statsBgAlpha;
 
 	Menu menu;
 
@@ -171,21 +173,6 @@ public:
 	Menu menu;
 
 	Menu_serverPassword();
-};
-
-class Menu_serverInfo {
-	std::vector<Textarea> info;
-
-public:
-	Menu menu;
-
-	Menu_serverInfo();
-
-	void add(const std::string& address, const std::string& serverInfo);
-	void reset();
-	void finish();
-
-	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 #endif	// CLIENT_MENUS_H_INC

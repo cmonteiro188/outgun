@@ -186,13 +186,15 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
 	if (dcr - rr < ro) {
 		if (angle[0] == angle[1])	// full circle
 			return true;
+		if (dcr < rr)
+			return true;
 		const double avx[] = { x1 - x, x2 - x, x1 - x, x2 - x };
 		const double avy[] = { -y1 + y, -y2 + y, -y2 + y, -y1 + y };
 		for (int i = 0; i < 4; i++) {
-			double a = asin(avx[i] / sqrt(avx[i] * avx[i] + avy[i] * avy[i])) * 180 / M_PI;
+			double a = asin(avy[i] / sqrt(avx[i] * avx[i] + avy[i] * avy[i])) * 180 / M_PI;
 			if (avx[i] < 0)
 				a = 180 - a;
-			a = fmod(90 - a, 360);
+			a = fmod(360 + 90 - a, 360);
 			if (angle[0] < angle[1] && (a >= angle[0] && a <= angle[1]))
 				return true;
 			if (angle[0] > angle[1] && (a <= angle[1] || a >= angle[0]))
@@ -289,6 +291,15 @@ bool Map::parse_file(LogSet& log, istream& in) {
 		log.error("Map has no width, height or title.");
 		return false;
 	}
+	// Check that spawn points are not on the walls.
+	for (int t = 0; t < 2; t++)
+		for (int i = 0; i < static_cast<int>(tinfo[t].spawn.size()); i++) {
+			const spoint_t& point = tinfo[t].spawn[i];
+			if (fall_on_wall(point.px, point.py, point.x, point.y, PLAYER_RADIUS)) {
+				log.error("Team %d, spawn point %d on the wall.", t, i);
+				return false;
+			}
+		}
 	return true;
 }
 
@@ -432,7 +443,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 	else if (command == "P") {
 		string name;
 		ist >> name;
-		if (name == "width") {	// P width w : set map width to w rooms #FIXME: Allow "P   width"
+		if (name == "width") {	// P width w : set map width to w rooms
 			if (w != 0) {
 				log.error("Redefined map width");
 				return false;
@@ -464,43 +475,44 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 				log.error("Redefined map title");
 				return false;
 			}
-			ist.get();	// remove space
 			getline(ist, title);
+			title = trim(title);
 		}
 		else if (name == "author") {	// P author text : set map author to text
 			if (!author.empty()) {
 				log.error("Redefined map author");
 				return false;
 			}
-			ist.get();	// remove space
 			getline(ist, author);
+			author = trim(author);
 		}
 	}
 	else if (command == "spawn") {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
 		int team, rx, ry;
 		float x, y;
 		ist >> team >> rx >> ry >> x >> y;
-		if (!ist || (ist >> nullc) || team < 0 || team > 1) {
+		if (!ist || (ist >> nullc) || team < 0 || team > 1 || rx < 0 || rx >= w ||
+						ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
 		spoint_t spot;
-		spot.px = bound(rx, 0, w - 1);
-		spot.py = bound(ry, 0, h - 1);
-		spot.x = (int)(x * (double)plw / scalex);
-		spot.y = (int)(y * (double)plh / scaley);
+		spot.px = rx;
+		spot.py = ry;
+		spot.x = static_cast<int>(x * plw / scalex);
+		spot.y = static_cast<int>(y * plh / scaley);
 		tinfo[team].spawn.push_back(spot);
 	}
 	else if (command == "flag") {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
 		int team, rx, ry;
 		float x, y;
 		ist >> team >> rx >> ry >> x >> y;
-		if (!ist || (ist >> nullc) || team < 0 || team > 2) {
+		if (!ist || (ist >> nullc) || team < 0 || team > 2 || rx < 0 || rx >= w ||
+						ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
 			log.error("Invalid map line: %s", line.c_str());
 			return false;
 		}
-		spoint_t flag(bound(rx, 0, w - 1), bound(ry, 0, h - 1),
-			static_cast<int>(x * (double)plw / scalex), static_cast<int>(y * (double)plh / scaley));
+		spoint_t flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
 		if (team < 2)
 			tinfo[team].flags.push_back(flag);
 		else
@@ -552,7 +564,7 @@ void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team
 	lx = ly = sx = sy = 0;
 	gundir = 0;
 	dead = false;
-	reg_status = '.';
+	reg_status = ' ';
 	score = 0;
 	neg_score = 0;
 	rank = 0;
@@ -608,7 +620,7 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
 	health = energy = 0;
 	weapon = 0;
 
-	speed_drop_time = wall_sound_time = 0;
+	speed_drop_time = wall_sound_time = player_sound_time = 0;
 	onscreen = false;
 	enemyvis = 0;
 	deathbringer_affected = false;
@@ -1125,7 +1137,7 @@ void WorldBase::returnFlag(int team, int flag) {
 }
 
 void WorldBase::dropFlag(int team, int flag, int px, int py, int x, int y) {
-	const spoint_t pos(px, py, x, y + 15);
+	const spoint_t pos(px, py, x, y);
 	if (team == 2) {
 		wild_flags[flag].move(pos);
 		wild_flags[flag].drop();
@@ -1142,7 +1154,7 @@ void WorldBase::stealFlag(int team, int flag, int carrier) {
 }
 
 void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
-													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
+						  bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
 	rocket_c* r = &rock[i];
 	r->owner = playernum;
 	r->team = team;
@@ -1153,12 +1165,12 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	r->y = y;
 	r->direction = dir;
 
-	float deg = dir * M_PI_4;
+	const float deg = dir * M_PI_4;
 
 	if (xdelta) {
 		r->sx = xdelta * shot_deltax * cos(deg + M_PI_2);
 		r->sy = xdelta * shot_deltax * sin(deg + M_PI_2);
-		double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
+		const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 		r->move(1);
 		if (wallTime < 1.) {
 			cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
@@ -1168,8 +1180,8 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 
 	r->sx = cos(deg) * ROCKET_SPEED;
 	r->sy = sin(deg) * ROCKET_SPEED;
-	double advance = .5 + double(frameAdvance);
-	double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
+	const double advance = .5 + double(frameAdvance);
+	const double wallTime = getTimeTillWall(map.room[px][py], *r, 1.);
 	if (wallTime <= advance) {
 		r->move(wallTime);
 		cb.rocketHitWall(i, r->power, r->x, r->y, r->px, r->py);
@@ -1179,7 +1191,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 }
 
 void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids, int frameAdvance,
-																	int team, bool power, int px, int py, int x, int y) {
+							 int team, bool power, int px, int py, int x, int y) {
 	struct RocketFormation {
 		int nForward;
 		int directions[6];
@@ -1264,7 +1276,7 @@ void PowerupSettings::print(LineReceiver& printer) const {
 }
 
 Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
-	int max = pup_chance_shield + pup_chance_turbo + pup_chance_shadow + pup_chance_power
+	const int max = pup_chance_shield + pup_chance_turbo + pup_chance_shadow + pup_chance_power
 						+ pup_chance_weapon + pup_chance_megahealth + pup_chance_deathbringer;
 
 	int chance = 1 + rand() % max;		//1..100 por exemplo se max = 100
@@ -1286,10 +1298,10 @@ Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
 }
 
 int PowerupSettings::pups_by_percent(int percentage, const Map& map) const {
-	int result = (map.w*map.h*percentage+50) / 100;	// +50 to round properly
-	if (result==0 && percentage>0)
+	const int result = (map.w * map.h * percentage + 50) / 100;	// +50 to round properly
+	if (result == 0 && percentage > 0)
 		return 1;
-	if (result>MAX_PICKUPS)
+	if (result > MAX_PICKUPS)
 		return MAX_PICKUPS;
 	return result;
 }
@@ -1308,7 +1320,7 @@ void WorldSettings::reset() {
 	extra_time = 0;
 	sudden_death = 0;
 	capture_limit = 8;
-	balance_teams = false;
+	balance_teams = disabled;
 }
 
 void WorldSettings::print(LineReceiver& printer) const {
@@ -1338,8 +1350,10 @@ void WorldSettings::print(LineReceiver& printer) const {
 		printer(line.str());
 		line.str("");
 	}
-	if (balance_teams)
+	if (balance_teams == balance)
 		printer("- Teams will be balanced at the start of each round.");
+	else if (balance_teams == balance_and_shuffle)
+		printer("- Teams will be balanced and shuffled at the start of each round.");
 	if (svp_friendly_fire)
 		printer("- Friendly fire is on.");
 	if (svp_player_collisions)
@@ -1367,12 +1381,11 @@ public:
 };
 
 void ServerWorld::reset() {
-	// zero teamscores
 	returnAllFlags();
 	teams[0].clear_stats();
 	teams[1].clear_stats();
 
-	for (int i=0;i<maxplayers;i++)
+	for (int i = 0; i < maxplayers; i++)
 		if (player[i].used) {
 			//kill - to respawn
 			player[i].respawn_to_base = true;
@@ -1380,12 +1393,12 @@ void ServerWorld::reset() {
 			player[i].stats().clear();
 		}
 
-	//zero all rockets
-	for (int i=0;i<MAX_ROCKETS;i++)
+	// remove rockets
+	for (int i = 0; i < MAX_ROCKETS; i++)
 		rock[i].owner = -1;
 
 	// remove and regenerate powerups
-	for (int i=0;i<MAX_PICKUPS;i++)
+	for (int i = 0; i < MAX_PICKUPS; i++)
 		item[i].kind = Powerup::pup_unused;
 	check_pickup_creation(true);
 }
@@ -1470,11 +1483,11 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) {
 }
 
 bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
-	int team = 1 - pid / TSIZE;
 	if (!player[pid].flag())
 		return false;
 	int flag = -1;
 	int i = 0;
+	int team = 1 - pid / TSIZE;
 	for (vector<Flag>::const_iterator fi = teams[team].flags().begin(); fi != teams[team].flags().end(); ++fi, ++i)
 		if (fi->carrier() == pid) {
 			flag = i;
@@ -1539,7 +1552,7 @@ void ServerWorld::respawnPlayer(int pid) {
 			pos.px = ridx % map.w;
 			pos.py = ridx / map.w;
 
-			//find a suitable coordinates
+			//find suitable coordinates
 			//pos.x = plw / 8 + rand() % (3 * plw / 4);
 			//pos.y = plh / 8 + rand() % (3 * plh / 4);
 			pos.x = PLAYER_RADIUS + rand() % (plw - 2 * PLAYER_RADIUS);
@@ -1602,7 +1615,7 @@ bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, int x, int 
 		return false;
 
 	const int fx = flag.position().x;
-	const int fy = flag.position().y - 15;
+	const int fy = flag.position().y;
 
 	if (fx > x - (PLAYER_RADIUS + 15) &&
 		fx < x + (PLAYER_RADIUS + 15) &&
@@ -2329,6 +2342,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 				plyMoveMax[pcPlyI].first += subFrame;
 				plyMoveMax[pcTargI] = getTimeTillBounce(room, player[rply[pcTargI]], plyRadius, fraction - subFrame);
 				plyMoveMax[pcTargI].first += subFrame;
+				callback.playerHitWall(pcPly);
 			}
 			plyChanged = -1;
 		}
@@ -2968,6 +2982,7 @@ Statistics::Statistics():
 	last_spawn_time(0),
 	total_lifetime(0),
 	total_movement(0),
+	saved_speed(0),
 	starttime(0),
 	dead(false),
 	flag(false),

@@ -67,7 +67,8 @@ class KeyHook : public Hook3<bool, CallerT&, char, unsigned char> { };
 // Menu being a Component is a hack: the Component part is a link to the menu
 class Menu : public Component, public MenuHookable<Menu> {
 public:
-	Menu(const std::string& caption_): Component(caption_), selected_item(0) { }
+	// visible_items to 20 is there to prevent scrollbar when starting the game and pressing down arrow same time
+	Menu(const std::string& caption_): Component(caption_), start(0), selected_item(0), visible_items(20) { }
 
 	void clear_components() { components.clear(); }
 	void add_component(Component* comp) { components.push_back(comp); }
@@ -90,6 +91,8 @@ public:
 	bool handleKey(char, unsigned char);
 
 private:
+	void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
+
 	int total_width() const;
 	int total_height() const;
 
@@ -99,7 +102,9 @@ private:
 	bool next();
 
 	std::vector<Component*> components;
+	int start;
 	int selected_item;
+	int visible_items;
 
 	MenuHook<Menu> drawHook, openHook, closeHook, okHook;
 };
@@ -280,7 +285,7 @@ public:
 template<class CallClassT>
 class MenuKeyCallback {
 public:
-	template<class ArgT, void (CallClassT::*memFun)(ArgT&)>
+	template<class ArgT, bool (CallClassT::*memFun)(ArgT&, char, unsigned char)>
 	class A : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
 	public:
 		A(CallClassT* host_) : host(host_) { }
@@ -291,7 +296,7 @@ public:
 		CallClassT* host;
 	};
 
-	template<class ArgT, void (CallClassT::*memFun)()>
+	template<class ArgT, bool (CallClassT::*memFun)(ArgT&, char, unsigned char)>
 	class N : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
 	public:
 		N(CallClassT* host_) : host(host_) { }

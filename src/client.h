@@ -189,6 +189,8 @@ class gameclient_c {
 	Menu_text m_errors;
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
+	Menu_text m_serverInfo;
+	Menu_text m_help;
 
 	MenuStack openMenus;
 
@@ -200,9 +202,7 @@ class gameclient_c {
 	double frameCountStartTime;
 	int gameover_plaque;
 	int red_final_score, blue_final_score;
-	int scoreboard[MAX_PLAYERS];
 	std::string hostname;
-	int strlen_hostname;
 	std::string edit_map_vote;
 	int player_stats_page;
 
@@ -256,6 +256,7 @@ class gameclient_c {
 	void MCF_screenModeChange();
 	void MCF_gfxThemeChange();
 	void MCF_antialiasChange();
+	void MCF_statsBgChange();
 	void MCF_prepareGfxMenu();
 	void MCF_sndEnableChange();
 	void MCF_sndVolumeChange();
@@ -266,6 +267,8 @@ class gameclient_c {
 	void MCF_refreshServers();
 	void MCF_prepareAddServer();
 	void MCF_addServer();
+	bool MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr);
+	void MCF_loadHelp();
 	void MCF_playerPasswordAccept();
 	void MCF_serverPasswordAccept();
 	void MCF_clearErrors();
@@ -285,6 +288,7 @@ public:
 	void rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy);
 	void rocketOutOfBoundsCallback(int rid);
 	void playerHitWallCallback(int pid);
+	void playerHitPlayerCallback(int pid);
 	bool shouldApplyPhysicsToPlayerCallback(int pid);
 
 	// network
@@ -296,6 +300,7 @@ public:
 	void connect_failed_denied(char* data, int length);
 	void connect_failed_unreachable();
 	void send_player_token();
+	void send_tournament_participation();
 	void issue_change_name_command();
 	void change_name_command();
 	void send_client_ready();
@@ -328,7 +333,6 @@ public:
 	void draw_game_frame();
 	void draw_player(int pid);
 	void draw_game_menu();
-	void update_scoreboard();
 };
 
 extern gameclient_c *gameclient;
