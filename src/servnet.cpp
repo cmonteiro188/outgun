@@ -1735,9 +1735,16 @@ void ServerNetworking::run_mastertalker_thread() {
 
 		log("Master talker: Sent information to master server: \"%s\", result %d", formatForLogging(data).c_str(), result);
 		if (result == NR_ok) {
+			std::stringstream response;
+			result = saveAllFromUnblockingTCP(msock, response, &file_threads_quit, 30000);
 			// save response to a file
 			ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-			result = save_http_response(msock, out, &file_threads_quit, 30000);
+			out << response.str();
+			out.close();
+			if (response.str().find("VERSION ERROR") != string::npos) {
+				log.error("You have a deprecated Outgun version. Please update.");
+				break;
+			}
 		}
 		if (result != NR_ok)
 			master_talk_time = get_time() + 30.0;	// faster retry: in 30 seconds
