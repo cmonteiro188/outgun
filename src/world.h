@@ -1,6 +1,7 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
+#include "network.h"	//#fix: needed for possible definition of SEND_FRAMEOFFSET
 #include "nassert.h"
 
 typedef pair<double, double> Coords;

@@ -40,8 +40,6 @@ extern FILE *game_log;
 #include <conio.h>
 #endif
 
-//#define SEND_FRAMEOFFSET
-
 enum MESSAGE_TYPE { MSG_NORMAL, MSG_TEAM, MSG_INFO, MSG_WARNING };
 
 class ClientControls {
@@ -49,8 +47,8 @@ class ClientControls {
 
 public:
 	ClientControls() : data(0) { }
-	NLubyte toNetwork(bool server) const { if (server) return data & 0x31; else return data; }
-	void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 0x31; }
+	NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
+	void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
 	void fromKeyboard();
 	bool     isUp() const { return (data& 1)!=0; }
 	bool   isDown() const { return (data& 2)!=0; }

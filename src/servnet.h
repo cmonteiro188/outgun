@@ -1,6 +1,8 @@
 #ifndef SERVNET_H_INC
 #define SERVNET_H_INC
 
+#include "network.h"
+
 #include <map>
 
 class gameserver_c;

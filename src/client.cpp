@@ -5,9 +5,11 @@
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
 #include "client.h"
+#include "network.h"
 #include "nassert.h"
 
 #define CLIENT_PREDICTION
+const float lagWanted = .5;
 
 #ifdef NIX
 void set_close_button_callback(void (*fn)()) {
@@ -78,7 +80,13 @@ bool gameclient_c::start() {
 	framecount = 0;
 
 	clFrameSent = clFrameWorld = 0;
-	lastSendTime = 0;
+	frameReceiveTime = 0;
+
+	#ifdef SEND_FRAMEOFFSET
+	frameOffsetDeltaTotal = 0;
+	frameOffsetDeltaNum = 0;
+	#endif
+	averageLag = 0;
 
 	// default map
 	//load_default_map(&map);
@@ -879,7 +887,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	lastpackettime = get_time() + 1.0;
 
 	clFrameSent = clFrameWorld = 0;
-	lastSendTime = 0;
+	frameReceiveTime = 0;
 
 	// reset gamestate?
 	connected = true;
@@ -1301,12 +1309,8 @@ void gameclient_c::change_name_command() {
 void gameclient_c::send_frame(bool newFrame) {
 	char lebuf[256]; int count = 0;
 
-	if (newFrame) {
+	if (newFrame)
 		++clFrameSent;
-		#ifdef CLIENT_PREDICTION
-		lastSendTime = get_time();
-		#endif
-	}
 	controlHistory[clFrameSent].fromKeyboard();
 
 	writeByte(lebuf, count, clFrameSent);
@@ -1336,14 +1340,29 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 	NLulong svframe;	//server's frame
 	readLong(data, count, svframe);
 
+	#ifdef WATCH_CONNECTION
+	if (svframe != fx.frame + 1) {
+		ostringstream dstr;
+		if (svframe == fx.frame)
+			dstr << "@WS>C packet duplicated: " << svframe;
+		else if (svframe < fx.frame)
+			dstr << "@WS>C packet order: prev " << fx.frame << " this " << svframe;
+		else
+			dstr << "@WS>C packet lost : prev " << fx.frame << " this " << svframe;
+		print_message(dstr.str().c_str());
+	}
+	#endif
 	//discard older frames
 	//overwrite always the newer frames
 	// TARGET FRAME: just one
 	if (svframe > fx.frame) {
-		#ifndef CLIENT_PREDICTION
-		lastSendTime = get_time();
-		#endif
+		frameReceiveTime = get_time();
+		int currentLag = static_cast<NLubyte>(clFrameSent - clFrameWorld);
+		nAssert(currentLag < 128);
+		averageLag = averageLag*.99 + currentLag*.01;
+
 		nAssert(fx.frame == (int)fx.frame);
+
 		ClientPhysicsCallbacks cb(*this);
 		fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
 		fx.frame = svframe;
@@ -1371,7 +1390,19 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		#ifdef SEND_FRAMEOFFSET
 		NLubyte fo;
 		readByte(data, count, fo);
-		serverFrameOffset = fo / 256.;
+		float offsetDelta = (fo / 256.) - .5;	// the deviation from aim, in frames
+		frameOffsetDeltaTotal += offsetDelta;
+		if (++frameOffsetDeltaNum == 10) {	// try to fix deviations every 10 frames
+			frameOffsetDeltaTotal /= 10.;
+			if (fabs(frameOffsetDeltaTotal) > .2) {
+				if (frameOffsetDeltaTotal > 0.)	// frames arrive too late to server
+					++client_netsend_counter;
+				else
+					--client_netsend_counter;	// frames arrive too early to server
+			}
+			frameOffsetDeltaTotal = 0;
+			frameOffsetDeltaNum = 0;
+		}
 		#endif
 
 		//extra byte of information
@@ -2839,10 +2870,7 @@ void gameclient_c::loop() {
 			client_netsend_counter++;
 		}
 
-		//speed_counter == 60 FPS
-		// client netsend == 10 FPS
-		// so when netsend == 6, it's reset to zero and the packet is sent
-		if (client_netsend_counter >= (targetfps / 10) ) {
+		while (client_netsend_counter >= targetfps / 10) {
 			client_netsend_counter = 0;
 			send_frame(true);
 		}
@@ -2853,28 +2881,23 @@ void gameclient_c::loop() {
 			pthread_mutex_lock( &frame_mutex );
 			ClientPhysicsCallbacks cb(*this);
 			#ifdef CLIENT_PREDICTION
-			float subFrame = (get_time() - lastSendTime) * 10.;// + serverFrameOffset;
+			float timeDelta = max<float>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
 			NLubyte firstFrame;
-			if (clFrameSent == clFrameWorld) {
+			if (clFrameSent == clFrameWorld)
 				firstFrame = clFrameWorld;
-				subFrame -= 1.;
-				if (subFrame < 0.)
-					subFrame = 0.;
-			}
 			else
 				firstFrame = clFrameWorld + 1;
-/*
-			string buf;
-			for (int x = (clFrameSent - firstFrame + subFrame) * 10; x>=0; --x)
-				buf += 'X';
-			if (buf.length() < 80)
-				print_message(buf.c_str());
-*/
-			if (subFrame > 5.)
-				subFrame = 5.;
-			fd.extrapolate(fx, cb, me, controlHistory, firstFrame, clFrameSent, subFrame);
+			NLubyte lastFrame = firstFrame;
+			while (lastFrame != clFrameSent && timeDelta > 1.) {
+				++lastFrame;
+				timeDelta -= 1;
+			}
+
+			if (timeDelta > 5.)
+				timeDelta = 5.;
+			fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
 			#else
-			fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, get_time() - lastSendTime);
+			fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
 			#endif
 			pthread_mutex_unlock( &frame_mutex );
 		}
@@ -3126,7 +3149,7 @@ void gameclient_c::predraw() {
 			client_graphics.draw_flagpos_mark(team, fx.map.tinfo[team].flag.x, fx.map.tinfo[team].flag.y);
 	// draw walls
 	if (fx.player[me].roomx >= 0 && fx.player[me].roomx < fx.map.w &&
-		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.w)
+		fx.player[me].roomy >= 0 && fx.player[me].roomy < fx.map.h)
 			client_graphics.predraw_room(fx.map.room[fx.player[me].roomx][fx.player[me].roomy]);
 }
 

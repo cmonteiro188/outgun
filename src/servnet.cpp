@@ -6,6 +6,7 @@
 #include "leetnet/server.h"
 #include "leetnet/rudp.h"	// get_self_IP
 #include "leetnet/sleep.h"	// sleep util
+#include "network.h"
 #include "servnet.h"
 #include "nassert.h"
 
@@ -824,6 +825,14 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 	NLubyte clFrame;
 	readByte(data, count, clFrame);
 	ServerPlayer& pl = world.player[pid];
+	#ifdef WATCH_CONNECTION
+	if (pl.lastClientFrame != clFrame) {
+		if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) < 128)
+			plprintf(pid, "@WC>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
+		else if (static_cast<NLubyte>(pl.lastClientFrame + 1) != clFrame)
+			plprintf(pid, "@WC>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
+	}
+	#endif
 	if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) >= 128) {	// this frame is very likely newer than the previous one
 		pl.lastClientFrame = clFrame;
 		#ifdef SEND_FRAMEOFFSET

@@ -3,6 +3,7 @@
 #include "graphics.h"
 #include "sounds.h"
 #include "world.h"
+#include "network.h"
 
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
@@ -37,9 +38,11 @@ class gameclient_c {
 	double lastpackettime;
 	NLubyte clFrameSent, clFrameWorld;
 	#ifdef SEND_FRAMEOFFSET
-	float serverFrameOffset;	// at what time within the frame our packets are currently arriving on the server (reported by the server)
+	float frameOffsetDeltaTotal;
+	int frameOffsetDeltaNum;
 	#endif
-	double lastSendTime;
+	float averageLag;
+	double frameReceiveTime;	// when fx was received
 	ClientControls controlHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
 	volatile bool trying_connection;
 	volatile bool connected;
