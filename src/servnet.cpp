@@ -17,6 +17,7 @@
 #include "nassert.h"
 #include "network.h"
 #include "server.h"
+#include "platform.h"
 #include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "servnet.h"
 #include "thread.h"
@@ -214,7 +215,7 @@ void ServerNetworking::move_update_player(int a, bool silent) {
 
 		broadcast_player_crap(a);
 		broadcast_stats(world.player[a]);
-		send_movements_and_shots(world.player[a]);
+		broadcast_movements_and_shots(world.player[a]);
 
 		//message
 		if (!silent)
@@ -374,7 +375,7 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
 }
 
 // Send player's movement and shots to everyone.
-void ServerNetworking::send_movements_and_shots(const ServerPlayer& player) const {
+void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player) const {
 	char lebuf[64];
 	int count = 0;
 	writeByte(lebuf, count, data_movements_shots);
@@ -609,7 +610,7 @@ void ServerNetworking::bprintf(Message_type type, const char *fs, ...) {
 	va_list argptr;
 	char msg[1000];
 	va_start(argptr, fs);
-	_vsnprintf(msg, 1000, fs, argptr);
+	platVsnprintf(msg, 1000, fs, argptr);
 	va_end (argptr);
 
 	broadcast_message(type, msg);
@@ -621,7 +622,7 @@ void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...
 	buf[1] = type;
 	va_list argptr;
 	va_start(argptr, fmt);
-	_vsnprintf(buf + 2, 1000, fmt, argptr);
+	platVsnprintf(buf + 2, 1000, fmt, argptr);
 	va_end(argptr);
 	server->send_message(world.player[pid].cid, buf, 2 + strlen(buf + 2) + 1);
 }
@@ -676,8 +677,6 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
 			writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));	//BLUE team final score
 		}
 		server->send_message(world.player[pid].cid, lebuf, count);
-		send_movements_and_shots(world.player[pid]);
-		send_team_movements_and_shots(world.player[pid]);
 	}
 }
 
@@ -1509,8 +1508,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 	if (gameRunning && world.frame / MAX_PLAYERS % 5 == 0) {
 		const int pid = world.frame % MAX_PLAYERS;
 		if (world.player[pid].used) {
-			send_movements_and_shots(world.player[pid]);
-			send_team_movements_and_shots(world.player[pid]);
+			broadcast_movements_and_shots(world.player[pid]);	// player's stats to everyone
+			send_team_movements_and_shots(world.player[pid]);	// team stats to player
 		}
 	}
 
@@ -1589,10 +1588,10 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 			// the original code uses full case insensivity so response.find_last_of() can't be used
 			int startPos, endPos;
 			for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)	// start at length - 7 because "</html>" must fit after that
-				if (!stricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
+				if (!platStricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
 					break;
 			for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
-				if (!stricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
+				if (!platStricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
 					break;
 			if (startPos < 6 || endPos < startPos) {
 				log("Tournament thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
@@ -1604,7 +1603,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 		// parse the response
 		bool unavailable = false;
 		for (string::size_type i = 0; i < response.length(); ++i)
-			if (!stricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
+			if (!platStricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
 				log("Tournament thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
 				unavailable = true;
 				break;
@@ -1697,7 +1696,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	// determine the public IP to send to master
 	string localAddress;
-	if (host->config().force_ip) {	// use IP manually given to the program
+	if (!host->config().force_ip_name.empty()) {	// use IP manually given to the program
 		log("Master talker: Forcing IP to value %s", host->config().force_ip_name.c_str());
 
 		NLaddress testAddr;
@@ -1822,7 +1821,7 @@ void ServerNetworking::run_website_thread() {
 		return;
 
 	string localAddress;
-	if (host->config().force_ip)
+	if (!host->config().force_ip_name.empty())
 		localAddress = host->config().force_ip_name;
 	else {
 		localAddress = getPublicIP(log);
@@ -2290,8 +2289,10 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 				writeByte(lebuf, count, data_reset_map_list);
 				server->broadcast_message(lebuf, count);
 				for (int p = 0; p < maxplayers; ++p)
-					if (world.player[p].used)
+					if (world.player[p].used) {
 						world.player[p].current_map_list_item = 0;	// restart sending map info, because list may have changed
+						send_server_settings(world.player[p]);
+					}
 				break;
 			}
 		}
@@ -2347,7 +2348,7 @@ void ServerNetworking::stop() {
 	//wait for all master jobs to complete nicely
 	while (mjob_count > 0 && get_time() < mjmaxtime) {
 		char lix[200];
-		snprintf(lix, 200, "Shutdown: waiting for %d tournament updates", mjob_count);
+		platSnprintf(lix, 200, "Shutdown: waiting for %d tournament updates", mjob_count);
 		host->config().statusOutput(lix);
 		MS_SLEEP(100);
 	}
@@ -2356,7 +2357,7 @@ void ServerNetworking::stop() {
 	mjob_exit = true;		//MUST terminate -- abort
 	while (mjob_count > 0) {
 		char lix[200];
-		snprintf(lix, 200, "Shutdown: ABORTING %d tournament updates", mjob_count);
+		platSnprintf(lix, 200, "Shutdown: ABORTING %d tournament updates", mjob_count);
 		host->config().statusOutput(lix);
 		MS_SLEEP(100);
 	}

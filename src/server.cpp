@@ -12,6 +12,7 @@
 #include "gamemod.h"
 #include "leetnet/sleep.h"	// MS_SLEEP
 #include "nassert.h"
+#include "platform.h"
 #include "thread.h"
 #include "world.h"
 
@@ -413,7 +414,7 @@ bool Server::trySetMaxplayers(int val) {
 
 bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }	// helper for load_game_mod
 
-void Server::load_game_mod() {
+void Server::load_game_mod(bool reload) {
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setHostname(&network, &ServerNetworking::set_hostname);
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setServerPassword(&network, &ServerNetworking::set_server_password);
 
@@ -425,8 +426,23 @@ void Server::load_game_mod() {
 	RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
 	RedirectToMemFun1<ServerNetworking, bool, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
 
+	GamemodSetting* portSetting, * ipSetting, * privSetting;
+	if (reload) {
+		portSetting = new GS_DisallowRunning("server_port");
+		ipSetting   = new GS_DisallowRunning("server_ip");
+		privSetting = new GS_DisallowRunning("private_server");
+	}
+	else {
+		portSetting = new GS_Int	("server_port",		&extConfig.port, 1, 65535);
+		ipSetting   = new GS_String	("server_ip",		&extConfig.force_ip_name);
+		privSetting = new GS_Boolean("private_server",	&extConfig.privateserver);
+	}
+
 	typedef std::auto_ptr<GamemodSetting> PT;
 	PT settings[] = {
+		PT(portSetting),
+		PT(ipSetting),
+		PT(privSetting),
 		PT(new GS_Float		("friction",				&world.physics.fric)),
 		PT(new GS_Float		("drag",					&world.physics.drag)),
 		PT(new GS_Float		("acceleration",			&world.physics.accel)),
@@ -583,6 +599,11 @@ bool Server::server_next_map(int reason) {
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used)
 			network.send_map_change_message(i, reason, maprot[currmap].file.c_str());
+	// broadcast stats to all players for stats saving
+	for (int i = 0; i < maxplayers; ++i) {
+		network.broadcast_movements_and_shots(world.player[i]);	// player's stats to everyone
+		network.send_team_movements_and_shots(world.player[i]);	// team stats to player
+	}
 	network.broadcast_stats_ready();
 
 	//important: server is showing gameover plaque. nobody should move or receive world frames
@@ -622,9 +643,9 @@ void Server::check_map_exit() {
 
 //----- THE REST  ----------------
 
-bool Server::reset_settings(bool keepMap) {
+bool Server::reset_settings(bool reload) {	// set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 	string currMapFile;
-	if (keepMap)
+	if (reload)
 		currMapFile = maprot[currmap].file;
 
 	world.physics = PhysicalSettings();	// default values
@@ -656,7 +677,7 @@ bool Server::reset_settings(bool keepMap) {
 	network.set_web_refresh(2);
 
 	// load server configuration from gamemod.txt
-	load_game_mod();
+	load_game_mod(reload);
 
 	// did not specify maps, scan "maps/" folder for .txt map files
 	if (maprot.empty()) {
@@ -694,7 +715,7 @@ bool Server::reset_settings(bool keepMap) {
 	if (random_maprot)
 		random_shuffle(maprot.begin(), maprot.end());
 
-	if (keepMap) {
+	if (reload) {	// preserve selected map if possible
 		size_t mapi;
 		for (mapi = 0; mapi < maprot.size(); ++mapi)
 			if (maprot[mapi].file == currMapFile)
@@ -738,7 +759,7 @@ bool Server::start(int target_maxplayers) {
 		return false;
 	if (!load_rotation_map(currmap))
 		return false;
-	if (!network.start())	// this must be last, because network.stop() must always be called if start() succeeds
+	if (!network.start())	// this must be last, because network.stop() must always be called if start() succeeds; also, priv, port and ip must be final
 		return false;
 
 	ctf_game_restart();
@@ -940,7 +961,7 @@ void Server::chat(int pid, const char* sbuf) {
 				int bufi = 0;
 				for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
 					if (world.player[ppid].used) {
-						snprintf(buf + bufi, 27, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
+						platSnprintf(buf + bufi, 27, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
 						bufi += 26;
 						++onrow;
 					}
@@ -1092,7 +1113,7 @@ void Server::simulate_and_broadcast_frame() {
 				voteinfo << " (all players needed for " << (vote_block_time - world.getMapTime() + 5) / 10 << " more seconds)";
 			network.broadcast_message(msg_info, voteinfo.str().c_str());
 		}
-		else if (world.getMapTime() == vote_block_time)
+		if (world.getMapTime() == vote_block_time)
 			check_map_exit();
 	}
 	for (int i = 0; i < maxplayers; ++i)

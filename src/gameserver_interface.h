@@ -13,7 +13,6 @@ public:
 	int port;			//the server port
 	bool dedserver;		// dedicated server? only affects what's told to master and asking players
 	bool privateserver;	//private server? (will not publish)
-	bool force_ip;		//force IP?
 	std::string force_ip_name;	//force IP to what?
 	int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
 	int lowerPriority, priority, networkPriority;	// lower is used for non-timecritical background threads
@@ -21,7 +20,7 @@ public:
 	typedef void StatusOutputFnT(const std::string& str);
 	StatusOutputFnT* statusOutput;	// must be set properly (non-null) when used
 
-	ServerExternalSettings() : port(DEFAULT_UDP_PORT), dedserver(false), privateserver(false), force_ip(false), server_maxplayers(16), statusOutput(0) { }
+	ServerExternalSettings() : port(DEFAULT_UDP_PORT), dedserver(false), privateserver(false), server_maxplayers(16), statusOutput(0) { }
 };
 
 class GameserverInterface {

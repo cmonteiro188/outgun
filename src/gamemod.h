@@ -1,6 +1,7 @@
 #ifndef GAMEMOD_H_INC
 #define GAMEMOD_H_INC
 
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -26,12 +27,17 @@ protected:
 
 // generic setting prototypes
 
+// deal with Visual C++'s perks
+#undef min
+#undef max
+
 template<class ValT>
 class GS_IntT : public GamemodSetting {
 public:
-	typedef std::numeric_limits<ValT> lim;
+	typedef std::numeric_limits<ValT> lim;	// can't be used on the constructor, avoid a VC feature
 
-	GS_IntT(const std::string& name, ValT* pVar, ValT min_ = lim::min(), ValT max_ = lim::max(), int mul_ = 1, int add_ = 0, bool allow0_ = false)
+	GS_IntT(const std::string& name, ValT* pVar, ValT min_ = std::numeric_limits<ValT>::min(),
+			ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0_ = false)
 		: GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_), allow0(allow0_) { }
 	bool set(LogSet& log, const std::string& value);
 
@@ -48,15 +54,17 @@ typedef GS_IntT<NLulong> GS_Ulong;
 template<class ValT>
 class GS_FloatT : public GamemodSetting {
 public:
-	typedef std::numeric_limits<ValT> lim;
+	typedef std::numeric_limits<ValT> lim;	// can't be used on the constructor, avoid a VC feature
 
-	GS_FloatT(const std::string& name, ValT* pVar, float min_ = lim::min(), float max_ = lim::max(), float mul_ = 1., float add_ = 0.)
+	GS_FloatT(const std::string& name, ValT* pVar, ValT min_ = std::numeric_limits<ValT>::min(),
+			ValT max_ = std::numeric_limits<ValT>::max(), float mul_ = 1., float add_ = 0.)
 		: GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_) { }
 	bool set(LogSet& log, const std::string& value);
 
 private:
 	ValT* var;
-	float vmin, vmax, mul, add;
+	ValT vmin, vmax;
+	float mul, add;
 };
 
 typedef GS_FloatT<float> GS_Float;
@@ -120,6 +128,15 @@ private:
 };
 
 // specific settings that require special handling
+
+class GS_DisallowRunning : public GamemodSetting {
+public:
+	GS_DisallowRunning(const std::string& name) : GamemodSetting(name) { }
+	bool set(LogSet& log, const std::string&) {
+		log("Skipping %s; restart server to make a change", name.c_str());
+		return true;	// this is not really an error; the value might have not changed even
+	}
+};
 
 class GS_Map : public GamemodSetting {
 public:

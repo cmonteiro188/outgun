@@ -87,7 +87,7 @@ class Server {
 	// settings
 	bool tournament;
 	bool save_stats;
-	const ServerExternalSettings extConfig;
+	ServerExternalSettings extConfig;	// actually, not necessary external: some may be specified in gamemod and written here
 	PowerupSettings pupConfig;
 	WorldSettings worldConfig;
 
@@ -171,8 +171,8 @@ public:
 
 	bool tournament_active() const { return tournament; }
 
-	void load_game_mod();
-	bool reset_settings(bool keepMap);
+	void load_game_mod(bool reload);
+	bool reset_settings(bool reload);	// set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 };
 
 #endif
