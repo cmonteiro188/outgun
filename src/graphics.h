@@ -177,8 +177,12 @@ public:
 	
 	void resolution_prev();
 	void resolution_next();
+	
+	BITMAP* drawbuffer() { return drawbuf; }
 
 private:
+	void unload_bitmaps();
+
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
 	// texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
@@ -251,10 +255,14 @@ private:
 	int plx, ply;		// playground position on the screen
 	int mmx, mmy;		// minimap position
 	int sbx, sby;		// scoreboard position
+	bool show_chat_messages;
+	bool show_scoreboard;
+	bool show_minimap;
 
 	int minimap_w, minimap_h;
 	int minimap_place_w, minimap_place_h;
 	int minimap_start_x, minimap_start_y;
+	int indicators_x, indicators_y;
 
 	BITMAP* roombg;		// room background sub-bitmap
 

@@ -79,6 +79,9 @@ Graphics::Graphics():
 	drawbuf(0),
 	background(0),
 	minibg(0),
+	show_chat_messages(true),
+	show_scoreboard(true),
+	show_minimap(true),
 	player_sprite_power(0),
 	map_list_size(27),
 	map_list_start(0),
@@ -92,16 +95,11 @@ Graphics::Graphics():
 { }
 
 Graphics::~Graphics() {
-	if (drawbuf)
-		destroy_bitmap(drawbuf);
-	if (background)
-		destroy_bitmap(background);
-	if (minibg)
-		destroy_bitmap(minibg);
-	unload_pictures();
+	unload_bitmaps();
 }
 
 bool Graphics::init() {
+	unload_bitmaps();
 	scr_mul = static_cast<double>(res_x()) / 640;
 	floor_texture.resize(4, 0);
 	wall_texture.resize(1, 0);
@@ -118,13 +116,28 @@ bool Graphics::init() {
 	minimap_w = minimap_place_w = scale(160);
 	minimap_h = minimap_place_h = scale(100);
 	mmx = SCREEN_W - minimap_w - 4;
-	mmy = ply;
+	if (SCREEN_W > 8 * 80)	// check if minimap fits to the right of chat messages
+		mmy = 2;
+	else
+		mmy = ply;
 	minibg = create_bitmap(minimap_place_w, minimap_place_h);
-	sbx = SCREEN_W - 21 * 8 + 4;
+	sbx = SCREEN_W - 21 * 8 + 4;	// scoreboard is 20 characters wide
 	sby = mmy + minimap_place_h + 10;
+	indicators_x = 0;
+	indicators_y = SCREEN_H - 30;
 	setcolors();
 	reset_playground_colors();
 	return true;
+}
+
+void Graphics::unload_bitmaps() {
+	if (drawbuf)
+		destroy_bitmap(drawbuf);
+	if (background)
+		destroy_bitmap(background);
+	if (minibg)
+		destroy_bitmap(minibg);
+	unload_pictures();
 }
 
 void Graphics::draw_screen() const {
@@ -706,7 +719,8 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry) {
 }
 
 void Graphics::draw_minimap_background() {
-	blit(minibg, background, 0, 0, mmx, mmy, minibg->w, minibg->h);
+	if (show_minimap)
+		blit(minibg, background, 0, 0, mmx, mmy, minibg->w, minibg->h);
 }
 
 void Graphics::update_minimap_background(const Map& map) {
@@ -1308,6 +1322,8 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
 }
 
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams) {
+	if (!show_scoreboard)
+		return;
 	// captions
 	ostringstream red;
 	red << "Red Team:    " << setw(2) << teams[0].score() << " capt";
@@ -1610,19 +1626,19 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 }
 
 void Graphics::draw_player_power(double val) {
-	textprintf_ex(drawbuf, font, 244, SCREEN_H - 30, col[COLCYAN], -1, "POWER: %3.0f", val);
+	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y, col[COLCYAN], -1, "POWER: %3.0f", val);
 }
 
 void Graphics::draw_player_turbo(double val) {
-	textprintf_ex(drawbuf, font, 244, SCREEN_H - 20, col[COLYELLOW], -1, "TURBO: %3.0f", val);
+	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1, "TURBO: %3.0f", val);
 }
 
 void Graphics::draw_player_shadow(double val) {
-	textprintf_ex(drawbuf, font, 244, SCREEN_H - 10, col[COLMAG], -1, "SHADOW:%3.0f", val);
+	textprintf_ex(drawbuf, font, indicators_x + 244, indicators_y + 20, col[COLMAG], -1, "SHADOW:%3.0f", val);
 }
 
 void Graphics::draw_player_weapon(int level) {
-	textprintf_ex(drawbuf, font, 340, SCREEN_H - 30, col[COLWHITE], -1, "WEAPON: %i", level);
+	textprintf_ex(drawbuf, font, indicators_x + 340, indicators_y, col[COLWHITE], -1, "WEAPON: %i", level);
 }
 
 void Graphics::draw_change_team_message(double time) {
@@ -1646,8 +1662,8 @@ void Graphics::draw_change_map_message(double time) {
 }
 
 void Graphics::draw_player_health(int health) {
-	const int x0 = 10;
-	const int y0 = SCREEN_H - 30;
+	const int x0 = indicators_x + 10;
+	const int y0 = indicators_y;
 	// health value
 	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "Health: %5i", health);
 	// health bar
@@ -1668,8 +1684,8 @@ void Graphics::draw_player_health(int health) {
 }
 
 void Graphics::draw_player_energy(int energy) {
-	const int x0 = 10 + 14 * 8;
-	const int y0 = SCREEN_H - 30;
+	const int x0 = indicators_x + 10 + 14 * 8;
+	const int y0 = indicators_y;
 	// energy value
 	textprintf_ex(drawbuf, font, x0, y0, col[COLWHITE], -1, "Energy: %5i", energy);
 	// energy bar
@@ -1690,6 +1706,8 @@ void Graphics::draw_player_energy(int energy) {
 }
 
 void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer) {
+	if (!show_chat_messages)
+		return;
 	const int line_height = 11;
 	const int marginal = 3;
 	int line = 0;
