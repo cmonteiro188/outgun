@@ -15,13 +15,13 @@
 #include "client.h"
 #include "graphics.h"
 
-#define PATTERNED_PLAYER
+//#define TEST_FALL_ON_WALL
 
-//macros for allegro video mode
+// macros for allegro video mode
+// look at Allegro's documentation for alternate values; changing these will especially help on Linux
 
 //#define WINMODE GFX_DIRECTX_ACCEL
 //#define FULLMODE GFX_DIRECTX_ACCEL
-
 #define WINMODE GFX_AUTODETECT_WINDOWED
 #define FULLMODE GFX_AUTODETECT
 
@@ -243,6 +243,14 @@ void Graphics::random_playground_colors() {
 	setPlaygroundColors();
 }
 
+int Graphics::chat_lines() const {
+	return max(1, ply / 11);
+}
+
+int Graphics::chat_max_lines() const {
+	return max(1, (ply + scale(plh)) / 11);
+}
+
 void Graphics::clear() {
 	clear_to_color(drawbuf, 0);
 }
@@ -325,7 +333,7 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	return true;
 }
 
-void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags) {
+void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*> >& flags, bool grid) {
 	clear_to_color(background, 0);
 	if (antialiasing == AA_both) {
 		SceneAntialiaser scene;
@@ -409,6 +417,17 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const spoint_t*
 		// draw walls
 		predraw_room_walls(room);
 	}
+	if (grid) {
+		for (int y = 1; y < 12; ++y)
+			hline(roombg, 0, scale(plh * y / 12), plw, col[COLWHITE]);
+		for (int x = 1; x < 16; ++x)
+			vline(roombg, scale(plw * x / 16), 0, plh, col[COLWHITE]);
+	}
+	#ifdef TEST_FALL_ON_WALL
+	for (int y = 0; y < plh; y += 2)
+		for (int x = 0; x < plw; x += 2)
+			putpixel(roombg, scale(x), scale(y), room.fall_on_wall(x, y, 15) ? makecol(255, 0, 0) : makecol(255, 255, 255));
+	#endif
 	draw_minimap_background();
 }
 
@@ -574,12 +593,18 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 void Graphics::draw_flag(int team, int x, int y) {
 	x = scale(x);
 	y = scale(y);
+	const Bitmap& sprite = flag_sprite[team];
+	if (sprite) {
+		draw_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2);
+		return;
+	}
+	y += scale(20);
 	//draw shadow
-	ellipsefill(drawbuf,
+	/*ellipsefill(drawbuf,
 		plx + x,
 		ply + y,
 		scale(12), scale(3), col[COLSHADOW]
-	);
+	);*/
 	//draw flagpole
 	rectfill(drawbuf,
 		plx + x - scale(3),
@@ -947,13 +972,6 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
 	solid_mode();
 }
 
-void Graphics::draw_player_shadow(const ClientPlayer& player, int alpha) {
-	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-	set_trans_blender(0, 0, 0, alpha);
-	ellipsefill(drawbuf, plx + scale(player.lx), ply + scale(player.ly + PLAYER_RADIUS), 15, 3, col[COLSHADOW]);
-	solid_mode();
-}
-
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
 	set_write_alpha_blender();
 	drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -1282,7 +1300,6 @@ void Graphics::draw_pup_health(int x, int y, double time) {
 }
 
 void Graphics::draw_pup_deathbringer(int x, int y) {
-	//bola preta
 	circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(12), makecol(0x22, 0x33, 0x22));
 }
 
@@ -1329,10 +1346,10 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
  	textout_ex(drawbuf, font, blue.str().c_str(), sbx, sby + (maxplayers / 2 + 1) * line_h, teamlcol[1], -1);
 
 	int line[2] = { 0, 0 };
-	for (int i = 0; i < static_cast<int>(players.size()); i++) {
-		const ClientPlayer& player = *players[i];
+	for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi) {
+		const ClientPlayer& player = **pi;
 		ostringstream name;
-		name << player.reg_status << player.name.substr(0, 15);
+		name << player.name.substr(0, 15);
 		const int pcol = col[player.color()];
 		const int x = sbx;
 		const int y = sby + (line[player.team()] + 1) * line_h + player.team() * (maxplayers / 2 + 1) * line_h;
@@ -1351,18 +1368,25 @@ void Graphics::draw_scoreboard_points(int points, int x, int y, int team) {
 }
 
 void Graphics::team_statistics(const Team* teams) {
+	const int line_height = 12;
 	const int w = 300;
-	const int h = 360;
+	const int h = min<int>(SCREEN_H - 40, (18 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
 	const int x1 = mx - w / 2;
 	const int y1 = my - h / 2;
 	const int x2 = mx + w / 2;
 	const int y2 = my + h / 2;
+	const int team_captures_size = h / line_height - 17;
 
-	rectfill(drawbuf, x1, y1, x2, y2, 0);
-
-	const int line_height = 12;
+	if (stats_alpha >= 0) {
+		if (stats_alpha < 255) {
+			drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+			set_trans_blender(0, 0, 0, stats_alpha);
+		}
+		rectfill(drawbuf, x1, y1, x2, y2, 0);
+		solid_mode();
+	}
 
 	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
 	textout_centre_ex(drawbuf, font, "TEAM STATS", mx, y1 + line_height, col[COLWHITE], -1);
@@ -1374,21 +1398,22 @@ void Graphics::team_statistics(const Team* teams) {
 	textout_centre_ex(drawbuf, font, "Blue Team", (x1 + 3 * x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
 
 	int line = 5;
-	textout_centre_ex(drawbuf, font, "Captures", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Kills", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Deaths", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Suicides", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags Taken", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Flags Dropped", mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Captures",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Kills",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Deaths",         mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Suicides",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Flags Taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Flags Dropped",  mx, y1 + line++ * line_height, col[COLWHITE], -1);
 	textout_centre_ex(drawbuf, font, "Flags Returned", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Shots", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Hit accuracy", mx, y1 + line++ * line_height, col[COLWHITE], -1);
-	textout_centre_ex(drawbuf, font, "Shots taken", mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Shots",          mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Hit accuracy",   mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Shots taken",    mx, y1 + line++ * line_height, col[COLWHITE], -1);
+	textout_centre_ex(drawbuf, font, "Movement",       mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
 	for (int t = 0; t < 2; t++) {
 		const Team& team = teams[t];
 		line = 5;
-		const int x = (t == 0 ? (3 * x1 + x2) / 4 : (x1 + 3 * x2) / 4);
+		const int x = (t == 0 ? 3 * x1 + x2 : x1 + 3 * x2) / 4;
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
 		textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
@@ -1422,8 +1447,8 @@ void Graphics::team_statistics(const Team* teams) {
 			++red_score;
 			if (!skip) {
 				color = teamlcol[0];
-				message << setw(3) << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60;
-				message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+				message << setw(3) << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60 << setfill(' ');
+				message << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
 				message << red->second;
 			}
 			++red;
@@ -1432,8 +1457,8 @@ void Graphics::team_statistics(const Team* teams) {
 			++blue_score;
 			if (!skip) {
 				color = teamlcol[1];
-				message << setw(3) << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60;
-				message << setfill(' ') << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+				message << setw(3) << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60 << setfill(' ');
+				message << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
 				message << blue->second;
 			}
 			++blue;
@@ -1443,7 +1468,7 @@ void Graphics::team_statistics(const Team* teams) {
 		if (!skip)
 			textout_ex(drawbuf, font, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
 	}
-	// draw scrollbar if there are more maps than visible on the screen
+	// draw scrollbar if there are more captures than visible on the screen
 	if (team_captures_size < total_captures) {
 		const int x = x2 - 30;
 		const int y = team_captures_start_y;
@@ -1454,100 +1479,128 @@ void Graphics::team_statistics(const Team* teams) {
 	}
 }
 
-void Graphics::draw_statistics(const vector<ClientPlayer>& players, int page, int time, int maxplayers) {
-	// Preferred line height is 12.
-	// Lines needed: every player, 3 captions, 4 empty lines and page number.
-	const int h = min(12 * (maxplayers + 8), SCREEN_H);
-	const int line_h = h / (maxplayers + 8);
+void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers) {
+	const int num_lines = maxplayers + 3 + 2 * 2;	// line usage: 1 blank, red team (2 captions, 1 for every player), 1 blank, blue team, 1 page num
+	const int line_h = min(12, SCREEN_H / num_lines);	// Preferred line height is 12.
+	const int h = num_lines * line_h;
 	const int w = 540;
+	const int x_margin = 22;
 	const int mx = SCREEN_W / 2;
 	const int my = SCREEN_H / 2;
 	const int x1 = mx - w / 2;
 	const int y1 = my - h / 2;
 	const int x2 = mx + w / 2;
 	const int y2 = my + h / 2;
-	const int x_left = x1 + 40;
+	const int x_left = x1 + x_margin;
+	const int team1y = y1 + line_h, team2y = team1y + (2 + maxplayers / 2 + 1) * line_h, pageNumY = team2y + (2 + maxplayers / 2) * line_h;
 
-	rectfill(drawbuf, x1, y1, x2, y2, 0);
-
-	// frags and ping work, other stats are just layout testing
-	string caption;
-	switch (page) {
-		case 0: caption = "Ping Frags Captures Kills Deaths Suicides"; break;
-		case 1: caption = "Flags Taken Dropped Returned Carriers killed"; break;
-		case 2: caption = "Cons. kills and deaths  Shots Accuracy Taken"; break;
-		case 3: caption = "Movement   Speed     Playtime  Av. lifetime"; break;
-		case 4: caption = "Rank Power Score"; break;
+	if (stats_alpha >= 0) {
+		if (stats_alpha < 255) {
+			drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+			set_trans_blender(0, 0, 0, stats_alpha);
+		}
+		rectfill(drawbuf, x1, y1, x2, y2, 0);
+		solid_mode();
 	}
-	const string red =  string("Red Team        ") + caption;
-	const string blue = string("Blue Team       ") + caption;
-	rectfill(drawbuf, x1, y1 + line_h - 4, x2, y1 + 2 * line_h, teamdcol[0]);
-	textout_ex(drawbuf, font, red.c_str(), x_left, y1 + line_h, col[COLWHITE], -1);
-	rectfill(drawbuf, x1, y1 + h / 2 + line_h - 4, x2, y1 + h / 2 + 2 * line_h, teamdcol[1]);
-	textout_ex(drawbuf, font, blue.c_str(), x_left, y1 + h / 2 + line_h, col[COLWHITE], -1);
+
+	// space for (w - 2 * margin) / char_w == 62 characters per line; 4 + 1 + 16 + 1 used for login and name with spacing; 40 characters for stats
+	string caption1, caption2;
+	switch (page) {
+		// max length:     |........................................|
+		case 0: caption1 = "     Frags    total/in-row/most";
+				caption2 = "Ping     Capt Kills      Deaths Suicides";
+				//         |0000  000 00 000/00/00  000/00/00   00  |
+				break;
+		case 1: caption1 = "         Flags          Carriers  Carry";
+				caption2 = "taken dropped returned   killed    time";
+				//         |  00      00      00       00     00:00 |
+				break;
+		case 2: caption1 = "   Accuracy";
+				caption2 = "Shots   | Taken  Movement     Speed";
+				//         |00000 100% 0000  000000 u  00.00 u/s    |
+				break;
+		case 3: caption1 = "          Average        Tournament";
+				caption2 = "Playtime lifetime    rank  power  score";
+				//         |00000 min   00:00    0000  00.00 -00000  |
+				break;
+		default: nAssert(0);
+	}
+	const string red =  string("Red Team              ") + caption1;
+	const string blue = string("Blue Team             ") + caption1;
+	const string row2 = string("                      ") + caption2;
+	rectfill(drawbuf, x1, team1y - 4, x2, team1y + 2 * line_h - 1, teamdcol[0]);
+	textout_ex(drawbuf, font,  red.c_str(), x_left, team1y         , col[COLWHITE], -1);
+	textout_ex(drawbuf, font, row2.c_str(), x_left, team1y + line_h, col[COLWHITE], -1);
+	rectfill(drawbuf, x1, team2y - 4, x2, team2y + 2 * line_h - 1, teamdcol[1]);
+	textout_ex(drawbuf, font, blue.c_str(), x_left, team2y         , col[COLWHITE], -1);
+	textout_ex(drawbuf, font, row2.c_str(), x_left, team2y + line_h, col[COLWHITE], -1);
 
 	int i = 0;
-	for (vector<ClientPlayer>::const_iterator p = players.begin(); p != players.end(); p++, i++) {
-		const int y = y1 + 3 * line_h + line_h * (i % TSIZE) + p->team() * h / 2;
-		//if (p->used)
-			draw_player_statistics(*p, i / TSIZE, x_left, y, page, time);
+	int teamLineY[2] = { team1y + 2 * line_h, team2y + 2 * line_h };
+	for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi, ++i) {
+		const ClientPlayer& player = **pi;
+		draw_player_statistics(player, x_left, teamLineY[player.team()], page, time);
+		teamLineY[player.team()] += line_h;
 	}
 
 	ostringstream page_num;
-	page_num << page + 1 << '/' << 5;
-	textout_right_ex(drawbuf, font, page_num.str().c_str(), x2 - 8, y2 - 2 * line_h, col[COLGREEN], -1);
+	page_num << page + 1 << '/' << 4;
+	textout_right_ex(drawbuf, font, page_num.str().c_str(), x2 - x_margin, pageNumY, col[COLGREEN], -1);
 }
 
-void Graphics::draw_player_statistics(const ClientPlayer& player, int team, int x, int y, int page, int time) {
+void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time) {
 	ostringstream stats;
-	stats << left << setw(15) << player.name << ' ' << right;
+	stats << player.reg_status.strFlags() << ' ';
+	stats << left << setw(17) << player.name << right;
+	const Statistics& st = player.stats();
 	switch (page) {
 		case 0:
-			stats << setw(4) << player.ping << ' ';
-			stats << setw(5) << player.stats().frags() << ' ';
-			stats << setw(5) << player.stats().captures() << ' ';
-			stats << setw(7) << player.stats().kills() << ' ';
-			stats << setw(5) << player.stats().deaths() << ' ';
-			stats << setw(7) << player.stats().suicides() << ' ';
+			//       Frags    total/in-row/most
+			//  Ping     Capt Kills      Deaths Suicides
+			// |0000  000 00 000/00/00  000/00/00   00  |
+			stats << setw(4) << player.ping
+			      << setw(5) << st.frags()
+			      << setw(3) << st.captures()
+			      << setw(4) << st.kills()  << '/' << setw(2) << st.current_cons_kills()  << '/' << setw(2) << st.cons_kills()
+			      << setw(5) << st.deaths() << '/' << setw(2) << st.current_cons_deaths() << '/' << setw(2) << st.cons_deaths()
+			      << setw(5) << st.suicides();
 			break;
 		case 1:
-			stats << setw(10) << player.stats().flags_taken() << ' ';
-			stats << setw(7) << player.stats().flags_dropped() << ' ';
-			stats << setw(7) << player.stats().flags_returned() << ' ';
-			stats << setw(8) << player.stats().carriers_killed() << ' ';
-			stats << setw(3) << static_cast<int>(player.stats().flag_carrying_time(time)) / 60 << ':';
-			stats << setw(2) << setfill('0') << static_cast<int>(player.stats().flag_carrying_time(time)) % 60;
+			//           Flags          Carriers  Carry
+			//  taken dropped returned   killed    time
+			// |  00      00      00       00     00:00 |
+			stats << setw(4) << st.flags_taken()
+			      << setw(8) << st.flags_dropped()
+			      << setw(8) << st.flags_returned()
+			      << setw(9) << st.carriers_killed()
+			      << setw(7) << static_cast<int>(st.flag_carrying_time(time)) / 60 << ':'
+			      << setw(2) << setfill('0') << static_cast<int>(st.flag_carrying_time(time)) % 60 << setfill(' ');
 			break;
-		case 2: {
-			ostringstream kills;
-			kills << player.stats().cons_kills();
-			kills << " (" << player.stats().current_cons_kills() << ')';
-			stats << setw(11) << kills.str() << ' ';
-			ostringstream deaths;
-			deaths << player.stats().cons_deaths();
-			deaths << " (" << player.stats().current_cons_deaths() << ')';
-			stats << setw(9) << deaths.str() << ' ';
-			stats << setw(6) << player.stats().shots() << ' ';
-			stats << setw(5) << static_cast<int>(100. * player.stats().accuracy() + 0.5) << "% ";
-			stats << setw(7) << player.stats().shots_taken() << ' ';
+		case 2:
+			//     Accuracy
+			//  Shots   | Taken  Movement     Speed
+			// |00000 100% 0000  000000 u  00.00 u/s    |
+			stats << setw(5) << st.shots()
+			      << setw(4) << static_cast<int>(100. * st.accuracy() + 0.5) << '%'
+			      << setw(5) << st.shots_taken()
+			      << setw(8) << static_cast<int>(st.movement()) / (2 * PLAYER_RADIUS) << " u"
+				  << setw(7) << setprecision(2) << std::fixed << st.old_speed() << " u/s";
 			break;
-		}
 		case 3:
-			stats << setw(6) << static_cast<int>(player.stats().movement()) / (2 * PLAYER_RADIUS) << " u ";
-			stats << setw(5) << setprecision(2) << std::fixed << player.stats().speed(time) << " u/s ";
-			stats << setw(6) << static_cast<int>(player.stats().playtime(time)) / 60 << " min ";
-			stats << setw(3) << static_cast<int>(player.stats().average_lifetime(time)) / 60 << ':';
-			stats << setw(2) << setfill('0') << static_cast<int>(player.stats().average_lifetime(time)) % 60 << ' ';
-			break;
-		case 4:
-			if (player.reg_status == '*' || player.reg_status == 'A') {
-				stats << setw(4) << player.rank;
-				stats << setw(4) << (player.score + 1.0) / (player.neg_score + 1.0);
-				stats << setw(4) << player.score - player.neg_score;
+			//            Average        Tournament
+			//  Playtime lifetime    rank  power  score
+			// |00000 min   00:00    0000  00.00 -00000  |
+			stats << setw(5) << static_cast<int>(st.playtime(time)) / 60 << " min"
+			      << setw(5) << static_cast<int>(st.average_lifetime(time)) / 60 << ':'
+			      << setw(2) << setfill('0') << static_cast<int>(st.average_lifetime(time)) % 60 << setfill(' ');
+			if (player.reg_status.masterAuth()) {
+				stats << setw(8) << player.rank
+				      << setw(7) << setprecision(2) << std::fixed << (player.score + 1.0) / (player.neg_score + 1.0)
+				      << setw(7) << player.score - player.neg_score;
 			}
 			break;
 	}
-	textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[team], -1);
+	textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[player.team()], -1);
 }
 
 void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
@@ -1607,7 +1660,14 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 	const int y2 = my + h / 2;
 	const int x_left = x1 + 30;
 
-	rectfill(drawbuf, x1, y1, x2, y2, 0);
+	if (stats_alpha >= 0) {
+		if (stats_alpha < 255) {
+			drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+			set_trans_blender(0, 0, 0, stats_alpha);
+		}
+		rectfill(drawbuf, x1, y1, x2, y2, 0);
+		solid_mode();
+	}
 
 	rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
 	textout_centre_ex(drawbuf, font, "SERVER MAP LIST", mx, y1 + line_height, col[COLWHITE], -1);
@@ -1815,80 +1875,6 @@ void Graphics::show_not_responding_message() {
 	textprintf_ex(drawbuf, font, 220, 255, col[COLWHITE], -1, "or the server disconnected");
 }
 
-// draw help ### FIXME: read help from a text file
-void Graphics::game_help() {
-	clear_to_color(drawbuf, col[COLMENUGRAY]);
-
-	int x = -40;
-	int y = -70;
-
-	textprintf_ex(drawbuf, font, x+100, y+100, col[COLWHITE], -1, "Outgun : HELP      --> Press ESC or F1 to go back. <--");
-
-	textprintf_ex(drawbuf, font, x+100, y+120, col[COLWHITE], -1, "For more information access these websites:");
-	textprintf_ex(drawbuf, font, x+100, y+130, col[COLWHITE], -1, "  the original Outgun website");
-	textprintf_ex(drawbuf, font, x+364, y+130, col[COLGREEN], -1, "http://www.amok.com.br/outgun/en/");
-	textprintf_ex(drawbuf, font, x+100, y+140, col[COLWHITE], -1, "  Nix's Outgun development page");
-	textprintf_ex(drawbuf, font, x+364, y+140, col[COLGREEN], -1, "http://koti.mbnet.fi/npr/outgun/");
-
-	textprintf_ex(drawbuf, font, x+100, y+160, col[COLWHITE], -1, "           MOVING            ARROW KEYS = MOVE");
-	textprintf_ex(drawbuf, font, x+100, y+170, col[COLWHITE], -1, "            YOUR             CONTROL    = SHOOT!");
-	textprintf_ex(drawbuf, font, x+100, y+180, col[COLWHITE], -1, "          CHARACTER:         ALT        = STRAFE");
-	textprintf_ex(drawbuf, font, x+100, y+190, col[COLWHITE], -1, "            >>>>>            SHIFT      = RUN");
-
-	textprintf_ex(drawbuf, font, x+100, y+210, col[COLWHITE], -1, "TALKING TO ALL PLAYERS: Just type your message and hit ENTER");
-
-	textprintf_ex(drawbuf, font, x+100, y+230, col[COLWHITE], -1, "TALKING JUST TO YOUR TEAM: Just place a dot ('.') at the very");
-	textprintf_ex(drawbuf, font, x+100, y+240, col[COLWHITE], -1, " beginning of your message (first char)");
-
-	textprintf_ex(drawbuf, font, x+100, y+260, col[COLWHITE], -1, "GAME CONCEPT: You are a member of a team, either RED or BLUE,");
-	textprintf_ex(drawbuf, font, x+100, y+270, col[COLWHITE], -1, " assigned to you at random when you connect. Your goal is to");
-	textprintf_ex(drawbuf, font, x+100, y+280, col[COLWHITE], -1, " help your team to win, by capturing 8 (default) times the enemy");
-	textprintf_ex(drawbuf, font, x+100, y+290, col[COLWHITE], -1, " flag. To capture the flag, a member of your team must steal");
-	textprintf_ex(drawbuf, font, x+100, y+300, col[COLWHITE], -1, " the enemy flag and bring it to your team's flag, provided your");
-	textprintf_ex(drawbuf, font, x+100, y+310, col[COLWHITE], -1, " flag has not been stolen already! Capiche?");
-
-	textprintf_ex(drawbuf, font, x+100, y+330, col[COLWHITE], -1, "HEALTH AND ENERGY: If your health reaches zero, you die. Energy");
-	textprintf_ex(drawbuf, font, x+100, y+340, col[COLWHITE], -1, " is used for running, shooting and health protection when you");
-	textprintf_ex(drawbuf, font, x+100, y+350, col[COLWHITE], -1, " have the SHIELD powerup (you'll know when you see it...).");
-	textprintf_ex(drawbuf, font, x+100, y+360, col[COLWHITE], -1, " Health and energy regenerate with time.");
-
-	textprintf_ex(drawbuf, font, x+100, y+380, col[COLWHITE], -1, "MINIMAP: On the upper-right corner of the screen is the minimap.");
-	textprintf_ex(drawbuf, font, x+100, y+390, col[COLWHITE], -1, " It shows the contents of all rooms of the map that have at least");
-	textprintf_ex(drawbuf, font, x+100, y+400, col[COLWHITE], -1, " one player of your team.");
-
-	textprintf_ex(drawbuf, font, x+100, y+420, col[COLWHITE], -1, "CHANGING TEAMS: Hit the END key to set whether you want to");
-	textprintf_ex(drawbuf, font, x+100, y+430, col[COLWHITE], -1, " change team or not. You will change team when appropriate.");
-
-	textprintf_ex(drawbuf, font, x+100, y+450, col[COLWHITE], -1, "POWERUPS: If you see an animated item lying on the ground, grab");
-	textprintf_ex(drawbuf, font, x+100, y+460, col[COLWHITE], -1, " it. It's a special power-up item.");
-
-	textprintf_ex(drawbuf, font, x+100, y+480, col[COLWHITE], -1, "ETC.: Hit DEL to kill yourself. Hold TAB to see other players'");
-	textprintf_ex(drawbuf, font, x+100, y+490, col[COLWHITE], -1, " ping times (in milliseconds) on the scoreboard.");
-	textprintf_ex(drawbuf, font, x+100, y+500, col[COLWHITE], -1, " Hit HOME to change world colors and CTRL+HOME to restore them.");
-	textprintf_ex(drawbuf, font, x+100, y+510, col[COLWHITE], -1, " Hit F10 to receive a random name. Hit F11 to take a screenshot.");
-}
-
-// show two-line message
-void Graphics::dialog(const string& t1, const string& t2) {
-	textout_ex(drawbuf, font, t1.c_str(), 150, 230, col[COLWHITE], -1);
-	textout_ex(drawbuf, font, t2.c_str(), 150, 250, col[COLWHITE], -1);
-}
-
-//show progress (for tight loops that don't work with the regular screen flip loop)
-void Graphics::show_progress(const string& t1, const string& t2, const string& t3, int fg, int bg) {
-	if (fg == -1)
-		fg = col[COLWHITE];
-	vsync();
-	acquire_screen();
-	rect(screen, 320 - 200-1, 240 - 50-1, 320 + 200-1, 240 + 50-1, col[COLWHITE]);
-	rect(screen, 320 - 200+1, 240 - 50+1, 320 + 200+1, 240 + 50+1, col[COLDARKGRAY]);
-	rectfill(screen, 320 - 200, 240 - 50, 320 + 200, 240 + 50, bg);
-	textout_centre_ex(screen, font, t1.c_str(), 320, 240 - 25, fg, -1);
-	textout_centre_ex(screen, font, t2.c_str(), 320, 240     , fg, -1);
-	textout_centre_ex(screen, font, t3.c_str(), 320, 240 + 25, fg, -1);
-	release_screen();
-}
-
 bool Graphics::save_screenshot(const string& filename) const {
 	PALETTE pal;
 	get_palette(pal);
@@ -1946,13 +1932,13 @@ void Graphics::create_deathbringer(int team, double start_time, int x, int y, in
 }
 
 // Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
-void Graphics::create_smoke(int x, int y, int px, int py, int team) {
+void Graphics::create_smoke(int x, int y, int px, int py) {
 	if (!pup_sprite[Powerup::pup_deathbringer])
-		create_deathcarrier(x, y, px, py, team);
+		create_deathcarrier(x, y, px, py);
 }
 
 //create deathbringer carrier trail fx
-void Graphics::create_deathcarrier(int x, int y, int px, int py, int team) {
+void Graphics::create_deathcarrier(int x, int y, int px, int py) {
 	clientfx_t fx;
 
 	fx.type = FX_DEATHCARRIER_SMOKE;
@@ -1961,26 +1947,7 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py, int team) {
 	fx.px = px;
 	fx.py = py;
 	fx.time = get_time();
-
-	int r = rand() %100;
-	if (team) {
-		if (r < 50)
-			fx.col1 = makecol(0,0,0xff);
-		else if (r < 75)
-			fx.col1 = makecol(0,0xff,0);
-		else
-			fx.col1 = 0;
-	} else {
-		if (r < 50)
-			fx.col1 = makecol(0xff,0,0);
-		else if (r < 75)
-			fx.col1 = makecol(0,0xff,0);
-		else
-			fx.col1 = 0;
-	}
-
-	//JUST BLACK
-	fx.col1 = 0;
+	fx.col1 = 0;	// black
 
 	cfx.push_back(fx);
 }
@@ -2018,79 +1985,93 @@ void Graphics::create_speedfx(int x, int y, int px, int py, int col1, int col2, 
 }
 
 void Graphics::draw_effects(int room_x, int room_y, double time) {
-	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); fx++)
-		// on same room
-		if (fx->px == room_x && fx->py == room_y) {
-			double delta = time - fx->time;
-			switch (fx->type) {
-				case FX_GUN_EXPLOSION:
-					if (delta > 0.4)
-						fx = cfx.erase(fx);
-					else {
-						for (int e = 0; e < 3; e++) {
-							int rad = 4 + e + (int)(delta * 40);
-							draw_gun_explosion(fx->x, fx->y, rad);
-						}
-					}
-					break;
-
-				case FX_SPEED:		// speed effect, draw another time in another function
-					break;
-
-				case FX_WALL_EXPLOSION:
-					if (delta > 0.2)
-						fx = cfx.erase(fx);
-					else {
-						for (int e = 0; e < 2; e++) {
-							int rad = 4 + e + (int)(delta * 40);
-							draw_gun_explosion(fx->x, fx->y, rad);
-						}
-					}
-					break;
-
-				case FX_POWER_WALL_EXPLOSION:
-					if (delta > 0.2)
-						fx = cfx.erase(fx);
-					else {
-						for (int e = 0; e < 3; e++) {
-							int rad = 4 + e + (int)(delta * 60);
-							draw_gun_explosion(fx->x, fx->y, rad);
-						}
-					}
-					break;
-
-				case FX_DEATHBRINGER_EXPLOSION:
-					if (delta > 3.0)
-						fx = cfx.erase(fx);
-					else
-						draw_deathbringer(fx->x, fx->y, fx->team, delta);
-					break;
-
-				case FX_DEATHCARRIER_SMOKE:
-					if (delta > 0.6)
-						fx = cfx.erase(fx);
-					else
-						draw_deathbringer_smoke(fx->x, fx->y, delta);
-					break;
-			}
+	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
+		if (fx->px != room_x || fx->py != room_y) {	// different room
+			++fx;
+			continue;
 		}
+		double delta = time - fx->time;
+		switch (fx->type) {
+			case FX_GUN_EXPLOSION:
+				if (delta > 0.4)
+					fx = cfx.erase(fx);
+				else {
+					for (int e = 0; e < 3; e++) {
+						int rad = 4 + e + (int)(delta * 40);
+						draw_gun_explosion(fx->x, fx->y, rad);
+					}
+					++fx;
+				}
+				break;
+
+			case FX_SPEED:		// speed effect, draw another time in another function
+				++fx;
+				break;
+
+			case FX_WALL_EXPLOSION:
+				if (delta > 0.2)
+					fx = cfx.erase(fx);
+				else {
+					for (int e = 0; e < 2; e++) {
+						int rad = 4 + e + (int)(delta * 40);
+						draw_gun_explosion(fx->x, fx->y, rad);
+					}
+					++fx;
+				}
+				break;
+
+			case FX_POWER_WALL_EXPLOSION:
+				if (delta > 0.2)
+					fx = cfx.erase(fx);
+				else {
+					for (int e = 0; e < 3; e++) {
+						int rad = 4 + e + (int)(delta * 60);
+						draw_gun_explosion(fx->x, fx->y, rad);
+					}
+					++fx;
+				}
+				break;
+
+			case FX_DEATHBRINGER_EXPLOSION:
+				if (delta > 3.0)
+					fx = cfx.erase(fx);
+				else {
+					draw_deathbringer(fx->x, fx->y, fx->team, delta);
+					++fx;
+				}
+				break;
+
+			case FX_DEATHCARRIER_SMOKE:
+				if (delta > 0.6)
+					fx = cfx.erase(fx);
+				else {
+					draw_deathbringer_smoke(fx->x, fx->y, delta);
+					++fx;
+				}
+				break;
+
+			default:
+				nAssert(0);
+		}
+	}
 }
 
 // draw speed effect
 void Graphics::draw_speedfx(int room_x, int room_y, double time) {
-	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); fx++)
-		// on same room
-		if (fx->px == room_x && fx->py == room_y) {
-			if (fx->type == FX_SPEED) {
-				double delta = time - fx->time;
-				if (delta > 0.3)
-					fx = cfx.erase(fx);
-				else {
-					int alpha = 90 - (int)(delta * 300.0);
-					draw_player(fx->x, fx->y, fx->col1, fx->col2, fx->gundir, time, false, alpha, time);
-				}
-			}
+	for (list<clientfx_t>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
+		if (fx->px != room_x || fx->py != room_y || fx->type != FX_SPEED) {	// different room or wrong type
+			++fx;
+			continue;
 		}
+		double delta = time - fx->time;
+		if (delta > 0.3)
+			fx = cfx.erase(fx);
+		else {
+			int alpha = 90 - (int)(delta * 300.0);
+			draw_player(fx->x, fx->y, fx->col1, fx->col2, fx->gundir, time, false, alpha, time);
+			++fx;
+		}
+	}
 }
 
 bool Graphics::save_map_picture(const string& filename, const Map& map) {
@@ -2158,10 +2139,11 @@ void Graphics::load_pictures(const string& path) {
 		return;
 	load_floor_textures(path);
 	load_wall_textures(path);
-	load_player_sprites(path + "player.pcx", path + "player_team.pcx", path + "player_personal.pcx");
+	load_player_sprites(path);
 	load_shield_sprites(path);
 	load_dead_sprites(path);
 	load_rocket_sprites(path);
+	load_flag_sprites(path);
 	load_pup_sprites(path);
 }
 
@@ -2203,11 +2185,11 @@ BITMAP* Graphics::get_wall_texture(int texid) {
 		return wall_texture.front();
 }
 
-void Graphics::load_player_sprites(const string& filename_common, const string& filename_team, const string& filename_personal) {
+void Graphics::load_player_sprites(const string& path) {
 	const int size = scale(2 * 2 * PLAYER_RADIUS);
-	Bitmap common = scale_sprite(filename_common, size, size);
-	Bitmap team = scale_alpha_sprite(filename_team, size, size);
-	Bitmap personal = scale_alpha_sprite(filename_personal, size, size);
+	Bitmap common = scale_sprite(path + "player.pcx", size, size);
+	Bitmap team = scale_alpha_sprite(path + "player_team.pcx", size, size);
+	Bitmap personal = scale_alpha_sprite(path + "player_personal.pcx", size, size);
 	if (common && team && personal) {
 		// Make player sprites by combining player image with team and personal colours.
 		for (int t = 0; t < 2; t++)
@@ -2276,6 +2258,7 @@ void Graphics::load_dead_sprites(const string& path) {
 	}
 }
 
+// Make rocket sprites by combining rocket image with team colour.
 void Graphics::load_rocket_sprites(const string& path) {
 	const int size = scale(2 * 2 * ROCKET_RADIUS);
 	Bitmap normal = scale_sprite(path + "rocket.pcx", size, size);
@@ -2295,6 +2278,20 @@ void Graphics::load_rocket_sprites(const string& path) {
 			power_rocket_sprite[t] = create_bitmap(size, size);
 			nAssert(power_rocket_sprite[t]);
 			combine_sprite(power_rocket_sprite[t], power, team, 0, teamcol[t], 0);
+		}
+	}
+}
+
+// Make flag sprites by combining flag image with team colour.
+void Graphics::load_flag_sprites(const string& path) {
+	const int size = scale(41);
+	Bitmap flag = scale_sprite(path + "flag.pcx", size, size);
+	if (flag) {
+		Bitmap team = scale_alpha_sprite(path + "flag_team.pcx", size, size);
+		for (int t = 0; t < 3; t++) {
+			flag_sprite[t] = create_bitmap(size, size);
+			nAssert(flag_sprite[t]);
+			combine_sprite(flag_sprite[t], flag, team, 0, teamcol[t], 0);
 		}
 	}
 }
@@ -2343,6 +2340,7 @@ void Graphics::unload_pictures() {
 	unload_shield_sprites();
 	unload_dead_sprites();
 	unload_rocket_sprites();
+	unload_flag_sprites();
 	unload_pup_sprites();
 }
 
@@ -2379,6 +2377,11 @@ void Graphics::unload_rocket_sprites() {
 		rocket_sprite[i].free();
 		power_rocket_sprite[i].free();
 	}
+}
+
+void Graphics::unload_flag_sprites() {
+	for (int i = 0; i < 3; i++)
+		flag_sprite[i].free();
 }
 
 void Graphics::unload_pup_sprites() {

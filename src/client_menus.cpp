@@ -34,7 +34,7 @@ Menu_serverList::Menu_serverList() :
 	update			("Update server list"),
 	refresh			("Refresh servers"),
 	addServer		(),
-	caption			("IP address            Ping Players Version Host name"),
+	caption			("IP address           Ping D Players Vers. Host name"),
 
 	menu			("Server list")
 {
@@ -56,12 +56,14 @@ void Menu_serverList::reset() {
 	menu.add_component(&caption);
 }
 
-void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) {
+void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook) {
 	for (vector<pair<string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
 		servi->second.setHook(hook->clone());
+		servi->second.setKeyHook(keyHook->clone());
 		menu.add_component(&servi->second);
 	}
 	delete hook;
+	delete keyHook;
 }
 
 string Menu_serverList::getAddress(const Textarea& target) {
@@ -82,6 +84,7 @@ Menu_name::Menu_name() :
 	randomName		("Get random name"),
 	password		("Tournament password", "", 15, '*'),
 	namestatus		("Registration status"),
+	tournament		("Take part in the tournament", true),
 	removePasswords	("Remove server-specific player passwords"),
 
 	menu			("Name and passwords")
@@ -90,6 +93,7 @@ Menu_name::Menu_name() :
 	menu.add_component(&randomName);
 	menu.add_component(&password);
 	menu.add_component(&namestatus);
+	menu.add_component(&tournament);
 	menu.add_component(&removePasswords);
 }
 
@@ -126,6 +130,8 @@ Menu_graphics::Menu_graphics() :
 	apply		("Apply changes"),
 	theme		("Theme"),
 	antialiasing("Antialiasing"),
+	statsBgAlpha("Stats screen alpha", 0, 255, 255),
+	grid		("Grid on room", false),
 
 	menu		("Graphic options")
 {
@@ -146,6 +152,8 @@ Menu_graphics::Menu_graphics() :
 	menu.add_component(&apply);
 	menu.add_component(&theme);
 	menu.add_component(&antialiasing);
+	menu.add_component(&statsBgAlpha);
+	menu.add_component(&grid);
 }
 
 void Menu_graphics::init(const Graphics& gfx) {
@@ -286,22 +294,3 @@ Menu_serverPassword::Menu_serverPassword() :
 {
 	menu.add_component(&password);
 }
-
-Menu_serverInfo::Menu_serverInfo() :
-	menu		("Server info")
-{ }
-
-void Menu_serverInfo::add(const string& name, const string& value) {
-	info.push_back(Textarea(name, value));
-}
-
-void Menu_serverInfo::reset() {
-	menu.clear_components();
-	info.clear();
-}
-
-void Menu_serverInfo::finish() {
-	for (vector<Textarea>::iterator infoi = info.begin(); infoi != info.end(); ++infoi)
-		menu.add_component(&(*infoi));
-}
-

@@ -20,8 +20,8 @@ public:
 	RectWall(float a_, float b_, float c_, float d_, int tex_, int alpha_)
 			: a(a_), b(b_), c(c_), d(d_), tex(tex_), alpha(alpha_) { if (c<a) std::swap(a, c); if (d<b) std::swap(b, d); }
 
-	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }
-	bool intersects_circ(double x, double y, double r) const;
+	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }	// perfect
+	bool intersects_circ(double x, double y, double r) const;	// perfect
 
 	float x1() const { return a; }
 	float y1() const { return b; }
@@ -42,7 +42,9 @@ public:
 	TriWall() { }
 	TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_);
 
-	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;
+	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;	// perfect
+	bool intersects_circ(double x, double y, double r) const;	// very much imperfect (uses bounding rectangle)
+
 	float x1() const { return p1x; }
 	float y1() const { return p1y; }
 	float x2() const { return p2x; }
@@ -64,7 +66,8 @@ public:
 	CircWall() { }
 	CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_);
 
-	bool intersects_rect(double x1, double y1, double x2, double y2) const;
+	bool intersects_rect(double x1, double y1, double x2, double y2) const;	// very much imperfect (uses bounding circle)
+	bool intersects_circ(double rcx, double rcy, double rr) const;	// imperfect
 
 	float X() const { return x; }
 	float Y() const { return y; }
@@ -90,8 +93,8 @@ struct Room {
 	std::vector<TriWall>  twalls, tground;
 	std::vector<CircWall> cwalls, cground;
 
-	bool fall_on_wall(int x1, int y1, int x2, int y2) const;	// note: this is only a bounding-box check - no accurate checks possible for circular walls yet
-	bool fall_on_wall(int x, int y, int r) const;	// for circle
+	bool fall_on_wall(int x1, int y1, int x2, int y2) const;	// this check follows the quality of *Wall::intersects_rect and isn't perfect
+	bool fall_on_wall(int x, int y, int r) const;	// this check follows the quality of *Wall::intersects_circ and isn't perfect
 };
 
 //entity locale
@@ -198,6 +201,8 @@ public:
 
 	void take_frag(int n = 1) { total_frags -= n; }
 
+	void save_speed(double time) { saved_speed = speed(time); }
+
 	int frags() const { return total_frags; }
 	int kills() const { return total_kills; }
 	int deaths() const { return total_deaths; }
@@ -221,6 +226,7 @@ public:
 	float playtime(double time) const;			// in seconds
 	double movement() const;					// in Outgun units
 	float speed(double time) const;				// in Outgun units per second
+	float old_speed() const { return saved_speed; }
 	float start_time() const { return starttime; }
 	double flag_carrying_time(double time) const;
 
@@ -246,6 +252,7 @@ private:
 	float last_spawn_time;
 	float total_lifetime;
 	double total_movement;
+	float saved_speed;
 	float starttime;
 	bool dead;
 	bool flag;
@@ -280,7 +287,7 @@ public:
 	int ping;
 	//int frags;
 	bool dead;
-	char reg_status;
+	ClientLoginStatus reg_status;
 	int score, rank;
 	int neg_score;
 
@@ -348,27 +355,6 @@ public:
 	double talk_temp;
 	double talk_hotness;
 
-	//admin shell stats
-	/*int total_kills;
-	int total_deaths;
-	int most_consecutive_kills;
-	int current_consecutive_kills;
-	int most_consecutive_deaths;
-	int current_consecutive_deaths;
-	int total_suicides;
-	int total_captures;
-	int total_flags_taken;
-	int total_flags_dropped;
-	int total_flags_returned;
-	int total_flag_carriers_killed;
-	int total_shots;
-	int total_hits;
-	int total_shots_taken;
-	int last_spawn_time;
-	int lifetime;
-	double total_movement;
-	int start_time;*/
-
 	bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
 	void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
@@ -391,6 +377,7 @@ public:
 	double death_drop_time;
 	double speed_drop_time;
 	double wall_sound_time;
+	double player_sound_time;
 	bool onscreen;
 	NLulong	enemyvis;
 	double hitfx;
@@ -611,6 +598,7 @@ public:
 	virtual void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) =0;	// caller doesn't remove the rocket
 	virtual bool rocketHitPlayer(int rid, int pid) =0;	// returns true if player dies (to be removed from further simulation)
 	virtual void playerHitWall(int pid) =0;
+	virtual void playerHitPlayer(int pid1, int pid2) =0;
 	virtual void rocketOutOfBounds(int rid) =0;	// caller doesn't remove the rocket
 	virtual bool shouldApplyPhysicsToPlayer(int pid) =0;	// returns true physics should be run to player pid
 };
@@ -625,7 +613,7 @@ class WorldBase {
 	static double getTimeTillCollision(const PlayerBase& pl, const rocket_c& rock, double collRadius);
 	static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
 	void applyPlayerAcceleration(int pid);
-	void executeBounce(PlayerBase& ply, const BounceData& b, double plyRadius);	// needs plyRadius as a shortcut to b.second's length
+	void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius);	// needs plyRadius as a shortcut to bounceVec's length
 	void executeBounce(PlayerBase& pl1, PlayerBase& pl2) const;
 	void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
 
@@ -696,6 +684,8 @@ public:
 
 class WorldSettings {
 public:
+	enum Team_balance { TB_disabled = 0, TB_balance, TB_balance_and_shuffle };
+
 	double respawn_time, waiting_time_deathbringer;
 	int shadow_minimum;	// smallest alpha value allowed; 0 is when even the coordinates are not sent
 	int rocket_damage;
@@ -703,7 +693,7 @@ public:
 	NLulong extra_time;
 	bool sudden_death;
 	int capture_limit;
-	bool balance_teams;
+	Team_balance balance_teams;
 
 	static const int shadow_minimum_normal;
 
@@ -716,8 +706,8 @@ public:
 	int getCaptureLimit() const { return capture_limit; }
 	NLulong getTimeLimit() const { return time_limit; }
 	NLulong getExtraTime() const { return extra_time; }
-	
-	bool balanceTeams() const { return balance_teams; }
+
+	Team_balance balanceTeams() const { return balance_teams; }
 	bool suddenDeath() const { return sudden_death; }
 };
 

@@ -62,27 +62,6 @@ void ClientControls::fromJoystick() {
 
 NLaddress master_address;
 
-bool dedserver = false;		//dedicated server? -ded
-bool textserver = false;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
-bool privateserver = false;	//private server? (will not publish)
-bool winclient = true;		//windowed client?	-win / -fs
-bool trypageflip = false;	//try page flipping? -flip / -dbuf
-bool nosound = false;			//disable sound? -nosound
-int targetfps = -1;			//target (MAX) frames-per-second
-int port = DEFAULT_UDP_PORT;				//the server port
-int server_maxplayers = 16;		//default maxplayers of the server
-bool force_ip = false;		//force IP?
-char force_ip_name[32];		//force IP to what?
-
-void server_status_string(const string& str) {
-	#ifndef ALLEGRO_WINDOWS
-	if (textserver)
-		cout << str << '\n';
-	else
-	#endif
-		set_window_title(str.c_str());
-}
-
 istream& getline_smart(istream& in, string& str) {
 	str.clear();
 	while (1) {

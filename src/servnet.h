@@ -8,8 +8,11 @@
 
 class gameserver_c;
 class masterjob_c;
+class Powerup;
 class server_c;
 class ServerHelloResult;
+class ServerPlayer;
+class ServerWorld;
 
 class ServerNetworking {
 	class ClientTransferData {
@@ -114,7 +117,7 @@ public:
 	void update_serverinfo();
 	double getTraffic();
 
-	void removePlayer(int pid) { ctop[world.player[pid].cid] = -1; }	// call only when moving players around; this actually does close to nothing
+	void removePlayer(int pid);	// call only when moving players around; this actually does close to nothing
 	void disconnect_client(int cid, int timeout, Disconnect_reason reason);
 	int getPid(int cid) { return ctop[cid]; }	//#fix: this shouldn't be necessary
 
@@ -132,8 +135,8 @@ public:
 	void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target, bool deathbringer, bool flag) const;
 	void broadcast_suicide(const ServerPlayer& player, bool flag) const;
 	void broadcast_spawn(const ServerPlayer& player) const;
-	void send_movements_and_shots(const ServerPlayer& player) const;
-	void send_stats(const ServerPlayer& player) const;
+	void send_movements_and_shots(const ServerPlayer& player) const;	// Send player's movement and shots to everyone.
+	void send_stats(const ServerPlayer& player) const;					// Send everyone's stats to player.
 	void send_team_movements_and_shots(const ServerPlayer& player) const;
 	void send_team_stats(const ServerPlayer& player) const;
 

@@ -4,12 +4,14 @@
 #include <iostream>
 #include <string>
 
+#include <nl.h>
+
 class LogSet;
-class NLSocket;
 
 const char* getNlErrorString();
-bool check_private_IP(const char* address);
+bool check_private_IP(const std::string& address);
 std::string getPublicIP(LogSet& log);
+std::string addressToString(const NLaddress& address);
 
 inline void readStr(const char* buf, int& count, std::string& dst) {
 	dst.clear();

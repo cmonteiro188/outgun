@@ -1,53 +1,37 @@
-#include <nl.h>
 #include <fstream>
+#include <sstream>
+
+#include <nl.h>
 
 #include "commont.h"
 #include "nameauth.h"
 #include "nassert.h"
+#include "network.h"
 
 using std::ifstream;
+using std::istringstream;
 using std::ofstream;
 using std::ostream;
 using std::string;
 using std::vector;
 
-void NameAuthorizationDatabase::Entry::save(ostream& out) const {
-	out << '\n';
-	out << "name " << nameUpr << '\n';
-	if (!password.empty())
-		out << "password " << password << '\n';
-	for (vector<NLaddress>::const_iterator ai=addresses.begin(); ai!=addresses.end(); ++ai) {
-		char sbuf[50];
-		nlAddrToString(&(*ai), sbuf);
-		out << sbuf << '\n';
+string NameAuthorizationDatabase::makeComparable(const string& name) {
+	string nameUpr;
+	for (string::size_type i = 0; i < name.length(); ++i) {
+		if (isalnum(name[i]))
+			nameUpr += char(toupper(name[i]));
+		else if (!nameUpr.empty())
+			nameUpr += '.';
 	}
-}
-
-bool NameAuthorizationDatabase::Entry::hasAddress(NLaddress addr) const {
-	for (vector<NLaddress>::const_iterator ai=addresses.begin(); ai!=addresses.end(); ++ai)
-		if (nlAddrCompare(&addr, &(*ai)))
-			return true;
-	return false;
-}
-
-bool NameAuthorizationDatabase::addEntry(const Entry& e) {
-	if (e.nameUpr == "[BANNED]" && e.password.empty()) {
-		banned=e;
-		banned.password.clear();
-	}
-	else if (!e.nameUpr.empty() && !e.password.empty() && e.addresses.empty())
-		db.push_back(e);
-	else {
-		log.error("Invalid data in auth.txt");
-		return false;
-	}
-	return true;
+	string::size_type endi = nameUpr.find_last_not_of('.');
+	if (endi == string::npos)
+		return string();
+	return nameUpr.substr(0, endi + 1);
 }
 
 void NameAuthorizationDatabase::clear() {
-	db.clear();
-	banned.addresses.clear();
-	// don't clear softBanned
+	names.clear();
+	bans.clear();
 }
 
 bool NameAuthorizationDatabase::load() {
@@ -57,43 +41,53 @@ bool NameAuthorizationDatabase::load() {
 		log.error("Can't read auth.txt");
 		return false;
 	}
-	Entry e;
-	bool eActive=false;
 	for (;;) {
 		string line;
 		getline_smart(in, line);
-		if (!in) {
-			if (eActive)
-				return addEntry(e);
+		if (!in)
 			return true;
-		}
 		if (line[0]==';')
 			continue;
-		if (!line.compare(0, 5, "name ")) {
-			if (eActive) {
-				if (!addEntry(e))
-					return false;
-				e=Entry();
+		istringstream strl(line);
+		string command, name, data;
+		strl >> command;
+		getline(strl, name, '\t');
+		if (!strl) {
+			log.error("Invalid line \"%s\" in auth.txt", line.c_str());
+			continue;
+		}
+		name = makeComparable(name);
+		strl >> data;
+		bool dataRead = strl;
+		command = toupper(command);
+		if (command == "USER") {
+			if (!dataRead)
+				log.error("Invalid user command (no password) in auth.txt: \"%s\"", line.c_str());
+			else
+				names.push_back(NameEntry(name, data, false));
+		}
+		else if (command == "ADMIN") {
+			if (dataRead)
+				names.push_back(NameEntry(name, data, true));
+			else
+				names.push_back(NameEntry(name, "", true));
+		}
+		else if (command == "BAN") {
+			NLaddress addr;
+			if (!dataRead || !nlStringToAddr(data.c_str(), &addr))
+				log.error("Invalid ban command (IP address) in auth.txt: \"%s\"", line.c_str());
+			else {
+				nlSetAddrPort(&addr, 0);
+				time_t endTime;
+				strl >> endTime;
+				if (!strl)
+					bans.push_back(BanEntry(name, addr));
+				else if (endTime > time(0))	// if the ban isn't in effect any more, don't bother loading
+					bans.push_back(BanEntry(name, addr, endTime));
 			}
-			eActive=true;
-			for (string::size_type i=5; i<line.length(); ++i)
-				e.nameUpr+=toupper(line[i]);
-			continue;
 		}
-		if (!line.compare(0, 9, "password ")) {
-			if (!e.password.empty())
-				log.error("Password redefinition in auth.txt");
-			eActive=true;
-			e.password=line.substr(9, string::npos);
-			continue;
-		}
-		NLaddress addr;
-		if (!nlStringToAddr(line.c_str(), &addr))
-			log.error("Invalid IP address in auth.txt: %s", line.c_str());
-		else {
-			nlSetAddrPort(&addr, 0);
-			e.addresses.push_back(addr);
-		}
+		else
+			log.error("Unrecognized command \"%s\" in auth.txt", command.c_str());
 	}
 }
 
@@ -103,86 +97,42 @@ bool NameAuthorizationDatabase::save() const {
 		log.error("Can't write auth.txt");
 		return false;
 	}
-	out << "; This file is automatically rewritten whenever valid addresses are added.\n";
-	out << "; New reserved names must be added manually: add lines \"name <the name>\"\n";
-	out << "; and \"password <the password>\". Then you can add the IP's from the game\n";
-	out << "; by typing \"/auth <the name>,<the password>\".\n";
-	if (!banned.addresses.empty())
-		banned.save(out);
-	for (vector<Entry>::const_iterator dbi=db.begin(); dbi!=db.end(); ++dbi)
-		dbi->save(out);
+	out << "; This file is automatically rewritten whenever the ban list changes.\n"
+	    << "; To reserve a name add a row:\n"
+	    << "; user <name> <tab> <password>  or  admin <name> [<tab> <password>]\n"
+	    << "; where <tab> is a tabulator character.\n"
+		<< "; Passwordless admins need to authenticate by logging in to the tournament\n"
+	    << "\n";
+	for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
+		out << "ban\t" << bi->name << '\t' << addressToString(bi->address) << '\t' << bi->endTime << '\n';
+	for (vector<NameEntry>::const_iterator ni = names.begin(); ni != names.end(); ++ni)
+		out << (ni->admin ? "admin" : "name") << '\t' << ni->name << '\t' << ni->password << '\n';
 	return true;
 }
 
 int NameAuthorizationDatabase::identifyName(const string& name) const {
-	static const char fromTab[]="!|012357";
-	static const char   toTab[]="IIOIZEST";
-	string nameUpr, nameAlpha;	// alpha contains only the alphabetical characters
-	for (string::size_type i=0; i<name.length(); ++i) {
-		char ch = name[i]&127;
-		const char* fromp = strchr(fromTab, ch);
-		if (fromp)
-			ch = toTab[fromp-fromTab];
-		if (isalpha(ch)) {
-			nameUpr += char(toupper(ch));
-			nameAlpha += char(toupper(ch));
-		}
-		else
-			nameUpr += '.';
-	}
-	for (int idx=0; idx<size(); ++idx) {
-		const string& nu=db[idx].nameUpr;
-		string::size_type nBegin=nameAlpha.find(nu);
-		if (nBegin==string::npos)
-			continue;
-		// find the same pos in nameUpr which has additional dots in the middle
-		string::size_type ui;
-		for (ui=0;;) {
-			while (nameUpr[ui]=='.')
-				++ui;
-			if (nBegin==0) break;	// nBegin tells how many real chars more should be deleted
-			--nBegin; ++ui;
-		}
-		nAssert(nameUpr[ui]==nu[0]);
-		if (ui>0 && nameUpr[ui-1]!='.')	// nu is only a part of a word in nameUpr
-			continue;
-		nBegin=nu.length()-1;	// so that ui will point to the last char in nameUpr
-		for (;;) {
-			if (nBegin==0) break;	// nBegin tells how many real chars more should be deleted
-			--nBegin; ++ui;
-			while (nameUpr[ui]=='.')
-				++ui;
-		}
-		nAssert(nameUpr[ui]==nu[nu.length()-1]);
-		if (ui+1<nameUpr.length() && nameUpr[ui+1]!='.')	// nu is only a part of a word in nameUpr
-			continue;
-		return idx;
-	}
+	string nameUpr = makeComparable(name);
+	for (int idx = 0; idx < (int)names.size(); ++idx)
+		if (nameUpr == names[idx].name)
+			return idx;
 	return -1;
 }
 
-bool NameAuthorizationDatabase::authorize(int idx, const string& password) const {
-	return db[idx].password == password;
-}
-
-bool NameAuthorizationDatabase::checkNamePassword(const std::string& nameUpr, const std::string& password) const {
-	int idx = identifyName(nameUpr);
-	if (idx == -1)
-		return true;
-	else
-		return authorize(idx, password);
+bool NameAuthorizationDatabase::checkNamePassword(const std::string& name, const std::string& password) const {
+	int idx = identifyName(name);
+	return (idx == -1 || names[idx].password == password);
 }
 
 bool NameAuthorizationDatabase::isBanned(NLaddress addr) const {
 	nlSetAddrPort(&addr, 0);
-	return banned.hasAddress(addr) || softBanned.hasAddress(addr);
+	for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
+		if (nlAddrCompare(&addr, &bi->address) && bi->endTime > time(0))
+			return true;
+	return false;
 }
 
-void NameAuthorizationDatabase::ban(NLaddress addr, bool hard) {
+void NameAuthorizationDatabase::ban(NLaddress addr, string name, int minutes) {
 	nlSetAddrPort(&addr, 0);
-	if (hard)
-		banned.addresses.push_back(addr);
-	else
-		softBanned.addresses.push_back(addr);
+	bans.push_back(BanEntry(name, addr, time(0) + minutes * 60));
 }
 

@@ -181,8 +181,6 @@ string PosConsProl()
 		  return "t";
 		if (prob>=141 && prob<=143)
 		  return "v";
-		if (prob>=141 && prob<=143)
-		  return "v";
 		if (prob>=144 && prob<=154)
 		  return "w";
 		if (prob>=155 && prob<=156)
@@ -235,29 +233,22 @@ string Palavra()
 string RandomName(int npal)
 {
   int prob;
-	string nome;
 
 	if (npal<1)
 	{
 		prob = Random(100);
 
-		if (prob<=50)
+		if (prob<=60)
 			npal=1;
 		else
-		if (prob<=95)
 			npal=2;
-		else
-		if (prob<=99)
-			npal=3;
-		else
-			npal=4; //never happens.
 	}
 
-	nome = "";
+	string nome;
 	for (int r=0; r<npal-1; r++)
-		nome = nome + Palavra() + "_";  //fabio: mudei p/ nao acrescentar espacos nos nomes
-	nome = nome + Palavra();
+		nome += Palavra() + ' ';
+	nome += Palavra();
 
-	return nome;
+	return nome.substr(0, 15);
 }
 

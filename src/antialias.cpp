@@ -565,8 +565,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 		nAssert(bi->y0 < bi->y1);
 
 		SegListT::iterator si;
-		for (si = segDest.begin(); si->getY1() <= bi->y0; ++si)
-			nAssert(si != segDest.end());
+		for (si = segDest.begin(); nAssert(si != segDest.end()), si->getY1() <= bi->y0; ++si);
 		// si points to first segment whose y1 > bi->y0
 		if (si->getY1() < bi->y0 + SPLIT_TRESHOLD) {	// in this case, this segment is ignored (too little of bi is in this segment)
 			si->setY1(bi->y0);
@@ -585,6 +584,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 			if (si->width() < SPLIT_TRESHOLD)
 				si = segDest.erase(si);
 		}
+		nAssert(si != segDest.end());
 		nAssert(fabs(bi->y0 - si->getY0()) <= 5. * SPLIT_TRESHOLD);
 		for (; si->getY1() <= bi->y1; ++si) {
 			nAssert(si != segDest.end());
@@ -625,6 +625,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 						si = segDest.erase(si);
 				}
 			}
+			nAssert(si != segDest.end());
 		}
 	}
 	#ifdef DEBUG_SPLIT

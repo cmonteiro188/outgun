@@ -41,6 +41,15 @@ string toupper(string str) {
 	return str;
 }
 
+string trim(string str) {
+	str.erase(0, str.find_first_not_of(" \t\n\r\xA0"));
+	string::size_type lastGood = str.find_last_not_of(" \t\n\r\xA0");
+	if (lastGood == string::npos)
+		return string();
+	str.erase(lastGood + 1);
+	return str;
+}
+
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)
@@ -59,7 +68,7 @@ void LogSet::security(const char* fmt, ...)   { va_list args; va_start(args, fmt
 void errorMessage(const string& heading, MemoryLog& errorLog) {
 	int errors = errorLog.size();
 	if (errors) {
-		std::ostringstream msg;
+		ostringstream msg;
 		msg << heading;
 		for (int count = min(errors, 10); count > 0; --count)
 			msg << '\n' << errorLog.pop();

@@ -1,44 +1,51 @@
 #ifndef __NAMEAUTH_H_INCLUDED__
 #define __NAMEAUTH_H_INCLUDED__
 
+#include <ostream>
 #include <string>
 #include <vector>
-#include <ostream>
+
+#include <ctime>
+
 #include <nl.h>
 
 #include "utility.h"	// for LogSet
 
 class NameAuthorizationDatabase {
-	struct Entry {
-		std::string nameUpr;
+	struct NameEntry {
+		std::string name;
 		std::string password;
-		std::vector<NLaddress> addresses;	// currently not used except for ban records
+		bool admin;
 
-		void save(std::ostream& out) const;
-		bool hasAddress(NLaddress addr) const;
+		NameEntry(std::string n, std::string p, bool a) : name(n), password(p), admin(a) { }
 	};
-	std::vector<Entry> db;
-	Entry banned, softBanned;
+	struct BanEntry {
+		std::string name;
+		NLaddress address;
+		time_t endTime;
+
+		BanEntry(std::string n, NLaddress a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
+	};
+
+	std::vector<NameEntry> names;
+	std::vector<BanEntry> bans;
 
 	mutable LogSet log;
 
-	int size() const { return db.size(); }
-	bool addEntry(const Entry& e);
+	static std::string makeComparable(const std::string& name);
 
 public:
-	NameAuthorizationDatabase(LogSet logs) : log(logs) { banned.nameUpr="[BANNED]"; }
+	NameAuthorizationDatabase(LogSet logs) : log(logs) { }
 
 	void clear();
 	bool load();
 	bool save() const;
 
 	int identifyName(const std::string& name) const;
-	const std::string& getName(int idx) const { return db[idx].nameUpr; }
-	bool authorize(int idx, const std::string& password) const;
-	bool NameAuthorizationDatabase::checkNamePassword(const std::string& nameUpr, const std::string& password) const;
+	bool NameAuthorizationDatabase::checkNamePassword(const std::string& name, const std::string& password) const;
 
 	bool isBanned(NLaddress addr) const;
-	void ban(NLaddress addr, bool hard);
+	void ban(NLaddress addr, std::string name, int minutes);
 };
 
 #endif

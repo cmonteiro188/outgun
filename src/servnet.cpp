@@ -1,4 +1,4 @@
-	#include <fstream>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -140,7 +140,6 @@ void ServerNetworking::send_me_packet(int pid) {
 
 //send a player name update to a client
 void ServerNetworking::send_player_name_update(int cid, int pid) {
-
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, data_name_update);
 	writeByte(lebuf, count, pid);		// what player id
@@ -172,29 +171,17 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 	writeByte(lebuf, count, data_crap_update);
 
 	// --- RECALC CRAP ---
-	//reg_status char:
-	if (clid.token_have) {
-		if (clid.token_valid) {
-			if (host->isAdmin(pid))
-				world.player[pid].reg_status = 'A';
-			else
-				world.player[pid].reg_status = '*';
-		}
-		else
-			world.player[pid].reg_status = '?';
-	}
-	else if (host->isLocallyAuthorized(pid)) {
-		if (host->isAdmin(pid))
-			world.player[pid].reg_status = 'a';
-		else
-			world.player[pid].reg_status = 's';
-	}
-	else
-		world.player[pid].reg_status = '.';
+	ClientLoginStatus st;
+	st.setToken(clid.token_have);
+	st.setMasterAuth(clid.token_have && clid.token_valid);
+	st.setTournament(host->tournament_active() && clid.token_have && clid.current_participation);
+	st.setLocalAuth(host->isLocallyAuthorized(pid));
+	st.setAdmin(host->isAdmin(pid));
+	world.player[pid].reg_status = st;
 
 	writeByte(lebuf, count, (NLubyte)pid);
 	writeByte(lebuf, count, (NLubyte)world.player[pid].color());
-	writeByte(lebuf, count, (NLubyte)world.player[pid].reg_status);
+	writeByte(lebuf, count,          world.player[pid].reg_status.toNetwork());
 	writeLong(lebuf, count, (NLulong)clid.rank);
 	writeLong(lebuf, count, (NLulong)clid.score);
 	writeLong(lebuf, count, (NLulong)clid.neg_score);
@@ -371,27 +358,28 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const {
 	server->broadcast_message(lebuf, count);
 }
 
+// Send player's movement and shots to everyone.
 void ServerNetworking::send_movements_and_shots(const ServerPlayer& player) const {
 	char lebuf[64];
 	int count = 0;
 	writeByte(lebuf, count, data_movements_shots);
-	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used) {
-			const Statistics& stats = world.player[i].stats();
-			writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
-			writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
-			writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
-			writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
-		}
-	server->send_message(player.cid, lebuf, count);
+	writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+	const Statistics& stats = player.stats();
+	writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
+	writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
+	writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
+	writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
+	server->broadcast_message(lebuf, count);
 }
 
+// Send everyone's stats to player.
 void ServerNetworking::send_stats(const ServerPlayer& player) const {
-	char lebuf[512];
-	int count = 0;
-	writeByte(lebuf, count, data_stats);
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
+			char lebuf[64];
+			int count = 0;
+			writeByte(lebuf, count, data_stats);
+			writeByte(lebuf, count, static_cast<NLubyte>(i));
 			const Statistics& stats = world.player[i].stats();
 			writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
 			writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
@@ -408,8 +396,8 @@ void ServerNetworking::send_stats(const ServerPlayer& player) const {
 			writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
 			writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
 			writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
+			server->send_message(player.cid, lebuf, count);
 		}
-	server->send_message(player.cid, lebuf, count);
 }
 
 void ServerNetworking::send_team_movements_and_shots(const ServerPlayer& player) const {
@@ -510,14 +498,11 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 	const PowerupSettings& pupConfig = world.getPupConfig();
 	writeByte(lebuf, count, data_server_settings);
 	writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 60));	// note: max time 255 mins ~ 4 hours
-	writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 60));
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 600));	// note: max time 255 mins ~ 4 hours
+	writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 600));
 	NLubyte settings = 0;
 	int i = 0;
 	if (config.balanceTeams())
-		settings |= (1 << i);
-	i++;
-	if (world.physics.friendly_fire)
 		settings |= (1 << i);
 	i++;
 	if (pupConfig.pups_drop_at_death)
@@ -528,6 +513,8 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) {
 	i++;
 	if (pupConfig.pup_deathbringer_switch)
 		settings |= (1 << i);
+	i++;
+	settings |= (pupConfig.pup_weapon_max << i);
 	writeByte(lebuf, count, settings);
 	server->send_message(player.cid, lebuf, count);
 }
@@ -700,7 +687,7 @@ bool ServerNetworking::start() {
 
 	server->set_client_timeout(5, 10);
 
-	if (!server->start(port))
+	if (!server->start(host->config().port))
 		return false;
 
 	//v0.4.4 reset master jobs count
@@ -711,10 +698,10 @@ bool ServerNetworking::start() {
 	shellssock = NL_INVALID;	// not in use
 
 	//start TCP shell master thread in the port number 500 less than server UDP port
-	shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), port - 500);
+	shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500);
 
 	//start TCP thread for talking with master server
-	if (!privateserver)
+	if (!host->config().privateserver)
 		mthread.start_assert(RedirectToMemFun<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread));
 
 	//start website thread
@@ -725,7 +712,9 @@ bool ServerNetworking::start() {
 
 //reload hostname
 void ServerNetworking::set_hostname(const string& name) {
-	if (!hostname.empty())
+	if (hostname.empty())
+		hostname = "Anonymous host";
+	else
 		hostname = name;
 	log("Hostname: %s", hostname.c_str());
 }
@@ -740,6 +729,10 @@ void ServerNetworking::update_serverinfo() {
 	nAssert(pc == player_count);
 
 	ostringstream info;
+	if (host->config().dedserver)
+		info << "D ";
+	else
+		info << "  ";
 	info << setw(2) << player_count << '/' << maxplayers << ' ' << setw(7) << GAME_VERSION << ' ' << hostname;
 	server->set_server_info(info.str().c_str());
 }
@@ -869,6 +862,7 @@ int ServerNetworking::client_connected(int id) {
 
 	host->check_team_changes();
 	update_serverinfo();
+	send_server_settings(world.player[myself]);
 	send_map_time(id);
 	send_stats(world.player[myself]);
 	send_team_stats(world.player[myself]);
@@ -930,11 +924,9 @@ void ServerNetworking::broadcast_new_player_notice(int pid) {
 		char lebuf[256]; int count = 0;
 		writeLong(lebuf, count, STA_PLAYER_IP);
 		writeLong(lebuf, count, world.player[pid].cid);
-		char addrBuf[50];
-		NLaddress addr=get_client_address(world.player[pid].cid);
+		NLaddress addr = get_client_address(world.player[pid].cid);
 		nlSetAddrPort(&addr, 0);
-		nlAddrToString(&addr, addrBuf);
-		writeString(lebuf, count, addrBuf);
+		writeStr(lebuf, count, addressToString(addr));
 		nlWrite(shellssock, lebuf, count);
 	}
 }
@@ -1022,7 +1014,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 		msg = server->receive_message(id, &msglen);
 		if (msg != 0) {
 			// process a client's message
-			//
 			int count = 0;
 			NLubyte code;
 			readByte(msg, count, code);
@@ -1042,13 +1033,12 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			else if (code == data_fire_on) {
 				world.player[pid].attack = true;
 			}
-			//SUICIDE!!
-			else if (code == data_suicide) {
-				world.suicide(pid);
-			}
 			//-attack
 			else if (code == data_fire_off) {
 				world.player[pid].attack = false;
+			}
+			else if (code == data_suicide) {
+				world.suicide(pid);
 			}
 			// want changeteams on
 			else if (code == data_change_team_on) {
@@ -1065,7 +1055,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					world.player[pid].team_change_pending = false; //so pra garantir
 				}
 			}
-			// "client ready" message
 			else if (code == data_client_ready) {
 				//client is ready to play now
 				world.player[pid].awaiting_client_ready = false;
@@ -1157,16 +1146,24 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					Thread::startDetachedThread_assert(rmf, job);
 				}
 			}
-			// drop flag
+			else if (code == data_tournament_participation) {
+				NLubyte data;
+				readByte(msg, count, data);
+				ClientData& clid = host->getClientData(pid);
+				clid.next_participation = data;
+				if (!clid.participation_info_received) {
+					clid.current_participation = clid.next_participation;
+					clid.participation_info_received = true;
+					broadcast_player_crap(pid);
+				}
+			}
 			else if (code == data_drop_flag) {
 				world.player[pid].drop_key = true;
 				world.player[pid].dropped_flag = true;
 				world.dropFlagIfAny(pid, true);
 			}
-			// stop dropping flag
 			else if (code == data_stop_drop_flag)
 				world.player[pid].drop_key = false;
-			// map vote
 			else if (code == data_map_vote) {
 				NLbyte vote;
 				readByte(msg, count, vote);
@@ -1197,12 +1194,14 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				host->set_fav_colors(pid, fav_colors);
 				host->check_fav_colors(pid);
 			}
-			else {
-				//ERROR: unknown message from client
+			else
 				log.security("Unknown message from client %i code=%i length=%i", id, code, msglen);
-			}
 		}
 	} while (msg != 0);
+}
+
+void ServerNetworking::removePlayer(int pid) {	// call only when moving players around; this actually does close to nothing
+	ctop[world.player[pid].cid] = -1;
 }
 
 void ServerNetworking::disconnect_client(int cid, int timeout, Disconnect_reason reason) {
@@ -1551,7 +1550,7 @@ void ServerNetworking::run_masterjob_thread(masterjob_c* job) {
 	log("run_masterjob_thread() ID = %d", pthread_self());
 
 	int delay = 0;	// given a value in MS before each continue: this time will be waited before next round
-	
+
 	while (!mjob_exit) {
 		if (delay > 0) {
 			MS_SLEEP(500);
@@ -1710,20 +1709,20 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	// determine the public IP to send to master
 	string localAddress;
-	if (force_ip) {	// use IP manually given to the program
-		log("Master talker: Forcing IP to value %s", force_ip_name);
+	if (host->config().force_ip) {	// use IP manually given to the program
+		log("Master talker: Forcing IP to value %s", host->config().force_ip_name.c_str());
 
 		NLaddress testAddr;
-		if (!nlStringToAddr(force_ip_name, &testAddr) || strchr(force_ip_name, ':')) {
-			log.error("Master talker: Tried to force an invalid IP %s. Not talking to master server...", force_ip_name);
+		if (!nlStringToAddr(host->config().force_ip_name.c_str(), &testAddr) || host->config().force_ip_name.find_first_of(':') != string::npos) {
+			log.error("Master talker: Tried to force an invalid IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
 			return;
 		}
-		if (check_private_IP(force_ip_name)) {
-			log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", force_ip_name);
+		if (check_private_IP(host->config().force_ip_name)) {
+			log.error("Master talker: Tried to force a private IP %s. Not talking to master server...", host->config().force_ip_name.c_str());
 			return;
 		}
 
-		localAddress = force_ip_name;
+		localAddress = host->config().force_ip_name;
 	}
 	else {
 		localAddress = getPublicIP(log);
@@ -1732,10 +1731,6 @@ void ServerNetworking::run_mastertalker_thread() {
 			return;
 		}
 	}
-
-	// add port
-	localAddress += ':';
-	localAddress += itoa(port);
 
 	bool master_never_talked = true;
 	double master_talk_time = get_time() + delay_to_report_server;	//give it a break
@@ -1813,7 +1808,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 	// send quit message
 	ostringstream quit;
-	quit << "port=" << port << "&quit=1\r\n";
+	quit << "port=" << host->config().port << "&quit=1\r\n";
 	bool result = post_http_data(msock, 0, 5000, master_script, quit.str());	// only 5 seconds allowed; it's not so crucial
 	log("Master talker: Sent information to master server:");
 	log("%s", quit.str().c_str());
@@ -1832,16 +1827,14 @@ void ServerNetworking::run_website_thread() {
 	log("run_website_thread() ID = %d", pthread_self());
 
 	string localAddress;
-	if (force_ip)
-		localAddress = force_ip_name;
+	if (host->config().force_ip)
+		localAddress = host->config().force_ip_name;
 	else {
 		localAddress = getPublicIP(log);
 		if (localAddress.empty()) {
 			NLaddress myadr;
 			get_self_IP(&myadr);
-			char addr[NL_MAX_STRING_LENGTH];
-			nlAddrToString(&myadr, addr);
-			localAddress = addr;
+			localAddress = addressToString(myadr);
 		}
 	}
 
@@ -1918,13 +1911,12 @@ void ServerNetworking::run_website_thread() {
 			}
 		}
 		else {	// save new IP address for web server
-			NLchar new_address[NL_MAX_STRING_LENGTH];
-			nlAddrToString(&website_address, new_address);
+			string new_address = addressToString(website_address);
 			if (site_ip != new_address) {
 				ofstream out(web_settings.c_str());
 				out << site_name << '\n' << new_address << '\n' << site_script << '\n' << site_auth << '\n';
 				out.close();
-				log("Website thread: Saved new IP address (%s) for %s.", new_address, site_name.c_str());
+				log("Website thread: Saved new IP address (%s) for %s.", new_address.c_str(), site_name.c_str());
 			}
 		}
 
@@ -1996,10 +1988,12 @@ map<string, string> ServerNetworking::master_parameters(const string& address) c
 	parameters["name"] = hostname;
 	parameters["ip"] = address;
 	ostringstream p;
-	p << port;
+	p << host->config().port;
 	parameters["port"] = p.str();
 	ostringstream pc;
 	pc << player_count;
+	if (host->config().dedserver)
+		parameters["dedicated"] = "1";
 	parameters["players"] = pc.str();
 	ostringstream mpc;
 	mpc << maxplayers;
@@ -2019,10 +2013,12 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	parameters["name"] = hostname;
 	parameters["ip"] = address;
 	ostringstream p;
-	p << port;
+	p << host->config().port;
 	parameters["port"] = p.str();
 	ostringstream pc;
 	pc << player_count;
+	if (host->config().dedserver)
+		parameters["dedicated"] = "1";
 	parameters["players"] = pc.str();
 	ostringstream mpc;
 	mpc << maxplayers;
@@ -2033,7 +2029,6 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
 	parameters["uptime"] = upt.str();
 	parameters["map"] = host->current_map().title;
 	parameters["mapfile"] = host->getCurrentMapFile();
-	parameters["info"] = "Test server";
 	ostringstream players;
 	for (int i = 0; i < maxplayers; i++)
 		if (world.player[i].used) {
@@ -2178,11 +2173,9 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 
 				writeLong(lebuf, count, STA_PLAYER_IP);
 				writeLong(lebuf, count, world.player[i].cid);
-				char addrBuf[50];
 				NLaddress addr = get_client_address(world.player[i].cid);
 				nlSetAddrPort(&addr, 0);
-				nlAddrToString(&addr, addrBuf);
-				writeString(lebuf, count, addrBuf);
+				writeStr(lebuf, count, addressToString(addr));
 			}
 		nlWrite(newSock, lebuf, count);
 
@@ -2359,7 +2352,7 @@ void ServerNetworking::stop() {
 	mjob_fastretry = true;
 	double mjmaxtime = get_time() + 30.0;		//timeout : 30 seconds
 
-	server_status_string("Shutdown: net server");
+	host->config().statusOutput("Shutdown: net server");
 
 	if (server)
 		server->stop(3);
@@ -2373,14 +2366,14 @@ void ServerNetworking::stop() {
 	file_threads_quit = true;	// flag so threads will quit themselves
 
 	//close TCP connection with the server admin shell
-	server_status_string("Shutdown: admin shell threads");
+	host->config().statusOutput("Shutdown: admin shell threads");
 	shellmthread.join();
 
 	//wait for all master jobs to complete nicely
 	while (mjob_count > 0 && get_time() < mjmaxtime) {
 		char lix[200];
 		sprintf(lix, "Shutdown: waiting for %d tournament updates", mjob_count);
-		server_status_string(lix);
+		host->config().statusOutput(lix);
 		MS_SLEEP(100);
 	}
 
@@ -2389,19 +2382,19 @@ void ServerNetworking::stop() {
 	while (mjob_count > 0) {
 		char lix[200];
 		sprintf(lix, "Shutdown: ABORTING %d tournament updates", mjob_count);
-		server_status_string(lix);
+		host->config().statusOutput(lix);
 		MS_SLEEP(100);
 	}
 
-	if (!privateserver) {
-		server_status_string("Shutdown: master talker thread");
+	if (!host->config().privateserver) {
+		host->config().statusOutput("Shutdown: master talker thread");
 		mthread.join();
 	}
 
-	server_status_string("Shutdown: website thread");
+	host->config().statusOutput("Shutdown: website thread");
 	webthread.join();
 
-	server_status_string("Shutdown: main thread");
+	host->config().statusOutput("Shutdown: main thread");
 }
 
 void ServerNetworking::sendWeaponPower(int pid) {
@@ -2566,7 +2559,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
 				string player_password;
 				if (length - count > 0)
 					readStr(data, count, player_password);
-				if (host->check_name_password(toupper(name), player_password)) {
+				if (host->check_name_password(name, player_password)) {
 					res->accepted = true;
 					writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
 					writeStr(res->customData, res->customDataLength, hostname);

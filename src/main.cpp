@@ -3,10 +3,11 @@
 #include <string>
 
 #include "incalleg.h"
-#include "commont.h"
-#include "server.h"
 #include "client.h"
+#include "commont.h"
+#include "gameserver_interface.h"
 #include "mappic.h"
+#include "network.h"
 
 using std::ifstream;
 using std::ostringstream;
@@ -91,6 +92,18 @@ public:
 
 volatile bool GlobalCloseButtonHook::flag = false;
 
+void statusOutputWindow(const string& str) {
+	set_window_title(str.c_str());
+}
+
+void statusOutputText(const string& str) {
+	#ifndef ALLEGRO_WINDOWS
+	cout << str << '\n';
+	#else
+	statusOutputWindow(str);
+	#endif
+}
+
 int main(int argc, char *argv[]) {
 	unsigned long stackGuard = STACK_GUARD;	(void)stackGuard;
 
@@ -131,19 +144,22 @@ int main(int argc, char *argv[]) {
 	log("main() ID = %d", pthread_self());
 	log("Outgun log file. Game string: %s, protocol: %s, version: %s", GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
 
+	bool textserver = false;
 	bool showinfo = false;
 	bool defaultprio = false;	//select default server threads priority
 	int targetprio = 0;
 	bool targetprio_specified = false;
+	ServerExternalSettings serverCfg;
+	ClientExternalSettings clientCfg;
 
 	// check args
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-ded"))
-			dedserver = true;
+			serverCfg.dedserver = true;
 		else if (!strcmp(argv[i], "-text") || !strcmp(argv[i], "-nowindow"))
 			textserver = true;
 		else if (!strcmp(argv[i], "-priv"))
-			privateserver = true;
+			serverCfg.privateserver = true;
 		else if (!strcmp(argv[i], "-info"))
 			showinfo = true;
 		else if (!strcmp(argv[i], "-defaultprio"))
@@ -155,43 +171,43 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if (!strcmp(argv[i], "-win"))
-			winclient = true;
+			clientCfg.winclient = 1;
 		else if (!strcmp(argv[i], "-flip"))
-			trypageflip = true;
+			clientCfg.trypageflip = 1;
 		else if (!strcmp(argv[i], "-dbuf"))
-			trypageflip = false;
+			clientCfg.trypageflip = 0;
 		else if (!strcmp(argv[i], "-fs"))
-			winclient = false;
+			clientCfg.winclient = 0;
 		else if (!strcmp(argv[i], "-fps")) {
 			if (++i<argc) {
-				targetfps = strtol(argv[i], NULL, 10);
-				if (targetfps < 1)
-					targetfps = 1;
-				if (targetfps > 1000)
-					targetfps = 1000;
+				clientCfg.targetfps = strtol(argv[i], NULL, 10);
+				if (clientCfg.targetfps < 1)
+					clientCfg.targetfps = 1;
+				if (clientCfg.targetfps > 1000)
+					clientCfg.targetfps = 1000;
 			}
 		}
 		else if (!strcmp(argv[i], "-maxp")) {
 			if (++i < argc) {
-				server_maxplayers = strtol(argv[i], NULL, 10);
-				if (server_maxplayers % 2 == 1)	//ímpar: des-impariza
-					server_maxplayers++;
-				if (server_maxplayers < 2)
-					server_maxplayers = 2;
-				if (server_maxplayers > MAX_PLAYERS)
-					server_maxplayers = MAX_PLAYERS;
+				serverCfg.server_maxplayers = strtol(argv[i], NULL, 10);
+				if (serverCfg.server_maxplayers % 2 == 1)	//ímpar: des-impariza
+					serverCfg.server_maxplayers++;
+				if (serverCfg.server_maxplayers < 2)
+					serverCfg.server_maxplayers = 2;
+				if (serverCfg.server_maxplayers > MAX_PLAYERS)
+					serverCfg.server_maxplayers = MAX_PLAYERS;
 			}
 		}
 		else if (!strcmp(argv[i], "-port")) {
 			if (++i < argc)
-				port = strtol(argv[i], NULL, 10);
+				serverCfg.port = strtol(argv[i], NULL, 10);
 		}
 		else if (!strcmp(argv[i], "-nosound"))
-			nosound = true;	//#fix: forward to client
+			clientCfg.nosound = true;
 		else if (!strcmp(argv[i], "-ip")) {
 			if (++i < argc) {
-				force_ip = true;			//force IP
-				strcpy(force_ip_name, argv[i]);	//to next parameter value
+				serverCfg.force_ip = true;			//force IP
+				serverCfg.force_ip_name = argv[i];	//to next parameter value
 			}
 		}
 		else if (!strcmp(argv[i], "-mappic")) {
@@ -231,7 +247,6 @@ int main(int argc, char *argv[]) {
 	nlEnable(NL_SOCKET_STATS);
 
 	// resolve master server address
-	// #FIXME: move master server resolving to connection menu
 	log("resolving master server address...");
 	ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 	string name, address;
@@ -292,9 +307,7 @@ int main(int argc, char *argv[]) {
 		sprintf(infobuf, "Information:\n\nThread priorities for -prio <val> parameter:\n* Minimum -prio <val> : %i\n* Maximum -prio <val> : %i\n* System default (use -defaultprio) : %i\n\nLocal addresses:\n", pmin, pmax, pdef);
 
 		for (int z=0;z<locsize;z++) {
-			char adrs[222];
-			nlAddrToString( &(locals[z]), adrs );
-			strcat(infobuf, adrs);
+			strcat(infobuf, addressToString(locals[z]).c_str());
 			strcat(infobuf, "\n");
 		}
 
@@ -305,11 +318,15 @@ int main(int argc, char *argv[]) {
 	GlobalCloseButtonHook::install();
 
 	// run dedicated server
-	if (dedserver) {
-		// here must get the safest and shittiest windowed gfx mode available
-		if (!textserver)
-			if (!set_shitty_mode(log))
-				textserver = true;		// if 320×240 mode can't be set, use textserver
+	if (serverCfg.dedserver) {
+		if (textserver)
+			serverCfg.statusOutput = statusOutputText;
+		else {
+			if (!set_shitty_mode(log))	// if 320×240 mode can't be set, use textserver
+				serverCfg.statusOutput = statusOutputText;
+			else
+				serverCfg.statusOutput = statusOutputWindow;
+		}
 
 		// dedicated server - set process priority (all threads) to a higher value
 		//		--> threads filhas estao com as priorities certas? LOGAR pra  ver. senao mudar p/ INHERIT
@@ -348,8 +365,8 @@ int main(int argc, char *argv[]) {
 			log("set SWITCH_BACKAMNESIA for SERVER");
 
 		// run server
-		gameserver_c* gameserver = new gameserver_c(log);
-		if (!gameserver->start(server_maxplayers)) {
+		GameserverInterface* gameserver = new GameserverInterface(log, serverCfg);
+		if (!gameserver->start(serverCfg.server_maxplayers)) {
 			allegro_message("ERROR: cannot start gameserver!");
 			return 0;
 		}
@@ -373,11 +390,10 @@ int main(int argc, char *argv[]) {
 		if (!check_dir("stats"))
 			log.error("Directory 'stats' not found.");
 
-		//window title
-		server_status_string("Outgun client - CTRL+F12 to quit");
-
 		// run client
-		gameclient = new gameclient_c(log);
+		clientCfg.statusOutput = statusOutputWindow;
+		serverCfg.statusOutput = statusOutputWindow;
+		gameclient = new gameclient_c(log, clientCfg, serverCfg);
 		if (!gameclient->start()) {
 			allegro_message("ERROR: cannot start gameclient!");
 			return 0;

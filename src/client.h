@@ -3,6 +3,7 @@
 
 #include "client_menus.h"
 #include "function_utility.h"
+#include "gameserver_interface.h"
 #include "graphics.h"
 #include "log.h"
 #include "menu.h"
@@ -52,14 +53,14 @@ class ServerThreadOwner {
 	int runPort;
 	Thread serverThread;
 
-	void threadFn();
+	void threadFn(const ServerExternalSettings& config);
 
 public:
 	ServerThreadOwner(LogSet logs) : log(logs), threadFlag(false), quitFlag(true) { }
 	~ServerThreadOwner() { if (threadFlag) stop(); }
 	bool running() { if (quitFlag && threadFlag) stop(); nAssert(quitFlag != threadFlag); return !quitFlag; }
 	int port() const { return runPort; }
-	void start(int port);
+	void start(int port, const ServerExternalSettings& config);
 	void stop();
 };
 
@@ -114,6 +115,19 @@ private:
 	void start();
 	void threadFn();
 	void setToken(const std::string& newToken);
+};
+
+class ClientExternalSettings {
+public:
+	int winclient;		// windowed client? ; -1 = undefined, 0 = false, 1 = true (-win / -fs)
+	int trypageflip;	// try page flipping? ; -1 = undefined, 0 = false, 1 = true (-flip / -dbuf)
+	bool nosound;		// disable sound? -nosound
+	int targetfps;		// target (MAX) frames-per-second ; -1 = undefined
+
+	typedef void StatusOutputFnT(const std::string& str);
+	StatusOutputFnT* statusOutput;
+
+	ClientExternalSettings() : winclient(-1), trypageflip(-1), nosound(false), targetfps(-1) { }
 };
 
 class client_c;	// of leetnet
@@ -191,20 +205,19 @@ class gameclient_c {
 	Menu_text m_errors;
 	Menu_playerPassword m_playerPassword;
 	Menu_serverPassword m_serverPassword;
+	Menu_text m_serverInfo;
+	Menu_text m_help;
 
 	MenuStack openMenus;
 
 	Menu_selection menusel;	// a special screen rather than menu: maplist, stats
 	bool gameshow;
-	bool helpshow;
 	double FPS;
 	int framecount, totalframecount;
 	double frameCountStartTime;
 	int gameover_plaque;
 	int red_final_score, blue_final_score;
-	int scoreboard[MAX_PLAYERS];
 	std::string hostname;
-	int strlen_hostname;
 	std::string edit_map_vote;
 	int player_stats_page;
 
@@ -230,6 +243,9 @@ class gameclient_c {
 	Sounds client_sounds;
 
 	std::ofstream message_log;
+
+	const ClientExternalSettings extConfig;
+	const ServerExternalSettings serverExtConfig;
 
 	class GFXMode {
 	public:
@@ -267,6 +283,7 @@ class gameclient_c {
 	void MCF_screenModeChange();
 	void MCF_gfxThemeChange();
 	void MCF_antialiasChange();
+	void MCF_statsBgChange();
 	void MCF_prepareGfxMenu();
 	void MCF_prepareDrawGfxMenu();
 	void MCF_sndEnableChange();
@@ -278,6 +295,8 @@ class gameclient_c {
 	void MCF_refreshServers();
 	void MCF_prepareAddServer();
 	void MCF_addServer();
+	bool MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr);
+	void MCF_loadHelp();
 	void MCF_playerPasswordAccept();
 	void MCF_serverPasswordAccept();
 	void MCF_clearErrors();
@@ -289,7 +308,7 @@ class gameclient_c {
 	void setMaxPlayers(int num) { maxplayers = num; fx.setMaxPlayers(num); fd.setMaxPlayers(num); }
 
 public:
-	gameclient_c(LogSet hostLogs);
+	gameclient_c(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig);
 	virtual ~gameclient_c();
 	bool start();
 	void loop(volatile bool* quitFlag);
@@ -299,6 +318,7 @@ public:
 	void rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy);
 	void rocketOutOfBoundsCallback(int rid);
 	void playerHitWallCallback(int pid);
+	void playerHitPlayerCallback(int pid1, int pid2);
 	bool shouldApplyPhysicsToPlayerCallback(int pid);
 
 	// network
@@ -310,6 +330,7 @@ public:
 	void connect_failed_denied(char* data, int length);
 	void connect_failed_unreachable();
 	void send_player_token();
+	void send_tournament_participation();
 	void issue_change_name_command();
 	void change_name_command();
 	void send_client_ready();
@@ -342,7 +363,6 @@ public:
 	void draw_game_frame();
 	void draw_player(int pid);
 	void draw_game_menu();
-	void update_scoreboard();
 };
 
 extern gameclient_c *gameclient;

@@ -50,12 +50,53 @@ private:
 	};
 };
 
+class ClientLoginStatus {
+public:
+	NLubyte toNetwork() const { return data; }
+	void fromNetwork(NLubyte byte) { data = byte; }
+
+	std::string strFlags() const {
+		std::string s;
+		s += token     () ? (masterAuth() ? 'M' : '?') : ' ';
+		s += tournament() ? (masterAuth() ? 'T' : '?') : ' ';
+		s += localAuth () ? 'S' : ' ';
+		s += admin     () ? 'A' : ' ';
+		return s;
+	}
+
+	bool token     () const { return data & SB_token;      }	// client has reported a token
+	bool masterAuth() const { return data & SB_masterAuth; }	// client's token has been authorized by master
+	bool tournament() const { return data & SB_tournament; }	// client's score is being recorded for tournament scoring
+	bool localAuth () const { return data & SB_localAuth;  }	// client has been authorized by the server's auth.txt
+	bool admin     () const { return data & SB_admin;      }	// client is an admin on this server
+
+	void setToken     (bool b) { data = (data & (~SB_token     )) | (b ? SB_token      : 0); }
+	void setMasterAuth(bool b) { data = (data & (~SB_masterAuth)) | (b ? SB_masterAuth : 0); }
+	void setTournament(bool b) { data = (data & (~SB_tournament)) | (b ? SB_tournament : 0); }
+	void setLocalAuth (bool b) { data = (data & (~SB_localAuth )) | (b ? SB_localAuth  : 0); }
+	void setAdmin     (bool b) { data = (data & (~SB_admin     )) | (b ? SB_admin      : 0); }
+
+	bool operator==(const ClientLoginStatus& o) const { return data == o.data; }
+	bool operator!=(const ClientLoginStatus& o) const { return data != o.data; }
+
+private:
+	enum StatusBit {
+		SB_token = 1,
+		SB_masterAuth = 2,
+		SB_tournament = 4,
+		SB_localAuth = 8,
+		SB_admin = 16
+	};
+
+	NLubyte data;
+};
+
 //play area width/height
 #define plw 472
 #define plh 354
 
 #define PLAYER_RADIUS 15
-#define SHIELD_RADIUS 24
+#define SHIELD_RADIUS_ADD 9	// this is added to PLAYER_RADIUS
 #define ROCKET_RADIUS 4
 #define QUAD_ROCKET_RADIUS 6
 
@@ -69,9 +110,6 @@ private:
 #define ROCKET_SPEED 50.0	//in pixels/0.1s
 
 #define MIN_HEALTH_FOR_RUN_PENALTY 40
-
-//#define DEBUG_POWERUPS
-//#define REALLY_DEBUG_POWERUPS	//define only if DEBUG_POWERUPS defined
 
 // GAME VERSION / GAME STRING
 //
@@ -109,22 +147,6 @@ extern std::string wheregamedir;
 
 #define MAX_PICKUPS MAX_PLAYERS // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
 
-extern bool dedserver;		//dedicated server? -ded
-extern bool textserver;		//textmode dedicated server for UNIX/LINUX (V0.5.0) (WON'T WORK ON WINDOWS...)
-
-extern int port;			//the server port
-extern bool privateserver;	//private server? (will not publish)
-extern bool force_ip;		//force IP?
-extern char force_ip_name[32];	//force IP to what?
-extern int server_maxplayers;	//maxplayers for the local server, given on the command line (don't use anywhere new)
-
-extern bool winclient;		//windowed client?  -win / -fs
-extern bool trypageflip;	//try page flipping? -flip / -dbuf
-extern bool nosound;		//disable sound? -nosound
-extern int targetfps;		//target (MAX) frames-per-second
-
-void server_status_string(const std::string& str);
-
 extern volatile unsigned long server_speed_counter;	// 10 Hz (100 ms) server frame counter
 extern volatile unsigned long time_counter;	// 200 Hz (5 ms) counter used by get_time() and for client frame timing
 //#fix: time_counter goes around in 248 days; that might cause serious trouble (?)
@@ -152,6 +174,7 @@ enum {
 	SAMPLE_CHANGETEAM,
 	SAMPLE_TALK,
 	SAMPLE_WALLBOUNCE,
+	SAMPLE_PLAYERBOUNCE,
 
 	SAMPLE_WEAPON_UP,
 

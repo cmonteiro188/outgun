@@ -34,13 +34,14 @@ using std::string;
 using std::swap;
 using std::vector;
 
-gameserver_c::gameserver_c(LogSet& hostLogs) :
+gameserver_c::gameserver_c(LogSet& hostLogs, const ServerExternalSettings& config) :
 	normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
 	errorLog(normalLog, "ERROR: "),
 	securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
 	log(&normalLog, &errorLog, &securityLog),
 	world(this, &network, log),
 	network(this, world, log),
+	extConfig(config),
 	authorizations(log)
 {
 	hostLogs("See serverlog.txt for server's log messages");
@@ -95,7 +96,9 @@ void gameserver_c::kickPlayer(int pid, int admin, bool ban) {
 #ifdef SV_NAME_AUTHORIZATION
 void gameserver_c::banPlayer(int pid, int admin) {
 	authorizations.load();
-	authorizations.ban(network.get_client_address(world.player[pid].cid), admin == -1);	// allow hard bans only to 'hard' admin because of the required IP tracking
+	NLaddress addr = network.get_client_address(world.player[pid].cid);
+	const int minutes = (admin == -1 ? 60 * 24 * 100 : 60);	// allow long bans only to 'hard' admin because of the required IP tracking
+	authorizations.ban(addr, world.player[pid].name, minutes);
 	authorizations.save();
 	kickPlayer(pid, admin, true);
 }
@@ -106,17 +109,25 @@ bool gameserver_c::check_name_password(const string& name, const string& passwor
 #endif
 
 void gameserver_c::ctf_game_restart() {
-	//submit all pending reports
+	//submit all pending reports and update tournament participation flags
 	for (int i = 0; i < maxplayers; i++)
-		if (world.player[i].used)
+		if (world.player[i].used) {
 			network.client_report_status(world.player[i].cid);
+			if (client[world.player[i].cid].current_participation != client[world.player[i].cid].next_participation) {
+				client[world.player[i].cid].current_participation = client[world.player[i].cid].next_participation;
+				network.broadcast_player_crap(i);
+			}
+		}
 
 	char lix[256];
 	sprintf(lix, "CTF GAME OVER - FINAL SCORE: RED %i - BLUE %i", world.teams[0].score(), world.teams[1].score());
 	network.broadcast_message(msg_info, lix);
 
-	if (worldConfig.balance_teams)
+	if (worldConfig.balanceTeams()) {
 		balance_teams();
+		if (worldConfig.balanceTeams() == WorldSettings::TB_balance_and_shuffle)
+			shuffle_teams();
+	}
 
 	if (worldConfig.getTimeLimit() == 0)
 		sprintf(lix, "CAPTURE %i FLAGS TO WIN THE GAME", worldConfig.getCaptureLimit());
@@ -151,6 +162,21 @@ void gameserver_c::balance_teams() {
 			}
 		difference = team[0].size() - team[1].size();
 	}
+}
+
+void gameserver_c::shuffle_teams() {
+	vector<int> players;
+	for (int i = 0; i < maxplayers; i++)
+		if (world.player[i].used)
+			players.push_back(i);
+	vector<int> swap = players;
+	random_shuffle(swap.begin(), swap.end());
+	for (int i = 0, sw = 0; i < maxplayers; i++)
+		if (world.player[i].used) {
+			if (players[sw] / TSIZE != swap[sw] / TSIZE)
+				swap_players(players[sw], swap[sw]);
+			sw++;
+		}
 }
 
 //check if team change requests can be satisfied
@@ -396,55 +422,42 @@ void gameserver_c::score_frag(int p, int amount) {
 	//add regular frags amount
 	world.player[p].stats().add_frag(amount);
 
-	//v0.4.4 -- add score to the player's score accumulator
-	//v0.4.7: DO NOT add score if map is not valid for scoring
-	if (world.map.valid_for_scoring)
-	if (network.get_player_count() >= 2) { //v0.4.7.1 : skip the scoring if only one player present
+	const int cid = world.player[p].cid;
+
+	// add tournament scoring delta if all criteria for tournament scoring are satisfied
+	if (tournament && world.map.valid_for_scoring && network.get_player_count() >= 2 && client[cid].current_participation) {
 		//refresh team ratings
 		refresh_team_score_modifiers();
-
-		int cid = world.player[p].cid;
 
 		double parcela = ((double)amount) * team_smul[p/TSIZE];
 
 		//add normalizado
 		client[cid].fdp += parcela;
 
-		//refresh "inteiro version"
+		//refresh integer version
 		client[cid].delta_score = (int)(client[cid].fdp);
 	}
 }
 
 //score! NEG FRAG (v0.4.8)
 void gameserver_c::score_neg(int p, int amount) {
-
 	//add regular frags amount
 	//world.player[p].frags += amount;
 
-	//v0.4.4 -- add score to the player's score accumulator
-	//v0.4.7: DO NOT add score if map is not valid for scoring
-	if (world.map.valid_for_scoring)
-	if (network.get_player_count() >= 2) { //v0.4.7.1 : skip the scoring if only one player present
+	const int cid = world.player[p].cid;
 
+	// add tournament scoring delta if all criteria for tournament scoring are satisfied
+	if (tournament && world.map.valid_for_scoring && network.get_player_count() >= 2 && client[cid].current_participation) {
 		//refresh team ratings
 		refresh_team_score_modifiers();
-
-		int cid = world.player[p].cid;
 
 		double parcela = ((double)amount);		// NAO multiplica....
 
 		//add normalizado
 		client[cid].fdn += parcela;
 
-		//refresh "inteiro version"
+		//refresh integer version
 		client[cid].neg_delta_score = (int)(client[cid].fdn);
-
-		//DEBUGz
-		//char lix[256];
-		//sprintf(lix, "%s scores -%.4f for %.4f -delta", world.player[p].name.c_str(), parcela, client[cid].fdn);
-		//network.broadcast_message(lix);
-
-		//client[cid].neg_delta_score += amount;		//just add the frags for now V0.4.8: NEG SCORE!
 	}
 }
 
@@ -603,10 +616,14 @@ void gameserver_c::load_game_mod() {
 						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				}
 				else if (cmd == "balance_teams") {
-					if (ival == 0 || ival == 1)
-						worldConfig.balance_teams = (ival == 1);
+					if (line == "no")
+						worldConfig.balance_teams = WorldSettings::TB_disabled;
+					else if (line == "balance")
+						worldConfig.balance_teams = WorldSettings::TB_balance;
+					else if (line == "shuffle")
+						worldConfig.balance_teams = WorldSettings::TB_balance_and_shuffle;
 					else
-						log.error("Can't set %s to %d", cmd.c_str(), ival);
+						log.error("Can't set %s to %s", cmd.c_str(), line.c_str());
 				}
 				else if (cmd == "server_name")
 					network.set_hostname(line);
@@ -724,6 +741,11 @@ void gameserver_c::load_game_mod() {
 					sayadmin_comment = line;
 				else if (cmd == "server_website")
 					server_website_url = line;
+				else if (cmd == "tournament")
+					if (ival == 0 || ival == 1)
+						tournament = (ival == 1);
+					else
+						log.error("Can't set %s to %d", cmd.c_str(), ival);
 				else
 					log.error("*** Bad command in gamemod: %s", cmd.c_str());
 			}
@@ -838,27 +860,28 @@ bool gameserver_c::reset_settings(bool keepMap) {
 		currMapFile = maprot[currmap].file;
 
 	world.physics = PhysicalSettings();	// default values
-
+	maprot.clear();
 	pupConfig.reset();
 	worldConfig.reset();
-
-	vote_block_time = 0;	// no limit
-	idlekick_time = 0;		// no limit
-	game_end_delay = 5;
-
-	random_maprot = false;
-	// reset server rotation list
 	currmap = 0;
 
-	sayadmin_comment.clear();
-	sayadmin_enabled = false;
+	network.set_hostname("");
+	network.set_server_password("");
+
+	game_end_delay = 5;
+	random_maprot = false;
+	vote_block_time = 0;	// no limit
+	idlekick_time = 0;		// no limit
 
 	welcome_message.clear();
 	info_message.clear();
 
+	sayadmin_comment.clear();
+	sayadmin_enabled = false;
+
 	server_website_url.clear();
 
-	maprot.clear();
+	tournament = true;
 
 	// load server configuration from gamemod.txt
 	load_game_mod();
@@ -908,6 +931,8 @@ bool gameserver_c::reset_settings(bool keepMap) {
 			currmap = -1;
 			server_next_map(NEXTMAP_VOTE_EXIT);
 		}
+		else
+			currmap = mapi;
 	}
 	return true;
 }
@@ -1008,12 +1033,11 @@ void gameserver_c::nameChange(int id, int pid, const string& tempname, const std
 	bool entered_game = world.player[pid].name.empty();
 
 	// Name with only whitespaces not allowed.
-	if (tempname.find_first_not_of("  \t") == string::npos)	// space, no-brake space, tab
+	if (tempname.find_first_not_of("  \t") == string::npos || tempname.length() > 15)	// space, no-brake space, tab
 		disconnectPlayer(pid, disconnect_client_misbehavior);
 	else {
 		#ifdef SV_NAME_AUTHORIZATION
-		int nid = authorizations.identifyName(tempname);
-		if (nid == -1 || authorizations.authorize(nid, password)) {
+		if (authorizations.checkNamePassword(tempname, password)) {
 			world.player[pid].name = tempname;
 			world.player[pid].waitnametime = get_time() + 1.0;
 		}
@@ -1150,14 +1174,14 @@ void gameserver_c::chat(int pid, const char* sbuf) {
 			world.printTimeStatus(pm);
 		}
 		else if (!strcmp(cbuf, "list") && admin) {
-			network.player_message(pid, msg_header, "Players on server: ID, name");
+			network.player_message(pid, msg_header, "Players on server: ID, login flags, name");
 			for (int ppid = 0; ppid < MAX_PLAYERS; ) {
 				char buf[100];
 				int bufi = 0;
 				for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
 					if (world.player[ppid].used) {
-						sprintf(buf+bufi, "%2d %c%-22s", ppid, world.player[ppid].reg_status, world.player[ppid].name.c_str());
-						bufi+=26;
+						sprintf(buf + bufi, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
+						bufi += 26;
 						++onrow;
 					}
 				if (bufi > 0)
@@ -1370,10 +1394,10 @@ void gameserver_c::loop(volatile bool *quitFlag, bool quitOnEsc) {
 			ostringstream status;
 			status << network.get_player_count() << '/' << maxplayers << "p ";
 			status << setprecision(1) << std::fixed << network.getTraffic() << "k/s v" << GAME_VERSION;
-			status << " port:" << port;
+			status << " port:" << extConfig.port;
 			if (quitOnEsc)
 				status << " ESC:quit";
-			server_status_string(status.str());
+			extConfig.statusOutput(status.str());
 		}
 
 		// executa algo para todos os players
@@ -1409,8 +1433,8 @@ void gameserver_c::clearWorldRankingDeltas() {
 	}
 }
 
-GameserverInterface::GameserverInterface(LogSet& hostLog) {
-	host = new gameserver_c(hostLog);
+GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings) {
+	host = new gameserver_c(hostLog, settings);
 }
 
 GameserverInterface::~GameserverInterface() {

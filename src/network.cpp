@@ -24,9 +24,9 @@ const char* getNlErrorString() {
 		return nlGetErrorStr(nlGetError());
 }
 
-bool check_private_IP(const char *address) {
+bool check_private_IP(const string& address) {
 	int i1, i2;
-	int n = sscanf(address, "%d.%d.", &i1, &i2);
+	int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
 	nAssert(n == 2);
 	if (n != 2)
 		return false;
@@ -43,18 +43,23 @@ string getPublicIP(LogSet& log) {
 	NLint nLocals;
 	locals = nlGetAllLocalAddr(&nLocals);
 	for (int i = 0; i < nLocals; ++i) {
-		char buf[NL_MAX_STRING_LENGTH];
-		nlAddrToString(&locals[i], buf);
-		bool priv = check_private_IP(buf);
+		string addr = addressToString(locals[i]);
+		bool priv = check_private_IP(addr);
 		if (priv)
-			log("Local address %s ignored", buf);
+			log("Local address %s ignored", addr.c_str());
 		else {
-			log("Found public address %s", buf);
-			return buf;
+			log("Found public address %s", addr.c_str());
+			return addr;
 		}
 	}
 	log("No public address found");
 	return string();
+}
+
+string addressToString(const NLaddress& address) {
+	char buf[NL_MAX_STRING_LENGTH];
+	nlAddrToString(&address, buf);
+	return buf;
 }
 
 bool writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
