@@ -16,7 +16,7 @@ public:
 
 	Menu_addServer();
 
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_serverList {
@@ -24,6 +24,7 @@ class Menu_serverList {
 
 public:
 	Checkbox		favorites;
+	Textarea		refreshStatus;
 	Textarea		update;
 	Textarea		refresh;
 	Menu_addServer	addServer;
@@ -34,10 +35,10 @@ public:
 	Menu_serverList();
 	void add(const std::string& address, const std::string& serverInfo);
 	void reset();
-	void addHooks(Hookable<Textarea>::HookFunctionT* hook);
+	void addHooks(MenuHookable<Textarea>::HookFunctionT* hook);
 	std::string getAddress(const Textarea& target);
 
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener);
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_name {
@@ -51,7 +52,7 @@ public:
 	Menu menu;
 
 	Menu_name();
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_game {
@@ -66,7 +67,7 @@ public:
 	Menu menu;
 
 	Menu_game();
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_graphics {
@@ -90,7 +91,7 @@ public:
 	void update(const Graphics& gfx);	// tries to keep the selected resolution and theme
 	bool newMode();
 
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_sounds {
@@ -105,7 +106,7 @@ public:
 	void init(const Sounds& snd);
 	void update(const Sounds& snd);	// tries to keep the selected theme
 
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_options {
@@ -118,7 +119,7 @@ public:
 	Menu menu;
 
 	Menu_options();
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener);
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_main {
@@ -132,7 +133,7 @@ public:
 	Menu menu;
 
 	Menu_main();
-	void recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener);
+	void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_text {

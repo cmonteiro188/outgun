@@ -19,7 +19,6 @@ class TriWall;
 class CircWall;
 class ClientPlayer;
 class Sounds;
-class gamespy_t;
 class clientfx_t;
 class Team;
 class Flag;

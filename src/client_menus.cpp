@@ -25,13 +25,14 @@ Menu_addServer::Menu_addServer() :
 }
 
 Menu_serverList::Menu_serverList() :
-	favorites	("Favorite servers only"),
-	update		("Update server list"),
-	refresh		("Refresh servers"),
-	addServer	(),
-	caption		("IP address            Ping Players Version Host name"),
+	favorites		("Favorite servers only"),
+	refreshStatus	("Refresh status"),
+	update			("Update server list"),
+	refresh			("Refresh servers"),
+	addServer		(),
+	caption			("IP address            Ping Players Version Host name"),
 
-	menu		("Server list")
+	menu			("Server list")
 {
 	reset();
 }
@@ -44,13 +45,14 @@ void Menu_serverList::reset() {
 	menu.clear_components();
 	servers.clear();
 	menu.add_component(&favorites);
+	menu.add_component(&refreshStatus);
 	menu.add_component(&update);
 	menu.add_component(&refresh);
 	menu.add_component(&addServer.menu);
 	menu.add_component(&caption);
 }
 
-void Menu_serverList::addHooks(Hookable<Textarea>::HookFunctionT* hook) {
+void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) {
 	for (std::vector<std::pair<std::string, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
 		servi->second.setHook(hook->clone());
 		menu.add_component(&servi->second);
@@ -66,7 +68,7 @@ std::string Menu_serverList::getAddress(const Textarea& target) {
 	return std::string();
 }
 
-void Menu_serverList::recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) {
+void Menu_serverList::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
 	menu.setHook(opener);
 	addServer.recursiveSetMenuOpener(opener->clone());
 }
@@ -200,7 +202,7 @@ Menu_options::Menu_options() :
 	menu.add_component(&sounds.menu);
 }
 
-void Menu_options::recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) {
+void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
 	menu.setHook(opener);
 	name	.recursiveSetMenuOpener(opener->clone());
 	game	.recursiveSetMenuOpener(opener->clone());
@@ -224,7 +226,7 @@ Menu_main::Menu_main() :
 	menu.add_component(&stopServer);
 }
 
-void Menu_main::recursiveSetMenuOpener(Hookable<Menu>::HookFunctionT* opener) {
+void Menu_main::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
 	menu.setHook(opener);
 	connect.recursiveSetMenuOpener(opener->clone());
 	options.recursiveSetMenuOpener(opener->clone());

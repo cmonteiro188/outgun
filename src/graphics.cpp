@@ -103,7 +103,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed) {
 		rocket_sprite[t] = 0;
 		power_rocket_sprite[t] = 0;
 	}
-	pup_sprite.resize(Powerup::pup_respawning, 0);
+	pup_sprite.resize(Powerup::pup_last_real + 1, 0);
 	plx = 0;
 	ply = SCREEN_H - scale(plh) - 35;
 	background = create_bitmap(SCREEN_W, SCREEN_H);

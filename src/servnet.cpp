@@ -2144,11 +2144,12 @@ void ServerNetworking::run_mastertalker_thread() {
 	nlOpenMutex.lock();
 	nlEnable(NL_BLOCKING_IO);
 	msock = nlOpen(0, NL_RELIABLE);
-	nlDisable(NL_BLOCKING_IO);			//nonblocking socket, let's make this simple...
+	nlDisable(NL_BLOCKING_IO);
 	nlOpenMutex.unlock();
 
 	if (msock == NL_INVALID) {
 		log.error("Master talker: (Quit) Server can't open socket to connect to master server.");
+		master_exiting_ok = true;
 		return;
 	}
 
@@ -2157,6 +2158,7 @@ void ServerNetworking::run_mastertalker_thread() {
 		log.error("Master talker: (Quit) Server can't connect to master server.");
 		nlClose(msock);
 		msock = NL_INVALID;
+		master_exiting_ok = true;
 		return;
 	}
 

@@ -500,7 +500,6 @@ private:
 class Powerup {
 public:
 	enum Pup_type {
-		pup_unused,
 		pup_shield,
 		pup_turbo,
 		pup_shadow,
@@ -508,6 +507,8 @@ public:
 		pup_weapon,
 		pup_health,
 		pup_deathbringer,
+		pup_last_real = pup_deathbringer,
+		pup_unused,
 		pup_respawning
 	};
 

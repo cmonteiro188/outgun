@@ -204,15 +204,4 @@ enum {
 	NUM_OF_SAMPLES
 };
 
-//server record
-struct gamespy_t {
-	NLaddress addr;
-	std::string address;  //IP-address typein buffer
-	bool invalid;
-	bool noresponse;
-	bool favs;  //hack
-	bool refreshed; //if data below is valid -------------
-	std::string info;
-};
-
 #endif

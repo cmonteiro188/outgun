@@ -34,8 +34,36 @@ protected:
 	bool enabled;
 };
 
+template<class CallerT>
+class MenuHookable : public Hookable1<void, CallerT&> { };
+
+template<class CallerT>
+class MenuHook : public Hook1<void, CallerT&> {	};
+
+template<class CallerT>
+class KeyHookable {
+	// can't privately inherit KeyHookable from Hookable3 because the compiler still makes ambiguities of the functions when inheriting from KeyHookable!
+	class Helper : public Hookable3<bool, CallerT&, char, unsigned char> {
+	public:
+		bool callHook_helper(CallerT& a1, char a2, unsigned char a3) { return callHook(a1, a2, a3); }
+	};
+	Helper helper;
+
+public:
+	typedef typename Hookable3<bool, CallerT&, char, unsigned char>::HookFunctionT HookFunctionT;
+
+	void setKeyHook(HookFunctionT* fn) { helper.setHook(fn); }	// the ownership is transferred
+	bool isKeyHooked() const { return helper.isHooked(); }
+
+protected:
+	bool callKeyHook(CallerT& a1, char a2, unsigned char a3) { return helper.callHook_helper(a1, a2, a3); }
+};
+
+template<class CallerT>
+class KeyHook : public Hook3<bool, CallerT&, char, unsigned char> { };
+
 // Menu being a Component is a hack: the Component part is a link to the menu
-class Menu : public Component, public Hookable<Menu> {
+class Menu : public Component, public MenuHookable<Menu> {
 public:
 	Menu(const std::string& caption_): Component(caption_), selected_item(0) { }
 
@@ -48,10 +76,10 @@ public:
 	void draw(BITMAP* buffer);	// no const because drawHook might modify the menu
 	void handleKeypress(char scan, unsigned char chr);
 
-	void  setDrawHook(Hook<Menu>::FunctionT* fn) {  drawHook.set(fn); }	// called before drawing
-	void  setOpenHook(Hook<Menu>::FunctionT* fn) {  openHook.set(fn); }	// called by open()
-	void setCloseHook(Hook<Menu>::FunctionT* fn) { closeHook.set(fn); }	// called by close()
-	void    setOkHook(Hook<Menu>::FunctionT* fn) {    okHook.set(fn); }	// called when enter is pressed (and not handled by active entry)
+	void  setDrawHook(MenuHook<Menu>::FunctionT* fn) {  drawHook.set(fn); }	// called before drawing
+	void  setOpenHook(MenuHook<Menu>::FunctionT* fn) {  openHook.set(fn); }	// called by open()
+	void setCloseHook(MenuHook<Menu>::FunctionT* fn) { closeHook.set(fn); }	// called by close()
+	void    setOkHook(MenuHook<Menu>::FunctionT* fn) {    okHook.set(fn); }	// called when enter is pressed (and not handled by active entry)
 
 	// inherited interface
 	int width() const;
@@ -71,7 +99,7 @@ private:
 	std::vector<Component*> components;
 	int selected_item;
 
-	Hook<Menu> drawHook, openHook, closeHook, okHook;
+	MenuHook<Menu> drawHook, openHook, closeHook, okHook;
 };
 
 class MenuStack {
@@ -89,7 +117,7 @@ private:
 	std::stack<Menu*> st;
 };
 
-class Textfield : public Component, public Hookable<Textfield> {
+class Textfield : public Component, public MenuHookable<Textfield> {
 public:
 	Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0): Component(caption_), value(init_text), maxlen(fieldLength), maskChar(mask) { }
 	void set(const std::string& text) { value = text; }
@@ -126,7 +154,7 @@ protected:
 };
 
 template<class ValueT>
-class Select : public SelectBase, public Hookable< Select<ValueT> > {
+class Select : public SelectBase, public MenuHookable< Select<ValueT> > {
 public:
 	Select(const std::string caption_): SelectBase(caption_) { }
 	void clearOptions() { options.clear(); values.clear(); selected = 0; }
@@ -140,7 +168,7 @@ private:
 	std::vector<ValueT> values;	// should always be in sync with options
 };
 
-class Colorselect : public Component, public Hookable<Colorselect> {
+class Colorselect : public Component, public MenuHookable<Colorselect> {
 public:
 	Colorselect(const std::string caption_): Component(caption_), selected(0), graphics(0) { }
 	void setGraphicsCallBack(const Graphics& graph) { graphics = &graph; }
@@ -163,7 +191,7 @@ private:
 	const Graphics* graphics;
 };
 
-class Checkbox : public Component, public Hookable<Checkbox> {
+class Checkbox : public Component, public MenuHookable<Checkbox> {
 public:
 	Checkbox(const std::string& caption_, bool init_value = false): Component(caption_), checked(init_value) { }
 	void toggle() { checked = !checked; }
@@ -180,7 +208,7 @@ private:
 	bool checked;
 };
 
-class Slider : public Component, public Hookable<Slider> {
+class Slider : public Component, public MenuHookable<Slider> {
 public:
 	Slider(const std::string caption_, int vmin_, int vmax_) : Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_) { }
 	Slider(const std::string caption_, int vmin_, int vmax_, int init_value) : Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value) { }
@@ -197,7 +225,7 @@ private:
 	int vmin, vmax, val;
 };
 
-class Textarea : public Component, public Hookable<Textarea>, public KeyHookable<Textarea> {
+class Textarea : public Component, public MenuHookable<Textarea>, public KeyHookable<Textarea> {
 public:
 	Textarea(const std::string& caption_, const std::string& text_ = std::string()): Component(caption_), text(text_) { }
 	void set(const std::string& val) { text = val; }
@@ -225,7 +253,7 @@ template<class CallClassT>
 class MenuCallback {
 public:
 	template<class ArgT, void (CallClassT::*memFun)(ArgT&)>
-	class A : public HookFunctionBase<ArgT> {
+	class A : public HookFunctionBase1<void, ArgT&> {
 	public:
 		A(CallClassT* host_) : host(host_) { }
 		void operator()(ArgT& obj) { (host->*memFun)(obj); }
@@ -236,10 +264,36 @@ public:
 	};
 
 	template<class ArgT, void (CallClassT::*memFun)()>
-	class N : public HookFunctionBase<ArgT> {
+	class N : public HookFunctionBase1<void, ArgT&> {
 	public:
 		N(CallClassT* host_) : host(host_) { }
 		void operator()(ArgT&) { (host->*memFun)(); }
+		N* clone() { return new N(host); }
+
+	private:
+		CallClassT* host;
+	};
+};
+
+template<class CallClassT>
+class MenuKeyCallback {
+public:
+	template<class ArgT, void (CallClassT::*memFun)(ArgT&)>
+	class A : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
+	public:
+		A(CallClassT* host_) : host(host_) { }
+		bool operator()(ArgT& obj, char scan, unsigned char chr) { return (host->*memFun)(obj, scan, chr); }
+		A* clone() { return new A(host); }
+
+	private:
+		CallClassT* host;
+	};
+
+	template<class ArgT, void (CallClassT::*memFun)()>
+	class N : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
+	public:
+		N(CallClassT* host_) : host(host_) { }
+		bool operator()(ArgT&, char scan, unsigned char chr) { return (host->*memFun)(scan, chr); }
 		N* clone() { return new N(host); }
 
 	private:

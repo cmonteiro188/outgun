@@ -125,6 +125,8 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	current_map(-1),
 	map_vote(-1),
 	player_stats_page(0),
+	abortThreads(false),
+	refreshStatus(RS_none),
 	password_file("passwd.txt"),
 	client_graphics(log),
 	screenshot(false),
@@ -165,9 +167,6 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 	//connected? (that is, "connection accepted")
 	connected = false;
 
-	//connect screen, my "mini-gamespy"
-	gi = 0;	//what game entry
-
 	pthread_mutex_init(&frame_mutex, 0);
 	pthread_mutex_init(&mapInfoMutex, 0);
 	pthread_mutex_init(&udpdq_mutex, 0);		//UDP download queue
@@ -175,10 +174,13 @@ gameclient_c::gameclient_c(LogSet hostLogs):
 }
 
 gameclient_c::~gameclient_c() {
+	abortThreads = true;
 	if (client) {
 		delete client;
 		client = 0;
 	}
+	while (refreshStatus != RS_none && refreshStatus != RS_failed)	// wait for a possible refresh thread to abort itself
+		MS_SLEEP(50);
 	pthread_mutex_destroy(&frame_mutex);
 	pthread_mutex_destroy(&mapInfoMutex);
 	pthread_mutex_destroy(&udpdq_mutex);
@@ -219,11 +221,6 @@ bool gameclient_c::start() {
 	client = new_client_c();
 	client->set_callback(CFUNC_CONNECTION_UPDATE, cfunc_connection_update);
 	client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
-
-	//init gamespy/adresses
-	first_fav_refresh = false;
-	showmaster = true;
-	gi = 0;
 
 	//assume no password
 	player_token_set = false;			//no token
@@ -370,10 +367,6 @@ bool gameclient_c::start() {
 		string addr;
 		while (getline_smart(fav, addr)) {
 			gamespy_t spy;
-			spy.invalid = true;
-			spy.noresponse = true;
-			spy.favs = true;
-			spy.refreshed = false;
 			spy.address = addr;
 			gamespy.push_back(spy);
 		}
@@ -396,7 +389,7 @@ bool gameclient_c::start() {
 		message_log.open("message.log", ios::app);
 
 	#ifndef DISABLE_AUTOMATIC_SERVER_SEARCH
-	get_servers_from_master();
+	MCF_updateServers();
 	#endif
 
 	return true;
@@ -1290,184 +1283,10 @@ int gameclient_c::remove_player_passwords(const std::string& name) const {
 	return removed;
 }
 
-//refresh servers command
-void gameclient_c::refresh_command() {
-	refresh_command_2(gamespy);
-	if (!menu.connect.favorites())
-		refresh_command_2(mgamespy);
-}
-
-//refresh servers command
-void gameclient_c::refresh_command_2(vector<gamespy_t>& gamespy) {
-	refreshStatus = RS_contacting;
-
-	nlOpenMutex.lock();
-	nlDisable(NL_BLOCKING_IO);
-	NLsocket sock = nlOpen(0, NL_UNRELIABLE);
-	nlOpenMutex.unlock();
-
-	if (sock == NL_INVALID) {
-		log.error("Can't open socket for refreshing servers! (%s)", getNlErrorString());
-		refreshStatus = RS_failed;
-		return;
-	}
-
-	char lebuf[512];
-
-	// no response from all calc addresses num_valid
-	double st[MAX_GAMESPY][4];	//send time
-	int	rc[MAX_GAMESPY];		//resposta count
-	double rt[MAX_GAMESPY];		//resposta time
-	int num_valid = 0;
-	for (int i = 0; i < static_cast<int>(gamespy.size()); i++) {
-		rc[i] = 0;	//no responses
-		rt[i] = 0;	//no time
-
-		gamespy[i].noresponse = true;
-		gamespy[i].invalid = true; // invalid entry for default
-		gamespy[i].refreshed = true;	//refreshed now
-
-		nlOpen(0, 0);//force invalid enum error
-
-		nlStringToAddr(gamespy[i].address.c_str(), &gamespy[i].addr);
-
-		//test if the address is invalid (important)
-		if (nlGetError() == NL_INVALID_ENUM) {
-			nlOpen(0, 0);//force invalid enum error
-
-			//v0.4.2: if address has no port or has invalid port, set it to the default value (25000)
-			int door = nlGetPortFromAddr(&gamespy[i].addr);
-			if (door == 0)
-				nlSetAddrPort(&gamespy[i].addr, DEFAULT_UDP_PORT); //port);//server PORT!!!!!!
-
-			//test if set was ok
-			if (nlGetError() == NL_INVALID_ENUM) {
-				gamespy[i].invalid = false; // non-invalid entry
-				num_valid++;
-			}
-		}
-	}
-
-	//send
-	for (int t = 0; t < 4; t++) { //send four times
-		// (1) SEND
-		for (int i = 0; i < static_cast<int>(gamespy.size()); i++)
-			if (!gamespy[i].invalid) {
-				int count = 0;
-				writeLong(lebuf, count, 0);			//special packet
-				writeLong(lebuf, count, 200);		//serverinfo request
-				writeByte(lebuf, count, (NLubyte)i);		//connect entry (am I lazy or what)
-				writeByte(lebuf, count, (NLubyte)t);		//packet number
-
-				nlSetRemoteAddr(sock, &gamespy[i].addr);
-				int res = nlWrite(sock, lebuf, count);	//send
-				nAssert(res == count);
-				st[i][t] = get_time();	//for ping measure
-			}
-
-		//(2) pause before each send
-		for (int bla = 0; bla < 20; bla++) {
-			MS_SLEEP(5);			//*** NO CPU PROBLEM HERE ***
-
-			//(3) collect any responses so far
-			// [h0ly] 'i' will be setted by the readByte later on
-			int i;
-			int am = 0;
-			do {
-				am = nlRead(sock, lebuf, 512);
-				if (am > 0) {
-					int count = 0;
-					NLulong along;
-					NLubyte pack;
-					readLong(lebuf, count, along); // should be 0..
-					if (along == 0) {
-						readLong(lebuf, count, along); // should be 200...
-						if (along == 200) {
-							readByte(lebuf, count, i); // client's gamespy entry
-							readByte(lebuf, count, pack); // packet #
-							readStr(lebuf, count, gamespy[i].info);
-
-							//add to ping statistics
-							rc[i]++;
-							rt[i] += get_time() - st[i][pack];
-
-							if (gamespy[i].noresponse)	//dec replies expected count
-								num_valid--;
-							gamespy[i].noresponse = false;	//response obtained
-						}
-					}
-				}
-			} while (am > 0);
-		}
-	}
-
-	//(4) wait for mising responses for a timeout period  (1.5 seconds)
-	for (int wa = 0; wa < 300; wa++) {
-		//quit when done
-		if (num_valid <= 0)
-			break;
-
-		//sleep a bit
-		MS_SLEEP(5);	//*** NO CPU PROBLEM HERE ***
-
-		//collect responses
-		int i;
-		int am = 0;
-		do {
-			am = nlRead(sock, lebuf, 512);
-			if (am > 0) {
-				int count = 0;
-				NLulong along;
-				NLubyte pack;
-				readLong(lebuf, count, along); // should be 0..
-				if (along == 0) {
-					readLong(lebuf, count, along); // should be 200...
-					if (along == 200) {
-						readByte(lebuf, count, i); // client's gamespy entry
-						readByte(lebuf, count, pack); // packet #
-						readStr(lebuf, count, gamespy[i].info);
-
-						//add to ping statistics
-						rc[i]++;
-						rt[i] += get_time() - st[i][pack];
-
-						if (gamespy[i].noresponse)	//dec replies expected count
-							num_valid--;
-						gamespy[i].noresponse = false;	//response obtained
-					}
-				}
-			}
-		} while (am > 0);
-	}
-
-	// add ping to statistics
-	for (int i = 0; i < static_cast<int>(gamespy.size()); i++)
-		if (!gamespy[i].noresponse)	{	//got at least 1 response?
-			int daping;
-			if (rc[i] > 0)
-				daping = (int)(1000.0 * rt[i] / rc[i]);
-			else
-				daping = -666;
-
-			ostringstream info;
-			info << setw(4) << daping << ' ' << gamespy[i].info;
-			gamespy[i].info = info.str();
-		}
-
-	nlClose(sock);
-	refreshStatus = RS_none;
-}
-
 //connect command
 void gameclient_c::connect_command(bool loadPassword) {
 	// disconnect
 	client->connect(false);
-
-	// copy gamespy address
-/*	if (showmaster)
-		address = mgamespy[gi].address;
-	else
-		address = gamespy[gi].address;*/
 
 	// start connecting to specified IP/port
 	// connection results will come through the CFUNC_CONNECTION_UPDATE callback
@@ -1990,7 +1809,6 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					NLbyte flags;
 					readByte(msg, count, team);		// team of the flag
 					readByte(msg, count, flags);	// how many flags
-					log("Flag message, %d flags.", flags);
 					for (int i = 0; i < flags; i++) {
 						if (team == 2) {
 							if (i >= static_cast<int>(fx.wild_flags.size()))
@@ -2504,7 +2322,183 @@ void gameclient_c::toggle_help() {
 		client_sounds.play(SAMPLE_FIRE);
 }
 
-void gameclient_c::get_servers_from_master() {
+const char* gameclient_c::refreshStatusAsString() const {
+	switch (refreshStatus) {
+		case RS_none: 		return "Inactive";
+		case RS_running:	return "Running";
+		case RS_failed:		return "Failed";
+		case RS_contacting:	return "Contacting the servers...";
+		case RS_connecting:	return "Getting server list: connecting...";
+		case RS_receiving:	return "Getting server list: receiving...";
+		default:	nAssert(0);
+	}
+	nAssert(0); return 0;
+}
+
+void gameclient_c::getServerListThread() {
+	nAssert(refreshStatus == RS_running);
+
+	// get server list and refresh
+	bool ok = getServerList();
+	if (!abortThreads)
+		if (!refresh_all_servers())
+			ok = false;
+	refreshStatus = RS_running;
+
+	// remove invalid IPs
+	serverListMutex.lock();
+	for (vector<gamespy_t>::iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
+		if (spy->invalid)
+			spy = mgamespy.erase(spy);
+	serverListMutex.unlock();
+
+	refreshStatus = ok ? RS_none : RS_failed;
+}
+
+void gameclient_c::refreshThread() {
+	nAssert(refreshStatus == RS_running);
+	bool ok = refresh_all_servers();
+	refreshStatus = ok ? RS_none : RS_failed;
+}
+
+//refresh servers command
+bool gameclient_c::refresh_all_servers() {
+	bool ok = refresh_servers(gamespy);
+	if (!abortThreads && !menu.connect.favorites())
+		if (!refresh_servers(mgamespy))
+			ok = false;
+	return ok;
+}
+
+class TempPingData {	// internal to gameclient_c::refresh_servers
+	double st[4];	// send time
+	int rc;			// count of received packets
+	double rt;		// sum of pings (for averaging)
+
+public:
+	TempPingData() : rc(0), rt(0) { }
+	void send(int pack) { st[pack] = get_time(); }
+	void receive(int pack) { ++rc; rt += get_time() - st[pack]; }
+	int received() const { return rc; }
+	int ping() const { return static_cast<int>(1000 * rt / rc); }
+};
+
+//refresh servers command
+bool gameclient_c::refresh_servers(vector<gamespy_t>& gamespy) {
+	refreshStatus = RS_contacting;
+
+	nlOpenMutex.lock();
+	nlDisable(NL_BLOCKING_IO);
+	NLsocket sock = nlOpen(0, NL_UNRELIABLE);
+	nlOpenMutex.unlock();
+
+	if (sock == NL_INVALID) {
+		log.error("Can't open socket for refreshing servers! (%s)", getNlErrorString());
+		return false;
+	}
+
+	char lebuf[512];
+
+	serverListMutex.lock();
+
+	const int nServers = static_cast<int>(gamespy.size());
+	vector<TempPingData> tempd(nServers);
+	int num_valid = 0;			// count of valid entries still waiting for a response
+
+	for (int i = 0; i < nServers; i++) {
+		if (!nlStringToAddr(gamespy[i].address.c_str(), &gamespy[i].addr))
+			gamespy[i].invalid = true;
+		else {
+			if (nlGetPortFromAddr(&gamespy[i].addr) == 0)
+				nlSetAddrPort(&gamespy[i].addr, DEFAULT_UDP_PORT);
+			gamespy[i].invalid = false;
+			num_valid++;
+		}
+	}
+
+	serverListMutex.unlock();
+
+	for (int round = 0; round < 20; round++) {	// each round takes .1 seconds
+		if (abortThreads) {
+			log("Refreshing servers aborted: client exiting.");
+			return false;
+		}
+
+		if (round < 4) {	// on first 4 rounds, packets are sent to each server
+			MutexLock ml(serverListMutex);
+			for (int i = 0; i < nServers; i++)
+				if (!gamespy[i].invalid) {
+					int count = 0;
+					writeLong(lebuf, count, 0);			//special packet
+					writeLong(lebuf, count, 200);		//serverinfo request
+					writeByte(lebuf, count, (NLubyte)i);		//connect entry (am I lazy or what)
+					writeByte(lebuf, count, (NLubyte)round);		//packet number
+
+					nlSetRemoteAddr(sock, &gamespy[i].addr);
+					nlWrite(sock, lebuf, count);
+					tempd[i].send(round);
+				}
+		}
+		else if (num_valid <= 0)	// all done
+			break;
+
+		// parse received responses
+		for (int subRound = 0; subRound < 20; subRound++) {
+			MS_SLEEP(5);
+
+			for (;;) {	// continue while there are new packets
+				int len = nlRead(sock, lebuf, 512);
+				if (len <= 0)
+					break;
+
+				int count = 0;
+				NLulong dw1, dw2;
+				readLong(lebuf, count, dw1);
+				readLong(lebuf, count, dw2);
+				if (dw1 != 0 || dw2 != 200)
+					continue;
+
+				NLubyte index, pack;
+				readByte(lebuf, count, index);	// gamespy entry number echoed by the server
+				readByte(lebuf, count, pack);	// packet #
+
+				if (index >= nServers || pack >= 4 || pack > round || len < count)	// don't have to worry about < 0 because they're unsigned
+					continue;
+
+				MutexLock ml(serverListMutex);
+
+				NLaddress from;
+				nlGetRemoteAddr(sock, &from);
+				if (!nlAddrCompare(&from, &gamespy[index].addr))
+					continue;
+
+				readStr(lebuf, count, gamespy[index].info);
+
+				if (tempd[index].received() == 0)	// first reply -> server has changed to being valid
+					num_valid--;
+
+				tempd[index].receive(pack);
+				gamespy[index].ping = tempd[index].ping();
+
+				gamespy[index].noresponse = false;	// set here in advance so that the main thread will already show it
+			}
+		}
+	}
+
+	// mark those that got no responses
+	serverListMutex.lock();
+	for (int i = 0; i < nServers; i++)
+		if (tempd[i].received() == 0)
+			gamespy[i].noresponse = true;
+	serverListMutex.unlock();
+
+	nlClose(sock);
+	return true;
+}
+
+bool gameclient_c::getServerList() {
+	refreshStatus = RS_connecting;
+
 	//open a nonblocking socket
 	nlOpenMutex.lock();
 	nlDisable(NL_BLOCKING_IO);
@@ -2512,8 +2506,7 @@ void gameclient_c::get_servers_from_master() {
 	nlOpenMutex.unlock();
 	if (sock == NL_INVALID) {
 		log.error("Client can't open socket to connect to master server. (%s)", getNlErrorString());
-		refreshStatus = RS_failed;
-		return;
+		return false;
 	}
 
 	//connect the nonblocking way
@@ -2521,8 +2514,7 @@ void gameclient_c::get_servers_from_master() {
 		log.error("Client can't connect to master server. (%s)", getNlErrorString());
 		nlClose(sock);
 		sock = NL_INVALID;
-		refreshStatus = RS_failed;
-		return;
+		return false;
 	}
 	
 	ifstream in("master.txt");
@@ -2540,29 +2532,28 @@ void gameclient_c::get_servers_from_master() {
 	request << "Connection: close\r\n\r\n";
 	writeStr(querybuf, count, request.str()); count--;
 
-	refreshStatus = RS_connecting;
-
-	//keep trying to write the query until user presses ESC
 	NLint result;
+	double timeout = get_time() + 30.0;
 	do {
 		result = nlWrite(sock, querybuf, count);
-		MS_SLEEP(10);
-		if (key[KEY_ESC]) {
-			// 'attempt cancelled'
+		MS_SLEEP(50);
+		if (get_time() > timeout) {
+			log("Client can't connect to master server. Timed out.");
 			nlClose(sock);
-			clear_keybuf(); //clear keystrokes buffer
-			while (key[KEY_ESC]); //wait to release esc
-			refreshStatus = RS_aborted;
-			return;
+			return false;
+		}
+		if (abortThreads) {
+			log("Getting the server list aborted: client exiting.");
+			nlClose(sock);
+			return false;
 		}
 	} while (result == NL_INVALID && nlGetError() == NL_CON_PENDING);
 
 	//check bogus
 	if (result == NL_INVALID) {
-		log.error("Client can't connect to master server. Reason: %s", nlGetSystemErrorStr(nlGetSystemError()));
+		log("Client can't connect to master server. Reason: %s", nlGetSystemErrorStr(nlGetSystemError()));
 		nlClose(sock);
-		refreshStatus = RS_failed;
-		return;
+		return false;
 	}
 
 	refreshStatus = RS_receiving;
@@ -2571,28 +2562,33 @@ void gameclient_c::get_servers_from_master() {
 
 	// Try to read the reply until the end or when user presses ESC.
 	// Parse the response (should be one IP and port per line).
-	const double timeout = get_time() + 60.0;
+	timeout = get_time() + 30.0;
 	const int buffer_size = 511;
 	char lebuf[buffer_size + 1];
 	std::stringstream response;
-	do {
-		// read
+	for (;;) {
 		result = nlRead(sock, lebuf, buffer_size);
 		if (result == NL_INVALID)
 			break;
 		lebuf[result] = '\0';
 		// save
 		response << lebuf;
-		if (key[KEY_ESC]) {
+		MS_SLEEP(50);
+		if (get_time() > timeout) {
+			log("No response from master server. Timeout.");
 			nlClose(sock);
-			// 'attempt cancelled'
-			while (key[KEY_ESC]); //wait to release esc
-			break;
+			return false;
 		}
-		MS_SLEEP(10);
-	} while (get_time() <= timeout);
+		if (abortThreads) {
+			log("Getting the server list aborted: client exiting.");
+			nlClose(sock);
+			return false;
+		}
+	}
 	nlClose(sock);
 	sock = NL_INVALID;
+
+	MutexLock ml(serverListMutex);
 
 	//clear the old gamespy master screen
 	mgamespy.clear();
@@ -2606,79 +2602,26 @@ void gameclient_c::get_servers_from_master() {
 
 	// The first line is the total number of servers.
 	getline_smart(response, line);
-	if (line.empty())
+	if (line.empty()) {
 		log.error("Incorrect data received from master server.");
+		serverListMutex.unlock();
+		return false;
+	}
 	const int total_servers = atoi(line);
 
 	// Parse the successful response into the gamespy screen.
 	int servers_read;
 	for (servers_read = 0; servers_read < total_servers && getline_smart(response, line); servers_read++) {
 		gamespy_t spy;
-		spy.invalid = true;
-		spy.noresponse = true;
-		spy.favs = true;
-		spy.refreshed = false;
 		spy.address = line;
 		mgamespy.push_back(spy);
 	}
+
 	if (servers_read != total_servers) {
-		log.error("Server count mismatch.");
+		log.error("Incorrect data received from master server: Server count mismatch.");
+		return false;
 	}
-
-	//copy addresses from favourites to holes in master entries, anyway
-	/*int f = 0;	//favorites entry
-	int minf = m;		//first favorites entry
-	while (m < MAX_GAMESPY && f < MAX_GAMESPY) {		//slot in master list
-		if (gamespy[f].address[0] != '\0') {
-			//scan for duplicate: then ignore
-			bool dup = false;
-			for (int i = 0; i < MAX_GAMESPY; i++)
-				if (!strcmp(gamespy[f].address, mgamespy[i].address)) {
-					dup = true;		//dup
-					break;
-				}
-
-			//no dup? add
-			if (!dup) {
-				strcpy(mgamespy[m].address, gamespy[f].address);
-				mgamespy[m].favs = true;
-				m++;	//next m slot
-			}
-		}
-		f++;	//next f anyways
-	}*/
-
-	refreshStatus = RS_none;
-	//refresh (has own progress dialog)
-	// OBS.: will refresh even if master server fails -- refreshes favourites
-	refresh_command();
-
-	//remove all invalid IPs
-	for (vector<gamespy_t>::iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
-		if (spy->invalid)
-			spy = mgamespy.erase(spy);
-
-	//remove all "no response"s below minf
-	/*for (int i = minf; e < MAX_GAMESPY; e++)
-		if (mgamespy[i].noresponse)	{
-			mgamespy[i].address[0] = 0;
-			mgamespy[i].invalid = true;
-		}*/
-
-	//compress entries
-	/*gamespy_t temp[MAX_GAMESPY];
-	memcpy(temp, mgamespy, sizeof(gamespy_t) * MAX_GAMESPY);	//copy to temp
-	for (int i = 0; i < MAX_GAMESPY; i++) {
-		mgamespy[i].address[0] = 0;
-		mgamespy[i].favs = false;
-		mgamespy[i].invalid = true;
-	}
-	int next = 0;
-	for (int i = 0; i < MAX_GAMESPY; i++)
-		if (temp[i].address[0] != 0) {
-			memcpy(&(mgamespy[next]), &(temp[i]), sizeof(gamespy_t));	//copy back to master
-			next++;
-		}*/
+	return true;
 }
 
 //loop
@@ -2689,37 +2632,13 @@ void gameclient_c::loop() {
 	showMenu(menu);
 	gameshow = false;
 
-	//reset speed counter
 	speed_counter = 0;
 	client_netsend_counter = 0;
 
-	//loop
 	bool key_fire = false, key_kill = false, key_swap = false, key_votexit = false, key_drop_flag = false;
 	char key_up=0, key_down=0, key_left=0, key_right=0;
 	while (notquit && !force_exit) {
-		//log("** another loop()...");
-
-		// (-1) try to release "reverse" voices that have finished playing
-		//
-		// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-		// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-		// versao 0.4.1 : EARLY OPTIMIZATION IS THE ROOT OF ALL EVIL
-		/*
-		for (int voi=0;voi<16;voi++)		//FIXME: just guessing at 16 voices...
-			if (voice_check(voi) != 0)
-				if (voice_get_position(voi) == -1) {
-					//char vois[200];
-					//sprintf(vois, "voice %i finished", voi);
-					//print_message(vois);
-					release_voice(voi);
-				}
-		*/
-
-		// (0) check for time to send delayed messages
-		//
-
 		// (1) loop doing input/sleep before next simulation/draw time
-		//
 		do {
 			//quit key Control-F12
 			if ((key[KEY_LCONTROL] || key[KEY_RCONTROL]) && key[KEY_F12]) {
@@ -2727,7 +2646,6 @@ void gameclient_c::loop() {
 				break;
 			}
 
-			//help showing
 			if (helpshow) {
 				while (keypressed()) {
 					//get key
@@ -2769,68 +2687,6 @@ void gameclient_c::loop() {
 
 					//test key
 					switch (menusel) {
-/*						case menu_server_list:
-							if (showmaster)
-								i = strlen(mgamespy[gi].address);
-							else
-								i = strlen(gamespy[gi].address);
-							if (i < 21 && (isdigit(ch) || ch == '.' || ch == ':')) {
-								if (showmaster) {
-									mgamespy[gi].address[i] = static_cast<char>(ch);
-									mgamespy[gi].address[i+1] = 0;
-									mgamespy[gi].refreshed = false;
-								}
-								else {
-									gamespy[gi].address[i] = static_cast<char>(ch);
-									gamespy[gi].address[i+1] = 0;
-									gamespy[gi].refreshed = false;
-								}
-							}
-							else if (sc == KEY_UP) {
-								gi--;
-								if (gi < 0)
-									gi = MAX_GAMESPY-1;
-							}
-							else if (sc == KEY_DOWN) {
-								gi++;
-								if (gi >= MAX_GAMESPY)
-									gi = 0;
-							}
-							else if (sc == KEY_SPACE) {
-								refresh_command();
-								clear_keybuf();	//clear the key buffer to stop too much refreshing.
-							}
-							else if (sc == KEY_BACKSPACE) {
-								if (i > 0) {
-									if (showmaster) {
-										mgamespy[gi].address[i-1] = 0;
-										mgamespy[gi].refreshed = false;
-									}
-									else {
-										gamespy[gi].address[i-1] = 0;
-										gamespy[gi].refreshed = false;
-									}
-								}
-							}
-							else if (sc == KEY_ENTER || sc == KEY_ENTER_PAD) {
-//								edit_server_password.clear();
-//								edit_player_password.clear();
-								connect_command();
-							}
-							else if (sc == KEY_TAB) {
-								showmaster = !showmaster;
-
-								//make the first refresh of favorites when showing it
-								if (!showmaster && first_fav_refresh == false) {
-									first_fav_refresh = true;
-									refresh_command();
-								}
-							}
-							else if ((sc == KEY_F2) && (showmaster)) {
-								//update from master
-								get_servers_from_master();
-							}
-							break;*/
 						case menu_maps:
 							if (key[KEY_UP])
 								client_graphics.map_list_prev();
@@ -3196,6 +3052,8 @@ void gameclient_c::loop() {
 
 //stop
 void gameclient_c::stop() {
+	abortThreads = true;
+
 	//at least disconnect
 	disconnect_command();
 
@@ -3893,6 +3751,7 @@ void gameclient_c::initMenus() {
 	menu.stopServer						.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_stopServer		>(this));
 
 	menu.connect.menu				.setOpenHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareServerMenu>(this));
+	menu.connect.menu				.setDrawHook(new MCB::N<Menu,			&gameclient_c::MCF_prepareServerMenu>(this));	//#fix: inefficient!
 	menu.connect.menu			   .setCloseHook(new MCB::N<Menu,			&gameclient_c::MCF_menuCloser		>(this));
 	menu.connect.favorites				.setHook(new MCB::N<Checkbox,		&gameclient_c::MCF_prepareServerMenu>(this));
 	menu.connect.update					.setHook(new MCB::N<Textarea,		&gameclient_c::MCF_updateServers	>(this));
@@ -3991,9 +3850,10 @@ void gameclient_c::MCF_joystick() {
 }
 
 void gameclient_c::MCF_messageLogging() {
-	menu.options.game.messageLogging.toggle();
-	if (menu.options.game.messageLogging())
+	if (menu.options.game.messageLogging()) {
+		message_log.clear();	// necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
 		message_log.open("message.log", ios::app);
+	}
 	else
 		message_log.close();
 }
@@ -4094,10 +3954,11 @@ void gameclient_c::MCF_prepareServerMenu() {
 	menu.connect.reset();
 	vector<string> addresses;
 	const vector<gamespy_t>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
+	serverListMutex.lock();
 	for (vector<gamespy_t>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
 		ostringstream info;
 		info << setw(21) << left << spy->address << right;
-		info << ' ' << spy->info;
+		info << setw(4) << spy->ping << ' ' << spy->info;
 		menu.connect.add(spy->address, info.str());
 		addresses.push_back(spy->address);
 	}
@@ -4106,12 +3967,16 @@ void gameclient_c::MCF_prepareServerMenu() {
 			if (!spy->noresponse && find(addresses.begin(), addresses.end(), spy->address) == addresses.end()) {
 				ostringstream info;
 				info << setw(21) << left << spy->address << right;
-				info << ' ' << spy->info;
+				info << setw(4) << spy->ping << ' ' << spy->info;
 				menu.connect.add(spy->address, info.str());
 			}
+	serverListMutex.unlock();
 	typedef MenuCallback<gameclient_c> MCB;
 	menu.connect.addHooks(new MCB::A<Textarea, &gameclient_c::MCF_connect>(this));
-	menu.connect.update.setEnable(!menu.connect.favorites());
+	bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
+	menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
+	menu.connect.refresh.setEnable(!refreshActive);
+	menu.connect.refreshStatus.set(refreshStatusAsString());
 }
 
 void gameclient_c::MCF_prepareAddServer() {
@@ -4122,10 +3987,6 @@ void gameclient_c::MCF_prepareAddServer() {
 void gameclient_c::MCF_addServer() {
 	if (!menu.connect.addServer.address().empty()) {
 		gamespy_t spy;
-		spy.invalid = true;
-		spy.noresponse = true;
-		spy.favs = false;
-		spy.refreshed = false;
 		spy.address = menu.connect.addServer.address();
 		if (menu.connect.favorites())
 			gamespy.push_back(spy);
@@ -4143,6 +4004,20 @@ void gameclient_c::MCF_connect(Textarea& target) {
 	address = menu.connect.getAddress(target);
 	openMenus.clear();
 	connect_command(true);
+}
+
+void gameclient_c::MCF_updateServers() {
+	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
+		refreshStatus = RS_running;
+		Thread::startDetachedThread(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::getServerListThread));
+	}
+}
+
+void gameclient_c::MCF_refreshServers() {
+	if (refreshStatus == RS_none || refreshStatus == RS_failed) {
+		refreshStatus = RS_running;
+		Thread::startDetachedThread(RedirectToMemFun<gameclient_c, void>(this, &gameclient_c::refreshThread));
+	}
 }
 
 void gameclient_c::close_button_callback() {
@@ -4187,14 +4062,3 @@ int cfunc_server_data(client_runes_t *arg) {
 	return 0;
 }
 
-/* for server list function: status of the refresher thread
-	switch (refreshStatus) {
-		case RS_none: 		return "";
-		case RS_aborted:	return "aborted";
-		case RS_failed:		return "failed";
-		case RS_contacting:	return "Contacting the servers...";
-		case RS_connecting:	return "Getting server list: connecting...";
-		case RS_receiving:	return "Getting server list: receiving...";
-		default:	nAssert(0);
-	}
-*/

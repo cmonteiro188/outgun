@@ -6,6 +6,7 @@
 #include "world.h"
 #include "network.h"
 #include "thread.h"
+#include "mutex.h"
 #include "log.h"
 #include "menu.h"
 #include "client_menus.h"
@@ -14,11 +15,20 @@
 #define CL_MINIMAP_FLAGPOS  // paint minimap more intelligently according to flag positions
 #define CL_SHOW_FLAGPOS // show a flag position marker on the ground
 
-// size of connect screen
-#define MAX_GAMESPY 24
-
 // size of udp download queue (only 1 should be needed but...)
 #define MAX_UDPDQ 16
+
+//server record
+struct gamespy_t {
+	NLaddress addr;
+	std::string address;  //IP-address typein buffer
+	bool invalid;
+	bool noresponse;
+	int ping;
+	std::string info;
+
+	gamespy_t() : invalid(true), noresponse(true), ping(0) { }
+};
 
 struct download_runes_t {
 	int did;	//download id
@@ -141,18 +151,18 @@ class gameclient_c {
 	int scoreboard[MAX_PLAYERS];
 	std::string hostname;
 	int strlen_hostname;
-//#fix: get rid
-	bool showmaster;	//showing master screen (opposite: showing favourites screen)
-	bool first_fav_refresh;	//first refresh of favorites page already done?
+
 	std::vector<gamespy_t> gamespy;
-	int gi;	//what game entry
 	std::vector<gamespy_t> mgamespy;	//gamespy of master server
+	MutexHolder serverListMutex;
 
 	std::string playername;	//the player's name (max name len = 16)
 	std::string address;	//server IP address
 	int namestatus_code;	//0==NONE  1==LOGGED w/ token  2==LOGIN FAILED by last attempt  3==LOGGED+RECORDING
 
-	enum RefreshStatus { RS_none, RS_aborted, RS_failed, RS_contacting, RS_connecting, RS_receiving };
+	volatile bool abortThreads;
+
+	enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
 	volatile RefreshStatus refreshStatus;	// thread communication variable
 
 	std::string password_file;
@@ -199,8 +209,8 @@ class gameclient_c {
 	void MCF_sndThemeChange();
 	void MCF_prepareSndMenu();
 	void MCF_prepareServerMenu();
-	void MCF_updateServers() { if (!menu.connect.favorites()) get_servers_from_master(); MCF_prepareServerMenu(); }
-	void MCF_refreshServers() { refresh_command(); MCF_prepareServerMenu(); }
+	void MCF_updateServers();
+	void MCF_refreshServers();
 	void MCF_prepareAddServer();
 	void MCF_addServer();
 	void MCF_playerPasswordAccept();
@@ -232,8 +242,6 @@ public:
 	void client_disconnected(const char* data, int length);
 	void connect_failed_denied(char* data, int length);
 	void connect_failed_unreachable();
-	void refresh_command();
-	void refresh_command_2(std::vector<gamespy_t>& gamespy);
 	void send_player_token();
 	void issue_change_name_command();
 	void change_name_command();
@@ -244,7 +252,13 @@ public:
 
 	void check_change_pass_command();
 	void client_password_thread();
-	void get_servers_from_master();
+
+	const char* gameclient_c::refreshStatusAsString() const;
+	void getServerListThread();
+	void refreshThread();
+	bool refresh_all_servers();
+	bool refresh_servers(std::vector<gamespy_t>& gamespy);
+	bool getServerList();
 
 	void process_udp_download_chunk(int last, NLulong pos, int len, char* buf);
 	void client_udp_setup_download();

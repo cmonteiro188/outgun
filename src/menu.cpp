@@ -380,5 +380,9 @@ bool Textarea::handleKey(char scan, unsigned char chr) {
 		callHook(*this);
 		return true;
 	}
+	else if (callKeyHook(*this, scan, chr)) {
+		callHook(*this);
+		return true;
+	}
 	return false;
 }

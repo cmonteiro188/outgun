@@ -83,24 +83,26 @@ public:
 	ReturnT operator()(Arg1T arg1, Arg2T arg2) { return (host->*function)(arg1, arg2); }
 };
 
-template<class ArgT>
-class HookFunctionBase {	// base class for functions used with class Hook
+// HookFunctionBase#, Hook#, Hookable# : generating new versions with different amounts of arguments should be easy when needed
+
+template<class RetT, class Arg1T>
+class HookFunctionBase1 {	// base class for functions used with class Hook
 public:
-	virtual ~HookFunctionBase() { }
-	virtual void operator()(ArgT&) = 0;
-	virtual HookFunctionBase* clone() = 0;
+	virtual ~HookFunctionBase1() { }
+	virtual RetT operator()(Arg1T) = 0;
+	virtual HookFunctionBase1* clone() = 0;
 };
 
-template<class ArgT>
-class Hook {
+template<class RetT, class Arg1T>
+class Hook1 {
 public:
-	typedef HookFunctionBase<ArgT> FunctionT;
+	typedef HookFunctionBase1<RetT, Arg1T> FunctionT;
 
-	Hook() : hookFn(0) { }
-	~Hook() { free(); }
+	Hook1() : hookFn(0) { }
+	~Hook1() { free(); }
 	void set(FunctionT* fn) { free(); hookFn = fn; }	// the ownership is transferred
 	bool active() const { return hookFn != 0; }
-	void call(ArgT& obj) { if (hookFn) (*hookFn)(obj); }
+	RetT call(Arg1T a1) { if (hookFn) return (*hookFn)(a1); else return RetT(); }
 
 private:
 	void free() { if (hookFn) delete hookFn; }
@@ -108,36 +110,61 @@ private:
 	FunctionT* hookFn;
 };
 
-template<class ArgT>
-class Hookable {
+template<class RetT, class Arg1T>
+class Hookable1 {
 public:
-	typedef typename Hook<ArgT>::FunctionT HookFunctionT;
+	typedef typename Hook1<RetT, Arg1T>::FunctionT HookFunctionT;
 
-	virtual ~Hookable() { }
+	virtual ~Hookable1() { }
 	void setHook(HookFunctionT* fn) { hook.set(fn); }	// the ownership is transferred
 	bool isHooked() const { return hook.active(); }
 
 protected:
-	void callHook(ArgT& obj) { hook.call(obj); }
+	RetT callHook(Arg1T a1) { return hook.call(a1); }
 
 private:
-	Hook<ArgT> hook;
+	Hook1<RetT, Arg1T> hook;
 };
 
-template<class ArgT>
-class KeyHookable {
+template<class RetT, class Arg1T, class Arg2T, class Arg3T>
+class HookFunctionBase3 {
 public:
-	typedef typename Hook<ArgT>::FunctionT HookFunctionT;
+	virtual ~HookFunctionBase3() { }
+	virtual RetT operator()(Arg1T, Arg2T, Arg3T) = 0;
+	virtual HookFunctionBase3* clone() = 0;
+};
 
-	virtual ~KeyHookable() { }
-	void setKeyHook(HookFunctionT* fn) { keyHook.set(fn); }	// the ownership is transferred
-	bool isKeyHooked() const { return keyHook.active(); }
+template<class RetT, class Arg1T, class Arg2T, class Arg3T>
+class Hook3 {
+public:
+	typedef HookFunctionBase3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
 
-protected:
-	void callKeyHook(ArgT& obj) { keyHook.call(obj); }
+	Hook3() : hookFn(0) { }
+	~Hook3() { free(); }
+	void set(FunctionT* fn) { free(); hookFn = fn; }	// the ownership is transferred
+	bool active() const { return hookFn != 0; }
+	RetT call(Arg1T a1, Arg2T a2, Arg3T a3) { if (hookFn) return (*hookFn)(a1, a2, a3); else return RetT(); }
 
 private:
-	Hook<ArgT> keyHook;
+	void free() { if (hookFn) delete hookFn; }
+
+	FunctionT* hookFn;
+};
+
+template<class RetT, class Arg1T, class Arg2T, class Arg3T>
+class Hookable3 {
+public:
+	typedef typename Hook3<RetT, Arg1T, Arg2T, Arg3T>::FunctionT HookFunctionT;
+
+	virtual ~Hookable3() { }
+	void setHook(HookFunctionT* fn) { hook.set(fn); }	// the ownership is transferred
+	bool isHooked() const { return hook.active(); }
+
+protected:
+	RetT callHook(Arg1T a1, Arg2T a2, Arg3T a3) { return hook.call(a1, a2, a3); }
+
+private:
+	Hook3<RetT, Arg1T, Arg2T, Arg3T> hook;
 };
 
 inline void readStr(const char* buf, int& count, std::string& dst) {

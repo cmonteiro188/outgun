@@ -12,20 +12,15 @@
 #include "nassert.h"
 #include "utility.h"
 
-#define PHYS_NEW
 #define PHYS_VECTOR_ACC
-#define PHYS_VECTOR_ACC_TEST
 
-//same as PLAYER RADIUS (15) + ROCKETRADIUS (3) - 1
+//same as PLAYER RADIUS (15) + ROCKET RADIUS (3) - 1
 const int shot_deltax = 17;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
 const float minimum_grab_to_capture_time = 6.0;
 
 //#define ALWAYS_FRICTION
-
-//#define PI M_PI //3.1416
-//#define PIOIT M_PI_4 //0.7854 //DOIS PI SOBRE 8 = PI SOBRE 4 = 0.7854
 
 using std::ifstream;
 using std::istream;
@@ -46,7 +41,7 @@ using std::vector;
  *
  * how it works:
  * for the appropriate range of y, if there exists an y so that lx(y)<=rectx2 AND rx(y)>=rectx1 , there is an intersection in that range
- * those ranges are solved with simple linear equasions since lx and rx are linear
+ * those ranges are solved with simple linear equations since lx and rx are linear
  */
 bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx1, double ry1,  double rx2, double ry2,
 				double rectx1, double recty1, double rectx2, double recty2) {
@@ -199,14 +194,14 @@ bool Map::load(LogSet& log, const char *mapdir, const string& mapname) {
 		ifstream in(fileName.c_str());
 		if (in) {
 			if (!parse_file(log, in)) {
-				log.error("Can't load map '%s'", mapname.c_str());
+				log.error("Can't load: error in map '%s'", mapname.c_str());
 				return false;
 			}
 			in.close();
 			return true;
 		}
 	}
-	log.error("Can't load mapfile '%s'!", fileName.c_str());
+	log("Can't find mapfile '%s'!", fileName.c_str());
 	return false;
 }
 
@@ -610,6 +605,7 @@ BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r)
 /* bounceFromLine():
  *
  * calculates how many times the vector (mx,my) can be traveled until wall (dx1,dy1)-(dx2,dy2) is hit by a circle of radius r
+ * hits to the end points aren't detected by this function
  *
  *
  *        (mx,my)      __--
@@ -931,11 +927,49 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	if (h->controls.isRun() && carryFlag)
 		player_maxspeed -= svp_flag_penalty;
 
-	int xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
+//	int xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
 
 	#ifdef PHYS_VECTOR_ACC
+
+	// this is a more physically correct model by Nix
+
+/*
+	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
+	player_maxspeed *= 1.2;
+	player_friction *= 1.2;
+	player_accel    *= 1.2;
+	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
+*/
+
+	float xAcc = (h->controls.isRight()?1:0) - (h->controls.isLeft()?1:0), yAcc = (h->controls.isDown()?1:0) - (h->controls.isUp()?1:0);
+
+	player_friction = 0.1;
+	player_accel    = 1.5;
+
+	if (turbo)
+		if (h->controls.isRun())
+			player_accel *= 3.;
+		else
+			player_accel *= 2.;
+	else if (h->controls.isRun())
+		player_accel *= 1.25;
+
+	if (xAcc != 0 && yAcc != 0) {	// normalize the total acceleration vector
+		xAcc /= sqrt(2.);
+		yAcc /= sqrt(2.);
+	}
+
+	h->sx -= player_friction * h->sx;
+	h->sy -= player_friction * h->sy;
+
+	if (!deathbringer_affected) {
+		h->sx += xAcc * player_accel;
+		h->sy += yAcc * player_accel;
+	}
+
+/*
 	// new correcting coefficients : reduce friction and total acceleration
-	/*player_maxspeed *= 1.2;
+	player_maxspeed *= 1.2;
 	player_friction *=  .5;
 	player_accel    *= 1.0;	// friction is now taken away from this reducing the effective value, so no reductions here
 
@@ -971,69 +1005,7 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 			h->sy *= mul;
 		}
 	}
-	*/#ifdef PHYS_VECTOR_ACC_TEST
-
-	player_friction = 0.5;
-	player_accel    = 5.5;
-
-	if (turbo)
-		if (h->controls.isRun())
-			player_accel *= 2.5;
-		else
-			player_accel *= 1.75;
-	else if (h->controls.isRun())
-		player_accel *= 1.25;
-
-	h->sx -= player_friction * h->sx;
-	h->sy -= player_friction * h->sy;
-
-	if (!deathbringer_affected) {
-		h->sx += float(xAcc) * player_accel;
-		h->sy += float(yAcc) * player_accel;
-	}
-
- 	#else
-
-	// this is a more physically correct model by Nix
-
-	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
-	player_maxspeed *= 1.2;
-	player_friction *= 1.2;
-	player_accel    *= 1.2;
-	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
-
-	// friction
-	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
-	if (spd > 0) {
-		float mul;
-		if (spd <= player_friction)
-			mul = 0.;
-		else
-			mul = 1. - player_friction/spd;
-		h->sx *= mul;
-		h->sy *= mul;
-	}
-
-	// acceleration
-	if (!deathbringer_affected && spd<player_maxspeed) {
-		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
-		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
-		float mul = player_accel;
-		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
-			mul /= sqrt(2.);
-
-		h->sx += float(xAcc)*mul;
-		h->sy += float(yAcc)*mul;
-		spd = sqrt( h->sx*h->sx + h->sy*h->sy );
-
-		if (spd > player_maxspeed) {
-			float mul = player_maxspeed/spd;
-			h->sx *= mul;
-			h->sy *= mul;
-		}
-	}
-
-	#endif	// PHYS_VECTOR_ACC_TEST
+*/
 	#else	// PHYS_VECTOR_ACC
 
 	// this is the original weird physics model only re-written
@@ -1654,7 +1626,6 @@ void ServerWorld::respawn_pickup(int p) {
 			net->sendPickupVisible(i, p, item[p]);
 }
 
-// verifica powerups unused por jogadores presentes
 void ServerWorld::check_pickup_creation(bool instant) {
 	//count number of items
 	int ic = 0;
@@ -1684,7 +1655,6 @@ void ServerWorld::check_pickup_creation(bool instant) {
 		}
 }
 
-// player i touches a pickup p!
 void ServerWorld::game_touch_pickup(int p, int pk) {
 	Powerup *it = &item[pk];
 
@@ -1814,8 +1784,7 @@ void ServerWorld::resetPlayer(int target, float time_penalty) {	// take the play
 
 	dropFlagIfAny(target);
 	player[target].respawn_time = get_time() + config.getRespawnTime() + time_penalty;
-	if (!player[target].dead)
-		player[target].dead = true;
+	player[target].dead = true;
 }
 
 void ServerWorld::killPlayer(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
@@ -1897,7 +1866,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 			if (!same_team)
 				net->bprintf(msg_info, "%s was choked by %s", player[target].name.c_str(), player[attacker].name.c_str());
 			else
-				net->bprintf(msg_info, "%s was choked by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
+				net->bprintf(msg_info, "%s was choked by teammate %s", player[target].name.c_str(), player[attacker].name.c_str());
 		}
 		else
 			net->bprintf(msg_info, "%s was choked", player[target].name.c_str());
@@ -1907,7 +1876,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 		if (!same_team)
 			net->bprintf(msg_info, "%s was nailed by %s", player[target].name.c_str(), player[attacker].name.c_str());
 		else
-			net->bprintf(msg_info, "%s was nailed by team mate %s", player[target].name.c_str(), player[attacker].name.c_str());
+			net->bprintf(msg_info, "%s was nailed by teammate %s", player[target].name.c_str(), player[attacker].name.c_str());
 	}
 
 	net->broadcast_kill(player[attacker], player[target], deathbringer, flag);
@@ -1920,16 +1889,13 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, bool deathb
 	killPlayer(target, false);
 }
 
-//remove player from the game
 void ServerWorld::removePlayer(int pid) {
-	//remove all shots from this player
 	for (int r=0; r<MAX_ROCKETS; r++)
 		if (rock[r].owner == pid)
 			deleteRocket(r, 0, 0, 255);
 
 	dropFlagIfAny(pid);
 
-	//erase player
 	player[pid].used = false;
 }
 
@@ -2107,12 +2073,10 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	vector<BounceData> plyMoveMax;	// plyMoveMax changes when player bounces
 	vector<double> rockMoveMax;	// rockMoveMax is fixed
 
-	typedef unsigned int uint;	// for loop counters, to disable the brainless 'signed vs unsigned comparison' warning by G++
+	typedef unsigned int uint;	// for loop counters, to avoid the brainless 'signed vs unsigned comparison' warning by G++
 
 	for (vector<int>::const_iterator pi=rply.begin(); pi!=rply.end(); ++pi)
-{nAssert(*pi>=0 && *pi<maxplayers);//#t
 		plyMoveMax.push_back(getTimeTillBounce(room, player[*pi], plyRadius, fraction));
-}
 	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri)
 		rockMoveMax.push_back(getTimeTillWall(room, rock[*ri], fraction));
 
@@ -2120,9 +2084,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 	#ifndef NDEBUG
 	int round = 0;
 	#endif
-numAssert(rrock.size() < 40, rrock.size());
 	for (;;) {	//#fix: optimize this loop, esp. for client
-numAssert(rrock.size() < 40, rrock.size());
 		nAssert(++round < 200);
 		// find out next player-wall collision
 		double minBounce = fraction + 1;	// at what time the first player bounces (absolute frame time: 1 is end of frame)
@@ -2135,7 +2097,7 @@ numAssert(rrock.size() < 40, rrock.size());
 				bPly = rply[pi];
 			}
 		}
-		nAssert(minBounce > subFrame - .001);
+		nAssert(minBounce >= subFrame);
 
 		// find out next player-rocket collision
 		double minCollision = fraction + 1;	// at what time the first player-rocket collision occurs (forward time: 1-subFrame is end of frame)
@@ -2162,15 +2124,25 @@ numAssert(rrock.size() < 40, rrock.size());
 		}
 
 		// execute movement
-		double mt = min<double>(fraction, min<double>(minCollision, minBounce + .01));	// time of the next event (add .01 to minBounce to not bounce infinitely)
+
+		// find the next event
+		if (minBounce < subFrame + .01)	// avoid infinite bouncing; this could be done more delicately (based on rounds spent)
+			minBounce = subFrame + .01;	// it's also possible that this causes some bugs
+		const double eventTime = min(minCollision, minBounce);
+		const double mt = min<double>(fraction, eventTime);	// mt is where subFrame will be advanced to for the next round
 		nAssert(mt >= subFrame-.0001);
 		for (int pi = 0; pi < static_cast<int>(rply.size()); ) {
-			// don't move more than mt or more than plyMoveMax-.001 but don't move backwards (-.001 to stay out of walls)
-			double amount = bound<double>(plyMoveMax[pi].first - .001, subFrame, mt);
+			// don't move more than mt or more than plyMoveMax-.001 (-.001 to stay out of walls)
+			const double plTime = min(plyMoveMax[pi].first - .001, mt);
+			if (plTime <= subFrame) {	// we are waiting to bounce: nothing can be done
+				plyMoveMax[pi].first = mt;	// this is mainly to avoid hitting an assertion that otherwise helps
+				++pi;
+				continue;
+			}
 			PlayerBase& pl = player[rply[pi]];
-			pl.move(amount - subFrame);
+			pl.move(plTime - subFrame);
 			if (callback.gatherMovementDistance())
-				callback.addMovementDistance(rply[pi], (amount - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
+				callback.addMovementDistance(rply[pi], (plTime - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
 			bool rch = false;
 			if (callback.allowRoomChange()) {
 				if (pl.lx < 0)   { nAssert(pl.sx != 0); pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
@@ -2230,7 +2202,6 @@ numAssert(rrock.size() < 40, rrock.size());
 				}
 				else
 					plyChanged = cPlyI;
-numAssert2(cRockI >= 0 && cRockI < (int)rrock.size(), cRockI, rrock.size());
 				rrock.erase(rrock.begin() + cRockI);
 				rockMoveMax.erase(rockMoveMax.begin() + cRockI);
 			}
@@ -2252,7 +2223,6 @@ numAssert2(cRockI >= 0 && cRockI < (int)rrock.size(), cRockI, rrock.size());
 			plyMoveMax[plyChanged].first += subFrame;	// keep the table in absolute frame time
 		}
 	}
-numAssert(rrock.size() < 40, rrock.size());
 	for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri) {
 		const rocket_c& r = rock[*ri];
 		if (r.x<0 || r.x>plw || r.y<0 || r.y>plh)

@@ -748,7 +748,6 @@ bool gameserver_c::load_rotation_map(int pos) {
 }
 
 bool gameserver_c::server_next_map(int reason) {
-
 	//(re)load hostname
 	network.reload_hostname();
 
@@ -955,7 +954,7 @@ bool gameserver_c::start(int target_maxplayers) {
 		return false;
 	if (!load_rotation_map(currmap))
 		return false;
-	if (!network.start())	// this must be last, because network.close() must always be called if start() succeeds
+	if (!network.start())	// this must be last, because network.stop() must always be called if start() succeeds
 		return false;
 
 	// reset game
