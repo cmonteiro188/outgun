@@ -1,12 +1,14 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2004 Thomaz de Oliveira dos Reis
+; Original copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2004, 2005 Thomaz de Oliveira dos Reis
 ; Contato: E-Mails: thommy@globo.com, thor27@ibest.com.br (serve como MSNM)
 ;	   ICQ: 117089308 - YIM: thommybill - Jabber: thor27@jabber.org
-
+;
+; Agradecimentos especiais: Nix (Niko Ritari) e todo o pessoal do Fórum do
+; outgun que ajudou a melhorar a tradução!
 
 ; Language of the translation, in the target language.
-Português (Brasil) [Rev. 4]
+Português (Brasil)
 
 
 ; You should not modify en.txt, it is the English reference file. Outgun uses
@@ -138,8 +140,9 @@ Sublinhar jogadores auntenticados pelo servidor
 Pegar lista do servidor na inicialização
 
 Controles
-layout do teclado
-usar keypad para se movimentar
+Layout do teclado
+Usar keypad para se movimentar
+Setas do teclado nas estatísticas
 Abilitar controle por joystick
 Stick de movimento
 Botões do Joystick (0 = disabilitado)
@@ -157,7 +160,7 @@ Profundidade de cores
  desktop
 $1-bit
 Tamanho da tela
-modo janela
+Modo janela
 Usar "page flipping"
 Taxa de atualização atual
 $1 Hz
@@ -166,7 +169,7 @@ Tema
 Antialiasing
 Textura continua entre salas
 Estado alfa da tela
-limite do FPS
+Limite do FPS
 Modo de informação do mapa
 
 Opções sonoras
@@ -214,7 +217,7 @@ Tiro do parceiro
 Times balanceados
 Soltar poderes
 Sombre invisível
-Alternar deathbringer
+Alternar fumaça
 Escudo de 1 tiro
 Nível máximo da arma
 Poderes
@@ -280,9 +283,17 @@ Reino Unido
 Estados Unidos
 desconhecido ($1)
 
-; Used as values for 'save messages' in game menu.
+; Used as values for 'save messages' in the game menu.
 todas as mensagens
 apenas conversa
+
+; Used as values for 'show stats after the round' in the game menu.
+jogadores
+times
+
+; Used as values for 'arrow keys in statistics' in the controls menu.
+mudar a visão das estatísticas
+mover o jogador
 
 ; Used in the controls menu 'active controls' display.
 cima
@@ -360,9 +371,9 @@ $1 LARGOU A BANDEIRA SELVAGEM!
 $1 foi morto.
 $1 foi morto pelo parceiro $2.
 $1 foi morto pelo $2.
-$1 levou choque.
-$1 levou choque do parceiro $2.
-$1 levou choque do $2.
+$1 se sufocou.
+$1 foi sufocado pelo parceiro $2.
+$1 foi sufocado pelo $2.
 $1 recebeu um impacto mortal.
 $1 recebeu um impacto mortal do parceiro $2.
 $1 recebeu um impacto mortal do $2.
@@ -607,6 +618,9 @@ Figuras do mapa salvas no diretório 'mappic'.
 ; No length restrictions.
 
 ; Command line errors.
+-cport precisa ser seguido de um espaço e o número da porta ou porta mínima:porta máxima.
+-cport X ou -cport X:Y: X e Y precisa estar entre 1 e 65535.
+-cport X:Y: Y precisa ser maior que X.
 -debug precisa ser seguido de um espaço e um número.
 -debug X: X precisa estar entre 0 e 2.
 -fps precisa ser seguido de um espaço e um número.
@@ -618,6 +632,9 @@ Figuras do mapa salvas no diretório 'mappic'.
 -maxp X: X precisa ser um número impar entre 2 e $1.
 -port precisa ser seguido de espaço e um número de porta.
 -port X: X precisa estar entre 1 e 65535.
+-sport precisa ser seguido de um espaço e porta mínima:porta máxima..
+-sport X:Y: X e Y precisa estar entre 1 e 65535.
+-sport X:Y: Y precisa ser maior que X.
 A prioridade escolhida, $1 não está dentro dos limites do sistema. Rode com -info para mais informações.
 Argumento '$1' da linha de comando inválido.
 
@@ -715,10 +732,11 @@ Sem mapas para rotação.
 Não foi possível iniciar HawkNL. $1
 Sem rede de IP.
 Admin shell: Não foi possível abrir o soquete na porta $1.
-Admin shell: Não foi possível alterar o soquete para o modo de escuta...
+Admin shell: Não foi possível alterar o soquete para o modo de escuta....
 Admin shell: leitura falhou. Motivo: $1
 Admin shell: Falhou enviando resposta. Motivo: $1
 Não foi possível conectar no servidor mestre. $1
+Não foi possível abrir o soquete.
 Não foi possível abrir o soquete para atualizar os servidores. $1
 Não foi possível abrir o soquete para conectar no servidor mestre. $1
 Não foi possível iniciar a rede do servidor na porta $1.

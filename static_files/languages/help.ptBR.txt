@@ -3,8 +3,8 @@ Para mais informações acesse as fontes:
  Site original do outgun           http://outgun.sf.net/
  desenvolvimento por Nix e Huntta  http://koti.mbnet.fi/outgun/
  
- Tradução para o Português - Brasil, versão BETA
- ===============================================
+ Tradução para o Português - Brasil, 4ª revisão
+ ==============================================
  
  Problemas na tradução para o português, por favor fale com:
  ThOR27 - Thomaz de Oliveira dos Reis
@@ -69,5 +69,5 @@ Se você ver algum item pelo chão, pegue-o. Ele é um item de poder.
  força           seu tiro causa um maior dano 
  mega-saude      mais saude e energia
  escudo          sua saúde é protegida enquanto o escudo durar
- encaminhador    mata os adversários que ficarem na mesma sala quando
-   de mortes       você morre
+ fumaça 	 asfixia os adversários que ficarem na mesma sala quando
+ 		 você morre
