@@ -787,22 +787,31 @@ void Server::nameChange(int id, int pid, const string& tempname, const std::stri
 	// must have just entered the game
 	const bool entered_game = world.player[pid].name.empty();
 
-	if (!check_name(tempname))
+	if (!check_name(tempname)) {
+		log("Kicked player %d for client disbehavior: attempted invalid name '%s'", pid, tempname.c_str());
 		disconnectPlayer(pid, disconnect_client_misbehavior);
+		return;
+	}
 	else {
 		if (authorizations.checkNamePassword(tempname, password)) {
 			world.player[pid].name = tempname;
 			world.player[pid].waitnametime = get_time() + 1.0;
 		}
-		else if (entered_game)
+		else if (entered_game) {
+			log("Kicked player %d for client disbehavior: authorization changed between entering the game and first name change", pid);
 			disconnectPlayer(pid, disconnect_client_misbehavior);
-		else
+			return;
+		}
+		else {
+			log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
+								tempname.c_str(), password.c_str(), addressToString(network.get_client_address(id)).c_str());
 			network.sendNameAuthorizationRequest(pid);
+		}
 	}
 
+	network.broadcast_player_name(pid);	// must be before new_player_notice to make admin shell show it right
 	if (entered_game)
 		network.broadcast_new_player_notice(pid);
-	network.broadcast_player_name(pid);
 
 	// token removed; possibly authorized and/or admin
 	network.broadcast_player_crap(pid);

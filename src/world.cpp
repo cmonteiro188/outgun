@@ -2745,7 +2745,7 @@ void ServerWorld::simulateFrame() {
 			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 			host->ctf_game_restart();
 		}
-		else if (getExtraTimeLeft() <= 0) {
+		else if (getExtraTimeLeft() == 0 && config.extra_time > 0) {
 			net->bprintf(msg_info, "*** Extra-time out - CTF game over");
 			host->server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 			host->ctf_game_restart();

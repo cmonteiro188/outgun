@@ -1016,8 +1016,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				host->nameChange(id, pid, name, password);
 			}
 			else if (code == data_text_message) {
-				if (find_nonprintable_char(msg + 1))
+				if (find_nonprintable_char(msg + 1)) {
+					log("Kicked player %d for client disbehavior: sent unprintable characters", pid);
 					host->disconnectPlayer(pid, disconnect_client_misbehavior);
+				}
 				else
 					host->chat(pid, msg + 1);
 			}
@@ -1060,8 +1062,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				readString(msg, count, ftype);
 				readString(msg, count, fname);
 				if (fileTransfer[id].serving_udp_file) {
-					// FIXME: ERROR: this client is already downloading a file
-					log("Client %i already downloading a file!", id);
+					log("Kicked player %d for client disbehavior: already downloading", pid);
 					host->disconnectPlayer(pid, disconnect_client_misbehavior);
 					break;	// don't process the rest of the messages
 				}
@@ -1071,7 +1072,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					char buffy[65536];		//buffy is our friend buffer
 					int fsize = get_download_file((char *)buffy, ftype, fname);
 					if (fsize == -1) {
-						// Can't read the file client is asking for; already logged
+						log("Kicked player %d for client disbehavior: invalid download attempt", pid);
 						host->disconnectPlayer(pid, disconnect_client_misbehavior);	// don't process the rest of the messages
 					}
 					else {
@@ -1167,7 +1168,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 			}
 			else {
 				if (code < data_reserved_range_first || code > data_reserved_range_last) {
-					log("Client %i sent an unknown message code: %i, length %i", id, code, msglen);
+					log("Kicked player %d for client disbehavior: an unknown message code: %i, length %i", pid, code, msglen);
 					host->disconnectPlayer(pid, disconnect_client_misbehavior);
 					break;	// don't process the rest of the messages
 				}
@@ -2173,7 +2174,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 
 		// parse the code
 		if (code >= NUMBER_OF_ATS) {
-			log.error("Admin shell: invalid command");
+			log.error("Admin shell: invalid command %d", code);
 			break;
 		}
 
@@ -2185,10 +2186,11 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 		NLulong cid = 0;
 		int pid = 0;	// pid and cid set if argPid[code]
 		NLulong dwArg = 0;	// set if argDw[code]
-		//                         noop, get-functions,ch,qu,pi,kckbanmte,reset
-		const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
-		const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+		//                               noop, get-functions,ch,qu,pi,kckbanmte,reset
+		static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
+		static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
 		const int argsLen = (argPid[code] + argDw[code]) * 4;
+
 		if (argsLen) {
 			result = nlRead(shellssock, rbuf, argsLen);
 			if (result != argsLen) {
@@ -2248,8 +2250,12 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {	// se
 					log.error("Admin shell: unterminated string");
 					error = true;
 				}
-				else
-					bprintf(msg_normal, "ADMIN: %s", buf);
+				else {
+					if (find_nonprintable_char(buf))
+						log.error("Admin shell: unprintable characters, message ignored");
+					else
+						bprintf(msg_normal, "ADMIN: %s", buf);
+				}
 				break;
 			}
 			case ATS_GET_PINGS:

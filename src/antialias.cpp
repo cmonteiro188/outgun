@@ -230,10 +230,10 @@ bool YSegment::BorderCompare::operator()(const BorderFunctionBase* o1, const Bor
 	double c = (*o1)(my1) - (*o2)(my1);
 	if (c != 0.)
 		return c < 0;
-	c = (*o2)(my2) - (*o2)(my2);
+	c =        (*o1)(my2) - (*o2)(my2);
 	if (c != 0.)
 		return c < 0;
-	return (*o1)(my3) < (*o2)(my3);
+	return     (*o1)(my3) < (*o2)(my3);
 }
 
 void YSegment::debug(bool verbose) const {
