@@ -818,45 +818,45 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 
 	//1. process client's frame data
 	int count = 0;
-	ServerPlayer& h = world.player[pid];
 
 	NLubyte clFrame;
 	readByte(data, count, clFrame);
-	if (static_cast<NLubyte>(h.lastClientFrame - clFrame) >= 128) {	// this frame is very likely newer than the previous one
-		h.lastClientFrame = clFrame;
-		h.frameOffset = 10. * (get_time() - frameSentTime);
+	ServerPlayer& pl = world.player[pid];
+	if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) >= 128) {	// this frame is very likely newer than the previous one
+		pl.lastClientFrame = clFrame;
+		pl.frameOffset = 10. * (get_time() - frameSentTime);
 
 		NLubyte ccb;
 		readByte(data, count, ccb);
-		h.controls.fromNetwork(ccb, false);
+		pl.controls.fromNetwork(ccb, false);
 
-		const ClientControls& ctrl = h.controls;
+		const ClientControls& ctrl = pl.controls;
 		//if not strafing, update direction
 		if (!ctrl.isStrafe()) {
 			// left
 			if (ctrl.isLeft() && !ctrl.isRight()) {
 				if (ctrl.isUp() && !ctrl.isDown())	// + up
-					h.gundir = 5;
+					pl.gundir = 5;
 				else if (!ctrl.isUp() && ctrl.isDown()) // + down
-					h.gundir = 3;
+					pl.gundir = 3;
 				else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
-					h.gundir = 4;
+					pl.gundir = 4;
 			}
 			// right
 			else if (!ctrl.isLeft() && ctrl.isRight()) {
 				if (ctrl.isUp() && !ctrl.isDown())	// + up
-					h.gundir = 7;
+					pl.gundir = 7;
 				else if (!ctrl.isUp() && ctrl.isDown()) // + down
-					h.gundir = 1;
+					pl.gundir = 1;
 				else if (!ctrl.isUp() && !ctrl.isDown()) // !up !down
-					h.gundir = 0;
+					pl.gundir = 0;
 			}
 			//!right !left
 			else if (!ctrl.isLeft() && !ctrl.isRight()) {
 				if (ctrl.isUp() && !ctrl.isDown())	// + up
-					h.gundir = 6;
+					pl.gundir = 6;
 				else if (!ctrl.isUp() && ctrl.isDown()) // + down
-					h.gundir = 2;
+					pl.gundir = 2;
 			}
 		}
 	}
@@ -899,7 +899,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 					//network.broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], world.player[pid].name.c_str());
 					host->check_team_changes();
 					pid = ctop[id];
-					h = world.player[pid];
 				}
 			}
 			// want changeteams off
@@ -915,14 +914,14 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 				//client is ready to play now
 				world.player[pid].awaiting_client_ready = false;
 			}
-			// want change teams
+			// want change map
 			else if (code == 22) {
 				if (world.player[pid].want_map_exit == false) {
 					world.player[pid].want_map_exit = true;
 					host->check_map_exit();
 				}
 			}
-			// dont' want change teams
+			// dont' want change map
 			else if (code == 23) {
 				if (world.player[pid].want_map_exit == true) {
 					world.player[pid].want_map_exit = false;
