@@ -153,6 +153,7 @@ public:
     Textarea            apply;
     Select<std::string> theme;
     Checkbox            antialiasing;
+    Checkbox            minTransp;
     Checkbox            contTextures;
     Select<MinimapPlayerMode> minimapPlayers;
     Slider              statsBgAlpha;

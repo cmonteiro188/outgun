@@ -119,7 +119,8 @@ enum ClientCfgSetting {
     CCS_AutodetectAddress,
     CCS_ArrowKeysInStats,
     CCS_MinimapPlayers,
-    CCS_MaxCommand = CCS_MinimapPlayers
+    CCS_MinTransp,
+    CCS_MaxCommand = CCS_MinTransp
 };
 
 class ServerThreadOwner {
@@ -387,6 +388,7 @@ class Client {
     void MCF_screenModeChange();
     void MCF_gfxThemeChange();
     void MCF_antialiasChange();
+    void MCF_transpChange();
     void MCF_statsBgChange();
     void MCF_prepareGfxMenu();
     void MCF_prepareDrawGfxMenu();

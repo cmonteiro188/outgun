@@ -132,6 +132,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
         mmy = ply;
     minibg = create_bitmap(minimap_place_w, minimap_place_h);
     nAssert(minibg);
+    minibg_fog = create_bitmap(minimap_place_w, minimap_place_h);   // if not created, won't be used
     const int scoreboardPlaceX = roombg->w; // to the right of the playfield, if possible
     const int scoreboardPlaceW = SCREEN_W - scoreboardPlaceX;
     static const int scoreboardW = 20 * 8;  // 20 characters
@@ -145,6 +146,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
     indicators_y = SCREEN_H - 30;
     reset_playground_colors();
     setColors();
+    make_db_effect();
     if (!no_theme)
         load_pictures(theme_path);
 
@@ -158,6 +160,8 @@ void Graphics::unload_bitmaps() {
     background.free();
     roombg    .free();
     minibg    .free();
+    minibg_fog.free();
+    db_effect .free();
     unload_pictures();
 }
 
@@ -170,7 +174,7 @@ void Graphics::endDraw() {
 }
 
 void Graphics::draw_screen() {
-    acquire_screen();
+    //acquire_screen();
     if (page_flipping) {
         show_video_bitmap(drawbuf);
 
@@ -181,7 +185,7 @@ void Graphics::draw_screen() {
     }
     else
         blit(drawbuf, screen, 0, 0, 0, 0, SCREEN_W, SCREEN_H);
-    release_screen();
+    //release_screen();
 }
 
 void Graphics::setColors() {
@@ -719,10 +723,14 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
     const int y1 = mmy + minimap_start_y +  ry      * minimap_h / map.h;
     const int x2 = mmx + minimap_start_x + (rx + 1) * minimap_w / map.w - 1;
     const int y2 = mmy + minimap_start_y + (ry + 1) * minimap_h / map.h - 1;
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, static_cast<int>(0x38 * (1. - visibility)));
-    rectfill(drawbuf, x1, y1, x2, y2, col[COLFOGOFWAR]);
-    solid_mode();
+    if ((visibility <= 0.01 || min_transp) && minibg_fog)
+        blit(minibg_fog, drawbuf, x1 - mmx, y1 - mmy, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
+    else {
+        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+        set_trans_blender(0, 0, 0, static_cast<int>(0x38 * (1. - visibility)));
+        rectfill(drawbuf, x1, y1, x2, y2, col[COLFOGOFWAR]);
+        solid_mode();
+    }
 }
 
 void Graphics::draw_minimap_background() {
@@ -732,6 +740,13 @@ void Graphics::draw_minimap_background() {
 
 void Graphics::update_minimap_background(const Map& map) {
     update_minimap_background(minibg, map);
+    if (minibg_fog) {
+        blit(minibg, minibg_fog, 0, 0, 0, 0, minibg->w, minibg->h);
+        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+        set_trans_blender(0, 0, 0, 0x38);
+        rectfill(minibg_fog, 0, 0, minibg_fog->w - 1, minibg_fog->h - 1, col[COLFOGOFWAR]);
+        solid_mode();
+    }
 }
 
 class MinimapHelper {   // small helper solely for Graphics::update_minimap_background
@@ -1024,11 +1039,9 @@ void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
 }
 
 void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) { // x,y are destination coords of the sprite center
-    // make room so that rotating won't clip the corners off
-    //const int width  = gundir % 2 ? sprite->w : static_cast<int>(ceil(1.415 * sprite->w));
-    //const int height = gundir % 2 ? sprite->h : static_cast<int>(ceil(1.415 * sprite->h));
     nAssert(sprite);
     nAssert(sprite->w == sprite->h);    // if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
+    // make room so that rotating won't clip the corners off
     const int size = sprite->h + sprite->h / 2;
     Bitmap buffer = create_bitmap(size, size);
     nAssert(buffer);
@@ -1100,20 +1113,21 @@ void Graphics::draw_deathbringer_smoke(int x, int y, double time, double alpha) 
     x = scale(x);
     y = scale(y);
     const int effAlpha = static_cast<int>((120 - time * 200.0) * alpha);
-    if (effAlpha <= 0)
+    if (effAlpha <= 0 || (min_transp && effAlpha <= 10))
         return;
     int c;
-    if (!page_flipping) {
+    const double drad = 3.0 + 9.0 * (0.6 - time);
+    int rad = scale(drad);
+    if (min_transp) {
+        const int rgb = 120 - effAlpha;
+        c = makecol(rgb, rgb, rgb);
+		rad /= 2;
+    }
+    else {
         c = makecol(0, 0, 0);
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
         set_trans_blender(0, 0, 0, effAlpha);
     }
-    else {
-        const int rgb = 120 - effAlpha;
-        c = makecol(rgb, rgb, rgb);
-    }
-    const double drad = 3.0 + 9.0 * (0.6 - time);
-    const int rad = scale(drad);
     const int subdist = scale(96.0 - drad * 8.0);
     circlefill(drawbuf, plx + x, ply + y - subdist, rad, c);
     solid_mode();
@@ -1169,19 +1183,36 @@ void Graphics::draw_deathbringer_affected(int x, int y, int team, int alpha) {
 }
 
 void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
-    if (page_flipping)
+    if (min_transp)
         return;
     x = scale(x);
     y = scale(y);
-    set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
-    //darken ground
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    for (int r = scale(50); r >= 0; r -= 5) {
-        set_trans_blender(0, 0, 0, max((50 - static_cast<int>(r / scr_mul)) * alpha / 255, 0));
-        circlefill(drawbuf, plx + x, ply + y, r, 0);
+    BITMAP* buffer;
+    if (alpha == 255)
+        buffer = db_effect;
+    else {
+        buffer = create_bitmap_ex(32, db_effect->w, db_effect->h);
+        clear_to_color(buffer, makecol(0, 0, 0));
+        draw_trans_sprite(buffer, db_effect, 0, 0);
+        Bitmap alpha_channel = create_bitmap_ex(8, db_effect->w, db_effect->h);
+        set_write_alpha_blender();
+        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+        for (int y = 0; y < buffer->h; y++)
+            for (int x = 0; x < buffer->w; x++) {
+                const int a = geta(getpixel(db_effect, x, y));
+                const int new_alpha = a * alpha / 255;
+                putpixel(buffer, x, y, new_alpha);
+            }
+        solid_mode();
     }
+    set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
+    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+    set_alpha_blender();
+    draw_trans_sprite(drawbuf, buffer, plx + x - db_effect->w / 2, ply + y - db_effect->h / 2);
     solid_mode();
     set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
+    if (buffer != db_effect)
+        destroy_bitmap(buffer);
 }
 
 void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int direction) {
@@ -2147,6 +2178,8 @@ void Graphics::draw_effects(int room_x, int room_y, double time) {
 }
 
 void Graphics::draw_turbofx(int room_x, int room_y, double time) {
+    if (min_transp)
+        return;
     for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
         if (fx->px != room_x || fx->py != room_y || fx->type != FX_TURBO) { // different room or wrong type
             ++fx;
@@ -2176,6 +2209,30 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
     minimap_place_w = old_minimap_p_w;
     minimap_place_h = old_minimap_p_h;
     return !save_bitmap(filename.c_str(), buffer, pal);
+}
+
+void Graphics::make_db_effect() {
+    db_effect.free();
+    const int size = 2 * scale(2 * PLAYER_RADIUS);
+    db_effect = create_bitmap_ex(32, size, size);
+    nAssert(db_effect);
+
+    clear_to_color(db_effect, makecol(0, 0, 0));
+    
+    set_write_alpha_blender();
+    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++) {
+            const int dx = size / 2 - x;
+            const int dy = size / 2 - y;
+            const double dist = sqrt(dx * dx + dy * dy);
+            const int max_alpha = 230;
+            int alpha = static_cast<int>(max_alpha - dist * 2 * max_alpha / size);
+            alpha = max(0, min(alpha, max_alpha));
+            putpixel(db_effect, x, y, alpha);
+        }
+    solid_mode();
 }
 
 // Theme functions

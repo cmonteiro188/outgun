@@ -2599,7 +2599,7 @@ void ServerWorld::simulateFrame() {
             else
                 rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
 
-            //check enemy players onscreen that are not hit by it yet and are inside
+            //check players onscreen that are not hit by it yet and are inside
             // the donut radius...radius-50
             for (int v = 0; v < maxplayers; v++)
                 //enemy players only if friendly deathbringer is off

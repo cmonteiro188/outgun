@@ -274,6 +274,7 @@ Menu_graphics::Menu_graphics() :
 
     theme       (_("Theme")),
     antialiasing(_("Antialiasing"), true),
+    minTransp   (_("Minimal transparency effects"), false),
     contTextures(_("Continuous textures between rooms"), false),
     minimapPlayers(_("Disappeared players on minimap")),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
@@ -293,6 +294,7 @@ Menu_graphics::Menu_graphics() :
     ins_space();
     menu.add_component(&theme);
     menu.add_component(&antialiasing);
+    menu.add_component(&minTransp);
     menu.add_component(&contTextures);
     menu.add_component(&minimapPlayers);
     menu.add_component(&statsBgAlpha);

@@ -202,6 +202,8 @@ public:
     void select_theme(const std::string& name);
 
     void set_antialiasing(bool enable) { antialiasing = enable; }
+    
+    void set_min_transp(bool enable) { min_transp = enable; }
 
     int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
     
@@ -251,6 +253,8 @@ private:
 
     void scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
 
+    void make_db_effect();
+
     void load_theme(const std::string& dirname = "");
     void load_pictures(const std::string& path);
 
@@ -292,10 +296,12 @@ private:
     Bitmap vidpage2;
     Bitmap backbuf;
     bool page_flipping;
+    bool min_transp;
 
     BITMAP* drawbuf;    // main draw buffer (points to vidpage# or backbuf at a given time)
     Bitmap background;  // draw buffer for floor, walls and minimap
     Bitmap minibg;      // minimap draw buffer
+    Bitmap minibg_fog;  // minimap with fog in every room
 
     Bitmap roombg;      // room background sub-bitmap
 
@@ -330,6 +336,8 @@ private:
     Bitmap flag_sprite[3];  // red, blue and wild flag
 
     Bitmap ice_cream;
+
+    Bitmap db_effect;       // the darkening of the ground around the player
 
     int map_list_size;
     int map_list_start;

@@ -795,6 +795,7 @@ bool Client::start() {
             break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
             break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);   // ignore error
             break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
+            break; case CCS_MinTransp:             menu.options.graphics.minTransp.set(args == "1");
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
             break; case CCS_MinimapPlayers:        menu.options.graphics.minimapPlayers.set(args == "1" ? Menu_graphics::MP_EarlyCut : args == "2" ? Menu_graphics::MP_LateCut : Menu_graphics::MP_Fade);
             break; case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args));
@@ -853,6 +854,7 @@ bool Client::start() {
     if (extConfig.targetfps != -1)
         menu.options.graphics.fpsLimit.set(extConfig.targetfps);
     client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    client_graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
     client_graphics.select_theme(menu.options.graphics.theme());
     if (!screenModeChange())
@@ -3591,6 +3593,7 @@ void Client::stop() {
         cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
+        cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
         cfg << CCS_MinimapPlayers       << ' ' << (menu.options.graphics.minimapPlayers() == Menu_graphics::MP_EarlyCut ? 1 : menu.options.graphics.minimapPlayers() == Menu_graphics::MP_LateCut ? 2 : 0) << '\n';
         cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
@@ -3847,19 +3850,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     //do not draw stuff below if map not ready to show
     if (!hide_game) {
-        // draw the miniflags (in the base, on the ground or carried)
-        for (int t = 0; t < 2; t++)
-            for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
-                if (!fi->carried())
-                    client_graphics.draw_mini_flag(t, *fi, fx.map);
-
-        for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-            if (!fi->carried())
-                client_graphics.draw_mini_flag(2, *fi, fx.map);
-
         vector<NLubyte> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
 
-        // draw all teammates and enemies on screens where there are teammates
         int max_time, start_fadeout;    // in frames
         switch (menu.options.graphics.minimapPlayers()) {
         /*break;*/ case Menu_graphics::MP_EarlyCut: max_time =     start_fadeout = 12;
@@ -3867,23 +3859,37 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             break; case Menu_graphics::MP_Fade:     max_time = 20; start_fadeout = 10;
             break; default: nAssert(0); max_time = start_fadeout = 0;
         }
+        // check how the rooms should be drawn
         if (me >= 0 && fx.frame >= 0)
             for (int i = 0; i < maxplayers; i++) {
-                const ClientPlayer& pl = fx.player[i];
+                ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
                     int alpha;
                     if (fx.frame > pl.posUpdated + start_fadeout)
                         alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
                     else
                         alpha = 255;
+                    pl.alpha = alpha;
                     if (roomvis[pl.roomy * fx.map.w + pl.roomx] < alpha)
                         roomvis[pl.roomy * fx.map.w + pl.roomx] = alpha;
+                }
+            }
 
+        // paint fog of war in all invisible rooms
+        for (int ry = 0; ry < fx.map.h; ry++)
+            for (int rx = 0; rx < fx.map.w; rx++)
+                client_graphics.draw_minimap_room(fx.map, rx, ry, roomvis[ry * fx.map.w + rx] / 255.);
+
+        // draw all teammates and enemies on screens where there are teammates
+        if (me >= 0 && fx.frame >= 0)
+            for (int i = 0; i < maxplayers; i++) {
+                const ClientPlayer& pl = fx.player[i];
+                if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
+                    const int alpha = pl.alpha;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
                         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
                     }
-
                     const int enemy = 1 - i / TSIZE;
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
@@ -3911,10 +3917,15 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                 }
             }
 
-        // paint fog of war in all invisible rooms
-        for (int ry = 0; ry < fx.map.h; ry++)
-            for (int rx = 0; rx < fx.map.w; rx++)
-                client_graphics.draw_minimap_room(fx.map, rx, ry, roomvis[ry * fx.map.w + rx] / 255.);
+        // draw the miniflags (in the base and on the ground but not carried)
+        for (int t = 0; t < 2; t++)
+            for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+                if (!fi->carried())
+                    client_graphics.draw_mini_flag(t, *fi, fx.map);
+
+        for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+            if (!fi->carried())
+                client_graphics.draw_mini_flag(2, *fi, fx.map);
     }//!hide_game
 
     client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB], menu.options.game.underlineMasterAuth(), menu.options.game.underlineServerAuth());
@@ -4128,6 +4139,7 @@ void Client::initMenus() {
     menu.options.graphics.apply         .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
     menu.options.graphics.theme         .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.antialiasing  .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange        >(this));
+    menu.options.graphics.minTransp     .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange           >(this));
     menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
     menu.options.graphics.statsBgAlpha  .setHook(new MCB::N<Slider,         &Client::MCF_statsBgChange          >(this));
     menu.options.graphics.mapInfoMode   .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
@@ -4368,6 +4380,10 @@ void Client::MCF_antialiasChange() {
     client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
     client_graphics.update_minimap_background(fx.map);
     predrawNeeded = true;
+}
+
+void Client::MCF_transpChange() {
+    client_graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
 void Client::MCF_statsBgChange() {
