@@ -106,7 +106,7 @@ public:
 	}
 
 	//add data
-	void add(void* data, int len) {
+	void add(const void* data, int len) {
 		if (len == 0) 
 			return;
 		extend(len);		// extend to fit
@@ -122,7 +122,7 @@ public:
 	}
 
 	//set data
-	void set(data_c *data) {
+	void set(const data_c *data) {
 		ulen = 0;		// reset my contents
 		extend(((data_ci*)data)->ulen);	// expand to fit other's used count
 		ulen = ((data_ci*)data)->ulen;		// my used = other used
@@ -130,7 +130,7 @@ public:
 	}
 
 	//set data
-	void set(char *data, NLshort len) {
+	void set(const char *data, NLshort len) {
 		ulen = 0;
 		extend(len);
 		ulen = len;
@@ -148,9 +148,12 @@ public:
 	char* getbuf() {
 		return buf;
 	}
+	const char* getbuf() const {
+		return buf;
+	}
 
 	//get length (used)
-	int		getlen() {
+	int		getlen() const {
 		return ulen;
 	}
 
@@ -714,7 +717,7 @@ public:
 	}
 
 	// append reliable message to the packet buffer
-	virtual int writer(char *data, int length) {
+	virtual int writer(const char *data, int length) {
 
 		//find slot in reliable
 		//
@@ -732,7 +735,7 @@ public:
 
 	// append unreliable data to the packet buffer
 	//virtual int write(data_c* data) {
-	virtual int write(char *data, int length) {
+	virtual int write(const char *data, int length) {
 
 		//piece o'cake
 		//unreliable.add(((data_ci*)data)->buf, ((data_ci*)data)->ulen);
@@ -855,7 +858,7 @@ public:
 	}
 
 	// send a raw UDP packet to the destination. returns 1 if ok, 0 if nlWrite failed
-	virtual int send_raw_packet(data_c *data) {
+	virtual int send_raw_packet(const data_c *data) {
 		
 		//fix remote addr (changed by reads)
 		nlSetRemoteAddr(sendsock, &netaddr);

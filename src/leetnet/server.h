@@ -91,19 +91,19 @@ public:
 	//like say 100ms for a 10Hz (update freq.) server. do not load too much shit in the packet, a 300-byte
 	//packet is ok I guess, a 500-byte is too much IMHO (remember to give room for the reliable messages/ack
 	//protocol that introduces it's own shitload)
-	virtual int broadcast_frame(char* data, int length) = 0;
+	virtual int broadcast_frame(const char* data, int length) = 0;
 
 	//send frame method - when broadcast_frame doesn't quite cut it
-	virtual int send_frame(int client_id, char* data, int length) = 0;
+	virtual int send_frame(int client_id, const char* data, int length) = 0;
 
 	//sends the given reliable message to the given client. reliable = heavy, do not use for frequent
 	//world update data. use for gamestate changes, talk messages and other stuff the client can't miss, or
 	//stuff he can even miss but it's better if he doesn't and the message is so infrequent and small that
 	//it's worth it.
-	virtual int send_message(int client_id, char* data, int length) = 0;
+	virtual int send_message(int client_id, const char* data, int length) = 0;
 
 	//broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
-	virtual int broadcast_message(char* data, int length) = 0;
+	virtual int broadcast_message(const char* data, int length) = 0;
 
 	//function to be called by the SFUNC_CLIENT_DATA callback
 	//gets the next reliable message avaliable from the given client. null if no message pending

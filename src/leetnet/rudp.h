@@ -47,25 +47,26 @@ class data_c {
 public: 
 
 	//add data
-	virtual void add(void* data, int len) = 0;
+	virtual void add(const void* data, int len) = 0;
 
 	//add long: watch endianess
 	virtual void addlong(unsigned long data) = 0;
 
 	//set data
-	virtual void set(data_c *data) = 0;
+	virtual void set(const data_c *data) = 0;
 
 	//set data
-	virtual void set(char *data, short len) = 0;
+	virtual void set(const char *data, short len) = 0;
 
 	//clear
 	virtual void clear() = 0;
 
 	//get data: use buf/alen/ulen with HawkNL packet reading functions
 	virtual char* getbuf() = 0;
+	virtual const char* getbuf() const = 0;
 
 	//get length (used)
-	virtual int	getlen() = 0;
+	virtual int	getlen() const = 0;
 };
 
 /* 
@@ -128,11 +129,11 @@ public:
 
 	// append reliable message to the queue. this will be sent as many times as needed until
 	// it's acknowledged by the other side.
-	virtual int writer(char *data, int length) = 0;
+	virtual int writer(const char *data, int length) = 0;
 
 	// appends unreliable data to the packet buffer. all these calls are collapsed and the
 	// unreliable data is sent as a big chunk when send_packet() is called (see below).
-	virtual int write(char *data, int length) = 0;
+	virtual int write(const char *data, int length) = 0;
 
 	// flush the packet buffers as an UDP packet to the remote address, returns "id"
 	// for the assigned packet id. this call resets the unreliable data buffer (see
@@ -143,7 +144,7 @@ public:
 	// disconnection, or some authentication etc. schemes. raw packets with the first
 	// long == 0 are "special" and not treated as rudp packets (see process_incoming_packet())
 	// - returns 1 if ok, 0 if nlWrite failed
-	virtual int send_raw_packet(data_c *data) = 0;
+	virtual int send_raw_packet(const data_c *data) = 0;
 
 	// return the socket for get_socket_stat purposes
 	virtual NLsocket get_nl_socket() = 0;
