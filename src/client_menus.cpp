@@ -26,7 +26,7 @@ Menu_addServer::Menu_addServer() :
 	address		("IP address", "", 21),
 	save		("Add to favorite list"),
 
-	menu		("Add server")
+	menu		("Add server", false)
 {
 	menu.add_component(&address);
 	menu.add_component(&save);
@@ -44,7 +44,7 @@ Menu_serverList::Menu_serverList() :
 
 	caption			("IP address           Ping D Players Vers. Host name"),
 
-	menu			("Server list")
+	menu			("Server list", true)
 {
 	reset();
 }
@@ -102,7 +102,7 @@ Menu_name::Menu_name() :
 
 	removePasswords	("Remove server-specific player passwords"),
 
-	menu			("Name and passwords")
+	menu			("Name and passwords", true)
 {
 	menu.add_component(&name);
 	menu.add_component(&randomName);
@@ -128,7 +128,7 @@ Menu_game::Menu_game() :
 
 	autoGetServerList	("Get server list at startup", true),
 
-	menu				("Game options")
+	menu				("Game options", true)
 {
 	menu.add_component(&showNames);
 	menu.add_component(&favoriteColors);
@@ -173,7 +173,7 @@ Menu_graphics::Menu_graphics() :
 	fpsLimit	("FPS limit", false, 1, 10000, 60, 0),
 	mapInfoMode	("Map info mode", false),
 
-	menu		("Graphic options")
+	menu		("Graphic options", true)
 {
 	antialiasing.addOption("Off", Graphics::AA_none);
 	antialiasing.addOption("Map", Graphics::AA_map);
@@ -234,7 +234,7 @@ Menu_sounds::Menu_sounds() :
 	volume	("Volume", true, 0, 255, 150, 15),
 	theme	("Theme"),
 
-	menu	("Sound options")
+	menu	("Sound options", true)
 {
 	menu.add_component(&enabled);
 	menu.add_component(&volume);
@@ -259,7 +259,7 @@ Menu_options::Menu_options() :
 	graphics(),
 	sounds	(),
 
-	menu	("Options")
+	menu	("Options", true)
 {
 	menu.add_component(&name.menu);
 	menu.add_component(&game.menu);
@@ -290,7 +290,7 @@ Menu_main::Menu_main() :
 	help		(),
 	exitOutgun	("Exit Outgun"),
 
-	menu		("Outgun " GAME_VERSION)
+	menu		("Outgun " GAME_VERSION, true)
 {
 	menu.add_component(&newVersion);
 	menu.add_component(&connect.menu);
@@ -317,7 +317,7 @@ Menu_text::Menu_text() :
 	accept	("OK"),
 	cancel	("Cancel"),
 
-	menu	("Outgun " GAME_VERSION)
+	menu	("Outgun " GAME_VERSION, false)
 { }
 
 void Menu_text::addLine(const string& line, bool cancelable) {
@@ -326,6 +326,8 @@ void Menu_text::addLine(const string& line, bool cancelable) {
 
 void Menu_text::addLine(const string& caption, const string& value, bool cancelable) {
 	lines.push_back(StaticText(caption, value));
+
+	int oldSel = menu.selection();
 	menu.clear_components();
 	for (vector<StaticText>::iterator li = lines.begin(); li != lines.end(); ++li)
 		menu.add_component(&*li);
@@ -334,6 +336,7 @@ void Menu_text::addLine(const string& caption, const string& value, bool cancela
 		menu.add_component(&cancel);
 	else
 		menu.add_component(&accept);
+	menu.setSelection(oldSel);
 }
 
 void Menu_text::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
@@ -344,7 +347,7 @@ Menu_playerPassword::Menu_playerPassword() :
 	password	("Password", "", 15, '*'),
 	save		("Save password"),
 
-	menu		(string())	// caption is set by setup()
+	menu		(string(), false)	// caption is set by setup()
 {
 	menu.add_component(&password);
 	menu.add_component(&save);
@@ -359,7 +362,7 @@ void Menu_playerPassword::setup(const string& plyName, bool saveChecked) {
 Menu_serverPassword::Menu_serverPassword() :
 	password	("Password", "", 15, '*'),
 
-	menu		("Server password")
+	menu		("Server password", false)
 {
 	menu.add_component(&password);
 }
@@ -367,16 +370,19 @@ Menu_serverPassword::Menu_serverPassword() :
 Menu_help::Menu_help() :
 	text	(),
 
-	menu	("Help")
+	menu	("Help", false)
 { }
 
 void Menu_help::addLine(const string& line) {
 	lines.push_back(line);
+
+	int oldSel = menu.selection();
 	menu.clear_components();
 	text = Textobject();
 	for (vector<string>::iterator li = lines.begin(); li != lines.end(); ++li)
 		text.addLine(*li);
 	menu.add_component(&text);
+	menu.setSelection(oldSel);
 }
 
 void Menu_help::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {

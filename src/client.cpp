@@ -3709,6 +3709,8 @@ void Client::MCF_clearErrors() {
 }
 
 void Client::MCF_prepareServerMenu() {
+	int oldSel = menu.connect.menu.selection();
+
 	menu.connect.reset();
 	vector<NLaddress> addresses;
 	const vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
@@ -3750,6 +3752,7 @@ void Client::MCF_prepareServerMenu() {
 				addresses.push_back(spy->address());
 			}
 	serverListMutex.unlock();
+
 	typedef MenuCallback<Client> MCB;
 	typedef MenuKeyCallback<Client> MKC;
 	menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
@@ -3758,6 +3761,8 @@ void Client::MCF_prepareServerMenu() {
 	menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
 	menu.connect.refresh.setEnable(!refreshActive);
 	menu.connect.refreshStatus.set(refreshStatusAsString());
+
+	menu.connect.menu.setSelection(oldSel);
 }
 
 void Client::MCF_prepareAddServer() {
