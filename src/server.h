@@ -124,28 +124,27 @@ class gameserver_c {
 	NLsocket		shellssock;
 	pthread_t		shellsthread;
 	char			hostname[256];
-	double server_kbps_traffic;
-	int ping_send_counter, ping_send_client;
+	double			server_kbps_traffic;
+	int				ping_send_counter, ping_send_client;
 
 	// pelaajien hallinta
-	vector<string> welcome_message;	// welcome message line by line
-	vector<string> info_message;	// the message /info shows, line by line
-	string sayadmin_comment;
-	bool sayadmin_enabled;
-	player_t		player[MAX_PLAYERS];
+	vector<string>	welcome_message;	// welcome message line by line
+	vector<string>	info_message;	// the message /info shows, line by line
+	string			sayadmin_comment;
+	bool			sayadmin_enabled;
 	int				ctop[256];			// client id-to-player id index
-	oneclient_c	client[MAX_PLAYERS];
-	int max_world_score, max_world_rank;
-	double team_smul[2];
-	NLulong next_vote_announce_frame;
-	int last_vote_announce_votes, last_vote_announce_needed;
-	NLulong map_start_time;	// frame #
+	oneclient_c		client[MAX_PLAYERS];
+	int				max_world_score, max_world_rank;
+	double			team_smul[2];
+	NLulong 		next_vote_announce_frame;
+	int				last_vote_announce_votes, last_vote_announce_needed;
+	NLulong			map_start_time;	// frame #
 
 	// pelimaailma
-	World	world;
-	NLulong		frame;
-	bool	gameover;
-	double		gameover_time;		//timeout for gameover plaque
+	ServerWorld		world;
+	NLulong			frame;
+	bool			gameover;
+	double			gameover_time;		//timeout for gameover plaque
 
 	// asetukset
 	struct MapInfo {
@@ -214,6 +213,8 @@ public:
 	void broadcast_player_name(int pid);
 	void send_player_crap_update(int cid, int pid);
 	void broadcast_player_crap(int pid);
+	void ctf_net_flag_status(int cid, int team);
+	void sendWeaponPower(int pid);
 
 	void broadcast_sample(int code);
 	void broadcast_screen_sample(int p, int code);
@@ -243,11 +244,7 @@ public:
 
 	// pelimaailma
 	int choose_powerup_kind();
-	void ctf_net_flag_status(int cid, int team);
-	void ctf_return_flag(int team);
-	void ctf_drop_flag(int team, int px, int py, int x, int y);
-	void ctf_steal_flag(int team, int carrier);
-	void game_respawn_player(int pid);
+
 	void game_delete_rocket(int r, NLshort hitx, NLshort hity, int targ);
 	void make_damn_rocket(int i, int playernum, int px, int py, int x, int y, double deg, int xdelta);
 	NLubyte game_do_shoot_rocket(int playernum, int px, int py, int x, int y, double deg, int xdelta);
@@ -259,12 +256,13 @@ public:
 	void game_kill_player(int target, bool time_penalty);
 	void game_damage_player(int target, int attacker, int damage, bool deathbringer);
 	void game_remove_player(int pid);
-	void ctf_game_restart();
 	void respawn_pickup(int p);
 	int pups_by_percent(int percentage) const;
 	void check_pickup_creation(bool instant);
 	void game_touch_pickup(int p, int pk);
 	bool check_flag_touch(int px, int py, int x, int y, int t);
+
+	void ctf_game_restart();
 
 	// asetukset
 	void load_game_mod();

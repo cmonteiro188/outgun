@@ -640,7 +640,7 @@ bool old_wallcorrect(const Room& room, double *x, double *y, double *sx, double 
 	return ever_had_wall_hit;
 }
 
-bool applyNewPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+bool applyNewPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
 	float player_accel, player_friction, player_maxspeed;
 	if (h->run) {
@@ -742,10 +742,10 @@ bool applyNewPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 	#endif	// PHYS_VECTOR_ACC else
 
 	//wall collision correction
-	return new_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy);
+	return new_wallcorrect(room, fraction, &h->lx, &h->ly, &h->sx, &h->sy);
 }
 
-bool applyOldPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+bool applyOldPhysics(PlayerBase* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
 	//
 	float player_accel;
@@ -837,72 +837,203 @@ bool applyOldPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 	//if (h->sy < -player_maxspeed) h->sy = -player_maxspeed;
 
 	//save ox,oy
-	double ox = h->x;
-	double oy = h->y;
+	double ox = h->lx;
+	double oy = h->ly;
 
 	//move x
-	h->x += h->sx * fraction;
-	if (h->x < 0) h->x = 0;
-	else if (h->x > plw) h->x = plw;
+	h->lx += h->sx * fraction;
+	if (h->lx < 0) h->lx = 0;
+	else if (h->lx > plw) h->lx = plw;
 
 	//move y
-	h->y += h->sy * fraction;
-	if (h->y-PHYS_SHIFTY < 0) h->y = 0+PHYS_SHIFTY;
-	else if (h->y-PHYS_SHIFTY > plh) h->y = plh+PHYS_SHIFTY;
+	h->ly += h->sy * fraction;
+	if (h->ly-PHYS_SHIFTY < 0) h->ly = 0+PHYS_SHIFTY;
+	else if (h->ly-PHYS_SHIFTY > plh) h->ly = plh+PHYS_SHIFTY;
 
 	//wall collision correction
-	return old_wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &ox, &oy);
+	return old_wallcorrect(room, &h->lx, &h->ly, &h->sx, &h->sy, &ox, &oy);
 }
 
-bool World::applyPhysics(int pid, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
+bool WorldBase::applyPhysics(int pid, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	#ifdef PHYS_NEW
-	return applyNewPhysics(&hero[pid], room, fraction, turbo, carryFlag, deathbringer_affected);
+	return applyNewPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected);
 	#else
-	return applyOldPhysics(&hero[pid], room, fraction, turbo, carryFlag, deathbringer_affected);
+	return applyOldPhysics(player[pid].getPtr(), room, fraction, turbo, carryFlag, deathbringer_affected);
 	#endif
 }
 
 
 //run a physics frame simulation step for a player
-void World::run_server_player_physics(int i, player_t& player) {	// player id
-	hero_t* hd = &hero[i];
+void WorldBase::run_server_player_physics(int i) {	// player id
+	PlayerBase* hd = player[i].getPtr();
 
-	if (hd->tx<0 || hd->ty<0 || hd->tx>=map.w || hd->ty>=map.h) return;	//#fix: remove this and track why these are given sometimes
-	const Room& room = map.room[hd->tx][hd->ty];
+	if (hd->roomx<0 || hd->roomy<0 || hd->roomx>=map.w || hd->roomy>=map.h) return;	//#fix: remove this and track why these are given sometimes
+	const Room& room = map.room[hd->roomx][hd->roomy];
 
 	bool carryFlag = flag[1-(i/TSIZE)].carried && flag[1-(i/TSIZE)].carrier == i;
-	bool deathbringerAffected = player.deathbringer_end >= get_time();
+	bool deathbringerAffected = hd->under_deathbringer_effect(get_time());
 
-	float startx = hd->x, starty = hd->y;
+	float startx = hd->lx, starty = hd->ly;
 
-	applyPhysics(i, room, 1., player.item_speed, carryFlag, deathbringerAffected);
+	applyPhysics(i, room, 1., hd->item_speed, carryFlag, deathbringerAffected);
 
-	float xd = hd->x - startx;
-	float yd = hd->y - starty;
-	player.total_movement += sqrt( xd*xd + yd*yd );
+	ServerPlayer* spp = dynamic_cast<ServerPlayer*>(hd);	//#fix
+	if (spp) {
+		float xd = hd->lx - startx;
+		float yd = hd->ly - starty;
+		spp->total_movement += sqrt( xd*xd + yd*yd );
+	}
 
 	//check room change x
-	if (int(hd->x) == plw) {
-		hd->x = 1;
-		if (++hd->tx >= map.w)
-			hd->tx = 0;
+	if (int(hd->lx) == plw) {
+		hd->lx = 1;
+		if (++hd->roomx >= map.w)
+			hd->roomx = 0;
 	}
-	else if (int(hd->x) == 0) {
-		hd->x = plw - 1;
-		if (--hd->tx < 0)
-			hd->tx = map.w - 1;
+	else if (int(hd->lx) == 0) {
+		hd->lx = plw - 1;
+		if (--hd->roomx < 0)
+			hd->roomx = map.w - 1;
 	}
 
 	//check room change y
-	if (int(hd->y)-PHYS_SHIFTY == plh) {
-		hd->y = 1 +PHYS_SHIFTY;
-		if (++hd->ty >= map.h)
-			hd->ty = 0;
+	if (int(hd->ly)-PHYS_SHIFTY == plh) {
+		hd->ly = 1 +PHYS_SHIFTY;
+		if (++hd->roomy >= map.h)
+			hd->roomy = 0;
 	}
-	else if (int(hd->y)-PHYS_SHIFTY == 0) {
-		hd->y = plh - 1 +PHYS_SHIFTY;
-		if (--hd->ty < 0)
-			hd->ty = map.h - 1;
+	else if (int(hd->ly)-PHYS_SHIFTY == 0) {
+		hd->ly = plh - 1 +PHYS_SHIFTY;
+		if (--hd->roomy < 0)
+			hd->roomy = map.h - 1;
 	}
+}
+
+void WorldBase::returnFlag(int team) {
+	flag[team].carried = false;			// not carried anymore
+	flag[team].pos = map.tinfo[team].flag;		// return to original position
+	flag[team].atbase = true;		// yes, at base
+}
+
+void WorldBase::dropFlag(int team, int px, int py, int x, int y) {
+	flag[team].carried = false;		// not carried
+	flag[team].pos.px = px;		// dropped somewhere
+	flag[team].pos.py = py;
+	flag[team].pos.x = x;
+	flag[team].pos.y = y;
+	flag[team].atbase = false;		// not at base, team must touch to return (or it can be stolen)
+}
+
+void WorldBase::stealFlag(int team, int carrier) {
+	flag[team].carried = true;		// carried
+	flag[team].carrier = carrier;	// who stole it
+	flag[team].atbase = false;		// not at base (not needed / paranoia)
+}
+
+#include "server.h"
+//#fix: include needed for funny callback activities - get rid!
+
+void ServerWorld::returnFlag(int team) {
+	WorldBase::returnFlag(team);
+	host->ctf_net_flag_status(-1, team);
+}
+
+void ServerWorld::dropFlag(int team, int roomx, int roomy, int lx, int ly) {
+	WorldBase::dropFlag(team, roomx, roomy, lx, ly);
+	host->ctf_net_flag_status(-1, team);
+}
+
+void ServerWorld::stealFlag(int team, int carrier) {
+	WorldBase::stealFlag(team, carrier);
+	host->ctf_net_flag_status(-1, team);
+}
+
+void ServerWorld::respawnPlayer(int pid) {
+	player[pid].respawn_time = -1;
+	int t = pid/TSIZE;	// team
+
+	spoint_t pos;
+	if (map.tinfo[t].spawn.empty())
+		player[pid].respawn_to_base = false;
+	else if (player[pid].respawn_to_base) {
+		//choose a team spawn point
+		if (++map.tinfo[t].lastspawn >= map.tinfo[t].spawn.size())
+			map.tinfo[t].lastspawn = 0;
+		pos = map.tinfo[t].spawn[ map.tinfo[t].lastspawn ];	// the point
+	}
+
+	//if was killed or map spawn point places player over a wall
+	if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20)) {
+		// generate a random spot for respawn:
+		// - unnocupied screen
+		// - away from walls
+
+		//calculate room touch matrix
+		vector<bool> roompop;
+		roompop.resize(map.w*map.h, false);
+		for (int i=0; i<maxplayers; i++)
+			if (player[i].used && player[i].roomx >= 0 && player[i].roomy >= 0 && player[i].roomx < map.w && player[i].roomy < map.h)
+				roompop[player[i].roomy * map.w + player[i].roomx] = true;
+
+		int runaway = 400;
+		do {
+			//find screen
+			int ridx;
+			do {
+				ridx = rand() % (map.w*map.h);
+			} while ((runaway-- > 200) && (roompop[ridx] == true));	//keep trying until unnocupied (==false)
+			pos.px = ridx%map.w;
+			pos.py = ridx/map.w;
+
+			//find a suitable coordinate -- middle square
+			pos.x = plw / 8 + rand() % (3 * plw / 4);
+			pos.y = plh / 8 + rand() % (3 * plh / 4) +PHYS_SHIFTY;
+
+			//do a check for walls, maybe retrying another screen if hits a wall
+			if (!map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20))
+				break;	//success!
+
+			//fall on wall true, keep trying...
+
+		} while (runaway-- > 0);
+
+		if (runaway <= 0)
+			host->broadcast_message("PLAYER SPAWN RUNAWAY");
+	}
+
+	//put player there
+	//LOG("SPAWN %i %i  %i %i\n", pos.px, pos.py, pos.x, pos.y);
+	player[pid].roomx = pos.px;	//screen
+	player[pid].roomy = pos.py;
+	player[pid].lx = pos.x;	//screen position
+	player[pid].ly = pos.y;
+
+	//reset speeds / z
+	player[pid].sx = 0;
+	player[pid].sy = 0;
+
+	//reset player attributes
+	player[pid].health = 100;
+	player[pid].energy = 100;
+	player[pid].megabonus = 0;  //balaca megahealth
+
+	player[pid].weapon = 0;		//default weapon
+
+	host->sendWeaponPower(pid);
+
+	player[pid].item_shield = false;
+	player[pid].item_quad = false;
+	player[pid].item_speed = false;
+	player[pid].item_helm = 0;
+	player[pid].item_deathbringer = false;
+	player[pid].deathbringer_end = 0;
+
+	player[pid].respawn_to_base = false;
+
+	player[pid].last_spawn_time = (int)get_time();
+	player[pid].dead = false;
+
+	//for all effects, player screen changed
+	host->game_player_screen_change(pid);
 }
 

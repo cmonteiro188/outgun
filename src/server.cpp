@@ -55,7 +55,7 @@ bool gameserver_c::MapInfo::load(string mapName) {
 	return true;
 }
 
-gameserver_c::gameserver_c() {
+gameserver_c::gameserver_c() : world(this) {
 	server = 0;
 	hostname[0]=0;	//hostname
 	frame = 0;		// current frame count
@@ -88,21 +88,21 @@ gameserver_c::~gameserver_c() {
 }
 
 void gameserver_c::mutePlayer(int pid, int mode) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
-	if (mode==0 && player[pid].muted!=2)
+	if (mode==0 && world.player[pid].muted!=2)
 		plprintf(pid, "@WYou have been unmuted (you can send messages again)");
 	else if (mode == 1)
 		plprintf(pid, "@WYou have been muted (you can't send messages)");
 	for (int i=0; i<MAX_PLAYERS; ++i)
-		if (player[i].used && i!=pid) {
+		if (world.player[i].used && i!=pid) {
 			if (mode == 0)
-				plprintf(i, "@IThe admin has unmuted %s", player[pid].name);
+				plprintf(i, "@IThe admin has unmuted %s", world.player[pid].name);
 			else
-				plprintf(i, "@IThe admin has muted %s", player[pid].name);
+				plprintf(i, "@IThe admin has muted %s", world.player[pid].name);
 		}
-	player[pid].muted = mode;
+	world.player[pid].muted = mode;
 }
 void gameserver_c::kickPlayer(int pid, bool ban) {
-	player[pid].delayedMessages.clear();
+	world.player[pid].delayedMessages.clear();
 	if (ban)
 		plprintf(pid, "@WYou are now BANNED from this server! Have a nice life...");
 	else {
@@ -110,14 +110,14 @@ void gameserver_c::kickPlayer(int pid, bool ban) {
 		plprintf(pid, "@WWarning: you can get permanently banned for behaving badly!");
 	}
 	for (int i=0; i<MAX_PLAYERS; ++i)
-		if (player[i].used && i!=pid)
-			plprintf(i, "@IThe admin has %s %s (disconnect in 10 seconds)", ban?"banned":"kicked", player[pid].name);
-	player[pid].kickTimer = 10*10;
+		if (world.player[i].used && i!=pid)
+			plprintf(i, "@IThe admin has %s %s (disconnect in 10 seconds)", ban?"banned":"kicked", world.player[pid].name);
+	world.player[pid].kickTimer = 10*10;
 }
 
 #ifdef SV_NAME_AUTHORIZATION
 void gameserver_c::banPlayer(int pid) {
-	authorizations.ban(server->get_client_address(player[pid].cid));
+	authorizations.ban(server->get_client_address(world.player[pid].cid));
 	authorizations.save();
 	kickPlayer(pid, true);
 }
@@ -462,7 +462,7 @@ void gameserver_c::send_me_packet(int pid) {
 	writeFloat(lebuf, count, ((NLfloat)svp_accel_turborun) );
 	writeFloat(lebuf, count, ((NLfloat)svp_maxspeed_turborun) );
 	writeFloat(lebuf, count, ((NLfloat)svp_flag_penalty) );
-	server->send_message(player[pid].cid, lebuf, count);
+	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 //send a player name update to a client
@@ -471,8 +471,8 @@ void gameserver_c::send_player_name_update(int cid, int pid) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 1);	// "1" = player name update
 	writeByte(lebuf, count, pid);		// what player id
-	player[pid].name[15]=0;		// force trunc name at 15 chars (paranoia)
-	writeString(lebuf, count, player[pid].name);
+	world.player[pid].name[15]=0;		// force trunc name at 15 chars (paranoia)
+	writeString(lebuf, count, world.player[pid].name);
 	server->send_message(cid, lebuf, count);
 }
 
@@ -480,8 +480,8 @@ void gameserver_c::send_player_name_update(int cid, int pid) {
 void gameserver_c::broadcast_player_name(int pid) {
 
 	for (int i=0;i<maxplayers;i++)
-	if (player[i].used)
-		send_player_name_update(player[i].cid, pid);
+	if (world.player[i].used)
+		send_player_name_update(world.player[i].cid, pid);
 
 	//server->broadcast_message(lebuf, count);
 }
@@ -494,26 +494,26 @@ void gameserver_c::send_player_crap_update(int cid, int pid) {
 
 	// --- RECALC CRAP ---
 	//reg_status char:
-	if (client[ player[pid].cid ].token_have) {
-		if (client[ player[pid].cid ].token_valid)
-			player[pid].reg_status = '*';
+	if (client[ world.player[pid].cid ].token_have) {
+		if (client[ world.player[pid].cid ].token_valid)
+			world.player[pid].reg_status = '*';
 		else
-			player[pid].reg_status = '?';
+			world.player[pid].reg_status = '?';
 	}
 	else
-		player[pid].reg_status = ' ';
+		world.player[pid].reg_status = ' ';
 
 	writeByte(lebuf, count, ((NLubyte)pid));
-	writeByte(lebuf, count, ((NLubyte)player[pid].reg_status));					//regstatus
-	writeLong(lebuf, count, ((NLulong)client[player[pid].cid].rank));		//ranking#
-	writeLong(lebuf, count, ((NLulong)client[player[pid].cid].score));		//score POS
-	writeLong(lebuf, count, ((NLulong)client[player[pid].cid].neg_score));		//score NEG v0.4.8
+	writeByte(lebuf, count, ((NLubyte)world.player[pid].reg_status));					//regstatus
+	writeLong(lebuf, count, ((NLulong)client[world.player[pid].cid].rank));		//ranking#
+	writeLong(lebuf, count, ((NLulong)client[world.player[pid].cid].score));		//score POS
+	writeLong(lebuf, count, ((NLulong)client[world.player[pid].cid].neg_score));		//score NEG v0.4.8
 	writeLong(lebuf, count, ((NLulong)max_world_rank));		//MAX WORLD ranking#
 	writeLong(lebuf, count, ((NLulong)max_world_score));		//MAX WORLD score
 
-	//LOG5("CRAPZ SENT TO CID %i of PID %i %c r:%i s:%i\n", cid, pid, player[pid].reg_status
-	//	,client[player[pid].cid].rank
-	//	,client[player[pid].cid].score);
+	//LOG5("CRAPZ SENT TO CID %i of PID %i %c r:%i s:%i\n", cid, pid, world.player[pid].reg_status
+	//	,client[world.player[pid].cid].rank
+	//	,client[world.player[pid].cid].score);
 
 	server->send_message(cid, lebuf, count);
 }
@@ -522,8 +522,8 @@ void gameserver_c::send_player_crap_update(int cid, int pid) {
 void gameserver_c::broadcast_player_crap(int pid) {
 
 	for (int i=0;i<maxplayers;i++)
-	if (player[i].used)
-		send_player_crap_update(player[i].cid, pid);
+	if (world.player[i].used)
+		send_player_crap_update(world.player[i].cid, pid);
 }
 
 //check if team change requests can be satisfied
@@ -548,17 +548,17 @@ void gameserver_c::check_team_changes() {
 void gameserver_c::check_player_change_teams(int pid) {
 
 	//valid players that want to change teams only
-	if (!player[pid].used) return;
-	if (!player[pid].want_change_teams) return;
-	if (get_time() < player[pid].team_change_time) {
-		player[pid].team_change_pending = true;	//vai continuar tentando
+	if (!world.player[pid].used) return;
+	if (!world.player[pid].want_change_teams) return;
+	if (get_time() < world.player[pid].team_change_time) {
+		world.player[pid].team_change_pending = true;	//vai continuar tentando
 		return;	//v0.3.3 : intervalos minimos para troca de times
 	}
 
 	//count players in each team
 	int tc[2];tc[0]=0;tc[1]=0;
 	for (int i=0;i<maxplayers;i++)
-		if (player[i].used)
+		if (world.player[i].used)
 			tc[i/TSIZE]++;
 
 	//check if team changing happens: calculate delta TARGET TEAM - MY TEAM
@@ -573,7 +573,7 @@ void gameserver_c::check_player_change_teams(int pid) {
 		for (int i=0;i<maxplayers;i++)
 		if (i/TSIZE != pid/TSIZE)			// no time oposto
 		{
-			if (!player[i].used)		// player vago
+			if (!world.player[i].used)		// player vago
 			{
 				move_player(pid, i);	// move pid to free slot
 				break;
@@ -587,9 +587,9 @@ void gameserver_c::check_player_change_teams(int pid) {
 		bool found = false;
 
 		for (int i=0;i<maxplayers;i++)
-		if (player[i].used)	// um player
+		if (world.player[i].used)	// um player
 		if (i/TSIZE != pid/TSIZE)		// do outro time
-		if (player[i].want_change_teams)		// que quer trocar de time
+		if (world.player[i].want_change_teams)		// que quer trocar de time
 		{
 			found = true;
 			swap_players(pid, i);		// make trade
@@ -604,7 +604,7 @@ void gameserver_c::check_player_change_teams(int pid) {
 			for (int i=0;i<maxplayers;i++)
 			if (i/TSIZE != pid/TSIZE)			// no time oposto
 			{
-				if (!player[i].used)		// player vago
+				if (!world.player[i].used)		// player vago
 				{
 					move_player(pid, i);	// move pid to free slot
 					break;
@@ -612,7 +612,7 @@ void gameserver_c::check_player_change_teams(int pid) {
 			}
 			/*
 			for (int i=0;i<MAX_PLAYERS;i++)
-			if (!player[i].used)		// player vago
+			if (!world.player[i].used)		// player vago
 			if (i/TSIZE != pid/TSIZE)			// no time oposto
 			{
 				move_player(pid, i);	// move pid to free slot
@@ -627,7 +627,7 @@ void gameserver_c::check_player_change_teams(int pid) {
 //
 void gameserver_c::move_update_player(int a) {
 
-	if (player[a].used) {
+	if (world.player[a].used) {
 		broadcast_player_name(a);
 
 			send_me_packet(a);
@@ -637,7 +637,7 @@ void gameserver_c::move_update_player(int a) {
 			writeByte(lebuf, count, ((NLubyte)a) );		// who am I
 			writeByte(lebuf, count, ((NLubyte)world.flag[0].score) );		//team 0 current score
 			writeByte(lebuf, count, ((NLubyte)world.flag[1].score) );		//team 1 current score
-			server->send_message(player[a].cid, lebuf, count);
+			server->send_message(world.player[a].cid, lebuf, count);
 			*/
 
 			//v0.4.4 : tentativa de conserto
@@ -645,7 +645,7 @@ void gameserver_c::move_update_player(int a) {
 			char lebuf[256]; int count = 0;
 			writeByte(lebuf, count, 4);	//"4" = frags update
 			writeByte(lebuf, count, a);		// what player id
-			writeLong(lebuf, count, player[a].frags);
+			writeLong(lebuf, count, world.player[a].frags);
 			server->broadcast_message(lebuf, count);
 
 			//v0.4.5 : atualiza registration char / score / rank
@@ -655,7 +655,7 @@ void gameserver_c::move_update_player(int a) {
 			//broadcast_player_name( a );
 
 		//message
-		bprintf("@I%s moved to %s team", player[a].name, teamname[a/TSIZE]);
+		bprintf("@I%s moved to %s team", world.player[a].name, teamname[a/TSIZE]);
 	}
 }
 
@@ -675,23 +675,20 @@ void gameserver_c::move_player(int f, int t) {
 	ctf_drop_flag_if_any(f);
 
 	//copy to t
-	player[t] = player[f];
-
-	//copy hero
-	world.hero[t] = world.hero[f];
+	world.player[t] = world.player[f];
 
 	//remove f
 	game_remove_player(f);
 
 	//update ctop
-	ctop[ player[t].cid ] = t;
+	ctop[ world.player[t].cid ] = t;
 
 	//I really dont want to change teams no more..
-	player[t].want_change_teams = false;
-	player[t].team_change_time = get_time() + 10.0;		//10 secs interval
+	world.player[t].want_change_teams = false;
+	world.player[t].team_change_time = get_time() + 10.0;		//10 secs interval
 
 	//kill t
-	if (player[t].health > 0)
+	if (world.player[t].health > 0)
 		game_reset_player(t);
 
 	//update t
@@ -702,22 +699,22 @@ void gameserver_c::move_player(int f, int t) {
 void gameserver_c::swap_players(int a, int b) {
 	broadcast_sample(SAMPLE_CHANGETEAM);
 
-	if (player[a].health > 0)
+	if (world.player[a].health > 0)
 		game_reset_player(a);
-	if (player[b].health > 0)
+	if (world.player[b].health > 0)
 		game_reset_player(b);
 
-	swap(player[a], player[b]);
+	swap(world.player[a], world.player[b]);
 
 	//swap client id's
-	ctop[ player[a].cid ] = a;
-	ctop[ player[b].cid ] = b;
+	ctop[ world.player[a].cid ] = a;
+	ctop[ world.player[b].cid ] = b;
 
 	//either don't want to change teams anymore
-	player[a].want_change_teams = false;
-	player[a].team_change_time = get_time() + 10.0;		//10 secs interval
-	player[b].want_change_teams = false;
-	player[b].team_change_time = get_time() + 10.0;		//10 secs interval
+	world.player[a].want_change_teams = false;
+	world.player[a].team_change_time = get_time() + 10.0;		//10 secs interval
+	world.player[b].want_change_teams = false;
+	world.player[b].team_change_time = get_time() + 10.0;		//10 secs interval
 
 	//send updates
 	move_update_player(a);
@@ -738,7 +735,7 @@ void gameserver_c::broadcast_screen_sample(int p, int code) {
 	char lebuf[64]; int count = 0;
 	writeByte(lebuf, count, 14);		// sample play
 	writeByte(lebuf, count, (NLubyte)code);		// the sample code
-	broadcast_screen_message(player[p].x, player[p].y, (char*)lebuf, count);
+	broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
 }
 
 //send current flag status (cid == -1 : broadcast)
@@ -786,39 +783,6 @@ void gameserver_c::ctf_net_flag_status(int cid, int team) {
 		server->send_message(cid, lebuf, count);
 }
 
-//return flag to base position
-void gameserver_c::ctf_return_flag(int team) {
-
-	world.flag[team].carried = false;			// not carried anymore
-	world.flag[team].pos = world.map.tinfo[team].flag;		// return to original position
-	world.flag[team].atbase = true;		// yes, at base
-
-	ctf_net_flag_status(-1, team);	// broadcast new status
-}
-
-//drop flag on ground
-void gameserver_c::ctf_drop_flag(int team, int px, int py, int x, int y) {
-
-	world.flag[team].carried = false;		// not carried
-	world.flag[team].pos.px = px;		// dropped somewhere
-	world.flag[team].pos.py = py;
-	world.flag[team].pos.x = x;
-	world.flag[team].pos.y = y;
-	world.flag[team].atbase = false;		// not at base, team must touch to return (or it can be stolen)
-
-	ctf_net_flag_status(-1, team);	// broadcast new status
-}
-
-//steal flag
-void gameserver_c::ctf_steal_flag(int team, int carrier) {
-
-	world.flag[team].carried = true;		// carried
-	world.flag[team].carrier = carrier;	// who stole it
-	world.flag[team].atbase = false;		// not at base (not needed / paranoia)
-
-	ctf_net_flag_status(-1, team); // broadcast new status
-}
-
 //update team scores
 void gameserver_c::ctf_update_teamscore(int t) {
 
@@ -838,110 +802,6 @@ void gameserver_c::ctf_update_teamscore(int t) {
 	writeByte(lebuf, count, ((NLubyte)t));		// the team
 	writeByte(lebuf, count, ((NLubyte)world.flag[t].score));	//the score
 	server->broadcast_message(lebuf, count);
-}
-
-//respawn player. killed==true when player was killed, if joining game or it's
-//		a fresh game start, it's set to false
-//  if killed==true, use team spawn points and world spawn points
-//	if killed==false, use team spawn points only
-//
-void gameserver_c::game_respawn_player(int pid) {
-
-	// not time to respawn anymore
-	player[pid].respawn_time = -1;
-
-	//the player's team
-	int t = pid/TSIZE;
-
-	spoint_t pos;
-	if (world.map.tinfo[t].spawn.empty())
-		player[pid].respawn_to_base = false;
-	else if (player[pid].respawn_to_base) {
-		//choose a team spawn point
-		if (++world.map.tinfo[t].lastspawn >= world.map.tinfo[t].spawn.size())
-			world.map.tinfo[t].lastspawn = 0;
-		pos = world.map.tinfo[t].spawn[ world.map.tinfo[t].lastspawn ];	// the point
-	}
-
-	//if was killed or map spawn point places player over a wall
-	if (!player[pid].respawn_to_base || world.map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20)) {
-		// generate a random spot for respawn:
-		// - unnocupied screen
-		// - away from walls
-
-		//calculate room touch matrix
-		vector<bool> roompop;
-		roompop.resize(world.map.w*world.map.h, false);
-		for (int i=0;i<maxplayers;i++)
-			if (player[i].used && player[i].x >= 0 && player[i].y >= 0 && player[i].x < world.map.w && player[i].y < world.map.h)
-				roompop[player[i].y * world.map.w + player[i].x] = true;
-
-		int runaway = 400;
-		do {
-			//find screen
-			int ridx;
-			do {
-				ridx = rand() % (world.map.w*world.map.h);
-			} while ((runaway-- > 200) && (roompop[ridx] == true));	//keep trying until unnocupied (==false)
-			pos.px = ridx%world.map.w;
-			pos.py = ridx/world.map.w;
-
-			//find a suitable coordinate -- middle square
-			pos.x = plw / 8 + rand() % (3 * plw / 4);
-			pos.y = plh / 8 + rand() % (3 * plh / 4) +PHYS_SHIFTY;
-
-			//do a check for walls, maybe retrying another screen if hits a wall
-			if (!world.map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-PHYS_SHIFTY-20, pos.x+20, pos.y-PHYS_SHIFTY+20))
-				break;	//success!
-
-			//fall on wall true, keep trying...
-
-		} while (runaway-- > 0);
-
-		if (runaway <= 0)
-			broadcast_message("PLAYER SPAWN RUNAWAY");
-	}
-
-	//put player there
-	//LOG("SPAWN %i %i  %i %i\n", pos.px, pos.py, pos.x, pos.y);
-	player[pid].x = pos.px;	//screen
-	player[pid].y = pos.py;
-	world.hero[pid].x = pos.x;	//screen position
-	world.hero[pid].y = pos.y;
-
-	//reset speeds / z
-	world.hero[pid].sx = 0;
-	world.hero[pid].sy = 0;
-
-	//reset player attributes
-	player[pid].health = 100;
-	player[pid].energy = 100;
-	player[pid].megabonus = 0;  //balaca megahealth
-
-	player[pid].weapon = 0;		//default weapon
-
-	//notify player weapon power change
-	char lebuf[256]; int count = 0;
-	writeByte(lebuf, count, 18);		//player power change
-	writeByte(lebuf, count, ((NLubyte)player[pid].weapon) );
-	server->send_message(player[pid].cid, lebuf, count);
-
-	player[pid].item_shield = false;			// no items
-	player[pid].item_quad = false;
-	player[pid].item_speed = false;
-	player[pid].item_helm = 0;
-	player[pid].item_deathbringer = false;//
-	player[pid].deathbringer_end = 0;		//not hit by deathbringer yet
-
-	player[pid].respawn_to_base = false;
-
-	player[pid].last_spawn_time = (int)get_time();
-	player[pid].dead = false;
-
-	//for all effects, player screen changed
-	game_player_screen_change(pid);
-
-	//FIXME: add teleport visual effect and sound
 }
 
 //delete a rocket
@@ -964,11 +824,11 @@ void gameserver_c::game_delete_rocket(int r, NLshort hitx, NLshort hity, int tar
 
 	//send message to players that received the rocket
 	for (int p=0;p<maxplayers;p++)
-	if (player[p].used)								//still valid player? (nao custa checar..)
+	if (world.player[p].used)								//still valid player? (nao custa checar..)
 	if (rock->vislist & (1 << p))			//verifica se o bit de "conhece o rocket" ta ligado
 	{
 		// send the message to this player
-		server->send_message(player[p].cid, lebuf, count);
+		server->send_message(world.player[p].cid, lebuf, count);
 
 		//LOG2("...sent to pl=%i rock=%i\n", p, byt);
 	}
@@ -1024,7 +884,7 @@ NLubyte gameserver_c::game_do_shoot_rocket(int playernum, int px, int py, int x,
 //versao 0.1.2
 void gameserver_c::game_shoot_rocket(int playernum, int shots, int px, int py, int x, int y, int gundir) {
 
-	player[playernum].total_shots++;
+	world.player[playernum].total_shots++;
 
 	//ids alocados pra shots
 	NLubyte		sid[16];
@@ -1131,11 +991,11 @@ void gameserver_c::game_shoot_rocket(int playernum, int shots, int px, int py, i
 	//send message to players on the same screen
 	NLulong  vislist = 0;
 	for (int p=0;p<maxplayers;p++)
-	if (player[p].used)
-	if (player[p].x == px)
-	if (player[p].y == py) {
+	if (world.player[p].used)
+	if (world.player[p].roomx == px)
+	if (world.player[p].roomy == py) {
 		vislist += (1 << p);	// mark as sent
-		server->send_message(player[p].cid, lebuf, count);	// send the message to this player
+		server->send_message(world.player[p].cid, lebuf, count);	// send the message to this player
 	}
 
 	//mark all created rockets with the vislist
@@ -1153,15 +1013,15 @@ bool gameserver_c::ctf_drop_flag_if_any(int pid) {
 	if (world.flag[enemyteam].carrier == pid) {	//...by the target
 
 		//message
-		bprintf("@I%s LOST THE %s FLAG!", player[pid].name, teamname[enemyteam]);
+		bprintf("@I%s LOST THE %s FLAG!", world.player[pid].name, teamname[enemyteam]);
 
 		//sound broadcast
 		broadcast_sample(SAMPLE_CTF_LOST);
 
 		//drop the flag
-		ctf_drop_flag(enemyteam, player[pid].x, player[pid].y, (int)world.hero[pid].x, (int)world.hero[pid].y);
+		world.dropFlag(enemyteam, world.player[pid].roomx, world.player[pid].roomy, (int)world.player[pid].lx, (int)world.player[pid].ly);
 
-		player[pid].total_flags_dropped++;
+		world.player[pid].total_flags_dropped++;
 
 		return true;
 	}
@@ -1179,12 +1039,12 @@ void gameserver_c::refresh_team_score_modifiers() {
 
 	//somatorio raw ratings
 	for (int p=0;p<maxplayers;p++)
-	if (player[p].used) {
+	if (world.player[p].used) {
 		// use "1.0" rating for anybody with less than 100 positive points
-		if (client[player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
+		if (client[world.player[p].cid].score < MINIMUM_POSITIVE_SCORE_FOR_RANKING)
 			raw[p/TSIZE] += DEFAULT_PLAYER_RATE;		// default player rate
 		else
-			raw[p/TSIZE] += ( ((double)client[player[p].cid].score) + 1.0) / ( ((double)client[player[p].cid].neg_score) + 1.0);
+			raw[p/TSIZE] += ( ((double)client[world.player[p].cid].score) + 1.0) / ( ((double)client[world.player[p].cid].neg_score) + 1.0);
 	}
 
 	//modifiers
@@ -1205,7 +1065,7 @@ void gameserver_c::refresh_team_score_modifiers() {
 void gameserver_c::score_frag(int p, int amount) {
 
 	//add regular frags amount
-	player[p].frags += amount;
+	world.player[p].frags += amount;
 
 	//v0.4.4 -- add score to the player's score accumulator
 	//v0.4.7: DO NOT add score if map is not valid for scoring
@@ -1215,7 +1075,7 @@ void gameserver_c::score_frag(int p, int amount) {
 		//refresh team ratings
 		refresh_team_score_modifiers();
 
-		int cid = player[p].cid;
+		int cid = world.player[p].cid;
 
 		double parcela = ((double)amount) * team_smul[p/TSIZE];
 
@@ -1227,7 +1087,7 @@ void gameserver_c::score_frag(int p, int amount) {
 
 		//DEBUGz
 		//char lix[256];
-		//sprintf(lix, "%s scores +%.4f for %.4f +delta", player[p].name, parcela, client[cid].fdp);
+		//sprintf(lix, "%s scores +%.4f for %.4f +delta", world.player[p].name, parcela, client[cid].fdp);
 		//broadcast_message(lix);
 
 		//client[cid].delta_score += amount;		//just add the frags for now
@@ -1238,7 +1098,7 @@ void gameserver_c::score_frag(int p, int amount) {
 void gameserver_c::score_neg(int p, int amount) {
 
 	//add regular frags amount
-	//player[p].frags += amount;
+	//world.player[p].frags += amount;
 
 	//v0.4.4 -- add score to the player's score accumulator
 	//v0.4.7: DO NOT add score if map is not valid for scoring
@@ -1248,7 +1108,7 @@ void gameserver_c::score_neg(int p, int amount) {
 		//refresh team ratings
 		refresh_team_score_modifiers();
 
-		int cid = player[p].cid;
+		int cid = world.player[p].cid;
 
 		double parcela = ((double)amount);		// NAO multiplica....
 
@@ -1260,7 +1120,7 @@ void gameserver_c::score_neg(int p, int amount) {
 
 		//DEBUGz
 		//char lix[256];
-		//sprintf(lix, "%s scores -%.4f for %.4f -delta", player[p].name, parcela, client[cid].fdn);
+		//sprintf(lix, "%s scores -%.4f for %.4f -delta", world.player[p].name, parcela, client[cid].fdn);
 		//broadcast_message(lix);
 
 		//client[cid].neg_delta_score += amount;		//just add the frags for now V0.4.8: NEG SCORE!
@@ -1280,7 +1140,7 @@ void gameserver_c::client_report_status(int id) {
 		job->code = 2;
 
 		//V0.4.8: envia POS e NEG deltascore
-		sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\n\n", TK1_VERSION_STRING, client[id].delta_score, client[id].neg_delta_score, player[ ctop [id] ].name, client[id].token);
+		sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&dscp=%i&dscn=%i&name=%s&token=%s\n\n", TK1_VERSION_STRING, client[id].delta_score, client[id].neg_delta_score, world.player[ ctop [id] ].name, client[id].token);
 
 		//LOG2("== MJOB for REPORT STATUS : %i '''%s'''\n", id, job->request);
 
@@ -1300,22 +1160,22 @@ void gameserver_c::client_report_status(int id) {
 }
 
 void gameserver_c::game_reset_player(int target, float time_penalty) {	// take the player out of the game
-	player[target].health = 0;
+	world.player[target].health = 0;
 
-	player[target].item_helm = 0;
-	player[target].item_quad = false;
-	player[target].item_speed = false;
+	world.player[target].item_helm = 0;
+	world.player[target].item_quad = false;
+	world.player[target].item_speed = false;
 	// deathbringer is not removed until respawn because the flag is needed
 
 	//stop all speed
-	world.hero[target].sx = 0;
-	world.hero[target].sy = 0;
+	world.player[target].sx = 0;
+	world.player[target].sy = 0;
 
 	ctf_drop_flag_if_any(target);
-	player[target].respawn_time = get_time() + respawn_time + time_penalty;
-	if (!player[target].dead) {
-		player[target].lifetime += (int)get_time() - player[target].last_spawn_time;
-		player[target].dead = true;
+	world.player[target].respawn_time = get_time() + respawn_time + time_penalty;
+	if (!world.player[target].dead) {
+		world.player[target].lifetime += (int)get_time() - world.player[target].last_spawn_time;
+		world.player[target].dead = true;
 	}
 }
 
@@ -1323,14 +1183,14 @@ void gameserver_c::game_kill_player(int target, bool time_penalty) {	// kill the
 	score_neg(target, 1);	// score neg points because of death
 	if (ctf_drop_flag_if_any(target))
 		score_neg(target, 1);	// score neg points because of losing the flag
-	player[target].total_deaths++;
-	if (++player[target].current_consecutive_deaths > player[target].most_consecutive_deaths)
-		player[target].most_consecutive_deaths = player[target].current_consecutive_deaths;
-	player[target].current_consecutive_kills = 0;
+	world.player[target].total_deaths++;
+	if (++world.player[target].current_consecutive_deaths > world.player[target].most_consecutive_deaths)
+		world.player[target].most_consecutive_deaths = world.player[target].current_consecutive_deaths;
+	world.player[target].current_consecutive_kills = 0;
 
-	if (player[target].item_deathbringer) {
+	if (world.player[target].item_deathbringer) {
 		//record time to simulate the deathbringer explosion
-		player[target].item_deathbringer_time = frame;
+		world.player[target].item_deathbringer_time = frame;
 
 		//deathbringer message
 		char lebuf[256]; int count = 0;
@@ -1340,27 +1200,27 @@ void gameserver_c::game_kill_player(int target, bool time_penalty) {	// kill the
 		//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
 		//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
 		//  trying sending screen x,y and player x y
-		writeByte(lebuf, count, ((NLubyte)player[target].x));
-		writeByte(lebuf, count, ((NLubyte)player[target].y));
-		writeShort(lebuf, count, ((NLushort)world.hero[target].x));
-		writeShort(lebuf, count, ((NLushort)world.hero[target].y));
+		writeByte(lebuf, count, ((NLubyte)world.player[target].roomx));
+		writeByte(lebuf, count, ((NLubyte)world.player[target].roomy));
+		writeShort(lebuf, count, ((NLushort)world.player[target].lx));
+		writeShort(lebuf, count, ((NLushort)world.player[target].ly));
 
 		server->broadcast_message(lebuf, count);
 	}
 
-	game_reset_player(target, (player[target].item_deathbringer || time_penalty)?waiting_time_deathbringer:0);
+	game_reset_player(target, (world.player[target].item_deathbringer || time_penalty)?waiting_time_deathbringer:0);
 }
 
 void gameserver_c::game_damage_player(int target, int attacker, int damage, bool deathbringer) {	// inflict normal or deathbringer damage on target
 	//HELM powerup: show player
-	if (player[target].item_helm > 0)
-		player[target].item_helm = 255;
+	if (world.player[target].item_helm > 0)
+		world.player[target].item_helm = 255;
 
-	if (player[target].item_shield) {
-		player[target].energy -= damage;
-		if (player[target].energy <= 0) {
-			player[target].energy = 0;
-			player[target].item_shield = false;
+	if (world.player[target].item_shield) {
+		world.player[target].energy -= damage;
+		if (world.player[target].energy <= 0) {
+			world.player[target].energy = 0;
+			world.player[target].item_shield = false;
 			if (!deathbringer)
 				broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
 		}
@@ -1369,18 +1229,18 @@ void gameserver_c::game_damage_player(int target, int attacker, int damage, bool
 	}
 	//else do the regular body damage
 	else {
-		player[target].health -= damage;
+		world.player[target].health -= damage;
 		//freeze target's gun
-		player[target].next_shoot_time = get_time() + 1.0;
+		world.player[target].next_shoot_time = get_time() + 1.0;
 	}
-	if (player[target].health > 0)
+	if (world.player[target].health > 0)
 		return;
 
 	score_frag(attacker, 1);	//frag to attacker for the kill
-	player[attacker].total_kills++;
-	if (++player[attacker].current_consecutive_kills > player[attacker].most_consecutive_kills)
-		player[attacker].most_consecutive_kills = player[attacker].current_consecutive_kills;
-	player[attacker].current_consecutive_deaths = 0;
+	world.player[attacker].total_kills++;
+	if (++world.player[attacker].current_consecutive_kills > world.player[attacker].most_consecutive_kills)
+		world.player[attacker].most_consecutive_kills = world.player[attacker].current_consecutive_kills;
+	world.player[attacker].current_consecutive_deaths = 0;
 
 	int tateam = target/TSIZE;
 	int atteam = attacker/TSIZE;
@@ -1388,38 +1248,38 @@ void gameserver_c::game_damage_player(int target, int attacker, int damage, bool
 	//check if the enemy flag is carried in this screen(target's) by somebody that is not me
 	if (world.flag[tateam].carried) {
 		int p = world.flag[tateam].carrier;
-		if (player[p].used && p!=attacker && player[p].x==player[target].x && player[p].y == player[target].y) {
-			bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
+		if (world.player[p].used && p!=attacker && world.player[p].roomx==world.player[target].roomx && world.player[p].roomy==world.player[target].roomy) {
+			bprintf("@I%s DEFENDS THE %s CARRIER", world.player[attacker].name, teamname[atteam]);
 			score_frag(attacker, 1);
 		}
 	}
-	if (!world.flag[atteam].carried && world.flag[atteam].pos.px==player[target].x && world.flag[atteam].pos.py==player[target].y) {
-		bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
+	if (!world.flag[atteam].carried && world.flag[atteam].pos.px==world.player[target].roomx && world.flag[atteam].pos.py==world.player[target].roomy) {
+		bprintf("@I%s DEFENDS THE %s FLAG", world.player[attacker].name, teamname[atteam]);
 		score_frag(attacker, 1);
 	}
 	if (world.flag[atteam].carried && world.flag[atteam].carrier==target) {
 		score_frag(attacker, 1);	// extra frag for fragging a carrier
-		player[attacker].total_flag_carriers_killed++;
+		world.player[attacker].total_flag_carriers_killed++;
 	}
 
 	if (deathbringer) {
-		if (player[attacker].used)
-			bprintf("@I%s was choked by %s", player[target].name, player[attacker].name);
+		if (world.player[attacker].used)
+			bprintf("@I%s was choked by %s", world.player[target].name, world.player[attacker].name);
 		broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
 	}
 	else
-		bprintf("@I%s was nailed by %s", player[target].name, player[attacker].name);
+		bprintf("@I%s was nailed by %s", world.player[target].name, world.player[attacker].name);
 
 	//update the ADMIN SHELL
 	if (shellssock) {
 		char lebuf[256]; int count; NLint result;
 		count = 0;
 		writeLong(lebuf, count, STA_PLAYER_KILLS);
-		writeLong(lebuf, count, player[attacker].cid);
+		writeLong(lebuf, count, world.player[attacker].cid);
 		result = nlWrite(shellssock, lebuf, count);
 		count = 0;
 		writeLong(lebuf, count, STA_PLAYER_DIES);
-		writeLong(lebuf, count, player[target].cid);
+		writeLong(lebuf, count, world.player[target].cid);
 		result = nlWrite(shellssock, lebuf, count);
 	}
 
@@ -1436,9 +1296,9 @@ void gameserver_c::game_remove_player(int pid) {
 	ctf_drop_flag_if_any(pid);
 
 	//erase player
-	player[pid].delayedMessages.clear();
-	ctop[player[pid].cid] = -1;
-	player[pid].used = false;
+	world.player[pid].delayedMessages.clear();
+	ctop[world.player[pid].cid] = -1;
+	world.player[pid].used = false;
 }
 
 //restart ctf game
@@ -1448,9 +1308,9 @@ void gameserver_c::ctf_game_restart() {
 
 	//submit all pending reports
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used)
+	if (world.player[i].used)
 	{
-		cid = player[i].cid;
+		cid = world.player[i].cid;
 		client_report_status(cid);
 	}
 
@@ -1476,21 +1336,21 @@ void gameserver_c::ctf_game_restart() {
 	ctf_update_teamscore(1);
 
 	// return all flags
-	ctf_return_flag(0);
-	ctf_return_flag(1);
+	world.returnFlag(0);
+	world.returnFlag(1);
 
 	// reset map start time
 	map_start_time = frame;
 
 	// zero all player frags and kill them
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used)
+	if (world.player[i].used)
 	{
 		//kill - to respawn
-		player[i].respawn_to_base = true;
+		world.player[i].respawn_to_base = true;
 		game_reset_player(i);
 		//zero score
-		player[i].frags = 0;
+		world.player[i].frags = 0;
 	}
 
 	//zero all rockets
@@ -1532,7 +1392,7 @@ void gameserver_c::respawn_pickup(int p) {
 		//check players
 		if (runaway>200)
 			for (i=0; i<maxplayers; i++)
-				if (player[i].used && player[i].x==px && player[i].y==py) {
+				if (world.player[i].used && world.player[i].roomx==px && world.player[i].roomy==py) {
 					hit = true;
 					break;
 				}
@@ -1584,9 +1444,9 @@ void gameserver_c::respawn_pickup(int p) {
 	//screen-change message of players in the screen the powerup arrived
 	//fixes "invisible powerup" problem, I hope
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used)		//valid
-	if (player[i].x == px)	//on the screen of the item
-	if (player[i].y == py)
+	if (world.player[i].used)		//valid
+	if (world.player[i].roomx == px)	//on the screen of the item
+	if (world.player[i].roomy == py)
 	{
 		pickup_c *it = &(world.item[p]);
 		char lebuf[256]; int count = 0;
@@ -1597,7 +1457,7 @@ void gameserver_c::respawn_pickup(int p) {
 		writeByte(lebuf, count, (NLubyte)it->py);
 		writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
 		writeShort(lebuf, count, (NLushort)it->y);
-		server->send_message(player[i].cid, lebuf, count);
+		server->send_message(world.player[i].cid, lebuf, count);
 	}
 }
 
@@ -1617,11 +1477,11 @@ void gameserver_c::check_pickup_creation(bool instant) {
 	//count number of players
 	pc = 0;
 	for (i=0;i<maxplayers;i++)
-		if (player[i].used)
+		if (world.player[i].used)
 			pc++;
 
 	//count number of items
-	// TEST SERVER FUK : change "if" to :    if (player[i].used)
+	// TEST SERVER FUK : change "if" to :    if (world.player[i].used)
 	ic = 0;
 	for (i=0;i<MAX_PICKUPS;i++)
 		if (world.item[i].kind != 0)	//0=unused 255=respawning 1..6(?)=spawned/kind
@@ -1658,24 +1518,24 @@ void gameserver_c::game_touch_pickup(int p, int pk) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 16);		//"item removed"
 	writeByte(lebuf, count, (NLubyte)pk);	//what item id
-	//server->send_message(player[j].cid, lebuf, count);
+	//server->send_message(world.player[j].cid, lebuf, count);
 	broadcast_screen_message(it->px, it->py, lebuf, count);
 
 	//player picked it! make fx
 	//shield
 	if (it->kind == 1) {
 
-		player[p].item_shield = true;
+		world.player[p].item_shield = true;
 
 		//increase health to minimum of 100
-		if (player[p].health < 100)
-			player[p].health = 100;		//full health
+		if (world.player[p].health < 100)
+			world.player[p].health = 100;		//full health
 
 		//increase energy +100
-		if (player[p].energy < 200) {
-			player[p].energy += 100;
-			if (player[p].energy > 200)
-				player[p].energy = 200;
+		if (world.player[p].energy < 200) {
+			world.player[p].energy += 100;
+			if (world.player[p].energy > 200)
+				world.player[p].energy = 200;
 		}
 
 		broadcast_screen_sample(p, SAMPLE_SHIELD_PICKUP);
@@ -1683,84 +1543,84 @@ void gameserver_c::game_touch_pickup(int p, int pk) {
 	//boots
 	else if (it->kind == 2) {
 
-		double itemTime=player[p].item_speed_time-get_time();
-		if (!player[p].item_speed || itemTime<0)
+		double itemTime=world.player[p].item_speed_time-get_time();
+		if (!world.player[p].item_speed || itemTime<0)
 			itemTime = 0;
 		itemTime += pup_add_time;
 		if (itemTime > pup_max_time)
 			itemTime = pup_max_time;
 
-		player[p].item_speed = true;
-		player[p].item_speed_time = get_time() + itemTime;
+		world.player[p].item_speed = true;
+		world.player[p].item_speed_time = get_time() + itemTime;
 
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 17);		//powerup time indicator
 		writeByte(lebuf, count, it->kind);		//what kind
 		writeShort(lebuf, count, (NLushort)itemTime);		//time
-		server->send_message(player[p].cid, lebuf, count);
+		server->send_message(world.player[p].cid, lebuf, count);
 
 		broadcast_screen_sample(p, SAMPLE_BOOTS_ON);
 	}
 	//helm
 	else if (it->kind == 3) {
 
-		double itemTime=player[p].item_helm_time-get_time();
-		if (!player[p].item_helm || itemTime<0)
+		double itemTime=world.player[p].item_helm_time-get_time();
+		if (!world.player[p].item_helm || itemTime<0)
 			itemTime = 0;
 		itemTime += pup_add_time;
 		if (itemTime > pup_max_time)
 			itemTime = pup_max_time;
 
-		player[p].item_helm = 1;		//invis maximo de inicio
-		player[p].item_helm_time = get_time() + itemTime;
+		world.player[p].item_helm = 1;		//invis maximo de inicio
+		world.player[p].item_helm_time = get_time() + itemTime;
 
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 17);		//powerup time indicator
 		writeByte(lebuf, count, it->kind);		//what kind
 		writeShort(lebuf, count, (NLushort)itemTime);		//time
-		server->send_message(player[p].cid, lebuf, count);
+		server->send_message(world.player[p].cid, lebuf, count);
 
 		broadcast_screen_sample(p, SAMPLE_HELM_ON);
 	}
 	//quad
 	else if (it->kind == 4) {
 
-		double itemTime=player[p].item_quad_time-get_time();
-		if (!player[p].item_quad || itemTime<0)
+		double itemTime=world.player[p].item_quad_time-get_time();
+		if (!world.player[p].item_quad || itemTime<0)
 			itemTime = 0;
 		itemTime += pup_add_time;
 		if (itemTime > pup_max_time)
 			itemTime = pup_max_time;
 
-		player[p].item_quad = true;
-		player[p].item_quad_time = get_time() + itemTime;
+		world.player[p].item_quad = true;
+		world.player[p].item_quad_time = get_time() + itemTime;
 
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 17);		//powerup time indicator
 		writeByte(lebuf, count, it->kind);		//what kind
 		writeShort(lebuf, count, (NLushort)itemTime);		//time
-		server->send_message(player[p].cid, lebuf, count);
+		server->send_message(world.player[p].cid, lebuf, count);
 
 		broadcast_screen_sample(p, SAMPLE_QUAD_ON);
 	}
 	//weapon
 	else if (it->kind == 5) {
 
-		if (player[p].weapon < 8)	// test for max (shots=weapon+1, entao p/ shots max 9, weapon max = 8)
-			player[p].weapon++;	//increase weapon power
+		if (world.player[p].weapon < 8)	// test for max (shots=weapon+1, entao p/ shots max 9, weapon max = 8)
+			world.player[p].weapon++;	//increase weapon power
 
 		//increase energy +100
-		if (player[p].energy < 200) {
-			player[p].energy += 100;
-			if (player[p].energy > 200)
-				player[p].energy = 200;
+		if (world.player[p].energy < 200) {
+			world.player[p].energy += 100;
+			if (world.player[p].energy > 200)
+				world.player[p].energy = 200;
 		}
 
 		//notify player weapon power change
 		char lebuf[256]; int count = 0;
 		writeByte(lebuf, count, 18);		//player power change
-		writeByte(lebuf, count, ((NLubyte)player[p].weapon) );
-		server->send_message(player[p].cid, lebuf, count);
+		writeByte(lebuf, count, ((NLubyte)world.player[p].weapon) );
+		server->send_message(world.player[p].cid, lebuf, count);
 
 		broadcast_screen_sample(p, SAMPLE_WEAPON_UP);
 	}
@@ -1768,26 +1628,26 @@ void gameserver_c::game_touch_pickup(int p, int pk) {
 	else if (it->kind == 6) {
 
 		//megabonus!
-		player[p].megabonus += 160;
+		world.player[p].megabonus += 160;
 
 		//increase energy +100, upto 300
-		//player[p].energy += 100;
-		//if (player[p].energy > 300)
-		//	player[p].energy = 300;
+		//world.player[p].energy += 100;
+		//if (world.player[p].energy > 300)
+		//	world.player[p].energy = 300;
 
 		//increase health +100, upto 300
-		//player[p].health += 100;
-		//if (player[p].health > 300)
-		//	player[p].health = 300;
+		//world.player[p].health += 100;
+		//if (world.player[p].health > 300)
+		//	world.player[p].health = 300;
 
 		broadcast_screen_sample(p, SAMPLE_MEGAHEALTH);
 	}
 	//deathbringer
 	else if (it->kind == 7) {
 		if (pup_deathbringer_switch)
-			player[p].item_deathbringer = !player[p].item_deathbringer;
+			world.player[p].item_deathbringer = !world.player[p].item_deathbringer;
 		else
-			player[p].item_deathbringer = true;
+			world.player[p].item_deathbringer = true;
 
 		broadcast_screen_sample(p, SAMPLE_GETDEATHBRINGER);
 	}
@@ -1808,8 +1668,8 @@ void gameserver_c::game_player_screen_change(int p) {
 		pickup_c *it = &world.item[i];
 		if (it->kind)		// item exists
 		if (it->kind != 255)		// item not respawning
-		if (it->px == player[p].x) // item on screen that player is entering
-		if (it->py == player[p].y) {
+		if (it->px == world.player[p].roomx) // item on screen that player is entering
+		if (it->py == world.player[p].roomy) {
 
 			#ifndef SV_NO_PUP_SWITCHING
 			//broadcast_message("sending powerup update\n");
@@ -1820,9 +1680,9 @@ void gameserver_c::game_player_screen_change(int p) {
 			bool temjog = false;
 			for (int j=0;j<maxplayers;j++)
 			if (j != p)
-			if (player[j].used)	//valido
-			if (player[j].x == player[p].x)	// mesma tela
-			if (player[j].y == player[p].y) {
+			if (world.player[j].used)
+			if (world.player[j].roomx == world.player[p].roomx)
+			if (world.player[j].roomy == world.player[p].roomy) {
 				temjog = true;
 				break;
 			}
@@ -1834,17 +1694,17 @@ void gameserver_c::game_player_screen_change(int p) {
 				do {
 					non_satisfactory = false;
 
-					if ((it->kind == 1) && (player[p].health >= 80) && (player[p].energy >= 30) && (player[p].item_shield))//hide if just using as extra battery or not seriously injured
+					if ((it->kind == 1) && (world.player[p].health >= 80) && (world.player[p].energy >= 30) && (world.player[p].item_shield))//hide if just using as extra battery or not seriously injured
 						non_satisfactory = true;
-					else if ((it->kind == 2) && (player[p].item_speed) && (player[p].item_speed_time - get_time() > 40.0))
+					else if ((it->kind == 2) && (world.player[p].item_speed) && (world.player[p].item_speed_time - get_time() > 40.0))
 						non_satisfactory = true;
-					else if ((it->kind == 3) && (player[p].item_helm) && (player[p].item_helm_time - get_time() > 40.0))
+					else if ((it->kind == 3) && (world.player[p].item_helm) && (world.player[p].item_helm_time - get_time() > 40.0))
 						non_satisfactory = true;
-					else if ((it->kind == 4) && (player[p].item_quad) && (player[p].item_quad_time - get_time() > 40.0))
+					else if ((it->kind == 4) && (world.player[p].item_quad) && (world.player[p].item_quad_time - get_time() > 40.0))
 						non_satisfactory = true;
-					else if ((it->kind == 6) && (player[p].health + (rand() % 70) >= 300))//if 300 non-satisf. but if >200, less chance of seeing another one
+					else if ((it->kind == 6) && (world.player[p].health + (rand() % 70) >= 300))//if 300 non-satisf. but if >200, less chance of seeing another one
 						non_satisfactory = true;
-					else if ((it->kind == 7) && (player[p].item_deathbringer))
+					else if ((it->kind == 7) && (world.player[p].item_deathbringer))
 						non_satisfactory = true;
 
 					//re-choose item type
@@ -1854,7 +1714,7 @@ void gameserver_c::game_player_screen_change(int p) {
 				} while (non_satisfactory);
 
 				//if loop choosed "weapon" powerup (item 5) but you are at maximum, then keep the original choice
-				if ((it->kind == 5) && (player[p].weapon >= 8))
+				if ((it->kind == 5) && (world.player[p].weapon >= 8))
 					it->kind = (NLubyte)original;
 			}
 			#endif	// SV_NO_PUP_SWITCHING
@@ -1868,7 +1728,7 @@ void gameserver_c::game_player_screen_change(int p) {
 			writeByte(lebuf, count, (NLubyte)it->py);
 			writeShort(lebuf, count, (NLushort)it->x);	//pos in screen
 			writeShort(lebuf, count, (NLushort)it->y);
-			server->send_message(player[p].cid, lebuf, count);
+			server->send_message(world.player[p].cid, lebuf, count);
 		}
 	}
 }
@@ -1883,9 +1743,9 @@ void gameserver_c::broadcast_team_message(int team, char *text) {
 
 	// send message only to teammates
 	for (int i=0;i<maxplayers;i++)
-	if (player[i].used)
+	if (world.player[i].used)
 	if ((i/TSIZE) == team) {
-		server->send_message(player[i].cid, lebuf, count);
+		server->send_message(world.player[i].cid, lebuf, count);
 	}
 
 	//send to the admin shell
@@ -1901,10 +1761,10 @@ void gameserver_c::broadcast_team_message(int team, char *text) {
 void gameserver_c::broadcast_screen_message(int px, int py, char *lebuf, int count) {
 
 	for (int j=0;j<maxplayers;j++)
-	if (player[j].used)
-	if (player[j].x == px)
-	if (player[j].y == py)
-		server->send_message(player[j].cid, lebuf, count); //send the message
+	if (world.player[j].used)
+	if (world.player[j].roomx == px)
+	if (world.player[j].roomy == py)
+		server->send_message(world.player[j].cid, lebuf, count); //send the message
 }
 
 // V0.4.9 : broadcast message with varargs
@@ -1926,7 +1786,7 @@ void gameserver_c::plprintf(int pid, const char* fmt, ...) {	// bprintf for a si
 	va_start(argptr, fmt);
 	vsprintf(buf+1, fmt, argptr);
 	va_end(argptr);
-	server->send_message(player[pid].cid, buf, strlen(buf)+1);
+	server->send_message(world.player[pid].cid, buf, strlen(buf)+1);
 }
 
 //send a single message player-printf
@@ -1934,8 +1794,8 @@ void gameserver_c::player_message(int pid, const char *text) {
 	char lebuf[256]; int count = 0;
 	writeByte(lebuf, count, 2);
 	writeString(lebuf, count, text);
-	if (player[pid].used)
-		server->send_message(player[pid].cid, lebuf, count);
+	if (world.player[pid].used)
+		server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 //broadcast message to all
@@ -1944,8 +1804,8 @@ void gameserver_c::broadcast_message(const char *text) {
 	writeByte(lebuf, count, 2);
 	writeString(lebuf, count, text);
 	for (int i=0;i<maxplayers;i++)
-		if (player[i].used)
-			server->send_message(player[i].cid, lebuf, count);
+		if (world.player[i].used)
+			server->send_message(world.player[i].cid, lebuf, count);
 	//send to the admin shell
 	if (shellssock) {
 		count = 0;
@@ -2240,10 +2100,10 @@ void gameserver_c::send_map_change_message(int pid, int reason, const char* mapn
 	writeByte(lebuf, count, 2);		// 2 = custom map message
 	writeShort(lebuf, count, world.map.crc);
 	writeString(lebuf, count, mapname);
-	server->send_message(player[pid].cid, lebuf, count);
+	server->send_message(world.player[pid].cid, lebuf, count);
 
 	//VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
-	player[pid].awaiting_client_ready = true;
+	world.player[pid].awaiting_client_ready = true;
 
 	//send a show gameover plaque message, if that is the case
 	if (reason != NEXTMAP_NONE) {
@@ -2257,7 +2117,7 @@ void gameserver_c::send_map_change_message(int pid, int reason, const char* mapn
 			writeByte(lebuf, count, (NLubyte)world.flag[0].score);	//RED team final score
 			writeByte(lebuf, count, (NLubyte)world.flag[1].score);	//BLUE team final score
 		}
-		server->send_message(player[pid].cid, lebuf, count);
+		server->send_message(world.player[pid].cid, lebuf, count);
 
 		//important: server is showing gameover plaque. nobody should move or receive world frames
 		gameover = true;
@@ -2292,9 +2152,9 @@ bool gameserver_c::server_next_map(int reason) {
 	}
 	// clear votes for the current map
 	for (int p=0; p<maxplayers; ++p) {
-		player[p].want_map_exit=false;
-		if (player[p].mapVote==currmap)
-			player[p].mapVote=-1;
+		world.player[p].want_map_exit=false;
+		if (world.player[p].mapVote==currmap)
+			world.player[p].mapVote=-1;
 	}
 	maprot[currmap].votes=0;
 	last_vote_announce_votes = last_vote_announce_needed = 0;
@@ -2305,7 +2165,7 @@ bool gameserver_c::server_next_map(int reason) {
 
 	// notify all players
 	for (int i=0;i<maxplayers;i++)
-		if (player[i].used)
+		if (world.player[i].used)
 			send_map_change_message(i, reason, maprot[currmap].file.c_str());
 
 	char lix[256];
@@ -2321,8 +2181,8 @@ bool gameserver_c::server_next_map(int reason) {
 void gameserver_c::check_map_exit() {
 	int num_for = 0, num_against = 0;
 	for (int i=0; i<maxplayers; i++)
-		if (player[i].used) {
-			if (player[i].want_map_exit)
+		if (world.player[i].used) {
+			if (world.player[i].want_map_exit)
 				num_for++;
 			else
 				num_against++;
@@ -2332,8 +2192,8 @@ void gameserver_c::check_map_exit() {
 	for (int m=0; m<(int)maprot.size(); ++m)
 		maprot[m].votes=0;
 	for (int p=0; p<maxplayers; ++p)
-		if (player[p].used && player[p].mapVote!=-1)
-			++maprot[player[p].mapVote].votes;
+		if (world.player[p].used && world.player[p].mapVote!=-1)
+			++maprot[world.player[p].mapVote].votes;
 
 	if ((map_start_time+vote_block_time<frame && num_for>num_against) || (num_against==0 && num_for)) {
 		server_next_map(NEXTMAP_VOTE_EXIT);	// ignore return value
@@ -2475,9 +2335,9 @@ bool gameserver_c::start(int target_maxplayers) {
 	//players_present = 0;
 	player_count = 0;
 	for (i=0;i<MAX_PLAYERS;i++) {
-		player[i].used = false;
-		player[i].id = i;
-		player[i].name[0]=0;
+		world.player[i].used = false;
+		world.player[i].id = i;
+		world.player[i].name[0]=0;
 	}
 
 	if (!reset_settings())
@@ -2601,7 +2461,7 @@ void gameserver_c::update_serverinfo() {
 	//v0.4.8 UGLY FIX : count all players again, check for discrepancy
 	int pc = 0;
 	for (int i=0;i<maxplayers;i++)
-		if (player[i].used == true)
+		if (world.player[i].used == true)
 			pc++;
 	if (pc != player_count) { //debug
 		LOG2("** update_serverinfo() BUG FOUND: PC=%i player_count=%i !\n", pc, player_count);
@@ -2622,7 +2482,7 @@ int gameserver_c::client_connected(int id) {
 	t2 = 0;		//blue team count
 	int i;
 	for (i=0;i<maxplayers;i++)
-		if (player[i].used) {
+		if (world.player[i].used) {
 			if (i/TSIZE == 0)
 				t1++;
 			else
@@ -2654,7 +2514,7 @@ int gameserver_c::client_connected(int id) {
 
 	for (i=targ;i<(targ+TSIZE);i++)
 	{
-		if (!player[i].used)
+		if (!world.player[i].used)
 		{
 			// add player to players_present
 			//players_present = players_present | (1 << i);
@@ -2664,19 +2524,19 @@ int gameserver_c::client_connected(int id) {
 			cid=id;
 			ctop[cid]=i;
 
-			player[i].clear(true, i, cid, SERVER_DEFAULT_PLAYER_NAME);
+			world.player[i].clear(true, i, cid, SERVER_DEFAULT_PLAYER_NAME);
 
 			myself = i;
 
 			// spawn player
-			player[i].respawn_to_base = true;
-			game_respawn_player(i);
+			world.player[i].respawn_to_base = true;
+			world.respawnPlayer(i);
 
 			//reset keypresses
-			world.hero[i].l = 0;
-			world.hero[i].r = 0;
-			world.hero[i].u = 0;
-			world.hero[i].d = 0;
+			world.player[i].l = 0;
+			world.player[i].r = 0;
+			world.player[i].u = 0;
+			world.player[i].d = 0;
 
 			//check pickup creation
 			check_pickup_creation(false);
@@ -2714,7 +2574,7 @@ int gameserver_c::client_connected(int id) {
 	if (shellssock) {
 		count = 0;
 		writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-		writeLong(lebuf, count, player[myself].cid);
+		writeLong(lebuf, count, world.player[myself].cid);
 		nlWrite(shellssock, lebuf, count);
 	}
 
@@ -2735,7 +2595,7 @@ int gameserver_c::client_connected(int id) {
 	// - all other player's frags
 
 	for (i=0;i<maxplayers;i++)
-		if (player[i].used)
+		if (world.player[i].used)
 		if (i != myself) {
 
 			//player name update
@@ -2743,15 +2603,15 @@ int gameserver_c::client_connected(int id) {
 			//count = 0;
 			//writeByte(lebuf, count, 1);	// "1" = player name update
 			//writeByte(lebuf, count, i);		// what player id
-			//player[i].name[15]=0;		// force trunc name at 15 chars (paranoia)
-			//writeString(lebuf, count, player[i].name);
+			//world.player[i].name[15]=0;		// force trunc name at 15 chars (paranoia)
+			//writeString(lebuf, count, world.player[i].name);
 			//server->send_message(id, lebuf, count);
 
 			//frags update
 			count = 0;
 			writeByte(lebuf, count, 4);	//"4" = frags update
 			writeByte(lebuf, count, i);		// what player id
-			writeLong(lebuf, count, player[i].frags);
+			writeLong(lebuf, count, world.player[i].frags);
 			server->send_message(id, lebuf, count);
 
 			//crap update
@@ -2759,7 +2619,7 @@ int gameserver_c::client_connected(int id) {
 		}
 
 	for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
-		player[myself].add_to_queue(*line);
+		world.player[myself].add_to_queue(*line);
 
 	//check for team changes
 	//
@@ -2794,12 +2654,12 @@ void gameserver_c::client_disconnected(int id) {
 		char lebuf[256]; int count;
 		count = 0;
 		writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
-		writeLong(lebuf, count, player[pid].cid);
+		writeLong(lebuf, count, world.player[pid].cid);
 		nlWrite(shellssock, lebuf, count);
 	}
 
 	//broadcast a textual message "Player BLABLA left the game"
-	bprintf("@I%s left the game with %i frags", player[pid].name, player[pid].frags);
+	bprintf("@I%s left the game with %i frags", world.player[pid].name, world.player[pid].frags);
 
 	//sound
 	broadcast_sample(SAMPLE_LEFTGAME);
@@ -2826,7 +2686,7 @@ void gameserver_c::ping_result(int client_id, int ping_time) {
 		return;
 
 	//save result
-	player[ ctop[client_id] ].ping = ping_time;
+	world.player[ ctop[client_id] ].ping = ping_time;
 }
 
 //process incoming client data (callback function)
@@ -2846,8 +2706,8 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 	int count = 0;
 	readByte(data, count, keys);
 	//update the player's direction keys (accel.vectrs) (and other keys too if needed later)
-	hero_t *h;
-	h = &(world.hero[pid]);
+	ServerPlayer *h;
+	h = &(world.player[pid]);
 
 	h->l = (keys & 1) != 0;
 	h->r = (keys & 2) != 0;
@@ -2903,9 +2763,9 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 				readString(msg, count, tempname); //name update request
 
 				//v0.4.9: IF SAME NAME: ignore it. if not, keep going
-				if (strcmp(tempname, player[pid].name))
+				if (strcmp(tempname, world.player[pid].name))
 				//name change flooding protection
-				if (get_time() >= player[pid].waitnametime) {
+				if (get_time() >= world.player[pid].waitnametime) {
 
 					//FLUSH PENDING REPORTS TO MASTER IF token_have/token_valid !!!
 					client_report_status(id);
@@ -2919,41 +2779,41 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 
 					//check if it's the first name information from client. then it
 					// must have just entered the game
-					bool entered_game = !strcmp(SERVER_DEFAULT_PLAYER_NAME, player[pid].name);
+					bool entered_game = !strcmp(SERVER_DEFAULT_PLAYER_NAME, world.player[pid].name);
 
 					// log
-					//LOG3("client %i player %i '%s' renamed to", id, pid, player[pid].name);
+					//LOG3("client %i player %i '%s' renamed to", id, pid, world.player[pid].name);
 
-					//readString(msg, count, player[pid].name); //name update request
-					strcpy(player[pid].name, "(invalid name)");
+					//readString(msg, count, world.player[pid].name); //name update request
+					strcpy(world.player[pid].name, "(invalid name)");
 					if (strpbrk(tempname, "%@")!=NULL)
-						player[pid].add_to_queue("@WSorry, this server doesn't accept % or @ in a name");
+						world.player[pid].add_to_queue("@WSorry, this server doesn't accept % or @ in a name");
 					else if (strspnp(tempname, " ")==NULL)
-						player[pid].add_to_queue("@WPlease enter a name");
+						world.player[pid].add_to_queue("@WPlease enter a name");
 					else {
 						#ifdef SV_NAME_AUTHORIZATION
 						int nid=authorizations.identifyName(tempname);
 						if (nid==-1 || authorizations.authorize(nid, server->get_client_address(id)))
-							strcpy(player[pid].name, tempname);
+							strcpy(world.player[pid].name, tempname);
 						else {
-							player[pid].queue_printf("@WThe name %s is reserved on this server.", authorizations.getName(nid).c_str());
-							player[pid].queue_printf("@ITo authorize, type /auth %s,pass where pass is your password.", authorizations.getName(nid).c_str());
+							world.player[pid].queue_printf("@WThe name %s is reserved on this server.", authorizations.getName(nid).c_str());
+							world.player[pid].queue_printf("@ITo authorize, type /auth %s,pass where pass is your password.", authorizations.getName(nid).c_str());
 						}
 						#else
-						strcpy(player[pid].name, tempname);
+						strcpy(world.player[pid].name, tempname);
 						#endif
 					}
 
-					//LOG1("'%s'\n", player[pid].name);
+					//LOG1("'%s'\n", world.player[pid].name);
 
 					//send entered-game message
 					if (entered_game) {
-						bprintf("@I%s entered the game", player[pid].name);
+						bprintf("@I%s entered the game", world.player[pid].name);
 						//sound
 						broadcast_sample(SAMPLE_ENTERGAME);
 					}
 					// next time allowed to change name
-					player[pid].waitnametime = get_time() + 1.0;
+					world.player[pid].waitnametime = get_time() + 1.0;
 
 					//broadcast the new player's name
 					broadcast_player_name(pid);
@@ -2962,13 +2822,13 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 					if (shellssock) {
 						char lebuf[256]; int count = 0;
 						writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-						writeLong(lebuf, count, player[pid].cid);
-						writeString(lebuf, count, player[pid].name);
+						writeLong(lebuf, count, world.player[pid].cid);
+						writeString(lebuf, count, world.player[pid].name);
 						if (entered_game) {
 							writeLong(lebuf, count, STA_PLAYER_IP);
-							writeLong(lebuf, count, player[pid].cid);
+							writeLong(lebuf, count, world.player[pid].cid);
 							char addrBuf[50];
-							NLaddress addr=server->get_client_address(player[pid].cid);
+							NLaddress addr=server->get_client_address(world.player[pid].cid);
 							nlSetAddrPort(&addr, 0);
 							nlAddrToString(&addr, addrBuf);
 							writeString(lebuf, count, addrBuf);
@@ -2981,11 +2841,11 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			else if (code == 2) {
 				const char* sbuf=msg+1;
 				// handle 'console' commands
-				if (player[pid].delayedMessages.size()>2) {
-					player[pid].delayedMessages.clear();
+				if (world.player[pid].delayedMessages.size()>2) {
+					world.player[pid].delayedMessages.clear();
 					plprintf(pid, "@I(rest of message cancelled)");
 				}
-				player[pid].reset_message_queue_timing();
+				world.player[pid].reset_message_queue_timing();
 				if (sbuf[0]=='/') {
 					const char* pCommand=sbuf+1;
 					char cbuf[30];
@@ -3006,51 +2866,51 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 					}
 					if (!strcmp(cbuf, "help")) {
 //							                          123456789*123456789*123456789*123456789*123456789*123456789*123456789*123456789*
-						player[pid].queue_printf("@TConsole commands available on this server:");
-						player[pid].queue_printf("/help       this screen");
+						world.player[pid].queue_printf("@TConsole commands available on this server:");
+						world.player[pid].queue_printf("/help       this screen");
 						if (!info_message.empty())
-							player[pid].queue_printf("/info       information about this server");
-						player[pid].queue_printf("/config     current server configuration");
-						player[pid].queue_printf("/stats      see your stats");
-						player[pid].queue_printf("/mapinfo n  information about map n (default: current map)");
-						player[pid].queue_printf("/votemap n  vote for the next map to be n (default: list maps and votes)");
-						player[pid].queue_printf("/time       check server uptime, current map time and time left on the map");
+							world.player[pid].queue_printf("/info       information about this server");
+						world.player[pid].queue_printf("/config     current server configuration");
+						world.player[pid].queue_printf("/stats      see your stats");
+						world.player[pid].queue_printf("/mapinfo n  information about map n (default: current map)");
+						world.player[pid].queue_printf("/votemap n  vote for the next map to be n (default: list maps and votes)");
+						world.player[pid].queue_printf("/time       check server uptime, current map time and time left on the map");
 						if (sayadmin_enabled) {
 							ostringstream ostr;
 							ostr << "/sayadmin   send a message to the server admin";
 							if (sayadmin_comment.length())
 								ostr << " (" << sayadmin_comment << ')';
-							player[pid].add_to_queue(ostr.str());
+							world.player[pid].add_to_queue(ostr.str());
 						}
 					}
 					else if (!strcmp(cbuf, "info") && !info_message.empty()) {
 						for (vector<string>::const_iterator line=info_message.begin(); line!=info_message.end(); line++)
-							player[pid].add_to_queue(*line);
-						player[pid].add_to_queue("type /config to see current server settings");
+							world.player[pid].add_to_queue(*line);
+						world.player[pid].add_to_queue("type /config to see current server settings");
 					}
 					else if (!strcmp(cbuf, "config")) {
-						player[pid].queue_printf("@TCurrent server settings:");
-						player[pid].queue_printf("- Flag capture limit: %i", capture_limit);
+						world.player[pid].queue_printf("@TCurrent server settings:");
+						world.player[pid].queue_printf("- Flag capture limit: %i", capture_limit);
 						if (time_limit == 0)
-							player[pid].queue_printf("- No map time limit.");
+							world.player[pid].queue_printf("- No map time limit.");
 						else
-							player[pid].queue_printf("- Map time limit: %i min", time_limit / 10 / 60);
+							world.player[pid].queue_printf("- Map time limit: %i min", time_limit / 10 / 60);
 						if (pup_max_time > pup_add_time)
-							player[pid].queue_printf("- Power-ups add %d seconds to what's left, with a maximum of %d seconds", pup_add_time, pup_max_time);
+							world.player[pid].queue_printf("- Power-ups add %d seconds to what's left, with a maximum of %d seconds", pup_add_time, pup_max_time);
 						else
-							player[pid].queue_printf("- Power-up time is %d seconds", pup_max_time);
+							world.player[pid].queue_printf("- Power-up time is %d seconds", pup_max_time);
 						if (pup_deathbringer_switch)
-							player[pid].queue_printf("- Picking up a second deathbringer power-up cancels the effect");
+							world.player[pid].queue_printf("- Picking up a second deathbringer power-up cancels the effect");
 						if (shadow_minimum == 1)
-							player[pid].queue_printf("- A player using the shadow power-up gets totally invisible");
+							world.player[pid].queue_printf("- A player using the shadow power-up gets totally invisible");
 						ostringstream pupstr;
 						pupstr << "- Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << '%';
 						pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << '%';
 						if (pups_min_percentage || pups_max_percentage)
 							pupstr << " (% of map size)";
-						player[pid].add_to_queue(pupstr.str());
+						world.player[pid].add_to_queue(pupstr.str());
 						#ifdef PHYS_NEW
-						player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
+						world.player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
 						#endif
 					}
 					else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
@@ -3059,36 +2919,36 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 							time_t tt=time(0);
 							struct tm* tmb=localtime(&tt);
 							fprintf(logp, "%d-%02d-%02d %02d:%02d:%02d  %s: %s\n", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday,
-									tmb->tm_hour, tmb->tm_min, tmb->tm_sec, player[pid].name, pCommand);
+									tmb->tm_hour, tmb->tm_min, tmb->tm_sec, world.player[pid].name, pCommand);
 							fclose(logp);
 							if (shellssock) {
 								char lebuf[256];
 								int count=0;
 								writeLong(lebuf, count, STA_ADMIN_MESSAGE);
-								writeLong(lebuf, count, player[pid].cid);
+								writeLong(lebuf, count, world.player[pid].cid);
 								writeString(lebuf, count, pCommand);
 								nlWrite(shellssock, lebuf, count);
 							}
-							player[pid].queue_printf("@IYour message has been logged. Thank you for your feedback!");
+							world.player[pid].queue_printf("@IYour message has been logged. Thank you for your feedback!");
 						}
 						else
-							player[pid].queue_printf("@IFor example to send \"Hello!\", type /sayadmin Hello!");
+							world.player[pid].queue_printf("@IFor example to send \"Hello!\", type /sayadmin Hello!");
 					}
 					else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
 						if (*pCommand!='\0') {
 							int mid=atoi(pCommand)-1;
 							if (mid>=0 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
-								player[pid].queue_printf("@IMap %d is %s", mid+1, maprot[mid].title.c_str());
-								player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);
+								world.player[pid].queue_printf("@IMap %d is %s", mid+1, maprot[mid].title.c_str());
+								world.player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);
 							}
 							else
-								player[pid].queue_printf("@WValid map id's are 1 to %d", maprot.size());
+								world.player[pid].queue_printf("@WValid map id's are 1 to %d", maprot.size());
 						}
 						else {
-							player[pid].queue_printf("@IThis map is %s", maprot[currmap].title.c_str());
-							player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
+							world.player[pid].queue_printf("@IThis map is %s", maprot[currmap].title.c_str());
+							world.player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
 						}
-						player[pid].queue_printf("@IType /votemap to see a list of all maps");
+						world.player[pid].queue_printf("@IType /votemap to see a list of all maps");
 					}
 					else if (!strcmp(cbuf, "votemap")) {
 						string status;
@@ -3096,33 +2956,33 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 						if (*pCommand!='\0') {
 							int mid=atoi(pCommand)-1;
 							if (mid>=-1 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
-								if (player[pid].mapVote==mid)
+								if (world.player[pid].mapVote==mid)
 									status="no changes";
 								else {
-									if (player[pid].mapVote==-1)
+									if (world.player[pid].mapVote==-1)
 										status="vote added";
 									else if (mid==-1)
 										status="vote removed";
 									else
 										status="vote updated";
-									player[pid].mapVote=mid;
+									world.player[pid].mapVote=mid;
 									check_map_exit();
 								}
-								if (!player[pid].want_map_exit)
-									player[pid].queue_printf("@TPress F4 to actually vote for a mapchange");
+								if (!world.player[pid].want_map_exit)
+									world.player[pid].queue_printf("@TPress F4 to actually vote for a mapchange");
 							}
 							else {
-								player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprot.size());
+								world.player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprot.size());
 								err=true;
 							}
 						}
 						else
-							player[pid].queue_printf("@TFor example to vote for map 1, type /votemap 1");
+							world.player[pid].queue_printf("@TFor example to vote for map 1, type /votemap 1");
 						if (!err) {
 							if (status.length())
-								player[pid].queue_printf("@T(%s) Maps on this server: ID, votes, description", status.c_str());
+								world.player[pid].queue_printf("@T(%s) Maps on this server: ID, votes, description", status.c_str());
 							else
-								player[pid].queue_printf("@TMaps on this server: ID, votes, description");
+								world.player[pid].queue_printf("@TMaps on this server: ID, votes, description");
 							// 26 chars usable for entry, to fit three on a line
 							char buf[200]; int bufi=0;
 							int rows=(maprot.size()+2)/3;
@@ -3138,7 +2998,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 										strcpy(buf+bufi+24, "  ");
 									bufi+=26;
 								}
-								player[pid].queue_printf("%s", buf);
+								world.player[pid].queue_printf("%s", buf);
 								bufi=0;
 							}
 						}
@@ -3155,7 +3015,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 						if (days == 0)
 							server_time << " hours";
 						server_time << '.';
-						player[pid].add_to_queue(server_time.str());
+						world.player[pid].add_to_queue(server_time.str());
 						// map time
 						int seconds = (frame - map_start_time) / 10;
 						int remaining_seconds = (time_limit / 10 - seconds);
@@ -3167,7 +3027,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 							// time limit not very useful when only one player
 							int players = 0;
 							for (int i = 0; i < maxplayers; i++)
-								if (player[i].used)
+								if (world.player[i].used)
 									players++;
 							if (players == 1)
 								map_time << " No time limit at the moment as you are the only player.";
@@ -3178,41 +3038,41 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 								map_time << setfill('0') << setw(2) << remaining_seconds % 60 << '.';
 							}
 						}
-						player[pid].add_to_queue(map_time.str());
+						world.player[pid].add_to_queue(map_time.str());
 					}
 					else if (!strcmp(cbuf, "stats")) {
-						int playing_time = (int)get_time() - player[pid].start_time;  // seconds
-						int lifetime = player[pid].lifetime;
-						if (!player[pid].dead)
-							lifetime += (int)get_time() - player[pid].last_spawn_time;
-						player[pid].queue_printf("@TYour stats: %d captures, %d kills, %d deaths, %d suicides",
-							player[pid].total_captures,
-							player[pid].total_kills,
-							player[pid].total_deaths,
-							player[pid].total_suicides);
-						player[pid].queue_printf(" Enemy flags: %d taken, %d dropped",
-							player[pid].total_flags_taken,
-							player[pid].total_flags_dropped);
-						player[pid].queue_printf(" Own flags: %d returned, %d carriers killed",
-							player[pid].total_flags_returned,
-							player[pid].total_flag_carriers_killed);
-						player[pid].queue_printf(" Consecutive kills: %d (%d), deaths: %d (%d)",
-							player[pid].most_consecutive_kills,
-							player[pid].current_consecutive_kills,
-							player[pid].most_consecutive_deaths,
-							player[pid].current_consecutive_deaths);
+						int playing_time = (int)get_time() - world.player[pid].start_time;  // seconds
+						int lifetime = world.player[pid].lifetime;
+						if (!world.player[pid].dead)
+							lifetime += (int)get_time() - world.player[pid].last_spawn_time;
+						world.player[pid].queue_printf("@TYour stats: %d captures, %d kills, %d deaths, %d suicides",
+							world.player[pid].total_captures,
+							world.player[pid].total_kills,
+							world.player[pid].total_deaths,
+							world.player[pid].total_suicides);
+						world.player[pid].queue_printf(" Enemy flags: %d taken, %d dropped",
+							world.player[pid].total_flags_taken,
+							world.player[pid].total_flags_dropped);
+						world.player[pid].queue_printf(" Own flags: %d returned, %d carriers killed",
+							world.player[pid].total_flags_returned,
+							world.player[pid].total_flag_carriers_killed);
+						world.player[pid].queue_printf(" Consecutive kills: %d (%d), deaths: %d (%d)",
+							world.player[pid].most_consecutive_kills,
+							world.player[pid].current_consecutive_kills,
+							world.player[pid].most_consecutive_deaths,
+							world.player[pid].current_consecutive_deaths);
 						int accuracy = 0;
-						if (player[pid].total_shots > 0)
-							accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
-						player[pid].queue_printf(" Shots: %d shot, accuracy %d%%, %d taken",
-							player[pid].total_shots,
+						if (world.player[pid].total_shots > 0)
+							accuracy = int((100. * world.player[pid].total_hits) / world.player[pid].total_shots + 0.5);
+						world.player[pid].queue_printf(" Shots: %d shot, accuracy %d%%, %d taken",
+							world.player[pid].total_shots,
 							accuracy,
-							player[pid].total_shots_taken);
-						player[pid].queue_printf(" Distance travelled: %.0lf units, average speed %.2lf units/s.",
-							player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
-							player[pid].total_movement/30./double(lifetime));
-						int av_lifetime = lifetime / (player[pid].total_deaths + 1);
-						player[pid].queue_printf(" You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
+							world.player[pid].total_shots_taken);
+						world.player[pid].queue_printf(" Distance travelled: %.0lf units, average speed %.2lf units/s.",
+							world.player[pid].total_movement/30.,	// make the unit player diameter <-> divide by 30.
+							world.player[pid].total_movement/30./double(lifetime));
+						int av_lifetime = lifetime / (world.player[pid].total_deaths + 1);
+						world.player[pid].queue_printf(" You have played %d min. Total lifetime %d:%02d. Average lifetime %d:%02d.",
 							playing_time / 60,
 							lifetime / 60,
 							lifetime % 60,
@@ -3229,60 +3089,60 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 							string pwd(pCommand+1);
 							if (authorizations.addIP(nameUpr, pwd, server->get_client_address(id))) {
 								authorizations.save();
-								player[pid].queue_printf("@WOK: authorized your IP address to use %s", nameUpr.c_str());
-								player[pid].queue_printf("@WYou may change your name now");
+								world.player[pid].queue_printf("@WOK: authorized your IP address to use %s", nameUpr.c_str());
+								world.player[pid].queue_printf("@WYou may change your name now");
 							}
 							else
-								player[pid].queue_printf("@WAuthorization failed");
+								world.player[pid].queue_printf("@WAuthorization failed");
 						}
 						else
-							player[pid].queue_printf("@WInvalid auth command");
+							world.player[pid].queue_printf("@WInvalid auth command");
 					}
 					#endif
 					else
-						player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
+						world.player[pid].queue_printf("@WUnknown command %s. Type /help for a list.", cbuf);
 				}
 				else if (strspnp(sbuf, " ")!=NULL) {	// ignore messages that are all spaces
 					//talk flood protection
-					player[pid].talk_temp += player[pid].talk_hotness;
-					player[pid].talk_hotness += 3.0;
-					if (player[pid].talk_temp > 18.0)
-						player[pid].talk_temp = 18.0;
-					if (player[pid].talk_hotness > 6.0)
-						player[pid].talk_hotness = 6.0;
+					world.player[pid].talk_temp += world.player[pid].talk_hotness;
+					world.player[pid].talk_hotness += 3.0;
+					if (world.player[pid].talk_temp > 18.0)
+						world.player[pid].talk_temp = 18.0;
+					if (world.player[pid].talk_hotness > 6.0)
+						world.player[pid].talk_hotness = 6.0;
 
-					if (player[pid].talk_temp > 10.0) {
+					if (world.player[pid].talk_temp > 10.0) {
 
 						//esquenta o cara
-						player[pid].talk_temp = 18.0;
+						world.player[pid].talk_temp = 18.0;
 
 						char elbuf[200]; int elcnt = 0;
 						writeByte(elbuf, elcnt, 2);
 						writeString(elbuf, elcnt, "@WToo much talk. Chill...");
-						server->send_message(player[pid].cid, elbuf, elcnt);
+						server->send_message(world.player[pid].cid, elbuf, elcnt);
 					}
-					else if (player[pid].muted==1) {
+					else if (world.player[pid].muted==1) {
 						plprintf(pid, "@WYou are muted. You can't send messages.");
 					}
 					else {
 						// check for team message:
 						if (msg[1] == '.') {
-							sprintf(talkmsg, "@T%s: %s", player[pid].name, sbuf+1);
-							if (player[pid].muted==2)
+							sprintf(talkmsg, "@T%s: %s", world.player[pid].name, sbuf+1);
+							if (world.player[pid].muted==2)
 								player_message(pid, talkmsg);
 							else
 								broadcast_team_message(pid/TSIZE, talkmsg);
 						}
 						//regular msg
 						else {
-							sprintf(talkmsg, "%s: %s", player[pid].name, sbuf);
-							if (player[pid].muted==2)
+							sprintf(talkmsg, "%s: %s", world.player[pid].name, sbuf);
+							if (world.player[pid].muted==2)
 								player_message(pid, talkmsg);
 							else
 								broadcast_message(talkmsg);
 						}
 						// log
-						//LOG4("client %i player %i name %s says: '%s'\n", id, pid, player[pid].name, &(msg[1]));
+						//LOG4("client %i player %i name %s says: '%s'\n", id, pid, world.player[pid].name, &(msg[1]));
 					}
 				}
 			}
@@ -3290,41 +3150,41 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			else if (code == 5) {
 
 				//if attack was false, it's a fire event (fire false-->true)
-				bool fire_event = (player[pid].attack == false);
+				bool fire_event = (world.player[pid].attack == false);
 
-				player[pid].attack = true;
+				world.player[pid].attack = true;
 
-				if (fire_event) { // firing code moved to simulate/broadcast frame (player[id].attack is tested there)
+				if (fire_event) { // firing code moved to simulate/broadcast frame (world.player[id].attack is tested there)
 				}
 
 			}
 			//SUICIDE!!
 			else if (code == 10) {
 				//only if alive still
-				if (player[pid].health > 0) {
+				if (world.player[pid].health > 0) {
 					game_kill_player(pid, true);
-					player[pid].frags--;                        
-					player[pid].total_suicides++;
+					world.player[pid].frags--;                        
+					world.player[pid].total_suicides++;
 				}
 			}
 			//-attack
 			else if (code == 11) {
 
 				//if attack was true, it's a fire event (fire false-->true)
-				bool unfire_event = (player[pid].attack == true);
+				bool unfire_event = (world.player[pid].attack == true);
 
-				player[pid].attack = false;
+				world.player[pid].attack = false;
 
 				if (unfire_event) {
 				}
 			}
 			// want changeteams on
 			else if (code == 12) {
-				if (!player[pid].want_change_teams) {
+				if (!world.player[pid].want_change_teams) {
 					//set
-					player[pid].want_change_teams = true;
+					world.player[pid].want_change_teams = true;
 					//show message
-					//broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], player[pid].name);
+					//broadcast_message("@I%s player '%s' wants to change teams", teamname[pid/TSIZE], world.player[pid].name);
 					//check for team changes
 					check_team_changes();
 				}
@@ -3332,28 +3192,28 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			// want changeteams off
 			else if (code == 13) {
 				// show message if command had effect
-				if (player[pid].want_change_teams) {
-					player[pid].want_change_teams = false;
-					player[pid].team_change_pending = false; //so pra garantir
-					//broadcast_message("@I%s player '%s' don't want to change teams", teamname[pid/TSIZE], player[pid].name);
+				if (world.player[pid].want_change_teams) {
+					world.player[pid].want_change_teams = false;
+					world.player[pid].team_change_pending = false; //so pra garantir
+					//broadcast_message("@I%s player '%s' don't want to change teams", teamname[pid/TSIZE], world.player[pid].name);
 				}
 			}
 			// "client ready" message
 			else if (code == 21) {
 				//client is ready to play now
-				player[pid].awaiting_client_ready = false;
+				world.player[pid].awaiting_client_ready = false;
 			}
 			// want change teams
 			else if (code == 22) {
-				if (player[pid].want_map_exit == false) {
-					player[pid].want_map_exit = true;
+				if (world.player[pid].want_map_exit == false) {
+					world.player[pid].want_map_exit = true;
 					check_map_exit();		//check map exit
 				}
 			}
 			// dont' want change teams
 			else if (code == 23) {
-				if (player[pid].want_map_exit == true) {
-					player[pid].want_map_exit = false;
+				if (world.player[pid].want_map_exit == true) {
+					world.player[pid].want_map_exit = false;
 					check_map_exit();		//check map exit
 				}
 			}
@@ -3419,7 +3279,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 				//se TOKEN SET + TOKEN VALID + TOKEN IDENTICO : ignora
 				if ((client[id].token_have) && (client[id].token_valid) && (intoken == client[id].intoken)) {
 #ifdef DEBUG_RANKING
-					bprintf("%s %i %i token identico.", player[ctop[id]].name, client[id].intoken, intoken);
+					bprintf("%s %i %i token identico.", world.player[ctop[id]].name, client[id].intoken, intoken);
 #endif
 				}
 				//senao, faz a rotina de dispatch old results + set new invalid token to be validated
@@ -3428,11 +3288,11 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 #ifdef DEBUG_RANKING
 					//debug message
 					if ((client[id].token_have) && (client[id].token_valid))
-						bprintf("%s %i %i changes registration, submitting results...", player[ctop[id]].name, client[id].intoken, intoken);
+						bprintf("%s %i %i changes registration, submitting results...", world.player[ctop[id]].name, client[id].intoken, intoken);
 					else if ((client[id].token_have) && (!client[id].token_valid))
-						bprintf("%s %i %i changes registration ('?')", player[ctop[id]].name, client[id].intoken, intoken);
+						bprintf("%s %i %i changes registration ('?')", world.player[ctop[id]].name, client[id].intoken, intoken);
 					else if (!client[id].token_have)
-						bprintf("%s %i %i sends registration.", player[ctop[id]].name, client[id].intoken, intoken);
+						bprintf("%s %i %i sends registration.", world.player[ctop[id]].name, client[id].intoken, intoken);
 #endif
 
 					// v0.4.9 FIX : IF HAD previous token have/valid, then FLUSH his stats
@@ -3462,7 +3322,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 					masterjob_c *job = new masterjob_c();
 					job->cid = id;
 					job->code = 1;
-					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\n\n", TK1_VERSION_STRING, player[ ctop [id] ].name, client[id].token);
+					sprintf(job->request, "GET /servlet/fcecin.tk1/index.html?%s&chktk&name=%s&token=%s\n\n", TK1_VERSION_STRING, world.player[ ctop [id] ].name, client[id].token);
 
 					//LOG2("== MJOB CREATED : %i '''%s'''\n", id, job->request);
 
@@ -3478,7 +3338,7 @@ void gameserver_c::incoming_client_data(int id, char *data, int length) {
 			}
 			// drop flag
 			else if (code == 34) {
-				player[pid].dropped_flag = true;
+				world.player[pid].dropped_flag = true;
 				ctf_drop_flag_if_any(pid);
 			}
 			else {
@@ -3529,75 +3389,75 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	//
 	if (!gameover)		//skip if game over
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used) {
+	if (world.player[i].used) {
 
 		//dec talk flood protect counter
-		player[i].talk_temp -= 0.1;
-		if (player[i].talk_temp < 0.0)
-			player[i].talk_temp = 0.0;
-		player[i].talk_hotness -= 0.1;
-		if (player[i].talk_hotness < 1.0)
-			player[i].talk_hotness = 1.0;
+		world.player[i].talk_temp -= 0.1;
+		if (world.player[i].talk_temp < 0.0)
+			world.player[i].talk_temp = 0.0;
+		world.player[i].talk_hotness -= 0.1;
+		if (world.player[i].talk_hotness < 1.0)
+			world.player[i].talk_hotness = 1.0;
 
 		//check frags changed
-		if (player[i].oldfrags != player[i].frags) {
+		if (world.player[i].oldfrags != world.player[i].frags) {
 			//updated
-			player[i].oldfrags = player[i].frags;
+			world.player[i].oldfrags = world.player[i].frags;
 
 			//send frag update
 			char lebuf[256]; int count = 0;
 			writeByte(lebuf, count, 4);	//"4" = frags update
 			writeByte(lebuf, count, i);		// what player id
-			writeLong(lebuf, count, player[i].frags);
+			writeLong(lebuf, count, world.player[i].frags);
 			server->broadcast_message(lebuf, count);
 		}
 
 		// check powerups expired
 		//
-		if (player[i].item_speed)
-		if (get_time() > player[i].item_speed_time) {
-			player[i].item_speed = false;
+		if (world.player[i].item_speed)
+		if (get_time() > world.player[i].item_speed_time) {
+			world.player[i].item_speed = false;
 			broadcast_screen_sample(i, SAMPLE_BOOTS_OFF);
 		}
-		if (player[i].item_quad)
-		if (get_time() > player[i].item_quad_time) {
-			player[i].item_quad = false;
+		if (world.player[i].item_quad)
+		if (get_time() > world.player[i].item_quad_time) {
+			world.player[i].item_quad = false;
 			broadcast_screen_sample(i, SAMPLE_QUAD_OFF);
 		}
-		if (player[i].item_helm)
-		if (get_time() > player[i].item_helm_time) {
-			player[i].item_helm = 0;
+		if (world.player[i].item_helm)
+		if (get_time() > world.player[i].item_helm_time) {
+			world.player[i].item_helm = 0;
 			broadcast_screen_sample(i, SAMPLE_HELM_OFF);
 		}
 
 		// helm alpha down
 		//
-		if (player[i].item_helm > 0) {
-			player[i].item_helm -= 10;		//slowly fades....
-			if (player[i].item_helm < shadow_minimum)	// minimum
-				player[i].item_helm = shadow_minimum;
+		if (world.player[i].item_helm > 0) {
+			world.player[i].item_helm -= 10;		//slowly fades....
+			if (world.player[i].item_helm < shadow_minimum)	// minimum
+				world.player[i].item_helm = shadow_minimum;
 		}
 
 		// check deathbringer effect
 		//
-		if (player[i].deathbringer_end > get_time()) {
+		if (world.player[i].deathbringer_end > get_time()) {
 			//check if still alive
-			if (player[i].health > 0) {
+			if (world.player[i].health > 0) {
 				//has shield: do big damage to it, in order to remove the shield
-				if (player[i].item_shield)
-					game_damage_player(i, player[i].deathbringer_attacker, 12, true);
+				if (world.player[i].item_shield)
+					game_damage_player(i, world.player[i].deathbringer_attacker, 12, true);
 				else
-					game_damage_player(i, player[i].deathbringer_attacker, 3, true); // 30 / s, 150 / 5 s
+					game_damage_player(i, world.player[i].deathbringer_attacker, 3, true); // 30 / s, 150 / 5 s
 			}
 		}
 
 		// check for a player's deathbringer to bring death
 		//
-		if (player[i].health <= 0) //dead
-		if (player[i].item_deathbringer)		//with deathbringer
+		if (world.player[i].health <= 0) //dead
+		if (world.player[i].item_deathbringer)		//with deathbringer
 		{
 			//delta time since shoot
-			double delta = (frame - player[i].item_deathbringer_time) * 0.1;
+			double delta = (frame - world.player[i].item_deathbringer_time) * 0.1;
 			//figure out new radius
 			int rad;
 			if (delta < 1.0)
@@ -3609,75 +3469,75 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			// the donut radius...radius-50
 			for (int v=0;v<maxplayers;v++)
 			if (v/TSIZE != i/TSIZE)		//enemy players only
-			if (player[v].used)	//used
-			if (player[v].health > 0)	//alive
-			if (player[v].x == player[i].x)	// in the same screen of the deathbringer
-			if (player[v].y == player[i].y)
-			if (player[v].deathbringer_end < get_time())		// deathbringer fx end time -- not already hit?
+			if (world.player[v].used)	//used
+			if (world.player[v].health > 0)	//alive
+			if (world.player[v].roomx == world.player[i].roomx)	// in the same screen of the deathbringer
+			if (world.player[v].roomy == world.player[i].roomy)
+			if (world.player[v].deathbringer_end < get_time())		// deathbringer fx end time -- not already hit?
 			{
 				//calculate player distance to the deathbringer core
-				double ex = world.hero[i].x;
-				double ey = world.hero[i].y - 15;
-				double rx = world.hero[v].x;
-				double ry = world.hero[v].y - 15;
+				double ex = world.player[i].lx;
+				double ey = world.player[i].ly - 15;
+				double rx = world.player[v].lx;
+				double ry = world.player[v].ly - 15;
 				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
 
 				// hit distance: if dt == rad, hit, if rad
 				if ((rad <= dt + 20) && (rad >= dt - 60)) {
-					player[v].item_deathbringer = false;
+					world.player[v].item_deathbringer = false;
 					broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-					player[v].deathbringer_attacker = i;
+					world.player[v].deathbringer_attacker = i;
 					// time of effect ; also freeze his gun for this same amount of time
-					player[v].deathbringer_end = player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
+					world.player[v].deathbringer_end = world.player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
 
 					// calc recoil:
-					double tx = world.hero[v].x - world.hero[i].x;
-					double ty = world.hero[v].y - world.hero[i].y;
+					double tx = world.player[v].lx - world.player[i].lx;
+					double ty = world.player[v].ly - world.player[i].ly;
 
 					double mul = 40. / sqrt( tx*tx + ty*ty );	// set speed to 40
-					world.hero[v].sx = tx * mul;
-					world.hero[v].sy = ty * mul;
+					world.player[v].sx = tx * mul;
+					world.player[v].sy = ty * mul;
 				}
 			}
 		}
 
 		// check for player weapons fire time
 		//
-		if (player[i].attack)	// player holding attack button
-		if (player[i].health > 0)		// check if player alive
-		if (get_time() > player[i].next_shoot_time)  // check if time allowed to fire again
+		if (world.player[i].attack)	// player holding attack button
+		if (world.player[i].health > 0)		// check if player alive
+		if (get_time() > world.player[i].next_shoot_time)  // check if time allowed to fire again
 		{
 			//gasta 7 + 2 * tiros energy, se tem energy
 			int numshots = 1;
-			player[i].energy -= 7;			//gasta normal
-			if (player[i].energy < 0)	//se ficou menor que zero, atira 1 so
-				player[i].energy = 0;
+			world.player[i].energy -= 7;			//gasta normal
+			if (world.player[i].energy < 0)	//se ficou menor que zero, atira 1 so
+				world.player[i].energy = 0;
 			else {
-				for (int k=1;k<player[i].weapon+1;k++) {
+				for (int k=1;k<world.player[i].weapon+1;k++) {
 					//try add one shot
-					player[i].energy -= 1;		//v0.4.7: diminuí METADE do gasto per shot!
-					if (player[i].energy < 0)
-						player[i].energy = 0;
+					world.player[i].energy -= 1;		//v0.4.7: diminuí METADE do gasto per shot!
+					if (world.player[i].energy < 0)
+						world.player[i].energy = 0;
 					else
 						numshots++;
 				}
 			}
 
-			player[i].next_shoot_time = get_time() + 0.5;		// add minimum interval (in secs)
+			world.player[i].next_shoot_time = get_time() + 0.5;		// add minimum interval (in secs)
 
 			//show helm
-			if (player[i].item_helm > 0)
-				player[i].item_helm = 255;
+			if (world.player[i].item_helm > 0)
+				world.player[i].item_helm = 255;
 
 			//v0.1.2 shoot rocket
 			game_shoot_rocket(
 				i,						//player
 				numshots,			//quantos tiros
-				player[i].x,	//px
-				player[i].y,	//py
-				(int)world.hero[i].x,		//x
-				(int)world.hero[i].y,		//y
-				world.hero[i].gundir);	//direction
+				world.player[i].roomx,	//px
+				world.player[i].roomy,	//py
+				(int)world.player[i].lx,		//x
+				(int)world.player[i].ly,		//y
+				world.player[i].gundir);	//direction
 		}
 
 	}
@@ -3732,15 +3592,15 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			//sqrt( (ex - x)*(ex - x) + (ey - y)*(ey - y) ). Acho que é isto...
 
 			for (int p=0;p<maxplayers;p++)
-			if (player[p].used)
-			if (player[p].health > 0)		// alive
+			if (world.player[p].used)
+			if (world.player[p].health > 0)		// alive
 			if (rock->team != (p/TSIZE)) // shot is from opposing team
-			if (rock->px == player[p].x) // in same screen
-			if (rock->py == player[p].y)
+			if (rock->px == world.player[p].roomx) // in same screen
+			if (rock->py == world.player[p].roomy)
 			{
 				//calculate distance rocket<->target center
-				double ex = world.hero[p].x;
-				double ey = world.hero[p].y - 15.0;
+				double ex = world.player[p].lx;
+				double ey = world.player[p].ly - 15.0;
 				double rx = rock->x;
 				double ry = rock->y - 15.0;
 				double dt = sqrt( (ex - rx)*(ex - rx) + (ey - ry)*(ey - ry) );
@@ -3749,32 +3609,32 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				if (dt <= 18.0)
 				{
 					//record wether the player had shield, if yes, will not blink him
-					bool had_shield = player[p].item_shield;
+					bool had_shield = world.player[p].item_shield;
 
 					//default damage to the target: 70
 					int damage = 70;
 
 					//v0.4.0: dano 50 se esta com o deathbringer
-					if (player[rock->owner].item_deathbringer)
+					if (world.player[rock->owner].item_deathbringer)
 						damage = 50;
 
-					if (player[rock->owner].item_quad)
+					if (world.player[rock->owner].item_quad)
 						damage *= 2;
 
 					//do damage
 					game_damage_player(p, rock->owner, damage, false);
 
-					player[rock->owner].total_hits++;
-					player[p].total_shots_taken++;
+					world.player[rock->owner].total_hits++;
+					world.player[p].total_shots_taken++;
 
 					//if player not dead, push him
-					if (player[p].health > 0) {
-						if (((world.hero[p].sx > 0) && (rock->sx < 0)) || ((world.hero[p].sx < 0) && (rock->sx > 0)))
-							world.hero[p].sx = 0;
-						if (((world.hero[p].sy > 0) && (rock->sy < 0)) || ((world.hero[p].sy < 0) && (rock->sy > 0)))
-							world.hero[p].sy = 0;
-						world.hero[p].sx += rock->sx / 3.0;
-						world.hero[p].sy += rock->sy / 3.0;
+					if (world.player[p].health > 0) {
+						if (((world.player[p].sx > 0) && (rock->sx < 0)) || ((world.player[p].sx < 0) && (rock->sx > 0)))
+							world.player[p].sx = 0;
+						if (((world.player[p].sy > 0) && (rock->sy < 0)) || ((world.player[p].sy < 0) && (rock->sy > 0)))
+							world.player[p].sy = 0;
+						world.player[p].sx += rock->sx / 3.0;
+						world.player[p].sy += rock->sy / 3.0;
 					}
 
 					//delete shot
@@ -3794,34 +3654,30 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 	// for each player, update positions & speeds
 	//
-	hero_t  *h;
+	ServerPlayer *h;
 
 	if (!gameover)		//skip if game over
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used) {
-		h = &(world.hero[i]);
+	if (world.player[i].used) {
+		h = &(world.player[i]);
 
 		//check if dead/respawn
-		if (player[i].health <= 0) {
-			if (player[i].respawn_time < get_time())
-				game_respawn_player(i);		//time to respawn player
+		if (world.player[i].health <= 0) {
+			if (world.player[i].respawn_time < get_time())
+				world.respawnPlayer(i);		//time to respawn player
 		}
 		// player alive: do stuff for alive players
 		else {
 
 			// IN : copia player screen p/ hero screen
-			h->tx = player[i].x;
-			h->ty = player[i].y;
+			int oldroomx = world.player[i].roomx;
+			int oldroomy = world.player[i].roomy;
 
 			// run server physics frame
-			world.run_server_player_physics(i, player[i]);
+			world.run_server_player_physics(i);
 
 			//OUT : copy screen information from hero back to player
-			if ((player[i].x != h->tx) || (player[i].y != h->ty))
-			{
-				player[i].x = h->tx;
-				player[i].y = h->ty;
-
+			if (world.player[i].roomx!=oldroomx || world.player[i].roomy!=oldroomy) {
 				//player screen changed check
 				game_player_screen_change(i);
 			}
@@ -3834,114 +3690,114 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			// check don't regen because of deathbringer
 			//v0.4.0: do not regen if has deathbringer and both health/energy are at no less than 100
 			bool deathbringer_penalty =
-					((player[i].item_deathbringer) && (player[i].health >= 100) && (player[i].energy >= 100))			//rand() % 100 < 50
+					((world.player[i].item_deathbringer) && (world.player[i].health >= 100) && (world.player[i].energy >= 100))			//rand() % 100 < 50
 					||
-					(player[i].deathbringer_end > get_time());
+					(world.player[i].deathbringer_end > get_time());
 
 			// regen?
 			if (!deathbringer_penalty) {
 
 				// regenerate +1 health or +1 energy
-				if (player[i].health < 100)
-					player[i].health++;
+				if (world.player[i].health < 100)
+					world.player[i].health++;
 				else {
 
 					//caso energy > 100, regenera mais devagar (-33%)
-					if (player[i].energy < 100)
-						player[i].energy++;
-					else if (player[i].energy < 200) {
+					if (world.player[i].energy < 100)
+						world.player[i].energy++;
+					else if (world.player[i].energy < 200) {
 						// 0.3.0: MAIS devagar
 						//if (frame % 3)
 						if (frame % 2)
-							player[i].energy++;
+							world.player[i].energy++;
 					}
 					//MEGA health vagarosamente...
-					else if ((player[i].health < 200) && (frame %10 == 0))
-						player[i].health++;
+					else if ((world.player[i].health < 200) && (frame %10 == 0))
+						world.player[i].health++;
 				}
 			}
 
 			//lose health & energy if running
 			if (h->run) {
 
-				if (player[i].energy <= 0) {
+				if (world.player[i].energy <= 0) {
 
-					//if (!player[i].item_speed)	// se ta com SPEED, faz nao hurt
-					if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
+					//if (!world.player[i].item_speed)	// se ta com SPEED, faz nao hurt
+					if (world.player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
 
 						if (ticker % 2)
-							player[i].health -= 2;	//desconta 2 (o normal)
+							world.player[i].health -= 2;	//desconta 2 (o normal)
 						else
-							player[i].health -= 1;	//desconta 1 (menos)
+							world.player[i].health -= 1;	//desconta 1 (menos)
 
-						if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
-							player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
+						if (world.player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
+							world.player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
 					}
 
 				} else {
 
 					if (ticker % 2)
-						player[i].energy -= 2; //desconta 2 (o normal)
+						world.player[i].energy -= 2; //desconta 2 (o normal)
 					else
-						player[i].energy -= 1; //desconta 1 (menos)
+						world.player[i].energy -= 1; //desconta 1 (menos)
 
-					if (player[i].energy == -1) { // special case
+					if (world.player[i].energy == -1) { // special case
 
-						player[i].energy++;
+						world.player[i].energy++;
 
-						if (player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
+						if (world.player[i].health > MIN_HEALTH_FOR_RUN_PENALTY) {	// se health > 30, desconta
 
-							player[i].health--;
+							world.player[i].health--;
 
-							if (player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
-								player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
+							if (world.player[i].health < MIN_HEALTH_FOR_RUN_PENALTY)		// garante minimo 30
+								world.player[i].health = MIN_HEALTH_FOR_RUN_PENALTY;
 						}
 					}
 				}
 			}
 
 			//rot health to 100 if has deathbringer
-			if ((player[i].item_deathbringer) && (player[i].health > 100) && (frame % 4 == 0))
-				player[i].health--;
+			if ((world.player[i].item_deathbringer) && (world.player[i].health > 100) && (frame % 4 == 0))
+				world.player[i].health--;
 
 			//rot energy to 100 if has deathbringer
-			if ((player[i].item_deathbringer) && (player[i].energy > 100) && (frame % 4 == 0))
-				player[i].energy--;
+			if ((world.player[i].item_deathbringer) && (world.player[i].energy > 100) && (frame % 4 == 0))
+				world.player[i].energy--;
 
 			//megahealth bonus:
-			if (player[i].megabonus > 0)
-			if ((player[i].health == 300) && (player[i].energy == 300))
-				player[i].megabonus--;	// realiza um certo "guardamento" de energia mas nao muito...
+			if (world.player[i].megabonus > 0)
+			if ((world.player[i].health == 300) && (world.player[i].energy == 300))
+				world.player[i].megabonus--;	// realiza um certo "guardamento" de energia mas nao muito...
 			else
 			for (int mh=0;mh<5;mh++) {
 
 					//+health
-					if (player[i].megabonus > 0)
-					if (player[i].health < 300) {
-							player[i].health++;
-							player[i].megabonus--;
+					if (world.player[i].megabonus > 0)
+					if (world.player[i].health < 300) {
+							world.player[i].health++;
+							world.player[i].megabonus--;
 					}
 
 					//+energy
-					if (player[i].megabonus > 0)
-					if (player[i].energy < 300) {
-							player[i].energy++;
-							player[i].megabonus--;
+					if (world.player[i].megabonus > 0)
+					if (world.player[i].energy < 300) {
+							world.player[i].energy++;
+							world.player[i].megabonus--;
 					}
 			}
 
 
 			//limit health 0 .. 300
-			if (player[i].health < 0)
-				player[i].health = 0;
-			else if (player[i].health > 300)
-				player[i].health = 300;
+			if (world.player[i].health < 0)
+				world.player[i].health = 0;
+			else if (world.player[i].health > 300)
+				world.player[i].health = 300;
 
 			//limit energy 0 .. 300
-			if (player[i].energy < 0)
-				player[i].energy = 0;
-			else if (player[i].energy > 300)
-				player[i].energy = 300;
+			if (world.player[i].energy < 0)
+				world.player[i].energy = 0;
+			else if (world.player[i].energy > 300)
+				world.player[i].energy = 300;
 
 			//---------------------------------
 			// check game object collisions
@@ -3957,13 +3813,13 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			for (int k=0;k<MAX_PICKUPS;k++)
 			if (world.item[k].kind > 0)	//valid item
 			if (world.item[k].kind != 255) // not respawning
-			if (world.item[k].px == player[i].x)		// player's screen
-			if (world.item[k].py == player[i].y)
+			if (world.item[k].px == world.player[i].roomx)		// player's screen
+			if (world.item[k].py == world.player[i].roomy)
 			//x,y == center of powerup!
-			if (world.item[k].x + prad > world.hero[i].x - 20)
-			if (world.item[k].x - prad < world.hero[i].x + 20)
-			if (world.item[k].y + prad > world.hero[i].y - 20 - 10)
-			if (world.item[k].y - prad < world.hero[i].y + 20 - 10)
+			if (world.item[k].x + prad > world.player[i].lx - 20)
+			if (world.item[k].x - prad < world.player[i].lx + 20)
+			if (world.item[k].y + prad > world.player[i].ly - 20 - 10)
+			if (world.item[k].y - prad < world.player[i].ly + 20 - 10)
 			{
 				//pick pickup
 				game_touch_pickup(i, k);		//COOL!
@@ -3972,10 +3828,10 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			// --> CTF FLAG STEAL touch other team's flag
 			//
 			if (!world.flag[enemyteam].carried &&	// enemy flag dropped (at base or somewhere)
-				check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, enemyteam))  // and I touch it
+				check_flag_touch(world.player[i].roomx, world.player[i].roomy, (int)h->lx, (int)h->ly, enemyteam))  // and I touch it
 			{
 				// Has player just dropped the flag or not?
-				if (!player[i].dropped_flag) {
+				if (!world.player[i].dropped_flag) {
 					//v0.4.7: update grab time (to detect degenerated maps) if flag was at base
 					if (world.flag[enemyteam].atbase)
 						world.flag[enemyteam].grab_time = get_time();
@@ -3983,33 +3839,33 @@ void gameserver_c::simulate_and_broadcast_frame() {
 					//FLAG STOLEN!
 					score_frag(i, 1);	// just add some frags
 
-					player[i].total_flags_taken++;
+					world.player[i].total_flags_taken++;
 
-					bprintf("@I%s GOT THE %s FLAG!", player[i].name, teamname[enemyteam]);
+					bprintf("@I%s GOT THE %s FLAG!", world.player[i].name, teamname[enemyteam]);
 
-					ctf_steal_flag(enemyteam, i);  //flag stolen!
+					world.stealFlag(enemyteam, i);  //flag stolen!
 
 					//HELM powerup: show player
-					if (player[i].item_helm > 0)
-						player[i].item_helm = 255;
+					if (world.player[i].item_helm > 0)
+						world.player[i].item_helm = 255;
 				}
 			}
 			else	// Player has removed away from the flag.
-				player[i].dropped_flag = false;
+				world.player[i].dropped_flag = false;
 
 			// --> CTF FLAG RETURN
 			//
 			if (!world.flag[myteam].carried)	// my flag dropped
 			if (!world.flag[myteam].atbase)	// not at base
-			if (check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))  // and I touch it
+			if (check_flag_touch(world.player[i].roomx, world.player[i].roomy, (int)h->lx, (int)h->ly, myteam))  // and I touch it
 			{
 				//FLAG RETURNED!
 				score_frag(i, 1);	// just add some frags
-				player[i].total_flags_returned++;
+				world.player[i].total_flags_returned++;
 
-				bprintf("@I%s RETURNED THE %s FLAG!", player[i].name, teamname[myteam]);
+				bprintf("@I%s RETURNED THE %s FLAG!", world.player[i].name, teamname[myteam]);
 
-				ctf_return_flag(myteam);  //flag returned
+				world.returnFlag(myteam);  //flag returned
 
 				//sound broadcast
 				broadcast_sample(SAMPLE_CTF_RETURN);
@@ -4021,7 +3877,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			if (world.flag[enemyteam].carrier == i)	// by me
 			if (!world.flag[myteam].carried)	// my flag dropped
 			if (world.flag[myteam].atbase)	// at my base
-			if (check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))		// I touch my flag
+			if (check_flag_touch(world.player[i].roomx, world.player[i].roomy, (int)h->lx, (int)h->ly, myteam))		// I touch my flag
 			{
 				//v0.4.7: detect degenerated maps
 				if (world.map.valid_for_scoring)		//still valid?
@@ -4045,7 +3901,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				// V0.4.8: PENALIZE every player of the other team
 
 				for (int h=0;h<MAX_PLAYERS;h++)
-				if (player[h].used)
+				if (world.player[h].used)
 				if ((h/TSIZE) == myteam)
 					score_frag(h, 2);				//small two-frag bonus
 				else
@@ -4055,22 +3911,22 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				score_frag(i, 3);
 
 				//return enemy flag to their base
-				ctf_return_flag(enemyteam);
+				world.returnFlag(enemyteam);
 
 				//message
 				string one_more;
 				if (world.flag[myteam].score == capture_limit - 2) // points update later
 					one_more = " One more to win!";
-				bprintf("@I%s CAPTURED THE %s FLAG!%s", player[i].name, teamname[enemyteam], one_more.c_str());
+				bprintf("@I%s CAPTURED THE %s FLAG!%s", world.player[i].name, teamname[enemyteam], one_more.c_str());
 
 				//count
-				player[i].total_captures++;
+				world.player[i].total_captures++;
 
 				//update the ADMIN SHELL
 				char lebuf[256]; int count; NLint result;
 				count = 0;
 				writeLong(lebuf, count, STA_PLAYER_CAPTURES);
-				writeLong(lebuf, count, player[i].cid);
+				writeLong(lebuf, count, world.player[i].cid);
 				result = nlWrite(shellssock, lebuf, count);
 
 				//CAPTURE (team count ++)
@@ -4089,9 +3945,9 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	if (frame >= next_vote_announce_frame) {
 		int votes=0, players=0;
 		for (int i=0; i<maxplayers; ++i)
-			if (player[i].used) {
+			if (world.player[i].used) {
 				++players;
-				if (player[i].want_map_exit)
+				if (world.player[i].want_map_exit)
 					++votes;
 			}
 		players=players/2+1;
@@ -4110,17 +3966,17 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	// player maintenance (check delayed messages etc)
 	int players = 0;
 	for (int i=0; i<maxplayers; ++i)
-		if (player[i].used) {
+		if (world.player[i].used) {
 			++players;
-			if (player[i].kickTimer) {
-				--player[i].kickTimer;
-				if (player[i].kickTimer==0)
-					server->disconnect_client(player[i].cid, 1);	// 1 second timeout
-				else if (player[i].kickTimer%10 == 0 && player[i].kickTimer<=50)
-					plprintf(i, "@WDisconnecting in %d...", player[i].kickTimer/10);
+			if (world.player[i].kickTimer) {
+				--world.player[i].kickTimer;
+				if (world.player[i].kickTimer==0)
+					server->disconnect_client(world.player[i].cid, 1);	// 1 second timeout
+				else if (world.player[i].kickTimer%10 == 0 && world.player[i].kickTimer<=50)
+					plprintf(i, "@WDisconnecting in %d...", world.player[i].kickTimer/10);
 			}
 			else {
-				player_t::DMQueueT& dm=player[i].delayedMessages;
+				ServerPlayer::DMQueueT& dm=world.player[i].delayedMessages;
 				while (dm.size() && --dm.begin()->first<0) {
 					player_message(i, dm.begin()->second.c_str());
 					dm.erase(dm.begin());
@@ -4192,13 +4048,13 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	//    BYTE  minimap y do player V
 	//    BYTE  health base do jogador (primeiros 8 bits)
 	//    BYTE  energy base do jogador (primeiros 8 bits)
-	//    SHORT ping do jogador : player[frame % maxplayers].ping;
+	//    SHORT ping do jogador : world.player[frame % maxplayers].ping;
 	//
 
 	//RECALC PLAYERS PRESENT EVERY TIME
 	NLulong players_present = 0;
 	for (int pp=0;pp<maxplayers;pp++)
-	if (player[pp].used)
+	if (world.player[pp].used)
 		players_present += (1 << pp);
 
 
@@ -4236,10 +4092,10 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		helmiter++;
 		if (helmiter > maxplayers - 1)
 			helmiter = 0;
-		if (player[helmiter].used)
+		if (world.player[helmiter].used)
 			//fix: helm nao enxerga outros helms, a nao ser com a flag
 			//ou seja: so mostra (break) se:  NAO TEM HELM   ou   TEM FLAG
-			if ((player[helmiter].item_helm == 0) || ((world.flag[1-helmiter/TSIZE].carried) && (world.flag[1-helmiter/TSIZE].carrier == helmiter)))
+			if ((world.player[helmiter].item_helm == 0) || ((world.flag[1-helmiter/TSIZE].carried) && (world.flag[1-helmiter/TSIZE].carrier == helmiter)))
 				break;
 	} while (runaway-- > 0);
 
@@ -4254,11 +4110,11 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 		for (int i=0;i<maxplayers;i++)			// p/ cada inimigo desse time
 		if (i/TSIZE == 1-t)
-		if (player[i].used)
+		if (world.player[i].used)
 		{
 			// ---- helmview -----
 			// mostra se NAO TEM HELM ou SE TA COM FLAG
-			if ((player[i].item_helm == 0) || ((world.flag[1-i/TSIZE].carried) && (world.flag[1-i/TSIZE].carrier == i))) {
+			if ((world.player[i].item_helm == 0) || ((world.flag[1-i/TSIZE].carried) && (world.flag[1-i/TSIZE].carrier == i))) {
 				//adiciona bit
 				//helmview[t] += ((NLushort) (1 << (i%TSIZE)));
 				// FUCKING TYPE CONVERSION HELL
@@ -4272,12 +4128,12 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 			for (int j=0;j<maxplayers;j++)			// verifica se ele esta no campo de visao (tela) de alguem do meu time
 			if (j/TSIZE == t)
-			if (player[j].used)
+			if (world.player[j].used)
 			{
-				if ((player[j].x == player[i].x) && (player[j].y == player[i].y))	{
+				if ((world.player[j].roomx == world.player[i].roomx) && (world.player[j].roomy == world.player[i].roomy))	{
 
 					//se o cara tem helm E NAO TEM FLAG, nao aparece!!
-					if ((player[i].item_helm > 0) && ((world.flag[1-i/TSIZE].carried == false) || (world.flag[1-i/TSIZE].carrier != i))) {
+					if ((world.player[i].item_helm > 0) && ((world.flag[1-i/TSIZE].carried == false) || (world.flag[1-i/TSIZE].carrier != i))) {
 						//nao visto!
 					}
 					else {
@@ -4306,7 +4162,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 			//testa se o candidato se aplica ao visor minimap do time
 			//testa apenas used players
-			if (player[tviter[t]].used) {
+			if (world.player[tviter[t]].used) {
 
 				//do meu time? envia, tenho q saber todos do meu time
 				if (tviter[t]/TSIZE == t)
@@ -4325,7 +4181,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	//   BUILD AND SEND EVERY DAMN PACKET
 	// ==================================================================
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used)			// player valido (used)
+	if (world.player[i].used)			// player valido (used)
 	{
 		//rewrite past common data
 		lecount = count;
@@ -4335,8 +4191,8 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		// BIT 1: extra energy
 		// BIT 2  ( VERY IMPORTANT ) : player not ready bit (envia frame vazio!) OU server exibindo placa "game over"
 		NLubyte xtra = 0;
-		if (player[i].health & 256) xtra += 1;
-		if (player[i].energy & 256) xtra += 2;
+		if (world.player[i].health & 256) xtra += 1;
+		if (world.player[i].energy & 256) xtra += 2;
 		// BITS 3..8 == what player id
 		if (i & 1) xtra += 8;
 		if (i & 2) xtra += 16;
@@ -4344,7 +4200,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 		if (i & 8) xtra += 64;
 		if (i & 16) xtra += 128;
 
-		bool skip_frame = (player[i].awaiting_client_ready) || ((gameover) && (gameover_time > get_time()));
+		bool skip_frame = (world.player[i].awaiting_client_ready) || ((gameover) && (gameover_time > get_time()));
 
 		if (skip_frame) xtra += 4;		// VERY IMPORTANT
 		writeByte(lebuf, lecount, xtra);
@@ -4357,9 +4213,9 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			// NEW: 0.3.9 : send before players_onscreen 2 bytes with the screen of self
 			//
 			NLubyte scr;
-			scr = ((NLubyte)player[i].x);
+			scr = ((NLubyte)world.player[i].roomx);
 			writeByte(lebuf, lecount, scr);	//player.x (screen)
-			scr = ((NLubyte)player[i].y);
+			scr = ((NLubyte)world.player[i].roomy);
 			writeByte(lebuf, lecount, scr);	//player.y (screen)
 
 			//player data field for each player ON SCREEN
@@ -4369,23 +4225,22 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			int p_on_count = lecount;
 			writeLong(lebuf, lecount, 0);
 
-			NLubyte keys;
 			for (int j=0;j<maxplayers;j++)
 			if ((players_present & (1 << j)) != 0)		//player j exists
 			// j is on same screen than i (the viewer)
 			// AND
 			//   ((j helm != 1)  ||  (j/TSIZE == i/TSIZE))  // nao-totalmente invisivel OU e do mesmo time OU j com flag
 			if (
-					(player[j].x == player[i].x)
+					(world.player[j].roomx == world.player[i].roomx)
 					&&
-					(player[j].y == player[i].y)
+					(world.player[j].roomy == world.player[i].roomy)
 					&&
-					(player[j].item_helm != 1 || i/TSIZE == j/TSIZE ||
+					(world.player[j].item_helm != 1 || i/TSIZE == j/TSIZE ||
 							(world.flag[1-j/TSIZE].carried && world.flag[1-j/TSIZE].carrier == j)) ) {
 				//add to players_onscreen
 				players_onscreen += (1 << j);
 
-				h = &(world.hero[j]);
+				h = &(world.player[j]);
 
 //					NLshort sho;
 
@@ -4394,8 +4249,8 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				//V0.3.9 : transmissao x,y de 4 bytes para 3
 				NLubyte xy;
 				NLushort hx,hy;
-				hx = ((NLushort)h->x);
-				hy = ((NLushort)h->y);
+				hx = ((NLushort)h->lx);
+				hy = ((NLushort)h->ly);
 
 				xy = (NLubyte) (hx & 255);
 				writeByte(lebuf, lecount, xy);		//first 8 bits x
@@ -4430,49 +4285,29 @@ void gameserver_c::simulate_and_broadcast_frame() {
 				bit 2 : deathbringer-affected
 				*/
 				NLubyte extra = 0;
-				if (player[j].health <= 0) extra += 1; //deadflag
-				if (player[j].item_deathbringer) extra += 2; //has deathbringer
-				if (player[j].deathbringer_end > get_time()) extra += 4;		//deathbringer-affected
+				if (world.player[j].health <= 0) extra += 1; //deadflag
+				if (world.player[j].item_deathbringer) extra += 2; //has deathbringer
+				if (world.player[j].deathbringer_end > get_time()) extra += 4;		//deathbringer-affected
 				// ITEMS: moved to this byte
-				if (player[j].item_shield)		extra += 8;
-				if (player[j].item_speed)			extra += 16;
-				if (player[j].item_quad)			extra += 32;
+				if (world.player[j].item_shield)		extra += 8;
+				if (world.player[j].item_speed)			extra += 16;
+				if (world.player[j].item_quad)			extra += 32;
 
 				//write extra byte
 				writeByte(lebuf, lecount, extra);
 
-				//keys
-				keys = 0;
-
-				//set bits 0..3
+				NLubyte keys = h->gundir << 5;
 				// if dead player, don't send keys
-				if (player[j].health > 0) {
-					if (h->l) keys += 1;
-					if (h->r) keys += 2;
-					if (h->u) keys += 4;
-					if (h->d) keys += 8;
-					if (h->run) keys += 16;		//bit 4 is "running" flag (max-speed modifier for the clientside movement extrapolator)
+				if (world.player[j].health > 0) {
+					if (h->l) keys |= 1;
+					if (h->r) keys |= 2;
+					if (h->u) keys |= 4;
+					if (h->d) keys |= 8;
+					if (h->run) keys |= 16;
 				}
-
-				//set bits 5..7
-				//keys = keys + ((NLubyte)(h->gundir * 32));
-				// FUCK NONIMPLICIT TYPE CONVERSION AND FUCK ANSI-C
-				int fuck = keys;
-				fuck += h->gundir * 32;
-				keys = (NLubyte)fuck;
-
-				//write keys
 				writeByte(lebuf, lecount, keys);
 
-				//write SHIELD  BOOTS / QUAD
-				//NLubyte		itemflags = 0;
-				//if (player[j].item_shield)		itemflags += 1;
-				//if (player[j].item_speed)			itemflags += 2;
-				//if (player[j].item_quad)			itemflags += 4;
-				//writeByte(lebuf, lecount, itemflags);
-
-				//write HELM alpha level
-				writeByte(lebuf, lecount, ((NLubyte)player[j].item_helm));
+				writeByte(lebuf, lecount, (NLubyte)world.player[j].item_helm);
 			}
 
 			//update players_onscreen (it's before the players on screen data (above))
@@ -4480,7 +4315,7 @@ void gameserver_c::simulate_and_broadcast_frame() {
 
 			//ELMO: visao alem do alcance!!
 			NLubyte who;
-			if (player[i].item_helm > 0) {
+			if (world.player[i].item_helm > 0) {
 
 				//team "viewed enemies" do meu time (i/TSIZE)
 				//writeByte(lebuf, lecount, 255);		// todos!!!
@@ -4507,29 +4342,29 @@ void gameserver_c::simulate_and_broadcast_frame() {
 			}
 
 			//x do cara, 0..255 (%) do mundo
-			NLubyte mx = (NLubyte)(((world.hero[who].x + ((double)(player[who].x * plw))) / (world.map.w*plw)) * 255.0);
+			NLubyte mx = (NLubyte)(((world.player[who].lx + ((double)(world.player[who].roomx * plw))) / (world.map.w*plw)) * 255.0);
 			writeByte(lebuf, lecount, mx);
 
 			//y do cara, 0..255 (%) do mundo
-			NLubyte my = (NLubyte)(((world.hero[who].y + ((double)(player[who].y * plh))) / (world.map.h*plh)) * 255.0);
+			NLubyte my = (NLubyte)(((world.player[who].ly + ((double)(world.player[who].roomy * plh))) / (world.map.h*plh)) * 255.0);
 			writeByte(lebuf, lecount, my);
 
 			//send player's BASE health (first 8 bits)
-			if (player[i].health < 0) player[i].health = 0;
-			writeByte(lebuf, lecount, ((NLubyte)(player[i].health & 255)));
+			if (world.player[i].health < 0) world.player[i].health = 0;
+			writeByte(lebuf, lecount, ((NLubyte)(world.player[i].health & 255)));
 
 			//send player's BASE energy (first 8 bits)
-			if (player[i].energy < 0) player[i].energy = 0;
-			writeByte(lebuf, lecount, ((NLubyte)(player[i].energy & 255)));
+			if (world.player[i].energy < 0) world.player[i].energy = 0;
+			writeByte(lebuf, lecount, ((NLubyte)(world.player[i].energy & 255)));
 
 			//ping of player frame# % MAXPLAYERS
-			NLushort theping = (NLushort) player[frame % maxplayers].ping;
+			NLushort theping = (NLushort) world.player[frame % maxplayers].ping;
 			writeShort(lebuf, lecount, theping);
 
-		}//!player[i].awaiting_client_ready
+		}//!world.player[i].awaiting_client_ready
 
 		//send the packet
-		server->send_frame(player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
+		server->send_frame(world.player[i].cid, lebuf, lecount);	//use client id of the player, and LEcount
 	}
 
 	// PING: v0.4.1
@@ -4537,8 +4372,8 @@ void gameserver_c::simulate_and_broadcast_frame() {
 	ping_send_client++;		//next player
 	if (ping_send_client >= maxplayers)
 		ping_send_client = 0;
-	if (player[ping_send_client].used) // valid player?
-	server->ping_client(player[ping_send_client].cid); //ping
+	if (world.player[ping_send_client].used) // valid player?
+	server->ping_client(world.player[ping_send_client].cid); //ping
 }
 
 //run something after simulate_and_broadcast
@@ -4547,10 +4382,10 @@ void gameserver_c::server_think_after_broadcast() {
 
 	//check players with pending team changes
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used)
-	if (player[i].team_change_pending)
-	if (player[i].want_change_teams)
-	if (player[i].team_change_time < get_time())
+	if (world.player[i].used)
+	if (world.player[i].team_change_pending)
+	if (world.player[i].want_change_teams)
+	if (world.player[i].team_change_time < get_time())
 		check_player_change_teams(i);
 
 	//check end of gameover plaque
@@ -5437,20 +5272,20 @@ void gameserver_c::run_shellmaster_thread(void *) {
 			//
 			char lebuf[4096]; int count = 0;
 			for (int i=0;i<maxplayers;i++)
-			if (player[i].used)
+			if (world.player[i].used)
 			{
 				writeLong(lebuf, count, STA_PLAYER_CONNECTED);////1 .... player connected <int id>
-				writeLong(lebuf, count, player[i].cid);
+				writeLong(lebuf, count, world.player[i].cid);
 				writeLong(lebuf, count, STA_PLAYER_FRAGS);
-				writeLong(lebuf, count, player[i].cid);
-				writeLong(lebuf, count, player[i].frags);
+				writeLong(lebuf, count, world.player[i].cid);
+				writeLong(lebuf, count, world.player[i].frags);
 				writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-				writeLong(lebuf, count, player[i].cid);
-				writeString(lebuf, count, player[i].name);
+				writeLong(lebuf, count, world.player[i].cid);
+				writeString(lebuf, count, world.player[i].name);
 				writeLong(lebuf, count, STA_PLAYER_IP);
-				writeLong(lebuf, count, player[i].cid);
+				writeLong(lebuf, count, world.player[i].cid);
 				char addrBuf[50];
-				NLaddress addr=server->get_client_address(player[i].cid);
+				NLaddress addr=server->get_client_address(world.player[i].cid);
 				nlSetAddrPort(&addr, 0);
 				nlAddrToString(&addr, addrBuf);
 				writeString(lebuf, count, addrBuf);
@@ -5541,11 +5376,11 @@ void gameserver_c::run_shellslave_thread(void *) {
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4) {
-					if (player[pid].used) {
+					if (world.player[pid].used) {
 						answer = true; //ADMIN SHELL
 						writeLong(lebuf, count, STA_PLAYER_FRAGS);
-						writeLong(lebuf, count, player[pid].cid);
-						writeLong(lebuf, count, player[pid].frags);
+						writeLong(lebuf, count, world.player[pid].cid);
+						writeLong(lebuf, count, world.player[pid].frags);
 					}
 				}
 				break;
@@ -5553,11 +5388,11 @@ void gameserver_c::run_shellslave_thread(void *) {
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4) {
-					if (player[pid].used) {
+					if (world.player[pid].used) {
 						answer = true;
 						writeLong(lebuf, count, STA_PLAYER_TOTAL_TIME);
-						writeLong(lebuf, count, player[pid].cid);
-						delta = (int)(get_time() - player[pid].start_time);
+						writeLong(lebuf, count, world.player[pid].cid);
+						delta = (int)(get_time() - world.player[pid].start_time);
 						writeLong(lebuf, count, delta);
 					}
 				}
@@ -5566,11 +5401,11 @@ void gameserver_c::run_shellslave_thread(void *) {
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4) {
-					if (player[pid].used) {
+					if (world.player[pid].used) {
 						answer = true;//ADMIN SHELL
 						writeLong(lebuf, count, STA_PLAYER_TOTAL_KILLS);
-						writeLong(lebuf, count, player[pid].cid);
-						writeLong(lebuf, count, player[pid].total_kills);
+						writeLong(lebuf, count, world.player[pid].cid);
+						writeLong(lebuf, count, world.player[pid].total_kills);
 					}
 				}
 				break;
@@ -5578,11 +5413,11 @@ void gameserver_c::run_shellslave_thread(void *) {
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4) {
-					if (player[pid].used) {
+					if (world.player[pid].used) {
 						answer = true;//ADMIN SHELL
 						writeLong(lebuf, count, STA_PLAYER_TOTAL_DEATHS);
-						writeLong(lebuf, count, player[pid].cid);
-						writeLong(lebuf, count, player[pid].total_deaths);
+						writeLong(lebuf, count, world.player[pid].cid);
+						writeLong(lebuf, count, world.player[pid].total_deaths);
 					}
 				}
 				break;
@@ -5590,11 +5425,11 @@ void gameserver_c::run_shellslave_thread(void *) {
 				result = nlRead(shellssock, rbuf, 4);
 				rcount = 0; readLong(rbuf, rcount, clid); pid = ctop[clid];
 				if (result == 4) {
-					if (player[pid].used) {
+					if (world.player[pid].used) {
 						answer = true;//ADMIN SHELL
 						writeLong(lebuf, count, STA_PLAYER_TOTAL_CAPTURES);
-						writeLong(lebuf, count, player[pid].cid);
-						writeLong(lebuf, count, player[pid].total_captures);
+						writeLong(lebuf, count, world.player[pid].cid);
+						writeLong(lebuf, count, world.player[pid].total_captures);
 					}
 				}
 				break;
@@ -5605,11 +5440,11 @@ void gameserver_c::run_shellslave_thread(void *) {
 				break;
 			case ATS_GET_PINGS:
 				for (int p=0; p<maxplayers; ++p)
-					if (player[p].used) {
+					if (world.player[p].used) {
 						answer=true;
 						writeLong(lebuf, count, STA_PLAYER_PING);
-						writeLong(lebuf, count, player[p].cid);
-						writeLong(lebuf, count, player[p].ping);
+						writeLong(lebuf, count, world.player[p].cid);
+						writeLong(lebuf, count, world.player[p].ping);
 					}
 				break;
 			case ATS_MUTE_PLAYER:
@@ -5700,9 +5535,9 @@ void gameserver_c::stop() {
 	//submit all pending player reports
 	int i,cid;
 	for (i=0;i<maxplayers;i++)
-	if (player[i].used)
+	if (world.player[i].used)
 	{
-		cid = player[i].cid;
+		cid = world.player[i].cid;
 		client_report_status(cid);
 	}
 
@@ -5851,6 +5686,13 @@ void gameserver_c::stop() {
 	}
 
 
+}
+
+void gameserver_c::sendWeaponPower(int pid) {
+	char lebuf[256]; int count = 0;
+	writeByte(lebuf, count, 18);		//player power change
+	writeByte(lebuf, count, ((NLubyte)world.player[pid].weapon) );
+	server->send_message(world.player[pid].cid, lebuf, count);
 }
 
 //get hostname: for hello

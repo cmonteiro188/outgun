@@ -94,8 +94,10 @@ if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track 
 	bool load(const char *mapdir, const string& mapname);
 };
 
-/*
-class player_t {
+class PlayerBase {
+protected:
+	PlayerBase() { }
+
 public:
 	int weapon;
 
@@ -105,32 +107,14 @@ public:
 	bool item_speed;
 	int item_helm;	// 0 == no   1+ == yes, alpha
 
-	double item_quad_time;
-	double item_speed_time;
-	double item_helm_time;
-
 	bool attack;	// if player is holding attack button
 
-	int x, y;	// which room
-};
-*/
-// a player's record.
-struct player_t {
-	int weapon;
-
-	bool item_deathbringer;
-	bool item_shield;
-	bool item_quad;
-	bool item_speed;
-	int item_helm;	// 0 == no   1+ == yes, alpha
-
-	double item_quad_time;
-	double item_speed_time;
-	double item_helm_time;
-
-	bool attack;	// if player is holding attack button
-
-	int x, y;	// which room
+	int roomx, roomy;
+	double lx, ly, sx, sy;	// position within room and speed
+	bool l, r, u, d;	// left, right, up, down acceleration keys
+	bool strafe;
+	bool run;
+	int gundir;	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
 
 // get rid of (or move elsewhere)
 	bool used;
@@ -139,18 +123,48 @@ struct player_t {
 	int ping;
 	int frags;
 	bool dead;
+	char reg_status;
+	int score, rank;
+	int neg_score;
+
+	virtual ~PlayerBase() { }
+	void clear(bool enable, int _pid, const char* _name) {
+		ping = 0;
+		frags = 0;
+		attack = false;
+		id = _pid;
+		strcpy(name, _name);	//the default name
+		weapon = 0;
+		item_deathbringer = item_shield = item_quad = item_speed = false;
+		item_helm = 0;
+		roomx = roomy = 0;
+		lx = ly = sx = sy = 0;
+		l = r = u = d = strafe = run = false;
+		gundir = 0;
+		dead = false;
+		reg_status = enable ? '-' : ' ';
+		score = 0;
+		neg_score = 0;
+		rank = 0;
+		used = enable;
+	}
+	virtual bool under_deathbringer_effect(double curr_time) const =0;
+};
+
+class ServerPlayer : public PlayerBase {
+public:
 	int health;
 	int energy;
 
-// server side
+	double item_quad_time;
+	double item_speed_time;
+	double item_helm_time;
+
 	long item_deathbringer_time;	// explosion of this players deathbringer
 	double deathbringer_end;	// end of effect of another players deathbringer
 	int deathbringer_attacker;	// whose deathbringer it is
 
 	bool awaiting_client_ready;
-	char reg_status;
-	int score, rank;
-	int neg_score;
 	bool want_map_exit;
 
 	int mapVote;
@@ -197,20 +211,9 @@ struct player_t {
 	double total_movement;
 	int start_time;
 
-// client side
-	bool deathbringer_affected;
-	double death_drop_time;
-	double speed_drop_time;
-	double wall_sound_time;
-	bool onscreen;
-	NLulong	enemyvis;
-	double quad_sound_finished;
-	double hitfx;
-	int drawptr;
-	int drawused;
-	bool old_dead;	// to detect time to play death sound
-	int oldx, oldy;	// detect room changes
+	bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
+	//#fix: move these to a message queue type, store in client data, not player data
 	void reset_message_queue_timing() {	// make messages already on queue appear instantly
 		for (DMQueueT::iterator m=delayedMessages.begin(); m!=delayedMessages.end(); ++m)
 			m->first=0;
@@ -231,9 +234,10 @@ struct player_t {
 		va_end(argptr);
 		add_to_queue(string(buf));
 	}
+
 	void clear(bool enable, int _pid, int _cid, const char* _name) {
-		ping = 0;
-		frags = 0;	//reset score ?
+		PlayerBase::clear(enable, _pid, _name);
+
 		oldfrags = -666;
 		want_map_exit = false;		//by default don't want change maps
 		mapVote=-1;
@@ -244,16 +248,11 @@ struct player_t {
 		team_change_time = 0;
 		team_change_pending = false;
 		next_shoot_time = 0;
-		attack = false;
-		reg_status = ' ';
 		talk_temp = 0.0;
 		talk_hotness = 1.0;
-
 		cid=_cid;
-		id = _pid;
-		strcpy(name, _name);	//the default name
 		waitnametime = get_time() - 666.0;	//can change name right now
-			//default stats
+
 		total_kills = 0;
 		total_deaths = 0;
 		most_consecutive_kills = 0;
@@ -274,61 +273,59 @@ struct player_t {
 		last_spawn_time = start_time;
 		lifetime = 0;
 
-			//score...  (V0.4.8 -- was missing!)
-		score = 0;
-		neg_score = 0;
-		rank = 0;
-
-		awaiting_client_ready=false;
-		weapon=0;
-		speed_drop_time=wall_sound_time=0;
-		onscreen=false;
-		enemyvis=0;
-		item_deathbringer=deathbringer_affected=false;
-		item_deathbringer_time=0;
-		deathbringer_end=death_drop_time=0;
-		deathbringer_attacker=0;
-		item_shield=item_quad=item_speed=false;
-		item_helm=0;
-		item_quad_time=item_speed_time=item_helm_time=0;
-		quad_sound_finished=hitfx=0;
-		x=y=oldx=oldy=0;
-		drawptr=drawused=0;
-		health=energy=megabonus=0;
-		dead=old_dead=false;
-		dropped_flag=false;
-		respawn_time=0;
-		respawn_to_base=false;
-
-		if (enable) {
-			reg_status='-';
-			used=true;
-		}
-		else
-			used=false;
+		awaiting_client_ready = false;
+		item_deathbringer_time = 0;
+		deathbringer_end = 0;
+		deathbringer_attacker = 0;
+		item_quad_time = item_speed_time = item_helm_time = 0;
+		health = energy = 0;
+		megabonus = 0;
+		dropped_flag = false;
+		respawn_time = 0;
+		respawn_to_base = false;
 	}
-
 };
 
-// a player's sprite state
-struct hero_t {
-	int tx, ty;		//tela X,Y
-	double x, y, sx, sy;	// position and speed
-//	double ox, oy;	// old coords: garantidamente NAO em paredes
-	bool l, r, u, d;	// left, right, up, down keypresses (player acceleration vectrs)
-	int gundir;	// gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
-	bool strafe;
-	bool run;
+class ClientPlayer : public PlayerBase {
+public:
+	bool deathbringer_affected;
+	double death_drop_time;
+	double speed_drop_time;
+	double wall_sound_time;
+	bool onscreen;
+	NLulong	enemyvis;
+	double quad_sound_finished;
+	double hitfx;
+	int drawptr;
+	int drawused;
+	bool old_dead;	// to detect time to play death sound
+	int oldx, oldy;	// detect room changes
 
-	//keypresses (net format)
-	// 0,1,2,3 : lrud
-	// 4 : strafe?
-	// 5,6,7 : gun direction
+	// get rid of these since they are only known for the local player
+	double item_quad_time;
+	double item_speed_time;
+	double item_helm_time;
+	int health;
+	int energy;
 
-	//CLIENT writes: l,r,u,d,strafe,shift,unused(2)
+	bool under_deathbringer_effect(double curr_time) const { (void)curr_time; return deathbringer_affected; }
 
-	//SERVER writes: l,r,u,d,shift,gundir(3)
-	NLubyte		keys;
+	void clear(bool enable, int _pid, const char* _name) {
+		PlayerBase::clear(enable, _pid, _name);
+
+		item_quad_time = item_speed_time = item_helm_time = 0;
+		health = energy = 0;
+
+		speed_drop_time = wall_sound_time = 0;
+		onscreen = false;
+		enemyvis = 0;
+		deathbringer_affected = false;
+		death_drop_time = 0;
+		quad_sound_finished = hitfx = 0;
+		drawptr = drawused = 0;
+		old_dead = false;
+		oldx = oldy = 0;
+	}
 };
 
 // a rocket-shot
@@ -421,29 +418,65 @@ public:
 	pickup_c() { kind=0; }
 };
 
-class World {
+template<class Type> class PointerContainer {	// doesn't delete the objects!
+	Type* ptr;
+
+public:
+	PointerContainer() : ptr(0) { }
+	PointerContainer(Type* p) : ptr(p) { }
+	void setPtr(Type* p) { ptr=p; }
+	      Type* getPtr()       { return ptr; }
+	const Type* getPtr() const { return ptr; }
+	operator       Type&()       { assert(ptr); return *ptr; }
+	operator const Type&() const { assert(ptr); return *ptr; }
+};
+
+class WorldBase {
+protected:
+	WorldBase() { }
+
 public:
 	bool applyPhysics(int i, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected);
 
 	Map map;
 
-	hero_t hero[MAX_PLAYERS];
+	PointerContainer<PlayerBase> player[MAX_PLAYERS];
 	ctflag_t flag[2];
 	rocket_c rock[MAX_ROCKETS];
 	pickup_c item[MAX_PICKUPS];
 
-// client
+	virtual ~WorldBase() { }
+
+	bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
+	void run_server_player_physics(int pid);
+	virtual void returnFlag(int team);
+	virtual void dropFlag(int team, int roomx, int roomy, int lx, int ly);
+	virtual void stealFlag(int team, int carrier);
+};
+
+class gameserver_c;	//#fix: get rid of this callback system
+
+class ServerWorld : public WorldBase {
+	gameserver_c* host;
+
+public:
+	ServerPlayer player[MAX_PLAYERS];
+	ServerWorld(gameserver_c* hostp) : host(hostp) { for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
+
+	void returnFlag(int team);
+	void dropFlag(int team, int roomx, int roomy, int lx, int ly);
+	void stealFlag(int team, int carrier);
+	void respawnPlayer(int pid);
+};
+
+class ClientWorld : public WorldBase {
+public:
 	bool skipped;	// frame is invalid -- when frame is skipped in the broadcast
 	double frame;
 	double time;	// real time (clientside) of the frame
 
-	//ctor
-	World() {
-		frame = 0;
-		time = 0;
-	}
-	bool load_map(const char *mapdir, const string& mapname) { return map.load(mapdir, mapname); }
-	void run_server_player_physics(int pid, player_t& player);
+	ClientPlayer player[MAX_PLAYERS];
+	ClientWorld() { frame = time = 0; for (int i=0; i<MAX_PLAYERS; ++i) WorldBase::player[i].setPtr(&player[i]); }
 };
 
 #endif

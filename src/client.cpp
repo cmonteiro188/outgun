@@ -1629,11 +1629,11 @@ void gameclient_c::update_scoreboard() {
 			int maxfrag = -666;
 			int maxwho = -1;
 			for (int i=td;i<TSIZE+td;i++)
-			if (player[i].used)
+			if (fx.player[i].used)
 			if (!scoreused[i])		// ainda nao usado
-			if (player[i].frags > maxfrag) {
+			if (fx.player[i].frags > maxfrag) {
 				//achou maior
-				maxfrag = player[i].frags;
+				maxfrag = fx.player[i].frags;
 				maxwho = i;
 			}
 
@@ -1674,41 +1674,37 @@ void gameclient_c::calc_game_frame() {
 
 		//player extrapolation
 		//
-		hero_t  *h;
-		for (i=0;i<maxplayers;i++)
+		for (i=0; i<maxplayers; i++)
+			if (fx.player[i].onscreen) {
+				fd.player[i] = fx.player[i];
 
-		if (player[i].onscreen) {	// nao eh suficiente usar platyer[i].USED !!!
-			fd.hero[i] = fx.hero[i];
+				if (fx.player[i].roomx<0 || fx.player[i].roomy<0 || fx.player[i].roomx>=fx.map.w || fx.player[i].roomy>=fx.map.h) continue;	//#fix: remove this and track why these are given sometimes
+				const Room& room = fx.map.room[fx.player[i].roomx][fx.player[i].roomy];
+				bool carryFlag = fx.flag[1-(i/TSIZE)].carried && fx.flag[1-(i/TSIZE)].carrier == i;
 
-			if (player[i].x<0 || player[i].y<0 || player[i].x>=fx.map.w || player[i].y>=fx.map.h) continue;	//#fix: remove this and track why these are given sometimes
-			const Room& room = fx.map.room[player[i].x][player[i].y];
-			bool carryFlag = fx.flag[1-(i/TSIZE)].carried && fx.flag[1-(i/TSIZE)].carrier == i;
+				//delta counter
+				double dc, f;
+				dc = d;
 
-			h = &fd.hero[i];
+				while (dc > 0) {
+					//calc amount of movement
+					f = dc;
+					if (f > 1.0)
+						f = 1.0;
 
-			//delta counter
-			double dc, f;
-			dc = d;
+					//dec dc
+					dc -= 1.0;
 
-			while (dc > 0) {
-				//calc amount of movement
-				f = dc;
-				if (f > 1.0)
-					f = 1.0;
-
-				//dec dc
-				dc -= 1.0;
-
-				//run physics
-				if (fd.applyPhysics(i, room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
-					//player bounced: play bounce sample if minimum time elapsed
-					if (get_time() > player[i].wall_sound_time) {
-						player[i].wall_sound_time = get_time() + 0.2;
-						sound(SAMPLE_WALLBOUNCE);
+					//run physics
+					if (fd.applyPhysics(i, room, f, fd.player[i].item_speed, carryFlag, fd.player[i].deathbringer_affected)) {
+						//player bounced: play bounce sample if minimum time elapsed
+						if (get_time() > fd.player[i].wall_sound_time) {
+							fd.player[i].wall_sound_time = get_time() + 0.2;
+							sound(SAMPLE_WALLBOUNCE);
+						}
 					}
 				}
 			}
-		}
 
 		//rocket "interpolation"?
 		//
@@ -1760,7 +1756,7 @@ void gameclient_c::calc_game_frame() {
 
 					// blink player if not hit shield (252)
 					if (rx->hit_target < 250)
-						player[rx->hit_target].hitfx = get_time() + 0.3;
+						fx.player[rx->hit_target].hitfx = get_time() + 0.3;
 
 					//spawn clientside fx
 					cfx_create_gunexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);
@@ -1779,10 +1775,10 @@ void gameclient_c::calc_game_frame() {
 					rx->dontdraw = true;
 					rx->clremove = get_time() + 5.0;
 					// IF the rocket is in the same room of "me" player
-					if (rx->px == player[me].x)
-					if (rx->py == player[me].y) {
+					if (rx->px == fx.player[me].roomx)
+					if (rx->py == fx.player[me].roomy) {
 						//then SPAWN a client-side hit-wall FX for the rocket
-						if (player[rx->owner].item_quad)
+						if (fx.player[rx->owner].item_quad)
 							cfx_create_quadwallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);	//quad hit wall
 						else
 							cfx_create_wallexplo((int)rd->x, ((int)rd->y) - 10, rx->px, rx->py);		//normal hit wall
@@ -1981,7 +1977,7 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 
 		// place of flag
 		for (int team = 0; team < 2; team++)
-			if (player[me].x == fx.map.tinfo[team].flag.px && player[me].y == fx.map.tinfo[team].flag.py) {
+			if (fx.player[me].roomx == fx.map.tinfo[team].flag.px && fx.player[me].roomy == fx.map.tinfo[team].flag.py) {
 				check_flagpos_marks();
 				int flag_x = fx.map.tinfo[team].flag.x;
 				int flag_y = fx.map.tinfo[team].flag.y;
@@ -1994,8 +1990,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			}
 
 		// map walls
-		if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < fx.map.w && player[me].y < fx.map.h)
-			fx.map.room[player[me].x][player[me].y].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
+		if (fx.player[me].roomx >= 0 && fx.player[me].roomy >= 0 && fx.player[me].roomx < fx.map.w && fx.player[me].roomy < fx.map.h)
+			fx.map.room[fx.player[me].roomx][fx.player[me].roomy].draw(drawbuf, plx, ply, 1., 1., col[COLWALL]);
 	}
 
 	// frame is valid?
@@ -2008,13 +2004,13 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		// draw any item pickups
 		//
 		if (me >= 0)
-		for (i=0;i<MAX_PICKUPS;i++)
-		if (fx.item[i].kind > 0)		// used pickups
-		if (fx.item[i].kind != 255)	//not respawning
-		if (fx.item[i].px == player[me].x)	// on my screen
-		if (fx.item[i].py == player[me].y)
-		{
+		for (i=0;i<MAX_PICKUPS;i++) {
 			pickup_c *it = &fx.item[i];
+
+			if (it->kind <= 0 || it->kind == 255)
+				continue;
+			if (it->px!=fx.player[me].roomx || it->py!=fx.player[me].roomy)
+				continue;
 
 			ellipsefill(drawbuf, plx + it->x, ply + it->y + 12, 12, 3, col[COLSHADOW]);
 
@@ -2117,8 +2113,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		if (me >= 0)	// where am I?
 		for (i=0;i<MAX_CLIENTFX;i++)
 		if (cfx[i].used)	//fx used?
-		if (cfx[i].px == player[me].x)	//on same screen?
-		if (cfx[i].py == player[me].y)
+		if (cfx[i].px == fx.player[me].roomx)	//on same screen?
+		if (cfx[i].py == fx.player[me].roomy)
 		{
 			double tim = get_time();
 
@@ -2143,8 +2139,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		for (int t=0;t<2;t++)
 			if (me >= 0)
 			if (fx.flag[t].carried == false)	// not carried == dropped
-			if (fx.flag[t].pos.px == player[me].x)  // on same screen than me
-			if (fx.flag[t].pos.py == player[me].y)  // on same screen than me
+			if (fx.flag[t].pos.px == fx.player[me].roomx)  // on same screen than me
+			if (fx.flag[t].pos.py == fx.player[me].roomy)  // on same screen than me
 			{
 				draw_flag_at(drawbuf, t, fx.flag[t].pos.x, fx.flag[t].pos.y);
 			}
@@ -2155,13 +2151,13 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		for (i=0;i<MAX_ROCKETS;i++)
 		if (fx.rock[i].owner != -1)		// valid
 		if (fx.rock[i].dontdraw == false)	// DO draw?
-		if (fx.rock[i].px == player[me].x)	//in same screen
-		if (fx.rock[i].py == player[me].y)
+		if (fx.rock[i].px == fx.player[me].roomx)	//in same screen
+		if (fx.rock[i].py == fx.player[me].roomy)
 		{
 			rocket_c *r = &(fd.rock[i]);
 
 			//QUAD ROCKET!
-			if (player[ fx.rock[i].owner ].item_quad) {
+			if (fx.player[ fx.rock[i].owner ].item_quad) {
 				//draw rocket shadow
 				ellipsefill(drawbuf, plx + (int)r->x, ply + (int)r->y, 6, 3, col[COLSHADOW]);
 				//draw the rocket
@@ -2181,8 +2177,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		// sort order of drawing of the players
 		//
 		for (i=0;i<maxplayers;i++) {
-			player[i].drawused = 0;
-			player[i].drawptr = -1;
+			fd.player[i].drawused = 0;
+			fd.player[i].drawptr = -1;
 		}
 
 		double miny;
@@ -2193,10 +2189,10 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			miny = 999999;
 
 			for (int j=0;j<maxplayers;j++)
-			if (player[j].used)	{
-				if (player[j].drawused == 0)
-				if (fd.hero[j].y < miny) {
-					miny = fd.hero[j].y;
+			if (fd.player[j].used)	{
+				if (fd.player[j].drawused == 0)
+				if (fd.player[j].ly < miny) {
+					miny = fd.player[j].ly;
 					minyid = j;
 				}
 			}
@@ -2204,8 +2200,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			if (minyid == -1)
 				break;
 
-			player[minyid].drawused = 1;
-			player[i].drawptr = minyid;
+			fd.player[minyid].drawused = 1;
+			fd.player[i].drawptr = minyid;
 		}
 
 		// the PLAY AREA: the players!
@@ -2213,26 +2209,26 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		for (int k=0;k<maxplayers;k++) {
 
 			//HACK REMENDEX: predict item_helm
-			if (player[i].item_helm > 0) {
+			if (fx.player[i].item_helm > 0) {
 				int hspd = (int) ((fd.time - fx.time) * 100.0);
-				player[i].item_helm = player[i].item_helm - hspd;
-				if (player[i].item_helm < 1)
-					player[i].item_helm = 1;
+				fx.player[i].item_helm -= hspd;
+				if (fx.player[i].item_helm < 1)
+					fx.player[i].item_helm = 1;
 			}
 
 			//indirection: draw in y-order
 			int i;
-			i = player[k].drawptr;
+			i = fd.player[k].drawptr;
 
 			if (i >= 0)
-			if (player[i].onscreen)		// draw only players on my screen
+			if (fx.player[i].onscreen)		// draw only players on my screen
 			{
 				//calcula alfa do player
 				//
 				int alpha = 255;
-				if (player[i].item_helm > 0) {
+				if (fx.player[i].item_helm > 0) {
 					drawing_mode(DRAW_MODE_TRANS, 0,0,0);
-					alpha = player[i].item_helm;
+					alpha = fx.player[i].item_helm;
 					if (me >= 0)
 					if (i/TSIZE == me/TSIZE)	// teammate or myself
 					if (alpha < MIN_ALPHA_FRIENDS) alpha = MIN_ALPHA_FRIENDS;
@@ -2240,9 +2236,9 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 				}
 
 				// the player's shadow: showing last valid position
-				ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y, 15, 3, col[COLSHADOW]);
+				ellipsefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly, 15, 3, col[COLSHADOW]);
 
-				if (player[i].item_helm > 0)
+				if (fx.player[i].item_helm > 0)
 					solid_mode();
 
 				// DRAW FLAG IF PLAYER IS CARRIER OF A FLAG
@@ -2250,26 +2246,26 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 					if (fx.flag[t].carried == true)
 					if (fx.flag[t].carrier == i)
 					{
-						draw_flag_at(drawbuf, t, (int)fd.hero[i].x, (int)fd.hero[i].y);
+						draw_flag_at(drawbuf, t, (int)fd.player[i].lx, (int)fd.player[i].ly);
 					}
 
 				// se player morto, desenha poca de sangue
-				if (player[i].dead) {
+				if (fx.player[i].dead) {
 
 					// FIXME: draw different deathbringer death (green stuff?)
 
 					// virou sorvete!
-					if ((player[i].frags >= 10) && (player[i].frags % 10 == 0)) {
-						ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 15, 6, 15, col[COLORA]);
-						circlefill(drawbuf, plx + (int)fx.hero[i].x - 8, ply + (int)fx.hero[i].y - 10-15, 8, col[COLBLUE]);
-						circlefill(drawbuf, plx + (int)fx.hero[i].x + 8, ply + (int)fx.hero[i].y - 10-15, 8, col[COLMAG]);
-						circlefill(drawbuf, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-15, 8, col[COLGREEN]);
-						textprintf_centre(drawbuf, font, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-43, col[COLWHITE], "VIROU");
-						textprintf_centre(drawbuf, font, plx + (int)fx.hero[i].x + 0, ply + (int)fx.hero[i].y - 20-33, col[COLWHITE], "SORVETE!");
+					if ((fx.player[i].frags >= 10) && (fx.player[i].frags % 10 == 0)) {
+						ellipsefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly - 15, 6, 15, col[COLORA]);
+						circlefill(drawbuf, plx + (int)fx.player[i].lx - 8, ply + (int)fx.player[i].ly - 10-15, 8, col[COLBLUE]);
+						circlefill(drawbuf, plx + (int)fx.player[i].lx + 8, ply + (int)fx.player[i].ly - 10-15, 8, col[COLMAG]);
+						circlefill(drawbuf, plx + (int)fx.player[i].lx + 0, ply + (int)fx.player[i].ly - 20-15, 8, col[COLGREEN]);
+						textprintf_centre(drawbuf, font, plx + (int)fx.player[i].lx + 0, ply + (int)fx.player[i].ly - 20-43, col[COLWHITE], "VIROU");
+						textprintf_centre(drawbuf, font, plx + (int)fx.player[i].lx + 0, ply + (int)fx.player[i].ly - 20-33, col[COLWHITE], "SORVETE!");
 					}
 					else {
-						ellipsefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y, 20, 6, col[COLRED]);
-						circlefill(drawbuf, plx + (int)fx.hero[i].x, ply + (int)fx.hero[i].y - 10, 12, col[COLRED]);
+						ellipsefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly, 20, 6, col[COLRED]);
+						circlefill(drawbuf, plx + (int)fx.player[i].lx, ply + (int)fx.player[i].ly - 10, 12, col[COLRED]);
 					}
 				}
 				// desenha player vivo
@@ -2277,19 +2273,19 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 
 					// verifica turbo drop efeitos
 					//
-					if (player[i].item_speed)		// tem speed
+					if (fx.player[i].item_speed)		// tem speed
 					if (
-							(fabs(fx.hero[i].sx) > svp_maxspeed)		// ta rapído
+							(fabs(fx.player[i].sx) > svp_maxspeed)		// ta rapído
 							||
-							(fabs(fx.hero[i].sy) > svp_maxspeed)
+							(fabs(fx.player[i].sy) > svp_maxspeed)
 						)
-					if (get_time() > player[i].speed_drop_time)		// intervalo entre drop de efeito bolinha
+					if (get_time() > fx.player[i].speed_drop_time)		// intervalo entre drop de efeito bolinha
 					{
 						//tempo minimo pra soltar outra bolinha fade
-						player[i].speed_drop_time = get_time() + 0.05;
+						fx.player[i].speed_drop_time = get_time() + 0.05;
 
 						//solta a bolinha
-						cfx_create_speedfx((int)fx.hero[i].x, (int)fx.hero[i].y, player[i].x, player[i].y, teamcol[i/TSIZE], col[i%TSIZE], fx.hero[i].gundir);
+						cfx_create_speedfx((int)fx.player[i].lx, (int)fx.player[i].ly, fx.player[i].roomx, fx.player[i].roomy, teamcol[i/TSIZE], col[i%TSIZE], fx.player[i].gundir);
 					}
 
 					//blink player when hit
@@ -2297,12 +2293,12 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 					int pc1,pc2;
 					pc1 = teamcol[i/TSIZE];
 					pc2 = col[i%TSIZE];
-					double deltafx = player[i].hitfx - get_time();
+					double deltafx = fx.player[i].hitfx - get_time();
 					if (deltafx > 0) {
 						NLubyte rgb = (NLubyte) ( 70.0 + deltafx * 600.0 );  // var 180
 						pc1 = pc2 = makecol(rgb,rgb,rgb);
 					}
-					else if (player[i].item_quad) {
+					else if (fx.player[i].item_quad) {
 						//pisca branco
 						if ( ((int)(get_time() * 10)) % 2 ) {
 							pc1 = col[COLWHITE];
@@ -2311,23 +2307,23 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 					}
 
 					//draw player
-					draw_player(drawbuf, (int)fd.hero[i].x, (int)fd.hero[i].y, fd.hero[i].gundir, pc1, pc2, alpha);
+					draw_player(drawbuf, (int)fd.player[i].lx, (int)fd.player[i].ly, fd.player[i].gundir, pc1, pc2, alpha);
 
 					//draw deathbringer carrier effect
-					if (player[i].item_deathbringer) {
+					if (fx.player[i].item_deathbringer) {
 						// intervalo entre drop de efeito
-						if (get_time() > player[i].death_drop_time)
+						if (get_time() > fx.player[i].death_drop_time)
 						{
 							//tempo p/ proximo efeito
-							player[i].death_drop_time = get_time() + 0.01;
+							fx.player[i].death_drop_time = get_time() + 0.01;
 							//drop it
-							cfx_create_deathcarrier((int)fd.hero[i].x + rand()%40-20, (int)fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/TSIZE);
-							cfx_create_deathcarrier((int)fd.hero[i].x + rand()%40-20, (int)fd.hero[i].y + rand()%40-10, player[i].x, player[i].y, i/TSIZE);
+							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
+							cfx_create_deathcarrier((int)fd.player[i].lx + rand()%40-20, (int)fd.player[i].ly + rand()%40-10, fx.player[i].roomx, fx.player[i].roomy, i/TSIZE);
 						}
 					}
 
 					//draw deathbringer affected effect
-					if (player[i].deathbringer_affected) {
+					if (fx.player[i].deathbringer_affected) {
 						drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 						set_trans_blender(0,0,0,128);
 						int q,co;
@@ -2336,17 +2332,17 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 						else
 							co = makecol(0,0,0xff);
 						for (q=0;q<5;q++)
-							circlefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, co);
+							circlefill(drawbuf, plx + (int)fd.player[i].lx+rand()%40-20, ply + (int)fd.player[i].ly+rand()%40-20 - 15, 15, co);
 						for (q=0;q<5;q++)
-							circlefill(drawbuf, plx + (int)fd.hero[i].x+rand()%40-20, ply + (int)fd.hero[i].y+rand()%40-20 - 15, 15, 0);
+							circlefill(drawbuf, plx + (int)fd.player[i].lx+rand()%40-20, ply + (int)fd.player[i].ly+rand()%40-20 - 15, 15, 0);
 						solid_mode();
 					}
 
 					// SHIELD FX!!
-					if (player[i].item_shield) {
-						ellipse(drawbuf, plx + (int)fd.hero[i].x, ply + (int)fd.hero[i].y - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
-						ellipse(drawbuf, plx + (int)fd.hero[i].x, ply + (int)fd.hero[i].y - 15, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
-						ellipse(drawbuf, plx + (int)fd.hero[i].x, ply + (int)fd.hero[i].y - 15, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
+					if (fx.player[i].item_shield) {
+						ellipse(drawbuf, plx + (int)fd.player[i].lx, ply + (int)fd.player[i].ly - 15, 24+rand()%3, 24+rand()%3, makecol(rand(),rand(),rand()));
+						ellipse(drawbuf, plx + (int)fd.player[i].lx, ply + (int)fd.player[i].ly - 15, 24+rand()%5, 24+rand()%5, makecol(rand(),rand(),rand()));
+						ellipse(drawbuf, plx + (int)fd.player[i].lx, ply + (int)fd.player[i].ly - 15, 24+rand()%9, 24+rand()%9, makecol(rand(),rand(),rand()));
 					}
 				}
 
@@ -2355,22 +2351,22 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 				if (me >= 0)
 				if (me < maxplayers)
 				//NOT an invisible enemy
-				if (!((player[i].item_helm) && (i/TSIZE != me/TSIZE))) {
-					int ttx = (int)fd.hero[i].x + plx;
-					int tty = (int)fd.hero[i].y + ply - 40;
+				if (!((fx.player[i].item_helm) && (i/TSIZE != me/TSIZE))) {
+					int ttx = (int)fd.player[i].lx + plx;
+					int tty = (int)fd.player[i].ly + ply - 40;
 					int supercol = teamdcol[i/TSIZE];
 					int midcol = col[COLWHITE];
 
-					textprintf_centre(drawbuf, font, ttx-1, tty-1, supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx+1, tty-1, supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx-1, tty+1, supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx+1, tty+1, supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx-1, tty , supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx+1, tty , supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx, tty-1, supercol, "%s", player[i].name);
-					textprintf_centre(drawbuf, font, ttx, tty+1, supercol, "%s", player[i].name);
+					textprintf_centre(drawbuf, font, ttx-1, tty-1, supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx+1, tty-1, supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx-1, tty+1, supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx+1, tty+1, supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx-1, tty , supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx+1, tty , supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx, tty-1, supercol, "%s", fx.player[i].name);
+					textprintf_centre(drawbuf, font, ttx, tty+1, supercol, "%s", fx.player[i].name);
 
-					textprintf_centre(drawbuf, font, ttx, tty, midcol, "%s", player[i].name);
+					textprintf_centre(drawbuf, font, ttx, tty, midcol, "%s", fx.player[i].name);
 				}
 			}
 		}
@@ -2378,18 +2374,18 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		// DEATHBRINGER: darken ground for carriers
 		//
 		for (int o=0;o<maxplayers;o++)
-		if (player[o].used)	//valid
-		if (player[o].x == player[me].x)	//in visible screen
-		if (player[o].y == player[me].y)
-		if (player[o].onscreen)						//REALLY in visible screen??
-		if (player[o].item_deathbringer)		// has deathbringer
+		if (fx.player[o].used)	//valid
+		if (fx.player[o].roomx == fx.player[me].roomx)	//in visible screen
+		if (fx.player[o].roomy == fx.player[me].roomy)
+		if (fx.player[o].onscreen)						//REALLY in visible screen??
+		if (fx.player[o].item_deathbringer)		// has deathbringer
 		{
 			set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
 			//darken ground
 			drawing_mode(DRAW_MODE_TRANS, 0,0,0);
 			for (int i=50;i>0;i -= 5) {
 				set_trans_blender(0,0,0,50-i);
-				circlefill(drawbuf, plx + (int)fd.hero[o].x, ply + (int)fd.hero[o].y - 10, i, 0);
+				circlefill(drawbuf, plx + (int)fd.player[o].lx, ply + (int)fd.player[o].ly - 10, i, 0);
 			}
 			solid_mode();
 			set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
@@ -2400,8 +2396,8 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		if (me >= 0)	// where am I?
 		for (i=0;i<MAX_CLIENTFX;i++)
 		if (cfx[i].used)	//fx used?
-		if (cfx[i].px == player[me].x)	//on same screen?
-		if (cfx[i].py == player[me].y)
+		if (cfx[i].px == fx.player[me].roomx)	//on same screen?
+		if (cfx[i].py == fx.player[me].roomy)
 		{
 			double tim = get_time();
 
@@ -2522,20 +2518,20 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			draw_mini_flag(drawbuf, f);
 
 		vector<bool> roomvis;
-		roomvis.resize(fx.map.w*fx.map.h, (me>=0 && player[me].item_helm>0)?true:false);
+		roomvis.resize(fx.map.w*fx.map.h, (me>=0 && fx.player[me].item_helm>0)?true:false);
 
 		// draw all teammates and enemies on screens where there are teammates
 		//draw all the players - put a pixel where they are
 		if (me>=0 && fx.frame>=0)
 			for (int i=0;i<maxplayers;i++)
-				if (player[i].used && player[i].x>=0 && player[i].y>=0 && player[i].x<fx.map.w && player[i].y<fx.map.h &&
-						(i/TSIZE == me/TSIZE || (player[me].enemyvis & (1<<(i%TSIZE)) ))) {
-					roomvis[player[i].y*fx.map.w+player[i].x] = true;
+				if (fx.player[i].used && fx.player[i].roomx>=0 && fx.player[i].roomy>=0 && fx.player[i].roomx<fx.map.w && fx.player[i].roomy<fx.map.h &&
+						(i/TSIZE == me/TSIZE || (fx.player[me].enemyvis & (1<<(i%TSIZE)) ))) {
+					roomvis[fx.player[i].roomy*fx.map.w+fx.player[i].roomx] = true;
 
 					// coord on minimap
 					double px, py;
-					px = ((double)player[i].x * (double)plw + fx.hero[i].x) / ((double)plw * fx.map.w);
-					py = ((double)player[i].y * (double)plh + fx.hero[i].y) / ((double)plh * fx.map.h);
+					px = ((double)fx.player[i].roomx * (double)plw + fx.player[i].lx) / ((double)plw * fx.map.w);
+					py = ((double)fx.player[i].roomy * (double)plh + fx.player[i].ly) / ((double)plh * fx.map.h);
 					int pix = mmx + 21 + ((int)(px*98));
 					int piy = mmy +  1 + ((int)(py*98));
 
@@ -2545,10 +2541,10 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 					if (fx.flag[enemyteam].carrier == i) {
 
 						// update flag position for draw
-						fx.flag[enemyteam].pos.px = player[i].x;
-						fx.flag[enemyteam].pos.py = player[i].y;
-						fx.flag[enemyteam].pos.x = (int)fx.hero[i].x;
-						fx.flag[enemyteam].pos.y = (int)fx.hero[i].y;
+						fx.flag[enemyteam].pos.px = fx.player[i].roomx;
+						fx.flag[enemyteam].pos.py = fx.player[i].roomy;
+						fx.flag[enemyteam].pos.x = (int)fx.player[i].lx;
+						fx.flag[enemyteam].pos.y = (int)fx.player[i].ly;
 
 						// draw the miniflag here
 						draw_mini_flag(drawbuf, enemyteam);
@@ -2630,7 +2626,7 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 
 			//draw it
 			if (i != -1)
-			if (player[i].used)
+			if (fx.player[i].used)
 			{
 				// print player name
 				//textprintf(drawbuf, font, sbx + 4, sby + 2 +13 + dp * NAMEYDELTA + (dp/TSIZE)*(26-2), col[i%TSIZE], "%s", player[i].name);
@@ -2653,15 +2649,15 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 				else {
 
 					// show name
-					textprintf(drawbuf, font, sbx + 4, what_y, col[i%TSIZE], "%c%s", player[i].reg_status, player[i].name);
+					textprintf(drawbuf, font, sbx + 4, what_y, col[i%TSIZE], "%c%s", fx.player[i].reg_status, fx.player[i].name);
 
 					// show ping or frags
 					if (key[KEY_TAB]) {
-						if (player[i].ping > 9999) player[i].ping = 9999;			//fix ping if too big
-						textprintf(drawbuf, font, sbx + 4 + 16*8, what_y, teamlcol[i/TSIZE], "%4i", player[i].ping);
+						if (fx.player[i].ping > 9999) fx.player[i].ping = 9999;			//fix ping if too big
+						textprintf(drawbuf, font, sbx + 4 + 16*8, what_y, teamlcol[i/TSIZE], "%4i", fx.player[i].ping);
 					}
 					else
-						textprintf(drawbuf, font, sbx + 4 + 16*8, what_y, teamlcol[i/TSIZE], "%4i", player[i].frags);
+						textprintf(drawbuf, font, sbx + 4 + 16*8, what_y, teamlcol[i/TSIZE], "%4i", fx.player[i].frags);
 				}
 			}
 		}
@@ -2688,24 +2684,24 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 	if (me >= 0) {
 
 		double val;
-		if (player[me].item_quad) {
-			val = player[me].item_quad_time - get_time();
+		if (fx.player[me].item_quad) {
+			val = fx.player[me].item_quad_time - get_time();
 			if (val < 0) val = 0;
 			textprintf(drawbuf, font, plx+244, ply+plh+5, col[COLCYAN], "POWER:  %2.0f", val);
 		}
-		if (player[me].item_speed) {
-			val = player[me].item_speed_time - get_time();
+		if (fx.player[me].item_speed) {
+			val = fx.player[me].item_speed_time - get_time();
 			if (val < 0) val = 0;
 			textprintf(drawbuf, font, plx+244, ply+plh+15, col[COLYELLOW], "TURBO:  %2.0f", val);
 		}
-		if (player[me].item_helm) {
-			val = player[me].item_helm_time - get_time();
+		if (fx.player[me].item_helm) {
+			val = fx.player[me].item_helm_time - get_time();
 			if (val < 0) val = 0;
 			textprintf(drawbuf, font, plx+244, ply+plh+25, col[COLMAG], "SHADOW: %2.0f", val);
 		}
 
 		//WEAPON LEVEL
-		textprintf(drawbuf, font, plx+340, ply+plh+5, col[COLWHITE], "WEAPON: %i", player[me].weapon + 1);
+		textprintf(drawbuf, font, plx+340, ply+plh+5, col[COLWHITE], "WEAPON: %i", fx.player[me].weapon + 1);
 	}
 
 	//server hostname
@@ -2731,46 +2727,46 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 	// the STATUSBAR : health energy, bars ....
 	//
 	if (me >= 0)
-		textprintf(drawbuf, font, 10, ply+plh+ 5, col[COLWHITE],  "Health: %4i  Energy: %4i", player[me].health, player[me].energy);
+		textprintf(drawbuf, font, 10, ply+plh+ 5, col[COLWHITE],  "Health: %4i  Energy: %4i", fx.player[me].health, fx.player[me].energy);
 
 	rectfill(drawbuf, 10, ply+plh+18, 10 + 100, ply+plh+18+10, col[COLNOLIFE]); //lifebar bg
 	rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + 100, ply+plh+18+10, col[COLNOLIFE]); // enerbar bg
 
 	if (me >= 0) {
-		if (player[me].health > 0) {
+		if (fx.player[me].health > 0) {
 
 			//barra vermelha 0..100
-			int redtarg = player[me].health;
+			int redtarg = fx.player[me].health;
 			if (redtarg > 100) redtarg = 100;
 			rectfill(drawbuf, 10, ply+plh+18, 10 + redtarg, ply+plh+18+10, col[COLRED]); //lifebar
 
 			//barra magenta 100..200
-			int magtarg = player[me].health - 100;
+			int magtarg = fx.player[me].health - 100;
 			if (magtarg > 100) magtarg = 100;
 			if (magtarg > 0)
 				rectfill(drawbuf, 10, ply+plh+18, 10 + magtarg, ply+plh+18+10, col[COLYELLOW]);
 
 			//barra 3o nivel
-			int targ3 = player[me].health - 200;
+			int targ3 = fx.player[me].health - 200;
 			if (targ3 > 100) targ3 = 100;
 			if (targ3 > 0)
 				rectfill(drawbuf, 10, ply+plh+18, 10 + targ3, ply+plh+18+10, col[COLMAG]);
 		}
-		if (player[me].energy > 0) {
+		if (fx.player[me].energy > 0) {
 
 			//barra azul 0..100
-			int bluetarg = player[me].energy;
+			int bluetarg = fx.player[me].energy;
 			if (bluetarg > 100) bluetarg = 100;
 			rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + bluetarg, ply+plh+18+10, col[COLBLUE]); // enerbar
 
 			//barra verde 100..200
-			int magtarg = player[me].energy - 100;
+			int magtarg = fx.player[me].energy - 100;
 			if (magtarg > 100) magtarg = 100;
 			if (magtarg > 0)
 				rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + magtarg, ply+plh+18+10, col[COLGREEN]); // enerbar
 
 			//barra 3o nivel
-			int targ3 = player[me].energy - 200;
+			int targ3 = fx.player[me].energy - 200;
 			if (targ3 > 100) targ3 = 100;
 			if (targ3 > 0)
 				rectfill(drawbuf, 10+14*8, ply+plh+18, 10+14*8 + targ3, ply+plh+18+10, col[COLENER3]);
@@ -2875,29 +2871,27 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			redt++;
 
 			sorry[0]=0;
-			if (player[i].reg_status == ' ')
-				strcpy(sorry, " ");
-			else if (player[i].reg_status == '?')
+			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
 				strcpy(sorry, " ");
 
 			if (sorry[0]==0) {
 				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%4i %5.2f %5i %-15s %5i %4i",
-					player[i].rank,
-					( ( ((double)player[i].score) + 1.0) / ( ((double)player[i].neg_score) + 1.0) ),
-					player[i].score - player[i].neg_score,
-					player[i].name,
-					player[i].frags,
-					player[i].ping
+					fx.player[i].rank,
+					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
+					fx.player[i].score - fx.player[i].neg_score,
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
 				);
 				//V0.4.8
-				redpow += ((double)(player[i].score+1)) / ((double)(player[i].neg_score+1));
+				redpow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1));
 			}
 			else {
 				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLRED], "%16s %-15s %5i %4i",
 					sorry,
-					player[i].name,
-					player[i].frags,
-					player[i].ping
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
 				);
 				redpow += DEFAULT_PLAYER_RATE;//V0.4.8
 			}
@@ -2917,28 +2911,26 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 			i = scoreboard[p];
 
 			sorry[0]=0;
-			if (player[i].reg_status == ' ')
-				strcpy(sorry, " ");
-			else if (player[i].reg_status == '?')
+			if (fx.player[i].reg_status == ' ' || fx.player[i].reg_status == '?')
 				strcpy(sorry, " ");
 
 			if (sorry[0]==0) {
 				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%4i %5.2f %5i %-15s %5i %4i",
-					player[i].rank,
-					( ( ((double)player[i].score) + 1.0) / ( ((double)player[i].neg_score) + 1.0) ),
-					player[i].score - player[i].neg_score,
-					player[i].name,
-					player[i].frags,
-					player[i].ping
+					fx.player[i].rank,
+					( ( ((double)fx.player[i].score) + 1.0) / ( ((double)fx.player[i].neg_score) + 1.0) ),
+					fx.player[i].score - fx.player[i].neg_score,
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
 				);
-				bluepow += ((double)(player[i].score+1)) / ((double)(player[i].neg_score+1)); //V0.4.8
+				bluepow += ((double)(fx.player[i].score+1)) / ((double)(fx.player[i].neg_score+1)); //V0.4.8
 			}
 			else {
 				textprintf(drawbuf,font,XLEFTPAD,y1+YDEL, col[COLLBLUE], "%16s %-15s %5i %4i",
 					sorry,
-					player[i].name,
-					player[i].frags,
-					player[i].ping
+					fx.player[i].name,
+					fx.player[i].frags,
+					fx.player[i].ping
 				);
 				bluepow += DEFAULT_PLAYER_RATE;	//V0.4.8
 			}
@@ -2980,10 +2972,10 @@ void gameclient_c::draw_game_frame(BITMAP *drawbuf) {
 		int p;
 		for (p=0;p<maxplayers;p++) {
 			textprintf(drawbuf,font,0,10+p*10,col[COLWHITE], "p.%i u=%i ons=%i evs=%lu sxy=%i,%i HR:p=%.1f,%.1f s=%.1f,%.1f",
-				p, player[p].used, player[p].onscreen, player[p].enemyvis, player[p].x, player[p].y,
+				p, fx.player[p].used, fx.player[p].onscreen, fx.player[p].enemyvis, fx.player[p].roomx, fx.player[p].roomy,
 
-				//					fx.hero[p].x, fx.hero[p].y, fx.hero[p].sx, fx.hero[p].sy,
-				fd.hero[p].x, fd.hero[p].y, fd.hero[p].sx, fd.hero[p].sy
+				//					fx.player[p].x, fx.player[p].y, fx.player[p].sx, fx.player[p].sy,
+				fd.player[p].lx, fd.player[p].ly, fd.player[p].sx, fd.player[p].sy
 				);
 		}
 
@@ -3350,7 +3342,7 @@ void gameclient_c::client_connected(char *data, int length) {
 	// players
 
 	for (i=0;i<MAX_PLAYERS;i++)
-		player[i].clear(false, i, 0, "(name unknown)");
+		fx.player[i].clear(false, i, "(name unknown)");
 
 	//reset FPS count vars
 	framecount = 0;
@@ -3901,9 +3893,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		for (i=0;i<maxplayers;i++) {
 			//decode players_present: sets if "player" record is used or not, in clientside
 			if (players_present & (1 << i))
-				player[i].used = true;
+				fx.player[i].used = true;
 			else
-				player[i].used = false;
+				fx.player[i].used = false;
 		}
 
 		//UGLY HACK
@@ -3964,9 +3956,9 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//V 0.3.9 NEW : read screen of "me" player
 			NLubyte  scr;
 			readByte(data, count, scr);		//player.x
-			player[me].x = scr;
+			fx.player[me].roomx = scr;
 			readByte(data, count, scr);		//player.y
-			player[me].y = scr;
+			fx.player[me].roomy = scr;
 
 			//read "players onscreen" vector
 			NLulong	players_onscreen;
@@ -3977,20 +3969,20 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//decode players_onscreen: sets if "player" record is there to be read
 				if (players_onscreen & (1 << i))
-					player[i].onscreen = true;
+					fx.player[i].onscreen = true;
 				else
-					player[i].onscreen = false;
+					fx.player[i].onscreen = false;
 
 				//if player on screen, parse the data
-				hero_t	*h;
-				if (player[i].onscreen) {
+				ClientPlayer	*h;
+				if (fx.player[i].onscreen) {
 
-					h = &(fx.hero[i]);
+					h = &(fx.player[i]);
 
 					//V0.3.9: took out screen reading, replacing for the same screen of "me"
 					// that is set above
-					player[i].x = player[me].x;	//same screen since it's on the "players on same screen" vector
-					player[i].y = player[me].y;
+					fx.player[i].roomx = fx.player[me].roomx;	//same screen since it's on the "players on same screen" vector
+					fx.player[i].roomy = fx.player[me].roomy;
 
 					//coords & speeds
 //						NLshort sho;
@@ -4001,12 +3993,12 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 					//writeByte(lebuf, lecount, xy);   //last 4 bits x + last 4 bits y
 
 					readByte(data, count, xy);		//first 8 bits x
-					h->x = ((double)xy);
+					h->lx = ((double)xy);
 					readByte(data, count, xy);		//first 8 bits y
-					h->y = ((double)xy);
+					h->ly = ((double)xy);
 					readByte(data, count, xy);		//first 4 bits x + first 4 bits y
-					h->x += ((double)  ( (xy &  15) << 8 )   );	//bits 0-3 to 8-11
-					h->y += ((double)  ( (xy & 240) << 4 )   ); //bits 4-7 to 8-11
+					h->lx += ((double)  ( (xy &  15) << 8 )   );	//bits 0-3 to 8-11
+					h->ly += ((double)  ( (xy & 240) << 4 )   ); //bits 4-7 to 8-11
 
 					//readShort(data, count, sho);		//x
 					//h->x = ((double)sho);
@@ -4031,32 +4023,33 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//FLAGS BYTE
 					//
-					player[i].dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
-					player[i].item_deathbringer = (extra & 2) != 0;		//deathbringer: extra bit 1
-					player[i].deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
+					fx.player[i].dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
+					fx.player[i].item_deathbringer = (extra & 2) != 0;		//deathbringer: extra bit 1
+					fx.player[i].deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
 					// ITEMS: movido para este byte
-					player[i].item_shield = (extra & 8) != 0;
-					player[i].item_speed = (extra & 16) != 0;
-					player[i].item_quad = (extra & 32) != 0;
+					fx.player[i].item_shield = (extra & 8) != 0;
+					fx.player[i].item_speed = (extra & 16) != 0;
+					fx.player[i].item_quad = (extra & 32) != 0;
 
 					//verifica se acabou de morrer - play death sound
-					if ((player[i].dead) && (!player[i].old_dead))
+					if ((fx.player[i].dead) && (!fx.player[i].old_dead))
 						sound(SAMPLE_DEATH + rand() % 2);
-					player[i].old_dead = player[i].dead;
+					fx.player[i].old_dead = fx.player[i].dead;
 
 					//l,r,u,d  accel
-					readByte(data, count, h->keys);
-					h->l = ((h->keys & 1) != 0);
-					h->r = ((h->keys & 2) != 0);
-					h->u = ((h->keys & 4) != 0);
-					h->d = ((h->keys & 8) != 0);
+					NLubyte keys;
+					readByte(data, count, keys);
+					h->l = ((keys & 1) != 0);
+					h->r = ((keys & 2) != 0);
+					h->u = ((keys & 4) != 0);
+					h->d = ((keys & 8) != 0);
 
 					//RUN!!! (COMO QUE NAO TINHA ISSO???)
 					//  devo ter apagado sem querer... ????
-					h->run = ((h->keys & 16) != 0);
+					h->run = ((keys & 16) != 0);
 
 					//bits 5..7 : gundir= 0..7
-					h->gundir = (h->keys & (32+64+128)) / 32;
+					h->gundir = (keys & (32+64+128)) / 32;
 
 					//read items
 					//readByte(data, count, byt);
@@ -4066,7 +4059,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 					//read helm byte
 					readByte(data, count, byt);
-					player[i].item_helm = byt;
+					fx.player[i].item_helm = byt;
 				}
 			}
 
@@ -4074,7 +4067,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			NLushort eviz;
 			readShort(data, count, eviz);
 			if (me >= 0)
-				player[me].enemyvis = eviz;
+				fx.player[me].enemyvis = eviz;
 
 			//read who,x,y
 			NLubyte who,whox,whoy;
@@ -4085,33 +4078,33 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			//update this player's px,py,x,y
 			//ignore self and anybody onscreen -- because then I've got better accuracy
 			if (who != me)
-			if (!player[who].onscreen) {
-				player[who].x = whox / (255/fx.map.w);	//screen = 0..255 / (WXMAX/255)
-				player[who].y = whoy / (255/fx.map.h);
-				fx.hero[who].x = (whox % (255/fx.map.w)) * plw / (255/fx.map.w);	//posicao dentro da tela especifica
-				fx.hero[who].y = (whoy % (255/fx.map.h)) * plh / (255/fx.map.h);
+			if (!fx.player[who].onscreen) {
+				fx.player[who].roomx = whox / (255/fx.map.w);	//screen = 0..255 / (WXMAX/255)
+				fx.player[who].roomy = whoy / (255/fx.map.h);
+				fx.player[who].lx = (whox % (255/fx.map.w)) * plw / (255/fx.map.w);	//posicao dentro da tela especifica
+				fx.player[who].ly = (whoy % (255/fx.map.h)) * plh / (255/fx.map.h);
 			}
 
 			//read player's health and energy
 			NLubyte healt, energ;
 			readByte(data, count, healt);
 			if (me >= 0) {
-				player[me].health = healt;
+				fx.player[me].health = healt;
 				//EXTRA BIT FROM WAYY ABOVE
-				if (xtra & 1) player[me].health += 256;
+				if (xtra & 1) fx.player[me].health += 256;
 			}
 
 			readByte(data, count, energ);
 			if (me >= 0) {
-				player[me].energy = energ;
+				fx.player[me].energy = energ;
 				//EXTRA BIT FROM WAYY ABOVE
-				if (xtra & 2) player[me].energy += 256;
+				if (xtra & 2) fx.player[me].energy += 256;
 			}
 
 			//read ping of player frame % MAX_PLAYERS
 			NLushort daping;
 			readShort(data, count, daping);
-			player[ svframe % maxplayers ].ping = daping;
+			fx.player[ svframe % maxplayers ].ping = daping;
 		}//frame not empty
 	}
 
@@ -4150,8 +4143,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			// name update
 			case 1:
 				readByte(msg, count, pid);		// player id
-				readString(msg, count, player[pid].name);		// da name
-				player[pid].name[15] = 0;		// force terminate string (paranoia)
+				readString(msg, count, fx.player[pid].name);		// da name
+				fx.player[pid].name[15] = 0;		// force terminate string (paranoia)
 				update_scoreboard();		//tentando consertar bug change teams
 				break;
 
@@ -4239,7 +4232,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			case 4:
 				readByte(msg, count, pid);	// what player
 				readLong(msg, count, fragz);	// new frag value
-				player[pid].frags = fragz;
+				fx.player[pid].frags = fragz;
 				update_scoreboard();		// update clientside scoreboard
 				break;
 
@@ -4296,17 +4289,17 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 				//play sound if rocket on screen
 				if (me >= 0)
-				if (rpx == player[me].x)
-				if (rpy == player[me].y) {
+				if (rpx == fx.player[me].roomx)
+				if (rpy == fx.player[me].roomy) {
 
 					//fir sound
 					sound(SAMPLE_FIRE);
 
 					//if owner is quaded, play quad sound
-					if (player[rowner].item_quad) {
-						if (get_time() > player[rowner].quad_sound_finished) {
+					if (fx.player[rowner].item_quad) {
+						if (get_time() > fx.player[rowner].quad_sound_finished) {
 							sound(SAMPLE_QUAD_FIRE);
-							player[rowner].quad_sound_finished = get_time() + 0.1;		//0.3.9 : quad_sound disabled, play always
+							fx.player[rowner].quad_sound_finished = get_time() + 0.1;		//0.3.9 : quad_sound disabled, play always
 						}
 					}
 				}
@@ -4368,11 +4361,11 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readShort(lebuf, count, usho);	//amount of time
 				if (me >= 0) {
 					if (iid == 2)
-						player[me].item_speed_time = get_time() + ((double)usho);
+						fx.player[me].item_speed_time = get_time() + ((double)usho);
 					else if (iid == 3)
-						player[me].item_helm_time = get_time() + ((double)usho);
+						fx.player[me].item_helm_time = get_time() + ((double)usho);
 					else if (iid == 4)
-						player[me].item_quad_time = get_time() + ((double)usho);
+						fx.player[me].item_quad_time = get_time() + ((double)usho);
 				}
 				break;
 
@@ -4380,7 +4373,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 			case 18:
 				readByte(lebuf, count, abyte);	// weapon level
 				if (me >= 0) {
-					player[me].weapon = abyte;
+					fx.player[me].weapon = abyte;
 				}
 				break;
 
@@ -4431,7 +4424,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readShort(lebuf, count, hy);
 				cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, hx, hy, sx, sy);
 
-				//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.hero[abyte].x, (int)fx.hero[abyte].y, player[abyte].x, player[abyte].y);
+				//cfx_create_deathbringer(abyte, get_time() + (fx.frame - frameno) * 0.1, (int)fx.player[abyte].x, (int)fx.player[abyte].y, player[abyte].x, player[abyte].y);
 				//if (player[abyte].x == player[me].x)
 				//if (player[abyte].y == player[me].y)
 				//print_message("DEATHBRINGER ON MY SCREEENN!!!");
@@ -4443,8 +4436,8 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				//  trying sending screen x,y and player x y
 				writeByte(lebuf, count, ((NLubyte)player[target].x));
 				writeByte(lebuf, count, ((NLubyte)player[target].y));
-				writeShort(lebuf, count, ((NLushort)world.hero[target].x));
-				writeShort(lebuf, count, ((NLushort)world.hero[target].y));
+				writeShort(lebuf, count, ((NLushort)world.player[target].x));
+				writeShort(lebuf, count, ((NLushort)world.player[target].y));
 				writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
 				*/
 				//sprintf(debuf, "t %i sx %i sy %i x %i y %i
@@ -4489,10 +4482,10 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 				readLong(lebuf, count, nscore);		//score	NEG v0.4.8
 				readLong(lebuf, count, max_world_rank);		//world players count
 				readLong(lebuf, count, max_world_score);		//world score max
-				player[pid].reg_status = (char)abyte;
-				player[pid].rank = (int)prank;
-				player[pid].score = (int)pscore;
-				player[pid].neg_score = (int)nscore;
+				fx.player[pid].reg_status = (char)abyte;
+				fx.player[pid].rank = (int)prank;
+				fx.player[pid].score = (int)pscore;
+				fx.player[pid].neg_score = (int)nscore;
 				//LOG4("CRAPZ UPDATE %i %c %i %i\n", pid, abyte, prank, pscore);
 				break;
 
@@ -4508,7 +4501,7 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 
 	//detect screen changes / clear powerup fx's
 	if (me >= 0)
-	if ((player[me].x != player[me].oldx) || (player[me].y != player[me].oldy)) {
+	if ((fx.player[me].roomx != fx.player[me].oldx) || (fx.player[me].roomy != fx.player[me].oldy)) {
 		//screen changed.
 
 		//V0.4.7: now, why would I want to do that??
@@ -4516,16 +4509,13 @@ void gameclient_c::process_incoming_data(char *data, int length) {
 		//for (int f=0;f<MAX_CLIENTFX;f++)
 		//	cfx[f].used = false;
 
-		//clear all powerups on my old screen
 		for (int j=0;j<MAX_PICKUPS;j++)
-		if (fx.item[j].kind)	// item present
-		if (fx.item[j].px == player[me].oldx)	//on old screen
-		if (fx.item[j].py == player[me].oldy)
-			fx.item[j].kind = 0;	// erase
+			if (fx.item[j].px==fx.player[me].oldx && fx.item[j].py==fx.player[me].oldy)
+				fx.item[j].kind = 0;	// erase
 
 		//set new old's
-		player[me].oldx = player[me].x;
-		player[me].oldy = player[me].y;
+		fx.player[me].oldx = fx.player[me].roomx;
+		fx.player[me].oldy = fx.player[me].roomy;
 	}
 
 	//this is a HACK:
@@ -5602,7 +5592,7 @@ gameclient_c::gameclient_c() {
 	//all the players to show including me
 	//player_t player[MAX_PLAYERS];
 	for (int p=0;p<MAX_PLAYERS;p++)
-		player[p].used=false;
+		fx.player[p].used=false;
 
 	//explosion fx's
 	for (int x=0;x<MAX_CLIENTFX;x++)

@@ -70,7 +70,6 @@ struct gamespy_t {
 
 class gameclient_c {
 public:
-    player_t player[MAX_PLAYERS];
     clientfx_t      cfx[MAX_CLIENTFX];
     int me;
     bool option_show_names;
@@ -80,7 +79,7 @@ public:
     char player_token[64];      // the token
     char player_password[16];
     pthread_t   passthread;
-    World fd, fx;	//#fix: two maps, etc.
+    ClientWorld fd, fx;	//#fix: two maps, etc.
     pthread_mutex_t     frame_mutex;
     pthread_mutex_t     udpdq_mutex;
     int udpdq_size;     //size
