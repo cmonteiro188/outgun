@@ -484,7 +484,6 @@ void Server::load_game_mod() {
 		PT(new GS_ForwardInt("web_refresh",				"at least 1", setWebRefresh, setWebRefresh)),
 		PT(0)
 	};
-
 	const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
 	ifstream in(filename.c_str());
 	if (in) {
@@ -507,6 +506,9 @@ void Server::load_game_mod() {
 				}
 			}
 		}
+
+		if (pupConfig.pup_weapon_max == 0)
+			pupConfig.pup_chance_weapon = 0;
 
 		const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
 						+ pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
