@@ -50,7 +50,7 @@
 // Delay for the server contacting the master server, in seconds.
 // It is good if this delay is set to a minute or so, since this will
 // filter out people opening and closing servers frequently.
-const float delay_to_report_server = 30.0;
+const double delay_to_report_server = 30.0;
 
 using std::ifstream;
 using std::map;
@@ -1394,7 +1394,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 		NLubyte clFrame = world.player[i].lastClientFrame;
 		writeByte(lebuf, lecount, clFrame);
 		#ifdef SEND_FRAMEOFFSET
-		NLubyte fo = static_cast<NLubyte>(bound<float>(world.player[i].frameOffset, 0., .999) * 256.);
+		NLubyte fo = static_cast<NLubyte>(bound<double>(world.player[i].frameOffset, 0., .999) * 256.);
 		writeByte(lebuf, lecount, fo);
 		#endif
 
@@ -1437,8 +1437,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 					// position in 3 bytes
 					NLubyte xy;
 					NLushort hx,hy;
-					hx = static_cast<NLushort>(h.lx * (float(0xFFF) / plw) + .5);
-					hy = static_cast<NLushort>(h.ly * (float(0xFFF) / plh) + .5);
+					hx = static_cast<NLushort>(h.lx * (double(0xFFF) / plw) + .5);
+					hy = static_cast<NLushort>(h.ly * (double(0xFFF) / plh) + .5);
 					xy = static_cast<NLubyte>(hx & 0x0FF);
 					writeByte(lebuf, lecount, xy);
 					xy = static_cast<NLubyte>(hy & 0x0FF);
@@ -1648,9 +1648,9 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 		++cPos;	// point to the control character after @
 		if (response[cPos] == 'K' && cPos + 1 < response.length()) {	// success; ranking data follows
 			++cPos;
-			float v[4];
+			double v[4];
 			char termChar;
-			int num = sscanf(response.c_str() + cPos, "%f#%f#%f#%*[^#]#%f%c", &v[0], &v[1], &v[2], &v[3], &termChar);	// max_world_score that bugs is ignored
+			int num = sscanf(response.c_str() + cPos, "%lf#%lf#%lf#%*[^#]#%lf%c", &v[0], &v[1], &v[2], &v[3], &termChar);	// max_world_score that bugs is ignored
 			if (num != 5 || termChar != '#') {
 				log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
 				continue;

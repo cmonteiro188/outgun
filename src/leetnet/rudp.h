@@ -141,7 +141,9 @@ public:
 	// flush the packet buffers as an UDP packet to the remote address, returns "id"
 	// for the assigned packet id. this call resets the unreliable data buffer (see
 	// write() above).
-	virtual int send_packet(int& id) = 0;
+	// datalog is an added debugging help: pass it a valid file pointer and send_packet will
+	// write the packet length followed by data to the file
+	virtual int send_packet(int& id, FILE* datalog) = 0;
 
 	// send a raw UDP packet to the destination. use this for implementing connection,
 	// disconnection, or some authentication etc. schemes. raw packets with the first

@@ -55,53 +55,53 @@ private:
 class RectWall : public WallBase {	// rectangular wall
 public:
 	RectWall() { }
-	RectWall(float a_, float b_, float c_, float d_, int tex_, int alpha_)
+	RectWall(double a_, double b_, double c_, double d_, int tex_, int alpha_)
 			: WallBase(tex_, alpha_), a(a_), b(b_), c(c_), d(d_) { if (c<a) std::swap(a, c); if (d<b) std::swap(b, d); }
 
-	float x1() const { return a; }
-	float y1() const { return b; }
-	float x2() const { return c; }
-	float y2() const { return d; }
+	double x1() const { return a; }
+	double y1() const { return b; }
+	double x2() const { return c; }
+	double y2() const { return d; }
 
 	bool intersects_rect(double x1, double y1, double x2, double y2) const { return x1<=c && x2>=a && y1<=d && y2>=b; }	// perfect
 	bool intersects_circ(double x, double y, double r) const;	// perfect
 	void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
-	float a, b, c, d;	// rectangle coords (a,b)->(c,d)
+	double a, b, c, d;	// rectangle coords (a,b)->(c,d)
 };
 
 class TriWall : public WallBase {	// triangular wall
 public:
 	TriWall() { }
-	TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_);
+	TriWall(double x1, double y1, double x2, double y2, double x3, double y3, int tex_, int alpha_);
 
-	float x1() const { return p1x; }
-	float y1() const { return p1y; }
-	float x2() const { return p2x; }
-	float y2() const { return p2y; }
-	float x3() const { return p3x; }
-	float y3() const { return p3y; }
+	double x1() const { return p1x; }
+	double y1() const { return p1y; }
+	double x2() const { return p2x; }
+	double y2() const { return p2y; }
+	double x3() const { return p3x; }
+	double y3() const { return p3y; }
 
 	bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const;	// perfect
 	bool intersects_circ(double x, double y, double r) const;	// very much imperfect (uses bounding rectangle)
 	void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
-	float p1x, p1y, p2x, p2y, p3x, p3y;
-	float boundx1, boundy1, boundx2, boundy2;
+	double p1x, p1y, p2x, p2y, p3x, p3y;
+	double boundx1, boundy1, boundx2, boundy2;
 };
 
 class CircWall : public WallBase {	// circular wall
 public:
 	CircWall() { }
-	CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_);
+	CircWall(double x_, double y_, double ro_, double ri_, double ang1, double ang2, int tex_, int alpha_);
 
-	float X() const { return x; }
-	float Y() const { return y; }
-	float radius() const { return ro; }
-	float radius_in() const { return ri; }
-	const float* angles() const { return angle; }
+	double X() const { return x; }
+	double Y() const { return y; }
+	double radius() const { return ro; }
+	double radius_in() const { return ri; }
+	const double* angles() const { return angle; }
 	const Coords& angle_vector_1() const { return va1; }
 	const Coords& angle_vector_2() const { return va2; }
 
@@ -110,10 +110,10 @@ public:
 	void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const;
 
 private:
-	float x, y, ro, ri;
-	float angle[2];
+	double x, y, ro, ri;
+	double angle[2];
 	Coords va1, va2, midvec;
-	float anglecos;
+	double anglecos;
 };
 
 class Room {
@@ -125,7 +125,7 @@ public:
 
 	bool fall_on_wall(int x1, int y1, int x2, int y2) const;	// this check follows the quality of *Wall::intersects_rect and isn't perfect
 	bool fall_on_wall(int x, int y, int r) const;	// this check follows the quality of *Wall::intersects_circ and isn't perfect
-	BounceData genGetTimeTillWall(double x, double y, double mx, double my, double radius, float maxFraction) const;
+	BounceData genGetTimeTillWall(double x, double y, double mx, double my, double radius, double maxFraction) const;
 
 	const std::vector<WallBase*>& readWalls() const { return walls; }
 	const std::vector<WallBase*>& readGround() const { return ground; }
@@ -154,7 +154,7 @@ struct MapTeam {
 class Map {
 	bool parse_file(LogSet& log, std::istream& in);
 	bool parse_line(LogSet& log, const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
-					int& crx, int& cry, float& scalex, float& scaley, bool label_block = false);
+					int& crx, int& cry, double& scalex, double& scaley, bool label_block = false);
 
 public:
 	MapTeam tinfo[2];	//team information for red=0 and blue=1 teams
@@ -216,15 +216,15 @@ public:
 	void set_hits(int n) { total_hits = n; }
 	void set_shots_taken(int n) { total_shots_taken = n; }
 	void set_movement(double amount) { total_movement = amount; }
-	void set_spawn_time(float time) { last_spawn_time = time; }
-	void set_start_time(float time) { starttime = time; }
-	void set_lifetime(float time) { total_lifetime = time; }
+	void set_spawn_time(double time) { last_spawn_time = time; }
+	void set_start_time(double time) { starttime = time; }
+	void set_lifetime(double time) { total_lifetime = time; }
 	void set_flag_carrying_time(double time) { total_flag_carrying_time = time; }
 	void set_flag_take_time(double time) { flag_taking_time = time; }
 	void set_flag(bool f) { flag = f; }
 	void set_dead(bool d) { dead = d; }
 
-	void spawn(float time) { set_spawn_time(time); dead = false; }
+	void spawn(double time) { set_spawn_time(time); dead = false; }
 
 	void add_frag(int n = 1) { total_frags += n; }
 	void add_kill(bool deathbringer);
@@ -259,16 +259,16 @@ public:
 	int carriers_killed() const { return total_flag_carriers_killed; }
 	int shots() const { return total_shots; }
 	int hits() const { return total_hits; }
-	float accuracy() const;
+	double accuracy() const;
 	int shots_taken() const { return total_shots_taken; }
-	float spawn_time() const { return last_spawn_time; }
-	float lifetime(double time) const;			// in seconds
-	float average_lifetime(double time) const;	// in seconds
-	float playtime(double time) const;			// in seconds
+	double spawn_time() const { return last_spawn_time; }
+	double lifetime(double time) const;			// in seconds
+	double average_lifetime(double time) const;	// in seconds
+	double playtime(double time) const;			// in seconds
 	double movement() const;					// in Outgun units
-	float speed(double time) const;				// in Outgun units per second
-	float old_speed() const { return saved_speed; }
-	float start_time() const { return starttime; }
+	double speed(double time) const;				// in Outgun units per second
+	double old_speed() const { return saved_speed; }
+	double start_time() const { return starttime; }
 	double flag_carrying_time(double time) const;
 	double flag_take_time() const { return flag_taking_time; }
 
@@ -291,11 +291,11 @@ private:
 	int total_shots;
 	int total_hits;
 	int total_shots_taken;
-	float last_spawn_time;
-	float total_lifetime;
+	double last_spawn_time;
+	double total_lifetime;
 	double total_movement;
-	float saved_speed;
-	float starttime;
+	double saved_speed;
+	double starttime;
 	bool dead;
 	bool flag;
 	double total_flag_carrying_time;
@@ -384,7 +384,7 @@ public:
 	int cid;	// client id (network identity)
 	NLubyte lastClientFrame;	// client set frame identifier of the latest data received
 	#ifdef SEND_FRAMEOFFSET
-	float frameOffset;	// at what time within the frame the client's packet arrived
+	double frameOffset;	// at what time within the frame the client's packet arrived
 	#endif
 	double waitnametime;
 	bool localIP;
@@ -509,7 +509,7 @@ public:
 	void set_shots_taken(int n) { total_shots_taken = n; }
 	void set_base_score(int n) { start_score = n; }
 	void set_movement(double amount) { total_movement = amount; }
-	void set_power(float pow) { tournament_power = pow; }
+	void set_power(double pow) { tournament_power = pow; }
 
 	void add_score(double time, const std::string& player);
 	void add_kill() { ++total_kills; }
@@ -545,8 +545,8 @@ public:
 	int hits() const { return total_hits; }
 	int shots_taken() const { return total_shots_taken; }
 	double movement() const { return total_movement; }
-	float accuracy() const;
-	float power() const { return tournament_power; }
+	double accuracy() const;
+	double power() const { return tournament_power; }
 
 	const Flag& flag(int n) const { return team_flags[n]; }
 	const std::vector<Flag>& flags() const { return team_flags; }
@@ -566,7 +566,7 @@ private:
 	int total_hits;
 	int total_shots_taken;
 	double total_movement;
-	float tournament_power;
+	double tournament_power;
 	std::vector<Flag> team_flags;
 	std::vector<std::pair<int, std::string> > caps;	// time and player name
 	int start_score;	// for players who join in the middle of the game
@@ -617,12 +617,12 @@ public:
 
 class PhysicalSettings {
 public:
-	float fric, drag, accel;
-	float brake_mul, turn_mul, run_mul, turbo_mul, flag_mul;
-	float friendly_fire, friendly_db;
+	double fric, drag, accel;
+	double brake_mul, turn_mul, run_mul, turbo_mul, flag_mul;
+	double friendly_fire, friendly_db;
 	bool player_collisions;
 
-	float max_run_speed;	// max speed without turbo, for turbo effect in client
+	double max_run_speed;	// max speed without turbo, for turbo effect in client
 
 	PhysicalSettings();
 	void calc_max_run_speed();
@@ -637,9 +637,9 @@ public:
 	virtual bool collideToRockets() const =0;	// should player to rocket collisions be checked at all
 	virtual bool gatherMovementDistance() const =0;	// should addMovementDistance be called with player movements
 	virtual bool allowRoomChange() const =0;
-	virtual void addMovementDistance(int pid, float dist) =0;	// player pid has moved the distance dist
+	virtual void addMovementDistance(int pid, double dist) =0;	// player pid has moved the distance dist
 	virtual void playerScreenChange(int pid) =0;	// player pid has moved to a new room (called max. once per frame per player)
-	virtual void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) =0;	// caller doesn't remove the rocket
+	virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0;	// caller doesn't remove the rocket
 	virtual bool rocketHitPlayer(int rid, int pid) =0;	// returns true if player dies (to be removed from further simulation)
 	virtual void playerHitWall(int pid) =0;
 	virtual void playerHitPlayer(int pid1, int pid2) =0;
@@ -651,14 +651,14 @@ class WorldBase {
 	void addRocket(int i, int playernum, int team, int px, int py, int x, int y,
 													bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
 
-	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction);
-	static double getTimeTillWall(const Room& room, const Rocket& rock, float maxFraction);
+	static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction);
+	static double getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction);
 	static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
 	static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
 	void applyPlayerAcceleration(int pid);
 	void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius);	// needs plyRadius as a shortcut to bounceVec's length
 	void executeBounce(PlayerBase& pl1, PlayerBase& pl2) const;
-	void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction);
+	void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction);
 
  	void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
 
@@ -666,7 +666,7 @@ protected:
 	WorldBase(): player(MAX_PLAYERS) { }
 
 public:
-	void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction);
+	void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction);
 	void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback);
 
 	void setMaxPlayers(int num) { maxplayers = num; }
@@ -710,10 +710,10 @@ public:
 	bool pups_min_percentage, pups_max_percentage;
 	int pup_add_time, pup_max_time;
 	bool pup_deathbringer_switch;
-	float pup_deathbringer_time;
+	double pup_deathbringer_time;
 	bool pups_drop_at_death;
 	int pup_health_bonus;
-	float pup_power_damage;
+	double pup_power_damage;
 	int pup_weapon_max;
 
 	void reset();
@@ -805,7 +805,7 @@ public:
 	void respawnPlayer(int pid);
 	void printTimeStatus(LineReceiver& printer);
 
-	void resetPlayer(int target, float time_penalty = 0.);
+	void resetPlayer(int target, double time_penalty = 0.);
 	void killPlayer(int target, bool time_penalty);
 	void damagePlayer(int target, int attacker, int damage, bool deathbringer);
 	void removePlayer(int pid);
@@ -824,7 +824,7 @@ public:
 
 	void simulateFrame();
 
-	void addMovementDistanceCallback(int pid, float dist);
+	void addMovementDistanceCallback(int pid, double dist);
 	void playerScreenChangeCallback(int pid);
 	void rocketHitWallCallback(int rid);
 	bool rocketHitPlayerCallback(int rid, int pid);
@@ -845,7 +845,7 @@ public:
 	}
 	// extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 	void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter);
+						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter);
 
 	/*void save_stats(const std::string& dir, const Team* teams,
 				const std::vector<ClientPlayer*>& players, const std::string& map_name) const;*/

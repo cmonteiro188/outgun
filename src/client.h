@@ -249,11 +249,11 @@ class Client {
 	double lastpackettime;
 	NLubyte clFrameSent, clFrameWorld;
 	#ifdef SEND_FRAMEOFFSET
-	float frameOffsetDeltaTotal;
+	double frameOffsetDeltaTotal;
 	int frameOffsetDeltaNum;
 	volatile int netsendAdjustment;
 	#endif
-	float averageLag;
+	double averageLag;
 	double frameReceiveTime;	// when fx was received
 	ClientControls controlHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
 	NLulong svFrameHistory[256];	// the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
@@ -397,7 +397,7 @@ class Client {
 	void setMaxPlayers(int num) { maxplayers = num; fx.setMaxPlayers(num); fd.setMaxPlayers(num); }
 
 	// world	//#fix: should these be moved to ClientWorld?
-	void rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy);
+	void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy);
 	void rocketOutOfBoundsCallback(int rid);
 	void playerHitWallCallback(int pid);
 	void playerHitPlayerCallback(int pid1, int pid2);

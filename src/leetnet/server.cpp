@@ -132,6 +132,7 @@ public:
 	#endif
 	#ifdef LEETNET_DATA_LOG
 	FILE* datalog;
+	MutexHolder datalogMutex;
 	#endif
 
 	// number of clients allocated
@@ -383,11 +384,26 @@ public:
 	//protocol that introduces it's own shitload). optimize your foken data, every byte saved counts!
 	virtual int broadcast_frame(const char* data, int length) {
 DLOG_Scope s("BcF");
+
+		#ifdef LEETNET_DATA_LOG
+		MutexLock ml(datalogMutex);
+		#endif
+
 		for (int i=0;i<MAX_CLIENTS;i++) 
 		if (client[i].used) {
 			client[i].station->write(data, length);	// set frame data
 			int packet_id;
-			client[i].station->send_packet(packet_id);	// flush the packet
+
+			#ifdef LEETNET_DATA_LOG
+			static const char writeModeMarker = 'W';
+			fwrite(&writeModeMarker, sizeof(char), 1, datalog);
+			double currTime = get_time();
+			fwrite(&currTime, sizeof(double), 1, datalog);
+			fwrite(&i, sizeof(int), 1, datalog);	// which client
+			client[i].station->send_packet(packet_id, datalog);	// flush the packet
+			#else
+			client[i].station->send_packet(packet_id, 0);	// flush the packet
+			#endif
 		}
 
 		//ok
@@ -403,7 +419,18 @@ DLOG_Scope s("SF");
 
 		client[client_id].station->write(data, length);	//set frame data
 		int packet_id;
-		client[client_id].station->send_packet(packet_id);	// flush the packet
+
+		#ifdef LEETNET_DATA_LOG
+		MutexLock ml(datalogMutex);
+		static const char writeModeMarker = 'W';
+		fwrite(&writeModeMarker, sizeof(char), 1, datalog);
+		double currTime = get_time();
+		fwrite(&currTime, sizeof(double), 1, datalog);
+		fwrite(&client_id, sizeof(int), 1, datalog);	// which client
+		client[client_id].station->send_packet(packet_id, datalog);	// flush the packet
+		#else
+		client[client_id].station->send_packet(packet_id, 0);	// flush the packet
+		#endif
 
 		//ok
 		return 1;
@@ -559,20 +586,26 @@ DLOG_Scope s("PIDg");
 		readLong(packet, count, packid);	//packet id
 		readLong(packet, count, smsgid);	// special message id (if packet id == 0)
 
-		#ifdef LEETNET_DATA_LOG
-		double currTime = get_time();
-		fwrite(&currTime, sizeof(double), 1, datalog);
-		fwrite(&length, sizeof(int), 1, datalog);
-		fwrite(packet, length, 1, datalog);
-		#endif
-
 		// verifica se a mensagem eh de algum client conhecido
       int i;
 		for (i=0;i<MAX_CLIENTS;i++) 
 		if (client[i].used)
 		if (NL_TRUE == nlAddrCompare(&remoteaddr, &client[i].addr)) {
 			log("DO CLIENT %i",i);
-			
+
+			#ifdef LEETNET_DATA_LOG
+			{
+				MutexLock ml(datalogMutex);
+				static const char readModeMarker = 'R';
+				fwrite(&readModeMarker, sizeof(char), 1, datalog);
+				double currTime = get_time();
+				fwrite(&currTime, sizeof(double), 1, datalog);
+				fwrite(&i, sizeof(int), 1, datalog);	// which client
+				fwrite(&length, sizeof(int), 1, datalog);
+				fwrite(packet, 1, length, datalog);
+			}
+			#endif
+
 			//achou: pertence a um client conectado, copia para a station, que a thread
 			// ira' processá-lo. obs: "station" precisa ser locket
 

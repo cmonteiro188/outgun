@@ -35,7 +35,7 @@
 #include <windows.h>
 #define MS_SLEEP(x) Sleep(x)
 #else
-#include "time.h"
+#include <time.h>
 #define MS_SLEEP(x) { timespec ts1,ts2; ts1.tv_sec = (x)/1000; ts1.tv_nsec = ((x)%1000)*1000000; nanosleep(&ts1,&ts2); }
 #endif
 

@@ -51,6 +51,15 @@ inline void writeStr(char* buf, int& count, const std::string& src) {
 	buf[count++] = '\0';
 }
 
+inline double safeReadFloat(const char* buf, int& count) {
+	float val;
+	readFloat(buf, count, val);
+	return val;
+}
+inline void safeWriteFloat(char* buf, int& count, float val) {	// this adds type safety: val is ensured to be a float
+	writeFloat(buf, count, val);
+}
+
 enum NetworkResult { NR_ok, NR_timeout, NR_nlError };	// timeout is also returned when abortFlag triggers the return
 
 NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length,

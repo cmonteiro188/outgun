@@ -192,7 +192,7 @@ bool is_keypad(int sc) {
 	}
 }
 
-void rotate_angle(float& angle, float shift) {
+void rotate_angle(double& angle, double shift) {
 	angle += shift;
 	if (angle < 0)
 		angle += 360;

@@ -279,6 +279,9 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
 
 	#ifdef ALLEGRO_WINDOWS
 	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
+	#else
+	GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_XWINDOWS_FULLSCREEN);
+	#endif
 	if (modes) {
 		int depth2 = (depth == 16) ? 15 : depth;	// 15 and 16 bit modes are considered equal
 		for (int i = 0; i < modes->num_modes; i++) {
@@ -289,8 +292,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
 		destroy_gfx_mode_list(modes);
 	}
 	if (mvec.empty())
-		log("No usable %d-bit DirectX fullscreen modes autodetected.", depth);
-	#endif
+		log("No usable %d-bit fullscreen modes autodetected.", depth);
 
 	ifstream resFile((wheregamedir + "config" + directory_separator + "gfxmodes.txt").c_str());
 	for (;;) {
@@ -364,22 +366,6 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed)
 	return true;
 }
 
-void addWallToScene(SceneAntialiaser& scene, const WallBase* wall, int tex) {
-	const RectWall* rwp = dynamic_cast<const RectWall*>(wall);
-	if (rwp) {
-		scene.addRectWall(*rwp, tex);
-		return;
-	}
-	const TriWall*  twp = dynamic_cast<const TriWall *>(wall);
-	if (twp) {
-		scene.addTriWall (*twp, tex);
-		return;
-	}
-	const CircWall* cwp = dynamic_cast<const CircWall*>(wall);
-	nAssert(cwp);
-	scene.addCircWall    (*cwp, tex);
-}
-
 void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
 	acquire_bitmap(background);
 	clear_to_color(background, 0);
@@ -392,19 +378,19 @@ void Graphics::predraw(const Room& room, const vector< pair<int, const WorldCoor
 
 		// add additional ground textures
 		for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
-			addWallToScene(scene, *wi, (*wi)->texture());
+			scene.addWall(*wi, (*wi)->texture());
 
 		// add flag markers as overlays
-		const float fr = flagpos_radius;
+		const double fr = flagpos_radius;
 		for (int fi = 0; fi < static_cast<int>(flags.size()); ++fi) {
-			const float fx = flags[fi].second->x, fy = flags[fi].second->y;
+			const double fx = flags[fi].second->x, fy = flags[fi].second->y;
 			scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size(), true);
 		}
 
 		// add walls
 		const int texShift = floor_texture.size();
 		for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
-			addWallToScene(scene, *wi, (*wi)->texture() + texShift);
+			scene.addWall(*wi, (*wi)->texture() + texShift);
 
 		// clip
 		scene.setClipping(0, 0, plw, plh);
@@ -486,7 +472,7 @@ void Graphics::predraw_room_ground(const Room& room) {
 	draw_room_ground(roombg, room, 0, 0, scr_mul, col[COLGROUND], true);
 }
 
-void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
+void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture) {
 	for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
 		draw_wall(buffer, *wi, x, y, scale, color, texture ? get_floor_texture((*wi)->texture()) : 0);
 }
@@ -495,12 +481,12 @@ void Graphics::predraw_room_walls(const Room& room) {
 	draw_room_walls(roombg, room, 0, 0, scr_mul, col[COLWALL], true);
 }
 
-void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture) {
+void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture) {
 	for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
 		draw_wall(buffer, *wi, x, y, scale, color, texture ? get_wall_texture((*wi)->texture()) : 0);
 }
 
-void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, float x, float y, float scale, int color, BITMAP* tex) {
+void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, double scale, int color, BITMAP* tex) {
 	RectWall* rwp = dynamic_cast<RectWall*>(wall);
 	if (rwp) {
 		draw_rect_wall(buffer, *rwp, x, y, scale, color, tex);
@@ -516,7 +502,7 @@ void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, float x, float y, float
 	draw_circ_wall    (buffer, *cwp, x, y, scale, color, tex);
 }
 
-void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
+void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, double scale, int color, BITMAP* texture) {
 	if (texture)
 		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 	rectfill(buffer, iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
@@ -525,7 +511,7 @@ void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, fl
 		solid_mode();
 }
 
-void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
+void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, double y0, double scale, int color, BITMAP* texture) {
 	if (texture)
 		drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
 	triangle(buffer,
@@ -536,12 +522,12 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, float x0, floa
 		solid_mode();
 }
 
-void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, BITMAP* texture) {
-	const float x = wall.X();
-	const float y = wall.Y();
-	const float ro = wall.radius();
-	const float ri = wall.radius_in();
-	const float* const angle = wall.angles();
+void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, double scale, int color, BITMAP* texture) {
+	const double x = wall.X();
+	const double y = wall.Y();
+	const double ro = wall.radius();
+	const double ri = wall.radius_in();
+	const double* const angle = wall.angles();
 	if (ri == 0 && angle[0] == angle[1]) {	// simple filled circle
 		if (texture)
 			drawing_mode(DRAW_MODE_COPY_PATTERN, texture, 0, 0);
@@ -567,8 +553,8 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		const double vy[] = { wall.angle_vector_1().second, wall.angle_vector_2().second };
 		// remove unnecessary   2 1
 		// quarters             3 4
-		float ang1 = angle[0];
-		float ang2 = angle[1];
+		double ang1 = angle[0];
+		double ang2 = angle[1];
 		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 1
 			rectfill(cbuff, iround(scale * ro), 0, iround(scale * 2 * ro), iround(scale * ro), transparent);
 		rotate_angle(ang1, 90);
@@ -584,8 +570,8 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, fl
 		if (ang1 >= 90 && (ang1 <= ang2 || ang2 == 0))	// quarter 4
 			rectfill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * 2 * ro), iround(scale * 2 * ro), transparent);
 		// remove the rest unnecessary sectors of the circle
-		const float k = 1.5;
-		float diff = angle[1] - angle[0];
+		const double k = 1.5;
+		double diff = angle[1] - angle[0];
 		if (diff < 0)
 			diff += 360;
 		if (vx[0] * vx[1] > 0 && vy[0] * vy[1] > 0 && diff > 90) {	// remove a sector (<90°) between the angles
@@ -738,22 +724,22 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	// Calculate new minimap size.
 	if (map.w * 4 * minimap_place_h > map.h * 3 * minimap_place_w) {
 		minimap_w = minimap_place_w;
-		minimap_h = static_cast<int>(static_cast<float>((minimap_w - 1) * map.h * 3) / map.w / 4. + 1.);	// important not to round
+		minimap_h = static_cast<int>(static_cast<double>((minimap_w - 1) * map.h * 3) / map.w / 4. + 1.);	// important not to round
 	}
 	else {
 		minimap_h = minimap_place_h;
-		minimap_w = static_cast<int>(static_cast<float>((minimap_h - 1) * map.w * 4) / map.h / 3. + 1.);	// important not to round
+		minimap_w = static_cast<int>(static_cast<double>((minimap_h - 1) * map.w * 4) / map.h / 3. + 1.);	// important not to round
 	}
 
 	minimap_start_x = (minimap_place_w - minimap_w) / 2;
 	minimap_start_y = (minimap_place_h - minimap_h) / 2;
-	const float room_w = (minimap_w - 1.) / map.w;	// use -1. (not 2) to have half a pixel under the green border on every edge; this is to compensate for error in the value of minimap_? so there's no gap
-	const float room_h = (minimap_h - 1.) / map.h;
+	const double room_w = (minimap_w - 1.) / map.w;	// use -1. (not 2) to have half a pixel under the green border on every edge; this is to compensate for error in the value of minimap_? so there's no gap
+	const double room_h = (minimap_h - 1.) / map.h;
 	const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
 	const double maxx = plw * map.w;
 	const double maxy = plh * map.h;
-	const float xmul = (minimap_w - 1.) / maxx;
+	const double xmul = (minimap_w - 1.) / maxx;
 
 	SceneAntialiaser scene;
 	scene.setScaling(minimap_start_x + .5, minimap_start_y + .5, xmul);
@@ -762,7 +748,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 	scene.addRectangle(0, 0, maxx, maxy, 0);
 
 	// add room boundaries
-	const float halfPixw = .49999 / xmul, halfPixh = .49999 / xmul;
+	const double halfPixw = .49999 / xmul, halfPixh = .49999 / xmul;
 	for (int i = 1; i < map.w; i++)
 		scene.addRectangle(plw * i - halfPixw, 0, plw * i + halfPixw, maxy, 2);
 	for (int i = 1; i < map.h; i++)
@@ -770,9 +756,9 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
 	// add walls
 	for (int y = 0; y < map.h; y++) {
-		const float by = minimap_start_y + .5 + y * plh * xmul;
+		const double by = minimap_start_y + .5 + y * plh * xmul;
 		for (int x = 0; x < map.w; x++) {
-			const float bx = minimap_start_x + .5 + x * plw * xmul;
+			const double bx = minimap_start_x + .5 + x * plw * xmul;
 			scene.setScaling(bx, by, xmul);
 			scene.setClipping(0, 0, plw, plh);
 			const Room& room = map.room[x][y];
@@ -864,11 +850,11 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 			const int ymin = static_cast<int>(minimap_start_y + 2 + room_h * ry);
 			const int ymax = static_cast<int>(minimap_start_y + room_h * (ry + 1));
 			for (int y = ymin; y <= ymax; ++y) {
-				const float roomy = float(y + 1 - ymin) / float(room_h) * plh;
+				const double roomy = double(y + 1 - ymin) / double(room_h) * plh;
 				for (int x = xmin; x <= xmax; ++x) {
 					if (getpixel(buffer, x, y) != 0)
 						continue;
-					const float roomx = float(x + 1 - xmin) / float(room_w) * plw;
+					const double roomx = double(x + 1 - xmin) / double(room_w) * plw;
 					double dist_r2 = INT_MAX;
 					for (vector<WorldCoords>::const_iterator fi = failure[0].begin(); fi != failure[0].end(); ++fi)
 						dist_r2 = min(dist_r2, pow(fi->y - roomy, 2) + pow(fi->x - roomx, 2));
@@ -1210,7 +1196,7 @@ void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
 		for (int x = scale(flag_x) - flagpos_radius; x < scale(flag_x) + flagpos_radius; x++) {
 			const int dx = scale(flag_x) - x;
 			const int dy = scale(flag_y) - y;
-			const float dist = sqrt(static_cast<float>(dx * dx + dy * dy));
+			const double dist = sqrt(static_cast<double>(dx * dx + dy * dy));
 			if (dist > flagpos_radius)
 				continue;
 			const int alpha = static_cast<int>(step * (flagpos_radius - dist));
@@ -1495,8 +1481,8 @@ void Graphics::team_statistics(const Team* teams) {
 		const int x = x2 - 30;
 		const int y = team_captures_start_y;
 		const int height = team_captures_size * line_height;
-		const int bar_y = static_cast<int>(static_cast<float>(height * team_captures_start) / total_captures + 0.5);
-		const int bar_h = static_cast<int>(static_cast<float>(height * team_captures_size) / total_captures + 0.5);
+		const int bar_y = static_cast<int>(static_cast<double>(height * team_captures_start) / total_captures + 0.5);
+		const int bar_h = static_cast<int>(static_cast<double>(height * team_captures_size) / total_captures + 0.5);
 		scrollbar(x, y, height, bar_y, bar_h, col[COLGREEN], col[COLDARKGREEN]);
 	}
 }
@@ -1732,8 +1718,8 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 		const int x = x2 - 30;
 		const int y = y1 + 5 * line_height - 4;
 		const int height = map_list_size * line_height;
-		const int bar_y = static_cast<int>(static_cast<float>(height * map_list_start) / maps.size() + 0.5);
-		const int bar_h = static_cast<int>(static_cast<float>(height * map_list_size) / maps.size() + 0.5);
+		const int bar_y = static_cast<int>(static_cast<double>(height * map_list_start) / maps.size() + 0.5);
+		const int bar_h = static_cast<int>(static_cast<double>(height * map_list_size) / maps.size() + 0.5);
 		scrollbar(x, y, height, bar_y, bar_h, col[COLGREEN], col[COLDARKGREEN]);
 	}
 	ostringstream vote;

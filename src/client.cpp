@@ -118,9 +118,9 @@ public:
 	bool collideToRockets() const { return false; }
 	bool gatherMovementDistance() const { return false; }
 	bool allowRoomChange() const { return false; }
-	void addMovementDistance(int, float) { }
+	void addMovementDistance(int, double) { }
 	void playerScreenChange(int) { }
-	void rocketHitWall(int rid, bool power, float x, float y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
+	void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
 	bool rocketHitPlayer(int, int) { return false; }
 	void playerHitWall(int pid) { c.playerHitWallCallback(pid); }
 	void playerHitPlayer(int pid1, int pid2) { c.playerHitPlayerCallback(pid1, pid2); }
@@ -1429,7 +1429,7 @@ void Client::process_incoming_data(const char* data, int length) {
 		#ifdef SEND_FRAMEOFFSET
 		NLubyte fo;
 		readByte(data, count, fo);
-		const float offsetDelta = (fo / 256.) - .5;	// the deviation from aim, in frames
+		const double offsetDelta = (fo / 256.) - .5;	// the deviation from aim, in frames
 		frameOffsetDeltaTotal += offsetDelta;
 		if (++frameOffsetDeltaNum == 10) {	// try to fix deviations every 10 frames
 			frameOffsetDeltaTotal /= 10.;
@@ -1512,8 +1512,8 @@ void Client::process_incoming_data(const char* data, int length) {
 				readByte(data, count, xy);
 				hx += (xy & 0x0F) << 8;
 				hy += (xy & 0xF0) << 4;
-				h.lx = hx * (plw / float(0xFFF));
-				h.ly = hy * (plh / float(0xFFF));
+				h.lx = hx * (plw / double(0xFFF));
+				h.ly = hy * (plh / double(0xFFF));
 
 				//V0.3.9 speed em bytes, xinelao mesmo
 				NLbyte sxy;
@@ -2036,7 +2036,7 @@ void Client::process_incoming_data(const char* data, int length) {
 				fx.player[pid].score = static_cast<int>(pscore);
 				fx.player[pid].neg_score = static_cast<int>(nscore);
 				// update new team powers
-				float power[2] = { 0, 0 };
+				double power[2] = { 0, 0 };
 				for (int i = 0; i < fx.maxplayers; i++)
 					if (fx.player[i].used)
 						power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
@@ -3063,8 +3063,8 @@ void Client::loop(volatile bool* quitFlag) {
 
 			ClientPhysicsCallbacks cb(*this);
 			if (menu.options.game.lagPrediction()) {
-				const float lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.);	// lagPredictionAmount() is in range [0, 10]
-				float timeDelta = max<float>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
+				const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.);	// lagPredictionAmount() is in range [0, 10]
+				double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
 				NLubyte firstFrame, lastFrame;
 				if (clFrameSent == clFrameWorld)
 					firstFrame = lastFrame = clFrameWorld;
@@ -3239,7 +3239,7 @@ void Client::stop() {
 	log("Client stop() completed");
 }
 
-void Client::rocketHitWallCallback(int rid, bool power, float x, float y, int roomx, int roomy) {
+void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
 	if (power) {
 		client_graphics.create_quadwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy);
 		client_sounds.play(SAMPLE_QUADWALLHIT);
@@ -3257,7 +3257,7 @@ void Client::rocketOutOfBoundsCallback(int rid) {
 
 void Client::playerHitWallCallback(int pid) {
 	// play bounce sample if minimum time elapsed
-	const float currTime = get_time();	//#fix
+	const double currTime = get_time();	//#fix
 	if (currTime > fx.player[pid].wall_sound_time) {
 		fx.player[pid].wall_sound_time = currTime + 0.2;
 		client_sounds.play(SAMPLE_WALLBOUNCE);
@@ -3266,7 +3266,7 @@ void Client::playerHitWallCallback(int pid) {
 
 void Client::playerHitPlayerCallback(int pid1, int pid2) {
 	// play bounce sample if minimum time elapsed
-	const float currTime = get_time();	//#fix
+	const double currTime = get_time();	//#fix
 	if (currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) {
 		fx.player[pid1].player_sound_time = fx.player[pid2].player_sound_time = currTime + 0.2;
 		client_sounds.play(SAMPLE_PLAYERBOUNCE);

@@ -35,6 +35,7 @@
 #include "commont.h"
 #include "world.h"
 #include "nassert.h"
+#include "network.h"	// for safeReadFloat, safeWriteFloat
 #include "protocol.h"	// needed for possible definition of SEND_FRAMEOFFSET
 #include "utility.h"
 
@@ -43,7 +44,7 @@ static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;	// for touch checks, most
 const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
-const float minimum_grab_to_capture_time = 6.0;
+const double minimum_grab_to_capture_time = 6.0;
 
 using std::ifstream;
 using std::ios;
@@ -139,7 +140,7 @@ bool RectWall::intersects_circ(double x, double y, double r) const {
 	return false;
 }
 
-TriWall::TriWall(float x1, float y1, float x2, float y2, float x3, float y3, int tex_, int alpha_)
+TriWall::TriWall(double x1, double y1, double x2, double y2, double x3, double y3, int tex_, int alpha_)
 		: WallBase(tex_, alpha_), p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3) {
 	if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }	// 1, 2 sorted
 	if (p3y < p2y) {
@@ -183,7 +184,7 @@ bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) co
 	return false;
 }
 
-CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float ang2, int tex_, int alpha_) :
+CircWall::CircWall(double x_, double y_, double ro_, double ri_, double ang1, double ang2, int tex_, int alpha_) :
 	WallBase(tex_, alpha_),
 	x(x_),
 	y(y_),
@@ -192,16 +193,16 @@ CircWall::CircWall(float x_, float y_, float ro_, float ri_, float ang1, float a
 {
 	angle[0] = ang1;
 	angle[1] = ang2;
-	const float a1r = angle[0] * N_PI / 180;
-	const float a2r = angle[1] * N_PI / 180;
+	const double a1r = angle[0] * N_PI / 180;
+	const double a2r = angle[1] * N_PI / 180;
 	va1 = Coords(sin(a1r), cos(a1r));
 	va2 = Coords(sin(a2r), cos(a2r));
-	const float a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * N_PI);
+	const double a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * N_PI);
 	if (a1r == a2r)
 		anglecos = -1.;	// full circle => max width
 	else
 		anglecos = cos((a2r_greater - a1r) / 2.);
-	const float midangle = (a2r_greater + a1r) / 2;
+	const double midangle = (a2r_greater + a1r) / 2;
 	midvec = Coords(sin(midangle), cos(midangle));
 }
 
@@ -236,10 +237,10 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const {
 		centerAngle += 360.;
 	// now within [0, 360[ in map coordinates
 	const double width = asin(rr / dcr) * 180. / N_PI;	// how far from centerAngle the projection gets
-	float a0 = angle[0], a1 = angle[1];
+	double a0 = angle[0], a1 = angle[1];
 	if (a1 < a0)
 		a1 += 360.;
-	float ca0 = centerAngle - width, ca1 = centerAngle + width;
+	double ca0 = centerAngle - width, ca1 = centerAngle + width;
 	if (ca0 < 0.)
 		ca0 += 360.;
 	while (ca1 < ca0)
@@ -292,7 +293,7 @@ bool Room::fall_on_wall(int x, int y, int r) const {
 	return false;
 }
 
-BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, double radius, float maxFraction) const {
+BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, double radius, double maxFraction) const {
 	BounceData bd;
 	bd.first = 1e99;
 
@@ -346,7 +347,7 @@ bool Map::load(LogSet& log, const char* mapdir, const string& mapname) {
 
 bool Map::parse_file(LogSet& log, istream& in) {
 	int crx = 0, cry = 0;
-	float scalex = 1., scaley = 1.;
+	double scalex = 1., scaley = 1.;
 	vector<pair<string, pair<int, int> > > labels;
 	vector<string> file_lines;
 	vector<pair<string, vector<string> > > label_lines;
@@ -403,13 +404,13 @@ bool Map::parse_file(LogSet& log, istream& in) {
 }
 
 bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, vector<string> > >& label_lines,
-														int& crx, int& cry, float& scalex, float& scaley, bool label_block) {
+														int& crx, int& cry, double& scalex, double& scaley, bool label_block) {
 	char nullc;	// to be used to make sure there is nothing extra on the line
 	istringstream ist(line);
 	string command;
 	ist >> command;
 	if (command == "W" || command == "G") {	// W x1 y1 x2 y2 [tex [alpha]] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
-		float x1, y1, x2, y2;
+		double x1, y1, x2, y2;
 		int texid, alpha;
 		ist >> x1 >> y1 >> x2 >> y2;
 		bool ok = ist;
@@ -435,7 +436,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 	}
 	else if (command == "T") {	// T (W|G) x1 y1 x2 y2 x3 y3 [tex [alpha]] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
 		char type;
-		float x1, y1, x2, y2, x3, y3;
+		double x1, y1, x2, y2, x3, y3;
 		int texid, alpha;
 		ist >> type >> x1 >> y1 >> x2 >> y2 >> x3 >> y3;
 		const bool ok = ist;
@@ -461,7 +462,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 	}
 	else if (command == "C") {	// C (W|G) x y or [ir [a1 a2 [tex [alpha]]]] : circular wall (W) or ground tex (G)
 		char type;
-		float x, y, ro, ri, a1, a2;
+		double x, y, ro, ri, a1, a2;
 		int texid, alpha;
 		ist >> type >> x >> y >> ro;
 		bool ok = ist;
@@ -538,8 +539,8 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 				for (vector<string>::const_iterator label_line = label->second.begin(); label_line != label->second.end(); ++label_line)
 					for (int ry = ry1; ry <= ry2; ry++)
 						for (int rx = rx1; rx <= rx2; rx++) {
-							float sx = scalex;
-							float sy = scaley;
+							double sx = scalex;
+							double sy = scaley;
 							if (!parse_line(log, *label_line, label_lines, rx, ry, sx, sy, true))
 								return false;
 						}
@@ -597,7 +598,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 	}
 	else if (command == "spawn") {	// spawn t rx ry x y : make a spawn spot for team t at room (rx,ry) at (x,y)
 		int team, rx, ry;
-		float x, y;
+		double x, y;
 		ist >> team >> rx >> ry >> x >> y;
 		if (!ist || (ist >> nullc) || team < 0 || team > 1 || rx < 0 || rx >= w ||
 						ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
@@ -613,7 +614,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 	}
 	else if (command == "flag") {	// flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
 		int team, rx, ry;
-		float x, y;
+		double x, y;
 		ist >> team >> rx >> ry >> x >> y;
 		if (!ist || (ist >> nullc) || team < 0 || team > 2 || rx < 0 || rx >= w ||
 						ry < 0 || ry >= h || x < 0 || x >= scalex || y < 0 || y >= scaley) {
@@ -966,11 +967,11 @@ std::string WorldBase::getTeamName(int team) {
 	return name[team];
 }
 
-BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, float maxFraction) {
+BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction) {
 	return room.genGetTimeTillWall(pl.lx, pl.ly, pl.sx, pl.sy, plyRadius, maxFraction);
 }
 
-double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, float maxFraction) {
+double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction) {
 	return room.genGetTimeTillWall(rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS, maxFraction).first;
 }
 
@@ -1014,10 +1015,10 @@ void WorldBase::applyPlayerAcceleration(int pid) {
 	PlayerBase* h = player[pid].getPtr();
 	const bool deathbringer_affected = h->under_deathbringer_effect(get_time());
 
-	float xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
-	float yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
+	double xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
+	double yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
 
-	float player_accel = physics.accel;
+	double player_accel = physics.accel;
 	if (h->item_speed)
 		player_accel *= physics.turbo_mul;
 	if (h->controls.isRun()) {
@@ -1159,7 +1160,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 	r->y = y;
 	r->direction = dir;
 
-	const float deg = dir * N_PI_4;
+	const double deg = dir * N_PI_4;
 
 	if (xdelta) {
 		r->sx = xdelta * shot_deltax * cos(deg + N_PI_2);
@@ -1172,7 +1173,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 		}
 	}
 
-	const float rocketSpeed = 50.0;	//in pixels/0.1s
+	const double rocketSpeed = 50.0;	//in pixels/0.1s
 	r->sx = cos(deg) * rocketSpeed;
 	r->sy = sin(deg) * rocketSpeed;
 	const double advance = .5 + double(frameAdvance);
@@ -1241,16 +1242,16 @@ void PhysicalSettings::calc_max_run_speed() {
 }
 
 void PhysicalSettings::read(char* lebuf, int& count) {
-	readFloat(lebuf, count, fric);
-	readFloat(lebuf, count, drag);
-	readFloat(lebuf, count, accel);
-	readFloat(lebuf, count, brake_mul);
-	readFloat(lebuf, count, turn_mul);
-	readFloat(lebuf, count, run_mul);
-	readFloat(lebuf, count, turbo_mul);
-	readFloat(lebuf, count, flag_mul);
-	readFloat(lebuf, count, friendly_fire);
-	readFloat(lebuf, count, friendly_db);
+	fric			= safeReadFloat(lebuf, count);
+	drag			= safeReadFloat(lebuf, count);
+	accel			= safeReadFloat(lebuf, count);
+	brake_mul		= safeReadFloat(lebuf, count);
+	turn_mul		= safeReadFloat(lebuf, count);
+	run_mul			= safeReadFloat(lebuf, count);
+	turbo_mul		= safeReadFloat(lebuf, count);
+	flag_mul		= safeReadFloat(lebuf, count);
+	friendly_fire	= safeReadFloat(lebuf, count);
+	friendly_db		= safeReadFloat(lebuf, count);
 
 	NLubyte collisions = 0;
 	readByte(lebuf, count, collisions);
@@ -1260,16 +1261,16 @@ void PhysicalSettings::read(char* lebuf, int& count) {
 }
 
 void PhysicalSettings::write(char* lebuf, int& count) const {
-	writeFloat(lebuf, count, fric);
-	writeFloat(lebuf, count, drag);
-	writeFloat(lebuf, count, accel);
-	writeFloat(lebuf, count, brake_mul);
-	writeFloat(lebuf, count, turn_mul);
-	writeFloat(lebuf, count, run_mul);
-	writeFloat(lebuf, count, turbo_mul);
-	writeFloat(lebuf, count, flag_mul);
-	writeFloat(lebuf, count, friendly_fire);
-	writeFloat(lebuf, count, friendly_db);
+	safeWriteFloat(lebuf, count, fric);
+	safeWriteFloat(lebuf, count, drag);
+	safeWriteFloat(lebuf, count, accel);
+	safeWriteFloat(lebuf, count, brake_mul);
+	safeWriteFloat(lebuf, count, turn_mul);
+	safeWriteFloat(lebuf, count, run_mul);
+	safeWriteFloat(lebuf, count, turbo_mul);
+	safeWriteFloat(lebuf, count, flag_mul);
+	safeWriteFloat(lebuf, count, friendly_fire);
+	safeWriteFloat(lebuf, count, friendly_db);
 
 	const NLubyte collisions = (player_collisions ? 0x01 : 0x00);
 	writeByte(lebuf, count, collisions);
@@ -1433,9 +1434,9 @@ public:
 	bool collideToRockets() const { return true; }
 	bool gatherMovementDistance() const { return true; }
 	bool allowRoomChange() const { return true; }
-	void addMovementDistance(int pid, float dist) { w.addMovementDistanceCallback(pid, dist); }
+	void addMovementDistance(int pid, double dist) { w.addMovementDistanceCallback(pid, dist); }
 	void playerScreenChange(int pid) { w.playerScreenChangeCallback(pid); }
-	void rocketHitWall(int rid, bool, float, float, int, int) { w.rocketHitWallCallback(rid); }
+	void rocketHitWall(int rid, bool, double, double, int, int) { w.rocketHitWallCallback(rid); }
 	bool rocketHitPlayer(int rid, int pid) { return w.rocketHitPlayerCallback(rid, pid); }
 	void playerHitWall(int) { }
 	void playerHitPlayer(int, int) { }
@@ -1936,7 +1937,7 @@ void ServerWorld::game_player_screen_change(int p) {
 		}
 }
 
-void ServerWorld::resetPlayer(int target, float time_penalty) {	// take the player out of the game
+void ServerWorld::resetPlayer(int target, double time_penalty) {	// take the player out of the game
 	player[target].health = 0;
 
 	player[target].visibility = 255;
@@ -2137,7 +2138,7 @@ void ServerWorld::swapRocketOwners(int a, int b) {
 	}
 }
 
-void ServerWorld::addMovementDistanceCallback(int pid, float dist) {
+void ServerWorld::addMovementDistanceCallback(int pid, double dist) {
 	player[pid].stats().add_movement(dist);
 	teams[pid / TSIZE].add_movement(dist);
 }
@@ -2228,7 +2229,7 @@ void WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2) const {
 	pl2.sy = 0.9 * (v2.second - newk2 * ds.second / r);
 }
 
-void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, float fraction) {
+void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction) {
 	if (fraction < .001)
 		return;
 
@@ -2268,7 +2269,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, f
 			applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
-void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, float fraction) {
+void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction) {
 	vector<BounceData> plyMoveMax;	// plyMoveMax changes when player bounces
 	vector<double> rockMoveMax;	// rockMoveMax is fixed
 
@@ -2562,7 +2563,7 @@ void ServerWorld::simulateFrame() {
 						player[v].deathbringer_attacker = i;
 
 						// time of effect ; also freeze his gun for this same amount of time
-						const float mul = (v / TSIZE == i / TSIZE ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
+						const double mul = (v / TSIZE == i / TSIZE ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
 						player[v].deathbringer_end = player[v].next_shoot_time = get_time() + mul * pupConfig.pup_deathbringer_time;
 
 						// calc recoil:
@@ -2886,7 +2887,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, float subFrameAfter) {
+						ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter) {
 	if (source.skipped) {
 		skipped = true;
 		return;
@@ -2911,7 +2912,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 			rock[i] = source.rock[i];
 	}
 
-	static const float playerPosAccuracy = plw / float(0xFFF) / 2.;
+	static const double playerPosAccuracy = plw / double(0xFFF) / 2.;
 	for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {	// note: it is OK to wrap around in the middle of the sequence
 		player[me].controls = ctrlTab[ctrli];
 		applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, 1.);	// 1 is full frame
@@ -3076,11 +3077,11 @@ void Team::move_flag(int n, const WorldCoords& pos) {
 	team_flags[n].move(pos);
 }
 
-float Team::accuracy() const {
+double Team::accuracy() const {
 	if (total_shots == 0)
 		return 0;
 	else
-		return static_cast<float>(total_hits) / total_shots;
+		return static_cast<double>(total_hits) / total_shots;
 }
 
 // Flag
@@ -3148,7 +3149,7 @@ Statistics::Statistics():
 { }
 
 void Statistics::clear() {
-	const float time = starttime;
+	const double time = starttime;
 	*this = Statistics();
 	starttime = time;
 }
@@ -3211,25 +3212,25 @@ void Statistics::finish_stats(double time) {
 	}
 }
 
-float Statistics::accuracy() const {
+double Statistics::accuracy() const {
 	if (total_shots == 0)
 		return 0;
 	else
-		return static_cast<float>(total_hits) / total_shots;
+		return static_cast<double>(total_hits) / total_shots;
 }
 
-float Statistics::lifetime(double time) const {
+double Statistics::lifetime(double time) const {
 	if (dead)
 		return total_lifetime;
 	else
 		return total_lifetime + (time - last_spawn_time);
 }
 
-float Statistics::average_lifetime(double time) const {
+double Statistics::average_lifetime(double time) const {
 	return lifetime(time) / (total_deaths + 1);
 }
 
-float Statistics::playtime(double time) const {
+double Statistics::playtime(double time) const {
 	return time - starttime;
 }
 
@@ -3237,7 +3238,7 @@ double Statistics::movement() const {
 	return total_movement;
 }
 
-float Statistics::speed(double time) const {
+double Statistics::speed(double time) const {
 	return movement() / lifetime(time) / PLAYER_RADIUS / 2.;
 }
 

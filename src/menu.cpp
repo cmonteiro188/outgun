@@ -221,8 +221,8 @@ void Menu::draw(BITMAP* buffer) {
 		const int x = x2 - padding + char_w;
 		const int y = scrollbar_start_y;
 		const int height = visible_items * line_h;
-		const int bar_y = static_cast<int>(static_cast<float>(height * start) / components.size() + 0.5);
-		const int bar_h = static_cast<int>(static_cast<float>(height * visible_items) / components.size() + 0.5);
+		const int bar_y = static_cast<int>(static_cast<double>(height * start) / components.size() + 0.5);
+		const int bar_h = static_cast<int>(static_cast<double>(height * visible_items) / components.size() + 0.5);
 		scrollbar(buffer, x, y, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
 	}
 }
@@ -502,7 +502,7 @@ int Slider::width() const {
 	if (graphic)
 		return char_w * (caption.length() + 20);	// arbitrary bar length
 	else {
-		const float maxAbs = max(abs(vmin) * (vmin < 0 ? 10 : 1), abs(vmax));	// multiply by 10 to add one to width to make room for '-'
+		const double maxAbs = max(abs(vmin) * (vmin < 0 ? 10 : 1), abs(vmax));	// multiply by 10 to add one to width to make room for '-'
 		return char_w * static_cast<int>(ceil(std::log10(maxAbs)));
 	}
 }
@@ -522,7 +522,7 @@ void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 		rect(buffer, x0, yb, x + width() - 1, yb + height() - 1, captionColor(active));
 		if (barLength)
 			rectfill(buffer, x0 + 1, yb + 1, x0 + barLength, yb + height() - 2, col_value);
-		textprintf_centre_ex(buffer, font, (x0 + x + width() - 1) / 2, y, col_disabled, -1, "%.0f%%", 100 * static_cast<float>(val - vmin) / (vmax - vmin));
+		textprintf_centre_ex(buffer, font, (x0 + x + width() - 1) / 2, y, col_disabled, -1, "%.0f%%", 100 * static_cast<double>(val - vmin) / (vmax - vmin));
 	}
 	else
 		textprintf_ex(buffer, font, x0, y, col_value, -1, "%d", val);
@@ -646,8 +646,8 @@ void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
 	if (visible_lines != static_cast<int>(lines.size())) {
 		const int sbx = x + width() + char_w;
 		const int height = visible_lines * line_h;
-		const int bar_y = static_cast<int>(static_cast<float>(height * start) / lines.size() + 0.5);
-		const int bar_h = static_cast<int>(static_cast<float>(height * visible_lines) / lines.size() + 0.5);
+		const int bar_y = static_cast<int>(static_cast<double>(height * start) / lines.size() + 0.5);
+		const int bar_h = static_cast<int>(static_cast<double>(height * visible_lines) / lines.size() + 0.5);
 		scrollbar(buffer, sbx, y0, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
 	}
 }

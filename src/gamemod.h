@@ -81,17 +81,17 @@ public:
 	typedef std::numeric_limits<ValT> lim;	// can't be used on the constructor, avoid a VC feature
 
 	GS_FloatT(const std::string& name, ValT* pVar, ValT min_ = -std::numeric_limits<ValT>::max(),
-			ValT max_ = std::numeric_limits<ValT>::max(), float mul_ = 1., float add_ = 0.)
+			ValT max_ = std::numeric_limits<ValT>::max(), double mul_ = 1., double add_ = 0.)
 		: GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_) { }
 	bool set(LogSet& log, const std::string& value);
 
 private:
 	ValT* var;
 	ValT vmin, vmax;
-	float mul, add;
+	double mul, add;
 };
 
-typedef GS_FloatT<float> GS_Float;
+//typedef GS_FloatT<float> GS_Float;	// use of float should be avoided because of a GCC feature
 typedef GS_FloatT<double> GS_Double;
 
 class GS_Boolean : public GamemodSetting {
@@ -192,11 +192,11 @@ private:
 
 class GS_Percentage : public GamemodSetting {
 public:
-	GS_Percentage(const std::string& name, float* pVar) : GamemodSetting(name), var(pVar) { }
+	GS_Percentage(const std::string& name, double* pVar) : GamemodSetting(name), var(pVar) { }
 	bool set(LogSet& log, const std::string& value);
 
 private:
-	float* var;
+	double* var;
 };
 
 // template implementation
@@ -211,8 +211,8 @@ bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) {
 		std::string orZero;
 		if (allow0)
 			orZero = ", or 0";
-		const bool minBound = (vmin != lim::min() || static_cast<float>(lim::min()) > -100000.);	// compare floats to avoid range and signedness warnings
-		const bool maxBound = (vmax != lim::max() || static_cast<float>(lim::max()) <  100000.);
+		const bool minBound = (vmin != lim::min() || static_cast<double>(lim::min()) > -100000.);	// compare doubles to avoid range and signedness warnings
+		const bool maxBound = (vmax != lim::max() || static_cast<double>(lim::max()) <  100000.);
 		if (minBound && maxBound) {
 			if (vmax == vmin + 1)
 				return basicErrorMessage(log, value, std::string() + itoa(vmin) + " or " + itoa(vmax) + orZero);
@@ -235,7 +235,7 @@ template<class ValT>
 bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) {
 	static const std::istream::traits_type::int_type eof_ch = std::istream::traits_type::eof();
 	std::istringstream rd(trim(value));
-	float val;
+	ValT val;
 	rd >> val;
 	if (!rd || rd.peek() != eof_ch || val < vmin || val > vmax) {
 		if (vmin == -lim::max() && vmax == lim::max())

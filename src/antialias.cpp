@@ -933,7 +933,7 @@ void FlagmarkerTexturizer::startPixSpan(int x) {
 }
 
 void FlagmarkerTexturizer::putPix(double alpha) {	// draws at current x coord and increases it
-	const float intensity = markRadius - sqrt(dx * dx + dy2);
+	const double intensity = markRadius - sqrt(dx * dx + dy2);
 	if (intensity <= 0)
 		host.putPix(0, 0);
 	else {
@@ -948,13 +948,13 @@ SceneAntialiaser::~SceneAntialiaser() {
 		delete *bi;
 }
 
-void SceneAntialiaser::setScaling(float x0_, float y0_, float scale_) {	// call before add*
+void SceneAntialiaser::setScaling(double x0_, double y0_, double scale_) {	// call before add*
 	x0 = x0_;
 	y0 = y0_;
 	scale = scale_;
 }
 
-void SceneAntialiaser::addRectangle(float x1, float y1, float x2, float y2, int texture, bool overlay) {
+void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay) {
 	numAssert2(y1 <= y2, int(y1*10.), int(y2*10.));
 
 	objects.push_back(ObjectSource());
@@ -985,12 +985,12 @@ void SceneAntialiaser::addTriWall (const  TriWall& wall, int texture) {
 	objects.back().overlay = false;
 	vector<WallBorderSegment>& borders = objects.back().borders;
 
-	const float x1 = x0 + wall.x1() * scale;
-	const float y1 = y0 + wall.y1() * scale;
-	const float x2 = x0 + wall.x2() * scale;
-	const float y2 = y0 + wall.y2() * scale;
-	const float x3 = x0 + wall.x3() * scale;
-	const float y3 = y0 + wall.y3() * scale;
+	const double x1 = x0 + wall.x1() * scale;
+	const double y1 = y0 + wall.y1() * scale;
+	const double x2 = x0 + wall.x2() * scale;
+	const double y2 = y0 + wall.y2() * scale;
+	const double x3 = x0 + wall.x3() * scale;
+	const double y3 = y0 + wall.y3() * scale;
 
 	bfns.push_back(new LineFunction(x1, y1, x2, y2));
 	borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
@@ -1029,7 +1029,7 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) {
 	const Coords& va1 = wall.angle_vector_1();
 	const Coords& va2 = wall.angle_vector_2();
 
-	float ar[2];
+	double ar[2];
 	for (int i = 0; i < 2; ++i)
 		ar[i] = wall.angles()[i] * N_PI / 180.;
 	if (ar[1] < ar[0])
@@ -1116,7 +1116,7 @@ void SceneAntialiaser::addWall(const WallBase* wall, int texture) {
 	addCircWall    (*cwp, texture);
 }
 
-void SceneAntialiaser::setClipping(float x1, float y1, float x2, float y2) {
+void SceneAntialiaser::setClipping(double x1, double y1, double x2, double y2) {
 	nAssert(x1 < x2 && y1 < y2);
 	clipx1 = x0 + x1 * scale;
 	clipy1 = y0 + y1 * scale;

@@ -224,11 +224,11 @@ public:
 class FlagmarkerTexturizer {
 	Texturizer& host;
 	int color;
-	float markRadius;
-	float intensityMul;
-	float cx, cy;
-	float dy, dy2;
-	float dx;
+	double markRadius;
+	double intensityMul;
+	double cx, cy;
+	double dy, dy2;
+	double dx;
 
 public:
 	FlagmarkerTexturizer(Texturizer& host_, const FlagmarkerTexdata& td);

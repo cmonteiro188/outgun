@@ -226,13 +226,13 @@ private:
 	void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
 	// texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
-	void draw_room_ground(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
-	void draw_room_walls(BITMAP* buffer, const Room& room, float x, float y, float scale, int color, bool texture);
+	void draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture);
+	void draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, double scale, int color, bool texture);
 
-	static void draw_wall(BITMAP* buffer, WallBase* wall, float x, float y, float scale, int color, BITMAP* tex);
-	static void draw_rect_wall(BITMAP* buffer, const RectWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
-	static void draw_tri_wall (BITMAP* buffer, const TriWall & wall, float x0, float y0, float scale, int color, BITMAP* texture);
-	static void draw_circ_wall(BITMAP* buffer, const CircWall& wall, float x0, float y0, float scale, int color, BITMAP* texture);
+	static void draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, double scale, int color, BITMAP* tex);
+	static void draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, double scale, int color, BITMAP* texture);
+	static void draw_tri_wall (BITMAP* buffer, const TriWall & wall, double x0, double y0, double scale, int color, BITMAP* texture);
+	static void draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, double scale, int color, BITMAP* texture);
 
 	std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 

@@ -27,6 +27,8 @@
 
 */
 
+#define LEETNET_DATA_LOG
+
 #include "dlog.h"
 
 #include "../mutex.h"
@@ -849,7 +851,7 @@ DLOG_Scope s("UW");
 		
 	// flush the pending packet buffer as an UDP packet to the remote address, returns "id"
 	// for the assigned packet id
-	virtual int send_packet(int& id) {
+	virtual int send_packet(int& id, FILE* datalog) {
 DLOG_Scope s("USP");
 
 		int i;
@@ -923,6 +925,13 @@ result = nlWrite(sendsock, sendbuf, count);
 		} else if (result != count) {
 			//printf("station_ci: send_packet() == %i != count %i\n", result, count);
 		}
+
+		#ifdef LEETNET_DATA_LOG
+		if (datalog) {
+			fwrite(&count, sizeof(int), 1, datalog);
+			fwrite(sendbuf, 1, count, datalog);
+		}
+		#endif
 
 		// reset the unreliable buffer (don't delete, just invalidate)
 		//

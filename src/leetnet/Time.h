@@ -3,6 +3,7 @@
 
 /* GNE - Game Networking Engine, a portable multithreaded networking library.
  * Copyright (C) 2001 Jason Winnebeck (gillius@mail.rit.edu)
+ * This file modified (unneeded features stripped) by Niko Ritari 2004
  * Project website: http://www.rit.edu/~jpw9607/
  *
  *  This library is free software; you can redistribute it and/or modify
@@ -25,7 +26,6 @@
 //including this file, despite the usage between #include <> and #include ""
 
 #include "gneintern.h"
-class ostream;
 
 namespace GNE {
 
@@ -165,10 +165,5 @@ private:
 };
 
 }
-
-/**
- * Sends the result of toString to the ostream.
- */
-std::ostream& operator << (std::ostream& o, const GNE::Time& time);
 
 #endif /* TIME_H_INCLUDED_C51412BE */

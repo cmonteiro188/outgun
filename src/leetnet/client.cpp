@@ -72,6 +72,7 @@ public:
 	#endif
 	#ifdef LEETNET_DATA_LOG
 	FILE* datalog;
+	MutexHolder datalogMutex;
 	#endif
 
 	//the callbacks
@@ -203,7 +204,17 @@ public:
 		if (length > 0)
 			station->write(data, length);
 		int packet_id;
-		station->send_packet(packet_id);
+
+		#ifdef LEETNET_DATA_LOG
+		MutexLock ml(datalogMutex);
+		static const char writeModeMarker = 'W';
+		fwrite(&writeModeMarker, sizeof(char), 1, datalog);
+		double currTime = get_time();
+		fwrite(&currTime, sizeof(double), 1, datalog);
+		station->send_packet(packet_id, datalog);
+		#else
+		station->send_packet(packet_id, 0);
+		#endif
 	}
 
 	//function to be called by the CFUNC_SERVER_DATA callback
@@ -367,16 +378,16 @@ public:
 	//process datagram read by reader thread
 	void process_incoming_datagram(char *udp_data, int udp_length) {
 DLOG_Scope s("CPIDg");
-		//DEBUG
-		int fubar = 0;
-		NLulong l1, l2;
-		readLong(udp_data, fubar, l1);		//discard the "0"
-		readLong(udp_data, fubar, l2);
 		#ifdef LEETNET_DATA_LOG
-		double currTime = get_time();
-		fwrite(&currTime, sizeof(double), 1, datalog);
-		fwrite(&udp_length, sizeof(int), 1, datalog);
-		fwrite(udp_data, udp_length, 1, datalog);
+		{
+			MutexLock ml(datalogMutex);
+			static const char readModeMarker = 'R';
+			fwrite(&readModeMarker, sizeof(char), 1, datalog);
+			double currTime = get_time();
+			fwrite(&currTime, sizeof(double), 1, datalog);
+			fwrite(&udp_length, sizeof(int), 1, datalog);
+			fwrite(udp_data, 1, udp_length, datalog);
+		}
 		#endif
 		//set datagram
 		station->set_incoming_packet(udp_data, udp_length);

@@ -115,7 +115,7 @@ bool GS_Balance::set(LogSet& log, const string& value) {
 bool GS_Percentage::set(LogSet& log, const string& value) {
 	static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
 	istringstream rd(trim(value));
-	float val;
+	double val;
 	rd >> val;
 	if (rd && rd.peek() == eof_ch) {
 		if (val >= 0.) {

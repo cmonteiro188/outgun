@@ -64,7 +64,7 @@ private:
 			if (alpha >= scaleVal)
 				r = g = b = alphaTotal = 0;
 			else {
-				float mul = (scaleVal - alpha) / static_cast<float>(scaleVal);
+				double mul = (scaleVal - alpha) / static_cast<double>(scaleVal);
 				r = static_cast<int>(r * mul);
 				g = static_cast<int>(g * mul);
 				b = static_cast<int>(b * mul);
@@ -117,6 +117,7 @@ private:
 class RectWall;
 class TriWall;
 class CircWall;
+class WallBase;
 class BorderFunctionBase;
 class LineFunction;
 class DrawElement;
@@ -147,17 +148,17 @@ struct TextureTexdata {
 
 struct FlagmarkerTexdata {
 	int color;
-	float cx, cy;
-	float radius;
+	double cx, cy;
+	double radius;
 
-	void set(int color_, float cx_, float cy_, float r) { color = color_; cx = cx_; cy = cy_; radius = r; }
+	void set(int color_, double cx_, double cy_, double r) { color = color_; cx = cx_; cy = cy_; radius = r; }
 };
 
 class TextureData {
 public:
 	void setSolid(int color) { t = T_solid; d.s = color; }
 	void setTexture(BITMAP* texture, int x0 = 0, int y0 = 0) { t = T_texture; d.t.set(texture, x0, y0); }
-	void setFlagmarker(int color, float cx, float cy, float r) { t = T_flagmarker; d.f.set(color, cx, cy, r); }
+	void setFlagmarker(int color, double cx, double cy, double r) { t = T_flagmarker; d.f.set(color, cx, cy, r); }
 
 	enum TexType { T_solid, T_texture, T_flagmarker };
 	typedef union {
@@ -216,15 +217,15 @@ public:
 	SceneAntialiaser() { }
 	~SceneAntialiaser();
 
-	void setScaling(float x0_ = 0, float y0_ = 0, float scale_ = 1.);	// call before add*
+	void setScaling(double x0_ = 0, double y0_ = 0, double scale_ = 1.);	// call before add*
 
-	void addRectangle(float x1, float y1, float x2, float y2, int texture, bool overlay = false);
+	void addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay = false);
 	void addRectWall(const RectWall& wall, int texture);
 	void addTriWall (const  TriWall& wall, int texture);
 	void addCircWall(const CircWall& wall, int texture);
 	void addWall    (const WallBase* wall, int texture);
 
-	void setClipping(float x1, float y1, float x2, float y2);	// setClipping applies scaling to the coords
+	void setClipping(double x1, double y1, double x2, double y2);	// setClipping applies scaling to the coords
 	void addRectWallClipped(const RectWall& wall, int texture);
 	void addTriWallClipped (const  TriWall& wall, int texture);
 	void addCircWallClipped(const CircWall& wall, int texture);
@@ -246,8 +247,8 @@ private:
 	std::vector<ObjectSource> objects;
 	LineFunction* clipLeft, * clipRight;
 	bool clipFunctionsValid;
-	float x0, y0, scale;
-	float clipx1, clipy1, clipx2, clipy2;
+	double x0, y0, scale;
+	double clipx1, clipy1, clipx2, clipy2;
 };
 
 #endif	// ANTIALIAS_H_INC
