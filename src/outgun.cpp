@@ -1,5 +1,15 @@
-#ifndef PUBLIC_SERVER
-//#define NR_CLIENT_AFFECTING
+#ifdef PUBLIC_SERVER
+
+//#define NR_SERVER_PHYSICS
+//#define NR_PHYS_VECTOR_ACC
+#define NR_SUPPORT_OLD_CLIENTS
+
+#else
+
+#define NR_SERVER_PHYSICS
+#define NR_PHYS_VECTOR_ACC
+//#define NR_SUPPORT_OLD_CLIENTS
+
 #endif
 
 
@@ -10,10 +20,6 @@
 
 #define NR_NO_PUP_SWITCHING
 #define NR_VOTE_ANNOUNCE_INTERVAL 5
-//#define NR_SERVER_PHYSICS
-//#define NR_PHYS_VECTOR_ACC
-#define NR_SUPPORT_OLD_CLIENTS
-//#define NR_FIX_BOUNCING	// makes a difference only when nr_server_physics not defined
 
 // ---- client side defines
 
@@ -22,6 +28,7 @@
 #define FLAGPOS_RAD 30
 //#define CL_SHOW_TIME_LEFT
 #define SHADOW_MINIMUM_NORMAL 7
+#define NR_SUPPORT_OLD_SERVERS
 
 // ----
 
@@ -31,27 +38,27 @@
 #include <sstream>
 #include <iomanip>
 
-#ifdef NR_SERVER_PHYSICS
-#define NR_FIX_BOUNCING
-#else
-#define NR_SUPPORT_OLD_CLIENTS
-#endif
-
-#ifdef NR_FIX_BOUNCING
 /* NR_SHIFTY is used for bounce checks: 15 aligns with the map, 0 is the buggy default behaviour */
+#ifdef NR_SERVER_PHYSICS
 #define NR_SHIFTY 15
 #else
 #define NR_SHIFTY 0
-#define NR_SUPPORT_OLD_CLIENTS
 #endif
+
+#ifdef NR_SUPPORT_OLD_CLIENTS
+#define COMPAT_PCNT "%%"
+#else
+#define COMPAT_PCNT "%"
+#endif
+
 
 #ifdef NR_NAME_AUTHORIZATION
 #include "nameauth.h"
 #endif
 
-template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }	//#NR
+template<class T> T bound(T val, T lb, T hb) { return val<=lb?lb:val>=hb?hb:val; }
 
-//#NR strspnp: (Watcom definition) find from str the first char not in charset
+// strspnp: (Watcom definition) find from str the first char not in charset
 char* strspnp(char* str, const char* charset) {
 	for (; *str; ++str)
 		if (strchr(charset, *str)==NULL)
@@ -402,13 +409,7 @@ int			maxplayers = MAX_PLAYERS;		// the maximum number of players configured for
 
 #define MAX_ROCKETS 256		// maximum number of rockets (nao pode ser mais que 256 pq eh usado um unsigned char p/ passar ids)
 
-#ifdef NR_CLIENT_AFFECTING
-#define MAX_PICKUPS 256
-#else
 #define MAX_PICKUPS MAX_PLAYERS	// the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
-#endif
-
-int			maxpickups;							// the maximum number of pickups (function of maxplayers)
 
 //arg switches (+ default values)
 bool dedserver = false;		//dedicated server? -ded
@@ -798,7 +799,7 @@ public:
 	Map() : valid_for_scoring(true), ver(-1), w(0), h(0), crc(0) { }
 
 	bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
-if (px<0 || py<0 || px>=w || py>=h) return false;	//#NR remove this and track why these are given sometimes
+if (px<0 || py<0 || px>=w || py>=h) return false;	//#fix: remove this and track why these are given sometimes
 		assert(px>=0 && py>=0 && px<w && py<h);
 		return room[px][py].fall_on_wall(x1, y1, x2, y2);
 	}
@@ -1060,7 +1061,6 @@ void Map::draw_minimap(BITMAP* buffer) const {
 	#endif
 }
 
-//#NR: new function for use by NR_wallcorrect()
 /* calculateDisplacement():
  *
  * calculates how many times the vector (mx,my) can be traveled until wall (dx1,dy1)-(dx2,dy2) is hit by a circle of radius r (max value considered is 1.)
@@ -1143,13 +1143,11 @@ pair<double, Coords> calculateDisplacement(double dx1, double dy1, double dx2, d
 	return pair<double, Coords>(dist, collisionCoords);
 }
 
-bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy, double *ox, double *oy) {
+bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double *sx, double *sy) {
 	static const double plyRadius=15;
 
-	double stx=*ox, sty=*oy-NR_SHIFTY;	// start pos
-	double dtx=* x, dty=* y-NR_SHIFTY;	// destination
-
-	double mx=dtx-stx, my=dty-sty;	// movement vector
+	double stx=*x, sty=*y-NR_SHIFTY;	// position in real coordinates
+	double mx=*sx, my=*sy;	// speed
 
 	bool bounced=false;
 	double movementLeft=fraction;
@@ -1157,8 +1155,8 @@ bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double
 	for (;;) {
 		double minMovement=movementLeft;
 		Coords bounceVec;
-		Coords bbox0(min(stx-plyRadius, dtx-plyRadius), min(sty-plyRadius, dty-plyRadius)),
-		       bbox1(max(stx+plyRadius, dtx+plyRadius), max(sty+plyRadius, dty+plyRadius));
+		Coords bbox0(min(stx-plyRadius, stx+mx-plyRadius), min(sty-plyRadius, sty+my-plyRadius)),
+		       bbox1(max(stx+plyRadius, stx+mx+plyRadius), max(sty+plyRadius, sty+my+plyRadius));
 		for (vector<RectWall>::const_iterator wi=r.rwalls.begin(); wi!=r.rwalls.end(); ++wi) {	// go through rectangular walls first
 			// fast and crude bounding-box style check first
 			if (!wi->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
@@ -1229,30 +1227,27 @@ bool NR_wallcorrect(const Room& r, double fraction, double *x, double *y, double
 		bounced=true;
 		// bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
 		// : S -= 2* ( (S dot b) * b / |b|^2 )	; |b| is always plyRadius
-		double mul=2.*((*sx)*bounceVec.first+(*sy)*bounceVec.second)/(plyRadius*plyRadius);
-		*sx -= mul*bounceVec.first;
-		*sy -= mul*bounceVec.second;
+		double mul=2.*(mx*bounceVec.first+my*bounceVec.second)/(plyRadius*plyRadius);
+		mx -= mul*bounceVec.first;
+		my -= mul*bounceVec.second;
 		// lose some speed too
-		*sx *= .95;
-		*sy *= .95;
-		dtx=stx+(*sx);
-		dty=sty+(*sy);
-		mx=*sx; my=*sy;
+		mx *= .95;
+		my *= .95;
 		movementLeft-=minMovement+.01;	// don't bounce over 100 times in any conditions
 		if (movementLeft<0)
 			break;
 	}
-	*x=stx;
-	*y=sty+NR_SHIFTY;
-	*ox=*x;
-	*oy=*y;
+	*x = stx;
+	*y = sty + NR_SHIFTY;
+	*sx = mx;
+	*sy = my;
 	return bounced;
 }
 
-#ifdef NR_SUPPORT_OLD_CLIENTS
+#if !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
 
 //wall hit?
-bool wallhit(double x, double y, const RectWall &w) { return w.intersects_rect(x, y, x, y); }
+bool wallhit(double x, double y, const RectWall &w) { int ix=(int)x, iy=(int)y; return w.intersects_rect(ix, iy, ix, iy); }
 
 //wall collision correction
 bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy, double *ox, double *oy) {
@@ -1260,6 +1255,12 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 	double tx,ty;
 	tx = (*ox) - (*x);
 	ty = (*oy) - (*y);
+
+	if (tx==0. && ty==0.) {
+		*x = *ox;
+		*y = *oy;
+		return false;
+	}
 
 	//deltas for pushing out of walls: normalize
 	double dx, dy;
@@ -1325,7 +1326,7 @@ bool wallcorrect(const Room& room, double *x, double *y, double *sx, double *sy,
 	return ever_had_wall_hit;
 }
 
-#endif	// NR_SUPPORT_OLD_CLIENTS
+#endif	// !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
 
 //draw a wall, solid or nonsolid, texid, lum, in a map
 void drawwall_tex(Map *m, bool is_solid, int x, int y, int a, int b, int c, int d, int tex, int alpha) {
@@ -1460,7 +1461,6 @@ struct player_t {
 
 	bool			want_map_exit; //server side - player quer sair p/ proximo mapa na rotacao
 
-	//#NR
 	#ifdef NR_CONSOLE
 	int mapVote;
 	typedef list< pair<int, string> > DMQueueT;
@@ -1626,7 +1626,6 @@ struct player_t {
 		neg_score = 0;
 		rank = 0;
 
-		//#NR added to simulate memset(player_t, 0) :
 		awaiting_client_ready=false;
 		weapon=0;
 		speed_drop_time=wall_sound_time=0;
@@ -1875,7 +1874,7 @@ public:
 // retorna FALSE se nao conseguiu abrir ou se tava corrompido etc
 // retorna o mapa (map_c) atualizado no parametro *map
 
-bool load_map(char *mapdir, char *mapname, Map *map) {
+bool load_map(const char *mapdir, const string& mapname, Map *map) {
 	//clear
 	char lebuffer[1024];
 	char dest[WHERE_PATH_SIZE];
@@ -1883,16 +1882,16 @@ bool load_map(char *mapdir, char *mapname, Map *map) {
 	// MAPDIR + / + MAPNAME + .TXT
 	strcpy(lebuffer, mapdir);
 	put_backslash(lebuffer);
-	strcat(lebuffer, mapname);
+	strcat(lebuffer, mapname.c_str());
 	strcat(lebuffer, ".txt");
 
 	//append all that to the root dir of the game
 	append_filename(dest, wheregamedir, lebuffer, WHERE_PATH_SIZE);
 	FILE *fmap = fopen(dest, "r");	// FIXME: r or rb ??
 	if (fmap) {
-		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", mapname);
+		LOG1("LOAD_MAP MAP FILENAME IS '%s'\n", mapname.c_str());
 		if (!map->load(fmap)) {
-			LOG1("Error loading map '%s'\n", mapname);
+			LOG1("Error loading map '%s'\n", mapname.c_str());
 			return false;
 		}
 		fclose(fmap);
@@ -1906,10 +1905,7 @@ bool load_map(char *mapdir, char *mapname, Map *map) {
 
 bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
-	//
-	float player_accel;
-	float player_friction;
-	float player_maxspeed;
+	float player_accel, player_friction, player_maxspeed;
 	if (h->run) {
 		if (turbo) {
 			player_accel    = svp_accel_turborun;
@@ -1942,10 +1938,13 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 
 	#ifdef NR_PHYS_VECTOR_ACC
 
-	// scale these up so the acceleration is near the average of original (either 1 or sqrt(2) times)
-	player_accel *= 1.2;
-	player_friction *= 1.2;
+	// this is a more physically correct model by Nix
+
+	// scale these up by 1.2 so the acceleration is near the average of original (either 1 or sqrt(2) times)
 	player_maxspeed *= 1.2;
+	player_friction *= 1.2;
+	player_accel    *= 1.2;
+	player_accel    += player_friction;	// to balance forward acceleration with the original model; backward acceleration is too big however
 
 	// friction
 	float spd = sqrt( h->sx*h->sx + h->sy*h->sy );
@@ -1954,20 +1953,21 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 		mul = 0.;
 	else
 		mul = 1. - player_friction/spd;
-	spd *= mul;
 	h->sx *= mul;
 	h->sy *= mul;
 
 	// acceleration
 	if (!deathbringer_affected && spd<player_maxspeed) {
-		float mul = player_accel+player_friction;
+		// spd<player_maxspeed is a hack: the player is frozen for a while when maxspeed decreases
+		// to do this in a nicer way, player_maxspeed would have to be replaced with a speed-proportional term to friction
+		float mul = player_accel;
 		if (xAcc!=0 && yAcc!=0)	// normalize the total acceleration vector
 			mul /= sqrt(2.);
 
 		h->sx += float(xAcc)*mul;
 		h->sy += float(yAcc)*mul;
-
 		spd = sqrt( h->sx*h->sx + h->sy*h->sy );
+
 		if (spd > player_maxspeed) {
 			float mul = player_maxspeed/spd;
 			h->sx *= mul;
@@ -1977,46 +1977,39 @@ bool NR_applyPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bo
 
 	#else	// NR_PHYS_VECTOR_ACC
 
+	// this is the original weird physics model only re-written
+
 	// friction
-	if (!xAcc) {
-		if (fabs(h->sx) > player_friction)
-			h->sx *= 1. - player_friction/fabs(h->sx);
+	float absx=fabs(h->sx), absy=fabs(h->sy);
+	if (!xAcc || absx>player_maxspeed) {
+		if (absx > player_friction)
+			h->sx *= 1. - player_friction/absx;
 		else
 			h->sx = 0.;
 	}
-	if (!yAcc) {
-		if (fabs(h->sy) > player_friction)
-			h->sy *= 1. - player_friction/fabs(h->sy);
+	if (!yAcc || absy>player_maxspeed) {
+		if (absy > player_friction)
+			h->sy *= 1. - player_friction/absy;
 		else
 			h->sy = 0.;
 	}
 
 	// acceleration
 	if (!deathbringer_affected) {
-		if (xAcc!=0) {
+		if (fabs(h->sx) < player_maxspeed)
 			h->sx += float(xAcc)*player_accel;
-			if (fabs(h->sx) > player_maxspeed)
-				h->sx *= player_maxspeed/fabs(h->sx);
-		}
-		if (yAcc!=0) {
+		if (fabs(h->sy) < player_maxspeed)
 			h->sy += float(yAcc)*player_accel;
-			if (fabs(h->sy) > player_maxspeed)
-				h->sy *= player_maxspeed/fabs(h->sy);
-		}
 	}
 
 	#endif	// NR_PHYS_VECTOR_ACC else
 
-	h->ox=h->x; h->oy=h->y;
-	h->x+=h->sx;
-	h->y+=h->sy;
-
 	//wall collision correction
-	return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
+	return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy);
 }
 
-#ifdef NR_SUPPORT_OLD_CLIENTS
-bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected, bool fixBouncing) {
+#if !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
+bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo, bool carryFlag, bool deathbringer_affected) {
 	//select effective physics vars for the player
 	//
 	float player_accel;
@@ -2111,27 +2104,20 @@ bool applyDefaultPhysics(hero_t* h, const Room& room, float fraction, bool turbo
 	h->ox = h->x;
 	h->oy = h->y;
 
+	//move x
+	h->x += h->sx * fraction;
+	if (h->x < 0) h->x = 0;
+	else if (h->x > plw) h->x = plw;
+
+	//move y
+	h->y += h->sy * fraction;
+	if (h->y-NR_SHIFTY < 0) h->y = 0+NR_SHIFTY;
+	else if (h->y-NR_SHIFTY > plh) h->y = plh+NR_SHIFTY;
+
 	//wall collision correction
-	if (fixBouncing) {
-		h->x += h->sx;
-		h->y += h->sy;
-		return NR_wallcorrect(room, fraction, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
-	}
-	else {
-		//move x
-		h->x += h->sx * fraction;
-		if (h->x < 0) h->x = 0;
-		else if (h->x > plw) h->x = plw;
-
-		//move y
-		h->y += h->sy * fraction;
-		if (h->y-NR_SHIFTY < 0) h->y = 0+NR_SHIFTY;
-		else if (h->y-NR_SHIFTY > plh) h->y = plh+NR_SHIFTY;
-
-		return wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
-	}
+	return wallcorrect(room, &h->x, &h->y, &h->sx, &h->sy, &h->ox, &h->oy);
 }
-#endif
+#endif	// !defined(NR_SERVER_PHYSICS) || defined(NR_SUPPORT_OLD_CLIENTS)
 
 //************************************************************
 //  server stuff
@@ -2154,10 +2140,6 @@ enum {
 };
 
 #define SERVER_DEFAULT_PLAYER_NAME "**DEFAULT**"
-
-#define MAPFILENAMESIZE 32			// e tah mais que bom!
-//#define MAPROTSIZE 32			//tambem mais do que bom
-#define MAPROTSIZE 200			//tambem mais do que bom //#NR
 
 // client count
 int	player_count;
@@ -2259,6 +2241,8 @@ public:
 
 	vector<string> welcome_message;	// welcome message line by line
 	vector<string> info_message;	// the message /info shows, line by line
+	string sayadmin_comment;
+	bool sayadmin_enabled;
 
 	// the players
 	player_t	player[MAX_PLAYERS];
@@ -2293,19 +2277,27 @@ public:
 	int ping_send_counter, ping_send_client;
 
 	// server map rotation list
-	int		maprots;		//quantos mapas em maprots
-	int		currmap;		//mapa atual do maprot
-	bool	builtin;		//using the builtin map
-	char	maprot[MAPROTSIZE][MAPFILENAMESIZE];
-	#ifdef NR_CONSOLE
 	struct MapInfo {
 		string title, file;
 		int width, height;
 		int votes;
 		MapInfo() : votes(0) { }
+		bool load(string mapName) {
+			Map map;
+			bool ok = load_map(SERVER_MAPS_DIR, mapName, &map);
+			if (!ok)
+				return false;
+			file = mapName;
+			title = map.title;
+			width = map.w;
+			height = map.h;
+			votes = 0;
+			return true;
+		}
 	};
-	MapInfo mapinfo[MAPROTSIZE];
-	#endif
+	vector<MapInfo> maprot;
+	int currmap;		// current map in maprot
+
 	#ifdef NR_NAME_AUTHORIZATION
 	NameAuthorizationDatabase authorizations;
 	#endif
@@ -2370,7 +2362,6 @@ public:
 		}
 	}
 
-	//#NR
 	void mutePlayer(int pid, int mode) {	// 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
 		if (mode==0 && player[pid].muted!=2)
 			plprintf(pid, "@WYou have been unmuted (you can send messages again)");
@@ -2471,7 +2462,6 @@ public:
 
 		//map file type
 		if (!strcmp(ftype, "map")) {
-			//#NR
 			if (strpbrk(fname, "./:\\")!=NULL) {
 				LOG1("*!*!*!* ILLEGAL FILE DOWNLOAD ATTEMPT: MAP \"%s\"\n", fname);
 				return -1;	//#should also kick their butt for that
@@ -2506,7 +2496,7 @@ public:
 	}
 
 	//run a file master thread
-	void run_filemaster_thread(void *arg) {
+	void run_filemaster_thread(void *) {
 
 		while (1) {
 			//accept one connection
@@ -2980,14 +2970,10 @@ public:
 			checount--;
 		}
 
-		//char lixao[200];
-		//sprintf(lixao, "move player pl=%i cl=%i %s to pl=%i", f, player[f].cid, player[f].name, t);
-		//broadcast_message(lixao);
+		ctf_drop_flag_if_any(f);
 
 		//copy to t
-		//player[t] = player[f];
-//		memcpy(&(player[t]), &(player[f]), sizeof(player_t));
-		player[t] = player[f];	//#NR
+		player[t] = player[f];
 
 		//copy hero
 		world.hero[t] = world.hero[f];
@@ -3004,24 +2990,22 @@ public:
 		player[t].team_change_time = get_time() + 10.0;		//10 secs interval
 
 		//kill t
-		if (player[t].health > 0)	game_damage_player(t, t, 333333);
+		if (player[t].health > 0)
+			game_reset_player(t);
 
 		//update t
 		move_update_player(t);
 	}
 
 	//swap players - both are valid players
-	//
 	void swap_players(int a, int b) {
-
-		//broadcast sound
 		broadcast_sample(SAMPLE_CHANGETEAM);
 
-		//mata quem nao tiver morto
-		if (player[a].health > 0)	game_damage_player(a, a, 333333);
-		if (player[b].health > 0)	game_damage_player(b, b, 333333);
+		if (player[a].health > 0)
+			game_reset_player(a);
+		if (player[b].health > 0)
+			game_reset_player(b);
 
-		//chutando: troca players inteiros;
 		swap(player[a], player[b]);
 
 		//swap client id's
@@ -3142,7 +3126,7 @@ public:
 		if (world.flag[t].score == capture_limit) {
 
 			//change map!
-			server_next_map(NEXTMAP_CAPTURE_LIMIT);
+			server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 
 			//maximum score reached -- restart game (reposiciona jogadores no novo mapa)
 			ctf_game_restart();
@@ -3162,7 +3146,7 @@ public:
 	//  if killed==true, use team spawn points and world spawn points
 	//	if killed==false, use team spawn points only
 	//
-	void game_respawn_player(bool killed, int pid) {
+	void game_respawn_player(int pid) {
 
 		// not time to respawn anymore
 		player[pid].respawn_time = -1;
@@ -3175,14 +3159,14 @@ public:
 			map.tinfo[t].lastspawn = 0;
 
 		spoint_t pos;
-		if (!killed) {
+		if (player[pid].respawn_to_base) {
 			int sp = map.tinfo[t].lastspawn;		//team spawn point #
 			pos = map.tinfo[t].spawn[sp];	// the point
 		}
 
 		//if was killed or map spawn point places player over a wall
-		if (killed || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-NR_SHIFTY-20, pos.x+20, pos.y-NR_SHIFTY+20)) {
-			//if killed, generate a random spot for respawn:
+		if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x-20, pos.y-NR_SHIFTY-20, pos.x+20, pos.y-NR_SHIFTY+20)) {
+			// generate a random spot for respawn:
 			// - unnocupied screen
 			// - away from walls
 
@@ -3252,13 +3236,17 @@ public:
 		player[pid].item_deathbringer = false;//
 		player[pid].deathbringer_end = 0;		//not hit by deathbringer yet
 
-		// clear pup-list (the client won't do it!?)	//#NR
+		player[pid].respawn_to_base = false;
+
+		#ifdef NR_SUPPORT_OLD_CLIENTS
+		// clear pup-list (the default client won't do it)
 		for (int iid=0; iid<MAX_PICKUPS; ++iid) {
 			char lebuf[256]; int count=0;
 			writeByte(lebuf, count, 16);	//	item removed
 			writeByte(lebuf, count, iid);
 			server->send_message(player[pid].cid, lebuf, count);
 		}
+		#endif
 
 		//for all effects, player screen changed
 		game_player_screen_change(pid);
@@ -3425,12 +3413,6 @@ public:
 			sid[8] = game_do_shoot_rocket(playernum,px,py,x,y, cdeg - PIOIT * 3, 0);
 			break;
 		}
-
-#ifdef DEBUG_WEAPON
-		char lix[2000];
-		sprintf(lix, "pnum %i sids %i %i %i", playernum, sid[0], sid[1], sid[2]);
-		broadcast_message(lix);
-#endif
 
 		//assembly multi-rocket message
 		char lebuf[256]; int count = 0;
@@ -3634,216 +3616,139 @@ public:
 		}
 	}
 
-	//damage/kill player
-	void game_damage_player(int target, int attacker, int damage) {
+	void game_reset_player(int target, float time_penalty = 0.) {	// take the player out of the game
+		player[target].health = 0;
 
-		bool no_death_penalty = false;
+		player[target].item_helm = 0;
+		player[target].item_quad = false;
+		player[target].item_speed = false;
+		// deathbringer is not removed until respawn because the flag is needed
 
-		//no score penalty
-		if (damage == 666666)
-			no_death_penalty = true;
-		// take deathbringer out if move/swap players
-		else if (damage == 333333) {
-			player[target].item_deathbringer = false;
-			no_death_penalty = true;	//no score penalty
+		//stop all speed
+		world.hero[target].sx = 0;
+		world.hero[target].sy = 0;
+
+		ctf_drop_flag_if_any(target);
+		player[target].respawn_time = get_time() + respawn_time + time_penalty;
+	}
+
+	void game_kill_player(int target, bool time_penalty) {	// kill the player in the usual way with score penalties and deathbringer effect
+		score_neg(target, 1);	// score neg points because of death
+		if (ctf_drop_flag_if_any(target))
+			score_neg(target, 1);	// score neg points because of losing the flag
+		player[target].total_deaths++;
+
+		if (player[target].item_deathbringer) {
+			//record time to simulate the deathbringer explosion
+			player[target].item_deathbringer_time = frame;
+
+			//deathbringer message
+			char lebuf[256]; int count = 0;
+			writeByte(lebuf, count, 26);	//26==deathbringer
+			writeByte(lebuf, count, ((NLubyte)target));	//team/target player
+			writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
+			//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
+			//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
+			//  trying sending screen x,y and player x y
+			writeByte(lebuf, count, ((NLubyte)player[target].x));
+			writeByte(lebuf, count, ((NLubyte)player[target].y));
+			writeShort(lebuf, count, ((NLushort)world.hero[target].x));
+			writeShort(lebuf, count, ((NLushort)world.hero[target].y));
+
+			server->broadcast_message(lebuf, count);
 		}
-		else if (target != attacker) {	// no shots for suicides
-			player[attacker].total_hits++;
-			player[target].total_shots_taken++;
-		}
 
+		game_reset_player(target, (player[target].item_deathbringer || time_penalty)?waiting_time_deathbringer:0);
+	}
+
+	void game_damage_player(int target, int attacker, int damage, bool deathbringer) {	// inflict normal or deathbringer damage on target
 		//HELM powerup: show player
 		if (player[target].item_helm > 0)
 			player[target].item_helm = 255;
 
-		//damage?
-		//check too much damage = must kill
-		if (damage >= 10000)
-			player[target].health -= damage;	//do damage
+		if (player[target].item_shield) {
+			player[target].energy -= damage;
+			if (player[target].energy <= 0) {
+				player[target].energy = 0;
+				player[target].item_shield = false;
+				if (!deathbringer)
+					broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+			}
+			else if (!deathbringer)
+				broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
+		}
+		//else do the regular body damage
 		else {
-
-			//QUAD!!!!!
-			// v0.2.2 : quad is just that: a quad damage
-			if (player[attacker].item_quad)
-			if (attacker != target)		// do not apply quaddamage into self
-			{
-				damage *= 2;
-			}
-			// if no attacker quad, shield absorbs at least 1 shot
-			//else
-
-			//v0.2.2: shield always absorbs
-			if (player[target].item_shield) {
-
-				player[target].energy -= damage;
-				if (player[target].energy <= 0) {
-					player[target].energy = 0;
-					player[target].item_shield = false;
-					if (target != attacker)
-						broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
-				}
-				else {
-					if (target != attacker)
-						broadcast_screen_sample(target, SAMPLE_SHIELD_DAMAGE);
-				}
-			}
-			//else do the regular body damage
-			else {
-				player[target].health -= damage;
-
-				//freeze target's gun
-				player[target].next_shoot_time = get_time() + 1.0;
-			}
+			player[target].health -= damage;
+			//freeze target's gun
+			player[target].next_shoot_time = get_time() + 1.0;
 		}
+		if (player[target].health > 0)
+			return;
 
-		//died?
-		if (player[target].health <= 0) {
+		score_frag(attacker, 1);	//frag to attacker for the kill
+		player[attacker].total_kills++;
 
-			player[target].health = 0;
+		int tateam = target/TSIZE;
+		int atteam = attacker/TSIZE;
 
-			//powerups: no more, if had any
-			player[target].item_helm = 0;
-			player[target].item_quad = false;
-			player[target].item_speed = false;
-
-			//stop all speed
-			world.hero[target].sx = 0;
-			world.hero[target].sy = 0;
-
-			int tateam = target/TSIZE;
-			int atteam = attacker/TSIZE;
-
-			// check defends
-			//
-			if (attacker != target)		// self kills don't count
-			{
-				//check if the enemy flag is carried in this screen(target's) by somebody that is not me
-				//
-				if (world.flag[tateam].carried) {
-					int p = world.flag[tateam].carrier;
-
-					if (player[p].used)		//  carrier valid (paranoia)
-					if (p != attacker)		// carrier not attacker
-					if (player[p].x == player[target].x)		// carrier on dead target's screen
-					if (player[p].y == player[target].y)
-					{
-						//defends the flag carrier!
-						bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
-						score_frag(attacker, 1);
-					}
-				}
-
-				//check if my flag is atbase in target's screen
-				//if (world.flag[atteam].atbase)
-				//V0.4.6: doesn't matter if the flag is returned or not. killing an enemy near
-				//  it is to defend the flag.
-				//
-				if (!world.flag[atteam].carried)		//not carried?
-				if (world.flag[atteam].pos.px == player[target].x)	// flag in target's screen?
-				if (world.flag[atteam].pos.py == player[target].y)
-				{
-					//defends the flag!
-					bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
-					score_frag(attacker, 1);
-				}
-			}
-
-			//drop flag if any
-			if (ctf_drop_flag_if_any(target)) {
-				//extra frag for fragging a carrier
-				if (attacker != target) {
-					score_frag(attacker, 1);
-					player[attacker].total_flag_carriers_killed++;
-				}
-
-				//V0.4.8 SCORE NEG POINTS because of losing the flag
-				if (!no_death_penalty)
-					score_neg(target, 1);
-			}
-
-			//frag to attacker for the kill
-			if (attacker != target)
+		//check if the enemy flag is carried in this screen(target's) by somebody that is not me
+		if (world.flag[tateam].carried) {
+			int p = world.flag[tateam].carrier;
+			if (player[p].used && p!=attacker && player[p].x==player[target].x && player[p].y == player[target].y) {
+				bprintf("@I%s DEFENDS THE %s CARRIER", player[attacker].name, teamname[atteam]);
 				score_frag(attacker, 1);
-
-			//V0.4.8 SCORE NEG POINTS because of death
-			if (!no_death_penalty)
-				score_neg(target, 1);
-
-			//broadcast obituary
-			if (attacker != target) {
-				char lix[256];
-				sprintf(lix, "@I%s was nailed by %s", player[target].name, player[attacker].name);
-				broadcast_message(lix);
-
-				//add to total kills/deaths
-				player[attacker].total_kills++;
-				player[target].total_deaths++;
-
-				//update the ADMIN SHELL
-				if (shellssock) {
-					char lebuf[256]; int count; NLint result;
-					if (!player[attacker].isbot) {
-						count = 0;
-						writeLong(lebuf, count, STA_PLAYER_KILLS);
-						writeLong(lebuf, count, player[attacker].cid);
-						result = nlWrite(shellssock, lebuf, count);
-					}
-					if (!player[target].isbot) {
-						count = 0;
-						writeLong(lebuf, count, STA_PLAYER_DIES);
-						writeLong(lebuf, count, player[target].cid);
-						result = nlWrite(shellssock, lebuf, count);
-					}
-				}
-			}
-
-			//respawn target in a few seconds
-			player[target].respawn_time = get_time() + respawn_time;
-			if (damage == 666666)
-				player[target].respawn_to_base = true;	//special respawn-to-base damage
-			else
-				player[target].respawn_to_base = false;
-
-			//!!DEATHBRINGER!!
-			if (player[target].item_deathbringer) {
-
-				//record time to simulate the deathbringer explosion
-				player[target].item_deathbringer_time = frame;
-
-				//delay respawn, so you can watch the PAIN! THE HORROR! HAHAHAHAHAHHAHA!
-				player[target].respawn_time += waiting_time_deathbringer;
-
-				//deathbringer message
-				char lebuf[256]; int count = 0;
-				writeByte(lebuf, count, 26);	//26==deathbringer
-				writeByte(lebuf, count, ((NLubyte)target));	//team/target player
-				writeLong(lebuf, count, frame);		//frame # of the bringer shot (message can be delayed)
-				//LIE: x,y can be taken from the player since it's rock-dead on the bringer's position
-				//v0.4.6: somehow the graphical effect is playing on the wrong screen of the clients
-				//  trying sending screen x,y and player x y
-				writeByte(lebuf, count, ((NLubyte)player[target].x));
-				writeByte(lebuf, count, ((NLubyte)player[target].y));
-				writeShort(lebuf, count, ((NLushort)world.hero[target].x));
-				writeShort(lebuf, count, ((NLushort)world.hero[target].y));
-
-				server->broadcast_message(lebuf, count);
 			}
 		}
+		if (!world.flag[atteam].carried && world.flag[atteam].pos.px==player[target].x && world.flag[atteam].pos.py==player[target].y) {
+			bprintf("@I%s DEFENDS THE %s FLAG", player[attacker].name, teamname[atteam]);
+			score_frag(attacker, 1);
+		}
+		if (world.flag[atteam].carried && world.flag[atteam].carrier==target) {
+			score_frag(attacker, 1);	// extra frag for fragging a carrier
+			player[attacker].total_flag_carriers_killed++;
+		}
+
+		if (deathbringer) {
+			if (player[attacker].used)
+				bprintf("@I%s was choked by %s", player[target].name, player[attacker].name);
+			broadcast_screen_sample(target, SAMPLE_DIEDEATHBRINGER);
+		}
+		else
+			bprintf("@I%s was nailed by %s", player[target].name, player[attacker].name);
+
+		//update the ADMIN SHELL
+		if (shellssock) {
+			char lebuf[256]; int count; NLint result;
+			if (!player[attacker].isbot) {
+				count = 0;
+				writeLong(lebuf, count, STA_PLAYER_KILLS);
+				writeLong(lebuf, count, player[attacker].cid);
+				result = nlWrite(shellssock, lebuf, count);
+			}
+			if (!player[target].isbot) {
+				count = 0;
+				writeLong(lebuf, count, STA_PLAYER_DIES);
+				writeLong(lebuf, count, player[target].cid);
+				result = nlWrite(shellssock, lebuf, count);
+			}
+		}
+
+		game_kill_player(target, false);
 	}
 
 	//remove player from the game
 	void game_remove_player(int pid) {
-
 		//remove all shots from this player
-		for (int r=0;r<MAX_ROCKETS;r++)
-		if (world.rock[r].owner == pid)
-			game_delete_rocket(r, 0, 0, 255);
+		for (int r=0; r<MAX_ROCKETS; r++)
+			if (world.rock[r].owner == pid)
+				game_delete_rocket(r, 0, 0, 255);
 
-		//if player carrying flag, drop it
 		ctf_drop_flag_if_any(pid);
 
 		//erase player
 		player[pid].delayedMessages.clear();
+		ctop[player[pid].cid] = -1;
 		player[pid].used = false;
 
 		//bot prefs changed?
@@ -3897,7 +3802,8 @@ public:
 		if (player[i].used)
 		{
 			//kill - to respawn
-			game_damage_player(i, i, 666666);	//666666==special damage - spawn on base
+			player[i].respawn_to_base = true;
+			game_reset_player(i);
 			//zero score
 			player[i].frags = 0;
 		}
@@ -3906,7 +3812,7 @@ public:
 		for (i=0;i<MAX_ROCKETS;i++)
 			world.rock[i].owner = -1;
 
-		//#NR: remove and regenerate powerups
+		// remove and regenerate powerups
 		for (i=0;i<MAX_PICKUPS;i++)
 			world.item[i].kind = 0;
 		check_pickup_creation(true);
@@ -4070,14 +3976,6 @@ public:
 		writeByte(lebuf, count, (NLubyte)pk);	//what item id
 		//server->send_message(player[j].cid, lebuf, count);
 		broadcast_screen_message(it->px, it->py, lebuf, count);
-
-
-#ifdef REALLY_DEBUG_POWERUPS
-		char lixx[2000];
-		sprintf(lixx, "pickup %i snatched!\n", pk);
-		broadcast_message(lixx);
-#endif
-
 
 		//player picked it! make fx
 		//shield
@@ -4364,7 +4262,7 @@ public:
 		//broadcast it
 		broadcast_message(msg);
 	}
-	void plprintf(int pid, const char* fmt, ...) {	//#NR: bprintf for a single player
+	void plprintf(int pid, const char* fmt, ...) {	// bprintf for a single player
 		char buf[16385];
 		buf[0]=2;	// server text
 		va_list argptr;
@@ -4390,10 +4288,8 @@ public:
 		writeByte(lebuf, count, 2);
 		writeString(lebuf, count, text);
 		for (int i=0;i<maxplayers;i++)
-		if (player[i].used)
-		if (!player[i].isbot)	// nao para bots!
-			server->send_message(player[i].cid, lebuf, count);
-
+			if (player[i].used && !player[i].isbot)
+				server->send_message(player[i].cid, lebuf, count);
 		//send to the admin shell
 		if (shellssock) {
 			count = 0;
@@ -4476,6 +4372,8 @@ public:
 					else if (!strcmp(s, "respawn_time")) cmd = 34;
 					else if (!strcmp(s, "waiting_time_deathbringer")) cmd = 35;
 					else if (!strcmp(s, "pup_shadow_invisibility")) cmd = 36;
+					else if (!strcmp(s, "sayadmin_enabled")) cmd = 37;
+					else if (!strcmp(s, "sayadmin_comment")) cmd = 38;
 					else {
 						LOG1("*** Bad command in gamemod: %s\n", s);
 						cmd = 0;
@@ -4533,12 +4431,13 @@ public:
 						svp_flag_penalty = val;
 					}
 					else if (cmd == 14) {
-						//	int		maprots;		//quantos mapas em maprots
-						//	int		currmap;		//mapa atual do maprot
-						//	char	maprot[MAPROTSIZE][MAPFILENAMESIZE];
-						strcpy(maprot[maprots], s);
-						maprots++;
-						//LOG("++++++ MAPROTS++ +++++++\n");
+						MapInfo mi;
+						if (mi.load(s)) {
+							maprot.push_back(mi);
+							LOG1("Added '%s' to map rotation\n", s);
+						}
+						else
+							LOG1("Can't add '%s' to map rotation\n", s);
 					}
 					else if (cmd == 15) {
 						if (strchr(s, '%')) {
@@ -4645,6 +4544,14 @@ public:
 							shadow_minimum = ival==1?1:SHADOW_MINIMUM_NORMAL;
 						else LOG1("Can't set pup_shadow_invisibility to %d\n", ival);
 					}
+					else if (cmd == 37) {
+						if (ival == 0 || ival == 1)
+							sayadmin_enabled = ival==1?true:false;
+						else LOG1("Can't set sayadmin_enabled to %d\n", ival);
+					}
+					else if (cmd == 38) {
+						sayadmin_comment = s;
+					}
 				}
 
 				//parameter
@@ -4658,10 +4565,12 @@ public:
 	}
 
 	//load a map from the rotation list
-	void load_rotation_map(int pos) {
-		bool ok = load_map(SERVER_MAPS_DIR, maprot[pos], &map);
-		assert(ok);
-		LOG2("load_rotation_map() maprot[%i] = '%s'\n", pos, maprot[pos]);
+	bool load_rotation_map(int pos) {
+		bool ok = load_map(SERVER_MAPS_DIR, maprot[pos].file, &map);
+		if (!ok)
+			return false;
+		LOG2("load_rotation_map() maprot[%i] = '%s'\n", pos, maprot[pos].file.c_str());
+		return true;
 	}
 
 	//send map change message to a player
@@ -4672,16 +4581,9 @@ public:
 		int count = 0;
 		writeByte(lebuf, count, 20);	// 20 = map change
 
-		if (builtin) {
-			writeByte(lebuf, count, 1);		// 1 = built-in map message
-			writeByte(lebuf, count, 1);		//1= the first (and probably only) built-in map
-		}
-		else {
-			writeByte(lebuf, count, 2);		// 2 = custom map message
-			writeShort(lebuf, count, map.crc);
-			//LOG2("SERVER: send mapchange to %i mapfile = '%s'\n", pid, map.filename);
-			writeString(lebuf, count, mapname);
-		}
+		writeByte(lebuf, count, 2);		// 2 = custom map message
+		writeShort(lebuf, count, map.crc);
+		writeString(lebuf, count, mapname);
 		server->send_message(player[pid].cid, lebuf, count);
 
 		//VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
@@ -4707,62 +4609,48 @@ public:
 		}
 	}
 
-	//go to server_next_map();
-	void server_next_map(int reason) {
+	bool server_next_map(int reason) {
 
 		//(re)load hostname
 		reload_hostname();
 
-		char lix[256];lix[0]=0;
+		assert(!maprot.empty());
 
-		if (maprots == 0) {
-			//no map rotation - change to next built-in
-			load_default_map(&map);		// default map
-			builtin = true;
-			sprintf(lix, "Server changed map to: DEFAULT (0)");
+		#ifdef NR_CONSOLE
+		vector<int> winners;
+		int maxVotes=0;
+		for (int m=0; m<(int)maprot.size(); ++m) {
+			if (maprot[m].votes<maxVotes)
+				continue;
+			if (maprot[m].votes>maxVotes) {
+				maxVotes=maprot[m].votes;
+				winners.clear();
+			}
+			winners.push_back(m);
 		}
+		if (maxVotes==0)
+			currmap=(currmap+1)%maprot.size();
 		else {
-			#ifdef NR_CONSOLE
-			vector<int> winners;
-			int maxVotes=0;
-			for (int m=0; m<maprots; ++m) {
-				if (mapinfo[m].votes<maxVotes)
-					continue;
-				if (mapinfo[m].votes>maxVotes) {
-					maxVotes=mapinfo[m].votes;
-					winners.clear();
-				}
-				winners.push_back(m);
-			}
-			if (maxVotes==0)
-				currmap=(currmap+1)%maprots;
-			else {
-				if (winners.size()>1)
-					winners.erase(find(winners.begin(), winners.end(), currmap));
-				currmap=winners[rand()%winners.size()];
-			}
-			// clear votes for the current map
-			for (int p=0; p<maxplayers; ++p) {
-				player[p].want_map_exit=false;
-				if (player[p].mapVote==currmap)
-					player[p].mapVote=-1;
-			}
-			mapinfo[currmap].votes=0;
-			#else
-			//next map on rotation
-			currmap++;
-			if (currmap >= maprots) {
-				currmap = 0;
-			}
-			for (int p=0; p<maxplayers; ++p)
-				player[p].want_map_exit=false;
-			#endif
-
-			// attempts to load map from current position of rotation list
-			load_rotation_map(currmap);
-			sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap], currmap+1, maprots);
-//			sprintf(lix, "Server changed map to: DEFAULT (%i of %i)", currmap+1, maprots);
+			if (winners.size()>1)
+				winners.erase(find(winners.begin(), winners.end(), currmap));
+			currmap=winners[rand()%winners.size()];
 		}
+		// clear votes for the current map
+		for (int p=0; p<maxplayers; ++p) {
+			player[p].want_map_exit=false;
+			if (player[p].mapVote==currmap)
+				player[p].mapVote=-1;
+		}
+		maprot[currmap].votes=0;
+		#else
+		if (++currmap >= maprot.size())	// next map on rotation
+			currmap = 0;
+		for (int p=0; p<maxplayers; ++p)
+			player[p].want_map_exit=false;
+		#endif
+
+		if (!load_rotation_map(currmap))
+			return false;
 
 		next_vote_announce_frame = 0;	// let new announce be made as soon as someone votes
 		last_vote_announce_votes = last_vote_announce_needed = 0;
@@ -4770,12 +4658,15 @@ public:
 		// notify all players
 		for (int i=0;i<maxplayers;i++)
 			if (player[i].used && !player[i].isbot)
-				send_map_change_message(i, reason, maprot[currmap]);
+				send_map_change_message(i, reason, maprot[currmap].file.c_str());
 
+		char lix[256];
+		sprintf(lix, "Server changed map to: %s (%i of %i)", maprot[currmap].file.c_str(), currmap+1, maprot.size());
 		broadcast_message(lix);
 
 		// reset map start time
 		map_start_time = frame;
+		return true;
 	}
 
 	//check map exit by vote
@@ -4791,15 +4682,15 @@ public:
 
 		#ifdef NR_CONSOLE
 		// this could be done elsewhere, but this function is called whenever votes change
-		for (int m=0; m<maprots; ++m)
-			mapinfo[m].votes=0;
+		for (int m=0; m<(int)maprot.size(); ++m)
+			maprot[m].votes=0;
 		for (int p=0; p<maxplayers; ++p)
 			if (player[p].used && !player[p].isbot && player[p].mapVote!=-1)
-				++mapinfo[player[p].mapVote].votes;
+				++maprot[player[p].mapVote].votes;
 		#endif
 
-		if ((map_start_time+vote_block_time<frame && num_for>num_against) || num_against==0) {
-			server_next_map(NEXTMAP_VOTE_EXIT);
+		if ((map_start_time+vote_block_time<frame && num_for>num_against) || (num_against==0 && num_for)) {
+			server_next_map(NEXTMAP_VOTE_EXIT);	// ignore return value
 			ctf_game_restart();
 		}
 	}
@@ -4892,20 +4783,20 @@ public:
 
 		random_maprot = false;
 		// reset server rotation list
-		maprots = 0;
 		currmap = 0;
-		builtin = false;
+
+		sayadmin_enabled = false;
 
 		// load server configuration from gamemod.txt
 		load_game_mod();
 
 		// did not specify maps, scan "maps/" folder for .txt map files
-		if (maprots == 0) {
-
+		if (maprot.size() == 0) {
 			char mappath[256];
 			strcpy(mappath, SERVER_MAPS_DIR);  // maps
 			put_backslash(mappath);					// maps/
 			strcat(mappath, "*.txt");				// maps/*.txt
+			char nameBuf[512];
 			char dest[1024];
 			append_filename(dest, wheregamedir, mappath, WHERE_PATH_SIZE);	// <FULL-DIR>/maps/*.txt, I hope
 
@@ -4915,51 +4806,33 @@ public:
 
 			int result = al_findfirst(dest, &mapffblk, FA_ARCH);
 			while (result == 0) {
-
-				//work with result
-				//Replaces the specified filename+extension with a new extension tail, storing at most size bytes
-				//into the dest buffer. Returns a copy of the dest parameter.
 				//char *replace_extension(char *dest, const char *filename, const char *ext, int size
-				//strcpy(maprot[maprots], mapffblk.name);
+				replace_extension(nameBuf, mapffblk.name, "", 500);
+				nameBuf[strlen(nameBuf)-1] = 0;	//take last damn '.' out
 
-				replace_extension(maprot[maprots], mapffblk.name, "", MAPFILENAMESIZE-1);
-				maprot[maprots][strlen(maprot[maprots])-1] = 0;	//take last damn '.' out
-
-				LOG2("COPYING TO MAPROT %i = '%s'\n", maprots, maprot[maprots]);
-
-				maprots++;
-				if (maprots == MAPROTSIZE)	//can't store any more maps in the rotation....
-					break;
+				MapInfo mi;
+				if (mi.load(nameBuf)) {
+					maprot.push_back(mi);
+					LOG1("Added '%s' to map rotation\n", nameBuf);
+				}
+				else
+					LOG1("Can't add '%s' to map rotation\n", nameBuf);
 
 				//try next
 				result = al_findnext(&mapffblk);
 			}
 		}
 
-		if (random_maprot)
-			for (int p=0; p<maprots; ++p) {
-				char buf[MAPFILENAMESIZE];
-				int i=p+rand()%(maprots-p);
-				strcpy(buf, maprot[p]);
-				strcpy(maprot[p], maprot[i]);
-				strcpy(maprot[i], buf);
-			}
-		#ifdef NR_CONSOLE
-		for (int p=0; p<maprots; ++p) {
-			load_rotation_map(p);
-			mapinfo[p].title=map.title;
-			mapinfo[p].file=maprot[p];
-			mapinfo[p].width=map.w;
-			mapinfo[p].height=map.h;
-		}
-		#endif
-
-		if (maprots == 0) {
+		if (maprot.size() == 0) {
 			LOG("No maps for rotation\n");
 			return false;
 		}
 
-		load_rotation_map(currmap);
+		if (random_maprot)
+			random_shuffle(maprot.begin(), maprot.end());
+
+		if (!load_rotation_map(currmap))
+			return false;
 
 		// start server
 		server = new_server_c();
@@ -5641,7 +5514,6 @@ public:
 				//players_present = players_present | (1 << i);
 
 				// init player
-				//#NR
 				int cid;
 				if (is_bot)
 					cid=222+i;
@@ -5654,7 +5526,8 @@ public:
 				myself = i;
 
 				// spawn player
-				game_respawn_player(false, i);
+				player[i].respawn_to_base = true;
+				game_respawn_player(i);
 
 				//reset keypresses
 				world.hero[i].l = 0;
@@ -5721,7 +5594,7 @@ public:
 
 			// MAP NAME+CRC !!! VERY IMPORTANT
 			//
-			send_map_change_message(myself, NEXTMAP_NONE, maprot[currmap]);
+			send_map_change_message(myself, NEXTMAP_NONE, maprot[currmap].file.c_str());
 
 			// - all other player's names
 			// - all other player's frags
@@ -5750,7 +5623,6 @@ public:
 				send_player_crap_update(id, i);
 			}
 
-			//#NR
 			for (vector<string>::const_iterator line=welcome_message.begin(); line!=welcome_message.end(); line++)
 				player[myself].add_to_queue(*line);
 		}
@@ -5819,12 +5691,11 @@ public:
 
 		//remove player from the game
 		game_remove_player(pid);
-		ctop[id]=-1;
 
 		//check for team changes - APENAS se nao era bot. bots saindo/entrando nao devem afetar isso!
 		if (!is_bot) {
 			check_team_changes();
-			check_map_exit();	//#NR
+			check_map_exit();
 		}
 
 		//update serverinfo
@@ -5842,6 +5713,7 @@ public:
 
 	//process incoming client data (callback function)
 	void incoming_client_data(int id, char *data, int length) {
+		(void)length;
 		if (ctop[id]==-1)
 			return;
 
@@ -5937,7 +5809,7 @@ public:
 						//readString(msg, count, player[pid].name); //name update request
 						strcpy(player[pid].name, "(invalid name)");
 						if (strpbrk(tempname, "%@")!=NULL)
-							player[pid].add_to_queue("@WSorry, this server doesn't accept %% or @ in a name");
+							player[pid].add_to_queue("@WSorry, this server doesn't accept " COMPAT_PCNT " or @ in a name");
 						else if (strspnp(tempname, " ")==NULL)
 							player[pid].add_to_queue("@WPlease enter a name");
 						else {
@@ -5989,8 +5861,8 @@ public:
 				}
 				//chat!
 				else if (code == 2) {
-
-					//#NR remove single %'s
+					#ifdef NR_SUPPORT_OLD_CLIENTS
+					// remove single %'s
 					char sbuf[strlen(msg+1)+1];
 					int si=0, mi=1;
 					do {
@@ -6004,15 +5876,18 @@ public:
 						else
 							++mi;
 					} while (msg[mi-1]!='\0');
-					//#NR handle 'console' commands
+					#else
+					const char* sbuf=msg+1;
+					#endif
 					#ifdef NR_CONSOLE
+					// handle 'console' commands
 					if (player[pid].delayedMessages.size()>2) {
 						player[pid].delayedMessages.clear();
 						plprintf(pid, "@I(rest of message cancelled)");
 					}
 					player[pid].reset_message_queue_timing();
 					if (sbuf[0]=='/') {
-						char* pCommand=sbuf+1;
+						const char* pCommand=sbuf+1;
 						char cbuf[30];
 						int ci;
 						for (ci=0;; ++ci, ++pCommand) {
@@ -6040,7 +5915,13 @@ public:
 							player[pid].queue_printf("/mapinfo n  information about map n (default: current map)");
 							player[pid].queue_printf("/votemap n  vote for the next map to be n (default: list maps and votes)");
 							player[pid].queue_printf("/time       check server uptime, current map time and time left on the map");
-							player[pid].queue_printf("/sayadmin   send a message to the server admin (in English or Finnish, please)");
+							if (sayadmin_enabled) {
+								ostringstream ostr;
+								ostr << "/sayadmin   send a message to the server admin";
+								if (sayadmin_comment.length())
+									ostr << " (" << sayadmin_comment << ')';
+								player[pid].add_to_queue(ostr.str());
+							}
 						}
 						else if (!strcmp(cbuf, "info") && !info_message.empty()) {
 							for (vector<string>::const_iterator line=info_message.begin(); line!=info_message.end(); line++)
@@ -6063,18 +5944,18 @@ public:
 							if (shadow_minimum == 1)
 								player[pid].queue_printf("A player using the shadow power-up gets totally invisible");
 							ostringstream pupstr;
-							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << "%%";
-							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << "%%";
+							pupstr << "Base number of power-ups is " << pups_min; if (pups_min_percentage) pupstr << COMPAT_PCNT;
+							pupstr << " and upper limit " << pups_max; if (pups_max_percentage) pupstr << COMPAT_PCNT;
 							if (pups_min_percentage || pups_max_percentage)
-								pupstr << " (%% of map size)";
+								pupstr << " (" COMPAT_PCNT " of map size)";
 							player[pid].add_to_queue(pupstr.str());
 							#ifdef NR_SERVER_PHYSICS
 							player[pid].queue_printf("The physics model is different (looks funny with a standard 0.5.0 client)");
 							#endif
 						}
-						else if (!strcmp(cbuf, "sayadmin")) {
+						else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
 							if (strspnp(pCommand, " ")!=NULL) {
-								FILE* logp=fopen("msglog.txt", "at+");
+								FILE* logp=fopen("sayadmin.log", "at+");
 								time_t tt=time(0);
 								struct tm* tmb=localtime(&tt);
 								fprintf(logp, "%d-%02d-%02d %02d:%02d:%02d  %s: %s\n", tmb->tm_year+1900, tmb->tm_mon+1, tmb->tm_mday,
@@ -6096,16 +5977,16 @@ public:
 						else if (!strcmp(cbuf, "map") || !strcmp(cbuf, "mapinfo")) {
 							if (*pCommand!='\0') {
 								int mid=atoi(pCommand)-1;
-								if (mid>=0 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0') {
-									player[pid].queue_printf("@IMap %d is %s", mid+1, mapinfo[mid].title.c_str());
-									player[pid].queue_printf("@I%s.txt, size %dx%d", mapinfo[mid].file.c_str(), mapinfo[mid].width, mapinfo[mid].height);
+								if (mid>=0 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
+									player[pid].queue_printf("@IMap %d is %s", mid+1, maprot[mid].title.c_str());
+									player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[mid].file.c_str(), maprot[mid].width, maprot[mid].height);
 								}
 								else
-									player[pid].queue_printf("@WValid map id's are 1 to %d", maprots);
+									player[pid].queue_printf("@WValid map id's are 1 to %d", maprot.size());
 							}
 							else {
-								player[pid].queue_printf("@IThis map is %s", mapinfo[currmap].title.c_str());
-								player[pid].queue_printf("@I%s.txt, size %dx%d", mapinfo[currmap].file.c_str(), mapinfo[currmap].width, mapinfo[currmap].height);
+								player[pid].queue_printf("@IThis map is %s", maprot[currmap].title.c_str());
+								player[pid].queue_printf("@I%s.txt, size %dx%d", maprot[currmap].file.c_str(), maprot[currmap].width, maprot[currmap].height);
 							}
 							player[pid].queue_printf("@IType /votemap to see a list of all maps");
 						}
@@ -6114,7 +5995,7 @@ public:
 							bool err=false;
 							if (*pCommand!='\0') {
 								int mid=atoi(pCommand)-1;
-								if (mid>=-1 && mid<maprots && pCommand[strspn(pCommand, "0123456789")]=='\0') {
+								if (mid>=-1 && mid<(int)maprot.size() && pCommand[strspn(pCommand, "0123456789")]=='\0') {
 									if (player[pid].mapVote==mid)
 										status="no changes";
 									else {
@@ -6131,7 +6012,7 @@ public:
 										player[pid].queue_printf("@TPress F4 to actually vote for a mapchange");
 								}
 								else {
-									player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprots);
+									player[pid].queue_printf("@W\"%s\" is not a valid map id (1 to %d)", pCommand, maprot.size());
 									err=true;
 								}
 							}
@@ -6144,13 +6025,13 @@ public:
 									player[pid].queue_printf("@TMaps on this server: ID, votes, description");
 								// 26 chars usable for entry, to fit three on a line
 								char buf[200]; int bufi=0;
-								int rows=(maprots+2)/3;
+								int rows=(maprot.size()+2)/3;
 								for (int row=0; row<rows; ++row) {
 									for (int col=0; col<3; ++col) {
 										int mid=col*rows+row;
-										if (mid>=maprots)
+										if (mid>=(int)maprot.size())
 											continue;
-										sprintf(buf+bufi, "%2d %2d %-18s", mid+1, mapinfo[mid].votes, mapinfo[mid].title.c_str());
+										sprintf(buf+bufi, "%2d %2d %-18s", mid+1, maprot[mid].votes, maprot[mid].title.c_str());
 										if (strlen(buf+bufi)>24)
 											strcpy(buf+bufi+23, ".. ");
 										else
@@ -6216,7 +6097,7 @@ public:
 							int accuracy = 0;
 							if (player[pid].total_shots > 0)
 								accuracy = int((100. * player[pid].total_hits) / player[pid].total_shots + 0.5);
-							player[pid].queue_printf("Shots: %d shot, accuracy %d %%%%, %d taken",
+							player[pid].queue_printf("Shots: %d shot, accuracy %d" COMPAT_PCNT COMPAT_PCNT ", %d taken",
 								player[pid].total_shots,
 								accuracy,
 								player[pid].total_shots_taken);
@@ -6309,17 +6190,10 @@ public:
 				}
 				//SUICIDE!!
 				else if (code == 10) {
-
 					//only if alive still
 					if (player[pid].health > 0) {
-						game_damage_player(pid, pid, 30000);
-						player[pid].total_deaths++;
+						game_kill_player(pid, true);
 						player[pid].total_suicides++;
-						//frag penalty
-						player[pid].frags--;
-						//delay respawn if player does not have deathbringer (there is another delay for that)
-						if (!player[pid].item_deathbringer)
-							player[pid].respawn_time += waiting_time_deathbringer;
 					}
 				}
 				//-attack
@@ -6517,7 +6391,7 @@ public:
 	}
 
 	//team t's flag touched by player #i?
-	bool check_flag_touch(int i, int px, int py, int x, int y, int t) {
+	bool check_flag_touch(int px, int py, int x, int y, int t) {
 		if (world.flag[t].carried) return false;	//carried can't touch
 		if (world.flag[t].pos.px != px) return false;	//screen x mismatch
 		if (world.flag[t].pos.py != py) return false;	//screen y mismatch
@@ -6540,7 +6414,7 @@ public:
 			dest->hero[i] = src->hero[i];
 		hero_t* hd = &dest->hero[i];
 
-		if (hd->tx<0 || hd->ty<0 || hd->tx>=map.w || hd->ty>=map.h) return;	//#NR remove this and track why these are given sometimes
+		if (hd->tx<0 || hd->ty<0 || hd->tx>=map.w || hd->ty>=map.h) return;	//#fix: remove this and track why these are given sometimes
 		const Room& room = map.room[hd->tx][hd->ty];
 
 		bool carryFlag = src->flag[1-(i/TSIZE)].carried && src->flag[1-(i/TSIZE)].carrier == i;
@@ -6548,33 +6422,24 @@ public:
 
 		#ifdef NR_SERVER_PHYSICS
 			bool realBounce = NR_applyPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
-		#else
-			#ifdef NR_FIX_BOUNCING
-				bool realBounce = applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected, true);
-			#else
-				bool realBounce = applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected, false);
-				#define DEFAULT_DONE
-			#endif
-		#endif
-		#ifdef NR_SUPPORT_OLD_CLIENTS
-			#ifndef DEFAULT_DONE
-				if (realBounce) {
-					hero_t testHero = src->hero[i];
-					bool clientBounce = applyDefaultPhysics(&testHero, room, 1., player[i].item_speed, carryFlag, deathbringerAffected, false);
-					//player bounced: play bounce sample if minimum time elapsed
-					if (!clientBounce && get_time() > player[i].wall_sound_time || get_time() + 0.2 < player[i].wall_sound_time) {	// second test means w_s_t is invalid (since it is not initialized, ever)
-						player[i].wall_sound_time = get_time() + 0.2;
-						broadcast_screen_sample(i, SAMPLE_WALLBOUNCE);
-					}
-					else if (clientBounce)
-						player[i].wall_sound_time = get_time() + 0.2;
+
+			#ifdef NR_SUPPORT_OLD_CLIENTS
+			if (realBounce) {
+				hero_t testHero = src->hero[i];
+				bool clientBounce = applyDefaultPhysics(&testHero, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
+				//player bounced: play bounce sample if minimum time elapsed
+				if (!clientBounce && get_time() > player[i].wall_sound_time || get_time() + 0.2 < player[i].wall_sound_time) {	// second test means w_s_t is invalid (since it is not initialized, ever)
+					player[i].wall_sound_time = get_time() + 0.2;
+					broadcast_screen_sample(i, SAMPLE_WALLBOUNCE);
 				}
+				else if (clientBounce)
+					player[i].wall_sound_time = get_time() + 0.2;
+			}
 			#else
-				#undef DEFAULT_DONE
-				(void)realBounce;
+			(void)realBounce;
 			#endif
 		#else
-			(void)realBounce;
+			applyDefaultPhysics(hd, room, 1., player[i].item_speed, carryFlag, deathbringerAffected);
 		#endif
 
 		//check room change x
@@ -6617,14 +6482,8 @@ public:
 		for (i=0;i<MAX_PICKUPS;i++)
 		if (world.item[i].kind == 255)					//valid & respawning
 		//if (world.item[i].respawning)		//respawning
-		if (thetime > world.item[i].respawn_time) {
-
-#ifdef REALLY_DEBUG_POWERUPS
-			bprintf("time to respawn item %i\n", i);
-#endif
-
+		if (thetime > world.item[i].respawn_time)
 			respawn_pickup(i);
-		}
 
 		// (0) do stuff for every player
 		//
@@ -6686,26 +6545,9 @@ public:
 				if (player[i].health > 0) {
 					//has shield: do big damage to it, in order to remove the shield
 					if (player[i].item_shield)
-						game_damage_player(i, i, 12);	//12x0.1 = 120/sec = 600 5sec
+						game_damage_player(i, player[i].deathbringer_attacker, 12, true);
 					else
-						game_damage_player(i, i, 3); // 3x0.1 = 30/sec = 150 5sec
-
-					//dead? play "HA HA HA HA HA"
-					if (player[i].health <= 0) {
-						broadcast_screen_sample(i, SAMPLE_DIEDEATHBRINGER);
-
-						//check if attacker still in game
-						int a = player[i].deathbringer_attacker;
-
-						if (player[a].used) {
-							//give +1 frag
-							score_frag(a, 1);
-							player[a].total_kills++;
-							player[i].total_deaths++;
-							//reason broadcast
-							bprintf("@I%s was choked by %s", player[i].name, player[a].name);
-						}
-					}
+						game_damage_player(i, player[i].deathbringer_attacker, 3, true); // 30 / s, 150 / 5 s
 				}
 			}
 
@@ -6742,47 +6584,21 @@ public:
 
 					// hit distance: if dt == rad, hit, if rad
 					if ((rad <= dt + 20) && (rad >= dt - 60)) {
-
-						//take his deathbringer off
 						player[v].item_deathbringer = false;
-
-						//hit sample
 						broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-
-						//record the attacker
 						player[v].deathbringer_attacker = i;
-
-						//time of effect
-						//also freeze his gun for this same amount of time
+						// time of effect ; also freeze his gun for this same amount of time
 						player[v].deathbringer_end = player[v].next_shoot_time = get_time() + 4.5 + ((double)(rand() % 1000) / 1000.0);
 
 						// calc recoil:
-						double tx = world.hero[v].x - world.hero[i].x;		//triangle size x
-						double ty = world.hero[v].y - world.hero[i].y;		//triangle size y
+						double tx = world.hero[v].x - world.hero[i].x;
+						double ty = world.hero[v].y - world.hero[i].y;
 
-						// for lack of trigonometry knowledge, using this ugly hack
-						if ((fabs(tx) >= 40.0) || (fabs(ty) >= 40.0)) { //too much
-							//while one of them abs's is greater than 50, divide by some amount
-							while (  ((fabs(tx) >= 40.0) || (fabs(ty) >= 40.0))  ) {
-								tx *= 0.90;		//reduce
-								ty *= 0.90;
-							}
-						}
-						else { //too little
-							//while both abses are smaller than 50, multiply by some amount
-							while (  ((fabs(tx) <= 40.0) && (fabs(ty) <= 40.0))  ) {
-								tx *= 1.10;		//increase
-								ty *= 1.10;
-							}
-						}
-
-						//set the new speed
-						world.hero[v].sx = tx;
-						world.hero[v].sy = ty;
+						double mul = 60. / sqrt( tx*tx + ty*ty );	// set speed to 60
+						world.hero[v].sx = tx * mul;
+						world.hero[v].sy = ty * mul;
 					}
-
 				}
-
 			}
 
 			// check for player weapons fire time
@@ -6909,20 +6725,21 @@ public:
 						if (player[rock->owner].item_deathbringer)
 							damage = 50;
 
+						if (player[rock->owner].item_quad)
+							damage *= 2;
+
 						//do damage
-						game_damage_player(p, rock->owner, damage);
+						game_damage_player(p, rock->owner, damage, false);
+
+						player[rock->owner].total_hits++;
+						player[p].total_shots_taken++;
 
 						//if player not dead, push him
 						if (player[p].health > 0) {
-
-							//se indo no sentido contrario, primeiro zera
-							//(emulando comportamento v0.1.0)
 							if (((world.hero[p].sx > 0) && (rock->sx < 0)) || ((world.hero[p].sx < 0) && (rock->sx > 0)))
 								world.hero[p].sx = 0;
 							if (((world.hero[p].sy > 0) && (rock->sy < 0)) || ((world.hero[p].sy < 0) && (rock->sy > 0)))
 								world.hero[p].sy = 0;
-
-							//adiciona velocidade do rocket/3
 							world.hero[p].sx += rock->sx / 3.0;
 							world.hero[p].sy += rock->sy / 3.0;
 						}
@@ -6957,11 +6774,8 @@ public:
 
 			//check if dead/respawn
 			if (player[i].health <= 0) {
-
-				if (player[i].respawn_time < get_time()) {
-					game_respawn_player( !player[i].respawn_to_base , i);		//time to respawn player
-				}
-
+				if (player[i].respawn_time < get_time())
+					game_respawn_player(i);		//time to respawn player
 			}
 			// player alive: do stuff for alive players
 			else {
@@ -7130,7 +6944,7 @@ public:
 				// --> CTF FLAG STEAL touch other team's flag
 				//
 				if (!world.flag[enemyteam].carried &&	// enemy flag dropped (at base or somewhere)
-					check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, enemyteam))  // and I touch it
+					check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, enemyteam))  // and I touch it
 				{
 					// Has player just dropped the flag or not?
 					if (!player[i].dropped_flag) {
@@ -7159,7 +6973,7 @@ public:
 				//
 				if (!world.flag[myteam].carried)	// my flag dropped
 				if (!world.flag[myteam].atbase)	// not at base
-				if (check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))  // and I touch it
+				if (check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))  // and I touch it
 				{
 					//FLAG RETURNED!
 					score_frag(i, 1);	// just add some frags
@@ -7179,7 +6993,7 @@ public:
 				if (world.flag[enemyteam].carrier == i)	// by me
 				if (!world.flag[myteam].carried)	// my flag dropped
 				if (world.flag[myteam].atbase)	// at my base
-				if (check_flag_touch(i, player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))		// I touch my flag
+				if (check_flag_touch(player[i].x, player[i].y, (int)h->x, (int)h->y, myteam))		// I touch my flag
 				{
 					//v0.4.7: detect degenerated maps
 					if (map.valid_for_scoring)		//still valid?
@@ -7300,7 +7114,7 @@ public:
 				bprintf("@I*** 30 seconds left in the game");
 			else if (frame - map_start_time > time_limit) {
 				bprintf("@I*** Time out - CTF game over");
-				server_next_map(NEXTMAP_CAPTURE_LIMIT);
+				server_next_map(NEXTMAP_CAPTURE_LIMIT);	// ignore return value
 				ctf_game_restart();
 			}
 		}
@@ -8258,7 +8072,7 @@ public:
 	}
 
 	//master server talker thread
-	void run_mastertalker_thread(void *arg) {
+	void run_mastertalker_thread(void *) {
 
 		//FIXME: generate a decent password here
 
@@ -8567,26 +8381,18 @@ public:
 
 	//read a string from a blocking TCP stream, one char at a time
 	bool read_string_from_TCP(NLsocket sock, char *buf) {
-
-		int n =0;
-
-		do {
-
-			NLint result = nlRead(sock, &(buf[n]), 1);
+		for (;;) {
+			NLint result = nlRead(sock, buf, 1);
 			if (result != 1)	//interrupted
 				return false;
-
-//			if (buf[n] == '0')	//string was terminated
-			if (buf[n] == '\0')	//#NR //string was terminated
+			if (*buf == '\0')
 				return true;
-
-			n++;
-
-		} while (1);
+			++buf;
+		}
 	}
 
 	//run a admin shell master thread
-	void run_shellmaster_thread(void *arg) {
+	void run_shellmaster_thread(void *) {
 
 		LOG("\nrun_shellmaster_thread() STARTED\n");
 
@@ -8670,7 +8476,7 @@ public:
 	}
 
 	//run an admin shell slave thread
-	void run_shellslave_thread(void *arg) {
+	void run_shellslave_thread(void *) {
 
 		LOG("run_shellslave_thread() STARTED\n");
 
@@ -8810,7 +8616,7 @@ public:
 					sprintf(lechat, "ADMIN: %s", chat);
 					broadcast_message(lechat);
 					break;
-				case ATS_GET_PINGS:	//#NR
+				case ATS_GET_PINGS:
 					for (int p=0; p<maxplayers; ++p)
 						if (player[p].used && !player[p].isbot) {
 							answer=true;
@@ -9179,7 +8985,7 @@ int sfunc_client_disconnected(runes_t *arg) {
 	return 0;
 }
 
-int sfunc_client_lag_status(runes_t *arg) {
+int sfunc_client_lag_status(runes_t *) {
 
 	//LOG2("client %i lagstatus %i\n", arg->client_id, arg->status);
 
@@ -9270,8 +9076,8 @@ int listen_port_running;
 volatile bool	listen_server_running = false;
 pthread_t	listen_server_thread;
 
-void *thread_listenserver_f(void *arg) {
-	srand(time(0));	//#NR
+void *thread_listenserver_f(void *) {
+	srand(time(0));
 
 	//save for display
 	listen_port_running = port;		//port selectr
@@ -9806,7 +9612,7 @@ public:
 
 	//THREAD for getting a token from a password. nonblocking TCP operations, if
 	// player_password_set == false, then quit immediately
-	void client_password_thread(void *arg) {
+	void client_password_thread(void *) {
 
 		NLsocket sock = NL_INVALID;
 
@@ -10056,11 +9862,7 @@ public:
 						send_player_token();
 
 					//wait xxx minutes to send again	//*2 == halfsecond
-#ifdef DEBUG_RANKING
-					for (int busy=0;busy<20;busy++) {		//10 SECONDz
-#else
 					for (int busy=0;busy<60*10*2;busy++) {		//10 MINUTES
-#endif
 						MS_SLEEP(500);
 						if (player_password_set == false)
 							break;
@@ -10265,7 +10067,7 @@ public:
 	}
 
 	//start downloading a server file
-	void download_server_file(char *type, char *name, char *dest) {
+	void download_server_file(const char *type, const char *name, char *dest) {
 
 		//new download request
 		download_runes_t	*rune = new download_runes_t();
@@ -10489,7 +10291,7 @@ public:
 	//server tells client of current map / map change
 	// client must attempt to load map from "cmaps" dir
 	// if map file not there, or the CRC's don't match, ask to download the map from the server
-	void server_map_command(char *mapname, NLushort server_crc) {
+	void server_map_command(const char *mapname, NLushort server_crc) {
 
 		LOG1("CLIENT: server_map_command : '%s'", mapname);
 
@@ -10998,10 +10800,9 @@ public:
 			for (i=0;i<maxplayers;i++)
 
 			if (player[i].onscreen) {	// nao eh suficiente usar platyer[i].USED !!!
-				//copy all to fill in holes
-				memcpy(&fd.hero[i], &fx.hero[i], sizeof(hero_t));
+				fd.hero[i] = fx.hero[i];
 
-				if (player[i].x<0 || player[i].y<0 || player[i].x>=map.w || player[i].y>=map.h) continue;	//#NR remove this and track why these are given sometimes
+				if (player[i].x<0 || player[i].y<0 || player[i].x>=map.w || player[i].y>=map.h) continue;	//#fix: remove this and track why these are given sometimes
 				const Room& room = map.room[player[i].x][player[i].y];
 				bool carryFlag = fx.flag[1-(i/TSIZE)].carried && fx.flag[1-(i/TSIZE)].carrier == i;
 
@@ -11021,7 +10822,6 @@ public:
 					dc -= 1.0;
 
 					//run physics
-
 					#ifdef NR_SERVER_PHYSICS
 					if (NR_applyPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 						//player bounced: play bounce sample if minimum time elapsed
@@ -11031,12 +10831,7 @@ public:
 						}
 					}
 					#else	// NR_SERVER_PHYSICS
-					#ifdef NR_FIX_BOUNCING
-					bool fixBouncing = true;
-					#else
-					bool fixBouncing = false;
-					#endif
-					if (applyDefaultPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected, fixBouncing)) {
+					if (applyDefaultPhysics(&fd.hero[i], room, f, player[i].item_speed, carryFlag, player[i].deathbringer_affected)) {
 						//player bounced: play bounce sample if minimum time elapsed
 						if (get_time() > player[i].wall_sound_time) {
 							player[i].wall_sound_time = get_time() + 0.2;
@@ -11191,26 +10986,17 @@ public:
 	void draw_player(BITMAP *drawbuf, int x, int y, int gundir, int pc1, int pc2, int alpha) {
 
 		//draw the gun (direction facing)
-		int xg,yg;
+		int xg, yg;
 		switch (gundir) {
-		case 0: xg=40;yg=0;
-			break;
-		case 1: xg=28;yg=28;
-			break;
-		case 2: xg=0;yg=40;
-			break;
-		case 3: xg=-28;yg=28;
-			break;
-		case 4: xg=-40;yg=0;
-			break;
-		case 5: xg=-28;yg=-28;
-			break;
-		case 6: xg=0;yg=-40;
-			break;
-		case 7: xg=28;yg=-28;
-			break;
-		default: xg=0;yg=0;
-			break;
+			case 0: xg= 40; yg=  0; break;
+			case 1: xg= 28; yg= 28; break;
+			case 2: xg=  0; yg= 40; break;
+			case 3: xg=-28; yg= 28; break;
+			case 4: xg=-40; yg=  0; break;
+			case 5: xg=-28; yg=-28; break;
+			case 6: xg=  0; yg=-40; break;
+			case 7: xg= 28; yg=-28; break;
+			default: xg= 0; yg=  0; break;
 		}
 		xg = (int)( ((double)xg) * 0.7);
 		yg = (int)( ((double)yg) * 0.7);
@@ -11230,12 +11016,10 @@ public:
 			line(drawbuf, 1+plx + x, 1+ply + y - 15, 1+plx + xg, 1+ply + yg, pc1);
 		}
 
-		// the player is an ugly thin ellipse! 30=player's height x2 (60)
-		// REMENDO: nao vai ter eixo Z mesmo....
 		// outer color: team color
-		circlefill(drawbuf, plx + x, ply + y - 15 - 0, 15, pc1);
+		circlefill(drawbuf, plx+x, ply+y-15, 15, pc1);
 		// inner color: self color
-		circlefill(drawbuf, plx + x, ply + y - 15 - 0, 10, pc2);
+		circlefill(drawbuf, plx+x, ply+y-15, 10, pc2);
 
 		//desenha arma depois se dir 0,1,2,3,4
 		if (gundir < 5) {
@@ -11258,7 +11042,7 @@ public:
 		// erase old chat messages (this shouldn't be here really but wtf..)
 		//
 		if (chaterasetime < get_time())
-			print_message("");
+			erase_first_message();
 
 		//do not draw anything if "me" not known
 		if (me < 0)
@@ -11335,7 +11119,7 @@ public:
 			//regular ground
 			else
 			*/
-				rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
+			rectfill(drawbuf, plx, ply, plx + plw, ply + plh, col[COLGROUND]);
 
 			// place of flag
 			for (int team = 0; team < 2; team++)
@@ -11349,7 +11133,7 @@ public:
 					int y2 = min(2 * FLAGPOS_RAD, plh - flag_y + FLAGPOS_RAD + 1);
 					blit(flagpos_buf[team], drawbuf, x1, y1,
 						plx + flag_x - FLAGPOS_RAD + x1, ply + flag_y - FLAGPOS_RAD + y1, x2 - x1, y2 - y1);
-			}
+				}
 
 			// map walls
 			if (player[me].x >= 0 && player[me].y >= 0 && player[me].x < map.w && player[me].y < map.h)
@@ -11828,41 +11612,42 @@ public:
 						cfx[i].used = false;
 					}
 					else {
-						set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
 						//radius
 						int e,rad,co;
 						if (delta < 1.0)
 							rad = (int)(delta * 100);
 						else
 							rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
-						//brightening ring
-						for (e=0;e<30;e++) {
-							if (cfx[i].owner/TSIZE)
-								co = makecol(0,0,14+8*e);
-							else
-								co = makecol(14+8*e,0,0);
-							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
-							//ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
-							//ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
-							rad++;
+						int maxxd = max(cfx[i].x, plw-cfx[i].x), maxyd = max(cfx[i].y, plh-cfx[i].y);
+						if (maxxd*maxxd + maxyd*maxyd >= rad*rad) {
+							set_clip(drawbuf, plx, ply, plx + plw, ply + plh);
+							//brightening ring
+							for (e=0;e<30;e++) {
+								if (cfx[i].owner/TSIZE)
+									co = makecol(0,0,14+8*e);
+								else
+									co = makecol(14+8*e,0,0);
+								circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
+								//ellipse(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, rad, co);
+								//ellipse(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, rad, co);
+								rad++;
+							}
+							//darkening ring
+							for (e=0;e<10;e++) {
+								if (cfx[i].owner/TSIZE)
+									co = makecol(0,0,255-14*e);
+								else
+									co = makecol(255-14*e,0,0);
+								circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
+								circle(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, co);
+								circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, co);
+								rad++;
+							}
+							set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 						}
-						//darkening ring
-						for (e=0;e<10;e++) {
-							if (cfx[i].owner/TSIZE)
-								co = makecol(0,0,255-14*e);
-							else
-								co = makecol(255-14*e,0,0);
-							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y, rad, co);
-							circle(drawbuf, plx + cfx[i].x+1, ply + cfx[i].y, rad, co);
-							circle(drawbuf, plx + cfx[i].x, ply + cfx[i].y+1, rad, co);
-							rad++;
-						}
-						set_clip(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 					}
 				}
-
 			}
-
 		}
 
 		//do not draw stuff below if map not ready to show
@@ -12153,10 +11938,8 @@ public:
 		char lix[16];
 		char *themsg;
 		int top = 0;
-		for (i=0;i<CHAT_SIZE;i++) {
-			if (chatbuffer[i][0] != 0) {
-				top = i+1;
-
+		for (i=0;i<CHAT_SIZE;i++)
+			if (chatbuffer[i][0] != '\0') {
 				//default text color (normal chat)
 				int tcol = col[COLORA];
 
@@ -12174,9 +11957,9 @@ public:
 					themsg = chatbuffer[i];	//don't discard 2 chars because there's no "@x" rpefix
 
 				//colorful text
-				textprintf(drawbuf, font, 3, 3+i*11, tcol, "%s", themsg);
+				textprintf(drawbuf, font, 3, 3+top*11, tcol, "%s", themsg);
+				top++;
 			}
-		}
 
 		// the HUD: input text on "top" of message output
 		//
@@ -12671,6 +12454,7 @@ public:
 	}
 
 	void client_connected(char *data, int length) {
+		(void)length;
 
 		//not trying anymore
 		trying_connection = false;
@@ -12739,7 +12523,7 @@ public:
 		// players
 
 		for (i=0;i<MAX_PLAYERS;i++)
-			player[i].clear(false, false, i, 0, "(name unknown)"); //#NR: replaced manual initialization including memset(0)
+			player[i].clear(false, false, i, 0, "(name unknown)");
 
 		//reset FPS count vars
 		framecount = 0;
@@ -13046,22 +12830,24 @@ public:
 		else
 			strcpy(address, gamespy[gi].address);
 
-
 		// start connecting to specified IP/port
 		// connection results will come through the CFUNC_CONNECTION_UPDATE callback
-		char addr[256];
 		if (address[0] == '\0')	{ //empty address == my own ip
 			NLaddress myadr;
 			get_self_IP(&myadr);
+			nlSetAddrPort(&myadr, port);
 			nlAddrToString(&myadr, address);
+/*
 			if (showmaster)
 				strcpy(mgamespy[gi].address, address);	//copy to gamespy
 			else
 				strcpy(gamespy[gi].address, address);	//copy to gamespy
+*/
 		}
+		else if (strchr(address, ':')==NULL)
+			strcat(address, ":25000");
 
-		sprintf(addr, "%s:%i", address, port);
-		client->set_server_address(addr);
+		client->set_server_address(address);
 
 		//set connect-data (goes in every connect packet): outgun game name and version strings
 		char lebuf[256]; int count = 0;
@@ -13255,6 +13041,7 @@ public:
 
 	//process incoming data
 	void process_incoming_data(char *data, int length) {
+		(void)length;
 
 		//this is a HACK:
 		int whatme = 0;
@@ -13542,17 +13329,28 @@ public:
 					break;
 
 				//text message
-				case 2:
+				case 2: {
 					chatmsg = &(msg[1]);		//avoid a useless readString...
 					print_message(chatmsg);		//print it to the "console"
+					// print message to log
+					// date and time
+					time_t tt = time(0);
+					struct tm* tmb = localtime(&tt);
+					message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
+						<< '-' << setfill('0') << setw(2) << tmb->tm_mday
+						<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
+						<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
+					// message
+					message_log << (msg[0] == '@' ? msg + 2 : msg) << '\n';
+
 					//talk sound
 					if ((strlen(chatmsg) >= 2) && (chatmsg[0] == '@') && (chatmsg[1] == 'I')) {
 						//don't play talk
 					}
 					else
 						sound(SAMPLE_TALK);
-
 					break;
+				}
 
 				//"hello" one-time server information ("first packet")
 				case 3:
@@ -13774,6 +13572,10 @@ public:
 					else {
 						//FIXME: unknown map kind
 					}
+					#ifndef NR_SUPPORT_OLD_SERVERS
+					for (int iid=0; iid<MAX_PICKUPS; ++iid)
+						fx.item[iid].kind = 0;
+					#endif
 					break;
 
 				//server shows gameover plaque
@@ -13920,43 +13722,23 @@ public:
 		client->send_message(lebuf, count);
 	}
 
+	void erase_first_message() {
+		for (int i=1; i<CHAT_SIZE; ++i)
+			strcpy(chatbuffer[i-1], chatbuffer[i]);
+		chatbuffer[CHAT_SIZE-1][0] = '\0';
+		chaterasetime = get_time() + 10.0;
+	}
+
 	//print message to "console"
 	void print_message(const char *msg) {
-
-		// find top
-		int top = 0;
-		if (msg[0] == '\0')
-			top = CHAT_SIZE;
-		else {
-			for (int i=0;i<CHAT_SIZE;i++)
-			if (chatbuffer[i][0] != 0)
-				top = i + 1;
-		}
-
-		// back up if top == CHAT_SIZE
-		if (top >= CHAT_SIZE) {
-			for (int i=0;i<CHAT_SIZE - 1;i++)
-				strcpy(chatbuffer[i], chatbuffer[i+1]);
-			top = CHAT_SIZE - 1;
-		}
-
-		// set new at top position
-		strcpy(chatbuffer[top], msg);
-
-		// print message to log, if it is not empty
-		if (msg[0] != '\0') {
-			// date and time
-			time_t tt = time(0);
-			struct tm* tmb = localtime(&tt);
-			message_log << tmb->tm_year + 1900 << '-' << setfill('0') << setw(2) << tmb->tm_mon + 1
-				<< '-' << setfill('0') << setw(2) << tmb->tm_mday
-				<< ' ' << setw(2) << tmb->tm_hour << ':' << setfill('0') << setw(2) << tmb->tm_min << ':'
-				<< setfill('0') << setw(2) << tmb->tm_sec << "  ";
-				// message
-			message_log << (msg[0] == '@' ? msg + 2 : msg) << '\n';
-		}
-
-		// time to erase
+		int i;
+		for (i=CHAT_SIZE-1; i>0; --i)
+			if (chatbuffer[i][0]=='\0')
+				break;
+		// i points to first shift target (0 if no spaces were found)
+		for (++i; i<CHAT_SIZE; ++i)
+			strcpy(chatbuffer[i-1], chatbuffer[i]);
+		strcpy(chatbuffer[CHAT_SIZE-1], msg);
 		chaterasetime = get_time() + 10.0;
 	}
 
