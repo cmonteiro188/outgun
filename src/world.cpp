@@ -1449,21 +1449,21 @@ bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, int x, int 
 	return false;
 }
 
-// drop turbo, shadow, power or weapon power-up if player has one of them
+// drop shield, turbo, shadow, power or weapon power-up if player has some of them
 void ServerWorld::drop_pickup(const ServerPlayer& player) {
 	vector<Powerup::Pup_type> player_items;
 	if (player.item_shield)			// only at suicides
 		player_items.push_back(Powerup::pup_shield);
-	if (player.item_speed && player.item_speed_time >= pupConfig.pup_add_time)
+	if (player.item_speed && player.item_speed_time - get_time() >= pupConfig.pup_add_time / 2)
 		player_items.push_back(Powerup::pup_turbo);
-	if (player.item_helm() && player.item_helm_time >= pupConfig.pup_add_time)
+	if (player.item_helm() && player.item_helm_time - get_time() >= pupConfig.pup_add_time / 2)
 		player_items.push_back(Powerup::pup_shadow);
-	if (player.item_quad && player.item_quad_time >= pupConfig.pup_add_time)
+	if (player.item_quad && player.item_quad_time - get_time() >= pupConfig.pup_add_time / 2)
 		player_items.push_back(Powerup::pup_power);
 	if (player.weapon >= 1)			// 1 means double weapon
 		player_items.push_back(Powerup::pup_weapon);
 
-	if (player_items.empty())	// nothing to drop
+	if (player_items.empty())		// nothing to drop
 		return;
 
 	for (int p = 0; p < MAX_PICKUPS; p++)
@@ -1608,7 +1608,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 		}
 		case Powerup::pup_turbo: {
 			double itemTime = player[p].item_speed_time-get_time();
-			if (!player[p].item_speed || itemTime<0)
+			if (!player[p].item_speed || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
@@ -1634,7 +1634,7 @@ void ServerWorld::game_touch_pickup(int p, int pk) {
 		}
 		case Powerup::pup_power: {
 			double itemTime = player[p].item_quad_time-get_time();
-			if (!player[p].item_quad || itemTime<0)
+			if (!player[p].item_quad || itemTime < 0)
 				itemTime = 0;
 			itemTime = pupConfig.addTime(itemTime);
 
@@ -2734,7 +2734,8 @@ Statistics::Statistics():
 
 void Statistics::add_kill(bool deathbringer) {
 	++total_kills;
-	most_consecutive_kills = max(most_consecutive_kills, ++current_consecutive_kills);
+	if (++current_consecutive_kills > most_consecutive_kills);
+		most_consecutive_kills = current_consecutive_kills;
 	current_consecutive_deaths = 0;
 	if (deathbringer)
 		++total_deathbringer_kills;
@@ -2742,7 +2743,8 @@ void Statistics::add_kill(bool deathbringer) {
 
 void Statistics::add_death(bool deathbringer, int time) {
 	++total_deaths;
-	most_consecutive_deaths = max(most_consecutive_deaths, ++current_consecutive_deaths);
+	if (++current_consecutive_deaths > most_consecutive_deaths);
+		most_consecutive_deaths = current_consecutive_deaths;
 	current_consecutive_kills = 0;
 	if (deathbringer)
 		++total_deathbringer_deaths;
