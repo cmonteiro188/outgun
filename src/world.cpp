@@ -2098,6 +2098,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 	player[rock[rid].owner].stats().add_hit();
 	teams[rock[rid].team].add_hit();
 	player[pid].stats().add_shot_take();
+	teams[pid / TSIZE].add_shot_take();
 
 	//if player not dead, push him
 	if (player[pid].health > 0) {
