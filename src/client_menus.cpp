@@ -327,7 +327,7 @@ void Menu_text::addLine(const string& line, bool cancelable) {
 void Menu_text::addLine(const string& caption, const string& value, bool cancelable) {
 	lines.push_back(StaticText(caption, value));
 
-	int oldSel = menu.selection();
+	const int oldSel = menu.selection();
 	menu.clear_components();
 	for (vector<StaticText>::iterator li = lines.begin(); li != lines.end(); ++li)
 		menu.add_component(&*li);
@@ -376,7 +376,7 @@ Menu_help::Menu_help() :
 void Menu_help::addLine(const string& line) {
 	lines.push_back(line);
 
-	int oldSel = menu.selection();
+	const int oldSel = menu.selection();
 	menu.clear_components();
 	text = Textobject();
 	for (vector<string>::iterator li = lines.begin(); li != lines.end(); ++li)
