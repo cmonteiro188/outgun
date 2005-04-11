@@ -752,7 +752,7 @@ public:
 
     bool lock_team_flags;
     bool lock_wild_flags;
-    bool capture_on_own_flag;
+    bool capture_on_team_flag;
     bool capture_on_wild_flag;
 
     static const int shadow_minimum_normal;
@@ -785,6 +785,13 @@ class ServerWorld : public WorldBase {
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);
+    
+    bool lock_team_flags_in_effect() const;
+    bool lock_wild_flags_in_effect() const;
+    bool capture_on_team_flags_in_effect() const;
+    bool capture_on_wild_flags_in_effect() const;
+    
+    bool all_kind_of_flags_exist() const;
 
 public:
     NLulong frame;

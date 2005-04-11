@@ -1348,7 +1348,7 @@ void WorldSettings::reset() {
 
     lock_team_flags = false;
     lock_wild_flags = false;
-    capture_on_own_flag = true;
+    capture_on_team_flag = true;
     capture_on_wild_flag = false;
 }
 
@@ -1952,7 +1952,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                 break;  // only one frag even for defending multiple carriers
             }
         // Check if the own flag is lying on the ground in the target's screen.
-        if (!config.lock_team_flags || wild_flags.empty())    // Not much defending if the flag couldn't be moved anyway.
+        if (!lock_team_flags_in_effect())    // Not much defending if the flag couldn't be moved anyway.
             for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
                 if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
                     flag_defended = true;
@@ -2813,34 +2813,38 @@ void ServerWorld::simulateFrame() {
             }
 
         // Flag steal - touch other team's flag or wild flag
+        // ft = 0 => Touch enemy flag
+        // ft = 1 => Touch wild flag
         bool touches_flag = false;
-        if (!pl.stats().has_flag()) {
-            if (!config.lock_wild_flags || teams[0].flags().empty() || teams[1].flags().empty()) {
-                int f = 0;
-                for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi, ++f)
-                    if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
-                        touches_flag = true;
-                        // Has player just dropped the flag or not?
-                        if (!pl.dropped_flag && !pl.drop_key) {
-                            player_steals_flag(i, 2, f);
-                            break;  // only take one flag
-                        }
-                    }
+        for (int ft = 0; ft < 2; ft++) {
+            if (pl.stats().has_flag())
+                break;
+            if (ft == 0 && lock_team_flags_in_effect())
+                continue;
+            if (ft == 1 && lock_wild_flags_in_effect())
+                break;
+            const vector<Flag>* flags;
+            int flag_team;
+            if (ft == 0) {
+                flag_team = enemyteam;
+                flags = &teams[enemyteam].flags();
             }
-            if (!pl.stats().has_flag() && (!config.lock_team_flags || wild_flags.empty())) {
-                int f = 0;
-                for (vector<Flag>::const_iterator fi = teams[enemyteam].flags().begin(); fi != teams[enemyteam].flags().end(); ++fi, ++f)
-                    if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
-                        touches_flag = true;
-                        // Has player just dropped the flag or not?
-                        if (!pl.dropped_flag && !pl.drop_key) {
-                            player_steals_flag(i, enemyteam, f);
-                            break;  // only take one flag
-                        }
-                    }
+            else {
+                flag_team = 2;
+                flags = &wild_flags;
             }
+            int f = 0;
+            for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
+                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+                    touches_flag = true;
+                    // Has player just dropped the flag or not?
+                    if (!pl.dropped_flag && !pl.drop_key) {
+                        player_steals_flag(i, flag_team, f);
+                        break;  // only take one flag
+                    }
+                }
         }
-        if (!pl.drop_key && !touches_flag)
+        if (!pl.drop_key && !touches_flag)  // Player who dropped the flag has now moved outside it.
             pl.dropped_flag = false;
 
         // Flag return - wild flags can't be returned
@@ -2859,9 +2863,9 @@ void ServerWorld::simulateFrame() {
         // ft = 0 => Take enemy or wild flag to own flag
         // ft = 1 => Take enemy or wild flag to wild flag
         for (int ft = 0; ft < 2; ft++) {
-            if (ft == 0 && !config.capture_on_own_flag && !wild_flags.empty())
+            if (ft == 0 && !capture_on_team_flags_in_effect())
                 continue;
-            if (ft == 1 && !config.capture_on_wild_flag)
+            if (ft == 1 && !capture_on_wild_flags_in_effect())
                 break;
             const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
             for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy) {
@@ -2922,6 +2926,26 @@ void ServerWorld::simulateFrame() {
     }
 }
 
+bool ServerWorld::lock_team_flags_in_effect() const {
+    return config.lock_team_flags && all_kind_of_flags_exist();
+}
+
+bool ServerWorld::lock_wild_flags_in_effect() const {
+    return config.lock_wild_flags && all_kind_of_flags_exist();
+}
+
+bool ServerWorld::capture_on_team_flags_in_effect() const {
+    return config.capture_on_team_flag || !all_kind_of_flags_exist();
+}
+
+bool ServerWorld::capture_on_wild_flags_in_effect() const {
+    return config.capture_on_wild_flag || !all_kind_of_flags_exist();
+}
+
+bool ServerWorld::all_kind_of_flags_exist() const {
+    return !wild_flags.empty() && !teams[0].flags().empty() && !teams[1].flags().empty();
+}
+
 void ServerWorld::player_steals_flag(int pid, int team, int flag) {
     host->score_frag(pid, 1);   // just add some frags
     player[pid].stats().add_flag_take(get_time(), team == 2);
@@ -2958,7 +2982,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
         }
     host->score_frag(pid, 3);
     player[pid].stats().add_capture(get_time());
-    teams[myteam].add_score(getMapTime(), player[pid].name);
+    teams[myteam].add_score(getMapTime() / 10, player[pid].name);
     returnFlag(team, flag);
 
     net->broadcast_capture(player[pid], team);
@@ -3094,7 +3118,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     out << "<TABLE BORDER CLASS=\"captures\">\n";
     out << " <TR><TH>Time<TH>Team<TH>Score<TH>Capturer\n";
 
-    int red_score = 0, blue_score = 0;
+    int red_score = teams[0].base_score(), blue_score = teams[1].base_score();
     for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ;) {
         string time, team, capturer;
         if (red != teams[0].captures().end() && (blue == teams[1].captures().end() || red->first <= blue->first)) {

@@ -500,7 +500,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
         PT(new GS_Boolean   ("lock_team_flags",         &worldConfig.lock_team_flags)),
         PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
-        PT(new GS_Boolean   ("capture_on_own_flag",     &worldConfig.capture_on_own_flag)),
+        PT(new GS_Boolean   ("capture_on_team_flag",    &worldConfig.capture_on_team_flag)),
         PT(new GS_Boolean   ("capture_on_wild_flag",    &worldConfig.capture_on_wild_flag)),
         PT(new GS_Balance   ("balance_teams",           &worldConfig.balance_teams)),
         PT(new GS_ForwardStr("server_name",             setHostname)),
@@ -590,11 +590,12 @@ bool Server::load_rotation_map(int pos) {
     if (world.wild_flags.empty() || world.teams[0].flags().empty() || world.teams[1].flags().empty())
         return true;
     const bool remove_all = worldConfig.lock_team_flags && worldConfig.lock_wild_flags;
-    if (remove_all || (worldConfig.lock_team_flags && !worldConfig.capture_on_own_flag)) {
+    if (remove_all || (worldConfig.lock_team_flags && !worldConfig.capture_on_team_flag)) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
+        world.remove_team_flags(2);
     }
-    if (remove_all || (worldConfig.lock_wild_flags && !worldConfig.capture_on_wild_flag))
+    else if (worldConfig.lock_wild_flags && !worldConfig.capture_on_wild_flag)
         world.remove_team_flags(2);
     return true;
 }

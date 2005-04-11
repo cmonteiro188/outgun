@@ -300,7 +300,7 @@ class Client {
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
-    NLbyte flags;
+    NLbyte remove_flags;
 
     // GUI
     Menu_main menu;
@@ -419,6 +419,7 @@ class Client {
     void MCF_stopServer();
 
     void load_fav_maps();
+    void apply_fav_maps();
 
     void loadHelp();
     void loadSplashScreen();

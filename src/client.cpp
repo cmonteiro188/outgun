@@ -882,8 +882,6 @@ bool Client::start() {
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
 
-    load_fav_maps();
-
     return true;
 }
 
@@ -1102,6 +1100,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     map_start_time = 0;
     map_end_time = 0;
     map_vote = -1;
+    remove_flags = 0;
 
     //send name update request
     issue_change_name_command();
@@ -1736,6 +1735,18 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_DoDisconnect());
                     break;
                 }
+                if (type == msg_server) {   // This is a kludge because of compatibility. Remove in version 1.1.
+                    string::size_type pos = chatmsg.find(" decided it's time for a map change.");
+                    if (pos != string::npos) {
+                        const string name = chatmsg.substr(0, pos);
+                        chatmsg = _("$1 decided it's time for a map change.", name);
+                    }
+                    pos = chatmsg.find(" decided it's time for a restart.");
+                    if (pos != string::npos) {
+                        const string name = chatmsg.substr(0, pos);
+                        chatmsg = _("$1 decided it's time for a restart.", name);
+                    }
+                }
                 addThreadMessage(new TM_Text(type, chatmsg));
                 if (type == msg_team || type == msg_normal)
                     addThreadMessage(new TM_Sound(SAMPLE_TALK));
@@ -1995,8 +2006,10 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[me].oldx = -1;
                 fx.player[me].oldy = -1;
                 old_map = fx.map.title;
-                if (count > 0)
-                    readByte(lebuf, count, flags);
+                if (count < msglen)
+                    readByte(lebuf, count, remove_flags);
+                else
+                    remove_flags = 0;
                 addThreadMessage(new TM_MapChange(mapname, crc));
                 const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
                 addThreadMessage(new TM_Text(msg_info, msg));
@@ -3207,6 +3220,10 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     /*break;*/ case KEY_F2:
             menusel = (menusel == menu_maps ? menu_none : menu_maps);
             stats_autoshowing = false;
+            if (menusel == menu_maps) {
+                load_fav_maps();
+                apply_fav_maps();
+            }
         break; case KEY_F3:
             menusel = (menusel == menu_teams ? menu_none : menu_teams);
             stats_autoshowing = false;
@@ -3710,7 +3727,7 @@ bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
 
 void Client::remove_useless_flags() {
     for (int i = 0; i < 3; i++)
-        if (!(flags & (0x01 << i))) {
+        if (remove_flags & (0x01 << i)) {
             fx.remove_team_flags(i);
             fd.remove_team_flags(i);
         }
@@ -4724,7 +4741,15 @@ void Client::load_fav_maps() {
     ifstream in(configFile.c_str());
     string line;
     while (getline_skip_comments(in, line))
-        fav_maps.push_back(line);
+        fav_maps.push_back(trim(line));
+}
+
+void Client::apply_fav_maps() {
+    for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi) {
+        const vector<string>::const_iterator mf = find(fav_maps.begin(), fav_maps.end(), mi->title);
+        if (mf != fav_maps.end())
+            mi->highlight = true;
+    }
 }
 
 void Client::loadHelp() {
