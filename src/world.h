@@ -178,7 +178,7 @@ if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and trac
         nAssert(px>=0 && py>=0 && px<w && py<h);
         return room[px][py].fall_on_wall(x, y, r);
     }
-    bool load(LogSet& log, const char *mapdir, const std::string& mapname);
+    bool load(LogSet& log, const std::string& mapdir, const std::string& mapname);
 };
 
 class MapInfo {
@@ -702,7 +702,7 @@ public:
                                         int frameAdvance, int team, bool power, int px, int py, int x, int y);
 
     void run_server_player_physics(int pid);
-    virtual bool load_map(LogSet& log, const char *mapdir, const std::string& mapname) { return map.load(log, mapdir, mapname); }
+    virtual bool load_map(LogSet& log, const std::string& mapdir, const std::string& mapname) { return map.load(log, mapdir, mapname); }
     virtual void returnAllFlags();
     virtual void returnFlag(int team, int flag);
     virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
@@ -810,7 +810,7 @@ public:
     const PowerupSettings& getPupConfig() const { return pupConfig; }
 
     // common (virtual in base) extended functions
-    bool load_map(const char *mapdir, const std::string& mapname);
+    bool load_map(const std::string& mapdir, const std::string& mapname);
     void returnAllFlags();
     void returnFlag(int team, int flag);
     void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);

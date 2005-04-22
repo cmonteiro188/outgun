@@ -471,6 +471,7 @@ class Client {
     void process_udp_download_chunk(const char* buf, int len, bool last);
     void download_server_file(const std::string& type, const std::string& name);
     void server_map_command(const std::string& mapname, NLushort server_crc);
+    bool load_map(const std::string& directory, const std::string& mapname, NLushort server_crc);
 
     void handlePendingThreadMessages(); // should only be called by the main thread; call with frameMutex locked
 

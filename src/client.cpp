@@ -973,24 +973,17 @@ void Client::download_server_file(const string& type, const string& name) {
     check_download();
 }
 
-//server tells client of current map / map change
-// client must attempt to load map from "cmaps" dir
-// if map file not there, or the CRC's don't match, ask to download the map from the server
+// Server tells client of current map / map change.
+// Client checks from the "cmaps" and "maps" directory.
+// If the map file is not there, or the CRC's don't match, download the map from the server to "cmaps".
 void Client::server_map_command(const string& mapname, NLushort server_crc) {
     log("Received map change: '%s'", mapname.c_str());
 
     servermap = mapname;
 
-    // try to load the map, in case it's already downloaded
-    LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
-    const bool ok = fd.load_map(noLogSet, CLIENT_MAPS_DIR, mapname) && fx.load_map(noLogSet, CLIENT_MAPS_DIR, mapname); //#fix
-
-    if (!ok)
-        log("Map '%s' not found", mapname.c_str());
-    else if (fx.map.crc != server_crc)
-        log("Map '%s' found but it's CRC %i differs from server map CRC %i", mapname.c_str(), fx.map.crc, server_crc);
-    else {
-        log("Map '%s' loaded successfully", mapname.c_str());
+    // Try to load the map first from "cmaps" and, if not found there, from "maps".
+    if (load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
+        log("Map '%s' loaded successfully.", mapname.c_str());
         remove_useless_flags();
         mapChanged = true;
         map_ready = true;
@@ -1004,6 +997,21 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
     log("%s", msg.c_str());
 
     download_server_file("map", mapname);
+}
+
+bool Client::load_map(const string& directory, const string& mapname, NLushort server_crc) {
+    LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
+    
+    const bool ok = fd.load_map(noLogSet, directory, mapname) && fx.load_map(noLogSet, directory, mapname); //#fix
+
+    if (!ok)
+        log("Map '%s' not found in '%s'.", mapname.c_str(), directory.c_str());
+    else if (fx.map.crc != server_crc)
+        log("Map '%s' found in '%s' but it's CRC %i differs from server map CRC %i.",
+            mapname.c_str(), directory.c_str(), fx.map.crc, server_crc);
+    else
+        return true;
+    return false;
 }
 
 void Client::disconnect_command() { // do not call from a network thread

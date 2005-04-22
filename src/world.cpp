@@ -345,7 +345,7 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
     return bd;
 }
 
-bool Map::load(LogSet& log, const char* mapdir, const string& mapname) {
+bool Map::load(LogSet& log, const string& mapdir, const string& mapname) {
     const string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
 
     ifstream in(fileName.c_str());
@@ -1446,7 +1446,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
     printer(map_time.str());
 }
 
-bool ServerWorld::load_map(const char* mapdir, const string& mapname) {
+bool ServerWorld::load_map(const string& mapdir, const string& mapname) {
     map_start_time = frame;
     const bool success = WorldBase::load_map(log, mapdir, mapname);
     for (int t = 0; t < 2; t++) {
