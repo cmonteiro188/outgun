@@ -1266,10 +1266,11 @@ void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int directi
     solid_mode();
 }
 
-void Graphics::draw_player_name(const string& name, int x, int y, int team) {
+void Graphics::draw_player_name(const string& name, int x, int y, int team, bool highlight) {
     x = scale(x);
     y = scale(y);
-    print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), col[COLWHITE], teamdcol[team], -1);
+    const int c = highlight ? col[COLYELLOW] : col[COLWHITE];
+    print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), c, teamdcol[team], -1);
 }
 
 void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
@@ -1944,9 +1945,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     for (; msg != end; ++msg, ++line) {
         if (msg->text().empty())
             continue;
-
-        // print the message
-        print_chat_message(msg->type(), msg->text(), margin, margin + line * line_height);
+        print_chat_message(msg->type(), msg->text(), margin, margin + line * line_height, msg->highlighted());
     }
     if (!talkbuffer.empty()) {
         ostringstream message;
@@ -1957,7 +1956,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     }
 }
 
-void Graphics::print_chat_message(Message_type type, const string& message, int x, int y) {
+void Graphics::print_chat_message(Message_type type, const string& message, int x, int y, bool highlight) {
     int c;
     switch (type) {
     /*break;*/ case msg_warning: c = col[COLLRED];
@@ -1967,6 +1966,8 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         break; case msg_server: c = col[COLCYAN];
         break; case msg_normal: default: c = col[COLORA];
     }
+    if (highlight)
+        c = col[COLWHITE];
     print_text_border(message, x, y, c, 0, -1);
 }
 

@@ -119,7 +119,7 @@ public:
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
 
     void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
-    void draw_player_name(const std::string& name, int x, int y, int team);
+    void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time);
@@ -244,7 +244,7 @@ private:
     void draw_scoreboard_name(const std::string& name, int x, int y, int pcol, bool underline);
     void draw_scoreboard_points(int points, int x, int y, int team);
 
-    void print_chat_message(Message_type type, const std::string& message, int x, int y);
+    void print_chat_message(Message_type type, const std::string& message, int x, int y, bool highlight = false);
     void print_chat_input(const std::string& message, int x, int y);
 
     void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);

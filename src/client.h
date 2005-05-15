@@ -343,6 +343,8 @@ class Client {
     std::string talkbuffer;
     std::list<Message> chatbuffer;
     bool show_all_messages;
+    std::vector<std::string> highlight_text;
+
     bool stats_autoshowing;
     Graphics client_graphics;
     bool screenshot;
@@ -418,6 +420,7 @@ class Client {
     void MCF_playServer();
     void MCF_stopServer();
 
+    void load_highlight_texts();
     void load_fav_maps();
     void apply_fav_maps();
 
@@ -511,16 +514,20 @@ extern Client *gameclient;
 class Message {
 public:
     Message(Message_type type_, const std::string& txt, int time_):
-        msg_type(type_), msg_text(txt), msg_time(time_) { }
+        msg_type(type_), msg_text(txt), msg_time(time_), is_highlighted(false) { }
+
+    void highlight() { is_highlighted = true; }
 
     Message_type type() const { return msg_type; }
     const std::string& text() const { return msg_text; }
     int time() const { return msg_time; }
+    bool highlighted() const { return is_highlighted; }
 
 private:
     Message_type msg_type;
     std::string msg_text;
     int msg_time;
+    bool is_highlighted;
 };
 
 #endif

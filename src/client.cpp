@@ -879,6 +879,9 @@ bool Client::start() {
         menu.ownServer.address.set(serverExtConfig.ipAddress);
     }
 
+    // message highlighting
+    load_highlight_texts();
+
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
 
@@ -2215,7 +2218,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 mapinfo.width = width;
                 mapinfo.height = height;
                 mapinfo.votes = votes;
-                const vector<string>::const_iterator mi = find(fav_maps.begin(), fav_maps.end(), mapinfo.title);
+                const vector<string>::const_iterator mi = find(fav_maps.begin(), fav_maps.end(), toupper(mapinfo.title));
                 if (mi != fav_maps.end())
                     mapinfo.highlight = true;
                 MutexDebug md("mapInfoMutex", __LINE__, log);
@@ -2816,11 +2819,22 @@ void Client::print_message(Message_type type, const string& msg) {
             message_log << date_and_time() << "  " << msg << endl;
     }
 
+    bool highlight = false;
+    if (type == msg_normal || type == msg_team) {
+        const string uppercase = toupper(msg);
+        for (vector<string>::const_iterator hi = highlight_text.begin(); hi != highlight_text.end(); ++hi)
+            if (uppercase.find(*hi) != string::npos) {
+                highlight = true;
+                break;
+            }
+    }
     const vector<string> lines = split_to_lines(msg, 79, 4);
     while (chatbuffer.size() > client_graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
     for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
         Message message(type, *li, static_cast<int>(get_time()));
+        if (highlight)
+            message.highlight();
         chatbuffer.push_back(message);
     }
 }
@@ -3893,7 +3907,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                         continue;
                 const int ttx = static_cast<int>(fd.player[i].lx);
                 const int tty = static_cast<int>(fd.player[i].ly);
-                client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE);
+                client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE, i == me);
             }
     }
 
@@ -3982,7 +3996,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     client_graphics.draw_fps(FPS);
 
     // Time left if time limit is on and the game is running.
-    if (map_time_limit && gameover_plaque == NEXTMAP_NONE)
+    if (map_time_limit && gameover_plaque == NEXTMAP_NONE && players_sb.size() > 1)
         if (map_end_time > get_time())
             client_graphics.map_time(map_end_time - static_cast<int>(get_time()));
         else
@@ -4743,18 +4757,27 @@ void Client::MCF_stopServer() {
         listenServer.stop();
 }
 
+void Client::load_highlight_texts() {
+    highlight_text.clear();
+    const string configFile = wheregamedir + "config" + directory_separator + "texts.txt";
+    ifstream in(configFile.c_str());
+    string line;
+    while (getline_skip_comments(in, line))
+        highlight_text.push_back(toupper(trim(line)));
+}
+
 void Client::load_fav_maps() {
     fav_maps.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
     ifstream in(configFile.c_str());
     string line;
     while (getline_skip_comments(in, line))
-        fav_maps.push_back(trim(line));
+        fav_maps.push_back(toupper(trim(line)));
 }
 
 void Client::apply_fav_maps() {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi) {
-        const vector<string>::const_iterator mf = find(fav_maps.begin(), fav_maps.end(), mi->title);
+        const vector<string>::const_iterator mf = find(fav_maps.begin(), fav_maps.end(), toupper(mi->title));
         if (mf != fav_maps.end())
             mi->highlight = true;
     }

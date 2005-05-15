@@ -60,6 +60,9 @@ std::string approxTime(int seconds);
 // Convert string to uppercase.
 std::string toupper(std::string str);
 
+// Convert Latin 1 character to uppercase.
+unsigned char latin1_toupper(unsigned char c);
+
 // Strip beginning and trailing whitespaces.
 std::string trim(std::string str);
 
