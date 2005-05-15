@@ -83,9 +83,9 @@ class Thread {
     pthread_t thread;
     bool running;   // set if running AND not detached
 
-    // deny copying
-    Thread(const Thread&) { }
-    Thread& operator=(const Thread&) { return *this; }
+    // deny copying (these aren't defined anywhere)
+    Thread(const Thread&);
+    Thread& operator=(const Thread&);
 
 public:
     Thread() : running(false) { }

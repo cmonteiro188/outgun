@@ -178,7 +178,7 @@ public:
     void simplify();    // removes double borders from build list (assuming it's sorted)
     void moveElements(int texid);   // moves all borders from build list to final list (use only when the final list is empty)
     void moveElementsWithOverlap(int texid, bool overlay);  // moves all borders from build list to final list overlapping the old walls
-    void extractDrawElements(std::vector<DrawElement>& dst) const;
+    void extractDrawElements(std::list<DrawElement>& dst) const;
     void debug(bool verbose = false) const;
 
     YSegment(const YSegment& o) { *this = o; }

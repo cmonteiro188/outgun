@@ -1944,14 +1944,14 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
 
     bool carrier_defended = false, flag_defended = false;
     if (!same_team) {
-        // Check if the enemy flag is carried in the target's screen by somebody else than me.
+        // Check if an enemy flag or a wild flag is carried in the target's screen by a teammate.
         for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
             if (player[i].used && player[i].stats().has_flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
                 carrier_defended = true;
                 host->score_frag(attacker, 1);
                 break;  // only one frag even for defending multiple carriers
             }
-        // Check if the own flag is lying on the ground in the target's screen.
+        // Check if an own flag is lying on the ground in the target's screen.
         if (!lock_team_flags_in_effect())    // Not much defending if the flag couldn't be moved anyway.
             for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
                 if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {

@@ -542,7 +542,7 @@ void YSegment::moveElementsWithOverlap(int texid, bool overlay) {   // moves all
     nAssert(final.empty() || final.back().getBaseTex() == -1);
 }
 
-void YSegment::extractDrawElements(vector<DrawElement>& dst) const {
+void YSegment::extractDrawElements(list<DrawElement>& dst) const {
     nAssert(build.empty());
     if (final.empty())
         return;
@@ -660,9 +660,11 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
     #endif
 }
 
-void joinElements(vector<DrawElement>& els) {
-    for (vector<DrawElement>::iterator i1 = els.begin(); i1 != els.end(); ++i1)
-        for (vector<DrawElement>::iterator i2 = i1 + 1; i2 != els.end(); ) {    // i2.y0 >= i1.y0 because of the ordering
+void joinElements(list<DrawElement>& els) {
+    for (list<DrawElement>::iterator i1 = els.begin(); i1 != els.end(); ++i1) {
+        list<DrawElement>::iterator i2 = i1;
+        ++i2;
+        for (; i2 != els.end(); ) {    // i2.y0 >= i1.y0 because of the ordering
             if (i2->getY0() > i1->getY1() + JOIN_TRESHOLD)  // all elements from i2 on have a greater y0, so no point in continuing
                 break;
             if (i1->isJoinable(*i2)) {
@@ -672,9 +674,10 @@ void joinElements(vector<DrawElement>& els) {
             else
                 ++i2;
         }
+    }
 }
 
-vector<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int texid) {
+list<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int texid) {
     SegListT segs;
     segs.push_back(YSegment(-1e99, 1e99));  // this makes the splitting routine simpler, since the new borders will always be within an existing segment
 
@@ -682,7 +685,7 @@ vector<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int t
     assembleSegments(borders, segs);
 
     // finalize segments and extract a DrawElement list
-    vector<DrawElement> ret;
+    list<DrawElement> ret;
     for (SegListT::iterator si = segs.begin(); si != segs.end(); ++si) {
         si->sort();
         si->simplify();
@@ -695,7 +698,7 @@ vector<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int t
     return ret;
 }
 
-vector<DrawElement> assembleScene(const vector<ObjectSource>& objects) {
+list<DrawElement> assembleScene(const vector<ObjectSource>& objects) {
     SegListT segs;
     segs.push_back(YSegment(-1e99, 1e99));  // this makes the splitting routine simpler, since the new borders will always be within an existing segment
 
@@ -711,7 +714,7 @@ vector<DrawElement> assembleScene(const vector<ObjectSource>& objects) {
         }
     }
     // extract a DrawElement list
-    vector<DrawElement> ret;
+    list<DrawElement> ret;
     for (SegListT::iterator si = segs.begin(); si != segs.end(); ++si)
         si->extractDrawElements(ret);
 
@@ -1290,13 +1293,14 @@ void SceneAntialiaser::addWallClipped    (const WallBase* wall, int texture) {
 }
 
 void SceneAntialiaser::render(Texturizer& tex) const {
-    const vector<DrawElement> drawEls = assembleScene(objects);
+    const list<DrawElement> drawEls = assembleScene(objects);
     #ifdef DEBUG_RENDER
     if (drawEls.size() < 50) {
         cerr << "rendering " << drawEls.size() << " elements:\n\n";
-        for (int de = 0; de < (int)drawEls.size(); ++de) {
-            const DrawElement& el = drawEls[de];
-            cerr << "Element " << de + 1 << ":\n";
+        int elInd = 1;
+        for (list<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei, ++elInd) {
+            const DrawElement& el = *ei;
+            cerr << "Element " << elInd << ":\n";
             cerr << "y-range [" << el.getY0() << ".." << el.getY1() << "] tex: " << el.getBaseTex() << '+' << el.getAllTextures().size() - 1 << '\n';
             cerr << "left:  "; el.getLeft().debug();
             cerr << "right: "; el.getRight().debug();
@@ -1304,6 +1308,6 @@ void SceneAntialiaser::render(Texturizer& tex) const {
         }
     }
     #endif
-    for (vector<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei)
+    for (list<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei)
         tex.render(ei->getAllTextures(), &*ei);
 }

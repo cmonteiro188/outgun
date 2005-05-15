@@ -586,7 +586,7 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
-    // Check the flag settings and remove the useless flags (only if there are three kind of flags).
+    // Check the flag settings and remove the useless flags (only if there are three kinds of flags).
     if (world.wild_flags.empty() || world.teams[0].flags().empty() || world.teams[1].flags().empty())
         return true;
     const bool remove_all = worldConfig.lock_team_flags && worldConfig.lock_wild_flags;
@@ -816,6 +816,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     }
     else if (random_first_map)
         currmap = rand() % maprot.size();
+    network.send_map_time(-1);  // broadcast time to all, in case time limit has been changed
     return true;
 }
 

@@ -3074,7 +3074,7 @@ bool Client::getServerList() {
         sock = NL_INVALID;
         return false;
     }
-    
+
     //build query
     ostringstream request;
     request << "GET " << g_masterSettings.query() << "?simple&branch=" << url_encode(GAME_BRANCH) << "&master=" << itoa(g_masterSettings.crc())
@@ -3803,8 +3803,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             else
                 client_graphics.draw_scores(_("GAME TIED"), -1, blue_final_score, red_final_score);
         }
-        else
-            client_graphics.draw_one_line_message(_("Connecting..."));  //#fix: if the map download is pending, "Connecting..." is a wrong word
 
         if (map_ready)
             client_graphics.draw_waiting_map_message(_("Waiting game start - next map is"), fx.map.title);

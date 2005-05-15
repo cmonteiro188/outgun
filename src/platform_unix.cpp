@@ -81,8 +81,11 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
                 funci = nFuncs;
                 break;
             }
-            if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)
+            if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS) {
+                delete[] capBuf;
+                delete[] msgBuf;
                 return;
+            }
         }
         else {
             MS_SLEEP(200);  // this is a total hack - but how else to detect the call failing?
@@ -92,8 +95,11 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
                 funci = nFuncs;
                 break;
             }
-            if (ret == 0 || (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)) // ret == 0 means the child is still running, ie. probably showing the message as it should
+            if (ret == 0 || (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)) { // ret == 0 means the child is still running, ie. probably showing the message as it should
+                delete[] capBuf;
+                delete[] msgBuf;
                 return;
+            }
         }
         ++lFunci;
         funci = lFunci;
@@ -101,4 +107,6 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
     #endif
     // execution of any dialog failed -> print to console
     fprintf(stderr, "%s: %s\n", captionConv, msgConv);
+    delete[] capBuf;
+    delete[] msgBuf;
 }

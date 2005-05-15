@@ -358,7 +358,6 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
 }
 
 bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed, int pages) {
-    (void)pages;
     log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed ? "windowed" : "fullscreen");
     set_color_depth(depth);
 
@@ -368,6 +367,8 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
         virtual_w = width;
         virtual_h = height * pages;
     }
+    #else
+    (void)pages;
     #endif
 
     if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {

@@ -844,11 +844,11 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     writeByte(lebuf, count, static_cast<NLubyte>(host->current_map_nr()));
     writeByte(lebuf, count, static_cast<NLubyte>(host->maplist().size()));
 
-    NLbyte remove_flags = 0;
-    remove_flags |= (world.map.tinfo[0].flags.empty() ? 0x01 : 0);
-    remove_flags |= (world.map.tinfo[1].flags.empty() ? 0x02 : 0);
-    remove_flags |= (world.map.wild_flags    .empty() ? 0x04 : 0);
-    writeByte(lebuf, count, remove_flags);
+    NLbyte flags = 0;
+    flags |= (!world.map.tinfo[0].flags.empty() ? 0x01 : 0);
+    flags |= (!world.map.tinfo[1].flags.empty() ? 0x02 : 0);
+    flags |= (!world.map.wild_flags    .empty() ? 0x04 : 0);
+    writeByte(lebuf, count, flags);
 
     if (pid < 0)
         broadcast_message(lebuf, count);
