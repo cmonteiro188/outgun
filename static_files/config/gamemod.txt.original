@@ -60,7 +60,7 @@ web_refresh 2
 ; --------------
 
 ; map: one map name per line without path or .txt, default: none (all maps)
-; random_maprot: 0 to disable, 1 to enable, 2 for random first map, default: 0
+; random_maprot: 1 to enable, 0 to disable, 2 for random first map, default: 0
 ; vote_block_time: minutes, default: 0
 
 ;map tutorial
@@ -76,10 +76,13 @@ vote_block_time 0
 ; extra_time: minutes (allows 0), default: 0
 ; sudden_death: 1 to enable, 0 to disable, default: 0
 ; game_end_delay: seconds (allows 0), default: 5
+; lock_team_flags, lock_wild_flags, capture_on_team_flag, capture_on_wild_flag:
+;   1 to enable, 0 to disable, defaults: 0, 0, 1, 0
 ; balance_teams: no, balance, or shuffle, default: no
 ; friendly_fire, friendly_deathbringer: (float or %) multiplier, default: 0
 ; respawn_time: (float) seconds, default: 2.0
 ; waiting_time_deathbringer: (float) seconds, default: 4.0
+; respawn_balancing_time: (float) seconds, default: 0.0
 ; rocket_damage: amount of energy, default: 70
 
 capture_limit 8
@@ -87,11 +90,16 @@ time_limit 0
 extra_time 0
 sudden_death 0
 game_end_delay 5
+lock_team_flags 0
+lock_wild_flags 0
+capture_on_team_flag 1
+capture_on_wild_flag 0
 balance_teams no
 friendly_fire 0
 friendly_deathbringer 0
 respawn_time 2.0
 waiting_time_deathbringer 4.0
+respawn_balancing_time 0.0
 rocket_damage 70
 
 ; ----------
