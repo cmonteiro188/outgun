@@ -5,7 +5,7 @@
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
 *******************************************************************************
-                                                           [ 1.0.1 2005-02-07 ]
+                                                           [ 1.0.2 2005-05-25 ]
 
 
 -------------------------
@@ -52,7 +52,7 @@ CREDITS:
 -------------------------
 
 Programming for 0.5.0 by
-   Fabio "Spinal" Cecin <fcecin@inf.ufrgs.br> <frcecin@terra.com.br>
+   Fabio "Spinal" Cecin <fcecin@inf.ufrgs.br>
    Random Name Routine(TM) by Renato Hentschke <renato@amok.com.br>
 
 Programming for 1.0 by
@@ -72,8 +72,8 @@ Translations by
    Portuguese (BR) - Thomaz de Oliveira dos Reis (ThOR27) <thommy@globo.com>
 
 Maps by
-   Huntta, Joonas, PHiN, evilKaioh, Flyer-DH, Juggis, Fabio Cecin, Luque,
-   MK-HeadShot (unBugger), Jakke, and Devil
+   Huntta, Joonas, PHiN, evilKaioh, Flyer, Juggis, Luque, MK-HeadShot, Nix,
+   Fabio Cecin, coiote, Devil, Gloomy, Jakke, Nosferatu, and ThOR27
 
 1.0.0 beta and later bug reports (in decreasing order of bugs reported)
    ThOR27 (very much deserving of his own line),
