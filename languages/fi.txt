@@ -131,6 +131,7 @@ Tallenna viestit
 Tallenna tilastot
 N‰yt‰ tilastot pelin j‰lkeen
 N‰yt‰ palvelimen tiedot yhdist‰misen j‰lkeen
+Pysy kuolleena pelin alussa valikoiden aikana
 Alleviivaa p‰‰palvelimen tunnistamat pelaajat
 Alleviivaa palvelimen tunnistamat pelaajat
 Hae palvelinlista pelin k‰ynnistyess‰
@@ -158,11 +159,13 @@ $1-bittinen
 Ruudun koko
 Ikkunassa
 Page flipping -tila
+Vaihtoehtoinen page flipping -tapa
 Virkistystaajuus
 $1 Hz
 Vaihda t‰h‰n tilaan
 Teema
 Reunanpehmennys
+V‰hemm‰n l‰pin‰kyvyystehosteita
 Tekstuurien jatkuvuus huoneesta toiseen
 Kadonneiden pelaajien n‰yttˆ kartalla
 Tilastoruudun l‰pin‰kym‰ttˆmyys
@@ -427,6 +430,8 @@ $1 on antanut sinulle porttikiellon t‰lle palvelimelle - kesto $2!
 
 $1 on potkaissut pelaajan $2 (l‰htee 10 sekunnin p‰‰st‰).
 $1 on antanut porttikiellon pelaajalle $2 (l‰htee 10 sekunnin p‰‰st‰).
+$1 p‰‰tti vaihtaa karttaa.
+$1 p‰‰tti aloittaa uuden pelin.
 
 ; Used in the mute/kick/ban messages as the subject, when the admin has no
 ; name (using the separate server monitor program).
@@ -468,7 +473,6 @@ PUNAINEN JOUKKUE VOITTI
 SININEN JOUKKUE VOITTI
 TASAPELI
 PISTEET $1 - $2
-Yhdist‰n...
 
 ; The name of the next map is printed on the line below this message.
 Odotetaan pelin alkua - seuraava kartta on

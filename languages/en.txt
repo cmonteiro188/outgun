@@ -131,6 +131,7 @@ Save game messages
 Save game statistics
 Show stats after the round
 Show server info when connected
+Stay dead when in a menu at round start
 Underline master-authenticated players
 Underline server-authenticated players
 Get server list at startup
@@ -158,11 +159,13 @@ $1-bit
 Screen size
 Windowed mode
 Use page flipping
+Alternative page flipping method
 Current refresh rate
 $1 Hz
 Apply changes
 Theme
 Antialiasing
+Less transparency effects
 Continuous textures between rooms
 Disappeared players on minimap
 Stats screen alpha
@@ -427,6 +430,8 @@ $1 has BANNED you from this server for $2!
 
 $1 has kicked $2 (disconnect in 10 seconds).
 $1 has banned $2 (disconnect in 10 seconds).
+$1 decided it's time for a map change.
+$1 decided it's time for a restart.
 
 ; Used in the mute/kick/ban messages as the subject, when the admin has no
 ; name (using the separate server monitor program).
@@ -468,7 +473,6 @@ RED TEAM WINS
 BLUE TEAM WINS
 GAME TIED
 SCORE $1 - $2
-Connecting...
 
 ; The name of the next map is printed on the line below this message.
 Waiting game start - next map is

@@ -136,6 +136,7 @@ Salvar as mensagens do chat
 Salvar estatísticas do jogo
 Mostrar estatísticas depois do round
 Mostrar info do servidor quando conectado
+Continuar morto quando no menu durante o inicio da partida
 Sublinhar jogadores autenticados pelo mestre
 Sublinhar jogadores auntenticados pelo servidor
 Pegar lista do servidor na inicialização
@@ -163,11 +164,13 @@ $1-bit
 Tamanho da tela
 Modo janela
 Usar "page flipping"
+Método alternativo de "page flipping"
 Taxa de atualização atual
 $1 Hz
 Aplicar alterações
 Tema
 Antialiasing
+Menos efeitos de transparência
 Textura continua entre salas
 Jogadores desaparecidos no mini mapa
 Estado alfa da tela
@@ -432,6 +435,8 @@ $1 BANIU você desse servidor por $2!
 
 $1 chutou $2 (desconectando em 10 segundos).
 $1 baniu $2 (desconectando em 10 segundos).
+$1 decidiu que era hora de trocar o mapa.
+$1 decidiu que era hora de reiniciar.
 
 ; Used in the mute/kick/ban messages as the subject, when the admin has no
 ; name (using the separate server monitor program).
@@ -473,7 +478,6 @@ TIME VERMELHO VENCEU
 TIME AZUL VENCEU
 JOGO EMPATADO
 PONTUAÇÃO $1 - $2
-Connectando...
 
 ; The name of the next map is printed on the line below this message.
 Esperando o jogo iniciar - o próximo mapa é
