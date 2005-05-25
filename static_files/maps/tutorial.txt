@@ -4,7 +4,6 @@
 ; Outgun map tutorial is at
 ; http://koti.mbnet.fi/outgun/documentation/map-tutorial.html
 
-V 1
 P width  3
 P height 2
 P title  Tutorial
