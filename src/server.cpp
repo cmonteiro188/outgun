@@ -589,8 +589,7 @@ bool Server::load_rotation_map(int pos) {
     // Check the flag settings and remove the useless flags (only if there are three kinds of flags).
     if (world.wild_flags.empty() || world.teams[0].flags().empty() || world.teams[1].flags().empty())
         return true;
-    const bool remove_all = worldConfig.lock_team_flags && worldConfig.lock_wild_flags;
-    if (remove_all || (worldConfig.lock_team_flags && !worldConfig.capture_on_team_flag)) {
+    if (worldConfig.lock_team_flags && (worldConfig.lock_wild_flags || !worldConfig.capture_on_team_flag)) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
         world.remove_team_flags(2);

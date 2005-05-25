@@ -352,7 +352,10 @@ void TournamentPasswordManager::threadFn() {
             '&' + (newToken?"new":"old") +
             "&name=" + url_encode(name) +
             "&password=" + url_encode(password) +
-            " HTTP/1.0\r\n\r\n";
+            " HTTP/1.0\r\n"
+            "Host: www.mycgiserver.com\r\n"
+            "\r\n";
+
         passStatus = PS_sending;
         if (newToken)
             log("Password thread: Sending login");
@@ -1669,10 +1672,12 @@ void Client::process_incoming_data(const char* data, int length) {
                 //update this player's px,py,x,y
                 //ignore self and anybody onscreen -- because then I've got better accuracy
                 if (who != me && !fx.player[who].onscreen) {
-                    fx.player[who].roomx = whox / (255/fx.map.w);   //screen = 0..255 / (WXMAX/255)
-                    fx.player[who].roomy = whoy / (255/fx.map.h);
-                    fx.player[who].lx = (whox % (255/fx.map.w)) * plw / (255/fx.map.w); //posicao dentro da tela especifica
-                    fx.player[who].ly = (whoy % (255/fx.map.h)) * plh / (255/fx.map.h);
+                    const int xmul = 255 / fx.map.w;
+                    const int ymul = 255 / fx.map.h;
+                    fx.player[who].roomx = whox / xmul;
+                    fx.player[who].roomy = whoy / ymul;
+                    fx.player[who].lx = (whox % xmul) * plw / (xmul - 1);
+                    fx.player[who].ly = (whoy % ymul) * plh / (ymul - 1);
                     fx.player[who].posUpdated = svframe;
                 }
             }
@@ -1998,6 +2003,14 @@ void Client::process_incoming_data(const char* data, int length) {
             break; case data_map_change: {
                 map_ready = false;  // map NOT ready anymore: must load/change
                 want_map_exit = false;      // and player does not want to exit the map anymore
+
+                // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
+                {
+                    char lebuf[16]; int count = 0;
+                    writeByte(lebuf, count, data_map_exit_off);
+                    client->send_message(lebuf, count);
+                }
+
                 fx.teams[0].remove_flags();
                 fx.teams[1].remove_flags();
                 fx.wild_flags.clear();

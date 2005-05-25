@@ -726,7 +726,9 @@ void ServerNetworking::client_report_status(int id) {
         "&dscn=" + itoa(clid.neg_delta_score) +
         "&name=" + url_encode(world.player[ctop[id]].name) +
         "&token=" + url_encode(clid.token) +
-        " HTTP/1.0\r\n\r\n";
+        " HTTP/1.0\r\n"
+        "Host: www.mycgiserver.com\r\n"
+        "\r\n";
 
     {
         MutexLock ml(mjob_mutex);
@@ -844,11 +846,11 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     writeByte(lebuf, count, static_cast<NLubyte>(host->current_map_nr()));
     writeByte(lebuf, count, static_cast<NLubyte>(host->maplist().size()));
 
-    NLbyte flags = 0;
-    flags |= (!world.map.tinfo[0].flags.empty() ? 0x01 : 0);
-    flags |= (!world.map.tinfo[1].flags.empty() ? 0x02 : 0);
-    flags |= (!world.map.wild_flags    .empty() ? 0x04 : 0);
-    writeByte(lebuf, count, flags);
+    NLbyte remove_flags = 0;
+    remove_flags |= (world.map.tinfo[0].flags.empty() ? 0x01 : 0);
+    remove_flags |= (world.map.tinfo[1].flags.empty() ? 0x02 : 0);
+    remove_flags |= (world.map.wild_flags    .empty() ? 0x04 : 0);
+    writeByte(lebuf, count, remove_flags);
 
     if (pid < 0)
         broadcast_message(lebuf, count);
@@ -1434,8 +1436,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                         "&chktk" +
                         "&name=" + url_encode(world.player[ctop[id]].name) +
                         "&token=" + url_encode(tok) +
-                        " HTTP/1.0\r\n\r\n";
-
+                        " HTTP/1.0\r\n"
+                        "Host: www.mycgiserver.com\r\n"
+                        "\r\n"; 
                     {
                         MutexLock ml(mjob_mutex);
                         mjob_count++;
@@ -1746,8 +1749,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                 if (who == -1)
                     writeByte(lebuf, lecount, 255);
                 else {
-                    const NLubyte mx = static_cast<NLubyte>((world.player[who].lx + world.player[who].roomx * plw) / (world.map.w * plw) * 255.0);
-                    const NLubyte my = static_cast<NLubyte>((world.player[who].ly + world.player[who].roomy * plh) / (world.map.h * plh) * 255.0);
+                    const int xmul = 255 / world.map.w;
+                    const int ymul = 255 / world.map.h;
+                    const NLubyte mx = world.player[who].roomx * xmul + static_cast<NLubyte>(xmul * (world.player[who].lx - 1e-5) / plw);
+                    const NLubyte my = world.player[who].roomy * ymul + static_cast<NLubyte>(ymul * (world.player[who].ly - 1e-5) / plh);
                     writeByte(lebuf, lecount, static_cast<NLubyte>(who));
                     writeByte(lebuf, lecount, mx);
                     writeByte(lebuf, lecount, my);
@@ -2114,8 +2119,6 @@ void ServerNetworking::run_website_thread() {
 
         // note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-        log("Website thread: Start sending information to server website.");
-
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
         NLsocket websock = nlOpen(0, NL_RELIABLE);
@@ -2127,7 +2130,6 @@ void ServerNetworking::run_website_thread() {
         bool success = false;
         for (vector<string>::const_iterator addri = web_servers.begin(); addri != web_servers.end(); ++addri)
             if (nlGetAddrFromName(addri->c_str(), &website_address)) {
-                log("Website thread: Address %s works.", addri->c_str());
                 success = true;
                 break;
             }
@@ -2157,7 +2159,6 @@ void ServerNetworking::run_website_thread() {
         }
         const string data = build_http_data(parameters);
         NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, web_script, data, web_auth);
-        log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(data).c_str(), result);
         if (result == NR_ok) {
             // save response to a file
             ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
