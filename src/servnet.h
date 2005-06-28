@@ -114,6 +114,7 @@ class ServerNetworking {
     
     std::string     hostname;
     std::string     server_password;
+    unsigned int    server_identification;
     int             ping_send_client;
     int             ctop[256];          // client id-to-player id index
     int             player_count;

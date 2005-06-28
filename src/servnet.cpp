@@ -974,6 +974,8 @@ bool ServerNetworking::start() {
     for (int i = 0; i < MAX_PLAYERS; ++i)
         fileTransfer[i].reset();
 
+    server_identification = rand();
+
     // start server
     server = new_server_c(host->config().networkPriority, host->config().minLocalPort, host->config().maxLocalPort);
 
@@ -2230,6 +2232,9 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["map"] = host->current_map().title;
         parameters["link"] = host->server_website();
     }
+    ostringstream id;
+    id << server_identification;
+    parameters["id"] = id.str();
     return parameters;
 }
 
@@ -2254,6 +2259,9 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
             players += world.player[i].name + '\t' + itoa(i / TSIZE);
         }
     parameters["playerlist"] = players;
+    ostringstream id;
+    id << server_identification;
+    parameters["id"] = id.str();
     return parameters;
 }
 
