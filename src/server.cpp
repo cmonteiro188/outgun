@@ -498,6 +498,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("sudden_death",            &worldConfig.sudden_death)),
         PT(new GS_Int       ("game_end_delay",          &game_end_delay, 0)),
         PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
+        PT(new GS_Double    ("flag_return_delay",       &worldConfig.flag_return_delay, 0)),
         PT(new GS_Boolean   ("lock_team_flags",         &worldConfig.lock_team_flags)),
         PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
         PT(new GS_Boolean   ("capture_on_team_flag",    &worldConfig.capture_on_team_flag)),

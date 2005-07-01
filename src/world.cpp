@@ -54,6 +54,7 @@ using std::ifstream;
 using std::ios;
 using std::istream;
 using std::istringstream;
+using std::list;
 using std::max;
 using std::min;
 using std::ofstream;
@@ -1342,8 +1343,9 @@ void WorldSettings::reset() {
     rocket_damage = 70;
     time_limit = 0;     // no time limit
     extra_time = 0;
-    sudden_death = 0;
+    sudden_death = false;
     capture_limit = 8;
+    flag_return_delay = 0;
     balance_teams = TB_disabled;
 
     lock_team_flags = false;
@@ -1435,7 +1437,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
                 map_time << " Extra-time left: " << extra_time_seconds / 60 << ':';
                 map_time << setfill('0') << setw(2) << extra_time_seconds % 60 << '.';
             }
-            if (config.sudden_death)
+            if (config.suddenDeath())
                 map_time << " Sudden death.";
         }
         else {
@@ -1474,6 +1476,8 @@ void ServerWorld::returnFlag(int team, int flag) {
 
 void ServerWorld::dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly) {
     WorldBase::dropFlag(team, flag, roomx, roomy, lx, ly);
+    if (team != 2)
+        teams[team].set_flag_drop_time(flag, frame / 10.);
     net->ctf_net_flag_status(-1, team);
 }
 
@@ -1951,14 +1955,20 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                 host->score_frag(attacker, 1);
                 break;  // only one frag even for defending multiple carriers
             }
-        // Check if an own flag is lying on the ground in the target's screen.
-        if (!lock_team_flags_in_effect())    // Not much defending if the flag couldn't be moved anyway.
+        // Check if an own or enemy flag is lying on the ground in the target's screen.
+        if (!lock_team_flags_in_effect()) {   // Not much defending or attacking if the flag couldn't be moved anyway.
             for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
                 if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
                     flag_defended = true;
                     host->score_frag(attacker, 1);
                     break;  // only one frag even for defending multiple flags
                 }
+            for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
+                if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                    host->score_frag(attacker, 1);
+                    break;  // only one frag even for attacking multiple flags
+                }
+        }
     }
     const bool flag = player[target].stats().has_flag();
     const bool wild_flag = player[target].stats().has_wild_flag();
@@ -2104,8 +2114,9 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 
     //if player not dead, push him
     if (player[pid].health > 0) {
-        player[pid].sx += rock[rid].sx * .33;
-        player[pid].sy += rock[rid].sy * .33;
+        const double mul = rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.;
+        player[pid].sx += rock[rid].sx * .33 * mul;
+        player[pid].sy += rock[rid].sy * .33 * mul;
     }
 
     if (had_shield)
@@ -2850,7 +2861,8 @@ void ServerWorld::simulateFrame() {
         // Flag return - wild flags can't be returned
         int f = 0;
         for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly) &&
+                             frame / 10. >= fi->drop_time() + config.flag_return_delay) {
                 //FLAG RETURNED!
                 host->score_frag(i, 1); // just add some frags
                 pl.stats().add_flag_return();
@@ -2858,6 +2870,8 @@ void ServerWorld::simulateFrame() {
                 net->broadcast_flag_return(pl);
                 returnFlag(myteam, f);  //flag returned
             }
+
+        const bool extra_time_and_sudden_death = config.suddenDeath() && getTimeLeft() < 0;
 
         // Flag captures
         // ft = 0 => Take enemy or wild flag to own flag
@@ -2875,7 +2889,8 @@ void ServerWorld::simulateFrame() {
                 for (vector<Flag>::const_iterator fen = teams[enemyteam].flags().begin(); fen != teams[enemyteam].flags().end(); ++fen, ++f)
                     if (fen->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                         player_captures_flag(i, enemyteam, f);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
+                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 ||
+                                    extra_time_and_sudden_death) {
                             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
                             return;
                         }
@@ -2884,7 +2899,8 @@ void ServerWorld::simulateFrame() {
                 for (vector<Flag>::const_iterator fw = wild_flags.begin(); fw != wild_flags.end(); ++fw, ++f)
                     if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                         player_captures_flag(i, 2, f);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
+                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 ||
+                                extra_time_and_sudden_death) {
                             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
                             return;
                         }
@@ -2911,7 +2927,7 @@ void ServerWorld::simulateFrame() {
         else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
             net->broadcast_30_s_left();
         // game ends if time is over and (the game is not tied or there is no extra-time)
-        else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.sudden_death))) {
+        else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.suddenDeath()))) {
             net->broadcast_time_out();
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
         }
@@ -2920,7 +2936,7 @@ void ServerWorld::simulateFrame() {
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
         }
         else if (timeLeft == 0) {
-            net->broadcast_normal_time_out(config.sudden_death);
+            net->broadcast_normal_time_out(config.suddenDeath());
             net->send_map_time(-1);
         }
     }
@@ -3217,6 +3233,10 @@ void Team::drop_flag(int n, const WorldCoords& pos) {
 
 void Team::move_flag(int n, const WorldCoords& pos) {
     team_flags[n].move(pos);
+}
+
+void Team::set_flag_drop_time(int n, double time) {
+    team_flags[n].set_drop_time(time);
 }
 
 double Team::accuracy() const {
