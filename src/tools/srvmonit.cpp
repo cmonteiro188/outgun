@@ -2,9 +2,12 @@
 #include <nl.h>
 #include <cstdio>
 #include <ctime>
+
+#include "../incalleg.h"
 #include "../admshell.h"
 #include "../nassert.h"
 #include "../platform.h"
+#include "../utility.h"
 
 // platform dependent code for kbhit, getch and Sleep
 #ifdef WIN32
@@ -13,6 +16,7 @@
 #include <conio.h>  // kbhit, getch
 void initKeyboard() { }
 void resetKeyboard() { }
+
 #else   // WIN32
 
 #include <unistd.h> // usleep
@@ -82,9 +86,10 @@ class DelayHandler : public IdleFunction {
     int sayIdx; // -1 when not typing
     bool kick, ban;
     int mute;
+    bool* messageBoxSetting;
 
 public:
-    DelayHandler(NLsocket socket) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0) { }
+    DelayHandler(NLsocket socket, bool* messageBox) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
     void pauseSay() const {
         if (sayIdx!=-1)
             printf("\r%79s\r", "");
@@ -115,14 +120,14 @@ public:
                     printf("\n");
                 }
                 else {
-                    if (key=='\b') {
+                    if (key=='\b' || key==0x7F) {
                         if (sayIdx>0) {
                             sayIdx--;
                             printf("\b \b");
                             fflush(stdout);
                         }
                     }
-                    else if (sayIdx<sayBufLen) {
+                    else if (sayIdx<sayBufLen && !(key < 32 || (key >= 128 && key <= 159))) {
                         printf("%c", key);
                         fflush(stdout);
                         sayBuf[sayIdx++]=key;
@@ -130,9 +135,15 @@ public:
                 }
             }
             else if (key==27) {
-                writeLong(buf, idx, ATS_QUIT);
-                send(sock, buf, idx);
-                throw UserExit();
+                printf("Confirm quit? ");
+                fflush(stdout);
+                if (getch()=='Y') {
+                    writeLong(buf, idx, ATS_QUIT);
+                    send(sock, buf, idx);
+                    throw UserExit();
+                }
+                else
+                    printf("(aborted)\n");
             } else if (key>='0' && key<'9') {
                 int pid=key-'0';
                 if (mute || kick || ban) {
@@ -207,6 +218,9 @@ public:
                 }
                 else
                     printf("(aborted)\n");
+            } else if (key=='q' || key=='Q') {
+                *messageBoxSetting = !*messageBoxSetting;
+                printf("Sayadmin message boxes %s\n", *messageBoxSetting ? "enabled" : "disabled");
             }
         }
     }
@@ -265,7 +279,7 @@ const char* plyName(int idx) {
     return buf;
 }
 
-bool runMonitor(int port, bool disableMessagebox) {
+bool runMonitor(int port, bool messageBoxes) {
     NLsocket sock;
 
     nlDisable(NL_BLOCKING_IO);
@@ -285,7 +299,7 @@ bool runMonitor(int port, bool disableMessagebox) {
             throw ConnectFail();
         Sleep(10);
     }
-    DelayHandler dh(sock);
+    DelayHandler dh(sock, &messageBoxes);
     printf("Connected!\n");
     DelaySocketReader reader(sock, &dh);
     for (;;) {
@@ -293,7 +307,7 @@ bool runMonitor(int port, bool disableMessagebox) {
         NLulong val=reader.getLong();
         dh.pauseSay();
         if (val>=NUMBER_OF_STA) {
-            printf("<Invalid STA code: %lud>", val);
+            printf("<Invalid STA code: %lu>", val);
             continue;
         }
         static const int ints[NUMBER_OF_STA]={ 0, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 0, 0, 2, 1, 1 };
@@ -344,12 +358,8 @@ bool runMonitor(int port, bool disableMessagebox) {
                 char cap[strBufLen+100];
                 platSnprintf(cap, strBufLen+100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
                 dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
-                #ifdef WIN32
-                if (!disableMessagebox)
-                    MessageBox(NULL, strBuf, cap, MB_OK);
-                #else
-                (void)disableMessagebox;
-                #endif
+                if (messageBoxes)
+                    messageBox(cap, strBuf, false);
                 break;
             }
             case STA_PLAYER_IP: dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf); break;
@@ -383,10 +393,10 @@ bool runMonitor(int port, bool disableMessagebox) {
 int main(int argc, const char* argv[]) {
     initKeyboard();
     int port=24500;
-    bool disableMessagebox = false;
+    bool messageBoxes = true;
     if (argc>1) {
         if (argv[1][0] == 'q' || argv[1][0] == 'Q') {
-            disableMessagebox = true;
+            messageBoxes = false;
             --argc;
             ++argv;
         }
@@ -406,14 +416,14 @@ int main(int argc, const char* argv[]) {
         printf("ERROR: no IP network!\n");
         return 1;
     }
-    outfile=fopen("srvmonit.log", "at");
+    outfile = fopen("srvmonit.log", "at");
     if (!outfile) {
         printf("Can't open srvmonit.log for append!\n");
         return 1;
     }
-    int r=runMonitor(port, disableMessagebox)?0:1;
+    int r = runMonitor(port, messageBoxes) ? 0 : 1;
     fclose(outfile);
     nlShutdown();
     resetKeyboard();
     return r;
-}
+} END_OF_MAIN()
