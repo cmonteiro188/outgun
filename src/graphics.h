@@ -171,7 +171,7 @@ public:
     void map_time(int seconds);
     void draw_fps(double fps);
     void draw_change_team_message(double time);
-    void draw_change_map_message(double time);
+    void draw_change_map_message(double time, bool delayed = false);
 
     // power-ups
     void draw_pup(const Powerup& pup, double time);

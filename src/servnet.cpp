@@ -86,6 +86,8 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     player_count(0),
     localPlayers(0),
     maplist_revision(0),
+    join_start(0),
+    join_end(0),
     web_refresh(0)
 {
     server = 0;
@@ -430,14 +432,16 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     char lebuf[64];
     int count = 0;
     writeByte(lebuf, count, data_kill);
-    // first byte: deatbringer bit, carrier defended bit, flag defended bit, and attacker id
+    // first byte: deatbringer bit, (carrier defended bit, flag defended bit), and attacker id
     NLubyte attacker_info = attacker.id;
     if (cause == DT_deathbringer)
         attacker_info |= 0x80;
-    if (carrier_defended)
+    /*if (carrier_defended)
         attacker_info |= 0x40;
     if (flag_defended)
-        attacker_info |= 0x20;
+        attacker_info |= 0x20;*/
+    (void)carrier_defended;
+    (void)flag_defended;
     // second byte: flag bit, wild flag bit, collision bit, and target id
     NLubyte tar_flag = target.id;
     if (flag)
@@ -1376,6 +1380,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             else if (code == data_map_exit_on) {
                 if (world.player[pid].want_map_exit == false) {
                     world.player[pid].want_map_exit = true;
+                    // Make sure that this message matches with the one in client.cpp.
+                    if (host->is_map_vote_needed() && world.player[pid].mapVote == -1)
+                        player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
                     host->check_map_exit();
                 }
             }
@@ -1476,7 +1483,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                         world.player[pid].mapVote = vote;
                     else
                         world.player[pid].mapVote = -1;
-                    host->check_map_exit(); // just to update the map vote count, exiting should not actually happen (but it wouldn't hurt)
+                    host->check_map_exit();
                 }
             }
             else if (code == data_fav_colors) {
@@ -2256,7 +2263,7 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
         if (world.player[i].used) {
             if (!players.empty())
                 players += '\n';
-            players += world.player[i].name + '\t' + itoa(i / TSIZE);
+            players += world.player[i].name + '\t' + itoa(i / TSIZE) + '\t' + itoa(world.player[i].ping);
         }
     parameters["playerlist"] = players;
     ostringstream id;
@@ -2755,11 +2762,33 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
     }
     else {
         readStr(data, count, stri); //read protocol string
+        const time_t tt = time(0);
+        const tm* tmb = gmtime(&tt);
+        const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
         if (stri != GAME_PROTOCOL) {
             log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL, stri.c_str());
             res->accepted = false;
 
             temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri; // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
+            writeStr(res->customData, res->customDataLength, temp.str());
+        }
+        else if (player_count == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
+                 join_start > join_end && (seconds < join_start && seconds > join_end))) {
+            log("Rejected a client because the time is wrong.");
+            res->accepted = false;
+
+            temp << "This server is open from ";
+            temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
+            temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
+            const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
+            temp << "Come again in ";
+            if (wait >= 3600)
+                temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
+            else if (wait >= 120)
+                temp << wait / 60 << " minutes.";
+            else
+                temp << "a minute.";
+            temp << " This server aims to collect more players in a short time, so for a better chance of finding other players, use this server.";
             writeStr(res->customData, res->customDataLength, temp.str());
         }
         else if (player_count >= maxplayers) {      //server full!

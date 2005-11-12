@@ -1883,9 +1883,11 @@ void Graphics::draw_change_team_message(double time) {
     textout_centre_ex(drawbuf, font, _("TEAMS" ).c_str(), plx + scale(plw - 6 * 8 + 10), ply + scale(plh -  9), c, -1);
 }
 
-void Graphics::draw_change_map_message(double time) {
+void Graphics::draw_change_map_message(double time, bool delayed) {
     int c;
-    if (static_cast<int>(time * 2.0) % 2)   // blink!
+    if (delayed)
+        c = col[COLDARKGRAY];
+    else if (static_cast<int>(time * 2.0) % 2)   // blink!
         c = col[COLRED];
     else
         c = col[COLWHITE];
@@ -1950,7 +1952,18 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     }
     if (!talkbuffer.empty()) {
         ostringstream message;
-        message << _("Say") << ": " << talkbuffer << '_';
+        if (talkbuffer[0] == '/')
+            message << _("Command");
+        else if (talkbuffer[0] == '.')
+            message << _("Say team");
+        else
+            message << _("Say");
+        message << ": ";
+        if (talkbuffer[0] == '.')
+            message << talkbuffer.substr(1);
+        else
+            message << talkbuffer;
+        message << '_';
         const vector<string> lines = split_to_lines(message.str(), 79, 0);
         for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line)
             print_chat_input(*li, margin, margin + line * line_height);
@@ -1967,7 +1980,7 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         break; case msg_server: c = col[COLCYAN];
         break; case msg_normal: default: c = col[COLORA];
     }
-    if (highlight)
+    if (highlight && type != msg_team)
         c = col[COLWHITE];
     print_text_border(message, x, y, c, 0, -1);
 }

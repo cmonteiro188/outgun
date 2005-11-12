@@ -425,6 +425,8 @@ bool checkForceIpValue(const std::string& val) { return isValidIP(val); }
 
 bool Server::setForceIP(const std::string& val) { extConfig.ipAddress = val; return true; }
 void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
+void Server::setJoinStart(int val) { network.set_join_start(val); }
+void Server::setJoinEnd(int val) { network.set_join_end(val); }
 
 void Server::load_game_mod(bool reload) {
     RedirectToFun1<bool, const std::string&> checkForceIP(checkForceIpValue);
@@ -442,6 +444,9 @@ void Server::load_game_mod(bool reload) {
     RedirectToMemFun1<ServerNetworking, void, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
 
     RedirectToMemFun1<Server, void, int> setRandomMaprot(this, &Server::setRandomMaprot);
+
+    RedirectToMemFun1<Server, void, int> setJoinStart(this, &Server::setJoinStart);
+    RedirectToMemFun1<Server, void, int> setJoinEnd(this, &Server::setJoinEnd);
 
     GamemodSetting* portSetting, * ipSetting, * privSetting;
     if (reload) {
@@ -514,12 +519,14 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("pup_deathbringer_switch", &pupConfig.pup_deathbringer_switch)),
         PT(new GS_Double    ("pup_deathbringer_time",   &pupConfig.pup_deathbringer_time, 1.)),
         PT(new GS_Boolean   ("pups_drop_at_death",      &pupConfig.pups_drop_at_death)),
+        PT(new GS_Int       ("pups_player_max",         &pupConfig.pups_player_max, 0)),
         PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
         PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
         PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9)),
         PT(new GS_Boolean   ("pup_shield_one_hit",      &pupConfig.pup_shield_one_hit)),
         PT(new GS_ForwardInt("random_maprot",           setRandomMaprot, 0, 2)),
         PT(new GS_Int       ("vote_block_time",         &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)), // convert minutes to frames
+        PT(new GS_Boolean   ("map_vote_needed",         &map_vote_needed)),
         PT(new GS_Int       ("idlekick_time",           &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),  // convert seconds to frames; special setting: allow 0 that is outside the normal range
         PT(new GS_Int       ("idlekick_playerlimit",    &idlekick_playerlimit, 1, MAX_PLAYERS)),
         PT(new GS_Double    ("respawn_time",            &worldConfig.respawn_time, 0.)),
@@ -531,6 +538,8 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_String    ("sayadmin_comment",        &sayadmin_comment)),
         PT(new GS_Boolean   ("tournament",              &tournament)),
         PT(new GS_Int       ("save_stats",              &save_stats, 0, MAX_PLAYERS)),
+        PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600)),
+        PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -683,7 +692,7 @@ void Server::check_map_exit() {
     int num_for = 0, num_against = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
-            if (world.player[i].want_map_exit)
+            if (world.player[i].want_map_exit && (!map_vote_needed || world.player[i].mapVote != -1))
                 num_for++;
             else
                 num_against++;
@@ -724,6 +733,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     game_end_delay = 5;
     random_maprot = false;
     vote_block_time = 0;    // no limit
+    map_vote_needed = false;
     idlekick_time = 120 * 10;   // 2 minutes in frames
     idlekick_playerlimit = 4;
 
@@ -1078,7 +1088,7 @@ void Server::chat(int pid, const char* sbuf) {
                     nAssert(0);
             }
         }
-        else if (!strcmp(cbuf, "forcemap") && admin) {
+        else if (!strcmp(cbuf, "forcemap") && admin) {  // Make sure that these messages match with the ones in client.cpp.
             if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 maprot[world.player[pid].mapVote].votes = 99;
@@ -1106,6 +1116,8 @@ void Server::chat(int pid, const char* sbuf) {
         }
         else if (world.player[pid].muted == 1)
             network.send_mute_notification(pid);
+        else if (isflood(sbuf))
+            ;   // Notify?
         else {
             ostringstream msg;
             msg << world.player[pid].name << ": ";
@@ -1125,6 +1137,22 @@ void Server::chat(int pid, const char* sbuf) {
             }
         }
     }
+}
+
+bool Server::isflood(const string& message) const {
+    int count = 0;
+    unsigned char chr = 0;
+    bool flood = false;
+    for (string::const_iterator s = message.begin(); s != message.end(); ++s) {
+        if (chr != *s)
+            count = 1;
+        else if (++count == 7) {
+            flood = true;
+            break;
+        }
+        chr = *s;
+    }
+    return flood;
 }
 
 bool Server::changeRegistration(int id, const string& token) {
@@ -1169,7 +1197,7 @@ void Server::simulate_and_broadcast_frame() {
     if (world.frame >= next_vote_announce_frame) {  // announce voting status
         int votes = 0;
         for (int i = 0; i < maxplayers; ++i)
-            if (world.player[i].used && world.player[i].want_map_exit)
+            if (world.player[i].used && world.player[i].want_map_exit && (!map_vote_needed || world.player[i].mapVote != -1))
                 ++votes;
         const int players = get_player_count() / 2 + 1;
         if (votes != last_vote_announce_votes || (players != last_vote_announce_needed && votes != 0)) {

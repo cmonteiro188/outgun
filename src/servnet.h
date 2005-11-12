@@ -123,6 +123,9 @@ class ServerNetworking {
     MutexHolder     addPlayerMutex;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
+    
+    int             join_start;         // allow joining from this time of a day (in seconds)
+    int             join_end;           // disallow joining; set both same to allow always (default)
 
     // web site settings
     std::vector<std::string> web_servers;
@@ -254,6 +257,9 @@ public:
     NLaddress get_client_address(int cid) const;
     int get_player_count() const { return player_count; }
     int numDistinctClients() const { return distinctRemotePlayers.size() + (localPlayers > 0 ? 1 : 0); }
+    
+    void set_join_start(int val) { join_start = val; }
+    void set_join_end  (int val) { join_end   = val; }
 
     void clear_web_servers() { web_servers.clear(); }
     void add_web_server(const std::string& server) { web_servers.push_back(server); }

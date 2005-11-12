@@ -1069,6 +1069,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     //don't want to exit map by default
     want_map_exit = false;
+    want_map_exit_delayed = false;
 
     //avoid "dropped" plaque
     lastpackettime = get_time() + 1.0;
@@ -1751,7 +1752,14 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_DoDisconnect());
                     break;
                 }
-                if (type == msg_server) {   // This is a kludge because of compatibility. Remove in version 1.1.
+                // This is a kludge because of compatibility. Remove in version 1.1.
+                // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
+                if (type == msg_server) {
+                    const string vote_msg = "Your vote has no effect until you vote for a specific map.";
+                    if (chatmsg == vote_msg) {
+                        chatmsg = _(vote_msg);
+                        want_map_exit_delayed = true;
+                    }
                     string::size_type pos = chatmsg.find(" decided it's time for a map change.");
                     if (pos != string::npos) {
                         const string name = chatmsg.substr(0, pos);
@@ -2003,6 +2011,7 @@ void Client::process_incoming_data(const char* data, int length) {
             break; case data_map_change: {
                 map_ready = false;  // map NOT ready anymore: must load/change
                 want_map_exit = false;      // and player does not want to exit the map anymore
+                want_map_exit_delayed = false;
 
                 // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
                 {
@@ -2297,8 +2306,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
                 const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
-                const bool carrier_defended = attacker & 0x40;
-                const bool flag_defended = attacker & 0x20;
+                //const bool carrier_defended = attacker & 0x40;
+                //const bool flag_defended = attacker & 0x20;
                 const bool flag = target & 0x80;
                 const bool wild_flag = target & 0x40;
                 attacker &= 0x1F;
@@ -2340,7 +2349,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
                 }
                 addThreadMessage(new TM_Text(msg_info, msg));
-                if (carrier_defended && known_attacker) {
+                /*if (carrier_defended && known_attacker) {
                     if (attacker_team == 0)
                         msg = _("$1 defends the red carrier.", fx.player[attacker].name);
                     else
@@ -2353,7 +2362,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     else
                         msg = _("$1 defends the blue flag.", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
-                }
+                }*/
                 if (fx.player[target].stats().current_cons_kills() >= 10) {
                     if (!known_attacker)
                         msg = _("$1's killing spree was ended.", fx.player[target].name);
@@ -3267,6 +3276,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             stats_autoshowing = false;
         break; case KEY_F8: {
             want_map_exit = !want_map_exit;
+            want_map_exit_delayed = false;
 
             char lebuf[16]; int count = 0;
             if (want_map_exit)
@@ -4037,7 +4047,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     if (want_change_teams)
         client_graphics.draw_change_team_message(get_time());
     if (want_map_exit)
-        client_graphics.draw_change_map_message(get_time());
+        client_graphics.draw_change_map_message(get_time(), want_map_exit_delayed);
 
     // the STATUSBAR : health energy, bars ....
     if (me >= 0) {

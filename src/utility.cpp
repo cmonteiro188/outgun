@@ -134,6 +134,15 @@ string replace_all(string text, const string& s1, const string& s2) {
     return text;
 }
 
+string htmlspecialchars(string text) {
+    text = replace_all(text, "&", "&amp;"); // this must be first because entities contain '&'
+    text = replace_all(text, "<", "&lt;");
+    text = replace_all(text, ">", "&gt;");
+    text = replace_all(text, "\"", "&quot;");
+    text = replace_all(text, "'", "&#39;");
+    return text;
+}
+
 string pad_to_size_left (string text, int size, char pad) {
     const int add = size - text.length();
     if (add > 0)

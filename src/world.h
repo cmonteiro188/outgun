@@ -728,6 +728,7 @@ public:
     bool pup_deathbringer_switch;
     double pup_deathbringer_time;
     bool pups_drop_at_death;
+    int pups_player_max;
     int pup_health_bonus;
     double pup_power_damage;
     int pup_weapon_max;
@@ -789,6 +790,7 @@ class ServerWorld : public WorldBase {
 
     NLubyte getFreeRocket();    // may give an existing rocket to overwrite if the table is full
     void drop_pickup(const ServerPlayer& player);
+    void drop_worst_powerup(ServerPlayer& player);
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);

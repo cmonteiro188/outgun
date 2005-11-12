@@ -46,7 +46,7 @@ static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mos
 const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
-const double minimum_grab_to_capture_time = 6.0;
+const double minimum_grab_to_capture_time = 2.0;
 
 const int maximum_shadow_visibility = 254;
 
@@ -1297,6 +1297,9 @@ void PowerupSettings::reset() {
     pup_weapon_max = 9;
     pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
+    
+    pups_drop_at_death = false;
+    pups_player_max = 7;
 }
 
 Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
@@ -1414,7 +1417,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
     ostringstream server_time;
     server_time << "The server has been up for ";
     if (days > 0)
-        server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
+        server_time << days << " day" << (days > 1 ? "s " : " ");
     server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
     if (days == 0)
         server_time << " hours";
@@ -1752,6 +1755,21 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
     ServerPlayer& pl = player[pid];
 
+    // Check which powerups player has.
+    bool pups[7];
+    int i = 0;
+    int pup_count = 0;
+    if (pups[i++] = pl.item_shield)         pup_count++;
+    if (pups[i++] = pl.item_turbo)          pup_count++;
+    if (pups[i++] = pl.item_shadow())       pup_count++;
+    if (pups[i++] = pl.item_power)          pup_count++;
+    if (pups[i++] = pl.weapon > 1)          pup_count++;
+    pups[i++] = true;   // health
+    if (pups[i++] = pl.item_deathbringer)   pup_count++;
+
+    if (!pups[it.kind] && pup_count >= pupConfig.pups_player_max)   // Drop one if necessary.
+        drop_worst_powerup(pl);
+
     switch (it.kind) {
     /*break;*/ case Powerup::pup_shield: {
             pl.item_shield = true;
@@ -1837,6 +1855,44 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
     // check pickup creation
     check_pickup_creation(false);
+}
+
+void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
+    bool dropped = false;
+    if (pl.item_turbo && (pl.item_turbo_time < pl.item_shadow_time || !pl.item_shadow())) {
+        if (pl.item_turbo_time < pl.item_power_time || !pl.item_power) {
+            pl.item_turbo_time = 0;
+            dropped = true;
+        }
+        else if (pl.item_power) {
+            pl.item_power_time = 0;
+            dropped = true;
+        }
+    }
+    else
+        if (pl.item_power && (pl.item_power_time < pl.item_shadow_time || !pl.item_shadow())) {
+            pl.item_power_time = 0;
+            dropped = true;
+        }
+        else if (pl.item_shadow()) {
+            pl.item_shadow_time = 0;
+            dropped = true;
+        }
+    if (dropped)    // simulateFrame() informs the client
+        return;
+
+    if (pl.item_deathbringer) {
+        pl.item_deathbringer = false;
+        net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
+    }
+    else if (pl.item_shield) {
+        pl.item_shield = false;
+        net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_LOST);
+    }
+    else {
+        pl.weapon = 1;
+        net->sendWeaponPower(pl.id);
+    }
 }
 
 //game player screen changed
@@ -3065,10 +3121,11 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     if (print_html_begin) {
         out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
         out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
+        out << "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=ISO-8851-1\">\n";
         out << "<LINK REL=\"stylesheet\" HREF=\"stats.css\" TYPE=\"text/css\" TITLE=\"Outgun statistics style\">\n\n";
         out << "<H1>Outgun statistics " << date << "</H1>\n\n";
     }
-    out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << map_name << "</H2>\n\n";
+    out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << htmlspecialchars(map_name) << "</H2>\n\n";
 
     out << "<H3>Team stats</H3>\n\n";
     const Team& red = teams[0];
@@ -3106,7 +3163,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
             out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Blue team\n";
             team++;
         }
-        out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << (*pl)->name;
+        out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << htmlspecialchars((*pl)->name);
         const Statistics& stats = (*pl)->stats();
         out << "<TD>" << stats.frags();
         out << "<TD>" << stats.captures();
@@ -3129,6 +3186,10 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     out << "\n</TABLE>\n\n";
     if (red.score() == 0 && blue.score() == 0)
         return;
+    else if (teams[0].captures().empty() && teams[1].captures().empty()) {  // only in client
+        out << "<P>No captures when you were playing.</P>\n\n";
+        return;
+    }
 
     out << "<H3>Captures</H3>\n\n";
     out << "<TABLE BORDER CLASS=\"captures\">\n";
@@ -3160,7 +3221,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
         out << " <TR><TD ALIGN=\"right\">" << time;
         out << "<TD>" << team;
         out << "<TD ALIGN=\"center\">" << red_score << "&ndash;" << blue_score;
-        out << "<TD>" << capturer;
+        out << "<TD>" << htmlspecialchars(capturer);
         out << '\n';
     }
     out << "</TABLE>\n\n";

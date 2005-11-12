@@ -297,6 +297,7 @@ class Client {
     int map_vote;
     bool want_change_teams;
     bool want_map_exit;
+    bool want_map_exit_delayed;
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;

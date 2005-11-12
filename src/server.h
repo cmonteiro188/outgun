@@ -98,6 +98,7 @@ class Server {
     std::string     sayadmin_comment;
     bool            sayadmin_enabled;
     double          team_smul[2];
+    bool            map_vote_needed;
     NLulong         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
     int             idlekick_time, idlekick_playerlimit;
@@ -134,6 +135,10 @@ class Server {
 
     bool setForceIP(const std::string& val);
     void setRandomMaprot(int val);
+    void setJoinStart(int val);
+    void setJoinEnd(int val);
+
+    bool isflood(const std::string& message) const;
 
     // copying not allowed
     Server(const Server& o);
@@ -184,6 +189,7 @@ public:
     void resetClient(int cid) { client[cid].reset(); }
     void refresh_team_score_modifiers();
     void check_map_exit();
+    bool is_map_vote_needed() const { return map_vote_needed; }
     void score_frag(int p, int amount);
     void score_neg(int p, int amount);
     int getLessScoredTeam() const;  // using team_smul ; call refresh_team_score_modifiers before calling this
