@@ -53,8 +53,13 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
     // We have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
     char* capBuf = new char[caption.length() + 1];
     char* msgBuf = new char[    msg.length() + 1];
+    #ifndef SDL_DEDICATED_SERVER
     const char* captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
     const char*     msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
+    #else
+    char* captionConv = capBuf;
+    char* msgConv = msgBuf;
+    #endif
 
     #ifdef DEDICATED_SERVER_ONLY
     (void)blocking;

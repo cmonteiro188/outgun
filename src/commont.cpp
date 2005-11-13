@@ -40,6 +40,7 @@ using std::ifstream;
 using std::istream;
 using std::string;
 
+#ifndef SDL_DEDICATED_SERVER
 bool readJoystickButton(int button) {
     return (button > 0 && !poll_joystick() && button <= joy[0].num_buttons && joy[0].button[button - 1].b);
 }
@@ -100,6 +101,7 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
     if (readJoystickButton(strafe_button))
         data |= strafe;
 }
+#endif
 
 istream& getline_smart(istream& in, string& str) {
     str.clear();
@@ -139,6 +141,7 @@ bool check_name(const std::string& name) {
     return true;
 }
 
+#ifndef SDL_DEDICATED_SERVER
 volatile bool GlobalDisplaySwitchHook::flag = false;
 
 void GlobalDisplaySwitchHook__callback() {
@@ -161,6 +164,7 @@ bool GlobalDisplaySwitchHook::readAndClear() {
         flag = false;
     return f;
 }
+#endif
 
 void MasterSettings::load(LogSet& log) {
     static const char* defaultName = "koti.mbnet.fi";

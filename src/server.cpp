@@ -754,6 +754,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     // load server configuration from gamemod.txt
     load_game_mod(reload);
 
+    #ifndef SDL_DEDICATED_SERVER
     // did not specify maps, scan "maps/" folder for .txt map files
     if (maprot.empty()) {
         const string searchPattern = wheregamedir + SERVER_MAPS_DIR + directory_separator + "*.txt";
@@ -782,9 +783,13 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
         }
         al_findclose(&mapffblk);
     }
+    #endif
 
     if (maprot.empty()) {
         log.error(_("No maps for rotation."));
+        #ifdef SDL_DEDICATED_SERVER
+        log.error(_("The SDL server needs an exact map list."));
+        #endif
         abortFlag = true;
         return false;
     }
@@ -1290,8 +1295,10 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
             // update (re-clear) window too, if there's the possibility it has been corrupted
+            #ifndef SDL_DEDICATED_SERVER
             if (extConfig.ownScreen && GlobalDisplaySwitchHook::readAndClear())
                 clear_bitmap(screen);
+            #endif
         }
 
         // executa algo para todos os players
@@ -1309,8 +1316,10 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
         if (threadLock)
             threadLockMutex.lock();
 
+        #ifndef SDL_DEDICATED_SERVER
         if (quitOnEsc && key[KEY_ESC])
             break;
+        #endif
     }
 
     if (threadLock)

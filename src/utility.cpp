@@ -262,12 +262,14 @@ void errorMessage(const string& heading, MemoryLog& errorLog, const string& foot
     }
 }
 
+#ifndef SDL_DEDICATED_SERVER
 bool is_keypad(int sc) {
     switch (sc) {
     /*break;*/ case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
         break; default: return false;
     }
 }
+#endif
 
 void rotate_angle(double& angle, double shift) {
     angle += shift;
