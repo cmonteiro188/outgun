@@ -122,7 +122,9 @@ enum ClientCfgSetting {
     CCS_AlternativeFlipping,
     CCS_StayDeadInMenus,
     CCS_MinTransp,
-    CCS_MaxCommand = CCS_MinTransp
+    CCS_UseThemeBackground,
+    CCS_Background,
+    CCS_MaxCommand = CCS_Background
 };
 
 class ServerThreadOwner {

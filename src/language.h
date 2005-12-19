@@ -1,7 +1,7 @@
 /*
  *  language.h
  *
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -47,10 +47,12 @@ private:
 extern Language language;
 
 std::string _(const std::string& text);
-std::string _(const std::string& text, const std::string& t1);
-std::string _(const std::string& text, const std::string& t1, const std::string& t2);
-std::string _(const std::string& text, const std::string& t1, const std::string& t2, const std::string& t3);
-std::string _(const std::string& text, const std::string& t1, const std::string& t2, const std::string& t3, const std::string& t4);
-std::string _(const std::string& text, const std::string& t1, const std::string& t2, const std::string& t3, const std::string& t4, const std::string& t5);
+
+// Translate text and replace $1...$5 with t1...t5.
+std::string _(std::string text, const std::string& t1,
+                                const std::string& t2 = "$2",
+                                const std::string& t3 = "$3",
+                                const std::string& t4 = "$4",
+                                const std::string& t5 = "$5");
 
 #endif

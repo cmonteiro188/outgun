@@ -798,7 +798,9 @@ bool Client::start() {
             break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
             break; case CCS_AlternativeFlipping:   menu.options.graphics.alternativeFlipping.set(args == "1");
             break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
-            break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);   // ignore error
+            break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);      // ignore error
+            break; case CCS_UseThemeBackground:    menu.options.graphics.useThemeBackground.set(args == "1");
+            break; case CCS_Background:            menu.options.graphics.background.set(args); // ignore error
             break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
             break; case CCS_MinTransp:             menu.options.graphics.minTransp.set(args == "1");
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
@@ -861,7 +863,7 @@ bool Client::start() {
     client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
     client_graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
-    client_graphics.select_theme(menu.options.graphics.theme());
+    client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
     if (!screenModeChange())
         return false;
 
@@ -3317,7 +3319,10 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                     const int new_vote = atoi(edit_map_vote) - 1;
                     edit_map_vote.clear();
                     if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
-                        map_vote = new_vote;
+                        if (new_vote > 255)
+                            map_vote = -1;
+                        else
+                            map_vote = new_vote;
                         want_map_exit_delayed = false;
                         // send map vote
                         char lebuf[16];
@@ -3671,6 +3676,8 @@ void Client::stop() {
         cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.graphics.alternativeFlipping() ? 1 : 0) << '\n';
         cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
+        cfg << CCS_UseThemeBackground   << ' ' << (menu.options.graphics.useThemeBackground() ? 1 : 0) << '\n';
+        cfg << CCS_Background           << ' ' <<  menu.options.graphics.background() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
         cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
@@ -3816,7 +3823,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // the playground: border, walls and pits
     if (hide_game) {
-        client_graphics.draw_empty_background();
+        client_graphics.draw_empty_background(map_ready);
 
         // game over message
         if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
@@ -4223,6 +4230,8 @@ void Client::initMenus() {
     menu.options.graphics.colorDepth    .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
     menu.options.graphics.apply         .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
     menu.options.graphics.theme         .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
+    menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,   &Client::MCF_gfxThemeChange         >(this));
+    menu.options.graphics.background    .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.antialiasing  .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange        >(this));
     menu.options.graphics.minTransp     .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange           >(this));
     menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
@@ -4388,7 +4397,7 @@ void Client::MCF_prepareDrawGfxMenu() {
 }
 
 void Client::MCF_gfxThemeChange() {
-    client_graphics.select_theme(menu.options.graphics.theme());
+    client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
     predrawNeeded = true;
 }
 

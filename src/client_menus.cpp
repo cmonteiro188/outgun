@@ -259,8 +259,9 @@ void Menu_graphics::reloadChoices(const Graphics& gfx) {
     for (vector<ScreenMode>::const_iterator mode = modes.begin(); mode != modes.end(); ++mode)
         resolution.addOption(itoa(mode->width) + '×' + itoa(mode->height), *mode);
     theme.clearOptions();
-    StringSelectInserter ins(theme);
-    gfx.search_themes(ins);
+    background.clearOptions();
+    StringSelectInserter insTheme(theme), insBg(background);
+    gfx.search_themes(insTheme, insBg);
 }
 
 Menu_graphics::Menu_graphics() :
@@ -276,6 +277,8 @@ Menu_graphics::Menu_graphics() :
     apply       (_("Apply changes")),
 
     theme       (_("Theme")),
+    useThemeBackground(_("Prefer background image from theme"), true),
+    background  (_("Background image")),
     antialiasing(_("Antialiasing"), true),
     minTransp   (_("Less transparency effects"), false),
     contTextures(_("Continuous textures between rooms"), false),
@@ -297,6 +300,8 @@ Menu_graphics::Menu_graphics() :
     menu.add_component(&apply);
     ins_space();
     menu.add_component(&theme);
+    menu.add_component(&useThemeBackground);
+    menu.add_component(&background);
     menu.add_component(&antialiasing);
     menu.add_component(&minTransp);
     menu.add_component(&contTextures);
@@ -328,10 +333,13 @@ void Menu_graphics::init(const Graphics& gfx) { // call just once, before callin
 
 void Menu_graphics::update(const Graphics& gfx) {   // tries to keep the selected resolution and theme
     ScreenMode oldmode = resolution();
-    string oldtheme = theme();
+    const string oldtheme = theme();
+    const string oldbg = background();
     reloadChoices(gfx);
-    resolution.set(oldmode);    // may fail; ignore
-    theme.set(oldtheme);        // may fail; ignore
+    // These all may fail; ignore.
+    resolution.set(oldmode);
+    theme.set(oldtheme);
+    background.set(oldbg);
 }
 
 bool Menu_graphics::newMode() {

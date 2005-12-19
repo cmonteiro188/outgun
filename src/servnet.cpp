@@ -2268,7 +2268,6 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
             players += world.player[i].name + '\t' + itoa(i / TSIZE) + '\t' + itoa(world.player[i].ping);
         }
     parameters["playerlist"] = players;
-    parameters["id"] = server_identification;
     return parameters;
 }
 

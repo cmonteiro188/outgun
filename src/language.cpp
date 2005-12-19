@@ -1,7 +1,7 @@
 /*
  *  language.cpp
  *
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005 - Jani Rivinoja
  *  Copyright (C) 2004 - Niko Ritari
  *
  *  This file is part of Outgun.
@@ -85,22 +85,18 @@ string _(const string& text) {
     return language.get_text(text);
 }
 
-string _(const string& text, const string& t1) {
-    return replace_all(_(text), "$1", t1);
-}
-
-string _(const string& text, const string& t1, const string& t2) {
-    return replace_all(_(text, t1), "$2", t2);
-}
-
-string _(const string& text, const string& t1, const string& t2, const string& t3) {
-    return replace_all(_(text, t1, t2), "$3", t3);
-}
-
-string _(const string& text, const string& t1, const string& t2, const string& t3, const string& t4) {
-    return replace_all(_(text, t1, t2, t3), "$4", t4);
-}
-
-string _(const string& text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) {
-    return replace_all(_(text, t1, t2, t3, t4), "$5", t5);
+string _(string text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) {
+    text = _(text);
+    const string* const replacement[] = { &t1, &t2, &t3, &t4, &t5 };
+    string::size_type pos = 0;
+    while ((pos = text.find('$', pos)) != string::npos) {
+        if (pos + 1 == string::npos)
+            break;
+        const int val = atoi(text.substr(pos + 1, 1));
+        if (val >= 1 && val <= static_cast<int>(sizeof(replacement))) {
+            text = text.replace(pos, 2, *replacement[val - 1]);
+            pos += replacement[val - 1]->length();
+        }
+    }
+    return text;
 }

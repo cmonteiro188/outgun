@@ -154,6 +154,8 @@ public:
     StaticText          refreshRate;
     Textarea            apply;
     Select<std::string> theme;
+    Checkbox            useThemeBackground;
+    Select<std::string> background;
     Checkbox            antialiasing;
     Checkbox            minTransp;
     Checkbox            contTextures;

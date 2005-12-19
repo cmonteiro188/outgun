@@ -2,7 +2,7 @@
  *  utility.cpp
  *
  *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

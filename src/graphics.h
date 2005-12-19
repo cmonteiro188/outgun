@@ -104,7 +104,7 @@ public:
                  const std::vector< std::pair<int, const WorldCoords*> >& spawns, bool grid = false);
 
     void draw_background();
-    void draw_empty_background();
+    void draw_empty_background(bool map_ready);
 
     void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
     void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
@@ -136,7 +136,6 @@ public:
 
     void draw_virou_sorvete(int x, int y);
 
-    void draw_one_line_message(const std::string& message);
     void draw_waiting_map_message(const std::string& caption, const std::string& map);
     void draw_loading_map_message(const std::string& text);
     void show_not_responding_message();
@@ -199,8 +198,8 @@ public:
 
     bool save_map_picture(const std::string& filename, const Map& map);
 
-    void search_themes(LineReceiver& dst) const;
-    void select_theme(const std::string& name);
+    void search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) const;
+    void select_theme(const std::string& name, const std::string& bg_dir, bool use_theme_bg);
 
     void set_antialiasing(bool enable) { antialiasing = enable; }
 
@@ -225,6 +224,8 @@ private:
     bool reset_video_mode(int width, int height, int depth, bool windowed, int pages = 1);
 
     void setPlaygroundColors();
+    
+    void make_background(BITMAP* buffer);
 
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
@@ -253,14 +254,19 @@ private:
     void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
     void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 
+    void print_text_border_check_bg(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+    void print_text_border_centre_check_bg(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+
     void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 
     void scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
 
     void make_db_effect();
 
-    void load_theme(const std::string& dirname = "");
+    void load_theme(const std::string& dirname);
     void load_pictures(const std::string& path);
+
+    void load_background(const std::string& path);
 
     void load_floor_textures(const std::string& filename);
     void load_wall_textures(const std::string& filename);
@@ -325,6 +331,8 @@ private:
     static const int flagpos_radius = 30;
     double scr_mul; // screen size multiplier
 
+    Bitmap bg_texture;
+
     std::vector<Bitmap> floor_texture;
     std::vector<Bitmap> wall_texture;
 
@@ -354,6 +362,8 @@ private:
     std::string theme_path;
     std::string theme_name;
     bool no_theme;
+
+    std::string bg_path;
 
     bool antialiasing;
 
@@ -395,7 +405,7 @@ private:
         COLMENUGRAY,
         COLGROUND,
         COLWALL,
-        COLNOLIFE,
+        COLBLACK,
         COLDARKGRAY,
         COLSHADOW,
         COLDARKORA,
