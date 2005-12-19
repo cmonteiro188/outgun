@@ -3512,7 +3512,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             if (get_time() >= nextSend || get_time() >= nextClientFrame)
                 break;
 
-            //sleep a bit
             platSleep(2);
         }
 
