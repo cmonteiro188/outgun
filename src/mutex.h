@@ -29,6 +29,7 @@
 #include "nassert.h"
 #include "utility.h"
 
+// note: don't use exit() (_exit() is OK) when a global MutexHolder may be locked
 class MutexHolder {
     pthread_mutex_t mutex;
 

@@ -49,7 +49,7 @@
 #include "server.h"
 #include "rudp.h"
 #include "Timer.h"
-#include "sleep.h"
+#include "../timer.h" // for platSleep
 #include "ConditionVariable.h"
 #include "Mutex.h"
 using namespace GNE;
@@ -458,7 +458,8 @@ public:
 
 
     //broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
-/* disabled in Outgun to prevent problems    virtual int broadcast_message(const char* data, int length) {
+    /* disabled in Outgun to prevent problems
+    virtual int broadcast_message(const char* data, int length) {
 
         for (int i=0;i<MAX_CLIENTS;i++) 
         if (client[i].used)
@@ -466,8 +467,8 @@ public:
 
         //ok
         return 1;
-    }*/
-
+    }
+    */
 
     //function to be called by the SFUNC_CLIENT_DATA callback
     //gets the next reliable message avaliable from the given client. null if no message pending
@@ -912,7 +913,8 @@ public:
                         reply->addlong(4);      //"connection rejected"
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom "connection denied" information
-                        client[cid].station->send_raw_packet(reply);
+                        nlSetRemoteAddr(servsock, &client[cid].addr);
+                        nlWrite(servsock, reply->getbuf(), reply->getlen());
                         delete reply;
                         
                         //return this thread/client slot to the free pool
@@ -1166,7 +1168,7 @@ void thread_master_f(server_ci* server)
 
         // if no data, keep reading
         if (amount == 0) {
-            MS_SLEEP(2);
+            platSleep(2);
             continue;
         }
 
@@ -1253,7 +1255,7 @@ void thread_disconnector_f(client_t* mydata) {
             break;
 
         //sleep a bit
-        MS_SLEEP(100);    //*** NO CPU PROBLEM HERE ***
+        platSleep(100);    //*** NO CPU PROBLEM HERE ***
     }
 
     logThreadExit("Leet server thread_disconnector_f", server->log);

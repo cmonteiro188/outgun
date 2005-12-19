@@ -36,7 +36,6 @@
 
 #include "incalleg.h"
 #include "leetnet/client.h"
-#include "leetnet/sleep.h"  // sleep util
 #include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
@@ -47,6 +46,7 @@
 #include "network.h"
 #include "platform.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
+#include "timer.h"
 #include "utility.h"
 #include "world.h"
 
@@ -322,7 +322,7 @@ void TournamentPasswordManager::threadFn() {
 
     while (!quitThread) {
         if (delay > 0) {
-            MS_SLEEP(500);
+            platSleep(500);
             delay -= 500;
             continue;
         }
@@ -651,7 +651,7 @@ Client::~Client() {
         client = 0;
     }
     while (refreshStatus != RS_none && refreshStatus != RS_failed)  // wait for a possible refresh thread to abort itself
-        MS_SLEEP(50);
+        platSleep(50);
 
     for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
         delete *mi;
@@ -1072,7 +1072,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     want_map_exit_delayed = false;
 
     //avoid "dropped" plaque
-    lastpackettime = get_time() + 1.0;
+    lastpackettime = get_time() + 4.0;
 
     averageLag = 0;
 
@@ -1371,7 +1371,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->connect(false);
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
-        MS_SLEEP(500);
+        platSleep(500);
 
     handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
     openMenus.close(&m_connectProgress.menu);
@@ -1538,7 +1538,7 @@ void Client::process_incoming_data(const char* data, int length) {
         frameOffsetDeltaTotal += offsetDelta;
         if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
             frameOffsetDeltaTotal /= 10.;
-            netsendAdjustment = -static_cast<int>(frameOffsetDeltaTotal * 20.); // the time_counter used for timing netsends is 200 Hz so one frame is 20 ticks
+            netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
             frameOffsetDeltaTotal = 0;
             frameOffsetDeltaNum = 0;
         }
@@ -1755,9 +1755,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 // This is a kludge because of compatibility. Remove in version 1.1.
                 // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
                 if (type == msg_server) {
-                    const string vote_msg = "Your vote has no effect until you vote for a specific map.";
-                    if (chatmsg == vote_msg) {
-                        chatmsg = _(vote_msg);
+                    if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
+                        chatmsg = _("Your vote has no effect until you vote for a specific map.");
                         want_map_exit_delayed = true;
                     }
                     string::size_type pos = chatmsg.find(" decided it's time for a map change.");
@@ -2828,6 +2827,8 @@ void Client::process_incoming_data(const char* data, int length) {
 
 //send chat message
 void Client::send_chat(const string& msg) {
+    if (isFlood(msg))
+        return;
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeStr(lebuf, count, msg);
@@ -2953,8 +2954,8 @@ class TempPingData {    // internal to Client::refresh_servers
 
 public:
     TempPingData() : rc(0), rt(0) { }
-    void send(int pack) { st[pack] = get_time(); }
-    void receive(int pack) { ++rc; rt += get_time() - st[pack]; }
+    void send(int pack) { g_timeCounter.refresh(); st[pack] = get_time(); }
+    void receive(int pack) { g_timeCounter.refresh(); ++rc; rt += get_time() - st[pack]; }
     int received() const { return rc; }
     int ping() const { return static_cast<int>(1000 * rt / rc); }
 };
@@ -3021,7 +3022,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 
         // parse received responses
         for (int subRound = 0; subRound < 20; subRound++) {
-            MS_SLEEP(5);
+            platSleep(5);
 
             for (;;) {  // continue while there are new packets
                 int len = nlRead(sock, lebuf, 512);
@@ -3317,6 +3318,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                     edit_map_vote.clear();
                     if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
                         map_vote = new_vote;
+                        want_map_exit_delayed = false;
                         // send map vote
                         char lebuf[16];
                         int count = 0;
@@ -3417,14 +3419,13 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         showMenu(menu);
     gameshow = false;
 
-    const unsigned long sendFrameStep = 20; // 20 steps of 200 Hz clock equals the 10 Hz server clock
-    unsigned long nextSendFrame = time_counter;
-    unsigned long nextClientFrameI = time_counter;
-    double nextClientFrameF = nextClientFrameI;
+    g_timeCounter.refresh();
+    double nextSend = get_time();
+    double nextClientFrame = get_time();
 
     bool prevFire = false, prevDropFlag = false;
     while (!quitCommand && !*quitFlag) {
-        // (1) loop doing input/sleep before next simulation/draw time
+        // (1) loop doing input/sleep before next send or draw time
         for (;;) {
             const bool controlPressed = (key[KEY_LCONTROL] || key[KEY_RCONTROL]);
 
@@ -3502,36 +3503,36 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 }
             }
 
-            if (time_counter >= nextSendFrame || time_counter >= nextClientFrameI)
+            g_timeCounter.refresh();
+            if (get_time() >= nextSend || get_time() >= nextClientFrame)
                 break;
 
-            if (nextSendFrame - time_counter > 1000 || nextClientFrameI - time_counter > 1000)  // time_counter gone around
-                nextClientFrameF = nextClientFrameI = nextSendFrame = time_counter;
-
             //sleep a bit
-            MS_SLEEP(2);
+            platSleep(2);
         }
 
-        if (time_counter >= nextSendFrame) {
-            nextSendFrame += sendFrameStep;
+        if (get_time() >= nextSend) {
+            nextSend += .1; // match 10 Hz frame frequency of server
             #ifdef SEND_FRAMEOFFSET
-            nextSendFrame += netsendAdjustment;
+            nextSend += netsendAdjustment;
             netsendAdjustment = 0;  // losing a value due to concurrency is vaguely possible but affordable
             #endif
-            if (time_counter > nextSendFrame)   // don't accumulate lag
-                nextSendFrame = time_counter;
+            if (get_time() > nextSend)   // don't accumulate lag
+                nextSend = get_time();
             send_frame(true, true);
         }
 
-        if (time_counter < nextClientFrameI)
+        if (get_time() < nextClientFrame)
             continue;
 
-        // the rest is drawing
+        // give other threads a chance (otherwise we're trying to run all the time if the FPS limit is not lower than what the machine can do)
+        sched_yield();
 
-        nextClientFrameF += 200. / menu.options.graphics.fpsLimit();
-        nextClientFrameI = static_cast<int>(nextClientFrameF);
-        if (time_counter > nextClientFrameI)    // don't accumulate lag
-            nextClientFrameF = nextClientFrameI = time_counter;
+        nextClientFrame += 1. / menu.options.graphics.fpsLimit();
+        if (get_time() > nextClientFrame)    // don't accumulate lag
+            nextClientFrame = get_time();
+
+        // the rest is drawing
 
         if (gameshow) {
             MutexDebug md("frameMutex", __LINE__, log);
@@ -4502,27 +4503,22 @@ void Client::MCF_refreshLanguages() {
     menu.options.language.language.addOption("English", "en");   // global default when there's nothing in language.txt
 
     // search the languages directory for translations to add
-    const string searchPattern = wheregamedir + "languages" + directory_separator + "*.txt";
-    log("Scanning for translations: '%s'", searchPattern.c_str());
     vector< pair<string, string> > translations;
-
-    al_ffblk ffblk;
-    for (int error = al_findfirst(searchPattern.c_str(), &ffblk, FA_ARCH | FA_RDONLY); !error; error = al_findnext(&ffblk)) {
-        char nameBuf[500];
-        replace_extension(nameBuf, ffblk.name, "", 500);
-        nameBuf[strlen(nameBuf) - 1] = '\0';    // erase last '.'
-        if (strchr(nameBuf, '.') || !strcmp(nameBuf, "en"))   // skip help.language.txt and possible similar files, and of course English which was added first
+    FileFinder* languageFiles = platMakeFileFinder(wheregamedir + "languages", ".txt", false);
+    while (languageFiles->hasNext()) {
+        string name = FileName(languageFiles->next()).getBaseName();
+        if (name.find('.') != string::npos || name == "en")   // skip help.language.txt and possible similar files, and of course English which was added first
             continue;
         // fetch language name
         string langName;
-        const string langFile = wheregamedir + "languages" + directory_separator + nameBuf + ".txt";
+        const string langFile = wheregamedir + "languages" + directory_separator + name + ".txt";
         ifstream lang(langFile.c_str());
         if (lang && getline_skip_comments(lang, langName))
-            translations.push_back(pair<string, string>(langName, nameBuf));
+            translations.push_back(pair<string, string>(langName, name));
         else
             log.error(_("Translation $1 can't be read.", langFile));
     }
-    al_findclose(&ffblk);
+    delete languageFiles;
 
     // add found languages to options
     sort(translations.begin(), translations.end(), translationSort);

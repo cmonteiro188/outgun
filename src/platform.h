@@ -29,7 +29,6 @@
 
 #include "utility.h"
 
-int platMkdir(const char* path);
 int platStricmp(const char* s1, const char* s2);
 int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg);
 void platMessageBox(const std::string& caption, const std::string& text, bool blocking); // blocking may not be controllable
@@ -43,5 +42,22 @@ inline int platSnprintf(char* buf, size_t count, const char* fmt, ...) {
     va_end(args);
     return ret;
 }
+
+class FileFinder {
+public:
+    virtual ~FileFinder() { }
+    virtual bool hasNext() const = 0;
+    virtual std::string next() = 0; // only call after hasNext() returning true
+};
+
+FileFinder* platMakeFileFinder(const std::string& path, const std::string& extension, bool directories);
+
+int platMkdir(const std::string& path);
+
+bool platIsDirectory(const std::string& name);
+
+void platInit(); // perform platform specific initializations; called very early in the program
+
+void platUninit(); // clean up; called before exiting
 
 #endif

@@ -29,17 +29,17 @@
 
 #include "incalleg.h"
 #include "allegro_icon.h"
-#include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"    // some globals are set from commandline arguments
 #include "gameserver_interface.h"
 #include "log.h"
 #include "language.h"
 #include "network.h"
-#include "platform.h"   // platMkdir
+#include "platform.h"
+#include "timer.h"
 #include "utility.h"
 
-#ifndef SDL_DEDICATED_SERVER
+#ifndef DEDICATED_SERVER_ONLY
 #include "client.h"
 #include "mappic.h"
 #endif
@@ -48,32 +48,7 @@ using std::ifstream;
 using std::ostringstream;
 using std::string;
 
-
-#ifndef SDL_DEDICATED_SERVER
-
-void increment_time_counter() {
-    time_counter++;
-} END_OF_FUNCTION(increment_time_counter);
-
-void increment_server_speed_counter() {
-    server_speed_counter++;
-} END_OF_FUNCTION(increment_server_speed_counter);
-
-#else
-
-Uint32 increment_time_counter(Uint32 interval, void* param) {
-    time_counter++;
-    return interval;
-}
-
-Uint32 increment_server_speed_counter(Uint32 interval, void* param) {
-    server_speed_counter++;
-    return interval;
-}
-
-#endif
-
-#ifndef SDL_DEDICATED_SERVER
+#ifndef DEDICATED_SERVER_ONLY
 
 bool set_shitty_mode(LogSet log) {
     int DTC = desktop_color_depth();
@@ -121,18 +96,19 @@ bool set_shitty_mode(LogSet log) {
         return true;
 }
 
+#endif
+
 // Make directory if it does not already exist.
 bool check_dir(const string& dir, LogSet& log) {
     const string directory = wheregamedir + dir;
-    al_ffblk mapffblk;
-    const int result = al_findfirst(directory.c_str(), &mapffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-    const bool exists = (result == 0 && (mapffblk.attrib & FA_DIREC));
-    al_findclose(&mapffblk);
-    if (exists || !platMkdir(directory.c_str()))
+    
+    if (platIsDirectory(directory) || !platMkdir(directory.c_str()))
         return true;
     log.error(_("The directory '$1' was not found and could not be created.", directory));
     return false;
 }
+
+#ifndef DEDICATED_SERVER_ONLY
 
 class GlobalCloseButtonHook {
     static volatile bool flag;
@@ -153,10 +129,19 @@ void GlobalCloseButtonHook__closeCallback() {
     GlobalCloseButtonHook::flag = true;
 } END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback);
 
+#endif
+
+#ifdef DEDICATED_SERVER_ONLY
+
+void statusOutputText(const string& str) {
+    std::cout << str << '\n';
+}
+
+#else
+
 void statusOutputWindow(const string& str) {
     set_window_title(str.c_str());
 }
-#endif
 
 void statusOutputText(const string& str) {
     #ifndef ALLEGRO_WINDOWS
@@ -166,13 +151,31 @@ void statusOutputText(const string& str) {
     #endif
 }
 
+#endif
+
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
+
+int wrappedMain(int argc, const char* argv[]);
 
 int main(int argc, const char* argv[]) {
     unsigned long stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
     srand((unsigned)time(0));
 
-    #ifndef SDL_DEDICATED_SERVER
+    platInit();
+    int result = wrappedMain(argc, argv);
+    platUninit();
+
+    return result;
+}
+#ifndef DEDICATED_SERVER_ONLY
+END_OF_MAIN();
+#endif
+
+int wrappedMain(int argc, const char* argv[]) {
+    g_timeCounter.setZero();
+
+    #ifndef DEDICATED_SERVER_ONLY
+
     // Set the text encoding format for Allegro as 8 bit Ascii
     set_uformat(U_ASCII);
 
@@ -186,37 +189,26 @@ int main(int argc, const char* argv[]) {
         return 1;
     }
     install_keyboard();
-    install_timer();
-
-    // Check what the directory separator is.
-    char stuff[2] = { 0 };
-    put_backslash(stuff);
-    directory_separator = stuff[0];
 
     // find out where we are
     char* path = new char[2048];
     get_executable_name(path, 2048);
-    replace_filename(path, path, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
+    replace_filename(path, path, "", 256);
     wheregamedir = path;
     delete[] path;
 
-    #else
-    directory_separator = '/';
+    #else // !DEDICATED_SERVER_ONLY
+
     wheregamedir = "./";
-    if (SDL_Init(SDL_INIT_TIMER)) {
-        fprintf(stderr, "Initializing SDL failed.\n");
-        return 1;
-    }
-    #endif
+
+    #endif // !DEDICATED_SERVER_ONLY
 
     NoLog noLog;
     LogSet noLogSet(&noLog, &noLog, &noLog);
-    #ifndef SDL_DEDICATED_SERVER
     if (!check_dir("log", noLogSet)) {
         messageBox("Error", "The directory 'log' was not found and could not be created.");
         return 1;
     }
-    #endif
 
     FileLog logFile(wheregamedir + "log" + directory_separator + "log.txt", true);
     MemoryLog memoryErrorLog;
@@ -229,9 +221,6 @@ int main(int argc, const char* argv[]) {
     errorMessage(_("Errors"), memoryErrorLog, '\n' + _("See the 'log' directory for more information."));
     return err;
 }
-#ifndef SDL_DEDICATED_SERVER
-END_OF_MAIN();
-#endif
 
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) {
     log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
@@ -257,10 +246,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         }
     }
 
-    #ifndef SDL_DEDICATED_SERVER
     check_dir("config", log);
     check_dir("languages", log);
-    #endif
 
     int acceptedErrorCount = memoryErrorLog.size(); // this is just a flag here; final value of acceptedErrorCount is set after loading the language
 
@@ -288,7 +275,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     int targetprio = 0;
     bool targetprio_specified = false;
     ServerExternalSettings serverCfg;
-    #ifndef SDL_DEDICATED_SERVER
+    #ifndef DEDICATED_SERVER_ONLY
     ClientExternalSettings clientCfg;
     #endif
 
@@ -318,7 +305,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         }
         else if (!strcmp(argv[i], "-unsafeserver"))
             serverCfg.threadLock = false;
-        #ifndef SDL_DEDICATED_SERVER
+        #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-win"))
             clientCfg.winclient = 1;
         else if (!strcmp(argv[i], "-flip"))
@@ -340,6 +327,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-fps must be followed by a space and a number."));
         }
+        else if (!strcmp(argv[i], "-nosound"))
+            clientCfg.nosound = true;
         #endif
         else if (!strcmp(argv[i], "-maxp")) {
             if (++i < argc) {
@@ -363,7 +352,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-port must be followed by a space and a port number."));
         }
-        #ifndef SDL_DEDICATED_SERVER
+        #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-cport")) {
             if (++i < argc) {
                 int p1, p2;
@@ -403,10 +392,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-sport must be followed by a space and minport:maxport."));
         }
-        #ifndef SDL_DEDICATED_SERVER
-        else if (!strcmp(argv[i], "-nosound"))
-            clientCfg.nosound = true;
-        #endif
         else if (!strcmp(argv[i], "-ip")) {
             if (++i < argc) {
                 if (isValidIP(argv[i])) {
@@ -474,28 +459,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     g_masterSettings.load(log);
 
-    #ifndef SDL_DEDICATED_SERVER
-    // Allegro timers
-
-    // install higher-accuracy timer interrupt
-    LOCK_VARIABLE(time_counter);
-    LOCK_FUNCTION(increment_time_counter);
-    install_int_ex(increment_time_counter, BPS_TO_TIMER(200));      //5 ms accuracy is already 10 times better than clock()
-
-    // install server timer (used for both dedicated and listen server)
-    LOCK_VARIABLE(server_speed_counter);
-    LOCK_FUNCTION(increment_server_speed_counter);
-    install_int_ex(increment_server_speed_counter, BPS_TO_TIMER(10));       //10Hz
-
-    #else
-    // SDL timers
-    SDL_AddTimer(5, increment_time_counter, 0);
-    if (!SDL_AddTimer(100, increment_server_speed_counter, 0)) {
-        fprintf(stderr, "Initializing the server timer failed.\n");
-        exit(1);
-    }
-    #endif
-
     // get system thread priorities
     int         pmin = sched_get_priority_min(SCHED_OTHER);
     int         pmax = sched_get_priority_max(SCHED_OTHER);
@@ -529,18 +492,11 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             infobuf += '\n';
         }
 
-        #ifndef SDL_DEDICATED_SERVER
         messageBox(_("Information"), infobuf);
-        #else
-        std::cout << infobuf;
-        #endif
         return;
     }
 
-    #ifndef SDL_DEDICATED_SERVER
-    clientCfg.priority = clientCfg.lowerPriority = pdef;
-    #endif
-    serverCfg.lowerPriority = pdef;
+    int highPriority;
     if (!defaultprio) {
         int ptarg;
         if (targetprio_specified)
@@ -556,24 +512,27 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             ptarg = pdef;
         }
 
-        serverCfg.priority = ptarg;
+        highPriority = ptarg;
         log("Priority set for server: %i", ptarg);
     }
     else {
-        serverCfg.priority = pdef;
+        highPriority = pdef;
         log("-defaultprio: Leaving thread priorities on their default values");
     }
-    #ifndef SDL_DEDICATED_SERVER
-    serverCfg.networkPriority = clientCfg.networkPriority = serverCfg.priority;
+
+    serverCfg.lowerPriority = pdef;
+    serverCfg.priority = serverCfg.networkPriority = highPriority;
+
+    #ifndef DEDICATED_SERVER_ONLY
+    clientCfg.priority = clientCfg.lowerPriority = pdef;
+    clientCfg.networkPriority = highPriority;
 
     GlobalCloseButtonHook::install();
     GlobalDisplaySwitchHook::init();
+    #endif
 
     check_dir(SERVER_MAPS_DIR, log);    // the client might run a server, so check these in any case
     check_dir("server_stats" , log);
-    #else
-    serverCfg.networkPriority = serverCfg.priority;
-    #endif
 
     #ifdef DEDICATED_SERVER_ONLY
     serverCfg.dedserver = textserver = true;
@@ -590,9 +549,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 serverCfg.statusOutput = statusOutputWindow;
         }
-        #endif
 
-        #ifndef SDL_DEDICATED_SERVER
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
             if (set_display_switch_mode(SWITCH_BACKGROUND) == -1)
                 log.error(_("Can't set server to run in the background."));
@@ -614,11 +571,11 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         // run server
         GameserverInterface* gameserver = new GameserverInterface(log, serverCfg, memoryErrorLog, "");
         if (gameserver->start(serverCfg.server_maxplayers)) {
-            #ifndef SDL_DEDICATED_SERVER
+            #ifndef DEDICATED_SERVER_ONLY
             gameserver->loop(GlobalCloseButtonHook::flagPtr(), true);
             #else
             bool quit = false;
-            gameserver->loop(&quit, true);
+            gameserver->loop(&quit, false);
             #endif
             gameserver->stop();
         }
@@ -655,10 +612,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     log("Exiting");
     // exit HawkNL
     nlShutdown();
-
-    #ifdef SDL_DEDICATED_SERVER
-    SDL_Quit();
-    #endif
 
     return;
 }

@@ -33,13 +33,12 @@
 #include <vector>
 
 #include "incalleg.h"
-#include "commont.h"
 #include "gamemod.h"
 #include "language.h"
-#include "leetnet/sleep.h"  // MS_SLEEP
 #include "nassert.h"
 #include "platform.h"
 #include "thread.h"
+#include "timer.h"
 #include "world.h"
 
 // implements:
@@ -425,28 +424,27 @@ bool checkForceIpValue(const std::string& val) { return isValidIP(val); }
 
 bool Server::setForceIP(const std::string& val) { extConfig.ipAddress = val; return true; }
 void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
-void Server::setJoinStart(int val) { network.set_join_start(val); }
-void Server::setJoinEnd(int val) { network.set_join_end(val); }
 
 void Server::load_game_mod(bool reload) {
     RedirectToFun1<bool, const std::string&> checkForceIP(checkForceIpValue);
     RedirectToMemFun1<Server, bool, const std::string&> setForceIP(this, &Server::setForceIP);
 
-    RedirectToMemFun1<ServerNetworking, void, const std::string&> setHostname(&network, &ServerNetworking::set_hostname);
-    RedirectToMemFun1<ServerNetworking, void, const std::string&> setServerPassword(&network, &ServerNetworking::set_server_password);
+    RedirectToMemFun1<ServerNetworking, void, const string&> setHostname(&network, &ServerNetworking::set_hostname);
+    RedirectToMemFun1<ServerNetworking, void, const string&> setServerPassword(&network, &ServerNetworking::set_server_password);
 
     RedirectToFun1<bool, int> checkMaxplayer(checkMaxplayerSetting);
     RedirectToMemFun1<Server, bool, int> tryMaxplayer(this, &Server::trySetMaxplayers);
 
-    RedirectToMemFun1<ServerNetworking, void, const std::string&> addWebServer(&network, &ServerNetworking::add_web_server);
-    RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebScript(&network, &ServerNetworking::set_web_script);
-    RedirectToMemFun1<ServerNetworking, void, const std::string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
+    RedirectToMemFun1<ServerNetworking, void, const string&> addWebServer(&network, &ServerNetworking::add_web_server);
+    RedirectToMemFun1<ServerNetworking, void, const string&> setWebScript(&network, &ServerNetworking::set_web_script);
+    RedirectToMemFun1<ServerNetworking, void, const string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
     RedirectToMemFun1<ServerNetworking, void, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
 
     RedirectToMemFun1<Server, void, int> setRandomMaprot(this, &Server::setRandomMaprot);
 
-    RedirectToMemFun1<Server, void, int> setJoinStart(this, &Server::setJoinStart);
-    RedirectToMemFun1<Server, void, int> setJoinEnd(this, &Server::setJoinEnd);
+    RedirectToMemFun1<ServerNetworking, void, int> setJoinStart(&network, &ServerNetworking::set_join_start);
+    RedirectToMemFun1<ServerNetworking, void, int> setJoinEnd(&network, &ServerNetworking::set_join_end);
+    RedirectToMemFun1<ServerNetworking, void, const string&> setJoinLimitMessage(&network, &ServerNetworking::set_join_limit_message);
 
     GamemodSetting* portSetting, * ipSetting, * privSetting;
     if (reload) {
@@ -526,7 +524,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("pup_shield_one_hit",      &pupConfig.pup_shield_one_hit)),
         PT(new GS_ForwardInt("random_maprot",           setRandomMaprot, 0, 2)),
         PT(new GS_Int       ("vote_block_time",         &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)), // convert minutes to frames
-        PT(new GS_Boolean   ("map_vote_needed",         &map_vote_needed)),
+        PT(new GS_Boolean   ("require_specific_map_vote",   &require_specific_map_vote)),
         PT(new GS_Int       ("idlekick_time",           &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),  // convert seconds to frames; special setting: allow 0 that is outside the normal range
         PT(new GS_Int       ("idlekick_playerlimit",    &idlekick_playerlimit, 1, MAX_PLAYERS)),
         PT(new GS_Double    ("respawn_time",            &worldConfig.respawn_time, 0.)),
@@ -540,6 +538,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("save_stats",              &save_stats, 0, MAX_PLAYERS)),
         PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600)),
         PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600)),
+        PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -692,7 +691,7 @@ void Server::check_map_exit() {
     int num_for = 0, num_against = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
-            if (world.player[i].want_map_exit && (!map_vote_needed || world.player[i].mapVote != -1))
+            if (world.player[i].want_map_exit && (!require_specific_map_vote || world.player[i].mapVote != -1))
                 num_for++;
             else
                 num_against++;
@@ -733,7 +732,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     game_end_delay = 5;
     random_maprot = false;
     vote_block_time = 0;    // no limit
-    map_vote_needed = false;
+    require_specific_map_vote = false;
     idlekick_time = 120 * 10;   // 2 minutes in frames
     idlekick_playerlimit = 4;
 
@@ -754,42 +753,24 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     // load server configuration from gamemod.txt
     load_game_mod(reload);
 
-    #ifndef SDL_DEDICATED_SERVER
-    // did not specify maps, scan "maps/" folder for .txt map files
     if (maprot.empty()) {
-        const string searchPattern = wheregamedir + SERVER_MAPS_DIR + directory_separator + "*.txt";
-
-        log("Scanning for maps: '%s'", searchPattern.c_str());
-
-        al_ffblk mapffblk;  //for al_find*
-
-        int result = al_findfirst(searchPattern.c_str(), &mapffblk, FA_ARCH | FA_RDONLY);
-        while (result == 0) {
-            char nameBuf[500];
-            //char *replace_extension(char *dest, const char *filename, const char *ext, int size
-            replace_extension(nameBuf, mapffblk.name, "", 500);
-            nameBuf[strlen(nameBuf) - 1] = 0;   // erase last '.'
-
+        // did not specify maps, scan "maps/" folder for .txt map files
+        FileFinder* mapFiles = platMakeFileFinder(wheregamedir + SERVER_MAPS_DIR, ".txt", false);
+        while (mapFiles->hasNext()) {
+            string mapName = FileName(mapFiles->next()).getBaseName();
             MapInfo mi;
-            if (mi.load(log, nameBuf)) {
+            if (mi.load(log, mapName)) {
                 maprot.push_back(mi);
-                log("Added '%s' to map rotation", nameBuf);
+                log("Added '%s' to map rotation", mapName.c_str());
             }
             else
-                log.error(_("Can't add '$1' to map rotation.", nameBuf));
-
-            //try next
-            result = al_findnext(&mapffblk);
+                log.error(_("Can't add '$1' to map rotation.", mapName));
         }
-        al_findclose(&mapffblk);
+        delete mapFiles;
     }
-    #endif
 
     if (maprot.empty()) {
         log.error(_("No maps for rotation."));
-        #ifdef SDL_DEDICATED_SERVER
-        log.error(_("The SDL server needs an exact map list."));
-        #endif
         abortFlag = true;
         return false;
     }
@@ -1093,7 +1074,8 @@ void Server::chat(int pid, const char* sbuf) {
                     nAssert(0);
             }
         }
-        else if (!strcmp(cbuf, "forcemap") && admin) {  // Make sure that these messages match with the ones in client.cpp.
+        else if (!strcmp(cbuf, "forcemap") && admin) {
+            // Make sure that these messages match with the ones in client.cpp.
             if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 maprot[world.player[pid].mapVote].votes = 99;
@@ -1121,7 +1103,7 @@ void Server::chat(int pid, const char* sbuf) {
         }
         else if (world.player[pid].muted == 1)
             network.send_mute_notification(pid);
-        else if (isflood(sbuf))
+        else if (isFlood(sbuf))
             ;   // Notify?
         else {
             ostringstream msg;
@@ -1142,22 +1124,6 @@ void Server::chat(int pid, const char* sbuf) {
             }
         }
     }
-}
-
-bool Server::isflood(const string& message) const {
-    int count = 0;
-    unsigned char chr = 0;
-    bool flood = false;
-    for (string::const_iterator s = message.begin(); s != message.end(); ++s) {
-        if (chr != *s)
-            count = 1;
-        else if (++count == 7) {
-            flood = true;
-            break;
-        }
-        chr = *s;
-    }
-    return flood;
 }
 
 bool Server::changeRegistration(int id, const string& token) {
@@ -1202,7 +1168,7 @@ void Server::simulate_and_broadcast_frame() {
     if (world.frame >= next_vote_announce_frame) {  // announce voting status
         int votes = 0;
         for (int i = 0; i < maxplayers; ++i)
-            if (world.player[i].used && world.player[i].want_map_exit && (!map_vote_needed || world.player[i].mapVote != -1))
+            if (world.player[i].used && world.player[i].want_map_exit && (!require_specific_map_vote || world.player[i].mapVote != -1))
                 ++votes;
         const int players = get_player_count() / 2 + 1;
         if (votes != last_vote_announce_votes || (players != last_vote_announce_needed && votes != 0)) {
@@ -1267,17 +1233,12 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 
     world.frame = 0;    //frame to generate next
 
-    //sync with speed counter until it's time to generate one frame (== 1)
-    server_speed_counter = 0;
-    while (server_speed_counter < 1)
-        MS_SLEEP(2);
+    g_timeCounter.refresh();
+    double nextFrameTime = get_time() + .1;
 
     while (!*quitFlag && !abortFlag) {
         // generate and send frame
         simulate_and_broadcast_frame();
-
-        //dec counter - another 100ms must pass before next send
-        server_speed_counter--;
 
         // next frame
         world.frame++;
@@ -1294,8 +1255,8 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             if (quitOnEsc)
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
+            #ifndef DEDICATED_SERVER_ONLY
             // update (re-clear) window too, if there's the possibility it has been corrupted
-            #ifndef SDL_DEDICATED_SERVER
             if (extConfig.ownScreen && GlobalDisplaySwitchHook::readAndClear())
                 clear_bitmap(screen);
             #endif
@@ -1308,15 +1269,18 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             threadLockMutex.unlock();
 
         // sleep while not time to send again
-        while (server_speed_counter <= 0) {
-            // sleep a bit
-            MS_SLEEP(2);            // *** OPTIMIZE THIS ***
+        for (;;) {
+            g_timeCounter.refresh();
+            if (get_time() >= nextFrameTime)
+                break;
+            platSleep(2); //#opt
         }
+        nextFrameTime += .1;
 
         if (threadLock)
             threadLockMutex.lock();
 
-        #ifndef SDL_DEDICATED_SERVER
+        #ifndef DEDICATED_SERVER_ONLY
         if (quitOnEsc && key[KEY_ESC])
             break;
         #endif

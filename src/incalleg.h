@@ -21,10 +21,12 @@
  *
  */
 
+#ifdef DEDICATED_SERVER_ONLY
+#define INCALLEG_H_INC // disable this entire file
+#endif
+
 #ifndef INCALLEG_H_INC
 #define INCALLEG_H_INC
-
-#ifndef SDL_DEDICATED_SERVER
 
 #include <allegro.h>
 #ifdef ALLEGRO_WINDOWS
@@ -51,11 +53,5 @@ inline void set_clip_rect(BITMAP* bitmap, int x1, int y1, int x2, int y2) {
     set_clip(bitmap, x1, y1, x2, y2);
 }
 #endif
-
-#else  // SDL_DEDICATED_SERVER
-
-#include <SDL/SDL.h>
-
-#endif // SDL_DEDICATED_SERVER
 
 #endif  // INCALLEG_H_INC

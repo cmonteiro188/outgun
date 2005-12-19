@@ -25,6 +25,7 @@
 #include <cstdarg>
 #include <string>
 #include "platform.h"
+#include "timer.h"
 #include "utility.h"
 
 #include "log.h"
@@ -77,6 +78,7 @@ void FileLog::add(const string& str) {
         fputs(date_and_time().c_str(), fp);
         fputc(' ', fp);
     }
+    g_timeCounter.refresh(); // just to be accurate
     fprintf(fp, "%9.2f: %s\n", get_time(), str.c_str());
     fflush(fp);
 }

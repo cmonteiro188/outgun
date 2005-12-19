@@ -70,7 +70,7 @@ std::string trim(std::string str);
 std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
 
 // Replace character &<>"' with HTML entities or character references.
-std::string htmlspecialchars(std::string text);
+std::string escape_for_html(std::string text);
 
 // Pad /text/ with /pad/ from the given side until it's length is /size/ characters. Do nothing if length >= /size/.
 std::string pad_to_size_left (std::string text, int size, char pad = ' ');
@@ -125,12 +125,21 @@ public:
     virtual LineReceiver& operator()(const std::string& str) =0;
 };
 
-bool is_keypad(int sc);
-
 void rotate_angle(double& angle, double shift);
 
-double get_time();
-
 template<class DstType> DstType& volatile_ref_cast(volatile DstType& src) { return const_cast<DstType&>(src); }
+
+class FileName {
+public:
+    FileName(const std::string& fullName);
+
+    const std::string& getPath() const { return path; } // without trailing separator
+    const std::string& getBaseName() const { return base; }
+    const std::string& getExtension() const { return ext; } // with '.'
+    std::string getFull() const;
+
+private:
+    std::string path, base, ext;
+};
 
 #endif

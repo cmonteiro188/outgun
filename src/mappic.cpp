@@ -24,6 +24,7 @@
 #include "commont.h"
 #include "graphics.h"
 #include "language.h"
+#include "platform.h"
 #include "world.h"
 
 #include "mappic.h"
@@ -41,24 +42,11 @@ void Mappic::find_maps() {
 }
 
 vector<string> Mappic::load_maps(const string& dir) {
-    string searchPattern = wheregamedir + dir + directory_separator + "*.txt";
-
-    log("Map picture saver: scanning for maps: '%s'.", searchPattern.c_str());
-
-    al_ffblk mapffblk;  //for al_find*
-
-    int result = al_findfirst(searchPattern.c_str(), &mapffblk, FA_ARCH | FA_RDONLY);
     vector<string> maps;
-    while (result == 0) {
-        char nameBuf[500];
-        replace_extension(nameBuf, mapffblk.name, "", 500);
-        nameBuf[strlen(nameBuf) - 1] = '\0';    //take last damn '.' out
-
-        maps.push_back(nameBuf);
-        //try next
-        result = al_findnext(&mapffblk);
-    }
-    al_findclose(&mapffblk);
+    FileFinder* mapFiles = platMakeFileFinder(wheregamedir + dir, ".txt", false);
+    while (mapFiles->hasNext())
+        maps.push_back(FileName(mapFiles->next()).getBaseName());
+    delete mapFiles;
     log("Map picture saver: %d maps found.", maps.size());
     return maps;
 }

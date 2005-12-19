@@ -247,6 +247,9 @@ private:
     void print_chat_message(Message_type type, const std::string& message, int x, int y, bool highlight = false);
     void print_chat_input(const std::string& message, int x, int y);
 
+    void print_text(const std::string& text, int x, int y, int textcol, int bgcol);
+    void print_text_centre(const std::string& text, int x, int y, int textcol, int bgcol);
+
     void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
     void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 

@@ -40,8 +40,6 @@
 
 #include "rudp.h"
 
-#include "sleep.h"
-
 #include "server.h"
 
 #include "../thread.h"
@@ -53,6 +51,8 @@
 #include "dlog.h"
 
 #include "../commont.h" // for wheregamedir
+
+#include "../timer.h" // for platSleep
 
 class client_ci;
 
@@ -199,7 +199,7 @@ public:
                 //trying disconnection -- wait until after it's done
                 //this is just a hack
                 while (connect_status == 1)
-                    MS_SLEEP(500);  // *** NO CPU PROBLEM HERE ***
+                    platSleep(500);  // *** NO CPU PROBLEM HERE ***
 
                 log("starting connect sequence.");
 
@@ -788,7 +788,7 @@ DLOG_Scope s("CPIDg");
         connect(false);
 
         while (connect_threads_running) // added thread safety thing
-            MS_SLEEP(100);
+            platSleep(100);
 
         //delete station
         if (station) {
@@ -812,7 +812,7 @@ void thread_connect_f(client_ci* client) {
     for (;;) {
         if (client->connect_try())
             break;
-        MS_SLEEP(1000); // *** NO CPU PROBLEM HERE ***
+        platSleep(1000); // *** NO CPU PROBLEM HERE ***
     }
 
     logThreadExit("Leet client thread_connect_f", client->log);
@@ -831,7 +831,7 @@ void thread_disconnect_f(client_ci* client) {
         stop = client->disconnect_try();
 
         //sleep a bit before sending next try
-        MS_SLEEP(100); // *** NO CPU PROBLEM HERE ***
+        platSleep(100); // *** NO CPU PROBLEM HERE ***
     }
 
     //nice disconnect done
@@ -858,7 +858,7 @@ DLOG_ScopeNegStart("CTR");
 
         if (amount == 0) {
 DLOG_ScopeNeg s("CTR");
-            MS_SLEEP(2);  //alternativa, usar BLOCKING I/O
+            platSleep(2);  //alternativa, usar BLOCKING I/O
             continue;
         }
 

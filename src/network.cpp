@@ -28,9 +28,9 @@
 
 #include <nl.h>
 
-#include "leetnet/sleep.h"
 #include "nassert.h"
 #include "utility.h"
+#include "timer.h"
 
 #include "network.h"
 
@@ -134,7 +134,7 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
         else
             at += written;
 
-        MS_SLEEP(roundDelay);
+        platSleep(roundDelay);
         ++tries;
     }
     return NR_ok;
@@ -159,7 +159,7 @@ NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const vol
             out << lebuf;
         }
 
-        MS_SLEEP(roundDelay);
+        platSleep(roundDelay);
         ++tries;
     }
 }

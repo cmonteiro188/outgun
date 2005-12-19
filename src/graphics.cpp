@@ -37,7 +37,9 @@
 #include "commont.h"
 #include "effects.h"
 #include "language.h"
+#include "platform.h"
 #include "sounds.h"
+#include "timer.h"
 #include "world.h"
 
 #include "graphics.h"
@@ -1884,15 +1886,21 @@ void Graphics::draw_change_team_message(double time) {
 }
 
 void Graphics::draw_change_map_message(double time, bool delayed) {
-    int c;
-    if (delayed)
-        c = col[COLDARKGRAY];
-    else if (static_cast<int>(time * 2.0) % 2)   // blink!
-        c = col[COLRED];
-    else
-        c = col[COLWHITE];
-    textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 64 - 6 * 8), ply + scale(plh - 18), c, -1);
-    textout_centre_ex(drawbuf, font, _("MAP" ).c_str(), plx + scale(plw - 64 - 6 * 8), ply + scale(plh -  9), c, -1);
+    const int x = plx + scale(plw - 64 - 6 * 8), y1 = ply + scale(plh - 18), y2 = ply + scale(plh - 9);
+    const string text1 = _("EXIT"), text2 = _("MAP");
+    if (delayed) {
+        print_text_border_centre(text1, x, y1, col[COLMENUGRAY], 0, -1);
+        print_text_border_centre(text2, x, y2, col[COLMENUGRAY], 0, -1);
+    }
+    else {
+        int c;
+        if (static_cast<int>(time * 2.0) % 2)   // blink!
+            c = col[COLRED];
+        else
+            c = col[COLWHITE];
+        print_text_centre(text1, x, y1, c, -1);
+        print_text_centre(text2, x, y2, c, -1);
+    }
 }
 
 void Graphics::draw_player_health(int health) {
@@ -1987,6 +1995,14 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
 
 void Graphics::print_chat_input(const string& message, int x, int y) {
     print_text_border(message, x, y, col[COLWHITE], 0, -1);
+}
+
+void Graphics::print_text(const std::string& text, int x, int y, int textcol, int bgcol) {
+    textout_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
+}
+
+void Graphics::print_text_centre(const std::string& text, int x, int y, int textcol, int bgcol) {
+    textout_centre_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
@@ -2283,19 +2299,11 @@ void Graphics::make_db_effect() {
 void Graphics::search_themes(LineReceiver& dst) const {
     dst(_("<no theme>"));
 
-    const string searchPattern = wheregamedir + "graphics" + directory_separator + "*.*";
-
-    log("Graphics theme searching: '%s'", searchPattern.c_str());
-
-    const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
-
     vector<string> themes;
-    al_ffblk ffblk;
-    for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
-        if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
-            themes.push_back(ffblk.name);
-    al_findclose(&ffblk);
-
+    FileFinder* themeDirs = platMakeFileFinder(wheregamedir + "graphics", "", true);
+    while (themeDirs->hasNext())
+        themes.push_back(themeDirs->next());
+    delete themeDirs;
     sort(themes.begin(), themes.end());
     for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti)
         dst(*ti);

@@ -48,27 +48,8 @@ typedef ValidityChecker PointerLeakBuffer;
 
 #include <iostream>
 #include <stdio.h>
+#include "commont.h"
 #include "nassert.h"
-
-class ProfileTimer {
-    const char* n;
-    unsigned long val;
-
-public:
-    ProfileTimer(const char* name) : n(name), val(0) { }
-    ~ProfileTimer() { std::cerr << n << " : " << val << '\n'; }
-    unsigned long* getPtr() { return &val; }
-};
-
-extern volatile unsigned long time_counter;
-class Profiler {
-    unsigned long* sump;
-    unsigned long start;
-
-public:
-    Profiler(ProfileTimer& timer) : sump(timer.getPtr()), start(time_counter) { }
-    ~Profiler() { *sump += time_counter - start; }
-};
 
 class ValidityChecker {
     int check;

@@ -268,7 +268,7 @@ class Client {
     #ifdef SEND_FRAMEOFFSET
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
-    volatile int netsendAdjustment;
+    double netsendAdjustment;
     #endif
     double averageLag;
     double frameReceiveTime;    // when fx was received

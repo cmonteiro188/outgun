@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include "language.h"
+#include "platform.h"
 #include "sounds.h"
 
 using std::ifstream;
@@ -48,18 +49,11 @@ Sounds::~Sounds() {
 }
 
 void Sounds::search_themes(LineReceiver& dst) const {
-    const string searchPattern = wheregamedir + "sound" + directory_separator + "*.*";
-
-    log("Sound theme searching: '%s'", searchPattern.c_str());
-
-    const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
-
     vector<string> themes;
-    struct al_ffblk ffblk;
-    for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
-        if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
-            themes.push_back(ffblk.name);
-    al_findclose(&ffblk);
+    FileFinder* themeDirs = platMakeFileFinder(wheregamedir + "sound", "", true);
+    while (themeDirs->hasNext())
+        themes.push_back(themeDirs->next());
+    delete themeDirs;
     if (themes.empty()) {
         dst(_("<no themes found>"));
         return;

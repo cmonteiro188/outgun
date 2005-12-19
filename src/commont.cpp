@@ -33,6 +33,7 @@
 #include "language.h"
 #include "nassert.h"
 #include "network.h"
+#include "timer.h"
 #include "utility.h"
 
 using std::cout;
@@ -40,9 +41,17 @@ using std::ifstream;
 using std::istream;
 using std::string;
 
-#ifndef SDL_DEDICATED_SERVER
+#ifndef DEDICATED_SERVER_ONLY
+
 bool readJoystickButton(int button) {
     return (button > 0 && !poll_joystick() && button <= joy[0].num_buttons && joy[0].button[button - 1].b);
+}
+
+bool is_keypad(int sc) {
+    switch (sc) {
+    /*break;*/ case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
+        break; default: return false;
+    }
 }
 
 void ClientControls::fromKeyboard(bool use_pad, bool use_cursor_keys) {
@@ -101,7 +110,8 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
     if (readJoystickButton(strafe_button))
         data |= strafe;
 }
-#endif
+
+#endif // DEDICATED_SERVER_ONLY
 
 istream& getline_smart(istream& in, string& str) {
     str.clear();
@@ -141,7 +151,22 @@ bool check_name(const std::string& name) {
     return true;
 }
 
-#ifndef SDL_DEDICATED_SERVER
+bool isFlood(const string& message) {
+    int count = 0;
+    unsigned char chr = 0;
+    for (string::const_iterator s = message.begin(); s != message.end(); ++s) {
+        if (chr != *s) {
+            chr = *s;
+            count = 1;
+        }
+        else if (++count == 7)
+            return true;
+    }
+    return false;
+}
+
+#ifndef DEDICATED_SERVER_ONLY
+
 volatile bool GlobalDisplaySwitchHook::flag = false;
 
 void GlobalDisplaySwitchHook__callback() {
@@ -164,7 +189,8 @@ bool GlobalDisplaySwitchHook::readAndClear() {
         flag = false;
     return f;
 }
-#endif
+
+#endif // DEDICATED_SERVER_ONLY
 
 void MasterSettings::load(LogSet& log) {
     static const char* defaultName = "koti.mbnet.fi";

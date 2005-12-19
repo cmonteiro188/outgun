@@ -32,11 +32,11 @@
 
 #include <cmath>
 
-#include "commont.h"
 #include "language.h"
 #include "nassert.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
+#include "timer.h"
 #include "utility.h"
 
 #include "world.h"
@@ -46,7 +46,7 @@ static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mos
 const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
-const double minimum_grab_to_capture_time = 2.0;
+const double minimum_grab_to_capture_time = 4.0;
 
 const int maximum_shadow_visibility = 254;
 
@@ -1299,7 +1299,7 @@ void PowerupSettings::reset() {
     pup_deathbringer_time = 5.0;
     
     pups_drop_at_death = false;
-    pups_player_max = 7;
+    pups_player_max = INT_MAX;
 }
 
 Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
@@ -1348,7 +1348,7 @@ void WorldSettings::reset() {
     extra_time = 0;
     sudden_death = false;
     capture_limit = 8;
-    flag_return_delay = 0;
+    flag_return_delay = 1.0;
     balance_teams = TB_disabled;
 
     lock_team_flags = false;
@@ -1739,7 +1739,7 @@ void ServerWorld::check_pickup_creation(bool instant) {
                 respawn_pickup(i);
             else
                 item[i].respawn_time = get_time() + pupConfig.getRespawnTime();
-            if (++ic>=real_min)
+            if (++ic >= real_min)
                 break;
         }
 }
@@ -1756,16 +1756,15 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
     ServerPlayer& pl = player[pid];
 
     // Check which powerups player has.
-    bool pups[7];
-    int i = 0;
+    bool pups[Powerup::pup_last_real + 1];
     int pup_count = 0;
-    if (pups[i++] = pl.item_shield)         pup_count++;
-    if (pups[i++] = pl.item_turbo)          pup_count++;
-    if (pups[i++] = pl.item_shadow())       pup_count++;
-    if (pups[i++] = pl.item_power)          pup_count++;
-    if (pups[i++] = pl.weapon > 1)          pup_count++;
-    pups[i++] = true;   // health
-    if (pups[i++] = pl.item_deathbringer)   pup_count++;
+    if (pups[Powerup::pup_shield      ] = pl.item_shield)        pup_count++;
+    if (pups[Powerup::pup_turbo       ] = pl.item_turbo)         pup_count++;
+    if (pups[Powerup::pup_shadow      ] = pl.item_shadow())      pup_count++;
+    if (pups[Powerup::pup_power       ] = pl.item_power)         pup_count++;
+    if (pups[Powerup::pup_weapon      ] = pl.weapon > 1)         pup_count++;
+        pups[Powerup::pup_health      ] = true;
+    if (pups[Powerup::pup_deathbringer] = pl.item_deathbringer)  pup_count++;
 
     if (!pups[it.kind] && pup_count >= pupConfig.pups_player_max)   // Drop one if necessary.
         drop_worst_powerup(pl);
@@ -1858,28 +1857,22 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 }
 
 void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
-    bool dropped = false;
-    if (pl.item_turbo && (pl.item_turbo_time < pl.item_shadow_time || !pl.item_shadow())) {
-        if (pl.item_turbo_time < pl.item_power_time || !pl.item_power) {
+    if (pl.item_turbo || pl.item_shadow() || pl.item_power) {
+        double mintime = 1e50;
+        if (pl.item_turbo)
+            mintime = pl.item_turbo_time;
+        if (pl.item_shadow() && pl.item_shadow_time < mintime)
+            mintime = pl.item_shadow_time;
+        if (pl.item_power && pl.item_power_time < mintime)
+            pl.item_power_time = 0;
+        else if (pl.item_turbo && pl.item_turbo_time == mintime)
             pl.item_turbo_time = 0;
-            dropped = true;
-        }
-        else if (pl.item_power) {
-            pl.item_power_time = 0;
-            dropped = true;
-        }
-    }
-    else
-        if (pl.item_power && (pl.item_power_time < pl.item_shadow_time || !pl.item_shadow())) {
-            pl.item_power_time = 0;
-            dropped = true;
-        }
-        else if (pl.item_shadow()) {
+        else {
+            nAssert(pl.item_shadow() && pl.item_shadow_time == mintime);
             pl.item_shadow_time = 0;
-            dropped = true;
         }
-    if (dropped)    // simulateFrame() informs the client
-        return;
+        return; // simulateFrame() informs the client
+    }
 
     if (pl.item_deathbringer) {
         pl.item_deathbringer = false;
@@ -2016,14 +2009,16 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
             for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
                 if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
                     flag_defended = true;
-                    host->score_frag(attacker, 1);
+                    if (!carrier_defended)
+                        host->score_frag(attacker, 1);
                     break;  // only one frag even for defending multiple flags
                 }
-            for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
-                if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-                    host->score_frag(attacker, 1);
-                    break;  // only one frag even for attacking multiple flags
-                }
+            if (!carrier_defended && !flag_defended)
+                for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
+                    if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                        host->score_frag(attacker, 1);
+                        break;  // only one frag even for attacking multiple flags
+                    }
         }
     }
     const bool flag = player[target].stats().has_flag();
@@ -2170,9 +2165,9 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 
     //if player not dead, push him
     if (player[pid].health > 0) {
-        const double mul = rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.;
-        player[pid].sx += rock[rid].sx * .33 * mul;
-        player[pid].sy += rock[rid].sy * .33 * mul;
+        const double mul = .33 * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.);
+        player[pid].sx += rock[rid].sx * mul;
+        player[pid].sy += rock[rid].sy * mul;
     }
 
     if (had_shield)
@@ -2941,26 +2936,20 @@ void ServerWorld::simulateFrame() {
             for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy) {
                 if (!fmy->at_base())
                     continue;
-                int f = 0;
-                for (vector<Flag>::const_iterator fen = teams[enemyteam].flags().begin(); fen != teams[enemyteam].flags().end(); ++fen, ++f)
-                    if (fen->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
-                        player_captures_flag(i, enemyteam, f);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 ||
-                                    extra_time_and_sudden_death) {
-                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                            return;
+                for (int t = 0; t < 2; ++t) {
+                    const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
+                    const int flagTeam = t == 0 ? enemyteam : 2;
+                    int f = 0;
+                    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
+                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+                            player_captures_flag(i, flagTeam, f);
+                            if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 ||
+                                        extra_time_and_sudden_death) {
+                                host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+                                return;
+                            }
                         }
-                    }
-                f = 0;
-                for (vector<Flag>::const_iterator fw = wild_flags.begin(); fw != wild_flags.end(); ++fw, ++f)
-                    if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
-                        player_captures_flag(i, 2, f);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 ||
-                                extra_time_and_sudden_death) {
-                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                            return;
-                        }
-                    }
+                }
             }
         }
     }
@@ -3125,7 +3114,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
         out << "<LINK REL=\"stylesheet\" HREF=\"stats.css\" TYPE=\"text/css\" TITLE=\"Outgun statistics style\">\n\n";
         out << "<H1>Outgun statistics " << date << "</H1>\n\n";
     }
-    out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << htmlspecialchars(map_name) << "</H2>\n\n";
+    out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << escape_for_html(map_name) << "</H2>\n\n";
 
     out << "<H3>Team stats</H3>\n\n";
     const Team& red = teams[0];
@@ -3163,7 +3152,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
             out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Blue team\n";
             team++;
         }
-        out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << htmlspecialchars((*pl)->name);
+        out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << escape_for_html((*pl)->name);
         const Statistics& stats = (*pl)->stats();
         out << "<TD>" << stats.frags();
         out << "<TD>" << stats.captures();
@@ -3221,7 +3210,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
         out << " <TR><TD ALIGN=\"right\">" << time;
         out << "<TD>" << team;
         out << "<TD ALIGN=\"center\">" << red_score << "&ndash;" << blue_score;
-        out << "<TD>" << htmlspecialchars(capturer);
+        out << "<TD>" << escape_for_html(capturer);
         out << '\n';
     }
     out << "</TABLE>\n\n";
