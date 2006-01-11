@@ -1027,7 +1027,8 @@ void Server::chat(int pid, const char* sbuf) {
                 int bufi = 0;
                 for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
                     if (world.player[ppid].used) {
-                        platSnprintf(buf + bufi, 27, "%2d %4s %-18s", ppid, world.player[ppid].reg_status.strFlags().c_str(), world.player[ppid].name.c_str());
+                        const char mute = world.player[pid].muted == 0 ? ' ' : world.player[pid].muted == 1 ? 'm' : 's';
+                        platSnprintf(buf + bufi, 27, "%2d %4s%c %-17s", ppid, world.player[ppid].reg_status.strFlags().c_str(), mute, world.player[ppid].name.c_str());
                         bufi += 26;
                         ++onrow;
                     }
