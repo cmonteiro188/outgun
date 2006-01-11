@@ -96,6 +96,8 @@ private:
 
 class ClientLoginStatus {
 public:
+    ClientLoginStatus(): data(0) { }
+
     NLubyte toNetwork() const { return data; }
     void fromNetwork(NLubyte byte) { data = byte; }
 
