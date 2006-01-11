@@ -78,7 +78,6 @@ Graphics::Graphics(LogSet logs):
     map_list_start      (0),
     team_captures_size  (16),
     team_captures_start (0),
-    no_theme            (false),
     antialiasing        (true),
     log                 (logs)
 { }
@@ -194,10 +193,8 @@ void Graphics::make_layout() {
     db_effect.free();
     make_db_effect();
 
-    if (!no_theme) {
-        load_pictures(theme_path);
-        load_background(bg_path);
-    }
+    load_pictures();
+    load_background();
 }
 
 void Graphics::videoMemoryCorrupted() {
@@ -2459,55 +2456,56 @@ void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) cons
     sort(themes.begin(), themes.end(), cmp_case_ins);
     for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti) {
         dst_theme(*ti);
-        dst_bg   (*ti);
+        // Check if the theme has a background image
+        const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background.pcx";
+        //if (platIsFile(bg))
+            dst_bg(*ti);
     }
 }
 
 void Graphics::select_theme(const string& dir, const string& bg_dir, bool use_theme_bg) {
     unload_pictures();
-    if (dir == _("<no theme>")) {
-        no_theme = true;
-        theme_name.clear();
-    }
-    else {
-        no_theme = false;
+    if (dir == _("<no theme>"))
+        theme_path.clear();
+    else
         load_theme(dir);
+
+    bg_path.clear();
+    if (use_theme_bg) {
+        bg_path = theme_path;
+        load_background();
     }
-    if (use_theme_bg)
-        load_background(theme_path);
     if (!bg_texture && bg_dir != _("<no background>")) {
         bg_path = wheregamedir + "graphics" + directory_separator + bg_dir + directory_separator;
-        load_background(bg_path);
+        load_background();
     }
 }
 
 void Graphics::load_theme(const string& dirname) {
     theme_path = wheregamedir + "graphics" + directory_separator + dirname + directory_separator;
-    load_pictures(theme_path);
-
-    ifstream file((theme_path + "theme.txt").c_str());
-    if (!getline_skip_comments(file, theme_name))
-        theme_name = _("(unnamed theme)");
-
+    load_pictures();
     log("Loaded graphics theme '%s'.", dirname.c_str());
 }
 
-void Graphics::load_pictures(const string& path) {
+void Graphics::load_pictures() {
     if (floor_texture.empty())  // kludge: load_theme -> load_pictures might be called before init
         return;
-    load_floor_textures(path);
-    load_wall_textures (path);
-    load_player_sprites(path);
-    load_shield_sprites(path);
-    load_dead_sprites  (path);
-    load_rocket_sprites(path);
-    load_flag_sprites  (path);
-    load_pup_sprites   (path);
+    if (theme_path.empty())
+        return;
+    load_floor_textures(theme_path);
+    load_wall_textures (theme_path);
+    load_player_sprites(theme_path);
+    load_shield_sprites(theme_path);
+    load_dead_sprites  (theme_path);
+    load_rocket_sprites(theme_path);
+    load_flag_sprites  (theme_path);
+    load_pup_sprites   (theme_path);
 }
 
-void Graphics::load_background(const string& path) {
+void Graphics::load_background() {
     bg_texture.free();
-    bg_texture = load_bitmap((path + "background.pcx").c_str(), NULL);
+    if (!bg_path.empty())
+        bg_texture = load_bitmap((bg_path + "background.pcx").c_str(), NULL);
 }
 
 void Graphics::load_floor_textures(const string& path) {
@@ -2788,8 +2786,10 @@ void Graphics::search_fonts(LineReceiver& dst_font) const {
 }
 
 void Graphics::select_font(const string& file) {
-    if (file == _("<default>"))
+    if (file == _("<default>")) {
         font = default_font;
+        border_font = 0;
+    }
     else
         load_font(file);
 }
@@ -2798,18 +2798,22 @@ void Graphics::load_font(const string& file) {
     const string filename = wheregamedir + "fonts" + directory_separator + file + ".dat";
 
     static DATAFILE* font_data = 0;
-	if (font_data)
+    if (font_data)
         unload_datafile_object(font_data);
     font_data = load_datafile_object(filename.c_str(), "font");
     if (font_data)
-		font = static_cast<FONT*>(font_data->dat);
+        font = static_cast<FONT*>(font_data->dat);
+    else
+        font = default_font;
 
     static DATAFILE* border_data = 0;
-	if (border_data)
+    if (border_data)
         unload_datafile_object(border_data);
-	border_data = load_datafile_object(filename.c_str(), "border");
+    border_data = load_datafile_object(filename.c_str(), "border");
     if (border_data)
         border_font = static_cast<FONT*>(border_data->dat);
+    else
+        border_font = 0;
 
     log("Loaded font '%s'.", file.c_str());
 }

@@ -270,9 +270,9 @@ private:
     void make_db_effect();
 
     void load_theme(const std::string& dirname);
-    void load_pictures(const std::string& path);
 
-    void load_background(const std::string& path);
+    void load_pictures();
+    void load_background();
 
     void load_floor_textures(const std::string& filename);
     void load_wall_textures(const std::string& filename);
@@ -374,9 +374,6 @@ private:
     std::list<GraphicsEffect> cfx;
 
     std::string theme_path;
-    std::string theme_name;
-    bool no_theme;
-
     std::string bg_path;
 
     bool antialiasing;
