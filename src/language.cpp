@@ -88,14 +88,15 @@ string _(const string& text) {
 string _(string text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) {
     text = _(text);
     const string* const replacement[] = { &t1, &t2, &t3, &t4, &t5 };
+    const int size = static_cast<int>(sizeof(replacement) / sizeof(replacement[0]));
     string::size_type pos = 0;
     while ((pos = text.find('$', pos)) != string::npos) {
         if (pos + 1 == string::npos)
             break;
-        const int val = atoi(text.substr(pos + 1, 1));
-        if (val >= 1 && val <= static_cast<int>(sizeof(replacement))) {
-            text = text.replace(pos, 2, *replacement[val - 1]);
-            pos += replacement[val - 1]->length();
+        const int val = atoi(text.substr(pos + 1, 1)) - 1;
+        if (val >= 0 && val < size) {
+            text.replace(pos, 2, *replacement[val]);
+            pos += replacement[val]->length();
         }
     }
     return text;

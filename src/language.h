@@ -48,7 +48,7 @@ extern Language language;
 
 std::string _(const std::string& text);
 
-// Translate text and replace $1...$5 with t1...t5.
+// Get translation and replace $1...$5 with t1...t5.
 std::string _(std::string text, const std::string& t1,
                                 const std::string& t2 = "$2",
                                 const std::string& t3 = "$3",
