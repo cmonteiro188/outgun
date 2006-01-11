@@ -34,6 +34,10 @@
 #endif
 #include "utility.h"
 
+inline int text_length(const FONT* f, const std::string& str) {
+    return text_length(f, str.c_str());
+}
+
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 // these are implemented in utility.cpp
 void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) PRINTF_FORMAT(7, 8);

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -88,6 +88,7 @@ public:
     bool depthAvailable(int depth) const;
     std::vector<ScreenMode> getResolutions(int depth, bool forceTryIfNothing = true) const; // returns a sorted list of unique resolutions
     bool init(int width, int height, int depth, bool windowed, bool flipping);
+    void make_layout();
     void videoMemoryCorrupted();    // call this when that happens with page flipping; predraw also needs to be called
 
     void startDraw();   // call endDraw for each startDraw
@@ -127,8 +128,8 @@ public:
     void draw_deathbringer_smoke(int x, int y, double time, double alpha);
     void draw_deathbringer(int x, int y, int team, double time);
 
-    void draw_player_health(int health);
-    void draw_player_energy(int energy);
+    void draw_player_health(int value);
+    void draw_player_energy(int value);
 
     void draw_deathbringer_affected(int x, int y, int team, int alpha);
     void draw_deathbringer_carrier_effect(int x, int y, int alpha);
@@ -201,6 +202,9 @@ public:
     void search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) const;
     void select_theme(const std::string& name, const std::string& bg_dir, bool use_theme_bg);
 
+    void search_fonts(LineReceiver& dst_font) const;
+    void select_font(const std::string& file);
+
     void set_antialiasing(bool enable) { antialiasing = enable; }
 
     void set_min_transp(bool enable) { min_transp = enable; }
@@ -240,10 +244,12 @@ private:
 
     std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
-    void draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time);
+    void draw_bar(int x, int y, const std::string& caption, int value, int c100, int c200, int c300);
 
-    void draw_scoreboard_name(const std::string& name, int x, int y, int pcol, bool underline);
-    void draw_scoreboard_points(int points, int x, int y, int team);
+    void draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time);
+
+    void draw_scoreboard_name(const FONT* sbfont, const std::string& name, int x, int y, int pcol, bool underline);
+    void draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team);
 
     void print_chat_message(Message_type type, const std::string& message, int x, int y, bool highlight = false);
     void print_chat_input(const std::string& message, int x, int y);
@@ -299,6 +305,8 @@ private:
     void unload_flag_sprites();
     void unload_pup_sprites();
 
+    void load_font(const std::string& file);
+
     int scale(double value) const;
     
     // drawing screens
@@ -317,12 +325,15 @@ private:
 
     int plx, ply;       // playground position on the screen
     int mmx, mmy;       // minimap position
-    int sbx, sby;       // scoreboard position
+
+    int scoreboard_x1, scoreboard_x2;  // scoreboard position
+    int scoreboard_y1, scoreboard_y2;
 
     int minimap_w, minimap_h;
     int minimap_place_w, minimap_place_h;
     int minimap_start_x, minimap_start_y;
     int indicators_x, indicators_y;
+    int energy_x, pups_x, weapon_x, time_x, time_y;
 
     bool show_chat_messages;
     bool show_scoreboard;
@@ -350,6 +361,9 @@ private:
     Bitmap ice_cream;
 
     Bitmap db_effect;       // the darkening of the ground around the player
+
+    FONT* default_font;
+    FONT* border_font;
 
     int map_list_size;
     int map_list_start;

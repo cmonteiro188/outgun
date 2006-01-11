@@ -63,13 +63,16 @@ std::string toupper(std::string str);
 // Convert Latin 1 character to uppercase.
 unsigned char latin1_toupper(unsigned char c);
 
+// Case insensitive string comparison.
+bool cmp_case_ins(const std::string& a, const std::string& b);
+
 // Strip beginning and trailing whitespaces.
 std::string trim(std::string str);
 
 // Replace all occurences of s1 with s2 in text.
 std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
 
-// Replace character &<>"' with HTML entities or character references.
+// Replace characters &<>"' with HTML entities or character references.
 std::string escape_for_html(std::string text);
 
 // Pad /text/ with /pad/ from the given side until it's length is /size/ characters. Do nothing if length >= /size/.

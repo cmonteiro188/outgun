@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -72,6 +72,8 @@ Graphics::Graphics(LogSet logs):
     show_chat_messages  (true),
     show_scoreboard     (true),
     show_minimap        (true),
+    default_font        (font),
+    border_font         (0),
     map_list_size       (20),
     map_list_start      (0),
     team_captures_size  (16),
@@ -118,20 +120,30 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
         drawbuf = backbuf;
     }
 
+    reset_playground_colors();
+    setColors();
+
+    make_layout();
+
+    return true;
+}
+
+void Graphics::make_layout() {
     scr_mul = static_cast<double>(SCREEN_W) / 640;
-    if (SCREEN_H < scr_mul * plh + 35 + 8)          // the window is too low for playground and one line for messages
-        scr_mul = static_cast<double>(SCREEN_H - 35 - 8) / plh;
-    floor_texture.resize(8);
-    wall_texture.resize(8);
-    for (int t = 0; t < 2; t++)
-        player_sprite[t].resize(MAX_PLAYERS / 2);
-    pup_sprite.resize(Powerup::pup_last_real + 1);
+
+    // Room background
+    const int bottombar_h = 3 * (text_height(font) + 2) + 5;
+    if (SCREEN_H < scr_mul * plh + bottombar_h + text_height(font))          // the window is too low for playground and one line for messages
+        scr_mul = static_cast<double>(SCREEN_H - bottombar_h - text_height(font)) / plh;
     plx = 0;
-    ply = SCREEN_H - scale(plh) - 35;
+    ply = SCREEN_H - scale(plh) - bottombar_h;
+    roombg.free();
     roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
+
+    // Minimap
     minimap_w = minimap_place_w = SCREEN_W - roombg->w - 4; // 4 for left and right margin
     mmx = SCREEN_W - minimap_w - 2;
-    if (mmx > 8 * 80) {  // check if minimap fits to the right of chat messages
+    if (mmx > text_length(font, "M") * 80) {  // check if minimap fits to the right of chat messages
         mmy = 4;
         minimap_h = minimap_place_h = scale(100) + ply - 4;
     }
@@ -142,29 +154,50 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
     const int extra_space = SCREEN_H - 450 - (mmy + minimap_place_h);   // 450 = scoreboard max height + FPS line
     if (extra_space > 0)
         minimap_h = minimap_place_h += extra_space;
+    minibg.free();
     minibg = create_bitmap(minimap_place_w, minimap_place_h);
     nAssert(minibg);
+    minibg_fog.free();
     minibg_fog = create_bitmap(minimap_place_w, minimap_place_h);   // if not created, won't be used
-    const int scoreboardPlaceX = roombg->w; // to the right of the playfield, if possible
-    const int scoreboardPlaceW = SCREEN_W - scoreboardPlaceX;
-    static const int scoreboardW = 20 * 8;  // 20 characters
-    // center scoreboard in its place
-    if (scoreboardPlaceW > scoreboardW + 8) // reserve 4 pixels for both margins
-        sbx = scoreboardPlaceX + (scoreboardPlaceW - scoreboardW) / 2;
-    else
-        sbx = SCREEN_W - (scoreboardW + 4); // force on the playfield if it wouldn't fit otherwise (this shouldn't happen in 1.0.0, as things are forced a bit)
-    sby = mmy + minimap_place_h;
+
+    // Scoreboard
+    scoreboard_x1 = plx + roombg->w;
+    scoreboard_x2 = SCREEN_W - 1;
+    scoreboard_y1 = mmy + minimap_place_h;
+    scoreboard_y2 = SCREEN_H - 1;
+
+    // Bottom bar
     indicators_x = 0;
-    indicators_y = SCREEN_H - 30;
-    reset_playground_colors();
-    setColors();
+    indicators_y = ply + scale(plh) + 5;
+    int indicator_extra = max(0, text_length(font, _("Health")) + text_length(font, " 000") - 100);
+    energy_x = indicators_x + 10 + 14 * 8 + indicator_extra;
+    indicator_extra += max(0, text_length(font, _("Energy")) + text_length(font, " 000") - 100);
+    pups_x = indicators_x + 244 + indicator_extra;
+    indicator_extra += max(0, max(max(text_length(font, _("Power  $1", "000")) - 96,
+                                      text_length(font, _("Turbo  $1", "000")) - 96),
+                                      text_length(font, _("Shadow $1", "000")) - 96));
+    weapon_x = indicators_x + 340 + indicator_extra;
+    time_x = plx + scale(plw) - 2;
+    if (time_x < weapon_x + text_length(font, _("Weapon 0")) + 10)
+        time_y = indicators_y + text_height(font) + 2;
+    else
+        time_y = indicators_y;
+
+    // Textures and sprites
+    unload_pictures();
+    floor_texture.resize(8);
+    wall_texture.resize(8);
+    for (int t = 0; t < 2; t++)
+        player_sprite[t].resize(MAX_PLAYERS / 2);
+    pup_sprite.resize(Powerup::pup_last_real + 1);
+
+    db_effect.free();
     make_db_effect();
+
     if (!no_theme) {
         load_pictures(theme_path);
         load_background(bg_path);
     }
-
-    return true;
 }
 
 void Graphics::videoMemoryCorrupted() {
@@ -296,11 +329,11 @@ void Graphics::random_playground_colors() {
 }
 
 int Graphics::chat_lines() const {
-    return max(1, ply / 11);
+    return max(1, ply / (text_height(font) + 3));
 }
 
 int Graphics::chat_max_lines() const {
-    return max(1, (ply + scale(plh)) / 11);
+    return max(1, (ply + scale(plh)) / (text_height(font) + 3));
 }
 
 void Graphics::clear() {
@@ -327,7 +360,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
         int depth2 = (depth == 16) ? 15 : depth;    // 15 and 16 bit modes are considered equal
         for (int i = 0; i < modes->num_modes; i++) {
             const GFX_MODE& mode = modes->mode[i];
-            if (mode.width >= 640 && mode.height >= 400 && (mode.bpp == depth || mode.bpp == depth2))
+            if (mode.width >= 320 && mode.height >= 200 && (mode.bpp == depth || mode.bpp == depth2))
                 mvec.push_back(ScreenMode(mode.width, mode.height));
         }
         destroy_gfx_mode_list(modes);
@@ -350,7 +383,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
             log.error(_("Syntax error in gfxmodes.txt, line '$1'.", line));
             break;
         }
-        if (width < 640 || height < 400 || (bits != 16 && bits != 24 && bits != 32)) {
+        if (width < 320 || height < 200 || (bits != 16 && bits != 24 && bits != 32)) {
             log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32).",
                             itoa(width), itoa(height), itoa(bits)));
             break;
@@ -1294,7 +1327,7 @@ void Graphics::draw_player_name(const string& name, int x, int y, int team, bool
     x = scale(x);
     y = scale(y);
     const int c = highlight ? col[COLYELLOW] : col[COLWHITE];
-    print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), c, teamdcol[team], -1);
+    print_text_border_centre(name, plx + x, ply + y - scale(3 * PLAYER_RADIUS / 2) - text_height(font), c, teamdcol[team], -1);
 }
 
 void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
@@ -1309,16 +1342,16 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
             ellipsefill(drawbuf, plx + x, ply + y + scale(POWER_ROCKET_RADIUS + 8), scale(POWER_ROCKET_RADIUS), scale(3), col[COLSHADOW]);
         //draw the rocket
         if (static_cast<int>(time * 30) % 2)
-            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), col[COLWHITE]);    //y-12?
+            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), col[COLWHITE]);
         else
-            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), teamlcol[rocket.team]); //y-12??
+            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), teamlcol[rocket.team]);
     }
     else {
         //draw rocket shadow
         if (shadow)
             ellipsefill(drawbuf, plx + x, ply + y + scale(ROCKET_RADIUS + 8), scale(ROCKET_RADIUS), scale(2), col[COLSHADOW]);
         //draw the rocket
-        circlefill(drawbuf, plx + x, ply + y, scale(ROCKET_RADIUS), teamcol[rocket.team]); //y-10??
+        circlefill(drawbuf, plx + x, ply + y, scale(ROCKET_RADIUS), teamcol[rocket.team]);
     }
 }
 
@@ -1460,17 +1493,35 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     if (!show_scoreboard)
         return;
 
-    const int y_space = SCREEN_H - sby;
+    const int place_width = scoreboard_x2 - scoreboard_x1 + 1;
+    const int y_space = scoreboard_y2 - scoreboard_y1 + 1;
     const int lines = 2 + maxplayers + 1;   // caption for each team, players, FPS  //#fixme: could the room for FPS be reserved someplace else...
+    const int characters = 20;
+
+    const FONT* sbfont;
+    if (font != default_font && text_height(font) > text_height(default_font) && (lines * text_height(font) > y_space || characters * text_length(font, "M") > place_width))
+        sbfont = default_font;
+    else
+        sbfont = font;
+
+    // calculate the position in the given space
+    const int width = characters * text_length(sbfont, "M");
+    const int sby = scoreboard_y1;
+    int sbx;
+    if (place_width > width)
+        sbx = scoreboard_x1 + (place_width - width) / 2;
+    else
+        sbx = scoreboard_x1;    // just let it go off the screen if it doesn't fit; it's not critical
+
     const int nSpacers = 3;  // top, between teams, before FPS
     int spacerHeight = 3;   // consider 3 a minimal spacing (we're lucky that with SCREEN_H = 480, 32 players at line_h = 8, spacerHeight = 3 fills ALL lines!)
     // find optimal line height
     int line_h = (y_space - nSpacers * spacerHeight) / lines;
-    if (line_h > 8) {
-        spacerHeight = 10;  // prefer this over extra line height
+    if (line_h > text_height(sbfont)) {
+        spacerHeight = text_height(sbfont) + 2;  // prefer this over extra line height
         line_h = (y_space - nSpacers * spacerHeight) / lines;
-        if (line_h > 16)
-            line_h = 16;
+        if (line_h > 2 * text_height(sbfont))
+            line_h = 2 * text_height(sbfont);
     }
     // expand spacing if possible
     const int extraSpace = y_space - nSpacers * spacerHeight - line_h * lines;
@@ -1488,20 +1539,21 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     int hpadding = 6;
     if (sbx - (plx + plw) < hpadding)
         hpadding = max(2, sbx - (plx + plw));
-    const int vpadding = max((line_h - 8) / 2, 1);
+    const int vpadding = max((line_h - text_height(sbfont)) / 2, 1);
+    const int char_w = text_length(sbfont, "M");
     for (int i = 0; i < 2; ++i) {
-        rectfill(drawbuf, sbx - hpadding, teamy[i] + line_h - vpadding, sbx + caption_width * 8 + hpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, teambg[i]);
-        rectfill(drawbuf, sbx - hpadding, teamy[i] - vpadding, sbx + caption_width * 8 + hpadding, teamy[i] + line_h - vpadding, teamdcol[i]);
+        rectfill(drawbuf, sbx - hpadding, teamy[i] + line_h - vpadding, sbx + caption_width * char_w + hpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, teambg[i]);
+        rectfill(drawbuf, sbx - hpadding, teamy[i] - vpadding, sbx + caption_width * char_w + hpadding, teamy[i] + line_h - vpadding, teamdcol[i]);
     }
     for (int i = 0; i < 2; ++i) {
-        hline(drawbuf, sbx - hpadding, teamy[i] - vpadding, sbx + caption_width * 8 + hpadding, linecol[i]);
+        hline(drawbuf, sbx - hpadding, teamy[i] - vpadding, sbx + caption_width * char_w + hpadding, linecol[i]);
         for (int j = 1; j <= maxplayers / 2 + 1; ++j)
-            hline(drawbuf, sbx - hpadding, teamy[i] + j * line_h - vpadding, sbx + caption_width * 8 + hpadding, linecol[i]);
+            hline(drawbuf, sbx - hpadding, teamy[i] + j * line_h - vpadding, sbx + caption_width * char_w + hpadding, linecol[i]);
     }
     for (int i = 0; i < 2; ++i) {
         vline(drawbuf, sbx - hpadding - 1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
-        vline(drawbuf, sbx + (caption_width - 3) * 8 - 5, teamy[i] + line_h - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
-        vline(drawbuf, sbx + caption_width * 8 + hpadding + 1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+        vline(drawbuf, sbx + (caption_width - 3) * char_w - 5, teamy[i] + line_h - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+        vline(drawbuf, sbx + caption_width * char_w + hpadding + 1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
     }
 
     // captions
@@ -1513,7 +1565,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
             os << setw(caption_width - teamName[team].length()) << _("pings");
         else
             os << setw(caption_width - teamName[team].length()) << _("$1 capt", itoa_w(teams[team].score(), 3));
-        textout_ex(drawbuf, font, os.str().c_str(), sbx, teamy[team], col[COLWHITE], -1);
+        textout_ex(drawbuf, sbfont, os.str().c_str(), sbx, teamy[team], col[COLWHITE], -1);
     }
 
     int line[2] = { 1, 1 };
@@ -1527,29 +1579,33 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
         const int x = sbx;
         const int y = teamy[player.team()] + line[player.team()] * line_h;
         const bool underline = (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth());
-        draw_scoreboard_name(player.name.substr(0, 15), x + 8, y, textcol, underline);
-        draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
+        draw_scoreboard_name(sbfont, player.name.substr(0, 15), x + 8, y, textcol, underline);
+        draw_scoreboard_points(sbfont, pings ? player.ping : player.stats().frags(), x + 20 * char_w, y, player.team());
         if (player.stats().has_flag()) {
-            vline(drawbuf, x, y, y + 7, col[COLYELLOW]);
-            rectfill(drawbuf, x + 1, y, x + 5, y + 4, player.stats().has_wild_flag() ? teamcol[2] : teamcol[1 - player.team()]);
+            // pole height 7, flag width 4 and height 4 units
+            const int flag = text_length(sbfont, "M") / 2;
+            const int pole = 7 * flag / 4;
+            const int starty = y + (text_height(sbfont) - pole) / 2;
+            vline(drawbuf, x, starty, starty + pole, col[COLYELLOW]);
+            rectfill(drawbuf, x + 1, starty, x + 1 + flag, starty + flag, player.stats().has_wild_flag() ? teamcol[2] : teamcol[1 - player.team()]);
         }
         line[player.team()]++;
     }
 }
 
-void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol, bool underline) {
+void Graphics::draw_scoreboard_name(const FONT* sbfont, const string& name, int x, int y, int pcol, bool underline) {
     if (underline)
-        hline(drawbuf, x, y + 8, x + 8 * name.length() - 2, pcol);
-    textout_ex(drawbuf, font, name.c_str(), x, y, pcol, -1);
+        hline(drawbuf, x, y + text_height(font), x + text_length(font, name) - 2, pcol);
+    textout_ex(drawbuf, sbfont, name.c_str(), x, y, pcol, -1);
 }
 
-void Graphics::draw_scoreboard_points(int points, int x, int y, int team) {
-    textprintf_right_ex(drawbuf, font, x, y, teamlcol[team], -1, "%d", points);
+void Graphics::draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team) {
+    textprintf_right_ex(drawbuf, sbfont, x, y, teamlcol[team], -1, "%d", points);
 }
 
 void Graphics::team_statistics(const Team* teams) {
-    const int line_height = 12;
-    const int w = 350;
+    const int line_height = text_height(font) + 4;
+    const int w = 43 * text_length(font, "M") + 6;
     const int h = min<int>(SCREEN_H - 40, (19 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
@@ -1661,11 +1717,16 @@ void Graphics::team_statistics(const Team* teams) {
 }
 
 void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) {
+    const FONT* stfont;
+    if (text_length(font, "i") != text_length(font, "M"))   // stats screen works only with monospace font
+        stfont = default_font;
+    else
+        stfont = font;
     // line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
     const int num_lines = maxplayers + 3 + 2 * 3;
-    const int line_h = min(12, SCREEN_H / num_lines);   // Preferred line height is 12.
+    const int line_h = min(text_height(stfont) + 4, SCREEN_H / num_lines);   // Preferred line height is 12 with default font.
     const int h = num_lines * line_h;
-    const int w = 540;
+    const int w = 67 * text_length(stfont, "M") + 4;
     const int x_margin = 22;
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
@@ -1714,31 +1775,31 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
             ++blue_count;
     const string red_name  = _("Red Team" ) + " (" + itoa(red_count ) + ')';
     const string blue_name = _("Blue Team") + " (" + itoa(blue_count) + ')';
-    const int x_capt = x_left + 22 * 8;
-    textout_ex(drawbuf, font, red_name.c_str(), x_left, team1y + line_h / 2, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, caption1.c_str(), x_capt, team1y         , col[COLWHITE], -1);
-    textout_ex(drawbuf, font, caption2.c_str(), x_capt, team1y + line_h, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, blue_name.c_str(), x_left, team2y + line_h / 2, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, caption1.c_str(), x_capt, team2y         , col[COLWHITE], -1);
-    textout_ex(drawbuf, font, caption2.c_str(), x_capt, team2y + line_h, col[COLWHITE], -1);
+    const int x_capt = x_left + 22 * text_length(stfont, "M");
+    textout_ex(drawbuf, stfont, red_name.c_str(), x_left, team1y + line_h / 2, col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption1.c_str(), x_capt, team1y         , col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption2.c_str(), x_capt, team1y + line_h, col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, blue_name.c_str(), x_left, team2y + line_h / 2, col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption1.c_str(), x_capt, team2y         , col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption2.c_str(), x_capt, team2y + line_h, col[COLWHITE], -1);
 
     int i = 0;
     int teamLineY[2] = { team1y + 3 * line_h, team2y + 3 * line_h };
     for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi, ++i) {
         const ClientPlayer& player = **pi;
-        draw_player_statistics(player, x_left, teamLineY[player.team()], page, time);
+        draw_player_statistics(stfont, player, x_left, teamLineY[player.team()], page, time);
         teamLineY[player.team()] += line_h;
     }
 
     if (page == 3 && max_world_rank > 0)
-        textout_ex(drawbuf, font, _("$1 players in the tournament.", itoa(max_world_rank)).c_str(), x_left, pageNumY, col[COLGREEN], -1);
+        textout_ex(drawbuf, stfont, _("$1 players in the tournament.", itoa(max_world_rank)).c_str(), x_left, pageNumY, col[COLGREEN], -1);
 
     ostringstream page_num;
     page_num << page + 1 << '/' << 4;
-    textout_right_ex(drawbuf, font, page_num.str().c_str(), x2 - x_margin, pageNumY, col[COLGREEN], -1);
+    textout_right_ex(drawbuf, stfont, page_num.str().c_str(), x2 - x_margin, pageNumY, col[COLGREEN], -1);
 }
 
-void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time) {
+void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time) {
     ostringstream stats;
     stats << player.reg_status.strFlags() << ' ';
     stats << left << setw(17) << player.name << right;
@@ -1786,7 +1847,7 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
                       << setw(7) << player.score - player.neg_score;
             }
     }
-    textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[player.team()], -1);
+    textout_ex(drawbuf, stfont, stats.str().c_str(), x, y, teamlcol[player.team()], -1);
 }
 
 void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
@@ -1796,9 +1857,9 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     int line = 1;
     const int line_h = 10;
     const int margin = 8;
-    for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
+    for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player, ++line) {
         const int c = (me == line - 1) ? col[COLYELLOW] : col[COLWHITE];
-        textprintf_ex(drawbuf, font, margin, line++ * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
+        textprintf_ex(drawbuf, font, margin, line * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
             line, player->used, player->onscreen, player->roomx, player->roomy,
             player->lx, player->ly, player->sx, player->sy);
     }
@@ -1827,25 +1888,30 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     textout_ex(drawbuf, font, _("in $1 B/s, out $2 B/s", itoa_w(bpsin, 4), itoa_w(bpsout, 4)).c_str(), margin, line++ * line_h, col[COLINFO], -1);
 }
 
-void Graphics::map_time(int seconds) {
-    ostringstream ost;
-    ost << setw(4) << seconds / 60 << ':' << setw(2) << setfill('0') << seconds % 60;
-    print_text_border_check_bg(ost.str(), plx + scale(plw) - 2 - 7 * 8, SCREEN_H - 30, col[COLGREEN], col[COLBLACK], -1);
-}
-
 void Graphics::draw_fps(double fps) {
-    print_text_border_check_bg(_("FPS:$1", itoa_w((int)fps, 3)), SCREEN_W - 2 - 7 * 8, SCREEN_H - 10, col[COLMENUGRAY], col[COLBLACK], -1);
+    const string text = _("FPS:$1", itoa_w((int)fps, 3));
+    print_text_border_check_bg(text, SCREEN_W - 2 - text_length(font, text), SCREEN_H - text_height(font) - 2, col[COLMENUGRAY], col[COLBLACK], -1);
 }
 
 void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
-    const int line_height = 12;
-    const int w = 540;
-    const int h = map_list_size * line_height + 96;
+    const FONT* mlfont;
+    if (text_length(font, "i") != text_length(font, "M"))   // map list works only with monospace font
+        mlfont = default_font;
+    else
+        mlfont = font;
+    const int line_height = text_height(mlfont) + 4;
+    const int w = min(SCREEN_W, 67 * text_length(mlfont, "M") + 4);
+    const int extra_space = 8 * line_height;
+    int h = map_list_size * line_height + extra_space;
+    if (h > SCREEN_H) {
+        h = SCREEN_H;
+        map_list_size = (h - extra_space) / line_height;
+    }
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
-    const int x1 = mx - w / 2;
+    const int x1 = max(0, mx - w / 2);
     const int y1 = my - h / 2;
-    const int x2 = mx + w / 2;
+    const int x2 = min(SCREEN_W, mx + w / 2);
     const int y2 = my + h / 2;
     const int x_left = x1 + 30;
 
@@ -1860,12 +1926,12 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         solid_mode();
     }
 
-    textout_centre_ex(drawbuf, font, _("Server map list").c_str(), mx, y1 + line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, mlfont, _("Server map list").c_str(), mx, y1 + line_height, col[COLWHITE], -1);
 
     ostringstream caption;
     caption << _(" Nr Vote Title                Size  Author");
     //           |000 00 * <--------20--------> 00×00 <------------27----------->|
-    textout_ex(drawbuf, font, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
+    textout_ex(drawbuf, mlfont, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
 
     if (map_list_start >= static_cast<int>(maps.size()) - map_list_size)
         map_list_start = maps.size() - map_list_size;
@@ -1895,7 +1961,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
             c = col[COLGREEN];
         else
             c = col[COLWHITE];
-        textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, c, -1);
+        textout_ex(drawbuf, mlfont, mapline.str().c_str(), x_left, y, c, -1);
     }
     // draw scrollbar if there are more maps than visible on the screen
     if (map_list_size < static_cast<int>(maps.size())) {
@@ -1909,23 +1975,37 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
     ostringstream vote;
     vote << _("Vote map number") << ": " << edit_vote << '_';
     const int y = y1 + (5 + map_list_size + 1) * line_height;
-    textout_ex(drawbuf, font, vote.str().c_str(), x_left, y, col[COLGREEN], -1);
+    textout_ex(drawbuf, mlfont, vote.str().c_str(), x_left, y, col[COLGREEN], -1);
 }
 
 void Graphics::draw_player_power(double val) {
-    print_text_border_check_bg(_("Power  $1", itoa_w(iround(val), 3)), indicators_x + 244, indicators_y     , col[COLCYAN  ], col[COLBLACK], -1);
+    const int x = pups_x;
+    const int y = indicators_y;
+    print_text_border_check_bg(_("Power  $1", itoa_w(iround(val), 3)), x, y, col[COLCYAN  ], col[COLBLACK], -1);
 }
 
 void Graphics::draw_player_turbo(double val) {
-    print_text_border_check_bg(_("Turbo  $1", itoa_w(iround(val), 3)), indicators_x + 244, indicators_y + 10, col[COLYELLOW], col[COLBLACK], -1);
+    const int x = pups_x;
+    const int y = indicators_y + text_height(font) + 2;
+    print_text_border_check_bg(_("Turbo  $1", itoa_w(iround(val), 3)), x, y, col[COLYELLOW], col[COLBLACK], -1);
 }
 
 void Graphics::draw_player_shadow(double val) {
-    print_text_border_check_bg(_("Shadow $1", itoa_w(iround(val), 3)), indicators_x + 244, indicators_y + 20, col[COLMAG   ], col[COLBLACK], -1);
+    const int x = pups_x;
+    const int y = indicators_y + 2 * (text_height(font) + 2);
+    print_text_border_check_bg(_("Shadow $1", itoa_w(iround(val), 3)), x, y, col[COLMAG   ], col[COLBLACK], -1);
 }
 
 void Graphics::draw_player_weapon(int level) {
-    print_text_border_check_bg(_("Weapon $1", itoa(level)           ), indicators_x + 340, indicators_y     , col[COLWHITE ], col[COLBLACK], -1);
+    const int x = weapon_x;
+    const int y = indicators_y;
+    print_text_border_check_bg(_("Weapon $1", itoa(level)           ), x, y, col[COLWHITE ], col[COLBLACK], -1);
+}
+
+void Graphics::map_time(int seconds) {
+    ostringstream ost;
+    ost << setw(4) << seconds / 60 << ':' << setw(2) << setfill('0') << seconds % 60;
+    print_text_border_check_bg(ost.str(), time_x - text_length(font, ost.str()), time_y, col[COLGREEN], col[COLBLACK], -1);
 }
 
 void Graphics::draw_change_team_message(double time) {
@@ -1956,54 +2036,45 @@ void Graphics::draw_change_map_message(double time, bool delayed) {
     }
 }
 
-void Graphics::draw_player_health(int health) {
+void Graphics::draw_player_health(int value) {
     const int x0 = indicators_x + 10;
     const int y0 = indicators_y;
-    // health value
-    print_text_border_check_bg(_("Health $1", itoa_w(health, 3)), x0, y0, col[COLWHITE], col[COLBLACK], -1);
-    // health bar
-    rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLBLACK]);
-    if (health == 0)
-        return;
-    // health 0...100
-    int targ = min(health, 100);
-    rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLRED]);
-    // health 100...200
-    targ = min(health - 100, 100);
-    if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLYELLOW]);
-    //health 200...300
-    targ = min(health - 200, 100);
-    if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLMAG]);
+    draw_bar(x0, y0, _("Health"), value, col[COLRED], col[COLYELLOW], col[COLMAG]);
 }
 
-void Graphics::draw_player_energy(int energy) {
-    const int x0 = indicators_x + 10 + 14 * 8;
+void Graphics::draw_player_energy(int value) {
+    const int x0 = energy_x;
     const int y0 = indicators_y;
-    // energy value
-    print_text_border_check_bg(_("Energy $1", itoa_w(energy, 3)), x0, y0, col[COLWHITE], col[COLBLACK], -1);
-    // energy bar
-    rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLBLACK]);
-    if (energy == 0)
+    draw_bar(x0, y0, _("Energy"), value, col[COLBLUE], col[COLGREEN], col[COLENER3]);
+}
+
+void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100, int c200, int c300) {
+    print_text_border_check_bg(caption, x, y, col[COLWHITE], col[COLBLACK], -1);
+    const string val_str = itoa_w(value, 3);
+    const int val_x = max(x + text_length(font, caption) + text_length(font, " "), x + 100 - text_length(font, val_str));
+    print_text_border_check_bg(val_str, val_x, y, col[COLWHITE], col[COLBLACK], -1);
+    const int bar_y1 = y + 3 * text_height(font) / 2;
+    const int bar_y2 = bar_y1 + 10;
+    rectfill(drawbuf, x, bar_y1, x + 100, bar_y2, col[COLBLACK]);
+    if (value == 0)
         return;
-    //barra azul 0..100
-    int targ = min(energy, 100);
-    rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLBLUE]);
-    //barra verde 100..200
-    targ = min(energy - 100, 100);
+
+    int targ = min(value, 100);
+    rectfill    (drawbuf, x, bar_y1, x + targ, bar_y2, c100);
+
+    targ = min(value - 100, 100);
     if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLGREEN]);
-    //barra 3o nivel
-    targ = min(energy - 200, 100);
+        rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c200);
+
+    targ = min(value - 200, 100);
     if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLENER3]);
+        rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
 
 void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer) {
     if (!show_chat_messages)
         return;
-    const int line_height = 11;
+    const int line_height = text_height(font) + 3;
     const int margin = 3;
     int line = 0;
     for (; msg != end; ++msg, ++line) {
@@ -2044,7 +2115,7 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
     if (highlight && type != msg_team)
         c = col[COLWHITE];
     // Check if the border is needed.
-    if (!bg_texture && y + 8 < ply - scale(PLAYER_RADIUS + 10))
+    if (!bg_texture && y + text_height(font) < ply - scale(PLAYER_RADIUS + 10))
         textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
     else
         print_text_border(message, x, y, c, 0, -1);
@@ -2093,12 +2164,21 @@ void Graphics::print_text_border(const string& text, int x, int y, int textcol, 
     if (bgcol != -1)
         print(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
     // nice border
-    for (int i = -1; i <= 1; i++)
-        for (int j = -1; j <= 1; j++) {
-            if (i == 0 && j == 0)
-                continue;
-            print(drawbuf, font, text.c_str(), x + i, y + j, bordercol, -1);
+    if (border_font) {
+        int dx = x - (centring ? text_length(font, text) / 2 : 0);
+        for (string::const_iterator s = text.begin(); s != text.end(); ++s) {
+            const string character = string() + *s;
+            textout_ex(drawbuf, border_font, character.c_str(), dx - 1, y - 1, bordercol, -1);
+            dx += text_length(font, character);
         }
+    }
+    else
+        for (int i = -1; i <= 1; i++)
+            for (int j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0)
+                    continue;
+                print(drawbuf, font, text.c_str(), x + i, y + j, bordercol, -1);
+            }
     // text itself
     print(drawbuf, font, text.c_str(), x, y, textcol, -1);
 }
@@ -2370,14 +2450,13 @@ void Graphics::make_db_effect() {
 void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) const {
     dst_theme(_("<no theme>"));
     dst_bg(_("<no background>"));
-    dst_bg(_("<theme background>"));
 
     vector<string> themes;
     FileFinder* themeDirs = platMakeFileFinder(wheregamedir + "graphics", "", true);
     while (themeDirs->hasNext())
         themes.push_back(themeDirs->next());
     delete themeDirs;
-    sort(themes.begin(), themes.end());
+    sort(themes.begin(), themes.end(), cmp_case_ins);
     for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti) {
         dst_theme(*ti);
         dst_bg   (*ti);
@@ -2394,12 +2473,9 @@ void Graphics::select_theme(const string& dir, const string& bg_dir, bool use_th
         no_theme = false;
         load_theme(dir);
     }
-    if (use_theme_bg || bg_dir == _("<theme background>")) {
+    if (use_theme_bg)
         load_background(theme_path);
-        if (bg_texture)
-            return;
-    }
-    if (bg_dir != _("<no background>") && bg_dir != _("<theme background>")) {
+    if (!bg_texture && bg_dir != _("<no background>")) {
         bg_path = wheregamedir + "graphics" + directory_separator + bg_dir + directory_separator;
         load_background(bg_path);
     }
@@ -2691,6 +2767,51 @@ void Graphics::unload_flag_sprites() {
 void Graphics::unload_pup_sprites() {
     for (vector<Bitmap>::iterator pup = pup_sprite.begin(); pup != pup_sprite.end(); ++pup)
         pup->free();
+}
+
+// Font functions
+
+void Graphics::search_fonts(LineReceiver& dst_font) const {
+    dst_font(_("<default>"));
+
+    vector<string> fonts;
+    FileFinder* font_files = platMakeFileFinder(wheregamedir + "fonts", ".dat", false);
+    while (font_files->hasNext()) {
+        string name = font_files->next();
+        name = name.substr(0, name.rfind('.'));
+        fonts.push_back(name);
+    }
+    delete font_files;
+    sort(fonts.begin(), fonts.end(), cmp_case_ins);
+    for (vector<string>::const_iterator fi = fonts.begin(); fi != fonts.end(); ++fi)
+        dst_font(*fi);
+}
+
+void Graphics::select_font(const string& file) {
+    if (file == _("<default>"))
+        font = default_font;
+    else
+        load_font(file);
+}
+
+void Graphics::load_font(const string& file) {
+    const string filename = wheregamedir + "fonts" + directory_separator + file + ".dat";
+
+    static DATAFILE* font_data = 0;
+	if (font_data)
+        unload_datafile_object(font_data);
+    font_data = load_datafile_object(filename.c_str(), "font");
+    if (font_data)
+		font = static_cast<FONT*>(font_data->dat);
+
+    static DATAFILE* border_data = 0;
+	if (border_data)
+        unload_datafile_object(border_data);
+	border_data = load_datafile_object(filename.c_str(), "border");
+    if (border_data)
+        border_font = static_cast<FONT*>(border_data->dat);
+
+    log("Loaded font '%s'.", file.c_str());
 }
 
 inline int Graphics::scale(double value) const {

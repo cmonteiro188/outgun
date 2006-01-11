@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -786,7 +786,7 @@ bool Client::start() {
                 bool ok = is;
                 char nullc;
                 is >> nullc;
-                if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
+                if (!ok || is || width < 320 || height < 200 || (depth != 16 && depth != 24 && depth != 32))
                     log("Bad screen mode in client.cfg");
                 else {
                     menu.options.graphics.colorDepth.set(depth);    // may fail if the previous depth isn't available
@@ -801,6 +801,7 @@ bool Client::start() {
             break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);      // ignore error
             break; case CCS_UseThemeBackground:    menu.options.graphics.useThemeBackground.set(args == "1");
             break; case CCS_Background:            menu.options.graphics.background.set(args); // ignore error
+            break; case CCS_Font:                  menu.options.graphics.font.set(args);       // ignore error
             break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
             break; case CCS_MinTransp:             menu.options.graphics.minTransp.set(args == "1");
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
@@ -864,6 +865,7 @@ bool Client::start() {
     client_graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
     client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    client_graphics.select_font(menu.options.graphics.font());
     if (!screenModeChange())
         return false;
 
@@ -3677,6 +3679,7 @@ void Client::stop() {
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
         cfg << CCS_UseThemeBackground   << ' ' << (menu.options.graphics.useThemeBackground() ? 1 : 0) << '\n';
         cfg << CCS_Background           << ' ' <<  menu.options.graphics.background() << '\n';
+        cfg << CCS_Font                 << ' ' <<  menu.options.graphics.font() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
         cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
@@ -4231,6 +4234,7 @@ void Client::initMenus() {
     menu.options.graphics.theme         .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,   &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.background    .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
+    menu.options.graphics.font          .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange             >(this));
     menu.options.graphics.antialiasing  .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange        >(this));
     menu.options.graphics.minTransp     .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange           >(this));
     menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
@@ -4398,6 +4402,13 @@ void Client::MCF_prepareDrawGfxMenu() {
 void Client::MCF_gfxThemeChange() {
     client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
     predrawNeeded = true;
+}
+
+void Client::MCF_fontChange() {
+    client_graphics.select_font(menu.options.graphics.font());
+    client_graphics.make_layout();
+    predrawNeeded = true;
+    mapChanged = true;  // just to get minimap updated
 }
 
 void Client::MCF_screenDepthChange() {

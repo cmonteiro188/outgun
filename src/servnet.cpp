@@ -2756,7 +2756,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING, stri.c_str());
         res->accepted = false;      // not accepted
 
-        temp << "Different game: '" << stri.c_str() << '\'';
+        temp << "Different game: '" << stri << '\'';
         writeStr(res->customData, res->customDataLength, temp.str());
     }
     else {

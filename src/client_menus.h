@@ -2,7 +2,7 @@
  *  client_menus.h
  *
  *  Copyright (C) 2004, 2005 - Niko Ritari
- *  Copyright (C) 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -154,8 +154,9 @@ public:
     StaticText          refreshRate;
     Textarea            apply;
     Select<std::string> theme;
-    Checkbox            useThemeBackground;
     Select<std::string> background;
+    Checkbox            useThemeBackground;
+    Select<std::string> font;
     Checkbox            antialiasing;
     Checkbox            minTransp;
     Checkbox            contTextures;

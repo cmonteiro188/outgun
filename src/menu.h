@@ -358,13 +358,13 @@ public:
     // inherited interface
     int width() const;
     int height() const;
-    int minHeight() const { return line_h; }    // one line
+    int minHeight() const { return objLineHeight(); }    // one line
+    int objLineHeight() const;
     void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:
     std::vector<std::string> lines;
-    enum { line_h = 12 };
     mutable int start;          // these may change in drawing
     mutable int visible_lines;
 };

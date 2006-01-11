@@ -116,6 +116,10 @@ unsigned char latin1_toupper(unsigned char c) {
     return upper[c];
 }
 
+bool cmp_case_ins(const string& a, const string& b) {
+    return toupper(a) < toupper(b);
+}
+
 string trim(string str) {
     str.erase(0, str.find_first_not_of(" \t\n\r\xA0"));
     const string::size_type lastGood = str.find_last_not_of(" \t\n\r\xA0");
@@ -129,7 +133,7 @@ string trim(string str) {
 string replace_all(string text, const string& s1, const string& s2) {
     string::size_type pos = 0;
     while ((pos = text.find(s1, pos)) != string::npos) {
-        text = text.replace(pos, s1.length(), s2);
+        text.replace(pos, s1.length(), s2);
         pos += s2.length();
     }
     return text;

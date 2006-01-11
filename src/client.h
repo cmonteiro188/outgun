@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -124,7 +124,8 @@ enum ClientCfgSetting {
     CCS_MinTransp,
     CCS_UseThemeBackground,
     CCS_Background,
-    CCS_MaxCommand = CCS_Background
+    CCS_Font,
+    CCS_MaxCommand = CCS_Font
 };
 
 class ServerThreadOwner {
@@ -396,6 +397,7 @@ class Client {
     void MCF_screenDepthChange();
     void MCF_screenModeChange();
     void MCF_gfxThemeChange();
+    void MCF_fontChange();
     void MCF_antialiasChange();
     void MCF_transpChange();
     void MCF_statsBgChange();

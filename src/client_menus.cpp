@@ -2,7 +2,7 @@
  *  client_menus.cpp
  *
  *  Copyright (C) 2004, 2005 - Niko Ritari
- *  Copyright (C) 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -260,8 +260,10 @@ void Menu_graphics::reloadChoices(const Graphics& gfx) {
         resolution.addOption(itoa(mode->width) + '×' + itoa(mode->height), *mode);
     theme.clearOptions();
     background.clearOptions();
-    StringSelectInserter insTheme(theme), insBg(background);
+    font.clearOptions();
+    StringSelectInserter insTheme(theme), insBg(background), insFont(font);
     gfx.search_themes(insTheme, insBg);
+    gfx.search_fonts(insFont);
 }
 
 Menu_graphics::Menu_graphics() :
@@ -277,8 +279,10 @@ Menu_graphics::Menu_graphics() :
     apply       (_("Apply changes")),
 
     theme       (_("Theme")),
-    useThemeBackground(_("Prefer background image from theme"), true),
-    background  (_("Background image")),
+    background  (_("Background theme")),
+    useThemeBackground(_("Prefer main theme background"), true),
+    font        (_("Font")),
+
     antialiasing(_("Antialiasing"), true),
     minTransp   (_("Less transparency effects"), false),
     contTextures(_("Continuous textures between rooms"), false),
@@ -300,8 +304,10 @@ Menu_graphics::Menu_graphics() :
     menu.add_component(&apply);
     ins_space();
     menu.add_component(&theme);
-    menu.add_component(&useThemeBackground);
     menu.add_component(&background);
+    menu.add_component(&useThemeBackground);
+    menu.add_component(&font);
+    ins_space();
     menu.add_component(&antialiasing);
     menu.add_component(&minTransp);
     menu.add_component(&contTextures);
@@ -335,11 +341,13 @@ void Menu_graphics::update(const Graphics& gfx) {   // tries to keep the selecte
     ScreenMode oldmode = resolution();
     const string oldtheme = theme();
     const string oldbg = background();
+    const string oldfont = font();
     reloadChoices(gfx);
     // These all may fail; ignore.
     resolution.set(oldmode);
     theme.set(oldtheme);
     background.set(oldbg);
+    font.set(oldfont);
 }
 
 bool Menu_graphics::newMode() {
