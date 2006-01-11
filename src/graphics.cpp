@@ -2622,7 +2622,7 @@ BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
 
 BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const {
     set_color_conversion(COLORCONV_NONE);
-    BITMAP* temp = load_bitmap(filename.c_str(), NULL);
+    Bitmap temp = load_bitmap(filename.c_str(), NULL);
     set_color_conversion(COLORCONV_TOTAL);
     if (!temp)
         return 0;
