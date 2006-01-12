@@ -108,7 +108,7 @@ enum Network_data_code {
     data_reserved_range_first,  // reserve some codes for extensions that are otherwise protocol compatible
     data_reserved_range_last = data_reserved_range_first + 20,  // make sure you don't use more!
     data_return_to_reserved_range_start_hack = data_reserved_range_first - 1,
-    data_current_map,
+    data_current_map
     // insert extensions here
 };
 

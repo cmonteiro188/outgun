@@ -32,8 +32,8 @@
 
 class Sounds {
 public:
-    Sounds::Sounds(LogSet logs);
-    Sounds::~Sounds();
+    Sounds(LogSet logs);
+    ~Sounds();
 
     void play(int s) const;
 
