@@ -132,6 +132,10 @@ FileFinder* platMakeFileFinder(const string& path, const string& extension, bool
     return new AllegroFileFinder(path, extension, directories);
 }
 
+bool platIsFile(const string& name) {
+    return exists(name.c_str());
+}
+
 bool platIsDirectory(const string& name) {
     al_ffblk ffblk;
     const int result = al_findfirst(name.c_str(), &ffblk, FA_DIREC | FA_ARCH | FA_RDONLY);

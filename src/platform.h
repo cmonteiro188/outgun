@@ -54,6 +54,8 @@ FileFinder* platMakeFileFinder(const std::string& path, const std::string& exten
 
 int platMkdir(const std::string& path);
 
+bool platIsFile(const std::string& name);
+
 bool platIsDirectory(const std::string& name);
 
 void platInit(); // perform platform specific initializations; called very early in the program

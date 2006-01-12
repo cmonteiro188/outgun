@@ -76,7 +76,6 @@ Graphics::Graphics(LogSet logs):
     border_font         (0),
     map_list_size       (20),
     map_list_start      (0),
-    team_captures_size  (16),
     team_captures_start (0),
     antialiasing        (true),
     log                 (logs)
@@ -166,21 +165,35 @@ void Graphics::make_layout() {
     scoreboard_y2 = SCREEN_H - 1;
 
     // Bottom bar
-    indicators_x = 0;
-    indicators_y = ply + scale(plh) + 5;
-    int indicator_extra = max(0, text_length(font, _("Health")) + text_length(font, " 000") - 100);
-    energy_x = indicators_x + 10 + 14 * 8 + indicator_extra;
-    indicator_extra += max(0, text_length(font, _("Energy")) + text_length(font, " 000") - 100);
-    pups_x = indicators_x + 244 + indicator_extra;
-    indicator_extra += max(0, max(max(text_length(font, _("Power  $1", "000")) - 96,
-                                      text_length(font, _("Turbo  $1", "000")) - 96),
-                                      text_length(font, _("Shadow $1", "000")) - 96));
-    weapon_x = indicators_x + 340 + indicator_extra;
-    time_x = plx + scale(plw) - 2;
-    if (time_x < weapon_x + text_length(font, _("Weapon 0")) + 10)
+    indicators_y = ply + roombg->h + 5;
+    const int left_margin = min(10, scale(10));
+    const int max_w = scoreboard_x1 - 5 - left_margin;
+    const int num_len = text_length(font, "0000");
+    const int health_w = max(text_length(font, _("Health")) + num_len, scale(100));
+    const int energy_w = max(text_length(font, _("Energy")) + num_len, scale(100));
+    const int pups_w = max(max(text_length(font, _("Power")), text_length(font, _("Turbo"))), text_length(font, _("Shadow"))) + num_len;
+    const int weapon_w = text_length(font, _("Weapon $1", "0"));
+    const int time_w = text_length(font, "000:00");
+    int min_w = health_w + energy_w + pups_w + weapon_w + time_w;
+    int space;
+    if (min_w + 4 * 5 > max_w) {
+        min_w -= time_w;
+        space = (max_w - min_w) / 3;
         time_y = indicators_y + text_height(font) + 2;
-    else
+    }
+    else {
+        space = (max_w - min_w) / 4;
         time_y = indicators_y;
+    }
+    health_x = left_margin;
+    energy_x = health_x + health_w + space;
+    pups_x = energy_x + energy_w + space;
+    pups_val_x = pups_x + pups_w;   // align right
+    weapon_x = pups_x + pups_w + space;
+    if (time_y == indicators_y)
+        time_x = weapon_x + weapon_w + space + time_w;  // align right
+    else
+        time_x = weapon_x + time_w;
 
     // Textures and sprites
     unload_pictures();
@@ -1354,16 +1367,16 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    const int flagpos_radius = scale(this->flagpos_radius);
-    const int step = 300 / flagpos_radius;
-    for (int y = scale(flag_y) - flagpos_radius; y < scale(flag_y) + flagpos_radius; y++)
-        for (int x = scale(flag_x) - flagpos_radius; x < scale(flag_x) + flagpos_radius; x++) {
+    const int radius = scale(flagpos_radius);
+    const int step = 300 / radius;
+    for (int y = scale(flag_y) - radius; y < scale(flag_y) + radius; y++)
+        for (int x = scale(flag_x) - radius; x < scale(flag_x) + radius; x++) {
             const int dx = scale(flag_x) - x;
             const int dy = scale(flag_y) - y;
             const double dist = sqrt(static_cast<double>(dx * dx + dy * dy));
-            if (dist > flagpos_radius)
+            if (dist > radius)
                 continue;
-            const int alpha = static_cast<int>(step * (flagpos_radius - dist));
+            const int alpha = static_cast<int>(step * (radius - dist));
             set_trans_blender(0, 0, 0, min(alpha, 255));
             putpixel(roombg, x, y, teamcol[team]);
         }
@@ -1976,32 +1989,33 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
 }
 
 void Graphics::draw_player_power(double val) {
-    const int x = pups_x;
-    const int y = indicators_y;
-    print_text_border_check_bg(_("Power  $1", itoa_w(iround(val), 3)), x, y, col[COLCYAN  ], col[COLBLACK], -1);
+    draw_powerup_time(0, _("Power"), val, col[COLCYAN]);
 }
 
 void Graphics::draw_player_turbo(double val) {
-    const int x = pups_x;
-    const int y = indicators_y + text_height(font) + 2;
-    print_text_border_check_bg(_("Turbo  $1", itoa_w(iround(val), 3)), x, y, col[COLYELLOW], col[COLBLACK], -1);
+    draw_powerup_time(1, _("Turbo"), val, col[COLYELLOW]);
 }
 
 void Graphics::draw_player_shadow(double val) {
-    const int x = pups_x;
-    const int y = indicators_y + 2 * (text_height(font) + 2);
-    print_text_border_check_bg(_("Shadow $1", itoa_w(iround(val), 3)), x, y, col[COLMAG   ], col[COLBLACK], -1);
+    draw_powerup_time(2, _("Shadow"), val, col[COLMAG]);
+}
+
+void Graphics::draw_powerup_time(int line, const string& caption, double val, int c) {
+    const int y = indicators_y + line * (text_height(font) + 2);
+    print_text_border_check_bg(caption, pups_x, y, c, col[COLBLACK], -1);
+    const string value = itoa_w(iround(val), 3);
+    print_text_border_check_bg(value, pups_val_x - text_length(font, value), y, c, col[COLBLACK], -1);
 }
 
 void Graphics::draw_player_weapon(int level) {
     const int x = weapon_x;
     const int y = indicators_y;
-    print_text_border_check_bg(_("Weapon $1", itoa(level)           ), x, y, col[COLWHITE ], col[COLBLACK], -1);
+    print_text_border_check_bg(_("Weapon $1", itoa(level)), x, y, col[COLWHITE], col[COLBLACK], -1);
 }
 
 void Graphics::map_time(int seconds) {
     ostringstream ost;
-    ost << setw(4) << seconds / 60 << ':' << setw(2) << setfill('0') << seconds % 60;
+    ost << seconds / 60 << ':' << setw(2) << setfill('0') << seconds % 60;
     print_text_border_check_bg(ost.str(), time_x - text_length(font, ost.str()), time_y, col[COLGREEN], col[COLBLACK], -1);
 }
 
@@ -2034,7 +2048,7 @@ void Graphics::draw_change_map_message(double time, bool delayed) {
 }
 
 void Graphics::draw_player_health(int value) {
-    const int x0 = indicators_x + 10;
+    const int x0 = health_x;
     const int y0 = indicators_y;
     draw_bar(x0, y0, _("Health"), value, col[COLRED], col[COLYELLOW], col[COLMAG]);
 }
@@ -2048,22 +2062,25 @@ void Graphics::draw_player_energy(int value) {
 void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100, int c200, int c300) {
     print_text_border_check_bg(caption, x, y, col[COLWHITE], col[COLBLACK], -1);
     const string val_str = itoa_w(value, 3);
-    const int val_x = max(x + text_length(font, caption) + text_length(font, " "), x + 100 - text_length(font, val_str));
-    print_text_border_check_bg(val_str, val_x, y, col[COLWHITE], col[COLBLACK], -1);
+    const int width = scale(100);
     const int bar_y1 = y + 3 * text_height(font) / 2;
-    const int bar_y2 = bar_y1 + 10;
-    rectfill(drawbuf, x, bar_y1, x + 100, bar_y2, col[COLBLACK]);
+    const int bar_y2 = bar_y1 + scale(10);
+
+    const int val_x = max(x + text_length(font, caption) + text_length(font, " "), x + width - text_length(font, val_str));
+    print_text_border_check_bg(val_str, val_x, y, col[COLWHITE], col[COLBLACK], -1);
+
+    rectfill(drawbuf, x, bar_y1, x + width, bar_y2, col[COLBLACK]);
     if (value == 0)
         return;
 
-    int targ = min(value, 100);
+    int targ = min(value, 100) * width / 100;
     rectfill    (drawbuf, x, bar_y1, x + targ, bar_y2, c100);
 
-    targ = min(value - 100, 100);
+    targ = min(value - 100, 100) * width / 100;
     if (targ > 0)
         rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c200);
 
-    targ = min(value - 200, 100);
+    targ = min(value - 200, 100) * width / 100;
     if (targ > 0)
         rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
@@ -2458,7 +2475,7 @@ void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) cons
         dst_theme(*ti);
         // Check if the theme has a background image
         const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background.pcx";
-        //if (platIsFile(bg))
+        if (platIsFile(bg))
             dst_bg(*ti);
     }
 }
@@ -2509,15 +2526,15 @@ void Graphics::load_background() {
 }
 
 void Graphics::load_floor_textures(const string& path) {
-    int i = 0;
-    floor_texture[i++] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_red.pcx"    ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_blue.pcx"   ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_ice.pcx"    ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_sand.pcx"   ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_mud.pcx"    ).c_str(), NULL);
+    int t = 0;
+    floor_texture[t++] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_red.pcx"    ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_blue.pcx"   ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_ice.pcx"    ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_sand.pcx"   ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_mud.pcx"    ).c_str(), NULL);
     // Check that width and height are powers of 2.
     for (int i = 0; i < 8; i++) {
         Bitmap& texture = floor_texture[i];
@@ -2529,15 +2546,15 @@ void Graphics::load_floor_textures(const string& path) {
 }
 
 void Graphics::load_wall_textures(const string& path) {
-    int i = 0;
-    wall_texture[i++] = load_bitmap((path + "wall_normal1.pcx").c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_normal2.pcx").c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_normal3.pcx").c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_red.pcx"    ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_blue.pcx"   ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_metal.pcx"  ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_wood.pcx"   ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_rubber.pcx" ).c_str(), NULL);
+    int t = 0;
+    wall_texture[t++] = load_bitmap((path + "wall_normal1.pcx").c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_normal2.pcx").c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_normal3.pcx").c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_red.pcx"    ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_blue.pcx"   ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_metal.pcx"  ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_wood.pcx"   ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_rubber.pcx" ).c_str(), NULL);
     // Check that width and height are powers of 2.
     for (int i = 0; i < 8; i++) {
         Bitmap& texture = wall_texture[i];

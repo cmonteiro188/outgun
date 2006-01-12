@@ -245,6 +245,7 @@ private:
     std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
     void draw_bar(int x, int y, const std::string& caption, int value, int c100, int c200, int c300);
+    void draw_powerup_time(int line, const std::string& caption, double val, int c);
 
     void draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time);
 
@@ -332,8 +333,8 @@ private:
     int minimap_w, minimap_h;
     int minimap_place_w, minimap_place_h;
     int minimap_start_x, minimap_start_y;
-    int indicators_x, indicators_y;
-    int energy_x, pups_x, weapon_x, time_x, time_y;
+    int indicators_y;
+    int health_x, energy_x, pups_x, pups_val_x, weapon_x, time_x, time_y;
 
     bool show_chat_messages;
     bool show_scoreboard;
@@ -368,7 +369,6 @@ private:
     int map_list_size;
     int map_list_start;
     
-    int team_captures_size;
     int team_captures_start;
 
     std::list<GraphicsEffect> cfx;
