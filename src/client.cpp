@@ -2831,7 +2831,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
 //send chat message
 void Client::send_chat(const string& msg) {
-    if (isFlood(msg))
+    if (msg.empty() || msg == "." || isFlood(msg))
         return;
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
@@ -3218,18 +3218,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     // handle global keys first
     bool handled = true;
     switch (sc) {   // if the key isn't handled, set handled = false
-    /*break;*/ case KEY_ESC:
-            if (!talkbuffer.empty()) // cancel chat
-                talkbuffer.clear();
-            else if (!openMenus.empty())
-                MCF_menuCloser();
-            else if (menusel != menu_none) {
-                menusel = menu_none;
-                stats_autoshowing = false;
-            }
-            else
-                showMenu(menu);
-        break; case KEY_F1:
+    /*break;*/ case KEY_F1:
             toggle_help();
         break; case KEY_F11:
             screenshot = true;
@@ -3261,9 +3250,23 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
         return;
     if (!openMenus.empty()) {
         MutexLock ml(frameMutex);   // some menus need access
-        openMenus.handleKeypress(sc, ch);
-        return;
+        if (openMenus.handleKeypress(sc, ch))
+            return;
     }
+    if (sc == KEY_ESC) {
+        if (!openMenus.empty())
+            MCF_menuCloser();
+        else if (menusel != menu_none) {
+            menusel = menu_none;
+            stats_autoshowing = false;
+        }
+        else if (!talkbuffer.empty()) // cancel chat
+            talkbuffer.clear();
+        else
+            showMenu(menu);
+    }
+    if (!openMenus.empty())
+        return;
     handled = true;
     switch (sc) {
     /*break;*/ case KEY_F2:
@@ -3382,7 +3385,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 talkbuffer.erase(talkbuffer.end() - 1);
         break; case KEY_ENTER: case KEY_ENTER_PAD:
             if (!talkbuffer.empty()) {
-                send_chat(talkbuffer);
+                send_chat(trim(talkbuffer));
                 talkbuffer.clear();
             }
         break; case KEY_DEL: {
