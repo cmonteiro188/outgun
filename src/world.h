@@ -755,6 +755,7 @@ public:
     NLulong extra_time;
     bool sudden_death;
     int capture_limit;
+    int win_score_difference;     // minimum score difference needed to win the game
     double flag_return_delay; // in seconds
     Team_balance balance_teams;
 
@@ -771,6 +772,7 @@ public:
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }
     int getShadowMinimum() const { return shadow_minimum; }
     int getCaptureLimit() const { return capture_limit; }
+    int getWinScoreDifference() const { return win_score_difference; }
     NLulong getTimeLimit() const { return time_limit; }
     NLulong getExtraTime() const { return extra_time; }
 

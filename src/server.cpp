@@ -501,6 +501,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("sudden_death",            &worldConfig.sudden_death)),
         PT(new GS_Int       ("game_end_delay",          &game_end_delay, 0)),
         PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
+        PT(new GS_Int       ("win_score_difference",    &worldConfig.win_score_difference, 1)),
         PT(new GS_Double    ("flag_return_delay",       &worldConfig.flag_return_delay, 0)),
         PT(new GS_Boolean   ("lock_team_flags",         &worldConfig.lock_team_flags)),
         PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
@@ -1110,14 +1111,14 @@ void Server::chat(int pid, const char* sbuf) {
             ostringstream msg;
             msg << world.player[pid].name << ": ";
             if (sbuf[0] == '.') {   // team message
-                msg << sbuf + 1;
+                msg << trim(sbuf + 1);
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_team, msg.str());
                 else
                     network.broadcast_team_message(pid / TSIZE, msg.str());
             }
             else {                  // regular message
-                msg << sbuf;
+                msg << trim(sbuf);
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_normal, msg.str());
                 else

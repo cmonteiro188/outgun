@@ -1348,6 +1348,7 @@ void WorldSettings::reset() {
     extra_time = 0;
     sudden_death = false;
     capture_limit = 8;
+    win_score_difference = 1;
     flag_return_delay = 1.0;
     balance_teams = TB_disabled;
 
@@ -2943,7 +2944,8 @@ void ServerWorld::simulateFrame() {
                     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
                         if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
                             player_captures_flag(i, flagTeam, f);
-                            if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 ||
+                            if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
+                                        teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
                                         extra_time_and_sudden_death) {
                                 host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
                                 return;
