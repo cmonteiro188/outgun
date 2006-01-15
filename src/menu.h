@@ -2,7 +2,7 @@
  *  menu.h
  *
  *  Copyright (C) 2004 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -110,7 +110,7 @@ public:
     void close() { closeHook.call(*this); }
 
     void draw(BITMAP* buffer);  // no const because drawHook might modify the menu
-    void handleKeypress(char scan, unsigned char chr);
+    bool handleKeypress(char scan, unsigned char chr);
 
     void  setDrawHook(MenuHook<Menu>::FunctionT* fn) {  drawHook.set(fn); } // called before drawing
     void  setOpenHook(MenuHook<Menu>::FunctionT* fn) {  openHook.set(fn); } // called by open()
@@ -152,7 +152,7 @@ public:
     void close() { nAssert(!empty()); Menu* menu = st.back(); st.pop_back(); menu->close(); }
     void clear() { while (!empty()) close(); }
     void draw(BITMAP* buf) { nAssert(!empty()); st.back()->draw(buf); }
-    void handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); st.back()->handleKeypress(scan, chr); }
+    bool handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); return st.back()->handleKeypress(scan, chr); }
 
 private:
     std::vector<Menu*> st;  // a "real" std::stack can't be used because it doesn't allow removal from the middle by close(Menu*)
@@ -200,6 +200,8 @@ public:
     virtual ~SelectBase() { }
     int size() const { return options.size(); }
 
+    int maxSelLength() const;
+
     // inherited interface
     int width() const;
     int height() const;
@@ -209,17 +211,19 @@ public:
     virtual void virtualCallHook() = 0;
 
 protected:
-    SelectBase(const std::string caption_): Component(caption_), selected(0) { }
+    SelectBase(const std::string caption_): Component(caption_), selected(0), open(false), pendingSelection(0) { }
 
     std::vector<std::string> options;
     int selected;
+    bool open;
+    int pendingSelection;   // in list view
 };
 
 template<class ValueT>
 class Select : public SelectBase, public MenuHookable< Select<ValueT> > {
 public:
     Select(const std::string caption_): SelectBase(caption_) { }
-    void clearOptions() { options.clear(); values.clear(); selected = 0; }
+    void clearOptions() { options.clear(); values.clear(); selected = 0; open = false; pendingSelection = 0; }
     void addOption(const std::string& text, const ValueT& value) { options.push_back(text); values.push_back(value); }
     bool set(const ValueT& value);  // returns false if there is no value in the options
 //  void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }

@@ -208,6 +208,7 @@ void Menu::draw(BITMAP* buffer) {
         if (components[ci]->canBeEnabled())
             ++selecti;
     const int shortcutColor = components[selected_item]->needsNumberKeys() ? col_shortcutDisabled : col_shortcutEnabled;
+    int active_x = 0, active_y = 0, active_h = 0;
     for (int compi = start; compi < static_cast<int>(components.size()); ++compi) {
         Component* component = components[compi];
         if (y + component->minHeight() > y2 - padding)
@@ -220,7 +221,14 @@ void Menu::draw(BITMAP* buffer) {
         }
 
         const int h = min(component->height(), y2 - padding - y);
-        component->draw(buffer, x_start, y, h, compi == selected_item);
+        if (compi == selected_item) {
+            active_x = x_start;
+            active_y = y;
+            active_h = h;
+            // draw later
+        }
+        else
+            component->draw(buffer, x_start, y, h, compi == selected_item);
         y += component->height();
         visible_items++;
     }
@@ -234,11 +242,17 @@ void Menu::draw(BITMAP* buffer) {
         const int bar_h = static_cast<int>(static_cast<double>(height * visible_items) / components.size() + 0.5);
         scrollbar(buffer, x, y, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
     }
+
+    // draw the active component
+    components[selected_item]->draw(buffer, active_x, active_y, active_h, true);
 }
 
-void Menu::handleKeypress(char scan, unsigned char chr) {
+bool Menu::handleKeypress(char scan, unsigned char chr) {
     nAssert(!components.empty());
     nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
+    if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
+        return true;
+    bool handled = true;
     if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
         prev();
     else if (scan == KEY_DOWN || scan == KEY_TAB)
@@ -261,7 +275,7 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
                 break; case KEY_8: shortcut = 7;
                 break; case KEY_9: shortcut = 8;
                 break; case KEY_0: shortcut = 9;
-                break; default: shortcut = -1;
+                break; default: shortcut = -1; handled = false;
             }
         else if (chr == '0')
             shortcut = 9;
@@ -278,16 +292,19 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
                     }
             if (found && components[newsel]->isEnabled()) {
                 selected_item = newsel;
+                nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
                 components[selected_item]->shortcutActivated();
-                return;
+                return true;
             }
         }
     }
-    nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
-    if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
-        return;
-    if (scan == KEY_ENTER || scan == KEY_ENTER_PAD)
+    else
+        handled = false;
+    if (scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
         okHook.call(*this);
+        return true;
+    }
+    return handled;
 }
 
 int Menu::width() const {
@@ -367,7 +384,7 @@ void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 }
 
 int Textfield::width() const {
-    return text_length(font, caption) + maxlen + max(tailSpace * char_w(), text_length(font, tail)) +
+    return text_length(font, caption) + maxlen * char_w() + max(tailSpace * char_w(), text_length(font, tail)) +
            text_length(font, ": _"); // ": " between caption and value, _ is cursor
 }
 
@@ -409,21 +426,75 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (active && selected > 0)
         drawKeySymbol(buffer, x, y, "<");
     x += 2 * char_w();
+    const int list_x = x - char_w();
     textout_ex(buffer, font, options[selected].c_str(), x, y, col_value, -1);
-    if (active && selected + 1 < (int)options.size()) {
-        x += text_length(font, options[selected]) + char_w();
+    x += text_length(font, options[selected]) + char_w();
+    if (active && selected + 1 < static_cast<int>(options.size()))
         drawKeySymbol(buffer, x, y, ">");
+    if (!active || !open)   // list may be left open
+        return;
+    const int line_height = text_height(font) + 4;
+    const int list_w = maxSelLength() + 2 * char_w();
+    int list_h = options.size() * line_height + line_height / 2;
+    int visible_items;
+    static int pendingStart = 0;
+    if (list_h > SCREEN_H) {
+        visible_items = (SCREEN_H - line_height / 2) / line_height;
+        list_h = visible_items * line_height + line_height / 2;
+        if (pendingSelection > pendingStart + visible_items - 1)
+            pendingStart = pendingSelection - visible_items + 1;
+        else if (pendingSelection < pendingStart)
+            pendingStart = pendingSelection;
+        else if (pendingStart + visible_items >= static_cast<int>(options.size()))
+            pendingStart = options.size() - visible_items;
+    }
+    else {
+        visible_items = options.size();
+        pendingStart = 0;
+    }
+    int list_y;
+    if (y + h + list_h > buffer->h) {
+        list_y = y - list_h - line_height / 2;
+        if (list_y < 0)
+            list_y = (SCREEN_H - list_h) / 2;
+    }
+    else
+        list_y = y + h;
+    const int sb_space = visible_items != static_cast<int>(options.size()) ? 9 : 0;
+    rect(buffer, list_x, list_y, list_x + list_w + 1 + sb_space, list_y + list_h + 1, col_borderHighlight);
+    rectfill(buffer, list_x + 1, list_y + 1, list_x + list_w + sb_space, list_y + list_h, col_background);
+    x = list_x + char_w();
+    y = list_y + line_height / 2;
+    for (int i = pendingStart; i < static_cast<int>(options.size()) && i < pendingStart + visible_items; ++i) {
+        const string& option = options[i];
+        const int c = (pendingSelection == i ? col_active : col_value);
+        textout_ex(buffer, font, option.c_str(), x, y, c, -1);
+        y += line_height;
+    }
+
+    // draw scrollbar if everything didn't fit
+    if (visible_items != static_cast<int>(options.size())) {
+        const int x = list_x + list_w;
+        const int y = list_y + 1;
+        const int height = list_h;
+        const int bar_y = static_cast<int>(static_cast<double>(height * pendingStart) / options.size() + 0.5);
+        const int bar_h = static_cast<int>(static_cast<double>(height * visible_items) / options.size() + 0.5);
+        scrollbar(buffer, x, y, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
     }
 }
 
-int SelectBase::width() const {
-    int maxSelLength = 0; //#todo: precache
+int SelectBase::maxSelLength() const {  //#todo: precache
+    int max_len = 0;
     for (vector<string>::const_iterator si = options.begin(); si != options.end(); ++si) {
         const int len = text_length(font, *si);
-        if (len > maxSelLength)
-            maxSelLength = len;
+        if (len > max_len)
+            max_len = len;
     }
-    return text_length(font, caption) + maxSelLength + 6 * char_w();    // 6 is some space for select box characters
+    return max_len;
+}
+
+int SelectBase::width() const {
+    return text_length(font, caption) + maxSelLength() + 6 * char_w();    // 6 is some space for select box characters
 }
 
 int SelectBase::height() const {
@@ -432,13 +503,54 @@ int SelectBase::height() const {
 
 bool SelectBase::handleKey(char scan, unsigned char chr) {
     (void)chr;
-    if (scan == KEY_LEFT && selected > 0)
-        --selected;
-    else if (scan == KEY_RIGHT && selected + 1 < static_cast<int>(options.size()))
-        ++selected;
-    else
-        return false;
-    virtualCallHook();
+    bool changed = false;
+    if (key[KEY_ALT] && (scan == KEY_UP || scan == KEY_DOWN) || scan == KEY_SPACE || scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
+        open = !open;
+        if (!open && pendingSelection != selected)
+            changed = true;
+        if (open)
+            pendingSelection = selected;
+        else
+            selected = pendingSelection;
+    }
+    else if (open) {
+        if (scan == KEY_UP || scan == KEY_LEFT) {
+            if (pendingSelection > 0)
+                --pendingSelection;
+        }
+        else if (scan == KEY_DOWN || scan == KEY_RIGHT) {
+            if (pendingSelection + 1 < static_cast<int>(options.size()))
+                ++pendingSelection;
+        }
+        else if (scan == KEY_HOME)
+            pendingSelection = 0;
+        else if (scan == KEY_END)
+            pendingSelection = options.size() - 1;
+        else if (key[KEY_ESC]) {
+            open = false;
+            pendingSelection = selected;
+        }
+        else
+            return false;
+    }
+    else {
+        if (scan == KEY_LEFT) {
+            if (selected > 0) {
+                --selected;
+                changed = true;
+            }
+        }
+        else if (scan == KEY_RIGHT) {
+            if (selected + 1 < static_cast<int>(options.size())) {
+                ++selected;
+                changed = true;
+            }
+        }
+        else
+            return false;
+    }
+    if (changed)
+        virtualCallHook();
     return true;
 }
 
