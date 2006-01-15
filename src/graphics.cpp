@@ -1514,8 +1514,10 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     else
         sbfont = font;
 
+
     // calculate the position in the given space
-    const int width = characters * text_length(sbfont, "M");
+    const int char_w = text_length(sbfont, "M");
+    const int width = characters * char_w;
     const int sby = scoreboard_y1;
     int sbx;
     if (place_width > width)
@@ -1541,29 +1543,30 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 
     const int teamy[2] = { sby + spacerHeight, sby + spacerHeight + (1 + maxplayers / 2) * line_h + spacerHeight };
 
-    const int caption_width = 20;
+    const int caption_width = characters;
 
     // background
     const int teambg [2] = { makecol(0x1A, 0x00, 0x00), makecol(0x00, 0x00, 0x1A) };
     const int linecol[2] = { makecol(0x3A, 0x3A, 0x3A), makecol(0x3A, 0x3A, 0x3A) };
     int hpadding = 6;
-    if (sbx - (plx + plw) < hpadding)
-        hpadding = max(2, sbx - (plx + plw));
+    if (sbx - scoreboard_x1 < hpadding)
+        hpadding = max(1, sbx - scoreboard_x1 - 2);
     const int vpadding = max((line_h - text_height(sbfont)) / 2, 1);
-    const int char_w = text_length(sbfont, "M");
+    const int border_x1 = sbx - hpadding;
+    const int border_x2 = sbx + width + hpadding;
     for (int i = 0; i < 2; ++i) {
-        rectfill(drawbuf, sbx - hpadding, teamy[i] + line_h - vpadding, sbx + caption_width * char_w + hpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, teambg[i]);
-        rectfill(drawbuf, sbx - hpadding, teamy[i] - vpadding, sbx + caption_width * char_w + hpadding, teamy[i] + line_h - vpadding, teamdcol[i]);
+        rectfill(drawbuf, border_x1 + 1, teamy[i] + line_h - vpadding + 1, border_x2 - 1, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding - 1, teambg[i]);
+        rectfill(drawbuf, border_x1 + 1, teamy[i] - vpadding + 1, border_x2 - 1, teamy[i] + line_h - vpadding - 1, teamdcol[i]);
     }
     for (int i = 0; i < 2; ++i) {
-        hline(drawbuf, sbx - hpadding, teamy[i] - vpadding, sbx + caption_width * char_w + hpadding, linecol[i]);
+        hline(drawbuf, border_x1 + 1, teamy[i] - vpadding, border_x2 - 1, linecol[i]);
         for (int j = 1; j <= maxplayers / 2 + 1; ++j)
-            hline(drawbuf, sbx - hpadding, teamy[i] + j * line_h - vpadding, sbx + caption_width * char_w + hpadding, linecol[i]);
+            hline(drawbuf, border_x1 + 1, teamy[i] + j * line_h - vpadding, border_x2 - 1, linecol[i]);
     }
     for (int i = 0; i < 2; ++i) {
-        vline(drawbuf, sbx - hpadding - 1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+        vline(drawbuf, border_x1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
         vline(drawbuf, sbx + (caption_width - 3) * char_w - 5, teamy[i] + line_h - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
-        vline(drawbuf, sbx + caption_width * char_w + hpadding + 1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+        vline(drawbuf, border_x2, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
     }
 
     // captions
@@ -1614,16 +1617,16 @@ void Graphics::draw_scoreboard_points(const FONT* sbfont, int points, int x, int
 }
 
 void Graphics::team_statistics(const Team* teams) {
+    const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
     const int line_height = text_height(font) + 4;
     const int w = 43 * text_length(font, "M") + 6;
-    const int h = min<int>(SCREEN_H - 40, (19 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
+    const int h = min<int>(SCREEN_H - 40, (20 + total_captures) * line_height);
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
     const int x1 = mx - w / 2;
     const int y1 = my - h / 2;
     const int x2 = mx + w / 2;
     const int y2 = my + h / 2;
-    const int team_captures_size = h / line_height - 17;
 
     if (stats_alpha > 0) {
         if (stats_alpha < 255) {
@@ -1676,8 +1679,8 @@ void Graphics::team_statistics(const Team* teams) {
 
     line++;
     const int team_captures_start_y = y1 + line * line_height;
+    const int team_captures_size = (y1 + h - team_captures_start_y) / line_height - 1;
 
-    const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
     if (team_captures_start >= total_captures - team_captures_size)
         team_captures_start = total_captures - team_captures_size;
     if (team_captures_start < 0)
@@ -2008,9 +2011,7 @@ void Graphics::draw_powerup_time(int line, const string& caption, double val, in
 }
 
 void Graphics::draw_player_weapon(int level) {
-    const int x = weapon_x;
-    const int y = indicators_y;
-    print_text_border_check_bg(_("Weapon $1", itoa(level)), x, y, col[COLWHITE], col[COLBLACK], -1);
+    print_text_border_check_bg(_("Weapon $1", itoa(level)), weapon_x, indicators_y, col[COLWHITE], col[COLBLACK], -1);
 }
 
 void Graphics::map_time(int seconds) {
