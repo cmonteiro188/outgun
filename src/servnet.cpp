@@ -1357,8 +1357,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 world.player[pid].attack = true;
             else if (code == data_fire_off)
                 world.player[pid].attack = false;
-            else if (code == data_suicide)
-                world.suicide(pid);
+            else if (code == data_suicide) {
+                if (!world.player[pid].under_deathbringer_effect(get_time()))
+                    world.suicide(pid);
+            }
             else if (code == data_change_team_on) {
                 if (!world.player[pid].want_change_teams) {
                     world.player[pid].want_change_teams = true;
