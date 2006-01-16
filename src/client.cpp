@@ -1522,7 +1522,7 @@ void Client::process_incoming_data(const char* data, int length) {
     //overwrite always the newer frames
     // TARGET FRAME: just one
     if (svframe > fx.frame) {
-        nAssert(fx.frame == (int)fx.frame);
+        nAssert(fx.frame == floor(fx.frame));
 
         ClientPhysicsCallbacks cb(*this);
         fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
@@ -2696,6 +2696,14 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, pupMaxTime);
                 fx.physics.read(lebuf, count);
                 fd.physics = fx.physics;
+
+                log("Server friction/drag/acceleration %f/%f/%f",
+                    fx.physics.fric, fx.physics.drag, fx.physics.accel);
+                log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
+                    fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
+                log("Server ff/dbff/rocketspeed %f/%f/%f",
+                    fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
+
                 addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
             }
 
@@ -3250,26 +3258,24 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
         return;
     if (!openMenus.empty()) {
         MutexLock ml(frameMutex);   // some menus need access
-        if (openMenus.handleKeypress(sc, ch))
-            return;
-    }
-    if (sc == KEY_ESC) {
-        if (!openMenus.empty())
-            MCF_menuCloser();
-        else if (menusel != menu_none) {
-            menusel = menu_none;
-            stats_autoshowing = false;
+        if (!openMenus.handleKeypress(sc, ch)) {
+            if (sc == KEY_ESC)
+                MCF_menuCloser();
         }
-        else if (!talkbuffer.empty()) // cancel chat
-            talkbuffer.clear();
-        else
-            showMenu(menu);
-    }
-    if (!openMenus.empty())
         return;
+    }
     handled = true;
     switch (sc) {
-    /*break;*/ case KEY_F2:
+    /*break;*/ case KEY_ESC:
+            if (menusel != menu_none) {
+                menusel = menu_none;
+                stats_autoshowing = false;
+            }
+            else if (!talkbuffer.empty()) // cancel chat
+                talkbuffer.clear();
+            else
+                showMenu(menu);
+        break; case KEY_F2:
             menusel = (menusel == menu_maps ? menu_none : menu_maps);
             stats_autoshowing = false;
             if (menusel == menu_maps) {
@@ -3321,13 +3327,12 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                     if (!edit_map_vote.empty())
                         edit_map_vote.erase(edit_map_vote.end() - 1);
                 break; case KEY_ENTER: case KEY_ENTER_PAD: {
-                    const int new_vote = atoi(edit_map_vote) - 1;
+                    int new_vote = atoi(edit_map_vote) - 1;
+                    if (new_vote >= 255)
+                        new_vote = -1;
                     edit_map_vote.clear();
                     if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
-                        if (new_vote > 255)
-                            map_vote = -1;
-                        else
-                            map_vote = new_vote;
+                        map_vote = new_vote;
                         want_map_exit_delayed = false;
                         // send map vote
                         char lebuf[16];
@@ -3537,7 +3542,10 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         // give other threads a chance (otherwise we're trying to run all the time if the FPS limit is not lower than what the machine can do)
         sched_yield();
 
-        nextClientFrame += 1. / menu.options.graphics.fpsLimit();
+        int fpsLimit = menu.options.graphics.fpsLimit();
+        if (!gameshow && fpsLimit > 30)
+            fpsLimit = 30;
+        nextClientFrame += 1. / fpsLimit;
         if (get_time() > nextClientFrame)    // don't accumulate lag
             nextClientFrame = get_time();
 
@@ -3860,6 +3868,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     }
     // frame is valid?
     if (!hide_game && fd.frame >= 0) {
+        client_graphics.startPlayfieldDraw();
+
         // draw dead players, except ice creams
         for (int i = 0; i < maxplayers; i++) {
             if (fx.player[i].used && fx.player[i].onscreen && fx.player[i].dead) {
@@ -3943,6 +3953,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                 const int tty = static_cast<int>(fd.player[i].ly);
                 client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE, i == me);
             }
+
+        client_graphics.endPlayfieldDraw();
     }
 
     //do not draw stuff below if map not ready to show
@@ -4208,7 +4220,7 @@ void Client::initMenus() {
     menu.connect.favorites              .setHook(new MCB::N<Checkbox,       &Client::MCF_prepareServerMenu      >(this));
     menu.connect.update                 .setHook(new MCB::N<Textarea,       &Client::MCF_updateServers          >(this));
     menu.connect.refresh                .setHook(new MCB::N<Textarea,       &Client::MCF_refreshServers         >(this));
-    menu.connect.manualEntry         .setKeyHook(new MKC::N<Textfield,      &Client::MCF_addressEntryKeyHandler >(this));
+    menu.connect.manualEntry         .setKeyHook(new MKC::N<IPfield,        &Client::MCF_addressEntryKeyHandler >(this));
 
     menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareAddServer       >(this));
     menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &Client::MCF_addServer              >(this));

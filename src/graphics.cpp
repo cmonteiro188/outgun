@@ -236,6 +236,14 @@ void Graphics::endDraw() {
     release_bitmap(drawbuf);
 }
 
+void Graphics::startPlayfieldDraw() {
+    set_clip_rect(drawbuf, plx, ply, plx + scale(plw) - 1, ply + scale(plh) - 1);
+}
+
+void Graphics::endPlayfieldDraw() {
+    set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
+}
+
 void Graphics::draw_screen(bool acquireWithFlipping) {
     if (page_flipping) {
         if (acquireWithFlipping)
@@ -784,7 +792,8 @@ void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
     const int a = scale(1);
     const int b = a / 2;
     rectfill(drawbuf, coords.first - a, coords.second - a, coords.first + a, coords.second + a, teamcol[player.team()]);
-    rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
+    if (a > 0) // else, only one pixel is shown; let it be the team color
+        rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
 }
 
 void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
@@ -995,7 +1004,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
                         floodfill(buffer, coords.first, coords.second, teamdcol[t]);
                         continue;
                     }
-                    const int tempColor = makecol(255, 0, 255); // this is an opportunity for bugs if someone decides to use bright pink as a regular map color
+                    const int tempColor = makecol(0, 255, 255); // this is an opportunity for bugs if someone decides to use bright cyan as a regular map color
                     floodfill(buffer, coords.first, coords.second, tempColor);
                     // check all opposing team's flags for being in the same area
                     const int ot = 1 - t;
@@ -1235,7 +1244,6 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
     const int maxxd = max(x, scale(plw) - x);
     const int maxyd = max(y, scale(plh) - y);
     if (maxxd * maxxd + maxyd * maxyd >= rad * rad) {
-        set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
         //brightening ring
         for (int e = 0; e < scale(30); e++, rad++) {
             int co;
@@ -1256,7 +1264,6 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
             circle(drawbuf, plx + x + 1, ply + y    , rad, co);
             circle(drawbuf, plx + x    , ply + y + 1, rad, co);
         }
-        set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
     }
 }
 
@@ -1294,12 +1301,10 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
             }
         solid_mode();
     }
-    set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
     set_alpha_blender();
     draw_trans_sprite(drawbuf, buffer, plx + x - db_effect->w / 2, ply + y - db_effect->h / 2);
     solid_mode();
-    set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
     if (buffer != db_effect)
         destroy_bitmap(buffer);
 }
@@ -1513,7 +1518,6 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
         sbfont = default_font;
     else
         sbfont = font;
-
 
     // calculate the position in the given space
     const int char_w = text_length(sbfont, "M");
@@ -2309,6 +2313,8 @@ void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, 
     fx.col2 = col2;
     fx.gundir = gundir;
 
+    fx.team = 0; // to please GCC
+
     cfx.push_back(fx);
 }
 
@@ -2485,8 +2491,11 @@ void Graphics::select_theme(const string& dir, const string& bg_dir, bool use_th
     unload_pictures();
     if (dir == _("<no theme>"))
         theme_path.clear();
-    else
-        load_theme(dir);
+    else {
+        theme_path = wheregamedir + "graphics" + directory_separator + dir + directory_separator;
+        load_pictures();
+        log("Loaded graphics theme '%s'.", dir.c_str());
+    }
 
     bg_path.clear();
     if (use_theme_bg) {
@@ -2499,14 +2508,8 @@ void Graphics::select_theme(const string& dir, const string& bg_dir, bool use_th
     }
 }
 
-void Graphics::load_theme(const string& dirname) {
-    theme_path = wheregamedir + "graphics" + directory_separator + dirname + directory_separator;
-    load_pictures();
-    log("Loaded graphics theme '%s'.", dirname.c_str());
-}
-
 void Graphics::load_pictures() {
-    if (floor_texture.empty())  // kludge: load_theme -> load_pictures might be called before init
+    if (floor_texture.empty())  // kludge: select_theme -> load_pictures might be called before init
         return;
     if (theme_path.empty())
         return;
@@ -2521,6 +2524,8 @@ void Graphics::load_pictures() {
 }
 
 void Graphics::load_background() {
+    if (floor_texture.empty())  // kludge: select_theme -> load_background might be called before init
+        return;
     bg_texture.free();
     if (!bg_path.empty())
         bg_texture = load_bitmap((bg_path + "background.pcx").c_str(), NULL);
@@ -2792,11 +2797,8 @@ void Graphics::search_fonts(LineReceiver& dst_font) const {
 
     vector<string> fonts;
     FileFinder* font_files = platMakeFileFinder(wheregamedir + "fonts", ".dat", false);
-    while (font_files->hasNext()) {
-        string name = font_files->next();
-        name = name.substr(0, name.rfind('.'));
-        fonts.push_back(name);
-    }
+    while (font_files->hasNext())
+        fonts.push_back(FileName(font_files->next()).getBaseName());
     delete font_files;
     sort(fonts.begin(), fonts.end(), cmp_case_ins);
     for (vector<string>::const_iterator fi = fonts.begin(); fi != fonts.end(); ++fi)

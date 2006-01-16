@@ -57,7 +57,7 @@ Spacer g_menuSpace(5);
 #define ins_space() menu.add_component(&g_menuSpace);
 
 Menu_addServer::Menu_addServer() :
-    address     (_("IP address"), "", 21),   // max. IP address 123.123.123.123:12345 = 21 chars
+    address     (_("IP address"), true, false),
     save        (_("Add to favorite list")),
 
     menu        (_("Add server"), false)
@@ -73,7 +73,7 @@ Menu_serverList::Menu_serverList() :
 
     favorites       (_("Show favorite servers")),
     addServer       (),
-    manualEntry     (_("Manually enter IP"), "", 21),
+    manualEntry     (_("Manually enter IP"), true, false),
 
     keyHelp         (_("Insert = add to favorites    Delete = remove server")),
 
@@ -459,7 +459,7 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
 Menu_ownServer::Menu_ownServer() :
     pub     (_("Add to public serverlist"), false),
     port    (_("Server port"), 1, 65535, DEFAULT_UDP_PORT),
-    address (_("IP address"), "", 15, 0, 20),   // max. IP address 123.123.123.123 = 15 chars, reserve for tail (:port and/or 'comment') 20 chars
+    address (_("IP address"), false, true),
     autoIP  (_("Autodetect IP"), true),
 
     start   (_("Start server")),
@@ -490,18 +490,10 @@ void Menu_ownServer::refreshCaption(bool serverRunning) {
     // this could be a separate function but it really doesn't hurt to update the address field here
     if (autoIP())
         address.set(detectedIP);
-    if (address().empty())
-        address.setTail(_("unknown"));
-    else {
-        string tail;
-        if (port() != DEFAULT_UDP_PORT)
-            tail = ":" + itoa(port());
-        if (!isValidIP(address()))
-            tail += " (" + _("invalid") + ')';
-        else if (check_private_IP(address()))
-            tail += " (" + _("private") + ')';
-        address.setTail(tail);
-    }
+    if (port() != DEFAULT_UDP_PORT)
+        address.setFixedPortString(":" + itoa(port()));
+    else
+        address.setFixedPortString("");
 }
 
 void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) {

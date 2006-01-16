@@ -91,8 +91,11 @@ public:
     void make_layout();
     void videoMemoryCorrupted();    // call this when that happens with page flipping; predraw also needs to be called
 
-    void startDraw();   // call endDraw for each startDraw
+    void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
+    void startPlayfieldDraw();  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
+    void endPlayfieldDraw();
+
     void draw_screen(bool acquireWithFlipping);
     bool save_screenshot(const std::string& filename) const;
 
@@ -228,7 +231,7 @@ private:
     bool reset_video_mode(int width, int height, int depth, bool windowed, int pages = 1);
 
     void setPlaygroundColors();
-    
+
     void make_background(BITMAP* buffer);
 
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
@@ -269,8 +272,6 @@ private:
     void scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2);
 
     void make_db_effect();
-
-    void load_theme(const std::string& dirname);
 
     void load_pictures();
     void load_background();

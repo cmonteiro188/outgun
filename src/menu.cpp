@@ -27,7 +27,9 @@
 
 #include "incalleg.h"
 #include "client.h"
+#include "language.h" // needed by IPfield
 #include "nassert.h"
+#include "network.h"  // needed by IPfield
 
 #include "menu.h"
 
@@ -298,12 +300,11 @@ bool Menu::handleKeypress(char scan, unsigned char chr) {
             }
         }
     }
+    else if (scan == KEY_ENTER || scan == KEY_ENTER_PAD)
+        okHook.call(*this);
     else
         handled = false;
-    if (scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
-        okHook.call(*this);
-        return true;
-    }
+
     return handled;
 }
 
@@ -364,7 +365,7 @@ int Spacer::height() const {
 }
 
 
-void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
+void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
@@ -383,16 +384,16 @@ void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     textout_ex(buffer, font, tail.c_str(), x, y, col_value, -1);
 }
 
-int Textfield::width() const {
-    return text_length(font, caption) + maxlen * char_w() + max(tailSpace * char_w(), text_length(font, tail)) +
+int TextfieldBase::width() const {
+    return text_length(font, caption) + maxlen * text_length(font, "M") + max(tailSpace * char_w(), text_length(font, tail)) +
            text_length(font, ": _"); // ": " between caption and value, _ is cursor
 }
 
-int Textfield::height() const {
+int TextfieldBase::height() const {
     return line_h();
 }
 
-bool Textfield::handleKey(char scan, unsigned char chr) {
+bool TextfieldBase::handleKey(char scan, unsigned char chr) {
     bool stateChange = false;
     if (scan == KEY_BACKSPACE) {
         if (!value.empty()) {
@@ -400,19 +401,51 @@ bool Textfield::handleKey(char scan, unsigned char chr) {
             stateChange = true;
         }
     }
-    else if (!is_nonprintable_char(chr)) {
+    else if (!is_nonprintable_char(chr) && (charset.empty() || charset.find(chr) != string::npos)) {
         if ((int)value.length() < maxlen) {
             value += chr;
             stateChange = true;
         }
     }
     else
-        return callKeyHook(*this, scan, chr);   // note: callHook is not executed regardless of the return
+        return virtualCallKeyHook(scan, chr);   // note: virtualCallHook is not executed regardless of the return
     if (stateChange)
-        callHook(*this);
+        virtualCallHook();
     return true;
 }
 
+IPfield::IPfield(const std::string& caption_, bool acceptPort_, bool printUnknown_):
+    TextfieldBase(caption_, "", acceptPort ? 21 : 15, 0, acceptPort ? 14 : 20), // max. IP address 123.123.123.123 = 15 chars, :port 6 chars either in address or tail; reserve 14 extra characters in tail for comment
+    acceptPort(acceptPort_),
+    printUnknown(printUnknown_)
+{
+    if (acceptPort)
+        limitToCharacters("1234567890.:");
+    else
+        limitToCharacters("1234567890.");
+    updateTail();
+}
+
+bool IPfield::handleKey(char scan, unsigned char chr) {
+    const bool ret = TextfieldBase::handleKey(scan, chr);
+    if (ret)
+        updateTail();
+    return ret;
+}
+
+void IPfield::updateTail() {
+    const string& address = operator()();
+    if (address.empty())
+        setTail(printUnknown ? _("unknown") : "");
+    else {
+        string tail = portStr;
+        if (!isValidIP(address, acceptPort, 1))
+            tail += " (" + _("invalid") + ')';
+        else if (check_private_IP(address))
+            tail += " (" + _("private") + ')';
+        setTail(tail);
+    }
+}
 
 void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
@@ -431,8 +464,10 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     x += text_length(font, options[selected]) + char_w();
     if (active && selected + 1 < static_cast<int>(options.size()))
         drawKeySymbol(buffer, x, y, ">");
-    if (!active || !open)   // list may be left open
+    if (!active || !open) {
+        open = false;
         return;
+    }
     const int line_height = text_height(font) + 4;
     const int list_w = maxSelLength() + 2 * char_w();
     int list_h = options.size() * line_height + line_height / 2;
@@ -506,12 +541,12 @@ bool SelectBase::handleKey(char scan, unsigned char chr) {
     bool changed = false;
     if (key[KEY_ALT] && (scan == KEY_UP || scan == KEY_DOWN) || scan == KEY_SPACE || scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
         open = !open;
-        if (!open && pendingSelection != selected)
-            changed = true;
         if (open)
             pendingSelection = selected;
-        else
+        else if (pendingSelection != selected) {
             selected = pendingSelection;
+            changed = true;
+        }
     }
     else if (open) {
         if (scan == KEY_UP || scan == KEY_LEFT) {
@@ -526,10 +561,8 @@ bool SelectBase::handleKey(char scan, unsigned char chr) {
             pendingSelection = 0;
         else if (scan == KEY_END)
             pendingSelection = options.size() - 1;
-        else if (key[KEY_ESC]) {
+        else if (key[KEY_ESC])
             open = false;
-            pendingSelection = selected;
-        }
         else
             return false;
     }

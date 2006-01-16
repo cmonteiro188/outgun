@@ -33,7 +33,7 @@
 
 class Menu_addServer {
 public:
-    Textfield   address;
+    IPfield     address;
     Checkbox    save;
 
     Menu menu;
@@ -52,7 +52,7 @@ public:
     StaticText          refreshStatus;
     Checkbox            favorites;
     Menu_addServer      addServer;
-    Textfield           manualEntry;
+    IPfield             manualEntry;
     StaticText          keyHelp;
     StaticText          caption;
 
@@ -251,7 +251,7 @@ class Menu_ownServer {
 public:
     Checkbox        pub;
     NumberEntry     port;
-    Textfield       address;
+    IPfield         address;
     Checkbox        autoIP;
     Textarea        start;
     Textarea        play;

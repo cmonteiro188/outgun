@@ -173,14 +173,15 @@ private:
     int space;
 };
 
-// the Textfield keyhook is only called with keys not handled otherwise (= non-printables other than backspace)
-class Textfield : public Component, public MenuHookable<Textfield>, public KeyHookable<Textfield> {
+class TextfieldBase : public Component {
 public:
-    Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask) { }
+    TextfieldBase(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask) { }
+    virtual ~TextfieldBase() { }
     void set(const std::string& text) { value = text; }
     const std::string& operator()() const { return value; }
 
     void setTail(const std::string& text) { tail = text; }
+    void limitToCharacters(const std::string& chars) { charset = chars; } // set to empty to accept all printable characters
 
     // inherited interface
     bool needsNumberKeys() const { return true; }
@@ -191,16 +192,52 @@ public:
 
 private:
     std::string value, tail;
+    std::string charset; // characters that are allowed to be input
     int maxlen, tailSpace;
     char maskChar;  // 0 for no masking
+
+    virtual void virtualCallHook() = 0;
+    virtual bool virtualCallKeyHook(char scan, unsigned char chr) = 0;
+};
+
+// a keyhook is only called with keys not handled otherwise (= non-printables other than backspace, plus those outside limited characters [if set])
+class Textfield : public TextfieldBase, public MenuHookable<Textfield>, public KeyHookable<Textfield> {
+public:
+    Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): TextfieldBase(caption_, init_text, fieldLength, mask, reserveTailLength) { }
+
+    // the public interface is entirely defined in TextfieldBase
+
+private:
+    void virtualCallHook() { callHook(*this); }
+    bool virtualCallKeyHook(char scan, unsigned char chr) { return callKeyHook(*this, scan, chr); }
+};
+
+// a keyhook is only called with keys not handled otherwise (= non-printables other than backspace, plus those outside limited characters)
+class IPfield : public TextfieldBase, public MenuHookable<IPfield>, public KeyHookable<IPfield> {
+public:
+    IPfield(const std::string& caption_, bool acceptPort_, bool printUnknown_);
+    void set(const std::string& text) { TextfieldBase::set(text); updateTail(); }
+    void setFixedPortString(const std::string& text) { portStr = text; updateTail(); } // this is intended for :port, space for 6 characters is allocated (only if !acceptPort)
+    const std::string& operator()() const { return TextfieldBase::operator()(); }
+
+    // inherited interface (what's overridden from TextfieldBase)
+    bool handleKey(char scan, unsigned char chr);
+
+private:
+    std::string portStr;
+    bool acceptPort;
+    bool printUnknown;
+
+    void updateTail();
+
+    void virtualCallHook() { callHook(*this); }
+    bool virtualCallKeyHook(char scan, unsigned char chr) { return callKeyHook(*this, scan, chr); }
 };
 
 class SelectBase : public Component {
 public:
     virtual ~SelectBase() { }
     int size() const { return options.size(); }
-
-    int maxSelLength() const;
 
     // inherited interface
     int width() const;
@@ -213,17 +250,19 @@ public:
 protected:
     SelectBase(const std::string caption_): Component(caption_), selected(0), open(false), pendingSelection(0) { }
 
+    int maxSelLength() const;
+
     std::vector<std::string> options;
     int selected;
-    bool open;
-    int pendingSelection;   // in list view
+    mutable bool open; //#fix: remove mutable by introducing a proper lostFocus-type method
+    int pendingSelection;   // in list view; only when open
 };
 
 template<class ValueT>
 class Select : public SelectBase, public MenuHookable< Select<ValueT> > {
 public:
     Select(const std::string caption_): SelectBase(caption_) { }
-    void clearOptions() { options.clear(); values.clear(); selected = 0; open = false; pendingSelection = 0; }
+    void clearOptions() { options.clear(); values.clear(); selected = 0; open = false; }
     void addOption(const std::string& text, const ValueT& value) { options.push_back(text); values.push_back(value); }
     bool set(const ValueT& value);  // returns false if there is no value in the options
 //  void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
