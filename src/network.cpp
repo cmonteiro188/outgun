@@ -60,7 +60,7 @@ bool isValidIP(const std::string& address, bool allowPort, unsigned int minimumP
         if (n != 4)
             return false;
     }
-    return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256);
+    return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256 && (i1 + i2 + i3 + i4 != 0));
 }
 
 bool check_private_IP(const string& address, bool allowAnyExternal) {
