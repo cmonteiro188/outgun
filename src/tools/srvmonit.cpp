@@ -261,6 +261,8 @@ public:
 
 FILE* outfile;
 
+void dualprintf(const char* fmt, ...) PRINTF_FORMAT(1, 2);
+
 void dualprintf(const char* fmt, ...) {
     va_list argptr;
     va_start(argptr, fmt);
@@ -335,24 +337,24 @@ bool runMonitor(int port, bool messageBoxes) {
         dualprintf("%02d%02d%02d %02d%02d%02d  ", tmb->tm_year%100, tmb->tm_mon+1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
         switch (val) {
             case STA_NOOP: dualprintf("<no-op>\n"); break;
-            case STA_PLAYER_CONNECTED: dualprintf("| Player %d connected\n", ival[0]); break;
+            case STA_PLAYER_CONNECTED: dualprintf("| Player %lu connected\n", ival[0]); break;
             case STA_PLAYER_DISCONNECTED: dualprintf("| %s disconnected\n", plyName(ival[0])); break;
             case STA_PLAYER_NAME_UPDATE:
                 plyNames[ival[0]]=strBuf;
-                dualprintf("| %d changes name to \"%s\"\n", ival[0], strBuf);
+                dualprintf("| %lu changes name to \"%s\"\n", ival[0], strBuf);
                 break;
             case STA_PLAYER_KILLS: dualprintf("| %s gets a kill\n", plyName(ival[0])); break;
             case STA_PLAYER_DIES: dualprintf("| %s dies\n", plyName(ival[0])); break;
             case STA_PLAYER_CAPTURES: dualprintf("| %s captures\n", plyName(ival[0])); break;
             case STA_GAME_OVER: dualprintf("| Game over\n"); break;
-            case STA_PLAYER_FRAGS: dualprintf("| %s has %d frags\n", plyName(ival[0]), ival[1]); break;
-            case STA_PLAYER_TOTAL_TIME: dualprintf("| %s has been playing for %d seconds\n", plyName(ival[0]), ival[1]); break;
-            case STA_PLAYER_TOTAL_KILLS: dualprintf("| %s has %d kills\n", plyName(ival[0]), ival[1]); break;
-            case STA_PLAYER_TOTAL_DEATHS: dualprintf("| %s has %d deaths\n", plyName(ival[0]), ival[1]); break;
-            case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %d captures\n", plyName(ival[0]), ival[1]); break;
+            case STA_PLAYER_FRAGS: dualprintf("| %s has %lu frags\n", plyName(ival[0]), ival[1]); break;
+            case STA_PLAYER_TOTAL_TIME: dualprintf("| %s has been playing for %lu seconds\n", plyName(ival[0]), ival[1]); break;
+            case STA_PLAYER_TOTAL_KILLS: dualprintf("| %s has %lu kills\n", plyName(ival[0]), ival[1]); break;
+            case STA_PLAYER_TOTAL_DEATHS: dualprintf("| %s has %lu deaths\n", plyName(ival[0]), ival[1]); break;
+            case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %lu captures\n", plyName(ival[0]), ival[1]); break;
             case STA_GAME_TEXT: dualprintf("%s\n", strBuf); break;
             case STA_QUIT: dualprintf("| Quit received\n"); nlClose(sock); return true;
-            case STA_PLAYER_PING: dualprintf("| %s has ping %d\n", plyName(ival[0]), ival[1]); break;
+            case STA_PLAYER_PING: dualprintf("| %s has ping %lu\n", plyName(ival[0]), ival[1]); break;
             case STA_ADMIN_MESSAGE:
             {
                 char cap[strBufLen+100];

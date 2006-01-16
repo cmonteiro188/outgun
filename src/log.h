@@ -51,7 +51,7 @@ public:
     virtual ~Log() { }
     void put(const std::string& str);
     void operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);
-    void operator()(const char* fmt, va_list args);
+    void operator()(const char* fmt, va_list args) PRINTF_FORMAT(2, 0);
     int numLines() const;
 };
 

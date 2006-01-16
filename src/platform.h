@@ -30,7 +30,7 @@
 #include "utility.h"
 
 int platStricmp(const char* s1, const char* s2);
-int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg);
+int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) PRINTF_FORMAT(3, 0);
 void platMessageBox(const std::string& caption, const std::string& text, bool blocking); // blocking may not be controllable
 
 inline int platSnprintf(char* buf, size_t count, const char* fmt, ...) PRINTF_FORMAT(3, 4);
@@ -54,8 +54,7 @@ FileFinder* platMakeFileFinder(const std::string& path, const std::string& exten
 
 int platMkdir(const std::string& path);
 
-bool platIsFile(const std::string& name);
-
+bool platIsFile(const std::string& name); // returns true if name exists and is not a directory
 bool platIsDirectory(const std::string& name);
 
 void platInit(); // perform platform specific initializations; called very early in the program
