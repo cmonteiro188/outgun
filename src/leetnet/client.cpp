@@ -141,6 +141,8 @@ public:
     //the reader thread
     Thread      thread_read;
 
+    MutexHolder readerThreadManipulationMutex;
+
     //quit reader thread?
     bool                quit_reader_thread;
 
@@ -423,18 +425,18 @@ public:
         args.length = 1;
         gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
 
-        if (quit_reader_thread) // pathetic attempt towards thread safety; must re-code the whole thing
-            return;
+        MutexLock ml(readerThreadManipulationMutex);
 
-        //quit reader thread
-        quit_reader_thread = true;
-        thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
+        if (thread_read.isRunning()) {
+            //quit reader thread
+            quit_reader_thread = true;
+            thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
 
-        //close the socket/station
-        station->reset_state();
-        clearSendQueue();
+            //close the socket/station
+            station->reset_state();
+            clearSendQueue();
+        }
 
-        //set var to not connected anymore (THIS MUST BE THE LAST THING!! ou nao? :-)
         connect_status = 0;
         want_connect = false;       //this var sucks
     }
@@ -466,9 +468,22 @@ public:
             return;
         }
 
+        readerThreadManipulationMutex.lock();
+
+        for (;;) {
+            if (thread_read.isRunning()) {
+                readerThreadManipulationMutex.unlock();
+                platSleep(100);
+                readerThreadManipulationMutex.lock();
+            }
+            else
+                break;
+        }
         //create reader thread
         quit_reader_thread = false;
         thread_read.start_assert(thread_reader_f, this, threadPriority);
+
+        readerThreadManipulationMutex.unlock();
         
         //start connection tries
         started_disconnection   = false;        //init "started_disconnection" flag for this connection session
@@ -484,16 +499,17 @@ public:
 
         log("stop_connect() - deletes station - connect status = 0");
 
-        if (quit_reader_thread) // pathetic attempt towards thread safety; must re-code the whole thing
-            return;
+        MutexLock ml(readerThreadManipulationMutex);
 
-        //quit reader thread
-        quit_reader_thread = true;
-        thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
+        if (thread_read.isRunning()) {
+            //quit reader thread
+            quit_reader_thread = true;
+            thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
 
-        //delete station -- CLOSES the socket
-        station->reset_state();
-        clearSendQueue();
+            //delete station -- CLOSES the socket
+            station->reset_state();
+            clearSendQueue();
+        }
 
         //cancel
         want_connect = false;   //you don't want to connect anymore

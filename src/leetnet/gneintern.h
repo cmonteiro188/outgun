@@ -119,7 +119,7 @@ namespace GNE {
    */
   //##ModelId=3C65C7A20187
   typedef double         gdouble;
-};
+}
 
 //Define debugging functions
 //#ifdef _DEBUG
