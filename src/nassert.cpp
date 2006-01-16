@@ -23,7 +23,7 @@
 
 #include <cstdio>
 #include <cstdarg>
-#include <cstdlib>  // exit
+#include <cstdlib>  // abort
 #include <ctime>
 #include "incalleg.h"
 
@@ -61,6 +61,8 @@ int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
         writeLong(buf, bufSize, *stackPtr);
     return bufSize;
 }
+
+void nasprintf(const char* file, int line, const char* expr, ...) PRINTF_FORMAT(3, 4); // PRINTF_FORMAT is defined in utility.h
 #endif
 
 void nasprintf(const char* file, int line, const char* expr, ...) {
@@ -140,31 +142,31 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
 void nAssertFail(const char* expr, const char* file, int line) {
     nasprintf(file, line, "%s",
               expr);
-    exit(-1);
+    abort();
 }
 
 void nAssertFail(const char* expr, ARGP(1), const char* file, int line) {
     nasprintf(file, line, "%s (%s==%d)",
               expr, name1, val1);
-    exit(-1);
+    abort();
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), const char* file, int line) {
     nasprintf(file, line, "%s (%s==%d, %s==%d)",
               expr, name1, val1, name2, val2);
-    exit(-1);
+    abort();
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), const char* file, int line) {
     nasprintf(file, line, "%s (%s==%d, %s==%d, %s==%d)",
               expr, name1, val1, name2, val2, name3, val3);
-    exit(-1);
+    abort();
 }
 
 void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const char* file, int line) {
     nasprintf(file, line, "%s (%s==%d, %s==%d, %s==%d, %s==%d)",
               expr, name1, val1, name2, val2, name3, val3, name4, val4);
-    exit(-1);
+    abort();
 }
 
 #undef ARGP
