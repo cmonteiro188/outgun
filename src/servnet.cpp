@@ -87,7 +87,9 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     maplist_revision(0),
     join_start(0),
     join_end(0),
-    web_refresh(0)
+    web_refresh(0),
+    playerSlotReservationTime(get_time()),
+    reservedPlayerSlots(0)
 {
     server = 0;
     #ifdef SEND_FRAMEOFFSET
@@ -1097,6 +1099,9 @@ int ServerNetworking::client_connected(int id) {
     addPlayerMutex.unlock();
 
     player_count++;
+    nAssert(reservedPlayerSlots);
+    --reservedPlayerSlots;
+
     world.player[myself].localIP = isLocalIP(get_client_address(cid));
     if (world.player[myself].localIP)
         ++localPlayers;
@@ -1375,8 +1380,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 }
             }
             else if (code == data_client_ready) {
-                nAssert(world.player[pid].awaiting_client_readies);
-                --world.player[pid].awaiting_client_readies;
+                if (world.player[pid].awaiting_client_readies)
+                    --world.player[pid].awaiting_client_readies;
+                // it being already zero is an abnormal condition, but it's the client's fault and we can ignore it
             }
             else if (code == data_map_exit_on) {
                 if (world.player[pid].want_map_exit == false) {
@@ -1477,10 +1483,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             else if (code == data_stop_drop_flag)
                 world.player[pid].drop_key = false;
             else if (code == data_map_vote) {
-                NLbyte vote;
+                NLubyte vote;
                 readByte(msg, count, vote);
                 if (world.player[pid].mapVote != vote) {
-                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
+                    if (vote < 255 && vote < static_cast<int>(host->maplist().size()))
                         world.player[pid].mapVote = vote;
                     else {
                         world.player[pid].mapVote = -1;
@@ -2361,8 +2367,10 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         nlOpenMutex.unlock();
 
         if (newSock == NL_INVALID) {
-            nAssert(nlGetError() == NL_NO_PENDING);
-            continue;
+            if (nlGetError() == NL_NO_PENDING)
+                continue;
+            log.error(_("Admin shell: Can't accept connection."));
+            return;
         }
 
         log("Incoming admin shell connection");
@@ -2751,6 +2759,10 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
     ostringstream temp;
     int count = 0;
 
+    // free reservedPlayerSlots that have been left unused, they might be needed now
+    if (playerSlotReservationTime < get_time() - 60.) // in 60 seconds Leetnet should drop the client
+        reservedPlayerSlots = 0;
+
     if (length > 0)
         readStr(data, count, stri); //read gamestring
 
@@ -2758,7 +2770,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING, stri.c_str());
         res->accepted = false;      // not accepted
 
-        temp << "Different game: '" << stri << '\'';
+        temp << "This game is " << GAME_STRING;
         writeStr(res->customData, res->customDataLength, temp.str());
     }
     else {
@@ -2770,6 +2782,8 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
             log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL, stri.c_str());
             res->accepted = false;
 
+            if (stri.length() > 50)
+                stri = "<unknown>";
             temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri; // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
             writeStr(res->customData, res->customDataLength, temp.str());
         }
@@ -2793,7 +2807,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 temp << ' ' << join_limit_message;
             writeStr(res->customData, res->customDataLength, temp.str());
         }
-        else if (player_count >= maxplayers) {
+        else if (player_count + reservedPlayerSlots >= maxplayers) {
             log("Rejected a client because the server is full.");
             res->accepted = false;
             writeByte(res->customData, res->customDataLength, reject_server_full);
@@ -2816,6 +2830,8 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 string player_password;
                 readStr(data, count, player_password);
                 if (host->check_name_password(name, player_password)) {
+                    ++reservedPlayerSlots;
+                    playerSlotReservationTime = get_time();
                     res->accepted = true;
                     writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
                     writeStr(res->customData, res->customDataLength, hostname);

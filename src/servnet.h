@@ -134,6 +134,9 @@ class ServerNetworking {
     std::string web_auth;
     int web_refresh;
 
+    double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
+    int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
+
     void upload_next_file_chunk(int i);
     int  get_download_file(char *lebuf, char *ftype, char *fname);
 

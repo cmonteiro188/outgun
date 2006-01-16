@@ -712,6 +712,8 @@ void Server::check_map_exit() {
 //----- THE REST  ----------------
 
 bool Server::reset_settings(bool reload) {  // set reload if reset_settings has already been called to preserve map and votes, and ensure that fixed values aren't changed
+    authorizations.load();
+
     string currMapFile;
     list< pair<int, string> > oldVotes;    // pair<pid, map-filename>
     if (reload) {
@@ -819,8 +821,6 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
 //start server
 bool Server::start(int target_maxplayers) {
-    authorizations.load();
-
     nAssert(target_maxplayers >= 2 && target_maxplayers <= MAX_PLAYERS && target_maxplayers % 2 == 0);
 
     // Set maxplayers, could be reset by gamemod setting.
@@ -1028,7 +1028,7 @@ void Server::chat(int pid, const char* sbuf) {
                 int bufi = 0;
                 for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
                     if (world.player[ppid].used) {
-                        const char mute = world.player[pid].muted == 0 ? ' ' : world.player[pid].muted == 1 ? 'm' : 's';
+                        const char mute = world.player[ppid].muted == 0 ? ' ' : world.player[ppid].muted == 1 ? 'm' : 's';
                         platSnprintf(buf + bufi, 27, "%2d %4s%c %-17s", ppid, world.player[ppid].reg_status.strFlags().c_str(), mute, world.player[ppid].name.c_str());
                         bufi += 26;
                         ++onrow;

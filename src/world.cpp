@@ -1528,15 +1528,14 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     WorldCoords pos;
     if (map.tinfo[team].spawn.empty())
         player[pid].respawn_to_base = false;
-    else if (player[pid].respawn_to_base) {
+
+    if (player[pid].respawn_to_base) {
         //choose a team spawn point
         if (++map.tinfo[team].lastspawn >= map.tinfo[team].spawn.size())
             map.tinfo[team].lastspawn = 0;
         pos = map.tinfo[team].spawn[map.tinfo[team].lastspawn]; // the point
     }
-
-    //if was killed or map spawn point places player over a wall
-    if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS)) {
+    else {
         // generate a random spot for respawn:
         // - unnocupied screen
         // - away from walls
