@@ -129,6 +129,13 @@ int platMkdir(const string& path) {
     return mkdir(path.c_str(), S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 }
 
+bool platIsFile(const string& name) {
+    struct stat s;
+    if (stat(name.c_str(), &s) != 0)
+        return false;
+    return !S_ISDIR(s.st_mode);
+}
+
 bool platIsDirectory(const string& name) {
     struct stat s;
     if (stat(name.c_str(), &s) != 0)
@@ -167,9 +174,9 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
         pid_t pid = fork();
         if (pid == 0) { // child
             if (lFunci == 2)    // xmessage
-                execlp(func[lFunci], func[lFunci], captionConv, ":", msgConv, 0);
+                execlp(func[lFunci], func[lFunci], captionConv, ":", msgConv, (const char*)0);
             else
-                execlp(func[lFunci], func[lFunci], "--title", captionConv, "--msgbox", msgConv, 0);
+                execlp(func[lFunci], func[lFunci], "--title", captionConv, "--msgbox", msgConv, (const char*)0);
             _exit(EXIT_FAILURE);
         }
         if (pid == -1) {
