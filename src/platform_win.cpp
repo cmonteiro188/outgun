@@ -80,7 +80,7 @@ public:
     double read() {
         uint32_t val = static_cast<uint32_t>(timeGetTime());
         if (val < prev) // check wrap-around
-            base += 0x100000000LL;
+            base += uint64_t(1) << 32;
         prev = val;
         return double(base + val) * .001; // value from timeGetTime is in ms
     }
@@ -137,11 +137,10 @@ bool platIsFile(const string& name) {
 }
 
 bool platIsDirectory(const string& name) {
-    al_ffblk ffblk;
-    const int result = al_findfirst(name.c_str(), &ffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-    const bool ret = (result == 0 && (ffblk.attrib & FA_DIREC));
-    al_findclose(&ffblk);
-    return ret;
+    int attr;
+    if (!file_exists(name.c_str(), FA_DIREC | FA_ARCH | FA_RDONLY, &attr))
+        return false;
+    return (attr & FA_DIREC) != 0;
 }
 
 int platMkdir(const string& path) {
