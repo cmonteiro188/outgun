@@ -286,7 +286,7 @@ bool Menu::handleKeypress(char scan, unsigned char chr) {
         if (shortcut != -1) {
             bool found = false;
             int newsel;
-            for (newsel = 0; newsel < (int)components.size(); ++newsel)
+            for (newsel = 0; newsel < static_cast<int>(components.size()); ++newsel)
                 if (components[newsel]->canBeEnabled())
                     if (shortcut-- == 0) {
                         found = true;
@@ -385,7 +385,7 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const
 }
 
 int TextfieldBase::width() const {
-    return text_length(font, caption) + maxlen * text_length(font, "M") + max(tailSpace * char_w(), text_length(font, tail)) +
+    return text_length(font, caption) + maxlen * char_w() + max(tailSpace * char_w(), text_length(font, tail)) +
            text_length(font, ": _"); // ": " between caption and value, _ is cursor
 }
 
@@ -546,6 +546,20 @@ bool SelectBase::handleKey(char scan, unsigned char chr) {
         else if (pendingSelection != selected) {
             selected = pendingSelection;
             changed = true;
+		}
+	}
+    else if (chr >= 33 && chr <= 127 || chr >= 160 && chr <= 255) {
+        int& sel = open ? pendingSelection : selected;
+        for (int i = sel + 1; ; ++i) {
+            if (i >= static_cast<int>(options.size()))
+                i = 0;
+            if (i == sel)
+                break;
+            if (!options.empty() && latin1_toupper(options[i][0]) == latin1_toupper(chr)) {
+                sel = i;
+                changed = !open;
+                break;
+            }
         }
     }
     else if (open) {

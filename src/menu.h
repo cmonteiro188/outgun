@@ -240,6 +240,7 @@ public:
     int size() const { return options.size(); }
 
     // inherited interface
+    bool needsNumberKeys() const { return true; }
     int width() const;
     int height() const;
     void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
