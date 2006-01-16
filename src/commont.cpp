@@ -171,7 +171,7 @@ volatile bool GlobalDisplaySwitchHook::flag = false;
 
 void GlobalDisplaySwitchHook__callback() {
     GlobalDisplaySwitchHook::flag = true;
-} END_OF_FUNCTION(GlobalDisplaySwitchHook__callback);
+} END_OF_FUNCTION(GlobalDisplaySwitchHook__callback)
 
 void GlobalDisplaySwitchHook::init() {
     LOCK_VARIABLE(flag);

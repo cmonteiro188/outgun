@@ -127,7 +127,7 @@ volatile bool GlobalCloseButtonHook::flag = false;
 
 void GlobalCloseButtonHook__closeCallback() {
     GlobalCloseButtonHook::flag = true;
-} END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback);
+} END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
 
 #endif
 
@@ -168,7 +168,7 @@ int main(int argc, const char* argv[]) {
     return result;
 }
 #ifndef DEDICATED_SERVER_ONLY
-END_OF_MAIN();
+END_OF_MAIN()
 #endif
 
 int wrappedMain(int argc, const char* argv[]) {
