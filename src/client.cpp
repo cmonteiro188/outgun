@@ -2703,6 +2703,21 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
                 log("Server ff/dbff/rocketspeed %f/%f/%f",
                     fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
+                    
+                ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
+                out << hostname << '\n';
+                out << "friction     " << fx.physics.fric << '\n';
+                out << "drag         " << fx.physics.drag << '\n';
+                out << "acceleration " << fx.physics.accel << '\n';
+                out << "brake_acceleration " << fx.physics.brake_mul << '\n';
+                out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
+                out << "run_acceleration   " << fx.physics.run_mul << '\n';
+                out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
+                out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
+                out << "friendly_fire " << fx.physics.friendly_fire << '\n';
+                out << "friendly_db   " << fx.physics.friendly_db << '\n';
+                out << "rocket_speed " << fx.physics.rocket_speed << '\n';
+                out.close();
 
                 addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
             }
@@ -3350,12 +3365,10 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             }
             return true;
         break; case menu_players:
-            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP || sc == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT]))
                 player_stats_page = max(0, player_stats_page - 1);
-            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN || sc == KEY_TAB)
                 player_stats_page = min(3, player_stats_page + 1);
-            else if (sc == KEY_TAB)
-                player_stats_page = (player_stats_page + 1) % 4;
             else
                 return false;
             return true;
