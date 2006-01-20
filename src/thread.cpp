@@ -25,7 +25,9 @@
 #include <ctime>
 #include <cerrno>
 #include <pthread.h>
+#include "language.h"
 #include "thread.h"
+#include "utility.h"
 
 void Thread::randomize() {
     srand(time(0));
@@ -63,6 +65,10 @@ int Thread::doGetPriority(pthread_t thread) {
     sched_param param;
     nAssert(0 == pthread_getschedparam(thread, &policy, &param));
     return param.sched_priority;
+}
+
+void Thread::startError() {
+    criticalError(_("Can't create new thread. Insufficient system resources."));
 }
 
 void Thread::join(bool acceptRecursive) {

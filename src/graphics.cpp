@@ -402,7 +402,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
             break;
         }
         if (width < 320 || height < 200 || (bits != 16 && bits != 24 && bits != 32)) {
-            log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32).",
+            log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).",
                             itoa(width), itoa(height), itoa(bits)));
             break;
         }
@@ -2211,21 +2211,6 @@ void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col
     }
 }
 
-void Graphics::show_not_responding_message() {
-    const int centerX = SCREEN_W / 2;
-    const int centerY = SCREEN_H / 2;
-    const int width = 250, height = 80;
-    const int textX0 = centerX - 100;
-    const int x0 = centerX - width / 2, y0 = centerY - height / 2;
-    const int x1 = centerX + width / 2, y1 = centerY + height / 2;
-    rect    (drawbuf, x0 - 1, y0 - 1, x1 - 1, y1 - 1, col[COLMENUWHITE]);
-    rect    (drawbuf, x0 + 1, y0 + 1, x1 + 1, y1 + 1, col[COLMENUBLACK]);
-    rectfill(drawbuf, x0    , y0    , x1    , y1    , col[COLMENUGRAY ]);
-    textout_ex(drawbuf, font, _("SERVER NOT RESPONDING..."   ).c_str(), textX0, centerY - 20, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, _("May be heavy packet loss,"  ).c_str(), textX0, centerY     , col[COLWHITE], -1);
-    textout_ex(drawbuf, font, _("or the server disconnected.").c_str(), textX0, centerY + 15, col[COLWHITE], -1);
-}
-
 bool Graphics::save_screenshot(const string& filename) const {
     PALETTE pal;
     get_palette(pal);
@@ -2793,7 +2778,7 @@ void Graphics::unload_pup_sprites() {
 // Font functions
 
 void Graphics::search_fonts(LineReceiver& dst_font) const {
-    dst_font(_("<default>"));
+    dst_font(string() + '<' + _("default") + '>');
 
     vector<string> fonts;
     FileFinder* font_files = platMakeFileFinder(wheregamedir + "fonts", ".dat", false);
@@ -2806,7 +2791,7 @@ void Graphics::search_fonts(LineReceiver& dst_font) const {
 }
 
 void Graphics::select_font(const string& file) {
-    if (file == _("<default>")) {
+    if (file == string() + '<' + _("default") + '>') {
         font = default_font;
         border_font = 0;
     }

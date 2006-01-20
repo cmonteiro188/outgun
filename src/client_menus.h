@@ -135,7 +135,7 @@ public:
     void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
-class Menu_graphics {
+class Menu_screenMode {
     ScreenMode oldMode;
     int oldDepth;
     bool oldWin, oldFlip;
@@ -143,8 +143,6 @@ class Menu_graphics {
     void reloadChoices(const Graphics& gfx);
 
 public:
-    enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut };
-
     Select<int>         colorDepth;
     StaticText          desktopDepth;
     Select<ScreenMode>  resolution;
@@ -153,6 +151,24 @@ public:
     Checkbox            alternativeFlipping;
     StaticText          refreshRate;
     Textarea            apply;
+
+    Menu menu;
+
+    Menu_screenMode();
+
+    void init(const Graphics& gfx); // call just once, before calling update
+    void update(const Graphics& gfx);   // tries to keep the selected resolution
+    bool newMode(); // returns true if the current selection differs from the one at last call
+
+    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+};
+
+class Menu_graphics {
+    void reloadChoices(const Graphics& gfx);
+
+public:
+    enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut };
+
     Select<std::string> theme;
     Select<std::string> background;
     Checkbox            useThemeBackground;
@@ -168,9 +184,9 @@ public:
     Menu menu;
 
     Menu_graphics();
+
     void init(const Graphics& gfx); // call just once, before calling update
-    void update(const Graphics& gfx);   // tries to keep the selected resolution and theme
-    bool newMode(); // returns true if the current selection differs from the one at last call
+    void update(const Graphics& gfx);   // tries to keep the selected theme
 
     void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
@@ -221,6 +237,7 @@ public:
     Menu_name            name;
     Menu_game            game;
     Menu_controls        controls;
+    Menu_screenMode      screenMode;
     Menu_graphics        graphics;
     Menu_sounds          sounds;
     Menu_language        language;
@@ -300,7 +317,7 @@ public:
     Menu_text();
     void clear() { lines.clear(); }
     void addLine(const std::string& line, bool cancelable = false);
-    void addLine(const std::string& caption, const std::string& value, bool cancelable = false);
+    void addLine(const std::string& caption, const std::string& value, bool cancelable = false, bool passive = false); // passive means neither accept nor cancel is used
     void wrapLine(const std::string& line, bool cancelable = false, int wrapPos = 68);
 
     void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);

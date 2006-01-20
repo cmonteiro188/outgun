@@ -254,6 +254,11 @@ void messageBox(const string& heading, const string& msg, bool blocking) {
     os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
 }
 
+void criticalError(const std::string& msg) {
+    messageBox(_("Critical error"), msg, true);
+    _Exit(-1);
+}
+
 void errorMessage(const string& heading, MemoryLog& errorLog, const string& footer) {
     int errors = errorLog.size();
     if (errors) {

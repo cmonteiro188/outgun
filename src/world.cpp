@@ -334,10 +334,10 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
             continue;
         // check more carefully
         (*wi)->tryBounce(&bd, x, y, mx, my, radius);
-        #ifndef NDEBUG
+        #ifdef EXTRA_DEBUG
         if (bd.first < 1e10) {
             const double dx = bd.second.first, dy = bd.second.second, r = radius;
-            nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
+            nAssert(fabs(dx * dx + dy * dy - r * r) < 1e-8);
         }
         #endif
     }

@@ -252,21 +252,15 @@ Menu_controls::Menu_controls() :
     keyboardLayout.set("us");
 }
 
-void Menu_graphics::reloadChoices(const Graphics& gfx) {
+void Menu_screenMode::reloadChoices(const Graphics& gfx) {
     const vector<ScreenMode> modes = gfx.getResolutions(colorDepth());
     nAssert(!modes.empty());
     resolution.clearOptions();
     for (vector<ScreenMode>::const_iterator mode = modes.begin(); mode != modes.end(); ++mode)
         resolution.addOption(itoa(mode->width) + '×' + itoa(mode->height), *mode);
-    theme.clearOptions();
-    background.clearOptions();
-    font.clearOptions();
-    StringSelectInserter insTheme(theme), insBg(background), insFont(font);
-    gfx.search_themes(insTheme, insBg);
-    gfx.search_fonts(insFont);
 }
 
-Menu_graphics::Menu_graphics() :
+Menu_screenMode::Menu_screenMode() :
     oldMode(-1, -1),    // guarantees anything to be newMode()
 
     colorDepth  (_("Color depth")),
@@ -278,6 +272,60 @@ Menu_graphics::Menu_graphics() :
     refreshRate (_("Current refresh rate")),
     apply       (_("Apply changes")),
 
+    menu        (_("Screen mode"), true)
+{
+    menu.add_component(&colorDepth);
+    menu.add_component(&desktopDepth);
+    menu.add_component(&resolution);
+    menu.add_component(&windowed);
+    menu.add_component(&flipping);
+    menu.add_component(&alternativeFlipping);
+    menu.add_component(&refreshRate);
+    menu.add_component(&apply);
+}
+
+void Menu_screenMode::init(const Graphics& gfx) { // call just once, before calling update
+    nAssert(colorDepth.size() == 0);
+    if (gfx.depthAvailable(16))
+        colorDepth.addOption(_("$1-bit", "16"), 16);
+    if (gfx.depthAvailable(24))
+        colorDepth.addOption(_("$1-bit", "24"), 24);
+    if (gfx.depthAvailable(32))
+        colorDepth.addOption(_("$1-bit", "32"), 32);
+    if (colorDepth.size() == 0)
+        colorDepth.addOption(_("$1-bit", "16"), 16);  // this will force Graphics to use a hope-this-works resolution
+    colorDepth.set(desktop_color_depth());  // may fail (although it's unlikely); ignore
+    reloadChoices(gfx);
+    resolution.set(ScreenMode(640, 480));   // default resolution
+}
+
+void Menu_screenMode::update(const Graphics& gfx) {   // tries to keep the selected resolution
+    ScreenMode oldmode = resolution();
+    reloadChoices(gfx);
+    resolution.set(oldmode); // may fail; ignore
+}
+
+bool Menu_screenMode::newMode() {
+    if (oldMode == resolution() && oldDepth == colorDepth() && oldWin == windowed() && oldFlip == flipping())
+        return false;
+    oldMode = resolution();
+    oldDepth = colorDepth();
+    oldWin = windowed();
+    oldFlip = flipping();
+    return true;
+}
+
+
+void Menu_graphics::reloadChoices(const Graphics& gfx) {
+    theme.clearOptions();
+    background.clearOptions();
+    font.clearOptions();
+    StringSelectInserter insTheme(theme), insBg(background), insFont(font);
+    gfx.search_themes(insTheme, insBg);
+    gfx.search_fonts(insFont);
+}
+
+Menu_graphics::Menu_graphics() :
     theme       (_("Theme")),
     background  (_("Background theme")),
     useThemeBackground(_("Prefer main theme background"), true),
@@ -294,15 +342,6 @@ Menu_graphics::Menu_graphics() :
 
     menu        (_("Graphic options"), true)
 {
-    menu.add_component(&colorDepth);
-    menu.add_component(&desktopDepth);
-    menu.add_component(&resolution);
-    menu.add_component(&windowed);
-    menu.add_component(&flipping);
-    menu.add_component(&alternativeFlipping);
-    menu.add_component(&refreshRate);
-    menu.add_component(&apply);
-    ins_space();
     menu.add_component(&theme);
     menu.add_component(&background);
     menu.add_component(&useThemeBackground);
@@ -323,41 +362,18 @@ Menu_graphics::Menu_graphics() :
 }
 
 void Menu_graphics::init(const Graphics& gfx) { // call just once, before calling update
-    nAssert(colorDepth.size() == 0);
-    if (gfx.depthAvailable(16))
-        colorDepth.addOption(_("$1-bit", "16"), 16);
-    if (gfx.depthAvailable(24))
-        colorDepth.addOption(_("$1-bit", "24"), 24);
-    if (gfx.depthAvailable(32))
-        colorDepth.addOption(_("$1-bit", "32"), 32);
-    if (colorDepth.size() == 0)
-        colorDepth.addOption(_("$1-bit", "16"), 16);  // this will force Graphics to use a hope-this-works resolution
-    colorDepth.set(desktop_color_depth());  // may fail (although it's unlikely); ignore
     reloadChoices(gfx);
-    resolution.set(ScreenMode(640, 480));   // default resolution
 }
 
-void Menu_graphics::update(const Graphics& gfx) {   // tries to keep the selected resolution and theme
-    ScreenMode oldmode = resolution();
+void Menu_graphics::update(const Graphics& gfx) {   // tries to keep the selected theme
     const string oldtheme = theme();
     const string oldbg = background();
     const string oldfont = font();
     reloadChoices(gfx);
     // These all may fail; ignore.
-    resolution.set(oldmode);
     theme.set(oldtheme);
     background.set(oldbg);
     font.set(oldfont);
-}
-
-bool Menu_graphics::newMode() {
-    if (oldMode == resolution() && oldDepth == colorDepth() && oldWin == windowed() && oldFlip == flipping())
-        return false;
-    oldMode = resolution();
-    oldDepth = colorDepth();
-    oldWin = windowed();
-    oldFlip = flipping();
-    return true;
 }
 
 
@@ -427,6 +443,7 @@ Menu_options::Menu_options() :
     name      (),
     game      (),
     controls  (),
+    screenMode(),
     graphics  (),
     sounds    (),
     language  (),
@@ -438,6 +455,7 @@ Menu_options::Menu_options() :
     menu.add_component(&game.menu);
     menu.add_component(&controls.menu);
     ins_space();
+    menu.add_component(&screenMode.menu);
     menu.add_component(&graphics.menu);
     menu.add_component(&sounds.menu);
     ins_space();
@@ -450,6 +468,7 @@ void Menu_options::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* ope
     name      .recursiveSetMenuOpener(opener->clone());
     game      .recursiveSetMenuOpener(opener->clone());
     controls  .recursiveSetMenuOpener(opener->clone());
+    screenMode.recursiveSetMenuOpener(opener->clone());
     graphics  .recursiveSetMenuOpener(opener->clone());
     sounds    .recursiveSetMenuOpener(opener->clone());
     language  .recursiveSetMenuOpener(opener->clone());
@@ -567,13 +586,15 @@ void Menu_text::addLine(const string& line, bool cancelable) {
     addLine(line, "", cancelable);
 }
 
-void Menu_text::addLine(const string& caption, const string& value, bool cancelable) {
+void Menu_text::addLine(const string& caption, const string& value, bool cancelable, bool passive) {
     lines.push_back(StaticText(caption, value));
 
     const int oldSel = menu.selection();
     menu.clear_components();
     for (vector<StaticText>::iterator li = lines.begin(); li != lines.end(); ++li)
         menu.add_component(&*li);
+    if (passive)
+        return;
     ins_space();
     if (cancelable)
         menu.add_component(&cancel);

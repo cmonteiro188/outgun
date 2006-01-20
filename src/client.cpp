@@ -775,8 +775,8 @@ bool Client::start() {
             break; case CCS_JoystickRun:           menu.options.controls.joyRun.boundSet(atoi(args));
             break; case CCS_JoystickStrafe:        menu.options.controls.joyStrafe.boundSet(atoi(args));
 
-            // graphics menu
-            break; case CCS_Windowed:              menu.options.graphics.windowed.set(args == "1");
+            // screen mode menu
+            break; case CCS_Windowed:              menu.options.screenMode.windowed.set(args == "1");
             break; case CCS_GFXMode: {
                 if (extConfig.forceDefaultGfxMode)
                     break;
@@ -789,14 +789,16 @@ bool Client::start() {
                 if (!ok || is || width < 320 || height < 200 || (depth != 16 && depth != 24 && depth != 32))
                     log("Bad screen mode in client.cfg");
                 else {
-                    menu.options.graphics.colorDepth.set(depth);    // may fail if the previous depth isn't available
-                    menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
-                    if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
+                    menu.options.screenMode.colorDepth.set(depth);    // may fail if the previous depth isn't available
+                    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+                    if (!menu.options.screenMode.resolution.set(ScreenMode(width, height)))
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
                 }
             }
-            break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
-            break; case CCS_AlternativeFlipping:   menu.options.graphics.alternativeFlipping.set(args == "1");
+            break; case CCS_Flipping:              menu.options.screenMode.flipping.set(args == "1");
+            break; case CCS_AlternativeFlipping:   menu.options.screenMode.alternativeFlipping.set(args == "1");
+
+            // graphics menu
             break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
             break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);      // ignore error
             break; case CCS_UseThemeBackground:    menu.options.graphics.useThemeBackground.set(args == "1");
@@ -856,9 +858,9 @@ bool Client::start() {
 
     // graphics
     if (extConfig.winclient != -1)
-        menu.options.graphics.windowed.set(extConfig.winclient);
+        menu.options.screenMode.windowed.set(extConfig.winclient);
     if (extConfig.trypageflip != -1)
-        menu.options.graphics.flipping.set(extConfig.trypageflip);
+        menu.options.screenMode.flipping.set(extConfig.trypageflip);
     if (extConfig.targetfps != -1)
         menu.options.graphics.fpsLimit.set(extConfig.targetfps);
     client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
@@ -2714,8 +2716,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 out << "run_acceleration   " << fx.physics.run_mul << '\n';
                 out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
                 out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
-                out << "friendly_fire " << fx.physics.friendly_fire << '\n';
-                out << "friendly_db   " << fx.physics.friendly_db << '\n';
                 out << "rocket_speed " << fx.physics.rocket_speed << '\n';
                 out.close();
 
@@ -3259,7 +3259,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
         break; case KEY_ENTER:
             if (ch == 0) {  // Alt+Enter
                 if (get_time() > lastAltEnterTime + .5) {
-                    menu.options.graphics.windowed.toggle();
+                    menu.options.screenMode.windowed.toggle();
                     screenModeChange(); // ignore error
                     lastAltEnterTime = get_time();
                 }
@@ -3365,10 +3365,12 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             }
             return true;
         break; case menu_players:
-            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP || sc == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT]))
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
                 player_stats_page = max(0, player_stats_page - 1);
-            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN || sc == KEY_TAB)
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
                 player_stats_page = min(3, player_stats_page + 1);
+            else if (sc == KEY_TAB)
+                player_stats_page = (player_stats_page + (key[KEY_LSHIFT] || key[KEY_RSHIFT] ? -1 + 4 : +1)) % 4;
             else
                 return false;
             return true;
@@ -3525,7 +3527,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
 
-                if (GlobalDisplaySwitchHook::readAndClear() && menu.options.graphics.flipping()) {
+                if (GlobalDisplaySwitchHook::readAndClear() && menu.options.screenMode.flipping()) {
                     client_graphics.videoMemoryCorrupted();
                     predraw();
                 }
@@ -3627,7 +3629,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         }
 
         client_graphics.endDraw();
-        client_graphics.draw_screen(!menu.options.graphics.alternativeFlipping());
+        client_graphics.draw_screen(!menu.options.screenMode.alternativeFlipping());
         if (screenshot) {
             save_screenshot();
             screenshot = false;
@@ -3693,12 +3695,14 @@ void Client::stop() {
         cfg << CCS_JoystickRun          << ' ' <<  menu.options.controls.joyRun() << '\n';
         cfg << CCS_JoystickStrafe       << ' ' <<  menu.options.controls.joyStrafe() << '\n';
 
+        // save screen mode menu settings
+        cfg << CCS_Windowed             << ' ' << (menu.options.screenMode.windowed() ? 1 : 0) << '\n';
+        ScreenMode mode = menu.options.screenMode.resolution();
+        cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
+        cfg << CCS_Flipping             << ' ' << (menu.options.screenMode.flipping() ? 1 : 0) << '\n';
+        cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.screenMode.alternativeFlipping() ? 1 : 0) << '\n';
+
         // save graphics menu settings
-        cfg << CCS_Windowed             << ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
-        ScreenMode mode = menu.options.graphics.resolution();
-        cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
-        cfg << CCS_Flipping             << ' ' << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
-        cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.graphics.alternativeFlipping() ? 1 : 0) << '\n';
         cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
         cfg << CCS_UseThemeBackground   << ' ' << (menu.options.graphics.useThemeBackground() ? 1 : 0) << '\n';
@@ -4108,7 +4112,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     //"server not responding... connection may have dropped" plaque
     if (get_time() > lastpackettime + 1.0)
-        client_graphics.show_not_responding_message();
+        m_notResponding.menu.draw(client_graphics.drawbuffer());
 
     // debug panel
     if (key[KEY_F9]) {
@@ -4253,12 +4257,14 @@ void Client::initMenus() {
     menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &Client::MCF_keyboardLayout         >(this));
     menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &Client::MCF_joystick               >(this));
 
+    menu.options.screenMode.menu    .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareScrModeMenu     >(this));
+    menu.options.screenMode.menu    .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawScrModeMenu >(this));
+    menu.options.screenMode.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
+    menu.options.screenMode.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
+    menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
+    menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
+
     menu.options.graphics.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxMenu         >(this));
-    menu.options.graphics.menu      .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawGfxMenu     >(this));
-    menu.options.graphics.menu     .setCloseHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.graphics.menu        .setOkHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.graphics.colorDepth    .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
-    menu.options.graphics.apply         .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
     menu.options.graphics.theme         .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,   &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.background    .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
@@ -4297,9 +4303,14 @@ void Client::initMenus() {
 
     m_errors.menu.setCaption(_("Errors"));
 
+    m_notResponding.menu.setCaption(_("Server not responding"));
+    m_notResponding.addLine(_("May be heavy packet loss,"));
+    m_notResponding.addLine(_("or the server disconnected."), "", false, true); // make the dialog passive
+
     loadHelp();
     loadSplashScreen();
 
+    menu.options.screenMode.init(client_graphics);
     menu.options.graphics.init(client_graphics);
     menu.options.sounds.init(client_sounds);
     menu.ownServer.init(serverExtConfig.ipAddress);
@@ -4418,13 +4429,17 @@ void Client::MCF_messageLogging() {
         closeMessageLog();
 }
 
-void Client::MCF_prepareGfxMenu() {
-    menu.options.graphics.update(client_graphics);
+void Client::MCF_prepareScrModeMenu() {
+    menu.options.screenMode.update(client_graphics);
 }
 
-void Client::MCF_prepareDrawGfxMenu() {
-    menu.options.graphics.flipping.setEnable(!menu.options.graphics.windowed());
-    menu.options.graphics.alternativeFlipping.setEnable(!menu.options.graphics.windowed() && menu.options.graphics.flipping());
+void Client::MCF_prepareDrawScrModeMenu() {
+    menu.options.screenMode.flipping.setEnable(!menu.options.screenMode.windowed());
+    menu.options.screenMode.alternativeFlipping.setEnable(!menu.options.screenMode.windowed() && menu.options.screenMode.flipping());
+}
+
+void Client::MCF_prepareGfxMenu() {
+    menu.options.graphics.update(client_graphics);
 }
 
 void Client::MCF_gfxThemeChange() {
@@ -4440,7 +4455,7 @@ void Client::MCF_fontChange() {
 }
 
 void Client::MCF_screenDepthChange() {
-    menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
+    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
 }
 
 void Client::MCF_screenModeChange() {   // used to lose the return value
@@ -4448,14 +4463,14 @@ void Client::MCF_screenModeChange() {   // used to lose the return value
 }
 
 bool Client::screenModeChange() {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
-    if (!menu.options.graphics.newMode())
+    if (!menu.options.screenMode.newMode())
         return true;
 
-    const ScreenMode res = menu.options.graphics.resolution();
-    const int depth = menu.options.graphics.colorDepth();
+    const ScreenMode res = menu.options.screenMode.resolution();
+    const int depth = menu.options.screenMode.colorDepth();
 
-    Checkbox& win  = menu.options.graphics.windowed;
-    Checkbox& flip = menu.options.graphics.flipping;
+    Checkbox& win  = menu.options.screenMode.windowed;
+    Checkbox& flip = menu.options.screenMode.flipping;
     const bool owin = win(), oflip = flip();
 
     for (int nTry = 0;; ++nTry) {
@@ -4486,9 +4501,9 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
                 log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
                 if (workingGfxMode.used()) {    // revert to working mode
                     const GFXMode& wm = workingGfxMode;
-                    nAssert(menu.options.graphics.colorDepth.set(wm.depth));
-                    menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
-                    menu.options.graphics.resolution.set(ScreenMode(wm.width, wm.height));  // ignore potential error here; we couldn't do anything about it anyway
+                    nAssert(menu.options.screenMode.colorDepth.set(wm.depth));
+                    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+                    menu.options.screenMode.resolution.set(ScreenMode(wm.width, wm.height));  // ignore potential error here; we couldn't do anything about it anyway
                     win.set(wm.windowed);
                     flip.set(wm.flipping);
                     return client_graphics.init(wm.width, wm.height, wm.depth, wm.windowed, wm.flipping);
@@ -4505,7 +4520,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
         ost << _("unknown");
     else
         ost << _("$1 Hz", itoa(rate));
-    menu.options.graphics.refreshRate.set(ost.str());
+    menu.options.screenMode.refreshRate.set(ost.str());
     return true;
 }
 
@@ -4872,7 +4887,7 @@ void Client::loadSplashScreen() {
     }
     else {
         static const char* msg[] = {
-            GAME_STRING " " GAME_VERSION ", copyright © 2002-2005 multiple authors.",
+            GAME_STRING " " GAME_VERSION ", copyright © 2002-2006 multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to",
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY",
@@ -4889,7 +4904,7 @@ void Client::loadSplashScreen() {
             "",
             "Choose the preferred mode below with left and right arrow keys, and close",
             "the menu with Enter or Esc. After the first time of starting Outgun, you",
-            "can find this screen from the Options menu.",
+            "can find this screen in the Options menu.",
             "",
             0
         };

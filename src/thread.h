@@ -25,7 +25,8 @@
 #define THREAD_H_INC
 
 #include <pthread.h>
-#include "nassert.h"    // for STACK_GUARD
+#include "errno.h"
+#include "nassert.h"    // for STACK_GUARD and __attribute__ for non-GCC, as well as nAssert
 
 class Thread {
     static void randomize();    // does just { srand(time(0)); }; not inlined to avoid extra headers here
@@ -80,6 +81,8 @@ class Thread {
         return val;
     }
 
+    static void startError() __attribute__ ((noreturn)); // exit with error message, for problems starting a thread
+
     pthread_t thread;
     bool running;   // set if running AND not detached
 
@@ -97,7 +100,7 @@ public:
         return doStart0(&tthread, fun, true, priority);
     }
     template<class Function>
-    static void startDetachedThread_assert(Function fun, int priority) { int val = startDetachedThread(fun, priority); numAssert(val == 0, val); }
+    static void startDetachedThread_assert(Function fun, int priority) { int val = startDetachedThread(fun, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
 
     template<class Function, class ArgumentT>
     static int startDetachedThread(Function fun, ArgumentT arg, int priority) {
@@ -105,7 +108,7 @@ public:
         return doStart1(&tthread, fun, arg, true, priority);
     }
     template<class Function, class ArgumentT>
-    static void startDetachedThread_assert(Function fun, ArgumentT arg, int priority) { int val = startDetachedThread(fun, arg, priority); numAssert(val == 0, val); }
+    static void startDetachedThread_assert(Function fun, ArgumentT arg, int priority) { int val = startDetachedThread(fun, arg, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
 
     template<class Function>
     int start(Function fun, int priority) {
@@ -114,7 +117,7 @@ public:
         return doStart0(&thread, fun, false, priority);
     }
     template<class Function>
-    void start_assert(Function fun, int priority) { int val = start(fun, priority); numAssert(val == 0, val); }
+    void start_assert(Function fun, int priority) { int val = start(fun, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
 
     template<class Function, class ArgumentT>
     int start(Function fun, ArgumentT arg, int priority) {
@@ -123,7 +126,7 @@ public:
         return doStart1(&thread, fun, arg, false, priority);
     }
     template<class Function, class ArgumentT>
-    void start_assert(Function fun, ArgumentT arg, int priority) { int val = start(fun, arg, priority); numAssert(val == 0, val); }
+    void start_assert(Function fun, ArgumentT arg, int priority) { int val = start(fun, arg, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
 
     bool isRunning() const { return running; }  // note: this tells if there's need for join or detach rather than if the thread is active
     void join(bool acceptRecursive = false);

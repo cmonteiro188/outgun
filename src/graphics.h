@@ -142,7 +142,6 @@ public:
 
     void draw_waiting_map_message(const std::string& caption, const std::string& map);
     void draw_loading_map_message(const std::string& text);
-    void show_not_responding_message();
     void draw_scores(const std::string& text, int col, int score1, int score2);
     void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
                              const std::string& talkbuffer);

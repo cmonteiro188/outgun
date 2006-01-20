@@ -254,6 +254,7 @@ public:
     void broadcast_text(Message_type type, const std::string& text) const;
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
+    void sendTextToAdminShell(const std::string& text) const;
 
     void broadcast_frame(bool gameRunning);
 

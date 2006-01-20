@@ -314,6 +314,7 @@ class Client {
     Menu_playerPassword m_playerPassword;
     Menu_serverPassword m_serverPassword;
     Menu_text m_serverInfo;
+    Menu_text m_notResponding; // not to be put to openMenus
 
     MenuStack openMenus;
 
@@ -401,8 +402,9 @@ class Client {
     void MCF_antialiasChange();
     void MCF_transpChange();
     void MCF_statsBgChange();
+    void MCF_prepareScrModeMenu();
+    void MCF_prepareDrawScrModeMenu();
     void MCF_prepareGfxMenu();
-    void MCF_prepareDrawGfxMenu();
     void MCF_sndEnableChange();
     void MCF_sndVolumeChange();
     void MCF_sndThemeChange();

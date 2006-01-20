@@ -373,7 +373,7 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
     x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w();
+    x += text_length(font, ":") + char_w();
     if (maskChar)
         textout_ex(buffer, font, string(value.length(), maskChar).c_str(), x, y, col_value, -1);
     else
@@ -381,14 +381,14 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const
     x += text_length(font, value);
     if (active) {
         textout_ex(buffer, font, "_", x, y, col_value, -1); // cursor
-        x += char_w();
+        x += text_length(font, "_");
     }
     textout_ex(buffer, font, tail.c_str(), x, y, col_value, -1);
 }
 
 int TextfieldBase::width() const {
     return text_length(font, caption) + maxlen * char_w() + max(tailSpace * char_w(), text_length(font, tail)) +
-           text_length(font, ": _"); // ": " between caption and value, _ is cursor
+           text_length(font, ":_") + char_w(); // ":" and char_w space between caption and value, _ is cursor
 }
 
 int TextfieldBase::height() const {
@@ -455,12 +455,12 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
     x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w();
+    x += text_length(font, ":") + char_w();
     nAssert(!options.empty());
     nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
     if (active && selected > 0)
         drawKeySymbol(buffer, x, y, "<");
-    x += 2 * char_w();
+    x += text_length(font, "<") + char_w();
     const int list_x = x - char_w();
     textout_ex(buffer, font, options[selected].c_str(), x, y, col_value, -1);
     x += text_length(font, options[selected]) + char_w();
@@ -531,7 +531,7 @@ int SelectBase::maxSelLength() const {  //#todo: precache
 }
 
 int SelectBase::width() const {
-    return text_length(font, caption) + maxSelLength() + 6 * char_w();    // 6 is some space for select box characters
+    return text_length(font, caption) + maxSelLength() + text_length(font, ":<>") + 3 * char_w();
 }
 
 int SelectBase::height() const {
@@ -541,7 +541,10 @@ int SelectBase::height() const {
 bool SelectBase::handleKey(char scan, unsigned char chr) {
     (void)chr;
     bool changed = false;
-    if (key[KEY_ALT] && (scan == KEY_UP || scan == KEY_DOWN) || scan == KEY_SPACE || scan == KEY_ENTER || scan == KEY_ENTER_PAD) {
+    if (key[KEY_ALT] && (scan == KEY_UP || scan == KEY_DOWN)
+        || scan == KEY_SPACE
+        || open && (scan == KEY_ENTER || scan == KEY_ENTER_PAD))
+    {
         open = !open;
         if (open)
             pendingSelection = selected;
@@ -550,7 +553,7 @@ bool SelectBase::handleKey(char scan, unsigned char chr) {
             changed = true;
         }
     }
-    else if (chr >= 33 && chr <= 127 || chr >= 160) {
+    else if ((chr >= 33 && chr <= 127 || chr >= 160) && !(!open && chr >= '0' && chr <= '9')) {
         int& sel = open ? pendingSelection : selected;
         for (int i = sel + 1; ; ++i) {
             if (i >= static_cast<int>(options.size()))
@@ -610,7 +613,7 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
     x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w();
+    x += text_length(font, ":") + char_w();
     if (active)
         drawKeySymbol(buffer, x, y, "+");
     x += 2 * char_w();
@@ -631,7 +634,7 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 }
 
 int Colorselect::width() const {
-    return text_length(font, caption) + 2 * char_w() + options.size() * 12 + 2 * 2 * char_w();
+    return text_length(font, caption) + text_length(font, ":") + 2 * char_w() + options.size() * 12 + 2 * 2 * char_w();
 }
 
 int Colorselect::height() const {
@@ -659,13 +662,18 @@ bool Colorselect::handleKey(char scan, unsigned char chr) {
 void Checkbox::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
-    textprintf_ex(buffer, font, x, y, col_value, -1, "[%c]", checked ? '×' : ' ');
-    x += 4 * char_w();
+    textout_ex(buffer, font, "[", x, y, col_value, -1);
+    x += text_length(font, "[");
+    if (checked)
+        textout_ex(buffer, font, "×", x, y, col_value, -1);
+    x += text_length(font, "×");
+    textout_ex(buffer, font, "]", x, y, col_value, -1);
+    x += text_length(font, "]") + char_w();
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 }
 
 int Checkbox::width() const {
-    return (3 + 1) * char_w() + text_length(font, caption);
+    return text_length(font, "[×]") + char_w() + text_length(font, caption);
 }
 
 int Checkbox::height() const {
@@ -699,7 +707,7 @@ int Slider::width() const {
         fieldWidth = 20;    // arbitrary bar length
     else
         fieldWidth = max(numberWidth(vmin), numberWidth(vmax));
-    return text_length(font, caption) + (1 + fieldWidth) * char_w();
+    return text_length(font, caption) + text_length(font, ":") + char_w() + fieldWidth * char_w();
 }
 
 int Slider::height() const {
@@ -709,8 +717,10 @@ int Slider::height() const {
 void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
-    textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    const int x0 = x + text_length(font, caption) + 1 * char_w();
+    const string::size_type end = caption.find_last_not_of(' '); // used to bring the ':' next to the text if the text is padded to the right
+    nAssert(end != string::npos);
+    textout_ex(buffer, font, (caption.substr(0, end + 1) + ':').c_str(), x, y, captionColor(active), -1);
+    const int x0 = x + text_length(font, caption) + text_length(font, ":") + char_w();
     if (graphic) {
         const int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
         const int yb = y - 4;
@@ -766,7 +776,7 @@ int NumberEntry::width() const {
     }
     else
         fieldWidth = numberWidth(vmax);
-    return text_length(font, caption) + (2 + fieldWidth + 1) * char_w();    // 2 for ": ", 1 for cursor
+    return text_length(font, caption) + text_length(font, ":_") + char_w() + fieldWidth * char_w();
 }
 
 int NumberEntry::height() const {
@@ -779,7 +789,7 @@ void NumberEntry::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
     x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w();
+    x += text_length(font, ":") + char_w();
     if (entry != val)
         textprintf_ex(buffer, font, x, y, col_value, -1, "%d%s (%d)", entry, active ? "_" : "", val);
     else
@@ -814,10 +824,7 @@ bool NumberEntry::handleKey(char scan, unsigned char chr) {
 
 
 int Textarea::width() const {
-    int len = text_length(font, caption) + text_length(font, text);
-    if (!caption.empty() && !text.empty())
-        len += char_w();
-    return len;
+    return text_length(font, caption);
 }
 
 int Textarea::height() const {
@@ -828,9 +835,6 @@ void Textarea::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    if (!caption.empty())
-        x += text_length(font, caption) + 1 * char_w();
-    textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 
 bool Textarea::handleKey(char scan, unsigned char chr) {
@@ -853,7 +857,7 @@ void Textarea::shortcutActivated() {
 int StaticText::width() const {
     int len = text_length(font, caption) + text_length(font, text);
     if (!caption.empty() && !text.empty())
-        len += char_w();
+        len += text_length(font, ":") + char_w();
     return len;
 }
 
@@ -866,8 +870,11 @@ void StaticText::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    if (!caption.empty())
-        x += text_length(font, caption) + 1 * char_w();
+    if (!caption.empty() && !text.empty()) {
+        x += text_length(font, caption);
+        textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
+        x += text_length(font, ":") + char_w();
+    }
     textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 

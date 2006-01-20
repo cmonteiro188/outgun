@@ -27,7 +27,7 @@
 
 #include <string>
 #include <vector>
-#include "nassert.h"
+#include "nassert.h" // for __attribute__ for non-GCC as well as nAssert
 
 // try to keep the includes down: if new includes are needed, consider a separate header
 
@@ -115,6 +115,8 @@ public:
 extern bool g_allowBlockingMessages;    // controls all messageBox calls; disable to suppress all external message boxes (assertions included)
 
 void messageBox(const std::string& heading, const std::string& msg, bool blocking = true); // blocking may not be controllable
+
+void criticalError(const std::string& msg) __attribute__ ((noreturn));
 
 class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);

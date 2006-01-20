@@ -70,6 +70,7 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
     errorLog(normalLog, externalErrorLog, "ERROR: ", errorPrefix),
     securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
+    adminActionLog(normalLog, "ADMIN ACTION: ", wheregamedir + "log" + directory_separator + "adminactionlog.txt", false),
     log(&normalLog, &errorLog, &securityLog),
     threadLock(config.threadLock),
     threadLockMutex(),
@@ -96,21 +97,44 @@ void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = norma
     const string adminName = (admin == -1) ? "" : world.player[admin].name;
     const bool tellPlayer = (mode != 2 && (world.player[pid].muted != 2 || mode == 1));
     network.broadcast_mute_message(pid, mode, adminName, tellPlayer);
+    logAdminAction(admin, (mode == 0 ? "unmuted" : mode == 1 ? "muted" : "silently muted"), pid);
     world.player[pid].muted = mode;
 }
 
-void Server::kickPlayer(int pid, int admin, int minutes) {  // if minutes > 0, it's really a ban
+void Server::doKickPlayer(int pid, int admin, int minutes) {  // if minutes > 0, it's really a ban
     const string adminName = (admin == -1) ? "" : world.player[admin].name;
     network.broadcast_kick_message(pid, minutes, adminName);
-    world.player[pid].kickTimer = 10 * 10;
+    logAdminAction(admin, (minutes > 0 ? "banned for " + itoa(minutes) + " minutes" : "kicked"), pid);
+    if (world.player[pid].kickTimer == 0)
+        world.player[pid].kickTimer = 10 * 10;
+}
+
+void Server::kickPlayer(int pid, int admin) {
+    if (world.player[pid].kickTimer == 0)
+        doKickPlayer(pid, admin, 0);
 }
 
 void Server::banPlayer(int pid, int admin, int minutes) {
     authorizations.load();
     const NLaddress addr = network.get_client_address(world.player[pid].cid);
-    authorizations.ban(addr, world.player[pid].name, minutes);
-    authorizations.save();
-    kickPlayer(pid, admin, minutes);
+    if (!authorizations.isBanned(addr)) {
+        authorizations.ban(addr, world.player[pid].name, minutes);
+        authorizations.save();
+        doKickPlayer(pid, admin, minutes);
+    }
+    else
+        kickPlayer(pid, admin); // this is possible in the case of multiple players from the same IP; the time can't be changed anymore, so just kick
+}
+
+void Server::logAdminAction(int admin, const string& action, int target) {
+    string message;
+    if (target == -1)
+        message = string() + (admin == -1 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
+    else
+        message = string() + world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
+                  + action + " by " + (admin == -1 ? "admin shell user" : world.player[admin].name);
+    adminActionLog.put(message);
+    network.sendTextToAdminShell(message);
 }
 
 bool Server::check_name_password(const string& name, const string& password) const {
@@ -537,8 +561,8 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_String    ("sayadmin_comment",        &sayadmin_comment)),
         PT(new GS_Boolean   ("tournament",              &tournament)),
         PT(new GS_Int       ("save_stats",              &save_stats, 0, MAX_PLAYERS)),
-        PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600)),
-        PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600)),
+        PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600 - 1)),
+        PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
@@ -1080,10 +1104,12 @@ void Server::chat(int pid, const char* sbuf) {
             // Make sure that these messages match with the ones in client.cpp.
             if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
+                logAdminAction(pid, "forced a map change");
                 maprot[world.player[pid].mapVote].votes = 99;
             }
             else {
                 network.bprintf(msg_server, "%s decided it's time for a restart.", world.player[pid].name.c_str());
+                logAdminAction(pid, "forced a restart");
                 maprot[currmap].votes = 99;
             }
             server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value

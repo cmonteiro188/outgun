@@ -1260,6 +1260,16 @@ void ServerNetworking::forwardSayadminMessage(int cid, const string& message) co
     nlWrite(shellssock, lebuf, count);
 }
 
+void ServerNetworking::sendTextToAdminShell(const string& text) const {
+    if (shellssock == NL_INVALID)
+        return;
+    char buf[512];
+    int count = 0;
+    writeLong(buf, count, STA_GAME_TEXT);
+    writeStr(buf, count, text);
+    nlWrite(shellssock, buf, count);
+}
+
 //process incoming client data (callback function)
 void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     (void)length;

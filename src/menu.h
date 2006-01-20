@@ -240,7 +240,7 @@ public:
     int size() const { return options.size(); }
 
     // inherited interface
-    bool needsNumberKeys() const { return true; }
+    bool needsNumberKeys() const { return open; }
     int width() const;
     int height() const;
     void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
@@ -361,8 +361,7 @@ private:
 
 class Textarea : public Component, public MenuHookable<Textarea>, public KeyHookable<Textarea> {
 public:
-    Textarea(const std::string& caption_, const std::string& text_ = std::string()): Component(caption_), text(text_) { }
-    void set(const std::string& val) { text = val; }
+    Textarea(const std::string& caption_): Component(caption_) { }
 
     // inherited interface
     int width() const;
@@ -373,9 +372,6 @@ public:
 
     // override isEnabled() : can't be enabled if not hooked
     bool isEnabled() const { return Component::isEnabled() && isHooked(); }
-
-private:
-    std::string text;
 };
 
 class StaticText : public Component {

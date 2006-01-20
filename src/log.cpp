@@ -76,10 +76,13 @@ void FileLog::add(const string& str) {
         return;
     if (printDate) {
         fputs(date_and_time().c_str(), fp);
-        fputc(' ', fp);
+        fputs("  ", fp);
     }
-    g_timeCounter.refresh(); // just to be accurate
-    fprintf(fp, "%9.2f: %s\n", get_time(), str.c_str());
+    else {
+        g_timeCounter.refresh(); // just to be accurate
+        fprintf(fp, "%9.2f: ", get_time());
+    }
+    fprintf(fp, "%s\n", str.c_str());
     fflush(fp);
 }
 
