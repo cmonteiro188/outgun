@@ -254,6 +254,8 @@ bool Menu::handleKeypress(char scan, unsigned char chr) {
     nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
     if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
         return true;
+    if (selected_item > 0 && dynamic_cast<Textobject*>(components[selected_item - 1]))  // hack
+        components[selected_item - 1]->handleKey(scan, chr);
     bool handled = true;
     if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
         prev();
@@ -546,9 +548,9 @@ bool SelectBase::handleKey(char scan, unsigned char chr) {
         else if (pendingSelection != selected) {
             selected = pendingSelection;
             changed = true;
-		}
-	}
-    else if (chr >= 33 && chr <= 127 || chr >= 160 && chr <= 255) {
+        }
+    }
+    else if (chr >= 33 && chr <= 127 || chr >= 160) {
         int& sel = open ? pendingSelection : selected;
         for (int i = sel + 1; ; ++i) {
             if (i >= static_cast<int>(options.size()))
@@ -878,7 +880,9 @@ int Textobject::width() const {
 }
 
 int Textobject::height() const {
-    return lines.size() * objLineHeight();
+    // leave some space for hack purpose
+    const unsigned int max_h = max(objLineHeight(), SCREEN_H - 4 * (4 * char_w() - 2) - line_h());
+    return min(lines.size() * objLineHeight(), max_h);
 }
 
 int Textobject::objLineHeight() const {
