@@ -77,7 +77,7 @@ bool NameAuthorizationDatabase::load() {
         strl >> command;
         strl.ignore();  // useful especially when the separator is a tab
         getline(strl, name, '\t');
-        string compName = makeComparable(name);
+        const string compName = makeComparable(name);
         if (!strl || compName.empty()) {
             log.error(_("Invalid line (no name) in auth.txt: \"$1\"", line));
             continue;

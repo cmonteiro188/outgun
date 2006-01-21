@@ -3365,9 +3365,9 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             }
             return true;
         break; case menu_players:
-            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP || sc == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT]))
                 player_stats_page = max(0, player_stats_page - 1);
-            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN || sc == KEY_TAB)
                 player_stats_page = min(3, player_stats_page + 1);
             else if (sc == KEY_TAB)
                 player_stats_page = (player_stats_page + (key[KEY_LSHIFT] || key[KEY_RSHIFT] ? -1 + 4 : +1)) % 4;
@@ -4905,7 +4905,6 @@ void Client::loadSplashScreen() {
             "Choose the preferred mode below with left and right arrow keys, and close",
             "the menu with Enter or Esc. After the first time of starting Outgun, you",
             "can find this screen in the Options menu.",
-            "",
             0
         };
         for (const char** line = msg; *line; ++line)

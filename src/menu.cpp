@@ -254,8 +254,8 @@ bool Menu::handleKeypress(char scan, unsigned char chr) {
     nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
     if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
         return true;
-    if (selected_item > 0 && dynamic_cast<Textobject*>(components[selected_item - 1]))  // hack
-        components[selected_item - 1]->handleKey(scan, chr);
+    if (selected_item >= 2 && dynamic_cast<Textobject*>(components[selected_item - 2]))  // hack
+        components[selected_item - 2]->handleKey(scan, chr);
     bool handled = true;
     if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
         prev();
@@ -888,7 +888,10 @@ int Textobject::width() const {
 
 int Textobject::height() const {
     // leave some space for hack purpose
-    const unsigned int max_h = max(objLineHeight(), SCREEN_H - 4 * (4 * char_w() - 2) - line_h());
+    // 2 paddings, 2 lines for caption, 1 line for Textobject itself, spacer, 2 pixels for menu borders
+    const int padding = 4 * char_w() - 2;
+    const int spacer = 5 * line_h() / 10;
+    const unsigned int max_h = max(objLineHeight(), SCREEN_H - 2 - 3 * line_h() - spacer - 2 * padding);
     return min(lines.size() * objLineHeight(), max_h);
 }
 

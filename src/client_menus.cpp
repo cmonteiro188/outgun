@@ -416,9 +416,7 @@ Menu_bugReportPolicy::Menu_bugReportPolicy() :
 
     menu    (_("Bug report policy"), false)
 {
-    menu.add_component(&text);
-    menu.add_component(&policy);
-
+    init();
     policy.addOption(_("disabled"), ABR_disabled);
     policy.addOption(_("minimal" ), ABR_minimal);
     policy.addOption(_("complete"), ABR_withDump);
@@ -434,9 +432,15 @@ void Menu_bugReportPolicy::addLine(const string& line) {
     for (vector<string>::iterator li = lines.begin(); li != lines.end(); ++li)
         text.addLine(*li);
     text.setEnable(false);
-    menu.add_component(&text);
-    menu.add_component(&policy);
+    init();
     menu.setSelection(oldSel);
+}
+
+// If you change this method somehow, check Menu::handleKeypress hack.
+void Menu_bugReportPolicy::init() {
+    menu.add_component(&text);
+    ins_space();
+    menu.add_component(&policy);
 }
 
 Menu_options::Menu_options() :

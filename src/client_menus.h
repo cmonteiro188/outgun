@@ -219,6 +219,8 @@ public:
 class Menu_bugReportPolicy {
     std::vector<std::string> lines;
 
+    void init();
+
 public:
     Textobject text;
     Select<AutoBugReporting> policy;

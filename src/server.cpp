@@ -131,7 +131,7 @@ void Server::logAdminAction(int admin, const string& action, int target) {
     if (target == -1)
         message = string() + (admin == -1 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
     else
-        message = string() + world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
+        message = world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
                   + action + " by " + (admin == -1 ? "admin shell user" : world.player[admin].name);
     adminActionLog.put(message);
     network.sendTextToAdminShell(message);
