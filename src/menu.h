@@ -392,7 +392,7 @@ private:
 
 class Textobject : public Component {
 public:
-    Textobject(): Component(""), start(0), visible_lines(0) { }
+    Textobject(): Component(""), start(0), visible_lines(0), old_x(-1), old_h(-1) { }
     void addLine(const std::string& text) { lines.push_back(text); }
 
     // inherited interface
@@ -405,8 +405,10 @@ public:
 
 private:
     std::vector<std::string> lines;
-    mutable int start;          // these may change in drawing
+    mutable int start;                          // these may change in drawing
     mutable int visible_lines;
+    mutable std::vector<std::string> splitted;
+    mutable int old_x, old_h;
 };
 
 // this template does the necessary wrapping of member function references to be given to Components as callbacks

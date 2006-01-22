@@ -42,11 +42,11 @@ using std::vector;
 
 // character width and line height in pixels
 
-int char_w() {
+inline int char_w() {
     return text_length(font, "M");
 }
 
-int line_h() {
+inline int line_h() {
     return text_height(font) + 8;
 }
 
@@ -881,8 +881,11 @@ void StaticText::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 
 int Textobject::width() const {
     int len = 0;
-    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li)
-        len = max(len, text_length(font, *li));
+    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+        len = max(len, min(text_length(font, *li), 70 * char_w()));
+        if (len == 70 * char_w())
+            break;
+    }
     return len;
 }
 
@@ -891,8 +894,9 @@ int Textobject::height() const {
     // 2 paddings, 2 lines for caption, 1 line for Textobject itself, spacer, 2 pixels for menu borders
     const int padding = 4 * char_w() - 2;
     const int spacer = 5 * line_h() / 10;
-    const unsigned int max_h = max(objLineHeight(), SCREEN_H - 2 - 3 * line_h() - spacer - 2 * padding);
-    return min(lines.size() * objLineHeight(), max_h);
+    const int max_h = max(objLineHeight(), SCREEN_H - 2 - 3 * line_h() - spacer - 2 * padding);
+    int total_lines = max(splitted.size(), lines.size());
+    return min(total_lines * objLineHeight(), max_h);
 }
 
 int Textobject::objLineHeight() const {
@@ -901,26 +905,35 @@ int Textobject::objLineHeight() const {
 
 void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
     (void)active;
-    if (start > static_cast<int>(lines.size()) - h / objLineHeight())
-        start = lines.size() - h / objLineHeight();
+    if (x != old_x || h != old_h) {
+        old_x = x;
+        old_h = h;
+        splitted.clear();
+        const int linew = min(buffer->w - 2 * x, 70 * char_w()) / char_w();
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+            vector<string> sublines = split_to_lines(*li, linew);
+            splitted.insert(splitted.end(), sublines.begin(), sublines.end());
+        }
+    }
+    if (start > static_cast<int>(splitted.size()) - h / objLineHeight())
+        start = splitted.size() - h / objLineHeight();
     if (start < 0)
         start = 0;
     visible_lines = 0;
-    for (int i = start, y = y0; i < static_cast<int>(lines.size()); ++i) {
+    for (int i = start, y = y0; i < static_cast<int>(splitted.size()); ++i) {
         if (y + objLineHeight() > y0 + h)
             break;
-        textout_ex(buffer, font, lines[i].c_str(), x, y, col_value, -1);
-        y += objLineHeight();
+        textout_ex(buffer, font, splitted[i].c_str(), x, y, col_value, -1);
         ++visible_lines;
+        y += objLineHeight();
     }
 
     // draw scrollbar if everything didn't fit
-    if (visible_lines != static_cast<int>(lines.size())) {
-        const int sbx = x + width() + char_w();
-        const int height = visible_lines * objLineHeight();
-        const int bar_y = static_cast<int>(static_cast<double>(height * start) / lines.size() + 0.5);
-        const int bar_h = static_cast<int>(static_cast<double>(height * visible_lines) / lines.size() + 0.5);
-        scrollbar(buffer, sbx, y0, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
+    if (visible_lines != static_cast<int>(splitted.size())) {
+        const int sbx = min(x + width() + char_w(), buffer->w - 12);
+        const int bar_y = static_cast<int>(static_cast<double>(h * start) / splitted.size() + 0.5);
+        const int bar_h = static_cast<int>(static_cast<double>(h * visible_lines) / splitted.size() + 0.5);
+        scrollbar(buffer, sbx, y0, h, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
     }
 }
 
