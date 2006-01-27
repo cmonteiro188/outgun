@@ -206,7 +206,10 @@ public:
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
-
+#ifdef BOTMODE
+    int botmode;
+    const char *server;
+#endif
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
 
@@ -331,8 +334,43 @@ class Client {
     MutexHolder serverListMutex;
 
     std::string playername; //the player's name (max name len = 16)
+#ifdef BOTMODE
+    public:
+#endif
     NLaddress serverIP;
-
+#ifdef BOTMODE
+    private:
+    int IsAimed(double mex, double mey, int i); // return 1 if in hit point
+    int IsBehindWall(double mex, double mey, double dx, double dy);
+    double ScanDir(double mex, double mey, int dir);
+    int Aim(double mex, double mey, int i);
+    int GetDir(double dx, double dy);
+    int GetDangerousRocket(double mex, double mey);
+    int GetDangerousEnemy(double mex, double mey);
+    int GetNearestEnemy(double mex, double mey);
+    int NeedShoot(double mex, double mey);
+    int EscapeRocket(double mex, double mey, int mrock);
+    void Robot(ClientControls &ctrl);
+    int GetFlag(double mex, double mey);
+    int CarryFlag(double mex, double mey);
+    int MoveTo(double mex, double mey, double dx, double dy);
+    void BuildMap();
+    void ChosePass();
+    void next_room(int &x, int &y, int i); // chose ith door
+    int  label_room(int x, int y, int label); // label rooms around x y (wich is labeled as label)
+    int  route_room(int &x, int &y); // go one step to lower label and label it as route , return 1 if step is done
+    int  BuildRouteTable(); // build route table (labeled) from me point, return max path len
+    int  BuildRoute(int tox, int toy); // build route on route table tox(y), return 0 if not needed, -1 if no path
+    int  DoRoute(double mex, double mey); // simulate keypress (follow route)
+    int  RouteLogic(); // build route on route table using AI, -1 if not builded
+    int  Route(double mex, double mey); // do all route (wrapper)
+    int  TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int en, int fr, int eb, int fb);
+	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
+	    // -1 if no target labeled
+    
+    int HaveFlag(); // returns if me is carrier
+    
+#endif
     volatile bool abortThreads;
 
     enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
@@ -350,7 +388,6 @@ class Client {
     bool screenshot;
     volatile bool mapChanged, predrawNeeded;
     Sounds client_sounds;
-
     std::ofstream message_log;
     bool messageLogOpen;
 
@@ -445,7 +482,13 @@ class Client {
     void remove_useless_flags();
 
     // network
+#ifdef BOTMODE
+    public:
+#endif
     void connect_command(bool loadPassword);    // call with frameMutex locked
+#ifdef BOTMODE
+    private:
+#endif
     void disconnect_command();  // do not call from a network thread
     void connection_update(client_runes_t *arg);
     void client_connected(const char* data, int length);    // call with frameMutex locked

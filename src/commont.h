@@ -76,8 +76,9 @@ public:
     bool operator!=(const ClientControls& o) { return data != o.data; }
 
     void clearModifiersIfIdle() { if (!isUpDown() && !isLeftRight()) data &= ~(run | strafe); }
-
+#ifndef BOTMODE
 private:
+#endif
     NLubyte data;
 
     enum {

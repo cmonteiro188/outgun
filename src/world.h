@@ -118,6 +118,11 @@ private:
 
 class Room {
 public:
+#ifdef BOTMODE
+    bool pass[4];
+    int label;
+    bool route;
+#endif
     ~Room();
 
     void addWall(WallBase* w) { walls.push_back(w); }
@@ -321,6 +326,10 @@ public:
     int visibility;     // alpha
 
     int roomx, roomy;
+#ifdef BOTMODE
+    int route_x;
+    int route_y;
+#endif 
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
     int gundir; // gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up

@@ -248,7 +248,10 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     bool targetprio_specified = false;
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
-
+#ifdef BOTMODE	    
+    clientCfg.botmode = 0;
+    clientCfg.server = NULL;
+#endif
     // check args
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-ded"))
@@ -275,6 +278,17 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         }
         else if (!strcmp(argv[i], "-unsafeserver"))
             serverCfg.threadLock = false;
+#ifdef BOTMODE	    
+	else if (!strcmp(argv[i], "-bot"))
+	{
+	    clientCfg.botmode = 1;
+            if (++i < argc) {
+		clientCfg.server = argv[i];
+            }
+//            else
+//                log.error(_("-bot must be followed by IP:port"));
+	}
+#endif
         else if (!strcmp(argv[i], "-win"))
             clientCfg.winclient = 1;
         else if (!strcmp(argv[i], "-flip"))
@@ -564,6 +578,27 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         clientCfg.statusOutput = statusOutputWindow;
         serverCfg.statusOutput = statusOutputWindow;
         gameclient = new Client(log, clientCfg, serverCfg, memoryErrorLog);
+#ifdef BOTMODE
+	if(clientCfg.botmode)
+	{
+	    ServerListEntry spy;
+	    if(gameclient->start())
+	    {
+		spy.setAddress(clientCfg.server?clientCfg.server:"127.0.0.1");
+		gameclient->serverIP = spy.address();
+		gameclient->connect_command(false);
+        	gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
+        	gameclient->stop();
+	    }
+	    else
+    		log.error(_("Can't start the client."));
+    	    
+	    delete gameclient;
+	    log("Exiting");
+	    nlShutdown();
+	    return;
+	}
+#endif	
         if (gameclient->start()) {
             gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
             gameclient->stop();

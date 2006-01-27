@@ -52,6 +52,16 @@
 
 #include "client.h"
 
+#ifdef BOTMODE
+#define UI_START if(!extConfig.botmode){ 
+#define UI_END   }
+#define UI if(!extConfig.botmode)
+#else
+#define UI_START 
+#define UI_END
+#define UI
+#endif
+
 /*
 class MutexDebug {
     std::string mutexName;
@@ -619,9 +629,10 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 
     //time of last packet received
     lastpackettime = 0;
-
+    UI_START
     initMenus();
     showMenu(menu);
+    UI_END;
     menusel = menu_none;
 
     //game showing?
@@ -732,6 +743,7 @@ bool Client::start() {
             log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
+	UI_START
         getline(command, args); // this might fail, but that only means there is an empty string
         switch (static_cast<ClientCfgSetting>(settingId)) {
             // name menu
@@ -789,11 +801,13 @@ bool Client::start() {
                 if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
                     log("Bad screen mode in client.cfg");
                 else {
+		    UI_START
                     menu.options.graphics.colorDepth.set(depth);    // may fail if the previous depth isn't available
                     menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
                     if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
-                }
+            	    UI_END
+		}
             }
             break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
             break; case CCS_AlternativeFlipping:   menu.options.graphics.alternativeFlipping.set(args == "1");
@@ -818,6 +832,7 @@ bool Client::start() {
             break; default: nAssert(0); // must handle all values up to the highest known
         }
     }
+    UI_END
     cfg.close();
 
     fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
@@ -846,11 +861,11 @@ bool Client::start() {
     for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
         menu.options.game.favoriteColors.addOption(*col);
 
+    UI_START
     // controls
     MCF_keyboardLayout();
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
-
     // graphics
     if (extConfig.winclient != -1)
         menu.options.graphics.windowed.set(extConfig.winclient);
@@ -864,14 +879,15 @@ bool Client::start() {
     client_graphics.select_theme(menu.options.graphics.theme());
     if (!screenModeChange())
         return false;
-
     // sounds
+    UI_END
     if (extConfig.nosound)
         menu.options.sounds.enabled.set(false);
+
     MCF_sndEnableChange();
+    UI_START
     client_sounds.setVolume(menu.options.sounds.volume());
     client_sounds.select_theme(menu.options.sounds.theme());
-
     // local server
     if (serverExtConfig.privSettingForced)
         menu.ownServer.pub.set(!serverExtConfig.privateserver);
@@ -884,10 +900,10 @@ bool Client::start() {
 
     // message highlighting
     load_highlight_texts();
-
+    
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
-
+    UI_END
     return true;
 }
 
@@ -1138,7 +1154,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     gameover_plaque = NEXTMAP_NONE;
 
     //clear client side effects
-    client_graphics.clear_fx();
+    UI client_graphics.clear_fx();
 
     send_frame(true, true);
 }
@@ -1174,11 +1190,13 @@ void Client::client_disconnected(const char* data, int length) {
             break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
             break; default:;
         }
+    UI_START
     m_connectProgress.clear();
     m_connectProgress.wrapLine(_("You have been disconnected."));
     if (!description.empty())
         m_connectProgress.wrapLine(description);
     showMenu(m_connectProgress);
+    UI_END
     if (description.empty())
         log("Disconnection successful");
     else
@@ -1395,10 +1413,11 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->set_connect_data(lebuf, count);
 
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
-
+    UI_START
     m_connectProgress.clear();
     m_connectProgress.wrapLine(_("Trying to connect..."), true);
     showMenu(m_connectProgress);
+    UI_END
 }
 
 void Client::issue_change_name_command() {
@@ -1432,6 +1451,10 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
+#ifdef BOTMODE
+    if(extConfig.botmode)
+	Robot(ctrl);
+#endif
     return ctrl;
 }
 
@@ -2827,6 +2850,7 @@ void Client::send_chat(const string& msg) {
 
 //print message to "console"
 void Client::print_message(Message_type type, const string& msg) {
+    UI_START
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
             message_log << date_and_time() << "  " << msg << endl;
@@ -2850,6 +2874,11 @@ void Client::print_message(Message_type type, const string& msg) {
             message.highlight();
         chatbuffer.push_back(message);
     }
+    return;
+    UI_END
+#ifdef BOTMODE    
+    fprintf(stderr,"%s\n",msg.c_str());
+#endif
 }
 
 void Client::save_screenshot() {
@@ -3396,7 +3425,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
 void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     nAssert(quitFlag);
     quitCommand = false;
-
+    UI_START
     menusel = menu_none;
     openMenus.clear();
     if (firstTimeSplash) {
@@ -3406,7 +3435,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     else
         showMenu(menu);
     gameshow = false;
-
+    UI_END
     const unsigned long sendFrameStep = 20; // 20 steps of 200 Hz clock equals the 10 Hz server clock
     unsigned long nextSendFrame = time_counter;
     unsigned long nextClientFrameI = time_counter;
@@ -3425,10 +3454,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
 
             static bool alt_sequence = false;
-
+	    UI_START
             if (keyboard_needs_poll())
                 poll_keyboard();    // ignore return value
-
             if (menu.options.controls.keypadMoving()) {
                 // Check Alt+keypad sequences
                 if (key_shifts & KB_INALTSEQ_FLAG)
@@ -3440,6 +3468,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 int ch = readkey();
                 handleKeypress(ch >> 8, ch & 0xFF, controlPressed, alt_sequence);
             }
+	    UI_END
 
             if (!(key_shifts & KB_INALTSEQ_FLAG))
                 alt_sequence = false;
@@ -3485,11 +3514,12 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
-
+		UI_START
                 if (GlobalDisplaySwitchHook::readAndClear() && menu.options.graphics.flipping()) {
                     client_graphics.videoMemoryCorrupted();
                     predraw();
                 }
+		UI_END
             }
 
             if (time_counter >= nextSendFrame || time_counter >= nextClientFrameI)
@@ -3547,31 +3577,36 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
             else
                 fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
-
             if (mapChanged) {
+#ifdef BOTMODE
+		if(extConfig.botmode)
+		    BuildMap();
+#endif		
                 mapChanged = false;
-                client_graphics.update_minimap_background(fx.map);
+                UI client_graphics.update_minimap_background(fx.map);
                 predrawNeeded = true;
             }
+	    UI_START
             if (predrawNeeded) {
                 predrawNeeded = false;
                 predraw();
             }
-
-            client_graphics.startDraw();
+	    client_graphics.startDraw();
             draw_game_frame();
-
+	    UI_END
             #ifdef ROOM_CHANGE_BENCHMARK
             if (benchmarkRuns >= 500)
                 quitCommand = true;
             #endif
         } else {
+	    UI_START
             client_graphics.startDraw();
             client_graphics.clear();
             if (!gameshow && openMenus.empty())
                 showMenu(menu);
+	    UI_END	
         }
-
+	UI_START
         const int errors = externalErrorLog.size();
         if (errors) {
             for (int count = 0; count < errors; ++count)
@@ -3584,13 +3619,13 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             MutexLock ml(frameMutex);   // some menus need access
             draw_game_menu();
         }
-
         client_graphics.endDraw();
         client_graphics.draw_screen(!menu.options.graphics.alternativeFlipping());
         if (screenshot) {
             save_screenshot();
             screenshot = false;
         }
+	UI_END
     }
 
     //client exit cleanup: done at stop wich needs to be called after loop
@@ -3723,6 +3758,7 @@ void Client::stop() {
 }
 
 void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
+    UI_START
     if (power) {
         client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_POWERWALLHIT);
@@ -3731,6 +3767,7 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
         client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_WALLHIT);
     }
+    UI_END
     fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
 }
 
@@ -3795,7 +3832,7 @@ void Client::predraw() {
     }
     else
         texRoomX = texRoomY = 0;    // this way the texturing always starts from the top left corner (classic look)
-    client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
+    UI client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
 }
 
 //draw the whole game screen
@@ -4248,9 +4285,10 @@ void Client::initMenus() {
 
     loadHelp();
     loadSplashScreen();
-
+    UI_START
     menu.options.graphics.init(client_graphics);
     menu.options.sounds.init(client_sounds);
+    UI_END
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
 
@@ -4318,7 +4356,7 @@ void Client::MCF_removePasswords() {
 }
 
 void Client::MCF_prepareGameMenu() {
-    menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
+    UI menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
 }
 
 void Client::MCF_prepareControlsMenu() {
@@ -4368,7 +4406,7 @@ void Client::MCF_messageLogging() {
 }
 
 void Client::MCF_prepareGfxMenu() {
-    menu.options.graphics.update(client_graphics);
+    UI menu.options.graphics.update(client_graphics);
 }
 
 void Client::MCF_prepareDrawGfxMenu() {
@@ -4377,12 +4415,12 @@ void Client::MCF_prepareDrawGfxMenu() {
 }
 
 void Client::MCF_gfxThemeChange() {
-    client_graphics.select_theme(menu.options.graphics.theme());
-    predrawNeeded = true;
+    UI client_graphics.select_theme(menu.options.graphics.theme());
+    UI predrawNeeded = true;
 }
 
 void Client::MCF_screenDepthChange() {
-    menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
+    UI menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
 }
 
 void Client::MCF_screenModeChange() {   // used to lose the return value
@@ -4452,34 +4490,34 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
 }
 
 void Client::MCF_antialiasChange() {
-    client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
-    client_graphics.update_minimap_background(fx.map);
+    UI client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    UI client_graphics.update_minimap_background(fx.map);
     predrawNeeded = true;
 }
 
 void Client::MCF_transpChange() {
-    client_graphics.set_min_transp(menu.options.graphics.minTransp());
+    UI client_graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
 void Client::MCF_statsBgChange() {
-    client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
+    UI client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
 void Client::MCF_prepareSndMenu() {
-    menu.options.sounds.update(client_sounds);
+    UI menu.options.sounds.update(client_sounds);
 }
 
 void Client::MCF_sndEnableChange() {
-    client_sounds.setEnable(menu.options.sounds.enabled());
+    UI client_sounds.setEnable(menu.options.sounds.enabled());
 }
 
 void Client::MCF_sndVolumeChange() {
-    client_sounds.setVolume(menu.options.sounds.volume());
-    client_sounds.play(SAMPLE_POWER_FIRE);
+    UI client_sounds.setVolume(menu.options.sounds.volume());
+    UI client_sounds.play(SAMPLE_POWER_FIRE);
 }
 
 void Client::MCF_sndThemeChange() {
-    client_sounds.select_theme(menu.options.sounds.theme());
+    UI client_sounds.select_theme(menu.options.sounds.theme());
 }
 
 bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) {  // helper to MCF_refreshLanguages
