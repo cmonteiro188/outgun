@@ -1621,10 +1621,18 @@ void Graphics::draw_scoreboard_points(const FONT* sbfont, int points, int x, int
 }
 
 void Graphics::team_statistics(const Team* teams) {
+    const FONT* stfont = font;
     const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
-    const int line_height = text_height(font) + 4;
-    const int w = 43 * text_length(font, "M") + 6;
-    const int h = min<int>(SCREEN_H - 40, (20 + total_captures) * line_height);
+    int line_height = text_height(stfont) + 4;
+    if (20 * line_height > SCREEN_H) {
+        line_height = SCREEN_H / 20;
+        if (line_height < text_height(stfont) && text_height(default_font) < text_height(stfont)) {
+            stfont = default_font;
+            line_height = min(line_height, text_height(stfont) + 4);
+        }
+    }
+    const int w = 43 * text_length(stfont, "M") + 6;
+    const int h = min<int>(SCREEN_H, (20 + total_captures) * line_height);
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
     const int x1 = mx - w / 2;
@@ -1639,46 +1647,51 @@ void Graphics::team_statistics(const Team* teams) {
         }
         rectfill(drawbuf, x1, y1, x2, y2, 0);
         // caption backgrounds
-        rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
-        rectfill(drawbuf, x1, y1 + 3 * line_height - 4, mx - 1, y1 + 4 * line_height, teamdcol[0]);
-        rectfill(drawbuf, mx, y1 + 3 * line_height - 4, x2, y1 + 4 * line_height, teamdcol[1]);
+        int line = 1;
+        rectfill(drawbuf, x1, y1 + line * line_height - 4, x2, y1 + (line + 1) * line_height, col[COLDARKGREEN]);
+        line += 2;
+        rectfill(drawbuf, x1, y1 + line * line_height - 4, mx - 1, y1 + (line + 1) * line_height, teamdcol[0]);
+        rectfill(drawbuf, mx, y1 + line * line_height - 4, x2, y1 + (line + 1) * line_height, teamdcol[1]);
         solid_mode();
     }
 
-    textout_centre_ex(drawbuf, font, _("Team stats").c_str(), mx               , y1 +     line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Red Team"  ).c_str(), (3 * x1 + x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Blue Team" ).c_str(), (x1 + 3 * x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
+    int line = 1;
+    textout_centre_ex(drawbuf, stfont, _("Team stats").c_str(), mx               , y1 + line * line_height, col[COLWHITE], -1);
+    line += 2;
+    textout_centre_ex(drawbuf, stfont, _("Red Team"  ).c_str(), (3 * x1 + x2) / 4, y1 + line * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Blue Team" ).c_str(), (x1 + 3 * x2) / 4, y1 + line * line_height, col[COLWHITE], -1);
 
-    int line = 5;
-    textout_centre_ex(drawbuf, font, _("Captures"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Kills"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Deaths"        ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Suicides"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Flags taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Flags dropped" ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Flags returned").c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Shots"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Hit accuracy"  ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Shots taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Movement"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Team power"    ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    const int start_line = line + 2;
+    line = start_line;
+    textout_centre_ex(drawbuf, stfont, _("Captures"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Kills"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Deaths"        ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Suicides"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Flags taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Flags dropped" ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Flags returned").c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Shots"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Hit accuracy"  ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Shots taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Movement"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Team power"    ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
     for (int t = 0; t < 2; t++) {
         const Team& team = teams[t];
-        line = 5;
+        line = start_line;
         const int x = (t == 0 ? 3 * x1 + x2 : x1 + 3 * x2) / 4;
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.suicides());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_taken());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_dropped());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_returned());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.suicides());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_taken());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_dropped());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_returned());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
     }
 
     line++;
@@ -1720,7 +1733,7 @@ void Graphics::team_statistics(const Team* teams) {
         else
             break;
         if (!skip)
-            textout_ex(drawbuf, font, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
+            textout_ex(drawbuf, stfont, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
     }
     // draw scrollbar if there are more captures than visible on the screen
     if (team_captures_size < total_captures) {
@@ -1734,13 +1747,15 @@ void Graphics::team_statistics(const Team* teams) {
 }
 
 void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) {
+    // line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
+    const int num_lines = maxplayers + 3 + 2 * 3;
     const FONT* stfont;
-    if (text_length(font, "i") != text_length(font, "M"))   // stats screen works only with monospace font
+    // stats screen works only with monospace font
+    if (text_length(font, "i") != text_length(font, "M") || 67 * text_length(font, "M") > SCREEN_W ||
+                                                            num_lines * text_height(font) > SCREEN_H)
         stfont = default_font;
     else
         stfont = font;
-    // line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
-    const int num_lines = maxplayers + 3 + 2 * 3;
     const int line_h = min(text_height(stfont) + 4, SCREEN_H / num_lines);   // Preferred line height is 12 with default font.
     const int h = num_lines * line_h;
     const int w = 67 * text_length(stfont, "M") + 4;
