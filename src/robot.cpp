@@ -1077,6 +1077,8 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
 	}
     }
 
+
+    t = (fx.player[me].team())?0:1;
     const std::vector<WorldCoords>& tflags = fx.map.tinfo[t].flags;
 
    // looking at enemy bases
@@ -1094,7 +1096,7 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
 
 
    // looking at friend bases
-    t = (fx.player[me].team())?0:1;
+    t = (fx.player[me].team());
     
     const std::vector<WorldCoords>& teflags = fx.map.tinfo[t].flags;
 
@@ -1215,7 +1217,7 @@ void Client::Robot(ClientControls &ctrl)
 //	{
 //	    last_seen = -1;    
 //	}
-//	else
+//s	else
 	{
 //	    fprintf(stderr,"Aim\n");
 	    ctrl.data |= Aim(mex, mey, i);
