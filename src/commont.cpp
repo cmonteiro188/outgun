@@ -153,7 +153,7 @@ bool check_name(const std::string& name) {
 
 bool isFlood(const string& message) {
     int count = 0;
-    unsigned char chr = 0;
+    string::value_type chr = 0;
     for (string::const_iterator s = message.begin(); s != message.end(); ++s) {
         if (chr != *s) {
             chr = *s;
