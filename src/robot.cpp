@@ -521,8 +521,11 @@ int Client::CarryFlag(double mex, double mey)
     if(!n)
 	return 0;
     x = x/n;
-    y = y/n;	
-    return MoveTo(mex, mey, x - mex, y - mey);
+    y = y/n;
+    if(fabs(x-mex)>PLAYER_RADIUS*3 ||
+	fabs(y-mey)>PLAYER_RADIUS*3)	
+	return MoveTo(mex, mey, x - mex, y - mey);
+    return 0;
 }
 int Client::GetFlag(double mex, double mey)
 {
@@ -579,7 +582,7 @@ int Client::GetFlag(double mex, double mey)
 	    return MoveTo(mex, mey, dx, dy);    
 	}
     }
-    if(carry)
+    if(carry && (!fx.player[me].routing || fx.player[me].routing ==-1))
 	return CarryFlag(mex, mey);
     return data;
 }
@@ -591,10 +594,26 @@ void Client::BuildMap()
     {
 	for(y=0;y<fx.map.h;y++)
 	{
-	    fx.map.room[x][y].pass[0]=!fx.map.room[x][y].fall_on_wall(S_W/2, 0, PLAYER_RADIUS);
-	    fx.map.room[x][y].pass[1]=!fx.map.room[x][y].fall_on_wall(S_W/2, S_H, PLAYER_RADIUS);
-	    fx.map.room[x][y].pass[2]=!fx.map.room[x][y].fall_on_wall(0, S_H/2, PLAYER_RADIUS);
-	    fx.map.room[x][y].pass[3]=!fx.map.room[x][y].fall_on_wall(S_W, S_H/2, PLAYER_RADIUS);
+	    fx.map.room[x][y].pass[0]=
+		!fx.map.room[x][y].fall_on_wall(S_W/2, 0, PLAYER_RADIUS) ||
+		!fx.map.room[x][y].fall_on_wall(S_W/4, 0, PLAYER_RADIUS) ||
+		!fx.map.room[x][y].fall_on_wall(S_W-S_W/4, 0, PLAYER_RADIUS);    
+	    
+	    fx.map.room[x][y].pass[1]=
+		!fx.map.room[x][y].fall_on_wall(S_W/2, S_H, PLAYER_RADIUS) || 
+	        !fx.map.room[x][y].fall_on_wall(S_W/4, S_H, PLAYER_RADIUS) || 
+	        !fx.map.room[x][y].fall_on_wall(S_W-S_W/4, S_H, PLAYER_RADIUS);    
+	    
+	    fx.map.room[x][y].pass[2]=
+		!fx.map.room[x][y].fall_on_wall(0, S_H/2, PLAYER_RADIUS) ||
+		!fx.map.room[x][y].fall_on_wall(0, S_H/4, PLAYER_RADIUS) ||
+		!fx.map.room[x][y].fall_on_wall(0, S_H - S_H/4, PLAYER_RADIUS);
+		
+	    fx.map.room[x][y].pass[3]=
+		!fx.map.room[x][y].fall_on_wall(S_W, S_H/2, PLAYER_RADIUS) ||
+		!fx.map.room[x][y].fall_on_wall(S_W, S_H/4, PLAYER_RADIUS) ||
+		!fx.map.room[x][y].fall_on_wall(S_W, S_H - S_H/4, PLAYER_RADIUS);
+
 	    fx.map.room[x][y].route = false;
 	    fx.map.room[x][y].label = -1;
 #ifdef BOTDEBUG	    
@@ -727,7 +746,7 @@ int Client::BuildRouteTable()
 	label ++;    
     }
 #ifdef BOTDEBUG
-    fprintf(stderr,"BuildRoute table\n");
+    fprintf(stderr,"BuildRoute table from %d %d\n", mex, mey);
     for(y=0;y<h;y++)
     {
 	for(x=0;x<w;x++)
@@ -873,9 +892,11 @@ int Client::RouteLogic() // NEED rewrite
     int i = HaveFlag();
     if(!i)
     {
-	i = TargetRoute(1,0, 0,0, 1,0, 0,0, 0,0); // try enemy flag dropped, our flag captured or free wild flag
+	i = TargetRoute(1,0, 0,0, 1,0, 0,0, 0,0); // try enemy flag dropped, or wild flag dropped
 	if(!i)
 	    i = TargetRoute(0,0,0,0,0,0,1,0,0,0); // ok, go to enemy
+	if(!i)
+	    i = TargetRoute(0,0,0,0,0,0,0,1,0,0); // ok, go our force
 	if(!i)
 	    i = TargetRoute(0,0,0,0,0,0,0,0,1,0); // ok, go to enemy base
     }
@@ -885,13 +906,14 @@ int Client::RouteLogic() // NEED rewrite
 	if(!i)
 	    i = TargetRoute(0,0,0,0,0,0,0,1,0,0); // try friends
 	if(!i)
-	    i = TargetRoute(0,0,0,1,0,0,0,0,0,0); // ok, go to enemy
-	if(!i)
-	    i = TargetRoute(0,0,0,0,0,0,0,0,1,0); // ok, go to enemy base
+	    i = TargetRoute(0,0,0,1,0,0,0,0,0,1); // ok, go to enemy or friend base
+//	if(!i)
+//	    i = TargetRoute(0,0,0,0,0,0,0,0,1,0); // ok, go to enemy base
     }
 #ifdef BOTDEBUG
 //    fprintf(stderr,"RouteLogic: %d\n", i);
 #endif    
+    fx.player[me].routing = i;
     return i;		
 }
 
@@ -1017,11 +1039,11 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
 
     for (std::vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
     {    
-	if(fi->carried() && mfc)
+	if(fi->carried() && mfc && (fi->position().px!= mex || fi->position().py!= mey))
 	{
 	    target = 1;
 	    label = fx.map.room[fi->position().px][fi->position().py].label;
-	    if((label<m_label) && (label != -1) && (fi->position().px!= mex || fi->position().py!= mey))
+	    if((label<m_label) && (label != -1) )
 	    {
 		m_label = label;
 		x = fi->position().px;
@@ -1029,12 +1051,12 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
 	    }
     	    // mark it
 	}
-	if((!fi->carried()) && mf)
+	if((!fi->carried()) && mf && (fi->position().px!= mex || fi->position().py!= mey))
 	{
 	    // mark it
 	    target = 1;
 	    label = fx.map.room[fi->position().px][fi->position().py].label;
-	    if((label<m_label) && (label != -1) && (fi->position().px!= mex || fi->position().py!= mey))
+	    if((label<m_label) && (label != -1) )
 	    {
 		m_label = label;
 		x = fi->position().px;
@@ -1046,14 +1068,14 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
     t = (fx.player[me].team());
 
     // looking for enemy
-    for (i=0; (i<maxplayers) && en; i++)
+    for (i=0; (i<maxplayers) && en && (fx.player[i].roomx != mex || fx.player[i].roomy != mey); i++)
     {
 	if(!fx.player[i].used || (fx.player[i].team() == t) || fx.player[i].dead)
 	    continue;
 	    // mark it
 	target = 1;
 	label = fx.map.room[fx.player[i].roomx][fx.player[i].roomy].label;
-	if((label<m_label) && (label != -1) && (fx.player[i].roomx != mex || fx.player[i].roomy != mey))
+	if((label<m_label) && (label != -1)) 
 	{
 	    m_label = label;
 	    x = fx.player[i].roomx;
@@ -1062,14 +1084,14 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
     }
 
     // looking for friends
-    for (i=0; (i<maxplayers) && fr; i++)
+    for (i=0; (i<maxplayers) && fr && (fx.player[i].roomx != mex || fx.player[i].roomy != mey); i++)
     {
 	if(!fx.player[i].used || (fx.player[i].team() != t) || fx.player[i].dead || (i == me))
 	    continue;
 	    // mark it
-	target = 1;
+	target =1;    
 	label = fx.map.room[fx.player[i].roomx][fx.player[i].roomy].label;
-	if((label<m_label) && (label != -1) && (fx.player[i].roomx != mex || fx.player[i].roomy != mey))
+	if((label<m_label) && (label != -1) )
 	{
 	    m_label = label;
 	    x = fx.player[i].roomx;
@@ -1082,11 +1104,12 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
     const std::vector<WorldCoords>& tflags = fx.map.tinfo[t].flags;
 
    // looking at enemy bases
-    for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); (eb) && (pi != tflags.end()); ++pi)
+    for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); (eb) && 
+    (pi != tflags.end())&& (pi->px != mex || pi->py != mey); ++pi)
     {
-	target = 1;
 	label = fx.map.room[pi->px][pi->py].label;
-	if((label<m_label) && (label != -1) && (pi->px != mex || pi->py != mey))
+	target = 1;
+	if((label<m_label) && (label != -1) )
 	{
 	    m_label = label;
 	    x = pi->px;
@@ -1100,11 +1123,12 @@ int Client::TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int e
     
     const std::vector<WorldCoords>& teflags = fx.map.tinfo[t].flags;
 
-    for (std::vector<WorldCoords>::const_iterator pi = teflags.begin(); (fb) && (pi != teflags.end()); ++pi)
+    for (std::vector<WorldCoords>::const_iterator pi = teflags.begin(); (fb) && 
+	(pi != teflags.end()) && (pi->px != mex || pi->py != mey); ++pi)
     {
 	target = 1;
 	label = fx.map.room[pi->px][pi->py].label;
-	if((label<m_label) && (label != -1) && (pi->px != mex || pi->py != mey))
+	if((label<m_label) && (label != -1) )
 	{
 	    m_label = label;
 	    x = pi->px;
@@ -1130,11 +1154,13 @@ void Client::Robot(ClientControls &ctrl)
 {
     char lebuf[16]; int count = 0;
     double mex, mey, dx, dy, ttx, tty;
-
+//    bool send_now = false;
     static int last_seen = -1;
     int i;
 
-    if(!map_ready)
+    const bool hide_map=  !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
+
+    if(hide_map)
     {
 //	fprintf(stderr,"Map not ready\n");	
 	return;
@@ -1154,6 +1180,8 @@ void Client::Robot(ClientControls &ctrl)
     	    writeByte(lebuf, count, data_fire_on);
     	    client->send_message(lebuf, count);
 	    prevFire = true;
+//	    send_now = true;
+	    send_frame(false, true);
 	}
     }
     else if(prevFire)
@@ -1161,6 +1189,8 @@ void Client::Robot(ClientControls &ctrl)
 	writeByte(lebuf, count, data_fire_off);
         client->send_message(lebuf, count);
 	prevFire=false;
+//	send_now = true;
+	send_frame(false, true);
     }
     i = last_seen; // lost target
     if ( (i == -1) || !fx.player[i].used || 
@@ -1177,6 +1207,7 @@ void Client::Robot(ClientControls &ctrl)
 	ctrl.data |= EscapeRocket(mex, mey, i);	
 	if ( last_seen == -1)
 	    last_seen = fx.rock[i].owner; 
+//	send_frame(false, send_now);
 	return;
     }
 
@@ -1188,6 +1219,7 @@ void Client::Robot(ClientControls &ctrl)
 	if(i) // if any
 	{
 	    ctrl.data |= i;
+//	    send_frame(false, send_now);
 	    return;
 	}
     }
@@ -1221,12 +1253,14 @@ void Client::Robot(ClientControls &ctrl)
 	{
 //	    fprintf(stderr,"Aim\n");
 	    ctrl.data |= Aim(mex, mey, i);
+//	    send_frame(false, send_now);
 	    return;
 	}
     }
 #endif
     // ok, free tour ;)
     ctrl.data |= Route(mex, mey);
+//    send_frame(false, send_now);
 }
 
 #undef fx

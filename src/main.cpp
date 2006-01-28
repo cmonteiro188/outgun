@@ -587,7 +587,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 		spy.setAddress(clientCfg.server?clientCfg.server:"127.0.0.1");
 		gameclient->serverIP = spy.address();
 		gameclient->connect_command(false);
-        	gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
+		sleep(1);
+            	gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
         	gameclient->stop();
 	    }
 	    else
