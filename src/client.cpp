@@ -121,8 +121,6 @@ const int PASSBUFFER = 32;  //size of password file
 int benchmarkRuns = 0;
 #endif
 
-Client *gameclient; //#fix: get rid
-
 class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
     Client& c;
 
@@ -699,8 +697,9 @@ bool Client::start() {
     connected = false;
 
     client = new_client_c(extConfig.networkPriority);
-    client->set_callback(CFUNC_CONNECTION_UPDATE, cfunc_connection_update);
-    client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
+    client->setCallbackCustomPointer(this);
+    client->setConnectionCallback(cfunc_connection_update);
+    client->setServerDataCallback(cfunc_server_data);
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
@@ -801,13 +800,11 @@ bool Client::start() {
                 if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
                     log("Bad screen mode in client.cfg");
                 else {
-		    UI_START
                     menu.options.graphics.colorDepth.set(depth);    // may fail if the previous depth isn't available
                     menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
                     if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
-            	    UI_END
-		}
+                }
             }
             break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
             break; case CCS_AlternativeFlipping:   menu.options.graphics.alternativeFlipping.set(args == "1");
@@ -831,8 +828,8 @@ bool Client::start() {
             break; case CCS_AutodetectAddress:     menu.ownServer.autoIP.set(args == "1");
             break; default: nAssert(0); // must handle all values up to the highest known
         }
-    }
     UI_END
+    }
     cfg.close();
 
     fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
@@ -4908,19 +4905,19 @@ void Client::CB_tournamentToken(string token) { // callback called by tournament
     }
 }
 
-int Client::cfunc_connection_update(client_runes_t *arg) {
-    gameclient->connection_update(arg);
-    return 0;
+void Client::cfunc_connection_update(void* customp, int connect_result, const char* data, int length) {
+    Client* cl = static_cast<Client*>(customp);
+    cl->connection_update(connect_result, data, length);
 }
 
-void Client::connection_update(client_runes_t *arg) {
-    if (arg->connect_result < 3)
-        addThreadMessage(new TM_ConnectionUpdate(arg->connect_result, arg->data, arg->length));
+void Client::connection_update(int connect_result, const char* data, int length) {
+    if (connect_result < 3)
+        addThreadMessage(new TM_ConnectionUpdate(connect_result, data, length));
     else
-        addThreadMessage(new TM_ConnectionUpdate(arg->connect_result, 0, 0));
+        addThreadMessage(new TM_ConnectionUpdate(connect_result, 0, 0));
 }
 
-int Client::cfunc_server_data(client_runes_t *arg) {
-    gameclient->process_incoming_data(arg->data, arg->length);
-    return 0;
+void Client::cfunc_server_data(void* customp, const char* data, int length) {
+    Client* cl = static_cast<Client*>(customp);
+    cl->process_incoming_data(data, length);
 }

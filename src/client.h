@@ -490,7 +490,7 @@ class Client {
     private:
 #endif
     void disconnect_command();  // do not call from a network thread
-    void connection_update(client_runes_t *arg);
+    void connection_update(int connect_result, const char* data, int length);
     void client_connected(const char* data, int length);    // call with frameMutex locked
     void client_disconnected(const char* data, int length);
     void connect_failed_denied(const char* data, int length);
@@ -521,9 +521,9 @@ class Client {
 
     void handlePendingThreadMessages(); // should only be called by the main thread; call with frameMutex locked
 
-    //#fix: leetnet callbacks
-    static int cfunc_connection_update(client_runes_t *arg);
-    static int cfunc_server_data(client_runes_t *arg);
+    // client callbacks
+    static void cfunc_connection_update(void* customp, int connect_result, const char* data, int length);
+    static void cfunc_server_data(void* customp, const char* data, int length);
 
     // GUI
     void erase_first_message();
@@ -551,8 +551,6 @@ public:
     void loop(volatile bool* quitFlag, bool firstTimeSplash);
     void stop();
 };
-
-extern Client *gameclient;
 
 class Message {
 public:

@@ -32,6 +32,10 @@
 
 #include <cctype>
 
+#ifdef BOTMODE
+#include "client.h"
+#endif
+
 #include "leetnet/server.h"
 #include "leetnet/rudp.h"   // get_self_IP
 #include "leetnet/sleep.h"  // sleep util
@@ -91,6 +95,32 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     server = 0;
     #ifdef SEND_FRAMEOFFSET
     frameSentTime = 0;  // no meaning
+    #endif
+    #ifdef BOTMODE
+    ServerExternalSettings serverCfg;
+    ClientExternalSettings clientCfg;
+	clientCfg.botmode = 1;
+    clientCfg.server = "127.0.0.1";
+    clientCfg.targetfps = 10;
+    int policy;
+    sched_param param;
+    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    clientCfg.networkPriority = param.sched_priority;
+    clientCfg.statusOutput = host->config().statusOutput;
+    MemoryLog memoryErrorLog;
+	NLaddress address;
+    if (!nlStringToAddr("127.0.0.1", &address))
+        nAssert(0);
+    for (int i = 0; i < 1; ++i) {
+        Client* bot = new Client(logs, clientCfg, serverCfg, memoryErrorLog);
+        nAssert(bot);
+        if (bot->start()) {
+            bot->serverIP = address;
+		    bot->connect_command(false);
+        }
+        bots.push_back(bot);
+    }
+    log("Bots added.");
     #endif
 }
 
@@ -1009,6 +1039,11 @@ bool ServerNetworking::start() {
 
     //start website thread
     webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
+
+    #ifdef BOTMODE
+    //start bot thread
+    botthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_bot_thread), host->config().lowerPriority);
+    #endif
 
     return true;
 }
@@ -2211,6 +2246,27 @@ void ServerNetworking::run_website_thread() {
     nlClose(websock);
 }
 
+#ifdef BOTMODE
+void ServerNetworking::run_bot_thread() {
+    logThreadStart("run_bot_thread", log);
+
+    while (!file_threads_quit) {
+        MS_SLEEP(50);
+        for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+            //bool quit = false;
+            nAssert(*bi);
+            (*bi)->loop(&file_threads_quit, false);
+        }
+    }
+    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+        nAssert(*bi);
+        (*bi)->stop();
+        delete *bi;
+    }
+    bots.clear();
+}
+#endif
+
 map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const {
     map<string, string> parameters;
     if (!address.empty())
@@ -2612,6 +2668,11 @@ void ServerNetworking::stop() {
 
     host->config().statusOutput(_("Shutdown: website thread"));
     webthread.join();
+
+    #ifdef BOTMODE
+    host->config().statusOutput(_("Shutdown: bot thread"));
+    botthread.join();
+    #endif
 
     host->config().statusOutput(_("Shutdown: main thread"));
 }

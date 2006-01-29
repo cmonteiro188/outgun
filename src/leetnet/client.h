@@ -29,48 +29,19 @@
 #ifndef _client_h_
 #define _client_h_
 
-
-
-// runes supplied as parameters by client_c for it's callbacks
-struct client_runes_t {
-
-    int         connect_result; //connection status (for CFUNC_CONNECTION_UPDATE callback)
-                                                    //0 = connected
-                                                    //1 = disconnected
-                                                    //2 = connection failed (server denied + custom deny data)
-                                                    //3 = connection failed (no response from server)
-                                                    //4 = connection failed (server is full, no additional information)
-    int         length;             // frame/message length (0 == empty/unused)
-    char*       data;                   // frame/message data       (0 == empty/unused)
-};
-
-
-
-
-// type for callback functions. returns an int and brings runes_t* as an argument
-typedef int (*client_callback_t)(client_runes_t *);
-
-
-// the game-client's callback functions
-enum {
-
-    CFUNC_CONNECTION_UPDATE,            //connection state has changed
-    CFUNC_SERVER_DATA,                      //data arrived from server
-    
-    NUM_OF_CFUNC
-};
-
-
-
-
 //the client class
 class client_c {
 public:
     virtual ~client_c() { }
 
-    //set a callback function.
-    virtual void set_callback(int callback_id, client_callback_t callback_function) = 0;    
-    
+    typedef void connectionCallbackT(void* customp, int connect_result, const char* data, int length);
+    typedef void serverDataCallbackT(void* customp, const char* data, int length);
+
+    virtual void setConnectionCallback(connectionCallbackT* fn) = 0;
+    virtual void setServerDataCallback(serverDataCallbackT* fn) = 0;
+
+    virtual void setCallbackCustomPointer(void* ptr) = 0;
+
     //set the server's address. call before connect()
     virtual void set_server_address(const char *address) = 0;
 

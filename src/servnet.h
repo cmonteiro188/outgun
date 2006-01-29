@@ -42,6 +42,9 @@ class server_c;
 class ServerHelloResult;
 class ServerPlayer;
 class ServerWorld;
+#ifdef BOTMODE
+class Client;
+#endif
 
 class ServerNetworking {
     class ClientTransferData {
@@ -111,7 +114,7 @@ class ServerNetworking {
 
     Thread          mthread;
     Thread          webthread;
-    
+
     std::string     hostname;
     std::string     server_password;
     int             ping_send_client;
@@ -120,6 +123,12 @@ class ServerNetworking {
     std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
     int             localPlayers;
     MutexHolder     addPlayerMutex;
+
+    #ifdef BOTMODE
+    Thread          botthread;
+    std::vector<Client*> bots;
+    void run_bot_thread();
+    #endif
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
