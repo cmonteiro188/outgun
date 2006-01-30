@@ -1,5 +1,5 @@
 /* by Peter Kosyh'2006 a.k.a. gl00my or Huge Ping [ru]
-    v0.1 
+    v0.2 
 */ 
 #ifdef BOTMODE
 #include <algorithm>
@@ -1396,8 +1396,8 @@ void Client::Robot(ClientControls &ctrl)
     // ok, free tour ;)
     i = GetPowerup(mex, mey);
     if(i)
-    {
-	return;
+    { 
+	ctrl.data |= i; return;
     }
     i = Route(mex, mey);
     if (i)
