@@ -1,6 +1,26 @@
-/* by Peter Kosyh'2006 a.k.a. gl00my or Huge Ping [ru]
-    v0.2 
-*/ 
+/*
+ *  robot.cpp
+ *
+ *  Copyright (C) 2006 - Peter Kosyh
+ *
+ *  This file is part of Outgun.
+ *
+ *  Outgun is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Outgun is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Outgun; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+
 #ifdef BOTMODE
 #include <algorithm>
 #include <fstream>
@@ -269,7 +289,7 @@ int Client::GetDangerousEnemy(double mex, double mey)
 	dx = ttx - mex;
 	dy = tty - mey;
 
-	tm= (dist / fx.physics.rocket_speed);
+	tm = (dist / fx.physics.rocket_speed);
 	dx += tm * (fx.player[i].sx);
 	dy += tm * (fx.player[i].sy);
 
@@ -639,19 +659,23 @@ void Client::BuildMap()
     {
 	for(y=0;y<fx.map.h;y++)
 	{
-	    fx.map.room[x][y].pass[0]+		!fx.map.room[x][y].fall_on_wall(S_W/2, 0, PLAYER_RADIUS) ||
+	    fx.map.room[x][y].pass[0]=
+		!fx.map.room[x][y].fall_on_wall(S_W/2, 0, PLAYER_RADIUS) ||
 		!fx.map.room[x][y].fall_on_wall(S_W/4, 0, PLAYER_RADIUS) ||
 		!fx.map.room[x][y].fall_on_wall(S_W-S_W/4, 0, PLAYER_RADIUS);    
 	    
-	    fx.map.room[x][y].pass[1]+		!fx.map.room[x][y].fall_on_wall(S_W/2, S_H, PLAYER_RADIUS) || 
+	    fx.map.room[x][y].pass[1]=
+		!fx.map.room[x][y].fall_on_wall(S_W/2, S_H, PLAYER_RADIUS) || 
 	        !fx.map.room[x][y].fall_on_wall(S_W/4, S_H, PLAYER_RADIUS) || 
 	        !fx.map.room[x][y].fall_on_wall(S_W-S_W/4, S_H, PLAYER_RADIUS);    
 	    
-	    fx.map.room[x][y].pass[2]+		!fx.map.room[x][y].fall_on_wall(0, S_H/2, PLAYER_RADIUS) ||
+	    fx.map.room[x][y].pass[2]=
+		!fx.map.room[x][y].fall_on_wall(0, S_H/2, PLAYER_RADIUS) ||
 		!fx.map.room[x][y].fall_on_wall(0, S_H/4, PLAYER_RADIUS) ||
 		!fx.map.room[x][y].fall_on_wall(0, S_H - S_H/4, PLAYER_RADIUS);
 		
-	    fx.map.room[x][y].pass[3]+		!fx.map.room[x][y].fall_on_wall(S_W, S_H/2, PLAYER_RADIUS) ||
+	    fx.map.room[x][y].pass[3]=
+		!fx.map.room[x][y].fall_on_wall(S_W, S_H/2, PLAYER_RADIUS) ||
 		!fx.map.room[x][y].fall_on_wall(S_W, S_H/4, PLAYER_RADIUS) ||
 		!fx.map.room[x][y].fall_on_wall(S_W, S_H - S_H/4, PLAYER_RADIUS);
 
@@ -848,56 +872,51 @@ int Client::BuildRoute(int tox, int toy)
 }
 
 
-int Client::DoRoute(double melx, double mely)
-{
+int Client::DoRoute(double melx, double mely) {
     int mex = fx.player[me].roomx;
     int mey = fx.player[me].roomy;
     int passes[4];
     int n_passes = 0;
-    int i,x,y, label;
+    int label;
 
     double tox, toy;
 
     label = fx.map.room[mex][mey].label;
 
-    if(label == -1)
-	return 0;    
+    if (label == -1)
+        return 0;
 
-    for(i=0; i<4; i++)
-    {
-	if(!fx.map.room[mex][mey].pass[i])
-	    continue;
-	x = mex;
-	y = mey;	
-	next_room(x, y, i);
-	if (fx.map.room[x][y].route && (fx.map.room[x][y].label == (label+1)))
-	    passes[n_passes++] = i;
+    for (int i = 0; i < 4; i++) {
+    	if (!fx.map.room[mex][mey].pass[i])
+    	    continue;
+        int x = mex;
+        int y = mey;
+        next_room(x, y, i);
+        if (fx.map.room[x][y].route && (fx.map.room[x][y].label == (label + 1)))
+            passes[n_passes++] = i;
     }
-    
+
     if (!n_passes)
-	return 0; // no need to go
+        return 0; // no need to go
 #ifdef BOTDEBUG
 //    fprintf(stderr,"i am @ (%d %d) -> (%d %d)\n", fx.player[me].roomx, fx.player[me].roomy, mex, mey);
 #endif
-    i = passes[rand()%n_passes]; // chose random (from equal) pass
-    switch(i)
-    {
-    case 0:
-	tox = S_W/2;
-	toy = 0 - PLAYER_RADIUS;    
-	break;
-    case 1:
-	tox = S_W/2;
-	toy = S_H + PLAYER_RADIUS;    
-	break;
-    case 2:
-	tox = 0 - PLAYER_RADIUS;
-	toy = S_H/2;
-	break;
-    case 3:
-	tox = S_W + PLAYER_RADIUS;
-	toy = S_H/2;
-	break;
+    const int dir = passes[rand() % n_passes]; // chose random (from equal) pass
+    switch (dir) {
+    /*break;*/ case 0:
+            tox = S_W/2;
+            toy = 0 - PLAYER_RADIUS;
+        break; case 1:
+            tox = S_W/2;
+            toy = S_H + PLAYER_RADIUS;
+        break; case 2:
+            tox = 0 - PLAYER_RADIUS;
+            toy = S_H/2;
+        break; case 3:
+            tox = S_W + PLAYER_RADIUS;
+            toy = S_H/2;
+        break; default:
+            tox = toy = 0;
     }
     return MoveTo(melx, mely, tox - fx.player[me].lx, toy - fx.player[me].ly);	
 }
