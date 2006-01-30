@@ -424,7 +424,6 @@ public:
         const char* data = &reason;
         const int length = 1;
         connectionCallback(customp, connect_result, data, length);
-
         MutexLock ml(readerThreadManipulationMutex);
 
         if (thread_read.isRunning()) {
@@ -629,9 +628,9 @@ DLOG_Scope s("CPIDg");
                     //connection callback w/ status = 0  (connected)
                     //also handle the rest of the packet to the gameclient
                     const int connect_result = 0;
-                    const char* data = data + 12;   //skip 0,3,port
-                    const int length = length - 12;   //skip 0,3,port
-                    connectionCallback(customp, connect_result, data, length);
+                    const char* newdata = data + 12;   //skip 0,3,port
+                    const int newlength = length - 12;   //skip 0,3,port
+                    connectionCallback(customp, connect_result, newdata, newlength);
                     
                     //connected!
                     connect_status = 3;
