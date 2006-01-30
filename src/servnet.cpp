@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -98,32 +98,6 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     server = 0;
     #ifdef SEND_FRAMEOFFSET
     frameSentTime = 0;  // no meaning
-    #endif
-    #ifdef BOTMODE
-    ServerExternalSettings serverCfg;
-    ClientExternalSettings clientCfg;
-	clientCfg.botmode = 1;
-    clientCfg.server = "127.0.0.1";
-    clientCfg.targetfps = 10;
-    int policy;
-    sched_param param;
-    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
-    clientCfg.networkPriority = param.sched_priority;
-    clientCfg.statusOutput = host->config().statusOutput;
-    MemoryLog memoryErrorLog;
-	NLaddress address;
-    if (!nlStringToAddr("127.0.0.1", &address))
-        nAssert(0);
-    for (int i = 0; i < 1; ++i) {
-        Client* bot = new Client(logs, clientCfg, serverCfg, memoryErrorLog);
-        nAssert(bot);
-        if (bot->start()) {
-            bot->serverIP = address;
-		    bot->connect_command(false);
-        }
-        bots.push_back(bot);
-    }
-    log("Bots added.");
     #endif
 }
 
@@ -1046,6 +1020,28 @@ bool ServerNetworking::start() {
     webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
 
     #ifdef BOTMODE
+    ServerExternalSettings serverCfg;
+    ClientExternalSettings clientCfg;
+    clientCfg.botmode = 1;
+    clientCfg.server = "127.0.0.1:25000";
+    clientCfg.targetfps = 10;
+    int policy;
+    sched_param param;
+    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
+    clientCfg.statusOutput = host->config().statusOutput;
+    MemoryLog memoryErrorLog;
+    NLaddress address;
+    if (!nlStringToAddr("127.0.0.1:25000", &address))
+        nAssert(0);
+    for (int i = 0; i < 5; ++i) {
+        Client* bot = new Client(log, clientCfg, serverCfg, memoryErrorLog);
+        nAssert(bot);
+        if (bot->start())
+            bot->serverIP = address;
+        bots.push_back(bot);
+    }
+    log("Bots added.");
     //start bot thread
     botthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_bot_thread), host->config().lowerPriority);
     #endif
@@ -2280,14 +2276,26 @@ void ServerNetworking::run_website_thread() {
 #ifdef BOTMODE
 void ServerNetworking::run_bot_thread() {
     logThreadStart("run_bot_thread", log);
+    log("run_bot_thread");
+
+    platSleep(1000);
+
+    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+        nAssert(*bi);
+        (*bi)->connect_command(false);
+    }
 
     while (!file_threads_quit) {
-        MS_SLEEP(50);
+        platSleep(50);
+        g_timeCounter.refresh();
+        double next_frame = get_time();
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
-            //bool quit = false;
             nAssert(*bi);
-            (*bi)->loop(&file_threads_quit, false);
+            (*bi)->botloop();
         }
+        g_timeCounter.refresh();
+        //platSleep(static_cast<int>(1000 * (next_frame - get_time())));
+        next_frame += 0.1;
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);

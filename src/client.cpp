@@ -4,6 +4,7 @@
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
+ *  Copyright (C) 2006 - Peter Kosyh
  *
  *  This file is part of Outgun.
  *
@@ -701,6 +702,11 @@ bool Client::start() {
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
 
+    playername = RandomName();
+
+    if (extConfig.botmode)
+    	return true;
+
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
     FILE *psf = fopen(fileName.c_str(), "rb");
@@ -719,15 +725,6 @@ bool Client::start() {
 
     //try to load client configuration
     vector<int> fav_colors;
-    playername = RandomName();
-
-#ifdef BOTMODE
-    if(extConfig.botmode)
-    {
-	trim(playername.substr(0, 10));    
-	playername += "-bot";
-    }
-#endif
 
     fileName = wheregamedir + "config" + directory_separator + "client.cfg";
     ifstream cfg(fileName.c_str());
@@ -750,7 +747,7 @@ bool Client::start() {
             log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
-	UI_START
+
         getline(command, args); // this might fail, but that only means there is an empty string
         switch (static_cast<ClientCfgSetting>(settingId)) {
             // name menu
@@ -841,7 +838,6 @@ bool Client::start() {
             break; case CCS_AutodetectAddress:     menu.ownServer.autoIP.set(args == "1");
             break; default: nAssert(0); // must handle all values up to the highest known
         }
-    UI_END
     }
     cfg.close();
 
@@ -871,11 +867,11 @@ bool Client::start() {
     for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
         menu.options.game.favoriteColors.addOption(*col);
 
-    UI_START
     // controls
     MCF_keyboardLayout();
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
+
     // graphics
     if (extConfig.winclient != -1)
         menu.options.screenMode.windowed.set(extConfig.winclient);
@@ -890,15 +886,14 @@ bool Client::start() {
     client_graphics.select_font(menu.options.graphics.font());
     if (!screenModeChange())
         return false;
+
     // sounds
-    UI_END
     if (extConfig.nosound)
         menu.options.sounds.enabled.set(false);
-
     MCF_sndEnableChange();
-    UI_START
     client_sounds.setVolume(menu.options.sounds.volume());
     client_sounds.select_theme(menu.options.sounds.theme());
+
     // local server
     if (serverExtConfig.privSettingForced)
         menu.ownServer.pub.set(!serverExtConfig.privateserver);
@@ -911,11 +906,11 @@ bool Client::start() {
 
     // message highlighting
     load_highlight_texts();
-    
+
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
-    UI_END
-    return true;
+
+	return true;
 }
 
 //send "client ready" message to server (when map load and/or download completes)
@@ -959,6 +954,8 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
                 log("Map '%s' downloaded successfully", dl.shortName.c_str());
                 mapChanged = true;
                 map_ready = true;
+                if (extConfig.botmode)
+                    BuildMap();
             }
             ++clientReadiesWaiting;
         }
@@ -1021,6 +1018,8 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         mapChanged = true;
         map_ready = true;
         ++clientReadiesWaiting;
+        if (extConfig.botmode)
+            BuildMap();
         return;
     }
 
@@ -1189,10 +1188,7 @@ void Client::client_disconnected(const char* data, int length) {
     connected = false;
     gameshow = false;
     menusel = menu_none;
-#ifdef BOTMODE
-    if(extConfig.botmode)
-	quitCommand = true;
-#endif
+
     string description;
 
     if (length == 1)
@@ -1285,13 +1281,6 @@ void Client::connect_failed_denied(const char* data, int length) {
         m_connectProgress.wrapLine(message);
         // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     }
-#ifdef BOTMODE
-    if(extConfig.botmode)
-    {
-	fprintf(stderr,"%s\n", message.c_str());
-	quitCommand = true;
-    }
-#endif
 }
 
 void Client::connect_failed_unreachable() {
@@ -1473,10 +1462,6 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
-#ifdef BOTMODE
-    if(extConfig.botmode)
-	Robot(ctrl);
-#endif
     return ctrl;
 }
 
@@ -2928,7 +2913,7 @@ void Client::print_message(Message_type type, const string& msg) {
     }
     return;
     UI_END
-#ifdef BOTMODE    
+#ifdef BOTMODE
     fprintf(stderr,"%s\n",msg.c_str());
 #endif
 }
@@ -3482,7 +3467,6 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
 void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     nAssert(quitFlag);
     quitCommand = false;
-    UI_START
     menusel = menu_none;
     openMenus.clear();
     if (firstTimeSplash) {
@@ -3492,7 +3476,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     else
         showMenu(menu);
     gameshow = false;
-    UI_END
 
     g_timeCounter.refresh();
     double nextSend = get_time();
@@ -3511,9 +3494,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
 
             static bool alt_sequence = false;
-	    UI_START
             if (keyboard_needs_poll())
                 poll_keyboard();    // ignore return value
+
             if (menu.options.controls.keypadMoving()) {
                 // Check Alt+keypad sequences
                 if (key_shifts & KB_INALTSEQ_FLAG)
@@ -3525,7 +3508,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 int ch = readkey();
                 handleKeypress(ch >> 8, ch & 0xFF, controlPressed, alt_sequence);
             }
-	    UI_END
 
             if (!(key_shifts & KB_INALTSEQ_FLAG))
                 alt_sequence = false;
@@ -3566,16 +3548,16 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 send_client_ready();
                 --clientReadiesWaiting;
             }
+
             // process messages from network that have been collected
             {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
-		UI_START
+
                 if (GlobalDisplaySwitchHook::readAndClear() && menu.options.screenMode.flipping()) {
                     client_graphics.videoMemoryCorrupted();
                     predraw();
                 }
-		UI_END
             }
 
             g_timeCounter.refresh();
@@ -3635,36 +3617,29 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
             else
                 fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
+
             if (mapChanged) {
-#ifdef BOTMODE
-		if(extConfig.botmode)
-		    BuildMap();
-#endif		
                 mapChanged = false;
-                UI client_graphics.update_minimap_background(fx.map);
                 predrawNeeded = true;
+                UI client_graphics.update_minimap_background(fx.map);
             }
-	    UI_START
             if (predrawNeeded) {
                 predrawNeeded = false;
                 predraw();
             }
-	    client_graphics.startDraw();
+
+            client_graphics.startDraw();
             draw_game_frame();
-	    UI_END
             #ifdef ROOM_CHANGE_BENCHMARK
             if (benchmarkRuns >= 500)
                 quitCommand = true;
             #endif
         } else {
-	    UI_START
             client_graphics.startDraw();
             client_graphics.clear();
             if (!gameshow && openMenus.empty())
                 showMenu(menu);
-	    UI_END	
         }
-	UI_START
         const int errors = externalErrorLog.size();
         if (errors) {
             for (int count = 0; count < errors; ++count)
@@ -3677,17 +3652,48 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             MutexLock ml(frameMutex);   // some menus need access
             draw_game_menu();
         }
+
         client_graphics.endDraw();
         client_graphics.draw_screen(!menu.options.screenMode.alternativeFlipping());
         if (screenshot) {
             save_screenshot();
             screenshot = false;
         }
-	UI_END
     }
 
     //client exit cleanup: done at stop wich needs to be called after loop
 }
+
+#ifdef BOTMODE
+void Client::botloop() {
+    MutexLock ml(frameMutex);
+    if (mapChanged)
+        BuildMap();
+
+    ClientControls currentControls;
+    Robot(currentControls);
+    currentControls.clearModifiersIfIdle();
+
+    //if (currentControls != sentControls) {
+        sentControls = currentControls;
+
+        ++clFrameSent;
+        controlHistory[clFrameSent] = sentControls;
+        svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, clFrameSent);
+        writeByte(lebuf, count, sentControls.toNetwork(false));
+        client->send_frame(lebuf, count);
+    //}
+
+    while (clientReadiesWaiting > 0) {
+        send_client_ready();
+        --clientReadiesWaiting;
+    }
+    handlePendingThreadMessages();
+}
+#endif
 
 void Client::stop() {
     log("Client exiting: stop() called");
@@ -3697,8 +3703,11 @@ void Client::stop() {
     //at least disconnect
     disconnect_command();
 
+    if (extConfig.botmode)
+        return;
+
     tournamentPassword.stop();
-    UI_START
+
     //save configuration file
     string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
     log("Saving client configuration in %s", fileName.c_str());
@@ -3805,7 +3814,6 @@ void Client::stop() {
     else
         log.error(_("Can't open $1 for writing.", fileName));
 
-    UI_END
     {
         MutexDebug md("downloadMutex", __LINE__, log);
         MutexLock ml(downloadMutex);

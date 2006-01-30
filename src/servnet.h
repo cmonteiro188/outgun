@@ -132,7 +132,6 @@ class ServerNetworking {
     #endif
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
-
     int             join_start;         // allow joining from this time of a day (in seconds)
     int             join_end;           // disallow joining; set both same to allow always (default)
     std::string     join_limit_message; // when joining is disallowed, this message is sent to asking clients in addition to information about the open times

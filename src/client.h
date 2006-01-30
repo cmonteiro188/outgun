@@ -4,6 +4,7 @@
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
+ *  Copyright (C) 2006 - Peter Kosyh
  *
  *  This file is part of Outgun.
  *
@@ -285,6 +286,7 @@ private:
     double averageLag;
     double frameReceiveTime;    // when fx was received
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
+    ClientControls sentControls;
     NLulong svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     volatile bool connected;
     bool map_ready;
@@ -316,13 +318,7 @@ private:
     NLbyte remove_flags;
 
     // GUI
-#ifdef BOTMODE
-    public:
     Menu_main menu;
-    private:
-#else
-    Menu_main menu;
-#endif
     Menu_text m_connectProgress;
     Menu_text m_dialog; // take care not to open multiple dialogs (same goes to other menus too); to allow that, a vector of Menu_text should be created
     Menu_text m_errors;
@@ -420,6 +416,7 @@ private:
     bool screenshot;
     volatile bool mapChanged, predrawNeeded;
     Sounds client_sounds;
+
     std::ofstream message_log;
     bool messageLogOpen;
 
@@ -516,13 +513,13 @@ private:
     void remove_useless_flags();
 
     // network
-#ifdef BOTMODE
-    public:
-#endif
+    #ifdef BOTMODE
+public:
+    #endif
     void connect_command(bool loadPassword);    // call with frameMutex locked
-#ifdef BOTMODE
-    private:
-#endif
+    #ifdef BOTMODE
+private:
+    #endif
     void disconnect_command();  // do not call from a network thread
     void connection_update(int connect_result, const char* data, int length);
     void client_connected(const char* data, int length);    // call with frameMutex locked
@@ -584,6 +581,9 @@ public:
     bool start();
     void loop(volatile bool* quitFlag, bool firstTimeSplash);
     void stop();
+#ifdef BOTMODE
+    void botloop();
+#endif
 };
 
 class Message {

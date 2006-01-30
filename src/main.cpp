@@ -277,12 +277,11 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     ServerExternalSettings serverCfg;
     #ifndef DEDICATED_SERVER_ONLY
     ClientExternalSettings clientCfg;
-#ifdef BOTMODE	    
+    #ifdef BOTMODE
     clientCfg.botmode = 0;
     clientCfg.server = NULL;
-#endif
     #endif
-
+    #endif
     // check args
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-ded"))
@@ -310,17 +309,15 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else if (!strcmp(argv[i], "-unsafeserver"))
             serverCfg.threadLock = false;
         #ifndef DEDICATED_SERVER_ONLY
-#ifdef BOTMODE	    
-	else if (!strcmp(argv[i], "-bot"))
-	{
-	    clientCfg.botmode = 1;
-            if (++i < argc) {
-		clientCfg.server = argv[i];
-            }
-//            else
-//                log.error(_("-bot must be followed by IP:port"));
-	}
-#endif
+        #ifdef BOTMODE
+        else if (!strcmp(argv[i], "-bot")) {
+            clientCfg.botmode = 1;
+            if (++i < argc)
+                clientCfg.server = argv[i];
+            //else
+                //log.error(_("-bot must be followed by IP:port"));
+        }
+        #endif
         else if (!strcmp(argv[i], "-win"))
             clientCfg.winclient = 1;
         else if (!strcmp(argv[i], "-flip"))
@@ -614,29 +611,26 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         clientCfg.statusOutput = statusOutputWindow;
         serverCfg.statusOutput = statusOutputWindow;
         Client* gameclient = new Client(log, clientCfg, serverCfg, memoryErrorLog);
-#ifdef BOTMODE
-	if(clientCfg.botmode)
-	{
-    	    gameclient->menu.options.graphics.fpsLimit.set(30);
+    #ifdef BOTMODE
+    if(clientCfg.botmode) {
 	    ServerListEntry spy;
-	    if(gameclient->start())
-	    {
+	    if(gameclient->start()) {
 		spy.setAddress(clientCfg.server?clientCfg.server:"127.0.0.1");
 		gameclient->serverIP = spy.address();
 		gameclient->connect_command(false);
 		//sleep(1);
-            	gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
-        	gameclient->stop();
+        gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
+        gameclient->stop();
 	    }
 	    else
     		log.error(_("Can't start the client."));
-    	    
+
 	    delete gameclient;
 	    log("Exiting");
 	    nlShutdown();
 	    return;
 	}
-#endif	
+    #endif	
         if (gameclient->start()) {
             gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
             gameclient->stop();
