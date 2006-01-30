@@ -261,7 +261,13 @@ class Client {
     ClientWorld fd, fx; //#fix: two maps, etc.
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
     int me;
+#ifdef BOTMODE
+public:
     MutexHolder frameMutex;
+private:
+#else
+    MutexHolder frameMutex;
+#endif
     int maxplayers;
 
     // network
@@ -306,7 +312,13 @@ class Client {
     NLbyte remove_flags;
 
     // GUI
+#ifdef BOTMODE
+    public:
     Menu_main menu;
+    private:
+#else
+    Menu_main menu;
+#endif
     Menu_text m_connectProgress;
     Menu_text m_dialog; // take care not to open multiple dialogs (same goes to other menus too); to allow that, a vector of Menu_text should be created
     Menu_text m_errors;
@@ -340,6 +352,8 @@ class Client {
     NLaddress serverIP;
 #ifdef BOTMODE
     private:
+    bool botPrevFire;
+    double route_frame;
     int IsAimed(double mex, double mey, int i); // return 1 if in hit point
     int IsBehindWall(double mex, double mey, double dx, double dy);
     double ScanDir(double mex, double mey, int dir);
@@ -352,10 +366,15 @@ class Client {
     int EscapeRocket(double mex, double mey, int mrock);
     void Robot(ClientControls &ctrl);
     int GetFlag(double mex, double mey);
-    int CarryFlag(double mex, double mey);
+    int GetPowerup(double mex, double mey);
+//    int CarryFlag(double mex, double mey);
     int MoveTo(double mex, double mey, double dx, double dy);
+    int MoveDir(int dir);
+    int FreeDir(double mex, double mey);
     void BuildMap();
     void ChosePass();
+    int  IsMassive();
+    int  FreeWalk(double mex, double mey);
     void next_room(int &x, int &y, int i); // chose ith door
     int  label_room(int x, int y, int label); // label rooms around x y (wich is labeled as label)
     int  route_room(int &x, int &y); // go one step to lower label and label it as route , return 1 if step is done
@@ -364,10 +383,18 @@ class Client {
     int  DoRoute(double mex, double mey); // simulate keypress (follow route)
     int  RouteLogic(); // build route on route table using AI, -1 if not builded
     int  Route(double mex, double mey); // do all route (wrapper)
-    int  TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int en, int fr, int eb, int fb);
-	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
-	    // -1 if no target labeled
-    
+//    int  TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int en, int fr, int eb, int fb);
+//	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
+//	    // -1 if no target labeled
+    int TargetNearestBase(int &m_label, int &x, int &y, int team);
+    int TargetNearestTeam(int &m_label, int &x, int &y, int team);
+    int TargetNearestFlag(int &m_label, int &x, int &y, int team, int state);
+    int TargetRoute(int efb, int efd, int efc, 
+			int mfb, int mfd, int mfc, 
+			int wfb, int wfd, int wfc, 
+			int en,  int fr, 
+			int eb,  int fb, int wb);
+
     int HaveFlag(); // returns if me is carrier
     
 #endif

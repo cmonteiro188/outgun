@@ -581,6 +581,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 #ifdef BOTMODE
 	if(clientCfg.botmode)
 	{
+    	    gameclient->menu.options.graphics.fpsLimit.set(30);
 	    ServerListEntry spy;
 	    if(gameclient->start())
 	    {
