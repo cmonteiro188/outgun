@@ -327,8 +327,7 @@ public:
 
     int roomx, roomy;
 #ifdef BOTMODE
-    int route_x;
-    int route_y;
+    int routing;
 #endif 
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;

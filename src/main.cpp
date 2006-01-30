@@ -581,14 +581,18 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 #ifdef BOTMODE
 	if(clientCfg.botmode)
 	{
+    	    gameclient->menu.options.graphics.fpsLimit.set(30);
 	    ServerListEntry spy;
 	    if(gameclient->start())
 	    {
 		spy.setAddress(clientCfg.server?clientCfg.server:"127.0.0.1");
 		gameclient->serverIP = spy.address();
-		gameclient->connect_command(false);
-		sleep(1);
-            	gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
+		do{
+		    MutexLock ml(gameclient->frameMutex);   // some menus need access
+		    gameclient->connect_command(false);
+            	}
+		while(0);
+		gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
         	gameclient->stop();
 	    }
 	    else

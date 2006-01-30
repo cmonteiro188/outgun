@@ -722,6 +722,14 @@ bool Client::start() {
     vector<int> fav_colors;
     playername = RandomName();
 
+#ifdef BOTMODE
+    if(extConfig.botmode)
+    {
+	trim(playername.substr(0, 10));    
+	playername += "-bot";
+    }
+#endif
+
     fileName = wheregamedir + "config" + directory_separator + "client.cfg";
     ifstream cfg(fileName.c_str());
     for (;;) {
@@ -1177,7 +1185,10 @@ void Client::client_disconnected(const char* data, int length) {
     connected = false;
     gameshow = false;
     menusel = menu_none;
-
+#ifdef BOTMODE
+    if(extConfig.botmode)
+	quitCommand = true;
+#endif
     string description;
 
     if (length == 1)
@@ -1270,6 +1281,13 @@ void Client::connect_failed_denied(const char* data, int length) {
         m_connectProgress.wrapLine(message);
         // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     }
+#ifdef BOTMODE
+    if(extConfig.botmode)
+    {
+	fprintf(stderr,"%s\n", message.c_str());
+	quitCommand = true;
+    }
+#endif
 }
 
 void Client::connect_failed_unreachable() {
@@ -3440,7 +3458,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     unsigned long nextSendFrame = time_counter;
     unsigned long nextClientFrameI = time_counter;
     double nextClientFrameF = nextClientFrameI;
-
     bool prevFire = false, prevDropFlag = false;
     while (!quitCommand && !*quitFlag) {
         // (1) loop doing input/sleep before next simulation/draw time
@@ -3509,7 +3526,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 send_client_ready();
                 --clientReadiesWaiting;
             }
-
             // process messages from network that have been collected
             {
                 MutexLock ml(frameMutex);
@@ -3527,7 +3543,12 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             if (nextSendFrame - time_counter > 1000 || nextClientFrameI - time_counter > 1000)  // time_counter gone around
                 nextClientFrameF = nextClientFrameI = nextSendFrame = time_counter;
-
+#ifdef BOTMODE
+	    if(extConfig.botmode)
+	    {
+	        MS_SLEEP(16);
+	    }
+#endif
             //sleep a bit
             MS_SLEEP(2);
         }
@@ -3640,7 +3661,7 @@ void Client::stop() {
     disconnect_command();
 
     tournamentPassword.stop();
-
+    UI_START
     //save configuration file
     string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
     log("Saving client configuration in %s", fileName.c_str());
@@ -3742,6 +3763,7 @@ void Client::stop() {
     else
         log.error(_("Can't open $1 for writing.", fileName));
 
+    UI_END
     {
         MutexDebug md("downloadMutex", __LINE__, log);
         MutexLock ml(downloadMutex);
