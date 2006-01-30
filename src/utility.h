@@ -1,8 +1,8 @@
 /*
  *  utility.h
  *
- *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -27,7 +27,7 @@
 
 #include <string>
 #include <vector>
-#include "nassert.h"
+#include "nassert.h" // for __attribute__ for non-GCC as well as nAssert
 
 // try to keep the includes down: if new includes are needed, consider a separate header
 
@@ -63,11 +63,17 @@ std::string toupper(std::string str);
 // Convert Latin 1 character to uppercase.
 unsigned char latin1_toupper(unsigned char c);
 
+// Case insensitive string comparison.
+bool cmp_case_ins(const std::string& a, const std::string& b);
+
 // Strip beginning and trailing whitespaces.
 std::string trim(std::string str);
 
-// Replace all occurences of s1 to s2 in text.
+// Replace all occurences of s1 with s2 in text.
 std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
+
+// Replace characters &<>"' with HTML entities or character references.
+std::string escape_for_html(std::string text);
 
 // Pad /text/ with /pad/ from the given side until it's length is /size/ characters. Do nothing if length >= /size/.
 std::string pad_to_size_left (std::string text, int size, char pad = ' ');
@@ -110,6 +116,8 @@ extern bool g_allowBlockingMessages;    // controls all messageBox calls; disabl
 
 void messageBox(const std::string& heading, const std::string& msg, bool blocking = true); // blocking may not be controllable
 
+void criticalError(const std::string& msg) __attribute__ ((noreturn));
+
 class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);
 
@@ -122,12 +130,21 @@ public:
     virtual LineReceiver& operator()(const std::string& str) =0;
 };
 
-bool is_keypad(int sc);
-
 void rotate_angle(double& angle, double shift);
 
-double get_time();
-
 template<class DstType> DstType& volatile_ref_cast(volatile DstType& src) { return const_cast<DstType&>(src); }
+
+class FileName {
+public:
+    FileName(const std::string& fullName);
+
+    const std::string& getPath() const { return path; } // without trailing separator
+    const std::string& getBaseName() const { return base; }
+    const std::string& getExtension() const { return ext; } // with '.'
+    std::string getFull() const;
+
+private:
+    std::string path, base, ext;
+};
 
 #endif

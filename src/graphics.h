@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -88,10 +88,14 @@ public:
     bool depthAvailable(int depth) const;
     std::vector<ScreenMode> getResolutions(int depth, bool forceTryIfNothing = true) const; // returns a sorted list of unique resolutions
     bool init(int width, int height, int depth, bool windowed, bool flipping);
+    void make_layout();
     void videoMemoryCorrupted();    // call this when that happens with page flipping; predraw also needs to be called
 
-    void startDraw();   // call endDraw for each startDraw
+    void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
+    void startPlayfieldDraw();  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
+    void endPlayfieldDraw();
+
     void draw_screen(bool acquireWithFlipping);
     bool save_screenshot(const std::string& filename) const;
 
@@ -104,7 +108,7 @@ public:
                  const std::vector< std::pair<int, const WorldCoords*> >& spawns, bool grid = false);
 
     void draw_background();
-    void draw_empty_background();
+    void draw_empty_background(bool map_ready);
 
     void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
     void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
@@ -127,8 +131,8 @@ public:
     void draw_deathbringer_smoke(int x, int y, double time, double alpha);
     void draw_deathbringer(int x, int y, int team, double time);
 
-    void draw_player_health(int health);
-    void draw_player_energy(int energy);
+    void draw_player_health(int value);
+    void draw_player_energy(int value);
 
     void draw_deathbringer_affected(int x, int y, int team, int alpha);
     void draw_deathbringer_carrier_effect(int x, int y, int alpha);
@@ -136,10 +140,8 @@ public:
 
     void draw_virou_sorvete(int x, int y);
 
-    void draw_one_line_message(const std::string& message);
     void draw_waiting_map_message(const std::string& caption, const std::string& map);
     void draw_loading_map_message(const std::string& text);
-    void show_not_responding_message();
     void draw_scores(const std::string& text, int col, int score1, int score2);
     void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
                              const std::string& talkbuffer);
@@ -171,7 +173,7 @@ public:
     void map_time(int seconds);
     void draw_fps(double fps);
     void draw_change_team_message(double time);
-    void draw_change_map_message(double time);
+    void draw_change_map_message(double time, bool delayed = false);
 
     // power-ups
     void draw_pup(const Powerup& pup, double time);
@@ -199,8 +201,11 @@ public:
 
     bool save_map_picture(const std::string& filename, const Map& map);
 
-    void search_themes(LineReceiver& dst) const;
-    void select_theme(const std::string& name);
+    void search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) const;
+    void select_theme(const std::string& name, const std::string& bg_dir, bool use_theme_bg);
+
+    void search_fonts(LineReceiver& dst_font) const;
+    void select_font(const std::string& file);
 
     void set_antialiasing(bool enable) { antialiasing = enable; }
 
@@ -226,6 +231,8 @@ private:
 
     void setPlaygroundColors();
 
+    void make_background(BITMAP* buffer);
+
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
     // texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
@@ -239,16 +246,25 @@ private:
 
     std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
-    void draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time);
+    void draw_bar(int x, int y, const std::string& caption, int value, int c100, int c200, int c300);
+    void draw_powerup_time(int line, const std::string& caption, double val, int c);
 
-    void draw_scoreboard_name(const std::string& name, int x, int y, int pcol, bool underline);
-    void draw_scoreboard_points(int points, int x, int y, int team);
+    void draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time);
+
+    void draw_scoreboard_name(const FONT* sbfont, const std::string& name, int x, int y, int pcol, bool underline);
+    void draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team);
 
     void print_chat_message(Message_type type, const std::string& message, int x, int y, bool highlight = false);
     void print_chat_input(const std::string& message, int x, int y);
 
+    void print_text(const std::string& text, int x, int y, int textcol, int bgcol);
+    void print_text_centre(const std::string& text, int x, int y, int textcol, int bgcol);
+
     void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
     void print_text_border_centre(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+
+    void print_text_border_check_bg(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
+    void print_text_border_centre_check_bg(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol);
 
     void print_text_border(const std::string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring);
 
@@ -256,8 +272,8 @@ private:
 
     void make_db_effect();
 
-    void load_theme(const std::string& dirname = "");
-    void load_pictures(const std::string& path);
+    void load_pictures();
+    void load_background();
 
     void load_floor_textures(const std::string& filename);
     void load_wall_textures(const std::string& filename);
@@ -290,6 +306,8 @@ private:
     void unload_flag_sprites();
     void unload_pup_sprites();
 
+    void load_font(const std::string& file);
+
     int scale(double value) const;
     
     // drawing screens
@@ -308,12 +326,15 @@ private:
 
     int plx, ply;       // playground position on the screen
     int mmx, mmy;       // minimap position
-    int sbx, sby;       // scoreboard position
+
+    int scoreboard_x1, scoreboard_x2;  // scoreboard position
+    int scoreboard_y1, scoreboard_y2;
 
     int minimap_w, minimap_h;
     int minimap_place_w, minimap_place_h;
     int minimap_start_x, minimap_start_y;
-    int indicators_x, indicators_y;
+    int indicators_y;
+    int health_x, energy_x, pups_x, pups_val_x, weapon_x, time_x, time_y;
 
     bool show_chat_messages;
     bool show_scoreboard;
@@ -321,6 +342,8 @@ private:
 
     static const int flagpos_radius = 30;
     double scr_mul; // screen size multiplier
+
+    Bitmap bg_texture;
 
     std::vector<Bitmap> floor_texture;
     std::vector<Bitmap> wall_texture;
@@ -340,17 +363,18 @@ private:
 
     Bitmap db_effect;       // the darkening of the ground around the player
 
+    FONT* default_font;
+    FONT* border_font;
+
     int map_list_size;
     int map_list_start;
     
-    int team_captures_size;
     int team_captures_start;
 
     std::list<GraphicsEffect> cfx;
 
     std::string theme_path;
-    std::string theme_name;
-    bool no_theme;
+    std::string bg_path;
 
     bool antialiasing;
 
@@ -392,7 +416,7 @@ private:
         COLMENUGRAY,
         COLGROUND,
         COLWALL,
-        COLNOLIFE,
+        COLBLACK,
         COLDARKGRAY,
         COLSHADOW,
         COLDARKORA,

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -37,7 +37,9 @@
 #include "commont.h"
 #include "effects.h"
 #include "language.h"
+#include "platform.h"
 #include "sounds.h"
+#include "timer.h"
 #include "world.h"
 
 #include "graphics.h"
@@ -70,11 +72,11 @@ Graphics::Graphics(LogSet logs):
     show_chat_messages  (true),
     show_scoreboard     (true),
     show_minimap        (true),
+    default_font        (font),
+    border_font         (0),
     map_list_size       (20),
     map_list_start      (0),
-    team_captures_size  (16),
     team_captures_start (0),
-    no_theme            (false),
     antialiasing        (true),
     log                 (logs)
 { }
@@ -116,45 +118,96 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
         drawbuf = backbuf;
     }
 
+    reset_playground_colors();
+    setColors();
+
+    make_layout();
+
+    return true;
+}
+
+void Graphics::make_layout() {
     scr_mul = static_cast<double>(SCREEN_W) / 640;
-    if (SCREEN_H < scr_mul * plh + 35 + 8)          // the window is too low for playground and one line for messages
-        scr_mul = static_cast<double>(SCREEN_H - 35 - 8) / plh;
+
+    // Room background
+    const int bottombar_h = 3 * (text_height(font) + 2) + 5;
+    if (SCREEN_H < scr_mul * plh + bottombar_h + text_height(font))          // the window is too low for playground and one line for messages
+        scr_mul = static_cast<double>(SCREEN_H - bottombar_h - text_height(font)) / plh;
+    plx = 0;
+    ply = SCREEN_H - scale(plh) - bottombar_h;
+    roombg.free();
+    roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
+
+    // Minimap
+    minimap_w = minimap_place_w = SCREEN_W - roombg->w - 4; // 4 for left and right margin
+    mmx = SCREEN_W - minimap_w - 2;
+    if (mmx > text_length(font, "M") * 80) {  // check if minimap fits to the right of chat messages
+        mmy = 4;
+        minimap_h = minimap_place_h = scale(100) + ply - 4;
+    }
+    else {
+        mmy = ply;
+        minimap_h = minimap_place_h = scale(100);
+    }
+    const int extra_space = SCREEN_H - 450 - (mmy + minimap_place_h);   // 450 = scoreboard max height + FPS line
+    if (extra_space > 0)
+        minimap_h = minimap_place_h += extra_space;
+    minibg.free();
+    minibg = create_bitmap(minimap_place_w, minimap_place_h);
+    nAssert(minibg);
+    minibg_fog.free();
+    minibg_fog = create_bitmap(minimap_place_w, minimap_place_h);   // if not created, won't be used
+
+    // Scoreboard
+    scoreboard_x1 = plx + roombg->w;
+    scoreboard_x2 = SCREEN_W - 1;
+    scoreboard_y1 = mmy + minimap_place_h;
+    scoreboard_y2 = SCREEN_H - 1;
+
+    // Bottom bar
+    indicators_y = ply + roombg->h + 5;
+    const int left_margin = min(10, scale(10));
+    const int max_w = scoreboard_x1 - 5 - left_margin;
+    const int num_len = text_length(font, "0000");
+    const int health_w = max(text_length(font, _("Health")) + num_len, scale(100));
+    const int energy_w = max(text_length(font, _("Energy")) + num_len, scale(100));
+    const int pups_w = max(max(text_length(font, _("Power")), text_length(font, _("Turbo"))), text_length(font, _("Shadow"))) + num_len;
+    const int weapon_w = text_length(font, _("Weapon $1", "0"));
+    const int time_w = text_length(font, "000:00");
+    int min_w = health_w + energy_w + pups_w + weapon_w + time_w;
+    int space;
+    if (min_w + 4 * 5 > max_w) {
+        min_w -= time_w;
+        space = (max_w - min_w) / 3;
+        time_y = indicators_y + text_height(font) + 2;
+    }
+    else {
+        space = (max_w - min_w) / 4;
+        time_y = indicators_y;
+    }
+    health_x = left_margin;
+    energy_x = health_x + health_w + space;
+    pups_x = energy_x + energy_w + space;
+    pups_val_x = pups_x + pups_w;   // align right
+    weapon_x = pups_x + pups_w + space;
+    if (time_y == indicators_y)
+        time_x = weapon_x + weapon_w + space + time_w;  // align right
+    else
+        time_x = weapon_x + time_w;
+
+    // Textures and sprites
+    unload_pictures();
     floor_texture.resize(8);
     wall_texture.resize(8);
     for (int t = 0; t < 2; t++)
         player_sprite[t].resize(MAX_PLAYERS / 2);
     pup_sprite.resize(Powerup::pup_last_real + 1);
-    plx = 0;
-    ply = SCREEN_H - scale(plh) - 35;
-    roombg = create_sub_bitmap(background, plx, ply, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
-    minimap_w = minimap_place_w = SCREEN_W - roombg->w - 4; // 4 for left margin
-    minimap_h = minimap_place_h = scale(100);
-    mmx = SCREEN_W - minimap_w;
-    if (mmx > 8 * 80)   // check if minimap fits to the right of chat messages
-        mmy = 2;
-    else
-        mmy = ply;
-    minibg = create_bitmap(minimap_place_w, minimap_place_h);
-    nAssert(minibg);
-    minibg_fog = create_bitmap(minimap_place_w, minimap_place_h);   // if not created, won't be used
-    const int scoreboardPlaceX = roombg->w; // to the right of the playfield, if possible
-    const int scoreboardPlaceW = SCREEN_W - scoreboardPlaceX;
-    static const int scoreboardW = 20 * 8;  // 20 characters
-    // center scoreboard in its place
-    if (scoreboardPlaceW > scoreboardW + 8) // reserve 4 pixels for both margins
-        sbx = scoreboardPlaceX + (scoreboardPlaceW - scoreboardW) / 2;
-    else
-        sbx = SCREEN_W - (scoreboardW + 4); // force on the playfield if it wouldn't fit otherwise (this shouldn't happen in 1.0.0, as things are forced a bit)
-    sby = mmy + minimap_place_h;
-    indicators_x = 0;
-    indicators_y = SCREEN_H - 30;
-    reset_playground_colors();
-    setColors();
-    make_db_effect();
-    if (!no_theme)
-        load_pictures(theme_path);
 
-    return true;
+    db_effect.free();
+    make_db_effect();
+
+    load_pictures();
+    load_background();
 }
 
 void Graphics::videoMemoryCorrupted() {
@@ -181,6 +234,14 @@ void Graphics::startDraw() {
 
 void Graphics::endDraw() {
     release_bitmap(drawbuf);
+}
+
+void Graphics::startPlayfieldDraw() {
+    set_clip_rect(drawbuf, plx, ply, plx + scale(plw) - 1, ply + scale(plh) - 1);
+}
+
+void Graphics::endPlayfieldDraw() {
+    set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 }
 
 void Graphics::draw_screen(bool acquireWithFlipping) {
@@ -236,7 +297,7 @@ void Graphics::setColors() {
     col[COLMENUWHITE] = makecol(0xC0, 0xC0, 0xC0);
     col[COLMENUGRAY]  = makecol(0x68, 0x68, 0x68);
     col[COLMENUBLACK] = makecol(0x40, 0x40, 0x40);
-    col[COLNOLIFE]    = makecol(0x00, 0x00, 0x00);
+    col[COLBLACK]     = makecol(0x00, 0x00, 0x00);
     col[COLDARKGRAY]  = makecol(0x30, 0x30, 0x30);
     col[COLSHADOW]    = makecol(0x18, 0x18, 0x18);
     col[COLDARKORA]   = makecol(0xBF, 0x70, 0x00);
@@ -286,15 +347,15 @@ void Graphics::random_playground_colors() {
 }
 
 int Graphics::chat_lines() const {
-    return max(1, ply / 11);
+    return max(1, ply / (text_height(font) + 3));
 }
 
 int Graphics::chat_max_lines() const {
-    return max(1, (ply + scale(plh)) / 11);
+    return max(1, (ply + scale(plh)) / (text_height(font) + 3));
 }
 
 void Graphics::clear() {
-    clear_to_color(drawbuf, 0);
+    make_background(drawbuf);
 }
 
 bool Graphics::depthAvailable(int depth) const {
@@ -317,7 +378,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
         int depth2 = (depth == 16) ? 15 : depth;    // 15 and 16 bit modes are considered equal
         for (int i = 0; i < modes->num_modes; i++) {
             const GFX_MODE& mode = modes->mode[i];
-            if (mode.width >= 640 && mode.height >= 400 && (mode.bpp == depth || mode.bpp == depth2))
+            if (mode.width >= 320 && mode.height >= 200 && (mode.bpp == depth || mode.bpp == depth2))
                 mvec.push_back(ScreenMode(mode.width, mode.height));
         }
         destroy_gfx_mode_list(modes);
@@ -340,8 +401,8 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
             log.error(_("Syntax error in gfxmodes.txt, line '$1'.", line));
             break;
         }
-        if (width < 640 || height < 400 || (bits != 16 && bits != 24 && bits != 32)) {
-            log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32).",
+        if (width < 320 || height < 200 || (bits != 16 && bits != 24 && bits != 32)) {
+            log.error(_("Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).",
                             itoa(width), itoa(height), itoa(bits)));
             break;
         }
@@ -414,7 +475,7 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
     int texOffsetBaseX = - texRoomX * iround(plw * scr_mul);
     int texOffsetBaseY = - texRoomY * iround(plh * scr_mul);
     acquire_bitmap(background);
-    clear_to_color(background, 0);
+    make_background(background);
     if (antialiasing) {
         SceneAntialiaser scene;
         scene.setScaling(.01, .01, scr_mul - .02 / plh);    // cut .01 pixels from both top and bottom edge, .01 from left and something from the right...
@@ -506,12 +567,24 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
     release_bitmap(background);
 }
 
-void Graphics::draw_empty_background() {
-    clear_to_color(drawbuf, 0);
+void Graphics::draw_empty_background(bool map_ready) {
+    make_background(drawbuf);
+    if (map_ready && show_minimap)
+        masked_blit(minibg, drawbuf, 0, 0, mmx, mmy, minibg->w, minibg->h);
 }
 
 void Graphics::draw_background() {
     blit(background, drawbuf, 0, 0, 0, 0, background->w, background->h);
+}
+
+void Graphics::make_background(BITMAP* buffer) {
+    if (bg_texture) {
+        drawing_mode(DRAW_MODE_COPY_PATTERN, bg_texture, 0, 0);
+        rectfill(buffer, 0, 0, buffer->w - 1, buffer->h - 1, 0);
+        solid_mode();
+    }
+    else
+        clear_to_color(buffer, col[COLBLACK]);
 }
 
 void Graphics::predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY) {
@@ -719,7 +792,8 @@ void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
     const int a = scale(1);
     const int b = a / 2;
     rectfill(drawbuf, coords.first - a, coords.second - a, coords.first + a, coords.second + a, teamcol[player.team()]);
-    rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
+    if (a > 0) // else, only one pixel is shown; let it be the team color
+        rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
 }
 
 void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
@@ -759,13 +833,14 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
 
 void Graphics::draw_minimap_background() {
     if (show_minimap)
-        blit(minibg, background, 0, 0, mmx, mmy, minibg->w, minibg->h);
+        masked_blit(minibg, background, 0, 0, mmx, mmy, minibg->w, minibg->h);
 }
 
 void Graphics::update_minimap_background(const Map& map) {
     update_minimap_background(minibg, map);
     if (minibg_fog) {
-        blit(minibg, minibg_fog, 0, 0, 0, 0, minibg->w, minibg->h);
+        clear_to_color(minibg_fog, col[COLBLACK]);
+        masked_blit(minibg, minibg_fog, 0, 0, 0, 0, minibg->w, minibg->h);
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
         set_trans_blender(0, 0, 0, fogOfWarMaxAlpha);
         rectfill(minibg_fog, 0, 0, minibg_fog->w - 1, minibg_fog->h - 1, col[COLFOGOFWAR]);
@@ -822,8 +897,8 @@ pair<int, int> MinimapHelper::flagCoords(const WorldCoords& coords) const {
 }
 
 void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) {
-    // black background
-    clear_to_color(buffer, 0);
+    // transparent background
+    clear_to_color(buffer, bitmap_mask_color(buffer));
     const int room_border_col = save_map_pic ? col[COLMENUGRAY] : makecol(0x30, 0x30, 0x30);
 
     if (map.w == 0 || map.h == 0)
@@ -929,7 +1004,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
                         floodfill(buffer, coords.first, coords.second, teamdcol[t]);
                         continue;
                     }
-                    const int tempColor = makecol(255, 0, 255); // this is an opportunity for bugs if someone decides to use bright pink as a regular map color
+                    const int tempColor = makecol(0, 255, 255); // this is an opportunity for bugs if someone decides to use bright cyan as a regular map color
                     floodfill(buffer, coords.first, coords.second, tempColor);
                     // check all opposing team's flags for being in the same area
                     const int ot = 1 - t;
@@ -1148,7 +1223,7 @@ void Graphics::draw_deathbringer_smoke(int x, int y, double time, double alpha) 
 		rad /= 2;
     }
     else {
-        c = makecol(0, 0, 0);
+        c = col[COLBLACK];
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
         set_trans_blender(0, 0, 0, effAlpha);
     }
@@ -1169,7 +1244,6 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
     const int maxxd = max(x, scale(plw) - x);
     const int maxyd = max(y, scale(plh) - y);
     if (maxxd * maxxd + maxyd * maxyd >= rad * rad) {
-        set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
         //brightening ring
         for (int e = 0; e < scale(30); e++, rad++) {
             int co;
@@ -1190,7 +1264,6 @@ void Graphics::draw_deathbringer(int x, int y, int team, double time) {
             circle(drawbuf, plx + x + 1, ply + y    , rad, co);
             circle(drawbuf, plx + x    , ply + y + 1, rad, co);
         }
-        set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
     }
 }
 
@@ -1216,7 +1289,7 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
         buffer = db_effect;
     else {
         buffer = create_bitmap_ex(32, db_effect->w, db_effect->h);
-        clear_to_color(buffer, 0);
+        clear_to_color(buffer, col[COLBLACK]);
         // recalculate alpha channel multiplying in the current alpha
         set_write_alpha_blender();
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -1228,12 +1301,10 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
             }
         solid_mode();
     }
-    set_clip_rect(drawbuf, plx, ply, plx + scale(plw), ply + scale(plh));
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
     set_alpha_blender();
     draw_trans_sprite(drawbuf, buffer, plx + x - db_effect->w / 2, ply + y - db_effect->h / 2);
     solid_mode();
-    set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
     if (buffer != db_effect)
         destroy_bitmap(buffer);
 }
@@ -1271,7 +1342,7 @@ void Graphics::draw_player_name(const string& name, int x, int y, int team, bool
     x = scale(x);
     y = scale(y);
     const int c = highlight ? col[COLYELLOW] : col[COLWHITE];
-    print_text_border_centre(name, plx + x, ply + y - scale(PLAYER_RADIUS + 10), c, teamdcol[team], -1);
+    print_text_border_centre(name, plx + x, ply + y - scale(3 * PLAYER_RADIUS / 2) - text_height(font), c, teamdcol[team], -1);
 }
 
 void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
@@ -1286,31 +1357,31 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
             ellipsefill(drawbuf, plx + x, ply + y + scale(POWER_ROCKET_RADIUS + 8), scale(POWER_ROCKET_RADIUS), scale(3), col[COLSHADOW]);
         //draw the rocket
         if (static_cast<int>(time * 30) % 2)
-            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), col[COLWHITE]);    //y-12?
+            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), col[COLWHITE]);
         else
-            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), teamlcol[rocket.team]); //y-12??
+            circlefill(drawbuf, plx + x, ply + y, scale(POWER_ROCKET_RADIUS), teamlcol[rocket.team]);
     }
     else {
         //draw rocket shadow
         if (shadow)
             ellipsefill(drawbuf, plx + x, ply + y + scale(ROCKET_RADIUS + 8), scale(ROCKET_RADIUS), scale(2), col[COLSHADOW]);
         //draw the rocket
-        circlefill(drawbuf, plx + x, ply + y, scale(ROCKET_RADIUS), teamcol[rocket.team]); //y-10??
+        circlefill(drawbuf, plx + x, ply + y, scale(ROCKET_RADIUS), teamcol[rocket.team]);
     }
 }
 
 void Graphics::draw_flagpos_mark(int team, int flag_x, int flag_y) {
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    const int flagpos_radius = scale(this->flagpos_radius);
-    const int step = 300 / flagpos_radius;
-    for (int y = scale(flag_y) - flagpos_radius; y < scale(flag_y) + flagpos_radius; y++)
-        for (int x = scale(flag_x) - flagpos_radius; x < scale(flag_x) + flagpos_radius; x++) {
+    const int radius = scale(flagpos_radius);
+    const int step = 300 / radius;
+    for (int y = scale(flag_y) - radius; y < scale(flag_y) + radius; y++)
+        for (int x = scale(flag_x) - radius; x < scale(flag_x) + radius; x++) {
             const int dx = scale(flag_x) - x;
             const int dy = scale(flag_y) - y;
             const double dist = sqrt(static_cast<double>(dx * dx + dy * dy));
-            if (dist > flagpos_radius)
+            if (dist > radius)
                 continue;
-            const int alpha = static_cast<int>(step * (flagpos_radius - dist));
+            const int alpha = static_cast<int>(step * (radius - dist));
             set_trans_blender(0, 0, 0, min(alpha, 255));
             putpixel(roombg, x, y, teamcol[team]);
         }
@@ -1414,17 +1485,13 @@ void Graphics::draw_pup_deathbringer(int x, int y) {
     circlefill(drawbuf, plx + scale(x), ply + scale(y), scale(12), makecol(0x22, 0x33, 0x22));
 }
 
-void Graphics::draw_one_line_message(const string& message) {
-    textout_centre_ex(drawbuf, font, message.c_str(), plx + scale(plw) / 2, ply + scale(plh) / 2, col[COLGREEN], -1);
-}
-
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) {
-    textout_centre_ex(drawbuf, font, caption.c_str(), plx + scale(plw) / 2, ply + scale(plh / 2 + 20), col[COLGREEN], -1);
-    textout_centre_ex(drawbuf, font, map.c_str(), plx + scale(plw) / 2, ply + scale(plh / 2 + 50), col[COLORA], -1);
+    print_text_border_centre_check_bg(caption, plx + scale(plw) / 2, ply + scale(plh / 2 + 20), col[COLGREEN], col[COLBLACK], -1);
+    print_text_border_centre_check_bg(map, plx + scale(plw) / 2, ply + scale(plh / 2 + 50), col[COLORA], col[COLBLACK], -1);
 }
 
 void Graphics::draw_loading_map_message(const string& text) {
-    textout_centre_ex(drawbuf, font, text.c_str(), plx + scale(plw / 2), ply + scale(plh / 2 + 70), col[COLGREEN], -1);
+    print_text_border_centre_check_bg(text, plx + scale(plw / 2), ply + scale(plh / 2 + 70), col[COLGREEN], col[COLBLACK], -1);
 }
 
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
@@ -1433,25 +1500,44 @@ void Graphics::draw_scores(const string& text, int team, int score1, int score2)
     /*break;*/ case 0: case 1: c = teamlcol[team];
         break; default: c = col[COLMENUGRAY];
     }
-    textout_centre_ex(drawbuf, font,                                           text.c_str(), plx + scale(plw / 2), ply + scale(plh / 2 - 40), c, -1);
-    textout_centre_ex(drawbuf, font, _("SCORE $1 - $2", itoa(score1), itoa(score2)).c_str(), plx + scale(plw / 2), ply + scale(plh / 2 - 20), c, -1);
+    print_text_border_centre_check_bg(text, plx + scale(plw / 2), ply + scale(plh / 2 - 40), c, col[COLBLACK], -1);
+    print_text_border_centre_check_bg(_("SCORE $1 - $2", itoa(score1), itoa(score2)), plx + scale(plw / 2), ply + scale(plh / 2 - 20), c, col[COLBLACK], -1);
 }
 
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
     if (!show_scoreboard)
         return;
 
-    const int y_space = SCREEN_H - sby;
+    const int place_width = scoreboard_x2 - scoreboard_x1 + 1;
+    const int y_space = scoreboard_y2 - scoreboard_y1 + 1;
     const int lines = 2 + maxplayers + 1;   // caption for each team, players, FPS  //#fixme: could the room for FPS be reserved someplace else...
+    const int characters = 20;
+
+    const FONT* sbfont;
+    if (font != default_font && text_height(font) > text_height(default_font) && (lines * text_height(font) > y_space || characters * text_length(font, "M") > place_width))
+        sbfont = default_font;
+    else
+        sbfont = font;
+
+    // calculate the position in the given space
+    const int char_w = text_length(sbfont, "M");
+    const int width = characters * char_w;
+    const int sby = scoreboard_y1;
+    int sbx;
+    if (place_width > width)
+        sbx = scoreboard_x1 + (place_width - width) / 2;
+    else
+        sbx = scoreboard_x1;    // just let it go off the screen if it doesn't fit; it's not critical
+
     const int nSpacers = 3;  // top, between teams, before FPS
     int spacerHeight = 3;   // consider 3 a minimal spacing (we're lucky that with SCREEN_H = 480, 32 players at line_h = 8, spacerHeight = 3 fills ALL lines!)
     // find optimal line height
     int line_h = (y_space - nSpacers * spacerHeight) / lines;
-    if (line_h > 8) {
-        spacerHeight = 10;  // prefer this over extra line height
+    if (line_h > text_height(sbfont)) {
+        spacerHeight = text_height(sbfont) + 2;  // prefer this over extra line height
         line_h = (y_space - nSpacers * spacerHeight) / lines;
-        if (line_h > 12)
-            line_h = 12;
+        if (line_h > 2 * text_height(sbfont))
+            line_h = 2 * text_height(sbfont);
     }
     // expand spacing if possible
     const int extraSpace = y_space - nSpacers * spacerHeight - line_h * lines;
@@ -1461,8 +1547,33 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 
     const int teamy[2] = { sby + spacerHeight, sby + spacerHeight + (1 + maxplayers / 2) * line_h + spacerHeight };
 
+    const int caption_width = characters;
+
+    // background
+    const int teambg [2] = { makecol(0x1A, 0x00, 0x00), makecol(0x00, 0x00, 0x1A) };
+    const int linecol[2] = { makecol(0x3A, 0x3A, 0x3A), makecol(0x3A, 0x3A, 0x3A) };
+    int hpadding = 6;
+    if (sbx - scoreboard_x1 < hpadding)
+        hpadding = max(1, sbx - scoreboard_x1 - 2);
+    const int vpadding = max((line_h - text_height(sbfont)) / 2, 1);
+    const int border_x1 = sbx - hpadding;
+    const int border_x2 = sbx + width + hpadding;
+    for (int i = 0; i < 2; ++i) {
+        rectfill(drawbuf, border_x1 + 1, teamy[i] + line_h - vpadding + 1, border_x2 - 1, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding - 1, teambg[i]);
+        rectfill(drawbuf, border_x1 + 1, teamy[i] - vpadding + 1, border_x2 - 1, teamy[i] + line_h - vpadding - 1, teamdcol[i]);
+    }
+    for (int i = 0; i < 2; ++i) {
+        hline(drawbuf, border_x1 + 1, teamy[i] - vpadding, border_x2 - 1, linecol[i]);
+        for (int j = 1; j <= maxplayers / 2 + 1; ++j)
+            hline(drawbuf, border_x1 + 1, teamy[i] + j * line_h - vpadding, border_x2 - 1, linecol[i]);
+    }
+    for (int i = 0; i < 2; ++i) {
+        vline(drawbuf, border_x1, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+        vline(drawbuf, sbx + (caption_width - 3) * char_w - 5, teamy[i] + line_h - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+        vline(drawbuf, border_x2, teamy[i] - vpadding, teamy[i] + (maxplayers / 2 + 1) * line_h - vpadding, linecol[i]);
+    }
+
     // captions
-    const int caption_width = 20;
     const string teamName[2] = { _("Red Team"), _("Blue Team") };
     for (int team = 0; team < 2; ++team) {
         ostringstream os;
@@ -1471,47 +1582,63 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
             os << setw(caption_width - teamName[team].length()) << _("pings");
         else
             os << setw(caption_width - teamName[team].length()) << _("$1 capt", itoa_w(teams[team].score(), 3));
-        textout_ex(drawbuf, font, os.str().c_str(), sbx, teamy[team], teamlcol[team], -1);
+        textout_ex(drawbuf, sbfont, os.str().c_str(), sbx, teamy[team], col[COLWHITE], -1);
     }
 
     int line[2] = { 1, 1 };
     for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi) {
         const ClientPlayer& player = **pi;
         const int pcol = col[player.color()];
+        const int r = 40 + getr(pcol) * 215 / 255;
+        const int g = 40 + getg(pcol) * 215 / 255;
+        const int b = 40 + getb(pcol) * 215 / 255;
+        const int textcol = makecol(r, g, b);
         const int x = sbx;
         const int y = teamy[player.team()] + line[player.team()] * line_h;
         const bool underline = (underlineMasterAuthenticated && player.reg_status.masterAuth()) || (underlineServerAuthenticated && player.reg_status.localAuth());
-        draw_scoreboard_name(player.name.substr(0, 15), x + 8, y, pcol, underline);
-        draw_scoreboard_points(pings ? player.ping : player.stats().frags(), x + 20 * 8, y, player.team());
+        draw_scoreboard_name(sbfont, player.name.substr(0, 15), x + 8, y, textcol, underline);
+        draw_scoreboard_points(sbfont, pings ? player.ping : player.stats().frags(), x + 20 * char_w, y, player.team());
         if (player.stats().has_flag()) {
-            vline(drawbuf, x, y, y + 7, col[COLYELLOW]);
-            rectfill(drawbuf, x + 1, y, x + 5, y + 4, player.stats().has_wild_flag() ? teamcol[2] : teamcol[1 - player.team()]);
+            // pole height 7, flag width 4 and height 4 units
+            const int flag = text_length(sbfont, "M") / 2;
+            const int pole = 7 * flag / 4;
+            const int starty = y + (text_height(sbfont) - pole) / 2;
+            vline(drawbuf, x, starty, starty + pole, col[COLYELLOW]);
+            rectfill(drawbuf, x + 1, starty, x + 1 + flag, starty + flag, player.stats().has_wild_flag() ? teamcol[2] : teamcol[1 - player.team()]);
         }
         line[player.team()]++;
     }
 }
 
-void Graphics::draw_scoreboard_name(const string& name, int x, int y, int pcol, bool underline) {
+void Graphics::draw_scoreboard_name(const FONT* sbfont, const string& name, int x, int y, int pcol, bool underline) {
     if (underline)
-        hline(drawbuf, x, y + 8, x + 8 * name.length() - 2, pcol);
-    textout_ex(drawbuf, font, name.c_str(), x, y, pcol, -1);
+        hline(drawbuf, x, y + text_height(font), x + text_length(font, name) - 2, pcol);
+    textout_ex(drawbuf, sbfont, name.c_str(), x, y, pcol, -1);
 }
 
-void Graphics::draw_scoreboard_points(int points, int x, int y, int team) {
-    textprintf_right_ex(drawbuf, font, x, y, teamlcol[team], -1, "%d", points);
+void Graphics::draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team) {
+    textprintf_right_ex(drawbuf, sbfont, x, y, teamlcol[team], -1, "%d", points);
 }
 
 void Graphics::team_statistics(const Team* teams) {
-    const int line_height = 12;
-    const int w = 350;
-    const int h = min<int>(SCREEN_H - 40, (19 + teams[0].captures().size() + teams[1].captures().size()) * line_height);
+    const FONT* stfont = font;
+    const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
+    int line_height = text_height(stfont) + 4;
+    if (20 * line_height > SCREEN_H) {
+        line_height = SCREEN_H / 20;
+        if (line_height < text_height(stfont) && text_height(default_font) < text_height(stfont)) {
+            stfont = default_font;
+            line_height = min(line_height, text_height(stfont) + 4);
+        }
+    }
+    const int w = 43 * text_length(stfont, "M") + 6;
+    const int h = min<int>(SCREEN_H, (20 + total_captures) * line_height);
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
     const int x1 = mx - w / 2;
     const int y1 = my - h / 2;
     const int x2 = mx + w / 2;
     const int y2 = my + h / 2;
-    const int team_captures_size = h / line_height - 17;
 
     if (stats_alpha > 0) {
         if (stats_alpha < 255) {
@@ -1520,52 +1647,57 @@ void Graphics::team_statistics(const Team* teams) {
         }
         rectfill(drawbuf, x1, y1, x2, y2, 0);
         // caption backgrounds
-        rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, col[COLDARKGREEN]);
-        rectfill(drawbuf, x1, y1 + 3 * line_height - 4, mx - 1, y1 + 4 * line_height, teamdcol[0]);
-        rectfill(drawbuf, mx, y1 + 3 * line_height - 4, x2, y1 + 4 * line_height, teamdcol[1]);
+        int line = 1;
+        rectfill(drawbuf, x1, y1 + line * line_height - 4, x2, y1 + (line + 1) * line_height, col[COLDARKGREEN]);
+        line += 2;
+        rectfill(drawbuf, x1, y1 + line * line_height - 4, mx - 1, y1 + (line + 1) * line_height, teamdcol[0]);
+        rectfill(drawbuf, mx, y1 + line * line_height - 4, x2, y1 + (line + 1) * line_height, teamdcol[1]);
         solid_mode();
     }
 
-    textout_centre_ex(drawbuf, font, _("Team stats").c_str(), mx               , y1 +     line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Red Team"  ).c_str(), (3 * x1 + x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Blue Team" ).c_str(), (x1 + 3 * x2) / 4, y1 + 3 * line_height, col[COLWHITE], -1);
+    int line = 1;
+    textout_centre_ex(drawbuf, stfont, _("Team stats").c_str(), mx               , y1 + line * line_height, col[COLWHITE], -1);
+    line += 2;
+    textout_centre_ex(drawbuf, stfont, _("Red Team"  ).c_str(), (3 * x1 + x2) / 4, y1 + line * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Blue Team" ).c_str(), (x1 + 3 * x2) / 4, y1 + line * line_height, col[COLWHITE], -1);
 
-    int line = 5;
-    textout_centre_ex(drawbuf, font, _("Captures"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Kills"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Deaths"        ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Suicides"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Flags taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Flags dropped" ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Flags returned").c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Shots"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Hit accuracy"  ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Shots taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Movement"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
-    textout_centre_ex(drawbuf, font, _("Team power"    ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    const int start_line = line + 2;
+    line = start_line;
+    textout_centre_ex(drawbuf, stfont, _("Captures"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Kills"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Deaths"        ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Suicides"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Flags taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Flags dropped" ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Flags returned").c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Shots"         ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Hit accuracy"  ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Shots taken"   ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Movement"      ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, stfont, _("Team power"    ).c_str(), mx, y1 + line++ * line_height, col[COLWHITE], -1);
 
     for (int t = 0; t < 2; t++) {
         const Team& team = teams[t];
-        line = 5;
+        line = start_line;
         const int x = (t == 0 ? 3 * x1 + x2 : x1 + 3 * x2) / 4;
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.suicides());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_taken());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_dropped());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_returned());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
-        textprintf_centre_ex(drawbuf, font, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.suicides());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_taken());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_dropped());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_returned());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
+        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
     }
 
     line++;
     const int team_captures_start_y = y1 + line * line_height;
+    const int team_captures_size = (y1 + h - team_captures_start_y) / line_height - 1;
 
-    const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
     if (team_captures_start >= total_captures - team_captures_size)
         team_captures_start = total_captures - team_captures_size;
     if (team_captures_start < 0)
@@ -1601,7 +1733,7 @@ void Graphics::team_statistics(const Team* teams) {
         else
             break;
         if (!skip)
-            textout_ex(drawbuf, font, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
+            textout_ex(drawbuf, stfont, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
     }
     // draw scrollbar if there are more captures than visible on the screen
     if (team_captures_size < total_captures) {
@@ -1617,9 +1749,16 @@ void Graphics::team_statistics(const Team* teams) {
 void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) {
     // line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
     const int num_lines = maxplayers + 3 + 2 * 3;
-    const int line_h = min(12, SCREEN_H / num_lines);   // Preferred line height is 12.
+    const FONT* stfont;
+    // stats screen works only with monospace font
+    if (text_length(font, "i") != text_length(font, "M") || 67 * text_length(font, "M") > SCREEN_W ||
+                                                            num_lines * text_height(font) > SCREEN_H)
+        stfont = default_font;
+    else
+        stfont = font;
+    const int line_h = min(text_height(stfont) + 4, SCREEN_H / num_lines);   // Preferred line height is 12 with default font.
     const int h = num_lines * line_h;
-    const int w = 540;
+    const int w = 67 * text_length(stfont, "M") + 4;
     const int x_margin = 22;
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
@@ -1660,32 +1799,39 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
                        //           |00000 min   00:00    0000  00.00 -00000 |
         break; default: nAssert(0);
     }
-    ostringstream red, blue, row2;
-    red  << left << setw(22) << _("Red Team")  << caption1;
-    blue << left << setw(22) << _("Blue Team") << caption1;
-    row2 << setw(22) << " " << caption2;
-    textout_ex(drawbuf, font,  red.str().c_str(), x_left, team1y         , col[COLWHITE], -1);
-    textout_ex(drawbuf, font, row2.str().c_str(), x_left, team1y + line_h, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, blue.str().c_str(), x_left, team2y         , col[COLWHITE], -1);
-    textout_ex(drawbuf, font, row2.str().c_str(), x_left, team2y + line_h, col[COLWHITE], -1);
+    int red_count = 0, blue_count = 0;
+    for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi)
+        if ((*pi)->team() == 0)
+            ++red_count;
+        else
+            ++blue_count;
+    const string red_name  = _("Red Team" ) + " (" + itoa(red_count ) + ')';
+    const string blue_name = _("Blue Team") + " (" + itoa(blue_count) + ')';
+    const int x_capt = x_left + 22 * text_length(stfont, "M");
+    textout_ex(drawbuf, stfont, red_name.c_str(), x_left, team1y + line_h / 2, col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption1.c_str(), x_capt, team1y         , col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption2.c_str(), x_capt, team1y + line_h, col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, blue_name.c_str(), x_left, team2y + line_h / 2, col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption1.c_str(), x_capt, team2y         , col[COLWHITE], -1);
+    textout_ex(drawbuf, stfont, caption2.c_str(), x_capt, team2y + line_h, col[COLWHITE], -1);
 
     int i = 0;
     int teamLineY[2] = { team1y + 3 * line_h, team2y + 3 * line_h };
     for (vector<ClientPlayer*>::const_iterator pi = players.begin(); pi != players.end(); ++pi, ++i) {
         const ClientPlayer& player = **pi;
-        draw_player_statistics(player, x_left, teamLineY[player.team()], page, time);
+        draw_player_statistics(stfont, player, x_left, teamLineY[player.team()], page, time);
         teamLineY[player.team()] += line_h;
     }
 
     if (page == 3 && max_world_rank > 0)
-        textout_ex(drawbuf, font, _("$1 players in the tournament.", itoa(max_world_rank)).c_str(), x_left, pageNumY, col[COLGREEN], -1);
+        textout_ex(drawbuf, stfont, _("$1 players in the tournament.", itoa(max_world_rank)).c_str(), x_left, pageNumY, col[COLGREEN], -1);
 
     ostringstream page_num;
     page_num << page + 1 << '/' << 4;
-    textout_right_ex(drawbuf, font, page_num.str().c_str(), x2 - x_margin, pageNumY, col[COLGREEN], -1);
+    textout_right_ex(drawbuf, stfont, page_num.str().c_str(), x2 - x_margin, pageNumY, col[COLGREEN], -1);
 }
 
-void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, int page, int time) {
+void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time) {
     ostringstream stats;
     stats << player.reg_status.strFlags() << ' ';
     stats << left << setw(17) << player.name << right;
@@ -1733,19 +1879,19 @@ void Graphics::draw_player_statistics(const ClientPlayer& player, int x, int y, 
                       << setw(7) << player.score - player.neg_score;
             }
     }
-    textout_ex(drawbuf, font, stats.str().c_str(), x, y, teamlcol[player.team()], -1);
+    textout_ex(drawbuf, stfont, stats.str().c_str(), x, y, teamlcol[player.team()], -1);
 }
 
 void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
                            const vector<vector<pair<int, int> > >& sticks, const vector<int>& buttons) {
-    clear_to_color(drawbuf, 0);
+    clear_to_color(drawbuf, col[COLBLACK]);
 
     int line = 1;
     const int line_h = 10;
     const int margin = 8;
-    for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player) {
+    for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player, ++line) {
         const int c = (me == line - 1) ? col[COLYELLOW] : col[COLWHITE];
-        textprintf_ex(drawbuf, font, margin, line++ * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
+        textprintf_ex(drawbuf, font, margin, line * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
             line, player->used, player->onscreen, player->roomx, player->roomy,
             player->lx, player->ly, player->sx, player->sy);
     }
@@ -1774,23 +1920,30 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     textout_ex(drawbuf, font, _("in $1 B/s, out $2 B/s", itoa_w(bpsin, 4), itoa_w(bpsout, 4)).c_str(), margin, line++ * line_h, col[COLINFO], -1);
 }
 
-void Graphics::map_time(int seconds) {
-    textprintf_right_ex(drawbuf, font, plx + scale(plw) - 2, SCREEN_H - 30, col[COLGREEN], -1, "%4d:%02d", seconds / 60, seconds % 60);
-}
-
 void Graphics::draw_fps(double fps) {
-    textout_right_ex(drawbuf, font, _("FPS:$1", itoa_w((int)fps, 3)).c_str(), SCREEN_W - 2, SCREEN_H - 10, col[COLMENUGRAY], -1);
+    const string text = _("FPS:$1", itoa_w((int)fps, 3));
+    print_text_border_check_bg(text, SCREEN_W - 2 - text_length(font, text), SCREEN_H - text_height(font) - 2, col[COLMENUGRAY], col[COLBLACK], -1);
 }
 
 void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
-    const int line_height = 12;
-    const int w = 540;
-    const int h = map_list_size * line_height + 96;
+    const FONT* mlfont;
+    if (text_length(font, "i") != text_length(font, "M"))   // map list works only with monospace font
+        mlfont = default_font;
+    else
+        mlfont = font;
+    const int line_height = text_height(mlfont) + 4;
+    const int w = min(SCREEN_W, 67 * text_length(mlfont, "M") + 4);
+    const int extra_space = 8 * line_height;
+    int h = map_list_size * line_height + extra_space;
+    if (h > SCREEN_H) {
+        h = SCREEN_H;
+        map_list_size = (h - extra_space) / line_height;
+    }
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
-    const int x1 = mx - w / 2;
+    const int x1 = max(0, mx - w / 2);
     const int y1 = my - h / 2;
-    const int x2 = mx + w / 2;
+    const int x2 = min(SCREEN_W, mx + w / 2);
     const int y2 = my + h / 2;
     const int x_left = x1 + 30;
 
@@ -1805,12 +1958,12 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         solid_mode();
     }
 
-    textout_centre_ex(drawbuf, font, _("Server map list").c_str(), mx, y1 + line_height, col[COLWHITE], -1);
+    textout_centre_ex(drawbuf, mlfont, _("Server map list").c_str(), mx, y1 + line_height, col[COLWHITE], -1);
 
     ostringstream caption;
     caption << _(" Nr Vote Title                Size  Author");
     //           |000 00 * <--------20--------> 00×00 <------------27----------->|
-    textout_ex(drawbuf, font, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
+    textout_ex(drawbuf, mlfont, caption.str().c_str(), x_left, y1 + 3 * line_height, col[COLWHITE], -1);
 
     if (map_list_start >= static_cast<int>(maps.size()) - map_list_size)
         map_list_start = maps.size() - map_list_size;
@@ -1840,7 +1993,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
             c = col[COLGREEN];
         else
             c = col[COLWHITE];
-        textout_ex(drawbuf, font, mapline.str().c_str(), x_left, y, c, -1);
+        textout_ex(drawbuf, mlfont, mapline.str().c_str(), x_left, y, c, -1);
     }
     // draw scrollbar if there are more maps than visible on the screen
     if (map_list_size < static_cast<int>(maps.size())) {
@@ -1854,23 +2007,36 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
     ostringstream vote;
     vote << _("Vote map number") << ": " << edit_vote << '_';
     const int y = y1 + (5 + map_list_size + 1) * line_height;
-    textout_ex(drawbuf, font, vote.str().c_str(), x_left, y, col[COLGREEN], -1);
+    textout_ex(drawbuf, mlfont, vote.str().c_str(), x_left, y, col[COLGREEN], -1);
 }
 
 void Graphics::draw_player_power(double val) {
-    textout_ex(drawbuf, font, _("Power  $1", itoa_w(iround(val), 3)).c_str(), indicators_x + 244, indicators_y     , col[COLCYAN  ], -1);
+    draw_powerup_time(0, _("Power"), val, col[COLCYAN]);
 }
 
 void Graphics::draw_player_turbo(double val) {
-    textout_ex(drawbuf, font, _("Turbo  $1", itoa_w(iround(val), 3)).c_str(), indicators_x + 244, indicators_y + 10, col[COLYELLOW], -1);
+    draw_powerup_time(1, _("Turbo"), val, col[COLYELLOW]);
 }
 
 void Graphics::draw_player_shadow(double val) {
-    textout_ex(drawbuf, font, _("Shadow $1", itoa_w(iround(val), 3)).c_str(), indicators_x + 244, indicators_y + 20, col[COLMAG   ], -1);
+    draw_powerup_time(2, _("Shadow"), val, col[COLMAG]);
+}
+
+void Graphics::draw_powerup_time(int line, const string& caption, double val, int c) {
+    const int y = indicators_y + line * (text_height(font) + 2);
+    print_text_border_check_bg(caption, pups_x, y, c, col[COLBLACK], -1);
+    const string value = itoa_w(iround(val), 3);
+    print_text_border_check_bg(value, pups_val_x - text_length(font, value), y, c, col[COLBLACK], -1);
 }
 
 void Graphics::draw_player_weapon(int level) {
-    textout_ex(drawbuf, font, _("Weapon $1", itoa(level)           ).c_str(), indicators_x + 340, indicators_y     , col[COLWHITE ], -1);
+    print_text_border_check_bg(_("Weapon $1", itoa(level)), weapon_x, indicators_y, col[COLWHITE], col[COLBLACK], -1);
+}
+
+void Graphics::map_time(int seconds) {
+    ostringstream ost;
+    ost << seconds / 60 << ':' << setw(2) << setfill('0') << seconds % 60;
+    print_text_border_check_bg(ost.str(), time_x - text_length(font, ost.str()), time_y, col[COLGREEN], col[COLBLACK], -1);
 }
 
 void Graphics::draw_change_team_message(double time) {
@@ -1883,64 +2049,66 @@ void Graphics::draw_change_team_message(double time) {
     textout_centre_ex(drawbuf, font, _("TEAMS" ).c_str(), plx + scale(plw - 6 * 8 + 10), ply + scale(plh -  9), c, -1);
 }
 
-void Graphics::draw_change_map_message(double time) {
-    int c;
-    if (static_cast<int>(time * 2.0) % 2)   // blink!
-        c = col[COLRED];
-    else
-        c = col[COLWHITE];
-    textout_centre_ex(drawbuf, font, _("EXIT").c_str(), plx + scale(plw - 64 - 6 * 8), ply + scale(plh - 18), c, -1);
-    textout_centre_ex(drawbuf, font, _("MAP" ).c_str(), plx + scale(plw - 64 - 6 * 8), ply + scale(plh -  9), c, -1);
+void Graphics::draw_change_map_message(double time, bool delayed) {
+    const int x = plx + scale(plw - 64 - 6 * 8), y1 = ply + scale(plh - 18), y2 = ply + scale(plh - 9);
+    const string text1 = _("EXIT"), text2 = _("MAP");
+    if (delayed) {
+        print_text_border_centre(text1, x, y1, col[COLMENUGRAY], 0, -1);
+        print_text_border_centre(text2, x, y2, col[COLMENUGRAY], 0, -1);
+    }
+    else {
+        int c;
+        if (static_cast<int>(time * 2.0) % 2)   // blink!
+            c = col[COLRED];
+        else
+            c = col[COLWHITE];
+        print_text_centre(text1, x, y1, c, -1);
+        print_text_centre(text2, x, y2, c, -1);
+    }
 }
 
-void Graphics::draw_player_health(int health) {
-    const int x0 = indicators_x + 10;
+void Graphics::draw_player_health(int value) {
+    const int x0 = health_x;
     const int y0 = indicators_y;
-    // health value
-    textout_ex(drawbuf, font, _("Health $1", itoa_w(health, 3)).c_str(), x0, y0, col[COLWHITE], -1);
-    // health bar
-    rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
-    if (health == 0)
-        return;
-    // health 0...100
-    int targ = min(health, 100);
-    rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLRED]);
-    // health 100...200
-    targ = min(health - 100, 100);
-    if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLYELLOW]);
-    //health 200...300
-    targ = min(health - 200, 100);
-    if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLMAG]);
+    draw_bar(x0, y0, _("Health"), value, col[COLRED], col[COLYELLOW], col[COLMAG]);
 }
 
-void Graphics::draw_player_energy(int energy) {
-    const int x0 = indicators_x + 10 + 14 * 8;
+void Graphics::draw_player_energy(int value) {
+    const int x0 = energy_x;
     const int y0 = indicators_y;
-    // energy value
-    textout_ex(drawbuf, font, _("Energy $1", itoa_w(energy, 3)).c_str(), x0, y0, col[COLWHITE], -1);
-    // energy bar
-    rectfill(drawbuf, x0, y0 + 12, x0 + 100, y0 + 12 + 10, col[COLNOLIFE]);
-    if (energy == 0)
+    draw_bar(x0, y0, _("Energy"), value, col[COLBLUE], col[COLGREEN], col[COLENER3]);
+}
+
+void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100, int c200, int c300) {
+    print_text_border_check_bg(caption, x, y, col[COLWHITE], col[COLBLACK], -1);
+    const string val_str = itoa_w(value, 3);
+    const int width = scale(100);
+    const int bar_y1 = y + 3 * text_height(font) / 2;
+    const int bar_y2 = bar_y1 + scale(10);
+
+    const int val_x = max(x + text_length(font, caption) + text_length(font, " "), x + width - text_length(font, val_str));
+    print_text_border_check_bg(val_str, val_x, y, col[COLWHITE], col[COLBLACK], -1);
+
+    rectfill(drawbuf, x, bar_y1, x + width, bar_y2, col[COLBLACK]);
+    if (value == 0)
         return;
-    //barra azul 0..100
-    int targ = min(energy, 100);
-    rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLBLUE]);
-    //barra verde 100..200
-    targ = min(energy - 100, 100);
+
+    int targ = min(value, 100) * width / 100;
+    rectfill    (drawbuf, x, bar_y1, x + targ, bar_y2, c100);
+
+    targ = min(value - 100, 100) * width / 100;
     if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLGREEN]);
-    //barra 3o nivel
-    targ = min(energy - 200, 100);
+        rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c200);
+
+    targ = min(value - 200, 100) * width / 100;
     if (targ > 0)
-        rectfill(drawbuf, x0, y0 + 12, x0 + targ, y0 + 12 + 10, col[COLENER3]);
+        rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
 
 void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer) {
     if (!show_chat_messages)
         return;
-    const int line_height = 11;
+    const int line_height = text_height(font) + 3;
     const int margin = 3;
     int line = 0;
     for (; msg != end; ++msg, ++line) {
@@ -1950,7 +2118,18 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     }
     if (!talkbuffer.empty()) {
         ostringstream message;
-        message << _("Say") << ": " << talkbuffer << '_';
+        if (talkbuffer[0] == '/')
+            message << _("Command");
+        else if (talkbuffer[0] == '.')
+            message << _("Say team");
+        else
+            message << _("Say");
+        message << ": ";
+        if (talkbuffer[0] == '.')
+            message << talkbuffer.substr(1);
+        else
+            message << talkbuffer;
+        message << '_';
         const vector<string> lines = split_to_lines(message.str(), 79, 0);
         for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line)
             print_chat_input(*li, margin, margin + line * line_height);
@@ -1967,13 +2146,25 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         break; case msg_server: c = col[COLCYAN];
         break; case msg_normal: default: c = col[COLORA];
     }
-    if (highlight)
+    if (highlight && type != msg_team)
         c = col[COLWHITE];
-    print_text_border(message, x, y, c, 0, -1);
+    // Check if the border is needed.
+    if (!bg_texture && y + text_height(font) < ply - scale(PLAYER_RADIUS + 10))
+        textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
+    else
+        print_text_border(message, x, y, c, 0, -1);
 }
 
 void Graphics::print_chat_input(const string& message, int x, int y) {
     print_text_border(message, x, y, col[COLWHITE], 0, -1);
+}
+
+void Graphics::print_text(const std::string& text, int x, int y, int textcol, int bgcol) {
+    textout_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
+}
+
+void Graphics::print_text_centre(const std::string& text, int x, int y, int textcol, int bgcol) {
+    textout_centre_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
@@ -1982,6 +2173,20 @@ void Graphics::print_text_border(const string& text, int x, int y, int textcol, 
 
 void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
     print_text_border(text, x, y, textcol, bordercol, bgcol, true);
+}
+
+void Graphics::print_text_border_check_bg(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+    if (bg_texture)
+        print_text_border(text, x, y, textcol, bordercol, bgcol, false);
+    else
+        textout_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
+}
+
+void Graphics::print_text_border_centre_check_bg(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+    if (bg_texture)
+        print_text_border(text, x, y, textcol, bordercol, bgcol, true);
+    else
+        textout_centre_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
 void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring) {
@@ -1993,12 +2198,21 @@ void Graphics::print_text_border(const string& text, int x, int y, int textcol, 
     if (bgcol != -1)
         print(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
     // nice border
-    for (int i = -1; i <= 1; i++)
-        for (int j = -1; j <= 1; j++) {
-            if (i == 0 && j == 0)
-                continue;
-            print(drawbuf, font, text.c_str(), x + i, y + j, bordercol, -1);
+    if (border_font) {
+        int dx = x - (centring ? text_length(font, text) / 2 : 0);
+        for (string::const_iterator s = text.begin(); s != text.end(); ++s) {
+            const string character = string() + *s;
+            textout_ex(drawbuf, border_font, character.c_str(), dx - 1, y - 1, bordercol, -1);
+            dx += text_length(font, character);
         }
+    }
+    else
+        for (int i = -1; i <= 1; i++)
+            for (int j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0)
+                    continue;
+                print(drawbuf, font, text.c_str(), x + i, y + j, bordercol, -1);
+            }
     // text itself
     print(drawbuf, font, text.c_str(), x, y, textcol, -1);
 }
@@ -2010,21 +2224,6 @@ void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col
         if (bar_h > 0)
             rectfill(drawbuf, x, y + bar_y, x + width - 1, y + bar_y + bar_h - 1, col1);
     }
-}
-
-void Graphics::show_not_responding_message() {
-    const int centerX = SCREEN_W / 2;
-    const int centerY = SCREEN_H / 2;
-    const int width = 250, height = 80;
-    const int textX0 = centerX - 100;
-    const int x0 = centerX - width / 2, y0 = centerY - height / 2;
-    const int x1 = centerX + width / 2, y1 = centerY + height / 2;
-    rect    (drawbuf, x0 - 1, y0 - 1, x1 - 1, y1 - 1, col[COLMENUWHITE]);
-    rect    (drawbuf, x0 + 1, y0 + 1, x1 + 1, y1 + 1, col[COLMENUBLACK]);
-    rectfill(drawbuf, x0    , y0    , x1    , y1    , col[COLMENUGRAY ]);
-    textout_ex(drawbuf, font, _("SERVER NOT RESPONDING..."   ).c_str(), textX0, centerY - 20, col[COLWHITE], -1);
-    textout_ex(drawbuf, font, _("May be heavy packet loss,"  ).c_str(), textX0, centerY     , col[COLWHITE], -1);
-    textout_ex(drawbuf, font, _("or the server disconnected.").c_str(), textX0, centerY + 15, col[COLWHITE], -1);
 }
 
 bool Graphics::save_screenshot(const string& filename) const {
@@ -2113,6 +2312,8 @@ void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, 
     fx.col1 = col1;
     fx.col2 = col2;
     fx.gundir = gundir;
+
+    fx.team = 0; // to please GCC
 
     cfx.push_back(fx);
 }
@@ -2247,7 +2448,7 @@ void Graphics::make_db_effect() {
     db_effect = create_bitmap_ex(32, size, size);
     nAssert(db_effect);
 
-    clear_to_color(db_effect, makecol(0, 0, 0));
+    clear_to_color(db_effect, col[COLBLACK]);
     
     set_write_alpha_blender();
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -2267,73 +2468,79 @@ void Graphics::make_db_effect() {
 
 // Theme functions
 
-void Graphics::search_themes(LineReceiver& dst) const {
-    dst(_("<no theme>"));
-
-    const string searchPattern = wheregamedir + "graphics" + directory_separator + "*.*";
-
-    log("Graphics theme searching: '%s'", searchPattern.c_str());
-
-    const int attrib = FA_DIREC | FA_ARCH | FA_RDONLY;
+void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) const {
+    dst_theme(_("<no theme>"));
+    dst_bg(_("<no background>"));
 
     vector<string> themes;
-    al_ffblk ffblk;
-    for (int error = al_findfirst(searchPattern.c_str(), &ffblk, attrib); !error; error = al_findnext(&ffblk))
-        if ((ffblk.attrib & FA_DIREC) && strcmp(ffblk.name, ".") && strcmp(ffblk.name, ".."))
-            themes.push_back(ffblk.name);
-    al_findclose(&ffblk);
-
-    sort(themes.begin(), themes.end());
-    for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti)
-        dst(*ti);
+    FileFinder* themeDirs = platMakeFileFinder(wheregamedir + "graphics", "", true);
+    while (themeDirs->hasNext())
+        themes.push_back(themeDirs->next());
+    delete themeDirs;
+    sort(themes.begin(), themes.end(), cmp_case_ins);
+    for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti) {
+        dst_theme(*ti);
+        // Check if the theme has a background image
+        const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background.pcx";
+        if (platIsFile(bg))
+            dst_bg(*ti);
+    }
 }
 
-void Graphics::select_theme(const string& dir) {
+void Graphics::select_theme(const string& dir, const string& bg_dir, bool use_theme_bg) {
     unload_pictures();
-    if (dir == _("<no theme>")) {
-        no_theme = true;
-        theme_name.clear();
-    }
+    if (dir == _("<no theme>"))
+        theme_path.clear();
     else {
-        no_theme = false;
-        load_theme(dir.c_str());
+        theme_path = wheregamedir + "graphics" + directory_separator + dir + directory_separator;
+        load_pictures();
+        log("Loaded graphics theme '%s'.", dir.c_str());
+    }
+
+    bg_path.clear();
+    if (use_theme_bg) {
+        bg_path = theme_path;
+        load_background();
+    }
+    if (!bg_texture && bg_dir != _("<no background>")) {
+        bg_path = wheregamedir + "graphics" + directory_separator + bg_dir + directory_separator;
+        load_background();
     }
 }
 
-void Graphics::load_theme(const string& dirname) {
-    theme_path = wheregamedir + "graphics" + directory_separator + dirname + directory_separator;
-    load_pictures(theme_path);
-
-    ifstream file((theme_path + "theme.txt").c_str());
-    if (!getline_skip_comments(file, theme_name))
-        theme_name = _("(unnamed theme)");
-
-    log("Loaded graphics theme '%s'.", dirname.c_str());
+void Graphics::load_pictures() {
+    if (floor_texture.empty())  // kludge: select_theme -> load_pictures might be called before init
+        return;
+    if (theme_path.empty())
+        return;
+    load_floor_textures(theme_path);
+    load_wall_textures (theme_path);
+    load_player_sprites(theme_path);
+    load_shield_sprites(theme_path);
+    load_dead_sprites  (theme_path);
+    load_rocket_sprites(theme_path);
+    load_flag_sprites  (theme_path);
+    load_pup_sprites   (theme_path);
 }
 
-void Graphics::load_pictures(const string& path) {
-    if (floor_texture.empty())  // kludge: load_theme -> load_pictures might be called before init
+void Graphics::load_background() {
+    if (floor_texture.empty())  // kludge: select_theme -> load_background might be called before init
         return;
-    load_floor_textures(path);
-    load_wall_textures (path);
-    load_player_sprites(path);
-    load_shield_sprites(path);
-    load_dead_sprites  (path);
-    load_rocket_sprites(path);
-    load_flag_sprites  (path);
-    load_pup_sprites   (path);
+    bg_texture.free();
+    if (!bg_path.empty())
+        bg_texture = load_bitmap((bg_path + "background.pcx").c_str(), NULL);
 }
 
 void Graphics::load_floor_textures(const string& path) {
-    int i = 0;
-    floor_texture[i++] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_red.pcx"    ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_blue.pcx"   ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_ice.pcx"    ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_sand.pcx"   ).c_str(), NULL);
-    floor_texture[i++] = load_bitmap((path + "floor_mud.pcx"    ).c_str(), NULL);
+    int t = 0;
+    floor_texture[t++] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_red.pcx"    ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_blue.pcx"   ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_ice.pcx"    ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_sand.pcx"   ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap((path + "floor_mud.pcx"    ).c_str(), NULL);
     // Check that width and height are powers of 2.
     for (int i = 0; i < 8; i++) {
         Bitmap& texture = floor_texture[i];
@@ -2345,15 +2552,15 @@ void Graphics::load_floor_textures(const string& path) {
 }
 
 void Graphics::load_wall_textures(const string& path) {
-    int i = 0;
-    wall_texture[i++] = load_bitmap((path + "wall_normal1.pcx").c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_normal2.pcx").c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_normal3.pcx").c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_red.pcx"    ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_blue.pcx"   ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_metal.pcx"  ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_wood.pcx"   ).c_str(), NULL);
-    wall_texture[i++] = load_bitmap((path + "wall_rubber.pcx" ).c_str(), NULL);
+    int t = 0;
+    wall_texture[t++] = load_bitmap((path + "wall_normal1.pcx").c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_normal2.pcx").c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_normal3.pcx").c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_red.pcx"    ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_blue.pcx"   ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_metal.pcx"  ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_wood.pcx"   ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap((path + "wall_rubber.pcx" ).c_str(), NULL);
     // Check that width and height are powers of 2.
     for (int i = 0; i < 8; i++) {
         Bitmap& texture = wall_texture[i];
@@ -2512,7 +2719,7 @@ BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
 
 BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const {
     set_color_conversion(COLORCONV_NONE);
-    BITMAP* temp = load_bitmap(filename.c_str(), NULL);
+    Bitmap temp = load_bitmap(filename.c_str(), NULL);
     set_color_conversion(COLORCONV_TOTAL);
     if (!temp)
         return 0;
@@ -2527,6 +2734,7 @@ BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const
 }
 
 void Graphics::unload_pictures() {
+    bg_texture.free();
     unload_floor_textures();
     unload_wall_textures();
     unload_player_sprites();
@@ -2580,6 +2788,54 @@ void Graphics::unload_flag_sprites() {
 void Graphics::unload_pup_sprites() {
     for (vector<Bitmap>::iterator pup = pup_sprite.begin(); pup != pup_sprite.end(); ++pup)
         pup->free();
+}
+
+// Font functions
+
+void Graphics::search_fonts(LineReceiver& dst_font) const {
+    dst_font(string() + '<' + _("default") + '>');
+
+    vector<string> fonts;
+    FileFinder* font_files = platMakeFileFinder(wheregamedir + "fonts", ".dat", false);
+    while (font_files->hasNext())
+        fonts.push_back(FileName(font_files->next()).getBaseName());
+    delete font_files;
+    sort(fonts.begin(), fonts.end(), cmp_case_ins);
+    for (vector<string>::const_iterator fi = fonts.begin(); fi != fonts.end(); ++fi)
+        dst_font(*fi);
+}
+
+void Graphics::select_font(const string& file) {
+    if (file == string() + '<' + _("default") + '>') {
+        font = default_font;
+        border_font = 0;
+    }
+    else
+        load_font(file);
+}
+
+void Graphics::load_font(const string& file) {
+    const string filename = wheregamedir + "fonts" + directory_separator + file + ".dat";
+
+    static DATAFILE* font_data = 0;
+    if (font_data)
+        unload_datafile_object(font_data);
+    font_data = load_datafile_object(filename.c_str(), "font");
+    if (font_data)
+        font = static_cast<FONT*>(font_data->dat);
+    else
+        font = default_font;
+
+    static DATAFILE* border_data = 0;
+    if (border_data)
+        unload_datafile_object(border_data);
+    border_data = load_datafile_object(filename.c_str(), "border");
+    if (border_data)
+        border_font = static_cast<FONT*>(border_data->dat);
+    else
+        border_font = 0;
+
+    log("Loaded font '%s'.", file.c_str());
 }
 
 inline int Graphics::scale(double value) const {

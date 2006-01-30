@@ -26,17 +26,22 @@
 #include "commont.h"
 #include "debugconfig.h"
 #include "mutex.h"
+#include "timer.h"
 
 // put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
 
-volatile unsigned long server_speed_counter = 0;    // 10 Hz (100 ms) server frame counter
-volatile unsigned long time_counter = 0;    // 200 Hz (5 ms) counter used by get_time() and for client frame timing
-
+// from commont.h
 char directory_separator;
 std::string wheregamedir;
 
+// from timer.h
+SystemTimer* g_systemTimer = 0;
+TimeCounter g_timeCounter;
+
+// from mutex.h
 MutexHolder nlOpenMutex;
 
+// from debugconfig.h
 AutoBugReporting g_autoBugReporting = ABR_disabled;
 bool g_leetnetLog = false;
 bool g_leetnetDataLog = false;

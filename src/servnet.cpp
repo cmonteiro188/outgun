@@ -38,9 +38,7 @@
 
 #include "leetnet/server.h"
 #include "leetnet/rudp.h"   // get_self_IP
-#include "leetnet/sleep.h"  // sleep util
 #include "admshell.h"
-#include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
@@ -53,6 +51,7 @@
 #include "server.h"
 #include "servnet.h"
 #include "thread.h"
+#include "timer.h"
 
 // Delay for the server contacting the master server, in seconds.
 // It is good if this delay is set to a minute or so, since this will
@@ -90,7 +89,11 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     player_count(0),
     localPlayers(0),
     maplist_revision(0),
-    web_refresh(0)
+    join_start(0),
+    join_end(0),
+    web_refresh(0),
+    playerSlotReservationTime(get_time()),
+    reservedPlayerSlots(0)
 {
     server = 0;
     #ifdef SEND_FRAMEOFFSET
@@ -1004,6 +1007,8 @@ bool ServerNetworking::start() {
     for (int i = 0; i < MAX_PLAYERS; ++i)
         fileTransfer[i].reset();
 
+    server_identification = itoa(abs(rand()));
+
     // start server
     server = new_server_c(host->config().networkPriority, host->config().minLocalPort, host->config().maxLocalPort);
 
@@ -1129,6 +1134,9 @@ int ServerNetworking::client_connected(int id) {
     addPlayerMutex.unlock();
 
     player_count++;
+    nAssert(reservedPlayerSlots);
+    --reservedPlayerSlots;
+
     world.player[myself].localIP = isLocalIP(get_client_address(cid));
     if (world.player[myself].localIP)
         ++localPlayers;
@@ -1287,6 +1295,16 @@ void ServerNetworking::forwardSayadminMessage(int cid, const string& message) co
     nlWrite(shellssock, lebuf, count);
 }
 
+void ServerNetworking::sendTextToAdminShell(const string& text) const {
+    if (shellssock == NL_INVALID)
+        return;
+    char buf[512];
+    int count = 0;
+    writeLong(buf, count, STA_GAME_TEXT);
+    writeStr(buf, count, text);
+    nlWrite(shellssock, buf, count);
+}
+
 //process incoming client data (callback function)
 void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     (void)length;
@@ -1310,8 +1328,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     }
     if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) { // this frame is very likely newer or the same as the previous one
         #ifdef SEND_FRAMEOFFSET
-        if (clFrame != pl.lastClientFrame)
+        if (clFrame != pl.lastClientFrame) {
+            g_timeCounter.refresh(); // we prefer an exact time here
             pl.frameOffset = 10. * (get_time() - frameSentTime);
+        }
         #endif
         pl.lastClientFrame = clFrame;
 
@@ -1387,8 +1407,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 world.player[pid].attack = true;
             else if (code == data_fire_off)
                 world.player[pid].attack = false;
-            else if (code == data_suicide)
-                world.suicide(pid);
+            else if (code == data_suicide) {
+                if (!world.player[pid].under_deathbringer_effect(get_time()))
+                    world.suicide(pid);
+            }
             else if (code == data_change_team_on) {
                 if (!world.player[pid].want_change_teams) {
                     world.player[pid].want_change_teams = true;
@@ -1403,12 +1425,16 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 }
             }
             else if (code == data_client_ready) {
-                nAssert(world.player[pid].awaiting_client_readies);
-                --world.player[pid].awaiting_client_readies;
+                if (world.player[pid].awaiting_client_readies)
+                    --world.player[pid].awaiting_client_readies;
+                // it being already zero is an abnormal condition, but it's the client's fault and we can ignore it
             }
             else if (code == data_map_exit_on) {
                 if (world.player[pid].want_map_exit == false) {
                     world.player[pid].want_map_exit = true;
+                    // Make sure that this message matches with the one in client.cpp.
+                    if (host->specific_map_vote_required() && world.player[pid].mapVote == -1)
+                        player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
                     host->check_map_exit();
                 }
             }
@@ -1502,14 +1528,18 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             else if (code == data_stop_drop_flag)
                 world.player[pid].drop_key = false;
             else if (code == data_map_vote) {
-                NLbyte vote;
+                NLubyte vote;
                 readByte(msg, count, vote);
                 if (world.player[pid].mapVote != vote) {
-                    if (vote >= 0 && vote < static_cast<int>(host->maplist().size()))
+                    if (vote < 255 && vote < static_cast<int>(host->maplist().size()))
                         world.player[pid].mapVote = vote;
-                    else
+                    else {
                         world.player[pid].mapVote = -1;
-                    host->check_map_exit(); // just to update the map vote count, exiting should not actually happen (but it wouldn't hurt)
+                        // Make sure that this message matches with the one in client.cpp.
+                        if (host->specific_map_vote_required() && world.player[pid].want_map_exit)
+                            player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
+                    }
+                    host->check_map_exit();
                 }
             }
             else if (code == data_fav_colors) {
@@ -1839,6 +1869,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         server->ping_client(world.player[ping_send_client].cid);
 
     #ifdef SEND_FRAMEOFFSET
+    g_timeCounter.refresh(); // we prefer an exact time here
     frameSentTime = get_time();
     #endif
 }
@@ -1854,7 +1885,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 
     while (!mjob_exit) {
         if (delay > 0) {
-            MS_SLEEP(500);
+            platSleep(500);
             delay -= 500;
             if (!mjob_fastretry)
                 continue;
@@ -2014,7 +2045,7 @@ void ServerNetworking::run_mastertalker_thread() {
     double master_talk_time = get_time() + delay_to_report_server;  //give it a break
 
     while (!file_threads_quit) {
-        MS_SLEEP(500);
+        platSleep(500);
 
         if (get_time() < master_talk_time)
             continue;
@@ -2145,7 +2176,7 @@ void ServerNetworking::run_website_thread() {
     int sent_maplist_revision = -1;
 
     while (!file_threads_quit) {
-        MS_SLEEP(500);
+        platSleep(500);
 
         if (get_time() < website_talk_time)
             continue;
@@ -2286,6 +2317,7 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["map"] = host->current_map().title;
         parameters["link"] = host->server_website();
     }
+    parameters["id"] = server_identification;
     return parameters;
 }
 
@@ -2307,7 +2339,7 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
         if (world.player[i].used) {
             if (!players.empty())
                 players += '\n';
-            players += world.player[i].name + '\t' + itoa(i / TSIZE);
+            players += world.player[i].name + '\t' + itoa(i / TSIZE) + '\t' + itoa(world.player[i].ping);
         }
     parameters["playerlist"] = players;
     return parameters;
@@ -2392,7 +2424,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
     }
 
     while (!file_threads_quit) {
-        MS_SLEEP(1000); // this thread definitely is no priority
+        platSleep(1000); // this thread definitely is no priority
 
         //accept one connection
         nlOpenMutex.lock();
@@ -2401,8 +2433,10 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         nlOpenMutex.unlock();
 
         if (newSock == NL_INVALID) {
-            nAssert(nlGetError() == NL_NO_PENDING);
-            continue;
+            if (nlGetError() == NL_NO_PENDING)
+                continue;
+            log.error(_("Admin shell: Can't accept connection."));
+            return;
         }
 
         log("Incoming admin shell connection");
@@ -2484,7 +2518,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         }
 
         if (result == 0) {
-            MS_SLEEP(500);  // no need to be more responsive
+            platSleep(500);  // no need to be more responsive
             continue;
         }
 
@@ -2651,14 +2685,14 @@ void ServerNetworking::stop() {
     //wait for all master jobs to complete nicely
     while (mjob_count > 0 && get_time() < mjmaxtime) {
         host->config().statusOutput(_("Shutdown: waiting for $1 tournament updates", itoa(mjob_count)));
-        MS_SLEEP(100);
+        platSleep(100);
     }
 
     //clean up jobs
     mjob_exit = true;       //MUST terminate -- abort
     while (mjob_count > 0) {
         host->config().statusOutput(_("Shutdown: ABORTING $1 tournament updates", itoa(mjob_count)));
-        MS_SLEEP(100);
+        platSleep(100);
     }
 
     if (!host->config().privateserver) {
@@ -2796,6 +2830,10 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
     ostringstream temp;
     int count = 0;
 
+    // free reservedPlayerSlots that have been left unused, they might be needed now
+    if (playerSlotReservationTime < get_time() - 60.) // in 60 seconds Leetnet should drop the client
+        reservedPlayerSlots = 0;
+
     if (length > 0)
         readStr(data, count, stri); //read gamestring
 
@@ -2803,19 +2841,44 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING, stri.c_str());
         res->accepted = false;      // not accepted
 
-        temp << "Different game: '" << stri.c_str() << '\'';
+        temp << "This game is " << GAME_STRING;
         writeStr(res->customData, res->customDataLength, temp.str());
     }
     else {
         readStr(data, count, stri); //read protocol string
+        const time_t tt = time(0);
+        const tm* tmb = gmtime(&tt);
+        const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
         if (stri != GAME_PROTOCOL) {
             log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL, stri.c_str());
             res->accepted = false;
 
+            if (stri.length() > 50)
+                stri = "<unknown>";
             temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri; // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
             writeStr(res->customData, res->customDataLength, temp.str());
         }
-        else if (player_count >= maxplayers) {      //server full!
+        else if (player_count == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
+                 join_start > join_end && (seconds < join_start && seconds > join_end))) {
+            log("Rejected a client because the server is not open at this time.");
+            res->accepted = false;
+
+            temp << "This server is open from ";
+            temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
+            temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
+            const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
+            temp << "Come again in ";
+            if (wait >= 3600)
+                temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
+            else if (wait >= 120)
+                temp << wait / 60 << " minutes.";
+            else
+                temp << "a minute.";
+            if (!join_limit_message.empty())
+                temp << ' ' << join_limit_message;
+            writeStr(res->customData, res->customDataLength, temp.str());
+        }
+        else if (player_count + reservedPlayerSlots >= maxplayers) {
             log("Rejected a client because the server is full.");
             res->accepted = false;
             writeByte(res->customData, res->customDataLength, reject_server_full);
@@ -2827,7 +2890,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         }
         else {
             string name;
-            readStr(data, count, name); //read player's name
+            readStr(data, count, name);
             string password;
             readStr(data, count, password);
             if (!check_name(name)) {
@@ -2838,6 +2901,8 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 string player_password;
                 readStr(data, count, player_password);
                 if (host->check_name_password(name, player_password)) {
+                    ++reservedPlayerSlots;
+                    playerSlotReservationTime = get_time();
                     res->accepted = true;
                     writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
                     writeStr(res->customData, res->customDataLength, hostname);

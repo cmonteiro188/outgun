@@ -195,6 +195,7 @@ protected:
     PixelSource() { }
 
 public:
+    virtual ~PixelSource() { }
     virtual void setLine(int y) = 0;
     virtual void nextLine() = 0;
     virtual void startPixSpan(int x) = 0;

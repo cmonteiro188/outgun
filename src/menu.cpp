@@ -2,7 +2,7 @@
  *  menu.cpp
  *
  *  Copyright (C) 2004 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -27,7 +27,9 @@
 
 #include "incalleg.h"
 #include "client.h"
+#include "language.h" // needed by IPfield
 #include "nassert.h"
+#include "network.h"  // needed by IPfield
 
 #include "menu.h"
 
@@ -39,8 +41,14 @@ using std::swap;
 using std::vector;
 
 // character width and line height in pixels
-const int char_w = 8;
-const int line_h = 16;
+
+inline int char_w() {
+    return text_length(font, "M");
+}
+
+inline int line_h() {
+    return text_height(font) + 8;
+}
 
 int col_background, col_borderShadow, col_borderHighlight, col_menuCaption, col_menuCaptionBg, col_caption,
     col_active, col_disabled, col_value, col_scrollbar, col_scrollbarBg, col_shortcutDisabled, col_shortcutEnabled;
@@ -55,12 +63,13 @@ void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, i
 }
 
 void drawKeySymbol(BITMAP* buffer, int x, int y, const string& text) {
-    int width = text.length() * char_w;
+    const int width  = text_length(font, text);
+    const int height = text_height(font);
     hline(buffer, x - 4, y - 1, x + width + 3, makecol(0xEE, 0xEE, 0xEE));
-    vline(buffer, x - 4, y - 1, y + 8        , makecol(0xEE, 0xEE, 0xEE));
-    hline(buffer, x - 4, y + 8, x + width + 3, makecol(0x22, 0x22, 0x22));
-    vline(buffer, x + width + 3, y - 1, y + 8, makecol(0x22, 0x22, 0x22));
-    rectfill(buffer, x - 3, y, x + width + 2, y + 7, makecol(0x99, 0x99, 0x99));
+    vline(buffer, x - 4, y - 1, y + height, makecol(0xEE, 0xEE, 0xEE));
+    hline(buffer, x - 4, y + height, x + width + 3, makecol(0x22, 0x22, 0x22));
+    vline(buffer, x + width + 3, y - 1, y + height, makecol(0x22, 0x22, 0x22));
+    rectfill(buffer, x - 3, y, x + width + 2, y + height - 1, makecol(0x99, 0x99, 0x99));
     textout_ex(buffer, font, text.c_str(), x, y, 0, -1);
 }
 
@@ -152,19 +161,18 @@ void Menu::draw(BITMAP* buffer) {
             prev(); // if this fails too, so be it
 
     // calculate menu width and height
-    const int padding = 30;
+    const int padding = 4 * char_w() - 2;
     const int max_width = buffer->w - 2;    // 2 pixels for borders
     const int min_width = total_width() + 2 * padding;
     const int max_height = buffer->h - 2;   // 2 pixels for borders
     const int min_height = total_height() + 2 * padding;
     const int w = min(max_width, min_width);
     const int h = min(max_height, min_height);
-    const int mx = max_width / 2;
-    const int my = max_height / 2;
-    const int x1 = mx - w / 2;
-    const int y1 = my - h / 2;
-    const int x2 = mx + w / 2;
-    const int y2 = my + h / 2;
+    const int x1 = (buffer->w - w) / 2;
+    const int y1 = (buffer->h - h) / 2;
+    const int x2 = x1 + w;
+    const int y2 = y1 + h;
+    const int mx = (x1 + x2) / 2;
 
     rectfill(buffer, x1, y1, x2, y2, col_background);
     hline(buffer, x1 - 1, y1 - 1, x2 + 1, col_borderHighlight);
@@ -176,11 +184,12 @@ void Menu::draw(BITMAP* buffer) {
     int y = y1 + padding;
 
     // draw caption
-    rectfill(buffer, x1, y + 4 - line_h / 2, x2, y + 4 + line_h / 2, col_menuCaptionBg);
+    rectfill(buffer, x1, y + (text_height(font) - line_h()) / 2, x2, y + (text_height(font) + line_h()) / 2, col_menuCaptionBg);
     textout_centre_ex(buffer, font, caption.c_str(), mx, y, col_menuCaption, -1);
-    y += 2 * line_h;
+    y += 2 * line_h();
 
     const int scrollbar_start_y = y;
+    const int scrollbar_end_y   = y2 - padding;
 
     // draw components and calculate visible items
     if (h == min_height)    // everything fits
@@ -201,6 +210,7 @@ void Menu::draw(BITMAP* buffer) {
         if (components[ci]->canBeEnabled())
             ++selecti;
     const int shortcutColor = components[selected_item]->needsNumberKeys() ? col_shortcutDisabled : col_shortcutEnabled;
+    int active_x = 0, active_y = 0, active_h = 0;
     for (int compi = start; compi < static_cast<int>(components.size()); ++compi) {
         Component* component = components[compi];
         if (y + component->minHeight() > y2 - padding)
@@ -208,30 +218,45 @@ void Menu::draw(BITMAP* buffer) {
 
         if (components[compi]->canBeEnabled()) {
             if (selecti <= 10 && shortcuts)
-                textprintf_right_ex(buffer, font, x_start - char_w, y, shortcutColor, -1, "%d", selecti % 10);
+                textprintf_right_ex(buffer, font, x_start - char_w(), y, shortcutColor, -1, "%d", selecti % 10);
             ++selecti;
         }
 
         const int h = min(component->height(), y2 - padding - y);
-        component->draw(buffer, x_start, y, h, compi == selected_item);
+        if (compi == selected_item) {
+            active_x = x_start;
+            active_y = y;
+            active_h = h;
+            // draw later
+        }
+        else
+            component->draw(buffer, x_start, y, h, compi == selected_item);
         y += component->height();
         visible_items++;
     }
 
     // draw scrollbar if everything didn't fit
     if (visible_items != static_cast<int>(components.size())) {
-        const int x = x2 - padding + char_w;
+        const int x = x2 - padding + char_w();
         const int y = scrollbar_start_y;
-        const int height = visible_items * line_h;
+        const int height = scrollbar_end_y - y;
         const int bar_y = static_cast<int>(static_cast<double>(height * start) / components.size() + 0.5);
         const int bar_h = static_cast<int>(static_cast<double>(height * visible_items) / components.size() + 0.5);
         scrollbar(buffer, x, y, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
     }
+
+    // draw the active component
+    components[selected_item]->draw(buffer, active_x, active_y, active_h, true);
 }
 
-void Menu::handleKeypress(char scan, unsigned char chr) {
+bool Menu::handleKeypress(char scan, unsigned char chr) {
     nAssert(!components.empty());
     nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
+    if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
+        return true;
+    if (selected_item >= 2 && dynamic_cast<Textobject*>(components[selected_item - 2]))  // hack
+        components[selected_item - 2]->handleKey(scan, chr);
+    bool handled = true;
     if (scan == KEY_UP || (scan == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT])))
         prev();
     else if (scan == KEY_DOWN || scan == KEY_TAB)
@@ -254,7 +279,7 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
                 break; case KEY_8: shortcut = 7;
                 break; case KEY_9: shortcut = 8;
                 break; case KEY_0: shortcut = 9;
-                break; default: shortcut = -1;
+                break; default: shortcut = -1; handled = false;
             }
         else if (chr == '0')
             shortcut = 9;
@@ -263,7 +288,7 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
         if (shortcut != -1) {
             bool found = false;
             int newsel;
-            for (newsel = 0; newsel < (int)components.size(); ++newsel)
+            for (newsel = 0; newsel < static_cast<int>(components.size()); ++newsel)
                 if (components[newsel]->canBeEnabled())
                     if (shortcut-- == 0) {
                         found = true;
@@ -271,24 +296,26 @@ void Menu::handleKeypress(char scan, unsigned char chr) {
                     }
             if (found && components[newsel]->isEnabled()) {
                 selected_item = newsel;
+                nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
                 components[selected_item]->shortcutActivated();
-                return;
+                return true;
             }
         }
     }
-    nAssert(selected_item >= 0 && selected_item < static_cast<int>(components.size()));
-    if (components[selected_item]->isEnabled() && components[selected_item]->handleKey(scan, chr))
-        return;
-    if (scan == KEY_ENTER || scan == KEY_ENTER_PAD)
+    else if (scan == KEY_ENTER || scan == KEY_ENTER_PAD)
         okHook.call(*this);
+    else
+        handled = false;
+
+    return handled;
 }
 
 int Menu::width() const {
-    return caption.length() * char_w;
+    return text_length(font, caption);
 }
 
 int Menu::height() const {
-    return line_h;
+    return line_h();
 }
 
 void Menu::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
@@ -311,14 +338,14 @@ void Menu::shortcutActivated() {
 }
 
 int Menu::total_width() const {
-    int min_width = caption.length() * char_w;
+    int min_width = text_length(font, caption);
     for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
         min_width = max(min_width, (*comp)->width());
     return min_width;
 }
 
 int Menu::total_height() const {
-    int height = 2 * line_h;    // for caption
+    int height = 2 * line_h();    // for caption
     for (vector<Component*>::const_iterator comp = components.begin(); comp != components.end(); ++comp)
         height += (*comp)->height();
     return height;
@@ -336,38 +363,39 @@ bool MenuStack::close(Menu* menu) {
 
 
 int Spacer::height() const {
-    return space * line_h / 10;
+    return space * line_h() / 10;
 }
 
 
-void Textfield::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
+void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    x += caption.length() * char_w;
+    x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w;
+    x += text_length(font, ":") + char_w();
     if (maskChar)
         textout_ex(buffer, font, string(value.length(), maskChar).c_str(), x, y, col_value, -1);
     else
         textout_ex(buffer, font, value.c_str(), x, y, col_value, -1);
-    x += value.length() * char_w;
+    x += text_length(font, value);
     if (active) {
         textout_ex(buffer, font, "_", x, y, col_value, -1); // cursor
-        x += char_w;
+        x += text_length(font, "_");
     }
     textout_ex(buffer, font, tail.c_str(), x, y, col_value, -1);
 }
 
-int Textfield::width() const {
-    return (caption.length() + 2 + maxlen + 1 + max(tailSpace, (int)tail.length())) * char_w;    // 2 for ": " and 1 for cursor
+int TextfieldBase::width() const {
+    return text_length(font, caption) + maxlen * char_w() + max(tailSpace * char_w(), text_length(font, tail)) +
+           text_length(font, ":_") + char_w(); // ":" and char_w space between caption and value, _ is cursor
 }
 
-int Textfield::height() const {
-    return line_h;
+int TextfieldBase::height() const {
+    return line_h();
 }
 
-bool Textfield::handleKey(char scan, unsigned char chr) {
+bool TextfieldBase::handleKey(char scan, unsigned char chr) {
     bool stateChange = false;
     if (scan == KEY_BACKSPACE) {
         if (!value.empty()) {
@@ -375,60 +403,206 @@ bool Textfield::handleKey(char scan, unsigned char chr) {
             stateChange = true;
         }
     }
-    else if (!is_nonprintable_char(chr)) {
+    else if (!is_nonprintable_char(chr) && (charset.empty() || charset.find(chr) != string::npos)) {
         if ((int)value.length() < maxlen) {
             value += chr;
             stateChange = true;
         }
     }
     else
-        return callKeyHook(*this, scan, chr);   // note: callHook is not executed regardless of the return
+        return virtualCallKeyHook(scan, chr);   // note: virtualCallHook is not executed regardless of the return
     if (stateChange)
-        callHook(*this);
+        virtualCallHook();
     return true;
 }
 
+IPfield::IPfield(const std::string& caption_, bool acceptPort_, bool printUnknown_):
+    TextfieldBase(caption_, "", acceptPort ? 21 : 15, 0, acceptPort ? 14 : 20), // max. IP address 123.123.123.123 = 15 chars, :port 6 chars either in address or tail; reserve 14 extra characters in tail for comment
+    acceptPort(acceptPort_),
+    printUnknown(printUnknown_)
+{
+    if (acceptPort)
+        limitToCharacters("1234567890.:");
+    else
+        limitToCharacters("1234567890.");
+    updateTail();
+}
+
+bool IPfield::handleKey(char scan, unsigned char chr) {
+    const bool ret = TextfieldBase::handleKey(scan, chr);
+    if (ret)
+        updateTail();
+    return ret;
+}
+
+void IPfield::updateTail() {
+    const string& address = operator()();
+    if (address.empty())
+        setTail(printUnknown ? _("unknown") : "");
+    else {
+        string tail = portStr;
+        if (!isValidIP(address, acceptPort, 1))
+            tail += " (" + _("invalid") + ')';
+        else if (check_private_IP(address))
+            tail += " (" + _("private") + ')';
+        setTail(tail);
+    }
+}
 
 void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    x += (caption.length()) * char_w;
+    x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w;
+    x += text_length(font, ":") + char_w();
     nAssert(!options.empty());
     nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
     if (active && selected > 0)
         drawKeySymbol(buffer, x, y, "<");
-    x += 2 * char_w;
+    x += text_length(font, "<") + char_w();
+    const int list_x = x - char_w();
     textout_ex(buffer, font, options[selected].c_str(), x, y, col_value, -1);
-    if (active && selected + 1 < (int)options.size()) {
-        x += (options[selected].length() + 1) * char_w;
+    x += text_length(font, options[selected]) + char_w();
+    if (active && selected + 1 < static_cast<int>(options.size()))
         drawKeySymbol(buffer, x, y, ">");
+    if (!active || !open) {
+        open = false;
+        return;
+    }
+    const int line_height = text_height(font) + 4;
+    const int list_w = maxSelLength() + 2 * char_w();
+    int list_h = options.size() * line_height + line_height / 2;
+    int visible_items;
+    static int pendingStart = 0;
+    if (list_h > SCREEN_H) {
+        visible_items = (SCREEN_H - line_height / 2) / line_height;
+        list_h = visible_items * line_height + line_height / 2;
+        if (pendingSelection > pendingStart + visible_items - 1)
+            pendingStart = pendingSelection - visible_items + 1;
+        else if (pendingSelection < pendingStart)
+            pendingStart = pendingSelection;
+        else if (pendingStart + visible_items >= static_cast<int>(options.size()))
+            pendingStart = options.size() - visible_items;
+    }
+    else {
+        visible_items = options.size();
+        pendingStart = 0;
+    }
+    int list_y;
+    if (y + h + list_h > buffer->h) {
+        list_y = y - list_h - line_height / 2;
+        if (list_y < 0)
+            list_y = (SCREEN_H - list_h) / 2;
+    }
+    else
+        list_y = y + h;
+    const int sb_space = visible_items != static_cast<int>(options.size()) ? 9 : 0;
+    rect(buffer, list_x, list_y, list_x + list_w + 1 + sb_space, list_y + list_h + 1, col_borderHighlight);
+    rectfill(buffer, list_x + 1, list_y + 1, list_x + list_w + sb_space, list_y + list_h, col_background);
+    x = list_x + char_w();
+    y = list_y + line_height / 2;
+    for (int i = pendingStart; i < static_cast<int>(options.size()) && i < pendingStart + visible_items; ++i) {
+        const string& option = options[i];
+        const int c = (pendingSelection == i ? col_active : col_value);
+        textout_ex(buffer, font, option.c_str(), x, y, c, -1);
+        y += line_height;
+    }
+
+    // draw scrollbar if everything didn't fit
+    if (visible_items != static_cast<int>(options.size())) {
+        const int x = list_x + list_w;
+        const int y = list_y + 1;
+        const int height = list_h;
+        const int bar_y = static_cast<int>(static_cast<double>(height * pendingStart) / options.size() + 0.5);
+        const int bar_h = static_cast<int>(static_cast<double>(height * visible_items) / options.size() + 0.5);
+        scrollbar(buffer, x, y, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
     }
 }
 
+int SelectBase::maxSelLength() const {  //#todo: precache
+    int max_len = 0;
+    for (vector<string>::const_iterator si = options.begin(); si != options.end(); ++si) {
+        const int len = text_length(font, *si);
+        if (len > max_len)
+            max_len = len;
+    }
+    return max_len;
+}
+
 int SelectBase::width() const {
-    string::size_type maxSelLength = 0; //#todo: precache
-    for (vector<string>::const_iterator si = options.begin(); si != options.end(); ++si)
-        if (si->length() > maxSelLength)
-            maxSelLength = si->length();
-    return (caption.length() + 2 + 2 + maxSelLength + 2) * char_w;
+    return text_length(font, caption) + maxSelLength() + text_length(font, ":<>") + 3 * char_w();
 }
 
 int SelectBase::height() const {
-    return line_h;
+    return line_h();
 }
 
 bool SelectBase::handleKey(char scan, unsigned char chr) {
     (void)chr;
-    if (scan == KEY_LEFT && selected > 0)
-        --selected;
-    else if (scan == KEY_RIGHT && selected + 1 < static_cast<int>(options.size()))
-        ++selected;
-    else
-        return false;
-    virtualCallHook();
+    bool changed = false;
+    if (key[KEY_ALT] && (scan == KEY_UP || scan == KEY_DOWN)
+        || scan == KEY_SPACE
+        || open && (scan == KEY_ENTER || scan == KEY_ENTER_PAD))
+    {
+        open = !open;
+        if (open)
+            pendingSelection = selected;
+        else if (pendingSelection != selected) {
+            selected = pendingSelection;
+            changed = true;
+        }
+    }
+    else if ((chr >= 33 && chr <= 127 || chr >= 160) && !(!open && chr >= '0' && chr <= '9')) {
+        int& sel = open ? pendingSelection : selected;
+        for (int i = sel + 1; ; ++i) {
+            if (i >= static_cast<int>(options.size()))
+                i = 0;
+            if (i == sel)
+                break;
+            if (!options.empty() && latin1_toupper(options[i][0]) == latin1_toupper(chr)) {
+                sel = i;
+                changed = !open;
+                break;
+            }
+        }
+    }
+    else if (open) {
+        if (scan == KEY_UP || scan == KEY_LEFT) {
+            if (pendingSelection > 0)
+                --pendingSelection;
+        }
+        else if (scan == KEY_DOWN || scan == KEY_RIGHT) {
+            if (pendingSelection + 1 < static_cast<int>(options.size()))
+                ++pendingSelection;
+        }
+        else if (scan == KEY_HOME)
+            pendingSelection = 0;
+        else if (scan == KEY_END)
+            pendingSelection = options.size() - 1;
+        else if (key[KEY_ESC])
+            open = false;
+        else
+            return false;
+    }
+    else {
+        if (scan == KEY_LEFT) {
+            if (selected > 0) {
+                --selected;
+                changed = true;
+            }
+        }
+        else if (scan == KEY_RIGHT) {
+            if (selected + 1 < static_cast<int>(options.size())) {
+                ++selected;
+                changed = true;
+            }
+        }
+        else
+            return false;
+    }
+    if (changed)
+        virtualCallHook();
     return true;
 }
 
@@ -437,16 +611,16 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    x += (caption.length()) * char_w;
+    x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w;
+    x += text_length(font, ":") + char_w();
     if (active)
         drawKeySymbol(buffer, x, y, "+");
-    x += 2 * char_w;
+    x += 2 * char_w();
     nAssert(!options.empty());
     nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
     const int bw = 10;
-    const int bh = 15;
+    const int bh = line_h() - 1;
     for (int i = 0; i < static_cast<int>(options.size()); i++)
         rectfill(buffer, x + (bw + 2) * i + 2, y - 2, x + (bw + 2) * i + bw - 2, y + bh - 6, graphics->player_color(options[i]));
     if (active) {   // mark selection
@@ -460,11 +634,11 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 }
 
 int Colorselect::width() const {
-    return (caption.length() + 2) * char_w + options.size() * 12 + 2 * 2 * char_w;
+    return text_length(font, caption) + text_length(font, ":") + 2 * char_w() + options.size() * 12 + 2 * 2 * char_w();
 }
 
 int Colorselect::height() const {
-    return line_h;
+    return line_h();
 }
 
 bool Colorselect::handleKey(char scan, unsigned char chr) {
@@ -488,17 +662,22 @@ bool Colorselect::handleKey(char scan, unsigned char chr) {
 void Checkbox::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
-    textprintf_ex(buffer, font, x, y, col_value, -1, "[%c]", checked ? '×' : ' ');
-    x += 4 * char_w;
+    textout_ex(buffer, font, "[", x, y, col_value, -1);
+    x += text_length(font, "[");
+    if (checked)
+        textout_ex(buffer, font, "×", x, y, col_value, -1);
+    x += text_length(font, "×");
+    textout_ex(buffer, font, "]", x, y, col_value, -1);
+    x += text_length(font, "]") + char_w();
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
 }
 
 int Checkbox::width() const {
-    return (3 + 1 + caption.length()) * char_w;
+    return text_length(font, "[×]") + char_w() + text_length(font, caption);
 }
 
 int Checkbox::height() const {
-    return line_h;
+    return line_h();
 }
 
 bool Checkbox::handleKey(char scan, unsigned char chr) {
@@ -528,18 +707,20 @@ int Slider::width() const {
         fieldWidth = 20;    // arbitrary bar length
     else
         fieldWidth = max(numberWidth(vmin), numberWidth(vmax));
-    return char_w * (caption.length() + 1 + fieldWidth);
+    return text_length(font, caption) + text_length(font, ":") + char_w() + fieldWidth * char_w();
 }
 
 int Slider::height() const {
-    return line_h;
+    return line_h();
 }
 
 void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
-    textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    const int x0 = x + (caption.length() + 1) * char_w;
+    const string::size_type end = caption.find_last_not_of(' '); // used to bring the ':' next to the text if the text is padded to the right
+    nAssert(end != string::npos);
+    textout_ex(buffer, font, (caption.substr(0, end + 1) + ':').c_str(), x, y, captionColor(active), -1);
+    const int x0 = x + text_length(font, caption) + text_length(font, ":") + char_w();
     if (graphic) {
         const int barLength = (x + width() - 2 - x0) * (val - vmin) / (vmax - vmin);
         const int yb = y - 4;
@@ -590,25 +771,25 @@ int NumberEntry::width() const {
     // in basic case space for val_ is needed
     // for the case of entry < vmin = val, space is needed for "entry_ (val)" (this can't happen when vmin == 0)
     if (vmin > 0) {
-        int withEntry = numberWidth(vmin - 1) + numberWidth(vmin) + 3;  // the widest value for entry in this case is vmin - 1
+        const int withEntry = numberWidth(vmin - 1) + numberWidth(vmin) + 3;  // the widest value for entry in this case is vmin - 1
         fieldWidth = max(withEntry, numberWidth(vmax));
     }
     else
         fieldWidth = numberWidth(vmax);
-    return char_w * (caption.length() + 2 + fieldWidth + 1);    // 2 for ": ", 1 for cursor
+    return text_length(font, caption) + text_length(font, ":_") + char_w() + fieldWidth * char_w();
 }
 
 int NumberEntry::height() const {
-    return line_h;
+    return line_h();
 }
 
 void NumberEntry::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    x += caption.length() * char_w;
+    x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
-    x += 2 * char_w;
+    x += text_length(font, ":") + char_w();
     if (entry != val)
         textprintf_ex(buffer, font, x, y, col_value, -1, "%d%s (%d)", entry, active ? "_" : "", val);
     else
@@ -643,23 +824,17 @@ bool NumberEntry::handleKey(char scan, unsigned char chr) {
 
 
 int Textarea::width() const {
-    int len = caption.length() + text.length();
-    if (!caption.empty() && !text.empty())
-        ++len;
-    return len * char_w;
+    return text_length(font, caption);
 }
 
 int Textarea::height() const {
-    return line_h;
+    return line_h();
 }
 
 void Textarea::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    if (!caption.empty())
-        x += (caption.length() + 1) * char_w;
-    textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 
 bool Textarea::handleKey(char scan, unsigned char chr) {
@@ -680,14 +855,14 @@ void Textarea::shortcutActivated() {
 
 
 int StaticText::width() const {
-    int len = caption.length() + text.length();
+    int len = text_length(font, caption) + text_length(font, text);
     if (!caption.empty() && !text.empty())
-        ++len;
-    return len * char_w;
+        len += text_length(font, ":") + char_w();
+    return len;
 }
 
 int StaticText::height() const {
-    return line_h;
+    return line_h();
 }
 
 void StaticText::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
@@ -695,45 +870,70 @@ void StaticText::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
     if (h < minHeight())
         return;
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active), -1);
-    if (!caption.empty())
-        x += (caption.length() + 1) * char_w;
+    if (!caption.empty() && !text.empty()) {
+        x += text_length(font, caption);
+        textout_ex(buffer, font, ":", x, y, captionColor(active), -1);
+        x += text_length(font, ":") + char_w();
+    }
     textout_ex(buffer, font, text.c_str(), x, y, col_value, -1);
 }
 
 
 int Textobject::width() const {
     int len = 0;
-    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li)
-        len = max<int>(len, li->length());
-    return len * char_w;
+    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+        len = max(len, min(text_length(font, *li), 70 * char_w()));
+        if (len == 70 * char_w())
+            break;
+    }
+    return len;
 }
 
 int Textobject::height() const {
-    return lines.size() * line_h;
+    // leave some space for hack purpose
+    // 2 paddings, 2 lines for caption, 1 line for Textobject itself, spacer, 2 pixels for menu borders
+    const int padding = 4 * char_w() - 2;
+    const int spacer = 5 * line_h() / 10;
+    const int max_h = max(objLineHeight(), SCREEN_H - 2 - 3 * line_h() - spacer - 2 * padding);
+    int total_lines = max(splitted.size(), lines.size());
+    return min(total_lines * objLineHeight(), max_h);
+}
+
+int Textobject::objLineHeight() const {
+    return text_height(font) + 4;
 }
 
 void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
     (void)active;
-    if (start > static_cast<int>(lines.size()) - h / line_h)
-        start = lines.size() - h / line_h;
+    if (x != old_x || h != old_h) {
+        old_x = x;
+        old_h = h;
+        splitted.clear();
+        const int linew = min(buffer->w - 2 * x, 70 * char_w()) / char_w();
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+            vector<string> sublines = split_to_lines(*li, linew);
+            splitted.insert(splitted.end(), sublines.begin(), sublines.end());
+        }
+    }
+    if (start > static_cast<int>(splitted.size()) - h / objLineHeight())
+        start = splitted.size() - h / objLineHeight();
     if (start < 0)
         start = 0;
     visible_lines = 0;
-    for (int i = start, y = y0; i < static_cast<int>(lines.size()); ++i) {
-        if (y + line_h > y0 + h)
+    for (int i = start, y = y0; i < static_cast<int>(splitted.size()); ++i) {
+        if (y + objLineHeight() > y0 + h)
             break;
-        textout_ex(buffer, font, lines[i].c_str(), x, y, col_value, -1);
-        y += line_h;
+        textout_ex(buffer, font, splitted[i].c_str(), x, y, col_value, -1);
         ++visible_lines;
+        y += objLineHeight();
     }
 
     // draw scrollbar if everything didn't fit
-    if (visible_lines != static_cast<int>(lines.size())) {
-        const int sbx = x + width() + char_w;
-        const int height = visible_lines * line_h;
-        const int bar_y = static_cast<int>(static_cast<double>(height * start) / lines.size() + 0.5);
-        const int bar_h = static_cast<int>(static_cast<double>(height * visible_lines) / lines.size() + 0.5);
-        scrollbar(buffer, sbx, y0, height, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
+    if (visible_lines != static_cast<int>(splitted.size())) {
+        const int sbx = min(x + width() + char_w(), buffer->w - 12);
+        const int bar_y = static_cast<int>(static_cast<double>(h * start) / splitted.size() + 0.5);
+        const int bar_h = static_cast<int>(static_cast<double>(h * visible_lines) / splitted.size() + 0.5);
+        scrollbar(buffer, sbx, y0, h, bar_y, bar_h, col_scrollbar, col_scrollbarBg);
     }
 }
 

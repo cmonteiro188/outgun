@@ -40,8 +40,6 @@
 
 #include "rudp.h"
 
-#include "sleep.h"
-
 #include "server.h"
 
 #include "../thread.h"
@@ -53,6 +51,8 @@
 #include "dlog.h"
 
 #include "../commont.h" // for wheregamedir
+
+#include "../timer.h" // for platSleep
 
 class client_ci;
 
@@ -138,6 +138,8 @@ public:
     //the reader thread
     Thread      thread_read;
 
+    MutexHolder readerThreadManipulationMutex;
+
     //quit reader thread?
     bool                quit_reader_thread;
 
@@ -200,7 +202,7 @@ public:
                 //trying disconnection -- wait until after it's done
                 //this is just a hack
                 while (connect_status == 1)
-                    MS_SLEEP(500);  // *** NO CPU PROBLEM HERE ***
+                    platSleep(500);  // *** NO CPU PROBLEM HERE ***
 
                 log("starting connect sequence.");
 
@@ -423,18 +425,18 @@ public:
         const int length = 1;
         connectionCallback(customp, connect_result, data, length);
 
-        if (quit_reader_thread) // pathetic attempt towards thread safety; must re-code the whole thing
-            return;
+        MutexLock ml(readerThreadManipulationMutex);
 
-        //quit reader thread
-        quit_reader_thread = true;
-        thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
+        if (thread_read.isRunning()) {
+            //quit reader thread
+            quit_reader_thread = true;
+            thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
 
-        //close the socket/station
-        station->reset_state();
-        clearSendQueue();
+            //close the socket/station
+            station->reset_state();
+            clearSendQueue();
+        }
 
-        //set var to not connected anymore (THIS MUST BE THE LAST THING!! ou nao? :-)
         connect_status = 0;
         want_connect = false;       //this var sucks
     }
@@ -464,9 +466,22 @@ public:
             return;
         }
 
+        readerThreadManipulationMutex.lock();
+
+        for (;;) {
+            if (thread_read.isRunning()) {
+                readerThreadManipulationMutex.unlock();
+                platSleep(100);
+                readerThreadManipulationMutex.lock();
+            }
+            else
+                break;
+        }
         //create reader thread
         quit_reader_thread = false;
         thread_read.start_assert(thread_reader_f, this, threadPriority);
+
+        readerThreadManipulationMutex.unlock();
         
         //start connection tries
         started_disconnection   = false;        //init "started_disconnection" flag for this connection session
@@ -482,16 +497,17 @@ public:
 
         log("stop_connect() - deletes station - connect status = 0");
 
-        if (quit_reader_thread) // pathetic attempt towards thread safety; must re-code the whole thing
-            return;
+        MutexLock ml(readerThreadManipulationMutex);
 
-        //quit reader thread
-        quit_reader_thread = true;
-        thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
+        if (thread_read.isRunning()) {
+            //quit reader thread
+            quit_reader_thread = true;
+            thread_read.join(true); // the executing thread might be thread_read; "recursive" join works in this case
 
-        //delete station -- CLOSES the socket
-        station->reset_state();
-        clearSendQueue();
+            //delete station -- CLOSES the socket
+            station->reset_state();
+            clearSendQueue();
+        }
 
         //cancel
         want_connect = false;   //you don't want to connect anymore
@@ -772,7 +788,7 @@ DLOG_Scope s("CPIDg");
         connect(false);
 
         while (connect_threads_running) // added thread safety thing
-            MS_SLEEP(100);
+            platSleep(100);
 
         //delete station
         if (station) {
@@ -796,7 +812,7 @@ void thread_connect_f(client_ci* client) {
     for (;;) {
         if (client->connect_try())
             break;
-        MS_SLEEP(1000); // *** NO CPU PROBLEM HERE ***
+        platSleep(1000); // *** NO CPU PROBLEM HERE ***
     }
 
     logThreadExit("Leet client thread_connect_f", client->log);
@@ -815,7 +831,7 @@ void thread_disconnect_f(client_ci* client) {
         stop = client->disconnect_try();
 
         //sleep a bit before sending next try
-        MS_SLEEP(100); // *** NO CPU PROBLEM HERE ***
+        platSleep(100); // *** NO CPU PROBLEM HERE ***
     }
 
     //nice disconnect done
@@ -842,7 +858,7 @@ DLOG_ScopeNegStart("CTR");
 
         if (amount == 0) {
 DLOG_ScopeNeg s("CTR");
-            MS_SLEEP(2);  //alternativa, usar BLOCKING I/O
+            platSleep(2);  //alternativa, usar BLOCKING I/O
             continue;
         }
 

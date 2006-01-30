@@ -1,6 +1,6 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
+; Original copyright © 2004, 2005, 2006 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2004, 2005, 2006 Jani Rivinoja, Niko Ritari
 
 
 ; Language of the translation, in the target language.
@@ -12,6 +12,11 @@ suomi
 ; en.txt to a new name (languagename.txt) and translate each phrase (non-
 ; commented line) in that file. Please send your translation to us at
 ; outgun@mbnet.fi for inclusion in the official packages.
+
+; The length restrictions mentioned in the comments should guarantee that the
+; translations fit on the screen in the 640×400 resolution with a 8×8 font that
+; is the default. To allow for smaller resolutions or larger fonts, shorter is
+; always better.
 
 
 ; - - - - - - - - - - - - - - miscellaneous texts - - - - - - - - - - - - - -
@@ -54,18 +59,20 @@ $1 min
 
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
 ; refresh rate and in the local server menu for IP address; 'private' and
-; 'invalid' are also for IP address; 'none' (meaning "not set"), 'on', and
-; 'off' in the server settings dialog (F5), as well as 'special' which is
-; used for the player collisions setting. 'Disabled', 'minimal', and 'complete'
-; are currently values of the automatic bug reporting policy setting. OK and
-; Cancel are used in the menus, in their usual UI meaning. All may be used
-; elsewhere in a similar context in the future.
+; 'invalid' are also for IP address; 'default' is used in font selection;
+; 'none' (meaning "not set"), 'on', and 'off' in the server settings dialog
+; (F5), as well as 'special' which is used for the player collisions setting.
+; 'Disabled', 'minimal', and 'complete' are currently values of the automatic
+; bug reporting policy setting. OK and Cancel are used in the menus, in their
+; usual UI meaning. All may be used elsewhere in a similar context in the
+; future.
 ; Lengths up to 25 characters are ok, but short is preferred.
 Selvä
 Peru
 tuntematon
 yksityinen
 virheellinen
+oletus
 ei
 päällä
 pois
@@ -78,13 +85,15 @@ täysi
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
 ;
 ; Length restrictions vary:
-; With the minimal resolution (640 in width), the end of the line is not
-; visible after 76 characters. The actual maximal length of each text depends
-; on the type of the menu component and many lines are made of two parts.
+; With the standard resolution (640 in width) and standard 8-wide font, the end
+; of the line is not visible after 76 characters. The actual maximal length of
+; each text depends on the type of the menu component and many lines are made
+; of two parts.
 ;
 ; Usually, considerably longer than original texts do fit well. To be sure
-; they fit, you should test each menu in the lowest resolution, if you use
-; translations that are considerably longer than the original texts.
+; they fit, you should test each menu in the standard resolution and preferably
+; a wider-than-standard font, if you use translations that are considerably
+; longer than the original texts.
 
 Uusi versio: $1
 Palvelinlista
@@ -152,7 +161,7 @@ Sivusiirtymä
 
 Aktiviiset ohjaimet
 
-Grafiikka
+Näyttötila
 Värisyvyys
  työpöytä
 $1-bittinen
@@ -163,7 +172,12 @@ Vaihtoehtoinen page flipping -tapa
 Virkistystaajuus
 $1 Hz
 Vaihda tähän tilaan
+
+Grafiikka
 Teema
+Taustakuva teemasta
+Käytä ensisijaisesti pääteeman taustakuvaa
+Fontti
 Reunanpehmennys
 Vähemmän läpinäkyvyystehosteita
 Tekstuurien jatkuvuus huoneesta toiseen
@@ -323,6 +337,9 @@ Lisätietoja saattaa löytyä lokitiedostoista (hakemisto "log").
 Sisäinen virhe
 Tämä johtuu Outgunissa olevasta bugista. Auta meitä korjaamaan se: Lähetä assert.log ja stackdump.bin log-hakemistosta ja kerro, mitä olit tekemässä, osoitteeseen outgun@mbnet.fi
 
+; Used in an external dialog as title. No length restriction.
+Vakava virhe
+
 ; Used in a simple dialog, started from the name and passwords menu.
 Poistin 1 salasanan.
 Poistin $1 salasanaa.
@@ -350,6 +367,7 @@ Palvelimen salasana
 ; sounds)
 <ei teemaa>
 <teemoja ei ole>
+<ei taustakuvaa>
 
 ; Reserved for if the theme names from theme.txt are used in the future.
 (nimetön teema)
@@ -407,6 +425,7 @@ $1 vaihtoi nimekseen $2.
 
 *** Liiku tai lennät ulos palvelmelta $1 sekunnin päästä.
 *** $1/$2 pelaajaa on äänestänyt kartan vaihtoa.
+Äänesi ei vaikuta ennen kuin äänestät karttaa.
 
 ; Optionally added to the previous message.
 (Kaikkien äänet tarvitaan vaihtoon vielä $1 sekunnin ajan.)
@@ -463,6 +482,8 @@ ylläpitäjä
 
 ; Used below the messages when typing a message: Say: Hello world_
 Sano
+Sano joukkueelle
+Komento
 
 
 ; - - - - - - - - texts used in the middle of the game screen - - - - - - - -
@@ -493,19 +514,19 @@ Lataan karttaa: $1 tavua
 JÄÄTÄVÄÄ!
  
 
-; Max length 13 with 3-digit $1.
-Terveys $1
-Energia $1
+; The shorter the better, but if one is long, it does't help if the other is
+; shorter.
+Terveys
+Energia
 
-; Recommended max length 10 with 3-digit $1. If more length is required, you
-; have to pad Weapon below with spaces from the left so they don't overlap (but
-; don't grow Weapon past 14). Looks nice if these three are the same length.
-Tehoase $1
-Turbo   $1
-Varjo   $1
+; The shorter the better, but if one is long, it doesn't help if others are
+; shorter.
+Tehoase
+Turbo
+Varjo
 
-; Max length 14 with 1-digit $1.
- Ase $1
+; The shorter the better; test it.
+Ase $1
 
 ; No limit really, but small and discreet is good.
 FPS:$1
@@ -517,10 +538,9 @@ JOUKKUETTA
 VAIHDA
 KARTTAA
 
-; All 3 lines are used as one message in the middle of the screen. Max length
-; for each line is 27 characters, use more and it's not neatly in the message
-; box any more.
-PALVELIN EI VASTAA...
+; All three lines are used as a menu, first line as its title. Menu length
+; restrictions apply.
+Palvelin ei vastaa
 Syy on huono yhteys tai
 palvelimen kaatuminen.
 
@@ -721,12 +741,13 @@ Syntaksivirhe tiedostossa gfxmodes.txt, rivillä "$1".
 Käännöstä $1 ei voi lukea.
 Tuntematonta dataa tiedostossa client.cfg ("$1")
 Tuntematon komento "$1" tiedostossa auth.txt
-Kelvoton näyttötila tiedostossa gfxmodes.txt: $1×$2×$3 (pitäisi olla vähintään 640×400 ja 16, 24 tai 32 bittiä).
+Kelvoton näyttötila tiedostossa gfxmodes.txt: $1×$2×$3 (pitäisi olla vähintään 320×200 ja 16, 24 tai 32 bittiä).
 Tekstuurin leveyden ja korkeuden pitää olla kahden potensseja; lattiatekstuuri $1 on $2×$3.
 Tekstuurin leveyden ja korkeuden pitää olla kahden potensseja; seinätekstuuri $1 on $2×$3.
 
 ; Miscellaneous errors.
 Asetusta max_players ei voi vaihtaa, kun palvelimella on pelaajia.
+Säikeen luonti ei onnistu. Järjestelmän resurssit eivät riitä.
 Palvelin ei pysty toimimaan taustalla.
 Pääpalvelinyhteys: Sinulla on vanhentunut Outgun-versio. Palvelimesi ei pääse palvelinlistalle. Päivitä ihmeessä.
 Karttoja ei ole.
@@ -739,6 +760,7 @@ HawkNL:n alustus epäonnistui. $1
 Ei IP-verkkoa.
 Ylläpitoyhteys: Portti $1 ei aukea.
 Ylläpitoyhteys: Soketin asetus listen-tilaan epäonnistui.
+Ylläpitoyhteys: Yhteyden vastaanotto epäonnistui.
 Ylläpitoyhteys: luku epäonnistui. Syy: $1
 Ylläpitoyhteys: vastauksen lähetys epäonnistui. Syy: $1
 Pääpalvelimelle ei ole yhteyttä. $1

@@ -1,62 +1,73 @@
-MINGW = 1
-STLPORT = 1
-# if you are compiling for Linux, comment out the above lines
+ifndef LINUX
+ MINGW = 1
+ #STLPORT = 1
+endif
 
 ifndef CFLAGS
 #distro: CFLAGS = -mcpu=pentium -Wall -W -O2 -ffast-math
  CFLAGS = -W -Wall -O2
 endif
 
-ifdef STATIC_ALLEGRO
-#ifndef DYNAMIC_ALLEGRO
- # if you want to use static_allegro in Linux, you'll have to
- # find out what to put on the libs-line yourself...
+ifdef MINGW
+ LIBALLEG = -lalleg
  ifdef STLPORT
-  LIBS = -lstlport_mingw32_static -lalleg_s -lNL -lpthreadGC -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 -ldinput -lddraw -ldxguid -lwinmm -ldsound
-  EXTRA_CFLAGS = -I$(MINGDIR)/include/stlport -DALLEGRO_STATICLINK
+  BASELIBS = -lNL -lpthreadGC1 -lstlport_mingw32_static
+  EXTRA_CFLAGS = -I$(MINGDIR)/include/stlport
  else
-  LIBS = -lalleg_s -lNL -lpthreadGC -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 -ldinput -lddraw -ldxguid -lwinmm -ldsound
-  EXTRA_CFLAGS = -DALLEGRO_STATICLINK
+  BASELIBS = -lNL -lpthreadGC1
  endif
 else
- ifdef MINGW
-  ifdef STLPORT
-   LIBS = -lalleg -lNL -lpthreadGC -lstlport_mingw32_static
-   EXTRA_CFLAGS = -I$(MINGDIR)/include/stlport -D_REENTRANT
-  else
-   LIBS = -lalleg -lNL -lpthreadGC
-  endif
- else
-  LIBS = `allegro-config --libs` -lNL
- endif
+ LIBALLEG = `allegro-config --libs debug`
+ BASELIBS = -lNL_debug
+ EXTRA_CFLAGS = -pthread
+endif
+
+ifdef MINGW
+PLATFORM_OBJ = platform_win.o
+else
+PLATFORM_OBJ = platform_unix.o
 endif
 
 OBJS = antialias.o world.o servnet.o server.o graphics.o commont.o \
 	client.o client_menus.o main.o names.o nameauth.o sounds.o mappic.o \
 	nassert.o globals.o log.o utility.o menu.o network.o thread.o \
-	gamemod.o platform_win.o \
+	gamemod.o debug.o language.o $(PLATFORM_OBJ) \
 	leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
-	leetnet/rudp.o leetnet/server.o leetnet/timefunc.o \
-	leetnet/Time.o leetnet/Timer.o leetnet/dlog.o
+	leetnet/rudp.o leetnet/server.o leetnet/Time.o leetnet/Timer.o \
+	leetnet/dlog.o
 
-MON_OBJS = srvmonit.o nassert_mon.o platform_win.o
+MON_OBJS = tools/srvmonit.o nassert.o network.o utility.o globals.o language.o log.o commont.o $(PLATFORM_OBJ)
+
+MAKEDEP_OBJS = tools/makedep.o
 
 ifdef MINGW
  EXTRA_OBJS = icon.res
- #distro: LFLAGS = -mwindows
+ #LFLAGS = -mwindows $(OUTGUN_LINK_FLAGS)
  LFLAGS = $(OUTGUN_LINK_FLAGS)
+ MON_LFLAGS = -mconsole -s
+else
+ EXTRA_OBJS =
+ LFLAGS = $(OUTGUN_LINK_FLAGS)
+ MON_LFLAGS = -pthread
 endif
 
-all: og mon
+MAKEDEP_LFLAGS = $(MON_LFLAGS)
+
+all: og mon makedep
 og: outgun.exe
-mon: srvmonit.exe
+mon: tools/srvmonit
+makedep: tools/makedep
 
 outgun.exe: $(OBJS) $(EXTRA_OBJS)
-	g++ $(LFLAGS) $(LEETNET) -o $@ $(OBJS) $(EXTRA_OBJS) $(LIBS)
+	g++ $(LFLAGS) $(LEETNET) -o $@ $(OBJS) $(EXTRA_OBJS) $(BASELIBS) $(LIBALLEG)
 	$(COPY_OUTGUN_EXE)
 
-srvmonit.exe: $(MON_OBJS)
-	g++ -mconsole -s -o $@ $(MON_OBJS) $(LIBS)
+tools/srvmonit: $(MON_OBJS)
+	g++ $(MON_LFLAGS) -o $@ $(MON_OBJS) $(BASELIBS) $(LIBALLEG)
+	$(COPY_SRVMONIT_EXE)
+
+tools/makedep: $(MAKEDEP_OBJS)
+	g++ $(MAKEDEP_LFLAGS) -o $@ $(MAKEDEP_OBJS) $(BASELIBS)
 
 %.res: %.rc
 	windres -i $< -O coff -o $@

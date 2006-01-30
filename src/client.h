@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -122,7 +122,10 @@ enum ClientCfgSetting {
     CCS_AlternativeFlipping,
     CCS_StayDeadInMenus,
     CCS_MinTransp,
-    CCS_MaxCommand = CCS_MinTransp
+    CCS_UseThemeBackground,
+    CCS_Background,
+    CCS_Font,
+    CCS_MaxCommand = CCS_Font
 };
 
 class ServerThreadOwner {
@@ -277,7 +280,7 @@ private:
     #ifdef SEND_FRAMEOFFSET
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
-    volatile int netsendAdjustment;
+    double netsendAdjustment;
     #endif
     double averageLag;
     double frameReceiveTime;    // when fx was received
@@ -306,6 +309,7 @@ private:
     int map_vote;
     bool want_change_teams;
     bool want_map_exit;
+    bool want_map_exit_delayed;
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
@@ -325,6 +329,7 @@ private:
     Menu_playerPassword m_playerPassword;
     Menu_serverPassword m_serverPassword;
     Menu_text m_serverInfo;
+    Menu_text m_notResponding; // not to be put to openMenus
 
     MenuStack openMenus;
 
@@ -457,11 +462,13 @@ private:
     void MCF_screenDepthChange();
     void MCF_screenModeChange();
     void MCF_gfxThemeChange();
+    void MCF_fontChange();
     void MCF_antialiasChange();
     void MCF_transpChange();
     void MCF_statsBgChange();
+    void MCF_prepareScrModeMenu();
+    void MCF_prepareDrawScrModeMenu();
     void MCF_prepareGfxMenu();
-    void MCF_prepareDrawGfxMenu();
     void MCF_sndEnableChange();
     void MCF_sndVolumeChange();
     void MCF_sndThemeChange();

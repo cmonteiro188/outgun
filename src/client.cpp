@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -36,7 +36,6 @@
 
 #include "incalleg.h"
 #include "leetnet/client.h"
-#include "leetnet/sleep.h"  // sleep util
 #include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
@@ -47,6 +46,7 @@
 #include "network.h"
 #include "platform.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
+#include "timer.h"
 #include "utility.h"
 #include "world.h"
 
@@ -330,7 +330,7 @@ void TournamentPasswordManager::threadFn() {
 
     while (!quitThread) {
         if (delay > 0) {
-            MS_SLEEP(500);
+            platSleep(500);
             delay -= 500;
             continue;
         }
@@ -660,7 +660,7 @@ Client::~Client() {
         client = 0;
     }
     while (refreshStatus != RS_none && refreshStatus != RS_failed)  // wait for a possible refresh thread to abort itself
-        MS_SLEEP(50);
+        platSleep(50);
 
     for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
         delete *mi;
@@ -794,8 +794,8 @@ bool Client::start() {
             break; case CCS_JoystickRun:           menu.options.controls.joyRun.boundSet(atoi(args));
             break; case CCS_JoystickStrafe:        menu.options.controls.joyStrafe.boundSet(atoi(args));
 
-            // graphics menu
-            break; case CCS_Windowed:              menu.options.graphics.windowed.set(args == "1");
+            // screen mode menu
+            break; case CCS_Windowed:              menu.options.screenMode.windowed.set(args == "1");
             break; case CCS_GFXMode: {
                 if (extConfig.forceDefaultGfxMode)
                     break;
@@ -805,19 +805,24 @@ bool Client::start() {
                 bool ok = is;
                 char nullc;
                 is >> nullc;
-                if (!ok || is || width < 640 || height < 400 || (depth != 16 && depth != 24 && depth != 32))
+                if (!ok || is || width < 320 || height < 200 || (depth != 16 && depth != 24 && depth != 32))
                     log("Bad screen mode in client.cfg");
                 else {
-                    menu.options.graphics.colorDepth.set(depth);    // may fail if the previous depth isn't available
-                    menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
-                    if (!menu.options.graphics.resolution.set(ScreenMode(width, height)))
+                    menu.options.screenMode.colorDepth.set(depth);    // may fail if the previous depth isn't available
+                    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+                    if (!menu.options.screenMode.resolution.set(ScreenMode(width, height)))
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
                 }
             }
-            break; case CCS_Flipping:              menu.options.graphics.flipping.set(args == "1");
-            break; case CCS_AlternativeFlipping:   menu.options.graphics.alternativeFlipping.set(args == "1");
+            break; case CCS_Flipping:              menu.options.screenMode.flipping.set(args == "1");
+            break; case CCS_AlternativeFlipping:   menu.options.screenMode.alternativeFlipping.set(args == "1");
+
+            // graphics menu
             break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
-            break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);   // ignore error
+            break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);      // ignore error
+            break; case CCS_UseThemeBackground:    menu.options.graphics.useThemeBackground.set(args == "1");
+            break; case CCS_Background:            menu.options.graphics.background.set(args); // ignore error
+            break; case CCS_Font:                  menu.options.graphics.font.set(args);       // ignore error
             break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
             break; case CCS_MinTransp:             menu.options.graphics.minTransp.set(args == "1");
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
@@ -873,15 +878,16 @@ bool Client::start() {
         install_joystick(JOY_TYPE_AUTODETECT);
     // graphics
     if (extConfig.winclient != -1)
-        menu.options.graphics.windowed.set(extConfig.winclient);
+        menu.options.screenMode.windowed.set(extConfig.winclient);
     if (extConfig.trypageflip != -1)
-        menu.options.graphics.flipping.set(extConfig.trypageflip);
+        menu.options.screenMode.flipping.set(extConfig.trypageflip);
     if (extConfig.targetfps != -1)
         menu.options.graphics.fpsLimit.set(extConfig.targetfps);
     client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
     client_graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
-    client_graphics.select_theme(menu.options.graphics.theme());
+    client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    client_graphics.select_font(menu.options.graphics.font());
     if (!screenModeChange())
         return false;
     // sounds
@@ -1090,9 +1096,10 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     //don't want to exit map by default
     want_map_exit = false;
+    want_map_exit_delayed = false;
 
     //avoid "dropped" plaque
-    lastpackettime = get_time() + 1.0;
+    lastpackettime = get_time() + 4.0;
 
     averageLag = 0;
 
@@ -1403,7 +1410,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->connect(false);
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
-        MS_SLEEP(500);
+        platSleep(500);
 
     handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
     openMenus.close(&m_connectProgress.menu);
@@ -1555,7 +1562,7 @@ void Client::process_incoming_data(const char* data, int length) {
     //overwrite always the newer frames
     // TARGET FRAME: just one
     if (svframe > fx.frame) {
-        nAssert(fx.frame == (int)fx.frame);
+        nAssert(fx.frame == floor(fx.frame));
 
         ClientPhysicsCallbacks cb(*this);
         fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
@@ -1575,7 +1582,7 @@ void Client::process_incoming_data(const char* data, int length) {
         frameOffsetDeltaTotal += offsetDelta;
         if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
             frameOffsetDeltaTotal /= 10.;
-            netsendAdjustment = -static_cast<int>(frameOffsetDeltaTotal * 20.); // the time_counter used for timing netsends is 200 Hz so one frame is 20 ticks
+            netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
             frameOffsetDeltaTotal = 0;
             frameOffsetDeltaNum = 0;
         }
@@ -1789,7 +1796,13 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_DoDisconnect());
                     break;
                 }
-                if (type == msg_server) {   // This is a kludge because of compatibility. Remove in version 1.1.
+                // This is a kludge because of compatibility. Remove in version 1.1.
+                // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
+                if (type == msg_server) {
+                    if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
+                        chatmsg = _("Your vote has no effect until you vote for a specific map.");
+                        want_map_exit_delayed = true;
+                    }
                     string::size_type pos = chatmsg.find(" decided it's time for a map change.");
                     if (pos != string::npos) {
                         const string name = chatmsg.substr(0, pos);
@@ -2041,6 +2054,7 @@ void Client::process_incoming_data(const char* data, int length) {
             break; case data_map_change: {
                 map_ready = false;  // map NOT ready anymore: must load/change
                 want_map_exit = false;      // and player does not want to exit the map anymore
+                want_map_exit_delayed = false;
 
                 // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
                 {
@@ -2335,8 +2349,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, attacker);
                 readByte(lebuf, count, target);
                 const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
-                const bool carrier_defended = attacker & 0x40;
-                const bool flag_defended = attacker & 0x20;
+                //const bool carrier_defended = attacker & 0x40;
+                //const bool flag_defended = attacker & 0x20;
                 const bool flag = target & 0x80;
                 const bool wild_flag = target & 0x40;
                 attacker &= 0x1F;
@@ -2378,7 +2392,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
                 }
                 addThreadMessage(new TM_Text(msg_info, msg));
-                if (carrier_defended && known_attacker) {
+                /*if (carrier_defended && known_attacker) {
                     if (attacker_team == 0)
                         msg = _("$1 defends the red carrier.", fx.player[attacker].name);
                     else
@@ -2391,7 +2405,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     else
                         msg = _("$1 defends the blue flag.", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
-                }
+                }*/
                 if (fx.player[target].stats().current_cons_kills() >= 10) {
                     if (!known_attacker)
                         msg = _("$1's killing spree was ended.", fx.player[target].name);
@@ -2722,6 +2736,27 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, pupMaxTime);
                 fx.physics.read(lebuf, count);
                 fd.physics = fx.physics;
+
+                log("Server friction/drag/acceleration %f/%f/%f",
+                    fx.physics.fric, fx.physics.drag, fx.physics.accel);
+                log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
+                    fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
+                log("Server ff/dbff/rocketspeed %f/%f/%f",
+                    fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
+                    
+                ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
+                out << hostname << '\n';
+                out << "friction     " << fx.physics.fric << '\n';
+                out << "drag         " << fx.physics.drag << '\n';
+                out << "acceleration " << fx.physics.accel << '\n';
+                out << "brake_acceleration " << fx.physics.brake_mul << '\n';
+                out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
+                out << "run_acceleration   " << fx.physics.run_mul << '\n';
+                out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
+                out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
+                out << "rocket_speed " << fx.physics.rocket_speed << '\n';
+                out.close();
+
                 addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
             }
 
@@ -2857,6 +2892,8 @@ void Client::process_incoming_data(const char* data, int length) {
 
 //send chat message
 void Client::send_chat(const string& msg) {
+    if (msg.empty() || msg == "." || isFlood(msg))
+        return;
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_text_message);
     writeStr(lebuf, count, msg);
@@ -2988,8 +3025,8 @@ class TempPingData {    // internal to Client::refresh_servers
 
 public:
     TempPingData() : rc(0), rt(0) { }
-    void send(int pack) { st[pack] = get_time(); }
-    void receive(int pack) { ++rc; rt += get_time() - st[pack]; }
+    void send(int pack) { g_timeCounter.refresh(); st[pack] = get_time(); }
+    void receive(int pack) { g_timeCounter.refresh(); ++rc; rt += get_time() - st[pack]; }
     int received() const { return rc; }
     int ping() const { return static_cast<int>(1000 * rt / rc); }
 };
@@ -3056,7 +3093,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 
         // parse received responses
         for (int subRound = 0; subRound < 20; subRound++) {
-            MS_SLEEP(5);
+            platSleep(5);
 
             for (;;) {  // continue while there are new packets
                 int len = nlRead(sock, lebuf, 512);
@@ -3248,18 +3285,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     // handle global keys first
     bool handled = true;
     switch (sc) {   // if the key isn't handled, set handled = false
-    /*break;*/ case KEY_ESC:
-            if (!talkbuffer.empty()) // cancel chat
-                talkbuffer.clear();
-            else if (!openMenus.empty())
-                MCF_menuCloser();
-            else if (menusel != menu_none) {
-                menusel = menu_none;
-                stats_autoshowing = false;
-            }
-            else
-                showMenu(menu);
-        break; case KEY_F1:
+    /*break;*/ case KEY_F1:
             toggle_help();
         break; case KEY_F11:
             screenshot = true;
@@ -3277,7 +3303,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
         break; case KEY_ENTER:
             if (ch == 0) {  // Alt+Enter
                 if (get_time() > lastAltEnterTime + .5) {
-                    menu.options.graphics.windowed.toggle();
+                    menu.options.screenMode.windowed.toggle();
                     screenModeChange(); // ignore error
                     lastAltEnterTime = get_time();
                 }
@@ -3291,12 +3317,24 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
         return;
     if (!openMenus.empty()) {
         MutexLock ml(frameMutex);   // some menus need access
-        openMenus.handleKeypress(sc, ch);
+        if (!openMenus.handleKeypress(sc, ch)) {
+            if (sc == KEY_ESC)
+                MCF_menuCloser();
+        }
         return;
     }
     handled = true;
     switch (sc) {
-    /*break;*/ case KEY_F2:
+    /*break;*/ case KEY_ESC:
+            if (menusel != menu_none) {
+                menusel = menu_none;
+                stats_autoshowing = false;
+            }
+            else if (!talkbuffer.empty()) // cancel chat
+                talkbuffer.clear();
+            else
+                showMenu(menu);
+        break; case KEY_F2:
             menusel = (menusel == menu_maps ? menu_none : menu_maps);
             stats_autoshowing = false;
             if (menusel == menu_maps) {
@@ -3311,6 +3349,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             stats_autoshowing = false;
         break; case KEY_F8: {
             want_map_exit = !want_map_exit;
+            want_map_exit_delayed = false;
 
             char lebuf[16]; int count = 0;
             if (want_map_exit)
@@ -3347,10 +3386,13 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                     if (!edit_map_vote.empty())
                         edit_map_vote.erase(edit_map_vote.end() - 1);
                 break; case KEY_ENTER: case KEY_ENTER_PAD: {
-                    const int new_vote = atoi(edit_map_vote) - 1;
+                    int new_vote = atoi(edit_map_vote) - 1;
+                    if (new_vote >= 255)
+                        new_vote = -1;
                     edit_map_vote.clear();
                     if (new_vote != map_vote && (new_vote >= 0 || map_vote >= 0)) {
                         map_vote = new_vote;
+                        want_map_exit_delayed = false;
                         // send map vote
                         char lebuf[16];
                         int count = 0;
@@ -3367,12 +3409,12 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             }
             return true;
         break; case menu_players:
-            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP || sc == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT]))
                 player_stats_page = max(0, player_stats_page - 1);
-            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN || sc == KEY_TAB)
                 player_stats_page = min(3, player_stats_page + 1);
             else if (sc == KEY_TAB)
-                player_stats_page = (player_stats_page + 1) % 4;
+                player_stats_page = (player_stats_page + (key[KEY_LSHIFT] || key[KEY_RSHIFT] ? -1 + 4 : +1)) % 4;
             else
                 return false;
             return true;
@@ -3407,7 +3449,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 talkbuffer.erase(talkbuffer.end() - 1);
         break; case KEY_ENTER: case KEY_ENTER_PAD:
             if (!talkbuffer.empty()) {
-                send_chat(talkbuffer);
+                send_chat(trim(talkbuffer));
                 talkbuffer.clear();
             }
         break; case KEY_DEL: {
@@ -3451,13 +3493,14 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         showMenu(menu);
     gameshow = false;
     UI_END
-    const unsigned long sendFrameStep = 20; // 20 steps of 200 Hz clock equals the 10 Hz server clock
-    unsigned long nextSendFrame = time_counter;
-    unsigned long nextClientFrameI = time_counter;
-    double nextClientFrameF = nextClientFrameI;
+
+    g_timeCounter.refresh();
+    double nextSend = get_time();
+    double nextClientFrame = get_time();
+
     bool prevFire = false, prevDropFlag = false;
     while (!quitCommand && !*quitFlag) {
-        // (1) loop doing input/sleep before next simulation/draw time
+        // (1) loop doing input/sleep before next send or draw time
         for (;;) {
             const bool controlPressed = (key[KEY_LCONTROL] || key[KEY_RCONTROL]);
 
@@ -3528,48 +3571,45 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
 		UI_START
-                if (GlobalDisplaySwitchHook::readAndClear() && menu.options.graphics.flipping()) {
+                if (GlobalDisplaySwitchHook::readAndClear() && menu.options.screenMode.flipping()) {
                     client_graphics.videoMemoryCorrupted();
                     predraw();
                 }
 		UI_END
             }
 
-            if (time_counter >= nextSendFrame || time_counter >= nextClientFrameI)
+            g_timeCounter.refresh();
+            if (get_time() >= nextSend || get_time() >= nextClientFrame)
                 break;
 
-            if (nextSendFrame - time_counter > 1000 || nextClientFrameI - time_counter > 1000)  // time_counter gone around
-                nextClientFrameF = nextClientFrameI = nextSendFrame = time_counter;
-#ifdef BOTMODE
-	    if(extConfig.botmode)
-	    {
-	        MS_SLEEP(16);
-	    }
-#endif
-            //sleep a bit
-            MS_SLEEP(2);
+            platSleep(2);
         }
 
-        if (time_counter >= nextSendFrame) {
-            nextSendFrame += sendFrameStep;
+        if (get_time() >= nextSend) {
+            nextSend += .1; // match 10 Hz frame frequency of server
             #ifdef SEND_FRAMEOFFSET
-            nextSendFrame += netsendAdjustment;
+            nextSend += netsendAdjustment;
             netsendAdjustment = 0;  // losing a value due to concurrency is vaguely possible but affordable
             #endif
-            if (time_counter > nextSendFrame)   // don't accumulate lag
-                nextSendFrame = time_counter;
+            if (get_time() > nextSend)   // don't accumulate lag
+                nextSend = get_time();
             send_frame(true, true);
         }
 
-        if (time_counter < nextClientFrameI)
+        if (get_time() < nextClientFrame)
             continue;
 
-        // the rest is drawing
+        // give other threads a chance (otherwise we're trying to run all the time if the FPS limit is not lower than what the machine can do)
+        sched_yield();
 
-        nextClientFrameF += 200. / menu.options.graphics.fpsLimit();
-        nextClientFrameI = static_cast<int>(nextClientFrameF);
-        if (time_counter > nextClientFrameI)    // don't accumulate lag
-            nextClientFrameF = nextClientFrameI = time_counter;
+        int fpsLimit = menu.options.graphics.fpsLimit();
+        if (!gameshow && fpsLimit > 30)
+            fpsLimit = 30;
+        nextClientFrame += 1. / fpsLimit;
+        if (get_time() > nextClientFrame)    // don't accumulate lag
+            nextClientFrame = get_time();
+
+        // the rest is drawing
 
         if (gameshow) {
             MutexDebug md("frameMutex", __LINE__, log);
@@ -3638,7 +3678,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             draw_game_menu();
         }
         client_graphics.endDraw();
-        client_graphics.draw_screen(!menu.options.graphics.alternativeFlipping());
+        client_graphics.draw_screen(!menu.options.screenMode.alternativeFlipping());
         if (screenshot) {
             save_screenshot();
             screenshot = false;
@@ -3705,14 +3745,19 @@ void Client::stop() {
         cfg << CCS_JoystickRun          << ' ' <<  menu.options.controls.joyRun() << '\n';
         cfg << CCS_JoystickStrafe       << ' ' <<  menu.options.controls.joyStrafe() << '\n';
 
+        // save screen mode menu settings
+        cfg << CCS_Windowed             << ' ' << (menu.options.screenMode.windowed() ? 1 : 0) << '\n';
+        ScreenMode mode = menu.options.screenMode.resolution();
+        cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
+        cfg << CCS_Flipping             << ' ' << (menu.options.screenMode.flipping() ? 1 : 0) << '\n';
+        cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.screenMode.alternativeFlipping() ? 1 : 0) << '\n';
+
         // save graphics menu settings
-        cfg << CCS_Windowed             << ' ' << (menu.options.graphics.windowed() ? 1 : 0) << '\n';
-        ScreenMode mode = menu.options.graphics.resolution();
-        cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.graphics.colorDepth() << '\n';
-        cfg << CCS_Flipping             << ' ' << (menu.options.graphics.flipping() ? 1 : 0) << '\n';
-        cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.graphics.alternativeFlipping() ? 1 : 0) << '\n';
         cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
         cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
+        cfg << CCS_UseThemeBackground   << ' ' << (menu.options.graphics.useThemeBackground() ? 1 : 0) << '\n';
+        cfg << CCS_Background           << ' ' <<  menu.options.graphics.background() << '\n';
+        cfg << CCS_Font                 << ' ' <<  menu.options.graphics.font() << '\n';
         cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
         cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
@@ -3861,7 +3906,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // the playground: border, walls and pits
     if (hide_game) {
-        client_graphics.draw_empty_background();
+        client_graphics.draw_empty_background(map_ready);
 
         // game over message
         if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
@@ -3893,6 +3938,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     }
     // frame is valid?
     if (!hide_game && fd.frame >= 0) {
+        client_graphics.startPlayfieldDraw();
+
         // draw dead players, except ice creams
         for (int i = 0; i < maxplayers; i++) {
             if (fx.player[i].used && fx.player[i].onscreen && fx.player[i].dead) {
@@ -3976,6 +4023,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                 const int tty = static_cast<int>(fd.player[i].ly);
                 client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE, i == me);
             }
+
+        client_graphics.endPlayfieldDraw();
     }
 
     //do not draw stuff below if map not ready to show
@@ -4093,7 +4142,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     if (want_change_teams)
         client_graphics.draw_change_team_message(get_time());
     if (want_map_exit)
-        client_graphics.draw_change_map_message(get_time());
+        client_graphics.draw_change_map_message(get_time(), want_map_exit_delayed);
 
     // the STATUSBAR : health energy, bars ....
     if (me >= 0) {
@@ -4116,7 +4165,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     //"server not responding... connection may have dropped" plaque
     if (get_time() > lastpackettime + 1.0)
-        client_graphics.show_not_responding_message();
+        m_notResponding.menu.draw(client_graphics.drawbuffer());
 
     // debug panel
     if (key[KEY_F9]) {
@@ -4241,7 +4290,7 @@ void Client::initMenus() {
     menu.connect.favorites              .setHook(new MCB::N<Checkbox,       &Client::MCF_prepareServerMenu      >(this));
     menu.connect.update                 .setHook(new MCB::N<Textarea,       &Client::MCF_updateServers          >(this));
     menu.connect.refresh                .setHook(new MCB::N<Textarea,       &Client::MCF_refreshServers         >(this));
-    menu.connect.manualEntry         .setKeyHook(new MKC::N<Textfield,      &Client::MCF_addressEntryKeyHandler >(this));
+    menu.connect.manualEntry         .setKeyHook(new MKC::N<IPfield,        &Client::MCF_addressEntryKeyHandler >(this));
 
     menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareAddServer       >(this));
     menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &Client::MCF_addServer              >(this));
@@ -4261,13 +4310,18 @@ void Client::initMenus() {
     menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &Client::MCF_keyboardLayout         >(this));
     menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &Client::MCF_joystick               >(this));
 
+    menu.options.screenMode.menu    .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareScrModeMenu     >(this));
+    menu.options.screenMode.menu    .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawScrModeMenu >(this));
+    menu.options.screenMode.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
+    menu.options.screenMode.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
+    menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
+    menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
+
     menu.options.graphics.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxMenu         >(this));
-    menu.options.graphics.menu      .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawGfxMenu     >(this));
-    menu.options.graphics.menu     .setCloseHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.graphics.menu        .setOkHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.graphics.colorDepth    .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
-    menu.options.graphics.apply         .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
     menu.options.graphics.theme         .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
+    menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,   &Client::MCF_gfxThemeChange         >(this));
+    menu.options.graphics.background    .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
+    menu.options.graphics.font          .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange             >(this));
     menu.options.graphics.antialiasing  .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange        >(this));
     menu.options.graphics.minTransp     .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange           >(this));
     menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
@@ -4302,9 +4356,14 @@ void Client::initMenus() {
 
     m_errors.menu.setCaption(_("Errors"));
 
+    m_notResponding.menu.setCaption(_("Server not responding"));
+    m_notResponding.addLine(_("May be heavy packet loss,"));
+    m_notResponding.addLine(_("or the server disconnected."), "", false, true); // make the dialog passive
+
     loadHelp();
     loadSplashScreen();
     UI_START
+    menu.options.screenMode.init(client_graphics);
     menu.options.graphics.init(client_graphics);
     menu.options.sounds.init(client_sounds);
     UI_END
@@ -4424,22 +4483,33 @@ void Client::MCF_messageLogging() {
         closeMessageLog();
 }
 
+void Client::MCF_prepareScrModeMenu() {
+    menu.options.screenMode.update(client_graphics);
+}
+
+void Client::MCF_prepareDrawScrModeMenu() {
+    menu.options.screenMode.flipping.setEnable(!menu.options.screenMode.windowed());
+    menu.options.screenMode.alternativeFlipping.setEnable(!menu.options.screenMode.windowed() && menu.options.screenMode.flipping());
+}
+
 void Client::MCF_prepareGfxMenu() {
     UI menu.options.graphics.update(client_graphics);
 }
 
-void Client::MCF_prepareDrawGfxMenu() {
-    menu.options.graphics.flipping.setEnable(!menu.options.graphics.windowed());
-    menu.options.graphics.alternativeFlipping.setEnable(!menu.options.graphics.windowed() && menu.options.graphics.flipping());
+void Client::MCF_gfxThemeChange() {
+    UI client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    predrawNeeded = true;
 }
 
-void Client::MCF_gfxThemeChange() {
-    UI client_graphics.select_theme(menu.options.graphics.theme());
-    UI predrawNeeded = true;
+void Client::MCF_fontChange() {
+    UI client_graphics.select_font(menu.options.graphics.font());
+    UI client_graphics.make_layout();
+    predrawNeeded = true;
+    mapChanged = true;  // just to get minimap updated
 }
 
 void Client::MCF_screenDepthChange() {
-    UI menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
+    UI menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
 }
 
 void Client::MCF_screenModeChange() {   // used to lose the return value
@@ -4447,14 +4517,14 @@ void Client::MCF_screenModeChange() {   // used to lose the return value
 }
 
 bool Client::screenModeChange() {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
-    if (!menu.options.graphics.newMode())
+    if (!menu.options.screenMode.newMode())
         return true;
 
-    const ScreenMode res = menu.options.graphics.resolution();
-    const int depth = menu.options.graphics.colorDepth();
+    const ScreenMode res = menu.options.screenMode.resolution();
+    const int depth = menu.options.screenMode.colorDepth();
 
-    Checkbox& win  = menu.options.graphics.windowed;
-    Checkbox& flip = menu.options.graphics.flipping;
+    Checkbox& win  = menu.options.screenMode.windowed;
+    Checkbox& flip = menu.options.screenMode.flipping;
     const bool owin = win(), oflip = flip();
 
     for (int nTry = 0;; ++nTry) {
@@ -4485,9 +4555,9 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
                 log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
                 if (workingGfxMode.used()) {    // revert to working mode
                     const GFXMode& wm = workingGfxMode;
-                    nAssert(menu.options.graphics.colorDepth.set(wm.depth));
-                    menu.options.graphics.update(client_graphics);  // fetch resolutions according to the new depth
-                    menu.options.graphics.resolution.set(ScreenMode(wm.width, wm.height));  // ignore potential error here; we couldn't do anything about it anyway
+                    nAssert(menu.options.screenMode.colorDepth.set(wm.depth));
+                    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+                    menu.options.screenMode.resolution.set(ScreenMode(wm.width, wm.height));  // ignore potential error here; we couldn't do anything about it anyway
                     win.set(wm.windowed);
                     flip.set(wm.flipping);
                     return client_graphics.init(wm.width, wm.height, wm.depth, wm.windowed, wm.flipping);
@@ -4504,7 +4574,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
         ost << _("unknown");
     else
         ost << _("$1 Hz", itoa(rate));
-    menu.options.graphics.refreshRate.set(ost.str());
+    menu.options.screenMode.refreshRate.set(ost.str());
     return true;
 }
 
@@ -4549,27 +4619,22 @@ void Client::MCF_refreshLanguages() {
     menu.options.language.language.addOption("English", "en");   // global default when there's nothing in language.txt
 
     // search the languages directory for translations to add
-    const string searchPattern = wheregamedir + "languages" + directory_separator + "*.txt";
-    log("Scanning for translations: '%s'", searchPattern.c_str());
     vector< pair<string, string> > translations;
-
-    al_ffblk ffblk;
-    for (int error = al_findfirst(searchPattern.c_str(), &ffblk, FA_ARCH | FA_RDONLY); !error; error = al_findnext(&ffblk)) {
-        char nameBuf[500];
-        replace_extension(nameBuf, ffblk.name, "", 500);
-        nameBuf[strlen(nameBuf) - 1] = '\0';    // erase last '.'
-        if (strchr(nameBuf, '.') || !strcmp(nameBuf, "en"))   // skip help.language.txt and possible similar files, and of course English which was added first
+    FileFinder* languageFiles = platMakeFileFinder(wheregamedir + "languages", ".txt", false);
+    while (languageFiles->hasNext()) {
+        string name = FileName(languageFiles->next()).getBaseName();
+        if (name.find('.') != string::npos || name == "en")   // skip help.language.txt and possible similar files, and of course English which was added first
             continue;
         // fetch language name
         string langName;
-        const string langFile = wheregamedir + "languages" + directory_separator + nameBuf + ".txt";
+        const string langFile = wheregamedir + "languages" + directory_separator + name + ".txt";
         ifstream lang(langFile.c_str());
         if (lang && getline_skip_comments(lang, langName))
-            translations.push_back(pair<string, string>(langName, nameBuf));
+            translations.push_back(pair<string, string>(langName, name));
         else
             log.error(_("Translation $1 can't be read.", langFile));
     }
-    al_findclose(&ffblk);
+    delete languageFiles;
 
     // add found languages to options
     sort(translations.begin(), translations.end(), translationSort);
@@ -4876,7 +4941,7 @@ void Client::loadSplashScreen() {
     }
     else {
         static const char* msg[] = {
-            GAME_STRING " " GAME_VERSION ", copyright © 2002-2005 multiple authors.",
+            GAME_STRING " " GAME_VERSION ", copyright © 2002-2006 multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to",
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY",
@@ -4893,8 +4958,7 @@ void Client::loadSplashScreen() {
             "",
             "Choose the preferred mode below with left and right arrow keys, and close",
             "the menu with Enter or Esc. After the first time of starting Outgun, you",
-            "can find this screen from the Options menu.",
-            "",
+            "can find this screen in the Options menu.",
             0
         };
         for (const char** line = msg; *line; ++line)

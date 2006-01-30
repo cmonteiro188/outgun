@@ -1,8 +1,8 @@
 /*
  *  utility.cpp
  *
- *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -22,6 +22,7 @@
  *
  */
 
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -34,8 +35,8 @@
 #include <ctime>
 
 #include "incalleg.h"
+#include "commont.h"
 #include "log.h"
-#include "commont.h"    // for time_counter
 #include "platform.h"
 #include "language.h"
 #include "utility.h"
@@ -115,6 +116,10 @@ unsigned char latin1_toupper(unsigned char c) {
     return upper[c];
 }
 
+bool cmp_case_ins(const string& a, const string& b) {
+    return toupper(a) < toupper(b);
+}
+
 string trim(string str) {
     str.erase(0, str.find_first_not_of(" \t\n\r\xA0"));
     const string::size_type lastGood = str.find_last_not_of(" \t\n\r\xA0");
@@ -128,9 +133,18 @@ string trim(string str) {
 string replace_all(string text, const string& s1, const string& s2) {
     string::size_type pos = 0;
     while ((pos = text.find(s1, pos)) != string::npos) {
-        text = text.replace(pos, s1.length(), s2);
-        pos += s1.length();
+        text.replace(pos, s1.length(), s2);
+        pos += s2.length();
     }
+    return text;
+}
+
+string escape_for_html(string text) {
+    text = replace_all(text, "&", "&amp;"); // this must be first because entities contain '&'
+    text = replace_all(text, "<", "&lt;");
+    text = replace_all(text, ">", "&gt;");
+    text = replace_all(text, "\"", "&quot;");
+    text = replace_all(text, "'", "&#39;");
     return text;
 }
 
@@ -226,14 +240,23 @@ void LogSet::security  (const char* fmt, ... ) { if (!securityLog) return; va_li
 bool g_allowBlockingMessages = true;
 
 void messageBox(const string& heading, const string& msg, bool blocking) {
-    if (g_allowBlockingMessages)
+    #ifndef DEDICATED_SERVER_ONLY
+    if (g_allowBlockingMessages) {
         platMessageBox(heading, msg, blocking);
-    else {
-        std::cerr << heading << ":\n" << msg << '\n';
-        ofstream os((wheregamedir + "log" + directory_separator + "suppressed_messages.txt").c_str(), std::ios_base::ate);
-        // ignore possible error (what could we do?)
-        os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
+        return;
     }
+    #else
+    (void)blocking;
+    #endif
+    std::cerr << heading << ":\n" << msg << '\n';
+    ofstream os((wheregamedir + "log" + directory_separator + "suppressed_messages.txt").c_str(), std::ios_base::ate);
+    // ignore possible error (what could we do?)
+    os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
+}
+
+void criticalError(const std::string& msg) {
+    messageBox(_("Critical error"), msg, true);
+    _Exit(-1);
 }
 
 void errorMessage(const string& heading, MemoryLog& errorLog, const string& footer) {
@@ -253,23 +276,12 @@ void errorMessage(const string& heading, MemoryLog& errorLog, const string& foot
     }
 }
 
-bool is_keypad(int sc) {
-    switch (sc) {
-    /*break;*/ case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
-        break; default: return false;
-    }
-}
-
 void rotate_angle(double& angle, double shift) {
     angle += shift;
     if (angle < 0)
         angle += 360;
     else if (angle >= 360)
         angle -= 360;
-}
-
-double get_time() {
-    return time_counter / 200.0;
 }
 
 string date_and_time() {
@@ -312,6 +324,27 @@ string approxTime(int seconds) {
     }
     const string str = itoa(time) + ' ' + timeUnit;
     return str;
+}
+
+FileName::FileName(const string& fullName) {
+    string::size_type pathSep = fullName.find_last_of(directory_separator);
+    if (pathSep != string::npos) {
+        path = fullName.substr(0, pathSep);
+        ++pathSep; // skip separator
+    }
+    else
+        pathSep = 0;
+    string::size_type extSep = fullName.find_last_of('.');
+    if (extSep != string::npos && extSep >= pathSep) {
+        base = fullName.substr(pathSep, extSep - pathSep);
+        ext = fullName.substr(extSep);
+    }
+    else
+        base = fullName.substr(pathSep);
+}
+
+string FileName::getFull() const {
+    return path + directory_separator + base + ext;
 }
 
 // definitions for incalleg.h

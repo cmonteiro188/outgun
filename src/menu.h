@@ -2,7 +2,7 @@
  *  menu.h
  *
  *  Copyright (C) 2004 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -110,7 +110,7 @@ public:
     void close() { closeHook.call(*this); }
 
     void draw(BITMAP* buffer);  // no const because drawHook might modify the menu
-    void handleKeypress(char scan, unsigned char chr);
+    bool handleKeypress(char scan, unsigned char chr);
 
     void  setDrawHook(MenuHook<Menu>::FunctionT* fn) {  drawHook.set(fn); } // called before drawing
     void  setOpenHook(MenuHook<Menu>::FunctionT* fn) {  openHook.set(fn); } // called by open()
@@ -152,7 +152,7 @@ public:
     void close() { nAssert(!empty()); Menu* menu = st.back(); st.pop_back(); menu->close(); }
     void clear() { while (!empty()) close(); }
     void draw(BITMAP* buf) { nAssert(!empty()); st.back()->draw(buf); }
-    void handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); st.back()->handleKeypress(scan, chr); }
+    bool handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); return st.back()->handleKeypress(scan, chr); }
 
 private:
     std::vector<Menu*> st;  // a "real" std::stack can't be used because it doesn't allow removal from the middle by close(Menu*)
@@ -173,14 +173,15 @@ private:
     int space;
 };
 
-// the Textfield keyhook is only called with keys not handled otherwise (= non-printables other than backspace)
-class Textfield : public Component, public MenuHookable<Textfield>, public KeyHookable<Textfield> {
+class TextfieldBase : public Component {
 public:
-    Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask) { }
+    TextfieldBase(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask) { }
+    virtual ~TextfieldBase() { }
     void set(const std::string& text) { value = text; }
     const std::string& operator()() const { return value; }
 
     void setTail(const std::string& text) { tail = text; }
+    void limitToCharacters(const std::string& chars) { charset = chars; } // set to empty to accept all printable characters
 
     // inherited interface
     bool needsNumberKeys() const { return true; }
@@ -191,8 +192,46 @@ public:
 
 private:
     std::string value, tail;
+    std::string charset; // characters that are allowed to be input
     int maxlen, tailSpace;
     char maskChar;  // 0 for no masking
+
+    virtual void virtualCallHook() = 0;
+    virtual bool virtualCallKeyHook(char scan, unsigned char chr) = 0;
+};
+
+// a keyhook is only called with keys not handled otherwise (= non-printables other than backspace, plus those outside limited characters [if set])
+class Textfield : public TextfieldBase, public MenuHookable<Textfield>, public KeyHookable<Textfield> {
+public:
+    Textfield(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): TextfieldBase(caption_, init_text, fieldLength, mask, reserveTailLength) { }
+
+    // the public interface is entirely defined in TextfieldBase
+
+private:
+    void virtualCallHook() { callHook(*this); }
+    bool virtualCallKeyHook(char scan, unsigned char chr) { return callKeyHook(*this, scan, chr); }
+};
+
+// a keyhook is only called with keys not handled otherwise (= non-printables other than backspace, plus those outside limited characters)
+class IPfield : public TextfieldBase, public MenuHookable<IPfield>, public KeyHookable<IPfield> {
+public:
+    IPfield(const std::string& caption_, bool acceptPort_, bool printUnknown_);
+    void set(const std::string& text) { TextfieldBase::set(text); updateTail(); }
+    void setFixedPortString(const std::string& text) { portStr = text; updateTail(); } // this is intended for :port, space for 6 characters is allocated (only if !acceptPort)
+    const std::string& operator()() const { return TextfieldBase::operator()(); }
+
+    // inherited interface (what's overridden from TextfieldBase)
+    bool handleKey(char scan, unsigned char chr);
+
+private:
+    std::string portStr;
+    bool acceptPort;
+    bool printUnknown;
+
+    void updateTail();
+
+    void virtualCallHook() { callHook(*this); }
+    bool virtualCallKeyHook(char scan, unsigned char chr) { return callKeyHook(*this, scan, chr); }
 };
 
 class SelectBase : public Component {
@@ -201,6 +240,7 @@ public:
     int size() const { return options.size(); }
 
     // inherited interface
+    bool needsNumberKeys() const { return open; }
     int width() const;
     int height() const;
     void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
@@ -209,17 +249,21 @@ public:
     virtual void virtualCallHook() = 0;
 
 protected:
-    SelectBase(const std::string caption_): Component(caption_), selected(0) { }
+    SelectBase(const std::string caption_): Component(caption_), selected(0), open(false), pendingSelection(0) { }
+
+    int maxSelLength() const;
 
     std::vector<std::string> options;
     int selected;
+    mutable bool open; //#fix: remove mutable by introducing a proper lostFocus-type method
+    int pendingSelection;   // in list view; only when open
 };
 
 template<class ValueT>
 class Select : public SelectBase, public MenuHookable< Select<ValueT> > {
 public:
     Select(const std::string caption_): SelectBase(caption_) { }
-    void clearOptions() { options.clear(); values.clear(); selected = 0; }
+    void clearOptions() { options.clear(); values.clear(); selected = 0; open = false; }
     void addOption(const std::string& text, const ValueT& value) { options.push_back(text); values.push_back(value); }
     bool set(const ValueT& value);  // returns false if there is no value in the options
 //  void set(int selection) { nAssert(selection >= 0 && selection < static_cast<int>(options.size())); selected = selection; }
@@ -317,8 +361,7 @@ private:
 
 class Textarea : public Component, public MenuHookable<Textarea>, public KeyHookable<Textarea> {
 public:
-    Textarea(const std::string& caption_, const std::string& text_ = std::string()): Component(caption_), text(text_) { }
-    void set(const std::string& val) { text = val; }
+    Textarea(const std::string& caption_): Component(caption_) { }
 
     // inherited interface
     int width() const;
@@ -329,9 +372,6 @@ public:
 
     // override isEnabled() : can't be enabled if not hooked
     bool isEnabled() const { return Component::isEnabled() && isHooked(); }
-
-private:
-    std::string text;
 };
 
 class StaticText : public Component {
@@ -352,21 +392,23 @@ private:
 
 class Textobject : public Component {
 public:
-    Textobject(): Component(""), start(0), visible_lines(0) { }
+    Textobject(): Component(""), start(0), visible_lines(0), old_x(-1), old_h(-1) { }
     void addLine(const std::string& text) { lines.push_back(text); }
 
     // inherited interface
     int width() const;
     int height() const;
-    int minHeight() const { return line_h; }    // one line
+    int minHeight() const { return objLineHeight(); }    // one line
+    int objLineHeight() const;
     void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:
     std::vector<std::string> lines;
-    enum { line_h = 12 };
-    mutable int start;          // these may change in drawing
+    mutable int start;                          // these may change in drawing
     mutable int visible_lines;
+    mutable std::vector<std::string> splitted;
+    mutable int old_x, old_h;
 };
 
 // this template does the necessary wrapping of member function references to be given to Components as callbacks

@@ -85,6 +85,7 @@ class Server {
     FileLog normalLog;
     DualLog errorLog;
     SupplementaryLog<FileLog> securityLog;
+    SupplementaryLog<FileLog> adminActionLog;
     LogSet log;
 
     const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems so it's often wise
@@ -98,6 +99,7 @@ class Server {
     std::string     sayadmin_comment;
     bool            sayadmin_enabled;
     double          team_smul[2];
+    bool            require_specific_map_vote;
     NLulong         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
     int             idlekick_time, idlekick_playerlimit;
@@ -129,6 +131,8 @@ class Server {
     int vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
     std::string server_website_url; // the URL of the server website to be sent to master server
 
+    void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
+
     bool trySetMaxplayers(int val); // checks that no players are connected, if that fails, logs an error and returns false
     void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
 
@@ -154,12 +158,14 @@ public:
 
     int get_player_count() const { return network.get_player_count(); }
     void mutePlayer(int pid, int mode, int admin);
-    void kickPlayer(int pid, int admin, int minutes = 0);   // if minutes > 0, it's really a ban
+    void kickPlayer(int pid, int admin);
     void banPlayer(int pid, int admin, int minutes);
     bool isBanned(int cid) const { return authorizations.isBanned(network.get_client_address(cid)); }
     bool check_name_password(const std::string& name, const std::string& password) const;
     void disconnectPlayer(int pid, Disconnect_reason reason);
     void sendMessage(int pid, Message_type type, const std::string& msg);
+
+    void logAdminAction(int admin, const std::string& action, int target = -1);
 
    int check[MAX_PLAYERS];
    int checount;
@@ -184,6 +190,7 @@ public:
     void resetClient(int cid) { client[cid].reset(); }
     void refresh_team_score_modifiers();
     void check_map_exit();
+    bool specific_map_vote_required() const { return require_specific_map_vote; }
     void score_frag(int p, int amount);
     void score_neg(int p, int amount);
     int getLessScoredTeam() const;  // using team_smul ; call refresh_team_score_modifiers before calling this

@@ -43,6 +43,8 @@ std::istream& getline_skip_comments(std::istream& in, std::string& str);
 // Check player name validity.
 bool check_name(const std::string& name);
 
+bool isFlood(const std::string& message);
+
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header };
 
 static const std::string::size_type maxPlayerNameLength = 15;
@@ -51,6 +53,8 @@ static const std::string::size_type max_chat_message_length = 200; // How long m
 enum DamageType { DT_rocket, DT_deathbringer, DT_collision };
 
 bool readJoystickButton(int button);    // operates on pseudo button ids that are Allegro button id + 1; returns false on all non-button-mapped indices
+
+bool is_keypad(int sc);
 
 class ClientControls {
 public:
@@ -93,6 +97,8 @@ private:
 
 class ClientLoginStatus {
 public:
+    ClientLoginStatus(): data(0) { }
+
     NLubyte toNetwork() const { return data; }
     void fromNetwork(NLubyte byte) { data = byte; }
 
@@ -241,10 +247,6 @@ static const int MAX_PLAYERS = 32;  // the MAXIMUM MAXIMUM number of players EVE
 
 static const int MAX_ROCKETS = 256; // maximum number of rockets (must be <= 256 while IDs are transmitted as bytes)
 static const int MAX_PICKUPS = 32; // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
-
-extern volatile unsigned long server_speed_counter; // 10 Hz (100 ms) server frame counter
-extern volatile unsigned long time_counter; // 200 Hz (5 ms) counter used by get_time() and for client frame timing
-//#fix: time_counter goes around in 248 days; that might cause serious trouble (?)
 
 static const double N_PI   = 3.14159265358979323846;
 static const double N_PI_2 = 1.57079632679489661923;

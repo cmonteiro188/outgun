@@ -77,8 +77,8 @@ bool NameAuthorizationDatabase::load() {
         strl >> command;
         strl.ignore();  // useful especially when the separator is a tab
         getline(strl, name, '\t');
-        name = makeComparable(name);
-        if (!strl || name.empty()) {
+        const string compName = makeComparable(name);
+        if (!strl || compName.empty()) {
             log.error(_("Invalid line (no name) in auth.txt: \"$1\"", line));
             continue;
         }
@@ -89,13 +89,13 @@ bool NameAuthorizationDatabase::load() {
             if (!dataRead)
                 log.error(_("Invalid user command (no password) in auth.txt: \"$1\"", line));
             else
-                names.push_back(NameEntry(name, data, false));
+                names.push_back(NameEntry(compName, data, false));
         }
         else if (command == "ADMIN") {
             if (dataRead)
-                names.push_back(NameEntry(name, data, true));
+                names.push_back(NameEntry(compName, data, true));
             else
-                names.push_back(NameEntry(name, "", true));
+                names.push_back(NameEntry(compName, "", true));
         }
         else if (command == "BAN") {
             if (!dataRead || !isValidIP(data))
@@ -108,7 +108,7 @@ bool NameAuthorizationDatabase::load() {
                 time_t endTime;
                 strl >> endTime;
                 if (!strl)
-                    bans.push_back(BanEntry(name, addr));
+                    bans.push_back(BanEntry(name, addr)); // use name instead of compName because names in bans don't need to be compared
                 else if (endTime > time(0))
                     bans.push_back(BanEntry(name, addr, endTime));
                 else    // if the ban isn't in effect any more, remove from the list

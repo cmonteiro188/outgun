@@ -1,6 +1,6 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2005 <no one>
+; Original copyright © 2004, 2005, 2006 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2006 <no one>
 
 
 ; Language of the translation, in the target language.
@@ -12,6 +12,11 @@ English
 ; en.txt to a new name (languagename.txt) and translate each phrase (non-
 ; commented line) in that file. Please send your translation to us at
 ; outgun@mbnet.fi for inclusion in the official packages.
+
+; The length restrictions mentioned in the comments should guarantee that the
+; translations fit on the screen in the 640×400 resolution with a 8×8 font that
+; is the default. To allow for smaller resolutions or larger fonts, shorter is
+; always better.
 
 
 ; - - - - - - - - - - - - - - miscellaneous texts - - - - - - - - - - - - - -
@@ -54,18 +59,20 @@ $1 min
 
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
 ; refresh rate and in the local server menu for IP address; 'private' and
-; 'invalid' are also for IP address; 'none' (meaning "not set"), 'on', and
-; 'off' in the server settings dialog (F5), as well as 'special' which is
-; used for the player collisions setting. 'Disabled', 'minimal', and 'complete'
-; are currently values of the automatic bug reporting policy setting. OK and
-; Cancel are used in the menus, in their usual UI meaning. All may be used
-; elsewhere in a similar context in the future.
+; 'invalid' are also for IP address; 'default' is used in font selection;
+; 'none' (meaning "not set"), 'on', and 'off' in the server settings dialog
+; (F5), as well as 'special' which is used for the player collisions setting.
+; 'Disabled', 'minimal', and 'complete' are currently values of the automatic
+; bug reporting policy setting. OK and Cancel are used in the menus, in their
+; usual UI meaning. All may be used elsewhere in a similar context in the
+; future.
 ; Lengths up to 25 characters are ok, but short is preferred.
 OK
 Cancel
 unknown
 private
 invalid
+default
 none
 on
 off
@@ -78,13 +85,15 @@ complete
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
 ;
 ; Length restrictions vary:
-; With the minimal resolution (640 in width), the end of the line is not
-; visible after 76 characters. The actual maximal length of each text depends
-; on the type of the menu component and many lines are made of two parts.
+; With the standard resolution (640 in width) and standard 8-wide font, the end
+; of the line is not visible after 76 characters. The actual maximal length of
+; each text depends on the type of the menu component and many lines are made
+; of two parts.
 ;
 ; Usually, considerably longer than original texts do fit well. To be sure
-; they fit, you should test each menu in the lowest resolution, if you use
-; translations that are considerably longer than the original texts.
+; they fit, you should test each menu in the standard resolution and preferably
+; a wider-than-standard font, if you use translations that are considerably
+; longer than the original texts.
 
 New version: $1
 Server list
@@ -152,7 +161,7 @@ Strafe
 
 Active controls
 
-Graphic options
+Screen mode
 Color depth
  desktop
 $1-bit
@@ -163,7 +172,12 @@ Alternative page flipping method
 Current refresh rate
 $1 Hz
 Apply changes
+
+Graphic options
 Theme
+Background theme
+Prefer main theme background
+Font
 Antialiasing
 Less transparency effects
 Continuous textures between rooms
@@ -323,6 +337,9 @@ See the 'log' directory for more information.
 Internal error
 This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi
 
+; Used in an external dialog as title. No length restriction.
+Critical error
+
 ; Used in a simple dialog, started from the name and passwords menu.
 1 password removed.
 $1 passwords removed.
@@ -350,6 +367,7 @@ Server password
 ; sounds)
 <no theme>
 <no themes found>
+<no background>
 
 ; Reserved for if the theme names from theme.txt are used in the future.
 (unnamed theme)
@@ -407,6 +425,7 @@ $1 changed name to $2.
 
 *** Idle kick: move or be kicked in $1 seconds.
 *** $1/$2 votes for mapchange.
+Your vote has no effect until you vote for a specific map.
 
 ; Optionally added to the previous message.
 (All players needed for $1 more seconds.)
@@ -463,6 +482,8 @@ administrator
 
 ; Used below the messages when typing a message: Say: Hello world_
 Say
+Say team
+Command
 
 
 ; - - - - - - - - texts used in the middle of the game screen - - - - - - - -
@@ -493,18 +514,18 @@ Loading map: $1 bytes
 VIROU
 SORVETE!
 
-; Max length 13 with 3-digit $1.
-Health $1
-Energy $1
+; The shorter the better, but if one is long, it does't help if the other is
+; shorter.
+Health
+Energy
 
-; Recommended max length 10 with 3-digit $1. If more length is required, you
-; have to pad Weapon below with spaces from the left so they don't overlap (but
-; don't grow Weapon past 14). Looks nice if these three are the same length.
-Power  $1
-Turbo  $1
-Shadow $1
+; The shorter the better, but if one is long, it doesn't help if others are
+; shorter.
+Power
+Turbo
+Shadow
 
-; Max length 14 with 1-digit $1.
+; The shorter the better; test it.
 Weapon $1
 
 ; No limit really, but small and discreet is good.
@@ -517,10 +538,9 @@ TEAMS
 EXIT
 MAP
 
-; All 3 lines are used as one message in the middle of the screen. Max length
-; for each line is 27 characters, use more and it's not neatly in the message
-; box any more.
-SERVER NOT RESPONDING...
+; All three lines are used as a menu, first line as its title. Menu length
+; restrictions apply.
+Server not responding
 May be heavy packet loss,
 or the server disconnected.
 
@@ -721,12 +741,13 @@ Syntax error in gfxmodes.txt, line '$1'.
 Translation $1 can't be read.
 Unknown data in client.cfg ("$1").
 Unrecognized command "$1" in auth.txt
-Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 640×400 with bits 16, 24 or 32).
+Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).
 Width and height of textures must be powers of 2; floor texture $1 is $2×$3.
 Width and height of textures must be powers of 2; wall texture $1 is $2×$3.
 
 ; Miscellaneous errors.
 Can't change max_players while players are connected.
+Can't create new thread. Insufficient system resources.
 Can't set server to run in the background.
 Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update.
 No maps for rotation.
@@ -739,6 +760,7 @@ Can't init HawkNL. $1
 No IP network.
 Admin shell: Can't open socket on port $1.
 Admin shell: Can't set socket to listen mode.
+Admin shell: Can't accept connection.
 Admin shell: read failed. Reason: $1
 Admin shell: sending response failed. Reason: $1
 Can't connect to master server. $1

@@ -32,11 +32,11 @@
 
 #include <cmath>
 
-#include "commont.h"
 #include "language.h"
 #include "nassert.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
+#include "timer.h"
 #include "utility.h"
 
 #include "world.h"
@@ -46,7 +46,7 @@ static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mos
 const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
-const double minimum_grab_to_capture_time = 6.0;
+const double minimum_grab_to_capture_time = 4.0;
 
 const int maximum_shadow_visibility = 254;
 
@@ -54,6 +54,7 @@ using std::ifstream;
 using std::ios;
 using std::istream;
 using std::istringstream;
+using std::list;
 using std::max;
 using std::min;
 using std::ofstream;
@@ -333,10 +334,10 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
             continue;
         // check more carefully
         (*wi)->tryBounce(&bd, x, y, mx, my, radius);
-        #ifndef NDEBUG
+        #ifdef EXTRA_DEBUG
         if (bd.first < 1e10) {
             const double dx = bd.second.first, dy = bd.second.second, r = radius;
-            nAssert(fabs(dx * dx + dy * dy - r * r) < .0001);
+            nAssert(fabs(dx * dx + dy * dy - r * r) < 1e-8);
         }
         #endif
     }
@@ -1296,6 +1297,9 @@ void PowerupSettings::reset() {
     pup_weapon_max = 9;
     pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
+    
+    pups_drop_at_death = false;
+    pups_player_max = INT_MAX;
 }
 
 Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
@@ -1342,8 +1346,10 @@ void WorldSettings::reset() {
     rocket_damage = 70;
     time_limit = 0;     // no time limit
     extra_time = 0;
-    sudden_death = 0;
+    sudden_death = false;
     capture_limit = 8;
+    win_score_difference = 1;
+    flag_return_delay = 1.0;
     balance_teams = TB_disabled;
 
     lock_team_flags = false;
@@ -1412,7 +1418,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
     ostringstream server_time;
     server_time << "The server has been up for ";
     if (days > 0)
-        server_time << ' ' << days << " day" << (days > 1 ? "s " : " ");
+        server_time << days << " day" << (days > 1 ? "s " : " ");
     server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
     if (days == 0)
         server_time << " hours";
@@ -1435,7 +1441,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
                 map_time << " Extra-time left: " << extra_time_seconds / 60 << ':';
                 map_time << setfill('0') << setw(2) << extra_time_seconds % 60 << '.';
             }
-            if (config.sudden_death)
+            if (config.suddenDeath())
                 map_time << " Sudden death.";
         }
         else {
@@ -1474,6 +1480,8 @@ void ServerWorld::returnFlag(int team, int flag) {
 
 void ServerWorld::dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly) {
     WorldBase::dropFlag(team, flag, roomx, roomy, lx, ly);
+    if (team != 2)
+        teams[team].set_flag_drop_time(flag, frame / 10.);
     net->ctf_net_flag_status(-1, team);
 }
 
@@ -1520,15 +1528,14 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     WorldCoords pos;
     if (map.tinfo[team].spawn.empty())
         player[pid].respawn_to_base = false;
-    else if (player[pid].respawn_to_base) {
+
+    if (player[pid].respawn_to_base) {
         //choose a team spawn point
         if (++map.tinfo[team].lastspawn >= map.tinfo[team].spawn.size())
             map.tinfo[team].lastspawn = 0;
         pos = map.tinfo[team].spawn[map.tinfo[team].lastspawn]; // the point
     }
-
-    //if was killed or map spawn point places player over a wall
-    if (!player[pid].respawn_to_base || map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS)) {
+    else {
         // generate a random spot for respawn:
         // - unnocupied screen
         // - away from walls
@@ -1732,7 +1739,7 @@ void ServerWorld::check_pickup_creation(bool instant) {
                 respawn_pickup(i);
             else
                 item[i].respawn_time = get_time() + pupConfig.getRespawnTime();
-            if (++ic>=real_min)
+            if (++ic >= real_min)
                 break;
         }
 }
@@ -1747,6 +1754,20 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
     net->broadcast_screen_message(it.px, it.py, lebuf, count);
 
     ServerPlayer& pl = player[pid];
+
+    // Check which powerups player has.
+    bool pups[Powerup::pup_last_real + 1];
+    int pup_count = 0;
+    if (pups[Powerup::pup_shield      ] = pl.item_shield)        pup_count++;
+    if (pups[Powerup::pup_turbo       ] = pl.item_turbo)         pup_count++;
+    if (pups[Powerup::pup_shadow      ] = pl.item_shadow())      pup_count++;
+    if (pups[Powerup::pup_power       ] = pl.item_power)         pup_count++;
+    if (pups[Powerup::pup_weapon      ] = pl.weapon > 1)         pup_count++;
+        pups[Powerup::pup_health      ] = true;
+    if (pups[Powerup::pup_deathbringer] = pl.item_deathbringer)  pup_count++;
+
+    if (!pups[it.kind] && pup_count >= pupConfig.pups_player_max)   // Drop one if necessary.
+        drop_worst_powerup(pl);
 
     switch (it.kind) {
     /*break;*/ case Powerup::pup_shield: {
@@ -1833,6 +1854,38 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
     // check pickup creation
     check_pickup_creation(false);
+}
+
+void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
+    if (pl.item_turbo || pl.item_shadow() || pl.item_power) {
+        double mintime = 1e50;
+        if (pl.item_turbo)
+            mintime = pl.item_turbo_time;
+        if (pl.item_shadow() && pl.item_shadow_time < mintime)
+            mintime = pl.item_shadow_time;
+        if (pl.item_power && pl.item_power_time < mintime)
+            pl.item_power_time = 0;
+        else if (pl.item_turbo && pl.item_turbo_time == mintime)
+            pl.item_turbo_time = 0;
+        else {
+            nAssert(pl.item_shadow() && pl.item_shadow_time == mintime);
+            pl.item_shadow_time = 0;
+        }
+        return; // simulateFrame() informs the client
+    }
+
+    if (pl.item_deathbringer) {
+        pl.item_deathbringer = false;
+        net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
+    }
+    else if (pl.item_shield) {
+        pl.item_shield = false;
+        net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_LOST);
+    }
+    else {
+        pl.weapon = 1;
+        net->sendWeaponPower(pl.id);
+    }
 }
 
 //game player screen changed
@@ -1951,14 +2004,22 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                 host->score_frag(attacker, 1);
                 break;  // only one frag even for defending multiple carriers
             }
-        // Check if an own flag is lying on the ground in the target's screen.
-        if (!lock_team_flags_in_effect())    // Not much defending if the flag couldn't be moved anyway.
+        // Check if an own or enemy flag is lying on the ground in the target's screen.
+        if (!lock_team_flags_in_effect()) {   // Not much defending or attacking if the flag couldn't be moved anyway.
             for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
                 if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
                     flag_defended = true;
-                    host->score_frag(attacker, 1);
+                    if (!carrier_defended)
+                        host->score_frag(attacker, 1);
                     break;  // only one frag even for defending multiple flags
                 }
+            if (!carrier_defended && !flag_defended)
+                for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
+                    if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                        host->score_frag(attacker, 1);
+                        break;  // only one frag even for attacking multiple flags
+                    }
+        }
     }
     const bool flag = player[target].stats().has_flag();
     const bool wild_flag = player[target].stats().has_wild_flag();
@@ -2104,8 +2165,9 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 
     //if player not dead, push him
     if (player[pid].health > 0) {
-        player[pid].sx += rock[rid].sx * .33;
-        player[pid].sy += rock[rid].sy * .33;
+        const double mul = .33 * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.);
+        player[pid].sx += rock[rid].sx * mul;
+        player[pid].sy += rock[rid].sy * mul;
     }
 
     if (had_shield)
@@ -2850,7 +2912,8 @@ void ServerWorld::simulateFrame() {
         // Flag return - wild flags can't be returned
         int f = 0;
         for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly) &&
+                             frame / 10. >= fi->drop_time() + config.flag_return_delay) {
                 //FLAG RETURNED!
                 host->score_frag(i, 1); // just add some frags
                 pl.stats().add_flag_return();
@@ -2858,6 +2921,8 @@ void ServerWorld::simulateFrame() {
                 net->broadcast_flag_return(pl);
                 returnFlag(myteam, f);  //flag returned
             }
+
+        const bool extra_time_and_sudden_death = config.suddenDeath() && getTimeLeft() < 0;
 
         // Flag captures
         // ft = 0 => Take enemy or wild flag to own flag
@@ -2871,24 +2936,21 @@ void ServerWorld::simulateFrame() {
             for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy) {
                 if (!fmy->at_base())
                     continue;
-                int f = 0;
-                for (vector<Flag>::const_iterator fen = teams[enemyteam].flags().begin(); fen != teams[enemyteam].flags().end(); ++fen, ++f)
-                    if (fen->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
-                        player_captures_flag(i, enemyteam, f);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
-                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                            return;
+                for (int t = 0; t < 2; ++t) {
+                    const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
+                    const int flagTeam = t == 0 ? enemyteam : 2;
+                    int f = 0;
+                    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
+                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+                            player_captures_flag(i, flagTeam, f);
+                            if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
+                                        teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
+                                        extra_time_and_sudden_death) {
+                                host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+                                return;
+                            }
                         }
-                    }
-                f = 0;
-                for (vector<Flag>::const_iterator fw = wild_flags.begin(); fw != wild_flags.end(); ++fw, ++f)
-                    if (fw->carrier() == i && fmy->at_base() && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
-                        player_captures_flag(i, 2, f);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0) {
-                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                            return;
-                        }
-                    }
+                }
             }
         }
     }
@@ -2911,7 +2973,7 @@ void ServerWorld::simulateFrame() {
         else if (time_limit >=    60 * 10 && timeLeft ==   30 * 10)
             net->broadcast_30_s_left();
         // game ends if time is over and (the game is not tied or there is no extra-time)
-        else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.sudden_death))) {
+        else if (timeLeft == 0 && (teams[0].score() != teams[1].score() || (config.extra_time == 0 && !config.suddenDeath()))) {
             net->broadcast_time_out();
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
         }
@@ -2920,7 +2982,7 @@ void ServerWorld::simulateFrame() {
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
         }
         else if (timeLeft == 0) {
-            net->broadcast_normal_time_out(config.sudden_death);
+            net->broadcast_normal_time_out(config.suddenDeath());
             net->send_map_time(-1);
         }
     }
@@ -3049,10 +3111,11 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     if (print_html_begin) {
         out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
         out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
+        out << "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=ISO-8851-1\">\n";
         out << "<LINK REL=\"stylesheet\" HREF=\"stats.css\" TYPE=\"text/css\" TITLE=\"Outgun statistics style\">\n\n";
         out << "<H1>Outgun statistics " << date << "</H1>\n\n";
     }
-    out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << map_name << "</H2>\n\n";
+    out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << escape_for_html(map_name) << "</H2>\n\n";
 
     out << "<H3>Team stats</H3>\n\n";
     const Team& red = teams[0];
@@ -3090,7 +3153,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
             out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Blue team\n";
             team++;
         }
-        out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << (*pl)->name;
+        out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << escape_for_html((*pl)->name);
         const Statistics& stats = (*pl)->stats();
         out << "<TD>" << stats.frags();
         out << "<TD>" << stats.captures();
@@ -3113,6 +3176,10 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     out << "\n</TABLE>\n\n";
     if (red.score() == 0 && blue.score() == 0)
         return;
+    else if (teams[0].captures().empty() && teams[1].captures().empty()) {  // only in client
+        out << "<P>No captures when you were playing.</P>\n\n";
+        return;
+    }
 
     out << "<H3>Captures</H3>\n\n";
     out << "<TABLE BORDER CLASS=\"captures\">\n";
@@ -3144,7 +3211,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
         out << " <TR><TD ALIGN=\"right\">" << time;
         out << "<TD>" << team;
         out << "<TD ALIGN=\"center\">" << red_score << "&ndash;" << blue_score;
-        out << "<TD>" << capturer;
+        out << "<TD>" << escape_for_html(capturer);
         out << '\n';
     }
     out << "</TABLE>\n\n";
@@ -3217,6 +3284,10 @@ void Team::drop_flag(int n, const WorldCoords& pos) {
 
 void Team::move_flag(int n, const WorldCoords& pos) {
     team_flags[n].move(pos);
+}
+
+void Team::set_flag_drop_time(int n, double time) {
+    team_flags[n].set_drop_time(time);
 }
 
 double Team::accuracy() const {

@@ -29,28 +29,26 @@
 
 #include "incalleg.h"
 #include "allegro_icon.h"
-#include "client.h"
-#include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"    // some globals are set from commandline arguments
 #include "gameserver_interface.h"
+#include "log.h"
 #include "language.h"
-#include "mappic.h"
 #include "network.h"
-#include "platform.h"   // platMkdir
+#include "platform.h"
+#include "timer.h"
 #include "utility.h"
+
+#ifndef DEDICATED_SERVER_ONLY
+#include "client.h"
+#include "mappic.h"
+#endif
 
 using std::ifstream;
 using std::ostringstream;
 using std::string;
 
-void increment_time_counter() {
-    time_counter++;
-} END_OF_FUNCTION(increment_time_counter);
-
-void increment_server_speed_counter() {
-    server_speed_counter++;
-} END_OF_FUNCTION(increment_server_speed_counter);
+#ifndef DEDICATED_SERVER_ONLY
 
 bool set_shitty_mode(LogSet log) {
     int DTC = desktop_color_depth();
@@ -98,18 +96,19 @@ bool set_shitty_mode(LogSet log) {
         return true;
 }
 
+#endif
+
 // Make directory if it does not already exist.
 bool check_dir(const string& dir, LogSet& log) {
     const string directory = wheregamedir + dir;
-    al_ffblk mapffblk;
-    const int result = al_findfirst(directory.c_str(), &mapffblk, FA_DIREC | FA_ARCH | FA_RDONLY);
-    const bool exists = (result == 0 && (mapffblk.attrib & FA_DIREC));
-    al_findclose(&mapffblk);
-    if (exists || !platMkdir(directory.c_str()))
+    
+    if (platIsDirectory(directory) || !platMkdir(directory.c_str()))
         return true;
     log.error(_("The directory '$1' was not found and could not be created.", directory));
     return false;
 }
+
+#ifndef DEDICATED_SERVER_ONLY
 
 class GlobalCloseButtonHook {
     static volatile bool flag;
@@ -128,7 +127,17 @@ volatile bool GlobalCloseButtonHook::flag = false;
 
 void GlobalCloseButtonHook__closeCallback() {
     GlobalCloseButtonHook::flag = true;
-} END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback);
+} END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
+
+#endif
+
+#ifdef DEDICATED_SERVER_ONLY
+
+void statusOutputText(const string& str) {
+    std::cout << str << '\n';
+}
+
+#else
 
 void statusOutputWindow(const string& str) {
     set_window_title(str.c_str());
@@ -142,11 +151,30 @@ void statusOutputText(const string& str) {
     #endif
 }
 
+#endif
+
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
+
+int wrappedMain(int argc, const char* argv[]);
 
 int main(int argc, const char* argv[]) {
     unsigned long stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
     srand((unsigned)time(0));
+
+    platInit();
+    int result = wrappedMain(argc, argv);
+    platUninit();
+
+    return result;
+}
+#ifndef DEDICATED_SERVER_ONLY
+END_OF_MAIN()
+#endif
+
+int wrappedMain(int argc, const char* argv[]) {
+    g_timeCounter.setZero();
+
+    #ifndef DEDICATED_SERVER_ONLY
 
     // Set the text encoding format for Allegro as 8 bit Ascii
     set_uformat(U_ASCII);
@@ -161,19 +189,19 @@ int main(int argc, const char* argv[]) {
         return 1;
     }
     install_keyboard();
-    install_timer();
-
-    // Check what the directory separator is.
-    char stuff[2] = { 0 };
-    put_backslash(stuff);
-    directory_separator = stuff[0];
 
     // find out where we are
     char* path = new char[2048];
     get_executable_name(path, 2048);
-    replace_filename(path, path, "", 256); //Replaces the specified path+filename with a new filename tail, storing at most size bytes into the dest buffer. Returns a copy of the dest parameter
+    replace_filename(path, path, "", 256);
     wheregamedir = path;
     delete[] path;
+
+    #else // !DEDICATED_SERVER_ONLY
+
+    wheregamedir = "./";
+
+    #endif // !DEDICATED_SERVER_ONLY
 
     NoLog noLog;
     LogSet noLogSet(&noLog, &noLog, &noLog);
@@ -192,7 +220,7 @@ int main(int argc, const char* argv[]) {
     bool err = memoryErrorLog.size() != 0;
     errorMessage(_("Errors"), memoryErrorLog, '\n' + _("See the 'log' directory for more information."));
     return err;
-} END_OF_MAIN();
+}
 
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) {
     log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
@@ -247,11 +275,14 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     int targetprio = 0;
     bool targetprio_specified = false;
     ServerExternalSettings serverCfg;
+    #ifndef DEDICATED_SERVER_ONLY
     ClientExternalSettings clientCfg;
 #ifdef BOTMODE	    
     clientCfg.botmode = 0;
     clientCfg.server = NULL;
 #endif
+    #endif
+
     // check args
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-ded"))
@@ -278,6 +309,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         }
         else if (!strcmp(argv[i], "-unsafeserver"))
             serverCfg.threadLock = false;
+        #ifndef DEDICATED_SERVER_ONLY
 #ifdef BOTMODE	    
 	else if (!strcmp(argv[i], "-bot"))
 	{
@@ -310,6 +342,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-fps must be followed by a space and a number."));
         }
+        else if (!strcmp(argv[i], "-nosound"))
+            clientCfg.nosound = true;
+        #endif
         else if (!strcmp(argv[i], "-maxp")) {
             if (++i < argc) {
                 int maxp = strtol(argv[i], NULL, 10);
@@ -332,6 +367,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-port must be followed by a space and a port number."));
         }
+        #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-cport")) {
             if (++i < argc) {
                 int p1, p2;
@@ -351,6 +387,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-cport must be followed by a space and either a port number or minport:maxport."));
         }
+        #endif
         else if (!strcmp(argv[i], "-sport")) {
             if (++i < argc) {
                 int p1, p2;
@@ -370,8 +407,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-sport must be followed by a space and minport:maxport."));
         }
-        else if (!strcmp(argv[i], "-nosound"))
-            clientCfg.nosound = true;
         else if (!strcmp(argv[i], "-ip")) {
             if (++i < argc) {
                 if (isValidIP(argv[i])) {
@@ -439,16 +474,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     g_masterSettings.load(log);
 
-    // install higher-accuracy timer interrupt
-    LOCK_VARIABLE(time_counter);
-    LOCK_FUNCTION(increment_time_counter);
-    install_int_ex(increment_time_counter, BPS_TO_TIMER(200));      //5 ms accuracy is already 10 times better than clock()
-
-    // install server timer (used for both dedicated and listen server)
-    LOCK_VARIABLE(server_speed_counter);
-    LOCK_FUNCTION(increment_server_speed_counter);
-    install_int_ex(increment_server_speed_counter, BPS_TO_TIMER(10));       //10Hz
-
     // get system thread priorities
     int         pmin = sched_get_priority_min(SCHED_OTHER);
     int         pmax = sched_get_priority_max(SCHED_OTHER);
@@ -486,8 +511,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         return;
     }
 
-    clientCfg.priority = clientCfg.lowerPriority = pdef;
-    serverCfg.lowerPriority = pdef;
+    int highPriority;
     if (!defaultprio) {
         int ptarg;
         if (targetprio_specified)
@@ -503,17 +527,24 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             ptarg = pdef;
         }
 
-        serverCfg.priority = ptarg;
+        highPriority = ptarg;
         log("Priority set for server: %i", ptarg);
     }
     else {
-        serverCfg.priority = pdef;
+        highPriority = pdef;
         log("-defaultprio: Leaving thread priorities on their default values");
     }
-    serverCfg.networkPriority = clientCfg.networkPriority = serverCfg.priority;
+
+    serverCfg.lowerPriority = pdef;
+    serverCfg.priority = serverCfg.networkPriority = highPriority;
+
+    #ifndef DEDICATED_SERVER_ONLY
+    clientCfg.priority = clientCfg.lowerPriority = pdef;
+    clientCfg.networkPriority = highPriority;
 
     GlobalCloseButtonHook::install();
     GlobalDisplaySwitchHook::init();
+    #endif
 
     check_dir(SERVER_MAPS_DIR, log);    // the client might run a server, so check these in any case
     check_dir("server_stats" , log);
@@ -533,7 +564,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 serverCfg.statusOutput = statusOutputWindow;
         }
-        #endif
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
             if (set_display_switch_mode(SWITCH_BACKGROUND) == -1)
@@ -548,6 +578,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             GlobalDisplaySwitchHook::install();
             serverCfg.ownScreen = true;
         }
+        #endif
 
         if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
             return;
@@ -555,7 +586,12 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         // run server
         GameserverInterface* gameserver = new GameserverInterface(log, serverCfg, memoryErrorLog, "");
         if (gameserver->start(serverCfg.server_maxplayers)) {
+            #ifndef DEDICATED_SERVER_ONLY
             gameserver->loop(GlobalCloseButtonHook::flagPtr(), true);
+            #else
+            bool quit = false;
+            gameserver->loop(&quit, false);
+            #endif
             gameserver->stop();
         }
         else

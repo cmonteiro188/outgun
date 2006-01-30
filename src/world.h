@@ -483,11 +483,14 @@ public:
     void drop();
     void move(const WorldCoords& new_pos) { pos = new_pos; }
 
+    void set_drop_time(double time) { drop_t = time; }
+
     bool carried() const { return status == status_carried; }
     bool at_base() const { return status == status_at_base; }
 
     int carrier() const { return carrier_id; }
     double grab_time() const { return grab_t; }
+    double drop_time() const { return drop_t; }
 
     const WorldCoords& position() const { return pos; }
     const WorldCoords& home_position() const { return home_pos; }
@@ -498,6 +501,7 @@ private:
     Status status;
     int carrier_id;
     double grab_t;
+    double drop_t;
     WorldCoords home_pos;
     WorldCoords pos;
 };
@@ -544,6 +548,8 @@ public:
     void return_flag(int n);
     void drop_flag(int n, const WorldCoords& pos);
     void move_flag(int n, const WorldCoords& pos);
+
+    void set_flag_drop_time(int n, double time);
 
     int score() const { return points; }
     int kills() const { return total_kills; }
@@ -730,6 +736,7 @@ public:
     bool pup_deathbringer_switch;
     double pup_deathbringer_time;
     bool pups_drop_at_death;
+    int pups_player_max;
     int pup_health_bonus;
     double pup_power_damage;
     int pup_weapon_max;
@@ -756,6 +763,8 @@ public:
     NLulong extra_time;
     bool sudden_death;
     int capture_limit;
+    int win_score_difference;     // minimum score difference needed to win the game
+    double flag_return_delay; // in seconds
     Team_balance balance_teams;
 
     bool lock_team_flags;
@@ -771,6 +780,7 @@ public:
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }
     int getShadowMinimum() const { return shadow_minimum; }
     int getCaptureLimit() const { return capture_limit; }
+    int getWinScoreDifference() const { return win_score_difference; }
     NLulong getTimeLimit() const { return time_limit; }
     NLulong getExtraTime() const { return extra_time; }
 
@@ -790,6 +800,7 @@ class ServerWorld : public WorldBase {
 
     NLubyte getFreeRocket();    // may give an existing rocket to overwrite if the table is full
     void drop_pickup(const ServerPlayer& player);
+    void drop_worst_powerup(ServerPlayer& player);
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);
@@ -874,8 +885,8 @@ public:
             WorldBase::player[i].setPtr(&player[i]);
     }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
-    void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                        ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter);
+    void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
+                     ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter);
 
     /*void save_stats(const std::string& dir, const Team* teams,
                 const std::vector<ClientPlayer*>& players, const std::string& map_name) const;*/

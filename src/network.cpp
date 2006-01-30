@@ -28,9 +28,9 @@
 
 #include <nl.h>
 
-#include "leetnet/sleep.h"
 #include "nassert.h"
 #include "utility.h"
+#include "timer.h"
 
 #include "network.h"
 
@@ -60,7 +60,7 @@ bool isValidIP(const std::string& address, bool allowPort, unsigned int minimumP
         if (n != 4)
             return false;
     }
-    return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256);
+    return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256 && (i1 + i2 + i3 + i4 != 0));
 }
 
 bool check_private_IP(const string& address, bool allowAnyExternal) {
@@ -134,7 +134,7 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
         else
             at += written;
 
-        MS_SLEEP(roundDelay);
+        platSleep(roundDelay);
         ++tries;
     }
     return NR_ok;
@@ -159,7 +159,7 @@ NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const vol
             out << lebuf;
         }
 
-        MS_SLEEP(roundDelay);
+        platSleep(roundDelay);
         ++tries;
     }
 }
