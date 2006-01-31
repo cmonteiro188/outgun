@@ -704,8 +704,10 @@ bool Client::start() {
 
     playername = RandomName();
 
-    if (extConfig.botmode)
+    if (extConfig.botmode) {
+        playername = "BOT " + trim(playername.substr(0, 11));
     	return true;
+    }
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
