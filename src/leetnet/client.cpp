@@ -481,7 +481,7 @@ public:
         thread_read.start_assert(thread_reader_f, this, threadPriority);
 
         readerThreadManipulationMutex.unlock();
-        
+
         //start connection tries
         started_disconnection   = false;        //init "started_disconnection" flag for this connection session
         tries_left = 4;                 //number of tries

@@ -726,7 +726,9 @@ void Server::check_map_exit() {
                 num_against++;
         }
 
+    #ifdef BOTMODE
     num_against -= bots.size();     // Bots don't vote.
+    #endif
 
     // this could be done elsewhere, but this function is called whenever votes change
     for (int m = 0; m < static_cast<int>(maprot.size()); ++m)
@@ -889,7 +891,6 @@ bool Server::start(int target_maxplayers) {
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
     clientCfg.botmode = 1;
-    clientCfg.server = "127.0.0.1:25000";
     clientCfg.targetfps = 10;
     int policy;
     sched_param param;
@@ -898,9 +899,9 @@ bool Server::start(int target_maxplayers) {
     clientCfg.statusOutput = config().statusOutput;
     MemoryLog memoryErrorLog;
     NLaddress address;
-    if (!nlStringToAddr("127.0.0.1:25000", &address))
+    if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 1; ++i) {
         Client* bot = new Client(log, clientCfg, serverCfg, memoryErrorLog);
         nAssert(bot);
         if (bot->start())
@@ -1366,8 +1367,6 @@ void Server::stop() {
 #ifdef BOTMODE
 void Server::run_bot_thread() {
     log("run_bot_thread");
-
-    platSleep(1000);
 
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);

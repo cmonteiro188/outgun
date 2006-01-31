@@ -100,7 +100,7 @@ public:
         return doStart0(&tthread, fun, true, priority);
     }
     template<class Function>
-    static void startDetachedThread_assert(Function fun, int priority) { int val = startDetachedThread(fun, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    static void startDetachedThread_assert(Function fun, int priority) { int val = startDetachedThread(fun, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     template<class Function, class ArgumentT>
     static int startDetachedThread(Function fun, ArgumentT arg, int priority) {
@@ -108,7 +108,7 @@ public:
         return doStart1(&tthread, fun, arg, true, priority);
     }
     template<class Function, class ArgumentT>
-    static void startDetachedThread_assert(Function fun, ArgumentT arg, int priority) { int val = startDetachedThread(fun, arg, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    static void startDetachedThread_assert(Function fun, ArgumentT arg, int priority) { int val = startDetachedThread(fun, arg, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     template<class Function>
     int start(Function fun, int priority) {
@@ -117,7 +117,7 @@ public:
         return doStart0(&thread, fun, false, priority);
     }
     template<class Function>
-    void start_assert(Function fun, int priority) { int val = start(fun, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    void start_assert(Function fun, int priority) { int val = start(fun, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     template<class Function, class ArgumentT>
     int start(Function fun, ArgumentT arg, int priority) {
@@ -126,7 +126,7 @@ public:
         return doStart1(&thread, fun, arg, false, priority);
     }
     template<class Function, class ArgumentT>
-    void start_assert(Function fun, ArgumentT arg, int priority) { int val = start(fun, arg, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    void start_assert(Function fun, ArgumentT arg, int priority) { int val = start(fun, arg, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     bool isRunning() const { return running; }  // note: this tells if there's need for join or detach rather than if the thread is active
     void join(bool acceptRecursive = false);

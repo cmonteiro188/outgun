@@ -586,6 +586,12 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         }
         break; default: nAssert(0);
     }
+    #ifdef BOTMODE
+    if (cl->extConfig.botmode && code != 0) {
+        cl->disconnect_command();
+        cl->connect_command(false);
+    }
+    #endif
 }
 
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
@@ -704,10 +710,12 @@ bool Client::start() {
 
     playername = RandomName();
 
+    #ifdef BOTMODE
     if (extConfig.botmode) {
         playername = "BOT " + trim(playername.substr(0, 11));
     	return true;
     }
+    #endif
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
@@ -956,8 +964,6 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
                 log("Map '%s' downloaded successfully", dl.shortName.c_str());
                 mapChanged = true;
                 map_ready = true;
-                if (extConfig.botmode)
-                    BuildMap();
             }
             ++clientReadiesWaiting;
         }
@@ -1020,8 +1026,6 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         mapChanged = true;
         map_ready = true;
         ++clientReadiesWaiting;
-        if (extConfig.botmode)
-            BuildMap();
         return;
     }
 
@@ -1469,7 +1473,6 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
 
 //send the client's frame to server (keypresses)
 void Client::send_frame(bool newFrame, bool forceSend) {
-    static ClientControls sentControls;
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls;
@@ -2915,9 +2918,6 @@ void Client::print_message(Message_type type, const string& msg) {
     }
     return;
     UI_END
-#ifdef BOTMODE
-    fprintf(stderr,"%s\n",msg.c_str());
-#endif
 }
 
 void Client::save_screenshot() {
@@ -3669,31 +3669,31 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 #ifdef BOTMODE
 void Client::botloop() {
     MutexLock ml(frameMutex);
-    if (mapChanged)
-        BuildMap();
 
-    ClientControls currentControls;
-    Robot(currentControls);
-    currentControls.clearModifiersIfIdle();
-
-    //if (currentControls != sentControls) {
-        sentControls = currentControls;
-
-        ++clFrameSent;
-        controlHistory[clFrameSent] = sentControls;
-        svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
-
-        char lebuf[256]; int count = 0;
-        writeByte(lebuf, count, clFrameSent);
-        writeByte(lebuf, count, sentControls.toNetwork(false));
-        client->send_frame(lebuf, count);
-    //}
+    handlePendingThreadMessages();
 
     while (clientReadiesWaiting > 0) {
         send_client_ready();
         --clientReadiesWaiting;
     }
-    handlePendingThreadMessages();
+
+    if (mapChanged) {
+        BuildMap();
+        mapChanged = false;
+    }
+
+    sentControls = Robot();
+    sentControls.clearModifiersIfIdle();
+
+    ++clFrameSent;
+    controlHistory[clFrameSent] = sentControls;
+    svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, clFrameSent);
+    writeByte(lebuf, count, sentControls.toNetwork(false));
+
+    client->send_frame(lebuf, count);
 }
 #endif
 
@@ -3705,8 +3705,10 @@ void Client::stop() {
     //at least disconnect
     disconnect_command();
 
+    #ifdef BOTMODE
     if (extConfig.botmode)
         return;
+    #endif
 
     tournamentPassword.stop();
 

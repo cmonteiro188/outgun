@@ -212,7 +212,6 @@ public:
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
 #ifdef BOTMODE
     int botmode;
-    const char *server;
 #endif
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
@@ -363,7 +362,7 @@ private:
     int GetNearestEnemy(double mex, double mey);
     int NeedShoot(double mex, double mey);
     int EscapeRocket(double mex, double mey, int mrock);
-    void Robot(ClientControls &ctrl);
+    ClientControls Robot();
     int GetFlag(double mex, double mey);
     int GetPowerup(double mex, double mey);
 //    int CarryFlag(double mex, double mey);
