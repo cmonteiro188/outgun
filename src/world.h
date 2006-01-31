@@ -328,6 +328,10 @@ public:
     int roomx, roomy;
 #ifdef BOTMODE
     int routing;
+    int route_x;
+    int route_y;
+    bool botPrevFire;
+    double route_frame;
 #endif 
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
