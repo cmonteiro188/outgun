@@ -353,8 +353,6 @@ private:
     NLaddress serverIP;
 #ifdef BOTMODE
     private:
-    bool botPrevFire;
-    double route_frame;
     int IsAimed(double mex, double mey, int i); // return 1 if in hit point
     int IsBehindWall(double mex, double mey, double dx, double dy);
     double ScanDir(double mex, double mey, int dir);
@@ -397,6 +395,7 @@ private:
 			int eb,  int fb, int wb);
 
     int HaveFlag(); // returns if me is carrier
+    int IsHome(int mex, int mey);//
     
 #endif
     volatile bool abortThreads;
