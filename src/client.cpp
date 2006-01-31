@@ -713,6 +713,7 @@ bool Client::start() {
     #ifdef BOTMODE
     if (extConfig.botmode) {
         playername = "BOT " + trim(playername.substr(0, 11));
+        botReactedFrame = 0;
     	return true;
     }
     #endif
@@ -3669,6 +3670,11 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 #ifdef BOTMODE
 void Client::botloop() {
     MutexLock ml(frameMutex);
+
+    if (fx.frame == botReactedFrame)
+        return;
+
+    botReactedFrame = fx.frame;
 
     handlePendingThreadMessages();
 

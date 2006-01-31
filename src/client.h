@@ -277,6 +277,9 @@ private:
     client_c *client;
     double lastpackettime;
     NLubyte clFrameSent, clFrameWorld;
+    #ifdef BOTMODE
+    double botReactedFrame;
+    #endif
     #ifdef SEND_FRAMEOFFSET
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
