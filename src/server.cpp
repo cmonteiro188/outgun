@@ -1376,14 +1376,10 @@ void Server::run_bot_thread() {
     while (!quit_bots) {
         platSleep(15);
         g_timeCounter.refresh();
-        double next_frame = get_time();
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
             nAssert(*bi);
             (*bi)->botloop();
         }
-        g_timeCounter.refresh();
-        //platSleep(static_cast<int>(1000 * (next_frame - get_time())));
-        next_frame += 0.1;
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);
