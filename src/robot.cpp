@@ -1,5 +1,5 @@
 /* by Peter Kosyh'2006 a.k.a. gl00my or Huge Ping [ru]
-    v0.3 
+    v0.35 
 */ 
 #ifdef BOTMODE
 #include <algorithm>
@@ -104,9 +104,9 @@ double Client::ScanDir(double mex, double mey, int dir)
 	tx += sx;
 	ty += sy;
 
-	if(tx>0 || tx<0)
+	if(tx>S_W || tx<0)
 	    break;
-	if(ty>0 || ty<0)
+	if(ty>S_H || ty<0)
 	    break;            
     }
     return sqrt((tx -mex)*(tx - mex) + (ty - mey)*(ty-mey));
@@ -602,6 +602,8 @@ int Client::GetFlag(double mex, double mey)
 
 void Client::BuildMap()
 {
+    fx.player[me].last_seen = -1;
+    
     fx.player[me].botPrevFire = false;
     
     int x,y;
@@ -1249,6 +1251,9 @@ int Client::TargetRoute(int efb, int efd, int efc,
     if (wb)
 	n+= TargetNearestBase(m_label, x, y, 2);
 
+    if (n<0)
+	return -1;
+
     if (m_label == -1) // nothing todo
 	return 0;
 	
@@ -1259,7 +1264,6 @@ void Client::Robot(ClientControls &ctrl)
 {
     char lebuf[16]; int count = 0;
     double mex, mey, dx, dy, ttx, tty;
-    static int last_seen = -1;
     int i;
 
     const bool hide_map=  !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
@@ -1292,14 +1296,14 @@ void Client::Robot(ClientControls &ctrl)
         client->send_message(lebuf, count);
 	fx.player[me].botPrevFire=false;
     }
-    i = last_seen; // lost target
+    i = fx.player[me].last_seen; // lost target
     if ( (i == -1) || !fx.player[i].used || 
 	   fx.player[i].roomx != fx.player[me].roomx ||
 	   fx.player[i].roomy != fx.player[me].roomy ||
 	   fx.player[i].team() == fx.player[me].team() ||
            !fx.player[i].onscreen ||
 	   fx.player[i].dead)
-	   last_seen = -1;
+	   fx.player[me].last_seen = -1;
 
     if(!IsMassive())
         i = GetDangerousRocket(mex, mey);
@@ -1308,12 +1312,12 @@ void Client::Robot(ClientControls &ctrl)
     if (i!=-1)
     {
 	ctrl.data |= EscapeRocket(mex, mey, i);	
-	if ( last_seen == -1)
-	    last_seen = fx.rock[i].owner; 
+	if ( fx.player[me].last_seen == -1)
+	    fx.player[me].last_seen = fx.rock[i].owner; 
 	return;
     }
 
-    if ( last_seen == -1 )
+    if ( fx.player[me].last_seen == -1 )
     {
 	i = GetFlag(mex, mey);
 	if(i) // if any
@@ -1322,20 +1326,20 @@ void Client::Robot(ClientControls &ctrl)
 	    return;
 	}
     }
-    if ((last_seen != -1) || HaveFlag()) // already locked on someone or have flag
+    if ((fx.player[me].last_seen != -1) || HaveFlag()) // already locked on someone or have flag
     {
 	i = GetDangerousEnemy(mex, mey); // more dangerous???
 	if (i!= -1)
-	    last_seen = i;
+	    fx.player[me].last_seen = i;
     }
     else if(!HaveFlag())// get someone
     {
 	
 	i = GetNearestEnemy(mex, mey);
-	last_seen = i;
+	fx.player[me].last_seen = i;
     }
     
-    i = last_seen;
+    i = fx.player[me].last_seen;
 
     if (i!= -1)
     {
