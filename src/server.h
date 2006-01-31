@@ -33,6 +33,10 @@
 #include "utility.h"
 #include "world.h"
 
+#ifdef BOTMODE
+class Client;
+#endif
+
 //per-client struct (statically allocated to a single client)
 class ClientData {
 public:
@@ -106,6 +110,13 @@ class Server {
     int             game_end_delay;
     ClientData      client[MAX_PLAYERS];
     std::vector<bool> fav_colors[2];
+
+    #ifdef BOTMODE
+    Thread          botthread;
+    std::vector<Client*> bots;
+    volatile bool quit_bots;
+    void run_bot_thread();
+    #endif
 
     // world
     ServerWorld     world;

@@ -45,6 +45,10 @@
 #include "server.h"
 #include "gameserver_interface.h"
 
+#ifdef BOTMODE
+#include "client.h"
+#endif
+
 const int minimum_positive_score_for_ranking = 100;
 const int voteAnnounceInterval = 5; // in seconds, how often a changing voting status will be announced
 
@@ -722,6 +726,8 @@ void Server::check_map_exit() {
                 num_against++;
         }
 
+    num_against -= bots.size();     // Bots don't vote.
+
     // this could be done elsewhere, but this function is called whenever votes change
     for (int m = 0; m < static_cast<int>(maprot.size()); ++m)
         maprot[m].votes = 0;
@@ -878,6 +884,34 @@ bool Server::start(int target_maxplayers) {
         threadLockMutex.unlock();
 
     abortFlag = false;
+
+    #ifdef BOTMODE
+    ServerExternalSettings serverCfg;
+    ClientExternalSettings clientCfg;
+    clientCfg.botmode = 1;
+    clientCfg.server = "127.0.0.1:25000";
+    clientCfg.targetfps = 10;
+    int policy;
+    sched_param param;
+    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
+    clientCfg.statusOutput = config().statusOutput;
+    MemoryLog memoryErrorLog;
+    NLaddress address;
+    if (!nlStringToAddr("127.0.0.1:25000", &address))
+        nAssert(0);
+    for (int i = 0; i < 4; ++i) {
+        Client* bot = new Client(log, clientCfg, serverCfg, memoryErrorLog);
+        nAssert(bot);
+        if (bot->start())
+            bot->serverIP = address;
+        bots.push_back(bot);
+    }
+    log("Bots added.");
+    //start bot thread
+    botthread.start_assert(RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread), config().lowerPriority);
+    #endif
+
     return true;
 }
 
@@ -1322,7 +1356,44 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 
 void Server::stop() {
     network.stop();
+    #ifdef BOTMODE
+    quit_bots = true;
+    config().statusOutput(_("Shutdown: bot thread"));
+    botthread.join();
+    #endif
 }
+
+#ifdef BOTMODE
+void Server::run_bot_thread() {
+    log("run_bot_thread");
+
+    platSleep(1000);
+
+    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+        nAssert(*bi);
+        (*bi)->connect_command(false);
+    }
+
+    while (!quit_bots) {
+        platSleep(15);
+        g_timeCounter.refresh();
+        double next_frame = get_time();
+        for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+            nAssert(*bi);
+            (*bi)->botloop();
+        }
+        g_timeCounter.refresh();
+        //platSleep(static_cast<int>(1000 * (next_frame - get_time())));
+        next_frame += 0.1;
+    }
+    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+        nAssert(*bi);
+        (*bi)->stop();
+        delete *bi;
+    }
+    bots.clear();
+}
+#endif
 
 
 GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix) {

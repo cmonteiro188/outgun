@@ -42,9 +42,6 @@ class server_c;
 class ServerHelloResult;
 class ServerPlayer;
 class ServerWorld;
-#ifdef BOTMODE
-class Client;
-#endif
 
 class ServerNetworking {
     class ClientTransferData {
@@ -124,12 +121,6 @@ class ServerNetworking {
     std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
     int             localPlayers;
     MutexHolder     addPlayerMutex;
-
-    #ifdef BOTMODE
-    Thread          botthread;
-    std::vector<Client*> bots;
-    void run_bot_thread();
-    #endif
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
     int             join_start;         // allow joining from this time of a day (in seconds)
