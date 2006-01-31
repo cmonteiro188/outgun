@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -890,7 +890,7 @@ bool Server::start(int target_maxplayers) {
     #ifdef BOTMODE
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
-    clientCfg.botmode = 1;
+    clientCfg.botmode = true;
     clientCfg.targetfps = 10;
     int policy;
     sched_param param;
@@ -901,7 +901,7 @@ bool Server::start(int target_maxplayers) {
     NLaddress address;
     if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 4; ++i) {
         Client* bot = new Client(log, clientCfg, serverCfg, memoryErrorLog);
         nAssert(bot);
         if (bot->start())

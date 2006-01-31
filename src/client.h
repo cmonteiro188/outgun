@@ -211,7 +211,7 @@ public:
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
 #ifdef BOTMODE
-    int botmode;
+    bool botmode;
 #endif
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
