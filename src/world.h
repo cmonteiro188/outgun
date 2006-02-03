@@ -873,7 +873,7 @@ public:
     std::vector<ClientPlayer> player;
 
     ClientWorld() : skipped(true), player(MAX_PLAYERS) {
-        for (int i=0; i<MAX_PLAYERS; ++i)
+        for (int i = 0; i < MAX_PLAYERS; ++i)
             WorldBase::player[i].setPtr(&player[i]);
     }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
