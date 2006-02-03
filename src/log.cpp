@@ -65,7 +65,7 @@ FileLog::FileLog(const string& filename, bool truncate) {
 FileLog::~FileLog() {
     if (!fp)
         return;
-    bool emptyFile = (ftell(fp) == 0);
+    const bool emptyFile = (ftell(fp) == 0);
     fclose(fp);
     if (emptyFile)
         remove(fileName.c_str());
@@ -96,7 +96,7 @@ string MemoryLog::pop() {
         unlock();
         return string();
     }
-    string s = data.front();
+    const string s = data.front();
     data.pop_front();
     unlock();
     return s;
