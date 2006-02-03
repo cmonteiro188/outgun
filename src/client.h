@@ -210,9 +210,6 @@ public:
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
-#ifdef BOTMODE
-    bool botmode;
-#endif
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
 
@@ -273,13 +270,13 @@ private:
 #endif
     int maxplayers;
 
+    bool botmode;
+
     // network
     client_c *client;
     double lastpackettime;
     NLubyte clFrameSent, clFrameWorld;
-    #ifdef BOTMODE
     double botReactedFrame;
-    #endif
     #ifdef SEND_FRAMEOFFSET
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
@@ -348,13 +345,9 @@ private:
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
     MutexHolder serverListMutex;
 
-    std::string playername; //the player's name (max name len = 16)
-#ifdef BOTMODE
-    public:
-#endif
+    std::string playername;
     NLaddress serverIP;
-#ifdef BOTMODE
-    private:
+
     int IsAimed(double mex, double mey, int i); // return 1 if in hit point
     int IsBehindWall(double mex, double mey, double dx, double dy);
     double ScanDir(double mex, double mey, int dir);
@@ -398,8 +391,7 @@ private:
 
     int HaveFlag(); // returns if me is carrier
     int IsHome(int mex, int mey);//
-    
-#endif
+
     volatile bool abortThreads;
 
     enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
@@ -514,13 +506,7 @@ private:
     void remove_useless_flags();
 
     // network
-    #ifdef BOTMODE
-public:
-    #endif
     void connect_command(bool loadPassword);    // call with frameMutex locked
-    #ifdef BOTMODE
-private:
-    #endif
     void disconnect_command();  // do not call from a network thread
     void connection_update(int connect_result, const char* data, int length);
     void client_connected(const char* data, int length);    // call with frameMutex locked
@@ -579,12 +565,16 @@ private:
 public:
     Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_);
     ~Client();
+
     bool start();
     void loop(volatile bool* quitFlag, bool firstTimeSplash);
     void stop();
-#ifdef BOTMODE
+
+    void botstart(const NLaddress& addr);
     void botloop();
-#endif
+    bool isconnected() const { return connected; }
+
+    int team() const { return me / TSIZE; }
 };
 
 class Message {

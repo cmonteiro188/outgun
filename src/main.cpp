@@ -277,9 +277,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     ServerExternalSettings serverCfg;
     #ifndef DEDICATED_SERVER_ONLY
     ClientExternalSettings clientCfg;
-    #ifdef BOTMODE
-    clientCfg.botmode = false;
-    #endif
     #endif
     // check args
     for (int i = 1; i < argc; i++) {

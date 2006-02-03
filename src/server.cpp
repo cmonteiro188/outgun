@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "client.h"
 #include "incalleg.h"
 #include "gamemod.h"
 #include "language.h"
@@ -45,10 +46,6 @@
 #include "server.h"
 #include "gameserver_interface.h"
 
-#ifdef BOTMODE
-#include "client.h"
-#endif
-
 const int minimum_positive_score_for_ranking = 100;
 const int voteAnnounceInterval = 5; // in seconds, how often a changing voting status will be announced
 
@@ -59,6 +56,7 @@ using std::ios;
 using std::istringstream;
 using std::list;
 using std::max;
+using std::min;
 using std::ofstream;
 using std::ostringstream;
 using std::pair;
@@ -568,6 +566,8 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
+        PT(new GS_Int       ("min_bots",                &min_bots, 0, MAX_PLAYERS)),
+        PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -726,9 +726,12 @@ void Server::check_map_exit() {
                 num_against++;
         }
 
-    #ifdef BOTMODE
-    num_against -= bots.size();     // Bots don't vote.
-    #endif
+    // Bots don't vote.
+    int botcount = 0;
+    for (vector<Client*>::const_iterator bi = bots.begin(); bi != bots.end(); ++bi)
+        if ((*bi)->isconnected())
+            ++botcount;
+    num_against -= botcount;
 
     // this could be done elsewhere, but this function is called whenever votes change
     for (int m = 0; m < static_cast<int>(maprot.size()); ++m)
@@ -785,8 +788,13 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     network.clear_web_servers();
     network.set_web_refresh(2);
 
+    min_bots = 0;
+    bots_fill = 0;
+
     // load server configuration from gamemod.txt
     load_game_mod(reload);
+
+    check_bots = true;
 
     if (maprot.empty()) {
         // did not specify maps, scan "maps/" folder for .txt map files
@@ -851,6 +859,70 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     return true;
 }
 
+void Server::init_bots() {
+    int humans = 0;
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used)
+            ++humans;
+    int botcount = 0;
+    for (vector<Client*>::const_iterator bi = bots.begin(); bi != bots.end(); ++bi)
+        if ((*bi)->isconnected())
+            ++botcount;
+    humans -= botcount;
+    log("%d bots, %d in vector.", botcount, bots.size());
+    // Check if some bots need to be removed.
+    /*if (botcount >= min_bots && humans + botcount >= bots_fill) {
+        if (botcount == min_bots && humans + botcount >= bots_fill ||
+            humans + botcount == bots_fill && botcount >= min_bots)
+                return;  // There is already the right number of bots.
+        const int remove = min(humans + botcount - bots_fill, botcount - min_bots);
+        log("Remove %d bots.", remove);
+        nAssert(remove > 0);
+        for (int i = 0; i < remove; ++i)
+            remove_bot();
+        return;
+    }*/
+    const size_t needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
+    log("%d bots needed.", needed_bots);
+    ServerExternalSettings serverCfg;
+    ClientExternalSettings clientCfg;
+    //clientCfg.targetfps = 10;
+    int policy;
+    sched_param param;
+    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
+    clientCfg.statusOutput = config().statusOutput;
+    NLaddress address;
+    if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
+        nAssert(0);
+    while (bots.size() < needed_bots) {
+        Client* bot = new Client(log, clientCfg, serverCfg, botLog);
+        nAssert(bot);
+        bot->botstart(address);
+        bots.push_back(bot);
+        log("Bot added");
+    }
+}
+
+void Server::remove_bot() {
+    nAssert(!bots.empty());
+    int red = 0, blue = 0;
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used)
+            if (world.player[i].team() == 0)
+                ++red;
+            else
+                ++blue;
+    for (vector<Client*>::reverse_iterator bi = bots.rbegin(); bi != bots.rend(); ++bi) {
+        if (red == blue || red > blue && (*bi)->team() == 0 || blue > red && (*bi)->team() == 1) {
+            (*bi)->stop();
+            delete *bi;
+            bots.erase(bi.base());
+            break;
+        }
+    }
+}
+
 //start server
 bool Server::start(int target_maxplayers) {
     nAssert(target_maxplayers >= 2 && target_maxplayers <= MAX_PLAYERS && target_maxplayers % 2 == 0);
@@ -863,6 +935,7 @@ bool Server::start(int target_maxplayers) {
         client[i].reset();
 
     gameover = false;
+    extra_bots = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++)
         world.player[i].clear(false, i, 0, "", i / TSIZE);  // 0 : fake cid
@@ -887,31 +960,8 @@ bool Server::start(int target_maxplayers) {
 
     abortFlag = false;
 
-    #ifdef BOTMODE
-    ServerExternalSettings serverCfg;
-    ClientExternalSettings clientCfg;
-    clientCfg.botmode = true;
-    clientCfg.targetfps = 10;
-    int policy;
-    sched_param param;
-    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
-    clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
-    clientCfg.statusOutput = config().statusOutput;
-    MemoryLog memoryErrorLog;
-    NLaddress address;
-    if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
-        nAssert(0);
-    for (int i = 0; i < 4; ++i) {
-        Client* bot = new Client(log, clientCfg, serverCfg, memoryErrorLog);
-        nAssert(bot);
-        if (bot->start())
-            bot->serverIP = address;
-        bots.push_back(bot);
-    }
-    log("Bots added.");
     //start bot thread
     botthread.start_assert(RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread), config().lowerPriority);
-    #endif
 
     return true;
 }
@@ -1020,7 +1070,7 @@ void Server::chat(int pid, const char* sbuf) {
     if (sbuf[0] == '/') {
         const bool admin = isAdmin(pid);
 
-        const char* pCommand=sbuf+1;
+        const char* pCommand = sbuf + 1;
         char cbuf[30];
         for (int ci = 0;; ++ci, ++pCommand) {
             if (ci == 29) {
@@ -1059,6 +1109,7 @@ void Server::chat(int pid, const char* sbuf) {
                 network.player_message(pid, msg_server, "/smute n    silently mute player with ID n (crude!)");
                 network.player_message(pid, msg_server, "/unmute n   cancel muting of player with ID n");
                 network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've voted for one");
+                network.player_message(pid, msg_server, "/bot s      add or remove a bot");
             }
         }
         else if (!strcmp(cbuf, "info") && !info_message.empty()) {
@@ -1148,6 +1199,35 @@ void Server::chat(int pid, const char* sbuf) {
                 maprot[currmap].votes = 99;
             }
             server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
+        }
+        else if (!strcmp(cbuf, "bot") && admin) {
+            istringstream command(pCommand);
+            string option;
+            command >> option;
+            if (option == "add") {
+                ++extra_bots;
+                if (extra_bots > maxplayers) {
+                    network.plprintf(pid, msg_warning, "No room for a new bot.");
+                    extra_bots = maxplayers;
+                }
+                else {
+                    network.plprintf(pid, msg_server, "A new bot will be added.");
+                    check_bots = true;
+                }
+            }
+            else if (option == "remove") {
+                --extra_bots;
+                if (bots.empty() || extra_bots < 0) {
+                    network.plprintf(pid, msg_warning, "No bots to remove.");
+                    extra_bots = 0;
+                }
+                else {
+                    network.plprintf(pid, msg_server, "A bot will be removed.");
+                    check_bots = true;
+                }
+            }
+            else
+                network.plprintf(pid, msg_warning, "Syntax error. Expecting add or remove.");
         }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);
@@ -1357,29 +1437,40 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 
 void Server::stop() {
     network.stop();
-    #ifdef BOTMODE
+
     quit_bots = true;
     config().statusOutput(_("Shutdown: bot thread"));
     botthread.join();
-    #endif
 }
 
-#ifdef BOTMODE
 void Server::run_bot_thread() {
     log("run_bot_thread");
 
-    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
-        nAssert(*bi);
-        (*bi)->connect_command(false);
-    }
+    init_bots();
+    check_bots = false;
+    //platSleep(1000);
 
     while (!quit_bots) {
-        platSleep(15);
+        if (bots.empty()) {
+            platSleep(1000);
+            if (!check_bots)
+                continue;
+        }
+        else
+            platSleep(15);
+        if (threadLock)
+            threadLockMutex.lock();
+        if (check_bots) {
+            check_bots = false;
+            init_bots();
+        }
         g_timeCounter.refresh();
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
             nAssert(*bi);
             (*bi)->botloop();
         }
+        if (threadLock)
+            threadLockMutex.unlock();
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);
@@ -1388,7 +1479,6 @@ void Server::run_bot_thread() {
     }
     bots.clear();
 }
-#endif
 
 
 GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix) {

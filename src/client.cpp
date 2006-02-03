@@ -54,9 +54,9 @@
 #include "client.h"
 
 #ifdef BOTMODE
-#define UI_START if(!extConfig.botmode){ 
+#define UI_START if(!botmode){
 #define UI_END   }
-#define UI if(!extConfig.botmode)
+#define UI if(!botmode)
 #else
 #define UI_START 
 #define UI_END
@@ -586,12 +586,10 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         }
         break; default: nAssert(0);
     }
-    #ifdef BOTMODE
-    if (cl->extConfig.botmode && code != 0) {
+    if (cl->botmode && code != 0) {
         cl->disconnect_command();
         cl->connect_command(false);
     }
-    #endif
 }
 
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
@@ -676,7 +674,8 @@ Client::~Client() {
 }
 
 bool Client::start() {
-    extConfig.statusOutput(_("Outgun client"));
+    if (!botmode)
+        extConfig.statusOutput(_("Outgun client"));
 
     totalframecount = 0;
     framecount = 0;
@@ -710,17 +709,12 @@ bool Client::start() {
 
     playername = RandomName();
 
-    #ifdef BOTMODE
-    if (extConfig.botmode) {
-        playername = "BOT " + trim(playername.substr(0, 11));
-        botReactedFrame = 0;
+    if (botmode)
     	return true;
-    }
-    #endif
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
-    FILE *psf = fopen(fileName.c_str(), "rb");
+    FILE* psf = fopen(fileName.c_str(), "rb");
     if (psf) {
         char pas[PASSBUFFER];
         for (int c = 0; c < PASSBUFFER; c++) {
@@ -924,6 +918,18 @@ bool Client::start() {
 	return true;
 }
 
+void Client::botstart(const NLaddress& addr) {
+    MutexLock ml(frameMutex);
+    botmode = true;
+    serverIP = addr;
+    nAssert(start());
+    playername = "BOT " + trim(playername.substr(0, maxPlayerNameLength - 4));
+    botReactedFrame = -1;
+    for (int i = 0; i < 10; ++i)   // Ping 100
+        client->increasePacketDelay();
+    connect_command(false);
+}
+
 //send "client ready" message to server (when map load and/or download completes)
 void Client::send_client_ready() {
     char lebuf[256]; int count = 0;
@@ -1093,9 +1099,11 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     show_all_messages = false;
     stats_autoshowing = false;
 
-    //set window title: the hostname
-    const string caption = _("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP));
-    extConfig.statusOutput(caption);
+    if (!botmode) {
+        //set window title: the hostname
+        const string caption = _("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP));
+        extConfig.statusOutput(caption);
+    }
 
     //don't want to change teams by default
     want_change_teams = false;
@@ -1188,8 +1196,10 @@ void Client::client_disconnected(const char* data, int length) {
     if (!connected)
         return;
 
-    //restore window title
-    extConfig.statusOutput(_("Outgun client"));
+    if (!botmode) {
+        //restore window title
+        extConfig.statusOutput(_("Outgun client"));
+    }
 
     // the gamestate?
     connected = false;
@@ -1416,7 +1426,9 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     const string strAddress = addressToString(serverIP);
     client->set_server_address(strAddress.c_str());
 
-    log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(), m_serverPassword.password().empty()?"no":"yes", m_playerPassword.password().empty()?"no":"yes");
+    log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
+        m_serverPassword.password().empty() ? "no" : "yes",
+        m_playerPassword.password().empty() ? "no" : "yes");
 
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     char lebuf[256]; int count = 0;
@@ -2893,7 +2905,8 @@ void Client::send_chat(const string& msg) {
 
 //print message to "console"
 void Client::print_message(Message_type type, const string& msg) {
-    UI_START
+    if (botmode)
+        return;
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
             message_log << date_and_time() << "  " << msg << endl;
@@ -2917,8 +2930,6 @@ void Client::print_message(Message_type type, const string& msg) {
             message.highlight();
         chatbuffer.push_back(message);
     }
-    return;
-    UI_END
 }
 
 void Client::save_screenshot() {
@@ -3667,16 +3678,15 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     //client exit cleanup: done at stop wich needs to be called after loop
 }
 
-#ifdef BOTMODE
 void Client::botloop() {
     MutexLock ml(frameMutex);
+
+    handlePendingThreadMessages();
 
     if (fx.frame == botReactedFrame)
         return;
 
     botReactedFrame = fx.frame;
-
-    handlePendingThreadMessages();
 
     while (clientReadiesWaiting > 0) {
         send_client_ready();
@@ -3701,7 +3711,6 @@ void Client::botloop() {
 
     client->send_frame(lebuf, count);
 }
-#endif
 
 void Client::stop() {
     log("Client exiting: stop() called");
@@ -3711,10 +3720,8 @@ void Client::stop() {
     //at least disconnect
     disconnect_command();
 
-    #ifdef BOTMODE
-    if (extConfig.botmode)
+    if (botmode)
         return;
-    #endif
 
     tournamentPassword.stop();
 

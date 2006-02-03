@@ -111,12 +111,18 @@ class Server {
     ClientData      client[MAX_PLAYERS];
     std::vector<bool> fav_colors[2];
 
-    #ifdef BOTMODE
     Thread          botthread;
     std::vector<Client*> bots;
+    int min_bots;
+    int bots_fill;
+    int extra_bots;
     volatile bool quit_bots;
+    MemoryLog botLog;
+    bool check_bots;
+
+    void init_bots();
+    void remove_bot();
     void run_bot_thread();
-    #endif
 
     // world
     ServerWorld     world;
