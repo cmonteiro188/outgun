@@ -607,6 +607,20 @@ int Client::GetFlag(double mex, double mey)
             return MoveTo(mex, mey, dx, dy);
         }
     }
+
+    for (std::vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+    {
+        if (fi->position().px != fx.player[me].roomx ||
+            fi->position().py != fx.player[me].roomy)
+                continue;
+        if (!fi->carried() && !carry)
+        {
+            dx = fi->position().x - mex;
+            dy = fi->position().y - mey;
+            return MoveTo(mex, mey, dx, dy);
+        }
+    }
+
     return data;
 }
 
