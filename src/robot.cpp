@@ -914,6 +914,8 @@ int Client::RouteLogic() // NEED rewrite
                         0, 0,
                         0, 0, 0  // ok enemy flags that we hold
                         );
+        if(IsHome(fx.player[me].route_x, fx.player[me].route_y))
+    	    room.route = false;
 
         if (!room.route) // massive battle
             TargetRoute(
@@ -923,17 +925,6 @@ int Client::RouteLogic() // NEED rewrite
                         1, 0,
                         1, 0, 1  // ..., or enemy, or enemy base
                         );
-
-        if(!room.route || IsHome(fx.player[me].route_x, fx.player[me].route_y))
-        {
-            TargetRoute( //final attempt
-                        0, 0, 0,
-                        0, 0, 0,
-                        0, 0, 0,
-                        0, 0,
-                        1, 0, 1 // ok, go to enemy base
-                        );
-        }
     }
     else // i am flagman ;)
     {
@@ -965,7 +956,7 @@ int Client::IsMassive()
     int n=0;
     for (i=0; i<maxplayers;  i++)
     {
-        if(!fx.player[i].used || (fx.player[i].team() != fx.player[me].team()) || fx.player[i].dead)
+        if(!fx.player[i].used || (fx.player[i].team() != fx.player[me].team()) || fx.player[i].dead || !fx.player[i].onscreen)
             continue;
 
         if ((fx.player[i].roomx != fx.player[me].roomx) ||
@@ -1097,6 +1088,9 @@ int Client::TargetNearestTeam(int &m_label, int &x, int &y, int team)
                 (pl.roomx >= fx.map.w) || (pl.roomy >= fx.map.h) ||
                 !(pl.posUpdated > fx.frame - FADEOUT)) // TODO fadeout
                 continue; // old data
+	    if ((fx.player[i].roomx == fx.player[me].roomx) &&
+		(fx.player[i].roomy == fx.player[me].roomy))
+		continue; //already here
         }
 
         if((label<m_label) || (m_label == -1))
@@ -1162,6 +1156,10 @@ int Client::TargetNearestFlag(int &m_label, int &x, int &y, int team, int state)
                 (pl.roomx >= fx.map.w) || (pl.roomy >= fx.map.h) ||
                 !(pl.posUpdated > fx.frame - FADEOUT)) // TODO fadeout
                 continue; // old data
+
+	    if ((pl.roomx == fx.player[me].roomx) &&
+		(pl.roomy == fx.player[me].roomy))
+		continue;
         }
 
         at_base = 0;
