@@ -271,6 +271,7 @@ private:
     int maxplayers;
 
     bool botmode;
+    bool finished;
 
     // network
     client_c *client;
@@ -570,9 +571,10 @@ public:
     void loop(volatile bool* quitFlag, bool firstTimeSplash);
     void stop();
 
-    void botstart(const NLaddress& addr);
-    void botloop();
-    bool isconnected() const { return connected; }
+    void bot_start(const NLaddress& addr, int ping);
+    void bot_loop();
+    bool is_connected() const { return connected; }
+    bool bot_finished() const { return finished; }
 
     int team() const { return me / TSIZE; }
 };

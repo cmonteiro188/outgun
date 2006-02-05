@@ -29,6 +29,7 @@
 
 #include "commont.h"
 #include "incalleg.h"
+#include "mutex.h"
 #include "platform.h"
 #include "timer.h"
 
@@ -71,6 +72,8 @@ class MMSystemTimer : public SystemTimer {
     uint64_t base;
     uint32_t prev;
 
+    MutexHolder readMutex;
+
 public:
     MMSystemTimer() {
         base = 0;
@@ -78,6 +81,7 @@ public:
     }
 
     double read() {
+        MutexLock ml(readMutex);
         uint32_t val = static_cast<uint32_t>(timeGetTime());
         if (val < prev) // check wrap-around
             base += uint64_t(1) << 32;
@@ -160,13 +164,14 @@ void platInit() {
         g_timerResolution = tc.wPeriodMin;
     timeBeginPeriod(g_timerResolution); // ignore possible failure; we can't help it
 
-    PerformanceCounterTimer* t = new PerformanceCounterTimer();
+    g_systemTimer = new MMSystemTimer();
+    /*PerformanceCounterTimer* t = new PerformanceCounterTimer();
     if (t->init())
         g_systemTimer = t;
     else  {
         delete t;
         g_systemTimer = new MMSystemTimer();
-    }
+    }*/
 }
 
 void platUninit() {

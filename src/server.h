@@ -33,9 +33,7 @@
 #include "utility.h"
 #include "world.h"
 
-#ifdef BOTMODE
 class Client;
-#endif
 
 //per-client struct (statically allocated to a single client)
 class ClientData {
@@ -115,6 +113,7 @@ class Server {
     std::vector<Client*> bots;
     int min_bots;
     int bots_fill;
+    int bot_ping;
     int extra_bots;
     volatile bool quit_bots;
     MemoryLog botLog;

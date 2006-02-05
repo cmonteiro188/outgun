@@ -586,10 +586,12 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         }
         break; default: nAssert(0);
     }
-    if (cl->botmode && code != 0) {
+    if (cl->botmode && code != 0)
+        cl->stop();
+    /*if (cl->botmode && code != 0 && code != 1) {
         cl->disconnect_command();
         cl->connect_command(false);
-    }
+    }*/
 }
 
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
@@ -599,6 +601,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     //securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
     log(&normalLog, &errorLog, 0),
     listenServer(log),
+    botmode(false),
+    finished(false),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
     current_map(-1),
     map_vote(-1),
@@ -918,23 +922,39 @@ bool Client::start() {
 	return true;
 }
 
-void Client::botstart(const NLaddress& addr) {
+void Client::bot_start(const NLaddress& addr, int ping) {
     MutexLock ml(frameMutex);
     botmode = true;
     serverIP = addr;
+
     nAssert(start());
+
     playername = "BOT " + trim(playername.substr(0, maxPlayerNameLength - 4));
     botReactedFrame = -1;
-    for (int i = 0; i < 10; ++i)   // Ping 100
+    vector<int> fav_colors;
+    fav_colors.clear();
+    for (int i = 0; i < 16; ++i)
+        fav_colors.push_back(i);
+    random_shuffle(fav_colors.begin(), fav_colors.end());
+    for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
+        menu.options.game.favoriteColors.addOption(*col);
+
+    for (int i = 0; i < ping / 10; ++i)
         client->increasePacketDelay();
+
     connect_command(false);
+
+    // Tell server that I am a bot.
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_bot);
+    client->send_message(lebuf, count);
 }
 
 //send "client ready" message to server (when map load and/or download completes)
 void Client::send_client_ready() {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_client_ready);
-    client->send_message(lebuf, count);     // bem curtinha a mensagem mesmo...
+    client->send_message(lebuf, count);
 }
 
 // incoming chunk of requested file by UDP
@@ -1652,7 +1672,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     continue;
                 }
 
-                ClientPlayer &h = fx.player[i];
+                ClientPlayer& h = fx.player[i];
 
                 //V0.3.9: took out screen reading, replacing for the same screen of "me"
                 // that is set above
@@ -3678,12 +3698,12 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     //client exit cleanup: done at stop wich needs to be called after loop
 }
 
-void Client::botloop() {
+void Client::bot_loop() {
     MutexLock ml(frameMutex);
 
     handlePendingThreadMessages();
 
-    if (fx.frame == botReactedFrame)
+    if (!connected || fx.frame == botReactedFrame)
         return;
 
     botReactedFrame = fx.frame;
@@ -3720,8 +3740,10 @@ void Client::stop() {
     //at least disconnect
     disconnect_command();
 
-    if (botmode)
+    if (botmode) {
+        finished = true;
         return;
+    }
 
     tournamentPassword.stop();
 

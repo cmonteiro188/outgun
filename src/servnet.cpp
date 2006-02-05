@@ -1525,6 +1525,18 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 host->set_fav_colors(pid, fav_colors);
                 host->check_fav_colors(pid);
             }
+            else if (code == data_bot) {
+                const NLaddress& address = get_client_address(world.player[pid].cid);
+                char buf[NL_MAX_STRING_LENGTH];
+                nlAddrToString(&address, buf);
+                string addr_str = buf;
+                string::size_type pos = addr_str.rfind(':');
+                if (pos != string::npos)
+                    addr_str = addr_str.substr(0, pos);
+                world.player[pid].set_bot();
+                if (addr_str != "127.0.0.1")
+                    log("Remote bot from %s.", addr_str.c_str());
+            }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
                     log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i.", pid, code, msglen);

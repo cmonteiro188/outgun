@@ -745,6 +745,8 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     respawn_time = 0;
     respawn_to_base = false;
 
+    bot = false;
+
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
 
