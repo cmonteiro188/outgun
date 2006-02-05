@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -549,7 +549,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("pup_deathbringer_switch", &pupConfig.pup_deathbringer_switch)),
         PT(new GS_Double    ("pup_deathbringer_time",   &pupConfig.pup_deathbringer_time, 1.)),
         PT(new GS_Boolean   ("pups_drop_at_death",      &pupConfig.pups_drop_at_death)),
-        PT(new GS_Int       ("pups_player_max",         &pupConfig.pups_player_max, 0)),
+        PT(new GS_Int       ("pups_player_max",         &pupConfig.pups_player_max, 1)),
         PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
         PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
         PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9)),
@@ -912,28 +912,14 @@ void Server::remove_bot() {
             else
                 ++blue;
     for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].is_bot() && (red == blue || red > blue && i / TSIZE == 0 || blue > red && i / TSIZE == 1)) {
-            if (threadLock)
-                threadLockMutex.unlock();
+        if (world.player[i].used && world.player[i].is_bot() && (red == blue || red > blue && i / TSIZE == 0 || blue > red && i / TSIZE == 1)) {
             disconnectPlayer(i, disconnect_kick);
-            if (threadLock)
-                threadLockMutex.lock();
-            //(*bi)->stop();
-            //delete *bi;
-            //bots.erase(bi);
             return;
         }
     // Just remove one.
     for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].is_bot()) {
-            if (threadLock)
-                threadLockMutex.unlock();
+        if (world.player[i].used && world.player[i].is_bot()) {
             disconnectPlayer(i, disconnect_kick);
-            if (threadLock)
-                threadLockMutex.lock();
-            //(*bi)->stop();
-            //delete *bi;
-            //bots.erase(bi);
             return;
         }
 }
@@ -1491,40 +1477,35 @@ void Server::stop() {
 void Server::run_bot_thread() {
     log("run_bot_thread");
 
-    init_bots();
-    check_bots = false;
-    //platSleep(1000);
+    check_bots = true;
 
     while (!quit_bots) {
-        if (bots.empty()) {
+        if (bots.empty() && !check_bots) {
             platSleep(1000);
-            if (!check_bots)
-                continue;
+            continue;
         }
         else
             platSleep(15);
-        if (threadLock)
-            threadLockMutex.lock();
         if (check_bots) {
             check_bots = false;
+            if (threadLock)
+                threadLockMutex.lock();
             init_bots();
+            if (threadLock)
+                threadLockMutex.unlock();
         }
         g_timeCounter.refresh();
-        for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+        for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
             nAssert(*bi);
             if ((*bi)->bot_finished()) {
-                if (threadLock)
-                    threadLockMutex.unlock();
                 delete *bi;
                 bi = bots.erase(bi);
-                if (threadLock)
-                    threadLockMutex.lock();
             }
-            else
+            else {
                 (*bi)->bot_loop();
+                ++bi;
+            }
         }
-        if (threadLock)
-            threadLockMutex.unlock();
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);

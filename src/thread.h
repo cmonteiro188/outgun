@@ -1,7 +1,7 @@
 /*
  *  thread.h
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -29,7 +29,7 @@
 #include "nassert.h"    // for STACK_GUARD and __attribute__ for non-GCC, as well as nAssert
 
 class Thread {
-    static void randomize();    // does just { srand(time(0)); }; not inlined to avoid extra headers here
+    static void randomize();    // calls srand with an unique seed
     static int doStart(pthread_t* pThread, void* (*function)(void*), void* argument, bool detached, int priority);
     static int doGetPriority(pthread_t thread);
     static void doSetPriority(pthread_t thread, int priority);

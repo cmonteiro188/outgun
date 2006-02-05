@@ -1,7 +1,7 @@
 /*
  *  thread.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -26,11 +26,16 @@
 #include <cerrno>
 #include <pthread.h>
 #include "language.h"
+#include "mutex.h"
 #include "thread.h"
 #include "utility.h"
 
+MutexHolder g_randomSeedMutex;
+time_t g_randomSeed = time(0);
+
 void Thread::randomize() {
-    srand(time(0));
+    MutexLock ml(g_randomSeedMutex);
+    srand(++g_randomSeed);
 }
 
 int Thread::doStart(pthread_t* pThread, void* (*function)(void*), void* argument, bool detached, int priority) {

@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1390,9 +1390,11 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 }
             }
             else if (code == data_client_ready) {
+                #ifdef EXTRA_DEBUG
+                nAssert(world.player[pid].awaiting_client_readies); // this is an abnormal condition, but it could be the client's fault se normally we can ignore it
+                #endif
                 if (world.player[pid].awaiting_client_readies)
                     --world.player[pid].awaiting_client_readies;
-                // it being already zero is an abnormal condition, but it's the client's fault and we can ignore it
             }
             else if (code == data_map_exit_on) {
                 if (world.player[pid].want_map_exit == false) {
@@ -1401,12 +1403,14 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     if (host->specific_map_vote_required() && world.player[pid].mapVote == -1)
                         player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
                     host->check_map_exit();
+                    pid = ctop[id]; // check_map_exit may move players
                 }
             }
             else if (code == data_map_exit_off) {
                 if (world.player[pid].want_map_exit == true) {
                     world.player[pid].want_map_exit = false;
                     host->check_map_exit();
+                    pid = ctop[id]; // check_map_exit may move players
                 }
             }
             else if (code == data_file_request) {
@@ -1505,6 +1509,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                             player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
                     }
                     host->check_map_exit();
+                    pid = ctop[id]; // check_map_exit may move players
                 }
             }
             else if (code == data_fav_colors) {
@@ -1526,16 +1531,13 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 host->check_fav_colors(pid);
             }
             else if (code == data_bot) {
-                const NLaddress& address = get_client_address(world.player[pid].cid);
+                NLaddress address = get_client_address(world.player[pid].cid);
+                nlSetAddrPort(&address, 0);
                 char buf[NL_MAX_STRING_LENGTH];
                 nlAddrToString(&address, buf);
-                string addr_str = buf;
-                string::size_type pos = addr_str.rfind(':');
-                if (pos != string::npos)
-                    addr_str = addr_str.substr(0, pos);
+                if (strcmp(buf, "127.0.0.1"))
+                    log("Remote bot from %s.", buf);
                 world.player[pid].set_bot();
-                if (addr_str != "127.0.0.1")
-                    log("Remote bot from %s.", addr_str.c_str());
             }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {

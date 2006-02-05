@@ -1,7 +1,7 @@
 /*
  *  platform_win.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -72,7 +72,7 @@ class MMSystemTimer : public SystemTimer {
     uint64_t base;
     uint32_t prev;
 
-    MutexHolder readMutex;
+    MutexHolder readMutex; // read needs to be locked to avoid extra additions to base
 
 public:
     MMSystemTimer() {
@@ -164,14 +164,13 @@ void platInit() {
         g_timerResolution = tc.wPeriodMin;
     timeBeginPeriod(g_timerResolution); // ignore possible failure; we can't help it
 
-    g_systemTimer = new MMSystemTimer();
-    /*PerformanceCounterTimer* t = new PerformanceCounterTimer();
+    PerformanceCounterTimer* t = new PerformanceCounterTimer();
     if (t->init())
         g_systemTimer = t;
     else  {
         delete t;
         g_systemTimer = new MMSystemTimer();
-    }*/
+    }
 }
 
 void platUninit() {

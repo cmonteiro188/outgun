@@ -2,7 +2,7 @@
  *  client.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -210,6 +210,7 @@ public:
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
+
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;
 
@@ -261,13 +262,7 @@ class Client {
     ClientWorld fd, fx; //#fix: two maps, etc.
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
     int me;
-#ifdef BOTMODE
-public:
     MutexHolder frameMutex;
-private:
-#else
-    MutexHolder frameMutex;
-#endif
     int maxplayers;
 
     bool botmode;
@@ -346,52 +341,50 @@ private:
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
     MutexHolder serverListMutex;
 
-    std::string playername;
+    std::string playername; //the player's name (max name len = 16)
     NLaddress serverIP;
 
-    int IsAimed(double mex, double mey, int i); // return 1 if in hit point
-    int IsBehindWall(double mex, double mey, double dx, double dy);
-    double ScanDir(double mex, double mey, int dir);
-    int Aim(double mex, double mey, int i);
-    int GetDir(double dx, double dy);
-    int GetDangerousRocket(double mex, double mey);
-    int GetDangerousEnemy(double mex, double mey);
-    int GetNearestEnemy(double mex, double mey);
-    int NeedShoot(double mex, double mey);
-    int EscapeRocket(double mex, double mey, int mrock);
+    int IsAimed(double mex, double mey, int i) const; // return 1 if in hit point
+    bool IsBehindWall(double mex, double mey, double dx, double dy) const;
+    double ScanDir(double mex, double mey, int dir) const;
+    ClientControls Aim(double mex, double mey, int i) const;
+    int GetDir(double dx, double dy) const;
+    int GetDangerousRocket(double mex, double mey) const;
+    int GetDangerousEnemy(double mex, double mey) const;
+    int GetNearestEnemy(double mex, double mey) const;
+    bool NeedShoot(double mex, double mey) const;
+    ClientControls EscapeRocket(double mex, double mey, int mrock) const;
     ClientControls Robot();
-    int GetFlag(double mex, double mey);
-    int GetPowerup(double mex, double mey);
-//    int CarryFlag(double mex, double mey);
-    int MoveTo(double mex, double mey, double dx, double dy);
-    int MoveDir(int dir);
-    int FreeDir(double mex, double mey);
+    ClientControls GetFlag(double mex, double mey) const;
+    ClientControls GetPowerup(double mex, double mey) const;
+    ClientControls MoveTo(double mex, double mey, double dx, double dy) const;
+    ClientControls MoveDir(int dir) const;
+    int FreeDir(double mex, double mey) const;
     void BuildMap();
-    void ChosePass();
-    int  IsMassive();
-    int  FreeWalk(double mex, double mey);
-    void next_room(int &x, int &y, int i); // chose ith door
+    void ChosePass() const;
+    bool IsMassive() const;
+    ClientControls FreeWalk(double mex, double mey) const;
+    void next_room(int &x, int &y, int i) const; // chose ith door
     int  label_room(int x, int y, int label); // label rooms around x y (wich is labeled as label)
     int  route_room(int &x, int &y); // go one step to lower label and label it as route , return 1 if step is done
     int  BuildRouteTable(); // build route table (labeled) from me point, return max path len
     int  BuildRoute(int tox, int toy); // build route on route table tox(y), return 0 if not needed, -1 if no path
-    int  DoRoute(double mex, double mey); // simulate keypress (follow route)
-    int  RouteLogic(); // build route on route table using AI, -1 if not builded
-    int  Route(double mex, double mey); // do all route (wrapper)
-//    int  TargetRoute(int ef, int efc, int mf, int mfc, int wf, int wfc, int en, int fr, int eb, int fb);
+    ClientControls DoRoute(double mex, double mey) const; // simulate keypress (follow route)
+    bool RouteLogic(); // build route on route table using AI, -1 if not builded
+    ClientControls Route(double mex, double mey); // do all route (wrapper)
 //	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
 //	    // -1 if no target labeled
-    int TargetNearestBase(int &m_label, int &x, int &y, int team);
-    int TargetNearestTeam(int &m_label, int &x, int &y, int team);
-    int TargetNearestFlag(int &m_label, int &x, int &y, int team, int state);
+    int TargetNearestBase(int &m_label, int &x, int &y, int team) const;
+    int TargetNearestTeam(int &m_label, int &x, int &y, int team) const;
+    int TargetNearestFlag(int &m_label, int &x, int &y, int team, int state) const;
     int TargetRoute(int efb, int efd, int efc, 
 			int mfb, int mfd, int mfc, 
 			int wfb, int wfd, int wfc, 
 			int en,  int fr, 
 			int eb,  int fb, int wb);
 
-    int HaveFlag(); // returns if me is carrier
-    int IsHome(int mex, int mey);//
+    bool HaveFlag() const; // returns if me is carrier
+    bool IsHome(int mex, int mey) const;//
 
     volatile bool abortThreads;
 

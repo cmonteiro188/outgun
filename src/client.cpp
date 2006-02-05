@@ -2,7 +2,7 @@
  *  client.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -52,16 +52,6 @@
 #include "world.h"
 
 #include "client.h"
-
-#ifdef BOTMODE
-#define UI_START if(!botmode){
-#define UI_END   }
-#define UI if(!botmode)
-#else
-#define UI_START 
-#define UI_END
-#define UI
-#endif
 
 /*
 class MutexDebug {
@@ -588,10 +578,6 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
     }
     if (cl->botmode && code != 0)
         cl->stop();
-    /*if (cl->botmode && code != 0 && code != 1) {
-        cl->disconnect_command();
-        cl->connect_command(false);
-    }*/
 }
 
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
@@ -636,10 +622,10 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 
     //time of last packet received
     lastpackettime = 0;
-    UI_START
-    initMenus();
-    showMenu(menu);
-    UI_END;
+    if (!botmode) {
+        initMenus();
+        showMenu(menu);
+    }
     menusel = menu_none;
 
     //game showing?
@@ -919,7 +905,7 @@ bool Client::start() {
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
 
-	return true;
+    return true;
 }
 
 void Client::bot_start(const NLaddress& addr, int ping) {
@@ -1200,7 +1186,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     gameover_plaque = NEXTMAP_NONE;
 
     //clear client side effects
-    UI client_graphics.clear_fx();
+    client_graphics.clear_fx();
 
     send_frame(true, true);
 }
@@ -1238,13 +1224,13 @@ void Client::client_disconnected(const char* data, int length) {
             break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
             break; default:;
         }
-    UI_START
-    m_connectProgress.clear();
-    m_connectProgress.wrapLine(_("You have been disconnected."));
-    if (!description.empty())
-        m_connectProgress.wrapLine(description);
-    showMenu(m_connectProgress);
-    UI_END
+    if (!botmode) {
+        m_connectProgress.clear();
+        m_connectProgress.wrapLine(_("You have been disconnected."));
+        if (!description.empty())
+            m_connectProgress.wrapLine(description);
+        showMenu(m_connectProgress);
+    }
     if (description.empty())
         log("Disconnection successful");
     else
@@ -1463,11 +1449,11 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->set_connect_data(lebuf, count);
 
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
-    UI_START
-    m_connectProgress.clear();
-    m_connectProgress.wrapLine(_("Trying to connect..."), true);
-    showMenu(m_connectProgress);
-    UI_END
+    if (!botmode) {
+        m_connectProgress.clear();
+        m_connectProgress.wrapLine(_("Trying to connect..."), true);
+        showMenu(m_connectProgress);
+    }
 }
 
 void Client::issue_change_name_command() {
@@ -3428,9 +3414,9 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             }
             return true;
         break; case menu_players:
-            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP || sc == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT]))
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
                 player_stats_page = max(0, player_stats_page - 1);
-            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN || sc == KEY_TAB)
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
                 player_stats_page = min(3, player_stats_page + 1);
             else if (sc == KEY_TAB)
                 player_stats_page = (player_stats_page + (key[KEY_LSHIFT] || key[KEY_RSHIFT] ? -1 + 4 : +1)) % 4;
@@ -3501,6 +3487,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
 void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     nAssert(quitFlag);
     quitCommand = false;
+
     menusel = menu_none;
     openMenus.clear();
     if (firstTimeSplash) {
@@ -3528,6 +3515,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
 
             static bool alt_sequence = false;
+
             if (keyboard_needs_poll())
                 poll_keyboard();    // ignore return value
 
@@ -3583,7 +3571,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 --clientReadiesWaiting;
             }
 
-            // process messages from network that have been collected
             {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
@@ -3654,8 +3641,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             if (mapChanged) {
                 mapChanged = false;
+                client_graphics.update_minimap_background(fx.map);
                 predrawNeeded = true;
-                UI client_graphics.update_minimap_background(fx.map);
             }
             if (predrawNeeded) {
                 predrawNeeded = false;
@@ -3664,6 +3651,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             client_graphics.startDraw();
             draw_game_frame();
+
             #ifdef ROOM_CHANGE_BENCHMARK
             if (benchmarkRuns >= 500)
                 quitCommand = true;
@@ -3674,6 +3662,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             if (!gameshow && openMenus.empty())
                 showMenu(menu);
         }
+
         const int errors = externalErrorLog.size();
         if (errors) {
             for (int count = 0; count < errors; ++count)
@@ -3869,7 +3858,9 @@ void Client::stop() {
 }
 
 void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
-    UI_START
+    fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
+    if (botmode)
+        return;
     if (power) {
         client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_POWERWALLHIT);
@@ -3878,8 +3869,6 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
         client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_WALLHIT);
     }
-    UI_END
-    fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
 }
 
 void Client::rocketOutOfBoundsCallback(int rid) {
@@ -3943,7 +3932,7 @@ void Client::predraw() {
     }
     else
         texRoomX = texRoomY = 0;    // this way the texturing always starts from the top left corner (classic look)
-    UI client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
+    client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
 }
 
 //draw the whole game screen
@@ -4409,11 +4398,10 @@ void Client::initMenus() {
 
     loadHelp();
     loadSplashScreen();
-    UI_START
+
     menu.options.screenMode.init(client_graphics);
     menu.options.graphics.init(client_graphics);
     menu.options.sounds.init(client_sounds);
-    UI_END
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
 
@@ -4481,7 +4469,7 @@ void Client::MCF_removePasswords() {
 }
 
 void Client::MCF_prepareGameMenu() {
-    UI menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
+    menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
 }
 
 void Client::MCF_prepareControlsMenu() {
@@ -4540,23 +4528,23 @@ void Client::MCF_prepareDrawScrModeMenu() {
 }
 
 void Client::MCF_prepareGfxMenu() {
-    UI menu.options.graphics.update(client_graphics);
+    menu.options.graphics.update(client_graphics);
 }
 
 void Client::MCF_gfxThemeChange() {
-    UI client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
     predrawNeeded = true;
 }
 
 void Client::MCF_fontChange() {
-    UI client_graphics.select_font(menu.options.graphics.font());
-    UI client_graphics.make_layout();
+    client_graphics.select_font(menu.options.graphics.font());
+    client_graphics.make_layout();
     predrawNeeded = true;
     mapChanged = true;  // just to get minimap updated
 }
 
 void Client::MCF_screenDepthChange() {
-    UI menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
 }
 
 void Client::MCF_screenModeChange() {   // used to lose the return value
@@ -4626,34 +4614,34 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
 }
 
 void Client::MCF_antialiasChange() {
-    UI client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
-    UI client_graphics.update_minimap_background(fx.map);
+    client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    client_graphics.update_minimap_background(fx.map);
     predrawNeeded = true;
 }
 
 void Client::MCF_transpChange() {
-    UI client_graphics.set_min_transp(menu.options.graphics.minTransp());
+    client_graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
 void Client::MCF_statsBgChange() {
-    UI client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
+    client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
 void Client::MCF_prepareSndMenu() {
-    UI menu.options.sounds.update(client_sounds);
+    menu.options.sounds.update(client_sounds);
 }
 
 void Client::MCF_sndEnableChange() {
-    UI client_sounds.setEnable(menu.options.sounds.enabled());
+    client_sounds.setEnable(menu.options.sounds.enabled());
 }
 
 void Client::MCF_sndVolumeChange() {
-    UI client_sounds.setVolume(menu.options.sounds.volume());
-    UI client_sounds.play(SAMPLE_POWER_FIRE);
+    client_sounds.setVolume(menu.options.sounds.volume());
+    client_sounds.play(SAMPLE_POWER_FIRE);
 }
 
 void Client::MCF_sndThemeChange() {
-    UI client_sounds.select_theme(menu.options.sounds.theme());
+    client_sounds.select_theme(menu.options.sounds.theme());
 }
 
 bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) {  // helper to MCF_refreshLanguages
@@ -4968,8 +4956,7 @@ void Client::loadHelp() {
     const string configFile = wheregamedir + "languages" + directory_separator + "help." + language.code() + ".txt";
     ifstream in(configFile.c_str());
     if (!in) {
-        menu.help.addLine(_("No help found. It should be in"));
-        menu.help.addLine(configFile);
+        menu.help.addLine(_("No help found. It should be in $1", configFile));
         return;
     }
     string line;
@@ -4990,21 +4977,21 @@ void Client::loadSplashScreen() {
         static const char* msg[] = {
             GAME_STRING " " GAME_VERSION ", copyright © 2002-2006 multiple authors.",
             "",
-            "Outgun is free software under the GNU GPL, and you are welcome to",
-            "redistribute it under certain conditions. Outgun comes with ABSOLUTELY",
+            "Outgun is free software under the GNU GPL, and you are welcome to "
+            "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "
             "NO WARRANTY. For details, see the accompanying file COPYING.",
             "",
-            "To help us remove any remaining bugs, you can let Outgun automatically",
-            "send us a notification when an unexpected failure occurs. You can choose",
-            "between no reporting, minimal information, and a complete report. The",
-            "minimal information includes no more than the file name and line number",
-            "of the failing assertion, and the version of Outgun. The complete report",
-            "also includes a copy of Outgun's stack. This information is only used to",
-            "find the cause of the failure. We can't contact you for more information,",
+            "To help us remove any remaining bugs, you can let Outgun automatically "
+            "send us a notification when an unexpected failure occurs. You can choose "
+            "between no reporting, minimal information, and a complete report. The "
+            "minimal information includes no more than the file name and line number "
+            "of the failing assertion, and the version of Outgun. The complete report "
+            "also includes a copy of Outgun's stack. This information is only used to "
+            "find the cause of the failure. We can't contact you for more information, "
             "so it is recommended to also send an e-mail with more details.",
             "",
-            "Choose the preferred mode below with left and right arrow keys, and close",
-            "the menu with Enter or Esc. After the first time of starting Outgun, you",
+            "Choose the preferred mode below with left and right arrow keys, and close "
+            "the menu with Enter or Esc. After the first time of starting Outgun, you "
             "can find this screen in the Options menu.",
             0
         };
@@ -5044,10 +5031,7 @@ void Client::cfunc_connection_update(void* customp, int connect_result, const ch
 }
 
 void Client::connection_update(int connect_result, const char* data, int length) {
-    if (connect_result < 3)
-        addThreadMessage(new TM_ConnectionUpdate(connect_result, data, length));
-    else
-        addThreadMessage(new TM_ConnectionUpdate(connect_result, 0, 0));
+    addThreadMessage(new TM_ConnectionUpdate(connect_result, data, length));
 }
 
 void Client::cfunc_server_data(void* customp, const char* data, int length) {

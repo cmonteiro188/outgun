@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -118,11 +118,11 @@ private:
 
 class Room {
 public:
-#ifdef BOTMODE
+    // for bots:
     bool pass[4];
     int label;
     bool route;
-#endif
+
     ~Room();
 
     void addWall(WallBase* w) { walls.push_back(w); }
@@ -326,14 +326,15 @@ public:
     int visibility;     // alpha
 
     int roomx, roomy;
-#ifdef BOTMODE
+
+    // for bots:
     int routing;
     int route_x;
     int route_y;
     bool botPrevFire;
     double route_frame;
     int last_seen;
-#endif 
+
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
     int gundir; // gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
@@ -425,7 +426,7 @@ public:
 
     void set_fav_colors(const std::vector<char>& colors) { fav_col = colors; }
     const std::vector<char>& fav_colors() const { return fav_col; }
-    
+
     void set_bot() { bot = true; }
     bool is_bot() const { return bot; }
 

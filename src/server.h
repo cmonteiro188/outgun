@@ -2,7 +2,7 @@
  *  server.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -33,7 +33,7 @@
 #include "utility.h"
 #include "world.h"
 
-class Client;
+class Client; // bots are Clients
 
 //per-client struct (statically allocated to a single client)
 class ClientData {
