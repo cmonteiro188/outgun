@@ -31,13 +31,17 @@
 #include <stdio.h>
 #include <string>
 
+#ifndef __GNUC__
+#define __attribute__(a)
+#endif
+
 class EOF_Hit { };
 
 class StrError {
     std::string str;
 
 public:
-    StrError(const char* fmt, ...) {
+    StrError(const char* fmt, ...) __attribute__ ((format (printf, 2, 3))) {
         char buf[10000];
         va_list args;
         va_start(args, fmt);
