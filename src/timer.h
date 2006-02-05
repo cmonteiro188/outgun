@@ -1,7 +1,7 @@
 /*
  *  timer.h
  *
- *  Copyright (C) 2005 - Niko Ritari
+ *  Copyright (C) 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
