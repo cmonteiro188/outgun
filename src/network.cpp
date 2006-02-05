@@ -1,7 +1,7 @@
 /*
  *  network.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *  Copyright (C) 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.

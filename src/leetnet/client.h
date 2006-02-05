@@ -17,6 +17,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
  *  Modified by Niko Ritari 2003, 2004, 2005
+ *  Copyright (C) 2006 - Jani Rivinoja
  */
 
 /*

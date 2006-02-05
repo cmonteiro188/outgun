@@ -2,8 +2,8 @@
  *  main.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -278,6 +278,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     #ifndef DEDICATED_SERVER_ONLY
     ClientExternalSettings clientCfg;
     #endif
+
     // check args
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-ded"))

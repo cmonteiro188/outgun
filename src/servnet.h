@@ -2,8 +2,8 @@
  *  servnet.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -111,7 +111,7 @@ class ServerNetworking {
 
     Thread          mthread;
     Thread          webthread;
-
+    
     std::string     hostname;
     std::string     server_password;
     std::string     server_identification;
@@ -123,6 +123,7 @@ class ServerNetworking {
     MutexHolder     addPlayerMutex;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
+
     int             join_start;         // allow joining from this time of a day (in seconds)
     int             join_end;           // disallow joining; set both same to allow always (default)
     std::string     join_limit_message; // when joining is disallowed, this message is sent to asking clients in addition to information about the open times
