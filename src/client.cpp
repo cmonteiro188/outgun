@@ -2,7 +2,7 @@
  *  client.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -110,8 +110,6 @@ const int PASSBUFFER = 32;  //size of password file
 #ifdef ROOM_CHANGE_BENCHMARK
 int benchmarkRuns = 0;
 #endif
-
-Client *gameclient; //#fix: get rid
 
 class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
     Client& c;
@@ -688,12 +686,13 @@ bool Client::start() {
     connected = false;
 
     client = new_client_c(extConfig.networkPriority);
-    client->set_callback(CFUNC_CONNECTION_UPDATE, cfunc_connection_update);
-    client->set_callback(CFUNC_SERVER_DATA, cfunc_server_data);
+    client->setCallbackCustomPointer(this);
+    client->setConnectionCallback(cfunc_connection_update);
+    client->setServerDataCallback(cfunc_server_data);
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
-    FILE *psf = fopen(fileName.c_str(), "rb");
+    FILE* psf = fopen(fileName.c_str(), "rb");
     if (psf) {
         char pas[PASSBUFFER];
         for (int c = 0; c < PASSBUFFER; c++) {
@@ -1387,7 +1386,9 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     const string strAddress = addressToString(serverIP);
     client->set_server_address(strAddress.c_str());
 
-    log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(), m_serverPassword.password().empty()?"no":"yes", m_playerPassword.password().empty()?"no":"yes");
+    log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
+        m_serverPassword.password().empty() ? "no" : "yes",
+        m_playerPassword.password().empty() ? "no" : "yes");
 
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     char lebuf[256]; int count = 0;
@@ -3365,9 +3366,9 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             }
             return true;
         break; case menu_players:
-            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP || sc == KEY_TAB && (key[KEY_LSHIFT] || key[KEY_RSHIFT]))
+            if (sc == KEY_UP || sc == KEY_LEFT || sc == KEY_PGUP)
                 player_stats_page = max(0, player_stats_page - 1);
-            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN || sc == KEY_TAB)
+            else if (sc == KEY_DOWN || sc == KEY_RIGHT || sc == KEY_PGDN)
                 player_stats_page = min(3, player_stats_page + 1);
             else if (sc == KEY_TAB)
                 player_stats_page = (player_stats_page + (key[KEY_LSHIFT] || key[KEY_RSHIFT] ? -1 + 4 : +1)) % 4;
@@ -3522,7 +3523,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 --clientReadiesWaiting;
             }
 
-            // process messages from network that have been collected
             {
                 MutexLock ml(frameMutex);
                 handlePendingThreadMessages();
@@ -4867,8 +4867,7 @@ void Client::loadHelp() {
     const string configFile = wheregamedir + "languages" + directory_separator + "help." + language.code() + ".txt";
     ifstream in(configFile.c_str());
     if (!in) {
-        menu.help.addLine(_("No help found. It should be in"));
-        menu.help.addLine(configFile);
+        menu.help.addLine(_("No help found. It should be in $1", configFile));
         return;
     }
     string line;
@@ -4889,21 +4888,21 @@ void Client::loadSplashScreen() {
         static const char* msg[] = {
             GAME_STRING " " GAME_VERSION ", copyright © 2002-2006 multiple authors.",
             "",
-            "Outgun is free software under the GNU GPL, and you are welcome to",
-            "redistribute it under certain conditions. Outgun comes with ABSOLUTELY",
+            "Outgun is free software under the GNU GPL, and you are welcome to "
+            "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "
             "NO WARRANTY. For details, see the accompanying file COPYING.",
             "",
-            "To help us remove any remaining bugs, you can let Outgun automatically",
-            "send us a notification when an unexpected failure occurs. You can choose",
-            "between no reporting, minimal information, and a complete report. The",
-            "minimal information includes no more than the file name and line number",
-            "of the failing assertion, and the version of Outgun. The complete report",
-            "also includes a copy of Outgun's stack. This information is only used to",
-            "find the cause of the failure. We can't contact you for more information,",
+            "To help us remove any remaining bugs, you can let Outgun automatically "
+            "send us a notification when an unexpected failure occurs. You can choose "
+            "between no reporting, minimal information, and a complete report. The "
+            "minimal information includes no more than the file name and line number "
+            "of the failing assertion, and the version of Outgun. The complete report "
+            "also includes a copy of Outgun's stack. This information is only used to "
+            "find the cause of the failure. We can't contact you for more information, "
             "so it is recommended to also send an e-mail with more details.",
             "",
-            "Choose the preferred mode below with left and right arrow keys, and close",
-            "the menu with Enter or Esc. After the first time of starting Outgun, you",
+            "Choose the preferred mode below with left and right arrow keys, and close "
+            "the menu with Enter or Esc. After the first time of starting Outgun, you "
             "can find this screen in the Options menu.",
             0
         };
@@ -4937,19 +4936,16 @@ void Client::CB_tournamentToken(string token) { // callback called by tournament
     }
 }
 
-int Client::cfunc_connection_update(client_runes_t *arg) {
-    gameclient->connection_update(arg);
-    return 0;
+void Client::cfunc_connection_update(void* customp, int connect_result, const char* data, int length) {
+    Client* cl = static_cast<Client*>(customp);
+    cl->connection_update(connect_result, data, length);
 }
 
-void Client::connection_update(client_runes_t *arg) {
-    if (arg->connect_result < 3)
-        addThreadMessage(new TM_ConnectionUpdate(arg->connect_result, arg->data, arg->length));
-    else
-        addThreadMessage(new TM_ConnectionUpdate(arg->connect_result, 0, 0));
+void Client::connection_update(int connect_result, const char* data, int length) {
+    addThreadMessage(new TM_ConnectionUpdate(connect_result, data, length));
 }
 
-int Client::cfunc_server_data(client_runes_t *arg) {
-    gameclient->process_incoming_data(arg->data, arg->length);
-    return 0;
+void Client::cfunc_server_data(void* customp, const char* data, int length) {
+    Client* cl = static_cast<Client*>(customp);
+    cl->process_incoming_data(data, length);
 }

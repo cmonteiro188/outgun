@@ -1,7 +1,7 @@
 /*
  *  menu.h
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *  Copyright (C) 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -392,7 +392,7 @@ private:
 
 class Textobject : public Component {
 public:
-    Textobject(): Component(""), start(0), visible_lines(0), old_x(-1), old_h(-1) { }
+    Textobject(): Component(""), start(0), visible_lines(0), old_linew(-1) { }
     void addLine(const std::string& text) { lines.push_back(text); }
 
     // inherited interface
@@ -407,8 +407,8 @@ private:
     std::vector<std::string> lines;
     mutable int start;                          // these may change in drawing
     mutable int visible_lines;
-    mutable std::vector<std::string> splitted;
-    mutable int old_x, old_h;
+    mutable std::vector<std::string> splitted;  // these may change in height()
+    mutable int old_linew;
 };
 
 // this template does the necessary wrapping of member function references to be given to Components as callbacks

@@ -119,9 +119,6 @@ public:
     MutexHolder sendQueueMutex; // lock for operating on sendQueue
     std::queue< std::pair<double, QueueSendCommand*> > sendQueue;  // pair of sendtime, command for delayed sends (used if packetDelay != 0)
 
-    //the callbacks
-    client_callback_t       gamecfunc[NUM_OF_CFUNC];
-
     //the server address
     NLaddress       serveraddr;
 
@@ -151,6 +148,11 @@ public:
     char            connect_data[4096];
     int             connect_data_length;
 
+    connectionCallbackT* connectionCallback;
+    serverDataCallbackT* serverDataCallback;
+
+    void* customp;  // custom pointer passed back to callback functions
+
     int threadPriority;
 
     //------------------------------
@@ -158,12 +160,11 @@ public:
     //------------------------------
 
     //set a callback function.
-    virtual void set_callback(int callback_id, client_callback_t callback_function) {
-        if (callback_id < 0) return;
-        if (callback_id >= NUM_OF_CFUNC) return;
-        gamecfunc[callback_id] = callback_function;
-    }
-    
+    virtual void setConnectionCallback(connectionCallbackT* fn) { connectionCallback = fn; }
+    virtual void setServerDataCallback(serverDataCallbackT* fn) { serverDataCallback = fn; }
+
+    virtual void setCallbackCustomPointer(void* ptr) { customp = ptr; }
+
     //set the server's address. call before connect()
     virtual void set_server_address(const char *address) {
         nlStringToAddr(address, &serveraddr);
@@ -420,11 +421,10 @@ public:
         //connection callback w/ status = 1 (disconnected)
         //FIXME: DISCARDING EXTRA DATA ON THE INCOMING DISCONNECT PACKET (nao tem nada mesmo...)
         //
-        client_runes_t args;
-        args.connect_result = 1;
-        args.data = &reason;
-        args.length = 1;
-        gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
+        const int connect_result = 1;
+        const char* data = &reason;
+        const int length = 1;
+        connectionCallback(customp, connect_result, data, length);
 
         MutexLock ml(readerThreadManipulationMutex);
 
@@ -463,9 +463,7 @@ public:
             log("start_connect() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
             connect_status = old_status;    //no idea if this is needed...
             // "socket problem"
-            client_runes_t args;
-            args.connect_result = 5;
-            gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
+            connectionCallback(customp, 5, 0, 0);
             return;
         }
 
@@ -485,7 +483,7 @@ public:
         thread_read.start_assert(thread_reader_f, this, threadPriority);
 
         readerThreadManipulationMutex.unlock();
-        
+
         //start connection tries
         started_disconnection   = false;        //init "started_disconnection" flag for this connection session
         tries_left = 4;                 //number of tries
@@ -569,11 +567,7 @@ DLOG_Scope s("CPIDg");
 
                     //connection callback w/ status = 2 (failed)
                     //also handle the rest of the packet to the gameclient
-                    client_runes_t args;
-                    args.connect_result = 4;        // denied-by-engserver-full
-                    args.data = 0;      // no custom data
-                    args.length = 0;
-                    gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
+                    connectionCallback(customp, 4, 0, 0);   // denied-by-engserver-full
                 }
 
                 //stop connect - also quits reader thread
@@ -635,11 +629,10 @@ DLOG_Scope s("CPIDg");
 
                     //connection callback w/ status = 0  (connected)
                     //also handle the rest of the packet to the gameclient
-                    client_runes_t args;
-                    args.connect_result = 0;
-                    args.data = data + 12;   //skip 0,3,port
-                    args.length = length - 12;   //skip 0,3,port
-                    gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
+                    const int connect_result = 0;
+                    const char* newdata = data + 12;   //skip 0,3,port
+                    const int newlength = length - 12;   //skip 0,3,port
+                    connectionCallback(customp, connect_result, newdata, newlength);
                     
                     //connected!
                     connect_status = 3;
@@ -653,14 +646,13 @@ DLOG_Scope s("CPIDg");
 
                     //connection callback w/ status = 2 (failed)
                     //also handle the rest of the packet to the gameclient
-                    client_runes_t args;
-                    args.connect_result = 2;
-                    args.data = data + 8;   //skip 0,4
-                    args.length = length - 8;   //skip 0,4
+                    const int connect_result = 2;
+                    const char* newdata = data + 8;   //skip 0,4
+                    const int newlength = length - 8;   //skip 0,4
 
-                    log("INCOMING 0,4 REJECTION length = %i   argslength(game)=%i", length, args.length);
+                    log("INCOMING 0,4 REJECTION length = %i   argslength(game)=%i", length, newlength);
 
-                    gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
+                    connectionCallback(customp, connect_result, newdata, newlength);
                 }
 
                 //stop connect - also quits reader thread
@@ -689,14 +681,8 @@ DLOG_Scope s("CPIDg");
 
             //if client already disconnecting -- discard
             //else:
-            if (want_connect == true) {
-            
-                //callback gameclient 
-                client_runes_t      args;
-                args.data = data;
-                args.length = length; 
-                gamecfunc[CFUNC_SERVER_DATA](&args);
-            }
+            if (want_connect == true)
+                serverDataCallback(customp, data, length);
         }
     }
 
@@ -722,9 +708,7 @@ DLOG_Scope s("CPIDg");
             stop_connect();
 
             //"no response"
-            client_runes_t args;
-            args.connect_result = 3;
-            gamecfunc[CFUNC_CONNECTION_UPDATE](&args);
+            connectionCallback(customp, 3, 0, 0);
         
             //stop trying
             return true;    

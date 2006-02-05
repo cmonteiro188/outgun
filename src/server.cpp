@@ -2,8 +2,8 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -129,7 +129,7 @@ void Server::banPlayer(int pid, int admin, int minutes) {
 void Server::logAdminAction(int admin, const string& action, int target) {
     string message;
     if (target == -1)
-        message = string() + (admin == -1 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
+        message = (admin == -1 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
     else
         message = world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
                   + action + " by " + (admin == -1 ? "admin shell user" : world.player[admin].name);
@@ -542,7 +542,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("pup_deathbringer_switch", &pupConfig.pup_deathbringer_switch)),
         PT(new GS_Double    ("pup_deathbringer_time",   &pupConfig.pup_deathbringer_time, 1.)),
         PT(new GS_Boolean   ("pups_drop_at_death",      &pupConfig.pups_drop_at_death)),
-        PT(new GS_Int       ("pups_player_max",         &pupConfig.pups_player_max, 0)),
+        PT(new GS_Int       ("pups_player_max",         &pupConfig.pups_player_max, 1)),
         PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
         PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
         PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9)),
@@ -985,7 +985,7 @@ void Server::chat(int pid, const char* sbuf) {
     if (sbuf[0] == '/') {
         const bool admin = isAdmin(pid);
 
-        const char* pCommand=sbuf+1;
+        const char* pCommand = sbuf + 1;
         char cbuf[30];
         for (int ci = 0;; ++ci, ++pCommand) {
             if (ci == 29) {

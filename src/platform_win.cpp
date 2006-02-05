@@ -1,7 +1,7 @@
 /*
  *  platform_win.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -29,6 +29,7 @@
 
 #include "commont.h"
 #include "incalleg.h"
+#include "mutex.h"
 #include "platform.h"
 #include "timer.h"
 
@@ -71,6 +72,8 @@ class MMSystemTimer : public SystemTimer {
     uint64_t base;
     uint32_t prev;
 
+    MutexHolder readMutex; // read needs to be locked to avoid extra additions to base
+
 public:
     MMSystemTimer() {
         base = 0;
@@ -78,6 +81,7 @@ public:
     }
 
     double read() {
+        MutexLock ml(readMutex);
         uint32_t val = static_cast<uint32_t>(timeGetTime());
         if (val < prev) // check wrap-around
             base += uint64_t(1) << 32;

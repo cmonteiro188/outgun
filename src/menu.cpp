@@ -1,8 +1,8 @@
 /*
  *  menu.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
- *  Copyright (C) 2004, 2005, 2006 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -894,9 +894,24 @@ int Textobject::height() const {
     // 2 paddings, 2 lines for caption, 1 line for Textobject itself, spacer, 2 pixels for menu borders
     const int padding = 4 * char_w() - 2;
     const int spacer = 5 * line_h() / 10;
-    const int max_h = max(objLineHeight(), SCREEN_H - 2 - 3 * line_h() - spacer - 2 * padding);
-    int total_lines = max(splitted.size(), lines.size());
-    return min(total_lines * objLineHeight(), max_h);
+    const unsigned max_h = max(objLineHeight(), SCREEN_H - 2 - 3 * line_h() - spacer - 2 * padding);
+
+    const int linew = min((SCREEN_W - 2 * (1 + padding)) / char_w(), 70);
+    if (linew != old_linew) {
+        old_linew = linew;
+        splitted.clear();
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+            const string::size_type indent = li->find_first_not_of(' ');
+            if (indent == string::npos)
+                splitted.push_back(string());
+            else {
+                const vector<string> sublines = split_to_lines(*li, linew, indent);
+                splitted.insert(splitted.end(), sublines.begin(), sublines.end());
+            }
+        }
+    }
+
+    return min(splitted.size() * objLineHeight(), max_h);
 }
 
 int Textobject::objLineHeight() const {
@@ -905,16 +920,6 @@ int Textobject::objLineHeight() const {
 
 void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active) const {
     (void)active;
-    if (x != old_x || h != old_h) {
-        old_x = x;
-        old_h = h;
-        splitted.clear();
-        const int linew = min(buffer->w - 2 * x, 70 * char_w()) / char_w();
-        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
-            vector<string> sublines = split_to_lines(*li, linew);
-            splitted.insert(splitted.end(), sublines.begin(), sublines.end());
-        }
-    }
     if (start > static_cast<int>(splitted.size()) - h / objLineHeight())
         start = splitted.size() - h / objLineHeight();
     if (start < 0)

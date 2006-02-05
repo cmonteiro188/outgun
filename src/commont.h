@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -217,8 +217,8 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 // Game specific strings
 #define GAME_STRING "Outgun"
 #define GAME_PROTOCOL "1.0"
-#define GAME_VERSION "1.0.2"
-#define GAME_SHORT_VERSION "1.0.2"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
+#define GAME_VERSION "1.0.3"
+#define GAME_SHORT_VERSION "1.0.3"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 #define GAME_BRANCH "base"  // this only affects the master server communications, to make it tell the correct newest version
 
 #define TK1_VERSION_STRING "v048"

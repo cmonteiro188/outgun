@@ -598,7 +598,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         // run client
         clientCfg.statusOutput = statusOutputWindow;
         serverCfg.statusOutput = statusOutputWindow;
-        gameclient = new Client(log, clientCfg, serverCfg, memoryErrorLog);
+        Client* gameclient = new Client(log, clientCfg, serverCfg, memoryErrorLog);
         if (gameclient->start()) {
             gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
             gameclient->stop();

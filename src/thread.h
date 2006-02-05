@@ -1,7 +1,7 @@
 /*
  *  thread.h
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -29,7 +29,7 @@
 #include "nassert.h"    // for STACK_GUARD and __attribute__ for non-GCC, as well as nAssert
 
 class Thread {
-    static void randomize();    // does just { srand(time(0)); }; not inlined to avoid extra headers here
+    static void randomize();    // calls srand with an unique seed
     static int doStart(pthread_t* pThread, void* (*function)(void*), void* argument, bool detached, int priority);
     static int doGetPriority(pthread_t thread);
     static void doSetPriority(pthread_t thread, int priority);
@@ -100,7 +100,7 @@ public:
         return doStart0(&tthread, fun, true, priority);
     }
     template<class Function>
-    static void startDetachedThread_assert(Function fun, int priority) { int val = startDetachedThread(fun, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    static void startDetachedThread_assert(Function fun, int priority) { int val = startDetachedThread(fun, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     template<class Function, class ArgumentT>
     static int startDetachedThread(Function fun, ArgumentT arg, int priority) {
@@ -108,7 +108,7 @@ public:
         return doStart1(&tthread, fun, arg, true, priority);
     }
     template<class Function, class ArgumentT>
-    static void startDetachedThread_assert(Function fun, ArgumentT arg, int priority) { int val = startDetachedThread(fun, arg, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    static void startDetachedThread_assert(Function fun, ArgumentT arg, int priority) { int val = startDetachedThread(fun, arg, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     template<class Function>
     int start(Function fun, int priority) {
@@ -117,7 +117,7 @@ public:
         return doStart0(&thread, fun, false, priority);
     }
     template<class Function>
-    void start_assert(Function fun, int priority) { int val = start(fun, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    void start_assert(Function fun, int priority) { int val = start(fun, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     template<class Function, class ArgumentT>
     int start(Function fun, ArgumentT arg, int priority) {
@@ -126,7 +126,7 @@ public:
         return doStart1(&thread, fun, arg, false, priority);
     }
     template<class Function, class ArgumentT>
-    void start_assert(Function fun, ArgumentT arg, int priority) { int val = start(fun, arg, priority); if (val == EAGAIN) startError(); numAssert(val == 0, val); }
+    void start_assert(Function fun, ArgumentT arg, int priority) { int val = start(fun, arg, priority); if (val == EAGAIN || val == ENOMEM) startError(); numAssert(val == 0, val); }
 
     bool isRunning() const { return running; }  // note: this tells if there's need for join or detach rather than if the thread is active
     void join(bool acceptRecursive = false);
