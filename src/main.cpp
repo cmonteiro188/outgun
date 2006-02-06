@@ -101,7 +101,7 @@ bool set_shitty_mode(LogSet log) {
 // Make directory if it does not already exist.
 bool check_dir(const string& dir, LogSet& log) {
     const string directory = wheregamedir + dir;
-    
+
     if (platIsDirectory(directory) || !platMkdir(directory.c_str()))
         return true;
     log.error(_("The directory '$1' was not found and could not be created.", directory));

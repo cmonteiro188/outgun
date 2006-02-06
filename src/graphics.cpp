@@ -2449,7 +2449,7 @@ void Graphics::make_db_effect() {
     nAssert(db_effect);
 
     clear_to_color(db_effect, col[COLBLACK]);
-    
+
     set_write_alpha_blender();
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 

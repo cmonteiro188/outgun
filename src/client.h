@@ -341,7 +341,7 @@ class Client {
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
     MutexHolder serverListMutex;
 
-    std::string playername; //the player's name (max name len = 16)
+    std::string playername;
     NLaddress serverIP;
 
     int IsAimed(double mex, double mey, int i) const; // return 1 if in hit point

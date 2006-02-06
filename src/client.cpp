@@ -1052,7 +1052,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
 
 bool Client::load_map(const string& directory, const string& mapname, NLushort server_crc) {
     LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
-    
+
     const bool ok = fd.load_map(noLogSet, directory, mapname) && fx.load_map(noLogSet, directory, mapname); //#fix
 
     if (!ok)

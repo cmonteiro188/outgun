@@ -1299,7 +1299,7 @@ void PowerupSettings::reset() {
     pup_weapon_max = 9;
     pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
-    
+
     pups_drop_at_death = false;
     pups_player_max = INT_MAX;
 }
