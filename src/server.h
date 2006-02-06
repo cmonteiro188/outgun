@@ -160,9 +160,9 @@ class Server {
     Server& operator=(const Server& o);
 
 public:
-
     Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object
     virtual ~Server();
+
     bool start(int target_maxplayers);
     void loop(volatile bool *quitFlag, bool quitOnEsc);
     void stop();
@@ -180,6 +180,8 @@ public:
     bool check_name_password(const std::string& name, const std::string& password) const;
     void disconnectPlayer(int pid, Disconnect_reason reason);
     void sendMessage(int pid, Message_type type, const std::string& msg);
+
+    void set_check_bots() { check_bots = true; }
 
     void logAdminAction(int admin, const std::string& action, int target = -1);
 

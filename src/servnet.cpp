@@ -1193,6 +1193,8 @@ int ServerNetworking::client_connected(int id) {
     host->check_team_changes();
     update_serverinfo();
     world.check_pickup_creation(false);             // check pickup creation
+    host->set_check_bots();
+
     return myself;
 }
 
@@ -1240,6 +1242,8 @@ void ServerNetworking::client_disconnected(int id) {
 
     //update serverinfo
     update_serverinfo();
+
+    host->set_check_bots();
 }
 
 //client ping result
