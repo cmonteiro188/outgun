@@ -335,7 +335,7 @@ class Client {
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
     MutexHolder serverListMutex;
 
-    std::string playername; //the player's name (max name len = 16)
+    std::string playername;
     NLaddress serverIP;
 
     volatile bool abortThreads;

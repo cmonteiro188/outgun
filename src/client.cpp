@@ -731,6 +731,7 @@ bool Client::start() {
             log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
+
         getline(command, args); // this might fail, but that only means there is an empty string
         switch (static_cast<ClientCfgSetting>(settingId)) {
             // name menu
@@ -900,7 +901,7 @@ bool Client::start() {
 void Client::send_client_ready() {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_client_ready);
-    client->send_message(lebuf, count);     // bem curtinha a mensagem mesmo...
+    client->send_message(lebuf, count);
 }
 
 // incoming chunk of requested file by UDP
@@ -1612,7 +1613,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     continue;
                 }
 
-                ClientPlayer &h = fx.player[i];
+                ClientPlayer& h = fx.player[i];
 
                 //V0.3.9: took out screen reading, replacing for the same screen of "me"
                 // that is set above

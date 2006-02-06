@@ -111,7 +111,7 @@ class ServerNetworking {
 
     Thread          mthread;
     Thread          webthread;
-    
+
     std::string     hostname;
     std::string     server_password;
     std::string     server_identification;
