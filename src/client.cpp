@@ -588,6 +588,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     log(&normalLog, &errorLog, 0),
     listenServer(log),
     botmode(false),
+    botPrevFire(false),
     finished(false),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
     current_map(-1),

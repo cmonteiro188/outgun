@@ -232,6 +232,7 @@ public:
     virtual void execute(Client* cl) const = 0;
 };
 
+
 class Client {
     friend class ClientPhysicsCallbacks;
     friend class TM_DoDisconnect;
@@ -344,6 +345,22 @@ class Client {
     std::string playername;
     NLaddress serverIP;
 
+    enum Routing {
+	Route_None,
+	Route_Flag,
+	Route_Base,
+	Route_Team
+    };
+    // for bots:
+    Routing routing;
+    int route_x;
+    int route_y;
+    bool botPrevFire;
+    double route_frame;
+    int last_seen;
+
+    bool IsMission() const;
+    int GetEasyEnemy(double mex, double mey) const;
     int IsAimed(double mex, double mey, int i) const; // return 1 if in hit point
     bool IsBehindWall(double mex, double mey, double dx, double dy) const;
     double ScanDir(double mex, double mey, int dir) const;
@@ -374,9 +391,9 @@ class Client {
     ClientControls Route(double mex, double mey); // do all route (wrapper)
 //	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
 //	    // -1 if no target labeled
-    int TargetNearestBase(int &m_label, int &x, int &y, int team) const;
-    int TargetNearestTeam(int &m_label, int &x, int &y, int team) const;
-    int TargetNearestFlag(int &m_label, int &x, int &y, int team, int state) const;
+    int TargetNearestBase(int &m_label, int &x, int &y, int team);
+    int TargetNearestTeam(int &m_label, int &x, int &y, int team);
+    int TargetNearestFlag(int &m_label, int &x, int &y, int team, int state);
     int TargetRoute(int efb, int efd, int efc, 
 			int mfb, int mfd, int mfc, 
 			int wfb, int wfd, int wfc, 

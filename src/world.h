@@ -122,6 +122,7 @@ public:
     bool pass[4];
     int label;
     bool route;
+    double visited_frame;
 
     ~Room();
 
@@ -326,14 +327,6 @@ public:
     int visibility;     // alpha
 
     int roomx, roomy;
-
-    // for bots:
-    int routing;
-    int route_x;
-    int route_y;
-    bool botPrevFire;
-    double route_frame;
-    int last_seen;
 
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
