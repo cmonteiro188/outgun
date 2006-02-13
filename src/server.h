@@ -33,6 +33,8 @@
 #include "utility.h"
 #include "world.h"
 
+class Client; // bots are Clients
+
 //per-client struct (statically allocated to a single client)
 class ClientData {
 public:
@@ -107,6 +109,20 @@ class Server {
     ClientData      client[MAX_PLAYERS];
     std::vector<bool> fav_colors[2];
 
+    Thread          botthread;
+    std::vector<Client*> bots;
+    int min_bots;
+    int bots_fill;
+    int bot_ping;
+    int extra_bots;
+    volatile bool quit_bots;
+    MemoryLog botLog;
+    bool check_bots;
+
+    void init_bots();
+    void remove_bot();
+    void run_bot_thread();
+
     // world
     ServerWorld     world;
     bool            gameover;
@@ -144,9 +160,9 @@ class Server {
     Server& operator=(const Server& o);
 
 public:
-
     Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object
     virtual ~Server();
+
     bool start(int target_maxplayers);
     void loop(volatile bool *quitFlag, bool quitOnEsc);
     void stop();
@@ -164,6 +180,8 @@ public:
     bool check_name_password(const std::string& name, const std::string& password) const;
     void disconnectPlayer(int pid, Disconnect_reason reason);
     void sendMessage(int pid, Message_type type, const std::string& msg);
+
+    void set_check_bots() { check_bots = true; }
 
     void logAdminAction(int admin, const std::string& action, int target = -1);
 

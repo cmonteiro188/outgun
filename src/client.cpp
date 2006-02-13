@@ -4,6 +4,7 @@
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
+ *  Copyright (C) 2006 - Peter Kosyh
  *
  *  This file is part of Outgun.
  *
@@ -575,6 +576,8 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         }
         break; default: nAssert(0);
     }
+    if (cl->botmode && code != 0)
+        cl->stop();
 }
 
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
@@ -589,6 +592,9 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     map_vote(-1),
     player_stats_page(0),
     lastAltEnterTime(0),
+    botmode(false),
+    finished(false),
+    botPrevFire(false),
     abortThreads(false),
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
@@ -617,9 +623,10 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 
     //time of last packet received
     lastpackettime = 0;
-
-    initMenus();
-    showMenu(menu);
+    if (!botmode) {
+        initMenus();
+        showMenu(menu);
+    }
     menusel = menu_none;
 
     //game showing?
@@ -658,7 +665,8 @@ Client::~Client() {
 }
 
 bool Client::start() {
-    extConfig.statusOutput(_("Outgun client"));
+    if (!botmode)
+        extConfig.statusOutput(_("Outgun client"));
 
     totalframecount = 0;
     framecount = 0;
@@ -690,6 +698,11 @@ bool Client::start() {
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
 
+    playername = RandomName();
+
+    if (botmode)
+        return true;
+
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
     FILE* psf = fopen(fileName.c_str(), "rb");
@@ -708,7 +721,6 @@ bool Client::start() {
 
     //try to load client configuration
     vector<int> fav_colors;
-    playername = RandomName();
 
     fileName = wheregamedir + "config" + directory_separator + "client.cfg";
     ifstream cfg(fileName.c_str());
@@ -897,6 +909,34 @@ bool Client::start() {
     return true;
 }
 
+void Client::bot_start(const NLaddress& addr, int ping) {
+    MutexLock ml(frameMutex);
+    botmode = true;
+    serverIP = addr;
+
+    nAssert(start());
+
+    playername = "BOT " + trim(playername.substr(0, maxPlayerNameLength - 4));
+    botReactedFrame = -1;
+    vector<int> fav_colors;
+    fav_colors.clear();
+    for (int i = 0; i < 16; ++i)
+        fav_colors.push_back(i);
+    random_shuffle(fav_colors.begin(), fav_colors.end());
+    for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
+        menu.options.game.favoriteColors.addOption(*col);
+
+    for (int i = 0; i < ping / 10; ++i)
+        client->increasePacketDelay();
+
+    connect_command(false);
+
+    // Tell server that I am a bot.
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_bot);
+    client->send_message(lebuf, count);
+}
+
 //send "client ready" message to server (when map load and/or download completes)
 void Client::send_client_ready() {
     char lebuf[256]; int count = 0;
@@ -1066,9 +1106,11 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     show_all_messages = false;
     stats_autoshowing = false;
 
-    //set window title: the hostname
-    const string caption = _("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP));
-    extConfig.statusOutput(caption);
+    if (!botmode) {
+        //set window title: the hostname
+        const string caption = _("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP));
+        extConfig.statusOutput(caption);
+    }
 
     //don't want to change teams by default
     want_change_teams = false;
@@ -1161,8 +1203,10 @@ void Client::client_disconnected(const char* data, int length) {
     if (!connected)
         return;
 
-    //restore window title
-    extConfig.statusOutput(_("Outgun client"));
+    if (!botmode) {
+        //restore window title
+        extConfig.statusOutput(_("Outgun client"));
+    }
 
     // the gamestate?
     connected = false;
@@ -1181,11 +1225,13 @@ void Client::client_disconnected(const char* data, int length) {
             break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
             break; default:;
         }
-    m_connectProgress.clear();
-    m_connectProgress.wrapLine(_("You have been disconnected."));
-    if (!description.empty())
-        m_connectProgress.wrapLine(description);
-    showMenu(m_connectProgress);
+    if (!botmode) {
+        m_connectProgress.clear();
+        m_connectProgress.wrapLine(_("You have been disconnected."));
+        if (!description.empty())
+            m_connectProgress.wrapLine(description);
+        showMenu(m_connectProgress);
+    }
     if (description.empty())
         log("Disconnection successful");
     else
@@ -1402,12 +1448,13 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     writeStr(lebuf, count, m_playerPassword.password());    // empty or not, it's needed
 
     client->set_connect_data(lebuf, count);
-
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
 
-    m_connectProgress.clear();
-    m_connectProgress.wrapLine(_("Trying to connect..."), true);
-    showMenu(m_connectProgress);
+    if (!botmode) {
+        m_connectProgress.clear();
+        m_connectProgress.wrapLine(_("Trying to connect..."), true);
+        showMenu(m_connectProgress);
+    }
 }
 
 void Client::issue_change_name_command() {
@@ -1446,7 +1493,6 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
 
 //send the client's frame to server (keypresses)
 void Client::send_frame(bool newFrame, bool forceSend) {
-    static ClientControls sentControls;
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls;
@@ -2866,6 +2912,8 @@ void Client::send_chat(const string& msg) {
 
 //print message to "console"
 void Client::print_message(Message_type type, const string& msg) {
+    if (botmode)
+        return;
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
             message_log << date_and_time() << "  " << msg << endl;
@@ -3640,6 +3688,40 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     //client exit cleanup: done at stop wich needs to be called after loop
 }
 
+void Client::bot_loop() {
+    MutexLock ml(frameMutex);
+
+    handlePendingThreadMessages();
+
+    if (!connected || fx.frame == botReactedFrame)
+        return;
+
+    botReactedFrame = fx.frame;
+
+    while (clientReadiesWaiting > 0) {
+        send_client_ready();
+        --clientReadiesWaiting;
+    }
+
+    if (mapChanged) {
+        BuildMap();
+        mapChanged = false;
+    }
+
+    sentControls = Robot();
+    sentControls.clearModifiersIfIdle();
+
+    ++clFrameSent;
+    controlHistory[clFrameSent] = sentControls;
+    svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, clFrameSent);
+    writeByte(lebuf, count, sentControls.toNetwork(false));
+
+    client->send_frame(lebuf, count);
+}
+
 void Client::stop() {
     log("Client exiting: stop() called");
 
@@ -3647,6 +3729,11 @@ void Client::stop() {
 
     //at least disconnect
     disconnect_command();
+
+    if (botmode) {
+        finished = true;
+        return;
+    }
 
     tournamentPassword.stop();
 
@@ -3772,6 +3859,9 @@ void Client::stop() {
 }
 
 void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
+    fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
+    if (botmode)
+        return;
     if (power) {
         client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_POWERWALLHIT);
@@ -3780,7 +3870,6 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
         client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_WALLHIT);
     }
-    fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
 }
 
 void Client::rocketOutOfBoundsCallback(int rid) {

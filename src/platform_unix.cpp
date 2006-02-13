@@ -109,7 +109,8 @@ public:
     }
 
     ~LinuxFileFinder() {
-        closedir(dir);
+        if (dir)
+            closedir(dir);
     }
 
     bool hasNext() const { return ent; }

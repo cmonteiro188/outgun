@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "client.h"
 #include "incalleg.h"
 #include "gamemod.h"
 #include "language.h"
@@ -55,6 +56,7 @@ using std::ios;
 using std::istringstream;
 using std::list;
 using std::max;
+using std::min;
 using std::ofstream;
 using std::ostringstream;
 using std::pair;
@@ -236,9 +238,6 @@ void Server::check_player_change_teams(int pid) {
     //check if team changing happens: calculate delta TARGET TEAM - MY TEAM
     const int teamdelta = tc[1 - pid / TSIZE] - tc[pid / TSIZE];
 
-    // target team with MORE players: do not move
-    if (teamdelta > 0)
-        return;
     // target team with 2 players less: move player without a trade
     if (teamdelta <= -2)
         for (int i = 0; i < maxplayers; i++)
@@ -248,11 +247,12 @@ void Server::check_player_change_teams(int pid) {
                     return;
                 }
     // Find a trade.
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used && i / TSIZE != pid / TSIZE && world.player[i].want_change_teams) {
-            swap_players(pid, i);
-            return;
-        }
+    if (teamdelta <= 0)
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used && i / TSIZE != pid / TSIZE && world.player[i].want_change_teams) {
+                swap_players(pid, i);
+                return;
+            }
 
     // If the old team has one player more, move the player.
     if (teamdelta == -1)
@@ -261,6 +261,13 @@ void Server::check_player_change_teams(int pid) {
                 move_player(pid, i);
                 return;
             }
+
+    // Switch teams with a bot.
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used && world.player[i].is_bot() && i / TSIZE != pid / TSIZE) {
+            swap_players(pid, i);
+            return;
+        }
 }
 
 //move player - move player (f rom) to empty position (t o)
@@ -564,6 +571,9 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
+        PT(new GS_Int       ("min_bots",                &min_bots, 0, MAX_PLAYERS)),
+        PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
+        PT(new GS_Int       ("bot_ping",                &bot_ping, 0, 500)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -715,7 +725,7 @@ bool Server::server_next_map(int reason) {
 void Server::check_map_exit() {
     int num_for = 0, num_against = 0;
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used) {
+        if (world.player[i].used && !world.player[i].is_bot()) {
             if (world.player[i].want_map_exit && (!require_specific_map_vote || world.player[i].mapVote != -1))
                 num_for++;
             else
@@ -777,8 +787,14 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     network.clear_web_servers();
     network.set_web_refresh(2);
 
+    min_bots = 0;
+    bots_fill = 0;
+    bot_ping = 0;
+
     // load server configuration from gamemod.txt
     load_game_mod(reload);
+
+    check_bots = true;
 
     if (maprot.empty()) {
         // did not specify maps, scan "maps/" folder for .txt map files
@@ -843,6 +859,71 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     return true;
 }
 
+void Server::init_bots() {
+    int humans = 0, bot_count = 0;
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used)
+            if (world.player[i].is_bot())
+                ++bot_count;
+            else
+                ++humans;
+    log("%d bots, %d in vector.", bot_count, bots.size());
+    // Check if some bots need to be removed.
+    if (bot_count >= min_bots + extra_bots && humans + bot_count >= bots_fill + extra_bots) {
+        if (bot_count == min_bots + extra_bots && humans + bot_count >= bots_fill + extra_bots ||
+            humans + bot_count == bots_fill + extra_bots && bot_count >= min_bots + extra_bots)
+                return;  // There is already the right number of bots.
+        const int remove = min(humans + bot_count - bots_fill, bot_count - min_bots) - extra_bots;
+        log("Remove %d bots.", remove);
+        nAssert(remove > 0);
+        for (int i = 0; i < remove; ++i)
+            remove_bot();
+        return;
+    }
+    const int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
+    log("%d bots needed.", needed_bots);
+    ServerExternalSettings serverCfg;
+    ClientExternalSettings clientCfg;
+    int policy;
+    sched_param param;
+    pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
+    clientCfg.statusOutput = config().statusOutput;
+    NLaddress address;
+    if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
+        nAssert(0);
+    while (bot_count < needed_bots) {
+        Client* bot = new Client(log, clientCfg, serverCfg, botLog);
+        nAssert(bot);
+        bot->bot_start(address, bot_ping);
+        bots.push_back(bot);
+        log("Bot added");
+        ++bot_count;
+    }
+}
+
+void Server::remove_bot() {
+    nAssert(!bots.empty());
+    int red = 0, blue = 0;
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used)
+            if (world.player[i].team() == 0)
+                ++red;
+            else
+                ++blue;
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used && world.player[i].is_bot() && (red == blue || red > blue && i / TSIZE == 0 || blue > red && i / TSIZE == 1)) {
+            disconnectPlayer(i, disconnect_kick);
+            return;
+        }
+    // Just remove one.
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used && world.player[i].is_bot()) {
+            disconnectPlayer(i, disconnect_kick);
+            return;
+        }
+}
+
 //start server
 bool Server::start(int target_maxplayers) {
     nAssert(target_maxplayers >= 2 && target_maxplayers <= MAX_PLAYERS && target_maxplayers % 2 == 0);
@@ -855,6 +936,7 @@ bool Server::start(int target_maxplayers) {
         client[i].reset();
 
     gameover = false;
+    extra_bots = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++)
         world.player[i].clear(false, i, 0, "", i / TSIZE);  // 0 : fake cid
@@ -878,6 +960,10 @@ bool Server::start(int target_maxplayers) {
         threadLockMutex.unlock();
 
     abortFlag = false;
+
+    //start bot thread
+    botthread.start_assert(RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread), config().lowerPriority);
+
     return true;
 }
 
@@ -972,6 +1058,8 @@ bool Server::isLocallyAuthorized(int pid) const {
 }
 
 bool Server::isAdmin(int pid) const {
+    if (world.player[pid].is_bot())
+        return false;
     if (world.player[pid].localIP)
         return true;
     if (!authorizations.isAdmin(world.player[pid].name))
@@ -1024,6 +1112,7 @@ void Server::chat(int pid, const char* sbuf) {
                 network.player_message(pid, msg_server, "/smute n    silently mute player with ID n (crude!)");
                 network.player_message(pid, msg_server, "/unmute n   cancel muting of player with ID n");
                 network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've voted for one");
+                network.player_message(pid, msg_server, "/bot s      add or remove a bot");
             }
         }
         else if (!strcmp(cbuf, "info") && !info_message.empty()) {
@@ -1114,6 +1203,53 @@ void Server::chat(int pid, const char* sbuf) {
             }
             server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
         }
+        else if (!strcmp(cbuf, "bot") && admin) {
+            istringstream command(pCommand);
+            string option;
+            command >> option;
+            if (!command) {
+                network.player_message(pid, msg_header, "Bot commands:");
+                network.player_message(pid, msg_server, "/bot add       add a bot");
+                network.player_message(pid, msg_server, "/bot remove    remove a bot");
+                network.player_message(pid, msg_server, "/bot ping p    show or set the bot ping");
+                network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
+                network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d", min_bots, bots_fill, extra_bots);
+            }
+            else if (option == "add") {
+                if (network.get_player_count() == maxplayers)
+                    network.plprintf(pid, msg_warning, "No room for a new bot.");
+                else {
+                    ++extra_bots;
+                    network.plprintf(pid, msg_server, "A new bot will be added.");
+                    check_bots = true;
+                }
+            }
+            else if (option == "remove") {
+                --extra_bots;
+                if (bots.empty() || extra_bots < 0) {
+                    network.plprintf(pid, msg_warning, "No bots to remove.");
+                    extra_bots = 0;
+                }
+                else {
+                    network.plprintf(pid, msg_server, "A bot will be removed.");
+                    check_bots = true;
+                }
+            }
+            else if (option == "ping") {
+                int ping;
+                command >> ping;
+                if (!command && command.eof())
+                    network.plprintf(pid, msg_server, "Bot ping is now %d.", bot_ping);
+                else if (command && command.eof() && ping >= 0 && ping <= 500) {
+                    bot_ping = ping;
+                    network.plprintf(pid, msg_server, "Bot ping is now %d.", bot_ping);
+                }
+                else
+                    network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 500.");
+            }
+            else
+                network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove or ping.");
+        }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);
     }
@@ -1195,10 +1331,14 @@ void Server::simulate_and_broadcast_frame() {
 
     if (world.frame >= next_vote_announce_frame) {  // announce voting status
         int votes = 0;
+        int humans = 0;
         for (int i = 0; i < maxplayers; ++i)
-            if (world.player[i].used && world.player[i].want_map_exit && (!require_specific_map_vote || world.player[i].mapVote != -1))
-                ++votes;
-        const int players = get_player_count() / 2 + 1;
+            if (world.player[i].used && !world.player[i].is_bot()) {
+                ++humans;
+                if (world.player[i].want_map_exit && (!require_specific_map_vote || world.player[i].mapVote != -1))
+                    ++votes;
+            }
+        const int players = humans / 2 + 1;
         if (votes != last_vote_announce_votes || (players != last_vote_announce_needed && votes != 0)) {
             last_vote_announce_votes = votes;
             last_vote_announce_needed = players;
@@ -1279,7 +1419,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             if (errors && extConfig.showErrorCount)
                 status << _("ERRORS:$1", itoa(errors)) << "  ";
             status << _("$1/$2p $3k/s v$4 port:$5",
-                        itoa(network.get_player_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(extConfig.port));
+                        itoa(network.get_human_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(extConfig.port));
             if (quitOnEsc)
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
@@ -1322,6 +1462,55 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 
 void Server::stop() {
     network.stop();
+
+    quit_bots = true;
+    config().statusOutput(_("Shutdown: bot thread"));
+    botthread.join();
+}
+
+void Server::run_bot_thread() {
+    log("run_bot_thread");
+
+    check_bots = true;
+
+    while (!quit_bots) {
+        if (bots.empty() && !check_bots) {
+            platSleep(1000);
+            continue;
+        }
+        else
+            platSleep(15);
+        if (threadLock)
+            threadLockMutex.lock();
+        if (check_bots) {
+            check_bots = false;
+            /*if (threadLock)
+                threadLockMutex.lock();*/
+            init_bots();
+            /*if (threadLock)
+                threadLockMutex.unlock();*/
+        }
+        g_timeCounter.refresh();
+        for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
+            nAssert(*bi);
+            if ((*bi)->bot_finished()) {
+                delete *bi;
+                bi = bots.erase(bi);
+            }
+            else {
+                (*bi)->bot_loop();
+                ++bi;
+            }
+        }
+        if (threadLock)
+            threadLockMutex.unlock();
+    }
+    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+        nAssert(*bi);
+        (*bi)->stop();
+        delete *bi;
+    }
+    bots.clear();
 }
 
 

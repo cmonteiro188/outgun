@@ -4,6 +4,7 @@
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
+ *  Copyright (C) 2006 - Peter Kosyh
  *
  *  This file is part of Outgun.
  *
@@ -268,6 +269,7 @@ class Client {
     client_c *client;
     double lastpackettime;
     NLubyte clFrameSent, clFrameWorld;
+    double botReactedFrame;
     #ifdef SEND_FRAMEOFFSET
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
@@ -276,6 +278,7 @@ class Client {
     double averageLag;
     double frameReceiveTime;    // when fx was received
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
+    ClientControls sentControls;
     NLulong svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     volatile bool connected;
     bool map_ready;
@@ -337,6 +340,70 @@ class Client {
 
     std::string playername;
     NLaddress serverIP;
+
+    enum Routing {
+        Route_None,
+        Route_Flag,
+        Route_Base,
+        Route_Team
+    };
+
+    // for bots
+    bool botmode;
+    bool finished;
+
+    Routing routing;
+    int route_x;
+    int route_y;
+    bool botPrevFire;
+    double route_frame;
+    int last_seen;
+
+    bool IsMission() const;
+    int GetEasyEnemy(double mex, double mey) const;
+    int IsAimed(double mex, double mey, int i) const; // return 1 if in hit point
+    bool IsBehindWall(double mex, double mey, double dx, double dy) const;
+    double ScanDir(double mex, double mey, int dir) const;
+    ClientControls Aim(double mex, double mey, int i) const;
+    int GetDir(double dx, double dy) const;
+    int GetDangerousRocket(double mex, double mey) const;
+    int GetDangerousEnemy(double mex, double mey) const;
+    int GetNearestEnemy(double mex, double mey) const;
+    bool NeedShoot(double mex, double mey) const;
+    ClientControls EscapeRocket(double mex, double mey, int mrock) const;
+    ClientControls Robot();
+    ClientControls GetFlag(double mex, double mey) const;
+    ClientControls GetPowerup(double mex, double mey) const;
+    ClientControls MoveDirNoAggregate(int dir) const;
+    ClientControls MoveTo(double mex, double mey, double dx, double dy) const;
+    ClientControls MoveToNoAggregate(double mex, double mey, double dx, double dy) const;
+    ClientControls MoveDir(int dir) const;
+    int FreeDir(double mex, double mey) const;
+    void BuildMap();
+    void ChosePass() const;
+    bool IsMassive() const;
+    ClientControls FreeWalk(double mex, double mey) const;
+    void next_room(int& x, int& y, int i) const; // chose ith door
+    int  label_room(int x, int y, int label); // label rooms around x y (wich is labeled as label)
+    int  route_room(int& x, int& y); // go one step to lower label and label it as route , return 1 if step is done
+    int  BuildRouteTable(); // build route table (labeled) from me point, return max path len
+    int  BuildRoute(int tox, int toy); // build route on route table tox(y), return 0 if not needed, -1 if no path
+    ClientControls DoRoute(double mex, double mey) const; // simulate keypress (follow route)
+    bool RouteLogic(); // build route on route table using AI, -1 if not builded
+    ClientControls Route(double mex, double mey); // do all route (wrapper)
+//	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
+//	    // -1 if no target labeled
+    int TargetNearestBase(int& m_label, int& x, int& y, int team);
+    int TargetNearestTeam(int& m_label, int& x, int& y, int team);
+    int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state);
+    int TargetRoute(int efb, int efd, int efc,
+                    int mfb, int mfd, int mfc,
+                    int wfb, int wfd, int wfc,
+                    int en,  int fr,
+                    int eb,  int fb, int wb);
+
+    bool HaveFlag() const; // returns if me is carrier
+    bool IsHome(int mex, int mey) const;//
 
     volatile bool abortThreads;
 
@@ -515,6 +582,13 @@ public:
     bool start();
     void loop(volatile bool* quitFlag, bool firstTimeSplash);
     void stop();
+
+    void bot_start(const NLaddress& addr, int ping);
+    void bot_loop();
+    bool is_connected() const { return connected; }
+    bool bot_finished() const { return finished; }
+
+    int team() const { return me / TSIZE; }
 };
 
 class Message {

@@ -73,6 +73,15 @@ public:
     bool isStrafe() const { return (data & strafe) != 0; }
     bool idle    () const { return  data           == 0; }
 
+    void setUp    () { data |= up; }
+    void setDown  () { data |= down; }
+    void setLeft  () { data |= left; }
+    void setRight () { data |= right; }
+    void setRun   () { data |= run; }
+    void setStrafe() { data |= strafe; }
+
+    void clearRun () { data &= ~run; }
+
     bool isUpDown   () const { return isUp  () != isDown (); }
     bool isLeftRight() const { return isLeft() != isRight(); }
 

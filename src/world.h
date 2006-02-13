@@ -118,6 +118,12 @@ private:
 
 class Room {
 public:
+    // for bots:
+    bool pass[4];
+    int label;
+    bool route;
+    double visited_frame;
+
     ~Room();
 
     void addWall(WallBase* w) { walls.push_back(w); }
@@ -413,8 +419,12 @@ public:
     void set_fav_colors(const std::vector<char>& colors) { fav_col = colors; }
     const std::vector<char>& fav_colors() const { return fav_col; }
 
+    void set_bot() { bot = true; }
+    bool is_bot() const { return bot; }
+
 private:
     std::vector<char> fav_col;
+    bool bot;
 };
 
 class ClientPlayer : public PlayerBase {
