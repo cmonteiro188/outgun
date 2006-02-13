@@ -52,7 +52,7 @@ bool Language::load(const string& lang, LogSet& log) {
     const string defname = dir + "en.txt";
     const string translname = dir + lang + ".txt";
     ifstream def(defname.c_str());
-	if (!def) {
+    if (!def) {
         log.error(defname + " not found. Can't load a language without the English reference. Continuing without translation.");
         return false;
     }

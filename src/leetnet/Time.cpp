@@ -34,7 +34,7 @@ Time::Time() : sec(0), microsec(0) {
 }
 
 //##ModelId=3B07538103B0
-Time::Time(int seconds, int microseconds) 
+Time::Time(int seconds, int microseconds)
 : sec(seconds), microsec(microseconds) {
   normalize();
 }

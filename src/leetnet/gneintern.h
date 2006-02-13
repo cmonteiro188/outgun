@@ -98,17 +98,17 @@ namespace GNE {
    * The only false value for a gbool.
    */
   const gbool gFalse = 0;
-  
+
   //##ModelId=3C65C7A20189
   typedef signed   short gint16;
   //##ModelId=3C65C7A2019B
   typedef unsigned short guint16;
-  
+
   //##ModelId=3C65C7A20190
   typedef signed   int   gint32;
   //##ModelId=3C65C7A2019D
   typedef unsigned int   guint32;
-  
+
   /**
    * A single precision 32-bit IEEE 754 floating point variable.
    */

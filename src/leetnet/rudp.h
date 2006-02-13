@@ -47,7 +47,7 @@ void get_self_IP(NLaddress *addr);
 
 */
 class data_c {
-public: 
+public:
     virtual ~data_c() { }
 
     //add data
@@ -73,15 +73,15 @@ public:
     virtual int getlen() const = 0;
 };
 
-/* 
+/*
 
     station_c
 
     call new_station_c() to get a new station object
 
     call set_remote_address() before using the other methods
-    
-    this is like a "socket" but I didn't wanted to call it a socket because it has a lot of 
+
+    this is like a "socket" but I didn't wanted to call it a socket because it has a lot of
     buffers and ack/reliable message stuff inside. it looked like a socket with brains so it
     looked like a "processing facility" or something. it's like a socket in the sense that
     there is one in each side of a connection. the station can be on server-side or client-side,
@@ -97,7 +97,7 @@ public:
     3 - incoming reliable message acks : IDs of the incoming reliable messages, so the other
                 side may stop transmitting and retransmitting them.
 
-*/ 
+*/
 class station_c {
 public:
     virtual ~station_c() { }
@@ -106,7 +106,7 @@ public:
     // every time you want to use it for a different client/server.
     virtual void reset_state() = 0;
 
-    // set the station's remote address for sending. 
+    // set the station's remote address for sending.
     // returns 0 if (nlOpen(0, NL_UNRELIABLE) == NL_INVALID), returns 1 otherwise
     // if any local port is OK, set localPortMin = localPortMax = 0
     virtual int set_remote_address(char* address, int localPortMin = 0, int localPortMax = 0) = 0; //notation is "bla.bla.bla.bla:portnum"

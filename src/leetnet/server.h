@@ -68,7 +68,7 @@ public:
 
     //set serverinfo string
     virtual void set_server_info(const char *info) = 0;
-    
+
     //start up the server at given port
     virtual int start(int port) = 0;
 
@@ -115,7 +115,7 @@ public:
 };
 
 
-// server factory 
+// server factory
 server_c *new_server_c(int thread_priority, int minLocalPort = 0, int maxLocalPort = 0);
 
 

@@ -1220,7 +1220,7 @@ void Graphics::draw_deathbringer_smoke(int x, int y, double time, double alpha) 
     if (min_transp) {
         const int rgb = 120 - effAlpha;
         c = makecol(rgb, rgb, rgb);
-		rad /= 2;
+        rad /= 2;
     }
     else {
         c = col[COLBLACK];
@@ -2449,7 +2449,7 @@ void Graphics::make_db_effect() {
     nAssert(db_effect);
 
     clear_to_color(db_effect, col[COLBLACK]);
-    
+
     set_write_alpha_blender();
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
 
@@ -2631,7 +2631,7 @@ void Graphics::combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITM
 
 void Graphics::load_shield_sprites(const string& path) {
     const int size = scale(2 * 2 * PLAYER_RADIUS);
-    Bitmap picture = scale_sprite(path + "player_shield.pcx", size, size);        
+    Bitmap picture = scale_sprite(path + "player_shield.pcx", size, size);
     if (!picture)
         return;
     Bitmap team  = scale_alpha_sprite(path + "player_shield_team.pcx", size, size);

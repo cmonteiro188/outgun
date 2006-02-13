@@ -22,7 +22,7 @@
 
 /*
 
-    a network game client engine 
+    a network game client engine
 
 */
 
@@ -199,7 +199,7 @@ public:
             }
             else if (connect_status == 1) {
                 log("wil star connect sequence.");
-                
+
                 //trying disconnection -- wait until after it's done
                 //this is just a hack
                 while (connect_status == 1)
@@ -229,7 +229,7 @@ public:
             }
             else if (connect_status == 2) {
                 log("stop_connect() - gave up connecting..");
-                
+
                 //trying connection - just stop trying. if it gets accepted, we will reply again telling to disconnect
                 stop_connect();
             }
@@ -348,7 +348,7 @@ public:
             (*length) = 0;
             return 0;
         }
-        
+
         //return the message or 0
         (*length) = msg->getlen();
         return msg->getbuf();
@@ -391,7 +391,7 @@ public:
     //disconnect try - return TRUE to stop
     bool disconnect_try() {
         log("client disconnect_try()");
-        
+
         // check stopped trying to disconnect
         if (connect_status != 1)
             return true;
@@ -446,7 +446,7 @@ public:
     void start_connect(int minLocalPort, int maxLocalPort) {
         //trying. this should be the FIRST THING!
         int old_status = connect_status;
-        connect_status = 2;     
+        connect_status = 2;
 
         log("start_connect()");
 
@@ -494,7 +494,7 @@ public:
     //cleanup connect sequence
     void stop_connect() {
         //disconnected state -- THIS MUST BE THE FIRST THING
-        connect_status = 0; 
+        connect_status = 0;
 
         log("stop_connect() - deletes station - connect status = 0");
 
@@ -538,12 +538,12 @@ DLOG_Scope s("CPIDg");
 
         //special packet? (connection accepted/rejected , disconnected ...)
         if (special) {
-            
+
             NLulong code;
             int count = 0;
             readLong(data, count, code);        //discard the "0"
             readLong(data, count, code);
-            
+
             // ping request - send a reply immediately
             if (code == 666) {
                 data_c *dat = new_data_c();
@@ -572,7 +572,7 @@ DLOG_Scope s("CPIDg");
 
                 //stop connect - also quits reader thread
                 stop_connect();
-                
+
                 //not trying anymore -- done by call above
                 //connect_status = 0;   //dead
             }
@@ -586,7 +586,7 @@ DLOG_Scope s("CPIDg");
 
                 // if was not already disconnected
                 //if (connect_status != 0) {
-                
+
                     //connection callback w/ status = 1 (disconnected)
                     //also handle the rest of the packet to the gameclient
                     //
@@ -608,7 +608,7 @@ DLOG_Scope s("CPIDg");
 
                     //REMENDÃO: o cliente se suicida assim que recebe noticia que o server
                     //                quer detonar ele
-                    // TEM QUE CHAMAR NICE_DISCONNECT_DONE porque é esse cara que chama 
+                    // TEM QUE CHAMAR NICE_DISCONNECT_DONE porque é esse cara que chama
                     //   o callback "client disconnected!"
                     nice_disconnect_done(static_cast<char>(reason));
                 }
@@ -633,7 +633,7 @@ DLOG_Scope s("CPIDg");
                     const char* newdata = data + 12;   //skip 0,3,port
                     const int newlength = length - 12;   //skip 0,3,port
                     connectionCallback(customp, connect_result, newdata, newlength);
-                    
+
                     //connected!
                     connect_status = 3;
                 }
@@ -657,7 +657,7 @@ DLOG_Scope s("CPIDg");
 
                 //stop connect - also quits reader thread
                 stop_connect();
-                
+
                 //not trying anymore -- done by call above
                 //connect_status = 0;   //dead
             }
@@ -688,7 +688,7 @@ DLOG_Scope s("CPIDg");
 
     //called by thread_connect - try to connect. return true if should stop trying
     bool connect_try() {
-        
+
         //send a "want to connect" packet
         //FIXME: game client must specify data to send in the connection packet
         //           (like client version etc.)
@@ -709,9 +709,9 @@ DLOG_Scope s("CPIDg");
 
             //"no response"
             connectionCallback(customp, 3, 0, 0);
-        
+
             //stop trying
-            return true;    
+            return true;
         }
 
         char adst[333];
@@ -724,7 +724,7 @@ DLOG_Scope s("CPIDg");
         nlAddrToString( &radr , remadst );
 
         log("trying... local = '%s' remote = '%s'", adst, remadst);
-     
+
         //send the packet
         data_c  *dat = new_data_c();
         dat->addlong(0); //special packet

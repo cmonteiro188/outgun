@@ -32,7 +32,7 @@
 
 #include "../mutex.h"
 #include "../nassert.h"
-#include "rudp.h"       
+#include "rudp.h"
 #include <nl.h>             // HawkNL
 #include <pthread.h>
 
@@ -60,7 +60,7 @@
 
 #ifdef EXTRA_RELIABLE_STORAGE
 #include <queue>
-#endif  
+#endif
 
 
 // gets the IP of this machine
@@ -80,7 +80,7 @@ void get_self_IP(NLaddress *addr) {
 
 class data_ci : public data_c {
 public:
-    
+
     //allocated length, used length
     int alen, ulen;
 
@@ -92,7 +92,7 @@ public:
         if (len + ulen > DATA_BUF_SIZE) {
             throw 66677;
         }
-        
+
         // not allocated yet
         /*
         if (alen == 0) {
@@ -101,7 +101,7 @@ public:
         }
         // not enought allocated space : extend
         if (alen - ulen < len) {
-            int nlen = alen + 2048; // new len  
+            int nlen = alen + 2048; // new len
             char *buf2 = new char[nlen];    // alloc new
             memcpy(buf2, buf, ulen);    // copy old used to new
             if (buf) delete buf;        // delete old
@@ -113,7 +113,7 @@ public:
 
     //add data
     void add(const void* data, int len) {
-        if (len == 0) 
+        if (len == 0)
             return;
         extend(len);        // extend to fit
         memcpy(buf + ulen, data, len);  // copy data to (buf + alreay used len)
@@ -206,11 +206,11 @@ public:
 // station class implementation
 //
 class station_ci : public station_c {
-public: 
+public:
 
     char debug[256];
 
-    // send socket -- ALSO the receive socket now. 
+    // send socket -- ALSO the receive socket now.
     NLsocket sendsock;
 
     // the address set with set_remote_addr() -- must be set in the socket before all sending
@@ -280,9 +280,9 @@ public:
 
         //disconnect the socket (if any)
         if (sendsock != NL_INVALID_SOCKET) {
-            nlClose(sendsock);  
+            nlClose(sendsock);
             sendsock = NL_INVALID_SOCKET;
-        }       
+        }
 
         relmsg_mutex.lock();
         //reset msgrecs!
@@ -325,14 +325,14 @@ public:
         erase_extra_reliables();
         relmsg_mutex.unlock();
         #endif
-        
+
         //FIXME -- what else?
 
         //disconnect the socket
         if (sendsock != NL_INVALID_SOCKET) {
-            nlClose(sendsock);  
+            nlClose(sendsock);
             sendsock = NL_INVALID_SOCKET;
-        }       
+        }
     }
 
     // process incoming reliable message from network
@@ -343,7 +343,7 @@ public:
 DLOG_Scope s("UPIM");
         //printf("process_incoming_message id=%i cur=%i siz=%i\n", msgid, msg_current, msgsize);
 
-        //check message old discard 
+        //check message old discard
         if (msgid < msg_current)
             return;
 
@@ -432,10 +432,10 @@ DLOG_Scope s("URR");
         relmsg_mutex.lock();
         message_size[index] = -1;
         relmsg_mutex.unlock();
-        
+
         //update msg_current (slide window)
         msg_current++;
-        
+
         //return data
         return (data_c*)(&reldata);
     }
@@ -499,7 +499,7 @@ DLOG_Scope s("UPIP");
 //      int debug = 1;
 
         //parse packet id
-        readLong(udp_data, count, packet_id);       
+        readLong(udp_data, count, packet_id);
 
         //if (debug) printf("PROC_PACKET: id=%i ", packet_id);
 
@@ -517,7 +517,7 @@ DLOG_Scope s("UPIP");
         readLong(udp_data, count, packet_ack);
         NLbyte nreliable;
         readByte(udp_data, count, nreliable);   //number of reliable msgs
-        
+
         //if (debug) printf(" rc=%i", nreliable);
 
         if (nextPortChange != 0) {
@@ -538,7 +538,7 @@ DLOG_Scope s("UPIP");
         for (i=0; i<nreliable; i++) {       // read all reliable msgs
             readLong(udp_data, count, msgid);       //id
             readShort(udp_data, count, msgsize);    //size
-            
+
             //if (debug) printf("(%i,%i)", msgid, msgsize);
 
             // station will process the incoming reliable message
@@ -546,14 +546,14 @@ DLOG_Scope s("UPIP");
 
             //advance count since we didn't "readBlock"
             count += msgsize;
-            
+
             //p->add_reliable(msgid, (udp_data + count), msgsize);  //data
         }
-        
+
         // return this
         NLshort unreliable_size;
-        
-        
+
+
         // FIXED: nao eh mais enviado o unreliable size porque ele pode ser inferido do
         //              tamanho do datagrama UDP
         //readShort(udp_data, count, unreliable_size);          // unreliable msg size
@@ -567,17 +567,17 @@ DLOG_Scope s("UPIP");
         count += unreliable_size;
 
         //if (debug) printf(" fr=%i TOT=%i\n", unreliable_size, count);
-        
+
         ack = packet_id;
 
         //(3) for every reliable message in the buffer, check if it was acked by
         //    this incoming data. if yes, delete it from the buffer (id = -1 and clear buffers)
         //
-        
+
         // for every message in the outgoing buffer...
         //
         relmsg_mutex.lock();
-        for (i=0; i<MAXMSG; i++) 
+        for (i=0; i<MAXMSG; i++)
             if (reliable[i].used() && reliable[i].sentBefore(packet_ack)) {
                 DLOG_Scope s("UPIP_A");
                 // acked! remove message from buffer
@@ -637,7 +637,7 @@ DLOG_Scope s("UWR");
         {
             //find slot in reliable
             //
-            for (int i=0; i<MAXMSG; i++) 
+            for (int i=0; i<MAXMSG; i++)
                 if (!reliable[i].used()) {
                     reliable[i].set(idgen_reliable_send++, data, (NLshort)length);
                     reliable_count++;                                               // another one
@@ -675,7 +675,7 @@ DLOG_Scope s("UW");
 
         return 1;
     }
-        
+
     // flush the pending packet buffer as an UDP packet to the remote address, returns "id"
     // for the assigned packet id
     virtual int send_packet(int& id, FILE* datalog) {
@@ -697,13 +697,13 @@ DLOG_Scope s("USP");
         //      NLbyte[message size]        the reliable message data
         // (FIX: NLshort                    unreliable data size --- inferido do packet size!!!)
         // NLbyte[unreliable data size]     all the unreliable data glued in a big chunk
-        
+
         NLint   count = 0;
-        
+
 //      static int debug = 1;
 
         writeLong(sendbuf, count, id);  //packet id
-        
+
         writeLong(sendbuf, count, ack);
 
         //if (debug) printf(" rc=%i", reliable_count);
@@ -763,7 +763,7 @@ DLOG_Scope s("USP");
 
     // send a raw UDP packet to the destination. returns 1 if ok, 0 if nlWrite failed
     virtual int send_raw_packet(const data_c *data) {
-        
+
         //fix remote addr (changed by reads)
         nlSetRemoteAddr(sendsock, &netaddr);
 
@@ -788,7 +788,7 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
         NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
         return (result == NL_INVALID) ? 0 : 1;
     }
-    
+
     // non-blocking call: attempt to read data from the socket
     // buffer/bufsize: buffer given to the routine
     // int return: value of nlRead()... :-)

@@ -775,7 +775,7 @@ void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int te
  *         __+-^^  + -(dx,dy)
  *     +-^^
  *   (0,0)
- *  
+ *
  * | t(mx,my)-(dx,dy) | = r
  * take the smaller solution of t (if any real solution exists)
  *
@@ -808,7 +808,7 @@ BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r)
  *   (0,0)      /  + -(dx2,dy2)
  *             /
  *           wall
- *  
+ *
  * the circle hits the wall proper with it's center projection on the line
  * | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | / | (dx2,dy2)-(dx1,dy1) | = r
  * take the smaller solution of t and make sure the point is on the line
@@ -849,7 +849,7 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
  *        (mx,my)      __--
  *          \    __--^^
  *         __+-^^   /^^^^
- *     +-^^        /   
+ *     +-^^        /
  *   (0,0) av,____|____.<-- (dx,dy)
  *           `    |     }
  *                 \    } ar
@@ -1297,7 +1297,7 @@ void PowerupSettings::reset() {
     pup_weapon_max = 9;
     pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
-    
+
     pups_drop_at_death = false;
     pups_player_max = INT_MAX;
 }
@@ -2272,7 +2272,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         if (pl2.item_shield && pl2.deathbringer_end < get_time() && !pl1.item_deathbringer) {
             toss_a = true;
 
-            if (!pl1.item_shield) // if target is not shielded, make it blink and play hit sound 
+            if (!pl1.item_shield) // if target is not shielded, make it blink and play hit sound
                 net->broadcast_screen_power_collision(pid1);
 
             damagePlayer(pid1, pid2, shieldColdam, DT_collision);
@@ -2281,7 +2281,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
 
         // humiliation hit/kill:
         // non-shielded, non-deathbringer infected and power carrying "player X" that runs into an "enemy player Y" that is
-        // non-shielded, non-deathbringer carrier, and non-power carrying will cause about the same effect as Y being hit by a non-power rocket fired by X 
+        // non-shielded, non-deathbringer carrier, and non-power carrying will cause about the same effect as Y being hit by a non-power rocket fired by X
         //  - blink target / freeze gun / do damage
         //  - play power-rocket or rocket-hit sample
         const int powColdam = static_cast<int>(speed * 80);    // 80 at top running speed without turbo

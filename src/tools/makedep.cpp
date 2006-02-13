@@ -41,18 +41,20 @@ class StrError {
     std::string str;
 
 public:
-    StrError(const char* fmt, ...) __attribute__ ((format (printf, 2, 3))) {
-        char buf[10000];
-        va_list args;
-        va_start(args, fmt);
-        vsprintf(buf, fmt, args);
-        va_end(args);
-        str = buf;
-    }
+    StrError(const char* fmt, ...) __attribute__ ((format (printf, 2, 3)));
     void print() const {
         fprintf(stderr, "Error: %s\n", str.c_str());
     }
 };
+
+StrError::StrError(const char* fmt, ...) {
+    char buf[10000];
+    va_list args;
+    va_start(args, fmt);
+    vsprintf(buf, fmt, args);
+    va_end(args);
+    str = buf;
+}
 
 inline char getChar(FILE* src) {
     char ch;

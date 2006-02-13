@@ -25,7 +25,7 @@
 
     uses RUDP (rudp.cpp , rudp.h)
     uses HawkNL (http://www.hawksoft.com/hawknl)
-        
+
     must be used to implement an actual game's server
 
     don't subclass it, it's an abstract interface. make your own class that has an
@@ -83,7 +83,7 @@ struct client_t {
     server_ci               *server;        // the server instance (for the thread)
 
     NLaddress               addr;                   //client's address, to resolve incoming packets
-    
+
     Thread              thread;         // the slave thread
 
     Thread              discthread;     // the disconnector thread
@@ -104,7 +104,7 @@ struct client_t {
     //condition variable
     ConditionVariable       station_cond_hasdata;
     //pthread_cond_t    station_cond_hasdata;
-    
+
     //thread must quit flag
     volatile bool       quitflag;
 
@@ -137,7 +137,7 @@ public:
     #endif
 
     // number of clients allocated
-    int     num_clients;    
+    int     num_clients;
 
     // the server UDP socket
     NLsocket            servsock;
@@ -202,8 +202,8 @@ public:
     //set serverinfo string
     virtual void set_server_info(const char *info) {
         strcpy(serverinfo, info);
-    }   
-    
+    }
+
     //start up the server at given port
     virtual int start(int port) {
         //if not stopped, quit
@@ -227,7 +227,7 @@ public:
         if (servsock == NL_INVALID) {
             log("server_ci::start(): cannot nlOpen server socket!");
             return 0;  // error
-        } 
+        }
 
         //not stopped now
         server_stopped = false;
@@ -247,7 +247,7 @@ public:
             //client[i].station = 0;
             client[i].quitflag = false;         // don't quit yet
             client[i].in_lag    = false;            // not in lag
-                                    
+
             // create the slave thread
             client[i].thread.start_assert(thread_slave_f, &client[i], threadPriority);
         }
@@ -272,18 +272,18 @@ public:
         log("server_ci::stop() mesmo");
 
         //disconnect all clients (network "disconnect msg" / wait)
-        for (i=0;i<MAX_CLIENTS;i++) 
+        for (i=0;i<MAX_CLIENTS;i++)
         if (client[i].used) //valid
         if ((client[i].connected) && (!client[i].told_disconnect) && (!client[i].server_disconnected)) //still connected
             disconnect_client(i, disconnect_clients_timeout, disconnect_server_shutdown);
-        
+
         // signal threads to stop now
-        server_stopped = true;      
+        server_stopped = true;
         for (i=0;i<MAX_CLIENTS;i++) {
-            
+
             client[i].quitflag = true; //set flag
             log("server_ci::stop() -- signal %i", i);
-                        
+
             //pthread_cond_signal( &client[i].station_cond_hasdata ); //slap the thread
             client[i].station_cond_hasdata.signal();
         }
@@ -295,9 +295,9 @@ public:
 
         log("server_ci::stop() - joined with master thread");
 
-        // join with slave/disconnector threads and delete the client stuff 
+        // join with slave/disconnector threads and delete the client stuff
         for (i=0;i<MAX_CLIENTS;i++) {
-            
+
             // join
             client[i].thread.join();
 
@@ -312,16 +312,16 @@ public:
             // cleanup
             // - aqui pode deletar, nao existe mais nenhuma thread (master,slave,disconnector...)
             //
-            
+
             //MUDANDO: apenas reseta station
             client[i].station->reset_state();
 
             //FIXME: do something to station_cond_hasdata ?
             //pthread_cond_destroy(&client[i].station_cond_hasdata);
         }
-    
+
         log("server_ci::stop() -- closing server socket");
-        
+
         // close the server's socket (DEBUG FIXME: catch error)
         nlClose(servsock);
 
@@ -388,7 +388,7 @@ public:
             MutexLock ml(datalogMutex);
         #endif
 
-        for (int i=0;i<MAX_CLIENTS;i++) 
+        for (int i=0;i<MAX_CLIENTS;i++)
         if (client[i].used) {
             client[i].station->write(data, length); // set frame data
             int packet_id;
@@ -461,7 +461,7 @@ public:
     /* disabled in Outgun to prevent problems
     virtual int broadcast_message(const char* data, int length) {
 
-        for (int i=0;i<MAX_CLIENTS;i++) 
+        for (int i=0;i<MAX_CLIENTS;i++)
         if (client[i].used)
             send_message(i, data, length);
 
@@ -492,15 +492,15 @@ public:
 
         dat->addlong(0);            //special packet
         dat->addlong(666);      // ping request
-        
-        client[client_id].station->send_raw_packet(dat);        
+
+        client[client_id].station->send_raw_packet(dat);
 
         client[client_id].ping_start_time = Timer::getCurrentTime();
 
         delete dat;
 
         //ok
-        return 1;   
+        return 1;
     }
 
     //get a statistic from sockets. stat = HawkNL socket-stats id
@@ -518,11 +518,11 @@ public:
 
         //add all active client sockets
         for (int i=0;i<MAX_CLIENTS;i++)
-        if (client[i].used) 
+        if (client[i].used)
         if (client[i].station)
         {
             NLsocket clsock = client[i].station->get_nl_socket();
-            if (clsock != NL_INVALID) 
+            if (clsock != NL_INVALID)
                 thestat += nlGetSocketStat(clsock, stat);
         }
 
@@ -588,7 +588,7 @@ public:
 
         // verifica se a mensagem eh de algum client conhecido
       int i;
-        for (i=0;i<MAX_CLIENTS;i++) 
+        for (i=0;i<MAX_CLIENTS;i++)
         if (client[i].used)
         if (NL_TRUE == nlAddrCompare(&remoteaddr, &client[i].addr)) {
             log("DO CLIENT %i",i);
@@ -655,7 +655,7 @@ public:
         //
         if (smsgid != 1) {  //"hello! I want to connect!"
             log(" NOT HELLO PACKET");
-            return 1;       
+            return 1;
         }
 
         //nao eh de client conhecido - verifica server full
@@ -682,7 +682,7 @@ public:
         }
 
         //server com espaco, aloca um cara pra ele
-        for (i=0;i<MAX_CLIENTS;i++) 
+        for (i=0;i<MAX_CLIENTS;i++)
         {
             //lock client
             client[i].station_mutex.acquire();
@@ -696,7 +696,7 @@ public:
                 client[i].discleft = 0;         // disconnection packets left to send
                 client[i].droptime = 0;     // time to drop / valid if told_disconnect == true OR server_disconnected == true
                 client[i].quitflag = false; //thread must quit flag
-                
+
                 // aloca jogador para thread
                 nlGetRemoteAddr(servsock, &(client[i].addr));       //set address
                 client[i].connected = false;                // must negotiate connection (client must first say "hello" :-)
@@ -704,7 +704,7 @@ public:
                                                                                             // server knows that the client knows that he was accepted
                 client[i].told_disconnect = false;      // set to true when a packet "I want to disconnect" is first received
                                                                                             // from the client
-                client[i].server_disconnected = false;  //set to true when the server takes the initiative and kicks the 
+                client[i].server_disconnected = false;  //set to true when the server takes the initiative and kicks the
                                                                                                 // client. now must wait the ack (disconnect packet) from the client also (a.k.a. told_disconnect == true condition)
 
                 client[i].in_lag = false;           // not in lag
@@ -715,10 +715,10 @@ public:
                 client[i].station->reset_state();
 
                 //set station remote address
-                //char  adrstr[NL_MAX_STRING_LENGTH];               
-                //nlAddrToString(&client[i].addr, adrstr);      
-                //client[i].station->set_remote_address(adrstr);    
-                if (client[i].station->set_remote_address(&client[i].addr, minLocalPort, maxLocalPort) == 0) { 
+                //char  adrstr[NL_MAX_STRING_LENGTH];
+                //nlAddrToString(&client[i].addr, adrstr);
+                //client[i].station->set_remote_address(adrstr);
+                if (client[i].station->set_remote_address(&client[i].addr, minLocalPort, maxLocalPort) == 0) {
                     log("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
                     client[i].station_mutex.release();
                     return 1;       //abort connection
@@ -731,7 +731,7 @@ public:
                 //set packet & slap slave
                 //pthread_mutex_lock( &client[i].station_mutex );
                 client[i].station->set_incoming_packet(packet, length); //set packet
-                
+
                 //pthread_cond_signal ( &client[i].station_cond_hasdata ); //slap the slave
                 client[i].station_cond_hasdata.signal();
 
@@ -764,7 +764,7 @@ public:
 
         for (int i=0;i<MAX_CLIENTS;i++)
             if (client[i].used) {
-                //HACK: check when it's droptime for a client 
+                //HACK: check when it's droptime for a client
                 if ((client[i].told_disconnect) || (client[i].server_disconnected)) // disconnection started by either side
                 if (client[i].droptime < curr_time) {
                     //bye
@@ -815,11 +815,11 @@ public:
         //FIXME: no futuro: READ, UNLOCK, PROCESS e nao READ, PROCESS, UNLOCK
 
         //FIXME: read and process all the stuff from the station
-        //           - process_incoming_packet() -- unreliable client's frame 
+        //           - process_incoming_packet() -- unreliable client's frame
         //           - read_reliable() -- process all decoded client messages (new messages
         //                  are created on process...() so call this later
 
-        
+
         //get the client's unreliable data frame from the station
         //
         bool is_special; //check if packet is a special packet (connection packet)
@@ -850,7 +850,7 @@ public:
 
         //special packet?
         //
-        
+
         if (is_special) {
             // get the special code
             NLulong code;
@@ -894,7 +894,7 @@ public:
                         reply->addlong(client[cid].station->getLocalPort());
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom game data
-                        
+
 //                      log("station debuginfo = %s", client[cid].station->debug_info());
 
                         // send using the server socket from where the originating message was received: to make sure the reply gets through any firewalls/NATs
@@ -916,7 +916,7 @@ public:
                         nlSetRemoteAddr(servsock, &client[cid].addr);
                         nlWrite(servsock, reply->getbuf(), reply->getlen());
                         delete reply;
-                        
+
                         //return this thread/client slot to the free pool
                         if (client[cid].used == true) {
                             log("client %i's slave freed : receive CONNECT but REJECT!", cid);
@@ -944,17 +944,17 @@ public:
                     client[cid].droptime = get_time() + 0.5;
                 }
                 //client-initiated disconnection
-                else { 
+                else {
 
                     //disconnection request
                     log("(client disconnection) client 0-2 received, replying.");
 
                     //set "client is disconnected"
                     if (!client[cid].told_disconnect) {
-                        
+
                         //disconnection request
                         log("(client disconnection) told_disconnect == true");
-                        
+
                         client[cid].told_disconnect = true;
 
                         //call the "client disconnected" callback (1 of 2 : client-initiated disconnection)
@@ -967,7 +967,7 @@ public:
                         // this is already set if server_disconnected == true
                         client[cid].droptime = get_time() + 3.0;
                     }
-                    
+
                     //reply: ok, you are disconnected
                     log("sent disconnect that client %i initiated..", cid);
                     client[cid].disconnect_reason = disconnect_client_initiated;    // client initiated disconnection
@@ -993,7 +993,7 @@ public:
             if (client[cid].connected == false) {
             }
             else if (client[cid].server_disconnected == true) {
-                
+
                 // do nothing, a thread should be already spitting "disconnect" packets to the client
             }
             else if (client[cid].told_disconnect == true) {
@@ -1002,7 +1002,7 @@ public:
                 // disconnection request arrived first. in any case just ignore it since the
                 // client connection is already doomed.
             }
-            else { 
+            else {
 
                 //-- it's a regular data packet --
 
@@ -1032,11 +1032,11 @@ public:
                         connectedCallback(customp, cid);
                     }
 
-                    // send the data to the gameserver 
+                    // send the data to the gameserver
                     // call SFUNC_CLIENT_DATA callback
                     dataCallback(customp, cid, data, len);
                 }
-            }   
+            }
         }
 
         //ok
@@ -1046,7 +1046,7 @@ public:
     NLaddress get_client_address(int client_id) const {
         return client[client_id].addr;
     }
-    
+
     //-------- internal functions --------
 
     //free slave thread
@@ -1076,17 +1076,17 @@ public:
 //      }
 //      else {
 //          log("WARNING: free_slave %i STATION ALREADY ZERO!!", id);
-//      }           
+//      }
 
         num_clients--;
         log("slave %i freed, clients now = %i", id, num_clients);
     }
-    
+
 
     //------------------------
     // etc.
     //------------------------
-    
+
     //ctor
     server_ci(int thread_priority, int minLocalPort_, int maxLocalPort_) :
         #ifdef LEETNET_LOG
@@ -1111,7 +1111,7 @@ public:
 
         //it's true...
         server_stopped = true;
-        
+
         //init'ing var
         last_hack_think = 0.0;
 
@@ -1215,11 +1215,11 @@ void thread_slave_f(client_t* mydata)
 
         //timedwait, so it does not deadlock if something goes wrong (only the paranoids will survive! ha ha ha!)
         mydata->station_cond_hasdata.timedWait(1000);
-        
+
         //SLEEP(5);  // IMPROVED WITH CONDITION VARIABLE! THANKS TO GNE!
 
         //check quit
-        //if (mydata->quitflag) 
+        //if (mydata->quitflag)
         //  break;
 
         //log("SLAVE %i slapped...", myid);
