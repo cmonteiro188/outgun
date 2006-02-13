@@ -1058,6 +1058,8 @@ bool Server::isLocallyAuthorized(int pid) const {
 }
 
 bool Server::isAdmin(int pid) const {
+    if (world.player[pid].is_bot())
+        return false;
     if (world.player[pid].localIP)
         return true;
     if (!authorizations.isAdmin(world.player[pid].name))
@@ -1206,23 +1208,15 @@ void Server::chat(int pid, const char* sbuf) {
             string option;
             command >> option;
             if (!command) {
-                int bot_count = 0;
-                for (int i = 0; i < maxplayers; ++i)
-                    if (world.player[i].used && world.player[i].is_bot())
-                        ++bot_count;
                 network.player_message(pid, msg_header, "Bot commands:");
                 network.player_message(pid, msg_server, "/bot add       add a bot");
                 network.player_message(pid, msg_server, "/bot remove    remove a bot");
                 network.player_message(pid, msg_server, "/bot ping p    show or set the bot ping");
-                network.plprintf      (pid, msg_server, "Currently there are %d bots.", bot_count);
+                network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
                 network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d", min_bots, bots_fill, extra_bots);
             }
             else if (option == "add") {
-                int player_count = 0;
-                for (int i = 0; i < maxplayers; ++i)
-                    if (world.player[i].used)
-                        ++player_count;
-                if (player_count == maxplayers)
+                if (network.get_player_count() == maxplayers)
                     network.plprintf(pid, msg_warning, "No room for a new bot.");
                 else {
                     ++extra_bots;
@@ -1425,7 +1419,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             if (errors && extConfig.showErrorCount)
                 status << _("ERRORS:$1", itoa(errors)) << "  ";
             status << _("$1/$2p $3k/s v$4 port:$5",
-                        itoa(network.get_player_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(extConfig.port));
+                        itoa(network.get_human_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(extConfig.port));
             if (quitOnEsc)
                 status << ' ' << _("ESC:quit");
             extConfig.statusOutput(status.str());
@@ -1486,13 +1480,15 @@ void Server::run_bot_thread() {
         }
         else
             platSleep(15);
+        if (threadLock)
+            threadLockMutex.lock();
         if (check_bots) {
             check_bots = false;
-            if (threadLock)
-                threadLockMutex.lock();
+            /*if (threadLock)
+                threadLockMutex.lock();*/
             init_bots();
-            if (threadLock)
-                threadLockMutex.unlock();
+            /*if (threadLock)
+                threadLockMutex.unlock();*/
         }
         g_timeCounter.refresh();
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
@@ -1506,6 +1502,8 @@ void Server::run_bot_thread() {
                 ++bi;
             }
         }
+        if (threadLock)
+            threadLockMutex.unlock();
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);

@@ -117,7 +117,8 @@ class ServerNetworking {
     std::string     server_identification;
     int             ping_send_client;
     int             ctop[256];          // client id-to-player id index
-    int             player_count;
+    int             player_count;       // number of players including bots
+    int             bot_count;
     std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
     int             localPlayers;
     MutexHolder     addPlayerMutex;
@@ -261,6 +262,8 @@ public:
     void set_hostname(const std::string& name);
     NLaddress get_client_address(int cid) const;
     int get_player_count() const { return player_count; }
+    int get_human_count() const { return player_count - bot_count; }
+    int get_bot_count() const { return bot_count; }
     int numDistinctClients() const { return distinctRemotePlayers.size() + (localPlayers > 0 ? 1 : 0); }
 
     void set_join_start(int val) { join_start = val; }

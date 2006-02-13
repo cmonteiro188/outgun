@@ -36,7 +36,7 @@
 #include "leetnet/rudp.h"   // get_self_IP
 #include "admshell.h"
 #include "debug.h"
-#include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
+#include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
 #include "language.h"
 #include "mutex.h"
@@ -970,6 +970,7 @@ bool ServerNetworking::start() {
     for (int i = 0; i < 256; ++i)
         ctop[i] = -1;
     player_count = 0;
+    bot_count = 0;
 
     max_world_rank = 0;
 
@@ -1041,7 +1042,7 @@ void ServerNetworking::update_serverinfo() {
         info << "D ";
     else
         info << "  ";
-    info << setw(2) << player_count << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
+    info << setw(2) << get_human_count() << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
     server->set_server_info(info.str().c_str());
 }
 
@@ -1098,7 +1099,7 @@ int ServerNetworking::client_connected(int id) {
 
     addPlayerMutex.unlock();
 
-    player_count++;
+    ++player_count;
     nAssert(reservedPlayerSlots);
     --reservedPlayerSlots;
 
@@ -1205,6 +1206,8 @@ void ServerNetworking::client_disconnected(int id) {
     //what player
     const int pid = ctop[id];
 
+    const bool was_bot = world.player[pid].is_bot();
+
     //first update the ADMIN SHELL
     if (shellssock != NL_INVALID) {
         char lebuf[256]; int count;
@@ -1233,7 +1236,9 @@ void ServerNetworking::client_disconnected(int id) {
     fileTransfer[id].reset();
     host->game_remove_player(pid, true);
     //less one...
-    player_count--;
+    --player_count;
+    if (was_bot)
+        --bot_count;
 
     broadcast_player_left(world.player[pid]);
 
@@ -1472,7 +1477,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                         "&token=" + url_encode(tok) +
                         " HTTP/1.0\r\n"
                         "Host: www.mycgiserver.com\r\n"
-                        "\r\n"; 
+                        "\r\n";
                     {
                         MutexLock ml(mjob_mutex);
                         mjob_count++;
@@ -1541,7 +1546,11 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 nlAddrToString(&address, buf);
                 if (strcmp(buf, "127.0.0.1"))
                     log("Remote bot from %s.", buf);
-                world.player[pid].set_bot();
+                if (!world.player[pid].is_bot()) {
+                    ++bot_count;
+                    world.player[pid].set_bot();
+                    update_serverinfo();
+                }
             }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
@@ -2269,7 +2278,8 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["quit"] = "1";
     else {
         parameters["name"] = hostname;
-        parameters["players"] = itoa(player_count);
+        parameters["players"] = itoa(get_human_count());
+        parameters["bots"] = itoa(bot_count);
         if (host->config().dedserver)
             parameters["dedicated"] = "1";
         parameters["max_players"] = itoa(maxplayers);
@@ -2288,7 +2298,8 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     parameters["name"] = hostname;
     parameters["ip"] = address;
     parameters["port"] = itoa(host->config().port);
-    parameters["players"] = itoa(player_count);
+    parameters["players"] = itoa(get_human_count());
+    parameters["bots"] = itoa(bot_count);
     if (host->config().dedserver)
         parameters["dedicated"] = "1";
     parameters["max_players"] = itoa(maxplayers);
@@ -2815,7 +2826,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
             temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri; // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
             writeStr(res->customData, res->customDataLength, temp.str());
         }
-        else if (player_count == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
+        else if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
                  join_start > join_end && (seconds < join_start && seconds > join_end))) {
             log("Rejected a client because the server is not open at this time.");
             res->accepted = false;
