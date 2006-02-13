@@ -1,7 +1,7 @@
 Lisätietoa saa näistä paikoista:
- Pelin dokumentaatio             hakemisto "doc"
- Outgun-sivusto                  http://koti.mbnet.fi/outgun/
- Brasilian Outgun-sivusto        http://outgun.sf.net/
+ Pelin dokumentaatio         hakemisto "doc"
+ Outgun-sivusto              http://koti.mbnet.fi/outgun/
+ Brasilian Outgun-sivusto    http://outgun.sf.net/
  
 Pelaajan ohjaus
  
@@ -27,27 +27,19 @@ Muut näppäimet
  
 Pelin idea
  
- Kuulut joko punaiseen tai siniseen joukkueeseen. Tavoitteesi on
- auttaa joukkueesi voittoon ryöstämällä vastustajan lippu. Lipun
- ryöstö onnistuu hakemalla se oman joukkueen kotipesään, kunhan
- oma lippu on tallella.
+ Kuulut joko punaiseen tai siniseen joukkueeseen. Tavoitteesi on auttaa joukkueesi voittoon ryöstämällä vastustajan lippu. Lipun ryöstö onnistuu hakemalla se oman joukkueen kotipesään, kunhan oma lippu on tallella.
  
 Terveys ja energia
  
- Pelaaja kuolee, kun hänen terveytensä putoaa nollaan. Energiaa
- käytetään juoksemiseen, ampumiseen ja suojan ylläpitämiseen.
- Terveys ja energia palautuvat vähitellen 200:een.
+ Pelaaja kuolee, kun hänen terveytensä putoaa nollaan. Energiaa käytetään juoksemiseen, ampumiseen ja suojan ylläpitämiseen. Terveys ja energia palautuvat vähitellen 200:een.
  
 Kartta
  
- Oikeassa yläkulmassa on kartta. Siinä näkyvät joukkuetoverisi ja
- ne vastustajat, jotka he näkevät. Jos sinulla on varjo, näet
- kaikki varjottomat vastustajat.
+ Oikeassa yläkulmassa on kartta. Siinä näkyvät joukkuetoverisi ja ne vastustajat, jotka he näkevät. Jos sinulla on varjo, näet kaikki varjottomat vastustajat.
  
 Herkut
  
- Silloin tällöin maassa näkyy erilaisia esineitä. Niitä kannattaa
- kerätä, sillä niistä saa mukavia lisäominaisuuksia.
+ Silloin tällöin maassa näkyy erilaisia esineitä. Niitä kannattaa kerätä, sillä niistä saa mukavia lisäominaisuuksia.
  
  lisäammus       yksi ammus lisää ja lisää energiaa
  turbo           lisää nopeutta

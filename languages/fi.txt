@@ -354,8 +354,8 @@ Sulje Outgun ja käynnistä se uudelleen, niin kielivalinta tulee voimaan.
 ; Used in a simple dialog message when an invalid IP address is entered.
 Virheellinen IP-osoite.
 
-; Used in the help screen, followed by the expected filename on its own line.
-Ohjetta ei löydy. Sen pitäisi olla tiedostossa
+; Used in the help screen; $1 is the expected file name.
+Ohjetta ei löydy. Sen pitäisi olla tiedostossa $1
 
 ; Field names for player or server password input dialog.
 Salasana
@@ -514,7 +514,7 @@ Lataan karttaa: $1 tavua
 JÄÄTÄVÄÄ!
  
 
-; The shorter the better, but if one is long, it does't help if the other is
+; The shorter the better, but if one is long, it doesn't help if the other is
 ; shorter.
 Terveys
 Energia

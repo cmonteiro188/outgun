@@ -1,6 +1,6 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004, 2005 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2004, 2005 Thomaz de Oliveira dos Reis
+; Original copyright © 2004, 2005, 2006 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2004, 2005, 2006 Thomaz de Oliveira dos Reis
 ; Contato: E-Mails: thommy@globo.com, thor27@ibest.com.br (serve como MSNM)
 ;	   ICQ: 117089308 - YIM: thommybill - Jabber: thor27@jabber.org
 ;
@@ -17,6 +17,11 @@ Português (Brasil)
 ; en.txt to a new name (languagename.txt) and translate each phrase (non-
 ; commented line) in that file. Please send your translation to us at
 ; outgun@mbnet.fi for inclusion in the official packages.
+
+; The length restrictions mentioned in the comments should guarantee that the
+; translations fit on the screen in the 640×400 resolution with a 8×8 font that
+; is the default. To allow for smaller resolutions or larger fonts, shorter is
+; always better.
 
 
 ; - - - - - - - - - - - - - - miscellaneous texts - - - - - - - - - - - - - -
@@ -59,18 +64,20 @@ $1 min
 
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
 ; refresh rate and in the local server menu for IP address; 'private' and
-; 'invalid' are also for IP address; 'none' (meaning "not set"), 'on', and
-; 'off' in the server settings dialog (F5), as well as 'special' which is
-; used for the player collisions setting. 'Disabled', 'minimal', and 'complete'
-; are currently values of the automatic bug reporting policy setting. OK and
-; Cancel are used in the menus, in their usual UI meaning. All may be used
-; elsewhere in a similar context in the future.
+; 'invalid' are also for IP address; 'default' is used in font selection;
+; 'none' (meaning "not set"), 'on', and 'off' in the server settings dialog
+; (F5), as well as 'special' which is used for the player collisions setting.
+; 'Disabled', 'minimal', and 'complete' are currently values of the automatic
+; bug reporting policy setting. OK and Cancel are used in the menus, in their
+; usual UI meaning. All may be used elsewhere in a similar context in the
+; future.
 ; Lengths up to 25 characters are ok, but short is preferred.
 OK
 Cancelar
 desconhecido
 privativo
 inválido
+padrão
 nenhum
 ligado
 desligado
@@ -83,13 +90,15 @@ completo
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
 ;
 ; Length restrictions vary:
-; With the minimal resolution (640 in width), the end of the line is not
-; visible after 76 characters. The actual maximal length of each text depends
-; on the type of the menu component and many lines are made of two parts.
+; With the standard resolution (640 in width) and standard 8-wide font, the end
+; of the line is not visible after 76 characters. The actual maximal length of
+; each text depends on the type of the menu component and many lines are made
+; of two parts.
 ;
 ; Usually, considerably longer than original texts do fit well. To be sure
-; they fit, you should test each menu in the lowest resolution, if you use
-; translations that are considerably longer than the original texts.
+; they fit, you should test each menu in the standard resolution and preferably
+; a wider-than-standard font, if you use translations that are considerably
+; longer than the original texts.
 
 Nova versão: $1
 Lista de servidores
@@ -108,7 +117,7 @@ Entrar o IP manualmente
 Endereço de IP
 
 Adicionar a lista de servidores favoritos
-Adicionar Servidor
+Adicionar servidor
 
 ; This key help is not currently used, but is in reserve for the server list.
 Insert = Adicionar aos favoritos    Delete = Remover servidor
@@ -130,8 +139,8 @@ Remover senha específica de servidor para o jogador
 Opções do jogo
 Mostrar nome dos jogadores
 Cores favoritas
-Prevenção de Lag
-Quantidade da prevenção de Lag
+Prevenção de lag
+Quantidade da prevenção de lag
 Salvar as mensagens do chat
 Salvar estatísticas do jogo
 Mostrar estatísticas depois do round
@@ -147,7 +156,7 @@ Usar keypad para se movimentar
 Setas do teclado nas estatísticas
 Abilitar controle por joystick
 Stick de movimento
-Botões do Joystick (0 = disabilitado)
+Botões do joystick (0 = disabilitado)
 
 ; These texts are originally manually padded to the same length. You can do
 ; the same to make the menu look neater.
@@ -155,9 +164,9 @@ Atirar
 Correr
 Esquivar
 
-Controles Ativos
+Controles ativos
 
-Opções gráficas
+Modos de tela
 Profundidade de cores
  desktop
 $1-bit
@@ -168,7 +177,12 @@ Método alternativo de "page flipping"
 Taxa de atualização atual
 $1 Hz
 Aplicar alterações
+
+Opções gráficas
 Tema
+Tema de fundo
+Preferir fundo do tema principal
+Fonte
 Antialiasing
 Menos efeitos de transparência
 Textura continua entre salas
@@ -181,7 +195,7 @@ Opções sonoras
 Habilitar som
 Volume
 
-Alterar Idiona
+Alterar idiona
 Idioma
 
 Política da reportagem de bugs
@@ -328,6 +342,9 @@ Veja o diretório 'log' para maiores informações.
 Erro interno
 Isso é resultado de um bug no outgun. Para ajudar a concertar, por-favor, envie o assert.log e o stackdump.bin do diretório log e diga oque você estava fazendo para outgun@mbnet.fi (Por-favor, envie em inglês)
 
+; Used in an external dialog as title. No length restriction.
+Erro crítico
+
 ; Used in a simple dialog, started from the name and passwords menu.
 1 senha removida.
 $1 senha removida.
@@ -342,8 +359,8 @@ Por-favor, feche e reinicie o Outgun para completar a alteração do idioma.
 ; Used in a simple dialog message when an invalid IP address is entered.
 Indereço de IP inválido.
 
-; Used in the help screen, followed by the expected filename on its own line.
-Nenhuma ajuda encontrada. Deveria estar em
+; Used in the help screen; $1 is the expected file name.
+Nenhuma ajuda encontrada. Deveria estar em $1
 
 ; Field names for player or server password input dialog.
 Senha
@@ -355,6 +372,7 @@ Senha do servidor
 ; sounds)
 <sem temas>
 <nenhum tema encontrado>
+<sem fundo>
 
 ; Reserved for if the theme names from theme.txt are used in the future.
 (Tema sem nome)
@@ -394,7 +412,7 @@ $1 defendeu a bandeira azul.
 $1 é um assassino em série!
 o assassino em série $1 foi morto pelo $2.
 $1 não é mais um assassino em série.
-$1 Entrou no jogo.
+$1 entrou no jogo.
 $1 deixou o jogo com $2 mortos.
 $1 moveu para o time azul.
 $1 moveu para o time vermelho.
@@ -412,6 +430,7 @@ $1 mudou de nome para $2.
 
 *** Chute por inatividade: mova-se ou será chutado em $1 segundos.
 *** $1/$2 votos para a troca de mapas.
+Seu voto não tem nenhum efeito até você votar por um mapa específico.
 
 ; Optionally added to the previous message.
 (Todos os jogadores precisam mais $1 segundos.)
@@ -468,6 +487,8 @@ administrador
 
 ; Used below the messages when typing a message: Say: Hello world_
 Diga
+Diga ao time
+Comando
 
 
 ; - - - - - - - - texts used in the middle of the game screen - - - - - - - -
@@ -498,18 +519,18 @@ Carregando mapa: $1 bytes
 VIROU
 SORVETE!
 
-; Max length 13 with 3-digit $1.
+; The shorter the better, but if one is long, it doesn't help if the other is
+; shorter.
 Saúde    $1
 Energia  $1
 
-; Recommended max length 10 with 3-digit $1. If more length is required, you
-; have to pad Weapon below with spaces from the left so they don't overlap (but
-; don't grow Weapon past 14). Looks nice if these three are the same length.
-Força  $1
-Turbo  $1
-Sombra $1
+; The shorter the better, but if one is long, it doesn't help if others are
+; shorter.
+Força
+Turbo
+Sombra
 
-; Max length 14 with 1-digit $1.
+; The shorter the better; test it.
 Arma $1
 
 ; No limit really, but small and discreet is good.
@@ -522,10 +543,9 @@ TIMES
 SAIR
 MAPA
 
-; All 3 lines are used as one message in the middle of the screen. Max length
-; for each line is 27 characters, use more and it's not neatly in the message
-; box any more.
-SERVIDOR NÃO RESPONDENDO
+; All three lines are used as a menu, first line as its title. Menu length
+; restrictions apply.
+Servidor não respondendo
 Perda temporária de pacotes
 ou o servidor desconectou.
 
@@ -726,12 +746,13 @@ Erro de sintaxe no gfxmodes.txt, linha '$1'.
 Tradução $1 não pode ser lida.
 Dado desconhecido em client.cfg ("$1").
 Comando desconhecido "$1" no auth.txt
-Modo não utilizável no gfxmodes.txt : $1×$2×$3 (precisa ser no mínimo 640×400 com 16, 24 ou 32 de bits).
+Modo não utilizável no gfxmodes.txt: $1×$2×$3 (precisa ser no mínimo 320×200 com 16, 24 ou 32 de bits).
 Altura e largura das texturas precisam ser potência de 2; a textura do chão $1 é $2×$3.
 Altura e largura das texturas precisam ser potência de 2; a textura da parede $1 é $2×$3.
 
 ; Miscellaneous errors.
 Não é possível alterar max_players enquanto os jogadores estão conectados.
+Não é possível criar um thread. Recursos do sistema insuficie.
 Não foi possível colocar o servidor para rodar em segundo plano.
 Comunicador mestre:Você possuí uma versão inválida do Outgun. O servidor não o aceitará na lista mestre. Por-favor, atualize.
 Sem mapas para rotação.
@@ -744,6 +765,7 @@ Não foi possível iniciar HawkNL. $1
 Sem rede de IP.
 Admin shell: Não foi possível abrir o soquete na porta $1.
 Admin shell: Não foi possível alterar o soquete para o modo de escuta...
+Admin shell: Não foi possível aceitar a conexão.
 Admin shell: leitura falhou. Motivo: $1
 Admin shell: Falhou enviando resposta. Motivo: $1
 Não foi possível conectar no servidor mestre. $1
@@ -773,7 +795,7 @@ Não foi possível gravar '$1'.
 config/language.txt não pode ser gravado.
 Erro gravando para '$1'.
 Arquivo baixado: Não é possível abrir '$1' para gravação.
-Salvador de figuras do mapa:Não é possível salvar a figura do mapa para '$1'.
+Salvador de figuras do mapa: Não é possível salvar a figura do mapa para '$1'.
 O diretório '$1' não foi encontrado e não pode ser criado.
 
 

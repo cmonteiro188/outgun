@@ -354,8 +354,8 @@ Please close and restart Outgun to complete the change of language.
 ; Used in a simple dialog message when an invalid IP address is entered.
 Invalid IP address.
 
-; Used in the help screen, followed by the expected filename on its own line.
-No help found. It should be in
+; Used in the help screen; $1 is the expected file name.
+No help found. It should be in $1
 
 ; Field names for player or server password input dialog.
 Password
@@ -514,7 +514,7 @@ Loading map: $1 bytes
 VIROU
 SORVETE!
 
-; The shorter the better, but if one is long, it does't help if the other is
+; The shorter the better, but if one is long, it doesn't help if the other is
 ; shorter.
 Health
 Energy
