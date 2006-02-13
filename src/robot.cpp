@@ -507,6 +507,90 @@ int Client::FreeDir(double mex, double mey) const {
     return mdir;
 }
 
+ClientControls Client::MoveDirNoAggregate(int dir) const {
+    double dx, dy;
+    double sdx = 0;
+    double sdy = 0;
+    
+    int n = 0;
+    
+    for (int i = 0; i < maxplayers; ++i) {
+        if (!fx.player[i].used || 
+	    fx.player[i].team() != fx.player[me].team() || 
+	    fx.player[i].dead || !fx.player[i].onscreen || (i == me))
+            continue;
+
+        if (fx.player[i].roomx != fx.player[me].roomx ||
+            fx.player[i].roomy != fx.player[me].roomy)
+                continue;
+        dx = fx.player[i].lx - fx.player[me].lx;
+        dy = fx.player[i].ly - fx.player[me].ly;
+	if ((fabs(dx) > PLAYER_RADIUS) ||
+	    (fabs(dy) > PLAYER_RADIUS))
+	    continue;
+        sdx += dx;
+	sdy += dy;
+	n++;
+    }
+
+    if (!n)
+	return MoveDir(dir);
+
+    ClientControls ctrl;
+
+    if (!sdx && !sdy)
+	dir = rand()%8;
+
+    sdx /= n;
+    sdy /= n;
+
+	
+    ctrl.setRun();
+    ctrl.setStrafe();
+
+    switch (dir) {
+	case 0:
+	case 4:
+	    if (sdy > 0)
+		ctrl.setUp();
+	    else
+		ctrl.setDown();
+	    break;
+	case 2:
+	case 6:
+	    if (sdx > 0)
+		ctrl.setLeft();
+	    else
+		ctrl.setRight();
+	    break;
+	case 1:
+	    if (sdy < sdx)
+		ctrl.setDown();
+	    else
+		ctrl.setRight();
+	    break;
+	case 5:
+	    if (sdy < sdx)
+		ctrl.setLeft();
+	    else
+		ctrl.setUp();  	
+	    break; 
+	case 3:
+	    if (sdy > -sdx)
+		ctrl.setLeft();
+	    else
+		ctrl.setDown();
+	    break;
+	case 7:
+	    if (sdy > -sdx)
+		ctrl.setUp();
+	    else
+		ctrl.setRight();				
+	    break;
+    }
+    return ctrl;
+}
+
 ClientControls Client::MoveDir(int dir) const {
     ClientControls ctrl;
     ctrl.setRun();
@@ -546,6 +630,18 @@ ClientControls Client::MoveDir(int dir) const {
 ClientControls Client::FreeWalk(double mex, double mey) const {
     return MoveDir(FreeDir(mex, mey));
 }
+
+ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy) const {
+    int mdir;
+    if (IsBehindWall(mex, mey, dx, dy)) {//walking
+        mdir = FreeDir(mex, mey);
+	return MoveDir(mdir);
+    }
+    else 
+        mdir = GetDir(dx, dy);
+    return MoveDirNoAggregate(mdir);
+}
+
 
 ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) const {
     int mdir;
@@ -874,7 +970,7 @@ ClientControls Client::DoRoute(double melx, double mely) const {
             tox = S_W + PLAYER_RADIUS;
             toy = S_H / 2;
     }
-    return MoveTo(melx, mely, tox - fx.player[me].lx, toy - fx.player[me].ly);
+    return MoveToNoAggregate(melx, mely, tox - fx.player[me].lx, toy - fx.player[me].ly);
 }
 
 bool Client::RouteLogic() { // NEED rewrite

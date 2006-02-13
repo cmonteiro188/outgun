@@ -374,7 +374,9 @@ class Client {
     ClientControls Robot();
     ClientControls GetFlag(double mex, double mey) const;
     ClientControls GetPowerup(double mex, double mey) const;
+    ClientControls MoveDirNoAggregate(int dir) const;
     ClientControls MoveTo(double mex, double mey, double dx, double dy) const;
+    ClientControls MoveToNoAggregate(double mex, double mey, double dx, double dy) const;
     ClientControls MoveDir(int dir) const;
     int FreeDir(double mex, double mey) const;
     void BuildMap();
