@@ -911,7 +911,7 @@ int Textobject::height() const {
         }
     }
 
-    return min(splitted.size() * objLineHeight(), max_h);
+    return min<unsigned>(splitted.size() * objLineHeight(), max_h);
 }
 
 int Textobject::objLineHeight() const {
