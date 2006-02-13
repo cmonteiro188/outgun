@@ -39,7 +39,7 @@
 #include "leetnet/client.h"
 #include "commont.h"
 #include "debug.h"
-#include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
+#include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
 #include "gameserver_interface.h"
 #include "language.h"
 #include "names.h"
@@ -587,14 +587,14 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     //securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
     log(&normalLog, &errorLog, 0),
     listenServer(log),
-    botmode(false),
-    botPrevFire(false),
-    finished(false),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
     current_map(-1),
     map_vote(-1),
     player_stats_page(0),
     lastAltEnterTime(0),
+    botmode(false),
+    finished(false),
+    botPrevFire(false),
     abortThreads(false),
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
@@ -701,7 +701,7 @@ bool Client::start() {
     playername = RandomName();
 
     if (botmode)
-    	return true;
+        return true;
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
@@ -1444,7 +1444,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     writeStr(lebuf, count, playername);
     writeStr(lebuf, count, m_serverPassword.password());    // empty or not, it's needed
     if (loadPassword)
-        m_playerPassword.password.set(load_player_password(playername, strAddress)); 
+        m_playerPassword.password.set(load_player_password(playername, strAddress));
     writeStr(lebuf, count, m_playerPassword.password());    // empty or not, it's needed
 
     client->set_connect_data(lebuf, count);
@@ -2565,7 +2565,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 nAssert(fx.player[pid].used);
                 fx.player[pid].used = false;
             }
-            
+
             break; case data_team_change: {
                 NLubyte from, to, col1, col2;
                 readByte(lebuf, count, from);
@@ -2753,7 +2753,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
                 log("Server ff/dbff/rocketspeed %f/%f/%f",
                     fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
-                    
+
                 ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
                 out << hostname << '\n';
                 out << "friction     " << fx.physics.fric << '\n';
@@ -2795,7 +2795,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg += " " + _("(sudden death)");
                 addThreadMessage(new TM_Text(msg_info, msg));
             }
-            
+
             break; case data_map_change_info: {
                 NLubyte votes, needed;
                 NLshort vote_block_time;
@@ -2885,7 +2885,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
                 addThreadMessage(new TM_Text(msg_warning, msg));
             }
-            
+
             break; case data_broken_map:
                 addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
 

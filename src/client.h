@@ -232,7 +232,6 @@ public:
     virtual void execute(Client* cl) const = 0;
 };
 
-
 class Client {
     friend class ClientPhysicsCallbacks;
     friend class TM_DoDisconnect;
@@ -265,9 +264,6 @@ class Client {
     int me;
     MutexHolder frameMutex;
     int maxplayers;
-
-    bool botmode;
-    bool finished;
 
     // network
     client_c *client;
@@ -346,12 +342,16 @@ class Client {
     NLaddress serverIP;
 
     enum Routing {
-	Route_None,
-	Route_Flag,
-	Route_Base,
-	Route_Team
+        Route_None,
+        Route_Flag,
+        Route_Base,
+        Route_Team
     };
-    // for bots:
+
+    // for bots
+    bool botmode;
+    bool finished;
+
     Routing routing;
     int route_x;
     int route_y;
@@ -383,9 +383,9 @@ class Client {
     void ChosePass() const;
     bool IsMassive() const;
     ClientControls FreeWalk(double mex, double mey) const;
-    void next_room(int &x, int &y, int i) const; // chose ith door
+    void next_room(int& x, int& y, int i) const; // chose ith door
     int  label_room(int x, int y, int label); // label rooms around x y (wich is labeled as label)
-    int  route_room(int &x, int &y); // go one step to lower label and label it as route , return 1 if step is done
+    int  route_room(int& x, int& y); // go one step to lower label and label it as route , return 1 if step is done
     int  BuildRouteTable(); // build route table (labeled) from me point, return max path len
     int  BuildRoute(int tox, int toy); // build route on route table tox(y), return 0 if not needed, -1 if no path
     ClientControls DoRoute(double mex, double mey) const; // simulate keypress (follow route)
@@ -393,14 +393,14 @@ class Client {
     ClientControls Route(double mex, double mey); // do all route (wrapper)
 //	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
 //	    // -1 if no target labeled
-    int TargetNearestBase(int &m_label, int &x, int &y, int team);
-    int TargetNearestTeam(int &m_label, int &x, int &y, int team);
-    int TargetNearestFlag(int &m_label, int &x, int &y, int team, int state);
-    int TargetRoute(int efb, int efd, int efc, 
-			int mfb, int mfd, int mfc, 
-			int wfb, int wfd, int wfc, 
-			int en,  int fr, 
-			int eb,  int fb, int wb);
+    int TargetNearestBase(int& m_label, int& x, int& y, int team);
+    int TargetNearestTeam(int& m_label, int& x, int& y, int team);
+    int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state);
+    int TargetRoute(int efb, int efd, int efc,
+                    int mfb, int mfd, int mfc,
+                    int wfb, int wfd, int wfc,
+                    int en,  int fr,
+                    int eb,  int fb, int wb);
 
     bool HaveFlag() const; // returns if me is carrier
     bool IsHome(int mex, int mey) const;//

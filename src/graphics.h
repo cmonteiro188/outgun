@@ -212,7 +212,7 @@ public:
     void set_min_transp(bool enable) { min_transp = enable; }
 
     int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
-    
+
     // How many lines fit on the chat area and screen.
     int chat_lines() const;
     int chat_max_lines() const;
@@ -221,7 +221,7 @@ public:
 
     // public only for Mappic
     void setColors();
-    
+
     void set_stats_alpha(int alpha) { stats_alpha = alpha; }
 
 private:
@@ -309,7 +309,7 @@ private:
     void load_font(const std::string& file);
 
     int scale(double value) const;
-    
+
     // drawing screens
     Bitmap vidpage1;
     Bitmap vidpage2;
@@ -368,7 +368,7 @@ private:
 
     int map_list_size;
     int map_list_start;
-    
+
     int team_captures_start;
 
     std::list<GraphicsEffect> cfx;

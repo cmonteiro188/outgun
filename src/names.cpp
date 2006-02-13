@@ -224,7 +224,7 @@ string Silaba()
     string retorno;
 
     retorno = PreVog() + Vog() + PosSemiVog() + PosConsProl();
-     
+
     return retorno;
 }
 

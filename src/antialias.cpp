@@ -461,7 +461,7 @@ void YSegment::moveElements(int texid) {    // moves all borders from build list
  * the build list is assumed to be sorted, so that each pair of consequent borders forms a wall segment
  * (the final list already has tex information; nevertheless it must be sorted too; this function maintains the sort)
  * it is assumed that no walls intersect the walls to be added
- * 
+ *
  * taking one wall element (pair of borders) at a time from the build list, the final list is modified so the new wall overlaps old ones:
  * - search on while an old border is to the left left from the new left border
  * - add the new left border
@@ -869,7 +869,7 @@ void TexturePixelSource::nextLine() {
         ty = 0;
 }
 
-void TexturePixelSource::startPixSpan(int x) {  
+void TexturePixelSource::startPixSpan(int x) {
     tx = (x - tx0) % tex->w;
 }
 
