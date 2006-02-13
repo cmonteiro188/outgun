@@ -48,7 +48,6 @@ const int SCAN_RADIUS = ROCKET_RADIUS;
 const int S_W = plw;
 const int S_H = plh;
 const int FADEOUT = 50;
-const int ROUTE_FADEOUT = 30;
 
 //const int D_W = 2 * PLAYER_RADIUS;
 
@@ -1029,11 +1028,13 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team) {
                 pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
         	(fx.frame - pl.posUpdated > FADEOUT)) // TODO fadeout
                     continue; // old data
-	    if ((pl.roomx == fx.player[me].roomx) &&
-		(pl.roomy == fx.player[me].roomy))
-		    continue; // already here	    
-            if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
-		    continue; // was here		    
+	    if (!pl.onscreen) {
+		if ((pl.roomx == fx.player[me].roomx) &&
+		    (pl.roomy == fx.player[me].roomy))
+		    continue; // already here
+        	if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
+		    continue; // was her
+	    }
         }
 
         if (label < m_label || m_label == -1) {
@@ -1085,12 +1086,13 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state)
                 ((fx.frame - pl.posUpdated) > FADEOUT)) // TODO fadeout
                     continue; // old data
 
-	    if ((pl.roomx == fx.player[me].roomx) &&
-		(pl.roomy == fx.player[me].roomy))
-		    continue; // already here	    
-
-            if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
-		    continue; // was here		    
+	    if (!pl.onscreen) {
+		if ((pl.roomx == fx.player[me].roomx) &&
+		    (pl.roomy == fx.player[me].roomy))
+			continue; // already here	    
+        	if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
+		    continue; // was here
+	    }		    
         }
 
         bool at_base = false;
