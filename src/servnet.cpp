@@ -36,7 +36,7 @@
 #include "leetnet/rudp.h"   // get_self_IP
 #include "admshell.h"
 #include "debug.h"
-#include "debugconfig.h"	// for LOG_MESSAGE_TRAFFIC
+#include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
 #include "language.h"
 #include "mutex.h"
@@ -1468,7 +1468,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                         "&token=" + url_encode(tok) +
                         " HTTP/1.0\r\n"
                         "Host: www.mycgiserver.com\r\n"
-                        "\r\n"; 
+                        "\r\n";
                     {
                         MutexLock ml(mjob_mutex);
                         mjob_count++;
@@ -2066,8 +2066,10 @@ void ServerNetworking::run_mastertalker_thread() {
                     nlClose(msock);
                     return;
                 }
-                if (response.str().find("[OK]") == string::npos)
+                if (response.str().find("[ERROR]") != string::npos) // this means a more permanent problem
                     log.error(_("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument."));
+                else if (response.str().find("[OK]") == string::npos) // this happens when the master server has problems
+                    log("Master talker: There was an unexpected error while sending information to the master list. See log/master.log.");
             }
             else {
                 log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
