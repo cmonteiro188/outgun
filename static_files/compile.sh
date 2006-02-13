@@ -2,6 +2,7 @@
 #
 # Compile script for Outgun 1.0.0, and may work in later versions.
 # by ThOR27 - Thomaz de Oliveira dos Reis - thommy@globo.com
+# modified for Outgun 1.0.3 by Nix - Niko Ritari - npr1@suomi24.fi
 #
 
 # This function was taken from the wineinstall script.
@@ -114,6 +115,14 @@ echo ===========================================================================
 echo
 echo "Cleaning files from an old execution. . ."
 clean
+
+if [ ! -d "./src" ]; then {
+	echo
+	echo "There is no Outgun src directory. This script should be run in the"
+	echo "directory where you extracted Outgun."
+	exit 1
+} fi
+
 echo
 echo "Creating CPP files that will be used for checking. . ."
 
@@ -191,9 +200,24 @@ if { ./hawk.check.bin; } then {
 else {
 	echo
 	echo "WARNING: Problems running a program compiled with HawkNL. Outgun may compile"
-    echo "         but will not run."
-	echo "         (Re)install a new version of HawkNL (http://www.hawksoft.com/hawknl/)"
-	echo "         and test it again, or try to resolve the error otherwise."
+	echo "         but will not run."
+	if [ -f /etc/ld.so.conf -a `grep "^/usr/local/lib$" /etc/ld.so.conf | wc -l` -eq "0" ]; then {
+		echo
+		echo "It seems /usr/local/lib is not mentioned in your /etc/ld.so.conf. The HawkNL"
+		echo "library .so is by default installed there. Try adding the line or copying"
+		echo "the library to another lib directory. Then run ldconfig and try again."
+	}
+	else {
+		echo "         (Re)install a new version of HawkNL (http://www.hawksoft.com/hawknl/)"
+		echo "         and test it again, or try to resolve the error otherwise."
+	} fi
+
+	echo
+	echo "Do you want to continue the script and ignore the problem?"
+	conf_yesno_answer "(yes/no) "
+	if [ "$ANSWER" = 'no' ]; then {
+		exit 0
+	} fi
 } fi
 
 echo
@@ -217,6 +241,13 @@ else {
 	echo "         but will not run."
 	echo "         (Re)install a newer version of Allegro (http://alleg.sf.net/) and"
 	echo "         test it again, or try to resolve the error otherwise."
+
+	echo
+	echo "Do you want to continue the script and ignore the problem?"
+	conf_yesno_answer "(yes/no) "
+	if [ "$ANSWER" = 'no' ]; then {
+		exit 0
+	} fi
 } fi
 
 echo
@@ -225,11 +256,12 @@ echo "you should be playing soon. Or not so soon, depending of your machine spee
 echo "In my XP2200+ with 512 DDR 400, this process takes almost 5 minutes."
 echo
 echo "Compiling Outgun. . ."
-rm -f outgun
-cd ./src
-make -B LINUX=1
 
-if [ -f "../outgun" ]; then {
+rm -f outgun
+
+make -B -C src LINUX=1
+
+if [ -f "outgun" ]; then {
 	echo
 	echo "Outgun compiled fine. You should run now by typing ./outgun"
 	echo
