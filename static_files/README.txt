@@ -5,7 +5,7 @@
  A 2D-graphics, 32-player multiplayer, fast-paced capture-the-flag game!
 
 *******************************************************************************
-                                                           [ 1.0.2 2005-05-25 ]
+                                                           [ 1.0.3 2006-02-13 ]
 
 
 -------------------------
@@ -64,6 +64,9 @@ Graphics themes by
    Jani Rivinoja (Huntta)
    Joonas Rivinoja
 
+Fonts by
+   Jani Rivinoja (Huntta)
+
 Sound theme by
    Visa-Valtteri Pimiä <visa.pimia@www.fi>
 
@@ -72,8 +75,8 @@ Translations by
    Portuguese (BR) - Thomaz de Oliveira dos Reis (ThOR27) <thommy@globo.com>
 
 Maps by
-   Huntta, Joonas, PHiN, evilKaioh, Flyer, Juggis, Luque, MK-HeadShot, Nix,
-   Fabio Cecin, coiote, Devil, Gloomy, Jakke, Nosferatu, and ThOR27
+   Huntta, Joonas, PHiN, evilKaioh, Flyer, Juggis, Luque, :(, MK-HeadShot, Nix,
+   Fabio Cecin, coiote, Devil, Gloomy, Jakke, Nosferatu, ThOR27, and Miague-DH
 
 1.0.0 beta and later bug reports (in decreasing order of bugs reported)
    ThOR27 (very much deserving of his own line),
@@ -81,7 +84,7 @@ Maps by
    Detonador, K4(Maicon), Zigue, Syrus-DH, Miague-DH, SnoOpY
    You. Get your name here by reporting a new bug. :)
 
-This game uses the excellent libraries:
+This game uses these libraries:
  * Allegro - http://alleg.sourceforge.net/
  * HawkNL - http://www.hawksoft.com/hawknl/
  * Pthreads-win32 - http://sources.redhat.com/pthreads-win32/
