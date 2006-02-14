@@ -521,8 +521,8 @@ SORVETE!
 
 ; The shorter the better, but if one is long, it doesn't help if the other is
 ; shorter.
-Saúde    $1
-Energia  $1
+Saúde
+Energia
 
 ; The shorter the better, but if one is long, it doesn't help if others are
 ; shorter.
