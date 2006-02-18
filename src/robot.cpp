@@ -627,7 +627,7 @@ ClientControls Client::MoveDir(int dir) const {
 }
 
 ClientControls Client::FreeWalk(double mex, double mey) const {
-    return MoveDir(FreeDir(mex, mey));
+    return MoveDirNoAggregate(FreeDir(mex, mey));
 }
 
 ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy) const {
@@ -664,7 +664,7 @@ ClientControls Client::GetPowerup(double mex, double mey) const {
 }
 
 ClientControls Client::GetFlag(double mex, double mey) const {
-    const bool carry = HaveFlag();
+    const bool carry = HaveFlag(me);
 
     int t = fx.player[me].team();
 
@@ -748,7 +748,7 @@ void Client::BuildMap() {
                 !room.fall_on_wall(S_W, S_H - S_H / 4, PLAYER_RADIUS);
 
             room.route = false;
-            room.label = -1;
+            room.label[0] = room.label[1] = -1;
             room.visited_frame = 0;
 #ifdef BOTDEBUG
             fprintf(stderr,"%d %d: %d %d %d %d\n", x, y,
@@ -787,8 +787,8 @@ void Client::next_room(int& x, int& y, int i) const {
     }
 }
 
-int Client::label_room(int x, int y, int label) {
-    if (fx.map.room[x][y].label != label) // not our label
+int Client::label_room(int x, int y, int label, int num) {
+    if (fx.map.room[x][y].label[num] != label) // not our label
         return 0;
 
     int n = 0;
@@ -799,19 +799,19 @@ int Client::label_room(int x, int y, int label) {
         int nx = x;
         int ny = y;
         next_room(nx, ny, i);
-        if (fx.map.room[nx][ny].label != -1) // already labeled
+        if (fx.map.room[nx][ny].label[num] != -1) // already labeled
             continue;
 #ifdef BOTDEBUG
         fprintf(stderr,"label_room(%d, %d, %d) -> %d %d\n", x, y, label, nx, ny);
 #endif
-        fx.map.room[nx][ny].label = label + 1;
+        fx.map.room[nx][ny].label[num] = label + 1;
         ++n;
     }
     return n;
 }
 
-int Client::route_room(int& x, int& y) {
-    int label = fx.map.room[x][y].label;
+int Client::route_room(int& x, int& y, int num) {
+    int label = fx.map.room[x][y].label[num];
     if (label == -1) // not labeled
         return 0;
 
@@ -823,7 +823,7 @@ int Client::route_room(int& x, int& y) {
         int nx = x;
         int ny = y;
         next_room(nx, ny, i);
-        if (fx.map.room[nx][ny].label != label - 1)
+        if (fx.map.room[nx][ny].label[num] != label - 1)
             continue;
         if (!fx.map.room[nx][ny].pass[i ^ 1])
             continue;
@@ -837,30 +837,29 @@ int Client::route_room(int& x, int& y) {
     return n;
 }
 
-int Client::BuildRouteTable() {
-    const int mex = fx.player[me].roomx;
-    const int mey = fx.player[me].roomy;
+int Client::BuildRouteTable(int mex, int mey, int num) {
+//    const int mex = fx.player[me].roomx;
+//    const int mey = fx.player[me].roomy;
     const int w = fx.map.w;
     const int h = fx.map.h;
 
-    if (!fx.map.room[mex][mey].label && fx.map.room[mex][mey].route) {
-        routing = Route_None; 	
+    if (!fx.map.room[mex][mey].label[num]) {
         return 0;
     }	
 
     for (int x = 0; x < w; ++x)
         for (int y = 0; y < h; ++y) {
-            fx.map.room[x][y].label = -1;
+            fx.map.room[x][y].label[num] = -1;
             fx.map.room[x][y].route = false;
         }
 
     int label = 0;
-    fx.map.room[mex][mey].label = label; // start point
+    fx.map.room[mex][mey].label[num] = label; // start point
     while (1) {
         int i = 0;
         for (int x = 0; x < w; ++x)
             for (int y = 0; y < h; ++y)
-                i += label_room(x, y, label);
+                i += label_room(x, y, label, num);
         if (i == 0) // all alabeled
             break;
         ++label;
@@ -869,7 +868,7 @@ int Client::BuildRouteTable() {
     fprintf(stderr,"BuildRoute table from %d %d\n", mex, mey);
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x)
-            fprintf(stderr,"%02d ", fx.map.room[x][y].label);
+            fprintf(stderr,"%02d ", fx.map.room[x][y].label[num]);
         fprintf(stderr,"\n");
     }
 #endif
@@ -877,7 +876,7 @@ int Client::BuildRouteTable() {
     return label;
 }
 
-int Client::BuildRoute(int tox, int toy) {
+int Client::BuildRoute(int tox, int toy, int num) {
     #ifdef BOTDEBUG
     static int tox_old = -1, toy_old = -1;
     if (tox != tox_old || toy != toy_old) {
@@ -886,7 +885,7 @@ int Client::BuildRoute(int tox, int toy) {
         toy_old = toy;
     }
     #endif
-    const int label = fx.map.room[tox][toy].label;
+    const int label = fx.map.room[tox][toy].label[num];
     const int mex = fx.player[me].roomx;
     const int mey = fx.player[me].roomy;
 
@@ -901,10 +900,10 @@ int Client::BuildRoute(int tox, int toy) {
         return -1;
 
 
-    if (fx.map.room[mex][mey].label == -1)
+    if (fx.map.room[mex][mey].label[num] == -1)
         return -1;
 
-    if (fx.map.room[mex][mey].label > fx.map.room[tox][tox].label)
+    if (fx.map.room[mex][mey].label[num] > fx.map.room[tox][tox].label[num])
         return -1;
 
     fx.map.room[tox][toy].route = true;
@@ -913,7 +912,7 @@ int Client::BuildRoute(int tox, int toy) {
     route_y = toy;
 
     int i = 0;
-    while (route_room(tox, toy))
+    while (route_room(tox, toy, num))
         ++i;
 
     return i;
@@ -923,7 +922,11 @@ ClientControls Client::DoRoute(double melx, double mely) const {
     int dir = 0;
     const int mex = fx.player[me].roomx;
     const int mey = fx.player[me].roomy;
-    const int label = fx.map.room[mex][mey].label;
+    
+    if (routing == Route_None)
+        return ClientControls();
+        
+    const int label = fx.map.room[mex][mey].label[0];
 
     if (label == -1)
         return ClientControls();
@@ -937,7 +940,7 @@ ClientControls Client::DoRoute(double melx, double mely) const {
         int x = mex;
         int y = mey;
         next_room(x, y, i);
-        if (fx.map.room[x][y].route && fx.map.room[x][y].label == label + 1) {
+        if (fx.map.room[x][y].route && fx.map.room[x][y].label[0] == label + 1) {
             dir = i;
             break;
         }
@@ -969,11 +972,98 @@ ClientControls Client::DoRoute(double melx, double mely) const {
     return MoveToNoAggregate(melx, mely, tox - fx.player[me].lx, toy - fx.player[me].ly);
 }
 
+bool Client::ChoseAltLogic() {
+// get flag base
+    int altNum;
+    const int team = fx.player[me].team();
+    const std::vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
+    int alt = 0;
+    // for all bases
+    for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
+	bool at_base = false;
+	const std::vector<Flag>& flags = fx.teams[team].flags();
+	for (std::vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+	    if (!fi->carried()) {
+                if (fi->position().px != pi->px ||
+		    fi->position().py != pi->py)
+		    continue;
+            } else {
+                const ClientPlayer& pl = fx.player[fi->carrier()];
+                if (!pl.used || pl.roomx < 0 || pl.roomy < 0 ||
+                    pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
+                    fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
+                    continue; // old data
+                if (pl.roomx != pi->px ||
+                    pl.roomy != pi->py)
+                    continue;
+            }
+	    at_base = true;	
+	}
+        
+	if (!at_base) { // try enemy flags that we carry
+	    const std::vector<Flag>& eflags = fx.teams[1-team].flags();
+	    for (std::vector<Flag>::const_iterator fi = eflags.begin(); fi != eflags.end(); ++fi) {
+		if (!fi->carried())
+		    continue;
+                const ClientPlayer& pl = fx.player[fi->carrier()];
+		if (pl.roomx != pi->px ||
+		    pl.roomy != pi->py)
+		    continue;
+		at_base = true;	
+	    }
+	}
+	if (!at_base)
+	    continue;
+        BuildRouteTable(pi->px, pi->py, 1);
+        int m_label = fx.map.room[fx.player[me].roomx][fx.player[me].roomy].label[1];
+
+        for (int i=0; i<maxplayers; ++i) {
+            const ClientPlayer& player = fx.player[i];
+            if (!player.used || player.team() != fx.player[me].team() ||
+                 player.dead /*|| i == me*/) {
+                 continue;
+	    }
+            int label = fx.map.room[player.roomx][player.roomy].label[1];
+            if ((label<=m_label) || HaveFlag(i))
+                alt++;     
+        }
+    }
+    if (!alt)
+        return false;
+    else
+        alt--; // exclude myself	
+    int npl = 0;
+//    BuildRouteTable(fx.player[me].roomx, fx.player[me].roomy);
+    for (int i=0; i<maxplayers; ++i) {
+        const ClientPlayer& player = fx.player[i];
+        if (!player.used || player.team() != fx.player[me].team())
+	    continue;
+	npl++;
+    }
+    altNum = npl/2;
+    if (alt<altNum)
+        return true;
+    return false;    
+}
+
+bool Client::RouteLogicAlt() {
+    if (!ChoseAltLogic())
+        return false;
+    TargetRoute(1, 1, 1,
+                1, 1, 1,
+                0, 0, 0,
+                0, 0,
+                0, 0, 0); // try _any_ flags
+    return (routing != Route_None);
+}
+
 bool Client::RouteLogic() { // NEED rewrite
 //    Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-    const bool flag = HaveFlag();
+    const bool flag = HaveFlag(me);
 
     if (!flag) {
+        if (RouteLogicAlt())
+            return true;
         TargetRoute(1, 1, 0,
                     0, 1, 1,
                     1, 1, 0,
@@ -1014,7 +1104,6 @@ bool Client::RouteLogic() { // NEED rewrite
     #ifdef BOTDEBUG
     //fprintf(stderr,"RouteLogic: %d\n", i);
     #endif
-    route_frame = fx.frame;		
     return routing != Route_None;
 }
 
@@ -1046,28 +1135,28 @@ bool Client::IsMassive() const {
 }
 
 ClientControls Client::Route(double mex, double mey) {
-    const int x = fx.player[me].roomx;
-    const int y = fx.player[me].roomy;
+//    const int x = fx.player[me].roomx;
+//    const int y = fx.player[me].roomy;
 
     if (!RouteLogic()) {
-        fx.map.room[x][y].route = false;
+//        fx.map.room[x][y].route = false;
         return ClientControls();
     }
     return DoRoute(mex, mey);
 }
 
-bool Client::HaveFlag() const {
-    const int t = 1 - fx.player[me].team();
+bool Client::HaveFlag(int n) const {
+    const int t = 1 - fx.player[n].team();
     nAssert(t == 0 || t == 1);
 
     // look for enemy flags in team
     for (std::vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
-        if (fi->carried() && fi->carrier() == me)
+        if (fi->carried() && fi->carrier() == n)
             return true;
 
     // looking for wild flags
     for (std::vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-        if (fi->carried() && fi->carrier() == me)
+        if (fi->carried() && fi->carrier() == n)
             return true;
 
     return false;
@@ -1080,7 +1169,7 @@ int Client::TargetNearestBase(int& m_label, int& x, int& y, int team) {
     for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
         //if ((pi->px == fx.player[me].roomx) && (pi->py == fx.player[me].roomy))
         //    continue; //already here
-        label = fx.map.room[pi->px][pi->py].label;
+        label = fx.map.room[pi->px][pi->py].label[0];
         if (label == -1)
             continue;
         if (label < m_label || m_label == -1) {
@@ -1109,7 +1198,7 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team) {
         //    (fx.player[i].roomy == fx.player[me].roomy))
         //        continue; //already here
 
-        label = fx.map.room[fx.player[i].roomx][fx.player[i].roomy].label;
+        label = fx.map.room[fx.player[i].roomx][fx.player[i].roomy].label[0];
         if (label == -1)
             continue;
 
@@ -1213,7 +1302,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state)
             ny = fi->position().py;
         }
 
-        label = fx.map.room[nx][ny].label;
+        label = fx.map.room[nx][ny].label[0];
         if (label == -1)
             continue;
 
@@ -1241,10 +1330,9 @@ int Client::TargetRoute(int efb, int efd, int efc,
     const int t = fx.player[me].team();
     const int et = 1 - t;
     int n = 0;
-    const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
+//    const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
 
-    if (!room.route || room.label)
-        BuildRouteTable();    
+    BuildRouteTable(fx.player[me].roomx, fx.player[me].roomy, 0);    
 
     routing = Route_None;
 
@@ -1296,7 +1384,7 @@ int Client::TargetRoute(int efb, int efd, int efc,
 	
     nAssert(x != -1 && y != -1);
 
-    return BuildRoute(x, y);	
+    return BuildRoute(x, y, 0);	
 }
 
 bool Client::IsMission() const {
@@ -1304,7 +1392,7 @@ bool Client::IsMission() const {
 // if we are looking for flag or going to our base for something
     if (fx.player[me].roomx == route_x && fx.player[me].roomy == route_y)
         return false;
-    if (HaveFlag() || routing == Route_Flag || to_home || 
+    if (HaveFlag(me) || routing == Route_Flag || to_home || 
         (!to_home && routing == Route_Base))
             return true;
     return false;	    
@@ -1353,7 +1441,7 @@ ClientControls Client::Robot() {
         i = -1;
     if (i != -1) {
         if (last_seen == -1)
-            last_seen = fx.rock[i].owner;
+            last_seen = GetDangerousEnemy(mex, mey);
         return EscapeRocket(mex, mey, i);
     }
 

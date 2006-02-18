@@ -356,7 +356,6 @@ class Client {
     int route_x;
     int route_y;
     bool botPrevFire;
-    double route_frame;
     int last_seen;
 
     bool IsMission() const;
@@ -384,12 +383,14 @@ class Client {
     bool IsMassive() const;
     ClientControls FreeWalk(double mex, double mey) const;
     void next_room(int& x, int& y, int i) const; // chose ith door
-    int  label_room(int x, int y, int label); // label rooms around x y (wich is labeled as label)
-    int  route_room(int& x, int& y); // go one step to lower label and label it as route , return 1 if step is done
-    int  BuildRouteTable(); // build route table (labeled) from me point, return max path len
-    int  BuildRoute(int tox, int toy); // build route on route table tox(y), return 0 if not needed, -1 if no path
+    int  label_room(int x, int y, int label, int nr); // label rooms around x y (wich is labeled as label)
+    int  route_room(int& x, int& y, int nr); // go one step to lower label and label it as route , return 1 if step is done
+    int  BuildRouteTable(int roomx, int roomy, int nr); // build route table (labeled) from me point, return max path len
+    int  BuildRoute(int tox, int toy, int nr); // build route on route table tox(y), return 0 if not needed, -1 if no path
     ClientControls DoRoute(double mex, double mey) const; // simulate keypress (follow route)
     bool RouteLogic(); // build route on route table using AI, -1 if not builded
+    bool RouteLogicAlt(); // build route on route table using AI, -1 if not builded
+    bool ChoseAltLogic();
     ClientControls Route(double mex, double mey); // do all route (wrapper)
 //	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
 //	    // -1 if no target labeled
@@ -402,7 +403,7 @@ class Client {
                     int en,  int fr,
                     int eb,  int fb, int wb);
 
-    bool HaveFlag() const; // returns if me is carrier
+    bool HaveFlag(int n) const; // returns if n is carrier
     bool IsHome(int mex, int mey) const;//
 
     volatile bool abortThreads;
