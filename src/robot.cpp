@@ -843,9 +843,8 @@ int Client::BuildRouteTable(int mex, int mey, int num) {
     const int w = fx.map.w;
     const int h = fx.map.h;
 
-    if (!fx.map.room[mex][mey].label[num]) {
+    if (!fx.map.room[mex][mey].label[num])
         return 0;
-    }	
 
     for (int x = 0; x < w; ++x)
         for (int y = 0; y < h; ++y) {
@@ -885,6 +884,10 @@ int Client::BuildRoute(int tox, int toy, int num) {
         toy_old = toy;
     }
     #endif
+    nAssert(tox >= 0 && tox < fx.map.w);
+    nAssert(toy >= 0 && toy < fx.map.h);
+    nAssert(me >= 0 && me < maxplayers);
+
     const int label = fx.map.room[tox][toy].label[num];
     const int mex = fx.player[me].roomx;
     const int mey = fx.player[me].roomy;
@@ -896,15 +899,9 @@ int Client::BuildRoute(int tox, int toy, int num) {
         for (int y = 0; y < fx.map.h; ++y)
             fx.map.room[x][y].route = false;
 
-    if (label == -1)
-        return -1;
-
-
-    if (fx.map.room[mex][mey].label[num] == -1)
-        return -1;
-
-    if (fx.map.room[mex][mey].label[num] > fx.map.room[tox][tox].label[num])
-        return -1;
+    if (label == -1 || fx.map.room[mex][mey].label[num] == -1 ||
+        fx.map.room[mex][mey].label[num] > fx.map.room[tox][tox].label[num])
+            return -1;
 
     fx.map.room[tox][toy].route = true;
 
@@ -922,10 +919,10 @@ ClientControls Client::DoRoute(double melx, double mely) const {
     int dir = 0;
     const int mex = fx.player[me].roomx;
     const int mey = fx.player[me].roomy;
-    
+
     if (routing == Route_None)
         return ClientControls();
-        
+
     const int label = fx.map.room[mex][mey].label[0];
 
     if (label == -1)
