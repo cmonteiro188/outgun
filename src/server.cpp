@@ -1113,7 +1113,7 @@ void Server::chat(int pid, const string& message) {
         const string::size_type pos = message.find(' ', 1);
         const string command = message.substr(1, pos - 1);
         const string arguments = pos == string::npos ? string() : message.substr(pos + 1);
-        // cbuf contains the first word, pCommand points to arguments, if any
+
         if (command == "help") {
             network.player_message(pid, msg_header, "Console commands available on this server:");
             network.player_message(pid, msg_server, "/help       this screen");
@@ -1262,7 +1262,7 @@ void Server::chat(int pid, const string& message) {
                             number = network.get_bot_count();
                         extra_bots -= number;
                     }
-                    network.plprintf(pid, msg_server, "%d new bots will be %s.", number, add ? "added" : "removed");
+                    network.plprintf(pid, msg_server, "%d bots will be %s.", number, add ? "added" : "removed");
                     check_bots = true;
                 }
             }
