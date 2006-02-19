@@ -916,7 +916,7 @@ void Server::init_bots() {
     if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
     while (bot_count < needed_bots) {
-        Client* bot = new Client(log, clientCfg, serverCfg, botLog);
+        Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->bot_start(address, bot_ping);
         bots.push_back(bot);
@@ -1111,8 +1111,8 @@ void Server::chat(int pid, const string& message) {
         const bool admin = isAdmin(pid);
 
         const string::size_type pos = message.find(' ', 1);
-        const string& command = message.substr(1, pos - 1);
-        const string& arguments = message.substr(pos + 1);
+        const string command = message.substr(1, pos - 1);
+        const string arguments = pos == string::npos ? string() : message.substr(pos + 1);
         // cbuf contains the first word, pCommand points to arguments, if any
         if (command == "help") {
             network.player_message(pid, msg_header, "Console commands available on this server:");
@@ -1273,7 +1273,7 @@ void Server::chat(int pid, const string& message) {
                     network.plprintf(pid, msg_server, "Current bot fill is %d.", bots_fill);
                 else if (ist && ist.eof() && number >= 0 && number <= maxplayers) {
                     bots_fill = number;
-                    network.plprintf(pid, msg_server, "Bot fill is now %d.", bot_ping);
+                    network.plprintf(pid, msg_server, "Bot fill is now %d.", bots_fill);
                     check_bots = true;
                 }
                 else
@@ -1305,7 +1305,7 @@ void Server::chat(int pid, const string& message) {
                     network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 500.");
             }
             else
-                network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove or ping.");
+                network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove, fill, balance, or ping.");
         }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
@@ -1572,15 +1572,13 @@ void Server::run_bot_thread() {
         }
         else
             platSleep(15);
-        if (threadLock)
-            threadLockMutex.lock();
         if (check_bots) {
             check_bots = false;
-            /*if (threadLock)
-                threadLockMutex.lock();*/
+            if (threadLock)
+                threadLockMutex.lock();
             init_bots();
-            /*if (threadLock)
-                threadLockMutex.unlock();*/
+            if (threadLock)
+                threadLockMutex.unlock();
         }
         g_timeCounter.refresh();
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
@@ -1594,8 +1592,6 @@ void Server::run_bot_thread() {
                 ++bi;
             }
         }
-        if (threadLock)
-            threadLockMutex.unlock();
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);

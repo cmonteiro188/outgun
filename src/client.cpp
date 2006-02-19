@@ -4,7 +4,6 @@
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006 - Jani Rivinoja
- *  Copyright (C) 2006 - Peter Kosyh
  *
  *  This file is part of Outgun.
  *
@@ -580,12 +579,11 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         cl->stop();
 }
 
-Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_):
-    normalLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true),
+Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
     externalErrorLog(externalErrorLog_),
-    errorLog(normalLog, externalErrorLog, "ERROR: "),
-    //securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
-    log(&normalLog, &errorLog, 0),
+    errorLog(clientLog, externalErrorLog, "ERROR: "),
+    //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
+    log(&clientLog, &errorLog, 0),
     listenServer(log),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
     current_map(-1),

@@ -244,7 +244,6 @@ class Client {
     friend class TM_ServerSettings;
     friend class TM_ConnectionUpdate;
 
-    FileLog normalLog;
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
@@ -341,6 +340,8 @@ class Client {
     std::string playername;
     NLaddress serverIP;
 
+    // for bots:
+
     enum Routing {
         Route_None,
         Route_Flag,
@@ -348,7 +349,6 @@ class Client {
         Route_Team
     };
 
-    // for bots
     bool botmode;
     bool finished;
 
@@ -392,8 +392,8 @@ class Client {
     bool RouteLogicAlt(); // build route on route table using AI, -1 if not builded
     bool ChoseAltLogic();
     ClientControls Route(double mex, double mey); // do all route (wrapper)
-//	    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
-//	    // -1 if no target labeled
+    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
+    // -1 if no target labeled
     int TargetNearestBase(int& m_label, int& x, int& y, int team);
     int TargetNearestTeam(int& m_label, int& x, int& y, int team);
     int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state);
@@ -577,7 +577,8 @@ class Client {
     void handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
 
 public:
-    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, MemoryLog& externalErrorLog_);
+    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
+
     ~Client();
 
     bool start();

@@ -117,7 +117,8 @@ class Server {
     int extra_bots;
     bool balance_bot;
     volatile bool quit_bots;
-    MemoryLog botLog;
+    NoLog botNoLog;
+    MemoryLog botErrorLog;
     bool check_bots;
 
     void init_bots();
