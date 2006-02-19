@@ -893,6 +893,7 @@ void ServerNetworking::broadcast_map_change_message(int reason, const char* mapn
         writeLong(lebuf, count, STA_GAME_OVER);
         nlWrite(shellssock, lebuf, count);
     }
+    sendTextToAdminShell("Map: " + host->current_map().title);
 }
 
 void ServerNetworking::broadcast_map_change_info(int votes, int needed, int vote_block_time) const {
