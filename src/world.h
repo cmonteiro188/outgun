@@ -327,7 +327,6 @@ public:
     int visibility;     // alpha
 
     int roomx, roomy;
-
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
     int gundir; // gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
@@ -807,12 +806,12 @@ class ServerWorld : public WorldBase {
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);
-    
+
     bool lock_team_flags_in_effect() const;
     bool lock_wild_flags_in_effect() const;
     bool capture_on_team_flags_in_effect() const;
     bool capture_on_wild_flags_in_effect() const;
-    
+
     bool all_kind_of_flags_exist() const;
 
 public:
