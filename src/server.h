@@ -115,6 +115,7 @@ class Server {
     int bots_fill;
     int bot_ping;
     int extra_bots;
+    bool balance_bot;
     volatile bool quit_bots;
     MemoryLog botLog;
     bool check_bots;
@@ -200,7 +201,7 @@ public:
     void set_fav_colors(int pid, const std::vector<char>& colors);
 
     void nameChange(int id, int pid, const std::string& tempname, const std::string& password);
-    void chat(int pid, const char* sbuf);   //#fix: separate console handling
+    void chat(int pid, const std::string& sbuf);   //#fix: separate console handling
 
     const ClientData& getClientData(int cid) const { return client[cid]; }
           ClientData& getClientData(int cid)       { return client[cid]; }

@@ -262,12 +262,29 @@ void Server::check_player_change_teams(int pid) {
                 return;
             }
 
+    if (network.get_bot_count() == 0)
+        return;
+
     // Switch teams with a bot.
+    int move_dead       = -1;   // First with a dead one.
+    int move_no_carrier = -1;   // Then with a bot without flag.
+    int move_any        = -1;   // Last with any bot.
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used && world.player[i].is_bot() && i / TSIZE != pid / TSIZE) {
-            swap_players(pid, i);
-            return;
-        }
+        if (world.player[i].used && world.player[i].is_bot() && i / TSIZE != pid / TSIZE)
+            if (world.player[i].dead && move_dead == -1) {
+                move_dead = i;
+                break;
+            }
+            else if (!world.player[i].stats().has_flag() && move_no_carrier == -1)
+                move_no_carrier = i;
+            else if (move_any == -1)
+                move_any = i;
+    if (move_dead != -1)
+        swap_players(pid, move_dead);
+    else if (move_no_carrier != -1)
+        swap_players(pid, move_no_carrier);
+    else if (move_any != -1)
+        swap_players(pid, move_any);
 }
 
 //move player - move player (f rom) to empty position (t o)
@@ -573,6 +590,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
         PT(new GS_Int       ("min_bots",                &min_bots, 0, MAX_PLAYERS)),
         PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
+        PT(new GS_Boolean   ("balance_bot",             &balance_bot)),
         PT(new GS_Int       ("bot_ping",                &bot_ping, 0, 500)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
@@ -790,6 +808,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     min_bots = 0;
     bots_fill = 0;
     bot_ping = 0;
+    balance_bot = false;
 
     // load server configuration from gamemod.txt
     load_game_mod(reload);
@@ -868,20 +887,24 @@ void Server::init_bots() {
             else
                 ++humans;
     log("%d bots, %d in vector.", bot_count, bots.size());
+    int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
+    if (needed_bots < 0)
+        needed_bots = 0;
+    else if (humans + needed_bots > maxplayers)
+        needed_bots = maxplayers - humans;
+    if (balance_bot && (humans + needed_bots) % 2)
+        ++needed_bots;
+    log("%d bots needed.", needed_bots);
     // Check if some bots need to be removed.
-    if (bot_count >= min_bots + extra_bots && humans + bot_count >= bots_fill + extra_bots) {
-        if (bot_count == min_bots + extra_bots && humans + bot_count >= bots_fill + extra_bots ||
-            humans + bot_count == bots_fill + extra_bots && bot_count >= min_bots + extra_bots)
-                return;  // There is already the right number of bots.
-        const int remove = min(humans + bot_count - bots_fill, bot_count - min_bots) - extra_bots;
+    if (bot_count == needed_bots)
+        return;
+    if (bot_count > needed_bots) {
+        const int remove = bot_count - needed_bots;
         log("Remove %d bots.", remove);
-        nAssert(remove > 0);
         for (int i = 0; i < remove; ++i)
             remove_bot();
         return;
     }
-    const int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
-    log("%d bots needed.", needed_bots);
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
     int policy;
@@ -916,7 +939,19 @@ void Server::remove_bot() {
             disconnectPlayer(i, disconnect_kick);
             return;
         }
-    // Just remove one.
+    // Just remove one. First try to remove a dead bot.
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used && world.player[i].is_bot() && world.player[i].dead) {
+            disconnectPlayer(i, disconnect_kick);
+            return;
+        }
+    // Try to remove a bot with no flag.
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used && world.player[i].is_bot() && !world.player[i].stats().has_flag()) {
+            disconnectPlayer(i, disconnect_kick);
+            return;
+        }
+    // Just get rid of one bot.
     for (int i = 0; i < maxplayers; ++i)
         if (world.player[i].used && world.player[i].is_bot()) {
             disconnectPlayer(i, disconnect_kick);
@@ -1068,29 +1103,18 @@ bool Server::isAdmin(int pid) const {
     return (cld.token_have && cld.token_valid) || isLocallyAuthorized(pid);
 }
 
-void Server::chat(int pid, const char* sbuf) {
+void Server::chat(int pid, const string& message) {
+    if (message.empty())
+        return;
     // handle 'console' commands
-    if (sbuf[0] == '/') {
+    if (message[0] == '/') {
         const bool admin = isAdmin(pid);
 
-        const char* pCommand = sbuf + 1;
-        char cbuf[30];
-        for (int ci = 0;; ++ci, ++pCommand) {
-            if (ci == 29) {
-                cbuf[29] = '\0';
-                break;
-            }
-            if (*pCommand == ' ') {
-                cbuf[ci] = '\0';
-                ++pCommand;
-                break;
-            }
-            cbuf[ci] = *pCommand;
-            if (*pCommand == '\0')
-                break;
-        }
+        const string::size_type pos = message.find(' ', 1);
+        const string& command = message.substr(1, pos - 1);
+        const string& arguments = message.substr(pos + 1);
         // cbuf contains the first word, pCommand points to arguments, if any
-        if (!strcmp(cbuf, "help")) {
+        if (command == "help") {
             network.player_message(pid, msg_header, "Console commands available on this server:");
             network.player_message(pid, msg_server, "/help       this screen");
             if (!info_message.empty())
@@ -1112,29 +1136,29 @@ void Server::chat(int pid, const char* sbuf) {
                 network.player_message(pid, msg_server, "/smute n    silently mute player with ID n (crude!)");
                 network.player_message(pid, msg_server, "/unmute n   cancel muting of player with ID n");
                 network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've voted for one");
-                network.player_message(pid, msg_server, "/bot s      add or remove a bot");
+                network.player_message(pid, msg_server, "/bot        manage bots");
             }
         }
-        else if (!strcmp(cbuf, "info") && !info_message.empty()) {
+        else if (command == "info" && !info_message.empty()) {
             network.player_message(pid, msg_header, info_message.front());
             for (vector<string>::const_iterator line = info_message.begin() + 1; line != info_message.end(); line++)
                 network.player_message(pid, msg_server, *line);
         }
-        else if (!strcmp(cbuf, "sayadmin") && sayadmin_enabled) {
-            if (strspnp(pCommand, " ")) {
+        else if (command == "sayadmin" && sayadmin_enabled) {
+            if (arguments.find_first_not_of(" ") != string::npos) {
                 ofstream log((wheregamedir + "log" + directory_separator + "sayadmin.log").c_str(), ios::out | ios::app);
-                log << date_and_time() << "  " << world.player[pid].name << ": " << pCommand << endl;
-                network.forwardSayadminMessage(world.player[pid].cid, pCommand);
+                log << date_and_time() << "  " << world.player[pid].name << ": " << arguments << endl;
+                network.forwardSayadminMessage(world.player[pid].cid, arguments);
                 network.player_message(pid, msg_server, "Your message has been logged. Thank you for your feedback!");
             }
             else
                 network.player_message(pid, msg_server, "For example to send \"Hello!\", type /sayadmin Hello!");
         }
-        else if (!strcmp(cbuf, "time")) {
+        else if (command == "time") {
             PlayerMessager pm(*this, pid, msg_server);
             world.printTimeStatus(pm);
         }
-        else if (!strcmp(cbuf, "list") && admin) {
+        else if (command == "list" && admin) {
             network.player_message(pid, msg_header, "Players on server: ID, login flags, name");
             for (int ppid = 0; ppid < MAX_PLAYERS; ) {
                 char buf[100];
@@ -1150,46 +1174,46 @@ void Server::chat(int pid, const char* sbuf) {
                     network.player_message(pid, msg_server, buf);
             }
         }
-        else if (admin && (!strcmp(cbuf, "kick") || !strcmp(cbuf, "ban") ||
-                    !strcmp(cbuf, "mute") || !strcmp(cbuf, "smute") || !strcmp(cbuf, "unmute"))) {
-            istringstream command(pCommand);
+        else if (admin && (command == "kick" || command == "ban" || command == "mute" ||
+                           command == "smute" || command == "unmute")) {
+            istringstream ist(arguments);
             int ppid;
             int time;   // used only for bans
-            command >> ppid;
-            bool ok = command;
-            command >> time;
-            if (!strcmp(cbuf, "ban")) {
-                if (!command)
+            ist >> ppid;
+            bool ok = ist;
+            ist >> time;
+            if (command == "ban") {
+                if (!ist)
                     time = 60;  // default: 60 minutes
-                if (!command && !command.eof())
+                if (!ist && !ist.eof())
                     ok = false;
             }
-            else if (command || !command.eof())
+            else if (ist || !ist.eof())
                 ok = false;
             if (!ok)
-                network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", cbuf, !strcmp(cbuf, "ban") ? " [minutes]" : "");
+                network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", command.c_str(), command == "ban" ? " [minutes]" : "");
             else if (ppid < 0 || ppid >= MAX_PLAYERS || !world.player[ppid].used)
                 network.player_message(pid, msg_warning, "No such player. Type /list for a list of IDs.");
             else {  // syntax OK
-                if (!strcmp(cbuf, "kick"))
+                if (command == "kick")
                     kickPlayer(ppid, pid);
-                else if (!strcmp(cbuf, "ban")) {
+                else if (command == "ban") {
                     if (time <= 0 || time > 60 * 24 * 7)    // allow at most a weeks ban (a bit over 10000 minutes)
                         network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week).");
                     else
                         banPlayer(ppid, pid, time);
                 }
-                else if (!strcmp(cbuf, "mute"))
+                else if (command == "mute")
                     mutePlayer(ppid, 1, pid);
-                else if (!strcmp(cbuf, "smute"))
+                else if (command == "smute")
                     mutePlayer(ppid, 2, pid);
-                else if (!strcmp(cbuf, "unmute"))
+                else if (command == "unmute")
                     mutePlayer(ppid, 0, pid);
                 else
                     nAssert(0);
             }
         }
-        else if (!strcmp(cbuf, "forcemap") && admin) {
+        else if (command == "forcemap" && admin) {
             // Make sure that these messages match with the ones in client.cpp.
             if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
@@ -1203,44 +1227,77 @@ void Server::chat(int pid, const char* sbuf) {
             }
             server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
         }
-        else if (!strcmp(cbuf, "bot") && admin) {
-            istringstream command(pCommand);
+        else if (command == "bot" && admin) {
+            istringstream ist(arguments);
             string option;
-            command >> option;
-            if (!command) {
+            ist >> option;
+            if (!ist) {
                 network.player_message(pid, msg_header, "Bot commands:");
-                network.player_message(pid, msg_server, "/bot add       add a bot");
-                network.player_message(pid, msg_server, "/bot remove    remove a bot");
-                network.player_message(pid, msg_server, "/bot ping p    show or set the bot ping");
+                network.player_message(pid, msg_server, "/bot add n      add n bots, default 1");
+                network.player_message(pid, msg_server, "/bot remove n   remove n bots, default 1");
+                network.player_message(pid, msg_server, "/bot fill n     set bots_fill to n");
+                network.player_message(pid, msg_server, "/bot balance s  set balance_bot on or off");
+                network.player_message(pid, msg_server, "/bot ping p     show or set the bot ping");
                 network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
                 network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d", min_bots, bots_fill, extra_bots);
             }
-            else if (option == "add") {
-                if (network.get_player_count() == maxplayers)
+            else if (option == "add" || option == "remove") {
+                const bool add = option == "add";
+                int number = 1;
+                ist >> number;
+                if (!ist && !ist.eof() || number < 0 || number > maxplayers)
+                    network.plprintf(pid, msg_warning, "Syntax error. Valid range is 0 - %d", maxplayers);
+                else if (!add && (bots.empty() || network.get_bot_count() == 0))
+                    network.plprintf(pid, msg_warning, "No bots to remove.");
+                else if (add && (network.get_player_count() == maxplayers))
                     network.plprintf(pid, msg_warning, "No room for a new bot.");
                 else {
-                    ++extra_bots;
-                    network.plprintf(pid, msg_server, "A new bot will be added.");
+                    if (add) {
+                        if (extra_bots + number >= maxplayers)
+                            number = maxplayers - extra_bots;
+                        extra_bots += number;
+                    }
+                    else {
+                        if (network.get_bot_count() - number < 0)
+                            number = network.get_bot_count();
+                        extra_bots -= number;
+                    }
+                    network.plprintf(pid, msg_server, "%d new bots will be %s.", number, add ? "added" : "removed");
                     check_bots = true;
                 }
             }
-            else if (option == "remove") {
-                --extra_bots;
-                if (bots.empty() || extra_bots < 0) {
-                    network.plprintf(pid, msg_warning, "No bots to remove.");
-                    extra_bots = 0;
-                }
-                else {
-                    network.plprintf(pid, msg_server, "A bot will be removed.");
+            else if (option == "fill") {
+                int number;
+                ist >> number;
+                if (!ist && ist.eof())
+                    network.plprintf(pid, msg_server, "Current bot fill is %d.", bots_fill);
+                else if (ist && ist.eof() && number >= 0 && number <= maxplayers) {
+                    bots_fill = number;
+                    network.plprintf(pid, msg_server, "Bot fill is now %d.", bot_ping);
                     check_bots = true;
                 }
+                else
+                    network.plprintf(pid, msg_warning, "Syntax error. Valid range is 0 - %d.", maxplayers);
+            }
+            else if (option == "balance") {
+                string setting;
+                ist >> setting;
+                if (!ist && ist.eof())
+                    network.plprintf(pid, msg_server, "Balance bot is %s.", balance_bot ? "on" : "off");
+                else if (ist && ist.eof() && (setting == "on" || setting == "off")) {
+                    balance_bot = setting == "on" ? true : false;
+                    network.plprintf(pid, msg_server, "Balance bot is now %s.", balance_bot ? "on" : "off");
+                    check_bots = true;
+                }
+                else
+                    network.plprintf(pid, msg_warning, "Syntax error. Valid settings are 'on' and 'off'.");
             }
             else if (option == "ping") {
                 int ping;
-                command >> ping;
-                if (!command && command.eof())
-                    network.plprintf(pid, msg_server, "Bot ping is now %d.", bot_ping);
-                else if (command && command.eof() && ping >= 0 && ping <= 500) {
+                ist >> ping;
+                if (!ist && ist.eof())
+                    network.plprintf(pid, msg_server, "Current bot ping is %d.", bot_ping);
+                else if (ist && ist.eof() && ping >= 0 && ping <= 500) {
                     bot_ping = ping;
                     network.plprintf(pid, msg_server, "Bot ping is now %d.", bot_ping);
                 }
@@ -1251,9 +1308,9 @@ void Server::chat(int pid, const char* sbuf) {
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove or ping.");
         }
         else
-            network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", cbuf);
+            network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
     }
-    else if (strspnp(sbuf, " ") != NULL) {  // ignore messages that are all spaces
+    else if (message.find_first_not_of(" ") != string::npos) {  // ignore messages that are all spaces
         //talk flood protection
         world.player[pid].talk_temp += world.player[pid].talk_hotness;
         world.player[pid].talk_hotness += 3.0;
@@ -1267,20 +1324,20 @@ void Server::chat(int pid, const char* sbuf) {
         }
         else if (world.player[pid].muted == 1)
             network.send_mute_notification(pid);
-        else if (isFlood(sbuf))
+        else if (isFlood(message))
             ;   // Notify?
         else {
             ostringstream msg;
             msg << world.player[pid].name << ": ";
-            if (sbuf[0] == '.') {   // team message
-                msg << trim(sbuf + 1);
+            if (message[0] == '.') {   // team message
+                msg << trim(message.substr(1));
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_team, msg.str());
                 else
                     network.broadcast_team_message(pid / TSIZE, msg.str());
             }
             else {                  // regular message
-                msg << trim(sbuf);
+                msg << trim(message);
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_normal, msg.str());
                 else
@@ -1383,13 +1440,48 @@ void Server::simulate_and_broadcast_frame() {
 
 //run something after simulate_and_broadcast
 void Server::server_think_after_broadcast() {
+    int tc[2] = { 0, 0 };
+
     //check players with pending team changes
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used &&
-            world.player[i].team_change_pending &&
-            world.player[i].want_change_teams &&
-            world.player[i].team_change_time < get_time())
-                check_player_change_teams(i);
+        if (world.player[i].used) {
+            ++tc[i / TSIZE];
+            if (world.player[i].team_change_pending &&
+                world.player[i].want_change_teams &&
+                world.player[i].team_change_time < get_time())
+                    check_player_change_teams(i);
+        }
+
+    // If the teams are unbalanced, try to move a bot to the smaller team.
+    const int diff = tc[0] - tc[1];
+    if ((diff <= -2 || diff >= 2) && network.get_bot_count() > 0) {
+        const int bigger_team = diff > 0 ? 0 : 1;
+        int move_dead       = -1;
+        int move_no_carrier = -1;
+        int move_any        = -1;
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used && world.player[i].is_bot() && i / TSIZE == bigger_team)
+                if (world.player[i].dead && move_dead == -1) {
+                    move_dead = i;
+                    break;
+                }
+                else if (!world.player[i].stats().has_flag() && move_no_carrier == -1)
+                    move_no_carrier = i;
+                else if (move_any == -1)
+                    move_any = i;
+        int pid;
+        if (move_dead != -1)
+            pid = move_dead;
+        else if (move_no_carrier != -1)
+            pid = move_no_carrier;
+        else if (move_any != -1)
+            pid = move_any;
+        else
+            return;
+        world.player[pid].want_change_teams = true;
+        world.player[pid].team_change_time = 0;
+        check_player_change_teams(pid);
+    }
 }
 
 void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
