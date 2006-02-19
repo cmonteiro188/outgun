@@ -1236,7 +1236,6 @@ void ServerNetworking::client_disconnected(int id) {
 
     fileTransfer[id].reset();
     host->game_remove_player(pid, true);
-    //less one...
     --player_count;
     if (was_bot)
         --bot_count;
