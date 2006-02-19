@@ -3224,11 +3224,10 @@ bool Client::parseServerList(istream& response) {
             break;
 
     // The first line is the newest version.
-    getline_smart(response, line);
-    if (line.empty())
+    string newest_version;
+    getline_smart(response, newest_version);
+    if (newest_version.empty())
         return false;
-    if (line != GAME_VERSION)
-        menu.newVersion.set(_("New version: $1", line));
 
     // The second line is the number of lines in the new master.txt, or 0 if there is no new master.txt.
     getline_smart(response, line);
@@ -3284,7 +3283,15 @@ bool Client::parseServerList(istream& response) {
             return false;
     }
 
-    return (servers_read == total_servers);
+    if (servers_read != total_servers)
+        return false;
+
+    if (newest_version != GAME_VERSION)
+        menu.newVersion.set(_("New version: $1", newest_version));
+    else
+        menu.newVersion.set("");
+
+    return true;
 }
 
 void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey

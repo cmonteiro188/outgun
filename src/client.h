@@ -384,7 +384,7 @@ class Client {
     ClientControls FreeWalk(double mex, double mey) const;
     void next_room(int& x, int& y, int i) const; // chose ith door
     int  label_room(int x, int y, int label, int nr); // label rooms around x y (wich is labeled as label)
-    int  route_room(int& x, int& y, int nr); // go one step to lower label and label it as route , return 1 if step is done
+    int  route_room(int &x, int &y, int nr); // go one step to lower label and label it as route , return 1 if step is done
     int  BuildRouteTable(int roomx, int roomy, int nr); // build route table (labeled) from me point, return max path len
     int  BuildRoute(int tox, int toy, int nr); // build route on route table tox(y), return 0 if not needed, -1 if no path
     ClientControls DoRoute(double mex, double mey) const; // simulate keypress (follow route)
