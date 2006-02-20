@@ -893,7 +893,7 @@ void ServerNetworking::broadcast_map_change_message(int reason, const char* mapn
         writeLong(lebuf, count, STA_GAME_OVER);
         nlWrite(shellssock, lebuf, count);
     }
-    sendTextToAdminShell("| Map is " + host->current_map().title);
+    sendTextToAdminShell("Map is " + host->current_map().title);
 }
 
 void ServerNetworking::broadcast_map_change_info(int votes, int needed, int vote_block_time) const {
@@ -1275,6 +1275,8 @@ void ServerNetworking::sendTextToAdminShell(const string& text) const {
     char buf[512];
     int count = 0;
     writeLong(buf, count, STA_GAME_TEXT);
+    buf[count++] = '|';
+    buf[count++] = ' ';
     writeStr(buf, count, text);
     nlWrite(shellssock, buf, count);
 }
