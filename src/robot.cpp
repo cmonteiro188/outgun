@@ -43,6 +43,8 @@
 
 #define averageLag (averageLag / 2)
 
+using std::vector;
+
 const int SCAN_RADIUS = ROCKET_RADIUS;
 
 const int S_W = plw;
@@ -50,7 +52,6 @@ const int S_H = plh;
 const int FADEOUT = 50;
 
 //const int D_W = 2 * PLAYER_RADIUS;
-
 
 bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
     double deg;
@@ -668,17 +669,16 @@ ClientControls Client::GetFlag(double mex, double mey) const {
 
     int t = fx.player[me].team();
 
-    const std::vector<WorldCoords>& tflags = fx.map.tinfo[t].flags;
+    const vector<WorldCoords>& tflags = fx.map.tinfo[t].flags;
 
     bool at_base = false;
 
-    for (std::vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx ||
-            fi->position().py != fx.player[me].roomy)
-                continue;
+    for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
+        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
+            continue;
         // found base of this flag
 
-        for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
+        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
             if (fx.player[me].roomx != pi->px || fx.player[me].roomy != pi->py)
                 continue;
             if (fi->position().x != pi->x || fi->position().y != pi->y)
@@ -695,7 +695,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
 
     t = 1 - fx.player[me].team(); // enemy team
 
-    for (std::vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
+    for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
         if (fi->position().px != fx.player[me].roomx ||
             fi->position().py != fx.player[me].roomy)
                 continue;
@@ -706,7 +706,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
         }
     }
 
-    for (std::vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi) {
+    for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi) {
         if (fi->position().px != fx.player[me].roomx ||
             fi->position().py != fx.player[me].roomy)
                 continue;
@@ -970,41 +970,39 @@ ClientControls Client::DoRoute(double melx, double mely) const {
 }
 
 bool Client::ChoseAltLogic() {
-// get flag base
-    int altNum;
+    // get flag base
     const int team = fx.player[me].team();
-    const std::vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
+    const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int alt = 0;
     // for all bases
-    for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
+    for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
         bool at_base = false;
-        const std::vector<Flag>& flags = fx.teams[team].flags();
-        for (std::vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+        const vector<Flag>& flags = fx.teams[team].flags();
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
             if (!fi->carried()) {
                 if (fi->position().px != pi->px ||
                     fi->position().py != pi->py)
                     continue;
-            } else {
+            }
+            else {
                 const ClientPlayer& pl = fx.player[fi->carrier()];
                 if (!pl.used || pl.roomx < 0 || pl.roomy < 0 ||
                     pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
                     fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
                     continue; // old data
-                if (pl.roomx != pi->px ||
-                    pl.roomy != pi->py)
+                if (pl.roomx != pi->px || pl.roomy != pi->py)
                     continue;
             }
             at_base = true;
         }
 
         if (!at_base) { // try enemy flags that we carry
-            const std::vector<Flag>& eflags = fx.teams[1-team].flags();
-            for (std::vector<Flag>::const_iterator fi = eflags.begin(); fi != eflags.end(); ++fi) {
+            const vector<Flag>& eflags = fx.teams[1-team].flags();
+            for (vector<Flag>::const_iterator fi = eflags.begin(); fi != eflags.end(); ++fi) {
                 if (!fi->carried())
                     continue;
                 const ClientPlayer& pl = fx.player[fi->carrier()];
-                if (pl.roomx != pi->px ||
-                    pl.roomy != pi->py)
+                if (pl.roomx != pi->px || pl.roomy != pi->py)
                     continue;
                 at_base = true;
             }
@@ -1014,14 +1012,12 @@ bool Client::ChoseAltLogic() {
         BuildRouteTable(pi->px, pi->py, 1);
         int m_label = fx.map.room[fx.player[me].roomx][fx.player[me].roomy].label[1];
 
-        for (int i=0; i<maxplayers; ++i) {
+        for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
-            if (!player.used || player.team() != fx.player[me].team() ||
-                 player.dead /*|| i == me*/) {
+            if (!player.used || player.team() != fx.player[me].team() || player.dead)
                  continue;
-            }
-            int label = fx.map.room[player.roomx][player.roomy].label[1];
-            if ((label<=m_label) || HaveFlag(i))
+            const int label = fx.map.room[player.roomx][player.roomy].label[1];
+            if (label <= m_label || HaveFlag(i))
                 alt++;
         }
     }
@@ -1031,14 +1027,14 @@ bool Client::ChoseAltLogic() {
         alt--; // exclude myself
     int npl = 0;
 //    BuildRouteTable(fx.player[me].roomx, fx.player[me].roomy);
-    for (int i=0; i<maxplayers; ++i) {
+    for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& player = fx.player[i];
         if (!player.used || player.team() != fx.player[me].team())
             continue;
         npl++;
     }
-    altNum = npl/2;
-    if (alt<altNum)
+    const int altNum = npl / 2;
+    if (alt < altNum)
         return true;
     return false;
 }
@@ -1051,11 +1047,11 @@ bool Client::RouteLogicAlt() {
                 0, 0, 0,
                 0, 0,
                 0, 0, 0); // try _any_ flags
-    return (routing != Route_None);
+    return routing != Route_None;
 }
 
 bool Client::RouteLogic() { // NEED rewrite
-//    Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
+    //Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
     const bool flag = HaveFlag(me);
 
     if (!flag) {
@@ -1132,11 +1128,11 @@ bool Client::IsMassive() const {
 }
 
 ClientControls Client::Route(double mex, double mey) {
-//    const int x = fx.player[me].roomx;
-//    const int y = fx.player[me].roomy;
+    //const int x = fx.player[me].roomx;
+    //const int y = fx.player[me].roomy;
 
     if (!RouteLogic()) {
-//        fx.map.room[x][y].route = false;
+        //fx.map.room[x][y].route = false;
         return ClientControls();
     }
     return DoRoute(mex, mey);
@@ -1147,12 +1143,12 @@ bool Client::HaveFlag(int n) const {
     nAssert(t == 0 || t == 1);
 
     // look for enemy flags in team
-    for (std::vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+    for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
         if (fi->carried() && fi->carrier() == n)
             return true;
 
     // looking for wild flags
-    for (std::vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
+    for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
         if (fi->carried() && fi->carrier() == n)
             return true;
 
@@ -1160,10 +1156,10 @@ bool Client::HaveFlag(int n) const {
 }
 
 int Client::TargetNearestBase(int& m_label, int& x, int& y, int team) {
-    const std::vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
+    const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int label = 0;
 
-    for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
+    for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
         //if ((pi->px == fx.player[me].roomx) && (pi->py == fx.player[me].roomy))
         //    continue; //already here
         label = fx.map.room[pi->px][pi->py].label[0];
@@ -1227,9 +1223,9 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team) {
 }
 
 bool Client::IsHome(int mex, int mey) const {
-    const std::vector<WorldCoords>& tflags = fx.map.tinfo[fx.player[me].team()].flags;
+    const vector<WorldCoords>& tflags = fx.map.tinfo[fx.player[me].team()].flags;
     // our bases
-    for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
+    for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
         if (pi->px == mex && pi->py == mey)
             return true;
     return false;
@@ -1240,12 +1236,12 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state)
     const bool on_base = state == 0;
     const bool enemy = fx.player[me].team() != team;
 
-    const std::vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
-    const std::vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;//.begin();
+    const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
+    const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;//.begin();
 
     int label = 0;
 
-    for (std::vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
         //if ((fi->position().px == fx.player[me].roomx) &&
         //    (fi->position().py == fx.player[me].roomy))
         //        continue;
@@ -1272,7 +1268,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state)
 
         bool at_base = false;
         // at base or not?
-        for (std::vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
+        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
             if (fi->carried())
                 break;
 
