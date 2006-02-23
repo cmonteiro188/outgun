@@ -744,6 +744,10 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     dropped_flag = false;
     respawn_time = 0;
     respawn_to_base = false;
+    fav_col.clear();
+    for (char i = 0; i < 16; ++i)
+        fav_col.push_back(i);
+    random_shuffle(fav_col.begin(), fav_col.end());
 
     bot = false;
 

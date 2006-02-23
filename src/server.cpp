@@ -371,9 +371,10 @@ void Server::check_fav_colors(int pid) {
     if (!player.used)
         return;
     const int team = pid / TSIZE;
-    const vector<char>& player_colors = player.fav_colors();
+
     // check favourite colours
-    for (vector<char>::const_iterator col = player_colors.begin(); col != player_colors.end(); col++) {
+    const vector<char>& player_colors = player.fav_colors();
+    for (vector<char>::const_iterator col = player_colors.begin(); col != player_colors.end(); ++col) {
         nAssert(*col < static_cast<int>(fav_colors[team].size()));
         if (player.color() == *col)
             return;
@@ -385,12 +386,18 @@ void Server::check_fav_colors(int pid) {
             return;
         }
     }
-    // if no favourites free, check all colours
+
+    // if no favourites free, give a random colour
+    vector<int> random_list;
     for (int i = 0; i < static_cast<int>(fav_colors[team].size()); i++)
-        if (!fav_colors[team][i]) {
+        random_list.push_back(i);
+    random_shuffle(random_list.begin(), random_list.end());
+
+    for (vector<int>::const_iterator col = random_list.begin(); col != random_list.end(); ++col)
+        if (!fav_colors[team][*col]) {
             if (player.color() != -1)
                 fav_colors[team][player.color()] = false;
-            player.set_color(i);
+            player.set_color(*col);
             fav_colors[team][player.color()] = true;
             return;
         }
