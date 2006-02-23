@@ -129,15 +129,6 @@ void GlobalCloseButtonHook__closeCallback() {
     GlobalCloseButtonHook::flag = true;
 } END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
 
-#endif
-
-#ifdef DEDICATED_SERVER_ONLY
-
-void statusOutputText(const string& str) {
-    std::cout << str << '\n';
-}
-
-#else
 
 void statusOutputWindow(const string& str) {
     set_window_title(str.c_str());
@@ -151,7 +142,13 @@ void statusOutputText(const string& str) {
     #endif
 }
 
-#endif
+#else // !DEDICATED_SERVER_ONLY
+
+void statusOutputText(const string& str) {
+    std::cout << str << '\n';
+}
+
+#endif // !DEDICATED_SERVER_ONLY
 
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
 
@@ -583,8 +580,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             log.error(_("Can't start the server."));
         delete gameserver;
     }
-    // run client
     #ifndef DEDICATED_SERVER_ONLY
+    // run client
     else {
         check_dir(CLIENT_MAPS_DIR, log);
         check_dir("screens"      , log);

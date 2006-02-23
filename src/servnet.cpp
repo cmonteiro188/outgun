@@ -2856,7 +2856,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
             writeByte(res->customData, res->customDataLength, reject_server_full);
         }
         else if (host->isBanned(client_id)) {
-            log("Rejected a client because their IP is banned (%s).", addressToString(get_client_address(client_id)).c_str());
+            log("Rejected a client because its IP is banned (%s).", addressToString(get_client_address(client_id)).c_str());
             res->accepted = false;
             writeByte(res->customData, res->customDataLength, reject_banned);
         }

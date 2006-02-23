@@ -277,6 +277,7 @@ public:
     void set_web_refresh(int refresh);
 
     void set_server_password(const std::string& passwd) { server_password = passwd; }
+    const std::string& get_server_password() const { return server_password; }
 };
 
 #endif

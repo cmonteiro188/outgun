@@ -103,12 +103,14 @@ using std::stable_sort;
 using std::string;
 using std::vector;
 
+#ifndef DEDICATED_SERVER_ONLY
 //#define ROOM_CHANGE_BENCHMARK
 
 const int PASSBUFFER = 32;  //size of password file
 
 #ifdef ROOM_CHANGE_BENCHMARK
 int benchmarkRuns = 0;
+#endif
 #endif
 
 class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
@@ -141,7 +143,13 @@ class TM_Text : public ThreadMessage {
 
 public:
     TM_Text(Message_type type_, const string& text_) : type(type_), text(text_) { }
-    void execute(Client* cl) const { cl->print_message(type, text); }
+    void execute(Client* cl) const {
+        #ifndef DEDICATED_SERVER_ONLY
+        cl->print_message(type, text);
+        #else
+        (void)cl;
+        #endif
+    }
 };
 
 class TM_Sound : public ThreadMessage {
@@ -149,7 +157,13 @@ class TM_Sound : public ThreadMessage {
 
 public:
     TM_Sound(int sample_) : sample(sample_) { }
-    void execute(Client* cl) const { cl->client_sounds.play(sample); }
+    void execute(Client* cl) const {
+        #ifndef DEDICATED_SERVER_ONLY
+        cl->client_sounds.play(sample);
+        #else
+        (void)cl;
+        #endif
+    }
 };
 
 class TM_MapChange : public ThreadMessage {
@@ -161,6 +175,7 @@ public:
     void execute(Client* cl) const { cl->server_map_command(name, crc); }
 };
 
+#ifndef DEDICATED_SERVER_ONLY
 class TM_NameAuthorizationRequest : public ThreadMessage {
 public:
     void execute(Client* cl) const { cl->m_playerPassword.setup(cl->playername, false); cl->showMenu(cl->m_playerPassword); }
@@ -196,6 +211,7 @@ public:
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_) { }
     void execute(Client* cl) const;
 };
+#endif
 
 class TM_ConnectionUpdate : public ThreadMessage {
     int code;
@@ -208,6 +224,7 @@ public:
     void execute(Client* cl) const;
 };
 
+#ifndef DEDICATED_SERVER_ONLY
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
     logThreadStart("ServerThreadOwner::threadFn", log);
 
@@ -549,6 +566,7 @@ void TM_ServerSettings::execute(Client* cl) const {
     if (cl->menu.options.game.showServerInfo())
         cl->showMenu(cl->m_serverInfo);
 }
+#endif
 
 TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int length_) :
     code(code_),
@@ -566,6 +584,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
     switch (code) {
     /*break;*/ case 0: cl->client_connected(data, length);
         break; case 1: cl->client_disconnected(data, length);
+        #ifndef DEDICATED_SERVER_ONLY
         break; case 2: cl->connect_failed_denied(data, length);
         break; case 3: cl->connect_failed_unreachable();
         break; case 5: cl->connect_failed_socket();
@@ -574,6 +593,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
             cl->connect_failed_denied(msg.data(), msg.length());
         }
         break; default: nAssert(0);
+        #endif
     }
     if (cl->botmode && code != 0)
         cl->stop();
@@ -584,26 +604,34 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
     log(&clientLog, &errorLog, 0),
+    #ifndef DEDICATED_SERVER_ONLY
     listenServer(log),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
     current_map(-1),
     map_vote(-1),
     player_stats_page(0),
     lastAltEnterTime(0),
+    #endif
     botmode(false),
     finished(false),
     botPrevFire(false),
     abortThreads(false),
+    #ifndef DEDICATED_SERVER_ONLY
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
     client_graphics(log),
     screenshot(false),
+    #endif
     mapChanged(false),
+    #ifndef DEDICATED_SERVER_ONLY
     predrawNeeded(false),
     client_sounds(log),
     messageLogOpen(false),
-    extConfig(config),
-    serverExtConfig(serverConfig)
+    #endif
+    extConfig(config)
+    #ifndef DEDICATED_SERVER_ONLY
+    , serverExtConfig(serverConfig)
+    #endif
 {
     hostLogs("See clientlog.txt for client's log messages");
 
@@ -621,11 +649,14 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 
     //time of last packet received
     lastpackettime = 0;
+
+    #ifndef DEDICATED_SERVER_ONLY
     if (!botmode) {
         initMenus();
         showMenu(menu);
     }
     menusel = menu_none;
+    #endif
 
     //game showing?
     gameshow = false;
@@ -636,8 +667,10 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     totalframecount = 0;
     frameCountStartTime = 0;
 
+    #ifndef DEDICATED_SERVER_ONLY
     //if player wants to changeteams
     want_change_teams = false;
+    #endif
 
     //connected? (that is, "connection accepted")
     connected = false;
@@ -653,8 +686,10 @@ Client::~Client() {
         delete client;
         client = 0;
     }
+    #ifndef DEDICATED_SERVER_ONLY
     while (refreshStatus != RS_none && refreshStatus != RS_failed)  // wait for a possible refresh thread to abort itself
         platSleep(50);
+    #endif
 
     for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
         delete *mi;
@@ -663,14 +698,19 @@ Client::~Client() {
 }
 
 bool Client::start() {
+    #ifndef DEDICATED_SERVER_ONLY
     if (!botmode)
         extConfig.statusOutput(_("Outgun client"));
+    #endif
 
     totalframecount = 0;
     framecount = 0;
 
     clFrameSent = clFrameWorld = 0;
-    fx.frame = fd.frame = -1;
+    fx.frame = -1;
+    #ifndef DEDICATED_SERVER_ONLY
+    fd.frame = -1;
+    #endif
     frameReceiveTime = 0;
 
     #ifdef SEND_FRAMEOFFSET
@@ -698,6 +738,7 @@ bool Client::start() {
 
     playername = RandomName();
 
+    #ifndef DEDICATED_SERVER_ONLY
     if (botmode)
         return true;
 
@@ -903,6 +944,7 @@ bool Client::start() {
 
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
+    #endif
 
     return true;
 }
@@ -916,13 +958,6 @@ void Client::bot_start(const NLaddress& addr, int ping) {
 
     playername = "BOT " + trim(playername.substr(0, maxPlayerNameLength - 4));
     botReactedFrame = -1;
-    vector<int> fav_colors;
-    fav_colors.clear();
-    for (int i = 0; i < 16; ++i)
-        fav_colors.push_back(i);
-    random_shuffle(fav_colors.begin(), fav_colors.end());
-    for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
-        menu.options.game.favoriteColors.addOption(*col);
 
     for (int i = 0; i < ping / 10; ++i)
         client->increasePacketDelay();
@@ -942,6 +977,7 @@ void Client::send_client_ready() {
     client->send_message(lebuf, count);
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 // incoming chunk of requested file by UDP
 void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
     MutexDebug md("downloadMutex", __LINE__, log);
@@ -966,7 +1002,11 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
         log("Download complete: %s '%s' to %s", dl.fileType.c_str(), dl.shortName.c_str(), dl.fullName.c_str());
         if (dl.fileType == "map") {
             if (dl.shortName == servermap) {
-                const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
+                const bool ok =
+                    #ifndef DEDICATED_SERVER_ONLY
+                    fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) &&
+                    #endif
+                    fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
                 remove_useless_flags();
                 if (!ok) {
                     log.error("After download: map '" + dl.shortName + "' not found");
@@ -1022,6 +1062,7 @@ void Client::download_server_file(const string& type, const string& name) {
     downloads.push_back(FileDownload(type, name, fileName));
     check_download();
 }
+#endif
 
 // Server tells client of current map / map change.
 // Client checks from the "cmaps" and "maps" directory.
@@ -1041,18 +1082,27 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         return;
     }
 
+    if (botmode)
+        nAssert(0); // ### FIX: Disconnect bot or something.
+
+    #ifndef DEDICATED_SERVER_ONLY
     // start download
     const string msg = _("Downloading map \"$1\" (CRC $2)...", mapname, itoa(server_crc));
     print_message(msg_info, msg);
     log("%s", msg.c_str());
 
     download_server_file("map", mapname);
+    #endif
 }
 
 bool Client::load_map(const string& directory, const string& mapname, NLushort server_crc) {
     LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
 
-    const bool ok = fd.load_map(noLogSet, directory, mapname) && fx.load_map(noLogSet, directory, mapname); //#fix
+    const bool ok =
+        #ifndef DEDICATED_SERVER_ONLY
+        fd.load_map(noLogSet, directory, mapname) &&
+        #endif
+        fx.load_map(noLogSet, directory, mapname); //#fix
 
     if (!ok)
         log("Map '%s' not found in '%s'.", mapname.c_str(), directory.c_str());
@@ -1082,6 +1132,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     readByte(data, count, maxpl);
     setMaxPlayers(maxpl);
 
+    #ifndef DEDICATED_SERVER_ONLY
     readStr(data, count, hostname);
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten when config information
@@ -1116,6 +1167,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     //don't want to exit map by default
     want_map_exit = false;
     want_map_exit_delayed = false;
+    #endif
 
     //avoid "dropped" plaque
     lastpackettime = get_time() + 4.0;
@@ -1128,14 +1180,20 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     // reset gamestate?
     connected = true;
     gameshow = true;
+    #ifndef DEDICATED_SERVER_ONLY
     openMenus.clear();  // connect progress menu is showing; exceptions are when it's been closed and the disconnect is still pending, and when help is opened on top of it
-    fx.frame = fd.frame = -1;
-    fx.skipped = fd.skipped = true;
+    fd.frame = -1;
+    fd.skipped = true;
+    #endif
+    fx.frame = -1;
+    fx.skipped = true;
     me = -1;    // will be corrected from the first frame
 
+    #ifndef DEDICATED_SERVER_ONLY
     //reset chat buffer
     talkbuffer.clear();
     chatbuffer.clear();
+    #endif
 
     //reset world data
     // teams
@@ -1146,7 +1204,9 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     // players
     for (int i = 0; i < MAX_PLAYERS; i++)
         fx.player[i].clear(false, i, "", i / TSIZE);
+    #ifndef DEDICATED_SERVER_ONLY
     players_sb.clear();
+    #endif
     // powerups
     for (int i = 0; i < MAX_PICKUPS; ++i)
         fx.item[i].kind = Powerup::pup_unused;
@@ -1156,63 +1216,87 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     frameCountStartTime = get_time();
     FPS = 0;
 
+    #ifndef DEDICATED_SERVER_ONLY
     //reset map time
     map_time_limit = false;
     map_start_time = 0;
     map_end_time = 0;
     map_vote = -1;
+    #endif
     remove_flags = 0;
 
     //send name update request
     issue_change_name_command();
+    #ifndef DEDICATED_SERVER_ONLY
     // send registration token (if any)
     const string s = tournamentPassword.getToken();
     if (!s.empty())
         CB_tournamentToken(s);
     send_tournament_participation();
+    #endif
 
     map_ready = false;
     clientReadiesWaiting = 0;
     servermap.clear();
 
+    #ifndef DEDICATED_SERVER_ONLY
     {
         MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         maps.clear();
     }
+    #endif
 
     //not showing gameover plaque
     gameover_plaque = NEXTMAP_NONE;
 
+    #ifndef DEDICATED_SERVER_ONLY
     //clear client side effects
     client_graphics.clear_fx();
 
-    send_frame(true, true);
+    if (!botmode) {
+        send_frame(true, true);
+        return;
+    }
+    #endif
+
+    ++clFrameSent;
+    controlHistory[clFrameSent] = sentControls;
+    svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+    {
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, clFrameSent);
+        writeByte(lebuf, count, sentControls.toNetwork(false));
+        client->send_frame(lebuf, count);
+    }
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 void Client::send_tournament_participation() {
     char lebuf[8]; int count = 0;
     writeByte(lebuf, count, data_tournament_participation);
     writeByte(lebuf, count, menu.options.name.tournament() ? 1 : 0);
     client->send_message(lebuf, count);
 }
+#endif
 
 void Client::client_disconnected(const char* data, int length) {
     if (!connected)
         return;
 
-    if (!botmode) {
-        //restore window title
-        extConfig.statusOutput(_("Outgun client"));
-    }
-
-    // the gamestate?
     connected = false;
     gameshow = false;
+
+    #ifndef DEDICATED_SERVER_ONLY
+    if (botmode)
+        return;
+
+    //restore window title
+    extConfig.statusOutput(_("Outgun client"));
+
     menusel = menu_none;
 
     string description;
-
     if (length == 1)
         switch (data[0]) {
         /*break;*/ case server_c::disconnect_client_initiated: // user knows why, so no description
@@ -1242,8 +1326,12 @@ void Client::client_disconnected(const char* data, int length) {
         MutexLock ml(downloadMutex);
         downloads.clear();
     }
+    #else
+    (void)data; (void)length;
+    #endif
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 void Client::connect_failed_denied(const char* data, int length) {
     string message;
     bool userHandled = false;
@@ -1413,6 +1501,7 @@ int Client::remove_player_passwords(const std::string& name) const {
     log("%s's player passwords removed.", name.c_str());
     return removed;
 }
+#endif
 
 void Client::connect_command(bool loadPassword) {   // call with frameMutex locked
     const bool alreadyConnected = connected;
@@ -1424,35 +1513,51 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
         platSleep(500);
 
     handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
+    #ifndef DEDICATED_SERVER_ONLY
     openMenus.close(&m_connectProgress.menu);
+    #endif
 
     // start connecting to specified IP/port
     // connection results will come through the CFUNC_CONNECTION_UPDATE callback
     const string strAddress = addressToString(serverIP);
     client->set_server_address(strAddress.c_str());
 
+    #ifndef DEDICATED_SERVER_ONLY
     log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
         m_serverPassword.password().empty() ? "no" : "yes",
         m_playerPassword.password().empty() ? "no" : "yes");
+    #endif
 
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     char lebuf[256]; int count = 0;
     writeString(lebuf, count, GAME_STRING);
     writeString(lebuf, count, GAME_PROTOCOL);
     writeStr(lebuf, count, playername);
-    writeStr(lebuf, count, m_serverPassword.password());    // empty or not, it's needed
-    if (loadPassword)
-        m_playerPassword.password.set(load_player_password(playername, strAddress));
-    writeStr(lebuf, count, m_playerPassword.password());    // empty or not, it's needed
+    if (botmode) {
+        writeStr(lebuf, count, bot_password);
+        writeStr(lebuf, count, "");
+    }
+    #ifndef DEDICATED_SERVER_ONLY
+    else {
+        writeStr(lebuf, count, m_serverPassword.password());    // empty or not, it's needed
+        if (loadPassword)
+            m_playerPassword.password.set(load_player_password(playername, strAddress));
+        writeStr(lebuf, count, m_playerPassword.password());    // empty or not, it's needed
+    }
+    #endif
 
     client->set_connect_data(lebuf, count);
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
 
+    #ifndef DEDICATED_SERVER_ONLY
     if (!botmode) {
         m_connectProgress.clear();
         m_connectProgress.wrapLine(_("Trying to connect..."), true);
         showMenu(m_connectProgress);
     }
+    #else
+    (void)loadPassword;
+    #endif
 }
 
 void Client::issue_change_name_command() {
@@ -1462,11 +1567,16 @@ void Client::issue_change_name_command() {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
     nAssert(check_name(playername));
-    writeStr(lebuf, count, playername); // the name
+    writeStr(lebuf, count, playername);
+    #ifndef DEDICATED_SERVER_ONLY
     writeStr(lebuf, count, m_playerPassword.password());    // empty or not, it's needed
+    #else
+    writeStr(lebuf, count, "");
+    #endif
     client->send_message(lebuf, count);
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 void Client::change_name_command() {
     //set new name, close menu
     menu.options.name.name.set(trim(menu.options.name.name()));
@@ -1538,6 +1648,7 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     writeByte(lebuf, count, sentControls.toNetwork(false));
     client->send_frame(lebuf, count);
 }
+#endif
 
 void Client::process_incoming_data(const char* data, int length) {
     MutexDebug md("frameMutex", __LINE__, log);
@@ -1640,7 +1751,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[me].oldx = fx.player[me].roomx;
                 fx.player[me].oldy = fx.player[me].roomy;
 
+                #ifndef DEDICATED_SERVER_ONLY
                 predrawNeeded = true;
+                #endif
             }
 
             //read "players onscreen" vector
@@ -1794,6 +1907,7 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_text_message: {
+                #ifndef DEDICATED_SERVER_ONLY
                 char byte;
                 readByte(lebuf, count, byte);
                 const Message_type type = static_cast<Message_type>(byte);
@@ -1825,6 +1939,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 addThreadMessage(new TM_Text(type, chatmsg));
                 if (type == msg_team || type == msg_normal)
                     addThreadMessage(new TM_Sound(SAMPLE_TALK));
+                #endif
             }
 
             break; case data_first_packet: {
@@ -1841,7 +1956,9 @@ void Client::process_incoming_data(const char* data, int length) {
 
                 NLubyte map_nr;
                 readByte(lebuf, count, map_nr); //current map number
+                #ifndef DEDICATED_SERVER_ONLY
                 current_map = map_nr;
+                #endif
 
                 NLubyte score;
                 readByte(lebuf, count, score);
@@ -1859,12 +1976,14 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_frags_update: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte pid;
                 NLulong frags;
                 readByte(lebuf, count, pid);
                 readLong(lebuf, count, frags);
                 fx.player[pid].stats().set_frags(frags);
                 stable_sort(players_sb.begin(), players_sb.end(), compare_players);
+                #endif
             }
 
             break; case data_flag_update: {
@@ -1977,27 +2096,32 @@ void Client::process_incoming_data(const char* data, int length) {
                 if (!map_ready)
                     break;
 
-                NLubyte rockid, target;
-                readByte(lebuf, count, rockid); // rocket object id
-                readByte(lebuf, count, target); // target player
+                NLubyte rockid;
+                readByte(lebuf, count, rockid);
+                fx.rock[rockid].owner = -1;
+                #ifndef DEDICATED_SERVER_ONLY
+                NLubyte target;
+                readByte(lebuf, count, target);
                 //hit position
                 NLshort rokx, roky;
                 readShort(lebuf, count, rokx);
                 readShort(lebuf, count, roky);
-                fx.rock[rockid].owner = -1;
                 if (target != 255) {    // hit player
                     if (target != 252)  // not shield hit -> blink player
                         fx.player[target].hitfx = get_time() + .3;
                     addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py));
                     addThreadMessage(new TM_Sound(SAMPLE_HIT));
                 }
+                #endif
             }
 
             break; case data_power_collision: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte target;
                 readByte(lebuf, count, target);
                 fx.player[target].hitfx = get_time() + .3;
                 addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
+                #endif
             }
 
             break; case data_score_update: {
@@ -2009,10 +2133,12 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_sound: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte sample;
                 readByte(lebuf, count, sample);     // sample #
                 if (sample < NUM_OF_SAMPLES)
                     addThreadMessage(new TM_Sound(sample));
+                #endif
             }
 
             break; case data_pup_visible: {
@@ -2061,6 +2187,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
             break; case data_map_change: {
                 map_ready = false;  // map NOT ready anymore: must load/change
+                #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 want_map_exit_delayed = false;
 
@@ -2070,6 +2197,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     writeByte(lebuf, count, data_map_exit_off);
                     client->send_message(lebuf, count);
                 }
+                #endif
 
                 fx.teams[0].remove_flags();
                 fx.teams[1].remove_flags();
@@ -2084,19 +2212,23 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte map_nr, total_maps;
                 readByte(lebuf, count, map_nr);
                 readByte(lebuf, count, total_maps);
+                #ifndef DEDICATED_SERVER_ONLY
                 current_map = map_nr;
                 if (map_vote == current_map)
                     map_vote = -1;
+                old_map = fx.map.title;
+                #endif
                 fx.player[me].oldx = -1;
                 fx.player[me].oldy = -1;
-                old_map = fx.map.title;
                 if (count < msglen)
                     readByte(lebuf, count, remove_flags);
                 else
                     remove_flags = 0;
                 addThreadMessage(new TM_MapChange(mapname, crc));
+                #ifndef DEDICATED_SERVER_ONLY
                 const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
                 addThreadMessage(new TM_Text(msg_info, msg));
+                #endif
             }
 
             break; case data_world_reset:
@@ -2111,6 +2243,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte plaque;
                 readByte(lebuf, count, plaque);
                 if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
+                    gameover_plaque = plaque;
+                    #ifndef DEDICATED_SERVER_ONLY
                     NLubyte score;
                     readByte(lebuf, count, score);  //RED team final score
                     red_final_score = score;
@@ -2119,7 +2253,6 @@ void Client::process_incoming_data(const char* data, int length) {
                     NLubyte caplimit, timelimit;
                     readByte(lebuf, count, caplimit);
                     readByte(lebuf, count, timelimit);
-                    gameover_plaque = plaque;
 
                     string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
                     addThreadMessage(new TM_Text(msg_info, msg));
@@ -2134,28 +2267,33 @@ void Client::process_incoming_data(const char* data, int length) {
                     }
                     if (!msg.empty())
                         addThreadMessage(new TM_Text(msg_info, msg));
+                    #endif
                     for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                         pi->stats().finish_stats(get_time());
                 }
                 else {
                     gameover_plaque = NEXTMAP_NONE;
+                    #ifndef DEDICATED_SERVER_ONLY
                     if (stats_autoshowing) {
                         menusel = menu_none;
                         stats_autoshowing = false;
                     }
+                    #endif
                 }
             }
 
             break; case data_start_game:
-                gameover_plaque = NEXTMAP_NONE;     //hide
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                     pi->stats().clear(true);
+                gameover_plaque = NEXTMAP_NONE;
+                #ifndef DEDICATED_SERVER_ONLY
                 if (stats_autoshowing) {
                     menusel = menu_none;
                     stats_autoshowing = false;
                 }
+                #endif
 
             break; case data_deathbringer: {
                 NLubyte team;
@@ -2168,28 +2306,35 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLushort hx, hy;
                 readShort(lebuf, count, hx);
                 readShort(lebuf, count, hy);
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Deathbringer(team, get_time() + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
                 addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
+                #endif
             }
 
             break; case data_file_download: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte last;
                 NLushort chunkSize;
                 readShort(lebuf, count, chunkSize);     //chunk size
                 readByte(lebuf, count, last);       //"last chunk"?
                 process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
+                #endif
             }
 
             break; case data_registration_response: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte response;
                 readByte(lebuf, count, response);
                 if (response == 1)  // success
                     tournamentPassword.serverAcceptsToken();
                 else
                     tournamentPassword.serverRejectsToken();
+                #endif
             }
 
             break; case data_crap_update: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte pid, color, regStatus;
                 NLulong prank, pscore, nscore;
                 readByte(lebuf, count, pid);
@@ -2250,9 +2395,11 @@ void Client::process_incoming_data(const char* data, int length) {
                         power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
                 for (int t = 0; t < 2; t++)
                     fx.teams[t].set_power(power[t]);
+                #endif
             }
 
             break; case data_map_time: {
+                #ifndef DEDICATED_SERVER_ONLY
                 int current_time, time_left;
                 readLong(lebuf, count, current_time);
                 readLong(lebuf, count, time_left);
@@ -2265,22 +2412,28 @@ void Client::process_incoming_data(const char* data, int length) {
                     map_time_limit = false;
                 if (LOG_MESSAGE_TRAFFIC)
                     log("Map time received. Time left %d seconds.", time_left);
+                #endif
             }
 
             break; case data_reset_map_list: {
+                #ifndef DEDICATED_SERVER_ONLY
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.clear();
                 map_vote = -1;
+                #endif
             }
 
             break; case data_current_map: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte mapNr;
                 readByte(lebuf, count, mapNr);
                 current_map = mapNr;
+                #endif
             }
 
             break; case data_map_list: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte width, height, votes;
                 MapInfo mapinfo;
                 readStr(lebuf, count, mapinfo.title);
@@ -2297,15 +2450,19 @@ void Client::process_incoming_data(const char* data, int length) {
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.push_back(mapinfo);
+                #endif
             }
 
             break; case data_map_vote: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLbyte map_nr;
                 readByte(lebuf, count, map_nr);
                 map_vote = map_nr;
+                #endif
             }
 
             break; case data_map_votes_update: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLbyte total, map_nr, votes;
                 readByte(lebuf, count, total);
                 MutexDebug md("mapInfoMutex", __LINE__, log);
@@ -2316,9 +2473,11 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
                         maps[map_nr].votes = votes;
                 }
+                #endif
             }
 
             break; case data_stats_ready: {
+                #ifndef DEDICATED_SERVER_ONLY
                 if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
                     switch (menu.options.game.showStats()) {
                     /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
@@ -2327,18 +2486,24 @@ void Client::process_incoming_data(const char* data, int length) {
                     }
                     stats_autoshowing = true;
                 }
+                #endif
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                     pi->stats().finish_stats(get_time());
+                #ifndef DEDICATED_SERVER_ONLY
                 if (menu.options.game.saveStats())
                     fx.save_stats("client_stats", old_map);
+                #endif
             }
 
             break; case data_capture: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
+                #ifndef DEDICATED_SERVER_ONLY
                 const bool wild_flag = pid & 0x80;
+                #endif
                 pid &= ~0x80;
                 fx.player[pid].stats().add_capture(get_time());
+                #ifndef DEDICATED_SERVER_ONLY
                 const int team = pid / TSIZE;
                 fx.teams[team].add_score(get_time() - map_start_time, fx.player[pid].name);
                 string msg;
@@ -2350,6 +2515,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
+                #endif
             }
 
             break; case data_kill: {
@@ -2360,13 +2526,16 @@ void Client::process_incoming_data(const char* data, int length) {
                 //const bool carrier_defended = attacker & 0x40;
                 //const bool flag_defended = attacker & 0x20;
                 const bool flag = target & 0x80;
+                #ifndef DEDICATED_SERVER_ONLY
                 const bool wild_flag = target & 0x40;
+                #endif
                 attacker &= 0x1F;
                 target &= 0x1F;
                 const bool attacker_team = attacker / TSIZE;
                 const bool target_team = target / TSIZE;
                 const bool same_team = (attacker_team == target_team);
                 const bool known_attacker = fx.player[attacker].used;
+                #ifndef DEDICATED_SERVER_ONLY
                 string msg;
                 if (cause == DT_deathbringer) {
                     if (!known_attacker)
@@ -2421,6 +2590,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
+                #endif
                 if (!same_team) {
                     if (known_attacker)
                         fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
@@ -2433,6 +2603,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         fx.player[attacker].stats().add_carrier_kill();
                     fx.player[target].stats().add_flag_drop(get_time());
                     fx.teams[target_team].add_flag_drop();
+                    #ifndef DEDICATED_SERVER_ONLY
                     if (wild_flag)
                         msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
                     else if (1 - target_team == 0)
@@ -2441,13 +2612,16 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+                    #endif
                 }
+                #ifndef DEDICATED_SERVER_ONLY
                 if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
                     if (attacker == me)
                         addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
                     msg = _("$1 is on a killing spree!", fx.player[attacker].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
+                #endif
             }
 
             break; case data_flag_take: {
@@ -2458,6 +2632,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.player[pid].stats().add_flag_take(get_time(), wild_flag);
                 const int team = pid / TSIZE;
                 fx.teams[team].add_flag_take();
+                #ifndef DEDICATED_SERVER_ONLY
                 string msg;
                 if (wild_flag)
                     msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
@@ -2466,6 +2641,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
+                #endif
             }
 
             break; case data_flag_return: {
@@ -2473,6 +2649,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 fx.player[pid].stats().add_flag_return();
                 fx.teams[pid / TSIZE].add_flag_return();
+                #ifndef DEDICATED_SERVER_ONLY
                 string msg;
                 if (pid / TSIZE == 0)
                     msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
@@ -2480,16 +2657,20 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
+                #endif
             }
 
             break; case data_flag_drop: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
+                #ifndef DEDICATED_SERVER_ONLY
                 const bool wild_flag = pid & 0x80;
+                #endif
                 pid &= ~0x80;
                 fx.player[pid].stats().add_flag_drop(get_time());
                 const int team = pid / TSIZE;
                 fx.teams[team].add_flag_drop();
+                #ifndef DEDICATED_SERVER_ONLY
                 string msg;
                 if (wild_flag)
                     msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
@@ -2499,24 +2680,30 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+                #endif
             }
 
             break; case data_suicide: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
                 const bool flag = pid & 0x80;
+                #ifndef DEDICATED_SERVER_ONLY
                 const bool wild_flag = pid & 0x40;
+                #endif
                 pid &= ~0xC0;
                 const int team = pid / TSIZE;
+                #ifndef DEDICATED_SERVER_ONLY
                 if (fx.player[pid].stats().current_cons_kills() >= 10) {
                     const string msg = _("$1's killing spree was ended.", fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
+                #endif
                 fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
                 fx.teams[team].add_suicide();
                 if (flag) {
                     fx.player[pid].stats().add_flag_drop(get_time());
                     fx.teams[team].add_flag_drop();
+                    #ifndef DEDICATED_SERVER_ONLY
                     string msg;
                     if (wild_flag)
                         msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
@@ -2526,8 +2713,11 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+                    #endif
                 }
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+                #endif
             }
 
             break; case data_players_present: {    // this is only sent immediately after connecting to the server
@@ -2538,7 +2728,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         continue;
                     if (pp & (1 << i)) {
                         fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
+                        #ifndef DEDICATED_SERVER_ONLY
                         players_sb.push_back(&fx.player[i]);
+                        #endif
                     }
                 }
             }
@@ -2548,18 +2740,22 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 nAssert(!fx.player[pid].used);
                 fx.player[pid].clear(true, pid, "", pid / TSIZE);
+                #ifndef DEDICATED_SERVER_ONLY
                 players_sb.push_back(&fx.player[pid]);
+                #endif
             }
 
             break; case data_player_left: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
+                #ifndef DEDICATED_SERVER_ONLY
                 const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
                 vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
                 nAssert(rm != players_sb.end());
                 players_sb.erase(rm);
+                #endif
                 nAssert(fx.player[pid].used);
                 fx.player[pid].used = false;
             }
@@ -2573,6 +2769,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 const bool swap = (col2 != 255);
                 nAssert(fx.player[from].used && swap == fx.player[to].used);
 
+                #ifndef DEDICATED_SERVER_ONLY
                 string msg;
                 if (swap)
                     msg = _("$1 and $2 swapped teams.", fx.player[from].name, fx.player[to].name);
@@ -2582,6 +2779,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 moved to blue team.", fx.player[from].name);
                 addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
+                #endif
 
                 if (swap) {
                     std::swap(fx.player[from], fx.player[to]);
@@ -2596,12 +2794,15 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.player[from].used = false;
                     fx.player[to].id = to;
                     fx.player[to].set_team(to / TSIZE);
+                    #ifndef DEDICATED_SERVER_ONLY
                     vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);
                     nAssert(rm != players_sb.end());
                     players_sb.erase(rm);
                     players_sb.push_back(&fx.player[to]);
+                    #endif
                 }
 
+                #ifndef DEDICATED_SERVER_ONLY
                 if (from == me || to == me) {
                     want_change_teams = false;
                     me = (me == from) ? to : from;
@@ -2611,13 +2812,16 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.player[to].set_color(col1);
                 else
                     log("Invalid colour (%d) for player %d.", col1, to);
+                #endif
                 fx.player[to].stats().kill(static_cast<int>(get_time()), true);
                 fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
                 if (swap) {
+                    #ifndef DEDICATED_SERVER_ONLY
                     if (col2 < MAX_PLAYERS / 2)
                         fx.player[from].set_color(col2);
                     else
                         log("Invalid colour (%d) for player %d.", col2, from);
+                    #endif
                     fx.player[from].stats().kill(static_cast<int>(get_time()), true);
                     fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
                 }
@@ -2729,7 +2933,9 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_name_authorization_request:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_NameAuthorizationRequest());
+                #endif
 
             break; case data_server_settings: {
                 NLubyte caplimit, timelimit, extratime;
@@ -2743,6 +2949,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, pupAddTime);
                 readShort(lebuf, count, pupMaxTime);
                 fx.physics.read(lebuf, count);
+                #ifndef DEDICATED_SERVER_ONLY
                 fd.physics = fx.physics;
 
                 log("Server friction/drag/acceleration %f/%f/%f",
@@ -2766,35 +2973,49 @@ void Client::process_incoming_data(const char* data, int length) {
                 out.close();
 
                 addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
+                #endif
             }
 
             break; case data_5_min_left:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_info, _("*** Five minutes remaining")));
                 addThreadMessage(new TM_Sound(SAMPLE_5_MIN_LEFT));
+                #endif
 
             break; case data_1_min_left:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_info, _("*** One minute remaining")));
                 addThreadMessage(new TM_Sound(SAMPLE_1_MIN_LEFT));
+                #endif
 
             break; case data_30_s_left:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_info, _("*** 30 seconds remaining")));
+                #endif
 
             break; case data_time_out:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_info, _("*** Time out - CTF game over")));
+                #endif
 
             break; case data_extra_time_out:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_info, _("*** Extra-time out - CTF game over")));
+                #endif
 
             break; case data_normal_time_out: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte sudden_death;
                 readByte(lebuf, count, sudden_death);
                 string msg = _("*** Normal time out - extra-time started");
                 if (sudden_death & 0x01)
                     msg += " " + _("(sudden death)");
                 addThreadMessage(new TM_Text(msg_info, msg));
+                #endif
             }
 
             break; case data_map_change_info: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte votes, needed;
                 NLshort vote_block_time;
                 readByte(lebuf, count, votes);
@@ -2804,18 +3025,26 @@ void Client::process_incoming_data(const char* data, int length) {
                 if (vote_block_time > 0)
                     msg += ' ' + _("(All players needed for $1 more seconds.)", itoa(vote_block_time));
                 addThreadMessage(new TM_Text(msg_info, msg));
+                #endif
             }
 
             break; case data_too_much_talk:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_warning, _("Too much talk. Chill...")));
+                #endif
 
             break; case data_mute_notification:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_warning, _("You are muted. You can't send messages.")));
+                #endif
 
             break; case data_tournament_update_failed:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_warning, _("Updating your tournament score failed!")));
+                #endif
 
             break; case data_player_mute: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte pid, mode;
                 string admin;
                 readByte(lebuf, count, pid);
@@ -2841,9 +3070,11 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 has muted $2.", admin, fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
+                #endif
             }
 
             break; case data_player_kick: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte pid;
                 NLlong minutes;
                 string admin;
@@ -2868,24 +3099,31 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
                     addThreadMessage(new TM_Text(msg_info, msg));
                 }
+                #endif
             }
 
             break; case data_disconnecting: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte time;
                 readByte(lebuf, count, time);
                 const string msg = _("Disconnecting in $1...", itoa(time));
                 addThreadMessage(new TM_Text(msg_warning, msg));
+                #endif
             }
 
             break; case data_idlekick_warning: {
+                #ifndef DEDICATED_SERVER_ONLY
                 NLubyte time;
                 readByte(lebuf, count, time);
                 const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
                 addThreadMessage(new TM_Text(msg_warning, msg));
+                #endif
             }
 
             break; case data_broken_map:
+                #ifndef DEDICATED_SERVER_ONLY
                 addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
+                #endif
 
             break; default:
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
@@ -2898,6 +3136,7 @@ void Client::process_incoming_data(const char* data, int length) {
     }
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 //send chat message
 void Client::send_chat(const string& msg) {
     if (msg.empty() || msg == "." || isFlood(msg))
@@ -2965,6 +3204,7 @@ void Client::toggle_help() {
     else
         showMenu(menu.help);
 }
+#endif
 
 void Client::handlePendingThreadMessages() {    // should only be called by the main thread
     while (!messageQueue.empty()) {
@@ -2975,6 +3215,7 @@ void Client::handlePendingThreadMessages() {    // should only be called by the 
     }
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 string Client::refreshStatusAsString() const {
     switch (refreshStatus) {
     /*break;*/ case RS_none:       return _("Inactive");
@@ -3692,6 +3933,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
     //client exit cleanup: done at stop wich needs to be called after loop
 }
+#endif
 
 void Client::bot_loop() {
     MutexLock ml(frameMutex);
@@ -3740,6 +3982,7 @@ void Client::stop() {
         return;
     }
 
+    #ifndef DEDICATED_SERVER_ONLY
     tournamentPassword.stop();
 
     //save configuration file
@@ -3834,7 +4077,7 @@ void Client::stop() {
     //save client's password
     log("Saving password file...");
     fileName = wheregamedir + "config" + directory_separator + "password.bin";
-    FILE *psf = fopen(fileName.c_str(), "wb");
+    FILE* psf = fopen(fileName.c_str(), "wb");
     if (psf) {
         const string& password = menu.options.name.password();
         for (int c = 0; c < PASSBUFFER; c++) {
@@ -3861,10 +4104,13 @@ void Client::stop() {
         listenServer.stop();
 
     log("Client stop() completed");
+    #endif
 }
 
 void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
-    fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
+    fx.rock[rid].owner = -1;   // erase from clientside simulation
+    #ifndef DEDICATED_SERVER_ONLY
+    fd.rock[rid].owner = -1;
     if (botmode)
         return;
     if (power) {
@@ -3875,28 +4121,42 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
         client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
         client_sounds.play(SAMPLE_WALLHIT);
     }
+    #else
+    (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
+    #endif
 }
 
 void Client::rocketOutOfBoundsCallback(int rid) {
-    fd.rock[rid].owner = fx.rock[rid].owner = -1;   // erase from clientside simulation
+    fx.rock[rid].owner = -1;   // erase from clientside simulation
+    #ifndef DEDICATED_SERVER_ONLY
+    fd.rock[rid].owner = -1;
+    #endif
 }
 
 void Client::playerHitWallCallback(int pid) {
+    #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = get_time(); //#fix
     if (currTime > fx.player[pid].wall_sound_time) {
         fx.player[pid].wall_sound_time = currTime + 0.2;
         client_sounds.play(SAMPLE_WALLBOUNCE);
     }
+    #else
+    (void)pid;
+    #endif
 }
 
 void Client::playerHitPlayerCallback(int pid1, int pid2) {
+    #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = get_time(); //#fix
     if (currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) {
         fx.player[pid1].player_sound_time = fx.player[pid2].player_sound_time = currTime + 0.2;
         client_sounds.play(SAMPLE_PLAYERBOUNCE);
     }
+    #else
+    (void)pid1; (void)pid2;
+    #endif
 }
 
 bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
@@ -3907,10 +4167,13 @@ void Client::remove_useless_flags() {
     for (int i = 0; i < 3; i++)
         if (remove_flags & (0x01 << i)) {
             fx.remove_team_flags(i);
+            #ifndef DEDICATED_SERVER_ONLY
             fd.remove_team_flags(i);
+            #endif
         }
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 void Client::predraw() {
     if (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
             fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
@@ -5030,6 +5293,7 @@ void Client::CB_tournamentToken(string token) { // callback called by tournament
         tournamentPassword.serverProcessingToken();
     }
 }
+#endif
 
 void Client::cfunc_connection_update(void* customp, int connect_result, const char* data, int length) {
     Client* cl = static_cast<Client*>(customp);

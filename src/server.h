@@ -122,7 +122,6 @@ class Server {
     bool check_bots;
 
     void init_bots();
-    void remove_bot();
     void run_bot_thread();
 
     // world
@@ -183,6 +182,7 @@ public:
     void disconnectPlayer(int pid, Disconnect_reason reason);
     void sendMessage(int pid, Message_type type, const std::string& msg);
 
+    void remove_bot();
     void set_check_bots() { check_bots = true; }
 
     void logAdminAction(int admin, const std::string& action, int target = -1);

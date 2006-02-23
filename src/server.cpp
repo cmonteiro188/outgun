@@ -886,13 +886,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 }
 
 void Server::init_bots() {
-    int humans = 0, bot_count = 0;
-    for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used)
-            if (world.player[i].is_bot())
-                ++bot_count;
-            else
-                ++humans;
+    const int humans = network.get_human_count();
+    int bot_count = network.get_bot_count();
     log("%d bots, %d in vector.", bot_count, bots.size());
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
@@ -925,6 +920,7 @@ void Server::init_bots() {
     while (bot_count < needed_bots) {
         Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
+        bot->set_bot_password(network.get_server_password());
         bot->bot_start(address, bot_ping);
         bots.push_back(bot);
         log("Bot added");

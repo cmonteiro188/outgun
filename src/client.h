@@ -27,19 +27,23 @@
 #ifndef CLIENT_H_INC
 #define CLIENT_H_INC
 
+#ifndef DEDICATED_SERVER_ONLY
 #include "client_menus.h"
+#include "graphics.h"
+#include "menu.h"
+#include "sounds.h"
+#endif
+
 #include "function_utility.h"
 #include "gameserver_interface.h"
-#include "graphics.h"
 #include "log.h"
-#include "menu.h"
 #include "mutex.h"
 #include "names.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
-#include "sounds.h"
 #include "thread.h"
 #include "world.h"
 
+#ifndef DEDICATED_SERVER_ONLY
 //server record
 class ServerListEntry {
 public:
@@ -200,6 +204,7 @@ private:
     void threadFn();
     void setToken(const std::string& newToken);
 };
+#endif
 
 class ClientExternalSettings {
 public:
@@ -238,10 +243,12 @@ class Client {
     friend class TM_Text;
     friend class TM_Sound;
     friend class TM_MapChange;
+    #ifndef DEDICATED_SERVER_ONLY
     friend class TM_NameAuthorizationRequest;
     friend class TM_GunexploEffect;
     friend class TM_Deathbringer;
     friend class TM_ServerSettings;
+    #endif
     friend class TM_ConnectionUpdate;
 
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
@@ -249,6 +256,7 @@ class Client {
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
     mutable LogSet log; // this is the only access to logs in normal operation
 
+    #ifndef DEDICATED_SERVER_ONLY
     std::vector<std::vector<std::string> > load_all_player_passwords() const;
     std::string load_player_password(const std::string& name, const std::string& address) const;
     void save_player_password(const std::string& name, const std::string& address, const std::string& password) const;
@@ -256,10 +264,14 @@ class Client {
     int remove_player_passwords(const std::string& name) const;
 
     ServerThreadOwner listenServer;
+    #endif
 
     // world (these variables all locked by frameMutex)
-    ClientWorld fd, fx; //#fix: two maps, etc.
+    ClientWorld fx; //#fix fx and fd: two maps, etc.
+    #ifndef DEDICATED_SERVER_ONLY
+    ClientWorld fd;
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
+    #endif
     int me;
     MutexHolder frameMutex;
     int maxplayers;
@@ -288,14 +300,17 @@ class Client {
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
     MutexHolder downloadMutex;
+    #ifndef DEDICATED_SERVER_ONLY
     std::list<FileDownload> downloads;
 
     TournamentPasswordManager tournamentPassword;
 
     NLulong fdp;
     NLulong max_world_rank;
+    #endif
 
     MutexHolder mapInfoMutex;
+    #ifndef DEDICATED_SERVER_ONLY
     std::vector<MapInfo> maps;
     std::vector<std::string> fav_maps;
     int current_map;
@@ -306,8 +321,10 @@ class Client {
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
+    #endif
     NLbyte remove_flags;
 
+    #ifndef DEDICATED_SERVER_ONLY
     // GUI
     Menu_main menu;
     Menu_text m_connectProgress;
@@ -322,11 +339,13 @@ class Client {
 
     bool quitCommand;
     Menu_selection menusel; // a special screen rather than menu: maplist, stats
+    #endif
     bool gameshow;
     double FPS;
     int framecount, totalframecount;
     double frameCountStartTime;
     int gameover_plaque;
+    #ifndef DEDICATED_SERVER_ONLY
     int red_final_score, blue_final_score;
     std::string hostname;
     std::string edit_map_vote;
@@ -336,11 +355,13 @@ class Client {
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
     MutexHolder serverListMutex;
+    #endif
 
     std::string playername;
     NLaddress serverIP;
 
     // for bots:
+    std::string bot_password;
 
     enum Routing {
         Route_None,
@@ -408,6 +429,7 @@ class Client {
 
     volatile bool abortThreads;
 
+    #ifndef DEDICATED_SERVER_ONLY
     enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
     volatile RefreshStatus refreshStatus;   // thread communication variable
 
@@ -421,13 +443,18 @@ class Client {
     bool stats_autoshowing;
     Graphics client_graphics;
     bool screenshot;
-    volatile bool mapChanged, predrawNeeded;
+    #endif
+    volatile bool mapChanged;
+    #ifndef DEDICATED_SERVER_ONLY
+    volatile bool predrawNeeded;
     Sounds client_sounds;
 
     std::ofstream message_log;
     bool messageLogOpen;
+    #endif
 
     const ClientExternalSettings extConfig;
+    #ifndef DEDICATED_SERVER_ONLY
     ServerExternalSettings serverExtConfig;
 
     class GFXMode {
@@ -506,9 +533,16 @@ class Client {
     void CB_tournamentToken(std::string token); // callback called by tournamentPassword from another thread
 
     bool screenModeChange();    // the return value should be tested at the first call
+    #endif
 
     void addThreadMessage(ThreadMessage* msg) { messageQueue.push_back(msg); }
-    void setMaxPlayers(int num) { maxplayers = num; fx.setMaxPlayers(num); fd.setMaxPlayers(num); }
+    void setMaxPlayers(int num) {
+        maxplayers = num;
+        fx.setMaxPlayers(num);
+        #ifndef DEDICATED_SERVER_ONLY
+        fd.setMaxPlayers(num);
+        #endif
+    }
 
     // world    //#fix: should these be moved to ClientWorld?
     void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy);
@@ -528,15 +562,22 @@ class Client {
     void connect_failed_denied(const char* data, int length);
     void connect_failed_unreachable();
     void connect_failed_socket();
+    #ifndef DEDICATED_SERVER_ONLY
     void send_player_token();
     void send_tournament_participation();
+    #endif
     void issue_change_name_command();
+    #ifndef DEDICATED_SERVER_ONLY
     void change_name_command();
+    #endif
     void send_client_ready();
+    #ifndef DEDICATED_SERVER_ONLY
     void send_chat(const std::string& msg);
     void send_frame(bool newFrame, bool forceSend);
+    #endif
     void process_incoming_data(const char* data, int length);
 
+    #ifndef DEDICATED_SERVER_ONLY
     std::string refreshStatusAsString() const;
     void getServerListThread();
     void refreshThread();
@@ -548,6 +589,7 @@ class Client {
     void check_download();  // call with downloadMutex locked
     void process_udp_download_chunk(const char* buf, int len, bool last);
     void download_server_file(const std::string& type, const std::string& name);
+    #endif
     void server_map_command(const std::string& mapname, NLushort server_crc);
     bool load_map(const std::string& directory, const std::string& mapname, NLushort server_crc);
 
@@ -557,6 +599,7 @@ class Client {
     static void cfunc_connection_update(void* customp, int connect_result, const char* data, int length);
     static void cfunc_server_data(void* customp, const char* data, int length);
 
+    #ifndef DEDICATED_SERVER_ONLY
     // GUI
     void erase_first_message();
     void print_message(Message_type type, const std::string& msg);
@@ -575,6 +618,8 @@ class Client {
     void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
     bool handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey
     void handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
+    #else
+    #endif
 
 public:
     Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
@@ -582,7 +627,9 @@ public:
     ~Client();
 
     bool start();
+    #ifndef DEDICATED_SERVER_ONLY
     void loop(volatile bool* quitFlag, bool firstTimeSplash);
+    #endif
     void stop();
 
     void bot_start(const NLaddress& addr, int ping);
@@ -590,9 +637,12 @@ public:
     bool is_connected() const { return connected; }
     bool bot_finished() const { return finished; }
 
+    void set_bot_password(const std::string& pass) { bot_password = pass; }
+
     int team() const { return me / TSIZE; }
 };
 
+#ifndef DEDICATED_SERVER_ONLY
 class Message {
 public:
     Message(Message_type type_, const std::string& txt, int time_):
@@ -611,5 +661,6 @@ private:
     int msg_time;
     bool is_highlighted;
 };
+#endif
 
 #endif
