@@ -25,8 +25,9 @@
  */
 
 #include <string>
-#include "names.h"
+#include "commont.h"
 #include "utility.h"
+#include "names.h"
 
 using std::string;
 
@@ -276,5 +277,5 @@ string RandomName(int npal)
         nome += Palavra() + ' ';
     nome += Palavra();
 
-    return trim(nome.substr(0, 15));
+    return trim(nome.substr(0, maxPlayerNameLength));
 }
