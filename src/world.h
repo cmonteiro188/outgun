@@ -34,7 +34,6 @@
 #include "nassert.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
 #include "utility.h"
-
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
 
@@ -116,12 +115,18 @@ private:
     double anglecos;
 };
 
+enum RouteTable {
+        Table_Main = 0,
+        Table_Def = 1,
+        Table_Max = 2
+};
+
 class Room {
 public:
     // for bots:
     bool pass[4];
-    int label[2];
-    bool route;
+    int label[Table_Max];
+    bool route[Table_Max];
     double visited_frame;
 
     ~Room();
