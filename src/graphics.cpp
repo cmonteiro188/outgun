@@ -308,9 +308,12 @@ void Graphics::setColors() {
     //teams 0 & 1 (playernum(0..15) / 8) colors:
     teamcol[0] = col[COLRED ];
     teamcol[1] = col[COLBLUE];
+    teamflashcol[0] = makecol(255, 200, 200);
+    teamflashcol[1] = makecol(200, 200, 255);
 
-    // wild flag colour
+    // wild flag colours
     teamcol[2] = col[COLGREEN];
+    teamflashcol[2] = makecol(200, 255, 200);
 
     //light colours for text
     teamlcol[0] = col[COLLRED ];
@@ -746,10 +749,10 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
 }
 
 //draw a flag  team 0/1   x, y: coord relative to playarea
-void Graphics::draw_flag(int team, int x, int y) {
+void Graphics::draw_flag(int team, int x, int y, bool flash) {
     x = scale(x);
     y = scale(y);
-    const Bitmap& sprite = flag_sprite[team];
+    const Bitmap& sprite = flash ? flag_flash_sprite[team] : flag_sprite[team];
     if (sprite) {
         draw_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2);
         return;
@@ -769,22 +772,26 @@ void Graphics::draw_flag(int team, int x, int y) {
         ply + y - scale(38),
         plx + x + scale(20),
         ply + y - scale(20),
-        teamcol[team]
+        flash ? teamflashcol[team] : teamcol[team]
     );
 }
 
 // Minimap functions
 
-void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map) {
+void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, double time) {
     const double px = static_cast<double>(flag.position().px * plw + flag.position().x) / (plw * map.w);
     const double py = static_cast<double>(flag.position().py * plh + flag.position().y) / (plh * map.h);
     const int pix = static_cast<int>(mmx + minimap_start_x + px * minimap_w);
     const int piy = static_cast<int>(mmy + minimap_start_y + py * minimap_h);
     const int scl = minimap_place_w;
-    //draw flagpole
     rectfill(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, col[COLYELLOW]);
-    //draw the flag itself
-    rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, teamcol[team]);
+    // Flash the flag if just returned.
+    int c;
+    if (time == 0 || time > flag.return_time() + 2 || static_cast<int>(time * 15) % 3 > 0)
+        c = teamcol[team];
+    else
+        c = teamflashcol[team];
+    rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, c);
 }
 
 void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
@@ -2690,8 +2697,10 @@ void Graphics::load_flag_sprites(const string& path) {
         Bitmap team = scale_alpha_sprite(path + "flag_team.pcx", size, size);
         for (int t = 0; t < 3; t++) {
             flag_sprite[t] = create_bitmap(size, size);
-            nAssert(flag_sprite[t]);
+            flag_flash_sprite[t] = create_bitmap(size, size);
+            nAssert(flag_sprite[t] && flag_flash_sprite[t]);
             combine_sprite(flag_sprite[t], flag, team, 0, teamcol[t], 0);
+            combine_sprite(flag_flash_sprite[t], flag, team, 0, teamflashcol[t], 0);
         }
     }
 }
@@ -2783,6 +2792,8 @@ void Graphics::unload_rocket_sprites() {
 void Graphics::unload_flag_sprites() {
     for (int i = 0; i < 3; i++)
         flag_sprite[i].free();
+    for (int i = 0; i < 3; i++)
+        flag_flash_sprite[i].free();
 }
 
 void Graphics::unload_pup_sprites() {

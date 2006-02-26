@@ -113,9 +113,9 @@ public:
     void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
     void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
 
-    void draw_flag(int team, int x, int y);
+    void draw_flag(int team, int x, int y, bool flash = false);
     void draw_flagpos_mark(int team, int flag_x, int flag_y);
-    void draw_mini_flag(int team, const Flag& flag, const Map& map);
+    void draw_mini_flag(int team, const Flag& flag, const Map& map, double time = 0);
     void draw_minimap_background();
     void update_minimap_background(const Map& map);
     void draw_minimap_player(const Map& map, const ClientPlayer& player);
@@ -357,7 +357,9 @@ private:
     Bitmap dead_sprite[2];
     Bitmap rocket_sprite[2];
     Bitmap power_rocket_sprite[2];
+
     Bitmap flag_sprite[3];  // red, blue and wild flag
+    Bitmap flag_flash_sprite[3];
 
     Bitmap ice_cream;
 
@@ -429,8 +431,9 @@ private:
     };
 
     int teamcol[3];
-    int teamlcol[2];    // light colours for statusbar
-    int teamdcol[2];    // dark colours for player name
+    int teamflashcol[3]; // flag flashing colours
+    int teamlcol[2];     // light colours for statusbar
+    int teamdcol[2];     // dark colours for player name
 
     int col[NUM_OF_COL];
     int groundCol[3], wallCol[3];

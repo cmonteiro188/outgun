@@ -116,9 +116,9 @@ private:
 };
 
 enum RouteTable {
-        Table_Main = 0,
-        Table_Def = 1,
-        Table_Max = 2
+    Table_Main = 0,
+    Table_Def = 1,
+    Table_Max = 2
 };
 
 class Room {
@@ -149,6 +149,9 @@ private:
 struct WorldCoords {
     WorldCoords(int px_, int py_, int x_, int y_): px(px_), py(py_), x(x_), y(y_) { }
     WorldCoords() { }
+
+    bool operator==(const WorldCoords& op) const { return px == op.px && py == op.py && x == op.x && y == op.y; }
+
     int px, py; //screen (if px == -1, unused)
     int x, y;   //relative (to screen) X,Y position
 };
@@ -491,6 +494,7 @@ public:
     void move(const WorldCoords& new_pos) { pos = new_pos; }
 
     void set_drop_time(double time) { drop_t = time; }
+    void set_return_time(double time) { return_t = time; }
 
     bool carried() const { return status == status_carried; }
     bool at_base() const { return status == status_at_base; }
@@ -498,6 +502,7 @@ public:
     int carrier() const { return carrier_id; }
     double grab_time() const { return grab_t; }
     double drop_time() const { return drop_t; }
+    double return_time() const { return return_t; }
 
     const WorldCoords& position() const { return pos; }
     const WorldCoords& home_position() const { return home_pos; }
@@ -509,6 +514,7 @@ private:
     int carrier_id;
     double grab_t;
     double drop_t;
+    double return_t;    // for client only
     WorldCoords home_pos;
     WorldCoords pos;
 };
@@ -557,6 +563,7 @@ public:
     void move_flag(int n, const WorldCoords& pos);
 
     void set_flag_drop_time(int n, double time);
+    void set_flag_return_time(int n, double time);
 
     int score() const { return points; }
     int kills() const { return total_kills; }

@@ -130,7 +130,11 @@ enum ClientCfgSetting {
     CCS_UseThemeBackground,
     CCS_Background,
     CCS_Font,
-    CCS_MaxCommand = CCS_Font
+    CCS_ShowFlagMessages,
+    CCS_ShowKillMessages,
+    CCS_HighlightReturnedFlag,
+    CCS_Hack,
+    CCS_MaxCommand = CCS_Hack - 1
 };
 
 class ServerThreadOwner {
@@ -369,6 +373,7 @@ class Client {
         Route_Base,
         Route_Team
     };
+
     bool botmode;
     bool finished;
 
@@ -628,7 +633,6 @@ class Client {
     void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
     bool handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey
     void handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
-    #else
     #endif
 
 public:

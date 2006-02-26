@@ -670,6 +670,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #ifndef DEDICATED_SERVER_ONLY
     //if player wants to changeteams
     want_change_teams = false;
+    #else
+    (void)serverConfig;
     #endif
 
     //connected? (that is, "connection accepted")
@@ -805,6 +807,8 @@ bool Client::start() {
             break; case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args));
             break; case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none);
             break; case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1");
+            break; case CCS_ShowFlagMessages:      menu.options.game.showFlagMessages.set(args == "1");
+            break; case CCS_ShowKillMessages:      menu.options.game.showKillMessages.set(args == "1");
             break; case CCS_ShowStats:             menu.options.game.showStats.set(args == "1" ? Menu_game::SS_teams : args == "2" ? Menu_game::SS_players : Menu_game::SS_none);
             break; case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1");
             break; case CCS_StayDeadInMenus:       menu.options.game.stayDead.set(args == "1");
@@ -859,6 +863,7 @@ bool Client::start() {
             break; case CCS_MinTransp:             menu.options.graphics.minTransp.set(args == "1");
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
             break; case CCS_MinimapPlayers:        menu.options.graphics.minimapPlayers.set(args == "1" ? Menu_graphics::MP_EarlyCut : args == "2" ? Menu_graphics::MP_LateCut : Menu_graphics::MP_Fade);
+            break; case CCS_HighlightReturnedFlag: menu.options.graphics.highlightReturnedFlag.set(args == "1");
             break; case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args));
 
             // sound menu
@@ -2008,12 +2013,21 @@ void Client::process_incoming_data(const char* data, int length) {
                         readByte(lebuf, count, py);
                         readShort(lebuf, count, x);
                         readShort(lebuf, count, y);
+                        const WorldCoords pos(px, py, x, y);
                         if (team == 2) {
-                            fx.wild_flags[i].move(WorldCoords(px, py, x, y));
+                            fx.wild_flags[i].move(pos);
                             fx.wild_flags[i].drop();
                         }
                         else
-                            fx.teams[team].drop_flag(i, WorldCoords(px, py, x, y));
+                            fx.teams[team].drop_flag(i, pos);
+                        // Assume that flags dropped on the flag bases are returned.
+                        const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
+                        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
+                            if (pos == *pi)
+                                if (team == 2)
+                                    fx.wild_flags[i].set_return_time(get_time());
+                                else
+                                    fx.teams[team].set_flag_return_time(i, get_time());
                     }
                     else {
                         //carried: get carrier
@@ -2568,7 +2582,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (fx.player[target].onscreen)
                         addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
                 }
-                addThreadMessage(new TM_Text(msg_info, msg));
+                if (menu.options.game.showKillMessages())
+                    addThreadMessage(new TM_Text(msg_info, msg));
                 /*if (carrier_defended && known_attacker) {
                     if (attacker_team == 0)
                         msg = _("$1 defends the red carrier.", fx.player[attacker].name);
@@ -2588,7 +2603,8 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1's killing spree was ended.", fx.player[target].name);
                     else
                         msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
+                    if (menu.options.game.showKillMessages())
+                        addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 #endif
                 if (!same_team) {
@@ -2610,7 +2626,8 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
                     else
                         msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
+                    if (menu.options.game.showFlagMessages())
+                        addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                     #endif
                 }
@@ -2619,7 +2636,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (attacker == me)
                         addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
                     msg = _("$1 is on a killing spree!", fx.player[attacker].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
+                    if (menu.options.game.showKillMessages())
+                        addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 #endif
             }
@@ -2640,7 +2658,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
                 else
                     msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
-                addThreadMessage(new TM_Text(msg_info, msg));
+                if (menu.options.game.showFlagMessages())
+                    addThreadMessage(new TM_Text(msg_info, msg));
                 #endif
             }
 
@@ -2655,7 +2674,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
                 else
                     msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
-                addThreadMessage(new TM_Text(msg_info, msg));
+                if (menu.options.game.showFlagMessages())
+                    addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
                 #endif
             }
@@ -2678,7 +2698,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
                 else
                     msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
-                addThreadMessage(new TM_Text(msg_info, msg));
+                if (menu.options.game.showFlagMessages())
+                    addThreadMessage(new TM_Text(msg_info, msg));
                 addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                 #endif
             }
@@ -2695,7 +2716,8 @@ void Client::process_incoming_data(const char* data, int length) {
                 #ifndef DEDICATED_SERVER_ONLY
                 if (fx.player[pid].stats().current_cons_kills() >= 10) {
                     const string msg = _("$1's killing spree was ended.", fx.player[pid].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
+                    if (menu.options.game.showKillMessages())
+                        addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 #endif
                 fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
@@ -2711,7 +2733,8 @@ void Client::process_incoming_data(const char* data, int length) {
                         msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
                     else
                         msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
+                    if (menu.options.game.showFlagMessages())
+                        addThreadMessage(new TM_Text(msg_info, msg));
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
                     #endif
                 }
@@ -2802,12 +2825,14 @@ void Client::process_incoming_data(const char* data, int length) {
                     #endif
                 }
 
-                #ifndef DEDICATED_SERVER_ONLY
                 if (from == me || to == me) {
+                    #ifndef DEDICATED_SERVER_ONLY
                     want_change_teams = false;
+                    #endif
                     me = (me == from) ? to : from;
                 }
 
+                #ifndef DEDICATED_SERVER_ONLY
                 if (col1 < MAX_PLAYERS / 2)
                     fx.player[to].set_color(col1);
                 else
@@ -4014,6 +4039,8 @@ void Client::stop() {
         cfg << CCS_LagPredictionAmount  << ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
         cfg << CCS_MessageLogging       << ' ' << ((menu.options.game.messageLogging() == Menu_game::ML_full) ? 1 : (menu.options.game.messageLogging() == Menu_game::ML_chat) ? 2 : 0) << '\n';
         cfg << CCS_SaveStats            << ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
+        cfg << CCS_ShowFlagMessages     << ' ' << (menu.options.game.showFlagMessages() ? 1 : 0) << '\n';
+        cfg << CCS_ShowKillMessages     << ' ' << (menu.options.game.showKillMessages() ? 1 : 0) << '\n';
         cfg << CCS_ShowStats            << ' ' << ((menu.options.game.showStats() == Menu_game::SS_teams) ? 1 : (menu.options.game.showStats() == Menu_game::SS_players) ? 2 : 0) << '\n';
         cfg << CCS_ShowServerInfo       << ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
         cfg << CCS_StayDeadInMenus      << ' ' << (menu.options.game.stayDead() ? 1 : 0) << '\n';
@@ -4048,6 +4075,7 @@ void Client::stop() {
         cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
         cfg << CCS_MinimapPlayers       << ' ' << (menu.options.graphics.minimapPlayers() == Menu_graphics::MP_EarlyCut ? 1 : menu.options.graphics.minimapPlayers() == Menu_graphics::MP_LateCut ? 2 : 0) << '\n';
+        cfg << CCS_HighlightReturnedFlag << ' ' << (menu.options.graphics.highlightReturnedFlag() ? 1 : 0);
         cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
 
         // save sound menu settings
@@ -4271,15 +4299,16 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         client_graphics.draw_turbofx(fx.player[me].roomx, fx.player[me].roomy, get_time());
 
         // draw any dropped flags (use fx since flags don't move)
-        for (int t = 0; t < 2; t++)
-            for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+        for (int t = 0; t < 3; t++) {
+            const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
+            for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
                 // not carried, on same screen
-                if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy)
-                    client_graphics.draw_flag(t, fi->position().x, fi->position().y);
-
-        for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-            if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy)
-                client_graphics.draw_flag(2, fi->position().x, fi->position().y);
+                if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy) {
+                    const bool flash = menu.options.graphics.highlightReturnedFlag() &&
+                                       get_time() < fi->return_time() + 2 && static_cast<int>(get_time() * 15) % 3 == 0;
+                    client_graphics.draw_flag(t, fi->position().x, fi->position().y, flash);
+                }
+        }
 
         // draw any rockets
         for (int i = 0; i < MAX_ROCKETS; i++)
@@ -4402,14 +4431,12 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             }
 
         // draw the miniflags (in the base and on the ground but not carried)
-        for (int t = 0; t < 2; t++)
-            for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
+        for (int t = 0; t < 3; t++) {
+            const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
+            for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
                 if (!fi->carried())
-                    client_graphics.draw_mini_flag(t, *fi, fx.map);
-
-        for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-            if (!fi->carried())
-                client_graphics.draw_mini_flag(2, *fi, fx.map);
+                    client_graphics.draw_mini_flag(t, *fi, fx.map, get_time());
+        }
     }//!hide_game
 
     client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB], menu.options.game.underlineMasterAuth(), menu.options.game.underlineServerAuth());

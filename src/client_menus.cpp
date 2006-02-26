@@ -157,6 +157,9 @@ Menu_game::Menu_game() :
     lagPredictionAmount (_("Lag prediction amount"), true, 0, 10, 10),
 
     messageLogging      (_("Save game messages")),
+    showFlagMessages    (_("Show flag messages"), true),
+    showKillMessages    (_("Show killing messages"), true),
+
     saveStats           (_("Save game statistics"), false),
     showStats           (_("Show stats after the round")),
     showServerInfo      (_("Show server info when connected"), false),
@@ -174,6 +177,9 @@ Menu_game::Menu_game() :
     menu.add_component(&lagPredictionAmount);
     ins_space();
     menu.add_component(&messageLogging);
+    menu.add_component(&showFlagMessages);
+    menu.add_component(&showKillMessages);
+    ins_space();
     menu.add_component(&saveStats);
     menu.add_component(&showStats);
     menu.add_component(&showServerInfo);
@@ -335,6 +341,7 @@ Menu_graphics::Menu_graphics() :
     minTransp   (_("Less transparency effects"), false),
     contTextures(_("Continuous textures between rooms"), false),
     minimapPlayers(_("Disappeared players on minimap")),
+    highlightReturnedFlag(_("Highlight returned flag"), false),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
 
     fpsLimit    (_("FPS limit"), false, 1, 10000, 60, 0),
@@ -351,6 +358,7 @@ Menu_graphics::Menu_graphics() :
     menu.add_component(&minTransp);
     menu.add_component(&contTextures);
     menu.add_component(&minimapPlayers);
+    menu.add_component(&highlightReturnedFlag);
     menu.add_component(&statsBgAlpha);
     ins_space();
     menu.add_component(&fpsLimit);

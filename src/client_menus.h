@@ -100,6 +100,8 @@ public:
     Checkbox    lagPrediction;
     Slider      lagPredictionAmount;
     Select<MessageLoggingMode>  messageLogging;
+    Checkbox    showFlagMessages;
+    Checkbox    showKillMessages;
     Checkbox    saveStats;
     Select<ShowStatsMode> showStats;
     Checkbox    showServerInfo;
@@ -177,6 +179,7 @@ public:
     Checkbox            minTransp;
     Checkbox            contTextures;
     Select<MinimapPlayerMode> minimapPlayers;
+    Checkbox            highlightReturnedFlag;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;

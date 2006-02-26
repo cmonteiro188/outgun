@@ -386,6 +386,8 @@ void Server::check_fav_colors(int pid) {
             return;
         }
     }
+    if (player.color() != -1)
+        return;
 
     // if no favourites free, give a random colour
     vector<int> random_list;

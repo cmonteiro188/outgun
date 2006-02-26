@@ -3296,6 +3296,10 @@ void Team::set_flag_drop_time(int n, double time) {
     team_flags[n].set_drop_time(time);
 }
 
+void Team::set_flag_return_time(int n, double time) {
+    team_flags[n].set_return_time(time);
+}
+
 double Team::accuracy() const {
     if (total_shots == 0)
         return 0;
@@ -3308,6 +3312,7 @@ double Team::accuracy() const {
 Flag::Flag(const WorldCoords& pos_):
     status(status_at_base),
     carrier_id(-1),
+    return_t(0),
     home_pos(pos_),
     pos(pos_)
 { }
