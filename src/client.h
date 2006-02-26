@@ -348,63 +348,73 @@ class Client {
         Route_Base,
         Route_Team
     };
-
     bool botmode;
     bool finished;
 
-    Routing routing;
-    int route_x;
-    int route_y;
-    bool botPrevFire;
-    int last_seen;
+    Routing     routing[Table_Max];
+    int         route_x[Table_Max];
+    int         route_y[Table_Max];
+    bool        botPrevFire;
+    int         last_seen;
 
-    bool IsMission() const;
-    int GetEasyEnemy(double mex, double mey) const;
-    int IsAimed(double mex, double mey, int i) const; // return 1 if in hit point
-    bool IsBehindWall(double mex, double mey, double dx, double dy) const;
-    double ScanDir(double mex, double mey, int dir) const;
+    bool        IsDefender(); // am i defender? (role)
+    bool        IsCarriersDef(int team) const; // are flags of team that we carry safe? 
+    bool        IsFlagsAtBases(int team) const; // are flags of team at bases?
+    int         GetPlayers(int team) const; // get num of players 
+    int         Teams(int roomx, int roomy, int &en, int &fr) const; // get num of en and fr for sector
+    bool        IsHome(int roomx, int roomy) const; //is it base
+
+    bool        IsMission(RouteTable num) const; // have i mission? (No agression mode)
+    int         GetEasyEnemy(double mex, double mey) const; // get easy enemy to kill
+    bool        IsMassive() const; // am i berserker? (No rocket avoiding)
+    bool        HaveFlag(int n) const; // returns if n is carrier
+    int         IsAimed(double mex, double mey, int i) const; // return 1 if in hit point, 2 and 0 - see src ;)
+    bool        IsBehindWall(double mex, double mey, double dx, double dy) const;
+    double      ScanDir(double mex, double mey, int dir) const; // return length to wall
+    bool        NeedShoot(double mex, double mey) const; // shoot or not to shoot?
+    int         GetDir(double dx, double dy) const; // 0 - 0, 2 - Pi/2, 3 - Pi...
+    int         GetDangerousRocket(double mex, double mey) const; // get danger rocket index
+    int         GetDangerousEnemy(double mex, double mey) const; // same for enemy
+    int         GetNearestEnemy(double mex, double mey) const; // get nearest enemy
+    int         FreeDir(double mex, double mey) const; // maximum free space at front
+
     ClientControls Aim(double mex, double mey, int i) const;
-    int GetDir(double dx, double dy) const;
-    int GetDangerousRocket(double mex, double mey) const;
-    int GetDangerousEnemy(double mex, double mey) const;
-    int GetNearestEnemy(double mex, double mey) const;
-    bool NeedShoot(double mex, double mey) const;
     ClientControls EscapeRocket(double mex, double mey, int mrock) const;
-    ClientControls Robot();
     ClientControls GetFlag(double mex, double mey) const;
+    ClientControls FollowFlag(double mex, double mey) const;
     ClientControls GetPowerup(double mex, double mey) const;
     ClientControls MoveDirNoAggregate(int dir) const;
     ClientControls MoveTo(double mex, double mey, double dx, double dy) const;
+    ClientControls MoveToDoor(double mex, double mey, int d) const;
     ClientControls MoveToNoAggregate(double mex, double mey, double dx, double dy) const;
     ClientControls MoveDir(int dir) const;
-    int FreeDir(double mex, double mey) const;
-    void BuildMap();
-    void ChosePass() const;
-    bool IsMassive() const;
+    ClientControls Escape(double mex, double mey) const;
     ClientControls FreeWalk(double mex, double mey) const;
+    ClientControls DoRoute(double mex, double mey, RouteTable num) const; // simulate keypress (follow route)
+    ClientControls Route(double mex, double mey, RouteTable num); // do all route (wrapper)
+
+    void BuildMap();
+    int  BuildRouteTable(int roomx, int roomy, RouteTable num); // build route table (labeled) from me point, return max path len
+    int  BuildRoute(int tox, int toy, RouteTable num); // build route on route table tox(y), return 0 if not needed, -1 if no path
+    bool RouteLogic(RouteTable num); // build route on route table using AI, -1 if not builded
+
     void next_room(int& x, int& y, int i) const; // chose ith door
-    int  label_room(int x, int y, int label, int nr); // label rooms around x y (wich is labeled as label)
-    int  route_room(int &x, int &y, int nr); // go one step to lower label and label it as route , return 1 if step is done
-    int  BuildRouteTable(int roomx, int roomy, int nr); // build route table (labeled) from me point, return max path len
-    int  BuildRoute(int tox, int toy, int nr); // build route on route table tox(y), return 0 if not needed, -1 if no path
-    ClientControls DoRoute(double mex, double mey) const; // simulate keypress (follow route)
-    bool RouteLogic(); // build route on route table using AI, -1 if not builded
-    bool RouteLogicAlt(); // build route on route table using AI, -1 if not builded
-    bool ChoseAltLogic();
-    ClientControls Route(double mex, double mey); // do all route (wrapper)
+    int  label_room(int x, int y, int label, RouteTable num); // label rooms around x y (wich is labeled as label)
+    int  route_room(int &x, int &y, RouteTable num); // go one step to lower label and label it as route , return 1 if step is done
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
     // -1 if no target labeled
-    int TargetNearestBase(int& m_label, int& x, int& y, int team);
-    int TargetNearestTeam(int& m_label, int& x, int& y, int team);
-    int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state);
+    int TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num);
+    int TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable num);
+    int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num);
+
     int TargetRoute(int efb, int efd, int efc,
                     int mfb, int mfd, int mfc,
                     int wfb, int wfd, int wfc,
                     int en,  int fr,
-                    int eb,  int fb, int wb);
+                    int eb,  int fb, int wb,
+                    RouteTable num);
 
-    bool HaveFlag(int n) const; // returns if n is carrier
-    bool IsHome(int mex, int mey) const;//
+    ClientControls Robot(); /// oh... here it is :)
 
     volatile bool abortThreads;
 
