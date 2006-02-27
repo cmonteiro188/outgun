@@ -349,6 +349,8 @@ string FileName::getFull() const {
 
 // definitions for incalleg.h
 
+#ifndef DEDICATED_SERVER_ONLY
+
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
     text_mode(bg);
@@ -389,4 +391,6 @@ void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text,
     text_mode(bg);
     textout_right(bmp, f, text, x, y, color);
 }
-#endif  // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+#endif // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
+
+#endif // !DEDICATED_SERVER_ONLY
