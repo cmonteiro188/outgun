@@ -133,8 +133,7 @@ enum ClientCfgSetting {
     CCS_ShowFlagMessages,
     CCS_ShowKillMessages,
     CCS_HighlightReturnedFlag,
-    CCS_Hack,
-    CCS_MaxCommand = CCS_Hack - 1
+    CCS_EndOfCommands
 };
 
 class ServerThreadOwner {
@@ -384,9 +383,9 @@ class Client {
     int         last_seen;
 
     bool        IsDefender(); // am i defender? (role)
-    bool        IsCarriersDef(int team) const; // are flags of team that we carry safe? 
+    bool        IsCarriersDef(int team) const; // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const; // are flags of team at bases?
-    int         GetPlayers(int team) const; // get num of players 
+    int         GetPlayers(int team) const; // get num of players
     int         Teams(int roomx, int roomy, int &en, int &fr) const; // get num of en and fr for sector
     bool        IsHome(int roomx, int roomy) const; //is it base
 

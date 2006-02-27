@@ -2790,10 +2790,10 @@ void Graphics::unload_rocket_sprites() {
 }
 
 void Graphics::unload_flag_sprites() {
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++) {
         flag_sprite[i].free();
-    for (int i = 0; i < 3; i++)
         flag_flash_sprite[i].free();
+    }
 }
 
 void Graphics::unload_pup_sprites() {

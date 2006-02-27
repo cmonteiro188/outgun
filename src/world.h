@@ -34,6 +34,7 @@
 #include "nassert.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
 #include "utility.h"
+
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
 

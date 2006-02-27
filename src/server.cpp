@@ -386,6 +386,7 @@ void Server::check_fav_colors(int pid) {
             return;
         }
     }
+
     if (player.color() != -1)
         return;
 
@@ -397,8 +398,6 @@ void Server::check_fav_colors(int pid) {
 
     for (vector<int>::const_iterator col = random_list.begin(); col != random_list.end(); ++col)
         if (!fav_colors[team][*col]) {
-            if (player.color() != -1)
-                fav_colors[team][player.color()] = false;
             player.set_color(*col);
             fav_colors[team][player.color()] = true;
             return;

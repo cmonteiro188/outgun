@@ -780,7 +780,7 @@ bool Client::start() {
             log.error(_("Invalid syntax in client.cfg (\"$1\").", line));
             continue;
         }
-        if (settingId > CCS_MaxCommand) {
+        if (settingId >= CCS_EndOfCommands) {
             log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
@@ -1007,11 +1007,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
         log("Download complete: %s '%s' to %s", dl.fileType.c_str(), dl.shortName.c_str(), dl.fullName.c_str());
         if (dl.fileType == "map") {
             if (dl.shortName == servermap) {
-                const bool ok =
-                    #ifndef DEDICATED_SERVER_ONLY
-                    fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) &&
-                    #endif
-                    fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
+                const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
                 remove_useless_flags();
                 if (!ok) {
                     log.error("After download: map '" + dl.shortName + "' not found");
