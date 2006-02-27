@@ -115,7 +115,7 @@ public:
 
     void draw_flag(int team, int x, int y, bool flash = false);
     void draw_flagpos_mark(int team, int flag_x, int flag_y);
-    void draw_mini_flag(int team, const Flag& flag, const Map& map, double time = 0);
+    void draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash = false);
     void draw_minimap_background();
     void update_minimap_background(const Map& map);
     void draw_minimap_player(const Map& map, const ClientPlayer& player);

@@ -778,20 +778,14 @@ void Graphics::draw_flag(int team, int x, int y, bool flash) {
 
 // Minimap functions
 
-void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, double time) {
+void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash) {
     const double px = static_cast<double>(flag.position().px * plw + flag.position().x) / (plw * map.w);
     const double py = static_cast<double>(flag.position().py * plh + flag.position().y) / (plh * map.h);
     const int pix = static_cast<int>(mmx + minimap_start_x + px * minimap_w);
     const int piy = static_cast<int>(mmy + minimap_start_y + py * minimap_h);
     const int scl = minimap_place_w;
     rectfill(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, col[COLYELLOW]);
-    // Flash the flag if just returned.
-    int c;
-    if (time == 0 || time > flag.return_time() + 2 || static_cast<int>(time * 15) % 3 > 0)
-        c = teamcol[team];
-    else
-        c = teamflashcol[team];
-    rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, c);
+    rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, flash ? teamflashcol[team] : teamcol[team]);
 }
 
 void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {

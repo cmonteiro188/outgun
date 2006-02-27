@@ -1992,13 +1992,18 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLbyte flags;
                 readByte(lebuf, count, team);
                 readByte(lebuf, count, flags);
+                bool new_flag = false;
                 for (int i = 0; i < flags; i++) {
                     if (team == 2) {
-                        if (i >= static_cast<int>(fx.wild_flags.size()))
+                        if (i >= static_cast<int>(fx.wild_flags.size())) {
                             fx.wild_flags.push_back(Flag(WorldCoords()));
+                            new_flag = true;
+                        }
                     }
-                    else if (i >= static_cast<int>(fx.teams[team].flags().size()))
+                    else if (i >= static_cast<int>(fx.teams[team].flags().size())) {
                         fx.teams[team].add_flag(WorldCoords());
+                        new_flag = true;
+                    }
                     NLubyte carried;
                     readByte(lebuf, count, carried);    // 0==not carried 1==carried
                     if (carried == 0) {
@@ -2010,20 +2015,21 @@ void Client::process_incoming_data(const char* data, int length) {
                         readShort(lebuf, count, x);
                         readShort(lebuf, count, y);
                         const WorldCoords pos(px, py, x, y);
+                        bool was_carried;
                         if (team == 2) {
+                            was_carried = fx.wild_flags[i].carried();
                             fx.wild_flags[i].move(pos);
                             fx.wild_flags[i].drop();
                         }
-                        else
+                        else {
+                            was_carried = fx.teams[team].flag(i).carried();
                             fx.teams[team].drop_flag(i, pos);
-                        // Assume that flags dropped on the flag bases are returned.
-                        const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
-                        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
-                            if (pos == *pi)
-                                if (team == 2)
-                                    fx.wild_flags[i].set_return_time(get_time());
-                                else
-                                    fx.teams[team].set_flag_return_time(i, get_time());
+                        }
+                        if (!new_flag && was_carried)
+                            if (team == 2)
+                                fx.wild_flags[i].set_return_time(get_time());
+                            else
+                                fx.teams[team].set_flag_return_time(i, get_time());
                     }
                     else {
                         //carried: get carrier
@@ -4430,8 +4436,11 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         for (int t = 0; t < 3; t++) {
             const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
             for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-                if (!fi->carried())
-                    client_graphics.draw_mini_flag(t, *fi, fx.map, get_time());
+                if (!fi->carried()) {
+                    const bool flash = menu.options.graphics.highlightReturnedFlag() &&
+                                       get_time() < fi->return_time() + 2 && static_cast<int>(get_time() * 15) % 3 == 0;
+                    client_graphics.draw_mini_flag(t, *fi, fx.map, flash);
+                }
         }
     }//!hide_game
 

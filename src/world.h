@@ -152,6 +152,7 @@ struct WorldCoords {
     WorldCoords() { }
 
     bool operator==(const WorldCoords& op) const { return px == op.px && py == op.py && x == op.x && y == op.y; }
+    bool operator!=(const WorldCoords& op) const { return !(*this == op); }
 
     int px, py; //screen (if px == -1, unused)
     int x, y;   //relative (to screen) X,Y position
