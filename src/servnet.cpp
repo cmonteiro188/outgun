@@ -1053,12 +1053,19 @@ int ServerNetworking::client_connected(int id) {
     //2TEAM: check wich team to put player
     int t1 = 0;     //red team count
     int t2 = 0;     //blue team count
+    int red_bots = 0, blue_bots = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
-            if (i / TSIZE == 0)
+            if (i / TSIZE == 0) {
                 t1++;
-            else
+                if (world.player[i].is_bot())
+                    red_bots++;
+            }
+            else {
                 t2++;
+                if (world.player[i].is_bot())
+                    blue_bots++;
+            }
         }
 
     // put on red team, blue team, or randomize if same # of players in both teams
@@ -1068,8 +1075,14 @@ int ServerNetworking::client_connected(int id) {
     else if (t1 > t2)
         targ = TSIZE;
     else {
-        host->refresh_team_score_modifiers();
-        targ = TSIZE * host->getLessScoredTeam();
+        if (red_bots > blue_bots)
+            targ = 0;
+        else if (blue_bots > red_bots)
+            targ = 1;
+        else {
+            host->refresh_team_score_modifiers();
+            targ = TSIZE * host->getLessScoredTeam();
+        }
     }
 
     // alloc new player : scans only slots of the team (up from targ)
