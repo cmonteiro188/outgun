@@ -303,7 +303,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
         if (d != dd && dist1 > 2 * PLAYER_RADIUS)
             continue;
 
-        const double dist2 = (dist1 / fx.physics.rocket_speed) * fx.physics.max_run_speed/2;
+        const double dist2 = (dist1 / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
 
         if (d == 0 || d == 4)
             dist1 = fabs(dy);
@@ -759,7 +759,7 @@ ClientControls Client::Escape(double mex, double mey) const {
             continue;
         next_room(x, y, i);
         Teams(x, y, enemies, friends);
-        if (friends + 1 > enemies && friends)
+        if (friends + 1 > enemies && friends > 0)
             break;
     }
     if (i == 4)
