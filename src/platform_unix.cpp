@@ -22,6 +22,7 @@
  */
 
 #include <dirent.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -147,6 +148,36 @@ bool platIsDirectory(const string& name) {
 void platInit() {
     directory_separator = '/';
     g_systemTimer = new LinuxTimer();
+}
+
+static void closeSignalHandler(int) {
+    g_exitFlag = true;
+}
+
+void platInitAfterAllegro() {
+    // initialize wheregamedir
+    static const int bufSize = 1000;
+    char buf[bufSize];
+    int len = readlink("/proc/self/exe", buf, bufSize);
+    while (len > 0 && buf[len - 1] != '/')
+        --len;
+    if (len > 0) 
+        wheregamedir.assign(buf, len);
+    else { // it's not working as expected, give up
+        #ifndef DEDICATED_SERVER_ONLY
+        // we can use Allegro, which is nice and reliable
+        get_executable_name(buf, bufSize);
+        replace_filename(buf, buf, "", bufSize);
+        wheregamedir = buf;
+        #else
+        wheregamedir = "./";
+        #endif
+    }
+
+    // grab basic closing signals from Allegro (this is not very nice but Allegro makes a mess when receiving a signal; besides, we just want to know a signal was received, not terminate immediately)
+    signal(SIGHUP, closeSignalHandler);
+    signal(SIGINT, closeSignalHandler);
+    signal(SIGTERM, closeSignalHandler);
 }
 
 void platUninit() {

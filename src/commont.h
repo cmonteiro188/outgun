@@ -177,6 +177,8 @@ public:
 
 extern MasterSettings g_masterSettings;
 
+extern volatile bool g_exitFlag;
+
 template<int expBits, int expBias> class SignedByteFloat {
 public:
     enum { mantissaBits = 8 - 1 - expBits,  // bits in byte - sign bit - exponent bits

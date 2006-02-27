@@ -32,6 +32,7 @@
 // from commont.h
 char directory_separator;
 std::string wheregamedir;
+volatile bool g_exitFlag;
 
 // from timer.h
 SystemTimer* g_systemTimer = 0;

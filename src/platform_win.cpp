@@ -173,6 +173,14 @@ void platInit() {
     }
 }
 
+void platInitAfterAllegro() {
+    static const int bufSize = 1000;
+    char pathBuf[bufSize];
+    get_executable_name(pathBuf, bufSize);
+    replace_filename(pathBuf, pathBuf, "", bufSize);
+    wheregamedir = pathBuf;
+}
+
 void platUninit() {
     delete g_systemTimer;
     g_systemTimer = 0;

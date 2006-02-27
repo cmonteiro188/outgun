@@ -58,6 +58,7 @@ bool platIsFile(const std::string& name); // returns true if name exists and is 
 bool platIsDirectory(const std::string& name);
 
 void platInit(); // perform platform specific initializations; called very early in the program
+void platInitAfterAllegro(); // second stage initializations, when Allegro is running (or won't be at all)
 
 void platUninit(); // clean up; called before exiting
 

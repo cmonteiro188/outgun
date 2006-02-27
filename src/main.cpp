@@ -111,7 +111,6 @@ bool check_dir(const string& dir, LogSet& log) {
 #ifndef DEDICATED_SERVER_ONLY
 
 class GlobalCloseButtonHook {
-    static volatile bool flag;
     friend void GlobalCloseButtonHook__closeCallback();
 
 public:
@@ -120,13 +119,10 @@ public:
         LOCK_FUNCTION(GlobalCloseButtonHook__closeCallback);
         set_close_button_callback(GlobalCloseButtonHook__closeCallback);
     }
-    static volatile bool* flagPtr() { return &flag; }
 };
 
-volatile bool GlobalCloseButtonHook::flag = false;
-
 void GlobalCloseButtonHook__closeCallback() {
-    GlobalCloseButtonHook::flag = true;
+    g_exitFlag = true;
 } END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
 
 
@@ -187,18 +183,9 @@ int wrappedMain(int argc, const char* argv[]) {
     }
     install_keyboard();
 
-    // find out where we are
-    char* path = new char[2048];
-    get_executable_name(path, 2048);
-    replace_filename(path, path, "", 256);
-    wheregamedir = path;
-    delete[] path;
-
-    #else // !DEDICATED_SERVER_ONLY
-
-    wheregamedir = "./";
-
     #endif // !DEDICATED_SERVER_ONLY
+
+    platInitAfterAllegro();
 
     NoLog noLog;
     LogSet noLogSet(&noLog, &noLog, &noLog);
@@ -569,10 +556,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         GameserverInterface* gameserver = new GameserverInterface(log, serverCfg, memoryErrorLog, "");
         if (gameserver->start(serverCfg.server_maxplayers)) {
             #ifndef DEDICATED_SERVER_ONLY
-            gameserver->loop(GlobalCloseButtonHook::flagPtr(), true);
+            gameserver->loop(&g_exitFlag, true);
             #else
-            bool quit = false;
-            gameserver->loop(&quit, false);
+            gameserver->loop(&g_exitFlag, false);
             #endif
             gameserver->stop();
         }
@@ -598,7 +584,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
         Client* gameclient = new Client(log, clientCfg, serverCfg, clientLog, memoryErrorLog);
         if (gameclient->start()) {
-            gameclient->loop(GlobalCloseButtonHook::flagPtr(), showFirstTimeSplash);
+            gameclient->loop(&g_exitFlag, showFirstTimeSplash);
             gameclient->stop();
         }
         else
