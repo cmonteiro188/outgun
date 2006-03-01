@@ -341,7 +341,7 @@ Menu_graphics::Menu_graphics() :
     minTransp   (_("Less transparency effects"), false),
     contTextures(_("Continuous textures between rooms"), false),
     minimapPlayers(_("Disappeared players on minimap")),
-    highlightReturnedFlag(_("Highlight returned flag"), false),
+    highlightReturnedFlag(_("Highlight returned and dropped flags"), false),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
 
     fpsLimit    (_("FPS limit"), false, 1, 10000, 60, 0),
