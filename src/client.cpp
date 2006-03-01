@@ -3445,7 +3445,8 @@ bool Client::getServerList() {
     ostringstream request;
     request << "GET " << g_masterSettings.query() << "?simple&branch=" << url_encode(GAME_BRANCH) << "&master=" << itoa(g_masterSettings.crc())
             << "&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
-    request << "User-Agent: " << GAME_STRING << '/' << GAME_BRANCH << ' ' << GAME_VERSION << "\r\n";
+    request << "Host: " << g_masterSettings.host() << "\r\n";
+    request << "User-Agent: " << HTTP_USER_AGENT << "\r\n";
     request << "Connection: close\r\n\r\n";
 
     NetworkResult result = writeToUnblockingTCP(sock, request.str().data(), request.str().length(), &abortThreads, 30000);

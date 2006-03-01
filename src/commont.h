@@ -160,6 +160,7 @@ class LogSet;
 
 class MasterSettings {
     NLaddress masterAddress;
+    std::string hostName;
     std::string queryScript;
     std::string submitScript;
     NLaddress bugAddress;
@@ -167,6 +168,7 @@ class MasterSettings {
 
 public:
     const NLaddress& address() const { return masterAddress; }
+    const std::string& host() const { return hostName; }
     const std::string& query() const { return queryScript; }
     const std::string& submit() const { return submitScript; }
     const NLaddress& bugReportAddress() const { return bugAddress; }
@@ -231,6 +233,8 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 #define GAME_VERSION "1.0.3"
 #define GAME_SHORT_VERSION "1.0.3"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 #define GAME_BRANCH "base"  // this only affects the master server communications, to make it tell the correct newest version
+
+#define HTTP_USER_AGENT (GAME_STRING "/" GAME_BRANCH "-" GAME_VERSION)
 
 #define TK1_VERSION_STRING "v048"
 

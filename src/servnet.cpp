@@ -2083,7 +2083,7 @@ void ServerNetworking::run_mastertalker_thread() {
         // build and send data
         map<string, string> parameters = master_parameters(localAddress);
         const string data = build_http_data(parameters);
-        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.submit(), data);
+        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.host(), g_masterSettings.submit(), data);
         if (result != NR_ok)
             log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         else {
@@ -2145,7 +2145,7 @@ void ServerNetworking::run_mastertalker_thread() {
     // send quit message
     map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
     const string data = build_http_data(parameters);
-    NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
+    NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
     if (result != NR_ok)
         log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
     else {
@@ -2180,6 +2180,7 @@ void ServerNetworking::run_website_thread() {
     // use it even if not public
 
     NLaddress website_address;
+    string working_address_string;
     double website_talk_time = 0.0;
     bool first_connection = true;
     int sent_maplist_revision = -1;
@@ -2206,6 +2207,7 @@ void ServerNetworking::run_website_thread() {
         for (vector<string>::const_iterator addri = web_servers.begin(); addri != web_servers.end(); ++addri)
             if (nlGetAddrFromName(addri->c_str(), &website_address)) {
                 success = true;
+                working_address_string = *addri;
                 break;
             }
             else
@@ -2233,7 +2235,7 @@ void ServerNetworking::run_website_thread() {
             first_connection = false;
         }
         const string data = build_http_data(parameters);
-        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, web_script, data, web_auth);
+        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, working_address_string, web_script, data, web_auth);
         if (result == NR_ok) {
             // save response to a file
             ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
@@ -2274,7 +2276,7 @@ void ServerNetworking::run_website_thread() {
 
     // send quit message
     const string quit = "quit=1\r\n";
-    const NetworkResult result = post_http_data(websock, 0, 5000, web_script, quit, web_auth);  // only 5 seconds allowed; it's not so crucial
+    const NetworkResult result = post_http_data(websock, 0, 5000, working_address_string, web_script, quit, web_auth);  // only 5 seconds allowed; it's not so crucial
     log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
     if (result == NR_ok) {
@@ -2361,10 +2363,11 @@ string ServerNetworking::build_http_data(const map<string, string>& parameters) 
 }
 
 NetworkResult ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
-                                            const string& script, const string& parameters, const string& auth) const {
+                        const string& host, const string& script, const string& parameters, const string& auth) const {
     ostringstream data;
     data << "POST " << script << " HTTP/1.0\r\n";
-    data << "User-Agent: Outgun " << GAME_VERSION << "\r\n";
+    data << "Host: " << host << "\r\n";
+    data << "User-Agent: " << HTTP_USER_AGENT << "\r\n";
     if (!auth.empty())
         data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
     data << "Connection: close\r\n";

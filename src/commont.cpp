@@ -245,8 +245,10 @@ void MasterSettings::load(LogSet& log) {
     try {
         if (name.length() < 3)
             masterAddress.valid = NL_FALSE;
-        else
+        else {
             nlGetAddrFromName(name.c_str(), &masterAddress);
+            hostName = name;
+        }
         if (bugName.length() < 3)
             bugAddress.valid = NL_FALSE;
         else
@@ -259,6 +261,8 @@ void MasterSettings::load(LogSet& log) {
     if (masterAddress.valid == NL_FALSE) {
         if (name.length() >= 3)
             log("Can't resolve master server DNS name to IP.");
+        else
+            hostName = ip;
         nlStringToAddr(ip.c_str(), &masterAddress);
     }
     if (bugAddress.valid == NL_FALSE) {
