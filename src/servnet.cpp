@@ -1078,7 +1078,7 @@ int ServerNetworking::client_connected(int id) {
         if (red_bots > blue_bots)
             targ = 0;
         else if (blue_bots > red_bots)
-            targ = 1;
+            targ = TSIZE;
         else {
             host->refresh_team_score_modifiers();
             targ = TSIZE * host->getLessScoredTeam();
