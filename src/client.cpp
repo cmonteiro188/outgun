@@ -4077,7 +4077,7 @@ void Client::stop() {
         cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
         cfg << CCS_MinimapPlayers       << ' ' << (menu.options.graphics.minimapPlayers() == Menu_graphics::MP_EarlyCut ? 1 : menu.options.graphics.minimapPlayers() == Menu_graphics::MP_LateCut ? 2 : 0) << '\n';
-        cfg << CCS_HighlightReturnedFlag << ' ' << (menu.options.graphics.highlightReturnedFlag() ? 1 : 0);
+        cfg << CCS_HighlightReturnedFlag << ' ' << (menu.options.graphics.highlightReturnedFlag() ? 1 : 0) << '\n';
         cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
 
         // save sound menu settings
