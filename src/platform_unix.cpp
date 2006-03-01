@@ -161,7 +161,7 @@ void platInitAfterAllegro() {
     int len = readlink("/proc/self/exe", buf, bufSize);
     while (len > 0 && buf[len - 1] != '/')
         --len;
-    if (len > 0) 
+    if (len > 0)
         wheregamedir.assign(buf, len);
     else { // it's not working as expected, give up
         #ifndef DEDICATED_SERVER_ONLY
