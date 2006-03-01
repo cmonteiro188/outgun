@@ -142,6 +142,8 @@ Cores favoritas
 Prevenção de lag
 Quantidade da prevenção de lag
 Salvar as mensagens do chat
+Mostrar as mensagens sobre bandeiras
+Mostrar as mensagens sobre mortes
 Salvar estatísticas do jogo
 Mostrar estatísticas depois do round
 Mostrar info do servidor quando conectado
@@ -186,6 +188,7 @@ Fonte
 Antialiasing
 Menos efeitos de transparência
 Textura continua entre salas
+Destacar bandeiras retornadas e largadas
 Jogadores desaparecidos no mini mapa
 Estado alfa da tela
 Limite do FPS
@@ -807,6 +810,7 @@ O diretório '$1' não foi encontrado e não pode ser criado.
 ; the server is shutting down. In rare cases they take longer to disappear.
 Desligando: ABORTANDO $1 atualizações do torneio
 Desligando: threads do admin shell
+Desligando: thread dos bots
 Desligando: thread principal
 Desligando: thread do comunicador mestre
 Desligando: servidor da net

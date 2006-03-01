@@ -137,6 +137,8 @@ Suosikkivärit
 Viive-ennustus
 Viive-ennustuksen määrä
 Tallenna viestit
+Näytä lippuviestit
+Näytä tappoviestit
 Tallenna tilastot
 Näytä tilastot pelin jälkeen
 Näytä palvelimen tiedot yhdistämisen jälkeen
@@ -181,6 +183,7 @@ Fontti
 Reunanpehmennys
 Vähemmän läpinäkyvyystehosteita
 Tekstuurien jatkuvuus huoneesta toiseen
+Korosta palautetut ja pudotetut liput
 Kadonneiden pelaajien näyttö kartalla
 Tilastoruudun läpinäkymättömyys
 FPS-rajoitus
@@ -802,6 +805,7 @@ Hakemistoa "$1" ei ole eikä sitä pysty luomaan.
 ; the server is shutting down. In rare cases they take longer to disappear.
 Sammutus: KESKEYTETÄÄN $1 turnauspäivitystä
 Sammutus: ylläpitoyhteyssäie
+Sammutus: bottisäie
 Sammutus: pääsäie
 Sammutus: pääpalvelinsäie
 Sammutus: verkkopalvelin

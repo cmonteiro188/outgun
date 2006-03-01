@@ -137,6 +137,8 @@ Favorite colors
 Lag prediction
 Lag prediction amount
 Save game messages
+Show flag messages
+Show killing messages
 Save game statistics
 Show stats after the round
 Show server info when connected
@@ -181,6 +183,7 @@ Font
 Antialiasing
 Less transparency effects
 Continuous textures between rooms
+Highlight returned and dropped flags
 Disappeared players on minimap
 Stats screen alpha
 FPS limit
@@ -802,6 +805,7 @@ The directory '$1' was not found and could not be created.
 ; the server is shutting down. In rare cases they take longer to disappear.
 Shutdown: ABORTING $1 tournament updates
 Shutdown: admin shell threads
+Shutdown: bot thread
 Shutdown: main thread
 Shutdown: master talker thread
 Shutdown: net server
