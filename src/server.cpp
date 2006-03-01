@@ -939,26 +939,31 @@ void Server::remove_bot() {
                 ++red;
             else
                 ++blue;
+    int remove_team;
+    if (red > blue)
+        remove_team = 0;
+    else if (blue > red)
+        remove_team = 1;
+    else
+        remove_team = -1;   // any team
+    // First try to remove a dead bot.
     for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used && world.player[i].is_bot() && (red == blue || red > blue && i / TSIZE == 0 || blue > red && i / TSIZE == 1)) {
-            disconnectPlayer(i, disconnect_kick);
-            return;
-        }
-    // Just remove one. First try to remove a dead bot.
-    for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used && world.player[i].is_bot() && world.player[i].dead) {
+        if (world.player[i].used && world.player[i].is_bot() && world.player[i].dead &&
+                        (remove_team == -1 || world.player[i].team() == remove_team)) {
             disconnectPlayer(i, disconnect_kick);
             return;
         }
     // Try to remove a bot with no flag.
     for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used && world.player[i].is_bot() && !world.player[i].stats().has_flag()) {
+        if (world.player[i].used && world.player[i].is_bot() && !world.player[i].stats().has_flag() &&
+                        (remove_team == -1 || world.player[i].team() == remove_team)) {
             disconnectPlayer(i, disconnect_kick);
             return;
         }
     // Just get rid of one bot.
     for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used && world.player[i].is_bot()) {
+        if (world.player[i].used && world.player[i].is_bot() &&
+                        (remove_team == -1 || world.player[i].team() == remove_team)) {
             disconnectPlayer(i, disconnect_kick);
             return;
         }
