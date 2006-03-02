@@ -90,6 +90,8 @@ public:
 
     void clearModifiersIfIdle() { if (!isUpDown() && !isLeftRight()) data &= ~(run | strafe); }
 
+    int getDirection() const; // returns -1 for no direction, else between 0..7
+
 private:
     NLubyte data;
 

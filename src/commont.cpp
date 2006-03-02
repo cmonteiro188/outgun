@@ -113,6 +113,36 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
 
 #endif // DEDICATED_SERVER_ONLY
 
+int ClientControls::getDirection() const {
+    // left
+    if (isLeft() && !isRight()) {
+        if (isUp() && !isDown())  // + up
+            return 5;
+        else if (!isUp() && isDown()) // + down
+            return 3;
+        else
+            return 4;
+    }
+    // right
+    else if (!isLeft() && isRight()) {
+        if (isUp() && !isDown())  // + up
+            return 7;
+        else if (!isUp() && isDown()) // + down
+            return 1;
+        else
+            return 0;
+    }
+    // (!left !right) or (left right)
+    else {
+        if (isUp() && !isDown())  // + up
+            return 6;
+        else if (!isUp() && isDown()) // + down
+            return 2;
+        else
+            return -1;
+    }
+}
+
 istream& getline_smart(istream& in, string& str) {
     str.clear();
     while (1) {

@@ -381,6 +381,7 @@ class Client {
     int         route_y[Table_Max];
     bool        botPrevFire;
     int         last_seen;
+    int         myGundir;
 
     bool        IsDefender(); // am i defender? (role)
     bool        IsCarriersDef(int team) const; // are flags of team that we carry safe?
@@ -438,6 +439,8 @@ class Client {
                     int en,  int fr,
                     int eb,  int fb, int wb,
                     RouteTable num);
+
+    ClientControls getRobotControls();
 
     ClientControls Robot(); /// oh... here it is :)
 

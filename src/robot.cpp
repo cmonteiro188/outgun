@@ -41,7 +41,7 @@
 
 #include "client.h"
 
-#define averageLag (averageLag / 2)
+//#define averageLag (averageLag / 2)
 
 using std::vector;
 
@@ -133,7 +133,7 @@ int Client::IsAimed(double mex, double mey, int i) const { // return 1 if in hit
 
     const int dir = GetDir(dx, dy);
 
-    if (fx.player[me].gundir != dir)
+    if (myGundir != dir)
         return 0;
 
     if (IsBehindWall(mex, mey, dx, dy))
@@ -435,10 +435,10 @@ ClientControls Client::Aim(double mex, double mey, int i) const {
 
     if (dir == 1) { // almost aimed
         ctrl.setStrafe();
-        if (fx.player[me].gundir == 0 ||
-            fx.player[me].gundir == 2 ||
-            fx.player[me].gundir == 4 ||
-            fx.player[me].gundir == 6)
+        if (myGundir == 0 ||
+            myGundir == 2 ||
+            myGundir == 4 ||
+            myGundir == 6)
         {
             if (dx > 0)
                 ctrl.setRight();
@@ -473,11 +473,10 @@ ClientControls Client::Aim(double mex, double mey, int i) const {
 
 
 int Client::FreeDir(double mex, double mey) const {
-    const int dir = fx.player[me].gundir;
     int mdir = 0;
     double mdist = 0;
 
-    for (int i = dir - 1; i != dir + 2; ++i) {
+    for (int i = myGundir - 1; i <= myGundir + 1; ++i) {
         int d;
         if (i > 7)
             d = i - 8;
@@ -487,7 +486,7 @@ int Client::FreeDir(double mex, double mey) const {
             d = i;
         const double dist = ScanDir(mex, mey, d);
 
-        if (dist > mdist || mdist == 0 || dist == mdist && i == dir) {
+        if (dist > mdist || mdist == 0 || dist == mdist && i == myGundir) {
             mdist = dist;
             mdir = d;
         }
@@ -803,6 +802,7 @@ ClientControls Client::FollowFlag(double mex, double mey) const {
 
 void Client::BuildMap() {
     last_seen = -1;
+    myGundir = -1;
 
     for (int x = 0; x < fx.map.w; ++x)
         for (int y = 0; y < fx.map.h; ++y) {
@@ -1519,34 +1519,11 @@ bool Client::IsMission(RouteTable num) const {
     return false;
 }
 
-ClientControls Client::Robot() {
-    const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
-
-    if (hide_map)
-        return ClientControls();
-
-    if (!fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1)
-        return ClientControls();
-
+ClientControls Client::getRobotControls() {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
 
     fx.map.room[fx.player[me].roomx][fx.player[me].roomy].visited_frame = fx.frame;
-
-    if (NeedShoot(mex, mey)) {
-        if (!botPrevFire) { //if not fired
-            char lebuf[16]; int count = 0;
-            writeByte(lebuf, count, data_fire_on);
-            client->send_message(lebuf, count);
-            botPrevFire = true;
-        }
-    }
-    else if (botPrevFire) {
-        char lebuf[16]; int count = 0;
-        writeByte(lebuf, count, data_fire_off);
-        client->send_message(lebuf, count);
-        botPrevFire = false;
-    }
 
     int i = last_seen; // lost target
     if (i == -1 || !fx.player[i].used ||
@@ -1604,5 +1581,44 @@ ClientControls Client::Robot() {
         return ctrl;
     ctrl = FreeWalk(mex, mey);
     ctrl.clearRun();
+    return ctrl;
+}
+
+ClientControls Client::Robot() {
+    const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
+
+    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1) {
+        myGundir = -1;
+        return ClientControls();
+    }
+
+    if (myGundir == -1) // was dead, or something like that
+        myGundir = fx.player[me].gundir;
+
+    ClientControls ctrl = getRobotControls();
+
+    if (!ctrl.isStrafe()) {
+        const int newDirection = ctrl.getDirection();
+        if (newDirection != -1)
+            myGundir = newDirection;
+    }
+
+    const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
+    const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
+    if (NeedShoot(mex, mey)) {
+        if (!botPrevFire) { //if not fired
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, data_fire_on);
+            client->send_message(lebuf, count);
+            botPrevFire = true;
+        }
+    }
+    else if (botPrevFire) {
+        char lebuf[16]; int count = 0;
+        writeByte(lebuf, count, data_fire_off);
+        client->send_message(lebuf, count);
+        botPrevFire = false;
+    }
+
     return ctrl;
 }

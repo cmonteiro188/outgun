@@ -1332,31 +1332,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
         const ClientControls& ctrl = pl.controls;
         //if not strafing, update direction
         if (!ctrl.isStrafe() && !pl.dead) {
-            // left
-            if (ctrl.isLeft() && !ctrl.isRight()) {
-                if (ctrl.isUp() && !ctrl.isDown())  // + up
-                    pl.gundir = 5;
-                else if (!ctrl.isUp() && ctrl.isDown()) // + down
-                    pl.gundir = 3;
-                else
-                    pl.gundir = 4;
-            }
-            // right
-            else if (!ctrl.isLeft() && ctrl.isRight()) {
-                if (ctrl.isUp() && !ctrl.isDown())  // + up
-                    pl.gundir = 7;
-                else if (!ctrl.isUp() && ctrl.isDown()) // + down
-                    pl.gundir = 1;
-                else
-                    pl.gundir = 0;
-            }
-            // (!left !right) or (left right)
-            else {
-                if (ctrl.isUp() && !ctrl.isDown())  // + up
-                    pl.gundir = 6;
-                else if (!ctrl.isUp() && ctrl.isDown()) // + down
-                    pl.gundir = 2;
-            }
+            const int newDir = ctrl.getDirection();
+            if (newDir != -1)
+                pl.gundir = newDir;
         }
     }
 
