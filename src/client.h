@@ -38,7 +38,6 @@
 #include "gameserver_interface.h"
 #include "log.h"
 #include "mutex.h"
-#include "names.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
 #include "thread.h"
 #include "world.h"
