@@ -22,26 +22,14 @@
  *
  */
 
-#include <algorithm>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <sstream>
-#include <string>
 #include <vector>
 
-#include <cctype>
-#include <cmath>
-
 #include "leetnet/client.h"
-#include "commont.h"
 #include "nassert.h"
 #include "protocol.h"
 #include "world.h"
 
 #include "client.h"
-
-//#define averageLag (averageLag / 2)
 
 using std::vector;
 
@@ -497,7 +485,6 @@ int Client::FreeDir(double mex, double mey) const {
 }
 
 ClientControls Client::MoveDirNoAggregate(int dir) const {
-    double dx, dy;
     double sdx = 0;
     double sdy = 0;
 
@@ -512,8 +499,8 @@ ClientControls Client::MoveDirNoAggregate(int dir) const {
         if (fx.player[i].roomx != fx.player[me].roomx ||
             fx.player[i].roomy != fx.player[me].roomy)
                 continue;
-        dx = fx.player[i].lx - fx.player[me].lx;
-        dy = fx.player[i].ly - fx.player[me].ly;
+        const double dx = fx.player[i].lx - fx.player[me].lx + averageLag * (fx.player[i].sx - fx.player[me].sx);
+        const double dy = fx.player[i].ly - fx.player[me].ly + averageLag * (fx.player[i].sy - fx.player[me].sy);
         if (fabs(dx) > PLAYER_RADIUS || fabs(dy) > PLAYER_RADIUS)
             continue;
         sdx += dx;
@@ -524,14 +511,13 @@ ClientControls Client::MoveDirNoAggregate(int dir) const {
     if (!n)
         return MoveDir(dir);
 
-    ClientControls ctrl;
-
     if (!sdx && !sdy)
-        dir = rand()%8;
+        dir = rand() % 8;
 
     sdx /= n;
     sdy /= n;
 
+    ClientControls ctrl;
     ctrl.setRun();
     ctrl.setStrafe();
 
@@ -619,14 +605,14 @@ ClientControls Client::FreeWalk(double mex, double mey) const {
 }
 
 ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy) const {
-    int mdir;
-    if (IsBehindWall(mex, mey, dx, dy)) {//walking
-        mdir = FreeDir(mex, mey);
+    if (IsBehindWall(mex, mey, dx, dy)) { //walking
+        const int mdir = FreeDir(mex, mey);
         return MoveDir(mdir);
     }
-    else
-        mdir = GetDir(dx, dy);
-    return MoveDirNoAggregate(mdir);
+    else {
+        const int mdir = GetDir(dx, dy);
+        return MoveDirNoAggregate(mdir);
+    }
 }
 
 
@@ -786,10 +772,10 @@ ClientControls Client::FollowFlag(double mex, double mey) const {
     }
     if (!num || (!sx && !sy) || IsHome(fx.player[me].roomx, fx.player[me].roomy))
         return ClientControls();
-    dx = dx/num - mex;
-    dy = dy/num - mey;
-    sx = sx/num;
-    sy = sy/num;
+    dx = dx / num - mex;
+    dy = dy / num - mey;
+    sx = sx / num;
+    sy = sy / num;
     double dist = (S_H + S_W) / 4;
     const double tm = dist / fx.physics.max_run_speed;
     dx += sx * tm;
@@ -1003,22 +989,18 @@ int Client::BuildRoute(int tox, int toy, RouteTable num) {
 }
 
 ClientControls Client::DoRoute(double melx, double mely, RouteTable num) const {
-    int dir = -1;
-    int enemies = 0;
-    int friends = 0;
-    const int mex = fx.player[me].roomx;
-    const int mey = fx.player[me].roomy;
-
     if (routing[num] == Route_None)
         return ClientControls();
 
+    const int mex = fx.player[me].roomx;
+    const int mey = fx.player[me].roomy;
+
     const int label = fx.map.room[mex][mey].label[num];
 
-    if (label == -1)
+    if (label == -1 || route_x[num] == mex && route_y[num] == mey)
         return ClientControls();
 
-    if (route_x[num] == mex && route_y[num] == mey)
-        return ClientControls();
+    int dir = -1;
 
     for (int i = 0; i < 4; ++i) {
         if (!fx.map.room[mex][mey].pass[i])
@@ -1028,6 +1010,7 @@ ClientControls Client::DoRoute(double melx, double mely, RouteTable num) const {
         next_room(x, y, i);
         if (fx.map.room[x][y].route[num] && fx.map.room[x][y].label[num] == label + 1) {
             if (HaveFlag(me)) {
+                int enemies = 0, friends = 0;
                 Teams(x, y, enemies, friends);
                 if (enemies > friends + 1)
                     continue;
@@ -1142,7 +1125,7 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
         }
     }
     else { // i am flagman ;)
-        if (GetPlayers(fx.player[me].team())>1) {
+        if (GetPlayers(fx.player[me].team()) > 1) {
             TargetRoute(0, 0, 0,
                     1, 0, 0,
                     0, 0, 0,
@@ -1184,8 +1167,8 @@ bool Client::IsMassive() const {
             fx.player[i].roomy != fx.player[me].roomy)
                 continue; //already here
 
-        dx += fabs(fx.player[i].lx - fx.player[me].lx);
-        dy += fabs(fx.player[i].ly - fx.player[me].ly);
+        dx += fabs(fx.player[i].lx - fx.player[me].lx + averageLag * (fx.player[i].sx - fx.player[me].sx));
+        dy += fabs(fx.player[i].ly - fx.player[me].ly + averageLag * (fx.player[i].sy - fx.player[me].sy));
         ++n;
     }
 
@@ -1289,7 +1272,6 @@ bool Client::IsCarriersDef(int team) const {
     int defenders = 0;
     int def_me = -1;
     int players = GetPlayers(fx.player[me].team());
-    int n;
     int flags_nr = 0;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
@@ -1298,7 +1280,7 @@ bool Client::IsCarriersDef(int team) const {
         flags_nr++;
         int enemies = 0, friends = 0;
         const ClientPlayer& pl = fx.player[fi->carrier()];
-        n = Teams(pl.roomx, pl.roomy, enemies, friends);
+        int n = Teams(pl.roomx, pl.roomy, enemies, friends);
         if (n != -1) {
             if (me < fi->carrier())
                 n++;
