@@ -1437,15 +1437,15 @@ void Server::simulate_and_broadcast_frame() {
                     network.send_disconnecting_message(i, world.player[i].kickTimer / 10);
                 continue;
             }
-            if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle() && get_player_count() >= idlekick_playerlimit) {
+            if (idlekick_time != 0 && !world.player[i].attack && world.player[i].controls.idle() && network.get_human_count() >= idlekick_playerlimit) {
                 ++world.player[i].idleFrames;
                 int timeToKick = idlekick_time - world.player[i].idleFrames;
                 if (timeToKick == 0)
                     disconnectPlayer(i, disconnect_idlekick);
-                else if ((timeToKick == 60*10 && idlekick_time >= 3*60*10) ||
-                         (timeToKick == 30*10 && idlekick_time >= 3*30*10) ||
-                         (timeToKick == 15*10 && idlekick_time >= 2*15*10) ||
-                         (timeToKick ==  5*10 && idlekick_time >= 2* 5*10)) {
+                else if (timeToKick == 60 * 10 && idlekick_time >= 3 * 60 * 10 ||
+                         timeToKick == 30 * 10 && idlekick_time >= 3 * 30 * 10 ||
+                         timeToKick == 15 * 10 && idlekick_time >= 2 * 15 * 10 ||
+                         timeToKick ==  5 * 10 && idlekick_time >= 2 *  5 * 10) {
                     network.send_idlekick_warning(i, timeToKick / 10);
                 }
             }
