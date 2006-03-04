@@ -960,13 +960,20 @@ void Server::remove_bot() {
             disconnectPlayer(i, disconnect_kick);
             return;
         }
-    // Just get rid of one bot.
+    // Just get rid of one bot, first from the bigger team.
     for (int i = 0; i < maxplayers; ++i)
         if (world.player[i].used && world.player[i].is_bot() &&
                         (remove_team == -1 || world.player[i].team() == remove_team)) {
             disconnectPlayer(i, disconnect_kick);
             return;
         }
+    // The last effort is to remove a bot from the smaller team.
+    for (int i = 0; i < maxplayers; ++i)
+        if (world.player[i].used && world.player[i].is_bot()) {
+            disconnectPlayer(i, disconnect_kick);
+            return;
+        }
+    nAssert(0); // There should be bots if this function is called.
 }
 
 //start server
