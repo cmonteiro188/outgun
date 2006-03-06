@@ -418,6 +418,7 @@ class Client {
     ClientControls DoRoute(double mex, double mey, RouteTable num) const; // simulate keypress (follow route)
     ClientControls Route(double mex, double mey, RouteTable num); // do all route (wrapper)
 
+    bool scan_door(Room& room, int x, int y, int dx, int dy, int len) const;
     void BuildMap();
     int  BuildRouteTable(int roomx, int roomy, RouteTable num); // build route table (labeled) from me point, return max path len
     int  BuildRoute(int tox, int toy, RouteTable num); // build route on route table tox(y), return 0 if not needed, -1 if no path

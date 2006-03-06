@@ -1165,7 +1165,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
     if (xdelta) {
         r.sx = xdelta * shot_deltax * cos(deg + N_PI_2);
         r.sy = xdelta * shot_deltax * sin(deg + N_PI_2);
-        const double wallTime = getTimeTillWall(map.room[px][py], r, 1.);
+        const double wallTime = getTimeTillWall(map.room[px][py], r, 1.01);
         r.move(1);
         if (wallTime < 1.) {
             cb.rocketHitWall(i, r.power, r.x, r.y, r.px, r.py);
@@ -1177,7 +1177,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
     r.sy = sin(deg) * physics.rocket_speed;
     // advance 15 pixels before really shooting -> don't hit very close by players
     const double advance = 15. / physics.rocket_speed + double(frameAdvance);
-    const double wallTime = getTimeTillWall(map.room[px][py], r, 1.);
+    const double wallTime = getTimeTillWall(map.room[px][py], r, advance * 1.01);
     if (wallTime <= advance) {
         r.move(wallTime);
         cb.rocketHitWall(i, r.power, r.x, r.y, r.px, r.py);

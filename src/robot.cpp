@@ -61,10 +61,15 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
     const double sx = cos(deg) * 2 * SCAN_RADIUS;
     const double sy = sin(deg) * 2 * SCAN_RADIUS;
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
+    bool at_wall = room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS);
 
     while (1) {
-        if (room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS))
+        const bool blocked = room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS);
+        if (blocked && !at_wall)
             return true;
+        if (!blocked && at_wall)
+            at_wall = false;
+
         mex += sx;
         mey += sy;
         if (fabs(tx - mex) < PLAYER_RADIUS && fabs(ty - mey) < PLAYER_RADIUS)
@@ -87,10 +92,14 @@ double Client::ScanDir(double mex, double mey, int dir) const {
     double ty = mey;
 
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-
+    bool at_wall = room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS);
     while (1) {
-        if (room.fall_on_wall((int)tx, (int)ty, SCAN_RADIUS))
+        const bool blocked = room.fall_on_wall((int)tx, (int)ty, SCAN_RADIUS);
+        if (blocked && !at_wall)
             break;
+        if (!blocked && at_wall)
+            at_wall = false;
+
         tx += sx;
         ty += sy;
 
@@ -786,6 +795,17 @@ ClientControls Client::FollowFlag(double mex, double mey) const {
     return MoveToNoAggregate(mex, mey, dx, dy);
 }
 
+bool Client::scan_door(Room &room, int x, int y, int dx, int dy, int len) const {
+    const int nr = len / PLAYER_RADIUS;
+    for (int i = 0; i < nr; i++) {
+        if (!room.fall_on_wall(x, y, PLAYER_RADIUS))
+            return true;
+        x += dx;
+        y += dy;
+    }
+    return false;
+}
+
 void Client::BuildMap() {
     last_seen = -1;
     myGundir = -1;
@@ -793,25 +813,10 @@ void Client::BuildMap() {
     for (int x = 0; x < fx.map.w; ++x)
         for (int y = 0; y < fx.map.h; ++y) {
             Room& room = fx.map.room[x][y];
-            room.pass[0] =
-                !room.fall_on_wall(S_W / 2, 0, PLAYER_RADIUS) ||
-                !room.fall_on_wall(S_W / 4, 0, PLAYER_RADIUS) ||
-                !room.fall_on_wall(S_W - S_W / 4, 0, PLAYER_RADIUS);
-
-            room.pass[1] =
-                !room.fall_on_wall(S_W / 2, S_H, PLAYER_RADIUS) ||
-                !room.fall_on_wall(S_W / 4, S_H, PLAYER_RADIUS) ||
-                !room.fall_on_wall(S_W - S_W / 4, S_H, PLAYER_RADIUS);
-
-            room.pass[2] =
-                !room.fall_on_wall(0, S_H / 2, PLAYER_RADIUS) ||
-                !room.fall_on_wall(0, S_H / 4, PLAYER_RADIUS) ||
-                !room.fall_on_wall(0, S_H - S_H / 4, PLAYER_RADIUS);
-
-            room.pass[3] =
-                !room.fall_on_wall(S_W, S_H / 2, PLAYER_RADIUS) ||
-                !room.fall_on_wall(S_W, S_H / 4, PLAYER_RADIUS) ||
-                !room.fall_on_wall(S_W, S_H - S_H / 4, PLAYER_RADIUS);
+            room.pass[0] = scan_door(room, PLAYER_RADIUS, 0, PLAYER_RADIUS, 0, S_W-PLAYER_RADIUS);
+            room.pass[1] = scan_door(room, PLAYER_RADIUS, S_H, PLAYER_RADIUS, 0, S_W-PLAYER_RADIUS);
+            room.pass[2] = scan_door(room, 0, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H-PLAYER_RADIUS);
+            room.pass[3] = scan_door(room, S_W, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H-PLAYER_RADIUS);
             for (int i = 0; i < Table_Max; i++) {
                 room.route[i] = false;
                 room.label[i] = -1;
@@ -821,13 +826,12 @@ void Client::BuildMap() {
             fprintf(stderr,"%d %d: %d %d %d %d\n", x, y,
                     room.pass[0], room.pass[1], room.pass[2], room.pass[3]);
 #endif
-
         }
 
-        for (int i = 0; i < Table_Max; i++) {
-            route_x[i] = route_y[i] = -1;
-            routing[i] = Route_None;
-        }
+    for (int i = 0; i < Table_Max; i++) {
+        route_x[i] = route_y[i] = -1;
+        routing[i] = Route_None;
+    }
 }
 
 void Client::next_room(int& x, int& y, int i) const {
@@ -1030,25 +1034,47 @@ ClientControls Client::DoRoute(double melx, double mely, RouteTable num) const {
     return MoveToDoor(melx, mely, dir);
 }
 
-ClientControls Client::MoveToDoor(double mex, double mey, int dir) const {
-    double tox = 0;
-    double toy = 0;
+ClientControls Client::MoveToDoor(double dmex, double dmey, int dir) const {
+    const int mex = int(dmex), mey = int(dmey);
+    int fixedCoord;
+    bool xFixed;
     switch (dir) {
     /*break;*/ case 0:
-            tox = S_W / 2;
-            toy = 0 - PLAYER_RADIUS;
+            fixedCoord =   0 - PLAYER_RADIUS;
+            xFixed = false;
         break; case 1:
-            tox = S_W / 2;
-            toy = S_H + PLAYER_RADIUS;
+            fixedCoord = S_H + PLAYER_RADIUS;
+            xFixed = false;
         break; case 2:
-            tox = 0 - PLAYER_RADIUS;
-            toy = S_H / 2;
+            fixedCoord =   0 - PLAYER_RADIUS;
+            xFixed = true;
         break; case 3:
-            tox = S_W + PLAYER_RADIUS;
-            toy = S_H / 2;
+            fixedCoord = S_W + PLAYER_RADIUS;
+            xFixed = true;
+        break; default:
+            nAssert(0);
     }
-    return MoveToNoAggregate(mex, mey, tox - mex, toy - mey);
+    const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
+    if (xFixed)
+        for (int dist = 0; ; dist += PLAYER_RADIUS) {
+            if (mey - dist > 0   && !room.fall_on_wall(fixedCoord, mey - dist, PLAYER_RADIUS))
+                return MoveToNoAggregate(mex, mey, fixedCoord - mex, -dist);
+            if (mey + dist < S_H && !room.fall_on_wall(fixedCoord, mey + dist, PLAYER_RADIUS))
+                return MoveToNoAggregate(mex, mey, fixedCoord - mex,  dist);
+            if (dist > S_H) // no opening found
+                return MoveToNoAggregate(mex, mey, fixedCoord - mex,     0); // one should reveal itself when we move about, or if not, the map sucks
+        }
+    else
+        for (int dist = 0; ; dist += PLAYER_RADIUS) {
+            if (mex - dist > 0   && !room.fall_on_wall(mex - dist, fixedCoord, PLAYER_RADIUS))
+                return MoveToNoAggregate(mex, mey, -dist, fixedCoord - mey);
+            if (mex + dist < S_W && !room.fall_on_wall(mex + dist, fixedCoord, PLAYER_RADIUS))
+                return MoveToNoAggregate(mex, mey,  dist, fixedCoord - mey);
+            if (dist > S_W) // no opening found
+                return MoveToNoAggregate(mex, mey,     0, fixedCoord - mey); // one should reveal itself when we move about, or if not, the map sucks
+        }
 }
+
 int Client::GetPlayers(int team) const {
     int npl = 0;
     for (int i = 0; i < maxplayers; ++i) {
