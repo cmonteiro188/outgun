@@ -702,7 +702,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
     return ClientControls();
 }
 
-int Client::Teams(int x, int y, int &en, int &fr) const {
+int Client::Teams(int x, int y, int& en, int& fr) const {
     int me_nr = -1;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
@@ -795,7 +795,7 @@ ClientControls Client::FollowFlag(double mex, double mey) const {
     return MoveToNoAggregate(mex, mey, dx, dy);
 }
 
-bool Client::scan_door(Room &room, int x, int y, int dx, int dy, int len) const {
+bool Client::scan_door(Room& room, int x, int y, int dx, int dy, int len) const {
     const int nr = len / PLAYER_RADIUS;
     for (int i = 0; i < nr; i++) {
         if (!room.fall_on_wall(x, y, PLAYER_RADIUS))
@@ -822,10 +822,10 @@ void Client::BuildMap() {
                 room.label[i] = -1;
             }
             room.visited_frame = 0;
-#ifdef BOTDEBUG
+            #ifdef BOTDEBUG
             fprintf(stderr,"%d %d: %d %d %d %d\n", x, y,
                     room.pass[0], room.pass[1], room.pass[2], room.pass[3]);
-#endif
+            #endif
         }
 
     for (int i = 0; i < Table_Max; i++) {
@@ -908,8 +908,8 @@ int Client::route_room(int& x, int& y, RouteTable num) {
 }
 
 int Client::BuildRouteTable(int mex, int mey, RouteTable num) {
-//    const int mex = fx.player[me].roomx;
-//    const int mey = fx.player[me].roomy;
+    //const int mex = fx.player[me].roomx;
+    //const int mey = fx.player[me].roomy;
     const int w = fx.map.w;
     const int h = fx.map.h;
 
@@ -1091,8 +1091,11 @@ bool Client::IsDefender() {
     const int team = fx.player[me].team();
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
 
-    const int npl = GetPlayers(fx.player[me].team());
-    const int defNum = npl / 2;
+    if (tflags.empty())
+        return false;
+
+    const int npl = GetPlayers(team);
+    const int defNum = npl / 2 / tflags.size();
 
     // for all bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
@@ -1248,8 +1251,6 @@ int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable
         }
     }
 
-    if (label == -1)
-        return -1;
     return 0;
 }
 
@@ -1288,8 +1289,6 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
         }
     }
 
-    if (label == -1)
-        return -1; // not builded
     return 0;
 }
 
@@ -1442,8 +1441,6 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
             routing[num] = Route_Flag;
         }
     }
-    if (label == -1)
-        return label; // not builded
 
     return 0; // build route to nearest target
 }
