@@ -609,19 +609,14 @@ void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, double x, doubl
 }
 
 void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* tex) {
-    RectWall* rwp = dynamic_cast<RectWall*>(wall);
-    if (rwp) {
+    if      (RectWall* rwp = dynamic_cast<RectWall*>(wall))
         draw_rect_wall(buffer, *rwp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
-        return;
-    }
-    TriWall * twp = dynamic_cast<TriWall *>(wall);
-    if (twp) {
+    else if (TriWall * twp = dynamic_cast<TriWall *>(wall))
         draw_tri_wall (buffer, *twp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
-        return;
-    }
-    CircWall* cwp = dynamic_cast<CircWall*>(wall);
-    nAssert(cwp);
-    draw_circ_wall    (buffer, *cwp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
+    else if (CircWall* cwp = dynamic_cast<CircWall*>(wall))
+        draw_circ_wall(buffer, *cwp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
+    else
+        nAssert(0);
 }
 
 void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
