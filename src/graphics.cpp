@@ -743,7 +743,6 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
     solid_mode();
 }
 
-//draw a flag  team 0/1   x, y: coord relative to playarea
 void Graphics::draw_flag(int team, int x, int y, bool flash) {
     x = scale(x);
     y = scale(y);
@@ -1092,15 +1091,15 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     // gun direction
     int xg, yg;
     switch (gundir) {
-    /*break;*/ case 0: xg = 40; yg =  0;
-        break; case 1: xg = 28; yg = 28;
-        break; case 2: xg =  0; yg = 40;
-        break; case 3: xg =-28; yg = 28;
-        break; case 4: xg =-40; yg =  0;
-        break; case 5: xg =-28; yg =-28;
-        break; case 6: xg =  0; yg =-40;
-        break; case 7: xg = 28; yg =-28;
-        break; default: xg = 0; yg =  0;
+    /*break;*/ case 0:  xg =  40; yg =   0;
+        break; case 1:  xg =  28; yg =  28;
+        break; case 2:  xg =   0; yg =  40;
+        break; case 3:  xg = -28; yg =  28;
+        break; case 4:  xg = -40; yg =   0;
+        break; case 5:  xg = -28; yg = -28;
+        break; case 6:  xg =   0; yg = -40;
+        break; case 7:  xg =  28; yg = -28;
+        break; default: xg =   0; yg =   0;
     }
     xg = scale(xg * 0.7);
     yg = scale(yg * 0.7);
