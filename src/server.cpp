@@ -564,6 +564,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
         PT(new GS_Boolean   ("capture_on_team_flag",    &worldConfig.capture_on_team_flag)),
         PT(new GS_Boolean   ("capture_on_wild_flag",    &worldConfig.capture_on_wild_flag)),
+        PT(new GS_Int       ("carrying_score_time",     &worldConfig.carrying_score_time)),
         PT(new GS_Balance   ("balance_teams",           &worldConfig.balance_teams)),
         PT(new GS_ForwardStr("server_name",             setHostname)),
         PT(new GS_CheckForwardInt("max_players",        _("an even integer between 2 and $1", itoa(MAX_PLAYERS)), checkMaxplayer, tryMaxplayer)),
@@ -664,7 +665,8 @@ bool Server::load_rotation_map(int pos) {
     if (worldConfig.lock_team_flags && (worldConfig.lock_wild_flags || !worldConfig.capture_on_team_flag)) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
-        world.remove_team_flags(2);
+        if (worldConfig.lock_wild_flags)
+            world.remove_team_flags(2);
     }
     else if (worldConfig.lock_wild_flags && !worldConfig.capture_on_wild_flag)
         world.remove_team_flags(2);

@@ -498,6 +498,9 @@ public:
     void set_drop_time(double time) { drop_t = time; }
     void set_return_time(double time) { return_t = time; }
 
+    void reset_carrying_time() { ctime = 0; }
+    void add_carrying_time(int team);
+
     bool carried() const { return status == status_carried; }
     bool at_base() const { return status == status_at_base; }
 
@@ -509,6 +512,9 @@ public:
     const WorldCoords& position() const { return pos; }
     const WorldCoords& home_position() const { return home_pos; }
 
+    int carrying_team() const { return cteam; }
+    int carrying_time() const { return ctime; }
+
 private:
     enum Status { status_at_base, status_carried, status_dropped };
 
@@ -519,6 +525,9 @@ private:
     double return_t;    // for client only
     WorldCoords home_pos;
     WorldCoords pos;
+    // wild flag carrying info for server
+    int cteam;          // team that last time carried the flag, -1 if not carried yet
+    int ctime;          // in frames
 };
 
 class Team {
@@ -541,6 +550,7 @@ public:
     void set_movement(double amount) { total_movement = amount; }
     void set_power(double pow) { tournament_power = pow; }
 
+    void add_point() { ++points; }
     void add_score(double time, const std::string& player);
     void add_kill() { ++total_kills; }
     void add_death() { ++total_deaths; }
@@ -788,6 +798,8 @@ public:
     bool capture_on_team_flag;
     bool capture_on_wild_flag;
 
+    int carrying_score_time;
+
     static const int shadow_minimum_normal;
 
     void reset();
@@ -820,6 +832,7 @@ class ServerWorld : public WorldBase {
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);
+    void team_gets_carrying_point(int team);
 
     bool lock_team_flags_in_effect() const;
     bool lock_wild_flags_in_effect() const;

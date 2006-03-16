@@ -1362,6 +1362,8 @@ void WorldSettings::reset() {
     lock_wild_flags = false;
     capture_on_team_flag = true;
     capture_on_wild_flag = false;
+
+    carrying_score_time = 0;
 }
 
 double WorldSettings::getRespawnTime(int playerTeamSize, int enemyTeamSize) const {
@@ -2739,6 +2741,8 @@ void ServerWorld::simulateFrame() {
     ServerPhysicsCallbacks cb(*this);
     applyPhysics(cb, PLAYER_RADIUS, 1.);    // 1. means apply the whole frame at once
 
+    const bool extra_time_and_sudden_death = config.suddenDeath() && getTimeLeft() < 0;
+
     // for each player, do misc stuff
     for (int i = 0; i < maxplayers; i++) {
         ServerPlayer& pl = player[i];
@@ -2928,8 +2932,6 @@ void ServerWorld::simulateFrame() {
                 returnFlag(myteam, f);  //flag returned
             }
 
-        const bool extra_time_and_sudden_death = config.suddenDeath() && getTimeLeft() < 0;
-
         // Flag captures
         // ft = 0 => Take enemy or wild flag to own flag
         // ft = 1 => Take enemy or wild flag to wild flag
@@ -2959,6 +2961,25 @@ void ServerWorld::simulateFrame() {
                 }
             }
         }
+    }
+
+    // check for score for carrying a wild flag
+    if (config.carrying_score_time >= minimum_grab_to_capture_time && teams[0].flags().empty() && teams[1].flags().empty()) {
+        for (vector<Flag>::iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+            if (fi->carried()) {
+                const int team = fi->carrier() / TSIZE;
+                fi->add_carrying_time(team);
+                if (fi->carrying_time() >= 10 * config.carrying_score_time) {
+                    fi->reset_carrying_time();
+                    team_gets_carrying_point(team);
+                    if (teams[team].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
+                                teams[team].score() - teams[1 - team].score() >= config.getWinScoreDifference() ||
+                                extra_time_and_sudden_death) {
+                        host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+                        return;
+                    }
+                }
+            }
     }
 
     // check frags changed
@@ -3056,6 +3077,18 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     net->broadcast_capture(player[pid], team);
 
     net->ctf_update_teamscore(myteam);      // this function can decide to restart the game
+}
+
+void ServerWorld::team_gets_carrying_point(int team) {
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if (player[i].used) {
+            if (i / TSIZE == team)
+                host->score_frag(i, 2);
+            else
+                host->score_neg(i, 1);
+        }
+    teams[team].add_point();
+    net->ctf_update_teamscore(team);
 }
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
@@ -3314,7 +3347,9 @@ Flag::Flag(const WorldCoords& pos_):
     carrier_id(-1),
     return_t(0),
     home_pos(pos_),
-    pos(pos_)
+    pos(pos_),
+    cteam(-1),
+    ctime(0)
 { }
 
 void Flag::take(int carr) {
@@ -3333,11 +3368,21 @@ void Flag::return_to_base() {
     status = status_at_base;
     pos = home_pos;
     carrier_id = -1;
+    cteam = -1;
 }
 
 void Flag::drop() {
     status = status_dropped;
     carrier_id = -1;
+}
+
+void Flag::add_carrying_time(int team) {
+    nAssert(team == 0 || team == 1);
+    if (cteam != team) {
+        cteam = team;
+        ctime = 0;
+    }
+    ++ctime;
 }
 
 // Statistics
