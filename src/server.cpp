@@ -826,6 +826,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     load_game_mod(reload);
 
     check_bots = true;
+    bot_ping_changed = false;
 
     if (maprot.empty()) {
         // did not specify maps, scan "maps/" folder for .txt map files
@@ -1253,13 +1254,13 @@ void Server::chat(int pid, const string& message) {
             ist >> option;
             if (!ist) {
                 network.player_message(pid, msg_header, "Bot commands:");
-                network.player_message(pid, msg_server, "/bot add n      add n bots, default 1");
-                network.player_message(pid, msg_server, "/bot remove n   remove n bots, default 1");
-                network.player_message(pid, msg_server, "/bot fill n     set bots_fill to n");
-                network.player_message(pid, msg_server, "/bot balance s  set balance_bot on or off");
-                network.player_message(pid, msg_server, "/bot ping p     show or set the bot ping");
+                network.player_message(pid, msg_server, "/bot add n       add n bots, default 1");
+                network.player_message(pid, msg_server, "/bot remove n    remove n bots, default 1");
+                network.player_message(pid, msg_server, "/bot fill n      set bots_fill to n");
+                network.player_message(pid, msg_server, "/bot balance s   set balance_bot on or off");
+                network.player_message(pid, msg_server, "/bot ping p all  show or set the bot ping");
                 network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
-                network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d", min_bots, bots_fill, extra_bots);
+                network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d, balance_bot %s", min_bots, bots_fill, extra_bots, balance_bot ? "on" : "off");
             }
             else if (option == "add" || option == "remove") {
                 const bool add = option == "add";
@@ -1317,9 +1318,17 @@ void Server::chat(int pid, const string& message) {
                 ist >> ping;
                 if (!ist && ist.eof())
                     network.plprintf(pid, msg_server, "Current bot ping is %d.", bot_ping);
-                else if (ist && ist.eof() && ping >= 0 && ping <= 500) {
-                    bot_ping = ping;
-                    network.plprintf(pid, msg_server, "Bot ping is now %d.", bot_ping);
+                else if (ist && ping >= 0 && ping <= 500) {
+                    string all;
+                    ist >> all;
+                    if (!ist.eof() || (ist && all != "all"))
+                        network.plprintf(pid, msg_warning, "Syntax error. Invalid argument '%s'.", all.c_str());
+                    else {
+                        if (ist && ist.eof() && all == "all")
+                            bot_ping_changed = true;
+                        bot_ping = ping;
+                        network.plprintf(pid, msg_server, "Bot ping is now %d.", bot_ping);
+                    }
                 }
                 else
                     network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 500.");
@@ -1584,6 +1593,7 @@ void Server::run_bot_thread() {
     log("run_bot_thread");
 
     check_bots = true;
+    bot_ping_changed = false;
 
     while (!quit_bots) {
         if (bots.empty() && !check_bots) {
@@ -1608,10 +1618,13 @@ void Server::run_bot_thread() {
                 bi = bots.erase(bi);
             }
             else {
+                if (bot_ping_changed)
+                    (*bi)->set_ping(bot_ping);
                 (*bi)->bot_loop();
                 ++bi;
             }
         }
+        bot_ping_changed = false;
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);

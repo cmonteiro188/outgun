@@ -970,8 +970,7 @@ void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang)
         playername = string("BOT " + RandomName()).substr(0, 15);
     botReactedFrame = -1;
 
-    for (int i = 0; i < ping / 10; ++i)
-        client->increasePacketDelay();
+    set_ping(ping);
 
     connect_command(false);
 
@@ -979,6 +978,12 @@ void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang)
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_bot);
     client->send_message(lebuf, count);
+}
+
+void Client::set_ping(int ping) {
+    while (client->decreasePacketDelay());
+    for (int i = 0; i < ping / 10; ++i)
+        client->increasePacketDelay();
 }
 
 //send "client ready" message to server (when map load and/or download completes)
