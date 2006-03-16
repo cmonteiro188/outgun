@@ -120,6 +120,7 @@ class Server {
     NoLog botNoLog;
     MemoryLog botErrorLog;
     bool check_bots;
+    std::string bot_name_lang;
 
     void init_bots();
     void run_bot_thread();

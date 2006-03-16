@@ -648,7 +648,7 @@ public:
     #endif
     void stop();
 
-    void bot_start(const NLaddress& addr, int ping);
+    void bot_start(const NLaddress& addr, int ping, const std::string& name_lang);
     void bot_loop();
     bool is_connected() const { return connected; }
     bool bot_finished() const { return finished; }

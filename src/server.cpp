@@ -601,6 +601,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
         PT(new GS_Boolean   ("balance_bot",             &balance_bot)),
         PT(new GS_Int       ("bot_ping",                &bot_ping, 0, 500)),
+        PT(new GS_String    ("bot_name_lang",           &bot_name_lang)),
         PT(new GS_String    ("server_website",          &server_website_url)),
         PT(new GS_ForwardStr("web_server",              addWebServer)),
         PT(new GS_ForwardStr("web_script",              setWebScript)),
@@ -923,7 +924,7 @@ void Server::init_bots() {
         Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(network.get_server_password());
-        bot->bot_start(address, bot_ping);
+        bot->bot_start(address, bot_ping, bot_name_lang);
         bots.push_back(bot);
         log("Bot added");
         ++bot_count;

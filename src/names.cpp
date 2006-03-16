@@ -30,6 +30,7 @@
 #include "names.h"
 
 using std::string;
+using std::vector;
 
 int Random(int velho)
 {
@@ -278,4 +279,154 @@ string RandomName(int npal)
     nome += Palavra();
 
     return trim(nome.substr(0, maxPlayerNameLength));
+}
+
+string::value_type str_rand(const string& str) {
+    if (str.empty())
+        return 0;
+    return str[rand() % str.length()];
+}
+
+string::value_type consonant() {
+    return str_rand("hjklmnprstv");
+}
+
+string::value_type start_consonant(string::value_type last_cons) {
+    switch (last_cons) {
+    /*break;*/ case 'h': return str_rand("jklmnrtv");
+        break; case 'k': return str_rand("ks");
+        break; case 'l': return str_rand("hjklmpstv");
+        break; case 'm': return str_rand("mps");
+        break; case 'n': return str_rand("hjklnst");
+        break; case 'p': return str_rand("lprs");
+        break; case 'r': return str_rand("hjkmnprsv");
+        break; case 's': return str_rand("hkmnpstv");
+        break; case 't': return str_rand("jkprstv");
+    }
+    return consonant();
+}
+
+string::value_type vowel() {
+    return str_rand("aeiouyäö");
+}
+
+string::value_type start_vowel(string::value_type last_vowel) {
+    string::value_type vow;
+    do {
+        vow = vowel();
+    } while (vow == last_vowel);
+    return vow;
+}
+
+string::value_type cont_vowel(string::value_type last_vowel) {
+    switch (last_vowel) {
+    /*break;*/ case 'a': return str_rand("aaiu");
+        break; case 'e': return str_rand("eiu");
+        break; case 'i': return str_rand("eiiu");
+        break; case 'o': return str_rand("iou");
+        break; case 'u': return str_rand("iouu");
+        break; case 'y': return str_rand("iyyö");
+        break; case 'ä': return str_rand("iyää");
+        break; case 'ö': return str_rand("iyö");
+    }
+    return vowel();
+}
+
+enum Type { a, aa, aat, at, ta, taa, taat, tat, total_types };
+
+string make_name() {
+    Type type;
+    for (int i = 0; i < 5; ++i) {        // Better chances for a type beginning with 't'.
+        type = static_cast<Type>(rand() % total_types);
+        if (type == ta || type == taa || type == taat || type == tat)
+            break;
+    }
+    int num_groups;
+    if (type == taa)
+        num_groups = 1 + rand() % 3 + rand() % 2;
+    else
+        num_groups = 2 + rand() % 2 + rand() % 2;
+    string::value_type end_cons = 0;
+    string::value_type end_vow = 0;
+
+    string name;
+    for (int i = 0; i < num_groups; ++i) {
+        string group;
+        if (type == ta || type == taa || type == taat || type == tat) {
+            if (!end_cons)
+                group += consonant();
+            else
+                group += start_consonant(end_cons);
+        }
+        end_cons = 0;
+        string::value_type vow;
+        if (type == ta || type == taa || type == taat || type == tat || !end_vow)
+            vow = vowel();
+        else
+            vow = start_vowel(end_vow);
+        group += vow;
+        end_vow = 0;
+        if (type == aa || type == aat || type == taa || type == taat) {
+            vow = cont_vowel(vow);
+            group += vow;
+        }
+        if (type == aat || type == at || type == taat || type == tat) {
+            end_cons = str_rand("hklmnprst");
+            group += end_cons;
+        }
+        else
+            end_vow = vow;
+        name += group;
+
+        vector<Type> next;
+        next.push_back(ta);
+        switch (type) {
+        /*break;*/ case aa: next.push_back(tat); next.push_back(a);
+            break; case at: next.push_back(taa);
+            break; case ta: case taa: next.push_back(taa); next.push_back(taat); next.push_back(tat); next.push_back(a); next.push_back(at);
+            break; case taat: case tat: next.push_back(taa); next.push_back(tat);
+            break; default: ;
+        }
+        type = next[rand() % next.size()];
+    }
+
+    enum Vowel_type { none, front, back };
+    Vowel_type vow_type = none;
+    if (name.find_last_of("hjkmpv") == name.length() - 1)
+        name += vowel();
+    for (string::iterator si = name.begin(); si != name.end(); ++si)
+        if (*si == 'a' || *si == 'o' || *si == 'u') {
+            if (vow_type == none)
+                vow_type = back;
+            else if (vow_type == front)
+                switch (*si) {
+                /*break;*/ case 'a': *si = 'ä';
+                    break; case 'o': *si = 'ö';
+                    break; case 'u': *si = 'y';
+                }
+        }
+        else if (*si == 'ä' || *si == 'ö' || *si == 'y') {
+            if (vow_type == none)
+                vow_type = front;
+            else if (vow_type == back)
+                switch (*si) {
+                /*break;*/ case 'ä': *si = 'a';
+                    break; case 'ö': *si = 'o';
+                    break; case 'y': *si = 'u';
+                }
+        }
+    name[0] = latin1_toupper(name[0]);
+    return name;
+}
+
+string finnish_name(string::size_type max_length) {
+    string name = make_name();
+    while (1) {
+        const string name2 = make_name();
+        if (rand() % 2 && name.length() + name2.length() < max_length)
+            name += " " + name2;
+        else
+            break;
+    }
+    return trim(name.substr(0, max_length));
 }

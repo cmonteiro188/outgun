@@ -738,9 +738,12 @@ bool Client::start() {
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
 
-    playername = RandomName();
-
     #ifndef DEDICATED_SERVER_ONLY
+    if (language.code() == "fi")
+        playername = finnish_name(maxPlayerNameLength);
+    else
+        playername = RandomName();
+
     if (botmode)
         return true;
 
@@ -954,14 +957,17 @@ bool Client::start() {
     return true;
 }
 
-void Client::bot_start(const NLaddress& addr, int ping) {
+void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang) {
     MutexLock ml(frameMutex);
     botmode = true;
     serverIP = addr;
 
     nAssert(start());
 
-    playername = "BOT " + trim(playername.substr(0, maxPlayerNameLength - 4));
+    if (name_lang == "fi")
+        playername = "BOT " + finnish_name(maxPlayerNameLength - 4);
+    else
+        playername = string("BOT " + RandomName()).substr(0, 15);
     botReactedFrame = -1;
 
     for (int i = 0; i < ping / 10; ++i)
@@ -4752,7 +4758,8 @@ void Client::MCF_nameChange() { // only function to clear the password
 }
 
 void Client::MCF_randomName() {
-    menu.options.name.name.set(RandomName());
+    const string name = language.code() == "fi" ? finnish_name(maxPlayerNameLength) : RandomName();
+    menu.options.name.name.set(name);
     MCF_nameChange();
 }
 

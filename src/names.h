@@ -29,6 +29,8 @@
 
 #include <string>
 
-std::string RandomName(int npal=-1);
+std::string RandomName(int npal = -1);
+
+std::string finnish_name(std::string::size_type max_lenght);
 
 #endif
