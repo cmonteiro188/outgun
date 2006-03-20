@@ -1611,6 +1611,9 @@ void Server::run_bot_thread() {
                 threadLockMutex.unlock();
         }
         g_timeCounter.refresh();
+        const bool adjust_pings = bot_ping_changed;
+        if (adjust_pings)
+            bot_ping_changed = false;
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
             nAssert(*bi);
             if ((*bi)->bot_finished()) {
@@ -1618,13 +1621,12 @@ void Server::run_bot_thread() {
                 bi = bots.erase(bi);
             }
             else {
-                if (bot_ping_changed)
+                if (adjust_pings)
                     (*bi)->set_ping(bot_ping);
                 (*bi)->bot_loop();
                 ++bi;
             }
         }
-        bot_ping_changed = false;
     }
     for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);
