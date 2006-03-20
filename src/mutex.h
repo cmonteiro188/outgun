@@ -59,14 +59,14 @@ public:
 template<class ObjT>
 class Threadsafe {
     mutable MutexHolder mutex;
-    volatile ObjT obj;
+    ObjT obj;
 
 public:
     Threadsafe() { }
     Threadsafe(const ObjT& o) : obj(o) { }
 
-    Threadsafe& operator=(const ObjT& o) { mutex.lock(); volatile_ref_cast<ObjT>(obj) = o; mutex.unlock(); return *this; }
-    ObjT read() const { mutex.lock(); ObjT o = volatile_ref_cast<const ObjT>(obj); mutex.unlock(); return o; }  // Get a *copy* of the object
+    Threadsafe& operator=(const ObjT& o) { mutex.lock(); obj = o; mutex.unlock(); return *this; }
+    ObjT read() const { mutex.lock(); ObjT o = obj; mutex.unlock(); return o; }  // Get a *copy* of the object
 
     // for more complex operations, use lock(), access() and unlock()
     void lock() const { mutex.lock(); }

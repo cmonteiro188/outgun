@@ -132,8 +132,6 @@ public:
 
 void rotate_angle(double& angle, double shift);
 
-template<class DstType> DstType& volatile_ref_cast(volatile DstType& src) { return const_cast<DstType&>(src); }
-
 class FileName {
 public:
     FileName(const std::string& fullName);
