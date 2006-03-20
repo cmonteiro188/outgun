@@ -1274,7 +1274,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     ++clFrameSent;
     controlHistory[clFrameSent] = sentControls;
-    svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
     {
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, clFrameSent);
@@ -1652,8 +1652,10 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     if (newFrame) {
         ++clFrameSent;
         controlHistory[clFrameSent] = sentControls;
-        svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+        svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
     }
+    else if (fx.frame + (get_time() - frameReceiveTime) * 10. < svFrameHistory[clFrameSent] + .5) // guess that these controls get to the server during the same frame that the first sent controls do
+        controlHistory[clFrameSent] = sentControls;
 
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, clFrameSent);
@@ -1703,7 +1705,10 @@ void Client::process_incoming_data(const char* data, int length) {
 
         readByte(data, count, clFrameWorld);
         frameReceiveTime = get_time();
-        const int currentLag = bound(svframe - svFrameHistory[clFrameWorld], 0ul, 50ul);    // bound because svFrameHistory has invalid frame# at connect to server
+        /* svframe - .5 is roughly when clFrameWorld was received in server (using '- 1. + offsetDelta' instead of -.5 here would be possible but not necessarily really better)
+         * svFrameHistory[clFrameWorld] is the apparent server frame when clFrameSent was sent
+         */
+        const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
         averageLag = averageLag * .99 + currentLag * .01;
 
         #ifdef SEND_FRAMEOFFSET
@@ -3920,6 +3925,16 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 }
                 if (timeDelta > 3.)
                     timeDelta = 3.;
+                if (!fx.player[me].dead)
+                    for (NLubyte controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
+                        if (controlHistory[controlFrame].isStrafe())
+                            continue;
+                        const int dir = controlHistory[controlFrame].getDirection();
+                        if (dir != -1) {
+                            fx.player[me].gundir = dir;
+                            break;
+                        }
+                    }
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
             else
@@ -3999,7 +4014,7 @@ void Client::bot_loop() {
 
     ++clFrameSent;
     controlHistory[clFrameSent] = sentControls;
-    svFrameHistory[clFrameSent] = static_cast<NLulong>(fx.frame);
+    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
 
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, clFrameSent);

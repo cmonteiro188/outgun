@@ -292,7 +292,7 @@ class Client {
     double frameReceiveTime;    // when fx was received
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     ClientControls sentControls;
-    NLulong svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
+    double svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     volatile bool connected;
     bool map_ready;
     int clientReadiesWaiting;
