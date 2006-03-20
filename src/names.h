@@ -31,6 +31,6 @@
 
 std::string RandomName(int npal = -1);
 
-std::string finnish_name(std::string::size_type max_lenght);
+std::string finnish_name(std::string::size_type max_length);
 
 #endif
