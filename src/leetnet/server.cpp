@@ -585,6 +585,8 @@ public:
         NLulong packid, smsgid, leetversion;
         readLong(packet, count, packid);    //packet id
         readLong(packet, count, smsgid);    // special message id (if packet id == 0)
+        
+        log("packid = %lu, smsgid = %lu", packid, smsgid);
 
         // verifica se a mensagem eh de algum client conhecido
       int i;
@@ -634,7 +636,7 @@ public:
 
         //serverinfo request : answer
         if (smsgid == 200) {
-            NLubyte a,b;
+            NLubyte a, b;
             readByte(packet, count, a);     //clientside gamespy entry (lazyness)
             readByte(packet, count, b);     //packet try #
 
@@ -648,6 +650,21 @@ public:
             nlSetRemoteAddr(servsock, &remoteaddr);
             log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
             nlWrite(servsock, lebuf, count);
+            return 1;
+        }
+
+        // broadcasted server request
+        if (smsgid == 0x4F757467) { // "Outg"
+            NLbyte a, b;
+            readByte(packet, count, a);
+            readByte(packet, count, b);
+            if (a == 'u' && b == 'n') {
+                char lebuf[512]; int count = 0;
+                writeString(lebuf, count, "Outgun");
+                nlSetRemoteAddr(servsock, &remoteaddr);
+                log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
+                nlWrite(servsock, lebuf, count);
+            }
             return 1;
         }
 
