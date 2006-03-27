@@ -69,8 +69,8 @@ public:
     //get a statistic from the socket. stat = HawkNL socket-stats id
     virtual int get_socket_stat(int stat) = 0;
 
-    virtual double increasePacketDelay() = 0;
-    virtual double decreasePacketDelay() = 0;
+    virtual double increasePacketDelay(double amount = 0.01) = 0;
+    virtual double decreasePacketDelay(double amount = 0.01) = 0;
 };
 
 

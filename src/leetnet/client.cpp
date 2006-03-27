@@ -268,13 +268,13 @@ public:
         }
     }
 
-    double increasePacketDelay() {
-        packetDelay += .01;
+    double increasePacketDelay(double amount = 0.01) {
+        packetDelay += amount;
         return packetDelay;
     }
 
-    double decreasePacketDelay() {
-        packetDelay -= .01;
+    double decreasePacketDelay(double amount = 0.01) {
+        packetDelay -= amount;
         if (packetDelay <= 0.) {
             packetDelay = 1e-5; // flag for probeSendQueue that the queue is still operational, but when it's empty, packetDelay is zeroed
             return 0;
