@@ -977,7 +977,7 @@ void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang)
     if (name_lang == "fi")
         playername = "BOT " + finnish_name(maxPlayerNameLength - 4);
     else
-        playername = string("BOT " + RandomName()).substr(0, 15);
+        playername = ("BOT " + RandomName()).substr(0, maxPlayerNameLength);
     botReactedFrame = -1;
 
     set_ping(ping);
