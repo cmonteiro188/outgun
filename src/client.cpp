@@ -101,6 +101,7 @@ using std::setw;
 using std::sort;
 using std::stable_sort;
 using std::string;
+using std::stringstream;
 using std::vector;
 
 #ifndef DEDICATED_SERVER_ONLY
@@ -202,7 +203,7 @@ class TM_ServerSettings : public ThreadMessage {
     NLubyte caplimit, timelimit, extratime;
     NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
 
-    void addLine(Client* cl, const std::string& caption, const std::string& value) const;
+    void addLine(Client* cl, const string& caption, const string& value) const;
 
 public:
     TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLushort misc1_,
@@ -268,7 +269,7 @@ void TournamentPasswordManager::start() {
     thread.start_assert(RedirectToMemFun0<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn), priority);
 }
 
-void TournamentPasswordManager::setToken(const std::string& newToken) {
+void TournamentPasswordManager::setToken(const string& newToken) {
     if (token.read() != newToken) {
         token = newToken;
         tokenCallback(newToken);
@@ -528,7 +529,7 @@ void FileDownload::finish() {
     fp = 0;
 }
 
-void TM_ServerSettings::addLine(Client* cl, const std::string& caption, const std::string& value) const {
+void TM_ServerSettings::addLine(Client* cl, const string& caption, const string& value) const {
     const int capWidth = 25;
     cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth) + ':', value);
 }
@@ -1363,7 +1364,7 @@ void Client::connect_failed_denied(const char* data, int length) {
         const string str2 = ", client: " GAME_PROTOCOL;
         const string::size_type str2pos = message.length() - str2.length();
         if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
-            const std::string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
+            const string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
             message = _("Protocol mismatch. Server: $1, client: $2.", serverProtocol, GAME_PROTOCOL);
         }
         // otherwise leave message at its value of whatever the server sent
@@ -1507,7 +1508,7 @@ void Client::remove_player_password(const string& name, const string& address) c
                 out << (*item)[i] << '\n';
 }
 
-int Client::remove_player_passwords(const std::string& name) const {
+int Client::remove_player_passwords(const string& name) const {
     vector<vector<string> > passwd_list = load_all_player_passwords();
     ofstream out(password_file.c_str());
     if (!out)
@@ -3503,7 +3504,7 @@ bool Client::getServerList() {
 
     log("Successfully sent query to master: '%s'", formatForLogging(request.str()).c_str());
 
-    std::stringstream response;
+    stringstream response;
     result = saveAllFromUnblockingTCP(sock, response, &abortThreads, 30000);
     nlClose(sock);
     if (result != NR_ok) {

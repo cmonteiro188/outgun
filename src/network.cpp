@@ -48,7 +48,7 @@ const char* getNlErrorString() {
         return nlGetErrorStr(nlGetError());
 }
 
-bool isValidIP(const std::string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
+bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
     unsigned int i1, i2, i3, i4, port;
     char midChar, endChar;
     const int n = sscanf(address.c_str(), "%u.%u.%u.%u%c%u%c", &i1, &i2, &i3, &i4, &midChar, &port, &endChar);

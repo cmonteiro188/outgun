@@ -64,6 +64,7 @@ using std::pair;
 using std::setfill;
 using std::setw;
 using std::string;
+using std::stringstream;
 using std::vector;
 
 // tournament thread job struct
@@ -2065,7 +2066,7 @@ void ServerNetworking::run_mastertalker_thread() {
         if (result != NR_ok)
             log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         else {
-            std::stringstream response;
+            stringstream response;
             result = save_http_response(msock, response, &file_threads_quit, 30000);
             if (result == NR_ok) {
                 // save transaction to a file
@@ -2127,7 +2128,7 @@ void ServerNetworking::run_mastertalker_thread() {
     if (result != NR_ok)
         log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
     else {
-        std::stringstream response;
+        stringstream response;
         result = save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
         if (result == NR_ok) {
             // save transaction to a file

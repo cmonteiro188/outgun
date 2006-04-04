@@ -353,7 +353,7 @@ int Menu::total_height() const {
 
 
 bool MenuStack::close(Menu* menu) {
-    std::vector<Menu*>::iterator mi = find(st.begin(), st.end(), menu);
+    vector<Menu*>::iterator mi = find(st.begin(), st.end(), menu);
     if (mi == st.end())
         return false;
     menu->close();
@@ -416,7 +416,7 @@ bool TextfieldBase::handleKey(char scan, unsigned char chr) {
     return true;
 }
 
-IPfield::IPfield(const std::string& caption_, bool acceptPort_, bool printUnknown_):
+IPfield::IPfield(const string& caption_, bool acceptPort_, bool printUnknown_):
     TextfieldBase(caption_, "", acceptPort_ ? 21 : 15, 0, acceptPort_ ? 14 : 20), // max. IP address 123.123.123.123 = 15 chars, :port 6 chars either in address or tail; reserve 14 extra characters in tail for comment
     acceptPort(acceptPort_),
     printUnknown(printUnknown_)

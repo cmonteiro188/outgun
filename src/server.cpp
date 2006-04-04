@@ -68,7 +68,7 @@ using std::string;
 using std::swap;
 using std::vector;
 
-Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix) :
+Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const string& errorPrefix) :
     normalLog(wheregamedir + "log" + directory_separator + "serverlog.txt", true),
     errorLog(normalLog, externalErrorLog, "ERROR: ", errorPrefix),
     securityLog(normalLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "server_securitylog.txt", false),
@@ -406,7 +406,7 @@ void Server::check_fav_colors(int pid) {
     nAssert(0);     // should never go here
 }
 
-void Server::sendMessage(int pid, Message_type type, const std::string& msg) {
+void Server::sendMessage(int pid, Message_type type, const string& msg) {
     network.player_message(pid, type, msg);
 }
 
@@ -477,14 +477,14 @@ bool Server::trySetMaxplayers(int val) {
 }
 
 bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }    // helper for load_game_mod
-bool checkForceIpValue(const std::string& val) { return isValidIP(val); }
+bool checkForceIpValue(const string& val) { return isValidIP(val); }
 
-bool Server::setForceIP(const std::string& val) { extConfig.ipAddress = val; return true; }
+bool Server::setForceIP(const string& val) { extConfig.ipAddress = val; return true; }
 void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
 
 void Server::load_game_mod(bool reload) {
-    RedirectToFun1<bool, const std::string&> checkForceIP(checkForceIpValue);
-    RedirectToMemFun1<Server, bool, const std::string&> setForceIP(this, &Server::setForceIP);
+    RedirectToFun1<bool, const string&> checkForceIP(checkForceIpValue);
+    RedirectToMemFun1<Server, bool, const string&> setForceIP(this, &Server::setForceIP);
 
     RedirectToMemFun1<ServerNetworking, void, const string&> setHostname(&network, &ServerNetworking::set_hostname);
     RedirectToMemFun1<ServerNetworking, void, const string&> setServerPassword(&network, &ServerNetworking::set_server_password);
@@ -1057,7 +1057,7 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) {
     network.disconnect_client(world.player[pid].cid, 2, reason);
 }
 
-void Server::nameChange(int id, int pid, const string& tempname, const std::string& password) {
+void Server::nameChange(int id, int pid, const string& tempname, const string& password) {
     if (tempname == world.player[pid].name)
         return;
     //name change flooding protection
@@ -1114,7 +1114,7 @@ class PlayerMessager : public LineReceiver {
 
 public:
     PlayerMessager(Server& server, int pid, Message_type mtype) : host(server), player(pid), type(mtype) { }
-    PlayerMessager& operator()(const std::string& str) { host.sendMessage(player, type, str); return *this; }
+    PlayerMessager& operator()(const string& str) { host.sendMessage(player, type, str); return *this; }
 };
 
 bool Server::isLocallyAuthorized(int pid) const {
@@ -1645,7 +1645,7 @@ void Server::run_bot_thread() {
 }
 
 
-GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix) {
+GameserverInterface::GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const string& errorPrefix) {
     host = new Server(hostLog, settings, externalErrorLog, errorPrefix);
 }
 

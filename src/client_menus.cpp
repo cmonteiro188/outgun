@@ -511,7 +511,7 @@ Menu_ownServer::Menu_ownServer() :
     menu.add_component(&stop);
 }
 
-void Menu_ownServer::init(const std::string& detectedAddress) {
+void Menu_ownServer::init(const string& detectedAddress) {
     detectedIP = detectedAddress;
 }
 

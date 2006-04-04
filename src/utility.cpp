@@ -234,7 +234,7 @@ const char* strspnp(const char* str, const char* charset) {
 }
 
 void LogSet::operator()(const char* fmt, ... ) { if (!  normalLog) return; va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
-void LogSet::error     (const std::string msg) { if (!   errorLog) return;                                         errorLog->put(msg)  ;               }
+void LogSet::error     (const string msg) { if (!   errorLog) return;                                         errorLog->put(msg)  ;               }
 void LogSet::security  (const char* fmt, ... ) { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
 
 bool g_allowBlockingMessages = true;
@@ -254,7 +254,7 @@ void messageBox(const string& heading, const string& msg, bool blocking) {
     os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
 }
 
-void criticalError(const std::string& msg) {
+void criticalError(const string& msg) {
     messageBox(_("Critical error"), msg, true);
     _Exit(-1);
 }

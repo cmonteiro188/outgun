@@ -107,7 +107,7 @@ void FileMemLog::add(const string& str) {
     MemoryLog::add(str);
 }
 
-void DualLog::add(const std::string& str) {
+void DualLog::add(const string& str) {
     log1.put(prefix1 + str);
     log2.put(prefix2 + str);
 }

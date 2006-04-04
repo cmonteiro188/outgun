@@ -2154,11 +2154,11 @@ void Graphics::print_chat_input(const string& message, int x, int y) {
     print_text_border(message, x, y, col[COLWHITE], 0, -1);
 }
 
-void Graphics::print_text(const std::string& text, int x, int y, int textcol, int bgcol) {
+void Graphics::print_text(const string& text, int x, int y, int textcol, int bgcol) {
     textout_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
-void Graphics::print_text_centre(const std::string& text, int x, int y, int textcol, int bgcol) {
+void Graphics::print_text_centre(const string& text, int x, int y, int textcol, int bgcol) {
     textout_centre_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 

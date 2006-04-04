@@ -687,7 +687,7 @@ bool MapInfo::load(LogSet& log, const string& mapName) {
     return true;
 }
 
-void PlayerBase::clear(bool enable, int _pid, const std::string& _name, int team_id) {
+void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) {
     ping = 0;
     id = _pid;
     name = _name;
@@ -754,7 +754,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
 
-void ClientPlayer::clear(bool enable, int _pid, const std::string& _name, int team_id) {
+void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id) {
     item_power_time = item_turbo_time = item_shadow_time = 0;
     health = energy = 0;
     weapon = 1;

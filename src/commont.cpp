@@ -169,7 +169,7 @@ istream& getline_skip_comments(istream& in, string& str) {
     return in;
 }
 
-bool check_name(const std::string& name) {
+bool check_name(const string& name) {
     if (name.length() > maxPlayerNameLength)
         return false;
     if (name.find_first_not_of(" \xA0") == string::npos)    // Name with only spaces and no-brake spaces not allowed.

@@ -160,12 +160,12 @@ bool NameAuthorizationDatabase::isProtected(const string& name) const {
     return (idx != -1 && !names[idx].password.empty());
 }
 
-bool NameAuthorizationDatabase::checkNamePassword(const std::string& name, const std::string& password) const {
+bool NameAuthorizationDatabase::checkNamePassword(const string& name, const string& password) const {
     const int idx = identifyName(name);
     return (idx == -1 || names[idx].password == password);
 }
 
-bool NameAuthorizationDatabase::isAdmin(const std::string& name) const {
+bool NameAuthorizationDatabase::isAdmin(const string& name) const {
     const int idx = identifyName(name);
     return (idx != -1 && names[idx].admin);
 }
