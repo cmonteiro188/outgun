@@ -4,7 +4,7 @@
  *  Copyright (C) 2002 - Renato Hentschke <renato@amok.com.br>
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -306,30 +306,54 @@ string::value_type start_consonant(string::value_type last_cons) {
     return consonant();
 }
 
-string::value_type vowel() {
-    return str_rand("aeiouyäö");
+enum Vow_type { any, back, front };
+
+string::value_type vowel(Vow_type type) {
+    if (type == back)
+        return str_rand("aeiou");
+    else if (type == front)
+        return str_rand("eiyäö");
+    else
+        return str_rand("aeiouyäö");
 }
 
-string::value_type start_vowel(string::value_type last_vowel) {
+string::value_type start_vowel(string::value_type last_vowel, Vow_type type) {
     string::value_type vow;
     do {
-        vow = vowel();
+        vow = vowel(type);
     } while (vow == last_vowel);
     return vow;
 }
 
-string::value_type cont_vowel(string::value_type last_vowel) {
-    switch (last_vowel) {
-    /*break;*/ case 'a': return str_rand("aaiu");
-        break; case 'e': return str_rand("eiu");
-        break; case 'i': return str_rand("eiiu");
-        break; case 'o': return str_rand("iou");
-        break; case 'u': return str_rand("iouu");
-        break; case 'y': return str_rand("iyyö");
-        break; case 'ä': return str_rand("iyää");
-        break; case 'ö': return str_rand("iyö");
-    }
-    return vowel();
+string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
+    if (type == any)
+        switch (last_vowel) {
+        /*break;*/ case 'a': return str_rand("aaiu");
+            break; case 'e': return str_rand("eiu");
+            break; case 'i': return str_rand("eiiu");
+            break; case 'o': return str_rand("iou");
+            break; case 'u': return str_rand("iouu");
+            break; case 'y': return str_rand("iyyö");
+            break; case 'ä': return str_rand("iyää");
+            break; case 'ö': return str_rand("iyö");
+        }
+    if (type == back)
+        switch (last_vowel) {
+        /*break;*/ case 'a': return str_rand("aaiu");
+            break; case 'e': return str_rand("eiu");
+            break; case 'i': return str_rand("eiiu");
+            break; case 'o': return str_rand("iou");
+            break; case 'u': return str_rand("iouu");
+        }
+    if (type == front)
+        switch (last_vowel) {
+        /*break;*/ case 'e': return str_rand("ei");
+            break; case 'i': return str_rand("eii");
+            break; case 'y': return str_rand("iyyö");
+            break; case 'ä': return str_rand("iyää");
+            break; case 'ö': return str_rand("iyö");
+        }
+    return vowel(type);
 }
 
 enum Type { a, aa, aat, at, ta, taa, taat, tat, total_types };
@@ -349,6 +373,7 @@ string make_name() {
     string::value_type end_cons = 0;
     string::value_type end_vow = 0;
 
+    Vow_type vow_type = any;
     string name;
     for (int i = 0; i < num_groups; ++i) {
         string group;
@@ -361,13 +386,21 @@ string make_name() {
         end_cons = 0;
         string::value_type vow;
         if (type == ta || type == taa || type == taat || type == tat || !end_vow)
-            vow = vowel();
+            vow = vowel(vow_type);
         else
-            vow = start_vowel(end_vow);
+            vow = start_vowel(end_vow, vow_type);
+        switch (vow) {
+        /*break;*/ case 'a': case 'o': case 'u': vow_type = back;
+            break; case 'y': case 'ä': case 'ö': vow_type = front;
+        }
         group += vow;
         end_vow = 0;
         if (type == aa || type == aat || type == taa || type == taat) {
-            vow = cont_vowel(vow);
+            vow = cont_vowel(vow, vow_type);
+            switch (vow) {
+            /*break;*/ case 'a': case 'o': case 'u': vow_type = back;
+                break; case 'y': case 'ä': case 'ö': vow_type = front;
+            }
             group += vow;
         }
         if (type == aat || type == at || type == taat || type == tat) {
@@ -390,37 +423,18 @@ string make_name() {
         type = next[rand() % next.size()];
     }
 
-    enum Vowel_type { none, front, back };
-    Vowel_type vow_type = none;
     if (name.find_last_of("hjkmpv") == name.length() - 1)
-        name += vowel();
-    for (string::iterator si = name.begin(); si != name.end(); ++si)
-        if (*si == 'a' || *si == 'o' || *si == 'u') {
-            if (vow_type == none)
-                vow_type = back;
-            else if (vow_type == front)
-                switch (*si) {
-                /*break;*/ case 'a': *si = 'ä';
-                    break; case 'o': *si = 'ö';
-                    break; case 'u': *si = 'y';
-                }
-        }
-        else if (*si == 'ä' || *si == 'ö' || *si == 'y') {
-            if (vow_type == none)
-                vow_type = front;
-            else if (vow_type == back)
-                switch (*si) {
-                /*break;*/ case 'ä': *si = 'a';
-                    break; case 'ö': *si = 'o';
-                    break; case 'y': *si = 'u';
-                }
-        }
+        name += vowel(vow_type);
+
     name[0] = latin1_toupper(name[0]);
     return name;
 }
 
 string finnish_name(string::size_type max_length) {
-    string name = make_name();
+    string name;
+    do {
+        name = make_name();
+    } while (name.length() > max_length);
     while (1) {
         const string name2 = make_name();
         if (rand() % 2 && name.length() + name2.length() < max_length)
