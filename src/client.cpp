@@ -747,13 +747,13 @@ bool Client::start() {
     client->setServerDataCallback(cfunc_server_data);
 
     #ifndef DEDICATED_SERVER_ONLY
+    if (botmode)
+        return true;
+
     if (language.code() == "fi")
         playername = finnish_name(maxPlayerNameLength);
     else
         playername = RandomName();
-
-    if (botmode)
-        return true;
 
     //try to load the client's password
     string fileName = wheregamedir + "config" + directory_separator + "password.bin";
