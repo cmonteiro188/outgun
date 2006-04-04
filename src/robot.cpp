@@ -732,8 +732,8 @@ int Client::Teams(int x, int y, int& en, int& fr) const {
 
 ClientControls Client::Escape(double mex, double mey) const {
     int i = 0;
-    int roomx = fx.player[me].roomx;
-    int roomy = fx.player[me].roomy;
+    const int roomx = fx.player[me].roomx;
+    const int roomy = fx.player[me].roomy;
 
     if (!HaveFlag(me))
         return ClientControls();
@@ -1104,8 +1104,9 @@ bool Client::IsDefender() {
         int nearNum = 0;
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
-            if (!player.used || player.team() != fx.player[me].team() || player.dead || i == me)
-                 continue;
+            if (!player.used || player.team() != fx.player[me].team() || player.dead || i == me ||
+                player.roomx < 0 || player.roomy < 0)
+                    continue;
             const int label = fx.map.room[player.roomx][player.roomy].label[Table_Def];
             if (label <= m_label || HaveFlag(i))
                 nearNum++;
@@ -1260,8 +1261,9 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
 
     int label = 0;
     for (int i = 0; i < maxplayers; ++i) {
-        if (i == me || !fx.player[i].used || fx.player[i].team() != team || fx.player[i].dead)
-            continue;
+        if (i == me || !fx.player[i].used || fx.player[i].team() != team || fx.player[i].dead ||
+            fx.player[i].roomx < 0 || fx.player[i].roomy < 0)
+                continue;
 
         label = fx.map.room[fx.player[i].roomx][fx.player[i].roomy].label[num];
         if (label == -1)
