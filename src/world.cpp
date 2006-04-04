@@ -1148,6 +1148,28 @@ void WorldBase::remove_team_flags(int t) {
     }
 }
 
+void WorldBase::add_random_flag(int t) {
+    nAssert(t >= 0 && t <= 2);
+    for (int i = 0; i < 100; ++i) {
+        const int rx = rand() % map.w;
+        const int ry = rand() % map.h;
+        const int x = rand() % plw;
+        const int y = rand() % plh;
+        if (!map.fall_on_wall(rx, ry, x, y, FLAG_RADIUS)) {
+            WorldCoords pos(rx, ry, x, y);
+            if (t == 2) {
+                wild_flags.push_back(pos);
+                map.wild_flags.push_back(pos);
+            }
+            else {
+                teams[t].add_flag(pos);
+                map.tinfo[t].flags.push_back(pos);
+            }
+            break;
+        }
+    }
+}
+
 void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
                           bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
     Rocket& r = rock[i];
@@ -1357,6 +1379,8 @@ void WorldSettings::reset() {
     win_score_difference = 1;
     flag_return_delay = 1.0;
     balance_teams = TB_disabled;
+
+    random_wild_flag = false;
 
     lock_team_flags = false;
     lock_wild_flags = false;

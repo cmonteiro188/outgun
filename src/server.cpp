@@ -560,6 +560,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
         PT(new GS_Int       ("win_score_difference",    &worldConfig.win_score_difference, 1)),
         PT(new GS_Double    ("flag_return_delay",       &worldConfig.flag_return_delay, 0)),
+        PT(new GS_Boolean   ("random_wild_flag",        &worldConfig.random_wild_flag)),
         PT(new GS_Boolean   ("lock_team_flags",         &worldConfig.lock_team_flags)),
         PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
         PT(new GS_Boolean   ("capture_on_team_flag",    &worldConfig.capture_on_team_flag)),
@@ -659,6 +660,13 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
+    if (worldConfig.random_wild_flag) {
+        world.remove_team_flags(0);
+        world.remove_team_flags(1);
+        world.remove_team_flags(2);
+        world.add_random_flag(2);
+        return true;
+    }
     // Check the flag settings and remove the useless flags (only if there are three kinds of flags).
     if (world.wild_flags.empty() || world.teams[0].flags().empty() || world.teams[1].flags().empty())
         return true;

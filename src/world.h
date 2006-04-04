@@ -722,6 +722,7 @@ public:
     void setMaxPlayers(int num) { maxplayers = num; }
 
     void remove_team_flags(int t);
+    void add_random_flag(int t);
 
     Map map;
 
@@ -792,6 +793,8 @@ public:
     int win_score_difference;     // minimum score difference needed to win the game
     double flag_return_delay; // in seconds
     Team_balance balance_teams;
+
+    bool random_wild_flag;
 
     bool lock_team_flags;
     bool lock_wild_flags;
