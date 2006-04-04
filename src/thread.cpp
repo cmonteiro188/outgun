@@ -80,7 +80,9 @@ void Thread::join(bool acceptRecursive) {
     nAssert(running);
     running = false;
     int ret = pthread_join(thread, 0);
-    numAssert(ret == 0 || (acceptRecursive && ret == EDEADLK), ret);
+    if (ret == EDEADLK && acceptRecursive)
+        ret = pthread_detach(thread);
+    numAssert(ret == 0, ret);
 }
 
 void Thread::detach() {
