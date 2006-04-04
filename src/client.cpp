@@ -475,6 +475,13 @@ bool ServerListEntry::setAddress(const string& address) {
     return true;
 }
 
+bool ServerListEntry::setAddress(const NLaddress& address) {
+    addr = address;
+    if (nlGetPortFromAddr(&addr) == 0)
+        nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
+    return true;
+}
+
 string ServerListEntry::addressString() const {
     if (nlGetPortFromAddr(&addr) != DEFAULT_UDP_PORT)
         return addressToString(addr);
@@ -3279,9 +3286,12 @@ void Client::getServerListThread() {
 
     // get server list and refresh
     bool ok = getServerList();
+    if (!get_local_servers())
+        ok = false;
     if (!abortThreads)
         if (!refresh_all_servers())
             ok = false;
+
 
     logThreadExit("getServerListThread", log);
     refreshStatus = ok ? RS_none : RS_failed;
@@ -3494,6 +3504,51 @@ bool Client::getServerList() {
         log.error(_("Incorrect data received from master server."));
         return false;
     }
+}
+
+bool Client::get_local_servers() {
+    refreshStatus = RS_connecting;
+
+    //open a nonblocking socket
+    nlOpenMutex.lock();
+    nlDisable(NL_BLOCKING_IO);
+    NLsocket sock = nlOpen(0, NL_BROADCAST);
+    nlOpenMutex.unlock();
+    if (sock == NL_INVALID) {
+        log("Can't open broadcast socket.");
+        return false;
+    }
+    NLaddress addr;
+    nlStringToAddr("255.255.255.255:25000", &addr);
+    nlSetRemoteAddr(sock, &addr);
+
+    NLbyte buffer[512]; int count = 0;
+    writeLong(buffer, count, 0);
+    writeString(buffer, count, "Outgun");
+    NLint result = nlWrite(sock, buffer, count);
+    if (result == NL_INVALID) {
+        log("Can't broadcast packet.");
+        nlClose(sock);
+        return false;
+    }
+
+    refreshStatus = RS_receiving;
+
+    log("Successfully sent broadcast query.");
+
+    platSleep(500);
+    while (nlRead(sock, (NLvoid*)buffer, (NLint)sizeof(buffer)) > 0) {
+        log("Full response: '%s'", formatForLogging(buffer).c_str());
+
+        nlGetRemoteAddr(sock, &addr);
+
+        ServerListEntry spy;
+        if (spy.setAddress(addr))
+            mgamespy.push_back(spy);
+    }
+
+    nlClose(sock);
+    return true;
 }
 
 bool Client::parseServerList(istream& response) {

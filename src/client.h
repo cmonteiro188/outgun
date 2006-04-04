@@ -56,6 +56,7 @@ public:
     const NLaddress& address() const { return addr; }
     std::string addressString() const;
     bool setAddress(const std::string& address);    // returns false if address is invalid
+    bool setAddress(const NLaddress& address);    // returns false if address is invalid
 
 private:
     NLaddress   addr;
@@ -601,6 +602,7 @@ class Client {
     bool refresh_all_servers();
     bool refresh_servers(std::vector<ServerListEntry>& gamespy);
     bool getServerList();
+    bool get_local_servers();
     bool parseServerList(std::istream& response);
 
     void check_download();  // call with downloadMutex locked
