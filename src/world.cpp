@@ -1599,9 +1599,6 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
             //fall on wall true, keep trying...
 
         } while (runaway-- > 0);
-
-        if (runaway <= 0)
-            net->broadcast_text(msg_warning, "PLAYER SPAWN RUNAWAY");
     }
 
     //put player there
@@ -1732,10 +1729,8 @@ void ServerWorld::respawn_pickup(int p) {
         hit = map.fall_on_wall(px, py, itemx, itemy, PICKUP_RADIUS);
         if (!hit)
             break;
-        if (--runaway < 0) {
-            net->broadcast_text(msg_warning, "ITEM SPAWN RUNAWAY");
+        if (--runaway < 0)
             return;
-        }
     }
     item[p].kind = pupConfig.choose_powerup_kind();
     item[p].px = px;
