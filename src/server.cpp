@@ -943,7 +943,6 @@ void Server::init_bots() {
 }
 
 void Server::remove_bot() {
-    nAssert(!bots.empty());
     int red = 0, blue = 0;
     for (int i = 0; i < maxplayers; ++i)
         if (world.player[i].used)

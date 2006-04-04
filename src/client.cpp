@@ -3894,7 +3894,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             // handle waiting keypresses
             while (keypressed()) {
-                int ch = readkey();
+                const int ch = readkey();
                 handleKeypress(ch >> 8, ch & 0xFF, controlPressed, alt_sequence);
             }
 

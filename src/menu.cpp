@@ -734,7 +734,6 @@ void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active) const {
 }
 
 bool Slider::handleKey(char scan, unsigned char chr) {
-    (void)chr;
     if ((scan == KEY_LEFT || chr == '-') && val > vmin) {
         if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '-')
             --val;
