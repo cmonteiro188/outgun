@@ -727,6 +727,7 @@ bool Client::start() {
     frameOffsetDeltaNum = 0;
     #endif
     averageLag = 0;
+    lag_sum = 0;
 
     netsendAdjustment = 0;
 
@@ -815,6 +816,7 @@ bool Client::start() {
             }
             break; case CCS_LagPrediction:         menu.options.game.lagPrediction.set(args == "1");
             break; case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args));
+            break; case CCS_TargetPing:            menu.options.game.targetPing.boundSet(atoi(args));
             break; case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none);
             break; case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1");
             break; case CCS_ShowFlagMessages:      menu.options.game.showFlagMessages.set(args == "1");
@@ -1718,6 +1720,20 @@ void Client::process_incoming_data(const char* data, int length) {
         const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
         averageLag = averageLag * .99 + currentLag * .01;
 
+        #ifndef DEDICATED_SERVER_ONLY
+        lag_sum += currentLag / 10;
+        const int check_interval = 50;
+        if (svframe % check_interval == 0) {
+            const double last_lag = lag_sum / check_interval;
+            lag_sum = 0;
+            const double diff = last_lag - menu.options.game.targetPing() / 1000.;
+            if (diff < -0.01)
+                client->increasePacketDelay(-diff);
+            else if (diff > 0.01)
+                client->decreasePacketDelay(diff);
+        }
+        #endif
+
         #ifdef SEND_FRAMEOFFSET
         NLubyte fo;
         readByte(data, count, fo);
@@ -1889,9 +1905,9 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             //read ping of player frame % MAX_PLAYERS
-            NLushort daping;
-            readShort(data, count, daping);
-            fx.player[svframe % maxplayers].ping = daping;
+            NLushort ping;
+            readShort(data, count, ping);
+            fx.player[svframe % maxplayers].ping = ping;
         }//frame not empty
     }
 
@@ -3817,11 +3833,15 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
         break; case KEY_PLUS_PAD:
-            if (key[KEY_P])
-                print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
+            if (key[KEY_P]) {
+                menu.options.game.targetPing.handleKey(KEY_RIGHT, 0);
+                print_message(msg_info, "Ping " + itoa(menu.options.game.targetPing()));
+            }
         break; case KEY_MINUS_PAD:
-            if (key[KEY_P])
-                print_message(msg_info, "Ping +" + itoa(iround(client->decreasePacketDelay() * 1000)));
+            if (key[KEY_P]) {
+                menu.options.game.targetPing.handleKey(KEY_LEFT, 0);
+                print_message(msg_info, "Ping " + itoa(menu.options.game.targetPing()));
+            }
         break; default:
             // Add character to text
             if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
@@ -4121,6 +4141,7 @@ void Client::stop() {
         }
         cfg << CCS_LagPrediction        << ' ' << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
         cfg << CCS_LagPredictionAmount  << ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
+        cfg << CCS_TargetPing           << ' ' <<  menu.options.game.targetPing() << '\n';
         cfg << CCS_MessageLogging       << ' ' << ((menu.options.game.messageLogging() == Menu_game::ML_full) ? 1 : (menu.options.game.messageLogging() == Menu_game::ML_chat) ? 2 : 0) << '\n';
         cfg << CCS_SaveStats            << ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
         cfg << CCS_ShowFlagMessages     << ' ' << (menu.options.game.showFlagMessages() ? 1 : 0) << '\n';

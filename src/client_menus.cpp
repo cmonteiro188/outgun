@@ -155,6 +155,7 @@ Menu_game::Menu_game() :
     favoriteColors      (_("Favorite colors")),
     lagPrediction       (_("Lag prediction"), false),
     lagPredictionAmount (_("Lag prediction amount"), true, 0, 10, 10),
+    targetPing          (_("Target ping"), false, 0, 300, 0, 10),
 
     messageLogging      (_("Save game messages")),
     showFlagMessages    (_("Show flag messages"), true),
@@ -175,6 +176,7 @@ Menu_game::Menu_game() :
     menu.add_component(&favoriteColors);
     menu.add_component(&lagPrediction);
     menu.add_component(&lagPredictionAmount);
+    menu.add_component(&targetPing);
     ins_space();
     menu.add_component(&messageLogging);
     menu.add_component(&showFlagMessages);
