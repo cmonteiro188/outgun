@@ -1617,12 +1617,10 @@ void Server::run_bot_thread() {
             if (threadLock)
                 threadLockMutex.unlock();
         }
-        bool adjust_pings = false;
-        if (bot_ping_changed) {
-            bot_ping_changed = false;
-            adjust_pings = true;
-        }
         g_timeCounter.refresh();
+        const bool adjust_pings = bot_ping_changed;
+        if (adjust_pings)
+            bot_ping_changed = false;
         for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
             nAssert(*bi);
             if ((*bi)->bot_finished()) {
