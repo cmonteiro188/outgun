@@ -295,6 +295,7 @@ void Graphics::setColors() {
 
     // wild flag colour
     teamcol[2] = colour(Colour::wild_flag);
+    teamflashcol[2] = colour(Colour::wild_flag_flash);
 
     //light colours for text
     teamlcol[0] = colour(Colour::team_red_light);

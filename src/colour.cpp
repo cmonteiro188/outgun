@@ -32,6 +32,7 @@ void Colour_manager::init(const string& file) {
         PT(new Colour_setting("team_blue_flash"       , 0xC8, 0xC8, 0xFF)),
 
         PT(new Colour_setting("wild_flag"             , 0x00, 0xFF, 0x00)),
+        PT(new Colour_setting("wild_flag_flash"       , 0xC8, 0xFF, 0xC8)),
 
         PT(new Colour_setting("screen_background"     , 0x00, 0x00, 0x00)),
         PT(new Colour_setting("flag_pole"             , 0xFF, 0xFF, 0x00)),

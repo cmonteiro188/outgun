@@ -26,6 +26,7 @@ public:
         team_blue_flash,
 
         wild_flag,
+        wild_flag_flash,
 
         screen_background,
         flag_pole,
