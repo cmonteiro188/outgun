@@ -3850,6 +3850,8 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         break; case KEY_MINUS_PAD:
             if (key[KEY_P]) {
                 target_ping -= 10;
+                if (target_ping < 0)
+                    target_ping = 0;
                 print_message(msg_info, "Ping " + itoa(target_ping));
             }
         break; default:
