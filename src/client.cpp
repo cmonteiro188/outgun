@@ -3539,9 +3539,10 @@ bool Client::get_local_servers() {
     nlStringToAddr("255.255.255.255:25000", &addr);
     nlSetRemoteAddr(sock, &addr);
 
+    const char broadcast_string[] = "Outgun";
     NLbyte buffer[512]; int count = 0;
     writeLong(buffer, count, 0);
-    writeString(buffer, count, "Outgun");
+    writeString(buffer, count, broadcast_string);
     NLint result = nlWrite(sock, buffer, count);
     if (result == NL_INVALID) {
         log("Can't broadcast packet.");
@@ -3556,6 +3557,9 @@ bool Client::get_local_servers() {
     platSleep(500);
     while (nlRead(sock, (NLvoid*)buffer, (NLint)sizeof(buffer)) > 0) {
         log("Full response: '%s'", formatForLogging(buffer).c_str());
+
+        if (strcmp(buffer, broadcast_string))
+            continue;   // Not an Outgun server.
 
         nlGetRemoteAddr(sock, &addr);
 
