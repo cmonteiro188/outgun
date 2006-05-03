@@ -1105,7 +1105,7 @@ bool Client::IsDefender() {
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
             if (!player.used || player.team() != fx.player[me].team() || player.dead || i == me ||
-                player.roomx < 0 || player.roomy < 0)
+                player.roomx < 0 || player.roomy < 0 || player.roomx >= fx.map.w || player.roomy >= fx.map.h)
                     continue;
             const int label = fx.map.room[player.roomx][player.roomy].label[Table_Def];
             if (label <= m_label || HaveFlag(i))
@@ -1261,20 +1261,18 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
 
     int label = 0;
     for (int i = 0; i < maxplayers; ++i) {
-        if (i == me || !fx.player[i].used || fx.player[i].team() != team || fx.player[i].dead ||
-            fx.player[i].roomx < 0 || fx.player[i].roomy < 0)
+        const ClientPlayer& pl = fx.player[i];
+        if (i == me || !pl.used || pl.team() != team || pl.dead ||
+            pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
                 continue;
 
-        label = fx.map.room[fx.player[i].roomx][fx.player[i].roomy].label[num];
+        label = fx.map.room[pl.roomx][pl.roomy].label[num];
         if (label == -1)
             continue;
 
         if (enemy) { // if enemy, check fadeout
-            const ClientPlayer& pl = fx.player[i];
-            if (!pl.used || pl.roomx < 0 || pl.roomy < 0 ||
-                pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
-                fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
-                    continue; // old data
+            if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
+                continue; // old data
             if (!pl.onscreen) {
                 if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
                     continue; // already here
@@ -1285,8 +1283,8 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
 
         if (label < m_label || m_label == -1) {
             m_label = label;
-            x = fx.player[i].roomx;
-            y = fx.player[i].roomy;
+            x = pl.roomx;
+            y = pl.roomy;
             routing[num] = Route_Team;
         }
     }
@@ -1594,7 +1592,9 @@ ClientControls Client::getRobotControls() {
 ClientControls Client::Robot() {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
-    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1) {
+    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
+                    fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
+                    fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h) {
         myGundir = -1;
         return ClientControls();
     }
