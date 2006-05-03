@@ -199,11 +199,6 @@ void Colour_manager::update() {
         ci->update();
 }
 
-int Colour_manager::operator()(Colour::Col_id key) const {
-    return col(key)();
-}
-
-const Colour& Colour_manager::col(Colour::Col_id key) const {
-    nAssert(key >= 0 && key < int(colours.size()));
+const Colour& Colour_manager::operator()(Colour::Col_id key) const {
     return colours[key];
 }

@@ -309,13 +309,13 @@ void Graphics::setColors() {
 }
 
 void Graphics::setPlaygroundColors() {
-    col[COLGROUND] = groundCol();
-    col[COLWALL] = wallCol();
+    col[COLGROUND] = groundCol;
+    col[COLWALL] = wallCol;
 }
 
 void Graphics::reset_playground_colors() {
-    groundCol = colour_set.col(Colour::ground);
-    wallCol   = colour_set.col(Colour::wall);
+    groundCol = colour_set(Colour::ground);
+    wallCol   = colour_set(Colour::wall);
     setPlaygroundColors();
 }
 

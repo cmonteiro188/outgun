@@ -36,7 +36,7 @@ public:
 
     void update() { col_value = makecol(r, g, b); }
 
-    int operator()() const { return col_value; }
+    operator int() const { return col_value; }
 
     enum Col_id {
         team_red_basic,
@@ -169,8 +169,7 @@ public:
     void init(const std::string& file);
     void update();
 
-    int operator()(Colour::Col_id key) const;
-    const Colour& col(Colour::Col_id key) const;
+    const Colour& operator()(Colour::Col_id key) const;
 
 private:
     std::vector<Colour> colours;

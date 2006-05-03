@@ -52,7 +52,7 @@ public:
     virtual bool isEnabled() const { return enabled; }
     virtual bool needsNumberKeys() const { return false; }
 
-    virtual void draw(BITMAP* buffer, int x, int y, int height, bool active) const = 0;
+    virtual void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const = 0;
     virtual int width() const = 0;
     virtual int height() const = 0;
     virtual int minHeight() const { return height(); }
@@ -60,7 +60,7 @@ public:
     virtual void shortcutActivated() { }
 
 protected:
-    int captionColor(bool active) const;    // decides a color based on isEnabled() and active
+    int captionColor(bool active, const Colour_manager& col) const;    // decides a color based on isEnabled() and active
 
     std::string caption;
     bool enabled;
@@ -109,7 +109,7 @@ public:
     void open() { openHook.call(*this); home(); }
     void close() { closeHook.call(*this); }
 
-    void draw(BITMAP* buffer);  // no const because drawHook might modify the menu
+    void draw(BITMAP* buffer, const Colour_manager& col);  // no const because drawHook might modify the menu
     bool handleKeypress(char scan, unsigned char chr);
 
     void  setDrawHook(MenuHook<Menu>::FunctionT* fn) {  drawHook.set(fn); } // called before drawing
@@ -120,7 +120,7 @@ public:
     // inherited interface
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char, unsigned char);
     void shortcutActivated();
 
@@ -151,7 +151,7 @@ public:
     bool close(Menu* menu); // from anywhere in the stack; returns true if found (and closed)
     void close() { nAssert(!empty()); Menu* menu = st.back(); st.pop_back(); menu->close(); }
     void clear() { while (!empty()) close(); }
-    void draw(BITMAP* buf) { nAssert(!empty()); st.back()->draw(buf); }
+    void draw(BITMAP* buf, const Colour_manager& col) { nAssert(!empty()); st.back()->draw(buf, col); }
     bool handleKeypress(char scan, unsigned char chr) { nAssert(!empty()); return st.back()->handleKeypress(scan, chr); }
 
 private:
@@ -165,7 +165,7 @@ public:
     // inherited interface
     bool canBeEnabled() const { return false; }
     bool isEnabled() const { return false; }
-    void draw(BITMAP*, int, int, int, bool) const { }
+    void draw(BITMAP*, int, int, int, bool, const Colour_manager&) const { }
     int width() const { return 0; }
     int height() const;
 
@@ -187,7 +187,7 @@ public:
     bool needsNumberKeys() const { return true; }
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -243,7 +243,7 @@ public:
     bool needsNumberKeys() const { return open; }
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
 
     virtual void virtualCallHook() = 0;
@@ -288,7 +288,7 @@ public:
     // inherited interface
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -307,7 +307,7 @@ public:
     // inherited interface
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
     void shortcutActivated();
 
@@ -329,7 +329,7 @@ public:
     // inherited interface
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -352,7 +352,7 @@ public:
     bool needsNumberKeys() const { return true; }
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:
@@ -366,7 +366,7 @@ public:
     // inherited interface
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
     void shortcutActivated();
 
@@ -384,7 +384,7 @@ public:
     bool isEnabled() const { return false; }
     int width() const;
     int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
 
 private:
     std::string text;
@@ -400,7 +400,7 @@ public:
     int height() const;
     int minHeight() const { return objLineHeight(); }    // one line
     int objLineHeight() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active) const;
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
     bool handleKey(char scan, unsigned char chr);
 
 private:

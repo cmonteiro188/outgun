@@ -226,7 +226,7 @@ public:
     void set_stats_alpha(int alpha) { stats_alpha = alpha; }
 
     const Colour_manager& colours() const { return colour_set; }
-    int colour(Colour::Col_id id) const { return colour_set(id); }
+    const Colour& colour(Colour::Col_id id) const { return colour_set(id); }
 
 private:
     void unload_bitmaps();

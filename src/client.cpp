@@ -4616,7 +4616,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     //"server not responding... connection may have dropped" plaque
     if (get_time() > lastpackettime + 1.0)
-        m_notResponding.menu.draw(client_graphics.drawbuffer());
+        m_notResponding.menu.draw(client_graphics.drawbuffer(), client_graphics.colours());
 
     // debug panel
     if (key[KEY_F9]) {
@@ -4720,7 +4720,7 @@ void Client::draw_game_menu() {
             numAssert(0, menusel);
     }
     if (!openMenus.empty())
-        openMenus.draw(client_graphics.drawbuffer());
+        openMenus.draw(client_graphics.drawbuffer(), client_graphics.colours());
 }
 
 void Client::initMenus() {
