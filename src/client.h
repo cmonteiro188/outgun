@@ -56,7 +56,7 @@ public:
     const NLaddress& address() const { return addr; }
     std::string addressString() const;
     bool setAddress(const std::string& address);    // returns false if address is invalid
-    bool setAddress(const NLaddress& address);    // returns false if address is invalid
+    void setAddress(const NLaddress& address);
 
 private:
     NLaddress   addr;

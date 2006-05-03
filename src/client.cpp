@@ -476,11 +476,10 @@ bool ServerListEntry::setAddress(const string& address) {
     return true;
 }
 
-bool ServerListEntry::setAddress(const NLaddress& address) {
+void ServerListEntry::setAddress(const NLaddress& address) {
     addr = address;
     if (nlGetPortFromAddr(&addr) == 0)
         nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
-    return true;
 }
 
 string ServerListEntry::addressString() const {
@@ -3569,8 +3568,8 @@ bool Client::get_local_servers() {
         nlGetRemoteAddr(sock, &addr);
 
         ServerListEntry spy;
-        if (spy.setAddress(addr))
-            mgamespy.push_back(spy);
+        spy.setAddress(addr);
+        mgamespy.push_back(spy);
     }
 
     nlClose(sock);
