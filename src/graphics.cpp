@@ -268,26 +268,27 @@ void Graphics::setColors() {
 
     reset_playground_colors();
 
-    //the first 8 colors are player's colors
-    col[COLGREEN]  = makecol(0x00, 0xFF, 0x00);
-    col[COLYELLOW] = makecol(0xFF, 0xFF, 0x00);
-    col[COLWHITE]  = makecol(0xFF, 0xFF, 0xFF);
-    col[COLMAG]    = makecol(0xFF, 0x08, 0xFF); // can't use pure magenta, it will end up transparent in the themes
-    col[COLCYAN]   = makecol(0x00, 0xFF, 0xFF);
-    col[COLORA]    = makecol(0xFF, 0xA0, 0x00);
-    col[COLLRED]   = makecol(0xFF, 0x55, 0x44);
-    col[COLLBLUE]  = makecol(0x44, 0x55, 0xFF);
-    //MORE player colors
-    col[COL9]  = makecol(0x00, 0x80, 0x00);
-    col[COL10] = makecol(0xA0, 0xA0, 0xA0);
-    col[COL11] = makecol(0x00, 0xA0, 0xA0);
-    col[COL12] = makecol(0x80, 0x00, 0x80);
-    col[COL13] = makecol(0xA0, 0x60, 0x00);
-    col[COL14] = makecol(0x00, 0x00, 0x80);
-    col[COL15] = makecol(0x80, 0x00, 0x00);
-    col[COL16] = makecol(0x66, 0x66, 0x66);
+    // player colours
+    int i = 0;
+    col[i++] = makecol(0x00, 0xFF, 0x00);
+    col[i++] = makecol(0xFF, 0xFF, 0x00);
+    col[i++] = makecol(0xFF, 0xFF, 0xFF);
+    col[i++] = makecol(0xFF, 0x08, 0xFF); // can't use pure magenta, it will end up transparent in the themes
+    col[i++] = makecol(0x00, 0xFF, 0xFF);
+    col[i++] = makecol(0xFF, 0xA0, 0x00);
+    col[i++] = makecol(0xFF, 0x55, 0x44);
+    col[i++] = makecol(0x44, 0x55, 0xFF);
+    col[i++] = makecol(0x00, 0x80, 0x00);
+    col[i++] = makecol(0xA0, 0xA0, 0xA0);
+    col[i++] = makecol(0x00, 0xA0, 0xA0);
+    col[i++] = makecol(0x80, 0x00, 0x80);
+    col[i++] = makecol(0xA0, 0x60, 0x00);
+    col[i++] = makecol(0x00, 0x00, 0x80);
+    col[i++] = makecol(0x80, 0x00, 0x00);
+    col[i++] = makecol(0x66, 0x66, 0x66);
+    nAssert(i == 16);
 
-    //teams 0 & 1 (playernum(0..15) / 8) colors:
+    // team colours
     teamcol[0] = colour(Colour::team_red_basic);
     teamcol[1] = colour(Colour::team_blue_basic);
     teamflashcol[0] = colour(Colour::team_red_flash);
@@ -297,7 +298,7 @@ void Graphics::setColors() {
     teamcol[2] = colour(Colour::wild_flag);
     teamflashcol[2] = colour(Colour::wild_flag_flash);
 
-    //light colours for text
+    // light colours for text
     teamlcol[0] = colour(Colour::team_red_light);
     teamlcol[1] = colour(Colour::team_blue_light);
 
@@ -1853,7 +1854,7 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     const int line_h = 10;
     const int margin = 8;
     for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player, ++line) {
-        const int c = (me == line - 1) ? col[COLYELLOW] : col[COLWHITE];
+        const int c = (me == line - 1) ? makecol(0xFF, 0xFF, 0x00) : makecol(0xFF, 0xFF, 0xFF);
         textprintf_ex(drawbuf, font, margin, line * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
             line, player->used, player->onscreen, player->roomx, player->roomy,
             player->lx, player->ly, player->sx, player->sy);

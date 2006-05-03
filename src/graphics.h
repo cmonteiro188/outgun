@@ -383,35 +383,12 @@ private:
 
     int stats_alpha;
 
-    //colors
-    enum {
-        //player's colors
-        COLGREEN,
-        COLYELLOW,
-        COLWHITE,
-        COLMAG,
-        COLCYAN,
-        COLORA,
-        COLLRED,        // light red
-        COLLBLUE,       // light blue
-        COL9,
-        COL10,
-        COL11,
-        COL12,
-        COL13,
-        COL14,
-        COL15,
-        COL16,
-
-        NUM_OF_COL
-    };
-
     int teamcol[3];
     int teamflashcol[3]; // flag flashing colours
-    int teamlcol[2];     // light colours for statusbar
-    int teamdcol[2];     // dark colours for player name
+    int teamlcol[2];     // light colours
+    int teamdcol[2];     // dark colours
 
-    int col[NUM_OF_COL];
+    int col[16];         // player colours
     Colour groundCol, wallCol;
 
     static const int fogOfWarMaxAlpha = 0x38;
