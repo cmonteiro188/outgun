@@ -99,7 +99,6 @@ public:
     Colorselect favoriteColors;
     Checkbox    lagPrediction;
     Slider      lagPredictionAmount;
-    Slider      targetPing;
     Select<MessageLoggingMode>  messageLogging;
     Checkbox    showFlagMessages;
     Checkbox    showKillMessages;

@@ -133,7 +133,6 @@ enum ClientCfgSetting {
     CCS_ShowFlagMessages,
     CCS_ShowKillMessages,
     CCS_HighlightReturnedFlag,
-    CCS_TargetPing,
     CCS_EndOfCommands
 };
 
@@ -292,6 +291,7 @@ class Client {
     #endif
     #ifndef DEDICATED_SERVER_ONLY
     double lag_sum;
+    int target_ping;
     #endif
     double averageLag;
     double frameReceiveTime;    // when fx was received
