@@ -264,8 +264,8 @@ void Graphics::draw_screen(bool acquireWithFlipping) {
 }
 
 void Graphics::setColors() {
-    colour_set.init(wheregamedir + "config" + directory_separator + "colours.txt");
-    colour_set.update();
+    colour.init(wheregamedir + "config" + directory_separator + "colours.txt");
+
     reset_playground_colors();
 
     //the first 8 colors are player's colors
@@ -304,25 +304,16 @@ void Graphics::setColors() {
     // dark colours for team text bg
     teamdcol[0] = colour(Colour::team_red_dark);
     teamdcol[1] = colour(Colour::team_blue_dark);
-
-    setPlaygroundColors();
-}
-
-void Graphics::setPlaygroundColors() {
-    col[COLGROUND] = groundCol;
-    col[COLWALL] = wallCol;
 }
 
 void Graphics::reset_playground_colors() {
-    groundCol = colour_set(Colour::ground);
-    wallCol   = colour_set(Colour::wall);
-    setPlaygroundColors();
+    groundCol = colour(Colour::ground);
+    wallCol   = colour(Colour::wall);
 }
 
 void Graphics::random_playground_colors() {
     groundCol = Colour(rand() % 256, rand() % 256, rand() % 256);
     wallCol   = Colour(rand() % 256, rand() % 256, rand() % 256);
-    setPlaygroundColors();
 }
 
 int Graphics::chat_lines() const {
@@ -345,16 +336,16 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
     vector<ScreenMode> mvec;
 
     #ifdef ALLEGRO_WINDOWS
-    GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_DIRECTX);
+    GFX_MODE_LIST* const modes = get_gfx_mode_list(GFX_DIRECTX);
     #else
     #ifdef GFX_XWINDOWS_FULLSCREEN
-    GFX_MODE_LIST* modes = get_gfx_mode_list(GFX_XWINDOWS_FULLSCREEN);
+    GFX_MODE_LIST* const modes = get_gfx_mode_list(GFX_XWINDOWS_FULLSCREEN);
     #else
-    GFX_MODE_LIST* modes = 0;
+    GFX_MODE_LIST* const modes = 0;
     #endif
     #endif
     if (modes) {
-        int depth2 = (depth == 16) ? 15 : depth;    // 15 and 16 bit modes are considered equal
+        const int depth2 = (depth == 16) ? 15 : depth;    // 15 and 16 bit modes are considered equal
         for (int i = 0; i < modes->num_modes; i++) {
             const GFX_MODE& mode = modes->mode[i];
             if (mode.width >= 320 && mode.height >= 200 && (mode.bpp == depth || mode.bpp == depth2))
@@ -490,7 +481,7 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         if (floor_texture.front())
             backupTexture.setTexture(floor_texture.front(), texOffsetBaseX, texOffsetBaseY);
         else
-            backupTexture.setSolid(col[COLGROUND]);
+            backupTexture.setSolid(groundCol);
         for (vector<Bitmap>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti) {
             if (*ti) { td.setTexture(*ti, texOffsetBaseX, texOffsetBaseY); textures.push_back(td); }
             else textures.push_back(backupTexture);
@@ -499,7 +490,7 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         if (wall_texture.front())
             backupTexture.setTexture(wall_texture.front(), texOffsetBaseX, texOffsetBaseY);
         else
-            backupTexture.setSolid(col[COLWALL]);
+            backupTexture.setSolid(wallCol);
         for (vector<Bitmap>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti) {
             if (*ti) { td.setTexture(*ti, texOffsetBaseX, texOffsetBaseY); textures.push_back(td); }
             else textures.push_back(backupTexture);
@@ -518,11 +509,11 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         // draw floor
         if (floor_texture.front()) {
             drawing_mode(DRAW_MODE_COPY_PATTERN, floor_texture.front(), texOffsetBaseX, texOffsetBaseY);
-            rectfill(roombg, 0, 0, roombg->w - 1, roombg->h - 1, col[COLGROUND]);
+            rectfill(roombg, 0, 0, roombg->w - 1, roombg->h - 1, groundCol);
             solid_mode();
         }
         else
-            clear_to_color(roombg, col[COLGROUND]);
+            clear_to_color(roombg, groundCol);
         predraw_room_ground(room, texOffsetBaseX, texOffsetBaseY);
         // draw flag position marks
         for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
@@ -567,7 +558,7 @@ void Graphics::make_background(BITMAP* buffer) {
 }
 
 void Graphics::predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY) {
-    draw_room_ground(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scr_mul, col[COLGROUND], true);
+    draw_room_ground(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scr_mul, groundCol, true);
 }
 
 void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture) {
@@ -576,7 +567,7 @@ void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, double x, doub
 }
 
 void Graphics::predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY) {
-    draw_room_walls(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scr_mul, col[COLWALL], true);
+    draw_room_walls(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scr_mul, wallCol, true);
 }
 
 void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture) {

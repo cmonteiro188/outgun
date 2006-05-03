@@ -225,15 +225,12 @@ public:
 
     void set_stats_alpha(int alpha) { stats_alpha = alpha; }
 
-    const Colour_manager& colours() const { return colour_set; }
-    const Colour& colour(Colour::Col_id id) const { return colour_set(id); }
+    const Colour_manager& colours() const { return colour; }
 
 private:
     void unload_bitmaps();
 
     bool reset_video_mode(int width, int height, int depth, bool windowed, int pages = 1);
-
-    void setPlaygroundColors();
 
     void make_background(BITMAP* buffer);
 
@@ -406,9 +403,6 @@ private:
         COL15,
         COL16,
 
-        COLGROUND,
-        COLWALL,
-
         NUM_OF_COL
     };
 
@@ -422,7 +416,7 @@ private:
 
     static const int fogOfWarMaxAlpha = 0x38;
 
-    Colour_manager colour_set;
+    Colour_manager colour;
 
     mutable LogSet log;
 };
