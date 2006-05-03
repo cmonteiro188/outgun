@@ -50,7 +50,6 @@ inline int line_h() {
     return text_height(font) + 8;
 }
 
-
 void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, int col1, int col2) {
     const int width = 10;
     if (height > 0) {
@@ -347,7 +346,7 @@ int Menu::total_height() const {
 
 
 bool MenuStack::close(Menu* menu) {
-    std::vector<Menu*>::iterator mi = find(st.begin(), st.end(), menu);
+    vector<Menu*>::iterator mi = find(st.begin(), st.end(), menu);
     if (mi == st.end())
         return false;
     menu->close();

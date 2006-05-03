@@ -3146,7 +3146,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
     player[me].controls = ctrlTab[ctrlLast];
     applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
     frame += subFrameAfter;
-    // PLAYER_POS_ACCURACY is used to counter problems in bouncing caused by inaccurate positions over network
+    // playerPosAccuracy is used to counter problems in bouncing caused by inaccurate positions over network
 }
 
 // Save stats in HTML file.
