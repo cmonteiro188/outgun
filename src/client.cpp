@@ -3747,7 +3747,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
 }
 
 bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
-    (void)(withControl&alt_sequence);
+    (void)(withControl & alt_sequence);
     if (menu.options.controls.arrowKeysInStats() != Menu_controls::AS_useMenu && (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_LEFT || sc == KEY_RIGHT))
         return false;
     switch (menusel) {
