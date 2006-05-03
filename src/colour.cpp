@@ -43,6 +43,7 @@ struct Colour_setting {
 
 void Colour_manager::init(const string& file) {
     typedef std::auto_ptr<Colour_setting> PT;
+    PT hack(0); // avoid GCC bug http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12883
     // Default colours
     PT settings[] = {
         PT(new Colour_setting("team_red_basic"        , 0xFF, 0x00, 0x00)),
@@ -200,5 +201,6 @@ void Colour_manager::update() {
 }
 
 const Colour& Colour_manager::operator()(Colour::Col_id key) const {
+    nAssert(key >= 0 && key < int(colours.size()));
     return colours[key];
 }
