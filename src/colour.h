@@ -31,8 +31,8 @@
 
 class Colour {
 public:
-    Colour(): r(0), g(0), b(0) { }
-    Colour(int r_, int g_, int b_): r(r_), g(g_), b(b_) { }
+    Colour(): r(0), g(0), b(0), col_value(0) { }
+    Colour(int r_, int g_, int b_): r(r_), g(g_), b(b_) { update(); }
 
     void update() { col_value = makecol(r, g, b); }
 
