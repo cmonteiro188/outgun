@@ -525,9 +525,9 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         circlefill(roombg, scale(si->second->x), scale(si->second->y), scale(PLAYER_RADIUS), teamcol[si->first]);
     if (grid) {
         for (int y = 1; y < 12; ++y)
-            hline(roombg, 0, scale(plh * y / 12.), scale(plw), y == 6 ? col[COLYELLOW] : col[COLWHITE]);
+            hline(roombg, 0, scale(plh * y / 12.), scale(plw), y == 6 ? colour(Colour::map_info_grid_main) : colour(Colour::map_info_grid));
         for (int x = 1; x < 16; ++x)
-            vline(roombg, scale(plw * x / 16.), 0, scale(plh), x == 8 ? col[COLYELLOW] : col[COLWHITE]);
+            vline(roombg, scale(plw * x / 16.), 0, scale(plh), x == 8 ? colour(Colour::map_info_grid_main) : colour(Colour::map_info_grid));
     }
     if (TEST_FALL_ON_WALL)
         for (int y = 0; y < plh; y += 2)

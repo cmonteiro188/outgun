@@ -64,6 +64,8 @@ public:
         map_player_me_1,
         map_player_me_2,
         map_fog,
+        map_info_grid,
+        map_info_grid_main,
 
         bar_text,
         bar_0,

@@ -71,6 +71,8 @@ void Colour_manager::init(const string& file) {
         PT(new Colour_setting("map_player_me_1"       , 0xFF, 0xFF, 0x00)),
         PT(new Colour_setting("map_player_me_2"       , 0x00, 0x00, 0x00)),
         PT(new Colour_setting("map_fog"               , 0xFF, 0xFF, 0xFF)),
+        PT(new Colour_setting("map_info_grid"         , 0xFF, 0xFF, 0xFF)),
+        PT(new Colour_setting("map_info_grid_main"    , 0xFF, 0xFF, 0x00)),
 
         PT(new Colour_setting("bar_text"              , 0xFF, 0xFF, 0xFF)),
         PT(new Colour_setting("bar_0"                 , 0x00, 0x00, 0x00)),
