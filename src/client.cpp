@@ -1187,8 +1187,6 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     //don't want to exit map by default
     want_map_exit = false;
     want_map_exit_delayed = false;
-
-    lag_sum = 0;
     #endif
 
     //avoid "dropped" plaque
@@ -1204,6 +1202,9 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     gameshow = true;
     #ifndef DEDICATED_SERVER_ONLY
     openMenus.clear();  // connect progress menu is showing; exceptions are when it's been closed and the disconnect is still pending, and when help is opened on top of it
+
+    lag_sum = 0;
+
     fd.frame = -1;
     fd.skipped = true;
     #endif
