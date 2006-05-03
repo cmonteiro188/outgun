@@ -30,6 +30,7 @@
 #include <list>
 #include <vector>
 
+#include "colour.h"
 #include "incalleg.h"
 #include "mutex.h"
 #include "utility.h"
@@ -224,6 +225,9 @@ public:
 
     void set_stats_alpha(int alpha) { stats_alpha = alpha; }
 
+    const Colour_manager& colours() const { return colour_set; }
+    int colour(Colour::Col_id id) const { return colour_set(id); }
+
 private:
     void unload_bitmaps();
 
@@ -393,7 +397,6 @@ private:
         COLORA,
         COLLRED,        // light red
         COLLBLUE,       // light blue
-        //MORE player colors
         COL9,
         COL10,
         COL11,
@@ -403,30 +406,9 @@ private:
         COL15,
         COL16,
 
-        //team colors
-        COLRED,         //team 1 (color 0)
-        COLBLUE,        //team 2 (color 1)
-
-        //base colors
-        COLBRED,            //team 1 (color 0)
-        COLBBLUE,       //team 2 (color 1)
-
-        //other
-        COLFOGOFWAR,
-        COLMENUWHITE,
-        COLMENUBLACK,
-        COLMENUGRAY,
         COLGROUND,
         COLWALL,
-        COLBLACK,
-        COLDARKGRAY,
-        COLSHADOW,
-        COLDARKORA,
-        COLINFO,
-        COLENER3,
-        COLGROUND_DEF,
-        COLWALL_DEF,
-        COLDARKGREEN,
+
         NUM_OF_COL
     };
 
@@ -436,9 +418,11 @@ private:
     int teamdcol[2];     // dark colours for player name
 
     int col[NUM_OF_COL];
-    int groundCol[3], wallCol[3];
+    Colour groundCol, wallCol;
 
     static const int fogOfWarMaxAlpha = 0x38;
+
+    Colour_manager colour_set;
 
     mutable LogSet log;
 };
