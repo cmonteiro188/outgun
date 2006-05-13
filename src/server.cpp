@@ -652,6 +652,8 @@ void Server::load_game_mod(bool reload) {
     else
         log.error(_("Can't open game mod file '$1'.", filename));
     world.setConfig(worldConfig, pupConfig);
+    if (reload)
+        world.check_pickup_creation(true);
 }
 
 //load a map from the rotation list
