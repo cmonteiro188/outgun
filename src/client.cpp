@@ -1889,8 +1889,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     const int ymul = 255 / fx.map.h;
                     fx.player[who].roomx = whox / xmul;
                     fx.player[who].roomy = whoy / ymul;
-                    fx.player[who].lx = (whox % xmul) * plw / (xmul - 1);
-                    fx.player[who].ly = (whoy % ymul) * plh / (ymul - 1);
+                    fx.player[who].lx = (xmul == 1) ? 0 : (whox % xmul) * plw / (xmul - 1);
+                    fx.player[who].ly = (ymul == 1) ? 0 : (whoy % ymul) * plh / (ymul - 1);
                     fx.player[who].posUpdated = svframe;
                 }
             }
