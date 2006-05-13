@@ -1854,8 +1854,7 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             for (int round = 0; round < 2; ++round) {
-                //read who,x,y
-                NLubyte who,whox,whoy;
+                NLubyte who, whox, whoy;
                 readByte(data, count, who);
                 if (who == 255)
                     continue;
