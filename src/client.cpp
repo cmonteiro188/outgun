@@ -3792,6 +3792,16 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
 }
 
 void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+    if (key[KEY_P])         // ping setting
+        if (sc == KEY_PLUS_PAD) {
+            print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
+            return;
+        }
+        else if (sc == KEY_MINUS_PAD) {
+            print_message(msg_info, "Ping +" + itoa(iround(client->decreasePacketDelay() * 1000)));
+            return;
+        }
+
     switch (sc) {
     /*break;*/ case KEY_HOME:   // change colours
             if (withControl)
@@ -3822,18 +3832,6 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             client->send_message(lebuf, count);
         }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
-        break; case KEY_PLUS_PAD:
-            if (key[KEY_P]) {
-                target_ping += 10;
-                print_message(msg_info, "Ping " + itoa(target_ping));
-            }
-        break; case KEY_MINUS_PAD:
-            if (key[KEY_P]) {
-                target_ping -= 10;
-                if (target_ping < 0)
-                    target_ping = 0;
-                print_message(msg_info, "Ping " + itoa(target_ping));
-            }
         break; default:
             // Add character to text
             if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
