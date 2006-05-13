@@ -1,86 +1,131 @@
-ifndef LINUX
- MINGW = 1
- #STLPORT = 1
-endif
-
-ifndef CFLAGS
-#distro: CFLAGS = -mcpu=pentium -Wall -W -O2 -ffast-math
- CFLAGS = -W -Wall -O2
-endif
-
-ifdef MINGW
- LIBALLEG = -lalleg
- ifdef STLPORT
-  BASELIBS = -lNL -lpthreadGC1 -lstlport_mingw32_static
-  EXTRA_CFLAGS = -I$(MINGDIR)/include/stlport
- else
-  BASELIBS = -lNL -lpthreadGC1
+# try to guess platform
+# LINUX=1 is probably better on anything but Windows.
+# If the XAUTHORITY test doesn't work on your system, use "make LINUX=1"
+# or "make WINDOWS=1" to override, or edit this test.
+ifdef XAUTHORITY
+ ifndef WINDOWS
+  LINUX = 1
  endif
-else
- LIBALLEG = `allegro-config --libs debug`
- BASELIBS = -lNL_debug
- EXTRA_CFLAGS = -pthread
 endif
 
-ifdef MINGW
-PLATFORM_OBJ = platform_win.o
-else
-PLATFORM_OBJ = platform_unix.o
+ifndef BASE_CFLAGS
+ BASE_CFLAGS = -W -Wall -O3 -march=pentium -ffast-math
 endif
 
-OBJS = antialias.o world.o servnet.o server.o graphics.o commont.o \
-	client.o client_menus.o main.o names.o nameauth.o sounds.o mappic.o \
-	nassert.o globals.o log.o utility.o menu.o network.o thread.o \
-	gamemod.o debug.o language.o $(PLATFORM_OBJ) \
-	leetnet/client.o leetnet/ConditionVariable.o leetnet/Mutex.o \
-	leetnet/rudp.o leetnet/server.o leetnet/Time.o leetnet/Timer.o \
+BASE_OBJS = world.o servnet.o server.o commont.o main.o names.o nameauth.o \
+	nassert.o globals.o log.o utility.o network.o thread.o gamemod.o \
+	debug.o robot.o client.o \
+	language.o leetnet/ConditionVariable.o leetnet/Mutex.o leetnet/rudp.o \
+	leetnet/client.o leetnet/server.o leetnet/Time.o leetnet/Timer.o \
 	leetnet/dlog.o
 
-MON_OBJS = tools/srvmonit.o nassert.o network.o utility.o globals.o language.o log.o commont.o $(PLATFORM_OBJ)
+CLIENT_OBJS = antialias.o graphics.o colour.o client_menus.o sounds.o menu.o \
+	mappic.o
 
-MAKEDEP_OBJS = tools/makedep.o
+MAKEDEP_BASE_OBJS = tools/makedep.o
 
-ifdef MINGW
- EXTRA_OBJS = icon.res
- #LFLAGS = -mwindows $(OUTGUN_LINK_FLAGS)
- LFLAGS = $(OUTGUN_LINK_FLAGS)
- MON_LFLAGS = -mconsole -s
-else
+MON_BASE_OBJS = tools/srvmonit.o nassert_mon.o network.o utility.o globals.o \
+	language.o log.o commont.o
+
+GCC = g++
+WINDRES = windres
+
+ifdef LINUX
+
+ CP = cp
+ RM = rm -f
+ EXE_SUFFIX =
+
+ BASE_LIBS = -lNL_debug
+ ifdef DEDICATED_SERVER_ONLY
+  ALLEG_LIBS =
+  ALLEG_CFLAGS =
+ else 
+  ifdef STATIC_ALLEGRO
+   ALLEG_LIBS = `allegro-config --libs --static debug`
+  else
+   ALLEG_LIBS = `allegro-config --libs debug`
+  endif
+  ALLEG_CFLAGS =
+ endif
+ STLP_LIBS =
+ STLP_CFLAGS =
+ PLATFORM_OBJS = platform_unix.o
  EXTRA_OBJS =
- LFLAGS = $(OUTGUN_LINK_FLAGS)
- MON_LFLAGS = -pthread
+ #LFLAGS =
+
+else
+
+ CP = copy
+ RM = del
+ EXE_SUFFIX = .exe
+
+ BASE_LIBS = -lNL -lpthreadGC -lwinmm
+ ifdef STATIC_ALLEGRO
+  ALLEG_LIBS = -lalleg_s -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 \
+	-ldinput -lddraw -ldxguid -ldsound
+  ALLEG_CFLAGS = -DALLEGRO_STATICLINK
+ else
+  ALLEG_LIBS = -lalleg
+  ALLEG_CFLAGS =
+ endif
+ ifdef STLPORT
+  STLP_LIBS = -lstlport_mingw32_static
+  STLP_CFLAGS = -I$(MINGDIR)/include/stlport -mthreads
+ else
+  STLP_LIBS =
+  STLP_CFLAGS =
+ endif
+ PLATFORM_OBJS = platform_win.o
+ EXTRA_OBJS = icon.res
+ LFLAGS = -mwindows
+
 endif
 
-MAKEDEP_LFLAGS = $(MON_LFLAGS)
+ifdef DEDICATED_SERVER_ONLY
+ CFLAGS = $(BASE_CFLAGS) $(STLP_CFLAGS) -DDEDICATED_SERVER_ONLY
+ OBJS = $(BASE_OBJS) $(PLATFORM_OBJS) $(EXTRA_OBJS)
+ LIBS = $(BASE_LIBS) $(STLP_LIBS)
+else
+ CFLAGS = $(BASE_CFLAGS) $(ALLEG_CFLAGS) $(STLP_CFLAGS)
+ OBJS = $(BASE_OBJS) $(CLIENT_OBJS) $(PLATFORM_OBJS) $(EXTRA_OBJS)
+ LIBS = $(BASE_LIBS) $(ALLEG_LIBS) $(STLP_LIBS)
+endif
 
-all: og mon makedep
-og: outgun.exe
-mon: tools/srvmonit
-makedep: tools/makedep
+MAKEDEP_OBJS = $(MAKEDEP_BASE_OBJS)
+MAKEDEP_LIBS = $(STLP_LIBS)
 
-outgun.exe: $(OBJS) $(EXTRA_OBJS)
-	g++ $(LFLAGS) $(LEETNET) -o $@ $(OBJS) $(EXTRA_OBJS) $(BASELIBS) $(LIBALLEG)
+MON_OBJS = $(MON_BASE_OBJS) $(PLATFORM_OBJS)
+MON_LIBS = $(BASE_LIBS) $(ALLEG_LIBS) $(STLP_LIBS)
+
+all: outgun makedep srvmonit
+
+outgun: ../outgun$(EXE_SUFFIX)
+makedep: tools/makedep$(EXE_SUFFIX)
+srvmonit: tools/srvmonit$(EXE_SUFFIX)
+
+../outgun$(EXE_SUFFIX): $(OBJS)
+	$(GCC) $(LFLAGS) -o $@ $(OBJS) $(LIBS)
 	$(COPY_OUTGUN_EXE)
 
-tools/srvmonit: $(MON_OBJS)
-	g++ $(MON_LFLAGS) -o $@ $(MON_OBJS) $(BASELIBS) $(LIBALLEG)
-	$(COPY_SRVMONIT_EXE)
+tools/makedep$(EXE_SUFFIX): $(MAKEDEP_OBJS)
+	$(GCC) $(LFLAGS) -o $@ $(MAKEDEP_OBJS) $(MAKEDEP_LIBS)
 
-tools/makedep: $(MAKEDEP_OBJS)
-	g++ $(MAKEDEP_LFLAGS) -o $@ $(MAKEDEP_OBJS) $(BASELIBS)
+tools/srvmonit$(EXE_SUFFIX): $(MON_OBJS)
+	$(GCC) $(LFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)
 
 %.res: %.rc
-	windres -i $< -O coff -o $@
+	$(WINDRES) -i $< -O coff -o $@
 
-OBJCOMPILE = g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
+OBJCOMPILE = $(GCC) $(CFLAGS) -c -o $@ $<
 LEETNETCOMPILE = $(OBJCOMPILE)
 
 include Makefile.dependencies
 
 nassert_mon.o : nassert.o
-	g++ $(CFLAGS) $(EXTRA_CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
+	$(GCC) $(CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
 
 PHONY: clean
 
 clean:
-	rm -f $(OBJS) $(EXTRA_OBJS) $(MON_OBJS)
+	$(RM) $(OBJS) $(MAKEDEP_OBJS)
