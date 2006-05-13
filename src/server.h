@@ -41,7 +41,7 @@ public:
     //v0.4.4 PLAYER REGISTRATION STATUS
     bool        token_have;                 //player claims to be registered with (name,token)
     bool        token_valid;        //player (name,token) is validated
-    char        token[64];                  //the player's token
+    std::string token;                  //the player's token
     int         intoken;                        //integer version of token
 
     //v0.4.4 client statistics
@@ -74,7 +74,7 @@ public:
 
         token_have = false;
         token_valid = false;
-        token[0] = 0;
+        token.clear();
         intoken = 666;
 
         current_participation = false;

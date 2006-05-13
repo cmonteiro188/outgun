@@ -1391,7 +1391,7 @@ bool Server::changeRegistration(int id, const string& token) {
     // v0.4.9 FIX : IF HAD previous token have/valid, then FLUSH his stats
     network.client_report_status(id);
 
-    strcpy(client[id].token, token.c_str());
+    client[id].token = token;
     client[id].intoken = intoken;
 
     // NEW (or first) REGISTRATION -- reset player report / stop reporting his old ID
