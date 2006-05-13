@@ -677,7 +677,6 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #ifndef DEDICATED_SERVER_ONLY
     //if player wants to changeteams
     want_change_teams = false;
-    target_ping = 0;
     #else
     (void)serverConfig;
     #endif
@@ -1721,25 +1720,6 @@ void Client::process_incoming_data(const char* data, int length) {
          */
         const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
         averageLag = averageLag * .99 + currentLag * .01;
-
-        #ifndef DEDICATED_SERVER_ONLY
-        if (!botmode) {
-            if (lag_sum > 0)
-                lag_sum += currentLag / 10;
-            const int check_interval = 50;
-            if (svframe % check_interval == 0) {
-                if (lag_sum > 0) {
-                    const double last_lag = lag_sum / check_interval;
-                    const double diff = last_lag - target_ping / 1000.;
-                    if (diff < -0.01)
-                        client->increasePacketDelay(-diff);
-                    else if (diff > 0.01)
-                        client->decreasePacketDelay(diff);
-                }
-                lag_sum = 1;
-            }
-        }
-        #endif
 
         #ifdef SEND_FRAMEOFFSET
         NLubyte fo;

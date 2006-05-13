@@ -291,7 +291,6 @@ class Client {
     #endif
     #ifndef DEDICATED_SERVER_ONLY
     double lag_sum;
-    int target_ping;
     #endif
     double averageLag;
     double frameReceiveTime;    // when fx was received
