@@ -428,4 +428,7 @@ int main(int argc, const char* argv[]) {
     nlShutdown();
     resetKeyboard();
     return r;
-} END_OF_MAIN()
+}
+#ifdef END_OF_MAIN
+ END_OF_MAIN()
+#endif
