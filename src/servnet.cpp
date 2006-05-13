@@ -199,7 +199,7 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
     writeByte(lebuf, count, pid);       // what player id
-    writeStr(lebuf, count, world.player[pid].name);
+    writeStr(lebuf, count, world.player[pid].name.empty() ? "?" : world.player[pid].name);
     server->send_message(cid, lebuf, count);
 }
 
