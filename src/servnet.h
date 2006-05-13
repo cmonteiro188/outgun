@@ -46,21 +46,16 @@ class ServerWorld;
 class ServerNetworking {
     class ClientTransferData {
     public:
-        //v0.4.4 UDP FILE transfer
-        bool        serving_udp_file;           //if TRUE, already serving a file
-        char        *data;                  //the file data
-        NLulong     dp,old_dp,fsize;                //the file pointer and the total size
+        bool        serving_udp_file;
+        std::string data;
+        NLulong     dp,old_dp;
 
     public:
         ClientTransferData() {
             serving_udp_file = false;
-            data = 0;
         }
         void reset() {
-            if ((serving_udp_file) && (data)) {
-                delete data;
-                data = 0;
-            }
+            data.clear();
             serving_udp_file = false;
         }
     };
@@ -139,7 +134,7 @@ class ServerNetworking {
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
 
     void upload_next_file_chunk(int i);
-    int  get_download_file(char *lebuf, char *ftype, char *fname);
+    std::string get_download_file(const std::string& ftype, const std::string& fname);
 
     void clientHello(int client_id, char* data, int length, ServerHelloResult* res);
     int  client_connected(int id);

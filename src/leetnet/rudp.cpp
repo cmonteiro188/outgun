@@ -76,7 +76,7 @@ void get_self_IP(NLaddress *addr) {
 // data class implementation
 //
 
-#define DATA_BUF_SIZE 512           //increased from 512
+#define DATA_BUF_SIZE 1024
 
 class data_ci : public data_c {
 public:
@@ -89,9 +89,7 @@ public:
 
     //extend buffer to fit additional len
     void extend(int len) {
-        if (len + ulen > DATA_BUF_SIZE) {
-            throw 66677;
-        }
+        nAssert(len + ulen <= DATA_BUF_SIZE);
 
         // not allocated yet
         /*
@@ -138,7 +136,7 @@ public:
     }
 
     //set data
-    void set(const char *data, NLshort len) {
+    void set(const char *data, NLushort len) {
         ulen = 0;
         extend(len);
         ulen = len;
@@ -193,7 +191,7 @@ public:
 
     void clear() { id_ = -1; message_.clear(); }
     void set(int id, const data_ci* msg) { nAssert(!used()); sent = 0; id_ = id; message_.set(msg); }
-    void set(int id, const char *data, NLshort len) { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
+    void set(int id, const char *data, NLushort len) { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
     void send(NLulong frame) { nAssert(frame != 0); if (sent == 0) sent = frame; else nAssert(sent < frame); }
 
     bool used() const { return id_ != -1; }
@@ -426,7 +424,7 @@ DLOG_Scope s("URR");
         //printf("msg ready!\n");
 
         //message present - create return data
-        reldata.set(&(message[index][0]), (NLshort)message_size[index]);
+        reldata.set(&(message[index][0]), (NLushort)message_size[index]);
 
         //clear msg (slide window)
         relmsg_mutex.lock();
@@ -486,9 +484,8 @@ DLOG_Scope s("UPIP");
         // NLbyte                           number of reliable messages
         // for each reliable message:
         //      NLulong                     message id
-        //      NLshort                     message size
+        //      NLushort                    message size
         //      NLbyte[message size]        the reliable message data
-        // (FIX: NLshort                    unreliable data size --- inferido do packet size!!!)
         // NLbyte[unreliable data size]     all the unreliable data glued in a big chunk
         //
 
@@ -534,7 +531,7 @@ DLOG_Scope s("UPIP");
         }
 
         NLulong msgid;
-        NLshort msgsize;
+        NLushort msgsize;
         for (i=0; i<nreliable; i++) {       // read all reliable msgs
             readLong(udp_data, count, msgid);       //id
             readShort(udp_data, count, msgsize);    //size
@@ -542,7 +539,8 @@ DLOG_Scope s("UPIP");
             //if (debug) printf("(%i,%i)", msgid, msgsize);
 
             // station will process the incoming reliable message
-            process_incoming_message(msgid, (udp_data + count), msgsize);
+            if (count + msgsize <= udp_size)
+                process_incoming_message(msgid, (udp_data + count), msgsize);
 
             //advance count since we didn't "readBlock"
             count += msgsize;
@@ -551,7 +549,7 @@ DLOG_Scope s("UPIP");
         }
 
         // return this
-        NLshort unreliable_size;
+        NLushort unreliable_size;
 
 
         // FIXED: nao eh mais enviado o unreliable size porque ele pode ser inferido do
@@ -559,7 +557,7 @@ DLOG_Scope s("UPIP");
         //readShort(udp_data, count, unreliable_size);          // unreliable msg size
 
         // tamanho = udp_size(tamanho total do datagrama UDP) - count (quantidade jah parseada ate aqui)
-        unreliable_size = ((NLshort)(udp_size - count));
+        unreliable_size = ((NLushort)(udp_size - count));
 
         char *unreliable = (udp_data + count);      // unreliable msg pointer
 
@@ -639,7 +637,7 @@ DLOG_Scope s("UWR");
             //
             for (int i=0; i<MAXMSG; i++)
                 if (!reliable[i].used()) {
-                    reliable[i].set(idgen_reliable_send++, data, (NLshort)length);
+                    reliable[i].set(idgen_reliable_send++, data, (NLushort)length);
                     reliable_count++;                                               // another one
                     reliable_size += length + 6;
                     relmsg_mutex.unlock();
@@ -653,7 +651,7 @@ DLOG_Scope s("UWR");
         // can't add to the standard send buffer
         #ifdef EXTRA_RELIABLE_STORAGE
         data_ci* msg = new data_ci();
-        msg->set(data, (NLshort)length);
+        msg->set(data, (NLushort)length);
         extra_reliables.push(msg);
         relmsg_mutex.unlock();
         return 1;
@@ -693,9 +691,8 @@ DLOG_Scope s("USP");
         // NLbyte                           number of reliable messages
         // for each reliable message:
         //      NLulong                     message id
-        //      NLshort                     message size
+        //      NLushort                    message size
         //      NLbyte[message size]        the reliable message data
-        // (FIX: NLshort                    unreliable data size --- inferido do packet size!!!)
         // NLbyte[unreliable data size]     all the unreliable data glued in a big chunk
 
         NLint   count = 0;

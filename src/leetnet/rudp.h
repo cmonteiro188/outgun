@@ -60,7 +60,7 @@ public:
     virtual void set(const data_c *data) = 0;
 
     //set data
-    virtual void set(const char *data, short len) = 0;
+    virtual void set(const char *data, NLushort len) = 0;
 
     //clear
     virtual void clear() = 0;

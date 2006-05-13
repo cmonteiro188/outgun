@@ -842,7 +842,7 @@ void thread_disconnect_f(client_ci* client) {
 }
 
 //reader thread function
-#define THREAD_READER_BUFSIZE 8192
+#define THREAD_READER_BUFSIZE 1024 // to protect bad code in later stages from too long packets, packets this long won't be sent anyway
 void thread_reader_f(client_ci* client) {
 DLOG_ScopeNegStart("CTR");
     logThreadStart("Leet client thread_reader_f", client->log);

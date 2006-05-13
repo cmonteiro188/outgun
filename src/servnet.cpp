@@ -109,21 +109,18 @@ void ServerNetworking::upload_next_file_chunk(int i) {
     const int max_chunksize = 128;      // the max chunk size in bytes
 
     //actual size sent
-    int chunksize = fileTransfer[i].fsize - fileTransfer[i].dp;     //attempt to send remaining...
+    int chunksize = fileTransfer[i].data.size() - fileTransfer[i].dp;     //attempt to send remaining...
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    //check if will be last
-    NLubyte islast = 0; //default:no
-    if (fileTransfer[i].dp + chunksize == fileTransfer[i].fsize) //maybe yes?
-        islast = 1;     //yes.
+    NLubyte islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
 
     //send
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_file_download);
     writeShort(lebuf, count, static_cast<NLushort>(chunksize));
     writeByte(lebuf, count, islast);
-    writeBlock(lebuf, count, &(fileTransfer[i].data[fileTransfer[i].dp]), chunksize);
+    writeBlock(lebuf, count, fileTransfer[i].data.data() + fileTransfer[i].dp, chunksize);
     server->send_message(i, lebuf, count);
 
     //save old dp for the ack
@@ -133,32 +130,34 @@ void ServerNetworking::upload_next_file_chunk(int i) {
     fileTransfer[i].dp += chunksize;
 }
 
-//load file from disk. puts file of type/name into the given buffer, returns filesize
-int ServerNetworking::get_download_file(char *lebuf, char *ftype, char *fname) {
-    //map file type
-    if (!strcmp(ftype, "map")) {
-        if (strpbrk(fname, "./:\\")) {
-            log("Illegal file download attempt: map \"%s\"", fname);
-            return -1;
+string ServerNetworking::get_download_file(const string& ftype, const string& fname) {
+    if (ftype == "map") {
+        if (fname.find_first_of("./:\\") != string::npos) {
+            log("Illegal file download attempt: map \"%s\"", fname.c_str());
+            return string();
         }
 
         const string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
 
-        FILE *fmap = fopen(fileName.c_str(), "rb");
-        if (fmap) {
-            const int amount = fread(lebuf, 1, 65536, fmap);
-            fclose(fmap);
-            log("Uploading map \"%s\"", fname);
-            return amount;
+        FILE* fmap = fopen(fileName.c_str(), "rb");
+        if (!fmap) {
+            log("Nonexisting map download attempt: map \"%s\"", fname.c_str());
+            return string();
         }
-        else {
-            log("Nonexisting map download attempt: map \"%s\"", fname);
-            return -1;
+        string data;
+        while (!feof(fmap)) {
+            static const unsigned bufSize = 16000;
+            char buf[bufSize];
+            const int amount = fread(buf, 1, bufSize, fmap);
+            data.append(buf, amount);
         }
+        fclose(fmap);
+        log("Uploading map \"%s\"", fname.c_str());
+        return data;
     }
     else {
-        log("Unknown download type \"%s\"", ftype);
-        return -1;
+        log("Unknown download type \"%s\"", ftype.c_str());
+        return string();
     }
 }
 
@@ -1417,10 +1416,9 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 }
             }
             else if (code == data_file_request) {
-                char ftype[64];
-                char fname[256];
-                readString(msg, count, ftype);
-                readString(msg, count, fname);
+                string ftype, fname;
+                readStr(msg, count, ftype);
+                readStr(msg, count, fname);
                 if (fileTransfer[id].serving_udp_file) {
                     log("Kicked player %d for client misbehavior: already downloading", pid);
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
@@ -1429,25 +1427,20 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 else {
                     //alloc to download
                     fileTransfer[id].serving_udp_file = true;
-                    char buffy[65536];      //buffy is our friend buffer
-                    int fsize = get_download_file((char *)buffy, ftype, fname);
-                    if (fsize == -1) {
+                    fileTransfer[id].data = get_download_file(ftype, fname);
+                    if (fileTransfer[id].data.empty()) {
                         log("Kicked player %d for client misbehavior: invalid download attempt", pid);
                         host->disconnectPlayer(pid, disconnect_client_misbehavior); // don't process the rest of the messages
                         break;  // don't process the rest of the messages
                     }
                     else {
-                        fileTransfer[id].data = new char[fsize];    //allocated to fit!
-                        memcpy(fileTransfer[id].data, buffy, fsize);    //copy from buffy to the client's buffer
-                        fileTransfer[id].dp = 0;    //RESET FILE POINTER: important
-                        fileTransfer[id].fsize = fsize;
-                        //send a chunk
+                        fileTransfer[id].dp = 0;
                         upload_next_file_chunk(id);
                     }
                 }
             }
             else if (code == data_file_ack) {
-                if (fileTransfer[id].dp >= fileTransfer[id].fsize) {
+                if (fileTransfer[id].dp >= fileTransfer[id].data.size()) {
                     //no more data, this was the last ack. close stuff
                     fileTransfer[id].reset();   //reset the download data structs
                                     //the client will carry on from here

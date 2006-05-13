@@ -585,8 +585,6 @@ public:
         NLulong packid, smsgid, leetversion;
         readLong(packet, count, packid);    //packet id
         readLong(packet, count, smsgid);    // special message id (if packet id == 0)
-        
-        log("packid = %lu, smsgid = %lu", packid, smsgid);
 
         // verifica se a mensagem eh de algum client conhecido
       int i;
@@ -1160,7 +1158,7 @@ public:
 
 
 //reader (master) thread - one per server
-#define THREAD_READER_BUFSIZE 8192
+#define THREAD_READER_BUFSIZE 1024 // to protect bad code in later stages from too long packets, packets this long won't be sent anyway
 void thread_master_f(server_ci* server)
 {
     logThreadStart("Leet server thread_master_f", server->log);
