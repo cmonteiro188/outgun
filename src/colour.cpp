@@ -186,7 +186,7 @@ void Colour_manager::init(const string& file) {
             for (int i = 0; i < 3; ++i) {
                 triplet[i] = strtol(rgb.substr(i * len, len).c_str(), 0, 16);
                 if (len == 1)
-                    triplet[i] += 0x10 * triplet[i];
+                    triplet[i] *= 0x11;
             }
             for (unsigned i = 0; &*settings[i] && i < colours.size(); ++i)
                 if (settings[i]->key == key) {
