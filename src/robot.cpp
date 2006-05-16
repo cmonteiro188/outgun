@@ -268,10 +268,10 @@ int Client::GetEasyEnemy(double mex, double mey) const {
             rdist = dist1 + dist2;
         }
     }
-#ifdef BOTDEBUG
+    #ifdef BOTDEBUG
     if (snap != -1)
         fprintf(stderr,"Looking on easy. enemy %d\n", snap);
-#endif
+    #endif
     return snap;
 }
 
@@ -318,10 +318,10 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
             rdist = dist1 + dist2;
         }
     }
-#ifdef BOTDEBUG
+    #ifdef BOTDEBUG
     if (snap != -1)
         fprintf(stderr,"Looking on dang. enemy %d\n", snap);
-#endif
+    #endif
     return snap;
 }
 
@@ -873,9 +873,9 @@ int Client::label_room(int x, int y, int label, RouteTable num) {
         next_room(nx, ny, i);
         if (fx.map.room[nx][ny].label[num] != -1) // already labeled
             continue;
-#ifdef BOTDEBUG
+        #ifdef BOTDEBUG
         fprintf(stderr,"label_room(%d, %d, %d) -> %d %d\n", x, y, label, nx, ny);
-#endif
+        #endif
         fx.map.room[nx][ny].label[num] = label + 1;
         ++n;
     }
@@ -933,14 +933,14 @@ int Client::BuildRouteTable(int mex, int mey, RouteTable num) {
             break;
         ++label;
     }
-#ifdef BOTDEBUG
+    #ifdef BOTDEBUG
     fprintf(stderr,"BuildRoute table from %d %d\n", mex, mey);
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x)
             fprintf(stderr,"%02d ", fx.map.room[x][y].label[num]);
         fprintf(stderr,"\n");
     }
-#endif
+    #endif
     return label;
 }
 
@@ -981,14 +981,14 @@ int Client::BuildRoute(int tox, int toy, RouteTable num) {
 
     while (route_room(tox, toy, num))
         ++i;
-#ifdef BOTDEBUG
+    #ifdef BOTDEBUG
     fprintf(stderr, "BuildRoute  to %d %d\n", tox, toy);
     for (int y = 0; y < fx.map.h; ++y) {
         for (int x = 0; x < fx.map.w; ++x)
             fprintf(stderr,"%02d ", fx.map.room[x][y].route[num]);
         fprintf(stderr,"\n");
     }
-#endif
+    #endif
     return i;
 }
 
@@ -1314,7 +1314,7 @@ bool Client::IsCarriersDef(int team) const {
             def_me = n + defenders;
         }
         defenders += friends;
-    #if 0
+        #if 0
         for (int i = 0; i < 4; i++) {
             int nx = pl.roomx;
             int ny = pl.roomy;
@@ -1326,7 +1326,7 @@ bool Client::IsCarriersDef(int team) const {
                 def_me = n + defenders;
             defenders += friends;
         }
-    #endif
+        #endif
     }
     if (!flags_nr) // nothing to defend
         return true;
@@ -1456,7 +1456,6 @@ int Client::TargetRoute(int efb, int efd, int efc,
     const int t = fx.player[me].team();
     const int et = 1 - t;
     int n = 0;
-//    const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
 
     BuildRouteTable(fx.player[me].roomx, fx.player[me].roomy, num);
 
