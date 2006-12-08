@@ -80,12 +80,12 @@ public:
         turbo,
         shadow,
         weapon,
-        
+
         change_message_1,
         change_message_2,
         change_message_delayed,
         fps,
-        
+
         pup_turbo_1,
         pup_turbo_2,
         pup_turbo_3,
@@ -110,7 +110,7 @@ public:
         player_power_personal,
         blood,
         rocket_shadow,
-        
+
         ice_cream_crisp,
         ice_cream_ball_1,
         ice_cream_ball_2,
@@ -121,7 +121,7 @@ public:
         map_loading_1,
         map_loading_2,
         game_draw,
-        
+
         sb_red_bg,
         sb_blue_bg,
         sb_red_line,
@@ -157,7 +157,7 @@ public:
         menu_value,
         menu_shortcut_disabled,
         menu_shortcut_enabled,
-        
+
         colours_total
     };
 

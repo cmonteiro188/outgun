@@ -45,7 +45,7 @@ extern unsigned long* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGua
  void nAssertFail(const char* expr, ARGP, const char* file, int line) __attribute__ ((noreturn));
  void nAssertFail(const char* expr, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
  void nAssertFail(const char* expr, ARGP, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
-void nAssertFail(const char* expr, ARGP, ARGP, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
+ void nAssertFail(const char* expr, ARGP, ARGP, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
  #undef ARGP
  #define nAssert(expr)                      ((expr)?(void)0:nAssertFail(#expr, __FILE__, __LINE__))
  #define numAssert(expr, v1)                ((expr)?(void)0:nAssertFail(#expr, #v1, v1, __FILE__, __LINE__))
