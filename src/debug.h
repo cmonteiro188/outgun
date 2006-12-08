@@ -56,8 +56,7 @@ class ValidityChecker {
 
   public:
     ValidityChecker() : check(0xC044EC7) { }
-    void checkValidity() const
-        { numAssert((unsigned)this>0x10000 && (unsigned)this<0xFFFF0000, (int)this); nAssert(check!=0xDE7E7ED); nAssert(check==0xC044EC7); }
+    void checkValidity() const { nAssert(this != 0); nAssert(check!=0xDE7E7ED); nAssert(check==0xC044EC7); }
     ~ValidityChecker() { checkValidity(); check=0xDE7E7ED; }
 };
 
