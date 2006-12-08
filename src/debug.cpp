@@ -37,7 +37,7 @@ void MutexHolder::doLogAction(char operation) { // from mutex.h
     if (logFile) {
         const pthread_t threadIdP = pthread_self();
         const int threadId = *reinterpret_cast<const int*>(&threadIdP);
-        const int mutexId = reinterpret_cast<int>(&mutex);
+        const int mutexId = reinterpret_cast<long>(&mutex);
         fwrite(&operation, sizeof(char), 1, logFile);
         fwrite(&threadId, sizeof(int), 1, logFile);
         fwrite(&mutexId, sizeof(int), 1, logFile);
