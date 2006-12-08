@@ -1363,7 +1363,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     break;  // don't process the rest of the messages
                 }
                 else if (string(msg + 1).length() > max_chat_message_length) {
-                    log("Kicked player %d for client misbehavior: sent too long message (%d characters).", pid, string(msg + 1).length());
+                    log("Kicked player %d for client misbehavior: sent too long message (%lu characters).", pid, string(msg + 1).length());
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
                     break;  // don't process the rest of the messages
                 }

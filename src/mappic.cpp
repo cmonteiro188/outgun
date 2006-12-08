@@ -48,7 +48,7 @@ vector<string> Mappic::load_maps(const string& dir) {
     while (mapFiles->hasNext())
         maps.push_back(FileName(mapFiles->next()).getBaseName());
     delete mapFiles;
-    log("Map picture saver: %d maps found.", maps.size());
+    log("Map picture saver: %lu maps found.", maps.size());
     return maps;
 }
 

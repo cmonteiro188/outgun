@@ -904,7 +904,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 void Server::init_bots() {
     const int humans = network.get_human_count();
     int bot_count = network.get_bot_count();
-    log("%d bots, %d in vector.", bot_count, bots.size());
+    log("%d bots, %lu in vector.", bot_count, bots.size());
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
         needed_bots = 0;
