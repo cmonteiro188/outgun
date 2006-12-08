@@ -54,7 +54,7 @@ public:
     virtual void add(const void* data, int len) = 0;
 
     //add long: watch endianess
-    virtual void addlong(unsigned long data) = 0;
+    virtual void addlong(NLulong data) = 0;
 
     //set data
     virtual void set(const data_c *data) = 0;
