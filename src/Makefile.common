@@ -44,7 +44,8 @@ ifdef LINUX
   ifdef STATIC_ALLEGRO
    ALLEG_LIBS = `allegro-config --libs --static debug`
   else
-   ALLEG_LIBS = `allegro-config --libs debug`
+#   ALLEG_LIBS = `allegro-config --libs debug`
+   ALLEG_LIBS = `allegro-config --libs`
   endif
   ALLEG_CFLAGS =
  endif
