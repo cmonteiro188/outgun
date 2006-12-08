@@ -110,6 +110,8 @@ bool check_dir(const string& dir, LogSet& log) {
 
 #ifndef DEDICATED_SERVER_ONLY
 
+void GlobalCloseButtonHook__closeCallback();
+
 class GlobalCloseButtonHook {
     friend void GlobalCloseButtonHook__closeCallback();
 
