@@ -2247,7 +2247,7 @@ void ServerNetworking::run_website_thread() {
     }
 
     // send quit message
-    const string quit = "quit=1\r\n";
+    const string quit = "quit=1";
     const NetworkResult result = post_http_data(websock, 0, 5000, working_address_string, web_script, quit, web_auth);  // only 5 seconds allowed; it's not so crucial
     log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
