@@ -1202,8 +1202,6 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     #ifndef DEDICATED_SERVER_ONLY
     openMenus.clear();  // connect progress menu is showing; exceptions are when it's been closed and the disconnect is still pending, and when help is opened on top of it
 
-    lag_sum = 0;
-
     fd.frame = -1;
     fd.skipped = true;
     #endif

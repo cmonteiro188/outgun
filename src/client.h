@@ -289,9 +289,6 @@ class Client {
     int frameOffsetDeltaNum;
     double netsendAdjustment;
     #endif
-    #ifndef DEDICATED_SERVER_ONLY
-    double lag_sum;
-    #endif
     double averageLag;
     double frameReceiveTime;    // when fx was received
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
