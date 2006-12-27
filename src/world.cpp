@@ -839,7 +839,7 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
             // ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
             // (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the expression above *(-.5))
             // (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)^2 + (dy2-dy1)^2 ]
-            const double k = (diffx * (t * mx - dx1) + diffy * (t  *my - dy1)) / (diffx * diffx + diffy * diffy);
+            const double k = (diffx * (t * mx - dx1) + diffy * (t * my - dy1)) / (diffx * diffx + diffy * diffy);
             if (k >= 0. && k <= 1.)
                 return BounceData(t, Coords(dx1 + k * diffx - t * mx, dy1 + k * diffy - t * my));
         }
