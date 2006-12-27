@@ -530,7 +530,7 @@ void FileDownload::finish() {
 
 void TM_ServerSettings::addLine(Client* cl, const string& caption, const string& value) const {
     const int capWidth = 25;
-    cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth) + ':', value);
+    cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth), value);
 }
 
 void TM_ServerSettings::execute(Client* cl) const {
@@ -1212,6 +1212,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     #ifndef DEDICATED_SERVER_ONLY
     //reset chat buffer
     talkbuffer.clear();
+    talkbuffer_cursor = 0;
     chatbuffer.clear();
     #endif
 
@@ -1625,7 +1626,7 @@ void Client::send_frame(bool newFrame, bool forceSend) {
 
     ClientControls currentControls;
     if (openMenus.empty()) { // don't move at all when a real menu is open
-        currentControls = readControls(menusel != menu_maps, menusel == menu_none || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
+        currentControls = readControls(menusel != menu_maps, menusel == menu_none && talkbuffer.empty() || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
         currentControls.clearModifiersIfIdle();
     }
 
@@ -3684,8 +3685,10 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
                 menusel = menu_none;
                 stats_autoshowing = false;
             }
-            else if (!talkbuffer.empty()) // cancel chat
+            else if (!talkbuffer.empty()) { // cancel chat
                 talkbuffer.clear();
+                talkbuffer_cursor = 0;
+            }
             else
                 showMenu(menu);
         break; case KEY_F2:
@@ -3809,17 +3812,32 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         break; case KEY_INSERT:
             show_all_messages = !show_all_messages;
         break; case KEY_BACKSPACE:
-            if (!talkbuffer.empty())
-                talkbuffer.erase(talkbuffer.end() - 1);
+            if (!talkbuffer.empty()) {
+                talkbuffer.erase(talkbuffer_cursor - 1, 1);
+                talkbuffer_cursor--;
+            }
         break; case KEY_ENTER: case KEY_ENTER_PAD:
             if (!talkbuffer.empty()) {
                 send_chat(trim(talkbuffer));
                 talkbuffer.clear();
+                talkbuffer_cursor = 0;
             }
         break; case KEY_DEL: {
-            char lebuf[16]; int count = 0;
-            writeByte(lebuf, count, data_suicide);
-            client->send_message(lebuf, count);
+            if (!talkbuffer.empty())
+                talkbuffer.erase(talkbuffer_cursor, 1);
+            else {
+                char lebuf[16]; int count = 0;
+                writeByte(lebuf, count, data_suicide);
+                client->send_message(lebuf, count);
+            }
+        }
+        break; case KEY_LEFT: {
+            if (!talkbuffer.empty() && talkbuffer_cursor > 0)
+                talkbuffer_cursor--;
+        }
+        break; case KEY_RIGHT: {
+            if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
+                talkbuffer_cursor++;
         }
         break; case KEY_END: {
             want_change_teams = !want_change_teams;
@@ -3832,8 +3850,10 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         break; default:
             // Add character to text
             if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
-                    (!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence)))
-                talkbuffer += static_cast<char>(ch);
+                    (!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence))) {
+                talkbuffer.insert(talkbuffer_cursor, 1, static_cast<char>(ch));
+                talkbuffer_cursor++;
+            }
     }
 }
 
@@ -4587,7 +4607,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         for (; msg != chatbuffer.end(); ++msg)
             if (get_time() < msg->time() + 80)
                 break;
-    client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer);
+    client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer, talkbuffer_cursor);
 
     //"server not responding... connection may have dropped" plaque
     if (get_time() > lastpackettime + 1.0)

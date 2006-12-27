@@ -454,6 +454,7 @@ class Client {
     std::string password_file;
 
     std::string talkbuffer;
+    int talkbuffer_cursor;
     std::list<Message> chatbuffer;
     bool show_all_messages;
     std::vector<std::string> highlight_text;

@@ -145,7 +145,7 @@ public:
     void draw_loading_map_message(const std::string& text);
     void draw_scores(const std::string& text, int col, int score1, int score2);
     void print_chat_messages(std::list<Message>::const_iterator begin, const std::list<Message>::const_iterator& end,
-                             const std::string& talkbuffer);
+                             const std::string& talkbuffer, int cursor_pos);
 
     void draw_scoreboard(const std::vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings = false, bool underlineMasterAuthenticated = false, bool underlineServerAuthenticated = false);
 
@@ -256,7 +256,7 @@ private:
     void draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team);
 
     void print_chat_message(Message_type type, const std::string& message, int x, int y, bool highlight = false);
-    void print_chat_input(const std::string& message, int x, int y);
+    void print_chat_input(const std::string& message, int x, int y, int cursor);
 
     void print_text(const std::string& text, int x, int y, int textcol, int bgcol);
     void print_text_centre(const std::string& text, int x, int y, int textcol, int bgcol);

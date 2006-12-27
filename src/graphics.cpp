@@ -2071,7 +2071,7 @@ void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100
         rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
 
-void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer) {
+void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer, int cursor_pos) {
     if (!show_chat_messages)
         return;
     const int line_height = text_height(font) + 3;
@@ -2091,14 +2091,25 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
         else
             message << _("Say");
         message << ": ";
+        const int message_prefix_length = message.str().length();
         if (talkbuffer[0] == '.')
             message << talkbuffer.substr(1);
         else
             message << talkbuffer;
-        message << '_';
+        //message << '_';
         const vector<string> lines = split_to_lines(message.str(), 79, 0);
-        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line)
-            print_chat_input(*li, margin, margin + line * line_height);
+        int characters = 0;
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line) {
+            int cursor;
+            if (cursor_pos < static_cast<int>(characters + li->length()) || characters + li->length() == talkbuffer.length())
+                cursor = cursor_pos - characters;
+            else
+                cursor = -1;
+            if (li == lines.begin())
+                cursor += message_prefix_length;
+            print_chat_input(*li, margin, margin + line * line_height, cursor);
+            characters += li->length();
+        }
     }
 }
 
@@ -2122,8 +2133,10 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         print_text_border(message, x, y, c, colour(Colour::text_border), -1);
 }
 
-void Graphics::print_chat_input(const string& message, int x, int y) {
+void Graphics::print_chat_input(const string& message, int x, int y, int cursor) {
     print_text_border(message, x, y, colour(Colour::message_input), colour(Colour::text_border), -1);
+    if (cursor >= 0 && int(2 * get_time()) % 2)
+        vline(drawbuf, x + text_length(font, message.substr(0, cursor)), y, y + text_height(font), colour(Colour::message_input));
 }
 
 void Graphics::print_text(const string& text, int x, int y, int textcol, int bgcol) {

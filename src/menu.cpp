@@ -367,14 +367,23 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const
     x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active, col), -1);
     x += text_length(font, ":") + char_w();
-    if (maskChar)
-        textout_ex(buffer, font, string(value.length(), maskChar).c_str(), x, y, col(Colour::menu_value), -1);
-    else
+    int cursor_x;
+    if (maskChar) {
+        const string mask_string(value.length(), maskChar);
+        textout_ex(buffer, font, mask_string.c_str(), x, y, col(Colour::menu_value), -1);
+        cursor_x = x + text_length(font, mask_string.substr(0, cursor_pos));
+        x += text_length(font, mask_string);
+        }
+    else {
         textout_ex(buffer, font, value.c_str(), x, y, col(Colour::menu_value), -1);
-    x += text_length(font, value);
+        cursor_x = x + text_length(font, value.substr(0, cursor_pos));
+        x += text_length(font, value);
+        }
     if (active) {
-        textout_ex(buffer, font, "_", x, y, col(Colour::menu_value), -1); // cursor
-        x += text_length(font, "_");
+        //if (int(get_time()) % 2)
+            vline(buffer, cursor_x, y, y + text_height(font), col(Colour::menu_value));
+        //textout_ex(buffer, font, "_", x, y, col(Colour::menu_value), -1); // cursor
+        //x += text_length(font, "_");
     }
     textout_ex(buffer, font, tail.c_str(), x, y, col(Colour::menu_value), -1);
 }
@@ -391,14 +400,30 @@ int TextfieldBase::height() const {
 bool TextfieldBase::handleKey(char scan, unsigned char chr) {
     bool stateChange = false;
     if (scan == KEY_BACKSPACE) {
-        if (!value.empty()) {
-            value.erase(value.end() - 1);
+        if (cursor_pos > 0) {
+            value.erase(cursor_pos - 1, 1);
+            cursor_pos--;
             stateChange = true;
         }
     }
+    else if (scan == KEY_DEL) {
+        if (cursor_pos < static_cast<int>(value.length())) {
+            value.erase(cursor_pos, 1);
+            stateChange = true;
+        }
+    }
+    else if (scan == KEY_LEFT) {
+        if (cursor_pos > 0)
+            cursor_pos--;
+    }
+    else if (scan == KEY_RIGHT) {
+        if (cursor_pos < static_cast<int>(value.length()))
+            cursor_pos++;
+    }
     else if (!is_nonprintable_char(chr) && (charset.empty() || charset.find(chr) != string::npos)) {
         if ((int)value.length() < maxlen) {
-            value += chr;
+            value.insert(cursor_pos, 1, chr);
+            cursor_pos++;
             stateChange = true;
         }
     }
