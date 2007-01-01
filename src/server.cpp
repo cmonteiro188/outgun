@@ -65,6 +65,7 @@ using std::setfill;
 using std::setprecision;
 using std::setw;
 using std::string;
+using std::stringstream;
 using std::swap;
 using std::vector;
 
@@ -599,6 +600,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
+        PT(new GS_Boolean   ("recording",               &recording)),
         PT(new GS_Int       ("min_bots",                &min_bots, 0, MAX_PLAYERS)),
         PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
         PT(new GS_Boolean   ("balance_bot",             &balance_bot)),
@@ -662,6 +664,29 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
+
+    if (recording) {
+        if (record) {
+            record.seekp(16);
+            write(record, world.frame);
+        }
+        record.close();
+        record.clear();
+        const time_t tt = time(0);
+        const tm* tmb = localtime(&tt);
+        const int time_w = 20;
+        char time_str[time_w + 1];
+        strftime(time_str, time_w, "%Y-%m-%d_%H%M%S", tmb);
+        record.open((wheregamedir + "replay" + directory_separator + time_str + ".replay").c_str(), ios::binary);
+        record << REPLAY_IDENTIFICATION;
+        write(record, REPLAY_VERSION);
+        write(record, 0);          // reserve space for the frame count
+        write_string(record, network.get_hostname());
+        write(record, maxplayers);
+        world.save_map(record);
+        log("Map saved.");
+    }
+
     if (worldConfig.random_wild_flag) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
@@ -823,6 +848,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
     tournament = true;
     save_stats = 0;
+    
+    recording = false;
 
     network.clear_web_servers();
     network.set_web_refresh(2);
@@ -903,8 +930,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
 void Server::init_bots() {
     const int humans = network.get_human_count();
-    int bot_count = network.get_bot_count();
-    log("%d bots, %lu in vector.", bot_count, bots.size());
+    int bot_count = bots.size(); //network.get_bot_count();
+    log("%d bots, %d in vector.", bot_count, bots.size());
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
         needed_bots = 0;
@@ -916,8 +943,9 @@ void Server::init_bots() {
     // Check if some bots need to be removed.
     if (bot_count == needed_bots)
         return;
-    if (bot_count > needed_bots) {
-        const int remove = bot_count - needed_bots;
+    const int playing_bots = network.get_bot_count();
+    if (playing_bots > needed_bots) {
+        const int remove = playing_bots - needed_bots;
         log("Remove %d bots.", remove);
         for (int i = 0; i < remove; ++i)
             remove_bot();
@@ -1474,6 +1502,61 @@ void Server::simulate_and_broadcast_frame() {
                 world.player[i].idleFrames = 0;
         }
     network.broadcast_frame(!gameover);
+    if (recording) {
+        stringstream temp_frame;
+        write(temp_frame, world.frame);
+        unsigned players_present = 0;
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used)
+                players_present |= (1 << i);
+        write(temp_frame, players_present);
+        for (int i = 0; i < maxplayers; i++) {
+            const ServerPlayer& pl = world.player[i];
+            if (!pl.used)
+                continue;
+
+            // Position
+            write(temp_frame, static_cast<unsigned char>(pl.roomx));
+            write(temp_frame, static_cast<unsigned char>(pl.roomy));
+            write(temp_frame, static_cast<unsigned short>(pl.lx));
+            write(temp_frame, static_cast<unsigned short>(pl.ly));
+
+            // Speed
+            write(temp_frame, static_cast<float>(pl.sx));
+            write(temp_frame, static_cast<float>(pl.sy));
+
+            // Dead and powerup flags
+            unsigned char byte = 0;
+            if (pl.dead) byte |= (1 << 0);
+            if (pl.item_deathbringer) byte |= (1 << 1);
+            if (pl.deathbringer_end > get_time()) byte |= (1 << 2);
+            if (pl.item_shield) byte |= (1 << 3);
+            if (pl.item_turbo) byte |= (1 << 4);
+            if (pl.item_power) byte |= (1 << 5);
+            write(temp_frame, byte);
+
+            // Controls
+            if (pl.health > 0) // if dead player, don't send keys
+                byte = pl.controls.toNetwork(true);
+            else
+                byte = ClientControls().toNetwork(true);
+            byte |= pl.gundir << 5;
+            write(temp_frame, byte);
+
+            byte = pl.visibility;
+            write(temp_frame, byte);
+        }
+        write(temp_frame, static_cast<unsigned short>(world.player[world.frame % maxplayers].ping));
+
+        const int frame_length = temp_frame.str().length() + record_frame.str().length();
+        log("Recording frame %lu, total %d bytes.", world.frame, frame_length);
+        write(record, frame_length);
+        record << temp_frame.str();
+        record << record_frame.str();
+        if (!record)
+            log("Recording failed.");
+        record_frame.str("");
+    }
 }
 
 //run something after simulate_and_broadcast
@@ -1592,6 +1675,12 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 
 void Server::stop() {
     network.stop();
+
+    if (record) {
+        record.seekp(16);
+        write(record, world.frame);
+        record.close();
+    }
 
     quit_bots = true;
     config().statusOutput(_("Shutdown: bot thread"));

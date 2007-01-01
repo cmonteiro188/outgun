@@ -9,7 +9,7 @@
  *
  *  Outgun is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version2 of the License, or
  *  (at your option) any later version.
  *
  *  Outgun is distributed in the hope that it will be useful,
@@ -39,6 +39,40 @@ std::istream& getline_smart(std::istream& in, std::string& str);
 
 // Read a line like getline_smart, but additionally skip lines that begin with a ;
 std::istream& getline_skip_comments(std::istream& in, std::string& str);
+
+inline std::ostream& write_string(std::ostream& out, const std::string& str) {
+    out << str;
+    return out.put('\0');
+}
+
+inline std::ostream& write_string(std::ostream& out, const char* str, int size) {
+    out.write(str, size);
+    return out.put('\0');
+}
+
+template<typename T>
+std::ostream& write(std::ostream& out, T val) {
+    char* mem = reinterpret_cast<char*>(&val);
+    //return out.write(mem, sizeof(T));
+    for (int i = sizeof(T) - 1; i >= 0; --i)
+        out.put(mem[i]);
+    return out;
+}
+
+inline std::istream& read_string(std::istream& in, std::string& target) {
+    return getline(in, target, '\0');
+}
+
+std::istream& read(std::istream& in, std::string& target, std::string::size_type length);
+
+template<typename T>
+std::istream& read(std::istream& in, T& val) {
+    char* mem = reinterpret_cast<char*>(&val);
+    //return in.read(mem, sizeof(T));
+    for (int i = sizeof(T) - 1; i >= 0; --i)
+        in.get(mem[i]);
+    return in;
+}
 
 // Check player name validity.
 bool check_name(const std::string& name);
@@ -234,11 +268,14 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 #define GAME_PROTOCOL "1.0"
 #define GAME_VERSION "1.0.3"
 #define GAME_SHORT_VERSION "1.0.3"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
-#define GAME_BRANCH "base"  // this only affects the master server communications, to make it tell the correct newest version
+#define GAME_BRANCH "base"           // this only affects the master server communications, to make it tell the correct newest version
 
 #define HTTP_USER_AGENT (GAME_STRING "/" GAME_BRANCH "-" GAME_VERSION)
 
 #define TK1_VERSION_STRING "v048"
+
+static const int REPLAY_VERSION = 0; // increase when the replay structure changes
+static const std::string REPLAY_IDENTIFICATION = "OUTGUNREPLAY";
 
 //************************************************************
 //  common stuff

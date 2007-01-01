@@ -165,6 +165,12 @@ void ServerNetworking::broadcast_message(const char* data, int length) const {
     for (int i = 0; i < maxplayers; ++i)
         if (world.player[i].used)
             server->send_message(world.player[i].cid, data, length);
+
+    if (host->is_recording()) {
+        ostream& out = host->record_stream();
+        write(out, length);
+        out.write(data, length);
+    }
 }
 
 void ServerNetworking::send_simple_message(Network_data_code code, int pid) const {
@@ -193,20 +199,31 @@ void ServerNetworking::send_me_packet(int pid) const {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-//send a player name update to a client
+// send a player name update to a client (cid = -1: to all clients)
 void ServerNetworking::send_player_name_update(int cid, int pid) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
     writeByte(lebuf, count, pid);       // what player id
     writeStr(lebuf, count, world.player[pid].name.empty() ? "?" : world.player[pid].name);
-    server->send_message(cid, lebuf, count);
+
+    if (cid != -1)
+        server->send_message(cid, lebuf, count);
+    else {
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used)
+                server->send_message(world.player[i].cid, lebuf, count);
+
+        if (host->is_recording()) {
+            ostream& out = host->record_stream();
+            write(out, count);
+            out.write(lebuf, count);
+        }
+    }
 }
 
 //broadcast new player name
 void ServerNetworking::broadcast_player_name(int pid) const {
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            send_player_name_update(world.player[i].cid, pid);
+    send_player_name_update(-1, pid);
 
     //update the ADMIN SHELL
     if (shellssock != NL_INVALID) {
@@ -773,6 +790,14 @@ void ServerNetworking::broadcast_screen_message(int px, int py, char* lebuf, int
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
             server->send_message(world.player[i].cid, lebuf, count);
+
+    if (host->is_recording()) {
+        ostream& out = host->record_stream();
+        write(out, count);
+        out.write(lebuf, count);
+        //write(out, static_cast<unsigned char>(px));
+        //write(out, static_cast<unsigned char>(py));
+    }
 }
 
 // broadcast message with varargs
@@ -2697,6 +2722,12 @@ void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, in
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
             server->send_message(world.player[i].cid, lebuf, count);
+
+    if (host->is_recording()) {
+        ostream& out = host->record_stream();
+        write(out, count);
+        out.write(lebuf, count);
+    }
 }
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const {
@@ -2753,7 +2784,13 @@ void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it)
     writeByte(lebuf, count, static_cast<NLubyte>(it.py));
     writeShort(lebuf, count, static_cast<NLushort>(it.x));  //pos in screen
     writeShort(lebuf, count, static_cast<NLushort>(it.y));
-    server->send_message(world.player[pid].cid, lebuf, count);
+    if (pid != -1)
+        server->send_message(world.player[pid].cid, lebuf, count);
+    else {
+        ostream& out = host->record_stream();
+        write(out, count);
+        out.write(lebuf, count);
+    }
 }
 
 void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) const {
@@ -2838,7 +2875,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 temp << ' ' << join_limit_message;
             writeStr(res->customData, res->customDataLength, temp.str());
         }
-        else if (player_count + reservedPlayerSlots >= maxplayers) {
+        else if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
             log("Rejected a client because the server is full.");
             res->accepted = false;
             writeByte(res->customData, res->customDataLength, reject_server_full);
@@ -2861,6 +2898,8 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 string player_password;
                 readStr(data, count, player_password);
                 if (host->check_name_password(name, player_password)) {
+                    if (player_count + reservedPlayerSlots >= maxplayers)
+                        host->remove_bot();
                     ++reservedPlayerSlots;
                     playerSlotReservationTime = get_time();
                     res->accepted = true;

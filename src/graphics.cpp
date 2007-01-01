@@ -794,6 +794,14 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
     }
 }
 
+void Graphics::highlight_minimap_room(const Map& map, int rx, int ry) {
+    const int x1 = mmx + minimap_start_x +  rx      * minimap_w / map.w;
+    const int y1 = mmy + minimap_start_y +  ry      * minimap_h / map.h;
+    const int x2 = mmx + minimap_start_x + (rx + 1) * minimap_w / map.w;
+    const int y2 = mmy + minimap_start_y + (ry + 1) * minimap_h / map.h;
+        rect(drawbuf, x1, y1, x2, y2, makecol(255, 255, 0));
+}
+
 void Graphics::draw_minimap_background() {
     if (show_minimap)
         masked_blit(minibg, background, 0, 0, mmx, mmy, minibg->w, minibg->h);
@@ -2071,6 +2079,51 @@ void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100
         rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
 
+void Graphics::draw_replay_info(float rate, int position, int length) {
+    int x = health_x;
+    int y = indicators_y;
+
+    for (int i = 0; i < 2; ++i) {
+        const int width = 8;
+        const int height = 14;
+        // pause ||   slowmotion |>   play >   rewind >>
+        if (i == 1 && rate == 1)
+            ;   // nothing to draw
+        else if (i == 0 && rate >= 1 || i == 1 && rate > 0)
+            triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, makecol(0, 255, 0));
+        else
+            rectfill(drawbuf, x, y, x + 2 * width / 3 - 1, y + height - 1, makecol(0, 255, 0));
+        x += width + 2;
+    }
+
+    if (rate != 0) {
+        const string text = rate >= 1 ? itoa(int(rate)) : "1/" + itoa(int(1 / rate));
+        print_text_border_check_bg(text, x, y, makecol(255, 255, 255), colour(Colour::text_border), -1);
+    }
+
+    x = (health_x + plx + roombg->w) / 2;
+    ostringstream time;
+    time << setprecision(0) << std::fixed << position / 10 / 60 << ':';
+    time << setw(2) << setfill('0') << setprecision(0) << std::fixed << position / 10 % 60;
+    if (length > 0) {
+        time << " / ";
+        time << setprecision(0) << std::fixed << length / 10 / 60 << ':';
+        time << setw(2) << setfill('0') << setprecision(0) << std::fixed << length / 10 % 60;
+    }
+    print_text_border_centre_check_bg(time.str(), x, y, makecol(255, 255, 255), colour(Colour::text_border), -1);
+
+    if (length > 0) {
+        y += 3 * text_height(font) / 2;
+        const int x1 = health_x;
+        const int x2 = plx + roombg->w;
+        const int pos_x = x1 + position * (x2 - x1) / length;
+        const int y1 = y;
+        const int y2 = y1 + scale(5);
+        rectfill(drawbuf, x1, y1, pos_x, y2, colour(Colour::scrollbar));
+        rectfill(drawbuf, pos_x + 1, y1, x2, y2, colour(Colour::scrollbar_bg));
+    }
+}
+
 void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer, int cursor_pos) {
     if (!show_chat_messages)
         return;
@@ -2227,13 +2280,13 @@ void Graphics::clear_fx() {
 }
 
 //create rocket explosion fx
-void Graphics::create_wallexplo(int x, int y, int px, int py, int team) {
+void Graphics::create_wallexplo(int x, int y, int px, int py, int team, double time) {
     GraphicsEffect fx;
 
     fx.type = FX_WALL_EXPLOSION;
     fx.x = x;
     fx.y = y;
-    fx.time = get_time();
+    fx.time = time;
     fx.px = px;
     fx.py = py;
     fx.team = team;
@@ -2242,13 +2295,13 @@ void Graphics::create_wallexplo(int x, int y, int px, int py, int team) {
 }
 
 //create power rocket explosion fx
-void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team) {
+void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team, double time) {
     GraphicsEffect fx;
 
     fx.type = FX_POWER_WALL_EXPLOSION;
     fx.x = x;
     fx.y = y;
-    fx.time = get_time();
+    fx.time = time;
     fx.px = px;
     fx.py = py;
     fx.team = team;
@@ -2257,13 +2310,13 @@ void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team) {
 }
 
 // Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
-void Graphics::create_smoke(int x, int y, int px, int py) {
+void Graphics::create_smoke(int x, int y, int px, int py, double time) {
     if (!pup_sprite[Powerup::pup_deathbringer])
-        create_deathcarrier(x, y, px, py, 255);
+        create_deathcarrier(x, y, px, py, 255, time);
 }
 
 //create deathbringer carrier trail fx
-void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha) {
+void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha, double time) {
     GraphicsEffect fx;
 
     fx.type = FX_DEATHCARRIER_SMOKE;
@@ -2271,14 +2324,14 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha) {
     fx.y = y;
     fx.px = px;
     fx.py = py;
-    fx.time = get_time();
+    fx.time = time;
     fx.col1 = 0;    // black
     fx.alpha = alpha / 255.;
 
     cfx.push_back(fx);
 }
 
-void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha) {
+void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha, double time) {
     GraphicsEffect fx;
 
     fx.type = FX_TURBO;
@@ -2286,7 +2339,7 @@ void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, 
     fx.y = y;
     fx.px = px;
     fx.py = py;
-    fx.time = get_time();
+    fx.time = time;
 
     fx.alpha = alpha / 255.;
     fx.col1 = col1;
@@ -2314,13 +2367,13 @@ void Graphics::create_deathbringer(int team, double start_time, int x, int y, in
 }
 
 //create explosion fx
-void Graphics::create_gunexplo(int x, int y, int px, int py, int team) {
+void Graphics::create_gunexplo(int x, int y, int px, int py, int team, double time) {
     GraphicsEffect fx;
 
     fx.type = FX_GUN_EXPLOSION;
     fx.x = x;
     fx.y = y;
-    fx.time = get_time();
+    fx.time = time;
     fx.px = px;
     fx.py = py;
     fx.team = team;

@@ -109,8 +109,9 @@ enum Network_data_code {
     data_reserved_range_last = data_reserved_range_first + 20,  // make sure you don't use more!
     data_return_to_reserved_range_start_hack = data_reserved_range_first - 1,
     data_current_map,
-    data_bot
+    data_bot,
     // insert extensions here
+    data_frame_start/* = 255*/
 };
 
 enum Disconnect_reason {

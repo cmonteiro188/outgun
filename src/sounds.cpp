@@ -82,7 +82,7 @@ void Sounds::select_theme(const string& dir) {
     if (enabled) {
         load_samples(path);
         log("Loaded sound theme '%s'.", dir.c_str());
-        play(rand() % NUM_OF_SAMPLES);
+        play(rand() % NUM_OF_SAMPLES, 1000);
     }
 }
 
@@ -203,11 +203,11 @@ void Sounds::unload_samples() {
         }
 }
 
-void Sounds::play(int s) const {
+void Sounds::play(int s, int f) const {
     nAssert(s >= 0 && s < NUM_OF_SAMPLES);
     if (enabled && sample[s]) {
         nAssert(allegroSoundInitialized);
         stop_sample(sample[s]); // kill any voice playing that sample
-        play_sample(sample[s], volume, 127, 1000, false);   // regular play
+        play_sample(sample[s], volume, 127, f, false);   // regular play
     }
 }

@@ -297,6 +297,27 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
     return intersects_circ(x1 + rwr, y1 + rhr, sqrt(rwr * rwr + rhr * rhr));
 }
 
+Room::Room(const Room& room) {
+    for (vector<WallBase*>::const_iterator i = room.walls.begin(); i != room.walls.end(); ++i)
+        if (RectWall* rw = dynamic_cast<RectWall*>(*i))
+            addWall(new RectWall(*rw));
+        else if (TriWall* tw = dynamic_cast<TriWall*>(*i))
+            addWall(new TriWall(*tw));
+        else if (CircWall* cw = dynamic_cast<CircWall*>(*i))
+            addWall(new CircWall(*cw));
+        else
+            nAssert(0);
+    for (vector<WallBase*>::const_iterator i = room.ground.begin(); i != room.ground.end(); ++i)
+        if (RectWall* rw = dynamic_cast<RectWall*>(*i))
+            addGround(new RectWall(*rw));
+        else if (TriWall* tw = dynamic_cast<TriWall*>(*i))
+            addGround(new TriWall(*tw));
+        else if (CircWall* cw = dynamic_cast<CircWall*>(*i))
+            addGround(new CircWall(*cw));
+        else
+            nAssert(0);
+}
+
 Room::~Room() {
     for (vector<WallBase*>::iterator i = walls.begin(); i != walls.end(); i = walls.erase(i))
         delete *i;
@@ -669,6 +690,199 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         return false;
     }
     return true;
+}
+
+ostream& write(ostream& out, const WorldCoords& coords) {
+    write(out, coords.px);
+    write(out, coords.py);
+    write(out, coords.x);
+    write(out, coords.y);
+    return out;
+}
+
+// Save map as binary data
+void Map::save(ostream& out) const {
+    write_string(out, title);
+    write_string(out, author);
+
+    write(out, w);
+    write(out, h);
+
+    // Rooms
+    for (int x = 0; x < w; ++x)
+        for (int y = 0; y < h; ++y) {
+            const Room& current_room = room[x][y];
+            save_walls(out, current_room.readWalls());
+            save_walls(out, current_room.readGround());
+        }
+
+    // Flags and spawn points
+    for (int team = 0; team < 3; ++team) {
+        // Flags
+        const vector<WorldCoords>& flags = team == 2 ? wild_flags : tinfo[team].flags;
+        write(out, flags.size());
+        for (vector<WorldCoords>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+            write(out, *fi);
+        // Spawn points
+        if (team == 0 || team == 1) {
+            const vector<WorldCoords>& spawns = tinfo[team].spawn;
+            write(out, spawns.size());
+            for (vector<WorldCoords>::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
+                write(out, *si);
+        }
+    }
+}
+
+void Map::save_walls(ostream& out, const vector<WallBase*>& walls) const {
+    write(out, walls.size());
+    const char type_rect = 0, type_tri = 1, type_circ = 2;
+    for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi) {
+        if (RectWall* rect = dynamic_cast<RectWall*>(*wi)) {
+            write(out, type_rect);
+            write(out, rect->x1());
+            write(out, rect->y1());
+            write(out, rect->x2());
+            write(out, rect->y2());
+        }
+        else if (TriWall* tri = dynamic_cast<TriWall*>(*wi)) {
+            write(out, type_tri);
+            write(out, tri->x1());
+            write(out, tri->y1());
+            write(out, tri->x2());
+            write(out, tri->y2());
+            write(out, tri->x3());
+            write(out, tri->y3());
+        }
+        else if (CircWall* circ = dynamic_cast<CircWall*>(*wi)) {
+            write(out, type_circ);
+            write(out, circ->X());
+            write(out, circ->Y());
+            write(out, circ->radius());
+            write(out, circ->radius_in());
+            write(out, circ->angles()[0]);
+            write(out, circ->angles()[1]);
+        }
+        else
+            nAssert(0);
+        write(out, (*wi)->texture());
+        write(out, 0); // wi->alpha
+    }
+}
+
+istream& read(istream& in, WorldCoords& coords) {
+    read(in, coords.px);
+    read(in, coords.py);
+    read(in, coords.x);
+    read(in, coords.y);
+    return in;
+}
+
+// Load map as binary data
+void Map::load(istream& in) {
+    *this = Map();
+
+    read_string(in, title);
+    read_string(in, author);
+
+    read(in, w);
+    read(in, h);
+
+    room.resize(w);
+    for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
+        ri->resize(h);
+
+    // Rooms
+    for (int x = 0; x < w; ++x)
+        for (int y = 0; y < h; ++y) {
+            Room& current_room = room[x][y];
+            read_walls(in, current_room, false);
+            read_walls(in, current_room, true);
+        }
+
+    // Flags and spawn points
+    for (int team = 0; team < 3; ++team) {
+        // Flags
+        vector<WorldCoords>& flags = team == 2 ? wild_flags : tinfo[team].flags;
+        int flag_count;
+        read(in, flag_count);
+        for (int i = 0; i < flag_count; ++i) {
+            WorldCoords flag;
+            read(in, flag);
+            flags.push_back(flag);
+        }
+        // Spawn points
+        if (team == 0 || team == 1) {
+            vector<WorldCoords>& spawns = tinfo[team].spawn;
+            int spawn_count;
+            read(in, spawn_count);
+            for (int i = 0; i < spawn_count; ++i) {
+                WorldCoords spawn;
+                read(in, spawn);
+                spawns.push_back(spawn);
+            }
+        }
+    }
+}
+
+void Map::read_walls(istream& in, Room& target_room, bool ground) const {
+    int wall_count;
+    read(in, wall_count);
+    const char type_rect = 0, type_tri = 1, type_circ = 2;
+    for (int i = 0; i < wall_count; ++i) {
+        char type;
+        read(in, type);
+        if (type == type_rect) {
+            double x1, y1, x2, y2;
+            read(in, x1);
+            read(in, y1);
+            read(in, x2);
+            read(in, y2);
+            int texid, alpha;
+            read(in, texid);
+            read(in, alpha);
+            RectWall* wall = new RectWall(x1, y1, x2, y2, texid, alpha);
+            if (ground)
+                target_room.addGround(wall);
+            else
+                target_room.addWall(wall);
+        }
+        else if (type == type_tri) {
+            double x1, y1, x2, y2, x3, y3;
+            read(in, x1);
+            read(in, y1);
+            read(in, x2);
+            read(in, y2);
+            read(in, x3);
+            read(in, y3);
+            int texid, alpha;
+            read(in, texid);
+            read(in, alpha);
+            TriWall* wall = new TriWall(x1, y1, x2, y2, x3, y3, texid, alpha);
+            if (ground)
+                target_room.addGround(wall);
+            else
+                target_room.addWall(wall);
+        }
+        else if (type == type_circ) {
+            double x, y, ro, ri, a1, a2;
+            read(in, x);
+            read(in, y);
+            read(in, ro);
+            read(in, ri);
+            read(in, a1);
+            read(in, a2);
+            int texid, alpha;
+            read(in, texid);
+            read(in, alpha);
+            CircWall* wall = new CircWall(x, y, ro, ri, a1, a2, texid, alpha);
+            if (ground)
+                target_room.addGround(wall);
+            else
+                target_room.addWall(wall);
+        }
+        else
+            nAssert(0);
+    }
 }
 
 MapInfo::MapInfo() : votes(0), sentVotes(0), last_game(0), highlight(false) { }
@@ -1266,7 +1480,7 @@ void PhysicalSettings::calc_max_run_speed() {
     max_run_speed = (run_mul * accel - fric) / drag;
 }
 
-void PhysicalSettings::read(char* lebuf, int& count) {
+void PhysicalSettings::read(const char* lebuf, int& count) {
     fric            = safeReadFloat(lebuf, count);
     drag            = safeReadFloat(lebuf, count);
     accel           = safeReadFloat(lebuf, count);
@@ -1498,6 +1712,10 @@ bool ServerWorld::load_map(const string& mapdir, const string& mapname) {
     return success;
 }
 
+void ServerWorld::save_map(ostream& out) const {
+    WorldBase::save_map(out);
+}
+
 void ServerWorld::returnAllFlags() {
     WorldBase::returnAllFlags();
     net->ctf_net_flag_status(-1, 0);
@@ -1681,6 +1899,8 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
             for (int i = 0; i < maxplayers; i++)
                 if (this->player[i].used && this->player[i].roomx == item[p].px && this->player[i].roomy == item[p].py)
                     net->sendPickupVisible(i, p, item[p]);
+            if (host->is_recording())
+                net->sendPickupVisible(-1, p, item[p]);
             break;
         }
 }
@@ -1740,6 +1960,9 @@ void ServerWorld::respawn_pickup(int p) {
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used && player[i].roomx == px && player[i].roomy == py)
             net->sendPickupVisible(i, p, item[p]);
+
+    if (host->is_recording())
+        net->sendPickupVisible(-1, p, item[p]);
 }
 
 void ServerWorld::check_pickup_creation(bool instant) {
@@ -3125,7 +3348,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
         teams[i] = source.teams[i]; //#fix: needed?
 
     for (int i = 0; i < maxplayers; ++i) {
-        if (source.player[i].onscreen || i == me)
+        if (source.player[i].onscreen || i == me || (me == -1 && source.player[i].used))
             player[i] = source.player[i];
         else
             player[i].used = false;
@@ -3139,11 +3362,13 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 
     static const double playerPosAccuracy = plw / double(0xFFF) / 2.;
     for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
-        player[me].controls = ctrlTab[ctrli];
+        if (me != -1)
+            player[me].controls = ctrlTab[ctrli];
         applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, 1.); // 1 is full frame
         ++frame;
     }
-    player[me].controls = ctrlTab[ctrlLast];
+    if (me != -1)
+        player[me].controls = ctrlTab[ctrlLast];
     applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
     frame += subFrameAfter;
     // playerPosAccuracy is used to counter problems in bouncing caused by inaccurate positions over network

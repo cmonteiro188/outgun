@@ -35,7 +35,7 @@ public:
     Sounds(LogSet logs);
     ~Sounds();
 
-    void play(int s) const;
+    void play(int s, int f) const;
 
     bool sampleExists(int s) const { return sample[s] != 0; }
 

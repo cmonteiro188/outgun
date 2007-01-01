@@ -292,6 +292,22 @@ private:
     std::string detectedIP;
 };
 
+class Menu_replays {
+public:
+    std::vector<std::pair<std::string, Textarea> > items;
+    Textarea        caption;
+
+    Menu menu;
+
+    Menu_replays();
+    void add(const std::string& replay, const std::string& text);
+    void reset();
+    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook);
+    const std::string& getFile(const Textarea& target);
+
+    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
+};
+
 class Menu_main {
 public:
     StaticText      newVersion;
@@ -299,6 +315,7 @@ public:
     Textarea        disconnect;
     Menu_options    options;
     Menu_ownServer  ownServer;
+    Menu_replays    replays;
     Menu_help       help;
     Textarea        exitOutgun;
 

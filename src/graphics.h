@@ -122,6 +122,7 @@ public:
     void draw_minimap_player(const Map& map, const ClientPlayer& player);
     void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
+    void highlight_minimap_room(const Map& map, int rx, int ry);
 
     void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
@@ -192,13 +193,13 @@ public:
 
     void clear_fx();
 
-    void create_wallexplo(int x, int y, int px, int py, int team);
-    void create_powerwallexplo(int x, int y, int px, int py, int team);
-    void create_smoke(int x, int y, int px, int py);
-    void create_deathcarrier(int x, int y, int px, int py, int alpha);
-    void create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha);
+    void create_wallexplo(int x, int y, int px, int py, int team, double time);
+    void create_powerwallexplo(int x, int y, int px, int py, int team, double time);
+    void create_smoke(int x, int y, int px, int py, double time);
+    void create_deathcarrier(int x, int y, int px, int py, int alpha, double time);
+    void create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha, double time);
     void create_deathbringer(int team, double start_time, int x, int y, int px, int py);
-    void create_gunexplo(int x, int y, int px, int py, int team);
+    void create_gunexplo(int x, int y, int px, int py, int team, double time);
 
     bool save_map_picture(const std::string& filename, const Map& map);
 
@@ -226,6 +227,8 @@ public:
     void set_stats_alpha(int alpha) { stats_alpha = alpha; }
 
     const Colour_manager& colours() const { return colour; }
+
+    void draw_replay_info(float rate, int position, int length);
 
 private:
     void unload_bitmaps();

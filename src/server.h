@@ -150,6 +150,11 @@ class Server {
     int vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
     std::string server_website_url; // the URL of the server website to be sent to master server
 
+    // Recording
+    bool recording;
+    mutable std::ofstream record;
+    mutable std::stringstream record_frame;
+
     void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
 
     bool trySetMaxplayers(int val); // checks that no players are connected, if that fails, logs an error and returns false
@@ -235,6 +240,9 @@ public:
 
     void load_game_mod(bool reload);
     bool reset_settings(bool reload);   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
+
+    bool is_recording() const { return recording; }
+    std::stringstream& record_stream() const { return record_frame; }
 };
 
 #endif

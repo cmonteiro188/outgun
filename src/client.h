@@ -462,6 +462,11 @@ class Client {
     bool stats_autoshowing;
     Graphics client_graphics;
     bool screenshot;
+    bool replaying;
+    std::ifstream replay;
+    float replay_rate;
+    int replay_length;
+    std::pair<int, int> current_room;
     #endif
     volatile bool mapChanged;
     #ifndef DEDICATED_SERVER_ONLY
@@ -497,6 +502,8 @@ class Client {
     void MCF_cancelConnect();
     void MCF_disconnect();
     void MCF_exitOutgun();
+    void MCF_replay(Textarea& target);
+    void MCF_prepareReplayMenu();
     void MCF_prepareMainMenu();
     void MCF_prepareNameMenu();
     void MCF_prepareDrawNameMenu();
@@ -630,7 +637,7 @@ class Client {
     void predraw();
     void draw_game_frame();
     int calculatePlayerAlpha(int pid) const;
-    void draw_player(int pid);
+    void draw_player(int pid, double time);
     void draw_game_menu();
 
     ClientControls readControls(bool canUseKeypad, bool useCursorKeys);
@@ -638,6 +645,10 @@ class Client {
     void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
     bool handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey
     void handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
+
+    void start_replay(const std::string& filename);
+    void continue_replay();
+    void stop_replay();
     #endif
 
 public:
@@ -660,6 +671,8 @@ public:
     void set_bot_password(const std::string& pass) { bot_password = pass; }
 
     int team() const { return me / TSIZE; }
+    
+    void play_sound(int sample);
 };
 
 #ifndef DEDICATED_SERVER_ONLY

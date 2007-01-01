@@ -115,7 +115,7 @@ void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyH
 }
 
 NLaddress Menu_serverList::getAddress(const Textarea& target) {
-    for (vector<pair<NLaddress, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+    for (vector<pair<NLaddress, Textarea> >::const_iterator servi = servers.begin(); servi != servers.end(); ++servi) {
         if (&servi->second == &target)
             return servi->first;
     }
@@ -552,6 +552,46 @@ void Menu_ownServer::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* o
     menu.setHook(opener);
 }
 
+Menu_replays::Menu_replays():
+    caption ("Date - Server - Map"),
+
+    menu    (_("Replays"), false)
+{
+    reset();
+}
+
+void Menu_replays::add(const string& replay, const string& text) {
+    items.push_back(pair<string, Textarea>(replay, Textarea(text)));
+}
+
+void Menu_replays::reset() {
+    menu.clear_components();
+    items.clear();
+    menu.add_component(&caption);
+}
+
+void Menu_replays::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) {
+    for (vector<pair<string, Textarea> >::iterator item = items.begin(); item != items.end(); ++item) {
+        item->second.setHook(hook->clone());
+        //item->second.setKeyHook(keyHook->clone());
+        menu.add_component(&item->second);
+    }
+    delete hook;
+}
+
+const string& Menu_replays::getFile(const Textarea& target) {
+    for (vector<pair<string, Textarea> >::const_iterator item = items.begin(); item != items.end(); ++item) {
+        if (&item->second == &target)
+            return item->first;
+    }
+    nAssert(0);
+    return items.front().first;
+}
+
+void Menu_replays::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) {
+    menu.setHook(opener);
+}
+
 Menu_main::Menu_main() :
     newVersion  (""),
 
@@ -561,6 +601,8 @@ Menu_main::Menu_main() :
     options     (),
 
     ownServer   (),
+
+    replays     (),
 
     help        (),
     exitOutgun  (_("Exit Outgun")),
@@ -575,6 +617,8 @@ Menu_main::Menu_main() :
     ins_space();
     menu.add_component(&ownServer.menu);
     ins_space();
+    menu.add_component(&replays.menu);
+    ins_space();
     menu.add_component(&help.menu);
     menu.add_component(&exitOutgun);
 }
@@ -584,6 +628,7 @@ void Menu_main::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener
     connect.recursiveSetMenuOpener(opener->clone());
     options.recursiveSetMenuOpener(opener->clone());
     ownServer.recursiveSetMenuOpener(opener->clone());
+    replays.recursiveSetMenuOpener(opener->clone());
     help.recursiveSetMenuOpener(opener->clone());
 }
 
@@ -661,7 +706,7 @@ void Menu_help::addLine(const string& line) {
     const int oldSel = menu.selection();
     menu.clear_components();
     text = Textobject();
-    for (vector<string>::iterator li = lines.begin(); li != lines.end(); ++li)
+    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li)
         text.addLine(*li);
     menu.add_component(&text);
     menu.setSelection(oldSel);

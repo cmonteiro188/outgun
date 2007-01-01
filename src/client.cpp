@@ -160,7 +160,7 @@ public:
     TM_Sound(int sample_) : sample(sample_) { }
     void execute(Client* cl) const {
         #ifndef DEDICATED_SERVER_ONLY
-        cl->client_sounds.play(sample);
+        cl->play_sound(sample);
         #else
         (void)cl;
         #endif
@@ -184,10 +184,11 @@ public:
 
 class TM_GunexploEffect : public ThreadMessage {
     int rokx, roky, px, py, team;
+    double time;
 
 public:
-    TM_GunexploEffect(int rokx_, int roky_, int px_, int py_) : rokx(rokx_), roky(roky_), px(px_), py(py_) { }
-    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(rokx, roky, px, py, team); }
+    TM_GunexploEffect(int rokx_, int roky_, int px_, int py_, double time_) : rokx(rokx_), roky(roky_), px(px_), py(py_), time(time_) { }
+    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(rokx, roky, px, py, team, time); }
 };
 
 class TM_Deathbringer : public ThreadMessage {
@@ -628,6 +629,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
     client_graphics(log),
     screenshot(false),
+    replaying(false),
     #endif
     mapChanged(false),
     #ifndef DEDICATED_SERVER_ONLY
@@ -1529,6 +1531,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
 
     // disconnect
     client->connect(false);
+    stop_replay();
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
         platSleep(500);
@@ -1677,10 +1680,8 @@ void Client::process_incoming_data(const char* data, int length) {
     MutexDebug md("frameMutex", __LINE__, log);
     MutexLock ml(frameMutex);
 
-    if (!connected) // means that the connection notification is still in the thread message queue
+    if (!connected && !replaying) // means that the connection notification is still in the thread message queue
         return;
-
-    (void)length;
 
     // (0) update lastpackettime
     lastpackettime = get_time();
@@ -1712,7 +1713,10 @@ void Client::process_incoming_data(const char* data, int length) {
 
         //----- PLAYER SPECIFIC DATA -----
 
-        readByte(data, count, clFrameWorld);
+        if (replaying)
+            clFrameWorld = svframe;
+        else
+            readByte(data, count, clFrameWorld);
         frameReceiveTime = get_time();
         /* svframe - .5 is roughly when clFrameWorld was received in server (using '- 1. + offsetDelta' instead of -.5 here would be possible but not necessarily really better)
          * svFrameHistory[clFrameWorld] is the apparent server frame when clFrameSent was sent
@@ -1721,15 +1725,17 @@ void Client::process_incoming_data(const char* data, int length) {
         averageLag = averageLag * .99 + currentLag * .01;
 
         #ifdef SEND_FRAMEOFFSET
-        NLubyte fo;
-        readByte(data, count, fo);
-        const double offsetDelta = (fo / 256.) - .5;    // the deviation from aim, in frames
-        frameOffsetDeltaTotal += offsetDelta;
-        if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
-            frameOffsetDeltaTotal /= 10.;
-            netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
-            frameOffsetDeltaTotal = 0;
-            frameOffsetDeltaNum = 0;
+        if (!replaying) {
+            NLubyte fo;
+            readByte(data, count, fo);
+            const double offsetDelta = (fo / 256.) - .5;    // the deviation from aim, in frames
+            frameOffsetDeltaTotal += offsetDelta;
+            if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
+                frameOffsetDeltaTotal /= 10.;
+                netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
+                frameOffsetDeltaTotal = 0;
+                frameOffsetDeltaNum = 0;
+            }
         }
         #endif
 
@@ -1737,23 +1743,94 @@ void Client::process_incoming_data(const char* data, int length) {
         // BIT 0: extra health
         // BIT 1: extra energy
         // BIT 2 (****VERY IMPORTANT****): NO MORE DATA ON PACKET BECAUSE PLAYER IS NOT READY
-        NLubyte xtra;
-        readByte(data, count, xtra);
+        NLubyte xtra = 0;
+        if (!replaying)
+            readByte(data, count, xtra);
 
         //moved below: after health assignment
         //if (xtra & 1) player[me].health += 256;
         //if (xtra & 2) player[me].energy += 256;
 
-        const bool empty_frame_cause_not_ready_yet = ((xtra & 4) != 0);
+        const bool empty_frame_cause_not_ready_yet = !replaying && (xtra & 4) != 0;
 
         //read "me" (v0.3.9 tentando espantar bug com tiro de canhao!)
         // BITS 3..8 == what player id
-        if (me == -1)   // only read this when just connected to the server; otherwise, changes in "me" should be taken in only with the change teams message
+        if (me == -1 && !replaying)   // only read this when just connected to the server; otherwise, changes in "me" should be taken in only with the change teams message
             me = xtra >> 3;
 
         //EMPTY FRAME? if yes, do something about it, if not, parse it
         if (empty_frame_cause_not_ready_yet)
             fx.skipped = true;
+        #ifndef DEDICATED_SERVER_ONLY
+        else if (replaying) {
+            fx.skipped = fx.frame == 0;
+            NLulong players_present;
+            readLong(data, count, players_present);
+            /*for (int i = 0; i < maxplayers; ++i) {
+                if (fx.player[i].used)
+                    continue;
+                if (pp & (1 << i)) {
+                    fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
+                    players_sb.push_back(&fx.player[i]);
+                }
+            }*/
+            for (int i = 0; i < maxplayers; i++) {
+                ClientPlayer& pl = fx.player[i];
+                if (!(players_present & (1 << i))) {
+                    pl.onscreen = false;
+                    continue;
+                }
+
+                log("Player data from replay.");
+
+                // Position
+                NLubyte x, y;
+                readByte(data, count, x);
+                readByte(data, count, y);
+                pl.roomx = x;
+                pl.roomy = y;
+                NLushort px, py;
+                readShort(data, count, px);
+                readShort(data, count, py);
+                pl.lx = px;
+                pl.ly = py;
+
+                pl.onscreen = pl.roomx == current_room.first && pl.roomy == current_room.second;
+
+                // Speed
+                NLfloat speed;
+                readFloat(data, count, speed);
+                pl.sx = speed;
+                readFloat(data, count, speed);
+                pl.sy = speed;
+
+                // Dead and powerup flags
+                NLubyte byte;
+                readByte(data, count, byte);
+                pl.dead = (byte & 1) != 0;
+                pl.item_deathbringer = (byte & 2) != 0;
+                pl.deathbringer_affected = (byte & 4) != 0;
+                pl.item_shield = (byte & 8) != 0;
+                pl.item_turbo = (byte & 16) != 0;
+                pl.item_power = (byte & 32) != 0;
+
+                // Controls
+                readByte(data, count, byte);
+                pl.controls.fromNetwork(byte, true);
+
+                pl.gundir = byte >> 5;
+
+                readByte(data, count, byte);
+                pl.visibility = byte;
+
+                if (!pl.dead)
+                    pl.posUpdated = svframe;
+            }
+            unsigned short ping;
+            readShort(data, count, ping);
+            fx.player[svframe % maxplayers].ping = ping;
+        }
+        #endif // DEDICATED_SERVER_ONLY
         else {
             if (!map_ready) {
                 log.error("Server sent frame data when loading map");
@@ -1893,23 +1970,32 @@ void Client::process_incoming_data(const char* data, int length) {
             NLushort ping;
             readShort(data, count, ping);
             fx.player[svframe % maxplayers].ping = ping;
-        }//frame not empty
+        }
     }
 
     //(2) process messages (update fx, and add the non frame-related messages to messageQueue)
+    int replay_pos = count;
     for (;;) {
-        char* lebuf;
+        const char* lebuf;
         int msglen;
-        lebuf = client->receive_message(&msglen);
-        if (lebuf == 0)
-            break;
+        if (replaying) {
+            if (replay_pos >= length)
+                break;
+            readLong(data, replay_pos, msglen);
+            lebuf = data + replay_pos;
+        }
+        else {
+            lebuf = client->receive_message(&msglen);
+            if (lebuf == 0)
+                break;
+        }
 
         int count = 0;
         NLubyte code;
         readByte(lebuf, count, code);
 
         if (LOG_MESSAGE_TRAFFIC)
-            log("Message from server, code = %i", code);
+            log("Message from server, code = %i, length = %i bytes", code, msglen);
 
         //parse rest of message
         switch (static_cast<Network_data_code>(code)) {
@@ -1943,7 +2029,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     addThreadMessage(new TM_DoDisconnect());
                     break;
                 }
-                // This is a kludge because of compatibility. Remove in version 1.1.
+                // This is a kludge because of compatibility.
                 // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
                 if (type == msg_server) {
                     if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
@@ -2147,9 +2233,10 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, rokx);
                 readShort(lebuf, count, roky);
                 if (target != 255) {    // hit player
+                    const double time = replaying ? fx.frame / 10 : get_time();
                     if (target != 252)  // not shield hit -> blink player
-                        fx.player[target].hitfx = get_time() + .3;
-                    addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py));
+                        fx.player[target].hitfx = time + .3;
+                    addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py, time));
                     addThreadMessage(new TM_Sound(SAMPLE_HIT));
                 }
                 #endif
@@ -2159,7 +2246,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 #ifndef DEDICATED_SERVER_ONLY
                 NLubyte target;
                 readByte(lebuf, count, target);
-                fx.player[target].hitfx = get_time() + .3;
+                fx.player[target].hitfx = (replaying ? fx.frame / 10 : get_time()) + .3;
                 addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
                 #endif
             }
@@ -2347,7 +2434,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, hx);
                 readShort(lebuf, count, hy);
                 #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Deathbringer(team, get_time() + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
+                addThreadMessage(new TM_Deathbringer(team, (replaying ? fx.frame / 10 : get_time()) + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
                 addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
                 #endif
             }
@@ -2443,9 +2530,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 int current_time, time_left;
                 readLong(lebuf, count, current_time);
                 readLong(lebuf, count, time_left);
-                map_start_time = static_cast<int>(get_time()) - current_time;
+                map_start_time = static_cast<int>(replaying ? fx.frame / 10 : get_time()) - current_time;
                 if (time_left > 0) {
-                    map_end_time = static_cast<int>(get_time()) + time_left;
+                    map_end_time = static_cast<int>(replaying ? fx.frame / 10 : get_time()) + time_left;
                     map_time_limit = true;
                 }
                 else
@@ -2542,10 +2629,10 @@ void Client::process_incoming_data(const char* data, int length) {
                 const bool wild_flag = pid & 0x80;
                 #endif
                 pid &= ~0x80;
-                fx.player[pid].stats().add_capture(get_time());
+                fx.player[pid].stats().add_capture((replaying ? fx.frame / 10 : get_time()));
                 #ifndef DEDICATED_SERVER_ONLY
                 const int team = pid / TSIZE;
-                fx.teams[team].add_score(get_time() - map_start_time, fx.player[pid].name);
+                fx.teams[team].add_score((replaying ? fx.frame / 10 : get_time()) - map_start_time, fx.player[pid].name);
                 string msg;
                 if (wild_flag)
                     msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);
@@ -3184,6 +3271,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 }
                 // just ignore commands in reserved range: they're probably some extension we don't have to care about
         }
+        replay_pos += count;
     }
 }
 
@@ -3647,7 +3735,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
         break; case KEY_F5:
             if (openMenus.safeTop() == &m_serverInfo.menu)
                 openMenus.close();
-            else if (connected)
+            else if (connected || replaying)
                 showMenu(m_serverInfo);
             stats_autoshowing = false;
         break; case KEY_F3:
@@ -3692,11 +3780,13 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             else
                 showMenu(menu);
         break; case KEY_F2:
-            menusel = (menusel == menu_maps ? menu_none : menu_maps);
-            stats_autoshowing = false;
-            if (menusel == menu_maps) {
-                load_fav_maps();
-                apply_fav_maps();
+            if (!replaying) {
+                menusel = (menusel == menu_maps ? menu_none : menu_maps);
+                stats_autoshowing = false;
+                if (menusel == menu_maps) {
+                    load_fav_maps();
+                    apply_fav_maps();
+                }
             }
         break; case KEY_F3:
             menusel = (menusel == menu_teams ? menu_none : menu_teams);
@@ -3705,15 +3795,17 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             menusel = (menusel == menu_players ? menu_none : menu_players);
             stats_autoshowing = false;
         break; case KEY_F8: {
-            want_map_exit = !want_map_exit;
-            want_map_exit_delayed = false;
+            if (!replaying) {
+                want_map_exit = !want_map_exit;
+                want_map_exit_delayed = false;
 
-            char lebuf[16]; int count = 0;
-            if (want_map_exit)
-                writeByte(lebuf, count, data_map_exit_on);
-            else
-                writeByte(lebuf, count, data_map_exit_off);
-            client->send_message(lebuf, count);
+                char lebuf[16]; int count = 0;
+                if (want_map_exit)
+                    writeByte(lebuf, count, data_map_exit_on);
+                else
+                    writeByte(lebuf, count, data_map_exit_off);
+                client->send_message(lebuf, count);
+            }
         }
         break; default:
             handled = false;
@@ -3792,7 +3884,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
 }
 
 void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
-    if (key[KEY_P])         // ping setting
+    if (key[KEY_P] && !replaying)         // ping setting
         if (sc == KEY_PLUS_PAD) {
             print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
             return;
@@ -3801,6 +3893,12 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             print_message(msg_info, "Ping +" + itoa(iround(client->decreasePacketDelay() * 1000)));
             return;
         }
+
+    if (replaying && toupper(ch) == 'P')
+        if (replay_rate == 0)
+            replay_rate = 1;
+        else
+            replay_rate = 0;
 
     switch (sc) {
     /*break;*/ case KEY_HOME:   // change colours
@@ -3825,31 +3923,90 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         break; case KEY_DEL: {
             if (!talkbuffer.empty())
                 talkbuffer.erase(talkbuffer_cursor, 1);
-            else {
+            else if (!replaying) {
                 char lebuf[16]; int count = 0;
                 writeByte(lebuf, count, data_suicide);
                 client->send_message(lebuf, count);
             }
         }
         break; case KEY_LEFT: {
-            if (!talkbuffer.empty() && talkbuffer_cursor > 0)
+            if (replaying) {
+                if (--current_room.first < 0)
+                    current_room.first = fx.map.w - 1;
+                predrawNeeded = true;
+                for (int i = 0; i < maxplayers; ++i)
+                    if (fx.player[i].used)
+                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
+            }
+            else if (!talkbuffer.empty() && talkbuffer_cursor > 0)
                 talkbuffer_cursor--;
         }
         break; case KEY_RIGHT: {
-            if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
+            if (replaying) {
+                if (++current_room.first >= fx.map.w)
+                    current_room.first = 0;
+                predrawNeeded = true;
+                for (int i = 0; i < maxplayers; ++i)
+                    if (fx.player[i].used)
+                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
+            }
+            else if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
                 talkbuffer_cursor++;
         }
+        break; case KEY_UP: {
+            if (replaying) {
+                if (--current_room.second < 0)
+                    current_room.second = fx.map.h - 1;
+                predrawNeeded = true;
+                for (int i = 0; i < maxplayers; ++i)
+                    if (fx.player[i].used)
+                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
+            }
+            else if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
+                talkbuffer_cursor++;
+        }
+        break; case KEY_DOWN: {
+            if (replaying) {
+                if (++current_room.second >= fx.map.h)
+                    current_room.second = 0;
+                predrawNeeded = true;
+                for (int i = 0; i < maxplayers; ++i)
+                    if (fx.player[i].used)
+                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
+            }
+            else if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
+                talkbuffer_cursor++;
+        }
+        break; case KEY_PGUP: {
+            if (replaying && (replay_rate *= 2) > 32)
+                replay_rate = 32;
+        }
+        break; case KEY_PGDN: {
+            if (replaying && (replay_rate /= 2) < 0.0625)
+                replay_rate = 0.0625;
+        }
         break; case KEY_END: {
-            want_change_teams = !want_change_teams;
-
-            char lebuf[16]; int count = 0;
-            writeByte(lebuf, count, want_change_teams ? data_change_team_on : data_change_team_off);
-            client->send_message(lebuf, count);
+            if (replaying)
+                replay_rate = 1;
+            else {
+                want_change_teams = !want_change_teams;
+                char lebuf[16]; int count = 0;
+                writeByte(lebuf, count, want_change_teams ? data_change_team_on : data_change_team_off);
+                client->send_message(lebuf, count);
+            }
+        }
+        break; case KEY_PAUSE: {
+            if (replaying) {
+                if (replay_rate == 0)
+                    replay_rate = 1;
+                else
+                    replay_rate = 0;
+            }
         }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
         break; default:
             // Add character to text
-            if (talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
+            if (!replaying && talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
                     (!menu.options.controls.keypadMoving() || (!is_keypad(sc) && !alt_sequence))) {
                 talkbuffer.insert(talkbuffer_cursor, 1, static_cast<char>(ch));
                 talkbuffer_cursor++;
@@ -3870,6 +4027,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     else
         showMenu(menu);
     gameshow = false;
+    replaying = false;
 
     g_timeCounter.refresh();
     double nextSend = get_time();
@@ -3908,7 +4066,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 alt_sequence = false;
 
             // handle current keypresses (only used in game)
-            if (openMenus.empty()) {
+            if (openMenus.empty() && !replaying) {
                 bool sendnow = false;
 
                 // control == fire
@@ -3937,9 +4095,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 send_frame(false, sendnow);
             }
 
-            while (clientReadiesWaiting > 1 ||
+            while (!replaying && (clientReadiesWaiting > 1 ||
                    (clientReadiesWaiting && (!menu.options.game.stayDead() ||
-                                             (openMenus.empty() && menusel == menu_none)))) {
+                                             openMenus.empty() && menusel == menu_none)))) {
                 send_client_ready();
                 --clientReadiesWaiting;
             }
@@ -3961,15 +4119,21 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             platSleep(2);
         }
 
-        if (get_time() >= nextSend) {
-            nextSend += .1; // match 10 Hz frame frequency of server
+        if (get_time() >= nextSend && (!replaying || replay_rate > 0)) {
+            if (replaying)
+                nextSend += .1 / replay_rate;
+            else
+                nextSend += .1; // match 10 Hz frame frequency of server
             #ifdef SEND_FRAMEOFFSET
             nextSend += netsendAdjustment;
             netsendAdjustment = 0;  // losing a value due to concurrency is vaguely possible but affordable
             #endif
             if (get_time() > nextSend)   // don't accumulate lag
                 nextSend = get_time();
-            send_frame(true, true);
+            if (replaying)
+                continue_replay();
+            else
+                send_frame(true, true);
         }
 
         if (get_time() < nextClientFrame)
@@ -3992,7 +4156,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             MutexLock ml(frameMutex);
 
             ClientPhysicsCallbacks cb(*this);
-            if (menu.options.game.lagPrediction()) {
+            if (menu.options.game.lagPrediction() && !replaying) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
                 NLubyte firstFrame, lastFrame;
@@ -4020,7 +4184,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
             else
-                fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * 10.);
+                fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * (replaying ? replay_rate * 10. : 10.));
 
             if (mapChanged) {
                 mapChanged = false;
@@ -4069,7 +4233,123 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
     //client exit cleanup: done at stop wich needs to be called after loop
 }
-#endif
+
+void Client::start_replay(const std::string& filename) {
+    replay.clear();
+    replay.open(filename.c_str(), ios::binary);
+
+    string identification;
+    read(replay, identification, REPLAY_IDENTIFICATION.length());
+    if (identification != REPLAY_IDENTIFICATION) {
+        replay.close();
+        return;
+    }
+
+    int replay_version;
+    read(replay, replay_version);
+    if (replay_version > REPLAY_VERSION) {   // incompatible replay
+        replay.close();
+        return;
+    }
+
+    read(replay, replay_length);
+
+    read_string(replay, hostname);
+    const string caption = _("Replay on $1", hostname.substr(0, 32));
+    extConfig.statusOutput(caption);
+
+    int maxplayers;
+    read(replay, maxplayers);
+    setMaxPlayers(maxplayers);
+
+    replaying = true;
+    replay_rate = 1;
+    show_all_messages = false;
+    stats_autoshowing = false;
+
+    m_serverInfo.clear();
+    m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten when config information
+
+    lastpackettime = get_time() + 4.0;
+    averageLag = 0;
+    clFrameSent = clFrameWorld = 0;
+    frameReceiveTime = 0;
+
+    gameshow = true;
+    openMenus.clear();
+
+    fd.frame = -1;
+    fd.skipped = true;
+    fx.frame = -1;
+    fx.skipped = true;
+    me = -1;
+
+    talkbuffer.clear();
+    talkbuffer_cursor = 0;
+    chatbuffer.clear();
+
+    for (int i = 0; i < 2; i++) {
+        fx.teams[i].clear_stats();
+        fx.teams[i].remove_flags();
+    }
+    remove_flags = 0;
+
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        fx.player[i].clear(false, i, "", i / TSIZE);
+    players_sb.clear();
+
+    for (int i = 0; i < MAX_PICKUPS; ++i)
+        fx.item[i].kind = Powerup::pup_unused;
+
+    framecount = 0;
+    frameCountStartTime = get_time();
+    FPS = 0;
+
+    map_time_limit = false;
+    map_start_time = 0;
+    map_end_time = 0;
+
+    map_ready = false;
+    clientReadiesWaiting = 0;
+
+    gameover_plaque = NEXTMAP_NONE;
+
+    client_graphics.clear_fx();
+
+    fx.map.load(replay);
+    fd.map = fx.map;
+    remove_useless_flags();
+    mapChanged = true;
+    map_ready = true;
+    log("Map loaded from the replay: %s", fx.map.title.c_str());
+}
+
+void Client::continue_replay() {
+    log("continue_replay()");
+    int length;
+    if (read(replay, length)) {
+        log("%d bytes read from the replay.", length);
+        char* data = new char[length];
+        replay.read(data, length);
+        process_incoming_data(data, length);
+        delete [] data;
+    }
+}
+
+void Client::stop_replay() {
+    if (!replaying)
+        return;
+
+    replay.close();
+
+    replaying = false;
+    gameshow = false;
+
+    extConfig.statusOutput(_("Outgun client"));
+
+    menusel = menu_none;
+}
+#endif // !DEDICATED_SERVER_ONLY
 
 void Client::bot_loop() {
     MutexLock ml(frameMutex);
@@ -4112,6 +4392,7 @@ void Client::stop() {
 
     //at least disconnect
     disconnect_command();
+    stop_replay();
 
     if (botmode) {
         finished = true;
@@ -4250,15 +4531,16 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
+    const double time = replaying ? fx.frame / 10 : get_time();
     if (botmode)
         return;
     if (power) {
-        client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
-        client_sounds.play(SAMPLE_POWERWALLHIT);
+        client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team, time);
+        play_sound(SAMPLE_POWERWALLHIT);
     }
     else {
-        client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team);
-        client_sounds.play(SAMPLE_WALLHIT);
+        client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team, time);
+        play_sound(SAMPLE_WALLHIT);
     }
     #else
     (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
@@ -4278,7 +4560,7 @@ void Client::playerHitWallCallback(int pid) {
     const double currTime = get_time(); //#fix
     if (currTime > fx.player[pid].wall_sound_time) {
         fx.player[pid].wall_sound_time = currTime + 0.2;
-        client_sounds.play(SAMPLE_WALLBOUNCE);
+        play_sound(SAMPLE_WALLBOUNCE);
     }
     #else
     (void)pid;
@@ -4291,7 +4573,7 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) {
     const double currTime = get_time(); //#fix
     if (currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) {
         fx.player[pid1].player_sound_time = fx.player[pid2].player_sound_time = currTime + 0.2;
-        client_sounds.play(SAMPLE_PLAYERBOUNCE);
+        play_sound(SAMPLE_PLAYERBOUNCE);
     }
     #else
     (void)pid1; (void)pid2;
@@ -4313,40 +4595,52 @@ void Client::remove_useless_flags() {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
+void Client::play_sound(int sample) {
+    int freq = 1000;
+    if (replaying)
+        freq = int(freq * replay_rate);
+    client_sounds.play(sample, freq);
+}
+
 void Client::predraw() {
-    if (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
-            fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h)
+    if (!replaying && (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
+            fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h))
         return; //#fix: this shouldn't be needed, or should be checked from a simple flag
     vector< pair<int, const WorldCoords*> > flags;
     vector< pair<int, const WorldCoords*> > spawns;
 
+    const int roomx = (replaying ? current_room.first  : fx.player[me].roomx);
+    const int roomy = (replaying ? current_room.second : fx.player[me].roomy);
+
     for (int team = 0; team <= 2; team++) {
         const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
         for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)     // flags
-            if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
+            if (roomx == pi->px && roomy == pi->py)
                 flags.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
         if (menu.options.graphics.mapInfoMode() && team < 2) {
             const vector<WorldCoords>& tspawn = fx.map.tinfo[team].spawn;
             for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi) // spawns
-                if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
+                if (roomx == pi->px && roomy == pi->py)
                     spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
         }
     }
 
     int texRoomX, texRoomY; // the room is textured as in these coordinates
     if (menu.options.graphics.contTextures()) {
-        texRoomX = fx.player[me].roomx; // use real coordinates -> textures continue from a room to the next one
-        texRoomY = fx.player[me].roomy;
+        texRoomX = roomx; // use real coordinates -> textures continue from a room to the next one
+        texRoomY = roomy;
     }
     else
         texRoomX = texRoomY = 0;    // this way the texturing always starts from the top left corner (classic look)
-    client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
+    client_graphics.predraw(fx.map.room[roomx][roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
 }
 
 //draw the whole game screen
 void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
-    const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
+    const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0 || me >= maxplayers;
+
+    const double time = replaying ? fd.frame / 10 : get_time();
 
     // the playground: border, walls and pits
     if (hide_game) {
@@ -4395,41 +4689,42 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         }
 
         // draw any item pickups
-        if (me >= 0)
-            for (int i = 0; i < MAX_PICKUPS; i++)
-                // used power-ups, not respawning, on my screen
-                if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
-                        fx.item[i].px == fx.player[me].roomx && fx.item[i].py == fx.player[me].roomy) {
-                    client_graphics.draw_pup(fx.item[i], get_time());
-                    if (fx.item[i].kind == Powerup::pup_deathbringer)
-                        client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
-                            fx.item[i].px, fx.item[i].py);
-                }
+        const int roomx = replaying ? current_room.first  : fx.player[me].roomx;
+        const int roomy = replaying ? current_room.second : fx.player[me].roomy;
+        for (int i = 0; i < MAX_PICKUPS; i++)
+            // used power-ups, not respawning, on my screen
+            if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
+                     fx.item[i].px == roomx && fx.item[i].py == roomy) {
+                client_graphics.draw_pup(fx.item[i], time);
+                if (fx.item[i].kind == Powerup::pup_deathbringer)
+                    client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
+                        fx.item[i].px, fx.item[i].py, time);
+            }
 
         // draw turbo effect
-        client_graphics.draw_turbofx(fx.player[me].roomx, fx.player[me].roomy, get_time());
+        client_graphics.draw_turbofx(roomx, roomy, time);
 
         // draw any dropped flags (use fx since flags don't move)
         for (int t = 0; t < 3; t++) {
             const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
             for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
                 // not carried, on same screen
-                if (!fi->carried() && fi->position().px == fx.player[me].roomx && fi->position().py == fx.player[me].roomy) {
+                if (!fi->carried() && fi->position().px == roomx && fi->position().py == roomy) {
                     const bool flash = menu.options.graphics.highlightReturnedFlag() &&
-                                       get_time() < fi->return_time() + 2 && static_cast<int>(get_time() * 15) % 3 == 0;
+                                       time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
                     client_graphics.draw_flag(t, fi->position().x, fi->position().y, flash);
                 }
         }
 
         // draw any rockets
         for (int i = 0; i < MAX_ROCKETS; i++)
-            if (fx.rock[i].owner != -1 && fx.rock[i].px == fx.player[me].roomx && fx.rock[i].py == fx.player[me].roomy) {
+            if (fx.rock[i].owner != -1 && fx.rock[i].px == roomx && fx.rock[i].py == roomy) {
                 fd.rock[i].team = fx.rock[i].team;
                 fd.rock[i].power = fx.rock[i].power;
                 const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
-                const bool shadow = !fd.map.room[fx.player[me].roomx][fx.player[me].roomy].fall_on_wall(
+                const bool shadow = !fd.map.room[roomx][roomy].fall_on_wall(
                     static_cast<int>(fd.rock[i].x), static_cast<int>(fd.rock[i].y) + radius + 8, radius / 2);
-                client_graphics.draw_rocket(fd.rock[i], shadow, get_time());
+                client_graphics.draw_rocket(fd.rock[i], shadow, time);
             }
 
         // the PLAY AREA: the players!
@@ -4446,22 +4741,22 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             }
 
             if (fx.player[i].onscreen && i != me)   // draw only players on my screen
-                draw_player(i);
-            if (k == maxplayers - 1)                // last draw me
-                draw_player(me);
+                draw_player(i, time);
+            if (k == maxplayers - 1 && !replaying)     // last draw me
+                draw_player(me, time);
         }
 
         for (int i = 0; i < maxplayers; i++)
-            if (fx.player[i].used && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy &&
+            if (fx.player[i].used && fx.player[i].roomx == roomx && fx.player[i].roomy == roomy &&
                 fx.player[i].onscreen && fx.player[i].item_deathbringer)
                     client_graphics.draw_deathbringer_carrier_effect((int)fd.player[i].lx, (int)fd.player[i].ly, calculatePlayerAlpha(i));
 
-        client_graphics.draw_effects(fx.player[me].roomx, fx.player[me].roomy, get_time());
+        client_graphics.draw_effects(roomx, roomy, time);
 
         if (menu.options.game.showNames())  // Draw player names but not for invisible enemies.
             for (int i = 0; i < maxplayers; i++) {
                 if (!fx.player[i].used || !fx.player[i].onscreen || fx.player[i].dead ||
-                    fx.player[i].roomx != fx.player[me].roomx || fx.player[i].roomy != fx.player[me].roomy ||
+                    fx.player[i].roomx != roomx || fx.player[i].roomy != roomy ||
                     (fx.player[i].visibility < 200 && i / TSIZE != me / TSIZE))
                         continue;
                 const int ttx = static_cast<int>(fd.player[i].lx);
@@ -4474,7 +4769,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     //do not draw stuff below if map not ready to show
     if (!hide_game) {
-        vector<NLubyte> roomvis(fx.map.w * fx.map.h, (me >= 0 && fx.player[me].item_shadow()) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
+        vector<NLubyte> roomvis(fx.map.w * fx.map.h, (replaying || me >= 0 && fx.player[me].item_shadow()) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
 
         int max_time, start_fadeout;    // in frames
         switch (menu.options.graphics.minimapPlayers()) {
@@ -4504,12 +4799,15 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int rx = 0; rx < fx.map.w; rx++)
                 client_graphics.draw_minimap_room(fx.map, rx, ry, roomvis[ry * fx.map.w + rx] / 255.);
 
+        if (replaying)
+            client_graphics.highlight_minimap_room(fx.map, current_room.first, current_room.second);
+
         // draw all teammates and enemies on screens where there are teammates
-        if (me >= 0 && fx.frame >= 0)
+        if ((me >= 0 || replaying) && fx.frame >= 0)
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
-                    const int alpha = pl.alpha;
+                    const int alpha = replaying ? pl.alpha : 255;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
                         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -4530,12 +4828,12 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
-                    if (i != me) {
+                    if (i != me || replaying) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
                             client_graphics.draw_minimap_player(fx.map, pl);
                     }
                     else // myself: draw differently
-                        client_graphics.draw_minimap_me(fx.map, pl, get_time());
+                        client_graphics.draw_minimap_me(fx.map, pl, time);
 
                     solid_mode();
                 }
@@ -4547,7 +4845,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
                 if (!fi->carried()) {
                     const bool flash = menu.options.graphics.highlightReturnedFlag() &&
-                                       get_time() < fi->return_time() + 2 && static_cast<int>(get_time() * 15) % 3 == 0;
+                                       time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
                     client_graphics.draw_mini_flag(t, *fi, fx.map, flash);
                 }
         }
@@ -4559,25 +4857,28 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // Time left if time limit is on and the game is running.
     if (map_time_limit && gameover_plaque == NEXTMAP_NONE && players_sb.size() > 1)
-        if (map_end_time > get_time())
-            client_graphics.map_time(map_end_time - static_cast<int>(get_time()));
+        if (map_end_time > time)
+            client_graphics.map_time(map_end_time - static_cast<int>(time));
         else
             client_graphics.map_time(0);
+
+    if (replaying)
+        client_graphics.draw_replay_info(replay_rate, static_cast<int>(fx.frame), replay_length);
 
     // player's power-ups
     if (me >= 0) {
         if (fx.player[me].item_power) {
-            double val = fx.player[me].item_power_time - get_time();
+            double val = fx.player[me].item_power_time - time;
             if (val < 0) val = 0;
             client_graphics.draw_player_power(val);
         }
         if (fx.player[me].item_turbo) {
-            double val = fx.player[me].item_turbo_time - get_time();
+            double val = fx.player[me].item_turbo_time - time;
             if (val < 0) val = 0;
             client_graphics.draw_player_turbo(val);
         }
         if (fx.player[me].item_shadow()) {
-            double val = fx.player[me].item_shadow_time - get_time();
+            double val = fx.player[me].item_shadow_time - time;
             if (val < 0) val = 0;
             client_graphics.draw_player_shadow(val);
         }
@@ -4585,10 +4886,12 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         client_graphics.draw_player_weapon(fx.player[me].weapon);
     }
 
-    if (want_change_teams)
-        client_graphics.draw_change_team_message(get_time());
-    if (want_map_exit)
-        client_graphics.draw_change_map_message(get_time(), want_map_exit_delayed);
+    if (!replaying) {
+        if (want_change_teams)
+            client_graphics.draw_change_team_message(time);
+        if (want_map_exit)
+            client_graphics.draw_change_map_message(time, want_map_exit_delayed);
+    }
 
     // the STATUSBAR : health energy, bars ....
     if (me >= 0) {
@@ -4605,12 +4908,12 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     for (int i = 0; i < start; ++i, ++msg);
     if (!show_all_messages) // drop old messages
         for (; msg != chatbuffer.end(); ++msg)
-            if (get_time() < msg->time() + 80)
+            if (time < msg->time() + 80)
                 break;
     client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer, talkbuffer_cursor);
 
     //"server not responding... connection may have dropped" plaque
-    if (get_time() > lastpackettime + 1.0)
+    if (time > lastpackettime + 1.0 && !replaying)
         m_notResponding.menu.draw(client_graphics.drawbuffer(), client_graphics.colours());
 
     // debug panel
@@ -4638,10 +4941,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // another frame, calculate FPS
     totalframecount++;
     framecount++;
-    const double baixo = get_time() - frameCountStartTime;
+    const double baixo = time - frameCountStartTime;
     if (baixo > 1.0) {
         FPS = ((double)framecount) / baixo;
-        frameCountStartTime = get_time();
+        frameCountStartTime = time;
         framecount = 0;
     }
 }
@@ -4649,13 +4952,13 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 int Client::calculatePlayerAlpha(int pid) const {
     static const int min_alpha_friends = 128;
     const int baseAlpha = fd.player[pid].visibility;
-    if (fx.player[pid].team() == fx.player[me].team() && baseAlpha < min_alpha_friends)
+    if ((replaying || fx.player[pid].team() == fx.player[me].team()) && baseAlpha < min_alpha_friends)
         return min_alpha_friends;
     else
         return baseAlpha;
 }
 
-void Client::draw_player(int pid) {
+void Client::draw_player(int pid, double time) {
     ClientPlayer& player = fx.player[pid];
     const int alpha = calculatePlayerAlpha(pid);
     // draw flag if player is carrier of a flag
@@ -4674,20 +4977,20 @@ void Client::draw_player(int pid) {
         if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
             // turbo effect
             if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
-                        get_time() > player.next_turbo_effect_time) {
-                player.next_turbo_effect_time = get_time() + 0.05;
-                client_graphics.create_turbofx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir, alpha);
+                        time > player.next_turbo_effect_time) {
+                player.next_turbo_effect_time = time + 0.05;
+                client_graphics.create_turbofx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir, alpha, time);
             }
 
             //draw player
-            client_graphics.draw_player(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, get_time());
+            client_graphics.draw_player(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
         }
 
         //draw deathbringer carrier effect
-        if (player.item_deathbringer && get_time() > player.next_smoke_effect_time) {
-            player.next_smoke_effect_time = get_time() + 0.01;
+        if (player.item_deathbringer && time > player.next_smoke_effect_time) {
+            player.next_smoke_effect_time = time + 0.01;
             for (int i = 0; i < 2; i++)
-                client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy, alpha);
+                client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy, alpha, time);
         }
         // draw deathbringer affected effect
         if (player.deathbringer_affected)
@@ -4790,6 +5093,8 @@ void Client::initMenus() {
     menu.ownServer.start                .setHook(new MCB::N<Textarea,       &Client::MCF_startServer            >(this));
     menu.ownServer.play                 .setHook(new MCB::N<Textarea,       &Client::MCF_playServer             >(this));
     menu.ownServer.stop                 .setHook(new MCB::N<Textarea,       &Client::MCF_stopServer             >(this));
+
+    menu.replays.menu               .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareReplayMenu      >(this));
 
     m_playerPassword.menu             .setOkHook(new MCB::N<Menu,           &Client::MCF_playerPasswordAccept   >(this));
     m_serverPassword.menu             .setOkHook(new MCB::N<Menu,           &Client::MCF_serverPasswordAccept   >(this));
@@ -5048,7 +5353,7 @@ void Client::MCF_sndEnableChange() {
 
 void Client::MCF_sndVolumeChange() {
     client_sounds.setVolume(menu.options.sounds.volume());
-    client_sounds.play(SAMPLE_POWER_FIRE);
+    client_sounds.play(SAMPLE_POWER_FIRE, 1000);
 }
 
 void Client::MCF_sndThemeChange() {
@@ -5334,6 +5639,59 @@ void Client::MCF_playServer() {
 void Client::MCF_stopServer() {
     if (listenServer.running())
         listenServer.stop();
+}
+
+void Client::MCF_replay(Textarea& target) {
+    const string& replay_name = menu.replays.getFile(target);
+    const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
+    start_replay(filename);
+}
+
+void Client::MCF_prepareReplayMenu() {
+    if (replaying) {
+        stop_replay();
+        return;
+    }
+    menu.replays.reset();
+    vector<pair<string, string> > replays;
+    FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
+    while (replay_files->hasNext()) {
+        const string name = FileName(replay_files->next()).getBaseName();
+        const string replay_file = wheregamedir + "replay" + directory_separator + name + ".replay";
+        ifstream in(replay_file.c_str(), ios::binary);
+        string identification;
+        read(in, identification, REPLAY_IDENTIFICATION.length());
+        bool error = identification != REPLAY_IDENTIFICATION;
+        int replay_version;
+        read(in, replay_version);
+        if (replay_version > REPLAY_VERSION) {
+            log.error(_("Replay $1 is a newer version ($2).", replay_file, itoa(replay_version)));
+            continue;
+        }
+        int length;
+        read(in, length);
+        string server_name, map_name;
+        int skip;
+        if (!error && read_string(in, server_name) && read(in, skip) && read_string(in, map_name)) {
+            ostringstream text;
+            text << name << ' ' << server_name << " - " << map_name;
+            if (length > 0)
+                text << ' ' << length / 600 << ':' << setw(2) << setfill('0') << length / 10 % 60;
+            replays.push_back(pair<string, string>(name, text.str()));
+        }
+        else
+            log.error(_("Replay $1 can't be read.", replay_file));
+    }
+    delete replay_files;
+    log("%d replays found.", replays.size());
+
+    sort(replays.begin(), replays.end());
+    for (vector<pair<string, string> >::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
+        menu.replays.add(ri->first, ri->second);
+
+    typedef MenuCallback<Client> MCB;
+    typedef MenuKeyCallback<Client> MKC;
+    menu.replays.addHooks(new MCB::A<Textarea, &Client::MCF_replay>(this));
 }
 
 void Client::load_highlight_texts() {

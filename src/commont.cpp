@@ -169,6 +169,13 @@ istream& getline_skip_comments(istream& in, string& str) {
     return in;
 }
 
+istream& read(istream& in, string& target, std::string::size_type length) {
+    target.clear();
+    for (std::string::size_type i = 0; i < length; ++i)
+        target += in.get();
+    return in;
+}
+
 bool check_name(const string& name) {
     if (name.length() > maxPlayerNameLength)
         return false;

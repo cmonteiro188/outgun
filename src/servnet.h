@@ -85,7 +85,7 @@ class ServerNetworking {
 
     server_c*       server;
 
-    LogSet          log;
+    mutable LogSet  log;
 
     #ifdef SEND_FRAMEOFFSET
     double          frameSentTime;  // at what time the last frame was sent
@@ -255,6 +255,7 @@ public:
     void broadcast_frame(bool gameRunning);
 
     void set_hostname(const std::string& name);
+    const std::string& get_hostname() const { return hostname; }
     NLaddress get_client_address(int cid) const;
     int get_player_count() const { return player_count; }
     int get_human_count() const { return player_count - bot_count; }
