@@ -2149,7 +2149,6 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
             message << talkbuffer.substr(1);
         else
             message << talkbuffer;
-        //message << '_';
         const vector<string> lines = split_to_lines(message.str(), 79, 0);
         int characters = 0;
         for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line) {

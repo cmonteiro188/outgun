@@ -382,8 +382,6 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const
     if (active) {
         //if (int(get_time()) % 2)
             vline(buffer, cursor_x, y, y + text_height(font), col(Colour::menu_value));
-        //textout_ex(buffer, font, "_", x, y, col(Colour::menu_value), -1); // cursor
-        //x += text_length(font, "_");
     }
     textout_ex(buffer, font, tail.c_str(), x, y, col(Colour::menu_value), -1);
 }

@@ -573,7 +573,6 @@ void Menu_replays::reset() {
 void Menu_replays::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) {
     for (vector<pair<string, Textarea> >::iterator item = items.begin(); item != items.end(); ++item) {
         item->second.setHook(hook->clone());
-        //item->second.setKeyHook(keyHook->clone());
         menu.add_component(&item->second);
     }
     delete hook;
