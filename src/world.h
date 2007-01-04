@@ -427,6 +427,8 @@ public:
     double talk_temp;
     double talk_hotness;
 
+    bool record_position;
+
     ServerPlayer() { clear(false, 0, 0, "", 0); }
 
     bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }

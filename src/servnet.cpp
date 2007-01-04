@@ -113,7 +113,7 @@ void ServerNetworking::upload_next_file_chunk(int i) {
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    const NLubyte islast = (fileTransfer[i].dp + chunksize == fileTransfer[i].data.size());
+    const NLubyte islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size() ? 1 : 0;
 
     //send
     char lebuf[256]; int count = 0;
@@ -199,19 +199,20 @@ void ServerNetworking::send_me_packet(int pid) const {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-// send a player name update to a client (cid = -1: to all clients)
+// send a player name update to a client (cid = -1: to all clients, -2: only record)
 void ServerNetworking::send_player_name_update(int cid, int pid) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
     writeByte(lebuf, count, pid);       // what player id
     writeStr(lebuf, count, world.player[pid].name.empty() ? "?" : world.player[pid].name);
 
-    if (cid != -1)
+    if (cid >= 0)
         server->send_message(cid, lebuf, count);
     else {
-        for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used)
-                server->send_message(world.player[i].cid, lebuf, count);
+        if (cid == -1)
+            for (int i = 0; i < maxplayers; i++)
+                if (world.player[i].used)
+                    server->send_message(world.player[i].cid, lebuf, count);
 
         if (host->is_recording()) {
             ostream& out = host->record_stream();
@@ -1756,12 +1757,13 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                 if (world.player[j].used && world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
                         (world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].stats().has_flag())) {
                     players_onscreen |= (1 << j);
+                    log("Player %d on screen, players_onscreen = %d, sizeof = %lu", j, players_onscreen, sizeof(players_onscreen));
 
                     const ServerPlayer& h = world.player[j];
 
                     // position in 3 bytes
                     NLubyte xy;
-                    NLushort hx,hy;
+                    NLushort hx, hy;
                     hx = static_cast<NLushort>(h.lx * (double(0xFFF) / plw) + .5);
                     hy = static_cast<NLushort>(h.ly * (double(0xFFF) / plh) + .5);
                     xy = static_cast<NLubyte>(hx & 0x0FF);

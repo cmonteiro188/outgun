@@ -571,7 +571,7 @@ void TM_ServerSettings::execute(Client* cl) const {
         addLine(cl, constPowerupTime ? _("Powerup time") : _("Powerup max time"), _("$1 s", itoa(pupMaxTime)));
     }
 
-    if (cl->menu.options.game.showServerInfo())
+    if (cl->menu.options.game.showServerInfo() && cl->replaying)
         cl->showMenu(cl->m_serverInfo);
 }
 #endif
@@ -1783,36 +1783,39 @@ void Client::process_incoming_data(const char* data, int length) {
 
                 log("Player data from replay.");
 
-                // Position
-                NLubyte x, y;
-                readByte(data, count, x);
-                readByte(data, count, y);
-                pl.roomx = x;
-                pl.roomy = y;
-                NLushort px, py;
-                readShort(data, count, px);
-                readShort(data, count, py);
-                pl.lx = px;
-                pl.ly = py;
-
-                pl.onscreen = pl.roomx == current_room.first && pl.roomy == current_room.second;
-
-                // Speed
-                NLfloat speed;
-                readFloat(data, count, speed);
-                pl.sx = speed;
-                readFloat(data, count, speed);
-                pl.sy = speed;
-
                 // Dead and powerup flags
                 NLubyte byte;
                 readByte(data, count, byte);
-                pl.dead = (byte & 1) != 0;
-                pl.item_deathbringer = (byte & 2) != 0;
-                pl.deathbringer_affected = (byte & 4) != 0;
-                pl.item_shield = (byte & 8) != 0;
-                pl.item_turbo = (byte & 16) != 0;
-                pl.item_power = (byte & 32) != 0;
+                pl.dead = (byte & (1 << 0)) != 0;
+                pl.item_deathbringer = (byte & (1 << 1)) != 0;
+                pl.deathbringer_affected = (byte & (1 << 2)) != 0;
+                pl.item_shield = (byte & (1 << 3)) != 0;
+                pl.item_turbo = (byte & (1 << 4)) != 0;
+                pl.item_power = (byte & (1 << 5)) != 0;
+
+                const bool position_data = (byte & (1 << 7)) != 0;
+                if (position_data) {
+                    // Position
+                    NLubyte x, y;
+                    readByte(data, count, x);
+                    readByte(data, count, y);
+                    pl.roomx = x;
+                    pl.roomy = y;
+                    NLushort px, py;
+                    readShort(data, count, px);
+                    readShort(data, count, py);
+                    pl.lx = px;
+                    pl.ly = py;
+
+                    pl.onscreen = pl.roomx == current_room.first && pl.roomy == current_room.second;
+
+                    // Speed
+                    NLfloat speed;
+                    readFloat(data, count, speed);
+                    pl.sx = speed;
+                    readFloat(data, count, speed);
+                    pl.sy = speed;
+                }
 
                 // Controls
                 readByte(data, count, byte);
@@ -2313,6 +2316,8 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_map_change: {
+                if (replaying)
+                    break;
                 map_ready = false;  // map NOT ready anymore: must load/change
                 #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
@@ -2359,6 +2364,8 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_world_reset:
+                if (replaying)
+                    break;
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                     pi->stats().finish_stats(get_time());
                 for (int iid = 0; iid < MAX_PICKUPS; ++iid)
@@ -2367,6 +2374,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.rock[i].owner = -1;
 
             break; case data_gameover_show: {
+                if (replaying)
+                    break;
                 NLubyte plaque;
                 readByte(lebuf, count, plaque);
                 if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
@@ -2410,6 +2419,8 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_start_game:
+                if (replaying)
+                    break;
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
@@ -4701,7 +4712,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                         fx.item[i].px, fx.item[i].py, time);
             }
 
-        // draw turbo effect
+        // draw turbo effects
         client_graphics.draw_turbofx(roomx, roomy, time);
 
         // draw any dropped flags (use fx since flags don't move)
@@ -4742,7 +4753,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
             if (fx.player[i].onscreen && i != me)   // draw only players on my screen
                 draw_player(i, time);
-            if (k == maxplayers - 1 && !replaying)     // last draw me
+            if (k == maxplayers - 1 && !replaying)  // last draw me
                 draw_player(me, time);
         }
 
@@ -4807,7 +4818,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
-                    const int alpha = replaying ? pl.alpha : 255;
+                    const int alpha = replaying ? 255 : pl.alpha;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
                         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -4828,7 +4839,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
-                    if (i != me || replaying) {
+                    if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
                             client_graphics.draw_minimap_player(fx.map, pl);
                     }
@@ -4941,10 +4952,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // another frame, calculate FPS
     totalframecount++;
     framecount++;
-    const double baixo = time - frameCountStartTime;
+    const double baixo = get_time() - frameCountStartTime;
     if (baixo > 1.0) {
         FPS = ((double)framecount) / baixo;
-        frameCountStartTime = time;
+        frameCountStartTime = get_time();
         framecount = 0;
     }
 }
@@ -5683,7 +5694,7 @@ void Client::MCF_prepareReplayMenu() {
             log.error(_("Replay $1 can't be read.", replay_file));
     }
     delete replay_files;
-    log("%d replays found.", replays.size());
+    log("%lu replays found.", replays.size());
 
     sort(replays.begin(), replays.end());
     for (vector<pair<string, string> >::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2

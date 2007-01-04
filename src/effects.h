@@ -37,6 +37,8 @@ enum FX_TYPE {
 };
 
 struct GraphicsEffect {
+    GraphicsEffect(): px(0), py(0), time(0), x(0), y(0), team(0), alpha(0), col1(0), col2(0), gundir(0) { }
+
     FX_TYPE type;       // type of fx
     int px, py;         // screen where it spawned. if changed when time to redraw, delete it
     double time;        // start time

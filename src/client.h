@@ -646,6 +646,8 @@ class Client {
     bool handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey
     void handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
 
+    void play_sound(int sample);
+
     void start_replay(const std::string& filename);
     void continue_replay();
     void stop_replay();
@@ -671,8 +673,6 @@ public:
     void set_bot_password(const std::string& pass) { bot_password = pass; }
 
     int team() const { return me / TSIZE; }
-    
-    void play_sound(int sample);
 };
 
 #ifndef DEDICATED_SERVER_ONLY

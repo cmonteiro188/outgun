@@ -720,13 +720,13 @@ void Map::save(ostream& out) const {
     for (int team = 0; team < 3; ++team) {
         // Flags
         const vector<WorldCoords>& flags = team == 2 ? wild_flags : tinfo[team].flags;
-        write(out, flags.size());
+        write(out, static_cast<unsigned>(flags.size()));
         for (vector<WorldCoords>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
             write(out, *fi);
         // Spawn points
         if (team == 0 || team == 1) {
             const vector<WorldCoords>& spawns = tinfo[team].spawn;
-            write(out, spawns.size());
+            write(out, static_cast<unsigned>(spawns.size()));
             for (vector<WorldCoords>::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
                 write(out, *si);
         }
@@ -734,7 +734,7 @@ void Map::save(ostream& out) const {
 }
 
 void Map::save_walls(ostream& out, const vector<WallBase*>& walls) const {
-    write(out, walls.size());
+    write(out, static_cast<unsigned>(walls.size()));
     const char type_rect = 0, type_tri = 1, type_circ = 2;
     for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi) {
         if (RectWall* rect = dynamic_cast<RectWall*>(*wi)) {
@@ -825,10 +825,10 @@ void Map::load(istream& in) {
 }
 
 void Map::read_walls(istream& in, Room& target_room, bool ground) const {
-    int wall_count;
+    unsigned wall_count;
     read(in, wall_count);
     const char type_rect = 0, type_tri = 1, type_circ = 2;
-    for (int i = 0; i < wall_count; ++i) {
+    for (unsigned i = 0; i < wall_count; ++i) {
         char type;
         read(in, type);
         if (type == type_rect) {
@@ -964,6 +964,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     random_shuffle(fav_col.begin(), fav_col.end());
 
     bot = false;
+    record_position = true;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
@@ -2141,6 +2142,7 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
 //game player screen changed
 // --> send any pickups on screen
 void ServerWorld::game_player_screen_change(int p) {
+    player[p].record_position = true;
     //check for new pickups visible
     for (int i = 0; i < MAX_PICKUPS; i++) {
         const Powerup& it = item[i];

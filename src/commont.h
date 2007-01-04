@@ -9,7 +9,7 @@
  *
  *  Outgun is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version2 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *
  *  Outgun is distributed in the hope that it will be useful,
@@ -51,8 +51,8 @@ inline std::ostream& write_string(std::ostream& out, const char* str, int size) 
 }
 
 template<typename T>
-std::ostream& write(std::ostream& out, T val) {
-    char* mem = reinterpret_cast<char*>(&val);
+std::ostream& write(std::ostream& out, const T& val) {
+    const char* mem = reinterpret_cast<const char*>(&val);
     //return out.write(mem, sizeof(T));
     for (int i = sizeof(T) - 1; i >= 0; --i)
         out.put(mem[i]);

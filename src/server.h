@@ -152,8 +152,10 @@ class Server {
 
     // Recording
     bool recording;
+    std::string record_filename;
     mutable std::ofstream record;
     mutable std::stringstream record_frame;
+    NLulong record_start_frame;
 
     void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
 
@@ -166,6 +168,11 @@ class Server {
     // copying not allowed
     Server(const Server& o);
     Server& operator=(const Server& o);
+
+    void start_recording();
+    void stop_recording();
+    void clear_recording();
+    void record_init_data();
 
 public:
     Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object

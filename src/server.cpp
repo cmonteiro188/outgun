@@ -82,7 +82,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     world(this, &network, log),
     network(this, world, log, threadLock, threadLockMutex),
     extConfig(config),
-    authorizations(log)
+    authorizations(log),
+    recording(false)
 {
     hostLogs("See serverlog.txt for server's log messages");
     setMaxPlayers(MAX_PLAYERS);
@@ -146,6 +147,8 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() {
+    start_recording();
+
     //submit all pending reports and update tournament participation flags
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
@@ -665,28 +668,6 @@ bool Server::load_rotation_map(int pos) {
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
 
-    if (recording) {
-        if (record) {
-            record.seekp(16);
-            write(record, world.frame);
-        }
-        record.close();
-        record.clear();
-        const time_t tt = time(0);
-        const tm* tmb = localtime(&tt);
-        const int time_w = 20;
-        char time_str[time_w + 1];
-        strftime(time_str, time_w, "%Y-%m-%d_%H%M%S", tmb);
-        record.open((wheregamedir + "replay" + directory_separator + time_str + ".replay").c_str(), ios::binary);
-        record << REPLAY_IDENTIFICATION;
-        write(record, REPLAY_VERSION);
-        write(record, 0);          // reserve space for the frame count
-        write_string(record, network.get_hostname());
-        write(record, maxplayers);
-        world.save_map(record);
-        log("Map saved.");
-    }
-
     if (worldConfig.random_wild_flag) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
@@ -718,6 +699,8 @@ bool Server::server_next_map(int reason) {
 
     if (save_stats && network.get_player_count() >= save_stats)
         world.save_stats("server_stats", current_map().title);
+
+    stop_recording();
 
     vector<int> winners;
     int maxVotes = 0;
@@ -786,6 +769,57 @@ bool Server::server_next_map(int reason) {
     return true;
 }
 
+void Server::start_recording() {
+    if (!recording || network.get_player_count() < 2)
+        return;
+    record_start_frame = world.frame;
+    const time_t tt = time(0);
+    const tm* tmb = localtime(&tt);
+    const int time_w = 20;
+    char time_str[time_w + 1];
+    strftime(time_str, time_w, "%Y-%m-%d_%H%M%S", tmb);
+    record_filename = wheregamedir + "replay" + directory_separator + time_str + ".replay";
+    record.open(record_filename.c_str(), ios::binary);
+    record << REPLAY_IDENTIFICATION;
+    write(record, REPLAY_VERSION);
+    write(record, 0);          // reserve space for the frame count
+    write_string(record, network.get_hostname());
+    write(record, maxplayers);
+    world.save_map(record);
+}
+
+void Server::stop_recording() {
+    if (!recording)
+        return;
+    if (record) {
+        record.seekp(16);
+        write(record, world.frame - record_start_frame);
+    }
+    record.close();
+    record.clear();
+    if (network.get_player_count() < 2)
+        clear_recording();
+}
+
+void Server::clear_recording() {
+    if (!recording)
+        return;
+    if (delete_file(record_filename.c_str()))
+        log("Could not delete the replay file: %s", record_filename.c_str());
+}
+
+void Server::record_init_data() {
+    // Welcome message
+    /*const vector<string>& welcome_message = host->getWelcomeMessage();
+    for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
+        player_message(myself, msg_server, *line);*/
+
+    // Player names
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            network.send_player_name_update(-2, i);
+}
+
 //check map exit by vote
 void Server::check_map_exit() {
     int num_for = 0, num_against = 0;
@@ -848,7 +882,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
     tournament = true;
     save_stats = 0;
-    
+
     recording = false;
 
     network.clear_web_servers();
@@ -931,7 +965,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 void Server::init_bots() {
     const int humans = network.get_human_count();
     int bot_count = bots.size(); //network.get_bot_count();
-    log("%d bots, %d in vector.", bot_count, bots.size());
+    log("%d bots, %lu in vector.", bot_count, bots.size());
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
         needed_bots = 0;
@@ -1504,7 +1538,7 @@ void Server::simulate_and_broadcast_frame() {
     network.broadcast_frame(!gameover);
     if (recording) {
         stringstream temp_frame;
-        write(temp_frame, world.frame);
+        write(temp_frame, world.frame - record_start_frame);
         unsigned players_present = 0;
         for (int i = 0; i < maxplayers; i++)
             if (world.player[i].used)
@@ -1515,16 +1549,6 @@ void Server::simulate_and_broadcast_frame() {
             if (!pl.used)
                 continue;
 
-            // Position
-            write(temp_frame, static_cast<unsigned char>(pl.roomx));
-            write(temp_frame, static_cast<unsigned char>(pl.roomy));
-            write(temp_frame, static_cast<unsigned short>(pl.lx));
-            write(temp_frame, static_cast<unsigned short>(pl.ly));
-
-            // Speed
-            write(temp_frame, static_cast<float>(pl.sx));
-            write(temp_frame, static_cast<float>(pl.sy));
-
             // Dead and powerup flags
             unsigned char byte = 0;
             if (pl.dead) byte |= (1 << 0);
@@ -1533,7 +1557,20 @@ void Server::simulate_and_broadcast_frame() {
             if (pl.item_shield) byte |= (1 << 3);
             if (pl.item_turbo) byte |= (1 << 4);
             if (pl.item_power) byte |= (1 << 5);
+
+            if (pl.record_position) byte |= (1 << 7);
             write(temp_frame, byte);
+
+            if (pl.record_position) {
+                // Position
+                write(temp_frame, static_cast<unsigned char>(pl.roomx));
+                write(temp_frame, static_cast<unsigned char>(pl.roomy));
+                write(temp_frame, static_cast<unsigned short>(pl.lx));
+                write(temp_frame, static_cast<unsigned short>(pl.ly));
+                // Speed
+                write(temp_frame, static_cast<float>(pl.sx));
+                write(temp_frame, static_cast<float>(pl.sy));
+            }
 
             // Controls
             if (pl.health > 0) // if dead player, don't send keys
@@ -1548,8 +1585,10 @@ void Server::simulate_and_broadcast_frame() {
         }
         write(temp_frame, static_cast<unsigned short>(world.player[world.frame % maxplayers].ping));
 
-        const int frame_length = temp_frame.str().length() + record_frame.str().length();
-        log("Recording frame %lu, total %d bytes.", world.frame, frame_length);
+        if (world.frame == record_start_frame)
+            record_init_data();
+        const unsigned frame_length = temp_frame.str().length() + record_frame.str().length();
+        log("Recording frame %d, total %d bytes.", world.frame - record_start_frame, frame_length);
         write(record, frame_length);
         record << temp_frame.str();
         record << record_frame.str();
@@ -1674,13 +1713,9 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 }
 
 void Server::stop() {
-    network.stop();
+    clear_recording();
 
-    if (record) {
-        record.seekp(16);
-        write(record, world.frame);
-        record.close();
-    }
+    network.stop();
 
     quit_bots = true;
     config().statusOutput(_("Shutdown: bot thread"));
