@@ -786,6 +786,8 @@ void Server::start_recording() {
     write_string(record, network.get_hostname());
     write(record, maxplayers);
     world.save_map(record);
+    record_frame.str("");
+    record_init_data();
 }
 
 void Server::stop_recording() {
@@ -809,15 +811,19 @@ void Server::clear_recording() {
 }
 
 void Server::record_init_data() {
-    // Welcome message
-    /*const vector<string>& welcome_message = host->getWelcomeMessage();
-    for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
-        player_message(myself, msg_server, *line);*/
+    network.send_server_settings(-1, true);
 
-    // Player names
+    // Welcome message
+    for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
+        network.player_message(-1, msg_server, *line, true);
+
+    // Player data
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            network.send_player_name_update(-2, i);
+        if (world.player[i].used) {
+            network.broadcast_new_player(world.player[i], true);
+            network.broadcast_player_crap(i, true);
+            network.broadcast_player_name(i, true);
+        }
 }
 
 //check map exit by vote
@@ -931,6 +937,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
                 world.player[i].current_map_list_item = 0;
                 network.send_server_settings(world.player[i]);
             }
+        network.send_server_settings(-1, true);     // record
 
         currmap = -1;   // flag so we know if it has changed or not
         for (int mapi = 0; mapi < (int)maprot.size(); ++mapi) {
@@ -965,7 +972,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 void Server::init_bots() {
     const int humans = network.get_human_count();
     int bot_count = bots.size(); //network.get_bot_count();
-    log("%d bots, %lu in vector.", bot_count, bots.size());
+    log("%d bots, %lu in vector.", bot_count, static_cast<long unsigned>(bots.size()));
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
         needed_bots = 0;
@@ -996,7 +1003,7 @@ void Server::init_bots() {
     if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
     while (bot_count < needed_bots) {
-        Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
+        Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog, this);
         nAssert(bot);
         bot->set_bot_password(network.get_server_password());
         bot->bot_start(address, bot_ping, bot_name_lang);
@@ -1538,7 +1545,7 @@ void Server::simulate_and_broadcast_frame() {
     network.broadcast_frame(!gameover);
     if (recording) {
         stringstream temp_frame;
-        write(temp_frame, world.frame - record_start_frame);
+        write(temp_frame, world.frame);
         unsigned players_present = 0;
         for (int i = 0; i < maxplayers; i++)
             if (world.player[i].used)
@@ -1558,10 +1565,11 @@ void Server::simulate_and_broadcast_frame() {
             if (pl.item_turbo) byte |= (1 << 4);
             if (pl.item_power) byte |= (1 << 5);
 
-            if (pl.record_position) byte |= (1 << 7);
+            /*if (pl.record_position) */byte |= (1 << 7);
             write(temp_frame, byte);
 
-            if (pl.record_position) {
+            if (true || pl.record_position) {   // test
+                world.player[i].record_position = false;
                 // Position
                 write(temp_frame, static_cast<unsigned char>(pl.roomx));
                 write(temp_frame, static_cast<unsigned char>(pl.roomy));
@@ -1585,10 +1593,8 @@ void Server::simulate_and_broadcast_frame() {
         }
         write(temp_frame, static_cast<unsigned short>(world.player[world.frame % maxplayers].ping));
 
-        if (world.frame == record_start_frame)
-            record_init_data();
         const unsigned frame_length = temp_frame.str().length() + record_frame.str().length();
-        log("Recording frame %d, total %d bytes.", world.frame - record_start_frame, frame_length);
+        log("Recording frame %lu, total %u bytes.", world.frame, frame_length);
         write(record, frame_length);
         record << temp_frame.str();
         record << record_frame.str();

@@ -2079,24 +2079,30 @@ void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100
         rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
 
-void Graphics::draw_replay_info(float rate, int position, int length) {
+void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, bool stopped) {
     int x = health_x;
     int y = indicators_y;
 
-    for (int i = 0; i < 2; ++i) {
-        const int width = 8;
-        const int height = 14;
-        // pause ||   slowmotion |>   play >   rewind >>
-        if (i == 1 && rate == 1)
-            ;   // nothing to draw
-        else if (i == 0 && rate >= 1 || i == 1 && rate > 0)
-            triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, makecol(0, 255, 0));
-        else
-            rectfill(drawbuf, x, y, x + 2 * width / 3 - 1, y + height - 1, makecol(0, 255, 0));
-        x += width + 2;
+    const int width = 8;
+    const int height = 14;
+    const int gap = 2;
+    // pause ||   slowmotion |>   play >   rewind >>   stop []
+    if (stopped) {
+        rectfill(drawbuf, x, y, x + 5 * width / 3 + gap - 1, y + height - 1, makecol(0, 255, 0));
+        x += 2 * (width + gap);
     }
+    else
+        for (int i = 0; i < 2; ++i) {
+            if (i == 1 && rate == 1)
+                ;   // nothing to draw
+            else if (i == 0 && rate >= 1 || i == 1 && rate > 0)
+                triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, makecol(0, 255, 0));
+            else
+                rectfill(drawbuf, x, y, x + 2 * width / 3 - 1, y + height - 1, makecol(0, 255, 0));
+            x += width + gap;
+        }
 
-    if (rate != 0) {
+    if (!stopped && rate != 0) {
         const string text = rate >= 1 ? itoa(int(rate)) : "1/" + itoa(int(1 / rate));
         print_text_border_check_bg(text, x, y, makecol(255, 255, 255), colour(Colour::text_border), -1);
     }

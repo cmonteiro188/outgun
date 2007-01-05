@@ -228,7 +228,7 @@ public:
 
     const Colour_manager& colours() const { return colour; }
 
-    void draw_replay_info(float rate, int position, int length);
+    void draw_replay_info(float rate, unsigned position, unsigned length, bool stopped);
 
 private:
     void unload_bitmaps();

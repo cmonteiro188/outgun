@@ -47,6 +47,7 @@
 #include "platform.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "timer.h"
+#include "server.h"
 #include "utility.h"
 #include "world.h"
 
@@ -607,7 +608,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         cl->stop();
 }
 
-Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
+Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_, const Server* bot_server_):
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -622,6 +623,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #endif
     botmode(false),
     finished(false),
+    bot_server(bot_server_),
     botPrevFire(false),
     abortThreads(false),
     #ifndef DEDICATED_SERVER_ONLY
@@ -1094,7 +1096,9 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
     servermap = mapname;
 
     // Try to load the map first from "cmaps" and, if not found there, from "maps".
-    if (load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
+    /*if (botmode)
+        fx.map = fd.map = bot_server->current_map_data();*/
+    if (/*botmode || */load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
         log("Map '%s' loaded successfully.", mapname.c_str());
         remove_useless_flags();
         mapChanged = true;
@@ -1690,6 +1694,10 @@ void Client::process_incoming_data(const char* data, int length) {
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
+    if (replaying && !replay_first_frame_loaded) {
+        replay_start_frame = svframe;
+        replay_first_frame_loaded = true;
+    }
 
     if (WATCH_CONNECTION && svframe != fx.frame + 1) {
         ostringstream dstr;
@@ -1780,8 +1788,6 @@ void Client::process_incoming_data(const char* data, int length) {
                     pl.onscreen = false;
                     continue;
                 }
-
-                log("Player data from replay.");
 
                 // Dead and powerup flags
                 NLubyte byte;
@@ -2187,7 +2193,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 
                 //play sound if rocket on screen
-                if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy)
+                if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy || replaying && current_room.first == rpx && current_room.second == rpy)
                     if (power)
                         addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
                     else
@@ -2240,7 +2246,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     if (target != 252)  // not shield hit -> blink player
                         fx.player[target].hitfx = time + .3;
                     addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py, time));
-                    addThreadMessage(new TM_Sound(SAMPLE_HIT));
+                    if (!replaying || current_room.first == fx.rock[rockid].px && current_room.second == fx.rock[rockid].py)
+                        addThreadMessage(new TM_Sound(SAMPLE_HIT));
                 }
                 #endif
             }
@@ -2250,6 +2257,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLubyte target;
                 readByte(lebuf, count, target);
                 fx.player[target].hitfx = (replaying ? fx.frame / 10 : get_time()) + .3;
+                if (replaying && count < msglen) {
+                    NLubyte rx, ry;
+                    readByte(lebuf, count, rx);
+                    readByte(lebuf, count, ry);
+                    if (current_room.first != rx || current_room.second != ry)
+                        break;
+                }
                 addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
                 #endif
             }
@@ -2266,6 +2280,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 #ifndef DEDICATED_SERVER_ONLY
                 NLubyte sample;
                 readByte(lebuf, count, sample);     // sample #
+                if (replaying && count < msglen) {
+                    NLubyte rx, ry;
+                    readByte(lebuf, count, rx);
+                    readByte(lebuf, count, ry);
+                    if (current_room.first != rx || current_room.second != ry)
+                        break;
+                }
                 if (sample < NUM_OF_SAMPLES)
                     addThreadMessage(new TM_Sound(sample));
                 #endif
@@ -2863,7 +2884,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     #endif
                 }
                 #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+                if (fx.player[pid].onscreen)
+                    addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
                 #endif
             }
 
@@ -3282,7 +3304,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 }
                 // just ignore commands in reserved range: they're probably some extension we don't have to care about
         }
-        replay_pos += count;
+        replay_pos += msglen;
     }
 }
 
@@ -3906,10 +3928,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         }
 
     if (replaying && toupper(ch) == 'P')
-        if (replay_rate == 0)
-            replay_rate = 1;
-        else
-            replay_rate = 0;
+        replay_paused = !replay_paused;
 
     switch (sc) {
     /*break;*/ case KEY_HOME:   // change colours
@@ -4130,7 +4149,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             platSleep(2);
         }
 
-        if (get_time() >= nextSend && (!replaying || replay_rate > 0)) {
+        if (get_time() >= nextSend && (!replaying || !replay_paused)) {
             if (replaying)
                 nextSend += .1 / replay_rate;
             else
@@ -4194,8 +4213,12 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                     }
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
-            else
-                fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, (get_time() - frameReceiveTime) * (replaying ? replay_rate * 10. : 10.));
+            else if (!replaying || !replay_stopped) {
+                double timeDelta = (get_time() - frameReceiveTime) * 10.;
+                if (replaying)
+                    timeDelta *= replay_paused ? 0 : replay_rate;
+                fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta);
+            }
 
             if (mapChanged) {
                 mapChanged = false;
@@ -4264,6 +4287,7 @@ void Client::start_replay(const std::string& filename) {
     }
 
     read(replay, replay_length);
+    replay_first_frame_loaded = false;
 
     read_string(replay, hostname);
     const string caption = _("Replay on $1", hostname.substr(0, 32));
@@ -4275,6 +4299,10 @@ void Client::start_replay(const std::string& filename) {
 
     replaying = true;
     replay_rate = 1;
+    replay_paused = false;
+    replay_stopped = false;
+    current_room = pair<int, int>();
+
     show_all_messages = false;
     stats_autoshowing = false;
 
@@ -4336,7 +4364,6 @@ void Client::start_replay(const std::string& filename) {
 }
 
 void Client::continue_replay() {
-    log("continue_replay()");
     int length;
     if (read(replay, length)) {
         log("%d bytes read from the replay.", length);
@@ -4345,6 +4372,8 @@ void Client::continue_replay() {
         process_incoming_data(data, length);
         delete [] data;
     }
+    else
+        replay_stopped = true;
 }
 
 void Client::stop_replay() {
@@ -4592,7 +4621,7 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) {
 }
 
 bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
-    return fx.player[pid].onscreen && !fx.player[pid].dead;
+    return (fx.player[pid].onscreen || replaying) && !fx.player[pid].dead;
 }
 
 void Client::remove_useless_flags() {
@@ -4707,7 +4736,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
                      fx.item[i].px == roomx && fx.item[i].py == roomy) {
                 client_graphics.draw_pup(fx.item[i], time);
-                if (fx.item[i].kind == Powerup::pup_deathbringer)
+                if (fx.item[i].kind == Powerup::pup_deathbringer && (!replaying || !replay_paused))
                     client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
                         fx.item[i].px, fx.item[i].py, time);
             }
@@ -4768,7 +4797,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 if (!fx.player[i].used || !fx.player[i].onscreen || fx.player[i].dead ||
                     fx.player[i].roomx != roomx || fx.player[i].roomy != roomy ||
-                    (fx.player[i].visibility < 200 && i / TSIZE != me / TSIZE))
+                    (fx.player[i].visibility < 200 && i / TSIZE != me / TSIZE && !replaying))
                         continue;
                 const int ttx = static_cast<int>(fd.player[i].lx);
                 const int tty = static_cast<int>(fd.player[i].ly);
@@ -4839,7 +4868,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
-                    if (i != me) {
+                    if (i != me || replaying) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
                             client_graphics.draw_minimap_player(fx.map, pl);
                     }
@@ -4874,7 +4903,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             client_graphics.map_time(0);
 
     if (replaying)
-        client_graphics.draw_replay_info(replay_rate, static_cast<int>(fx.frame), replay_length);
+        client_graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
 
     // player's power-ups
     if (me >= 0) {
@@ -5694,7 +5723,7 @@ void Client::MCF_prepareReplayMenu() {
             log.error(_("Replay $1 can't be read.", replay_file));
     }
     delete replay_files;
-    log("%lu replays found.", replays.size());
+    log("%lu replays found.", static_cast<long unsigned>(replays.size()));
 
     sort(replays.begin(), replays.end());
     for (vector<pair<string, string> >::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2

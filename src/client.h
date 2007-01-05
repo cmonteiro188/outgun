@@ -376,6 +376,8 @@ class Client {
     bool botmode;
     bool finished;
 
+    const Server* bot_server;
+
     Routing     routing[Table_Max];
     int         route_x[Table_Max];
     int         route_y[Table_Max];
@@ -465,7 +467,11 @@ class Client {
     bool replaying;
     std::ifstream replay;
     float replay_rate;
-    int replay_length;
+    bool replay_paused;
+    bool replay_stopped;
+    bool replay_first_frame_loaded;
+    unsigned replay_start_frame;
+    unsigned replay_length;
     std::pair<int, int> current_room;
     #endif
     volatile bool mapChanged;
@@ -654,7 +660,7 @@ class Client {
     #endif
 
 public:
-    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
+    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_, const Server* bot_server_ = 0);
 
     ~Client();
 
