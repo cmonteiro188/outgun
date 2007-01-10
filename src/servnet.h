@@ -48,7 +48,7 @@ class ServerNetworking {
     public:
         bool        serving_udp_file;
         std::string data;
-        NLulong     dp,old_dp;
+        NLulong     dp, old_dp;
 
     public:
         ClientTransferData() {
@@ -129,6 +129,9 @@ class ServerNetworking {
     std::string web_script;
     std::string web_auth;
     int web_refresh;
+    
+    NLaddress relay_address;
+    NLsocket  relay_socket;
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -251,6 +254,9 @@ public:
     void plprintf(int pid, Message_type type, const char* fmt, ...) const PRINTF_FORMAT(4, 5);
     void player_message(int pid, Message_type type, const std::string& text, bool record_only = false) const;
     void broadcast_text(Message_type type, const std::string& text) const;
+
+    void open_relay_socket();
+    void send_relay_data(const std::string& data);
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
     void sendTextToAdminShell(const std::string& text) const;

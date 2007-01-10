@@ -83,7 +83,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     network(this, world, log, threadLock, threadLockMutex),
     extConfig(config),
     authorizations(log),
-    recording(false)
+    recording(false),
+    recording_started(false)
 {
     hostLogs("See serverlog.txt for server's log messages");
     setMaxPlayers(MAX_PLAYERS);
@@ -779,7 +780,9 @@ void Server::start_recording() {
     char time_str[time_w + 1];
     strftime(time_str, time_w, "%Y-%m-%d_%H%M%S", tmb);
     record_filename = wheregamedir + "replay" + directory_separator + time_str + ".replay";
+    record.clear();
     record.open(record_filename.c_str(), ios::binary);
+
     record << REPLAY_IDENTIFICATION;
     write(record, REPLAY_VERSION);
     write(record, 0);          // reserve space for the frame count
@@ -788,11 +791,24 @@ void Server::start_recording() {
     world.save_map(record);
     record_frame.str("");
     record_init_data();
+
+    ostringstream ost;
+    ost << REPLAY_IDENTIFICATION;
+    write(ost, REPLAY_VERSION);
+    write(ost, 0);          // reserve space for the frame count
+    write_string(ost, network.get_hostname());
+    write(ost, maxplayers);
+    world.save_map(ost);
+    network.send_relay_data(ost.str());
+    
+    recording_started = true;
+    log("First data %d bytes.", ost.str().length());
 }
 
 void Server::stop_recording() {
     if (!recording)
         return;
+    recording_started = false;
     if (record) {
         record.seekp(16);
         write(record, world.frame - record_start_frame);
@@ -806,8 +822,11 @@ void Server::stop_recording() {
 void Server::clear_recording() {
     if (!recording)
         return;
+    record.close();
     if (delete_file(record_filename.c_str()))
         log("Could not delete the replay file: %s", record_filename.c_str());
+    else
+        log("Deleted the replay file: %s", record_filename.c_str());
 }
 
 void Server::record_init_data() {
@@ -1598,6 +1617,15 @@ void Server::simulate_and_broadcast_frame() {
         write(record, frame_length);
         record << temp_frame.str();
         record << record_frame.str();
+
+        if (recording_started) {
+            ostringstream ost;
+            write(ost, frame_length);
+            ost << temp_frame.str();
+            ost << record_frame.str();
+            network.send_relay_data(ost.str());
+        }
+
         if (!record)
             log("Recording failed.");
         record_frame.str("");
@@ -1679,7 +1707,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             status << _("$1/$2p $3k/s v$4 port:$5",
                         itoa(network.get_human_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(extConfig.port));
             if (quitOnEsc)
-                status << ' ' << _("ESC:quit");
+                status << ' ' << _("Esc:quit");
             extConfig.statusOutput(status.str());
             #ifndef DEDICATED_SERVER_ONLY
             // update (re-clear) window too, if there's the possibility it has been corrupted

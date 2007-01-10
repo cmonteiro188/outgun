@@ -152,6 +152,7 @@ class Server {
 
     // Recording
     bool recording;
+    bool recording_started;
     std::string record_filename;
     mutable std::ofstream record;
     mutable std::stringstream record_frame;

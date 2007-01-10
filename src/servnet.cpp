@@ -89,6 +89,7 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     join_start(0),
     join_end(0),
     web_refresh(0),
+    relay_socket(0),
     playerSlotReservationTime(get_time()),
     reservedPlayerSlots(0)
 {
@@ -228,7 +229,7 @@ void ServerNetworking::broadcast_player_name(int pid, bool record_only) const {
     send_player_name_update(-1, pid, record_only);
 
     //update the ADMIN SHELL
-    if (shellssock != NL_INVALID) {
+    if (shellssock != NL_INVALID && !record_only) {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
         writeLong(lebuf, count, world.player[pid].cid);
@@ -1008,6 +1009,36 @@ void ServerNetworking::send_disconnecting_message(int pid, int seconds) const {
 
 void ServerNetworking::broadcast_broken_map() const {
     broadcast_simple_message(data_broken_map);
+}
+
+void ServerNetworking::open_relay_socket() {
+    if (relay_socket)
+        nlClose(relay_socket);
+    nlDisable(NL_BLOCKING_IO);
+    relay_socket = nlOpen(0, NL_UNRELIABLE);
+    if (relay_socket == NL_INVALID)
+        log("Could not open relay socket.");
+}
+
+void ServerNetworking::send_relay_data(const string& data) {
+    if (!relay_socket)
+        open_relay_socket();
+    log("Sending relay data.");
+    const string name_port = "127.0.0.1:35000";
+    if (!nlGetAddrFromName(name_port.c_str(), &relay_address)) {
+        log("Relay address could not be resolved.");
+        return;
+    }
+    if (!nlSetRemoteAddr(relay_socket, &relay_address)) {
+        log("Could not set the relay address to the socket: %s", nlGetErrorStr(nlGetError()));
+        return;
+    }
+    const NLint result = nlWrite(relay_socket, data.data(), data.length());
+    if (result == NL_INVALID) {
+        log("Could not send spectator data to the relay.");
+    }
+    else
+        log("%d bytes sent to the relay.", result);
 }
 
 bool ServerNetworking::start() {
@@ -2776,6 +2807,8 @@ void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && (plymask & (1 << i)))
             server->send_message(world.player[i].cid, lebuf, count);
+
+    record_message(lebuf, count);
 }
 
 void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const {
@@ -2794,19 +2827,16 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const 
 void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_visible);
-    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));  //what item
-    writeByte(lebuf, count, static_cast<NLubyte>(it.kind)); //kind
-    writeByte(lebuf, count, static_cast<NLubyte>(it.px));       //screen
+    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));
+    writeByte(lebuf, count, static_cast<NLubyte>(it.kind));
+    writeByte(lebuf, count, static_cast<NLubyte>(it.px));
     writeByte(lebuf, count, static_cast<NLubyte>(it.py));
-    writeShort(lebuf, count, static_cast<NLushort>(it.x));  //pos in screen
+    writeShort(lebuf, count, static_cast<NLushort>(it.x));
     writeShort(lebuf, count, static_cast<NLushort>(it.y));
-    if (pid != -1)
+    if (pid == -1)
+        record_message(lebuf, count);
+    else
         server->send_message(world.player[pid].cid, lebuf, count);
-    else {
-        ostream& out = host->record_stream();
-        write(out, count);
-        out.write(lebuf, count);
-    }
 }
 
 void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) const {
@@ -2820,7 +2850,7 @@ void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) co
 void ServerNetworking::sendFragUpdate(int pid, NLulong frags) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_frags_update);
-    writeByte(lebuf, count, pid);       // what player id
+    writeByte(lebuf, count, pid);
     writeLong(lebuf, count, frags);
     broadcast_message(lebuf, count);
 }

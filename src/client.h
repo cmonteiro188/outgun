@@ -473,7 +473,12 @@ class Client {
     unsigned replay_start_frame;
     unsigned replay_length;
     std::pair<int, int> current_room;
+
+    bool spectating;
+    NLsocket spectate_socket;
+    bool spectate_data_received;
     #endif
+
     volatile bool mapChanged;
     #ifndef DEDICATED_SERVER_ONLY
     volatile bool predrawNeeded;
@@ -655,8 +660,10 @@ class Client {
     void play_sound(int sample);
 
     void start_replay(const std::string& filename);
+    bool start_replay(std::istream& in);
     void continue_replay();
     void stop_replay();
+    void start_spectating(const NLaddress& address);
     #endif
 
 public:

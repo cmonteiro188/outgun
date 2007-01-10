@@ -632,6 +632,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     client_graphics(log),
     screenshot(false),
     replaying(false),
+    spectating(false),
+    spectate_socket(0),
     #endif
     mapChanged(false),
     #ifndef DEDICATED_SERVER_ONLY
@@ -3341,7 +3343,7 @@ void Client::print_message(Message_type type, const string& msg) {
     while (chatbuffer.size() > client_graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
     for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
-        Message message(type, *li, static_cast<int>(get_time()));
+        Message message(type, *li, static_cast<int>(replaying ? fx.frame / 10. : get_time()));
         if (highlight)
             message.highlight();
         chatbuffer.push_back(message);
@@ -4271,19 +4273,23 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 void Client::start_replay(const std::string& filename) {
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
+    if (!start_replay(replay))
+        replay.close();
+}
 
+bool Client::start_replay(istream& replay) {
     string identification;
     read(replay, identification, REPLAY_IDENTIFICATION.length());
+    log("Identification: %s", identification.c_str());
     if (identification != REPLAY_IDENTIFICATION) {
-        replay.close();
-        return;
+        return false;
     }
 
     int replay_version;
     read(replay, replay_version);
+    log("Replay version: %d", replay_version);
     if (replay_version > REPLAY_VERSION) {   // incompatible replay
-        replay.close();
-        return;
+        return false;
     }
 
     read(replay, replay_length);
@@ -4361,10 +4367,50 @@ void Client::start_replay(const std::string& filename) {
     mapChanged = true;
     map_ready = true;
     log("Map loaded from the replay: %s", fx.map.title.c_str());
+    
+    return true;
 }
 
 void Client::continue_replay() {
-    int length;
+    log("continue_replay()");
+    if (spectating) {
+        const int max_buffer_size = 20000;
+        char buffer[max_buffer_size];
+        const int length = nlRead(spectate_socket, buffer, max_buffer_size);
+
+        if (length == 0) {
+            replay_rate = 1;
+            return;
+        }
+        if (length == NL_INVALID) {
+            log("Invalid socket.");
+            return;
+        }
+
+        NLaddress addr;
+        nlGetRemoteAddr(spectate_socket, &addr);
+        NLchar addr_str[NL_MAX_STRING_LENGTH];
+        nlAddrToString(&addr, addr_str);
+        log("%d bytes read from %s.", length, addr_str);
+        if (!spectate_data_received) {
+            log("First data from relay.");
+            spectate_data_received = true;
+            stringstream init_data;
+            init_data.write(buffer, length);
+            if (!start_replay(init_data))
+                log("Could not start spectating. %d", init_data.str().length());
+        }
+        else {
+            int count = 0;
+            unsigned frame_length;
+            readLong(buffer, count, frame_length);
+            log("%d bytes read from the replay.", frame_length);
+            process_incoming_data(buffer + count, frame_length);
+        }
+        return;
+    }
+
+    unsigned length;
     if (read(replay, length)) {
         log("%d bytes read from the replay.", length);
         char* data = new char[length];
@@ -4388,6 +4434,31 @@ void Client::stop_replay() {
     extConfig.statusOutput(_("Outgun client"));
 
     menusel = menu_none;
+}
+
+void Client::start_spectating(const NLaddress& address) {
+    if (spectating || connected || replaying)
+        return;
+    log("Start spectating.");
+    serverIP = address;
+    spectate_socket = nlOpen(0, NL_UNRELIABLE);
+    if (!nlSetRemoteAddr(spectate_socket, &serverIP)) {
+        log("Could not set address to spectate socket.");
+        return;
+    }
+    ostringstream ost;
+    write_string(ost, GAME_STRING);
+    write_string(ost, "SPECTATOR");
+    write(ost, REPLAY_VERSION);
+    const NLint result = nlWrite(spectate_socket, ost.str().data(), ost.str().length());
+    if (result == NL_INVALID) {
+        log("Could not send spectate data.");
+        spectating = false;
+    }
+    spectating = true;
+    replaying = true;
+    replay_rate = 1;
+    spectate_data_received = false;
 }
 #endif // !DEDICATED_SERVER_ONLY
 
@@ -4572,15 +4643,18 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
     const double time = replaying ? fx.frame / 10 : get_time();
+    const bool sound = !replaying || current_room.first == roomx && current_room.second == roomy;
     if (botmode)
         return;
     if (power) {
         client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team, time);
-        play_sound(SAMPLE_POWERWALLHIT);
+        if (sound)
+            play_sound(SAMPLE_POWERWALLHIT);
     }
     else {
         client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team, time);
-        play_sound(SAMPLE_WALLHIT);
+        if (sound)
+            play_sound(SAMPLE_WALLHIT);
     }
     #else
     (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
@@ -4598,7 +4672,7 @@ void Client::playerHitWallCallback(int pid) {
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = get_time(); //#fix
-    if (currTime > fx.player[pid].wall_sound_time) {
+    if (currTime > fx.player[pid].wall_sound_time && (!replaying || current_room.first == fx.player[pid].roomx && current_room.second == fx.player[pid].roomy)) {
         fx.player[pid].wall_sound_time = currTime + 0.2;
         play_sound(SAMPLE_WALLBOUNCE);
     }
@@ -4611,7 +4685,9 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) {
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = get_time(); //#fix
-    if (currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) {
+    if ((currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) &&
+            (!replaying || current_room.first == fx.player[pid1].roomx && current_room.second == fx.player[pid1].roomy ||
+                           current_room.first == fx.player[pid2].roomx && current_room.second == fx.player[pid2].roomy)) {
         fx.player[pid1].player_sound_time = fx.player[pid2].player_sound_time = currTime + 0.2;
         play_sound(SAMPLE_PLAYERBOUNCE);
     }
@@ -5581,7 +5657,7 @@ void Client::MCF_addServer() {
 
 bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
     (void)chr;
-    if (scan != KEY_ENTER && scan != KEY_INSERT)
+    if (scan != KEY_ENTER && scan != KEY_INSERT && toupper(chr) != 'S')
         return false;
     if (menu.connect.manualEntry().empty())
         return true;    // the key is considered handled even if it has no effect in this case
@@ -5596,6 +5672,10 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
         serverIP = spy.address();
         m_serverPassword.password.set("");
         connect_command(true);
+    }
+    else if (toupper(chr) == 'S') {
+        m_serverPassword.password.set("");
+        start_spectating(serverIP);
     }
     else if (scan == KEY_INSERT) {  // add the server to the list shown below
         if (menu.connect.favorites())
