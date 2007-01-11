@@ -802,7 +802,7 @@ void Server::start_recording() {
     network.send_relay_data(ost.str());
     
     recording_started = true;
-    log("First data %d bytes.", ost.str().length());
+    log("First data %lu bytes.", static_cast<long unsigned>(ost.str().length()));
 }
 
 void Server::stop_recording() {
@@ -1615,7 +1615,7 @@ void Server::simulate_and_broadcast_frame() {
         write(temp_frame, static_cast<unsigned short>(world.player[world.frame % maxplayers].ping));
 
         const unsigned frame_length = temp_frame.str().length() + record_frame.str().length();
-        log("Recording frame %lu, total %u bytes.", world.frame, frame_length);
+        log("Recording frame %lu, total %u bytes.", static_cast<long unsigned>(world.frame), frame_length);
         write(record, frame_length);
         record << temp_frame.str();
         record << record_frame.str();
