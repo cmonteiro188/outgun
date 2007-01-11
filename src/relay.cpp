@@ -24,7 +24,11 @@
 #include <iostream>
 #include <string>
 
+#ifdef __WINDOWS__
 #include <windows.h>
+#else
+#include <sys/time.h>
+#endif
 
 #include "timer.h"
 #include "relay.h"
@@ -43,7 +47,14 @@ int main(/*int argc, const char* argv[]*/) {
 }
 
 void platSleep(unsigned ms) {
+    #ifdef __WINDOWS__
     Sleep(ms);
+    #else
+    struct timeval t;
+    t.tv_sec = ms / 1000;
+    t.tv_usec = (ms % 1000) * 1000;
+    select(0, 0, 0, 0, &t);
+    #endif
 }
 
 Relay::Relay(unsigned short port) {
