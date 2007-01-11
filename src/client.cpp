@@ -620,8 +620,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     map_vote(-1),
     player_stats_page(0),
     lastAltEnterTime(0),
-    #endif
     botmode(false),
+    #endif
     finished(false),
     bot_server(bot_server_),
     botPrevFire(false),
@@ -972,7 +972,9 @@ bool Client::start() {
 
 void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang) {
     MutexLock ml(frameMutex);
+    #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
+    #endif
     serverIP = addr;
 
     nAssert(start());
@@ -1098,9 +1100,12 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
     servermap = mapname;
 
     // Try to load the map first from "cmaps" and, if not found there, from "maps".
-    /*if (botmode)
-        fx.map = fd.map = bot_server->current_map_data();*/
-    if (/*botmode || */load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
+    if (botmode)
+        #ifndef DEDICATED_SERVER_ONLY
+        fd.map =
+        #endif
+        fx.map = bot_server->current_map_data();
+    if (botmode || load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
         log("Map '%s' loaded successfully.", mapname.c_str());
         remove_useless_flags();
         mapChanged = true;
@@ -1537,7 +1542,9 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
 
     // disconnect
     client->connect(false);
+    #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
+    #endif
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
         platSleep(500);
@@ -1696,10 +1703,12 @@ void Client::process_incoming_data(const char* data, int length) {
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
+    #ifndef DEDICATED_SERVER_ONLY
     if (replaying && !replay_first_frame_loaded) {
         replay_start_frame = svframe;
         replay_first_frame_loaded = true;
     }
+    #endif
 
     if (WATCH_CONNECTION && svframe != fx.frame + 1) {
         ostringstream dstr;
@@ -1790,6 +1799,8 @@ void Client::process_incoming_data(const char* data, int length) {
                     pl.onscreen = false;
                     continue;
                 }
+
+                log("Player data from replay.");
 
                 // Dead and powerup flags
                 NLubyte byte;
@@ -2194,12 +2205,14 @@ void Client::process_incoming_data(const char* data, int length) {
                 ClientPhysicsCallbacks cb(*this);
                 fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 
+                #ifndef DEDICATED_SERVER_ONLY
                 //play sound if rocket on screen
                 if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy || replaying && current_room.first == rpx && current_room.second == rpy)
                     if (power)
                         addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
                     else
                         addThreadMessage(new TM_Sound(SAMPLE_FIRE));
+                #endif
             }
 
             break; case data_old_rocket_visible: {
@@ -4059,7 +4072,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     else
         showMenu(menu);
     gameshow = false;
+    #ifndef DEDICATED_SERVER_ONLY
     replaying = false;
+    #endif
 
     g_timeCounter.refresh();
     double nextSend = get_time();
@@ -4398,7 +4413,7 @@ void Client::continue_replay() {
             stringstream init_data;
             init_data.write(buffer, length);
             if (!start_replay(init_data))
-                log("Could not start spectating. %d", init_data.str().length());
+                log("Could not start spectating. %lu", static_cast<long unsigned>(init_data.str().length()));
         }
         else {
             int count = 0;
@@ -4503,7 +4518,9 @@ void Client::stop() {
 
     //at least disconnect
     disconnect_command();
+    #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
+    #endif
 
     if (botmode) {
         finished = true;
@@ -4697,7 +4714,7 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) {
 }
 
 bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
-    return (fx.player[pid].onscreen || replaying) && !fx.player[pid].dead;
+    return fx.player[pid].onscreen && !fx.player[pid].dead;
 }
 
 void Client::remove_useless_flags() {
@@ -4812,7 +4829,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
                      fx.item[i].px == roomx && fx.item[i].py == roomy) {
                 client_graphics.draw_pup(fx.item[i], time);
-                if (fx.item[i].kind == Powerup::pup_deathbringer && (!replaying || !replay_paused))
+                if (fx.item[i].kind == Powerup::pup_deathbringer && (!replaying || !replay_paused && !replay_stopped))
                     client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
                         fx.item[i].px, fx.item[i].py, time);
             }
@@ -4944,7 +4961,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
-                    if (i != me || replaying) {
+                    if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
                             client_graphics.draw_minimap_player(fx.map, pl);
                     }
@@ -5657,7 +5674,7 @@ void Client::MCF_addServer() {
 
 bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
     (void)chr;
-    if (scan != KEY_ENTER && scan != KEY_INSERT && toupper(chr) != 'S')
+    if (scan != KEY_ENTER && scan != KEY_INSERT)
         return false;
     if (menu.connect.manualEntry().empty())
         return true;    // the key is considered handled even if it has no effect in this case
@@ -5671,10 +5688,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
     if (scan == KEY_ENTER) {    // connect to the address
         serverIP = spy.address();
         m_serverPassword.password.set("");
-        connect_command(true);
-    }
-    else if (toupper(chr) == 'S') {
-        m_serverPassword.password.set("");
+        //connect_command(true);
         start_spectating(serverIP);
     }
     else if (scan == KEY_INSERT) {  // add the server to the list shown below

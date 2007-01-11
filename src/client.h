@@ -373,7 +373,11 @@ class Client {
         Route_Team
     };
 
+    #ifndef DEDICATED_SERVER_ONLY
     bool botmode;
+    #else
+    static const bool botmode = true;
+    #endif
     bool finished;
 
     const Server* bot_server;
@@ -477,6 +481,8 @@ class Client {
     bool spectating;
     NLsocket spectate_socket;
     bool spectate_data_received;
+    #else
+    static const bool replaying = false; // To avoid lots of ifdefs.
     #endif
 
     volatile bool mapChanged;
