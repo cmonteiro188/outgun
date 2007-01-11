@@ -4382,7 +4382,7 @@ bool Client::start_replay(istream& replay) {
     mapChanged = true;
     map_ready = true;
     log("Map loaded from the replay: %s", fx.map.title.c_str());
-    
+
     return true;
 }
 

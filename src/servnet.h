@@ -129,7 +129,7 @@ class ServerNetworking {
     std::string web_script;
     std::string web_auth;
     int web_refresh;
-    
+
     NLaddress relay_address;
     NLsocket  relay_socket;
 

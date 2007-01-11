@@ -800,7 +800,7 @@ void Server::start_recording() {
     write(ost, maxplayers);
     world.save_map(ost);
     network.send_relay_data(ost.str());
-    
+
     recording_started = true;
     log("First data %lu bytes.", static_cast<long unsigned>(ost.str().length()));
 }
