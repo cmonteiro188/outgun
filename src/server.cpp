@@ -512,7 +512,7 @@ void Server::load_game_mod(bool reload) {
     if (reload) {
         portSetting = new GS_DisallowRunning("server_port");
         ipSetting   = new GS_DisallowRunning("server_ip");
-        privSetting = new GS_DisallowRunning("private_server");
+        //privSetting = new GS_DisallowRunning("private_server");
     }
     else {
         if (extConfig.portForced)
@@ -823,10 +823,12 @@ void Server::clear_recording() {
     if (!recording)
         return;
     record.close();
+    #ifndef DEDICATED_SERVER_ONLY
     if (delete_file(record_filename.c_str()))
         log("Could not delete the replay file: %s", record_filename.c_str());
     else
         log("Deleted the replay file: %s", record_filename.c_str());
+    #endif
 }
 
 void Server::record_init_data() {

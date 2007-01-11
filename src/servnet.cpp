@@ -1087,8 +1087,7 @@ bool ServerNetworking::start() {
     shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500, host->config().lowerPriority);
 
     //start TCP thread for talking with master server
-    if (!host->config().privateserver)
-        mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), host->config().lowerPriority);
+    mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), host->config().lowerPriority);
 
     //start website thread
     webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
@@ -2106,6 +2105,8 @@ void ServerNetworking::run_mastertalker_thread() {
             continue;
 
         master_talk_time = get_time() + 3 * 60.0 ;      //3 minutes
+        if (host->config().privateserver)
+            continue;
 
         // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
@@ -2736,10 +2737,8 @@ void ServerNetworking::stop() {
         platSleep(100);
     }
 
-    if (!host->config().privateserver) {
-        host->config().statusOutput(_("Shutdown: master talker thread"));
-        mthread.join();
-    }
+    host->config().statusOutput(_("Shutdown: master talker thread"));
+    mthread.join();
 
     host->config().statusOutput(_("Shutdown: website thread"));
     webthread.join();
