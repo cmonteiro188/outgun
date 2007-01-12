@@ -512,7 +512,7 @@ void Server::load_game_mod(bool reload) {
     if (reload) {
         portSetting = new GS_DisallowRunning("server_port");
         ipSetting   = new GS_DisallowRunning("server_ip");
-        //privSetting = new GS_DisallowRunning("private_server");
+        privSetting = new GS_Boolean("private_server",  &extConfig.privateserver);
     }
     else {
         if (extConfig.portForced)
