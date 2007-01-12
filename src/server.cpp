@@ -771,7 +771,7 @@ bool Server::server_next_map(int reason) {
 }
 
 void Server::start_recording() {
-    if (!recording || network.get_player_count() < 2)
+    if (!recording || network.get_human_count() < 2)
         return;
     record_start_frame = world.frame;
     const time_t tt = time(0);
@@ -815,7 +815,7 @@ void Server::stop_recording() {
     }
     record.close();
     record.clear();
-    if (network.get_player_count() < 2)
+    if (network.get_human_count() < 2)
         clear_recording();
 }
 
@@ -1627,9 +1627,6 @@ void Server::simulate_and_broadcast_frame() {
             ost << record_frame.str();
             network.send_relay_data(ost.str());
         }
-
-        if (!record)
-            log("Recording failed.");
         record_frame.str("");
     }
 }
