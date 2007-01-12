@@ -823,12 +823,10 @@ void Server::clear_recording() {
     if (!recording)
         return;
     record.close();
-    #ifndef DEDICATED_SERVER_ONLY
-    if (delete_file(record_filename.c_str()))
+    if (remove(record_filename.c_str()))
         log("Could not delete the replay file: %s", record_filename.c_str());
     else
         log("Deleted the replay file: %s", record_filename.c_str());
-    #endif
 }
 
 void Server::record_init_data() {
