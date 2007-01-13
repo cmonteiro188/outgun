@@ -572,7 +572,7 @@ void TM_ServerSettings::execute(Client* cl) const {
         addLine(cl, constPowerupTime ? _("Powerup time") : _("Powerup max time"), _("$1 s", itoa(pupMaxTime)));
     }
 
-    if (cl->menu.options.game.showServerInfo() && cl->replaying)
+    if (cl->menu.options.game.showServerInfo() && !cl->replaying)
         cl->showMenu(cl->m_serverInfo);
 }
 #endif
