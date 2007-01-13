@@ -148,7 +148,13 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() {
-    start_recording();
+    if (!record)
+        start_recording();
+    /*{
+        ostringstream ost;
+        world.save_map(ost);
+        network.send_relay_data(ost.str());
+    }*/
 
     //submit all pending reports and update tournament participation flags
     for (int i = 0; i < maxplayers; i++)
@@ -747,6 +753,7 @@ bool Server::server_next_map(int reason) {
         return reset_settings(true);    // re-initialize map-list (and other settings as a side-effect); it calls back this function so the end-part has already executed
 
     // notify all players
+    start_recording();
     network.broadcast_map_change_message(reason, maprot[currmap].file.c_str());
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {
@@ -771,7 +778,7 @@ bool Server::server_next_map(int reason) {
 }
 
 void Server::start_recording() {
-    if (!recording || network.get_human_count() < 2)
+    if (!recording || network.get_player_count() < 1)
         return;
     record_start_frame = world.frame;
     const time_t tt = time(0);
@@ -783,15 +790,6 @@ void Server::start_recording() {
     record.clear();
     record.open(record_filename.c_str(), ios::binary);
 
-    record << REPLAY_IDENTIFICATION;
-    write(record, REPLAY_VERSION);
-    write(record, 0);          // reserve space for the frame count
-    write_string(record, network.get_hostname());
-    write(record, maxplayers);
-    world.save_map(record);
-    record_frame.str("");
-    record_init_data();
-
     ostringstream ost;
     ost << REPLAY_IDENTIFICATION;
     write(ost, REPLAY_VERSION);
@@ -799,7 +797,12 @@ void Server::start_recording() {
     write_string(ost, network.get_hostname());
     write(ost, maxplayers);
     world.save_map(ost);
-    network.send_relay_data(ost.str());
+
+    record << ost.str();
+    record_frame.str("");
+    record_init_data();
+
+    network.send_first_relay_data(ost.str());
 
     recording_started = true;
     log("First data %lu bytes.", static_cast<long unsigned>(ost.str().length()));
@@ -839,7 +842,8 @@ void Server::record_init_data() {
     // Player data
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
-            network.broadcast_new_player(world.player[i], true);
+            //network.broadcast_new_player(world.player[i], true);
+            network.record_players_present();
             network.broadcast_player_crap(i, true);
             network.broadcast_player_name(i, true);
         }
@@ -1363,8 +1367,8 @@ void Server::chat(int pid, const string& message) {
                 const bool add = option == "add";
                 int number = 1;
                 ist >> number;
-                if (!ist && !ist.eof() || number < 0 || number > maxplayers)
-                    network.plprintf(pid, msg_warning, "Syntax error. Valid range is 0 - %d", maxplayers);
+                if (!ist && !ist.eof() || number < 1 || number > maxplayers)
+                    network.plprintf(pid, msg_warning, "Syntax error. Valid range is 1 - %d", maxplayers);
                 else if (!add && (bots.empty() || network.get_bot_count() == 0))
                     network.plprintf(pid, msg_warning, "No bots to remove.");
                 else if (add && (network.get_player_count() == maxplayers))
@@ -1614,17 +1618,14 @@ void Server::simulate_and_broadcast_frame() {
 
         const unsigned frame_length = temp_frame.str().length() + record_frame.str().length();
         log("Recording frame %lu, total %u bytes.", static_cast<long unsigned>(world.frame), frame_length);
-        write(record, frame_length);
-        record << temp_frame.str();
-        record << record_frame.str();
+        ostringstream ost;
+        write(ost, frame_length);
+        ost << temp_frame.str();
+        ost << record_frame.str();
 
-        if (recording_started) {
-            ostringstream ost;
-            write(ost, frame_length);
-            ost << temp_frame.str();
-            ost << record_frame.str();
+        record << ost.str();
+        if (recording_started)
             network.send_relay_data(ost.str());
-        }
         record_frame.str("");
     }
 }

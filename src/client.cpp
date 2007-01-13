@@ -2352,9 +2352,11 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_map_change: {
-                if (replaying)
+                if (replaying && !spectating)
                     break;
                 map_ready = false;  // map NOT ready anymore: must load/change
+                if (spectating)
+                    current_room = pair<int, int>();
                 #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 want_map_exit_delayed = false;
@@ -2400,7 +2402,7 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_world_reset:
-                if (replaying)
+                if (replaying && !spectating)
                     break;
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                     pi->stats().finish_stats(get_time());
@@ -2410,7 +2412,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.rock[i].owner = -1;
 
             break; case data_gameover_show: {
-                if (replaying)
+                if (replaying && !spectating)
                     break;
                 NLubyte plaque;
                 readByte(lebuf, count, plaque);
@@ -2455,7 +2457,7 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_start_game:
-                if (replaying)
+                if (replaying && !spectating)
                     break;
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
@@ -4422,6 +4424,10 @@ void Client::continue_replay() {
             log("%d bytes read from the replay.", frame_length);
             process_incoming_data(buffer + count, frame_length);
         }
+        if (last_spectate_ack < get_time() - 15) {
+            nlWrite(spectate_socket, "\1", 1);
+            last_spectate_ack = get_time();
+        }
         return;
     }
 
@@ -4474,6 +4480,7 @@ void Client::start_spectating(const NLaddress& address) {
     replaying = true;
     replay_rate = 1;
     spectate_data_received = false;
+    last_spectate_ack = get_time();
 }
 #endif // !DEDICATED_SERVER_ONLY
 

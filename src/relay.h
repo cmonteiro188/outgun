@@ -30,21 +30,32 @@
 
 #include <nl.h>
 
+#include "timer.h"
+
+class LinuxTimer : public SystemTimer {
+public:
+    double read() {
+        struct timeval tv;
+        gettimeofday(&tv, 0);
+        return tv.tv_sec + double(tv.tv_usec) * .000001;
+    }
+};
+
 class Spectator {
 public:
-    Spectator(const NLaddress& addr, const NLsocket& sock): address(addr), socket(sock), next_frame(0) { }
+    Spectator(const NLaddress& addr): address(addr), next_frame(0) { }
 
     NLaddress address;
-    NLsocket  socket;
     unsigned  next_frame;
+    double    last_ack;
 };
 
 class Relay {
 public:
     Relay(unsigned short port);
-    
+
     void run();
-    
+
     void listen_server();
     void listen_clients();
 
@@ -54,12 +65,16 @@ private:
     NLaddress server_address;
     NLsocket  server_socket;
     std::vector<Spectator> spectators;
-    
+
     NLsocket listen_socket;
 
     std::vector<std::string> data_buffer;
     std::string first_buffer;
-    
+    unsigned new_game_first_frame;
+    unsigned buffer_first_frame;
+
+    LinuxTimer timer;
+
     std::ofstream log;
 };
 

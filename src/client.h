@@ -481,6 +481,7 @@ class Client {
     bool spectating;
     NLsocket spectate_socket;
     bool spectate_data_received;
+    double last_spectate_ack;
     #else
     static const bool replaying = false; // To avoid lots of ifdefs.
     #endif

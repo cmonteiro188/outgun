@@ -30,7 +30,8 @@
 #include <sys/time.h>
 #endif
 
-#include "timer.h"
+#include "commont.h"
+#include "network.h"
 #include "relay.h"
 
 using std::cout;
@@ -57,7 +58,10 @@ void platSleep(unsigned ms) {
     #endif
 }
 
-Relay::Relay(unsigned short port) {
+Relay::Relay(unsigned short port):
+    new_game_first_frame(0),
+    buffer_first_frame(0)
+{
     if (nlInit())
         cout << "NL init successful.\n";
     else
@@ -77,7 +81,7 @@ Relay::Relay(unsigned short port) {
 }
 
 void Relay::run() {
-    while (spectators.size() <= 1) {
+    while (1) {
         listen_server();
         listen_clients();
         send_data();
@@ -105,15 +109,20 @@ void Relay::listen_server() {
 
         //cout << length << " bytes received from the game server at " << addr_str << ".\n";
 
+        NLbyte first_data; int count = 0;
+        readByte(buffer, count, first_data);
         ostringstream data;
-        data.write(buffer, length);
-        log.write(buffer, length);
+        data.write(buffer + count, length - count);
+        log.write(buffer + count, length - count);
 
-        if (first_buffer.empty()) {
+        if (first_data) {
+            // 24 25 26 *27 28 29 30 *
+            const unsigned old_buffer_first_frame = buffer_first_frame;
+            buffer_first_frame = new_game_first_frame;
             first_buffer = data.str();
+            new_game_first_frame = data_buffer.size() + old_buffer_first_frame;
+            data_buffer.erase(data_buffer.begin(), data_buffer.begin() + (buffer_first_frame - old_buffer_first_frame));
             cout << "First buffer received: " << length << " bytes.\n";
-            for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); ++si)
-                si->next_frame = 0;
         }
         else
             data_buffer.push_back(data.str());
@@ -124,7 +133,7 @@ void Relay::listen_server() {
 void Relay::listen_clients() {
     while (1) {
         const int max_buffer_size = 2048;
-        NLubyte buffer[max_buffer_size];
+        char buffer[max_buffer_size];
         const int length = nlRead(listen_socket, buffer, max_buffer_size);
 
         if (length == 0)
@@ -139,22 +148,46 @@ void Relay::listen_clients() {
 
         cout << length << " bytes received from a client at " << addr_str << ".\n";
 
-        spectators.push_back(Spectator(addr, listen_socket));
+        if (length > 1) {
+            int count = 0;
+            string game, spectator;
+            readStr(buffer, count, game);
+            if (game != GAME_STRING)
+                return;
+            readStr(buffer, count, spectator);
+            if (spectator != "SPECTATOR")
+                return;
+            Spectator spec(addr);
+            spec.last_ack = timer.read();
+            spectators.push_back(spec);
+        }
+        else
+            for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); ++si)
+                if (nlAddrCompare(&si->address, &addr)) {
+                    si->last_ack = timer.read();
+                    break;
+                }
         platSleep(2);
     }
 }
 
 void Relay::send_data() {
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
-        if (si->next_frame >= data_buffer.size() || !nlSetRemoteAddr(listen_socket, &si->address)) {
+        if (si->last_ack < timer.read() - 30) {
+            si = spectators.erase(si);
+            continue;
+        }
+        if (si->next_frame - buffer_first_frame >= data_buffer.size() || !nlSetRemoteAddr(listen_socket, &si->address)) {
             ++si;
             continue;
         }
         if (si->next_frame == 0) {
             cout << "Init data sent to a client.\n";
             nlWrite(listen_socket, first_buffer.data(), first_buffer.length());
+            si->next_frame = new_game_first_frame;
         }
-        const NLint result = nlWrite(listen_socket, data_buffer[si->next_frame].data(), data_buffer[si->next_frame].length());
+        const NLint result = nlWrite(listen_socket, data_buffer[si->next_frame - buffer_first_frame].data(),
+                                     data_buffer[si->next_frame - buffer_first_frame].length());
         if (result == NL_INVALID)
             si = spectators.erase(si);
         else {

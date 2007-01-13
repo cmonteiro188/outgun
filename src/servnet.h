@@ -207,7 +207,7 @@ public:
     void broadcast_stats(const ServerPlayer& player) const;             // Send player's stats to everyone.
     void send_stats(const ServerPlayer& player) const;                  // Send everyone's stats to player.
     void send_stats(const ServerPlayer& player, int cid) const;         // Send player's stats to client cid.
-    void send_team_movements_and_shots(const ServerPlayer& player) const;
+    void send_team_movements_and_shots(const ServerPlayer& player, bool record_only = false) const;
     void send_team_stats(const ServerPlayer& player) const;
 
     void send_map_info(const ServerPlayer& player) const;
@@ -249,14 +249,16 @@ public:
     void broadcast_screen_sample(int p, int code) const;
     void broadcast_screen_power_collision(int p) const;
     void broadcast_team_message(int team, const std::string& text) const;
-    void broadcast_screen_message(int px, int py, char *lebuf, int count) const;
+    void broadcast_screen_message(int px, int py, const char *lebuf, int count) const;
     void bprintf(Message_type type, const char *fs, ...) const PRINTF_FORMAT(3, 4);
     void plprintf(int pid, Message_type type, const char* fmt, ...) const PRINTF_FORMAT(4, 5);
     void player_message(int pid, Message_type type, const std::string& text, bool record_only = false) const;
     void broadcast_text(Message_type type, const std::string& text) const;
+    void record_players_present() const;
 
     void open_relay_socket();
-    void send_relay_data(const std::string& data);
+    void send_first_relay_data(const std::string& data);
+    void send_relay_data(const std::string& data, bool first = false);
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
     void sendTextToAdminShell(const std::string& text) const;

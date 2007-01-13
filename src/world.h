@@ -144,6 +144,8 @@ public:
     const std::vector<WallBase*>& readWalls() const { return walls; }
     const std::vector<WallBase*>& readGround() const { return ground; }
 
+    Room& operator=(const Room& op);
+
 private:
     std::vector<WallBase*> walls, ground;   // ground: optional list of textures for ground
 };

@@ -298,7 +298,17 @@ bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const
 }
 
 Room::Room(const Room& room) {
-    for (vector<WallBase*>::const_iterator i = room.walls.begin(); i != room.walls.end(); ++i)
+    *this = room;
+}
+
+Room& Room::operator=(const Room& op) {
+    for (vector<WallBase*>::const_iterator i = walls.begin(); i != walls.end(); ++i)
+        delete *i;
+    for (vector<WallBase*>::const_iterator i = ground.begin(); i != ground.end(); ++i)
+        delete *i;
+    walls.clear();
+    ground.clear();
+    for (vector<WallBase*>::const_iterator i = op.walls.begin(); i != op.walls.end(); ++i)
         if (RectWall* rw = dynamic_cast<RectWall*>(*i))
             addWall(new RectWall(*rw));
         else if (TriWall* tw = dynamic_cast<TriWall*>(*i))
@@ -307,7 +317,7 @@ Room::Room(const Room& room) {
             addWall(new CircWall(*cw));
         else
             nAssert(0);
-    for (vector<WallBase*>::const_iterator i = room.ground.begin(); i != room.ground.end(); ++i)
+    for (vector<WallBase*>::const_iterator i = op.ground.begin(); i != op.ground.end(); ++i)
         if (RectWall* rw = dynamic_cast<RectWall*>(*i))
             addGround(new RectWall(*rw));
         else if (TriWall* tw = dynamic_cast<TriWall*>(*i))
@@ -316,6 +326,7 @@ Room::Room(const Room& room) {
             addGround(new CircWall(*cw));
         else
             nAssert(0);
+    return *this;
 }
 
 Room::~Room() {
