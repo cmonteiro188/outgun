@@ -519,7 +519,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     check_dir(SERVER_MAPS_DIR, log);    // the client might run a server, so check these in any case
     check_dir("server_stats" , log);
-
     check_dir("replay"       , log);
 
     #ifdef DEDICATED_SERVER_ONLY
