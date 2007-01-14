@@ -4729,7 +4729,7 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) {
 }
 
 bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
-    return fx.player[pid].onscreen && !fx.player[pid].dead;
+    return (fx.player[pid].onscreen || replaying) && !fx.player[pid].dead;
 }
 
 void Client::remove_useless_flags() {
@@ -4972,13 +4972,14 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            fi->move(WorldCoords(pl.roomx, pl.roomy, static_cast<int>(pl.lx), static_cast<int>(pl.ly)));
+                            const ClientPlayer& pl_ext = replaying ? fd.player[i] : pl;
+                            fi->move(WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
 
                     if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                            client_graphics.draw_minimap_player(fx.map, pl);
+                            client_graphics.draw_minimap_player(fx.map, replaying ? fd.player[i] : pl);
                     }
                     else // myself: draw differently
                         client_graphics.draw_minimap_me(fx.map, pl, time);
