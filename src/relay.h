@@ -56,12 +56,14 @@ public:
 
     void run();
 
+private:
     void listen_server();
     void listen_clients();
 
     void send_data();
 
-private:
+    const std::string& frame_data(unsigned frame_nr) const;
+
     NLaddress server_address;
     NLsocket  server_socket;
     std::vector<Spectator> spectators;
@@ -70,8 +72,8 @@ private:
 
     std::vector<std::string> data_buffer;
     std::string first_buffer;
-    unsigned new_game_first_frame;
-    unsigned buffer_first_frame;
+    unsigned new_game_first_frame;  // frame number of the first frame of the new game
+    unsigned buffer_first_frame;    // frame number of data_buffer.front()
 
     LinuxTimer timer;
 

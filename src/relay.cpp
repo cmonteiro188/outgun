@@ -116,13 +116,19 @@ void Relay::listen_server() {
         log.write(buffer + count, length - count);
 
         if (first_data) {
-            // 24 25 26 *27 28 29 30 *
+            // 0 1 2 3 4 5 *6 7 8 9 10 *11 12 13 14 *15
             const unsigned old_buffer_first_frame = buffer_first_frame;
             buffer_first_frame = new_game_first_frame;
             first_buffer = data.str();
             new_game_first_frame = data_buffer.size() + old_buffer_first_frame;
             data_buffer.erase(data_buffer.begin(), data_buffer.begin() + (buffer_first_frame - old_buffer_first_frame));
             cout << "First buffer received: " << length << " bytes.\n";
+            // old_buffer_first_frame =  0  0  0  6  9
+            // buffer_first_frame     =  0  0  6  9 13
+            // data_buffer.size()     =  0  6  9  7  6
+            // new_game_first_frame   =  0  6  9 13 15
+            // data_buffer.size()     =  0  6  3  4  2
+            // 0 1 2 3 4 5 *6 7 8 *9 10 11 12 *13 14 *15
         }
         else
             data_buffer.push_back(data.str());
@@ -174,6 +180,7 @@ void Relay::listen_clients() {
 void Relay::send_data() {
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
         if (si->last_ack < timer.read() - 30) {
+            cout << "Spectator timeout.\n";
             si = spectators.erase(si);
             continue;
         }
@@ -186,8 +193,7 @@ void Relay::send_data() {
             nlWrite(listen_socket, first_buffer.data(), first_buffer.length());
             si->next_frame = new_game_first_frame;
         }
-        const NLint result = nlWrite(listen_socket, data_buffer[si->next_frame - buffer_first_frame].data(),
-                                     data_buffer[si->next_frame - buffer_first_frame].length());
+        const NLint result = nlWrite(listen_socket, frame_data(si->next_frame).data(), frame_data(si->next_frame).length());
         if (result == NL_INVALID)
             si = spectators.erase(si);
         else {
@@ -196,4 +202,8 @@ void Relay::send_data() {
             ++si;
         }
     }
+}
+
+const string& Relay::frame_data(unsigned frame_nr) const {
+    return data_buffer[frame_nr - buffer_first_frame];
 }
