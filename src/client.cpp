@@ -2352,12 +2352,14 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_map_change: {
+                #ifndef DEDICATED_SERVER_ONLY
                 if (replaying && !spectating)
                     break;
+                #endif
                 map_ready = false;  // map NOT ready anymore: must load/change
+                #ifndef DEDICATED_SERVER_ONLY
                 if (spectating)
                     current_room = pair<int, int>();
-                #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 want_map_exit_delayed = false;
 
@@ -2402,8 +2404,10 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_world_reset:
+                #ifndef DEDICATED_SERVER_ONLY
                 if (replaying && !spectating)
                     break;
+                #endif
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                     pi->stats().finish_stats(get_time());
                 for (int iid = 0; iid < MAX_PICKUPS; ++iid)
@@ -2412,8 +2416,10 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.rock[i].owner = -1;
 
             break; case data_gameover_show: {
+                #ifndef DEDICATED_SERVER_ONLY
                 if (replaying && !spectating)
                     break;
+                #endif
                 NLubyte plaque;
                 readByte(lebuf, count, plaque);
                 if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
@@ -2457,8 +2463,10 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_start_game:
+                #ifndef DEDICATED_SERVER_ONLY
                 if (replaying && !spectating)
                     break;
+                #endif
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
