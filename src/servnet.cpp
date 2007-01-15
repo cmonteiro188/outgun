@@ -264,7 +264,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid, bool record_onl
     writeLong(lebuf, count, (NLulong)max_world_rank);
 
     record_message(lebuf, count);
-    if (record_only || cid == -1)
+    if (record_only)
         return;
     if (cid == -1)
         broadcast_message(lebuf, count);
