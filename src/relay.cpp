@@ -24,7 +24,7 @@
 #include <iostream>
 #include <string>
 
-#ifdef __WINDOWS__
+#if defined WIN32 || defined WIN64
 #include <windows.h>
 #else
 #include <sys/time.h>
@@ -48,7 +48,7 @@ int main(/*int argc, const char* argv[]*/) {
 }
 
 void platSleep(unsigned ms) {
-    #ifdef __WINDOWS__
+    #if defined WIN32 || defined WIN64
     Sleep(ms);
     #else
     struct timeval t;
@@ -62,6 +62,11 @@ Relay::Relay(unsigned short port):
     new_game_first_frame(0),
     buffer_first_frame(0)
 {
+    #if defined WIN32 || defined WIN64
+    timer = new MMSystemTimer();
+    #else
+    timer = new LinuxTimer();
+    #endif
     if (nlInit())
         cout << "NL init successful.\n";
     else
@@ -164,13 +169,13 @@ void Relay::listen_clients() {
             if (spectator != "SPECTATOR")
                 return;
             Spectator spec(addr);
-            spec.last_ack = timer.read();
+            spec.last_ack = timer->read();
             spectators.push_back(spec);
         }
         else
             for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); ++si)
                 if (nlAddrCompare(&si->address, &addr)) {
-                    si->last_ack = timer.read();
+                    si->last_ack = timer->read();
                     break;
                 }
         platSleep(2);
@@ -179,7 +184,7 @@ void Relay::listen_clients() {
 
 void Relay::send_data() {
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
-        if (si->last_ack < timer.read() - 30) {
+        if (si->last_ack < timer->read() - 30) {
             cout << "Spectator timeout.\n";
             si = spectators.erase(si);
             continue;

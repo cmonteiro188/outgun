@@ -32,6 +32,28 @@
 
 #include "timer.h"
 
+#if defined WIN32 || defined WIN64
+class MMSystemTimer : public SystemTimer {
+    uint64_t base;
+    uint32_t prev;
+
+public:
+    MMSystemTimer() {
+        base = 0;
+        prev = static_cast<uint32_t>(timeGetTime());
+    }
+
+    double read() {
+        uint32_t val = static_cast<uint32_t>(timeGetTime());
+        if (val < prev) // check wrap-around
+            base += uint64_t(1) << 32;
+        prev = val;
+        return double(base + val) * .001; // value from timeGetTime is in ms
+    }
+};
+
+#else
+
 class LinuxTimer : public SystemTimer {
 public:
     double read() {
@@ -40,6 +62,7 @@ public:
         return tv.tv_sec + double(tv.tv_usec) * .000001;
     }
 };
+#endif
 
 class Spectator {
 public:
@@ -75,7 +98,7 @@ private:
     unsigned new_game_first_frame;  // frame number of the first frame of the new game
     unsigned buffer_first_frame;    // frame number of data_buffer.front()
 
-    LinuxTimer timer;
+    SystemTimer* timer;
 
     std::ofstream log;
 };
