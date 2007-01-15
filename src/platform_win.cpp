@@ -21,10 +21,12 @@
  *
  */
 
-#include <direct.h>
-#include <stdio.h>
 #include <string>
-#include <string.h>
+
+#include <cstdio>
+#include <cstring>
+
+#include <direct.h>
 #include <sys/types.h>
 
 #include "commont.h"
