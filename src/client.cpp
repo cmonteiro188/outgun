@@ -2332,16 +2332,16 @@ void Client::process_incoming_data(const char* data, int length) {
 
             break; case data_pup_timer: {
                 NLubyte iid;
-                NLushort time;
+                NLushort pup_time;
                 readByte(lebuf, count, iid);    //kind
-                readShort(lebuf, count, time);  //amount of time
+                readShort(lebuf, count, pup_time);  //amount of time
                 if (me >= 0) {
                     if (iid == Powerup::pup_turbo)
-                        fx.player[me].item_turbo_time = time + time;
+                        fx.player[me].item_turbo_time = time + pup_time;
                     else if (iid == Powerup::pup_shadow)
-                        fx.player[me].item_shadow_time = time + time;
+                        fx.player[me].item_shadow_time = time + pup_time;
                     else if (iid == Powerup::pup_power)
-                        fx.player[me].item_power_time = time + time;
+                        fx.player[me].item_power_time = time + pup_time;
                 }
             }
 
