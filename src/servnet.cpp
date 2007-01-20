@@ -162,6 +162,14 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
     }
 }
 
+void ServerNetworking::record_message(const string& msg) const {
+    if (host->is_recording()) {
+        ostream& out = host->record_stream();
+        write(out, static_cast<unsigned>(msg.length()));
+        out << msg;
+    }
+}
+
 void ServerNetworking::record_message(const char* data, int length) const {
     if (host->is_recording()) {
         ostream& out = host->record_stream();
@@ -203,7 +211,7 @@ void ServerNetworking::send_me_packet(int pid) const {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-// send a player name update to a client (cid = -1: to all clients, -2: only record)
+// send a player name update to a client (cid = -1: to all clients)
 void ServerNetworking::send_player_name_update(int cid, int pid, bool record_only) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
@@ -922,7 +930,7 @@ void ServerNetworking::broadcast_text(Message_type type, const string& text) con
     }
 }
 
-void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) const {
+void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname, bool record_only) const {
     char lebuf[256];
     int count = 0;
     writeByte(lebuf, count, data_map_change);
@@ -939,9 +947,16 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     remove_flags |= (world.map.wild_flags    .empty() ? 0x04 : 0);
     writeByte(lebuf, count, remove_flags);
 
-    if (pid < 0) {
+    if (pid < 0 || record_only) {
+        ostringstream ost;
+        ost.write(lebuf, count);
+        write(ost, static_cast<unsigned>(host->record_map_data().length()));
+        ost << host->record_map_data();
+        //world.save_map(ost);
+        record_message(ost.str());
+        if (record_only)
+            return;
         broadcast_message(lebuf, count);
-        record_message(lebuf, count);
     }
     else
         server->send_message(world.player[pid].cid, lebuf, count);
@@ -967,15 +982,15 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         }
         if (pid < 0) {
             broadcast_message(lebuf, count);
-            record_message(lebuf, count);
+            //record_message(lebuf, count);
         }
         else
             server->send_message(world.player[pid].cid, lebuf, count);
     }
 }
 
-void ServerNetworking::broadcast_map_change_message(int reason, const char* mapname) const {
-    send_map_change_message(-1, reason, mapname);
+void ServerNetworking::broadcast_map_change_message(int reason, const char* mapname, bool record_only) const {
+    send_map_change_message(-1, reason, mapname, record_only);
     if (shellssock != NL_INVALID) {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_GAME_OVER);

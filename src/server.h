@@ -157,6 +157,7 @@ class Server {
     mutable std::ofstream record;
     mutable std::ostringstream record_frame;
     NLulong record_start_frame;
+    std::string record_map;
 
     void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
 
@@ -252,6 +253,7 @@ public:
 
     bool is_recording() const { return recording; }
     std::ostream& record_stream() const { return record_frame; }
+    const std::string& record_map_data() const { return record_map; }
 };
 
 #endif

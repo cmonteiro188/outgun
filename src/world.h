@@ -172,7 +172,6 @@ struct MapTeam {
 };
 
 class Map {
-    bool parse_file(LogSet& log, std::istream& in);
     bool parse_line(LogSet& log, const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
                     int& crx, int& cry, double& scalex, double& scaley, bool label_block = false);
 
@@ -201,8 +200,9 @@ if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and trac
         nAssert(px>=0 && py>=0 && px<w && py<h);
         return room[px][py].fall_on_wall(x, y, r);
     }
-    bool load(LogSet& log, const std::string& mapdir, const std::string& mapname);
+    bool load(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0);
     void load(std::istream& in);
+    bool parse_file(LogSet& log, std::istream& in);
     void save(std::ostream& out) const;
 };
 
@@ -754,8 +754,7 @@ public:
                                         int frameAdvance, int team, bool power, int px, int py, int x, int y);
 
     void run_server_player_physics(int pid);
-    virtual bool load_map(LogSet& log, const std::string& mapdir, const std::string& mapname) { return map.load(log, mapdir, mapname); }
-    virtual void save_map(std::ostream& out) const { map.save(out); }
+    virtual bool load_map(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) { return map.load(log, mapdir, mapname, buffer); }
     virtual void returnAllFlags();
     virtual void returnFlag(int team, int flag);
     virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
@@ -873,7 +872,7 @@ public:
     const PowerupSettings& getPupConfig() const { return pupConfig; }
 
     // common (virtual in base) extended functions
-    bool load_map(const std::string& mapdir, const std::string& mapname);
+    bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer);
     void save_map(std::ostream& out) const;
     void returnAllFlags();
     void returnFlag(int team, int flag);

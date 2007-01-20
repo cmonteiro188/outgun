@@ -2352,19 +2352,14 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_map_change: {
-                #ifndef DEDICATED_SERVER_ONLY
-                if (replaying && !spectating)
-                    break;
-                #endif
+                log("data_map_change");
                 map_ready = false;  // map NOT ready anymore: must load/change
                 #ifndef DEDICATED_SERVER_ONLY
-                if (spectating)
-                    current_room = pair<int, int>();
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 want_map_exit_delayed = false;
 
                 // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
-                {
+                if (!replaying) {
                     char lebuf[16]; int count = 0;
                     writeByte(lebuf, count, data_map_exit_off);
                     client->send_message(lebuf, count);
@@ -2390,13 +2385,35 @@ void Client::process_incoming_data(const char* data, int length) {
                     map_vote = -1;
                 old_map = fx.map.title;
                 #endif
-                fx.player[me].oldx = -1;
-                fx.player[me].oldy = -1;
+                if (me != -1) {
+                    fx.player[me].oldx = -1;
+                    fx.player[me].oldy = -1;
+                }
                 if (count < msglen)
                     readByte(lebuf, count, remove_flags);
                 else
                     remove_flags = 0;
-                addThreadMessage(new TM_MapChange(mapname, crc));
+                if (replaying) {
+                    NLulong map_length;
+                    readLong(lebuf, count, map_length);
+                    stringstream stream;
+                    stream.write(lebuf + count, map_length);
+                    fx.map.parse_file(log, stream);
+                    #ifndef DEDICATED_SERVER_ONLY
+                    fd.map = fx.map;
+                    #endif
+                    log("Map loaded from the replay: %s", fx.map.title.c_str());
+                    remove_useless_flags();
+                    mapChanged = true;
+                    map_ready = true;
+                    #ifndef DEDICATED_SERVER_ONLY
+                    current_room = pair<int, int>();
+                    if (!spectating)
+                        break;
+                    #endif
+                }
+                else
+                    addThreadMessage(new TM_MapChange(mapname, crc));
                 #ifndef DEDICATED_SERVER_ONLY
                 const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
                 addThreadMessage(new TM_Text(msg_info, msg));
@@ -2416,10 +2433,6 @@ void Client::process_incoming_data(const char* data, int length) {
                     fx.rock[i].owner = -1;
 
             break; case data_gameover_show: {
-                #ifndef DEDICATED_SERVER_ONLY
-                if (replaying && !spectating)
-                    break;
-                #endif
                 NLubyte plaque;
                 readByte(lebuf, count, plaque);
                 if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
@@ -2463,10 +2476,6 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_start_game:
-                #ifndef DEDICATED_SERVER_ONLY
-                if (replaying && !spectating)
-                    break;
-                #endif
                 fx.teams[0].clear_stats();
                 fx.teams[1].clear_stats();
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
@@ -4193,6 +4202,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 send_frame(true, true);
         }
 
+        if (spectating)
+            continue_spectating();
+
         if (get_time() < nextClientFrame)
             continue;
 
@@ -4298,7 +4310,9 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 void Client::start_replay(const std::string& filename) {
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
-    if (!start_replay(replay))
+    if (!replay)
+        log("Could not open replay file %s", filename.c_str());
+    else if (!start_replay(replay))
         replay.close();
 }
 
@@ -4328,6 +4342,9 @@ bool Client::start_replay(istream& replay) {
     read(replay, maxplayers);
     setMaxPlayers(maxplayers);
 
+    string map_name;
+    read_string(replay, map_name);
+
     replaying = true;
     replay_rate = 1;
     replay_paused = false;
@@ -4345,7 +4362,7 @@ bool Client::start_replay(istream& replay) {
     clFrameSent = clFrameWorld = 0;
     frameReceiveTime = 0;
 
-    gameshow = true;
+    gameshow = false;
     openMenus.clear();
 
     fd.frame = -1;
@@ -4385,13 +4402,7 @@ bool Client::start_replay(istream& replay) {
     gameover_plaque = NEXTMAP_NONE;
 
     client_graphics.clear_fx();
-
-    fx.map.load(replay);
-    fd.map = fx.map;
-    remove_useless_flags();
-    mapChanged = true;
-    map_ready = true;
-    log("Map loaded from the replay: %s", fx.map.title.c_str());
+    gameshow = true;
 
     return true;
 }
@@ -4458,6 +4469,7 @@ void Client::stop_replay() {
     replay.close();
 
     replaying = false;
+    spectating = false;
     gameshow = false;
 
     extConfig.statusOutput(_("Outgun client"));
@@ -4751,7 +4763,7 @@ void Client::play_sound(int sample) {
 }
 
 void Client::predraw() {
-    if (!replaying && (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
+    if (!map_ready || !replaying && (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
             fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h))
         return; //#fix: this shouldn't be needed, or should be checked from a simple flag
     vector< pair<int, const WorldCoords*> > flags;
@@ -4788,6 +4800,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0 || me >= maxplayers;
 
+    log("map_ready = %d, gameover_plaque = %d, fx.skipped = %d, replaying = %d", map_ready, gameover_plaque, fx.skipped, replaying);
     const double time = replaying ? fd.frame / 10 : get_time();
 
     // the playground: border, walls and pits

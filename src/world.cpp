@@ -378,7 +378,7 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
     return bd;
 }
 
-bool Map::load(LogSet& log, const string& mapdir, const string& mapname) {
+bool Map::load(LogSet& log, const string& mapdir, const string& mapname, string* buffer) {
     const string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
 
     ifstream in(fileName.c_str());
@@ -386,7 +386,10 @@ bool Map::load(LogSet& log, const string& mapdir, const string& mapname) {
         log("Can't find mapfile '%s'!", fileName.c_str());
         return false;
     }
-    *this = Map();
+    if (buffer) {
+        *buffer = string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()); // http://www.gamedev.net/community/forums/topic.asp?topic_id=353162
+        in.seekg(0);
+    }
     if (!parse_file(log, in)) {
         log.error(_("Can't load: error in map '$1'.", mapname));
         return false;
@@ -395,6 +398,7 @@ bool Map::load(LogSet& log, const string& mapdir, const string& mapname) {
 }
 
 bool Map::parse_file(LogSet& log, istream& in) {
+    *this = Map();
     int crx = 0, cry = 0;
     double scalex = 1., scaley = 1.;
     vector<pair<string, pair<int, int> > > labels;
@@ -709,191 +713,6 @@ ostream& write(ostream& out, const WorldCoords& coords) {
     write(out, coords.x);
     write(out, coords.y);
     return out;
-}
-
-// Save map as binary data
-void Map::save(ostream& out) const {
-    write_string(out, title);
-    write_string(out, author);
-
-    write(out, w);
-    write(out, h);
-
-    // Rooms
-    for (int x = 0; x < w; ++x)
-        for (int y = 0; y < h; ++y) {
-            const Room& current_room = room[x][y];
-            save_walls(out, current_room.readWalls());
-            save_walls(out, current_room.readGround());
-        }
-
-    // Flags and spawn points
-    for (int team = 0; team < 3; ++team) {
-        // Flags
-        const vector<WorldCoords>& flags = team == 2 ? wild_flags : tinfo[team].flags;
-        write(out, static_cast<unsigned>(flags.size()));
-        for (vector<WorldCoords>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-            write(out, *fi);
-        // Spawn points
-        if (team == 0 || team == 1) {
-            const vector<WorldCoords>& spawns = tinfo[team].spawn;
-            write(out, static_cast<unsigned>(spawns.size()));
-            for (vector<WorldCoords>::const_iterator si = spawns.begin(); si != spawns.end(); ++si)
-                write(out, *si);
-        }
-    }
-}
-
-void Map::save_walls(ostream& out, const vector<WallBase*>& walls) const {
-    write(out, static_cast<unsigned>(walls.size()));
-    const char type_rect = 0, type_tri = 1, type_circ = 2;
-    for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi) {
-        if (RectWall* rect = dynamic_cast<RectWall*>(*wi)) {
-            write(out, type_rect);
-            write(out, rect->x1());
-            write(out, rect->y1());
-            write(out, rect->x2());
-            write(out, rect->y2());
-        }
-        else if (TriWall* tri = dynamic_cast<TriWall*>(*wi)) {
-            write(out, type_tri);
-            write(out, tri->x1());
-            write(out, tri->y1());
-            write(out, tri->x2());
-            write(out, tri->y2());
-            write(out, tri->x3());
-            write(out, tri->y3());
-        }
-        else if (CircWall* circ = dynamic_cast<CircWall*>(*wi)) {
-            write(out, type_circ);
-            write(out, circ->X());
-            write(out, circ->Y());
-            write(out, circ->radius());
-            write(out, circ->radius_in());
-            write(out, circ->angles()[0]);
-            write(out, circ->angles()[1]);
-        }
-        else
-            nAssert(0);
-        write(out, (*wi)->texture());
-        write(out, 0); // wi->alpha
-    }
-}
-
-istream& read(istream& in, WorldCoords& coords) {
-    read(in, coords.px);
-    read(in, coords.py);
-    read(in, coords.x);
-    read(in, coords.y);
-    return in;
-}
-
-// Load map as binary data
-void Map::load(istream& in) {
-    *this = Map();
-
-    read_string(in, title);
-    read_string(in, author);
-
-    read(in, w);
-    read(in, h);
-
-    room.resize(w);
-    for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
-        ri->resize(h);
-
-    // Rooms
-    for (int x = 0; x < w; ++x)
-        for (int y = 0; y < h; ++y) {
-            Room& current_room = room[x][y];
-            read_walls(in, current_room, false);
-            read_walls(in, current_room, true);
-        }
-
-    // Flags and spawn points
-    for (int team = 0; team < 3; ++team) {
-        // Flags
-        vector<WorldCoords>& flags = team == 2 ? wild_flags : tinfo[team].flags;
-        int flag_count;
-        read(in, flag_count);
-        for (int i = 0; i < flag_count; ++i) {
-            WorldCoords flag;
-            read(in, flag);
-            flags.push_back(flag);
-        }
-        // Spawn points
-        if (team == 0 || team == 1) {
-            vector<WorldCoords>& spawns = tinfo[team].spawn;
-            int spawn_count;
-            read(in, spawn_count);
-            for (int i = 0; i < spawn_count; ++i) {
-                WorldCoords spawn;
-                read(in, spawn);
-                spawns.push_back(spawn);
-            }
-        }
-    }
-}
-
-void Map::read_walls(istream& in, Room& target_room, bool ground) const {
-    unsigned wall_count;
-    read(in, wall_count);
-    const char type_rect = 0, type_tri = 1, type_circ = 2;
-    for (unsigned i = 0; i < wall_count; ++i) {
-        char type;
-        read(in, type);
-        if (type == type_rect) {
-            double x1, y1, x2, y2;
-            read(in, x1);
-            read(in, y1);
-            read(in, x2);
-            read(in, y2);
-            int texid, alpha;
-            read(in, texid);
-            read(in, alpha);
-            RectWall* wall = new RectWall(x1, y1, x2, y2, texid, alpha);
-            if (ground)
-                target_room.addGround(wall);
-            else
-                target_room.addWall(wall);
-        }
-        else if (type == type_tri) {
-            double x1, y1, x2, y2, x3, y3;
-            read(in, x1);
-            read(in, y1);
-            read(in, x2);
-            read(in, y2);
-            read(in, x3);
-            read(in, y3);
-            int texid, alpha;
-            read(in, texid);
-            read(in, alpha);
-            TriWall* wall = new TriWall(x1, y1, x2, y2, x3, y3, texid, alpha);
-            if (ground)
-                target_room.addGround(wall);
-            else
-                target_room.addWall(wall);
-        }
-        else if (type == type_circ) {
-            double x, y, ro, ri, a1, a2;
-            read(in, x);
-            read(in, y);
-            read(in, ro);
-            read(in, ri);
-            read(in, a1);
-            read(in, a2);
-            int texid, alpha;
-            read(in, texid);
-            read(in, alpha);
-            CircWall* wall = new CircWall(x, y, ro, ri, a1, a2, texid, alpha);
-            if (ground)
-                target_room.addGround(wall);
-            else
-                target_room.addWall(wall);
-        }
-        else
-            nAssert(0);
-    }
 }
 
 MapInfo::MapInfo() : votes(0), sentVotes(0), last_game(0), highlight(false) { }
@@ -1710,9 +1529,9 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
     printer(map_time.str());
 }
 
-bool ServerWorld::load_map(const string& mapdir, const string& mapname) {
+bool ServerWorld::load_map(const string& mapdir, const string& mapname, string* buffer) {
     map_start_time = frame;
-    const bool success = WorldBase::load_map(log, mapdir, mapname);
+    const bool success = WorldBase::load_map(log, mapdir, mapname, buffer);
     for (int t = 0; t < 2; t++) {
         teams[t].remove_flags();
         for (vector<WorldCoords>::const_iterator pi = map.tinfo[t].flags.begin(); pi != map.tinfo[t].flags.end(); ++pi)
@@ -1722,10 +1541,6 @@ bool ServerWorld::load_map(const string& mapdir, const string& mapname) {
     for (vector<WorldCoords>::const_iterator pi = map.wild_flags.begin(); pi != map.wild_flags.end(); ++pi)
         wild_flags.push_back(*pi);
     return success;
-}
-
-void ServerWorld::save_map(ostream& out) const {
-    WorldBase::save_map(out);
 }
 
 void ServerWorld::returnAllFlags() {

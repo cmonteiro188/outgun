@@ -159,6 +159,7 @@ class ServerNetworking {
     void send_simple_message(Network_data_code code, int pid) const;
     void broadcast_simple_message(Network_data_code code) const;
 
+    void record_message(const std::string& msg) const;
     void record_message(const char* data, int length) const;
 
 public:
@@ -213,8 +214,8 @@ public:
     void send_map_info(const ServerPlayer& player) const;
     void send_map_vote(const ServerPlayer& player) const;
     void broadcast_map_votes_update();
-    void send_map_change_message(int pid, int reason, const char* mapname) const;
-    void broadcast_map_change_message(int reason, const char* mapname) const;
+    void send_map_change_message(int pid, int reason, const char* mapname, bool record_only = false) const;
+    void broadcast_map_change_message(int reason, const char* mapname, bool record_only = false) const;
     void send_map_time(int cid) const;
     void send_server_settings(const ServerPlayer& player) const;
     void send_server_settings(int cid, bool record_only = false) const;

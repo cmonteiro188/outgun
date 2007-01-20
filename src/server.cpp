@@ -148,13 +148,10 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() {
-    if (!record)
+    if (!record) {
         start_recording();
-    /*{
-        ostringstream ost;
-        world.save_map(ost);
-        network.send_relay_data(ost.str());
-    }*/
+        network.broadcast_map_change_message(NEXTMAP_NONE, maprot[currmap].file.c_str(), true);
+    }
 
     //submit all pending reports and update tournament participation flags
     for (int i = 0; i < maxplayers; i++)
@@ -670,7 +667,7 @@ void Server::load_game_mod(bool reload) {
 
 //load a map from the rotation list
 bool Server::load_rotation_map(int pos) {
-    const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file);
+    const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file, recording ? &record_map : 0);
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
@@ -793,10 +790,10 @@ void Server::start_recording() {
     ostringstream ost;
     ost << REPLAY_IDENTIFICATION;
     write(ost, REPLAY_VERSION);
-    write(ost, 0);          // reserve space for the frame count
+    write(ost, 0);                      // reserve space for the frame count
     write_string(ost, network.get_hostname());
     write(ost, maxplayers);
-    world.save_map(ost);
+    write_string(ost, world.map.title); // just for easy loading of the map name
 
     record << ost.str();
     record_frame.str("");
