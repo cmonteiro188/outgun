@@ -3975,7 +3975,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         break; case KEY_INSERT:
             show_all_messages = !show_all_messages;
         break; case KEY_BACKSPACE:
-            if (!talkbuffer.empty()) {
+            if (!talkbuffer.empty() && talkbuffer_cursor > 0) {
                 talkbuffer.erase(talkbuffer_cursor - 1, 1);
                 talkbuffer_cursor--;
             }
