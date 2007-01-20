@@ -4991,17 +4991,17 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     }
                     const int enemy = 1 - i / TSIZE;
                     int f = 0;
+                    const ClientPlayer& pl_ext = replaying ? fd.player[i] : pl;
                     for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            fx.teams[enemy].move_flag(f, WorldCoords(pl.roomx, pl.roomy, static_cast<int>(pl.lx), static_cast<int>(pl.ly)));
+                            fx.teams[enemy].move_flag(f, WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
                             client_graphics.draw_mini_flag(enemy, *fi, fx.map);
                         }
 
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            const ClientPlayer& pl_ext = replaying ? fd.player[i] : pl;
                             fi->move(WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                         }
