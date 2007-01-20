@@ -1995,6 +1995,8 @@ void Client::process_incoming_data(const char* data, int length) {
         }
     }
 
+    const double time = replaying ? fx.frame / 10 : get_time();
+
     //(2) process messages (update fx, and add the non frame-related messages to messageQueue)
     int replay_pos = count;
     for (;;) {
@@ -2159,9 +2161,9 @@ void Client::process_incoming_data(const char* data, int length) {
                         }
                         if (!new_flag && was_carried)
                             if (team == 2)
-                                fx.wild_flags[i].set_return_time(get_time());
+                                fx.wild_flags[i].set_return_time(time);
                             else
-                                fx.teams[team].set_flag_return_time(i, get_time());
+                                fx.teams[team].set_flag_return_time(i, time);
                     }
                     else {
                         //carried: get carrier
@@ -2257,7 +2259,6 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, rokx);
                 readShort(lebuf, count, roky);
                 if (target != 255) {    // hit player
-                    const double time = replaying ? fx.frame / 10 : get_time();
                     if (target != 252)  // not shield hit -> blink player
                         fx.player[target].hitfx = time + .3;
                     addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py, time));
@@ -2271,7 +2272,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 #ifndef DEDICATED_SERVER_ONLY
                 NLubyte target;
                 readByte(lebuf, count, target);
-                fx.player[target].hitfx = (replaying ? fx.frame / 10 : get_time()) + .3;
+                fx.player[target].hitfx = time + .3;
                 if (replaying && count < msglen) {
                     NLubyte rx, ry;
                     readByte(lebuf, count, rx);
@@ -2336,11 +2337,11 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, time);  //amount of time
                 if (me >= 0) {
                     if (iid == Powerup::pup_turbo)
-                        fx.player[me].item_turbo_time = get_time() + time;
+                        fx.player[me].item_turbo_time = time + time;
                     else if (iid == Powerup::pup_shadow)
-                        fx.player[me].item_shadow_time = get_time() + time;
+                        fx.player[me].item_shadow_time = time + time;
                     else if (iid == Powerup::pup_power)
-                        fx.player[me].item_power_time = get_time() + time;
+                        fx.player[me].item_power_time = time + time;
                 }
             }
 
@@ -2426,7 +2427,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     break;
                 #endif
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                    pi->stats().finish_stats(get_time());
+                    pi->stats().finish_stats(time);
                 for (int iid = 0; iid < MAX_PICKUPS; ++iid)
                     fx.item[iid].kind = Powerup::pup_unused;
                 for (int i = 0; i < MAX_ROCKETS; ++i)
@@ -2462,7 +2463,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Text(msg_info, msg));
                     #endif
                     for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                        pi->stats().finish_stats(get_time());
+                        pi->stats().finish_stats(time);
                 }
                 else {
                     gameover_plaque = NEXTMAP_NONE;
@@ -2500,7 +2501,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readShort(lebuf, count, hx);
                 readShort(lebuf, count, hy);
                 #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Deathbringer(team, (replaying ? fx.frame / 10 : get_time()) + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
+                addThreadMessage(new TM_Deathbringer(team, time + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
                 addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
                 #endif
             }
@@ -2596,9 +2597,9 @@ void Client::process_incoming_data(const char* data, int length) {
                 int current_time, time_left;
                 readLong(lebuf, count, current_time);
                 readLong(lebuf, count, time_left);
-                map_start_time = static_cast<int>(replaying ? fx.frame / 10 : get_time()) - current_time;
+                map_start_time = static_cast<int>(time) - current_time;
                 if (time_left > 0) {
-                    map_end_time = static_cast<int>(replaying ? fx.frame / 10 : get_time()) + time_left;
+                    map_end_time = static_cast<int>(time) + time_left;
                     map_time_limit = true;
                 }
                 else
@@ -2681,7 +2682,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 }
                 #endif
                 for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                    pi->stats().finish_stats(get_time());
+                    pi->stats().finish_stats(time);
                 #ifndef DEDICATED_SERVER_ONLY
                 if (menu.options.game.saveStats())
                     fx.save_stats("client_stats", old_map);
@@ -2695,10 +2696,10 @@ void Client::process_incoming_data(const char* data, int length) {
                 const bool wild_flag = pid & 0x80;
                 #endif
                 pid &= ~0x80;
-                fx.player[pid].stats().add_capture((replaying ? fx.frame / 10 : get_time()));
+                fx.player[pid].stats().add_capture(time);
                 #ifndef DEDICATED_SERVER_ONLY
                 const int team = pid / TSIZE;
-                fx.teams[team].add_score((replaying ? fx.frame / 10 : get_time()) - map_start_time, fx.player[pid].name);
+                fx.teams[team].add_score(time - map_start_time, fx.player[pid].name);
                 string msg;
                 if (wild_flag)
                     msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);
@@ -2791,12 +2792,12 @@ void Client::process_incoming_data(const char* data, int length) {
                         fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
                     fx.teams[attacker_team].add_kill();
                 }
-                fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(get_time()));
+                fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
                 fx.teams[target_team].add_death();
                 if (flag) {
                     if (!same_team && known_attacker)
                         fx.player[attacker].stats().add_carrier_kill();
-                    fx.player[target].stats().add_flag_drop(get_time());
+                    fx.player[target].stats().add_flag_drop(time);
                     fx.teams[target_team].add_flag_drop();
                     #ifndef DEDICATED_SERVER_ONLY
                     if (wild_flag)
@@ -2826,7 +2827,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 readByte(lebuf, count, pid);
                 const bool wild_flag = pid & 0x80;
                 pid &= ~0x80;
-                fx.player[pid].stats().add_flag_take(get_time(), wild_flag);
+                fx.player[pid].stats().add_flag_take(time, wild_flag);
                 const int team = pid / TSIZE;
                 fx.teams[team].add_flag_take();
                 #ifndef DEDICATED_SERVER_ONLY
@@ -2866,7 +2867,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 const bool wild_flag = pid & 0x80;
                 #endif
                 pid &= ~0x80;
-                fx.player[pid].stats().add_flag_drop(get_time());
+                fx.player[pid].stats().add_flag_drop(time);
                 const int team = pid / TSIZE;
                 fx.teams[team].add_flag_drop();
                 #ifndef DEDICATED_SERVER_ONLY
@@ -2899,10 +2900,10 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Text(msg_info, msg));
                 }
                 #endif
-                fx.player[pid].stats().add_suicide(static_cast<int>(get_time()));
+                fx.player[pid].stats().add_suicide(static_cast<int>(time));
                 fx.teams[team].add_suicide();
                 if (flag) {
-                    fx.player[pid].stats().add_flag_drop(get_time());
+                    fx.player[pid].stats().add_flag_drop(time);
                     fx.teams[team].add_flag_drop();
                     #ifndef DEDICATED_SERVER_ONLY
                     string msg;
@@ -3018,7 +3019,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 else
                     log("Invalid colour (%d) for player %d.", col1, to);
                 #endif
-                fx.player[to].stats().kill(static_cast<int>(get_time()), true);
+                fx.player[to].stats().kill(static_cast<int>(time), true);
                 fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
                 if (swap) {
                     #ifndef DEDICATED_SERVER_ONLY
@@ -3027,7 +3028,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     else
                         log("Invalid colour (%d) for player %d.", col2, from);
                     #endif
-                    fx.player[from].stats().kill(static_cast<int>(get_time()), true);
+                    fx.player[from].stats().kill(static_cast<int>(time), true);
                     fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
                 }
             }
@@ -3035,7 +3036,7 @@ void Client::process_incoming_data(const char* data, int length) {
             break; case data_spawn: {
                 NLubyte pid;
                 readByte(lebuf, count, pid);
-                fx.player[pid].stats().spawn(get_time());
+                fx.player[pid].stats().spawn(time);
                 if (!fx.player[pid].onscreen)   // this information is after the spawn
                     fx.player[pid].posUpdated = 0;  // (probably) not seen in this life, if seen before spawning, not valid anymore
             }
@@ -3080,7 +3081,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 NLlong movement;
                 readLong(lebuf, count, movement);
                 fx.player[id].stats().set_movement(movement);
-                fx.player[id].stats().save_speed(get_time());
+                fx.player[id].stats().save_speed(time);
                 NLshort data;
                 readShort(lebuf, count, data);
                 fx.player[id].stats().set_shots(data);
@@ -3128,13 +3129,13 @@ void Client::process_incoming_data(const char* data, int length) {
                 stats.set_carriers_killed(data);
                 int ldata;
                 readLong(lebuf, count, ldata);
-                stats.set_start_time(get_time() - ldata);
+                stats.set_start_time(time - ldata);
                 readLong(lebuf, count, ldata);
                 stats.set_lifetime(ldata);
-                stats.set_spawn_time(get_time());
+                stats.set_spawn_time(time);
                 readLong(lebuf, count, ldata);
                 stats.set_flag_carrying_time(ldata);
-                stats.set_flag_take_time(get_time());
+                stats.set_flag_take_time(time);
             }
 
             break; case data_name_authorization_request:
