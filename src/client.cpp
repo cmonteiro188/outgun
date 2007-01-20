@@ -4082,6 +4082,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     gameshow = false;
     #ifndef DEDICATED_SERVER_ONLY
     replaying = false;
+	spectating = false;
     #endif
 
     g_timeCounter.refresh();
