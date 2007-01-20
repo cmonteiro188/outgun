@@ -4056,14 +4056,6 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 client->send_message(lebuf, count);
             }
         }
-        break; case KEY_PAUSE: {
-            if (replaying) {
-                if (replay_rate == 0)
-                    replay_rate = 1;
-                else
-                    replay_rate = 0;
-            }
-        }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
         break; default:
             // Add character to text
