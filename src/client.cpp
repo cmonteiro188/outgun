@@ -2033,7 +2033,7 @@ void Client::process_incoming_data(const char* data, int length) {
                         addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
                         addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
                     }
-                    else if (fx.player[pid].name != " ")    // " " is the case with players already in game when connecting
+                    else if (fx.player[pid].name != " " && fx.player[pid].name != name)    // " " is the case with players already in game when connecting
                         addThreadMessage(new TM_Text(msg_info, _("$1 changed name to $2.", fx.player[pid].name, name)));
                     fx.player[pid].name = name;
                 }
