@@ -1114,8 +1114,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         return;
     }
 
-    if (botmode)
-        nAssert(0);
+    nAssert(!botmode);
 
     #ifndef DEDICATED_SERVER_ONLY
     // start download
@@ -2353,7 +2352,6 @@ void Client::process_incoming_data(const char* data, int length) {
             }
 
             break; case data_map_change: {
-                log("data_map_change");
                 map_ready = false;  // map NOT ready anymore: must load/change
                 #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
@@ -4805,7 +4803,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0 || me >= maxplayers;
 
-    log("map_ready = %d, gameover_plaque = %d, fx.skipped = %d, replaying = %d", map_ready, gameover_plaque, fx.skipped, replaying);
     const double time = replaying ? fd.frame / 10 : get_time();
 
     // the playground: border, walls and pits
@@ -4997,7 +4994,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
                     if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                            client_graphics.draw_minimap_player(fx.map, replaying ? fd.player[i] : pl);
+                            client_graphics.draw_minimap_player(fx.map, pl_ext);
                     }
                     else // myself: draw differently
                         client_graphics.draw_minimap_me(fx.map, pl, time);

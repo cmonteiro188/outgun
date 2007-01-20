@@ -674,7 +674,6 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
-
     if (worldConfig.random_wild_flag) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
