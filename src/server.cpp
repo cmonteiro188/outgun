@@ -500,6 +500,8 @@ void Server::load_game_mod(bool reload) {
     RedirectToFun1<bool, int> checkMaxplayer(checkMaxplayerSetting);
     RedirectToMemFun1<Server, bool, int> tryMaxplayer(this, &Server::trySetMaxplayers);
 
+    RedirectToMemFun1<ServerNetworking, void, const string&> setRelayServer(&network, &ServerNetworking::set_relay_server);
+
     RedirectToMemFun1<ServerNetworking, void, const string&> addWebServer(&network, &ServerNetworking::add_web_server);
     RedirectToMemFun1<ServerNetworking, void, const string&> setWebScript(&network, &ServerNetworking::set_web_script);
     RedirectToMemFun1<ServerNetworking, void, const string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
@@ -608,6 +610,7 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600 - 1)),
         PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
         PT(new GS_Boolean   ("recording",               &recording)),
+        PT(new GS_ForwardStr("relay_server",            setRelayServer)),
         PT(new GS_Int       ("min_bots",                &min_bots, 0, MAX_PLAYERS)),
         PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
         PT(new GS_Boolean   ("balance_bot",             &balance_bot)),
