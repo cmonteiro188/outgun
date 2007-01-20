@@ -3299,9 +3299,11 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     int red_score = teams[0].base_score(), blue_score = teams[1].base_score();
     for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ;) {
         string time, team, capturer;
+        int team_nr;
         if (red != teams[0].captures().end() && (blue == teams[1].captures().end() || red->first <= blue->first)) {
             ++red_score;
             team = "Red";
+            team_nr = 1;
             ostringstream ost;
             ost << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60;
             time = ost.str();
@@ -3311,6 +3313,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
         else if (blue != teams[1].captures().end() && (red == teams[0].captures().end() || blue->first <= red->first)) {
             ++blue_score;
             team = "Blue";
+            team_nr = 2;
             ostringstream ost;
             ost << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60;
             time = ost.str();
@@ -3319,7 +3322,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
         }
         else
             break;
-        out << " <TR><TD ALIGN=\"right\">" << time;
+        out << " <TR CLASS=\"team" << team_nr << "\"><TD ALIGN=\"right\">" << time;
         out << "<TD>" << team;
         out << "<TD ALIGN=\"center\">" << red_score << "&ndash;" << blue_score;
         out << "<TD>" << escape_for_html(capturer);
