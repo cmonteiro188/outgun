@@ -4043,12 +4043,12 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 talkbuffer_cursor++;
         }
         break; case KEY_PGUP: {
-            if (replaying && (replay_rate *= 2) > 32)
-                replay_rate = 32;
+            if (replaying && (replay_rate *= 2) > 128)
+                replay_rate = 128;
         }
         break; case KEY_PGDN: {
-            if (replaying && (replay_rate /= 2) < 0.0625)
-                replay_rate = 0.0625;
+            if (replaying && (replay_rate /= 2) < 1 / 32.)
+                replay_rate = 1 / 32.;
         }
         break; case KEY_END: {
             if (replaying)
