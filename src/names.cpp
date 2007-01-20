@@ -362,7 +362,9 @@ string make_name() {
     Type type;
     for (int i = 0; i < 5; ++i) {        // Better chances for a type beginning with 't'.
         type = static_cast<Type>(rand() % total_types);
-        if (type == ta || type == taa || type == taat || type == tat)
+        if (type == ta)
+            break;
+        else if (i >= 3 && (type == taa || type == taat || type == tat))
             break;
     }
     int num_groups;
