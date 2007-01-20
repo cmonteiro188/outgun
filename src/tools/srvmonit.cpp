@@ -25,7 +25,6 @@ void Sleep(int msec) { usleep(msec * 1000); }
 #include <sys/termios.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <unistd.h>
 
 struct termios orig_termios;
 
