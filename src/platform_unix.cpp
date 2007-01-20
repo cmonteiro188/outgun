@@ -22,10 +22,10 @@
  */
 
 #include <dirent.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
