@@ -4,7 +4,7 @@
  *  Copyright (C) 2002 - Renato Hentschke <renato@amok.com.br>
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004 - Niko Ritari
- *  Copyright (C) 2004, 2006 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006, 2007 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
