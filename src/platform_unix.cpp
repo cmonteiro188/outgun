@@ -50,7 +50,7 @@ int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
 class LinuxTimer : public SystemTimer {
 public:
     double read() {
-        struct timeval tv;
+        timeval tv;
         if (gettimeofday(&tv, 0) != 0)
             nAssert(0);
         return tv.tv_sec + double(tv.tv_usec) * .000001;
@@ -75,6 +75,8 @@ void platSleep(unsigned ms) {
     while (nanosleep(&t, &t) != 0); // we can't test for failure reason because reading errno isn't thread-safe, just assume it's EINTR
     */
 }
+
+#ifndef RELAY
 
 class LinuxFileFinder : public FileFinder {
     string path, extension;
@@ -144,11 +146,16 @@ bool platIsDirectory(const string& name) {
         return false;
     return S_ISDIR(s.st_mode);
 }
+#endif // RELAY
 
 void platInit() {
+    #ifndef RELAY
     directory_separator = '/';
+    #endif
     g_systemTimer = new LinuxTimer();
 }
+
+#ifndef RELAY
 
 static void closeSignalHandler(int) {
     g_exitFlag = true;
@@ -179,12 +186,14 @@ void platInitAfterAllegro() {
     signal(SIGINT, closeSignalHandler);
     signal(SIGTERM, closeSignalHandler);
 }
+#endif // RELAY
 
 void platUninit() {
     delete g_systemTimer;
     g_systemTimer = 0;
 }
 
+#ifndef RELAY
 #ifndef DEDICATED_SERVER_ONLY
 
 void platMessageBox(const string& caption, const string& msg, bool blocking) {
@@ -252,3 +261,4 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
 }
 
 #endif // DEDICATED_SERVER_ONLY
+#endif // RELAY

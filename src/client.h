@@ -28,6 +28,8 @@
 #define CLIENT_H_INC
 
 #ifndef DEDICATED_SERVER_ONLY
+#include <sstream>
+
 #include "client_menus.h"
 #include "graphics.h"
 #include "menu.h"
@@ -481,7 +483,7 @@ class Client {
     bool spectating;
     NLsocket spectate_socket;
     bool spectate_data_received;
-    double last_spectate_ack;
+    std::stringstream spectate_buffer;
     #else
     static const bool replaying = false; // To avoid lots of ifdefs.
     #endif
@@ -669,8 +671,10 @@ class Client {
     void start_replay(const std::string& filename);
     bool start_replay(std::istream& in);
     void continue_replay();
+    void continue_replay(std::istream& in);
     void stop_replay();
     void start_spectating(const NLaddress& address);
+    void continue_spectating();
     #endif
 
 public:

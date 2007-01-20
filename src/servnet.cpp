@@ -89,7 +89,7 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
     join_start(0),
     join_end(0),
     web_refresh(0),
-    relay_socket(0),
+    relay_socket(NL_INVALID),
     playerSlotReservationTime(get_time()),
     reservedPlayerSlots(0)
 {
@@ -100,6 +100,7 @@ ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, b
 }
 
 ServerNetworking::~ServerNetworking() {
+    nlClose(relay_socket);
     if (server) {
         delete server;
         server = 0;
@@ -1069,40 +1070,65 @@ void ServerNetworking::broadcast_broken_map() const {
     broadcast_simple_message(data_broken_map);
 }
 
-void ServerNetworking::open_relay_socket() {
-    if (relay_socket)
-        nlClose(relay_socket);
-    nlDisable(NL_BLOCKING_IO);
-    relay_socket = nlOpen(0, NL_UNRELIABLE);
-    if (relay_socket == NL_INVALID)
-        log("Could not open relay socket.");
+void ServerNetworking::set_relay_server(const string& address) {
+    if (!nlGetAddrFromName(address.c_str(), &relay_address)) {
+        log("Relay address could not be resolved from %s.", address.c_str());
+        return;
+    }
+    const NLushort port = nlGetPortFromAddr(&relay_address);
+    if (port == 0)
+        log("Invalid or missing relay port in %s.", address.c_str());
 }
 
 void ServerNetworking::send_first_relay_data(const string& data) {
-    send_relay_data(data, true);
+    relay_new_game = true;
+    if (relay_socket != NL_INVALID) // already sent
+        return;
+    nlDisable(NL_BLOCKING_IO);
+    relay_socket = nlOpen(0, NL_RELIABLE);
+    if (relay_socket == NL_INVALID) {
+        log("Could not open relay socket.");
+        return;
+    }
+    if (!nlConnect(relay_socket, &relay_address)) {
+        log("Could not connect to relay.");
+        nlClose(relay_socket);
+        relay_socket = NL_INVALID;
+        return;
+    }
+    ostringstream ost;
+    write_string(ost, GAME_STRING);
+    write_string(ost, "SERVER");
+    write(ost, static_cast<unsigned>(data.length()));
+    ost << data;
+
+    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
+    if (result != NR_ok) {
+        nlClose(relay_socket);
+        relay_socket = NL_INVALID;
+        log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+    }
+    else
+        log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
 }
 
-void ServerNetworking::send_relay_data(const string& data, bool first) {
-    if (!relay_socket)
-        open_relay_socket();
+void ServerNetworking::send_relay_data(const string& data) {
+    if (relay_socket == NL_INVALID)  // Try again in the next game.
+        return;
     log("Sending relay data.");
-    const string name_port = "127.0.0.1:35000";
-    if (!nlGetAddrFromName(name_port.c_str(), &relay_address)) {
-        log("Relay address could not be resolved.");
-        return;
+    ostringstream ost;
+    write(ost, static_cast<char>(relay_new_game ? 1 : 0));
+    ost << data;
+    relay_new_game = false;
+
+    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
+    if (result != NR_ok) {
+        nlClose(relay_socket);
+        relay_socket = NL_INVALID;
+        log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
     }
-    if (!nlSetRemoteAddr(relay_socket, &relay_address)) {
-        log("Could not set the relay address to the socket: %s", nlGetErrorStr(nlGetError()));
-        return;
-    }
-    ostringstream out;
-    write(out, static_cast<NLbyte>(first ? 1 : 0));
-    out << data;
-    const NLint result = nlWrite(relay_socket, out.str().data(), out.str().length());
-    if (result == NL_INVALID)
-        log("Could not send spectator data to the relay.");
     else
-        log("%d bytes sent to the relay.", result);
+        log("Spectator data sent to the relay (%lu bytes).", static_cast<long unsigned>(data.length()));
 }
 
 bool ServerNetworking::start() {

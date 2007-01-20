@@ -30,75 +30,66 @@
 
 #include <nl.h>
 
-#include "timer.h"
-
-#if defined WIN32 || defined WIN64
-class MMSystemTimer : public SystemTimer {
-    uint64_t base;
-    uint32_t prev;
-
-public:
-    MMSystemTimer() {
-        base = 0;
-        prev = static_cast<uint32_t>(timeGetTime());
-    }
-
-    double read() {
-        uint32_t val = static_cast<uint32_t>(timeGetTime());
-        if (val < prev) // check wrap-around
-            base += uint64_t(1) << 32;
-        prev = val;
-        return double(base + val) * .001; // value from timeGetTime is in ms
-    }
-};
-
-#else
-
-class LinuxTimer : public SystemTimer {
-public:
-    double read() {
-        struct timeval tv;
-        gettimeofday(&tv, 0);
-        return tv.tv_sec + double(tv.tv_usec) * .000001;
-    }
-};
-#endif
-
 class Spectator {
 public:
-    Spectator(const NLaddress& addr): address(addr), next_frame(0) { }
+    Spectator(const NLaddress& addr, const NLsocket& sock): address(addr), socket(sock), next_frame(0), bytes_sent(0), first_buffer_sent(false) { }
 
     NLaddress address;
+    NLsocket  socket;
     unsigned  next_frame;
-    double    last_ack;
+    unsigned  bytes_sent;
+    bool first_buffer_sent;
+};
+
+class Frame {
+public:
+    Frame(): len(0) { }
+    Frame(int l, const std::string& str): len(l), d(str) { }
+
+    void add(const std::string& str) { d.append(str); }
+
+    unsigned length() const { return len; }
+    unsigned used() const { return d.length(); }
+    unsigned remaining() const { return length() - used(); }
+    bool full() const { return used() == length(); }
+    const std::string& data() const { return d; }
+
+private:
+    unsigned    len;
+    std::string d;
 };
 
 class Relay {
 public:
     Relay(unsigned short port);
+    ~Relay();
 
     void run();
 
 private:
-    void listen_server();
-    void listen_clients();
+    void listen();
+    void get_server_data();
+
+    void add_data(std::istream& in);
 
     void send_data();
+    int send_data(NLsocket& socket, const std::string& data);
 
-    const std::string& frame_data(unsigned frame_nr) const;
 
-    NLaddress server_address;
-    NLsocket  server_socket;
-    std::vector<Spectator> spectators;
+    std::string frame_data(unsigned frame_nr, unsigned pos) const;
 
     NLsocket listen_socket;
 
-    std::vector<std::string> data_buffer;
-    std::string first_buffer;
+    NLaddress server_address;
+    NLsocket server_socket;
+
+    std::vector<Spectator> spectators;
+
+    std::stringstream incoming_buffer;
+    std::vector<Frame> data_buffer;
+    Frame first_buffer;
     unsigned new_game_first_frame;  // frame number of the first frame of the new game
     unsigned buffer_first_frame;    // frame number of data_buffer.front()
-
-    SystemTimer* timer;
 
     std::ofstream log;
 };

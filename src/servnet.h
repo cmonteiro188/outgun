@@ -132,6 +132,7 @@ class ServerNetworking {
 
     NLaddress relay_address;
     NLsocket  relay_socket;
+    bool      relay_new_game;
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -257,9 +258,9 @@ public:
     void broadcast_text(Message_type type, const std::string& text) const;
     void record_players_present() const;
 
-    void open_relay_socket();
+    void set_relay_server(const std::string& address);
     void send_first_relay_data(const std::string& data);
-    void send_relay_data(const std::string& data, bool first = false);
+    void send_relay_data(const std::string& data);
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
     void sendTextToAdminShell(const std::string& text) const;

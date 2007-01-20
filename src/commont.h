@@ -63,7 +63,12 @@ inline std::istream& read_string(std::istream& in, std::string& target) {
     return getline(in, target, '\0');
 }
 
-std::istream& read(std::istream& in, std::string& target, std::string::size_type length);
+inline std::istream& read(std::istream& in, std::string& target, std::string::size_type length) {
+    target.clear();
+    for (std::string::size_type i = 0; in && i < length; ++i)
+        target += in.get();
+    return in;
+}
 
 template<typename T>
 std::istream& read(std::istream& in, T& val) {

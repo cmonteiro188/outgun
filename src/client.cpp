@@ -4408,58 +4408,35 @@ bool Client::start_replay(istream& replay) {
 }
 
 void Client::continue_replay() {
-    log("continue_replay()");
-    if (spectating) {
-        const int max_buffer_size = 20000;
-        char buffer[max_buffer_size];
-        const int length = nlRead(spectate_socket, buffer, max_buffer_size);
+    if (spectating)
+        continue_replay(spectate_buffer);
+    else
+        continue_replay(replay);
+}
 
-        if (length == 0) {
-            replay_rate = 1;
-            return;
-        }
-        if (length == NL_INVALID) {
-            log("Invalid socket.");
-            return;
-        }
-
-        NLaddress addr;
-        nlGetRemoteAddr(spectate_socket, &addr);
-        NLchar addr_str[NL_MAX_STRING_LENGTH];
-        nlAddrToString(&addr, addr_str);
-        log("%d bytes read from %s.", length, addr_str);
-        if (!spectate_data_received) {
-            log("First data from relay.");
-            spectate_data_received = true;
-            stringstream init_data;
-            init_data.write(buffer, length);
-            if (!start_replay(init_data))
-                log("Could not start spectating. %lu", static_cast<long unsigned>(init_data.str().length()));
-        }
-        else {
-            int count = 0;
-            unsigned frame_length;
-            readLong(buffer, count, frame_length);
-            log("%d bytes read from the replay.", frame_length);
-            process_incoming_data(buffer + count, frame_length);
-        }
-        if (last_spectate_ack < get_time() - 15) {
-            nlWrite(spectate_socket, "\1", 1);
-            last_spectate_ack = get_time();
-        }
-        return;
-    }
-
+void Client::continue_replay(istream& in) {
+    const istream::pos_type pos = in.tellg();
     unsigned length;
-    if (read(replay, length)) {
-        log("%d bytes read from the replay.", length);
+    if (read(in, length)) {
+        log("%u bytes read from the replay.", length);
         char* data = new char[length];
-        replay.read(data, length);
-        process_incoming_data(data, length);
+        if (in.read(data, length))
+            process_incoming_data(data, length);
+        else {
+            in.clear();
+            in.seekg(pos);
+        }
         delete [] data;
     }
-    else
-        replay_stopped = true;
+    else {
+        in.clear();
+        in.seekg(pos);
+        if (fx.frame >= replay_start_frame + replay_length)
+            if (replay_length > 0)
+                replay_stopped = true;
+            else if (replay_rate > 1)
+                replay_rate = 1;
+    }
 }
 
 void Client::stop_replay() {
@@ -4467,6 +4444,7 @@ void Client::stop_replay() {
         return;
 
     replay.close();
+    nlClose(spectate_socket);
 
     replaying = false;
     spectating = false;
@@ -4482,8 +4460,9 @@ void Client::start_spectating(const NLaddress& address) {
         return;
     log("Start spectating.");
     serverIP = address;
-    spectate_socket = nlOpen(0, NL_UNRELIABLE);
-    if (!nlSetRemoteAddr(spectate_socket, &serverIP)) {
+    nlDisable(NL_BLOCKING_IO);
+    spectate_socket = nlOpen(0, NL_RELIABLE);
+    if (!nlConnect(spectate_socket, &serverIP)) {
         log("Could not set address to spectate socket.");
         return;
     }
@@ -4491,16 +4470,52 @@ void Client::start_spectating(const NLaddress& address) {
     write_string(ost, GAME_STRING);
     write_string(ost, "SPECTATOR");
     write(ost, REPLAY_VERSION);
-    const NLint result = nlWrite(spectate_socket, ost.str().data(), ost.str().length());
-    if (result == NL_INVALID) {
-        log("Could not send spectate data.");
+
+    const NetworkResult result = writeToUnblockingTCP(spectate_socket, ost.str().data(), ost.str().length(), 0, 500, 5);
+    if (result != NR_ok) {
+        nlClose(spectate_socket);
+        log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         spectating = false;
+        return;
     }
+    else
+        log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
+
     spectating = true;
     replaying = true;
     replay_rate = 1;
     spectate_data_received = false;
-    last_spectate_ack = get_time();
+}
+
+
+void Client::continue_spectating() {
+    if (spectate_socket == NL_INVALID) {
+        log("Invalid spectate socket.");
+        return;
+    }
+
+    const int max_buffer_size = 20000;
+    char buffer[max_buffer_size];
+    const int result = nlRead(spectate_socket, buffer, max_buffer_size);
+
+    if (result == NL_INVALID) {
+        log("Spectate socket read error: %s", getNlErrorString());
+        return;
+    }
+    if (result == 0 && !spectate_data_received)
+        return;
+
+    if (!spectate_data_received) {
+        log("First data from relay, %d bytes: %s", result, buffer);
+        spectate_data_received = true;
+        spectate_buffer.write(buffer, result);
+        if (!start_replay(spectate_buffer)) {
+            log("Could not start spectating.");
+            spectating = false;
+        }
+    }
+    else
+        spectate_buffer.write(buffer, result);
 }
 #endif // !DEDICATED_SERVER_ONLY
 

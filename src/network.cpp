@@ -82,6 +82,7 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
     return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
 }
 
+#ifndef RELAY
 string getPublicIP(LogSet& log, bool allowAnyExternal) {
     NLint nLocals;
     NLaddress* locals = nlGetAllLocalAddr(&nLocals);
@@ -97,6 +98,7 @@ string getPublicIP(LogSet& log, bool allowAnyExternal) {
     log("No public address found");
     return string();
 }
+#endif
 
 bool isLocalIP(NLaddress address) { // local doesn't mean private
     nlSetAddrPort(&address, 0);

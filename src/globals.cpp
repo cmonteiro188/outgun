@@ -22,10 +22,12 @@
  *
  */
 
+#include "timer.h"
+
+#ifndef RELAY
 #include "commont.h"
 #include "debugconfig.h"
 #include "mutex.h"
-#include "timer.h"
 
 // put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
 
@@ -33,11 +35,13 @@
 char directory_separator;
 std::string wheregamedir;
 volatile bool g_exitFlag;
+#endif // RELAY
 
 // from timer.h
 SystemTimer* g_systemTimer = 0;
 TimeCounter g_timeCounter;
 
+#ifndef RELAY
 // from mutex.h
 MutexHolder nlOpenMutex;
 
@@ -45,3 +49,4 @@ MutexHolder nlOpenMutex;
 AutoBugReporting g_autoBugReporting = ABR_disabled;
 bool g_leetnetLog = false;
 bool g_leetnetDataLog = false;
+#endif // RELAY
