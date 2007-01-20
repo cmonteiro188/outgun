@@ -175,9 +175,6 @@ class Map {
     bool parse_line(LogSet& log, const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
                     int& crx, int& cry, double& scalex, double& scaley, bool label_block = false);
 
-    void read_walls(std::istream& in, Room& target_room, bool ground) const;
-    void save_walls(std::ostream& out, const std::vector<WallBase*>& walls) const;
-
 public:
     MapTeam tinfo[2];   //team information for red=0 and blue=1 teams
     std::vector<WorldCoords> wild_flags;
@@ -201,9 +198,7 @@ if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and trac
         return room[px][py].fall_on_wall(x, y, r);
     }
     bool load(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0);
-    void load(std::istream& in);
     bool parse_file(LogSet& log, std::istream& in);
-    void save(std::ostream& out) const;
 };
 
 class MapInfo {
@@ -873,7 +868,6 @@ public:
 
     // common (virtual in base) extended functions
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer);
-    void save_map(std::ostream& out) const;
     void returnAllFlags();
     void returnFlag(int team, int flag);
     void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);

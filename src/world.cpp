@@ -707,14 +707,6 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     return true;
 }
 
-ostream& write(ostream& out, const WorldCoords& coords) {
-    write(out, coords.px);
-    write(out, coords.py);
-    write(out, coords.x);
-    write(out, coords.y);
-    return out;
-}
-
 MapInfo::MapInfo() : votes(0), sentVotes(0), last_game(0), highlight(false) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) {
