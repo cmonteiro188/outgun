@@ -1785,6 +1785,7 @@ void Server::run_bot_thread() {
             if ((*bi)->bot_finished()) {
                 delete *bi;
                 bi = bots.erase(bi);
+                check_bots = true;
             }
             else {
                 if (adjust_pings)
