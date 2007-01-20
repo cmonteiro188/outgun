@@ -707,6 +707,19 @@ bool Server::server_next_map(int reason) {
     if (save_stats && network.get_player_count() >= save_stats)
         world.save_stats("server_stats", current_map().title);
 
+    // broadcast stats to all players for stats saving
+    for (int i = 0; i < maxplayers; ++i) {
+        const ServerPlayer& pl = world.player[i];
+        if (!pl.used)
+            continue;
+        if (pl.oldfrags != pl.stats().frags())
+            network.sendFragUpdate(i, pl.stats().frags());
+        // no need to update oldfrags, since the stats are next cleared
+        network.broadcast_movements_and_shots(pl); // player's stats to everyone
+        network.send_team_movements_and_shots(pl); // team stats to player
+    }
+    network.broadcast_stats_ready();
+
     stop_recording();
 
     vector<int> winners;
@@ -755,18 +768,6 @@ bool Server::server_next_map(int reason) {
     // notify all players
     start_recording();
     network.broadcast_map_change_message(reason, maprot[currmap].file.c_str());
-    // broadcast stats to all players for stats saving
-    for (int i = 0; i < maxplayers; ++i) {
-        const ServerPlayer& pl = world.player[i];
-        if (!pl.used)
-            continue;
-        if (pl.oldfrags != pl.stats().frags())
-            network.sendFragUpdate(i, pl.stats().frags());
-        // no need to update oldfrags, since the stats are next cleared
-        network.broadcast_movements_and_shots(pl); // player's stats to everyone
-        network.send_team_movements_and_shots(pl); // team stats to player
-    }
-    network.broadcast_stats_ready();
 
     // Server is showing gameover plaque. Nobody should move or receive world frames.
     gameover = true;
