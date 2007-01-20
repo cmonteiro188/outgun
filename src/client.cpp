@@ -4027,8 +4027,6 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                     if (fx.player[i].used)
                         fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
-            else if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
-                talkbuffer_cursor++;
         }
         break; case KEY_DOWN: {
             if (replaying) {
@@ -4039,8 +4037,6 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                     if (fx.player[i].used)
                         fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
-            else if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
-                talkbuffer_cursor++;
         }
         break; case KEY_PGUP: {
             if (replaying && (replay_rate *= 2) > 128)
