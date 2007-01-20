@@ -1099,12 +1099,12 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
 
     servermap = mapname;
 
-    // Try to load the map first from "cmaps" and, if not found there, from "maps".
     if (botmode)
         #ifndef DEDICATED_SERVER_ONLY
         fd.map =
         #endif
         fx.map = bot_server->current_map_data();
+    // Try to load the map first from "cmaps" and, if not found there, from "maps".
     if (botmode || load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
         log("Map '%s' loaded successfully.", mapname.c_str());
         remove_useless_flags();
@@ -1115,7 +1115,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
     }
 
     if (botmode)
-        nAssert(0); // ### FIX: Disconnect bot or something.
+        nAssert(0);
 
     #ifndef DEDICATED_SERVER_ONLY
     // start download

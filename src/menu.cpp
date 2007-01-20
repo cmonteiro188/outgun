@@ -373,12 +373,12 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const
         textout_ex(buffer, font, mask_string.c_str(), x, y, col(Colour::menu_value), -1);
         cursor_x = x + text_length(font, mask_string.substr(0, cursor_pos));
         x += text_length(font, mask_string);
-        }
+    }
     else {
         textout_ex(buffer, font, value.c_str(), x, y, col(Colour::menu_value), -1);
         cursor_x = x + text_length(font, value.substr(0, cursor_pos));
         x += text_length(font, value);
-        }
+    }
     if (active) {
         //if (int(get_time()) % 2)
             vline(buffer, cursor_x, y, y + text_height(font), col(Colour::menu_value));
