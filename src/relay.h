@@ -75,6 +75,7 @@ private:
     void send_data();
     int send_data(NLsocket& socket, const std::string& data);
 
+    void handle_keys();
 
     std::string frame_data(unsigned frame_nr, unsigned pos) const;
 
@@ -92,6 +93,8 @@ private:
     unsigned buffer_first_frame;    // frame number of data_buffer.front()
 
     std::ofstream log;
+
+    bool quit;
 };
 
 #endif // RELAY_H_INC

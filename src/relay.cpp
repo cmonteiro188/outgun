@@ -31,6 +31,7 @@
 
 #include "relay.h"
 
+using std::cin;
 using std::cout;
 using std::ios;
 using std::istream;
@@ -48,28 +49,35 @@ int main(int argc, const char* argv[]) {
         cout << "Usage: relay port\n";
         return 0;
     }
+    if (nlInit())
+        cout << "NL init successful.\n";
+    else {
+        cout << "NL init failed\n";
+        return 0;
+    }
+    if (nlSelectNetwork(NL_IP))
+        cout << "Network init successful.\n";
+    else {
+        cout << "Network init failed.\n";
+        return 0;
+    }
     cout << "Starting relay server on port " << port << ".\n";
     platInit();
+
     Relay* relay = new Relay(port);
     relay->run();
     delete relay;
+
     platUninit();
+    nlShutdown();
 }
 
 Relay::Relay(unsigned short port):
     server_socket(NL_INVALID),
     new_game_first_frame(0),
-    buffer_first_frame(0)
+    buffer_first_frame(0),
+    quit(false)
 {
-    if (nlInit())
-        cout << "NL init successful.\n";
-    else
-        cout << "NL init failed\n";
-    if (nlSelectNetwork(NL_IP))
-        cout << "Network init successful.\n";
-    else
-        cout << "Network init failed.\n";
-
     nlDisable(NL_BLOCKING_IO);
     listen_socket = nlOpen(port, NL_RELIABLE);
 
@@ -92,10 +100,11 @@ Relay::~Relay() {
 }
 
 void Relay::run() {
-    while (1) {
+    while (!quit) {
         listen();
         get_server_data();
         send_data();
+        handle_keys();
         platSleep(5);
     }
 }
@@ -223,10 +232,10 @@ void Relay::add_data(istream& in) {
     else {
         char game_start;
         if (read(in, game_start) && game_start == 1) {
-            /*const unsigned old_buffer_first_frame = buffer_first_frame;
+            const unsigned old_buffer_first_frame = buffer_first_frame;
             buffer_first_frame = new_game_first_frame;
             new_game_first_frame = data_buffer.size() + old_buffer_first_frame;
-            data_buffer.erase(data_buffer.begin(), data_buffer.begin() + (buffer_first_frame - old_buffer_first_frame));*/
+            data_buffer.erase(data_buffer.begin(), data_buffer.begin() + (buffer_first_frame - old_buffer_first_frame));
             cout << "New game started.\n";
         }
         unsigned length;
@@ -252,7 +261,6 @@ void Relay::send_data() {
         if (!si->first_buffer_sent) {
             cout << "Sending init data to a client.\n";
             const int result = send_data(si->socket, first_buffer.data().substr(si->bytes_sent));
-            //nlWrite(si->socket, first_buffer.data(), first_buffer.length());
             if (result == NL_INVALID) {
                 nlClose(si->socket);
                 si = spectators.erase(si);
@@ -266,14 +274,17 @@ void Relay::send_data() {
                     cout << "First buffer out of range.\n";
                     continue;
                 }
-                if (si->bytes_sent == first_buffer.length()) {
+                else if (si->bytes_sent == first_buffer.length()) {
                     si->bytes_sent = 0;
                     si->next_frame = new_game_first_frame;
                     si->first_buffer_sent = true;
                 }
             }
         }
-        const int result = send_data(si->socket, frame_data(si->next_frame, si->bytes_sent));
+        const unsigned max_buffer_size = 2000;
+        NLbyte buffer[max_buffer_size];
+        const int receive = nlRead(si->socket, buffer, max_buffer_size);
+        const int result = receive == NL_INVALID ? receive : send_data(si->socket, frame_data(si->next_frame, si->bytes_sent));
         if (result == NL_INVALID) {
             nlClose(si->socket);
             si = spectators.erase(si);
@@ -287,7 +298,7 @@ void Relay::send_data() {
                 cout << "Spectator data out of range.\n";
                 continue;
             }
-            if (si->bytes_sent == data_buffer[si->next_frame - buffer_first_frame].length() + 4) {
+            else if (si->bytes_sent == data_buffer[si->next_frame - buffer_first_frame].length() + 4) {
                 si->bytes_sent = 0;
                 si->next_frame++;
             }
@@ -297,6 +308,10 @@ void Relay::send_data() {
 }
 
 int Relay::send_data(NLsocket& socket, const string& data) {
+    if (socket == NL_INVALID) {
+        cout << "Invalid spectator socket in send_data().\n";
+        return NL_INVALID;
+    }
     return nlWrite(socket, data.data(), data.length());
 }
 
@@ -307,4 +322,17 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
         write(ost, frame.length());
     ost << frame.data().substr(pos);
     return ost.str();
+}
+
+void Relay::handle_keys() {
+    //cout << "handle_keys()\n";
+    if (cin.rdbuf()->in_avail()) {
+        //cout << "hmm\n";
+        char c;
+        cin.get(c);
+        if (toupper(c) == 'Q') {
+            quit = true;
+            cout << "quit\n";
+        }
+    }
 }
