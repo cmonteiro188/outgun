@@ -1104,9 +1104,9 @@ void ServerNetworking::send_first_relay_data(const string& data) {
 
     const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
     if (result != NR_ok) {
+        log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         nlClose(relay_socket);
         relay_socket = NL_INVALID;
-        log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
     }
     else
         log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
@@ -1121,11 +1121,20 @@ void ServerNetworking::send_relay_data(const string& data) {
     ost << data;
     relay_new_game = false;
 
-    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
-    if (result != NR_ok) {
+    const unsigned max_buffer_size = 100;
+    NLbyte buffer[max_buffer_size];
+    const int receive = nlRead(relay_socket, buffer, max_buffer_size);
+    if (receive == NL_INVALID) {
+        log("Could not send spectator data to the relay: %s", getNlErrorString());
         nlClose(relay_socket);
         relay_socket = NL_INVALID;
+        return;
+    }
+    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
+    if (result != NR_ok) {
         log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+        nlClose(relay_socket);
+        relay_socket = NL_INVALID;
     }
     else
         log("Spectator data sent to the relay (%lu bytes).", static_cast<long unsigned>(data.length()));
