@@ -703,7 +703,7 @@ bool Server::server_next_map(int reason) {
     for (int i = 0; i < maxplayers; ++i)
         world.player[i].stats().finish_stats(get_time());
 
-    if (save_stats && network.get_player_count() >= save_stats)
+    if (save_stats && !gameover && network.get_human_count() >= save_stats)    // !gameover: Don't save stats for the game that didn't started.
         world.save_stats("server_stats", current_map().title);
 
     // broadcast stats to all players for stats saving
