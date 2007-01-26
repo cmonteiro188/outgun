@@ -424,6 +424,25 @@ bool Map::parse_file(LogSet& log, istream& in) {
                 wallError = true;
             }
         }
+        for (unsigned i = 0; i < tinfo[t].respawn.size(); ++i) {
+            const WorldRect& area = tinfo[t].respawn[i];
+            const int xStepSize = max((area.x2 - area.x1) / 5, PLAYER_RADIUS * 2),
+                      yStepSize = max((area.y2 - area.y1) / 5, PLAYER_RADIUS * 2);
+            const int xSteps = (area.x2 - area.x1) / xStepSize + 1,
+                      ySteps = (area.y2 - area.y1) / yStepSize + 1;
+            const int minFreeSpace = max(1, xSteps * ySteps / 5); // for area size 1..9, 1 free spot is enough
+            int freeSpace = 0;
+            bool ok = false;
+            for (int y = area.y1; y <= area.y2 && !ok; y += yStepSize)
+                for (int x = area.x1; x <= area.x2 && !ok; x += xStepSize)
+                    if (!fall_on_wall(area.px, area.py, x, y, PLAYER_RADIUS * 5 / 4))
+                        if (++freeSpace >= minFreeSpace)
+                            ok = true;
+            if (!ok) {
+                log.error(_("Team $1, respawn area $2 does not have enough free space.", itoa(t), itoa(i)));
+                return false;
+            }
+        }
     }
     return !wallError;
 }
@@ -654,8 +673,55 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         else
             wild_flags.push_back(flag);
     }
-    else if (command == "V") {  // V ver : never really used "version"
-        // silently accept it with no action
+    else if (command == "V") {  // V * : version specific extensions (originally meant as some kind of version number but ignored by all versions of Outgun)
+        string subCommand;
+        ist >> subCommand;
+        if (subCommand == "respawn") { // V respawn t rx ry [x1 y1 [x2 y2]] : make a respawn area for team t at room (rx,ry) at (x1,y1) to (x2,y2); t=2 means both teams
+            int team, rx, ry;
+            double x1, y1, x2, y2;
+            bool point = false;
+            ist >> team >> rx >> ry;
+            if (ist.good()) {
+                ist >> x1 >> y1;
+                if (ist.good()) {
+                    ist >> x2 >> y2;
+                    if (x2 < x1)
+                        swap(x1, x2);
+                    if (y2 < y1)
+                        swap(y1, y2);
+                }
+                else {
+                    x2 = x1;
+                    y2 = y1;
+                    point = true;
+                }
+            }
+            else {
+                x1 = y1 = 0;
+                x2 = scalex;
+                y2 = scaley;
+            }
+            int ix1 = static_cast<int>(x1 * plw / scalex), iy1 = static_cast<int>(y1 * plh / scaley);
+            int ix2 = static_cast<int>(x2 * plw / scalex), iy2 = static_cast<int>(y2 * plh / scaley);
+            if (!point) {
+                ix1 += PLAYER_RADIUS; iy1 += PLAYER_RADIUS;
+                ix2 -= PLAYER_RADIUS; iy2 -= PLAYER_RADIUS;
+            }
+            if (!ist || !ist.eof() || team < 0 || team > 2 || rx < 0 || rx >= w ||
+                  ry < 0 || ry >= h || x1 < 0 || y1 < 0 ||
+                  ix2 < ix1 || x2 > scalex || iy2 < iy1 || y2 > scaley) { // although initially ordered, ix2 < ix1 is possible because of PLAYER_RADIUS adjustments above
+                log.error(_("Invalid map line: $1", line));
+                return false;
+            }
+            const WorldRect area(rx, ry, ix1, iy1, ix2, iy2);
+            if (team < 2)
+                tinfo[team].respawn.push_back(area);
+            else {
+                tinfo[0].respawn.push_back(area);
+                tinfo[1].respawn.push_back(area);
+            }
+        }
+        // silently accept unknown subcommands with no action; they might be a version number or an extension in a future version of Outgun (or a typo; bad luck ;))
     }
     else if (command == "S") {  // S x y : set map scale
         ist >> scalex >> scaley;
@@ -1565,6 +1631,16 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
         if (++map.tinfo[team].lastspawn >= map.tinfo[team].spawn.size())
             map.tinfo[team].lastspawn = 0;
         pos = map.tinfo[team].spawn[map.tinfo[team].lastspawn]; // the point
+    }
+    else if (!map.tinfo[team].respawn.empty()) {
+        // choose a team respawn point
+        const WorldRect& area = map.tinfo[team].respawn[rand() % map.tinfo[team].respawn.size()];
+        pos.px = area.px;
+        pos.py = area.py;
+        do { // since the areas are checked not to contain too much wall, we are sure to find a space soon enough
+            pos.x = area.x1 + rand() % (area.x2 - area.x1 + 1);
+            pos.y = area.y1 + rand() % (area.y2 - area.y1 + 1);
+        } while (map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS));
     }
     else {
         // generate a random spot for respawn:
