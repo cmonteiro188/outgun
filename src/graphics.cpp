@@ -2228,32 +2228,12 @@ void Graphics::clear_fx() {
 
 //create rocket explosion fx
 void Graphics::create_wallexplo(int x, int y, int px, int py, int team) {
-    GraphicsEffect fx;
-
-    fx.type = FX_WALL_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = get_time();
-    fx.px = px;
-    fx.py = py;
-    fx.team = team;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_WALL_EXPLOSION, px, py, x, y, get_time(), team));
 }
 
 //create power rocket explosion fx
 void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team) {
-    GraphicsEffect fx;
-
-    fx.type = FX_POWER_WALL_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = get_time();
-    fx.px = px;
-    fx.py = py;
-    fx.team = team;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_POWER_WALL_EXPLOSION, px, py, x, y, get_time(), team));
 }
 
 // Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
@@ -2264,68 +2244,21 @@ void Graphics::create_smoke(int x, int y, int px, int py) {
 
 //create deathbringer carrier trail fx
 void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha) {
-    GraphicsEffect fx;
-
-    fx.type = FX_DEATHCARRIER_SMOKE;
-    fx.x = x;
-    fx.y = y;
-    fx.px = px;
-    fx.py = py;
-    fx.time = get_time();
-    fx.col1 = 0;    // black
-    fx.alpha = alpha / 255.;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, px, py, x, y, get_time(), -1 /* no team */, alpha / 255., 0 /* color: black */));
 }
 
 void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha) {
-    GraphicsEffect fx;
-
-    fx.type = FX_TURBO;
-    fx.x = x;
-    fx.y = y;
-    fx.px = px;
-    fx.py = py;
-    fx.time = get_time();
-
-    fx.alpha = alpha / 255.;
-    fx.col1 = col1;
-    fx.col2 = col2;
-    fx.gundir = gundir;
-
-    fx.team = 0; // to please GCC
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_TURBO, px, py, x, y, get_time(), -1 /* team not used */, alpha / 255., col1, col2, gundir));
 }
 
 //create deathbringer explosion fx
 void Graphics::create_deathbringer(int team, double start_time, int x, int y, int px, int py) {
-    GraphicsEffect fx;
-
-    fx.team = team;
-    fx.type = FX_DEATHBRINGER_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = start_time;
-    fx.px = px;
-    fx.py = py;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_DEATHBRINGER_EXPLOSION, px, py, x, y, start_time, team));
 }
 
 //create explosion fx
 void Graphics::create_gunexplo(int x, int y, int px, int py, int team) {
-    GraphicsEffect fx;
-
-    fx.type = FX_GUN_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = get_time();
-    fx.px = px;
-    fx.py = py;
-    fx.team = team;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_GUN_EXPLOSION, px, py, x, y, get_time(), team));
 }
 
 void Graphics::draw_effects(int room_x, int room_y, double time) {
