@@ -1125,7 +1125,7 @@ void ServerNetworking::send_relay_data(const string& data) {
     NLbyte buffer[max_buffer_size];
     const int receive = nlRead(relay_socket, buffer, max_buffer_size);
     if (receive == NL_INVALID) {
-        log("Could not send spectator data to the relay: %s", getNlErrorString());
+        log("Relay disconnected: %s", getNlErrorString());
         nlClose(relay_socket);
         relay_socket = NL_INVALID;
         return;
