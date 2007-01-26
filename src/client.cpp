@@ -4947,7 +4947,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             break; default: nAssert(0); max_time = start_fadeout = 0;
         }
         // check how the rooms should be drawn
-        if (me >= 0 && fx.frame >= 0)
+        if ((me >= 0 || replaying) && fx.frame >= 0)
             for (int i = 0; i < maxplayers; i++) {
                 ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
