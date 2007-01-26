@@ -4362,6 +4362,21 @@ void Client::predraw() {
     client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, respawns, menu.options.graphics.mapInfoMode());
 }
 
+
+int Client::roomDeltaX(int x1, int x2) const {
+    if (fx.map.w > 2)
+        return (x1 - x2 + fx.map.w + 1) % fx.map.w - 1; // +/- 1 adjusts range so that we get +1/-1 for neighbors instead of +1/(map.w-1)
+    else
+        return x1 - x2; // don't wrap around the edges: the neighboring room is in both directions, but a more "natural" neighbor in one direction (and the expression above would give -1 if w = 1)
+}
+
+int Client::roomDeltaY(int y1, int y2) const {
+    if (fx.map.h > 2)
+        return (y1 - y2 + fx.map.h + 1) % fx.map.h - 1;
+    else
+        return y1 - y2;
+}
+
 //draw the whole game screen
 void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
@@ -4540,6 +4555,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
+                    const int xDelta = roomDeltaX(pl.roomx, fx.player[me].roomx), yDelta = roomDeltaY(pl.roomy, fx.player[me].roomy);
+                    const bool drawNeighborMarkers = (abs(xDelta) + abs(yDelta) == 1); //#@add menu test
                     const int alpha = pl.alpha;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
@@ -4552,6 +4569,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             // update flag position for draw
                             fx.teams[enemy].move_flag(f, WorldCoords(pl.roomx, pl.roomy, static_cast<int>(pl.lx), static_cast<int>(pl.ly)));
                             client_graphics.draw_mini_flag(enemy, *fi, fx.map);
+                            if (drawNeighborMarkers)
+                                client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, enemy);
                         }
 
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
@@ -4559,11 +4578,15 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             // update flag position for draw
                             fi->move(WorldCoords(pl.roomx, pl.roomy, static_cast<int>(pl.lx), static_cast<int>(pl.ly)));
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
+                            if (drawNeighborMarkers)
+                                client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, 2);
                         }
 
                     if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
                             client_graphics.draw_minimap_player(fx.map, pl);
+                        if (drawNeighborMarkers)
+                            client_graphics.draw_neighbor_marker(false, xDelta, yDelta, pl.lx, pl.ly, pl.team());
                     }
                     else // myself: draw differently
                         client_graphics.draw_minimap_me(fx.map, pl, get_time());
@@ -4580,6 +4603,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                        get_time() < fi->return_time() + 2 && static_cast<int>(get_time() * 15) % 3 == 0;
                     client_graphics.draw_mini_flag(t, *fi, fx.map, flash);
+                    const WorldCoords& pos = fi->position();
+                    const int xDelta = roomDeltaX(pos.px, fx.player[me].roomx), yDelta = roomDeltaY(pos.py, fx.player[me].roomy);
+                    if (abs(xDelta) + abs(yDelta) == 1) //#@add menu test
+                        client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pos.x, pos.y, t);
                 }
         }
     }//!hide_game

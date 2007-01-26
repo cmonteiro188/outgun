@@ -627,6 +627,9 @@ class Client {
     static void cfunc_server_data(void* customp, const char* data, int length);
 
     #ifndef DEDICATED_SERVER_ONLY
+    int roomDeltaX(int x1, int x2) const; // gives a sense of where x1 is relative to x2, wrapping around the edges when considering immediate neighbors
+    int roomDeltaY(int y1, int y2) const;
+
     // GUI
     void erase_first_message();
     void print_message(Message_type type, const std::string& msg);

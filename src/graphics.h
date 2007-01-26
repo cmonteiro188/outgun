@@ -125,6 +125,8 @@ public:
     void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
 
+    void draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team);
+
     void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);

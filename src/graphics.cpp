@@ -1035,6 +1035,46 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     }
 }
 
+void Graphics::draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team) {
+    static const int marginDist = 15;
+    static const int flagSizeMax = 8, flagSizeMin = 5, playerRadMax = 10, playerRadMin = 5;
+    int x = plx, y = ply;
+    double dist;
+    if (xDelta) {
+        nAssert(!yDelta);
+        if (xDelta < 0) {
+            x += scale(marginDist);
+            dist = 1. - lx / plw;
+        }
+        else {
+            x += scale(plw - 1 - marginDist);
+            dist = lx / plw;
+        }
+        y += scale(ly);
+    }
+    else {
+        nAssert(yDelta);
+        if (yDelta < 0) {
+            y += scale(marginDist);
+            dist = 1. - ly / plh;
+        }
+        else {
+            y += scale(plh - 1 - marginDist);
+            dist = ly / plh;
+        }
+        x += scale(lx);
+    }
+    if (flag) {
+        const double flagSize = flagSizeMax - (flagSizeMax - flagSizeMin) * dist;
+        const int flagHalfSide = scale(flagSize / 2);
+        rectfill(drawbuf, x - flagHalfSide, y - flagHalfSide, x + flagHalfSide, y + flagHalfSide, teamcol[team]);
+    }
+    else {
+        const double playerRad = playerRadMax - iround((playerRadMax - playerRadMin) * dist);
+        circle(drawbuf, x, y, scale(playerRad), teamcol[team]);
+    }
+}
+
 //draws a basic player object
 void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_power, int alpha, double time) {
     x = scale(x);
