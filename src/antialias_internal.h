@@ -203,10 +203,10 @@ public:
 };
 
 class SolidPixelSource : public PixelSource {
-    int color;
+    int color, alpha;
 
 public:
-    SolidPixelSource(const SolidTexdata& td) : color(td) { }
+    SolidPixelSource(const SolidTexdata& td) : color(td.color), alpha(td.alpha) { }
     void setLine(int) { }
     void nextLine() { }
     void startPixSpan(int) { }
@@ -220,7 +220,7 @@ class SolidTexturizer { // includes inlined the same operations as SolidPixelSou
     void putPixI(int alpha) { host.putPix(color, alpha); }
 
 public:
-    SolidTexturizer(Texturizer& host_, const SolidTexdata& td) : host(host_), color(td) { }
+    SolidTexturizer(Texturizer& host_, const SolidTexdata& td) : host(host_), color(td.color) { nAssert(td.alpha == 256); }
 
     void setLine(int y) { host.setLine(y); }
     void nextLine() { host.nextLine(); }
@@ -231,11 +231,12 @@ public:
 
 class TexturePixelSource : public PixelSource {
     BITMAP* tex;    // can't set const because it can be fed to Allegro
+    int alpha;
     int tx0, ty0;
     int tx, ty; // active pixel in tex
 
 public:
-    TexturePixelSource(const TextureTexdata& td) : tex(td.image), tx0(td.x0), ty0(td.y0) { }
+    TexturePixelSource(const TextureTexdata& td) : tex(td.image), alpha(td.alpha), tx0(td.x0), ty0(td.y0) { }
 
     void setLine(int y);
     void nextLine();
@@ -252,7 +253,7 @@ class TextureTexturizer { // includes inlined the same operations as TexturePixe
     void putPixI(int alpha);
 
 public:
-    TextureTexturizer(Texturizer& host_, const TextureTexdata& td) : host(host_), tex(td.image), tx0(td.x0), ty0(td.y0) { }
+    TextureTexturizer(Texturizer& host_, const TextureTexdata& td) : host(host_), tex(td.image), tx0(td.x0), ty0(td.y0) { nAssert(td.alpha == 256); }
 
     void setLine(int y);
     void nextLine();

@@ -841,7 +841,7 @@ void Texturizer::finalize() {
 }
 
 pair<int, int> SolidPixelSource::getPixel() {
-    return pair<int, int>(color, 255);
+    return pair<int, int>(color, alpha);
 }
 
 void SolidTexturizer::putPix(double alpha) {
@@ -877,7 +877,7 @@ pair<int, int> TexturePixelSource::getPixel() {
     const int col = getpixel(tex, tx, ty);
     if (++tx == tex->w)
         tx = 0;
-    return pair<int, int>(col, 255);
+    return pair<int, int>(col, alpha);
 }
 
 void TextureTexturizer::setLine(int y) {
