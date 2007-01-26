@@ -5179,7 +5179,7 @@ void Client::draw_game_menu() {
             client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
         }
         break; case menu_players:
-            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
+            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(replaying ? fx.frame / 10 : get_time()), maxplayers, max_world_rank);
         break; case menu_teams:
             client_graphics.team_statistics(fx.teams);
         break; case menu_none: // regular menus are drawn below, regardless of menusel
