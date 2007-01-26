@@ -4087,6 +4087,11 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     double nextSend = get_time();
     double nextClientFrame = get_time();
 
+    if (!extConfig.autoReplay.empty()) {
+        replaying = true;
+        start_replay(extConfig.autoReplay);
+    }
+
     bool prevFire = false, prevDropFlag = false;
     while (!quitCommand && !*quitFlag) {
         // (1) loop doing input/sleep before next send or draw time
