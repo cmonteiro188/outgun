@@ -937,8 +937,6 @@ void Server::init_bots() {
         ++needed_bots;
     log("%d bots needed.", needed_bots);
     // Check if some bots need to be removed.
-    if (bot_count == needed_bots)
-        return;
     if (bot_count > needed_bots) {
         const int remove = bot_count - needed_bots;
         log("Remove %d bots.", remove);
@@ -946,6 +944,9 @@ void Server::init_bots() {
             remove_bot();
         return;
     }
+    // Check if some bots need to be added.
+    if ((int)bots.size() >= needed_bots)
+        return;
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
     int policy;
@@ -956,14 +957,13 @@ void Server::init_bots() {
     NLaddress address;
     if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
-    while (bot_count < needed_bots) {
+    while ((int)bots.size() < needed_bots) {
         Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(network.get_server_password());
         bot->bot_start(address, bot_ping, bot_name_lang);
         bots.push_back(bot);
         log("Bot added");
-        ++bot_count;
     }
 }
 
@@ -1660,6 +1660,7 @@ void Server::run_bot_thread() {
             if ((*bi)->bot_finished()) {
                 delete *bi;
                 bi = bots.erase(bi);
+                check_bots = true; // a needed bot might not have been added because of the now removed one which was already out of the server
             }
             else {
                 if (adjust_pings)
