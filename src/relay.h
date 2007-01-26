@@ -43,7 +43,6 @@ public:
 
 class Frame {
 public:
-    Frame(): len(0) { }
     Frame(int l, const std::string& str): len(l), d(str) { }
 
     void add(const std::string& str) { d.append(str); }
@@ -73,16 +72,21 @@ private:
     void add_data(std::istream& in);
 
     void send_data();
-    int send_data(NLsocket& socket, const std::string& data);
-
-    void handle_keys();
+    int send_data(NLsocket& socket, const std::string& data) const;
 
     std::string frame_data(unsigned frame_nr, unsigned pos) const;
 
+    void load_master_settings();
+    void send_master_server();
+
+    void handle_keys();
+
     NLsocket listen_socket;
+    int      listen_port;
 
     NLaddress server_address;
     NLsocket server_socket;
+    std::string hostname;
 
     std::vector<Spectator> spectators;
 
@@ -91,6 +95,12 @@ private:
     Frame first_buffer;
     unsigned new_game_first_frame;  // frame number of the first frame of the new game
     unsigned buffer_first_frame;    // frame number of data_buffer.front()
+
+    std::string master_name;
+    std::string master_submit;
+    NLaddress master_address;
+    NLaddress master_socket;
+    double master_talk_time;
 
     std::ofstream log;
 

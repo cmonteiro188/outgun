@@ -34,6 +34,7 @@
 using std::cin;
 using std::cout;
 using std::ios;
+using std::ifstream;
 using std::istream;
 using std::istringstream;
 using std::ostringstream;
@@ -73,13 +74,25 @@ int main(int argc, const char* argv[]) {
 }
 
 Relay::Relay(unsigned short port):
+    listen_port(port),
     server_socket(NL_INVALID),
+    first_buffer(-1, string()),
     new_game_first_frame(0),
     buffer_first_frame(0),
+    master_talk_time(0),
     quit(false)
-{
+{ }
+
+Relay::~Relay() {
+    nlClose(listen_socket);
+    nlClose(server_socket);
+    for (vector<Spectator>::const_iterator si = spectators.begin(); si != spectators.end(); ++si)
+        nlClose(si->socket);
+}
+
+void Relay::run() {
     nlDisable(NL_BLOCKING_IO);
-    listen_socket = nlOpen(port, NL_RELIABLE);
+    listen_socket = nlOpen(listen_port, NL_RELIABLE);
 
     if (listen_socket == NL_INVALID)
         cout << "Invalid socket.\n";
@@ -90,16 +103,9 @@ Relay::Relay(unsigned short port):
 
     log.clear();
     log.open("replay/relay.replay", ios::binary);
-}
 
-Relay::~Relay() {
-    nlClose(listen_socket);
-    nlClose(server_socket);
-    for (vector<Spectator>::const_iterator si = spectators.begin(); si != spectators.end(); ++si)
-        nlClose(si->socket);
-}
+    load_master_settings();
 
-void Relay::run() {
     while (!quit) {
         listen();
         get_server_data();
@@ -107,6 +113,19 @@ void Relay::run() {
         handle_keys();
         platSleep(5);
     }
+}
+
+void Relay::load_master_settings() {
+    #if 0
+    ifstream in("config/master.txt");
+    string line;
+    if (!getline_skip_comments(in, master_name))
+        master_name = "koti.mbnet.fi";
+    getline_skip_comments(in, line);
+    getline_skip_comments(in, line);
+    if (!getline_skip_comments(in, master_submit))
+        master_submit = "/outgun/servers/submit.php";
+    #endif
 }
 
 void Relay::listen() {
@@ -162,7 +181,6 @@ void Relay::listen() {
                 string identification;
                 unsigned version;
                 unsigned replay_length;
-                string hostname;
                 unsigned maxplayers;
                 string map_name;
                 read(ist, length);
@@ -200,8 +218,6 @@ void Relay::get_server_data() {
         const int result = nlRead(server_socket, buffer, max_buffer_size);
 
         if (result == NL_INVALID) {
-            if (result == NR_timeout)
-                cout << "Timeout\n";
             cout << "Server socket read error. " << getNlErrorString() << '\n';
             nlClose(server_socket);
             server_socket = NL_INVALID;
@@ -254,60 +270,50 @@ void Relay::send_data() {
     if (!first_buffer.full())
         return;
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
-        if (si->next_frame - buffer_first_frame >= data_buffer.size() || !data_buffer[si->next_frame - buffer_first_frame].full()) {
+        string chunk;
+        unsigned protocol_size;
+        if (!si->first_buffer_sent) {
+            chunk = first_buffer.data().substr(si->bytes_sent);
+            protocol_size = 0;
+        }
+        else {
+            chunk = frame_data(si->next_frame, si->bytes_sent);
+            protocol_size = sizeof(unsigned);
+        }
+        if (chunk.empty()) {
             ++si;
             continue;
         }
-        if (!si->first_buffer_sent) {
-            cout << "Sending init data to a client.\n";
-            const int result = send_data(si->socket, first_buffer.data().substr(si->bytes_sent));
-            if (result == NL_INVALID) {
-                nlClose(si->socket);
-                si = spectators.erase(si);
-                continue;
-            }
-            else {
-                si->bytes_sent += result;
-                if (si->bytes_sent > first_buffer.length()) {
-                    nlClose(si->socket);
-                    si = spectators.erase(si);
-                    cout << "First buffer out of range.\n";
-                    continue;
-                }
-                else if (si->bytes_sent == first_buffer.length()) {
-                    si->bytes_sent = 0;
-                    si->next_frame = new_game_first_frame;
-                    si->first_buffer_sent = true;
-                }
-            }
-        }
-        const unsigned max_buffer_size = 2000;
-        NLbyte buffer[max_buffer_size];
-        const int receive = nlRead(si->socket, buffer, max_buffer_size);
-        const int result = receive == NL_INVALID ? receive : send_data(si->socket, frame_data(si->next_frame, si->bytes_sent));
+        // Check if the client has disconnected.
+        /*const unsigned temp_buffer_size = 10;
+        NLbyte temp[temp_buffer_size];
+        int result = nlRead(si->socket, temp, temp_buffer_size);
+        if (result != NL_INVALID)*/
+            const int result = send_data(si->socket, chunk);
         if (result == NL_INVALID) {
+            cout << "Spectator disconnected: " << getNlErrorString() << '\n';
             nlClose(si->socket);
             si = spectators.erase(si);
-            cout << "Could not send spectator data to a client: " << getNlErrorString() << '\n';
+            continue;
         }
-        else {
-            si->bytes_sent += result;
-            if (si->bytes_sent > data_buffer[si->next_frame - buffer_first_frame].length() + 4) {
-                nlClose(si->socket);
-                si = spectators.erase(si);
-                cout << "Spectator data out of range.\n";
-                continue;
+        si->bytes_sent += result;
+        const Frame& frame = si->first_buffer_sent ? data_buffer[si->next_frame - buffer_first_frame] : first_buffer;
+        nAssert(si->bytes_sent <= frame.length() + protocol_size);
+        if (si->bytes_sent == frame.length() + protocol_size) {
+            si->bytes_sent = 0;
+            if (!si->first_buffer_sent) {
+                cout << "Init data sent to a client.\n";
+                si->next_frame = new_game_first_frame;
+                si->first_buffer_sent = true;
             }
-            else if (si->bytes_sent == data_buffer[si->next_frame - buffer_first_frame].length() + 4) {
-                si->bytes_sent = 0;
+            else
                 si->next_frame++;
-            }
-            ++si;
         }
+        ++si;
     }
 }
 
-int Relay::send_data(NLsocket& socket, const string& data) {
+int Relay::send_data(NLsocket& socket, const string& data) const {
     if (socket == NL_INVALID) {
         cout << "Invalid spectator socket in send_data().\n";
         return NL_INVALID;
@@ -316,6 +322,8 @@ int Relay::send_data(NLsocket& socket, const string& data) {
 }
 
 string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
+    if (frame_nr - buffer_first_frame >= data_buffer.size())
+        return string();
     const Frame& frame = data_buffer[frame_nr - buffer_first_frame];
     ostringstream ost;
     if (pos == 0)
@@ -323,6 +331,38 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
     ost << frame.data().substr(pos);
     return ost.str();
 }
+
+#if 0
+void Relay::send_master_server() {
+    if (get_time() < master_talk_time)
+        return;
+
+    master_talk_time = get_time() + 5 * 60.0;
+
+    nlDisable(NL_BLOCKING_IO);
+    NLsocket msock = nlOpen(0, NL_RELIABLE);
+    if (msock == NL_INVALID) {
+        cout << "Can't open socket to connect to master server.\n";;
+        return;
+    }
+
+    if (nlConnect(msock, &master_address) == NL_FALSE) {
+        cout << "Can't connect to master server.\n";
+        nlClose(msock);
+        return;
+    }
+
+    // build and send data
+    map<string, string> parameters;
+    parameters["port"] = itoa(listen_port);
+    parameters["servers"] = 1;
+    parameters["server[]"] = hostname;
+    const string data = build_http_data(parameters);
+    NetworkResult result = post_http_data(msock, 0, 50, master_name, "/outgun/servers/submit.php", data);
+    if (result != NR_ok)
+        cout << "Master talker: Error sending info: " << (result == NR_timeout ? "Timeout" : getNlErrorString()) << '\n';
+}
+#endif
 
 void Relay::handle_keys() {
     //cout << "handle_keys()\n";
