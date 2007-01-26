@@ -108,7 +108,7 @@ public:
     void random_playground_colors();
 
     void predraw(const Room& room, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
-                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, bool grid = false);
+                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, const std::vector< std::pair<int, const WorldRect*> >& respawns, bool grid = false);
 
     void draw_background();
     void draw_empty_background(bool map_ready);

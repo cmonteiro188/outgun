@@ -440,7 +440,8 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
     return true;
 }
 
-void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
+void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags,
+                       const vector< pair<int, const WorldCoords*> >& spawns, const vector< pair<int, const WorldRect*> >& respawns, bool grid) {
     // the room is textured like it's the room at coordinates (texRoomX,texRoomY)
     // this means moving the texture offsetting origin to the top left of room (0,0)
     int texOffsetBaseX = - texRoomX * iround(plw * scr_mul);
@@ -458,11 +459,19 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
             scene.addWall(*wi, (*wi)->texture());
 
+        // add respawn areas as overlays
+        for (vector< pair<int, const WorldRect*> >::const_iterator ri = respawns.begin(); ri != respawns.end(); ++ri) {
+            nAssert(ri->first == 0 || ri->first == 1);
+            const WorldRect& r = *ri->second;
+            scene.addRectangle(r.x1 - PLAYER_RADIUS, r.y1 - PLAYER_RADIUS, r.x2 + PLAYER_RADIUS, r.y2 + PLAYER_RADIUS,
+                               ri->first + floor_texture.size() + wall_texture.size(), true);
+        }
+
         // add flag markers as overlays
         const double fr = flagpos_radius;
         for (int fi = 0; fi < static_cast<int>(flags.size()); ++fi) {
             const double fx = flags[fi].second->x, fy = flags[fi].second->y;
-            scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size(), true);
+            scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size() + 2, true);
         }
 
         // add walls
@@ -497,10 +506,17 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
             else textures.push_back(backupTexture);
         }
 
+        // transparent solids for respawn areas
+        for (int team = 0; team < 2; ++team) {
+            td.setSolid(teamcol[team], 120);
+            textures.push_back(td);
+        }
+
         for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
             td.setFlagmarker(teamcol[fi->first], fi->second->x * scr_mul, fi->second->y * scr_mul, flagpos_radius * scr_mul);   // note: assumes 0,0,1. scaling
             textures.push_back(td);
         }
+
         // draw
         Texturizer tex(roombg, 0, 0, textures);
         scene.render(tex);
@@ -516,6 +532,15 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         else
             clear_to_color(roombg, groundCol);
         predraw_room_ground(room, texOffsetBaseX, texOffsetBaseY);
+        // draw respawn areas
+        for (vector< pair<int, const WorldRect*> >::const_iterator ri = respawns.begin(); ri != respawns.end(); ++ri) {
+            nAssert(ri->first == 0 || ri->first == 1);
+            const WorldRect& r = *ri->second;
+            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+            set_trans_blender(0, 0, 0, 120);
+            rectfill(roombg, scale(r.x1 - PLAYER_RADIUS), scale(r.y1 - PLAYER_RADIUS), scale(r.x2 + PLAYER_RADIUS), scale(r.y2 + PLAYER_RADIUS), teamcol[ri->first]);
+            solid_mode();
+        }
         // draw flag position marks
         for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
             draw_flagpos_mark(fi->first, fi->second->x, fi->second->y);

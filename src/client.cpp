@@ -4333,6 +4333,7 @@ void Client::predraw() {
         return; //#fix: this shouldn't be needed, or should be checked from a simple flag
     vector< pair<int, const WorldCoords*> > flags;
     vector< pair<int, const WorldCoords*> > spawns;
+    vector< pair<int, const WorldRect*> > respawns;
 
     for (int team = 0; team <= 2; team++) {
         const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
@@ -4344,6 +4345,10 @@ void Client::predraw() {
             for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi) // spawns
                 if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
                     spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
+            const vector<WorldRect>& trespawn = fx.map.tinfo[team].respawn;
+            for (vector<WorldRect>::const_iterator pi = trespawn.begin(); pi != trespawn.end(); ++pi) // respawns
+                if (fx.player[me].roomx == pi->px && fx.player[me].roomy == pi->py)
+                    respawns.push_back(pair<int, const WorldRect*>(team, &(*pi)));
         }
     }
 
@@ -4354,7 +4359,7 @@ void Client::predraw() {
     }
     else
         texRoomX = texRoomY = 0;    // this way the texturing always starts from the top left corner (classic look)
-    client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
+    client_graphics.predraw(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], texRoomX, texRoomY, flags, spawns, respawns, menu.options.graphics.mapInfoMode());
 }
 
 //draw the whole game screen
