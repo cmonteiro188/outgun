@@ -1090,6 +1090,10 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     solid_mode();
 }
 
+void Graphics::draw_me_highlight(double x, double y, double size) {
+    circle(drawbuf, plx + scale(x), ply + scale(y), scale((8 * size + 1) * PLAYER_RADIUS), makecol(255, 255, 0));
+}
+
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
     set_write_alpha_blender();
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);

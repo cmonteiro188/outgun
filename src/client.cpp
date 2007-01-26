@@ -1188,6 +1188,8 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     //don't want to exit map by default
     want_map_exit = false;
     want_map_exit_delayed = false;
+
+    deadAfterHighlighted = true;
     #endif
 
     //avoid "dropped" plaque
@@ -2233,6 +2235,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 want_map_exit_delayed = false;
+                deadAfterHighlighted = true;
 
                 // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
                 {
@@ -2336,6 +2339,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     menusel = menu_none;
                     stats_autoshowing = false;
                 }
+                deadAfterHighlighted = true;
                 #endif
 
             break; case data_deathbringer: {
@@ -4457,8 +4461,20 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
             if (fx.player[i].onscreen && i != me)   // draw only players on my screen
                 draw_player(i);
-            if (k == maxplayers - 1)                // last draw me
-                draw_player(me);
+        }
+        draw_player(me); // last draw me
+
+        if (fx.player[me].dead)
+            deadAfterHighlighted = true;
+        else {
+            static double spawnTime = 0;
+            if (deadAfterHighlighted) {
+                deadAfterHighlighted = false;
+                spawnTime = get_time();
+            }
+            static const double highlightTime = .5;
+            if (get_time() - spawnTime < highlightTime) //#@ add option test
+                client_graphics.draw_me_highlight(fd.player[me].lx, fd.player[me].ly, 1. - (get_time() - spawnTime) / highlightTime);
         }
 
         for (int i = 0; i < maxplayers; i++)

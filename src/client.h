@@ -360,6 +360,7 @@ class Client {
     std::string edit_map_vote;
     int player_stats_page;
     double lastAltEnterTime;
+    bool deadAfterHighlighted;
 
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
