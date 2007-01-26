@@ -113,7 +113,7 @@ void ServerNetworking::upload_next_file_chunk(int i) {
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    const NLubyte islast = (fileTransfer[i].dp + chunksize == fileTransfer[i].data.size());
+    const NLubyte islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
 
     //send
     char lebuf[256]; int count = 0;
