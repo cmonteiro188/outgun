@@ -5386,7 +5386,7 @@ void Client::loadSplashScreen() {
     }
     else {
         static const char* msg[] = {
-            GAME_STRING " " GAME_VERSION ", copyright © 2002-2006 multiple authors.",
+            GAME_STRING " " GAME_VERSION ", copyright © 2002-2007 multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to "
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "
