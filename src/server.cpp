@@ -994,8 +994,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
 void Server::init_bots() {
     const int humans = network.get_human_count();
-    int bot_count = bots.size(); //network.get_bot_count();
-    log("%d bots, %lu in vector.", bot_count, static_cast<long unsigned>(bots.size()));
+    const int playing_bots = network.get_bot_count();
+    log("%d playing bots, %lu in vector.", playing_bots, static_cast<long unsigned>(bots.size()));
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
         needed_bots = 0;
@@ -1004,10 +1004,9 @@ void Server::init_bots() {
     if (balance_bot && (humans + needed_bots) % 2)
         ++needed_bots;
     log("%d bots needed.", needed_bots);
-    // Check if some bots need to be removed.
-    if (bot_count == needed_bots)
+    if (bots.size() == needed_bots)
         return;
-    const int playing_bots = network.get_bot_count();
+    // Check if some bots need to be removed.
     if (playing_bots > needed_bots) {
         const int remove = playing_bots - needed_bots;
         log("Remove %d bots.", remove);
@@ -1025,14 +1024,13 @@ void Server::init_bots() {
     NLaddress address;
     if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
-    while (bot_count < needed_bots) {
+    while (bots.size() < static_cast<unsigned>(needed_bots)) {
         Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog, this);
         nAssert(bot);
         bot->set_bot_password(network.get_server_password());
         bot->bot_start(address, bot_ping, bot_name_lang);
         bots.push_back(bot);
         log("Bot added");
-        ++bot_count;
     }
 }
 
