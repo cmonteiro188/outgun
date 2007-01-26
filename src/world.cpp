@@ -764,7 +764,6 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     deathbringer_affected = false;
     next_smoke_effect_time = 0;
     hitfx = 0;
-    drawptr = drawused = 0;
     oldx = oldy = 0;
     posUpdated = 0;
 

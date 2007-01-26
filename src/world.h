@@ -449,8 +449,6 @@ public:
     double player_sound_time;
     bool onscreen;
     double hitfx;
-    int drawptr;
-    int drawused;
     int oldx, oldy; // detect room changes
     NLulong posUpdated; // on which frame the player's position has been last received (including the low-res info for minimap purposes)
     int alpha;
