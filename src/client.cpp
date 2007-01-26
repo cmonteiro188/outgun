@@ -4975,7 +4975,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
-                    const int alpha = replaying ? 255 : pl.alpha;
+                    const int alpha = /*replaying ? 255 : */pl.alpha;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
                         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
