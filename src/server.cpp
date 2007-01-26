@@ -867,7 +867,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
         // did not specify maps, scan "maps/" folder for .txt map files
         FileFinder* mapFiles = platMakeFileFinder(wheregamedir + SERVER_MAPS_DIR, ".txt", false);
         while (mapFiles->hasNext()) {
-            string mapName = FileName(mapFiles->next()).getBaseName();
+            const string mapName = FileName(mapFiles->next()).getBaseName();
             MapInfo mi;
             if (mi.load(log, mapName)) {
                 maprot.push_back(mi);
@@ -926,7 +926,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
 void Server::init_bots() {
     const int humans = network.get_human_count();
-    int bot_count = network.get_bot_count();
+    const int bot_count = network.get_bot_count();
     log("%d bots, %lu in vector.", bot_count, bots.size());
     int needed_bots = max(bots_fill - humans, min_bots) + extra_bots;
     if (needed_bots < 0)
