@@ -919,7 +919,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
     min_bots = 0;
     bots_fill = 0;
-    bot_ping = 0;
+    bot_ping = 300;
     balance_bot = false;
 
     // load server configuration from gamemod.txt
