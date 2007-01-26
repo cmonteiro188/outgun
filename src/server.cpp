@@ -852,6 +852,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
                 log.error(_("Can't add '$1' to map rotation.", mapName));
         }
         delete mapFiles;
+        sort(maprot.begin(), maprot.end());
     }
 
     if (maprot.empty()) {
