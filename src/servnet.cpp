@@ -1130,7 +1130,7 @@ void ServerNetworking::send_relay_data(const string& data) {
         relay_socket = NL_INVALID;
         return;
     }
-    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
+    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 50, 1);
     if (result != NR_ok) {
         log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         nlClose(relay_socket);
