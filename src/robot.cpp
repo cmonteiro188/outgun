@@ -1589,6 +1589,12 @@ ClientControls Client::Robot() {
                     fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
                     fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h) {
         myGundir = -1;
+        if (botPrevFire) {
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, data_fire_off);
+            client->send_message(lebuf, count);
+            botPrevFire = false;
+        }
         return ClientControls();
     }
 
