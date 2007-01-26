@@ -1799,8 +1799,6 @@ void Client::process_incoming_data(const char* data, int length) {
                     continue;
                 }
 
-                log("Player data from replay.");
-
                 // Dead and powerup flags
                 NLubyte byte;
                 readByte(data, count, byte);

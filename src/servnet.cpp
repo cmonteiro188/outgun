@@ -953,7 +953,6 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         ost.write(lebuf, count);
         write(ost, static_cast<unsigned>(host->record_map_data().length()));
         ost << host->record_map_data();
-        //world.save_map(ost);
         record_message(ost.str());
         if (record_only)
             return;
