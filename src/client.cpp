@@ -614,6 +614,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #ifndef DEDICATED_SERVER_ONLY
     listenServer(log),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
+    mapListSortKey(MLSK_Number),
+    mapListChangedAfterSort(false),
     current_map(-1),
     map_vote(-1),
     player_stats_page(0),
@@ -1265,6 +1267,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
         MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         maps.clear();
+        mapListChangedAfterSort = true;
     }
     #endif
 
@@ -2460,6 +2463,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.clear();
+                mapListChangedAfterSort = true;
                 map_vote = -1;
                 #endif
             }
@@ -2484,12 +2488,11 @@ void Client::process_incoming_data(const char* data, int length) {
                 mapinfo.width = width;
                 mapinfo.height = height;
                 mapinfo.votes = votes;
-                const vector<string>::const_iterator mi = find(fav_maps.begin(), fav_maps.end(), toupper(mapinfo.title));
-                if (mi != fav_maps.end())
-                    mapinfo.highlight = true;
+                mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.push_back(mapinfo);
+                mapListChangedAfterSort = true;
                 #endif
             }
 
@@ -2510,8 +2513,10 @@ void Client::process_incoming_data(const char* data, int length) {
                 for (int i = 0; i < total; i++) {
                     readByte(lebuf, count, map_nr);
                     readByte(lebuf, count, votes);
-                    if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
+                    if (map_nr >= 0 && map_nr < static_cast<int>(maps.size())) {
                         maps[map_nr].votes = votes;
+                        mapListChangedAfterSort = true;
+                    }
                 }
                 #endif
             }
@@ -3758,6 +3763,11 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                         client->send_message(lebuf, count);
                     }
                 }
+                break; case KEY_SPACE:
+                    do {
+                        mapListSortKey = static_cast<MapListSortKey>((mapListSortKey + 1) % MLSK_COUNT);
+                    } while (mapListSortKey == MLSK_Favorite && fav_maps.empty());
+                    mapListChangedAfterSort = true;
                 break; default:
                     if (!isdigit(ch))
                         return false;
@@ -4698,13 +4708,49 @@ void Client::draw_player(int pid) {
     }
 }
 
+class MapListSorter { // helper for draw_game_menu
+public:
+    MapListSorter(MapListSortKey key_) : key(key_) { }
+    bool operator()(const std::pair<const MapInfo*, int>& m1, const std::pair<const MapInfo*, int>& m2) const;
+
+private:
+    MapListSortKey key;
+};
+
+bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<const MapInfo*, int>& m2) const {
+    const MapInfo& m1mi = *m1.first, &m2mi = *m2.first;
+    switch (key) {
+        break; case MLSK_Votes: return m1mi.votes > m2mi.votes; // reverse: get high vote counts first
+        break; case MLSK_Title: return cmp_case_ins(m1mi.title, m2mi.title);
+        break; case MLSK_Size: {
+            const int m1s = m1mi.width * m1mi.height;
+            const int m2s = m2mi.width * m2mi.height;
+            return m1s < m2s || m1s == m2s && m1mi.width < m2mi.width;
+        }
+        break; case MLSK_Author:   return cmp_case_ins(m1mi.author, m2mi.author);
+        break; case MLSK_Favorite: return m1mi.highlight && !m2mi.highlight; // highlighted first
+        break; default: nAssert(0);
+    }
+}
+
 //draws the game menu
 void Client::draw_game_menu() {
     switch (menusel) {
     /*break;*/ case menu_maps: {
             MutexDebug md("mapInfoMutex", __LINE__, log);
             MutexLock ml(mapInfoMutex);
-            client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
+            if (mapListChangedAfterSort) {
+                mapListChangedAfterSort = false;
+                sortedMaps.clear();
+                sortedMaps.reserve(maps.size());
+                for (unsigned mi = 0; mi < maps.size(); ++mi)
+                    sortedMaps.push_back(pair<MapInfo*, int>(&maps[mi], mi));
+                if (mapListSortKey != MLSK_Number) {
+                    MapListSorter sorter(mapListSortKey);
+                    stable_sort(sortedMaps.begin(), sortedMaps.end(), sorter);
+                }
+            }
+            client_graphics.map_list(sortedMaps, mapListSortKey, current_map, map_vote, edit_map_vote);
         }
         break; case menu_players:
             client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(get_time()), maxplayers, max_world_rank);
@@ -5351,15 +5397,13 @@ void Client::load_fav_maps() {
     ifstream in(configFile.c_str());
     string line;
     while (getline_skip_comments(in, line))
-        fav_maps.push_back(toupper(trim(line)));
+        fav_maps.insert(toupper(trim(line)));
 }
 
 void Client::apply_fav_maps() {
-    for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi) {
-        const vector<string>::const_iterator mf = find(fav_maps.begin(), fav_maps.end(), toupper(mi->title));
-        if (mf != fav_maps.end())
-            mi->highlight = true;
-    }
+    for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
+        mi->highlight = !!fav_maps.count(toupper(mi->title));
+    mapListChangedAfterSort = true;
 }
 
 void Client::loadHelp() {

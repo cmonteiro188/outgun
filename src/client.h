@@ -28,6 +28,7 @@
 #define CLIENT_H_INC
 
 #ifndef DEDICATED_SERVER_ONLY
+#include <set>
 #include "client_menus.h"
 #include "graphics.h"
 #include "menu.h"
@@ -312,10 +313,15 @@ class Client {
     NLulong max_world_rank;
     #endif
 
-    MutexHolder mapInfoMutex;
     #ifndef DEDICATED_SERVER_ONLY
+    MutexHolder mapInfoMutex;
     std::vector<MapInfo> maps;
-    std::vector<std::string> fav_maps;
+    std::vector< std::pair<const MapInfo*, int> > sortedMaps;
+
+    MapListSortKey mapListSortKey;
+    bool mapListChangedAfterSort;
+
+    std::set<std::string> fav_maps;
     int current_map;
     int map_vote;
     bool want_change_teams;

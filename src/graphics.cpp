@@ -1889,7 +1889,7 @@ void Graphics::draw_fps(double fps) {
     print_text_border_check_bg(text, SCREEN_W - 2 - text_length(font, text), SCREEN_H - text_height(font) - 2, colour(Colour::fps), colour(Colour::text_border), -1);
 }
 
-void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
+void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapListSortKey sortedBy, int current, int own_vote, const string& edit_vote) {
     const FONT* mlfont;
     if (text_length(font, "i") != text_length(font, "M"))   // map list works only with monospace font
         mlfont = default_font;
@@ -1897,7 +1897,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         mlfont = font;
     const int line_height = text_height(mlfont) + 4;
     const int w = min(SCREEN_W, 67 * text_length(mlfont, "M") + 4);
-    const int extra_space = 8 * line_height;
+    const int extra_space = 10 * line_height;
     int h = map_list_size * line_height + extra_space;
     if (h > SCREEN_H) {
         h = SCREEN_H;
@@ -1935,14 +1935,15 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         map_list_start = 0;
 
     for (int i = map_list_start; i < static_cast<int>(maps.size()) && i < map_list_start + map_list_size; ++i) {
+        const MapInfo& map = *maps[i].first;
+        const int mapNumber = maps[i].second;
         ostringstream mapline;
-        mapline << setw(3) << i + 1 << ' ' << setw(2);
-        const MapInfo& map = maps[i];
+        mapline << setw(3) << mapNumber + 1 << ' ' << setw(2);
         if (map.votes > 0)
             mapline << map.votes;
         else
             mapline << '-';
-        if (own_vote == i)
+        if (own_vote == mapNumber)
             mapline << " *";
         else
             mapline << "  ";
@@ -1951,7 +1952,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         mapline << map.author.substr(0, 27);
         const int y = y1 + 5 * line_height + line_height * (i - map_list_start);
         int c;
-        if (i == current)
+        if (mapNumber == current)
             c = colour(Colour::stats_selected);
         else if (map.highlight)
             c = colour(Colour::stats_highlight);
@@ -1968,9 +1969,22 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         const int bar_h = static_cast<int>(static_cast<double>(height * map_list_size ) / maps.size() + 0.5);
         scrollbar(x, y, height, bar_y, bar_h, colour(Colour::scrollbar), colour(Colour::scrollbar_bg));
     }
+    int y = y1 + (5 + map_list_size + 1) * line_height;
+    string sortOrderString;
+    switch (sortedBy) {
+        break; case MLSK_Number:   sortOrderString = _("Map number");
+        break; case MLSK_Votes:    sortOrderString = _("Votes");
+        break; case MLSK_Title:    sortOrderString = _("Title");
+        break; case MLSK_Size:     sortOrderString = _("Size");
+        break; case MLSK_Author:   sortOrderString = _("Author");
+        break; case MLSK_Favorite: sortOrderString = _("Favorites");
+        break; default: nAssert(0);
+    }
+    sortOrderString = _("Sort order (space to cycle): $1", sortOrderString);
+    textout_ex(drawbuf, mlfont, sortOrderString.c_str(), x_left, y, colour(Colour::stats_text), -1);
+    y += 2 * line_height;
     ostringstream vote;
     vote << _("Vote map number") << ": " << edit_vote << '_';
-    const int y = y1 + (5 + map_list_size + 1) * line_height;
     textout_ex(drawbuf, mlfont, vote.str().c_str(), x_left, y, colour(Colour::stats_highlight), -1);
 }
 

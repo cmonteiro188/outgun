@@ -81,6 +81,8 @@ public:
     BITMAP* operator->() const { return ptr; }
 };
 
+enum MapListSortKey { MLSK_Number, MLSK_Votes, MLSK_Title, MLSK_Size, MLSK_Author, MLSK_Favorite, MLSK_COUNT };
+
 class Graphics {
 public:
     Graphics(LogSet logs);
@@ -154,7 +156,7 @@ public:
     void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
                      const std::vector<std::vector<std::pair<int, int> > >& sticks, const std::vector<int>& buttons);
 
-    void map_list(const std::vector<MapInfo>& maps, int current = -1,
+    void map_list(const std::vector< std::pair<const MapInfo*, int> >& maps, MapListSortKey sortedBy, int current = -1,
                   int own_vote = -1, const std::string& edit_vote = "");
 
     void map_list_prev() { --map_list_start; }
