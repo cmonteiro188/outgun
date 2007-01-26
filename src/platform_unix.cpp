@@ -185,6 +185,7 @@ void platInitAfterAllegro() {
     signal(SIGHUP, closeSignalHandler);
     signal(SIGINT, closeSignalHandler);
     signal(SIGTERM, closeSignalHandler);
+    signal(SIGPIPE, SIG_IGN);
 }
 #endif // RELAY
 
