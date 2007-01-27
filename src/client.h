@@ -629,6 +629,11 @@ class Client {
     void send_chat(const std::string& msg);
     void send_frame(bool newFrame, bool forceSend);
     #endif
+    bool process_live_frame_data(const char* data, int length); // returns false if an error occured that requires disconnecting
+    #ifndef DEDICATED_SERVER_ONLY
+    int process_replay_frame_data(const char* data, int length); // returns number of bytes read
+    #endif
+    void process_message(const char* const lebuf, int msglen);
     void process_incoming_data(const char* data, int length);
 
     #ifndef DEDICATED_SERVER_ONLY

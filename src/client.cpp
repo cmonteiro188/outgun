@@ -1695,26 +1695,11 @@ void Client::send_frame(bool newFrame, bool forceSend) {
 }
 #endif
 
-void Client::process_incoming_data(const char* data, int length) {
-    MutexDebug md("frameMutex", __LINE__, log);
-    MutexLock ml(frameMutex);
-
-    if (!connected && !replaying) // means that the connection notification is still in the thread message queue
-        return;
-
-    // (0) update lastpackettime
-    lastpackettime = get_time();
-
-    //(1) process server frame data
+bool Client::process_live_frame_data(const char* data, int length) { // returns false if an error occured that requires disconnecting
+    (void)length;
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
-    #ifndef DEDICATED_SERVER_ONLY
-    if (replaying && !replay_first_frame_loaded) {
-        replay_start_frame = svframe;
-        replay_first_frame_loaded = true;
-    }
-    #endif
 
     if (WATCH_CONNECTION && svframe != fx.frame + 1) {
         ostringstream dstr;
@@ -1726,1619 +1711,1634 @@ void Client::process_incoming_data(const char* data, int length) {
             dstr << "S>C packet lost : prev " << fx.frame << " this " << svframe;
         addThreadMessage(new TM_Text(msg_warning, dstr.str().c_str()));
     }
-    //discard older frames
-    //overwrite always the newer frames
-    // TARGET FRAME: just one
-    if (svframe > fx.frame) {
-        nAssert(fx.frame == floor(fx.frame));
+    if (svframe < fx.frame)
+        return true;
 
-        ClientPhysicsCallbacks cb(*this);
-        fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
-        fx.frame = svframe;
+    ClientPhysicsCallbacks cb(*this);
+    fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
+    fx.frame = svframe;
 
-        //----- PLAYER SPECIFIC DATA -----
+    frameReceiveTime = get_time();
 
-        if (replaying)
-            clFrameWorld = svframe;
-        else
-            readByte(data, count, clFrameWorld);
-        frameReceiveTime = get_time();
-        /* svframe - .5 is roughly when clFrameWorld was received in server (using '- 1. + offsetDelta' instead of -.5 here would be possible but not necessarily really better)
-         * svFrameHistory[clFrameWorld] is the apparent server frame when clFrameSent was sent
-         */
-        const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
-        averageLag = averageLag * .99 + currentLag * .01;
+    readByte(data, count, clFrameWorld);
+    /* svframe - .5 is roughly when clFrameWorld was received in server (using '- 1. + offsetDelta' instead of -.5 here would be possible but not necessarily really better)
+     * svFrameHistory[clFrameWorld] is the apparent server frame when clFrameSent was sent
+     */
+    const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
+    averageLag = averageLag * .99 + currentLag * .01;
 
-        #ifdef SEND_FRAMEOFFSET
-        if (!replaying) {
-            NLubyte fo;
-            readByte(data, count, fo);
-            const double offsetDelta = (fo / 256.) - .5;    // the deviation from aim, in frames
-            frameOffsetDeltaTotal += offsetDelta;
-            if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
-                frameOffsetDeltaTotal /= 10.;
-                netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
-                frameOffsetDeltaTotal = 0;
-                frameOffsetDeltaNum = 0;
-            }
-        }
-        #endif
+    #ifdef SEND_FRAMEOFFSET
+    NLubyte fo;
+    readByte(data, count, fo);
+    const double offsetDelta = (fo / 256.) - .5;    // the deviation from aim, in frames
+    frameOffsetDeltaTotal += offsetDelta;
+    if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
+        frameOffsetDeltaTotal /= 10.;
+        netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
+        frameOffsetDeltaTotal = 0;
+        frameOffsetDeltaNum = 0;
+    }
+    #endif
 
-        //extra byte of information
-        // BIT 0: extra health
-        // BIT 1: extra energy
-        // BIT 2 (****VERY IMPORTANT****): NO MORE DATA ON PACKET BECAUSE PLAYER IS NOT READY
-        NLubyte xtra = 0;
-        if (!replaying)
-            readByte(data, count, xtra);
+    NLubyte xtra;
+    readByte(data, count, xtra);
 
-        //moved below: after health assignment
-        //if (xtra & 1) player[me].health += 256;
-        //if (xtra & 2) player[me].energy += 256;
+    const int extraHealth = (xtra & 1) ? 256 : 0;
+    const int extraEnergy = (xtra & 2) ? 256 : 0;
+    const bool empty_frame_cause_not_ready_yet = (xtra & 4) != 0;
 
-        const bool empty_frame_cause_not_ready_yet = !replaying && (xtra & 4) != 0;
+    if (me == -1)   // only read this when just connected to the server; otherwise, changes in "me" should be taken in only with the change teams message
+        me = xtra >> 3;
 
-        //read "me" (v0.3.9 tentando espantar bug com tiro de canhao!)
-        // BITS 3..8 == what player id
-        if (me == -1 && !replaying)   // only read this when just connected to the server; otherwise, changes in "me" should be taken in only with the change teams message
-            me = xtra >> 3;
+    if (empty_frame_cause_not_ready_yet) {
+        fx.skipped = true;
+        return true;
+    }
 
-        //EMPTY FRAME? if yes, do something about it, if not, parse it
-        if (empty_frame_cause_not_ready_yet)
-            fx.skipped = true;
+    if (!map_ready) {
+        log.error("Server sent frame data when loading map");
+        return false;
+    }
+    //a regular frame
+    fx.skipped = false;
+
+    //V 0.3.9 NEW : read screen of "me" player
+    NLubyte scr;
+    readByte(data, count, scr);     //player.x
+    fx.player[me].roomx = scr;
+    readByte(data, count, scr);     //player.y
+    fx.player[me].roomy = scr;
+
+    if (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
+        for (int j = 0; j < MAX_PICKUPS; j++)
+            fx.item[j].kind = Powerup::pup_unused;  // the server will send messages for all seen, others should be forgotten
+
+        fx.player[me].oldx = fx.player[me].roomx;
+        fx.player[me].oldy = fx.player[me].roomy;
+
         #ifndef DEDICATED_SERVER_ONLY
-        else if (replaying) {
-            fx.skipped = fx.frame == 0;
-            NLulong players_present;
-            readLong(data, count, players_present);
-            for (int i = 0; i < maxplayers; i++) {
-                ClientPlayer& pl = fx.player[i];
-                if (!(players_present & (1 << i))) {
-                    pl.onscreen = false;
-                    continue;
-                }
+        predrawNeeded = true;
+        #endif
+    }
 
-                // Dead and powerup flags
-                NLubyte byte;
-                readByte(data, count, byte);
-                pl.dead = (byte & (1 << 0)) != 0;
-                pl.item_deathbringer = (byte & (1 << 1)) != 0;
-                pl.deathbringer_affected = (byte & (1 << 2)) != 0;
-                pl.item_shield = (byte & (1 << 3)) != 0;
-                pl.item_turbo = (byte & (1 << 4)) != 0;
-                pl.item_power = (byte & (1 << 5)) != 0;
+    //read "players onscreen" vector
+    NLulong players_onscreen;
+    readLong(data, count, players_onscreen);
 
-                const bool position_data = (byte & (1 << 7)) != 0;
-                if (position_data) {
-                    // Position
-                    NLubyte x, y;
-                    readByte(data, count, x);
-                    readByte(data, count, y);
-                    pl.roomx = x;
-                    pl.roomy = y;
-                    NLushort px, py;
-                    readShort(data, count, px);
-                    readShort(data, count, py);
-                    pl.lx = px;
-                    pl.ly = py;
-
-                    pl.onscreen = pl.roomx == current_room.first && pl.roomy == current_room.second;
-
-                    // Speed
-                    NLfloat speed;
-                    readFloat(data, count, speed);
-                    pl.sx = speed;
-                    readFloat(data, count, speed);
-                    pl.sy = speed;
-                }
-
-                // Controls
-                readByte(data, count, byte);
-                pl.controls.fromNetwork(byte, true);
-
-                pl.gundir = byte >> 5;
-
-                readByte(data, count, byte);
-                pl.visibility = byte;
-
-                if (!pl.dead)
-                    pl.posUpdated = svframe;
-            }
-            unsigned short ping;
-            readShort(data, count, ping);
-            fx.player[svframe % maxplayers].ping = ping;
-        }
-        #endif // DEDICATED_SERVER_ONLY
+    //decode players_onscreen and update player data
+    for (int i = 0; i < maxplayers; i++) {
+        //decode players_onscreen: sets if "player" record is there to be read
+        if (players_onscreen & (1 << i))
+            fx.player[i].onscreen = true;
         else {
-            if (!map_ready) {
-                log.error("Server sent frame data when loading map");
-                addThreadMessage(new TM_DoDisconnect());
-                return;
-            }
-            //a regular frame
-            fx.skipped = false;
+            fx.player[i].onscreen = false;
+            continue;
+        }
 
-            //V 0.3.9 NEW : read screen of "me" player
-            NLubyte scr;
-            readByte(data, count, scr);     //player.x
-            fx.player[me].roomx = scr;
-            readByte(data, count, scr);     //player.y
-            fx.player[me].roomy = scr;
+        ClientPlayer& h = fx.player[i];
 
-            if (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
-                for (int j = 0; j < MAX_PICKUPS; j++)
-                    fx.item[j].kind = Powerup::pup_unused;  // the server will send messages for all seen, others should be forgotten
+        //V0.3.9: took out screen reading, replacing for the same screen of "me"
+        // that is set above
+        h.roomx = fx.player[me].roomx;  //same screen since it's on the "players on same screen" vector
+        h.roomy = fx.player[me].roomy;
 
-                fx.player[me].oldx = fx.player[me].roomx;
-                fx.player[me].oldy = fx.player[me].roomy;
+        //coords & speeds
+        NLubyte xy;
 
-                #ifndef DEDICATED_SERVER_ONLY
-                predrawNeeded = true;
-                #endif
-            }
+        NLushort hx, hy;
+        readByte(data, count, xy);      //first 8 bits x
+        hx = xy;
+        readByte(data, count, xy);
+        hy = xy;
+        readByte(data, count, xy);
+        hx += (xy & 0x0F) << 8;
+        hy += (xy & 0xF0) << 4;
+        h.lx = hx * (plw / double(0xFFF));
+        h.ly = hy * (plh / double(0xFFF));
 
-            //read "players onscreen" vector
-            NLulong players_onscreen;
-            readLong(data, count, players_onscreen);
+        typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+        NLubyte byte;
+        readByte(data, count, byte);
+        h.sx = SpeedType::toDouble(byte);
+        readByte(data, count, byte);
+        h.sy = SpeedType::toDouble(byte);
 
-            //decode players_onscreen and update player data
-            for (int i = 0; i < maxplayers; i++) {
-                //decode players_onscreen: sets if "player" record is there to be read
-                if (players_onscreen & (1 << i))
-                    fx.player[i].onscreen = true;
-                else {
-                    fx.player[i].onscreen = false;
-                    continue;
-                }
+        //EXTRA BYTE
+        NLubyte byt, extra;
+        readByte(data, count, extra);           //extra byte
 
-                ClientPlayer& h = fx.player[i];
+        //FLAGS BYTE
+        h.dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
+        h.item_deathbringer = (extra & 2) != 0;     //deathbringer: extra bit 1
+        h.deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
+        // ITEMS: movido para este byte
+        h.item_shield = (extra & 8) != 0;
+        h.item_turbo = (extra & 16) != 0;
+        h.item_power = (extra & 32) != 0;
 
-                //V0.3.9: took out screen reading, replacing for the same screen of "me"
-                // that is set above
-                h.roomx = fx.player[me].roomx;  //same screen since it's on the "players on same screen" vector
-                h.roomy = fx.player[me].roomy;
+        NLubyte ccb;
+        readByte(data, count, ccb);
+        h.controls.fromNetwork(ccb, true);
 
-                //coords & speeds
-                NLubyte xy;
+        //bits 5..7 : gundir= 0..7
+        h.gundir = ccb >> 5;
 
-                NLushort hx, hy;
-                readByte(data, count, xy);      //first 8 bits x
-                hx = xy;
-                readByte(data, count, xy);
-                hy = xy;
-                readByte(data, count, xy);
-                hx += (xy & 0x0F) << 8;
-                hy += (xy & 0xF0) << 4;
-                h.lx = hx * (plw / double(0xFFF));
-                h.ly = hy * (plh / double(0xFFF));
+        //read shadow byte
+        readByte(data, count, byt);
+        h.visibility = byt;
 
-                typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                NLubyte byte;
-                readByte(data, count, byte);
-                h.sx = SpeedType::toDouble(byte);
-                readByte(data, count, byte);
-                h.sy = SpeedType::toDouble(byte);
+        if (!h.dead && (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag()))
+            h.posUpdated = svframe;
+    }
 
-                //EXTRA BYTE
-                NLubyte byt, extra;
-                readByte(data, count, extra);           //extra byte
-
-                //FLAGS BYTE
-                h.dead = (extra & 1) != 0;  //DEAD PLAYER = extra bit 0
-                h.item_deathbringer = (extra & 2) != 0;     //deathbringer: extra bit 1
-                h.deathbringer_affected = (extra & 4) != 0; //deathbringer-affected: extra bit 2
-                // ITEMS: movido para este byte
-                h.item_shield = (extra & 8) != 0;
-                h.item_turbo = (extra & 16) != 0;
-                h.item_power = (extra & 32) != 0;
-
-                NLubyte ccb;
-                readByte(data, count, ccb);
-                h.controls.fromNetwork(ccb, true);
-
-                //bits 5..7 : gundir= 0..7
-                h.gundir = ccb >> 5;
-
-                //read shadow byte
-                readByte(data, count, byt);
-                h.visibility = byt;
-
-                if (!h.dead && (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag()))
-                    h.posUpdated = svframe;
-            }
-
-            for (int round = 0; round < 2; ++round) {
-                NLubyte who, whox, whoy;
-                readByte(data, count, who);
-                if (who == 255)
-                    continue;
-                readByte(data, count, whox);
-                readByte(data, count, whoy);
-
-                //update this player's px,py,x,y
-                //ignore self and anybody onscreen -- because then I've got better accuracy
-                if (who != me && !fx.player[who].onscreen) {
-                    const int xmul = 255 / fx.map.w;
-                    const int ymul = 255 / fx.map.h;
-                    fx.player[who].roomx = whox / xmul;
-                    fx.player[who].roomy = whoy / ymul;
-                    fx.player[who].lx = (xmul == 1) ? 0 : (whox % xmul) * plw / (xmul - 1);
-                    fx.player[who].ly = (ymul == 1) ? 0 : (whoy % ymul) * plh / (ymul - 1);
-                    fx.player[who].posUpdated = svframe;
-                }
-            }
-
-            //read player's health and energy
-            NLubyte healt, energ;
-            readByte(data, count, healt);
-            if (me >= 0) {
-                fx.player[me].health = healt;
-                //EXTRA BIT FROM WAYY ABOVE
-                if (xtra & 1) fx.player[me].health += 256;
-            }
-
-            readByte(data, count, energ);
-            if (me >= 0) {
-                fx.player[me].energy = energ;
-                //EXTRA BIT FROM WAYY ABOVE
-                if (xtra & 2) fx.player[me].energy += 256;
-            }
-
-            //read ping of player frame % MAX_PLAYERS
-            NLushort ping;
-            readShort(data, count, ping);
-            fx.player[svframe % maxplayers].ping = ping;
+    for (int round = 0; round < 2; ++round) {
+        NLubyte who, whox, whoy;
+        readByte(data, count, who);
+        if (who == 255)
+            continue;
+        readByte(data, count, whox);
+        readByte(data, count, whoy);
+ 
+        //update this player's px,py,x,y
+        //ignore self and anybody onscreen -- because then I've got better accuracy
+        if (who != me && !fx.player[who].onscreen) {
+            const int xmul = 255 / fx.map.w;
+            const int ymul = 255 / fx.map.h;
+            fx.player[who].roomx = whox / xmul;
+            fx.player[who].roomy = whoy / ymul;
+            fx.player[who].lx = (xmul == 1) ? 0 : (whox % xmul) * plw / (xmul - 1);
+            fx.player[who].ly = (ymul == 1) ? 0 : (whoy % ymul) * plh / (ymul - 1);
+            fx.player[who].posUpdated = svframe;
         }
     }
 
-    const double time = replaying ? fx.frame / 10 : get_time();
+    //read player's health and energy
+    NLubyte healt, energ;
+    readByte(data, count, healt);
+    readByte(data, count, energ);
+    if (me >= 0) {
+        fx.player[me].health = healt + extraHealth;
+        fx.player[me].energy = energ + extraEnergy;
+    }
 
-    //(2) process messages (update fx, and add the non frame-related messages to messageQueue)
-    int replay_pos = count;
-    for (;;) {
-        const char* lebuf;
-        int msglen;
-        if (replaying) {
-            if (replay_pos >= length)
+    //read ping of player frame % MAX_PLAYERS
+    NLushort ping;
+    readShort(data, count, ping);
+    fx.player[svframe % maxplayers].ping = ping;
+
+    return true;
+}
+
+#ifndef DEDICATED_SERVER_ONLY
+int Client::process_replay_frame_data(const char* data, int length) { // returns number of bytes read
+    (void)length;
+    int count = 0;
+    NLulong svframe;    //server's frame
+    readLong(data, count, svframe);
+
+    nAssert(svframe > fx.frame);
+
+    ClientPhysicsCallbacks cb(*this);
+    fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
+    fx.frame = svframe;
+
+    frameReceiveTime = get_time();
+
+    if (!replay_first_frame_loaded) {
+        replay_start_frame = svframe;
+        replay_first_frame_loaded = true;
+    }
+
+    fx.skipped = false;
+    NLulong players_present;
+    readLong(data, count, players_present);
+    for (int i = 0; i < maxplayers; i++) {
+        ClientPlayer& pl = fx.player[i];
+        if (!(players_present & (1 << i))) {
+            pl.onscreen = false;
+            continue;
+        }
+
+        // Dead and powerup flags
+        NLubyte byte;
+        readByte(data, count, byte);
+        pl.dead = (byte & (1 << 0)) != 0;
+        pl.item_deathbringer = (byte & (1 << 1)) != 0;
+        pl.deathbringer_affected = (byte & (1 << 2)) != 0;
+        pl.item_shield = (byte & (1 << 3)) != 0;
+        pl.item_turbo = (byte & (1 << 4)) != 0;
+        pl.item_power = (byte & (1 << 5)) != 0;
+
+        const bool position_data = (byte & (1 << 7)) != 0;
+        if (position_data) {
+            // Position
+            NLubyte x, y;
+            readByte(data, count, x);
+            readByte(data, count, y);
+            pl.roomx = x;
+            pl.roomy = y;
+            NLushort px, py;
+            readShort(data, count, px);
+            readShort(data, count, py);
+            pl.lx = px;
+            pl.ly = py;
+
+            pl.onscreen = pl.roomx == current_room.first && pl.roomy == current_room.second;
+
+            // Speed
+            NLfloat speed;
+            readFloat(data, count, speed);
+            pl.sx = speed;
+            readFloat(data, count, speed);
+            pl.sy = speed;
+        }
+
+        // Controls
+        readByte(data, count, byte);
+        pl.controls.fromNetwork(byte, true);
+
+        pl.gundir = byte >> 5;
+
+        readByte(data, count, byte);
+        pl.visibility = byte;
+
+        if (!pl.dead)
+            pl.posUpdated = svframe;
+    }
+    unsigned short ping;
+    readShort(data, count, ping);
+    fx.player[svframe % maxplayers].ping = ping;
+
+    return count;
+}
+#endif
+
+// process a message (update fx, and add the non frame-related messages to messageQueue)
+void Client::process_message(const char* const lebuf, int msglen) {
+    const double time = fx.frame / 10;
+
+    int count = 0;
+    NLubyte code;
+    readByte(lebuf, count, code);
+
+    if (LOG_MESSAGE_TRAFFIC)
+        log("Message from server, code = %i, length = %i bytes", code, msglen);
+
+    switch (static_cast<Network_data_code>(code)) {
+    /*break;*/ case data_name_update: {
+        NLubyte pid;
+        string name;
+        readByte(lebuf, count, pid);
+        readStr(lebuf, count, name);
+        if (check_name(name)) {
+            if (fx.player[pid].name.empty()) {
+                addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
+                addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
+            }
+            else if (fx.player[pid].name != " " && fx.player[pid].name != name)    // " " is the case with players already in game when connecting
+                addThreadMessage(new TM_Text(msg_info, _("$1 changed name to $2.", fx.player[pid].name, name)));
+            fx.player[pid].name = name;
+        }
+        else
+            log.error("Invalid name for player " + itoa(pid) + '.');
+    }
+
+    break; case data_text_message: {
+        #ifndef DEDICATED_SERVER_ONLY
+        char byte;
+        readByte(lebuf, count, byte);
+        const Message_type type = static_cast<Message_type>(byte);
+        string chatmsg;
+        readStr(lebuf, count, chatmsg);
+        if (find_nonprintable_char(chatmsg)) {
+            log.error("Server sent non-printable characters in a message.");
+            addThreadMessage(new TM_DoDisconnect());
+            break;
+        }
+        // This is a kludge because of compatibility.
+        // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
+        if (type == msg_server) {
+            if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
+                chatmsg = _("Your vote has no effect until you vote for a specific map.");
+                want_map_exit_delayed = true;
+            }
+            string::size_type pos = chatmsg.find(" decided it's time for a map change.");
+            if (pos != string::npos) {
+                const string name = chatmsg.substr(0, pos);
+                chatmsg = _("$1 decided it's time for a map change.", name);
+            }
+            pos = chatmsg.find(" decided it's time for a restart.");
+            if (pos != string::npos) {
+                const string name = chatmsg.substr(0, pos);
+                chatmsg = _("$1 decided it's time for a restart.", name);
+            }
+        }
+        addThreadMessage(new TM_Text(type, chatmsg));
+        if (type == msg_team || type == msg_normal)
+            addThreadMessage(new TM_Sound(SAMPLE_TALK));
+        #endif
+    }
+
+    break; case data_first_packet: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);    //"who am I"
+        me = pid;
+
+        NLubyte color;
+        readByte(lebuf, count, color);
+        if (color < MAX_PLAYERS / 2)
+            fx.player[pid].set_color(color);
+        else
+            log("Invalid colour (%d) for player %d (me).", color, pid);
+
+        NLubyte map_nr;
+        readByte(lebuf, count, map_nr); //current map number
+        #ifndef DEDICATED_SERVER_ONLY
+        current_map = map_nr;
+        #endif
+
+        NLubyte score;
+        readByte(lebuf, count, score);
+        fx.teams[0].set_score(score);
+        if (fx.teams[0].captures().size() == 0) // only if just joined the server
+            fx.teams[0].set_base_score(score);
+        readByte(lebuf, count, score);
+        fx.teams[1].set_score(score);
+        if (fx.teams[1].captures().size() == 0) // only if just joined the server
+            fx.teams[1].set_base_score(score);
+
+        // room is probably changed
+        fx.player[me].oldx = -1;
+        fx.player[me].oldy = -1;
+    }
+
+    break; case data_frags_update: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte pid;
+        NLulong frags;
+        readByte(lebuf, count, pid);
+        readLong(lebuf, count, frags);
+        fx.player[pid].stats().set_frags(frags);
+        stable_sort(players_sb.begin(), players_sb.end(), compare_players);
+        #endif
+    }
+
+    break; case data_flag_update: {
+        NLubyte team;
+        NLbyte flags;
+        readByte(lebuf, count, team);
+        readByte(lebuf, count, flags);
+        bool new_flag = false;
+        for (int i = 0; i < flags; i++) {
+            if (team == 2) {
+                if (i >= static_cast<int>(fx.wild_flags.size())) {
+                    fx.wild_flags.push_back(Flag(WorldCoords()));
+                    new_flag = true;
+                }
+            }
+            else if (i >= static_cast<int>(fx.teams[team].flags().size())) {
+                fx.teams[team].add_flag(WorldCoords());
+                new_flag = true;
+            }
+            NLubyte carried;
+            readByte(lebuf, count, carried);    // 0==not carried 1==carried
+            if (carried == 0) {
+                //not carried: update position
+                NLubyte px, py;
+                NLshort x, y;
+                readByte(lebuf, count, px);
+                readByte(lebuf, count, py);
+                readShort(lebuf, count, x);
+                readShort(lebuf, count, y);
+                const WorldCoords pos(px, py, x, y);
+                bool was_carried;
+                if (team == 2) {
+                    was_carried = fx.wild_flags[i].carried();
+                    fx.wild_flags[i].move(pos);
+                    fx.wild_flags[i].drop();
+                }
+                else {
+                    was_carried = fx.teams[team].flag(i).carried();
+                    fx.teams[team].drop_flag(i, pos);
+                }
+                if (!new_flag && was_carried)
+                    if (team == 2)
+                        fx.wild_flags[i].set_return_time(time);
+                    else
+                        fx.teams[team].set_flag_return_time(i, time);
+            }
+            else {
+                //carried: get carrier
+                NLubyte carrier;
+                readByte(lebuf, count, carrier);
+                if (team == 2)
+                    fx.wild_flags[i].take(carrier);
+                else
+                    fx.teams[team].steal_flag(i, carrier);
+                addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
+            }
+        }
+    }
+
+    break; case data_rocket_fire: {
+        if (!map_ready)
+            break;
+
+        NLubyte rpow, rdir;
+        NLubyte rids[16];
+        NLulong frameno;
+        NLubyte rteampower;
+
+        readByte(lebuf, count, rpow);
+        readByte(lebuf, count, rdir);
+        for (int k = 0; k < rpow; k++)
+            readByte(lebuf, count, rids[k]);
+        readLong(lebuf, count, frameno);    // frame # of shot
+        readByte(lebuf, count, rteampower); // team (bit 1) and power (bit 0)
+        const bool power = ((rteampower & 1) != 0);
+        const int team = (rteampower & 2) >> 1;
+
+        NLubyte rpx, rpy;
+        NLshort rx, ry;
+        readByte(lebuf, count, rpx);
+        readByte(lebuf, count, rpy);
+        numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
+        readShort(lebuf, count, rx);
+        readShort(lebuf, count, ry);
+
+        ClientPhysicsCallbacks cb(*this);
+        fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+
+        #ifndef DEDICATED_SERVER_ONLY
+        //play sound if rocket on screen
+        if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy || replaying && current_room.first == rpx && current_room.second == rpy)
+            if (power)
+                addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
+            else
+                addThreadMessage(new TM_Sound(SAMPLE_FIRE));
+        #endif
+    }
+
+    break; case data_old_rocket_visible: {
+        if (!map_ready)
+            break;
+
+        NLubyte rockid, rdir;
+        NLulong frameno;
+        NLubyte rteampower;
+        readByte(lebuf, count, rockid);
+        readByte(lebuf, count, rdir);
+        readLong(lebuf, count, frameno);
+        readByte(lebuf, count, rteampower);
+        const bool power = ((rteampower & 1) != 0);
+        const int team = (rteampower & 2) >> 1;
+
+        NLubyte rpx, rpy;
+        readByte(lebuf, count, rpx);
+        readByte(lebuf, count, rpy);
+        numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
+        NLshort rx, ry;
+        readShort(lebuf, count, rx);
+        readShort(lebuf, count, ry);
+
+        ClientPhysicsCallbacks cb(*this);
+        fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+        // no sound
+    }
+
+    break; case data_rocket_delete: {
+        if (!map_ready)
+            break;
+
+        NLubyte rockid;
+        readByte(lebuf, count, rockid);
+        fx.rock[rockid].owner = -1;
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte target;
+        readByte(lebuf, count, target);
+        //hit position
+        NLshort rokx, roky;
+        readShort(lebuf, count, rokx);
+        readShort(lebuf, count, roky);
+        if (target != 255) {    // hit player
+            if (target != 252)  // not shield hit -> blink player
+                fx.player[target].hitfx = time + .3;
+            addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py, time));
+            if (!replaying || current_room.first == fx.rock[rockid].px && current_room.second == fx.rock[rockid].py)
+                addThreadMessage(new TM_Sound(SAMPLE_HIT));
+        }
+        #endif
+    }
+
+    break; case data_power_collision: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte target;
+        readByte(lebuf, count, target);
+        fx.player[target].hitfx = time + .3;
+        if (replaying && count < msglen) {
+            NLubyte rx, ry;
+            readByte(lebuf, count, rx);
+            readByte(lebuf, count, ry);
+            if (current_room.first != rx || current_room.second != ry)
                 break;
-            readLong(data, replay_pos, msglen);
-            lebuf = data + replay_pos;
+        }
+        addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
+        #endif
+    }
+
+    break; case data_score_update: {
+        NLubyte team;
+        NLubyte score;
+        readByte(lebuf, count, team);       //team
+        readByte(lebuf, count, score);      //new score
+        fx.teams[team].set_score(score);    // update the score
+    }
+
+    break; case data_sound: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte sample;
+        readByte(lebuf, count, sample);     // sample #
+        if (replaying && count < msglen) {
+            NLubyte rx, ry;
+            readByte(lebuf, count, rx);
+            readByte(lebuf, count, ry);
+            if (current_room.first != rx || current_room.second != ry)
+                break;
+        }
+        if (sample < NUM_OF_SAMPLES)
+            addThreadMessage(new TM_Sound(sample));
+        #endif
+    }
+
+    break; case data_pup_visible: {
+        NLubyte iid, kind, spos;
+        readByte(lebuf, count, iid);        // item id
+        readByte(lebuf, count, kind);       // kind
+        fx.item[iid].kind = static_cast<Powerup::Pup_type>(kind);
+        readByte(lebuf, count, spos);       // screen x
+        fx.item[iid].px = spos;
+        readByte(lebuf, count, spos);       // screen y
+        fx.item[iid].py = spos;
+        NLushort coord;
+        readShort(lebuf, count, coord);     // pos x
+        fx.item[iid].x = coord;
+        readShort(lebuf, count, coord);     // pos y
+        fx.item[iid].y = coord;
+    }
+
+    break; case data_pup_picked: {
+        NLubyte iid;
+        readByte(lebuf, count, iid);
+        fx.item[iid].kind = Powerup::pup_unused;        // no more!
+    }
+
+    break; case data_pup_timer: {
+        NLubyte iid;
+        NLushort pup_time;
+        readByte(lebuf, count, iid);    //kind
+        readShort(lebuf, count, pup_time);  //amount of time
+        if (me >= 0) {
+            if (iid == Powerup::pup_turbo)
+                fx.player[me].item_turbo_time = time + pup_time;
+            else if (iid == Powerup::pup_shadow)
+                fx.player[me].item_shadow_time = time + pup_time;
+            else if (iid == Powerup::pup_power)
+                fx.player[me].item_power_time = time + pup_time;
+        }
+    }
+
+    break; case data_weapon_change: {
+        NLubyte level;
+        readByte(lebuf, count, level);
+        if (me >= 0)
+            fx.player[me].weapon = level;
+    }
+
+    break; case data_map_change: {
+        map_ready = false;  // map NOT ready anymore: must load/change
+        #ifndef DEDICATED_SERVER_ONLY
+        want_map_exit = false;      // and player does not want to exit the map anymore
+        want_map_exit_delayed = false;
+        deadAfterHighlighted = true;
+
+        // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
+        if (!replaying) {
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, data_map_exit_off);
+            client->send_message(lebuf, count);
+        }
+        #endif
+
+        fx.teams[0].remove_flags();
+        fx.teams[1].remove_flags();
+        fx.wild_flags.clear();
+        for (int i = 0; i < MAX_ROCKETS; ++i)
+            fx.rock[i].owner = -1;
+        NLushort crc;
+        readShort(lebuf, count, crc);
+        string mapname, maptitle;
+        readStr(lebuf, count, mapname);
+        readStr(lebuf, count, maptitle);
+        NLubyte map_nr, total_maps;
+        readByte(lebuf, count, map_nr);
+        readByte(lebuf, count, total_maps);
+        #ifndef DEDICATED_SERVER_ONLY
+        current_map = map_nr;
+        if (map_vote == current_map)
+            map_vote = -1;
+        old_map = fx.map.title;
+        #endif
+        if (me != -1) {
+            fx.player[me].oldx = -1;
+            fx.player[me].oldy = -1;
+        }
+        if (count < msglen)
+            readByte(lebuf, count, remove_flags);
+        else
+            remove_flags = 0;
+        if (replaying) {
+            NLulong map_length;
+            readLong(lebuf, count, map_length);
+            stringstream stream;
+            stream.write(lebuf + count, map_length);
+            count += map_length;
+            fx.map.parse_file(log, stream);
+            #ifndef DEDICATED_SERVER_ONLY
+            fd.map = fx.map;
+            #endif
+            log("Map loaded from the replay: %s", fx.map.title.c_str());
+            remove_useless_flags();
+            mapChanged = true;
+            map_ready = true;
+            #ifndef DEDICATED_SERVER_ONLY
+            current_room = pair<int, int>();
+            if (!spectating)
+                break;
+            #endif
+        }
+        else
+            addThreadMessage(new TM_MapChange(mapname, crc));
+        #ifndef DEDICATED_SERVER_ONLY
+        const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
+        addThreadMessage(new TM_Text(msg_info, msg));
+        #endif
+    }
+
+    break; case data_world_reset:
+        #ifndef DEDICATED_SERVER_ONLY
+        if (replaying && !spectating)
+            break;
+        #endif
+        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+            pi->stats().finish_stats(time);
+        for (int iid = 0; iid < MAX_PICKUPS; ++iid)
+            fx.item[iid].kind = Powerup::pup_unused;
+        for (int i = 0; i < MAX_ROCKETS; ++i)
+            fx.rock[i].owner = -1;
+
+    break; case data_gameover_show: {
+        NLubyte plaque;
+        readByte(lebuf, count, plaque);
+        if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
+            gameover_plaque = plaque;
+            #ifndef DEDICATED_SERVER_ONLY
+            NLubyte score;
+            readByte(lebuf, count, score);  //RED team final score
+            red_final_score = score;
+            readByte(lebuf, count, score);  //BLUE team final score
+            blue_final_score = score;
+            NLubyte caplimit, timelimit;
+            readByte(lebuf, count, caplimit);
+            readByte(lebuf, count, timelimit);
+
+            string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
+            addThreadMessage(new TM_Text(msg_info, msg));
+            addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
+            msg.clear();
+            if (caplimit > 0)
+                msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
+            if (timelimit > 0) {
+                if (!msg.empty())
+                    msg += ' ';
+                msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
+            }
+            if (!msg.empty())
+                addThreadMessage(new TM_Text(msg_info, msg));
+            #endif
+            for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+                pi->stats().finish_stats(time);
         }
         else {
-            lebuf = client->receive_message(&msglen);
+            gameover_plaque = NEXTMAP_NONE;
+            #ifndef DEDICATED_SERVER_ONLY
+            if (stats_autoshowing) {
+                menusel = menu_none;
+                stats_autoshowing = false;
+            }
+            #endif
+        }
+    }
+
+    break; case data_start_game:
+        fx.teams[0].clear_stats();
+        fx.teams[1].clear_stats();
+        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+            pi->stats().clear(true);
+        gameover_plaque = NEXTMAP_NONE;
+        #ifndef DEDICATED_SERVER_ONLY
+        if (stats_autoshowing) {
+            menusel = menu_none;
+            stats_autoshowing = false;
+        }
+        deadAfterHighlighted = true;
+        #endif
+
+    break; case data_deathbringer: {
+        NLubyte team;
+        NLulong frameno;
+        NLubyte sx, sy;
+        readByte(lebuf, count, team);
+        readLong(lebuf, count, frameno);    // creation frame
+        readByte(lebuf, count, sx);
+        readByte(lebuf, count, sy);
+        NLushort hx, hy;
+        readShort(lebuf, count, hx);
+        readShort(lebuf, count, hy);
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Deathbringer(team, time + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
+        addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
+        #endif
+    }
+
+    break; case data_file_download: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte last;
+        NLushort chunkSize;
+        readShort(lebuf, count, chunkSize);     //chunk size
+        readByte(lebuf, count, last);       //"last chunk"?
+        process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
+        #endif
+    }
+
+    break; case data_registration_response: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte response;
+        readByte(lebuf, count, response);
+        if (response == 1)  // success
+            tournamentPassword.serverAcceptsToken();
+        else
+            tournamentPassword.serverRejectsToken();
+        #endif
+    }
+
+    break; case data_crap_update: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte pid, color, regStatus;
+        NLulong prank, pscore, nscore;
+        readByte(lebuf, count, pid);
+        readByte(lebuf, count, color);
+        readByte(lebuf, count, regStatus);
+        readLong(lebuf, count, prank);      //ranking#
+        readLong(lebuf, count, pscore);     //score
+        readLong(lebuf, count, nscore);     //score NEG v0.4.8
+        readLong(lebuf, count, max_world_rank);     //world players count
+        if (color < MAX_PLAYERS / 2)
+            fx.player[pid].set_color(color);
+        else
+            log("Invalid colour (%d) for player %d.", color, pid);
+        ClientLoginStatus ls;
+        ls.fromNetwork(regStatus);
+        const ClientLoginStatus& os = fx.player[me].reg_status;
+        const bool newMePrintout =
+            pid == me &&
+            (ls.token() != os.token() ||
+             (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.tournament() != os.tournament())) ||
+             ls.localAuth() != os.localAuth() ||
+             ls.admin() != os.admin());
+        if (newMePrintout) {
+            ostringstream msg;
+            msg << _("Status") << ": ";
+            if (ls.token()) {
+                if (ls.masterAuth()) {
+                    msg << _("master authorized") << ", ";
+                    if (ls.tournament())
+                        msg << _("recording");
+                    else
+                        msg << _("not recording");
+                }
+                else {
+                    msg << _("master auth pending") << ", ";
+                    if (ls.tournament())
+                        msg << _("will record");
+                    else
+                        msg << _("will not record");
+                }
+            }
+            else
+                msg << _("no tournament login");
+            if (ls.localAuth())
+                msg << "; " << _("locally authorized");
+            if (ls.admin())
+                msg << "; " << _("administrator");
+            addThreadMessage(new TM_Text(msg_info, msg.str()));
+        }
+        fx.player[pid].reg_status = ls;
+        fx.player[pid].rank = static_cast<int>(prank);
+        fx.player[pid].score = static_cast<int>(pscore);
+        fx.player[pid].neg_score = static_cast<int>(nscore);
+        // update new team powers
+        double power[2] = { 0, 0 };
+        for (int i = 0; i < fx.maxplayers; i++)
+            if (fx.player[i].used)
+                power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
+        for (int t = 0; t < 2; t++)
+            fx.teams[t].set_power(power[t]);
+        #endif
+    }
+
+    break; case data_map_time: {
+        #ifndef DEDICATED_SERVER_ONLY
+        int current_time, time_left;
+        readLong(lebuf, count, current_time);
+        readLong(lebuf, count, time_left);
+        map_start_time = static_cast<int>(time) - current_time;
+        if (time_left > 0) {
+            map_end_time = static_cast<int>(time) + time_left;
+            map_time_limit = true;
+        }
+        else
+            map_time_limit = false;
+        if (LOG_MESSAGE_TRAFFIC)
+            log("Map time received. Time left %d seconds.", time_left);
+        #endif
+    }
+
+    break; case data_reset_map_list: {
+        #ifndef DEDICATED_SERVER_ONLY
+        MutexDebug md("mapInfoMutex", __LINE__, log);
+        MutexLock ml(mapInfoMutex);
+        maps.clear();
+        mapListChangedAfterSort = true;
+        map_vote = -1;
+        #endif
+    }
+
+    break; case data_current_map: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte mapNr;
+        readByte(lebuf, count, mapNr);
+        current_map = mapNr;
+        #endif
+    }
+
+    break; case data_map_list: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte width, height, votes;
+        MapInfo mapinfo;
+        readStr(lebuf, count, mapinfo.title);
+        readStr(lebuf, count, mapinfo.author);
+        readByte(lebuf, count, width);
+        readByte(lebuf, count, height);
+        readByte(lebuf, count, votes);
+        mapinfo.width = width;
+        mapinfo.height = height;
+        mapinfo.votes = votes;
+        mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
+        MutexDebug md("mapInfoMutex", __LINE__, log);
+        MutexLock ml(mapInfoMutex);
+        maps.push_back(mapinfo);
+        mapListChangedAfterSort = true;
+        #endif
+    }
+
+    break; case data_map_vote: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLbyte map_nr;
+        readByte(lebuf, count, map_nr);
+        map_vote = map_nr;
+        #endif
+    }
+
+    break; case data_map_votes_update: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLbyte total, map_nr, votes;
+        readByte(lebuf, count, total);
+        MutexDebug md("mapInfoMutex", __LINE__, log);
+        MutexLock ml(mapInfoMutex);
+        for (int i = 0; i < total; i++) {
+            readByte(lebuf, count, map_nr);
+            readByte(lebuf, count, votes);
+            if (map_nr >= 0 && map_nr < static_cast<int>(maps.size())) {
+                maps[map_nr].votes = votes;
+                mapListChangedAfterSort = true;
+            }
+        }
+        #endif
+    }
+
+    break; case data_stats_ready: {
+        #ifndef DEDICATED_SERVER_ONLY
+        if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
+            switch (menu.options.game.showStats()) {
+            /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
+                break; case Menu_game::SS_players: menusel = menu_players;
+                break; default: nAssert(0);
+            }
+            stats_autoshowing = true;
+        }
+        #endif
+        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+            pi->stats().finish_stats(time);
+        #ifndef DEDICATED_SERVER_ONLY
+        if (menu.options.game.saveStats())
+            fx.save_stats("client_stats", old_map);
+        #endif
+    }
+
+    break; case data_capture: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        #ifndef DEDICATED_SERVER_ONLY
+        const bool wild_flag = pid & 0x80;
+        #endif
+        pid &= ~0x80;
+        fx.player[pid].stats().add_capture(time);
+        #ifndef DEDICATED_SERVER_ONLY
+        const int team = pid / TSIZE;
+        fx.teams[team].add_score(time - map_start_time, fx.player[pid].name);
+        string msg;
+        if (wild_flag)
+            msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);
+        else if (1 - team == 0)
+            msg = _("$1 CAPTURED THE RED FLAG!", fx.player[pid].name);
+        else
+            msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
+        addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
+        #endif
+    }
+
+    break; case data_kill: {
+        NLubyte attacker, target;
+        readByte(lebuf, count, attacker);
+        readByte(lebuf, count, target);
+        const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
+        //const bool carrier_defended = attacker & 0x40;
+        //const bool flag_defended = attacker & 0x20;
+        const bool flag = target & 0x80;
+        #ifndef DEDICATED_SERVER_ONLY
+        const bool wild_flag = target & 0x40;
+        #endif
+        attacker &= 0x1F;
+        target &= 0x1F;
+        const bool attacker_team = attacker / TSIZE;
+        const bool target_team = target / TSIZE;
+        const bool same_team = (attacker_team == target_team);
+        const bool known_attacker = fx.player[attacker].used;
+        #ifndef DEDICATED_SERVER_ONLY
+        string msg;
+        if (cause == DT_deathbringer) {
+            if (!known_attacker)
+                msg = _("$1 was choked.", fx.player[target].name);
+            else if (same_team)
+                msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+            else
+                msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
+            if (fx.player[target].onscreen)
+                addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
+        }
+        else if (cause == DT_collision) {
+            if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
+                msg = _("$1 received a mortal blow.", fx.player[target].name);
+            else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
+                msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
+            else
+                msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
+            if (fx.player[target].onscreen)
+                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+        }
+        else {
+            nAssert(cause == DT_rocket);
+            if (!known_attacker)    // this should never happen with the current code, but it's here for future
+                msg = _("$1 was nailed.", fx.player[target].name);
+            else if (same_team)
+                msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+            else
+                msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
+            if (fx.player[target].onscreen)
+                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+        }
+        if (menu.options.game.showKillMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        /*if (carrier_defended && known_attacker) {
+            if (attacker_team == 0)
+                msg = _("$1 defends the red carrier.", fx.player[attacker].name);
+            else
+                msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
+            addThreadMessage(new TM_Text(msg_info, msg));
+        }
+        if (flag_defended && known_attacker) {
+            if (attacker_team == 0)
+                msg = _("$1 defends the red flag.", fx.player[attacker].name);
+            else
+                msg = _("$1 defends the blue flag.", fx.player[attacker].name);
+            addThreadMessage(new TM_Text(msg_info, msg));
+        }*/
+        if (fx.player[target].stats().current_cons_kills() >= 10) {
+            if (!known_attacker)
+                msg = _("$1's killing spree was ended.", fx.player[target].name);
+            else
+                msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
+            if (menu.options.game.showKillMessages())
+                addThreadMessage(new TM_Text(msg_info, msg));
+        }
+        #endif
+        if (!same_team) {
+            if (known_attacker)
+                fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
+            fx.teams[attacker_team].add_kill();
+        }
+        fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
+        fx.teams[target_team].add_death();
+        if (flag) {
+            if (!same_team && known_attacker)
+                fx.player[attacker].stats().add_carrier_kill();
+            fx.player[target].stats().add_flag_drop(time);
+            fx.teams[target_team].add_flag_drop();
+            #ifndef DEDICATED_SERVER_ONLY
+            if (wild_flag)
+                msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
+            else if (1 - target_team == 0)
+                msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
+            else
+                msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
+            if (menu.options.game.showFlagMessages())
+                addThreadMessage(new TM_Text(msg_info, msg));
+            addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+            #endif
+        }
+        #ifndef DEDICATED_SERVER_ONLY
+        if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
+            if (attacker == me)
+                addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
+            msg = _("$1 is on a killing spree!", fx.player[attacker].name);
+            if (menu.options.game.showKillMessages())
+                addThreadMessage(new TM_Text(msg_info, msg));
+        }
+        #endif
+    }
+
+    break; case data_flag_take: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        const bool wild_flag = pid & 0x80;
+        pid &= ~0x80;
+        fx.player[pid].stats().add_flag_take(time, wild_flag);
+        const int team = pid / TSIZE;
+        fx.teams[team].add_flag_take();
+        #ifndef DEDICATED_SERVER_ONLY
+        string msg;
+        if (wild_flag)
+            msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
+        else if (1 - team == 0)
+            msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
+        else
+            msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
+        if (menu.options.game.showFlagMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        #endif
+    }
+
+    break; case data_flag_return: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        fx.player[pid].stats().add_flag_return();
+        fx.teams[pid / TSIZE].add_flag_return();
+        #ifndef DEDICATED_SERVER_ONLY
+        string msg;
+        if (pid / TSIZE == 0)
+            msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
+        else
+            msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
+        if (menu.options.game.showFlagMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
+        #endif
+    }
+
+    break; case data_flag_drop: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        #ifndef DEDICATED_SERVER_ONLY
+        const bool wild_flag = pid & 0x80;
+        #endif
+        pid &= ~0x80;
+        fx.player[pid].stats().add_flag_drop(time);
+        const int team = pid / TSIZE;
+        fx.teams[team].add_flag_drop();
+        #ifndef DEDICATED_SERVER_ONLY
+        string msg;
+        if (wild_flag)
+            msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
+        else if (1 - team == 0)
+            msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
+        else
+            msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
+        if (menu.options.game.showFlagMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+        #endif
+    }
+
+    break; case data_suicide: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        const bool flag = pid & 0x80;
+        #ifndef DEDICATED_SERVER_ONLY
+        const bool wild_flag = pid & 0x40;
+        #endif
+        pid &= ~0xC0;
+        const int team = pid / TSIZE;
+        #ifndef DEDICATED_SERVER_ONLY
+        if (fx.player[pid].stats().current_cons_kills() >= 10) {
+            const string msg = _("$1's killing spree was ended.", fx.player[pid].name);
+            if (menu.options.game.showKillMessages())
+                addThreadMessage(new TM_Text(msg_info, msg));
+        }
+        #endif
+        fx.player[pid].stats().add_suicide(static_cast<int>(time));
+        fx.teams[team].add_suicide();
+        if (flag) {
+            fx.player[pid].stats().add_flag_drop(time);
+            fx.teams[team].add_flag_drop();
+            #ifndef DEDICATED_SERVER_ONLY
+            string msg;
+            if (wild_flag)
+                msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
+            else if (1 - team == 0)
+                msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
+            else
+                msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
+            if (menu.options.game.showFlagMessages())
+                addThreadMessage(new TM_Text(msg_info, msg));
+            addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+            #endif
+        }
+        #ifndef DEDICATED_SERVER_ONLY
+        if (fx.player[pid].onscreen)
+            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+        #endif
+    }
+
+    break; case data_players_present: {    // this is only sent immediately after connecting to the server
+        NLulong pp;
+        readLong(lebuf, count, pp);
+        for (int i = 0; i < MAX_PLAYERS; ++i) {
+            if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
+                continue;
+            if (pp & (1 << i)) {
+                fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
+                #ifndef DEDICATED_SERVER_ONLY
+                players_sb.push_back(&fx.player[i]);
+                #endif
+            }
+        }
+    }
+
+    break; case data_new_player: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        nAssert(!fx.player[pid].used);
+        fx.player[pid].clear(true, pid, "", pid / TSIZE);
+        #ifndef DEDICATED_SERVER_ONLY
+        players_sb.push_back(&fx.player[pid]);
+        #endif
+    }
+
+    break; case data_player_left: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        #ifndef DEDICATED_SERVER_ONLY
+        const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
+        addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
+        vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
+        nAssert(rm != players_sb.end());
+        players_sb.erase(rm);
+        #endif
+        nAssert(fx.player[pid].used);
+        fx.player[pid].used = false;
+    }
+
+    break; case data_team_change: {
+        NLubyte from, to, col1, col2;
+        readByte(lebuf, count, from);
+        readByte(lebuf, count, to);
+        readByte(lebuf, count, col1);
+        readByte(lebuf, count, col2);
+        const bool swap = (col2 != 255);
+        nAssert(fx.player[from].used && swap == fx.player[to].used);
+
+        #ifndef DEDICATED_SERVER_ONLY
+        string msg;
+        if (swap)
+            msg = _("$1 and $2 swapped teams.", fx.player[from].name, fx.player[to].name);
+        else if (to / TSIZE == 0)
+            msg = _("$1 moved to red team.", fx.player[from].name);
+        else
+            msg = _("$1 moved to blue team.", fx.player[from].name);
+        addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
+        #endif
+
+        if (swap) {
+            std::swap(fx.player[from], fx.player[to]);
+            fx.player[from].id = from;
+            fx.player[to  ].id =   to;
+            fx.player[from].set_team(from / TSIZE);
+            fx.player[to  ].set_team(  to / TSIZE);
+            // both players already exist in players_sb -> no changes
+        }
+        else {
+            fx.player[to] = fx.player[from];
+            fx.player[from].used = false;
+            fx.player[to].id = to;
+            fx.player[to].set_team(to / TSIZE);
+            #ifndef DEDICATED_SERVER_ONLY
+            vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);
+            nAssert(rm != players_sb.end());
+            players_sb.erase(rm);
+            players_sb.push_back(&fx.player[to]);
+            #endif
+        }
+
+        if (from == me || to == me) {
+            #ifndef DEDICATED_SERVER_ONLY
+            want_change_teams = false;
+            #endif
+            me = (me == from) ? to : from;
+        }
+
+        #ifndef DEDICATED_SERVER_ONLY
+        if (col1 < MAX_PLAYERS / 2)
+            fx.player[to].set_color(col1);
+        else
+            log("Invalid colour (%d) for player %d.", col1, to);
+        #endif
+        fx.player[to].stats().kill(static_cast<int>(time), true);
+        fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
+        if (swap) {
+            #ifndef DEDICATED_SERVER_ONLY
+            if (col2 < MAX_PLAYERS / 2)
+                fx.player[from].set_color(col2);
+            else
+                log("Invalid colour (%d) for player %d.", col2, from);
+            #endif
+            fx.player[from].stats().kill(static_cast<int>(time), true);
+            fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
+        }
+    }
+
+    break; case data_spawn: {
+        NLubyte pid;
+        readByte(lebuf, count, pid);
+        fx.player[pid].stats().spawn(time);
+        if (!fx.player[pid].onscreen)   // this information is after the spawn
+            fx.player[pid].posUpdated = 0;  // (probably) not seen in this life, if seen before spawning, not valid anymore
+    }
+
+    break; case data_team_movements_shots: {
+        for (int i = 0; i < 2; i++) {
+            NLlong movement;
+            readLong(lebuf, count, movement);
+            fx.teams[i].set_movement(movement);
+            NLshort data;
+            readShort(lebuf, count, data);
+            fx.teams[i].set_shots(data);
+            readShort(lebuf, count, data);
+            fx.teams[i].set_hits(data);
+            readShort(lebuf, count, data);
+            fx.teams[i].set_shots_taken(data);
+        }
+    }
+
+    break; case data_team_stats: {
+        for (int i = 0; i < 2; i++) {
+            NLubyte data;
+            readByte(lebuf, count, data);
+            fx.teams[i].set_kills(data);
+            readByte(lebuf, count, data);
+            fx.teams[i].set_deaths(data);
+            readByte(lebuf, count, data);
+            fx.teams[i].set_suicides(data);
+            readByte(lebuf, count, data);
+            fx.teams[i].set_flags_taken(data);
+            readByte(lebuf, count, data);
+            fx.teams[i].set_flags_dropped(data);
+            readByte(lebuf, count, data);
+            fx.teams[i].set_flags_returned(data);
+        }
+    }
+
+    break; case data_movements_shots: {
+        NLubyte id;
+        readByte(lebuf, count, id);
+        // todo: check id
+        NLlong movement;
+        readLong(lebuf, count, movement);
+        fx.player[id].stats().set_movement(movement);
+        fx.player[id].stats().save_speed(time);
+        NLshort data;
+        readShort(lebuf, count, data);
+        fx.player[id].stats().set_shots(data);
+        readShort(lebuf, count, data);
+        fx.player[id].stats().set_hits(data);
+        readShort(lebuf, count, data);
+        fx.player[id].stats().set_shots_taken(data);
+    }
+
+    break; case data_stats: {
+        NLubyte id;
+        readByte(lebuf, count, id);
+        const bool flag = (id & 0x80);
+        const bool wild_flag = (id & 0x40);
+        const bool dead = (id & 0x20);
+        id &= 0x1F;
+        // todo: check id
+        Statistics& stats = fx.player[id].stats();
+        stats.set_flag(flag, wild_flag);
+        stats.set_dead(dead);
+        NLubyte data;
+        readByte(lebuf, count, data);
+        stats.set_kills(data);
+        readByte(lebuf, count, data);
+        stats.set_deaths(data);
+        readByte(lebuf, count, data);
+        stats.set_cons_kills(data);
+        readByte(lebuf, count, data);
+        stats.set_current_cons_kills(data);
+        readByte(lebuf, count, data);
+        stats.set_cons_deaths(data);
+        readByte(lebuf, count, data);
+        stats.set_current_cons_deaths(data);
+        readByte(lebuf, count, data);
+        stats.set_suicides(data);
+        readByte(lebuf, count, data);
+        stats.set_captures(data);
+        readByte(lebuf, count, data);
+        stats.set_flags_taken(data);
+        readByte(lebuf, count, data);
+        stats.set_flags_dropped(data);
+        readByte(lebuf, count, data);
+        stats.set_flags_returned(data);
+        readByte(lebuf, count, data);
+        stats.set_carriers_killed(data);
+        int ldata;
+        readLong(lebuf, count, ldata);
+        stats.set_start_time(time - ldata);
+        readLong(lebuf, count, ldata);
+        stats.set_lifetime(ldata);
+        stats.set_spawn_time(time);
+        readLong(lebuf, count, ldata);
+        stats.set_flag_carrying_time(ldata);
+        stats.set_flag_take_time(time);
+    }
+
+    break; case data_name_authorization_request:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_NameAuthorizationRequest());
+        #endif
+
+    break; case data_server_settings: {
+        NLubyte caplimit, timelimit, extratime;
+        NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+        readByte(lebuf, count, caplimit);
+        readByte(lebuf, count, timelimit);
+        readByte(lebuf, count, extratime);
+        readShort(lebuf, count, misc1);
+        readShort(lebuf, count, pupMin);
+        readShort(lebuf, count, pupMax);
+        readShort(lebuf, count, pupAddTime);
+        readShort(lebuf, count, pupMaxTime);
+        fx.physics.read(lebuf, count);
+        #ifndef DEDICATED_SERVER_ONLY
+        fd.physics = fx.physics;
+
+        log("Server friction/drag/acceleration %f/%f/%f",
+            fx.physics.fric, fx.physics.drag, fx.physics.accel);
+        log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
+            fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
+        log("Server ff/dbff/rocketspeed %f/%f/%f",
+            fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
+
+        ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
+        out << hostname << '\n';
+        out << "friction     " << fx.physics.fric << '\n';
+        out << "drag         " << fx.physics.drag << '\n';
+        out << "acceleration " << fx.physics.accel << '\n';
+        out << "brake_acceleration " << fx.physics.brake_mul << '\n';
+        out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
+        out << "run_acceleration   " << fx.physics.run_mul << '\n';
+        out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
+        out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
+        out << "rocket_speed " << fx.physics.rocket_speed << '\n';
+        out.close();
+
+        addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
+        #endif
+    }
+
+    break; case data_5_min_left:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_info, _("*** Five minutes remaining")));
+        addThreadMessage(new TM_Sound(SAMPLE_5_MIN_LEFT));
+        #endif
+
+    break; case data_1_min_left:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_info, _("*** One minute remaining")));
+        addThreadMessage(new TM_Sound(SAMPLE_1_MIN_LEFT));
+        #endif
+
+    break; case data_30_s_left:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_info, _("*** 30 seconds remaining")));
+        #endif
+
+    break; case data_time_out:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_info, _("*** Time out - CTF game over")));
+        #endif
+
+    break; case data_extra_time_out:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_info, _("*** Extra-time out - CTF game over")));
+        #endif
+
+    break; case data_normal_time_out: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte sudden_death;
+        readByte(lebuf, count, sudden_death);
+        string msg = _("*** Normal time out - extra-time started");
+        if (sudden_death & 0x01)
+            msg += " " + _("(sudden death)");
+        addThreadMessage(new TM_Text(msg_info, msg));
+        #endif
+    }
+
+    break; case data_map_change_info: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte votes, needed;
+        NLshort vote_block_time;
+        readByte(lebuf, count, votes);
+        readByte(lebuf, count, needed);
+        readShort(lebuf, count, vote_block_time);
+        string msg = _("*** $1/$2 votes for mapchange.", itoa(votes), itoa(needed));
+        if (vote_block_time > 0)
+            msg += ' ' + _("(All players needed for $1 more seconds.)", itoa(vote_block_time));
+        addThreadMessage(new TM_Text(msg_info, msg));
+        #endif
+    }
+
+    break; case data_too_much_talk:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_warning, _("Too much talk. Chill...")));
+        #endif
+
+    break; case data_mute_notification:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_warning, _("You are muted. You can't send messages.")));
+        #endif
+
+    break; case data_tournament_update_failed:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_warning, _("Updating your tournament score failed!")));
+        #endif
+
+    break; case data_player_mute: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte pid, mode;
+        string admin;
+        readByte(lebuf, count, pid);
+        readByte(lebuf, count, mode);
+        readStr(lebuf, count, admin);
+        if (admin.empty())
+            admin = _("The admin");
+        if (pid == me) {
+            string msg;
+            if (mode == 0)
+                msg = _("You have been unmuted (you can send messages again).");
+            else if (mode == 1)
+                msg = _("You have been muted by $1 (you can't send messages).", admin);
+            else
+                nAssert(0);     // The silent mute should not be known by the muted player.
+            addThreadMessage(new TM_Text(msg_warning, msg));
+        }
+        else {
+            string msg;
+            if (mode == 0)
+                msg = _("$1 has unmuted $2.", admin, fx.player[pid].name);
+            else
+                msg = _("$1 has muted $2.", admin, fx.player[pid].name);
+            addThreadMessage(new TM_Text(msg_info, msg));
+        }
+        #endif
+    }
+
+    break; case data_player_kick: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte pid;
+        NLlong minutes;
+        string admin;
+        readByte(lebuf, count, pid);
+        readLong(lebuf, count, minutes);
+        readStr(lebuf, count, admin);
+        if (admin.empty())
+            admin = _("The admin");
+        if (pid == me) {
+            string msg;
+            if (minutes == 0)
+                msg = _("You are being kicked from this server by $1!", admin);
+            else
+                msg = _("$1 has BANNED you from this server for $2!", admin, approxTime(minutes * 60));
+            addThreadMessage(new TM_Text(msg_warning, msg));
+        }
+        else {
+            string msg;
+            if (minutes == 0)
+                msg = _("$1 has kicked $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
+            else
+                msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
+            addThreadMessage(new TM_Text(msg_info, msg));
+        }
+        #endif
+    }
+
+    break; case data_disconnecting: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte time;
+        readByte(lebuf, count, time);
+        const string msg = _("Disconnecting in $1...", itoa(time));
+        addThreadMessage(new TM_Text(msg_warning, msg));
+        #endif
+    }
+
+    break; case data_idlekick_warning: {
+        #ifndef DEDICATED_SERVER_ONLY
+        NLubyte time;
+        readByte(lebuf, count, time);
+        const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
+        addThreadMessage(new TM_Text(msg_warning, msg));
+        #endif
+    }
+
+    break; case data_broken_map:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
+        #endif
+
+    break; default:
+        if (code < data_reserved_range_first || code > data_reserved_range_last) {
+            log.error("Server sent an unknown message code: " + itoa(code) + ", length " + itoa(msglen));
+            addThreadMessage(new TM_DoDisconnect());
+            return; // don't process the rest of the messages
+        }
+        // just ignore commands in reserved range: they're probably some extension we don't have to care about
+    }
+}
+
+void Client::process_incoming_data(const char* data, int length) {
+    MutexDebug md("frameMutex", __LINE__, log);
+    MutexLock ml(frameMutex);
+
+    if (!connected && !replaying) // means that the connection notification is still in the thread message queue
+        return;
+
+    lastpackettime = get_time();
+
+    if (replaying) {
+        #ifndef DEDICATED_SERVER_ONLY
+        int replay_pos = process_replay_frame_data(data, length);
+        while (replay_pos < length) {
+            int msglen;
+            readLong(data, replay_pos, msglen);
+            process_message(data + replay_pos, msglen);
+            replay_pos += msglen;
+        }
+        #endif
+    }
+    else {
+        if (!process_live_frame_data(data, length)) {
+            addThreadMessage(new TM_DoDisconnect());
+            return;
+        }
+        for (;;) {
+            int msglen;
+            const char* const lebuf = client->receive_message(&msglen);
             if (lebuf == 0)
                 break;
+            process_message(lebuf, msglen);
         }
-
-        int count = 0;
-        NLubyte code;
-        readByte(lebuf, count, code);
-
-        if (LOG_MESSAGE_TRAFFIC)
-            log("Message from server, code = %i, length = %i bytes", code, msglen);
-
-        //parse rest of message
-        switch (static_cast<Network_data_code>(code)) {
-        /*break;*/ case data_name_update: {
-                NLubyte pid;
-                string name;
-                readByte(lebuf, count, pid);
-                readStr(lebuf, count, name);
-                if (check_name(name)) {
-                    if (fx.player[pid].name.empty()) {
-                        addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
-                        addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
-                    }
-                    else if (fx.player[pid].name != " " && fx.player[pid].name != name)    // " " is the case with players already in game when connecting
-                        addThreadMessage(new TM_Text(msg_info, _("$1 changed name to $2.", fx.player[pid].name, name)));
-                    fx.player[pid].name = name;
-                }
-                else
-                    log.error("Invalid name for player " + itoa(pid) + '.');
-            }
-
-            break; case data_text_message: {
-                #ifndef DEDICATED_SERVER_ONLY
-                char byte;
-                readByte(lebuf, count, byte);
-                const Message_type type = static_cast<Message_type>(byte);
-                string chatmsg;
-                readStr(lebuf, count, chatmsg);
-                if (find_nonprintable_char(chatmsg)) {
-                    log.error("Server sent non-printable characters in a message.");
-                    addThreadMessage(new TM_DoDisconnect());
-                    break;
-                }
-                // This is a kludge because of compatibility.
-                // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
-                if (type == msg_server) {
-                    if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
-                        chatmsg = _("Your vote has no effect until you vote for a specific map.");
-                        want_map_exit_delayed = true;
-                    }
-                    string::size_type pos = chatmsg.find(" decided it's time for a map change.");
-                    if (pos != string::npos) {
-                        const string name = chatmsg.substr(0, pos);
-                        chatmsg = _("$1 decided it's time for a map change.", name);
-                    }
-                    pos = chatmsg.find(" decided it's time for a restart.");
-                    if (pos != string::npos) {
-                        const string name = chatmsg.substr(0, pos);
-                        chatmsg = _("$1 decided it's time for a restart.", name);
-                    }
-                }
-                addThreadMessage(new TM_Text(type, chatmsg));
-                if (type == msg_team || type == msg_normal)
-                    addThreadMessage(new TM_Sound(SAMPLE_TALK));
-                #endif
-            }
-
-            break; case data_first_packet: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);    //"who am I"
-                me = pid;
-
-                NLubyte color;
-                readByte(lebuf, count, color);
-                if (color < MAX_PLAYERS / 2)
-                    fx.player[pid].set_color(color);
-                else
-                    log("Invalid colour (%d) for player %d (me).", color, pid);
-
-                NLubyte map_nr;
-                readByte(lebuf, count, map_nr); //current map number
-                #ifndef DEDICATED_SERVER_ONLY
-                current_map = map_nr;
-                #endif
-
-                NLubyte score;
-                readByte(lebuf, count, score);
-                fx.teams[0].set_score(score);
-                if (fx.teams[0].captures().size() == 0) // only if just joined the server
-                    fx.teams[0].set_base_score(score);
-                readByte(lebuf, count, score);
-                fx.teams[1].set_score(score);
-                if (fx.teams[1].captures().size() == 0) // only if just joined the server
-                    fx.teams[1].set_base_score(score);
-
-                // room is probably changed
-                fx.player[me].oldx = -1;
-                fx.player[me].oldy = -1;
-            }
-
-            break; case data_frags_update: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte pid;
-                NLulong frags;
-                readByte(lebuf, count, pid);
-                readLong(lebuf, count, frags);
-                fx.player[pid].stats().set_frags(frags);
-                stable_sort(players_sb.begin(), players_sb.end(), compare_players);
-                #endif
-            }
-
-            break; case data_flag_update: {
-                NLubyte team;
-                NLbyte flags;
-                readByte(lebuf, count, team);
-                readByte(lebuf, count, flags);
-                bool new_flag = false;
-                for (int i = 0; i < flags; i++) {
-                    if (team == 2) {
-                        if (i >= static_cast<int>(fx.wild_flags.size())) {
-                            fx.wild_flags.push_back(Flag(WorldCoords()));
-                            new_flag = true;
-                        }
-                    }
-                    else if (i >= static_cast<int>(fx.teams[team].flags().size())) {
-                        fx.teams[team].add_flag(WorldCoords());
-                        new_flag = true;
-                    }
-                    NLubyte carried;
-                    readByte(lebuf, count, carried);    // 0==not carried 1==carried
-                    if (carried == 0) {
-                        //not carried: update position
-                        NLubyte px, py;
-                        NLshort x, y;
-                        readByte(lebuf, count, px);
-                        readByte(lebuf, count, py);
-                        readShort(lebuf, count, x);
-                        readShort(lebuf, count, y);
-                        const WorldCoords pos(px, py, x, y);
-                        bool was_carried;
-                        if (team == 2) {
-                            was_carried = fx.wild_flags[i].carried();
-                            fx.wild_flags[i].move(pos);
-                            fx.wild_flags[i].drop();
-                        }
-                        else {
-                            was_carried = fx.teams[team].flag(i).carried();
-                            fx.teams[team].drop_flag(i, pos);
-                        }
-                        if (!new_flag && was_carried)
-                            if (team == 2)
-                                fx.wild_flags[i].set_return_time(time);
-                            else
-                                fx.teams[team].set_flag_return_time(i, time);
-                    }
-                    else {
-                        //carried: get carrier
-                        NLubyte carrier;
-                        readByte(lebuf, count, carrier);
-                        if (team == 2)
-                            fx.wild_flags[i].take(carrier);
-                        else
-                            fx.teams[team].steal_flag(i, carrier);
-                        addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
-                    }
-                }
-            }
-
-            break; case data_rocket_fire: {
-                if (!map_ready)
-                    break;
-
-                NLubyte rpow, rdir;
-                NLubyte rids[16];
-                NLulong frameno;
-                NLubyte rteampower;
-
-                readByte(lebuf, count, rpow);
-                readByte(lebuf, count, rdir);
-                for (int k = 0; k < rpow; k++)
-                    readByte(lebuf, count, rids[k]);
-                readLong(lebuf, count, frameno);    // frame # of shot
-                readByte(lebuf, count, rteampower); // team (bit 1) and power (bit 0)
-                const bool power = ((rteampower & 1) != 0);
-                const int team = (rteampower & 2) >> 1;
-
-                NLubyte rpx, rpy;
-                NLshort rx, ry;
-                readByte(lebuf, count, rpx);
-                readByte(lebuf, count, rpy);
-                numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
-                readShort(lebuf, count, rx);
-                readShort(lebuf, count, ry);
-
-                ClientPhysicsCallbacks cb(*this);
-                fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
-
-                #ifndef DEDICATED_SERVER_ONLY
-                //play sound if rocket on screen
-                if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy || replaying && current_room.first == rpx && current_room.second == rpy)
-                    if (power)
-                        addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
-                    else
-                        addThreadMessage(new TM_Sound(SAMPLE_FIRE));
-                #endif
-            }
-
-            break; case data_old_rocket_visible: {
-                if (!map_ready)
-                    break;
-
-                NLubyte rockid, rdir;
-                NLulong frameno;
-                NLubyte rteampower;
-                readByte(lebuf, count, rockid);
-                readByte(lebuf, count, rdir);
-                readLong(lebuf, count, frameno);
-                readByte(lebuf, count, rteampower);
-                const bool power = ((rteampower & 1) != 0);
-                const int team = (rteampower & 2) >> 1;
-
-                NLubyte rpx, rpy;
-                readByte(lebuf, count, rpx);
-                readByte(lebuf, count, rpy);
-                numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
-                NLshort rx, ry;
-                readShort(lebuf, count, rx);
-                readShort(lebuf, count, ry);
-
-                ClientPhysicsCallbacks cb(*this);
-                fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
-                // no sound
-            }
-
-            break; case data_rocket_delete: {
-                if (!map_ready)
-                    break;
-
-                NLubyte rockid;
-                readByte(lebuf, count, rockid);
-                fx.rock[rockid].owner = -1;
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte target;
-                readByte(lebuf, count, target);
-                //hit position
-                NLshort rokx, roky;
-                readShort(lebuf, count, rokx);
-                readShort(lebuf, count, roky);
-                if (target != 255) {    // hit player
-                    if (target != 252)  // not shield hit -> blink player
-                        fx.player[target].hitfx = time + .3;
-                    addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py, time));
-                    if (!replaying || current_room.first == fx.rock[rockid].px && current_room.second == fx.rock[rockid].py)
-                        addThreadMessage(new TM_Sound(SAMPLE_HIT));
-                }
-                #endif
-            }
-
-            break; case data_power_collision: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte target;
-                readByte(lebuf, count, target);
-                fx.player[target].hitfx = time + .3;
-                if (replaying && count < msglen) {
-                    NLubyte rx, ry;
-                    readByte(lebuf, count, rx);
-                    readByte(lebuf, count, ry);
-                    if (current_room.first != rx || current_room.second != ry)
-                        break;
-                }
-                addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
-                #endif
-            }
-
-            break; case data_score_update: {
-                NLubyte team;
-                NLubyte score;
-                readByte(lebuf, count, team);       //team
-                readByte(lebuf, count, score);      //new score
-                fx.teams[team].set_score(score);    // update the score
-            }
-
-            break; case data_sound: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte sample;
-                readByte(lebuf, count, sample);     // sample #
-                if (replaying && count < msglen) {
-                    NLubyte rx, ry;
-                    readByte(lebuf, count, rx);
-                    readByte(lebuf, count, ry);
-                    if (current_room.first != rx || current_room.second != ry)
-                        break;
-                }
-                if (sample < NUM_OF_SAMPLES)
-                    addThreadMessage(new TM_Sound(sample));
-                #endif
-            }
-
-            break; case data_pup_visible: {
-                NLubyte iid, kind, spos;
-                readByte(lebuf, count, iid);        // item id
-                readByte(lebuf, count, kind);       // kind
-                fx.item[iid].kind = static_cast<Powerup::Pup_type>(kind);
-                readByte(lebuf, count, spos);       // screen x
-                fx.item[iid].px = spos;
-                readByte(lebuf, count, spos);       // screen y
-                fx.item[iid].py = spos;
-                NLushort coord;
-                readShort(lebuf, count, coord);     // pos x
-                fx.item[iid].x = coord;
-                readShort(lebuf, count, coord);     // pos y
-                fx.item[iid].y = coord;
-            }
-
-            break; case data_pup_picked: {
-                NLubyte iid;
-                readByte(lebuf, count, iid);
-                fx.item[iid].kind = Powerup::pup_unused;        // no more!
-            }
-
-            break; case data_pup_timer: {
-                NLubyte iid;
-                NLushort pup_time;
-                readByte(lebuf, count, iid);    //kind
-                readShort(lebuf, count, pup_time);  //amount of time
-                if (me >= 0) {
-                    if (iid == Powerup::pup_turbo)
-                        fx.player[me].item_turbo_time = time + pup_time;
-                    else if (iid == Powerup::pup_shadow)
-                        fx.player[me].item_shadow_time = time + pup_time;
-                    else if (iid == Powerup::pup_power)
-                        fx.player[me].item_power_time = time + pup_time;
-                }
-            }
-
-            break; case data_weapon_change: {
-                NLubyte level;
-                readByte(lebuf, count, level);
-                if (me >= 0)
-                    fx.player[me].weapon = level;
-            }
-
-            break; case data_map_change: {
-                map_ready = false;  // map NOT ready anymore: must load/change
-                #ifndef DEDICATED_SERVER_ONLY
-                want_map_exit = false;      // and player does not want to exit the map anymore
-                want_map_exit_delayed = false;
-                deadAfterHighlighted = true;
-
-                // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
-                if (!replaying) {
-                    char lebuf[16]; int count = 0;
-                    writeByte(lebuf, count, data_map_exit_off);
-                    client->send_message(lebuf, count);
-                }
-                #endif
-
-                fx.teams[0].remove_flags();
-                fx.teams[1].remove_flags();
-                fx.wild_flags.clear();
-                for (int i = 0; i < MAX_ROCKETS; ++i)
-                    fx.rock[i].owner = -1;
-                NLushort crc;
-                readShort(lebuf, count, crc);
-                string mapname, maptitle;
-                readStr(lebuf, count, mapname);
-                readStr(lebuf, count, maptitle);
-                NLubyte map_nr, total_maps;
-                readByte(lebuf, count, map_nr);
-                readByte(lebuf, count, total_maps);
-                #ifndef DEDICATED_SERVER_ONLY
-                current_map = map_nr;
-                if (map_vote == current_map)
-                    map_vote = -1;
-                old_map = fx.map.title;
-                #endif
-                if (me != -1) {
-                    fx.player[me].oldx = -1;
-                    fx.player[me].oldy = -1;
-                }
-                if (count < msglen)
-                    readByte(lebuf, count, remove_flags);
-                else
-                    remove_flags = 0;
-                if (replaying) {
-                    NLulong map_length;
-                    readLong(lebuf, count, map_length);
-                    stringstream stream;
-                    stream.write(lebuf + count, map_length);
-                    fx.map.parse_file(log, stream);
-                    #ifndef DEDICATED_SERVER_ONLY
-                    fd.map = fx.map;
-                    #endif
-                    log("Map loaded from the replay: %s", fx.map.title.c_str());
-                    remove_useless_flags();
-                    mapChanged = true;
-                    map_ready = true;
-                    #ifndef DEDICATED_SERVER_ONLY
-                    current_room = pair<int, int>();
-                    if (!spectating)
-                        break;
-                    #endif
-                }
-                else
-                    addThreadMessage(new TM_MapChange(mapname, crc));
-                #ifndef DEDICATED_SERVER_ONLY
-                const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
-                addThreadMessage(new TM_Text(msg_info, msg));
-                #endif
-            }
-
-            break; case data_world_reset:
-                #ifndef DEDICATED_SERVER_ONLY
-                if (replaying && !spectating)
-                    break;
-                #endif
-                for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                    pi->stats().finish_stats(time);
-                for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-                    fx.item[iid].kind = Powerup::pup_unused;
-                for (int i = 0; i < MAX_ROCKETS; ++i)
-                    fx.rock[i].owner = -1;
-
-            break; case data_gameover_show: {
-                NLubyte plaque;
-                readByte(lebuf, count, plaque);
-                if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
-                    gameover_plaque = plaque;
-                    #ifndef DEDICATED_SERVER_ONLY
-                    NLubyte score;
-                    readByte(lebuf, count, score);  //RED team final score
-                    red_final_score = score;
-                    readByte(lebuf, count, score);  //BLUE team final score
-                    blue_final_score = score;
-                    NLubyte caplimit, timelimit;
-                    readByte(lebuf, count, caplimit);
-                    readByte(lebuf, count, timelimit);
-
-                    string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                    addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
-                    msg.clear();
-                    if (caplimit > 0)
-                        msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
-                    if (timelimit > 0) {
-                        if (!msg.empty())
-                            msg += ' ';
-                        msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
-                    }
-                    if (!msg.empty())
-                        addThreadMessage(new TM_Text(msg_info, msg));
-                    #endif
-                    for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                        pi->stats().finish_stats(time);
-                }
-                else {
-                    gameover_plaque = NEXTMAP_NONE;
-                    #ifndef DEDICATED_SERVER_ONLY
-                    if (stats_autoshowing) {
-                        menusel = menu_none;
-                        stats_autoshowing = false;
-                    }
-                    #endif
-                }
-            }
-
-            break; case data_start_game:
-                fx.teams[0].clear_stats();
-                fx.teams[1].clear_stats();
-                for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                    pi->stats().clear(true);
-                gameover_plaque = NEXTMAP_NONE;
-                #ifndef DEDICATED_SERVER_ONLY
-                if (stats_autoshowing) {
-                    menusel = menu_none;
-                    stats_autoshowing = false;
-                }
-                deadAfterHighlighted = true;
-                #endif
-
-            break; case data_deathbringer: {
-                NLubyte team;
-                NLulong frameno;
-                NLubyte sx, sy;
-                readByte(lebuf, count, team);
-                readLong(lebuf, count, frameno);    // creation frame
-                readByte(lebuf, count, sx);
-                readByte(lebuf, count, sy);
-                NLushort hx, hy;
-                readShort(lebuf, count, hx);
-                readShort(lebuf, count, hy);
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Deathbringer(team, time + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
-                addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
-                #endif
-            }
-
-            break; case data_file_download: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte last;
-                NLushort chunkSize;
-                readShort(lebuf, count, chunkSize);     //chunk size
-                readByte(lebuf, count, last);       //"last chunk"?
-                process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
-                #endif
-            }
-
-            break; case data_registration_response: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte response;
-                readByte(lebuf, count, response);
-                if (response == 1)  // success
-                    tournamentPassword.serverAcceptsToken();
-                else
-                    tournamentPassword.serverRejectsToken();
-                #endif
-            }
-
-            break; case data_crap_update: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte pid, color, regStatus;
-                NLulong prank, pscore, nscore;
-                readByte(lebuf, count, pid);
-                readByte(lebuf, count, color);
-                readByte(lebuf, count, regStatus);
-                readLong(lebuf, count, prank);      //ranking#
-                readLong(lebuf, count, pscore);     //score
-                readLong(lebuf, count, nscore);     //score NEG v0.4.8
-                readLong(lebuf, count, max_world_rank);     //world players count
-                if (color < MAX_PLAYERS / 2)
-                    fx.player[pid].set_color(color);
-                else
-                    log("Invalid colour (%d) for player %d.", color, pid);
-                ClientLoginStatus ls;
-                ls.fromNetwork(regStatus);
-                const ClientLoginStatus& os = fx.player[me].reg_status;
-                const bool newMePrintout =
-                    pid == me &&
-                    (ls.token() != os.token() ||
-                     (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.tournament() != os.tournament())) ||
-                     ls.localAuth() != os.localAuth() ||
-                     ls.admin() != os.admin());
-                if (newMePrintout) {
-                    ostringstream msg;
-                    msg << _("Status") << ": ";
-                    if (ls.token()) {
-                        if (ls.masterAuth()) {
-                            msg << _("master authorized") << ", ";
-                            if (ls.tournament())
-                                msg << _("recording");
-                            else
-                                msg << _("not recording");
-                        }
-                        else {
-                            msg << _("master auth pending") << ", ";
-                            if (ls.tournament())
-                                msg << _("will record");
-                            else
-                                msg << _("will not record");
-                        }
-                    }
-                    else
-                        msg << _("no tournament login");
-                    if (ls.localAuth())
-                        msg << "; " << _("locally authorized");
-                    if (ls.admin())
-                        msg << "; " << _("administrator");
-                    addThreadMessage(new TM_Text(msg_info, msg.str()));
-                }
-                fx.player[pid].reg_status = ls;
-                fx.player[pid].rank = static_cast<int>(prank);
-                fx.player[pid].score = static_cast<int>(pscore);
-                fx.player[pid].neg_score = static_cast<int>(nscore);
-                // update new team powers
-                double power[2] = { 0, 0 };
-                for (int i = 0; i < fx.maxplayers; i++)
-                    if (fx.player[i].used)
-                        power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
-                for (int t = 0; t < 2; t++)
-                    fx.teams[t].set_power(power[t]);
-                #endif
-            }
-
-            break; case data_map_time: {
-                #ifndef DEDICATED_SERVER_ONLY
-                int current_time, time_left;
-                readLong(lebuf, count, current_time);
-                readLong(lebuf, count, time_left);
-                map_start_time = static_cast<int>(time) - current_time;
-                if (time_left > 0) {
-                    map_end_time = static_cast<int>(time) + time_left;
-                    map_time_limit = true;
-                }
-                else
-                    map_time_limit = false;
-                if (LOG_MESSAGE_TRAFFIC)
-                    log("Map time received. Time left %d seconds.", time_left);
-                #endif
-            }
-
-            break; case data_reset_map_list: {
-                #ifndef DEDICATED_SERVER_ONLY
-                MutexDebug md("mapInfoMutex", __LINE__, log);
-                MutexLock ml(mapInfoMutex);
-                maps.clear();
-                mapListChangedAfterSort = true;
-                map_vote = -1;
-                #endif
-            }
-
-            break; case data_current_map: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte mapNr;
-                readByte(lebuf, count, mapNr);
-                current_map = mapNr;
-                #endif
-            }
-
-            break; case data_map_list: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte width, height, votes;
-                MapInfo mapinfo;
-                readStr(lebuf, count, mapinfo.title);
-                readStr(lebuf, count, mapinfo.author);
-                readByte(lebuf, count, width);
-                readByte(lebuf, count, height);
-                readByte(lebuf, count, votes);
-                mapinfo.width = width;
-                mapinfo.height = height;
-                mapinfo.votes = votes;
-                mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
-                MutexDebug md("mapInfoMutex", __LINE__, log);
-                MutexLock ml(mapInfoMutex);
-                maps.push_back(mapinfo);
-                mapListChangedAfterSort = true;
-                #endif
-            }
-
-            break; case data_map_vote: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLbyte map_nr;
-                readByte(lebuf, count, map_nr);
-                map_vote = map_nr;
-                #endif
-            }
-
-            break; case data_map_votes_update: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLbyte total, map_nr, votes;
-                readByte(lebuf, count, total);
-                MutexDebug md("mapInfoMutex", __LINE__, log);
-                MutexLock ml(mapInfoMutex);
-                for (int i = 0; i < total; i++) {
-                    readByte(lebuf, count, map_nr);
-                    readByte(lebuf, count, votes);
-                    if (map_nr >= 0 && map_nr < static_cast<int>(maps.size())) {
-                        maps[map_nr].votes = votes;
-                        mapListChangedAfterSort = true;
-                    }
-                }
-                #endif
-            }
-
-            break; case data_stats_ready: {
-                #ifndef DEDICATED_SERVER_ONLY
-                if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
-                    switch (menu.options.game.showStats()) {
-                    /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
-                        break; case Menu_game::SS_players: menusel = menu_players;
-                        break; default: nAssert(0);
-                    }
-                    stats_autoshowing = true;
-                }
-                #endif
-                for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                    pi->stats().finish_stats(time);
-                #ifndef DEDICATED_SERVER_ONLY
-                if (menu.options.game.saveStats())
-                    fx.save_stats("client_stats", old_map);
-                #endif
-            }
-
-            break; case data_capture: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                #ifndef DEDICATED_SERVER_ONLY
-                const bool wild_flag = pid & 0x80;
-                #endif
-                pid &= ~0x80;
-                fx.player[pid].stats().add_capture(time);
-                #ifndef DEDICATED_SERVER_ONLY
-                const int team = pid / TSIZE;
-                fx.teams[team].add_score(time - map_start_time, fx.player[pid].name);
-                string msg;
-                if (wild_flag)
-                    msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);
-                else if (1 - team == 0)
-                    msg = _("$1 CAPTURED THE RED FLAG!", fx.player[pid].name);
-                else
-                    msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
-                addThreadMessage(new TM_Text(msg_info, msg));
-                addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
-                #endif
-            }
-
-            break; case data_kill: {
-                NLubyte attacker, target;
-                readByte(lebuf, count, attacker);
-                readByte(lebuf, count, target);
-                const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
-                //const bool carrier_defended = attacker & 0x40;
-                //const bool flag_defended = attacker & 0x20;
-                const bool flag = target & 0x80;
-                #ifndef DEDICATED_SERVER_ONLY
-                const bool wild_flag = target & 0x40;
-                #endif
-                attacker &= 0x1F;
-                target &= 0x1F;
-                const bool attacker_team = attacker / TSIZE;
-                const bool target_team = target / TSIZE;
-                const bool same_team = (attacker_team == target_team);
-                const bool known_attacker = fx.player[attacker].used;
-                #ifndef DEDICATED_SERVER_ONLY
-                string msg;
-                if (cause == DT_deathbringer) {
-                    if (!known_attacker)
-                        msg = _("$1 was choked.", fx.player[target].name);
-                    else if (same_team)
-                        msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
-                    else
-                        msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
-                    if (fx.player[target].onscreen)
-                        addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
-                }
-                else if (cause == DT_collision) {
-                    if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
-                        msg = _("$1 received a mortal blow.", fx.player[target].name);
-                    else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
-                        msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
-                    else
-                        msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
-                    if (fx.player[target].onscreen)
-                        addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-                }
-                else {
-                    nAssert(cause == DT_rocket);
-                    if (!known_attacker)    // this should never happen with the current code, but it's here for future
-                        msg = _("$1 was nailed.", fx.player[target].name);
-                    else if (same_team)
-                        msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
-                    else
-                        msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
-                    if (fx.player[target].onscreen)
-                        addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-                }
-                if (menu.options.game.showKillMessages())
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                /*if (carrier_defended && known_attacker) {
-                    if (attacker_team == 0)
-                        msg = _("$1 defends the red carrier.", fx.player[attacker].name);
-                    else
-                        msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                }
-                if (flag_defended && known_attacker) {
-                    if (attacker_team == 0)
-                        msg = _("$1 defends the red flag.", fx.player[attacker].name);
-                    else
-                        msg = _("$1 defends the blue flag.", fx.player[attacker].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                }*/
-                if (fx.player[target].stats().current_cons_kills() >= 10) {
-                    if (!known_attacker)
-                        msg = _("$1's killing spree was ended.", fx.player[target].name);
-                    else
-                        msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
-                    if (menu.options.game.showKillMessages())
-                        addThreadMessage(new TM_Text(msg_info, msg));
-                }
-                #endif
-                if (!same_team) {
-                    if (known_attacker)
-                        fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
-                    fx.teams[attacker_team].add_kill();
-                }
-                fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
-                fx.teams[target_team].add_death();
-                if (flag) {
-                    if (!same_team && known_attacker)
-                        fx.player[attacker].stats().add_carrier_kill();
-                    fx.player[target].stats().add_flag_drop(time);
-                    fx.teams[target_team].add_flag_drop();
-                    #ifndef DEDICATED_SERVER_ONLY
-                    if (wild_flag)
-                        msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
-                    else if (1 - target_team == 0)
-                        msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
-                    else
-                        msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
-                    if (menu.options.game.showFlagMessages())
-                        addThreadMessage(new TM_Text(msg_info, msg));
-                    addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-                    #endif
-                }
-                #ifndef DEDICATED_SERVER_ONLY
-                if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
-                    if (attacker == me)
-                        addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
-                    msg = _("$1 is on a killing spree!", fx.player[attacker].name);
-                    if (menu.options.game.showKillMessages())
-                        addThreadMessage(new TM_Text(msg_info, msg));
-                }
-                #endif
-            }
-
-            break; case data_flag_take: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                const bool wild_flag = pid & 0x80;
-                pid &= ~0x80;
-                fx.player[pid].stats().add_flag_take(time, wild_flag);
-                const int team = pid / TSIZE;
-                fx.teams[team].add_flag_take();
-                #ifndef DEDICATED_SERVER_ONLY
-                string msg;
-                if (wild_flag)
-                    msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
-                else if (1 - team == 0)
-                    msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
-                else
-                    msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
-                if (menu.options.game.showFlagMessages())
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                #endif
-            }
-
-            break; case data_flag_return: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                fx.player[pid].stats().add_flag_return();
-                fx.teams[pid / TSIZE].add_flag_return();
-                #ifndef DEDICATED_SERVER_ONLY
-                string msg;
-                if (pid / TSIZE == 0)
-                    msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
-                else
-                    msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
-                if (menu.options.game.showFlagMessages())
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
-                #endif
-            }
-
-            break; case data_flag_drop: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                #ifndef DEDICATED_SERVER_ONLY
-                const bool wild_flag = pid & 0x80;
-                #endif
-                pid &= ~0x80;
-                fx.player[pid].stats().add_flag_drop(time);
-                const int team = pid / TSIZE;
-                fx.teams[team].add_flag_drop();
-                #ifndef DEDICATED_SERVER_ONLY
-                string msg;
-                if (wild_flag)
-                    msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
-                else if (1 - team == 0)
-                    msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
-                else
-                    msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
-                if (menu.options.game.showFlagMessages())
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-                #endif
-            }
-
-            break; case data_suicide: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                const bool flag = pid & 0x80;
-                #ifndef DEDICATED_SERVER_ONLY
-                const bool wild_flag = pid & 0x40;
-                #endif
-                pid &= ~0xC0;
-                const int team = pid / TSIZE;
-                #ifndef DEDICATED_SERVER_ONLY
-                if (fx.player[pid].stats().current_cons_kills() >= 10) {
-                    const string msg = _("$1's killing spree was ended.", fx.player[pid].name);
-                    if (menu.options.game.showKillMessages())
-                        addThreadMessage(new TM_Text(msg_info, msg));
-                }
-                #endif
-                fx.player[pid].stats().add_suicide(static_cast<int>(time));
-                fx.teams[team].add_suicide();
-                if (flag) {
-                    fx.player[pid].stats().add_flag_drop(time);
-                    fx.teams[team].add_flag_drop();
-                    #ifndef DEDICATED_SERVER_ONLY
-                    string msg;
-                    if (wild_flag)
-                        msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
-                    else if (1 - team == 0)
-                        msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
-                    else
-                        msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
-                    if (menu.options.game.showFlagMessages())
-                        addThreadMessage(new TM_Text(msg_info, msg));
-                    addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-                    #endif
-                }
-                #ifndef DEDICATED_SERVER_ONLY
-                if (fx.player[pid].onscreen)
-                    addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-                #endif
-            }
-
-            break; case data_players_present: {    // this is only sent immediately after connecting to the server
-                NLulong pp;
-                readLong(lebuf, count, pp);
-                for (int i = 0; i < MAX_PLAYERS; ++i) {
-                    if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
-                        continue;
-                    if (pp & (1 << i)) {
-                        fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
-                        #ifndef DEDICATED_SERVER_ONLY
-                        players_sb.push_back(&fx.player[i]);
-                        #endif
-                    }
-                }
-            }
-
-            break; case data_new_player: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                nAssert(!fx.player[pid].used);
-                fx.player[pid].clear(true, pid, "", pid / TSIZE);
-                #ifndef DEDICATED_SERVER_ONLY
-                players_sb.push_back(&fx.player[pid]);
-                #endif
-            }
-
-            break; case data_player_left: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                #ifndef DEDICATED_SERVER_ONLY
-                const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
-                addThreadMessage(new TM_Text(msg_info, msg));
-                addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
-                vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
-                nAssert(rm != players_sb.end());
-                players_sb.erase(rm);
-                #endif
-                nAssert(fx.player[pid].used);
-                fx.player[pid].used = false;
-            }
-
-            break; case data_team_change: {
-                NLubyte from, to, col1, col2;
-                readByte(lebuf, count, from);
-                readByte(lebuf, count, to);
-                readByte(lebuf, count, col1);
-                readByte(lebuf, count, col2);
-                const bool swap = (col2 != 255);
-                nAssert(fx.player[from].used && swap == fx.player[to].used);
-
-                #ifndef DEDICATED_SERVER_ONLY
-                string msg;
-                if (swap)
-                    msg = _("$1 and $2 swapped teams.", fx.player[from].name, fx.player[to].name);
-                else if (to / TSIZE == 0)
-                    msg = _("$1 moved to red team.", fx.player[from].name);
-                else
-                    msg = _("$1 moved to blue team.", fx.player[from].name);
-                addThreadMessage(new TM_Text(msg_info, msg));
-                addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
-                #endif
-
-                if (swap) {
-                    std::swap(fx.player[from], fx.player[to]);
-                    fx.player[from].id = from;
-                    fx.player[to  ].id =   to;
-                    fx.player[from].set_team(from / TSIZE);
-                    fx.player[to  ].set_team(  to / TSIZE);
-                    // both players already exist in players_sb -> no changes
-                }
-                else {
-                    fx.player[to] = fx.player[from];
-                    fx.player[from].used = false;
-                    fx.player[to].id = to;
-                    fx.player[to].set_team(to / TSIZE);
-                    #ifndef DEDICATED_SERVER_ONLY
-                    vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);
-                    nAssert(rm != players_sb.end());
-                    players_sb.erase(rm);
-                    players_sb.push_back(&fx.player[to]);
-                    #endif
-                }
-
-                if (from == me || to == me) {
-                    #ifndef DEDICATED_SERVER_ONLY
-                    want_change_teams = false;
-                    #endif
-                    me = (me == from) ? to : from;
-                }
-
-                #ifndef DEDICATED_SERVER_ONLY
-                if (col1 < MAX_PLAYERS / 2)
-                    fx.player[to].set_color(col1);
-                else
-                    log("Invalid colour (%d) for player %d.", col1, to);
-                #endif
-                fx.player[to].stats().kill(static_cast<int>(time), true);
-                fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
-                if (swap) {
-                    #ifndef DEDICATED_SERVER_ONLY
-                    if (col2 < MAX_PLAYERS / 2)
-                        fx.player[from].set_color(col2);
-                    else
-                        log("Invalid colour (%d) for player %d.", col2, from);
-                    #endif
-                    fx.player[from].stats().kill(static_cast<int>(time), true);
-                    fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
-                }
-            }
-
-            break; case data_spawn: {
-                NLubyte pid;
-                readByte(lebuf, count, pid);
-                fx.player[pid].stats().spawn(time);
-                if (!fx.player[pid].onscreen)   // this information is after the spawn
-                    fx.player[pid].posUpdated = 0;  // (probably) not seen in this life, if seen before spawning, not valid anymore
-            }
-
-            break; case data_team_movements_shots: {
-                for (int i = 0; i < 2; i++) {
-                    NLlong movement;
-                    readLong(lebuf, count, movement);
-                    fx.teams[i].set_movement(movement);
-                    NLshort data;
-                    readShort(lebuf, count, data);
-                    fx.teams[i].set_shots(data);
-                    readShort(lebuf, count, data);
-                    fx.teams[i].set_hits(data);
-                    readShort(lebuf, count, data);
-                    fx.teams[i].set_shots_taken(data);
-                }
-            }
-
-            break; case data_team_stats: {
-                for (int i = 0; i < 2; i++) {
-                    NLubyte data;
-                    readByte(lebuf, count, data);
-                    fx.teams[i].set_kills(data);
-                    readByte(lebuf, count, data);
-                    fx.teams[i].set_deaths(data);
-                    readByte(lebuf, count, data);
-                    fx.teams[i].set_suicides(data);
-                    readByte(lebuf, count, data);
-                    fx.teams[i].set_flags_taken(data);
-                    readByte(lebuf, count, data);
-                    fx.teams[i].set_flags_dropped(data);
-                    readByte(lebuf, count, data);
-                    fx.teams[i].set_flags_returned(data);
-                }
-            }
-
-            break; case data_movements_shots: {
-                NLubyte id;
-                readByte(lebuf, count, id);
-                // todo: check id
-                NLlong movement;
-                readLong(lebuf, count, movement);
-                fx.player[id].stats().set_movement(movement);
-                fx.player[id].stats().save_speed(time);
-                NLshort data;
-                readShort(lebuf, count, data);
-                fx.player[id].stats().set_shots(data);
-                readShort(lebuf, count, data);
-                fx.player[id].stats().set_hits(data);
-                readShort(lebuf, count, data);
-                fx.player[id].stats().set_shots_taken(data);
-            }
-
-            break; case data_stats: {
-                NLubyte id;
-                readByte(lebuf, count, id);
-                const bool flag = (id & 0x80);
-                const bool wild_flag = (id & 0x40);
-                const bool dead = (id & 0x20);
-                id &= 0x1F;
-                // todo: check id
-                Statistics& stats = fx.player[id].stats();
-                stats.set_flag(flag, wild_flag);
-                stats.set_dead(dead);
-                NLubyte data;
-                readByte(lebuf, count, data);
-                stats.set_kills(data);
-                readByte(lebuf, count, data);
-                stats.set_deaths(data);
-                readByte(lebuf, count, data);
-                stats.set_cons_kills(data);
-                readByte(lebuf, count, data);
-                stats.set_current_cons_kills(data);
-                readByte(lebuf, count, data);
-                stats.set_cons_deaths(data);
-                readByte(lebuf, count, data);
-                stats.set_current_cons_deaths(data);
-                readByte(lebuf, count, data);
-                stats.set_suicides(data);
-                readByte(lebuf, count, data);
-                stats.set_captures(data);
-                readByte(lebuf, count, data);
-                stats.set_flags_taken(data);
-                readByte(lebuf, count, data);
-                stats.set_flags_dropped(data);
-                readByte(lebuf, count, data);
-                stats.set_flags_returned(data);
-                readByte(lebuf, count, data);
-                stats.set_carriers_killed(data);
-                int ldata;
-                readLong(lebuf, count, ldata);
-                stats.set_start_time(time - ldata);
-                readLong(lebuf, count, ldata);
-                stats.set_lifetime(ldata);
-                stats.set_spawn_time(time);
-                readLong(lebuf, count, ldata);
-                stats.set_flag_carrying_time(ldata);
-                stats.set_flag_take_time(time);
-            }
-
-            break; case data_name_authorization_request:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_NameAuthorizationRequest());
-                #endif
-
-            break; case data_server_settings: {
-                NLubyte caplimit, timelimit, extratime;
-                NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
-                readByte(lebuf, count, caplimit);
-                readByte(lebuf, count, timelimit);
-                readByte(lebuf, count, extratime);
-                readShort(lebuf, count, misc1);
-                readShort(lebuf, count, pupMin);
-                readShort(lebuf, count, pupMax);
-                readShort(lebuf, count, pupAddTime);
-                readShort(lebuf, count, pupMaxTime);
-                fx.physics.read(lebuf, count);
-                #ifndef DEDICATED_SERVER_ONLY
-                fd.physics = fx.physics;
-
-                log("Server friction/drag/acceleration %f/%f/%f",
-                    fx.physics.fric, fx.physics.drag, fx.physics.accel);
-                log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
-                    fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
-                log("Server ff/dbff/rocketspeed %f/%f/%f",
-                    fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
-
-                ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
-                out << hostname << '\n';
-                out << "friction     " << fx.physics.fric << '\n';
-                out << "drag         " << fx.physics.drag << '\n';
-                out << "acceleration " << fx.physics.accel << '\n';
-                out << "brake_acceleration " << fx.physics.brake_mul << '\n';
-                out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
-                out << "run_acceleration   " << fx.physics.run_mul << '\n';
-                out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
-                out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
-                out << "rocket_speed " << fx.physics.rocket_speed << '\n';
-                out.close();
-
-                addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
-                #endif
-            }
-
-            break; case data_5_min_left:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_info, _("*** Five minutes remaining")));
-                addThreadMessage(new TM_Sound(SAMPLE_5_MIN_LEFT));
-                #endif
-
-            break; case data_1_min_left:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_info, _("*** One minute remaining")));
-                addThreadMessage(new TM_Sound(SAMPLE_1_MIN_LEFT));
-                #endif
-
-            break; case data_30_s_left:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_info, _("*** 30 seconds remaining")));
-                #endif
-
-            break; case data_time_out:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_info, _("*** Time out - CTF game over")));
-                #endif
-
-            break; case data_extra_time_out:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_info, _("*** Extra-time out - CTF game over")));
-                #endif
-
-            break; case data_normal_time_out: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte sudden_death;
-                readByte(lebuf, count, sudden_death);
-                string msg = _("*** Normal time out - extra-time started");
-                if (sudden_death & 0x01)
-                    msg += " " + _("(sudden death)");
-                addThreadMessage(new TM_Text(msg_info, msg));
-                #endif
-            }
-
-            break; case data_map_change_info: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte votes, needed;
-                NLshort vote_block_time;
-                readByte(lebuf, count, votes);
-                readByte(lebuf, count, needed);
-                readShort(lebuf, count, vote_block_time);
-                string msg = _("*** $1/$2 votes for mapchange.", itoa(votes), itoa(needed));
-                if (vote_block_time > 0)
-                    msg += ' ' + _("(All players needed for $1 more seconds.)", itoa(vote_block_time));
-                addThreadMessage(new TM_Text(msg_info, msg));
-                #endif
-            }
-
-            break; case data_too_much_talk:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_warning, _("Too much talk. Chill...")));
-                #endif
-
-            break; case data_mute_notification:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_warning, _("You are muted. You can't send messages.")));
-                #endif
-
-            break; case data_tournament_update_failed:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_warning, _("Updating your tournament score failed!")));
-                #endif
-
-            break; case data_player_mute: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte pid, mode;
-                string admin;
-                readByte(lebuf, count, pid);
-                readByte(lebuf, count, mode);
-                readStr(lebuf, count, admin);
-                if (admin.empty())
-                    admin = _("The admin");
-                if (pid == me) {
-                    string msg;
-                    if (mode == 0)
-                        msg = _("You have been unmuted (you can send messages again).");
-                    else if (mode == 1)
-                        msg = _("You have been muted by $1 (you can't send messages).", admin);
-                    else
-                        nAssert(0);     // The silent mute should not be known by the muted player.
-                    addThreadMessage(new TM_Text(msg_warning, msg));
-                }
-                else {
-                    string msg;
-                    if (mode == 0)
-                        msg = _("$1 has unmuted $2.", admin, fx.player[pid].name);
-                    else
-                        msg = _("$1 has muted $2.", admin, fx.player[pid].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                }
-                #endif
-            }
-
-            break; case data_player_kick: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte pid;
-                NLlong minutes;
-                string admin;
-                readByte(lebuf, count, pid);
-                readLong(lebuf, count, minutes);
-                readStr(lebuf, count, admin);
-                if (admin.empty())
-                    admin = _("The admin");
-                if (pid == me) {
-                    string msg;
-                    if (minutes == 0)
-                        msg = _("You are being kicked from this server by $1!", admin);
-                    else
-                        msg = _("$1 has BANNED you from this server for $2!", admin, approxTime(minutes * 60));
-                    addThreadMessage(new TM_Text(msg_warning, msg));
-                }
-                else {
-                    string msg;
-                    if (minutes == 0)
-                        msg = _("$1 has kicked $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
-                    else
-                        msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
-                    addThreadMessage(new TM_Text(msg_info, msg));
-                }
-                #endif
-            }
-
-            break; case data_disconnecting: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte time;
-                readByte(lebuf, count, time);
-                const string msg = _("Disconnecting in $1...", itoa(time));
-                addThreadMessage(new TM_Text(msg_warning, msg));
-                #endif
-            }
-
-            break; case data_idlekick_warning: {
-                #ifndef DEDICATED_SERVER_ONLY
-                NLubyte time;
-                readByte(lebuf, count, time);
-                const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
-                addThreadMessage(new TM_Text(msg_warning, msg));
-                #endif
-            }
-
-            break; case data_broken_map:
-                #ifndef DEDICATED_SERVER_ONLY
-                addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
-                #endif
-
-            break; default:
-                if (code < data_reserved_range_first || code > data_reserved_range_last) {
-                    log.error("Server sent an unknown message code: " + itoa(code) + ", length " + itoa(msglen));
-                    addThreadMessage(new TM_DoDisconnect());
-                    return; // don't process the rest of the messages
-                }
-                // just ignore commands in reserved range: they're probably some extension we don't have to care about
-        }
-        replay_pos += msglen;
     }
 }
 
