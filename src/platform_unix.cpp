@@ -185,7 +185,8 @@ void platInitAfterAllegro() {
     signal(SIGHUP, closeSignalHandler);
     signal(SIGINT, closeSignalHandler);
     signal(SIGTERM, closeSignalHandler);
-    signal(SIGPIPE, SIG_IGN);
+
+    signal(SIGPIPE, SIG_IGN); // we don't want closed (TCP) sockets to kill us
 }
 #endif // RELAY
 
