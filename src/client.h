@@ -496,7 +496,6 @@ class Client {
     #else
     static const bool replaying = false; // To avoid lots of ifdefs.
     #endif
-
     volatile bool mapChanged;
     #ifndef DEDICATED_SERVER_ONLY
     volatile bool predrawNeeded;

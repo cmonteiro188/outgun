@@ -675,7 +675,7 @@ string Server::load_game_mod(bool reload, const string& singleLine) { // if sing
         pupConfig.pups_max = 0;
 
     if ((pupConfig.pups_min_percentage == pupConfig.pups_max_percentage && pupConfig.pups_min > pupConfig.pups_max) ||
-        pupConfig.pups_max == 0)    // if they are in different units, only the value of 0 is comparable
+          pupConfig.pups_max == 0)    // if they are in different units, only the value of 0 is comparable
         pupConfig.pups_min = pupConfig.pups_max;
 
     if (!server_website_url.empty() && singleLine.empty())
