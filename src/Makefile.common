@@ -22,6 +22,8 @@ BASE_OBJS = world.o servnet.o server.o commont.o main.o names.o nameauth.o \
 CLIENT_OBJS = antialias.o graphics.o colour.o client_menus.o sounds.o menu.o \
 	mappic.o
 
+RELAY_OBJS = relay.o platform_relay.o timer.o nassert_mon.o network_relay.o
+
 MAKEDEP_BASE_OBJS = tools/makedep.o
 
 MON_BASE_OBJS = tools/srvmonit.o nassert_mon.o network.o utility.o globals.o \
@@ -54,6 +56,9 @@ ifdef LINUX
  PLATFORM_OBJS = platform_unix.o
  EXTRA_OBJS =
  #LFLAGS =
+ MON_LFLAGS = -pthread
+ RELAY_LFLAGS = 
+ RELAY_LIBS = -lNL
 
 else
 
@@ -80,6 +85,9 @@ else
  PLATFORM_OBJS = platform_win.o
  EXTRA_OBJS = icon.res
  LFLAGS = -mwindows
+ MON_LFLAGS = -mconsole
+ RELAY_LFLAGS = -mconsole
+ RELAY_LIBS = -lNL
 
 endif
 
@@ -99,11 +107,12 @@ MAKEDEP_LIBS = $(STLP_LIBS)
 MON_OBJS = $(MON_BASE_OBJS) $(PLATFORM_OBJS)
 MON_LIBS = $(BASE_LIBS) $(ALLEG_LIBS) $(STLP_LIBS)
 
-all: outgun makedep srvmonit
+all: outgun makedep srvmonit relay
 
 outgun: ../outgun$(EXE_SUFFIX)
 makedep: tools/makedep$(EXE_SUFFIX)
 srvmonit: tools/srvmonit$(EXE_SUFFIX)
+relay: ../relay$(EXE_SUFFIX)
 
 ../outgun$(EXE_SUFFIX): $(OBJS)
 	$(GCC) $(LFLAGS) -o $@ $(OBJS) $(LIBS)
@@ -112,8 +121,20 @@ srvmonit: tools/srvmonit$(EXE_SUFFIX)
 tools/makedep$(EXE_SUFFIX): $(MAKEDEP_OBJS)
 	$(GCC) $(LFLAGS) -o $@ $(MAKEDEP_OBJS) $(MAKEDEP_LIBS)
 
-tools/srvmonit$(EXE_SUFFIX): $(MON_OBJS)
-	$(GCC) $(LFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)
+tools/srvmonit$(EXE_SUFFIX) : $(MON_OBJS)
+	$(GCC) $(MON_LFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)
+
+../relay$(EXE_SUFFIX) : $(RELAY_OBJS)
+	$(GCC) $(CFLAGS) $(RELAY_LFLAGS) -o $@ $(RELAY_OBJS) $(RELAY_LIBS)
+
+nassert_mon.o : nassert.o
+	$(GCC) $(CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
+
+platform_relay.o : $(PLATFORM_OBJS)
+	$(GCC) $(CFLAGS) -DRELAY -DDISABLE_ENHANCED_NASSERT -c -o $@ platform_unix.cpp
+
+network_relay.o : network.o
+	$(GCC) $(CFLAGS) -DRELAY -DDISABLE_ENHANCED_NASSERT -c -o $@ network.cpp
 
 %.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
@@ -123,10 +144,7 @@ LEETNETCOMPILE = $(OBJCOMPILE)
 
 include Makefile.dependencies
 
-nassert_mon.o : nassert.o
-	$(GCC) $(CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
-
-PHONY: clean
+.PHONY: all outgun makedep srvmonit relay clean
 
 clean:
-	$(RM) $(OBJS) $(MAKEDEP_OBJS)
+	$(RM) $(OBJS) $(MAKEDEP_OBJS) $(RELAY_OBJS)
