@@ -4315,6 +4315,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 }
 
 void Client::start_replay(const std::string& filename) {
+    disconnect_command();
+    stop_replay();
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
     if (!replay)
@@ -4463,8 +4465,9 @@ void Client::stop_replay() {
 }
 
 void Client::start_spectating(const NLaddress& address) {
-    if (spectating || connected || replaying)
-        return;
+    disconnect_command();
+    stop_replay();
+
     log("Start spectating.");
     serverIP = address;
     nlDisable(NL_BLOCKING_IO);
