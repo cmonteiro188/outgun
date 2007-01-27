@@ -272,11 +272,12 @@ void ServerNetworking::send_player_crap_update(int cid, int pid, bool record_onl
     writeLong(lebuf, count, (NLulong)clid.neg_score);
     writeLong(lebuf, count, (NLulong)max_world_rank);
 
-    record_message(lebuf, count);
     if (record_only)
-        return;
-    if (cid == -1)
+        record_message(lebuf, count);
+    else if (cid == -1) {
+        record_message(lebuf, count);
         broadcast_message(lebuf, count);
+    }
     else
         server->send_message(cid, lebuf, count);
 }
