@@ -4218,7 +4218,13 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             MutexLock ml(frameMutex);
 
             ClientPhysicsCallbacks cb(*this);
-            if (menu.options.game.lagPrediction() && !replaying) {
+            if (replaying) {
+                if (!replay_stopped) {
+                    const double timeDelta = replay_paused ? 0 : (get_time() - frameReceiveTime) * 10. * replay_rate;
+                    fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, timeDelta);
+                }
+            }
+            else if (menu.options.game.lagPrediction()) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
                 NLubyte firstFrame, lastFrame;
@@ -4245,10 +4251,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                     }
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
-            else if (!replaying || !replay_stopped) {
+            else {
                 double timeDelta = (get_time() - frameReceiveTime) * 10.;
-                if (replaying)
-                    timeDelta *= replay_paused ? 0 : replay_rate;
                 fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta);
             }
 
