@@ -370,10 +370,10 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const
     x += text_length(font, ":") + char_w();
     const string text = maskChar ? string(value.length(), maskChar) : value;
     textout_ex(buffer, font, text.c_str(), x, y, col(Colour::menu_value), -1);
-    x += text_length(font, text);
     if (active)
         if (int(get_time() - blinkTime) % 2 == 0)
             vline(buffer, x + text_length(font, text.substr(0, cursor_pos)), y - 1, y + text_height(font) + 2, col(Colour::menu_value));
+    x += text_length(font, text);
     textout_ex(buffer, font, tail.c_str(), x, y, col(Colour::menu_value), -1);
 }
 
