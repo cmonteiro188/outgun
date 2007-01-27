@@ -1281,6 +1281,7 @@ void Server::chat(int pid, const string& message) {
                 network.player_message(pid, msg_server, "/unmute n   cancel muting of player with ID n");
                 network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've voted for one");
                 network.player_message(pid, msg_server, "/bot        manage bots");
+                network.player_message(pid, msg_server, "/set        manage server settings");
             }
         }
         else if (command == "info" && !info_message.empty()) {
