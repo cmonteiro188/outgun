@@ -1163,7 +1163,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     #ifndef DEDICATED_SERVER_ONLY
     readStr(data, count, hostname);
     m_serverInfo.clear();
-    m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten when config information
+    m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
     if (!menu.options.game.favoriteColors.values().empty()) {
         char lebuf[256]; int count = 0;
@@ -4080,7 +4080,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     gameshow = false;
     #ifndef DEDICATED_SERVER_ONLY
     replaying = false;
-	spectating = false;
+    spectating = false;
     #endif
 
     g_timeCounter.refresh();
@@ -4319,16 +4319,14 @@ bool Client::start_replay(istream& replay) {
     string identification;
     read(replay, identification, REPLAY_IDENTIFICATION.length());
     log("Identification: %s", identification.c_str());
-    if (identification != REPLAY_IDENTIFICATION) {
+    if (identification != REPLAY_IDENTIFICATION)
         return false;
-    }
 
     int replay_version;
     read(replay, replay_version);
     log("Replay version: %d", replay_version);
-    if (replay_version > REPLAY_VERSION) {   // incompatible replay
+    if (replay_version > REPLAY_VERSION) // incompatible replay
         return false;
-    }
 
     read(replay, replay_length);
     replay_first_frame_loaded = false;
@@ -4358,7 +4356,7 @@ bool Client::start_replay(istream& replay) {
     stats_autoshowing = false;
 
     m_serverInfo.clear();
-    m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten when config information
+    m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
     lastpackettime = get_time() + 4.0;
     averageLag = 0;
