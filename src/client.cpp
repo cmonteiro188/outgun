@@ -5925,8 +5925,6 @@ void Client::MCF_replay(Textarea& target) {
 }
 
 void Client::MCF_prepareReplayMenu() {
-    if (replaying)
-        stop_replay();
     menu.replays.reset();
     vector<pair<string, string> > replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
