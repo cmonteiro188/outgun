@@ -882,7 +882,8 @@ void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...
 
 //send a single message player-printf
 void ServerNetworking::player_message(int pid, Message_type type, const string& text, bool record_only) const {
-    if (pid != -1 && !world.player[pid].used)
+    static const int shell_pid = -2;
+    if (pid >= 0 && !world.player[pid].used)
         return;
     char lebuf[256];
     if (text.length() <= max_chat_message_length + maxPlayerNameLength + 2) {    // 2 = ": "
@@ -892,6 +893,15 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
         writeStr(lebuf, count, text);
         if (record_only)
             record_message(lebuf, count);
+        else if (pid == shell_pid) {
+            //send to the admin shell
+            if (shellssock != NL_INVALID) {
+                count = 0;
+                writeLong(lebuf, count, STA_GAME_TEXT);
+                writeStr(lebuf, count, text);
+                nlWrite(shellssock, lebuf, count);
+            }
+        }
         else if (pid == -1) {
             broadcast_message(lebuf, count);
             record_message(lebuf, count);
@@ -908,6 +918,15 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
             writeStr(lebuf, count, *li);
             if (record_only)
                 record_message(lebuf, count);
+            else if (pid == shell_pid) {
+                //send to the admin shell
+                if (shellssock != NL_INVALID) {
+                    count = 0;
+                    writeLong(lebuf, count, STA_GAME_TEXT);
+                    writeStr(lebuf, count, *li);
+                    nlWrite(shellssock, lebuf, count);
+                }
+            }
             else if (pid == -1) {
                 broadcast_message(lebuf, count);
                 record_message(lebuf, count);
@@ -2751,6 +2770,8 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
                 else {
                     if (find_nonprintable_char(buf))
                         log.error(_("Admin shell: unprintable characters, message ignored."));
+                    else if (buf[0] == '/')
+                        host->chat(-2, buf);
                     else
                         bprintf(msg_normal, "ADMIN: %s", buf);
                 }

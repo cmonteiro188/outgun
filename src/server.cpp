@@ -100,7 +100,7 @@ Server::~Server() { }
 void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
     if (world.player[pid].muted == mode || (world.player[pid].muted == 1 && mode == 2))
         return;
-    const string adminName = (admin == -1) ? "" : world.player[admin].name;
+    const string adminName = (admin < 0) ? "" : world.player[admin].name;
     const bool tellPlayer = (mode != 2 && (world.player[pid].muted != 2 || mode == 1));
     network.broadcast_mute_message(pid, mode, adminName, tellPlayer);
     logAdminAction(admin, (mode == 0 ? "unmuted" : mode == 1 ? "muted" : "silently muted"), pid);
@@ -108,7 +108,7 @@ void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = norma
 }
 
 void Server::doKickPlayer(int pid, int admin, int minutes) {  // if minutes > 0, it's really a ban
-    const string adminName = (admin == -1) ? "" : world.player[admin].name;
+    const string adminName = (admin < 0) ? "" : world.player[admin].name;
     network.broadcast_kick_message(pid, minutes, adminName);
     logAdminAction(admin, (minutes > 0 ? "banned for " + itoa(minutes) + " minutes" : "kicked"), pid);
     if (world.player[pid].kickTimer == 0)
@@ -135,10 +135,10 @@ void Server::banPlayer(int pid, int admin, int minutes) {
 void Server::logAdminAction(int admin, const string& action, int target) {
     string message;
     if (target == -1)
-        message = (admin == -1 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
+        message = (admin < 0 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
     else
         message = world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
-                  + action + " by " + (admin == -1 ? "admin shell user" : world.player[admin].name);
+                  + action + " by " + (admin < 0 ? "admin shell user" : world.player[admin].name);
     adminActionLog.put(message);
     network.sendTextToAdminShell(message);
 }
@@ -1246,11 +1246,12 @@ bool Server::isAdmin(int pid) const {
 }
 
 void Server::chat(int pid, const string& message) {
+    static const int shell_pid = -2;
     if (message.empty())
         return;
     // handle 'console' commands
     if (message[0] == '/') {
-        const bool admin = isAdmin(pid);
+        const bool admin = pid == shell_pid || isAdmin(pid);
 
         const string::size_type pos = message.find(' ', 1);
         const string command = message.substr(1, pos - 1);
@@ -1289,7 +1290,7 @@ void Server::chat(int pid, const string& message) {
         else if (command == "sayadmin" && sayadmin_enabled) {
             if (arguments.find_first_not_of(" ") != string::npos) {
                 ofstream log((wheregamedir + "log" + directory_separator + "sayadmin.log").c_str(), ios::out | ios::app);
-                log << date_and_time() << "  " << world.player[pid].name << ": " << arguments << endl;
+                log << date_and_time() << "  " << (pid == shell_pid ? "Shell admin" : world.player[pid].name) << ": " << arguments << endl;
                 network.forwardSayadminMessage(world.player[pid].cid, arguments);
                 network.player_message(pid, msg_server, "Your message has been logged. Thank you for your feedback!");
             }
@@ -1357,13 +1358,13 @@ void Server::chat(int pid, const string& message) {
         }
         else if (command == "forcemap" && admin) {
             // Make sure that these messages match with the ones in client.cpp.
-            if (world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
+            if (pid != shell_pid && world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 logAdminAction(pid, "forced a map change");
                 maprot[world.player[pid].mapVote].votes = 99;
             }
             else {
-                network.bprintf(msg_server, "%s decided it's time for a restart.", world.player[pid].name.c_str());
+                network.bprintf(msg_server, "%s decided it's time for a restart.", pid == shell_pid ? "Admin" : world.player[pid].name.c_str());
                 logAdminAction(pid, "forced a restart");
                 maprot[currmap].votes = 99;
             }
@@ -1469,7 +1470,7 @@ void Server::chat(int pid, const string& message) {
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
     }
-    else if (message.find_first_not_of(" ") != string::npos) {  // ignore messages that are all spaces
+    else if (pid != shell_pid && message.find_first_not_of(" ") != string::npos) {  // ignore messages that are all spaces
         //talk flood protection
         world.player[pid].talk_temp += world.player[pid].talk_hotness;
         world.player[pid].talk_hotness += 3.0;
