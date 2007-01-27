@@ -284,12 +284,11 @@ void Relay::send_data() {
             ++si;
             continue;
         }
-        // Check if the client has disconnected.
-        /*const unsigned temp_buffer_size = 10;
+        const unsigned temp_buffer_size = 10;
         NLbyte temp[temp_buffer_size];
         int result = nlRead(si->socket, temp, temp_buffer_size);
-        if (result != NL_INVALID)*/
-            const int result = send_data(si->socket, chunk);
+        if (result != NL_INVALID)
+            result = send_data(si->socket, chunk);
         if (result == NL_INVALID) {
             cout << "Spectator disconnected: " << getNlErrorString() << '\n';
             nlClose(si->socket);
