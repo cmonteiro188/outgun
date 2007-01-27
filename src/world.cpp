@@ -1568,7 +1568,7 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
         const int remaining_seconds = getTimeLeft() / 10;
         // time limit not very useful when only one player
         if (host->get_player_count() == 1)
-            map_time << " No time limit at the moment as you are the only player.";
+            map_time << " No time limit at the moment as there is only one player.";
         else if (remaining_seconds < 0) {
             const int extra_time_seconds = getExtraTimeLeft() / 10;
             if (extra_time_seconds > 0) {
