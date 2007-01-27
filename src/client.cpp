@@ -4344,7 +4344,11 @@ bool Client::start_replay(istream& replay) {
     replay_first_frame_loaded = false;
 
     read_string(replay, hostname);
-    const string caption = _("Replay on $1", hostname.substr(0, 32));
+    string caption;
+    if (spectating)
+        caption = _("Spectating on $1", hostname.substr(0, 32));
+    else
+        caption = _("Replay on $1", hostname.substr(0, 32));
     extConfig.statusOutput(caption);
 
     int maxplayers;
