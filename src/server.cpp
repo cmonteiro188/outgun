@@ -689,6 +689,7 @@ string Server::load_game_mod(bool reload, const string& singleLine) { // if sing
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used)
             network.send_server_settings(world.player[i]);
+    network.send_server_settings(-1, true);     // record
     network.send_map_time(-1);  // broadcast time to all, in case time limit has been changed
 
     return ret;
