@@ -1460,13 +1460,19 @@ void Server::chat(int pid, const string& message) {
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove, fill, balance, or ping.");
         }
         else if (command == "set" && admin) {
-            if (arguments.find_first_not_of(" ") != string::npos) {
+            if (arguments == "reset")
+                reset_settings(true);
+            else if (arguments.find_first_not_of(" ") != string::npos) {
                 const string feedback = load_game_mod(true, arguments);
                 if (!feedback.empty())
                     network.player_message(pid, msg_server, feedback);
             }
-            else
-                network.player_message(pid, msg_server, "For example to set capture limit to 8, type /set capture_limit 8");
+            else {
+                network.player_message(pid, msg_server, "Setting management commands:");
+                //network.player_message(pid, msg_server, "/set s      show the current value of setting s");
+                network.player_message(pid, msg_server, "/set s v    change the value of setting s to v");
+                network.player_message(pid, msg_server, "/set reset  reload all settings from gamemod");
+            }
         }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
