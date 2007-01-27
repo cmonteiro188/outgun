@@ -2949,11 +2949,11 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const 
 void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_visible);
-    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));
-    writeByte(lebuf, count, static_cast<NLubyte>(it.kind));
-    writeByte(lebuf, count, static_cast<NLubyte>(it.px));
+    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));  //what item
+    writeByte(lebuf, count, static_cast<NLubyte>(it.kind)); //kind
+    writeByte(lebuf, count, static_cast<NLubyte>(it.px));       //screen
     writeByte(lebuf, count, static_cast<NLubyte>(it.py));
-    writeShort(lebuf, count, static_cast<NLushort>(it.x));
+    writeShort(lebuf, count, static_cast<NLushort>(it.x));  //pos in screen
     writeShort(lebuf, count, static_cast<NLushort>(it.y));
     if (pid == -1)
         record_message(lebuf, count);
@@ -2972,7 +2972,7 @@ void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) co
 void ServerNetworking::sendFragUpdate(int pid, NLulong frags) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_frags_update);
-    writeByte(lebuf, count, pid);
+    writeByte(lebuf, count, pid);       // what player id
     writeLong(lebuf, count, frags);
     broadcast_message(lebuf, count);
     record_message(lebuf, count);
