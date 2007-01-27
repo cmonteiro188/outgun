@@ -555,7 +555,7 @@ void Menu_ownServer::recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* o
 }
 
 Menu_replays::Menu_replays():
-    caption ("Date - Server - Map"),
+    caption (_("Date - Server - Map")),
 
     menu    (_("Replays"), false)
 {
