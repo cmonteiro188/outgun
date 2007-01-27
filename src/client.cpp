@@ -1791,14 +1791,6 @@ void Client::process_incoming_data(const char* data, int length) {
             fx.skipped = fx.frame == 0;
             NLulong players_present;
             readLong(data, count, players_present);
-            /*for (int i = 0; i < maxplayers; ++i) {
-                if (fx.player[i].used)
-                    continue;
-                if (pp & (1 << i)) {
-                    fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
-                    players_sb.push_back(&fx.player[i]);
-                }
-            }*/
             for (int i = 0; i < maxplayers; i++) {
                 ClientPlayer& pl = fx.player[i];
                 if (!(players_present & (1 << i))) {
