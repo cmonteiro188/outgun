@@ -1,8 +1,7 @@
 /*
- *  globals.cpp
+ *  timer.cpp
  *
- *  Copyright (C) 2003, 2004, 2006 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2006, 2007 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -22,21 +21,7 @@
  *
  */
 
-#include "commont.h"
-#include "debugconfig.h"
-#include "mutex.h"
+#include "timer.h"
 
-// put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
-
-// from commont.h
-char directory_separator;
-std::string wheregamedir;
-volatile bool g_exitFlag;
-
-// from mutex.h
-MutexHolder nlOpenMutex;
-
-// from debugconfig.h
-AutoBugReporting g_autoBugReporting = ABR_disabled;
-bool g_leetnetLog = false;
-bool g_leetnetDataLog = false;
+SystemTimer* g_systemTimer = 0;
+TimeCounter g_timeCounter;
