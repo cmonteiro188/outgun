@@ -475,6 +475,24 @@ void Server::score_neg(int p, int amount) {
     }
 }
 
+static void loadGamemodLine(const string& line, const std::auto_ptr<GamemodSetting>* settings, LogSet& argLogs) {
+    string cmd, value;
+    istringstream ist(line);
+    ist >> cmd;
+    ist.ignore();
+    getline(ist, value);
+    for (int si = 0;; ++si) {
+        if (&*settings[si] == 0) {  // end of settings marker
+            argLogs.error(_("Unrecognized gamemod setting: '$1'.", cmd));
+            break;
+        }
+        if (settings[si]->matchCommand(cmd)) {
+            settings[si]->set(argLogs, value);  // ignore return value; the status is logged
+            break;
+        }
+    }
+}
+
 bool Server::trySetMaxplayers(int val) {
     if (val != maxplayers && network.get_player_count() != 0) {
         log.error(_("Can't change max_players while players are connected."));
@@ -490,7 +508,7 @@ bool checkForceIpValue(const string& val) { return isValidIP(val); }
 bool Server::setForceIP(const string& val) { extConfig.ipAddress = val; return true; }
 void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
 
-void Server::load_game_mod(bool reload) {
+string Server::load_game_mod(bool reload, const string& singleLine) { // if singleLine.empty(), load gamemod.txt and log errors, else apply just singleLine and return errors in string
     RedirectToFun1<bool, const string&> checkForceIP(checkForceIpValue);
     RedirectToMemFun1<Server, bool, const string&> setForceIP(this, &Server::setForceIP);
 
@@ -623,49 +641,57 @@ void Server::load_game_mod(bool reload) {
         PT(new GS_ForwardInt("web_refresh",             setWebRefresh, 1)),
         PT(0)
     };
-    const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
-    ifstream in(filename.c_str());
-    if (in) {
-        log("Loading game mod: '%s'", filename.c_str());
-        string line;
-        while (getline_skip_comments(in, line)) {
-            string cmd, value;
-            istringstream ist(line);
-            ist >> cmd;
-            ist.ignore();
-            getline(ist, value);
-            for (int si = 0;; ++si) {
-                if (&*settings[si] == 0) {  // end of settings marker
-                    log.error(_("Unrecognized gamemod setting: '$1'.", cmd));
-                    break;
-                }
-                if (settings[si]->matchCommand(cmd)) {
-                    settings[si]->set(log, value);  // ignore return value; the status is logged
-                    break;
-                }
-            }
+
+    string ret;
+
+    if (!singleLine.empty()) {
+        MemoryLog tmpLog;
+        LogSet tmpLogset(&tmpLog, &tmpLog, 0);
+        loadGamemodLine(singleLine, settings, tmpLogset);
+        ret = tmpLog.pop();
+        while (tmpLog.size()) {
+            ret += ' ';
+            ret += tmpLog.pop();
         }
-
-        const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
-                        + pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
-        if (chanceSum == 0)
-            pupConfig.pups_max = 0;
-
-        if ((pupConfig.pups_min_percentage == pupConfig.pups_max_percentage && pupConfig.pups_min > pupConfig.pups_max) ||
-                pupConfig.pups_max == 0)    // if they are in different units, only the value of 0 is comparable
-            pupConfig.pups_min = pupConfig.pups_max;
-
-        if (!server_website_url.empty())
-            info_message.push_back(string() + "Website: " + server_website_url);
-
-        log("Game mod file read.");
-        in.close();
     }
-    else
-        log.error(_("Can't open game mod file '$1'.", filename));
+    else {
+        const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
+        ifstream in(filename.c_str());
+        if (in) {
+            log("Loading game mod: '%s'", filename.c_str());
+            string line;
+            while (getline_skip_comments(in, line))
+                loadGamemodLine(line, settings, log);
+            log("Game mod file read.");
+            in.close();
+        }
+        else
+            log.error(_("Can't open game mod file '$1'.", filename));
+    }
+
+    const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
+            + pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
+    if (chanceSum == 0)
+        pupConfig.pups_max = 0;
+
+    if ((pupConfig.pups_min_percentage == pupConfig.pups_max_percentage && pupConfig.pups_min > pupConfig.pups_max) ||
+        pupConfig.pups_max == 0)    // if they are in different units, only the value of 0 is comparable
+        pupConfig.pups_min = pupConfig.pups_max;
+
+    if (!server_website_url.empty() && singleLine.empty())
+        info_message.push_back(string() + "Website: " + server_website_url);
+
     world.setConfig(worldConfig, pupConfig);
     if (reload)
         world.check_pickup_creation(true);
+
+    check_bots = true;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            network.send_server_settings(world.player[i]);
+    network.send_map_time(-1);  // broadcast time to all, in case time limit has been changed
+
+    return ret;
 }
 
 //load a map from the rotation list
@@ -925,14 +951,13 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     // load server configuration from gamemod.txt
     load_game_mod(reload);
 
-    check_bots = true;
-    bot_ping_changed = false;
+    bot_ping_changed = true;
 
     if (maprot.empty()) {
         // did not specify maps, scan "maps/" folder for .txt map files
         FileFinder* mapFiles = platMakeFileFinder(wheregamedir + SERVER_MAPS_DIR, ".txt", false);
         while (mapFiles->hasNext()) {
-            string mapName = FileName(mapFiles->next()).getBaseName();
+            const string mapName = FileName(mapFiles->next()).getBaseName();
             MapInfo mi;
             if (mi.load(log, mapName)) {
                 maprot.push_back(mi);
@@ -942,6 +967,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
                 log.error(_("Can't add '$1' to map rotation.", mapName));
         }
         delete mapFiles;
+        sort(maprot.begin(), maprot.end());
     }
 
     if (maprot.empty()) {
@@ -956,11 +982,8 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     if (reload) {   // preserve selected map and restore map votes where possible
         network.broadcast_reset_map_list(); // must be before new votes are sent (right below)
         for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used) {
+            if (world.player[i].used)
                 world.player[i].current_map_list_item = 0;
-                network.send_server_settings(world.player[i]);
-            }
-        network.send_server_settings(-1, true);     // record
 
         currmap = -1;   // flag so we know if it has changed or not
         for (int mapi = 0; mapi < (int)maprot.size(); ++mapi) {
@@ -988,7 +1011,6 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     }
     else if (random_first_map)
         currmap = rand() % maprot.size();
-    network.send_map_time(-1);  // broadcast time to all, in case time limit has been changed
     return true;
 }
 
@@ -1004,8 +1026,6 @@ void Server::init_bots() {
     if (balance_bot && (humans + needed_bots) % 2)
         ++needed_bots;
     log("%d bots needed.", needed_bots);
-    if (bots.size() == needed_bots)
-        return;
     // Check if some bots need to be removed.
     if (playing_bots > needed_bots) {
         const int remove = playing_bots - needed_bots;
@@ -1014,6 +1034,8 @@ void Server::init_bots() {
             remove_bot();
         return;
     }
+    if (static_cast<int>(bots.size()) >= needed_bots)
+        return;
     ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
     int policy;
@@ -1435,6 +1457,15 @@ void Server::chat(int pid, const string& message) {
             else
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove, fill, balance, or ping.");
         }
+        else if (command == "set" && admin) {
+            if (arguments.find_first_not_of(" ") != string::npos) {
+                const string feedback = load_game_mod(true, arguments);
+                if (!feedback.empty())
+                    network.player_message(pid, msg_server, feedback);
+            }
+            else
+                network.player_message(pid, msg_server, "For example to set capture limit to 8, type /set capture_limit 8");
+        }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
     }
@@ -1782,7 +1813,7 @@ void Server::run_bot_thread() {
             if ((*bi)->bot_finished()) {
                 delete *bi;
                 bi = bots.erase(bi);
-                check_bots = true;
+                check_bots = true; // a needed bot might not have been added because of the now removed one which was already out of the server
             }
             else {
                 if (adjust_pings)

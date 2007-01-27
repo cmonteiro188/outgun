@@ -30,6 +30,7 @@
 #include "language.h" // needed by IPfield
 #include "nassert.h"
 #include "network.h"  // needed by IPfield
+#include "timer.h" // for blinking cursor
 
 #include "menu.h"
 
@@ -367,28 +368,18 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const
     x += text_length(font, caption);
     textout_ex(buffer, font, ":", x, y, captionColor(active, col), -1);
     x += text_length(font, ":") + char_w();
-    int cursor_x;
-    if (maskChar) {
-        const string mask_string(value.length(), maskChar);
-        textout_ex(buffer, font, mask_string.c_str(), x, y, col(Colour::menu_value), -1);
-        cursor_x = x + text_length(font, mask_string.substr(0, cursor_pos));
-        x += text_length(font, mask_string);
-    }
-    else {
-        textout_ex(buffer, font, value.c_str(), x, y, col(Colour::menu_value), -1);
-        cursor_x = x + text_length(font, value.substr(0, cursor_pos));
-        x += text_length(font, value);
-    }
-    if (active) {
-        //if (int(get_time()) % 2)
-            vline(buffer, cursor_x, y, y + text_height(font), col(Colour::menu_value));
-    }
+    const string text = maskChar ? string(value.length(), maskChar) : value;
+    textout_ex(buffer, font, text.c_str(), x, y, col(Colour::menu_value), -1);
+    x += text_length(font, text);
+    if (active)
+        if (int(get_time() - blinkTime) % 2 == 0)
+            vline(buffer, x + text_length(font, text.substr(0, cursor_pos)), y - 1, y + text_height(font) + 2, col(Colour::menu_value));
     textout_ex(buffer, font, tail.c_str(), x, y, col(Colour::menu_value), -1);
 }
 
 int TextfieldBase::width() const {
     return text_length(font, caption) + maxlen * char_w() + max(tailSpace * char_w(), text_length(font, tail)) +
-           text_length(font, ":_") + char_w(); // ":" and char_w space between caption and value, _ is cursor
+           text_length(font, ":") + char_w(); // space between caption and value
 }
 
 int TextfieldBase::height() const {
@@ -396,6 +387,7 @@ int TextfieldBase::height() const {
 }
 
 bool TextfieldBase::handleKey(char scan, unsigned char chr) {
+    unblink();
     bool stateChange = false;
     if (scan == KEY_BACKSPACE) {
         if (cursor_pos > 0) {
@@ -430,6 +422,10 @@ bool TextfieldBase::handleKey(char scan, unsigned char chr) {
     if (stateChange)
         virtualCallHook();
     return true;
+}
+
+void TextfieldBase::unblink() {
+    blinkTime = get_time();
 }
 
 IPfield::IPfield(const string& caption_, bool acceptPort_, bool printUnknown_):

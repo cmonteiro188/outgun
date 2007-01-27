@@ -28,6 +28,7 @@
 #define CLIENT_H_INC
 
 #ifndef DEDICATED_SERVER_ONLY
+#include <set>
 #include <sstream>
 
 #include "client_menus.h"
@@ -315,10 +316,15 @@ class Client {
     NLulong max_world_rank;
     #endif
 
-    MutexHolder mapInfoMutex;
     #ifndef DEDICATED_SERVER_ONLY
+    MutexHolder mapInfoMutex;
     std::vector<MapInfo> maps;
-    std::vector<std::string> fav_maps;
+    std::vector< std::pair<const MapInfo*, int> > sortedMaps;
+
+    MapListSortKey mapListSortKey;
+    bool mapListChangedAfterSort;
+
+    std::set<std::string> fav_maps;
     int current_map;
     int map_vote;
     bool want_change_teams;
@@ -357,6 +363,7 @@ class Client {
     std::string edit_map_vote;
     int player_stats_page;
     double lastAltEnterTime;
+    bool deadAfterHighlighted;
 
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
@@ -648,6 +655,9 @@ class Client {
     static void cfunc_server_data(void* customp, const char* data, int length);
 
     #ifndef DEDICATED_SERVER_ONLY
+    int roomDeltaX(int x1, int x2) const; // gives a sense of where x1 is relative to x2, wrapping around the edges when considering immediate neighbors
+    int roomDeltaY(int y1, int y2) const;
+
     // GUI
     void erase_first_message();
     void print_message(Message_type type, const std::string& msg);

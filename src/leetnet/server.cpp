@@ -692,7 +692,7 @@ public:
         //verifica se LEETNET_VERSION match
         readLong(packet, count, leetversion);   // leetnet version
         if (leetversion != LEETNET_VERSION) {
-            log("Client connection ignored: LEETNET_VERSION mismatch. c=%u s=%u", leetversion, LEETNET_VERSION);
+            log("Client connection ignored: LEETNET_VERSION mismatch. c=%u s=%u", (unsigned)leetversion, LEETNET_VERSION);
             return 1;
         }
 
@@ -998,7 +998,7 @@ public:
 
             default:
                 //FIXME: unknown code!
-                log("WTF!?!? %u", code);
+                log("WTF!?!? %u", (unsigned)code);
                 break;
             }
         }

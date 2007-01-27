@@ -162,10 +162,19 @@ struct WorldCoords {
     int x, y;   //relative (to screen) X,Y position
 };
 
+struct WorldRect {
+    WorldRect(int px_, int py_, int x1_, int y1_, int x2_, int y2_) : px(px_), py(py_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
+    WorldRect() { }
+
+    int px, py; // screen
+    int x1, y1, x2, y2;
+};
+
 //team info
 struct MapTeam {
     std::vector<WorldCoords> flags; //flag positions
     std::vector<WorldCoords> spawn; //team spawn points
+    std::vector<WorldRect> respawn; //team respawn areas
     unsigned int lastspawn;         //last team spawn point used
 
     MapTeam() : lastspawn(0) { }
@@ -211,6 +220,7 @@ public:
 
     MapInfo();
     bool load(LogSet& log, const std::string& mapName);
+    bool operator<(const MapInfo& o) const { return cmp_case_ins(title, o.title); }
 };
 
 class Statistics {
@@ -454,8 +464,6 @@ public:
     double player_sound_time;
     bool onscreen;
     double hitfx;
-    int drawptr;
-    int drawused;
     int oldx, oldy; // detect room changes
     NLulong posUpdated; // on which frame the player's position has been last received (including the low-res info for minimap purposes)
     int alpha;

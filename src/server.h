@@ -248,7 +248,7 @@ public:
 
     bool tournament_active() const { return tournament; }
 
-    void load_game_mod(bool reload);
+    std::string load_game_mod(bool reload, const std::string& singleLine = std::string()); // if singleLine.empty(), load gamemod.txt and log errors, else apply just singleLine and return errors in string
     bool reset_settings(bool reload);   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
     bool is_recording() const { return recording; }

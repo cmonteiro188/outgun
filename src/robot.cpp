@@ -474,13 +474,7 @@ int Client::FreeDir(double mex, double mey) const {
     double mdist = 0;
 
     for (int i = myGundir - 1; i <= myGundir + 1; ++i) {
-        int d;
-        if (i > 7)
-            d = i - 8;
-        else if (i < 0)
-            d = 8 + i;
-        else
-            d = i;
+        const int d = (i + 8) % 8;
         const double dist = ScanDir(mex, mey, d);
 
         if (dist > mdist || mdist == 0 || dist == mdist && i == myGundir) {
@@ -1595,6 +1589,12 @@ ClientControls Client::Robot() {
                     fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
                     fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h) {
         myGundir = -1;
+        if (botPrevFire) {
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, data_fire_off);
+            client->send_message(lebuf, count);
+            botPrevFire = false;
+        }
         return ClientControls();
     }
 

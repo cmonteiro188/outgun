@@ -616,6 +616,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #ifndef DEDICATED_SERVER_ONLY
     listenServer(log),
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
+    mapListSortKey(MLSK_Number),
+    mapListChangedAfterSort(false),
     current_map(-1),
     map_vote(-1),
     player_stats_page(0),
@@ -1198,6 +1200,8 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     //don't want to exit map by default
     want_map_exit = false;
     want_map_exit_delayed = false;
+
+    deadAfterHighlighted = true;
     #endif
 
     //avoid "dropped" plaque
@@ -1277,6 +1281,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
         MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         maps.clear();
+        mapListChangedAfterSort = true;
     }
     #endif
 
@@ -2354,6 +2359,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 #ifndef DEDICATED_SERVER_ONLY
                 want_map_exit = false;      // and player does not want to exit the map anymore
                 want_map_exit_delayed = false;
+                deadAfterHighlighted = true;
 
                 // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
                 if (!replaying) {
@@ -2483,6 +2489,7 @@ void Client::process_incoming_data(const char* data, int length) {
                     menusel = menu_none;
                     stats_autoshowing = false;
                 }
+                deadAfterHighlighted = true;
                 #endif
 
             break; case data_deathbringer: {
@@ -2610,6 +2617,7 @@ void Client::process_incoming_data(const char* data, int length) {
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.clear();
+                mapListChangedAfterSort = true;
                 map_vote = -1;
                 #endif
             }
@@ -2634,12 +2642,11 @@ void Client::process_incoming_data(const char* data, int length) {
                 mapinfo.width = width;
                 mapinfo.height = height;
                 mapinfo.votes = votes;
-                const vector<string>::const_iterator mi = find(fav_maps.begin(), fav_maps.end(), toupper(mapinfo.title));
-                if (mi != fav_maps.end())
-                    mapinfo.highlight = true;
+                mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
                 MutexDebug md("mapInfoMutex", __LINE__, log);
                 MutexLock ml(mapInfoMutex);
                 maps.push_back(mapinfo);
+                mapListChangedAfterSort = true;
                 #endif
             }
 
@@ -2660,8 +2667,10 @@ void Client::process_incoming_data(const char* data, int length) {
                 for (int i = 0; i < total; i++) {
                     readByte(lebuf, count, map_nr);
                     readByte(lebuf, count, votes);
-                    if (map_nr >= 0 && map_nr < static_cast<int>(maps.size()))
+                    if (map_nr >= 0 && map_nr < static_cast<int>(maps.size())) {
                         maps[map_nr].votes = votes;
+                        mapListChangedAfterSort = true;
+                    }
                 }
                 #endif
             }
@@ -3914,6 +3923,11 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                         client->send_message(lebuf, count);
                     }
                 }
+                break; case KEY_SPACE:
+                    do {
+                        mapListSortKey = static_cast<MapListSortKey>((mapListSortKey + 1) % MLSK_COUNT);
+                    } while (mapListSortKey == MLSK_Favorite && fav_maps.empty());
+                    mapListChangedAfterSort = true;
                 break; default:
                     if (!isdigit(ch))
                         return false;
@@ -4774,6 +4788,7 @@ void Client::predraw() {
         return; //#fix: this shouldn't be needed, or should be checked from a simple flag
     vector< pair<int, const WorldCoords*> > flags;
     vector< pair<int, const WorldCoords*> > spawns;
+    vector< pair<int, const WorldRect*> > respawns;
 
     const int roomx = (replaying ? current_room.first  : fx.player[me].roomx);
     const int roomy = (replaying ? current_room.second : fx.player[me].roomy);
@@ -4788,6 +4803,10 @@ void Client::predraw() {
             for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi) // spawns
                 if (roomx == pi->px && roomy == pi->py)
                     spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
+            const vector<WorldRect>& trespawn = fx.map.tinfo[team].respawn;
+            for (vector<WorldRect>::const_iterator pi = trespawn.begin(); pi != trespawn.end(); ++pi) // respawns
+                if (roomx == pi->px && roomy == pi->py)
+                    respawns.push_back(pair<int, const WorldRect*>(team, &(*pi)));
         }
     }
 
@@ -4798,7 +4817,22 @@ void Client::predraw() {
     }
     else
         texRoomX = texRoomY = 0;    // this way the texturing always starts from the top left corner (classic look)
-    client_graphics.predraw(fx.map.room[roomx][roomy], texRoomX, texRoomY, flags, spawns, menu.options.graphics.mapInfoMode());
+    client_graphics.predraw(fx.map.room[roomx][roomy], texRoomX, texRoomY, flags, spawns, respawns, menu.options.graphics.mapInfoMode());
+}
+
+
+int Client::roomDeltaX(int x1, int x2) const {
+    if (fx.map.w > 2)
+        return (x1 - x2 + fx.map.w + 1) % fx.map.w - 1; // +/- 1 adjusts range so that we get +1/-1 for neighbors instead of +1/(map.w-1)
+    else
+        return x1 - x2; // don't wrap around the edges: the neighboring room is in both directions, but a more "natural" neighbor in one direction (and the expression above would give -1 if w = 1)
+}
+
+int Client::roomDeltaY(int y1, int y2) const {
+    if (fx.map.h > 2)
+        return (y1 - y2 + fx.map.h + 1) % fx.map.h - 1;
+    else
+        return y1 - y2;
 }
 
 //draw the whole game screen
@@ -4840,6 +4874,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         #endif
         client_graphics.draw_background();
     }
+
+    const int roomx = me >= 0 ? fx.player[me].roomx : current_room.first;
+    const int roomy = me >= 0 ? fx.player[me].roomy : current_room.second;
+
     // frame is valid?
     if (!hide_game && fd.frame >= 0) {
         client_graphics.startPlayfieldDraw();
@@ -4855,8 +4893,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         }
 
         // draw any item pickups
-        const int roomx = replaying ? current_room.first  : fx.player[me].roomx;
-        const int roomy = replaying ? current_room.second : fx.player[me].roomy;
         for (int i = 0; i < MAX_PICKUPS; i++)
             // used power-ups, not respawning, on my screen
             if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
@@ -4908,8 +4944,22 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
             if (fx.player[i].onscreen && i != me)   // draw only players on my screen
                 draw_player(i, time);
-            if (k == maxplayers - 1 && !replaying)  // last draw me
-                draw_player(me, time);
+        }
+        if (me != -1) {
+            draw_player(me, time); // last draw me
+
+            if (fx.player[me].dead)
+                deadAfterHighlighted = true;
+            else {
+                static double spawnTime = 0;
+                if (deadAfterHighlighted) {
+                    deadAfterHighlighted = false;
+                    spawnTime = get_time();
+                }
+                static const double highlightTime = .5;
+                if (get_time() - spawnTime < highlightTime) //#@ add option test
+                    client_graphics.draw_me_highlight(fd.player[me].lx, fd.player[me].ly, 1. - (time - spawnTime) / highlightTime);
+            }
         }
 
         for (int i = 0; i < maxplayers; i++)
@@ -4973,7 +5023,9 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int i = 0; i < maxplayers; i++) {
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
-                    const int alpha = /*replaying ? 255 : */pl.alpha;
+                    const int xDelta = roomDeltaX(pl.roomx, roomx), yDelta = roomDeltaY(pl.roomy, roomy);
+                    const bool drawNeighborMarkers = (abs(xDelta) + abs(yDelta) == 1); //#@add menu test
+                    const int alpha = pl.alpha;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
                         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
@@ -4986,6 +5038,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             // update flag position for draw
                             fx.teams[enemy].move_flag(f, WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
                             client_graphics.draw_mini_flag(enemy, *fi, fx.map);
+                            if (drawNeighborMarkers)
+                                client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, enemy);
                         }
 
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
@@ -4993,11 +5047,15 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                             // update flag position for draw
                             fi->move(WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
+                            if (drawNeighborMarkers)
+                                client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, 2);
                         }
 
                     if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
                             client_graphics.draw_minimap_player(fx.map, pl_ext);
+                        if (drawNeighborMarkers)
+                            client_graphics.draw_neighbor_marker(false, xDelta, yDelta, pl.lx, pl.ly, pl.team());
                     }
                     else // myself: draw differently
                         client_graphics.draw_minimap_me(fx.map, pl, time);
@@ -5014,6 +5072,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                        time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
                     client_graphics.draw_mini_flag(t, *fi, fx.map, flash);
+                    const WorldCoords& pos = fi->position();
+                    const int xDelta = roomDeltaX(pos.px, roomx), yDelta = roomDeltaY(pos.py, roomy);
+                    if (abs(xDelta) + abs(yDelta) == 1) //#@add menu test
+                        client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pos.x, pos.y, t);
                 }
         }
     }//!hide_game
@@ -5168,13 +5230,49 @@ void Client::draw_player(int pid, double time) {
     }
 }
 
+class MapListSorter { // helper for draw_game_menu
+public:
+    MapListSorter(MapListSortKey key_) : key(key_) { }
+    bool operator()(const std::pair<const MapInfo*, int>& m1, const std::pair<const MapInfo*, int>& m2) const;
+
+private:
+    MapListSortKey key;
+};
+
+bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<const MapInfo*, int>& m2) const {
+    const MapInfo& m1mi = *m1.first, &m2mi = *m2.first;
+    switch (key) {
+        break; case MLSK_Votes: return m1mi.votes > m2mi.votes; // reverse: get high vote counts first
+        break; case MLSK_Title: return cmp_case_ins(m1mi.title, m2mi.title);
+        break; case MLSK_Size: {
+            const int m1s = m1mi.width * m1mi.height;
+            const int m2s = m2mi.width * m2mi.height;
+            return m1s < m2s || m1s == m2s && m1mi.width < m2mi.width;
+        }
+        break; case MLSK_Author:   return cmp_case_ins(m1mi.author, m2mi.author);
+        break; case MLSK_Favorite: return m1mi.highlight && !m2mi.highlight; // highlighted first
+        break; default: nAssert(0);
+    }
+}
+
 //draws the game menu
 void Client::draw_game_menu() {
     switch (menusel) {
     /*break;*/ case menu_maps: {
             MutexDebug md("mapInfoMutex", __LINE__, log);
             MutexLock ml(mapInfoMutex);
-            client_graphics.map_list(maps, current_map, map_vote, edit_map_vote);
+            if (mapListChangedAfterSort) {
+                mapListChangedAfterSort = false;
+                sortedMaps.clear();
+                sortedMaps.reserve(maps.size());
+                for (unsigned mi = 0; mi < maps.size(); ++mi)
+                    sortedMaps.push_back(pair<MapInfo*, int>(&maps[mi], mi));
+                if (mapListSortKey != MLSK_Number) {
+                    MapListSorter sorter(mapListSortKey);
+                    stable_sort(sortedMaps.begin(), sortedMaps.end(), sorter);
+                }
+            }
+            client_graphics.map_list(sortedMaps, mapListSortKey, current_map, map_vote, edit_map_vote);
         }
         break; case menu_players:
             client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(replaying ? fx.frame / 10 : get_time()), maxplayers, max_world_rank);
@@ -5875,15 +5973,13 @@ void Client::load_fav_maps() {
     ifstream in(configFile.c_str());
     string line;
     while (getline_skip_comments(in, line))
-        fav_maps.push_back(toupper(trim(line)));
+        fav_maps.insert(toupper(trim(line)));
 }
 
 void Client::apply_fav_maps() {
-    for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi) {
-        const vector<string>::const_iterator mf = find(fav_maps.begin(), fav_maps.end(), toupper(mi->title));
-        if (mf != fav_maps.end())
-            mi->highlight = true;
-    }
+    for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
+        mi->highlight = !!fav_maps.count(toupper(mi->title));
+    mapListChangedAfterSort = true;
 }
 
 void Client::loadHelp() {
@@ -5910,7 +6006,7 @@ void Client::loadSplashScreen() {
     }
     else {
         static const char* msg[] = {
-            GAME_STRING " " GAME_VERSION ", copyright © 2002-2006 multiple authors.",
+            GAME_STRING " " GAME_VERSION ", copyright © 2002-2007 multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to "
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "

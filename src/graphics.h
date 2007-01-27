@@ -81,6 +81,8 @@ public:
     BITMAP* operator->() const { return ptr; }
 };
 
+enum MapListSortKey { MLSK_Number, MLSK_Votes, MLSK_Title, MLSK_Size, MLSK_Author, MLSK_Favorite, MLSK_COUNT };
+
 class Graphics {
 public:
     Graphics(LogSet logs);
@@ -106,7 +108,7 @@ public:
     void random_playground_colors();
 
     void predraw(const Room& room, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
-                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, bool grid = false);
+                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, const std::vector< std::pair<int, const WorldRect*> >& respawns, bool grid = false);
 
     void draw_background();
     void draw_empty_background(bool map_ready);
@@ -124,9 +126,12 @@ public:
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
     void highlight_minimap_room(const Map& map, int rx, int ry);
 
+    void draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team);
+
     void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);
+    void draw_me_highlight(double x, double y, double size);
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time);
     void draw_gun_explosion(int x, int y, int rad, int team);
@@ -155,7 +160,7 @@ public:
     void debug_panel(const std::vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
                      const std::vector<std::vector<std::pair<int, int> > >& sticks, const std::vector<int>& buttons);
 
-    void map_list(const std::vector<MapInfo>& maps, int current = -1,
+    void map_list(const std::vector< std::pair<const MapInfo*, int> >& maps, MapListSortKey sortedBy, int current = -1,
                   int own_vote = -1, const std::string& edit_vote = "");
 
     void map_list_prev() { --map_list_start; }

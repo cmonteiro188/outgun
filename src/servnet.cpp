@@ -115,7 +115,7 @@ void ServerNetworking::upload_next_file_chunk(int i) {
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    const NLubyte islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size() ? 1 : 0;
+    const NLubyte islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
 
     //send
     char lebuf[256]; int count = 0;
@@ -1536,7 +1536,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     break;  // don't process the rest of the messages
                 }
                 else if (string(msg + 1).length() > max_chat_message_length) {
-                    log("Kicked player %d for client misbehavior: sent too long message (%lu characters).", pid, static_cast<long int>(string(msg + 1).length()));
+                    log("Kicked player %d for client misbehavior: sent too long message (%lu characters).", pid, (unsigned long)string(msg + 1).length());
                     host->disconnectPlayer(pid, disconnect_client_misbehavior);
                     break;  // don't process the rest of the messages
                 }

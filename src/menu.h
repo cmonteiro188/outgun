@@ -175,9 +175,9 @@ private:
 
 class TextfieldBase : public Component {
 public:
-    TextfieldBase(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask), cursor_pos(0) { }
+    TextfieldBase(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask), cursor_pos(0) { unblink(); }
     virtual ~TextfieldBase() { }
-    void set(const std::string& text) { value = text; cursor_pos = text.length(); }
+    void set(const std::string& text) { value = text; cursor_pos = text.length(); unblink(); }
     const std::string& operator()() const { return value; }
 
     void setTail(const std::string& text) { tail = text; }
@@ -196,7 +196,9 @@ private:
     int maxlen, tailSpace;
     char maskChar;  // 0 for no masking
     int cursor_pos;
+    double blinkTime;
 
+    void unblink();
     virtual void virtualCallHook() = 0;
     virtual bool virtualCallKeyHook(char scan, unsigned char chr) = 0;
 };

@@ -124,13 +124,19 @@ struct ObjectSource {
 
 // // // // public interface
 
-typedef int SolidTexdata;
+struct SolidTexdata {
+    int color;
+    int alpha;
+
+    void set(int color_, int alpha_ = 256) { color = color_; alpha = alpha_; }
+};
 
 struct TextureTexdata {
     BITMAP* image;
     int x0, y0;
+    int alpha;
 
-    void set(BITMAP* texture, int x0_ = 0, int y0_ = 0) { image = texture; x0 = x0_; y0 = y0_; }
+    void set(BITMAP* texture, int x0_ = 0, int y0_ = 0, int alpha_ = 256) { image = texture; alpha = alpha_; x0 = x0_; y0 = y0_; }
 };
 
 struct FlagmarkerTexdata {
@@ -143,8 +149,8 @@ struct FlagmarkerTexdata {
 
 class TextureData {
 public:
-    void setSolid(int color) { t = T_solid; d.s = color; }
-    void setTexture(BITMAP* texture, int x0 = 0, int y0 = 0) { t = T_texture; d.t.set(texture, x0, y0); }
+    void setSolid(int color, int alpha = 256) { t = T_solid; d.s.set(color, alpha); }
+    void setTexture(BITMAP* texture, int x0 = 0, int y0 = 0, int alpha = 256) { t = T_texture; d.t.set(texture, x0, y0, alpha); }
     void setFlagmarker(int color, double cx, double cy, double r) { t = T_flagmarker; d.f.set(color, cx, cy, r); }
 
     enum TexType { T_solid, T_texture, T_flagmarker };

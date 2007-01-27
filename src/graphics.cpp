@@ -440,7 +440,8 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
     return true;
 }
 
-void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags, const vector< pair<int, const WorldCoords*> >& spawns, bool grid) {
+void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vector< pair<int, const WorldCoords*> >& flags,
+                       const vector< pair<int, const WorldCoords*> >& spawns, const vector< pair<int, const WorldRect*> >& respawns, bool grid) {
     // the room is textured like it's the room at coordinates (texRoomX,texRoomY)
     // this means moving the texture offsetting origin to the top left of room (0,0)
     int texOffsetBaseX = - texRoomX * iround(plw * scr_mul);
@@ -458,11 +459,19 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
             scene.addWall(*wi, (*wi)->texture());
 
+        // add respawn areas as overlays
+        for (vector< pair<int, const WorldRect*> >::const_iterator ri = respawns.begin(); ri != respawns.end(); ++ri) {
+            nAssert(ri->first == 0 || ri->first == 1);
+            const WorldRect& r = *ri->second;
+            scene.addRectangle(r.x1 - PLAYER_RADIUS, r.y1 - PLAYER_RADIUS, r.x2 + PLAYER_RADIUS, r.y2 + PLAYER_RADIUS,
+                               ri->first + floor_texture.size() + wall_texture.size(), true);
+        }
+
         // add flag markers as overlays
         const double fr = flagpos_radius;
         for (int fi = 0; fi < static_cast<int>(flags.size()); ++fi) {
             const double fx = flags[fi].second->x, fy = flags[fi].second->y;
-            scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size(), true);
+            scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, fi + floor_texture.size() + wall_texture.size() + 2, true);
         }
 
         // add walls
@@ -497,10 +506,17 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
             else textures.push_back(backupTexture);
         }
 
+        // transparent solids for respawn areas
+        for (int team = 0; team < 2; ++team) {
+            td.setSolid(teamcol[team], 120);
+            textures.push_back(td);
+        }
+
         for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
             td.setFlagmarker(teamcol[fi->first], fi->second->x * scr_mul, fi->second->y * scr_mul, flagpos_radius * scr_mul);   // note: assumes 0,0,1. scaling
             textures.push_back(td);
         }
+
         // draw
         Texturizer tex(roombg, 0, 0, textures);
         scene.render(tex);
@@ -516,6 +532,15 @@ void Graphics::predraw(const Room& room, int texRoomX, int texRoomY, const vecto
         else
             clear_to_color(roombg, groundCol);
         predraw_room_ground(room, texOffsetBaseX, texOffsetBaseY);
+        // draw respawn areas
+        for (vector< pair<int, const WorldRect*> >::const_iterator ri = respawns.begin(); ri != respawns.end(); ++ri) {
+            nAssert(ri->first == 0 || ri->first == 1);
+            const WorldRect& r = *ri->second;
+            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
+            set_trans_blender(0, 0, 0, 120);
+            rectfill(roombg, scale(r.x1 - PLAYER_RADIUS), scale(r.y1 - PLAYER_RADIUS), scale(r.x2 + PLAYER_RADIUS), scale(r.y2 + PLAYER_RADIUS), teamcol[ri->first]);
+            solid_mode();
+        }
         // draw flag position marks
         for (vector< pair<int, const WorldCoords*> >::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
             draw_flagpos_mark(fi->first, fi->second->x, fi->second->y);
@@ -799,7 +824,7 @@ void Graphics::highlight_minimap_room(const Map& map, int rx, int ry) {
     const int y1 = mmy + minimap_start_y +  ry      * minimap_h / map.h;
     const int x2 = mmx + minimap_start_x + (rx + 1) * minimap_w / map.w;
     const int y2 = mmy + minimap_start_y + (ry + 1) * minimap_h / map.h;
-        rect(drawbuf, x1, y1, x2, y2, makecol(255, 255, 0));
+    rect(drawbuf, x1, y1, x2, y2, makecol(255, 255, 0));
 }
 
 void Graphics::draw_minimap_background() {
@@ -1018,6 +1043,46 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     }
 }
 
+void Graphics::draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team) {
+    static const int marginDist = 15;
+    static const int flagSizeMax = 8, flagSizeMin = 5, playerRadMax = 10, playerRadMin = 5;
+    int x = plx, y = ply;
+    double dist;
+    if (xDelta) {
+        nAssert(!yDelta);
+        if (xDelta < 0) {
+            x += scale(marginDist);
+            dist = 1. - lx / plw;
+        }
+        else {
+            x += scale(plw - 1 - marginDist);
+            dist = lx / plw;
+        }
+        y += scale(ly);
+    }
+    else {
+        nAssert(yDelta);
+        if (yDelta < 0) {
+            y += scale(marginDist);
+            dist = 1. - ly / plh;
+        }
+        else {
+            y += scale(plh - 1 - marginDist);
+            dist = ly / plh;
+        }
+        x += scale(lx);
+    }
+    if (flag) {
+        const double flagSize = flagSizeMax - (flagSizeMax - flagSizeMin) * dist;
+        const int flagHalfSide = scale(flagSize / 2);
+        rectfill(drawbuf, x - flagHalfSide, y - flagHalfSide, x + flagHalfSide, y + flagHalfSide, teamcol[team]);
+    }
+    else {
+        const double playerRad = playerRadMax - iround((playerRadMax - playerRadMin) * dist);
+        circle(drawbuf, x, y, scale(playerRad), teamcol[team]);
+    }
+}
+
 //draws a basic player object
 void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_power, int alpha, double time) {
     x = scale(x);
@@ -1096,6 +1161,10 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     }
 
     solid_mode();
+}
+
+void Graphics::draw_me_highlight(double x, double y, double size) {
+    circle(drawbuf, plx + scale(x), ply + scale(y), scale((8 * size + 1) * PLAYER_RADIUS), makecol(255, 255, 0));
 }
 
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
@@ -1897,7 +1966,7 @@ void Graphics::draw_fps(double fps) {
     print_text_border_check_bg(text, SCREEN_W - 2 - text_length(font, text), SCREEN_H - text_height(font) - 2, colour(Colour::fps), colour(Colour::text_border), -1);
 }
 
-void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, const string& edit_vote) {
+void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapListSortKey sortedBy, int current, int own_vote, const string& edit_vote) {
     const FONT* mlfont;
     if (text_length(font, "i") != text_length(font, "M"))   // map list works only with monospace font
         mlfont = default_font;
@@ -1905,7 +1974,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         mlfont = font;
     const int line_height = text_height(mlfont) + 4;
     const int w = min(SCREEN_W, 67 * text_length(mlfont, "M") + 4);
-    const int extra_space = 8 * line_height;
+    const int extra_space = 10 * line_height;
     int h = map_list_size * line_height + extra_space;
     if (h > SCREEN_H) {
         h = SCREEN_H;
@@ -1943,14 +2012,15 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         map_list_start = 0;
 
     for (int i = map_list_start; i < static_cast<int>(maps.size()) && i < map_list_start + map_list_size; ++i) {
+        const MapInfo& map = *maps[i].first;
+        const int mapNumber = maps[i].second;
         ostringstream mapline;
-        mapline << setw(3) << i + 1 << ' ' << setw(2);
-        const MapInfo& map = maps[i];
+        mapline << setw(3) << mapNumber + 1 << ' ' << setw(2);
         if (map.votes > 0)
             mapline << map.votes;
         else
             mapline << '-';
-        if (own_vote == i)
+        if (own_vote == mapNumber)
             mapline << " *";
         else
             mapline << "  ";
@@ -1959,7 +2029,7 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         mapline << map.author.substr(0, 27);
         const int y = y1 + 5 * line_height + line_height * (i - map_list_start);
         int c;
-        if (i == current)
+        if (mapNumber == current)
             c = colour(Colour::stats_selected);
         else if (map.highlight)
             c = colour(Colour::stats_highlight);
@@ -1976,9 +2046,22 @@ void Graphics::map_list(const vector<MapInfo>& maps, int current, int own_vote, 
         const int bar_h = static_cast<int>(static_cast<double>(height * map_list_size ) / maps.size() + 0.5);
         scrollbar(x, y, height, bar_y, bar_h, colour(Colour::scrollbar), colour(Colour::scrollbar_bg));
     }
+    int y = y1 + (5 + map_list_size + 1) * line_height;
+    string sortOrderString;
+    switch (sortedBy) {
+        break; case MLSK_Number:   sortOrderString = _("Map number");
+        break; case MLSK_Votes:    sortOrderString = _("Votes");
+        break; case MLSK_Title:    sortOrderString = _("Title");
+        break; case MLSK_Size:     sortOrderString = _("Size");
+        break; case MLSK_Author:   sortOrderString = _("Author");
+        break; case MLSK_Favorite: sortOrderString = _("Favorites");
+        break; default: nAssert(0);
+    }
+    sortOrderString = _("Sort order (space to cycle): $1", sortOrderString);
+    textout_ex(drawbuf, mlfont, sortOrderString.c_str(), x_left, y, colour(Colour::stats_text), -1);
+    y += 2 * line_height;
     ostringstream vote;
     vote << _("Vote map number") << ": " << edit_vote << '_';
-    const int y = y1 + (5 + map_list_size + 1) * line_height;
     textout_ex(drawbuf, mlfont, vote.str().c_str(), x_left, y, colour(Colour::stats_highlight), -1);
 }
 
@@ -2286,32 +2369,12 @@ void Graphics::clear_fx() {
 
 //create rocket explosion fx
 void Graphics::create_wallexplo(int x, int y, int px, int py, int team, double time) {
-    GraphicsEffect fx;
-
-    fx.type = FX_WALL_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = time;
-    fx.px = px;
-    fx.py = py;
-    fx.team = team;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_WALL_EXPLOSION, px, py, x, y, time, team));
 }
 
 //create power rocket explosion fx
 void Graphics::create_powerwallexplo(int x, int y, int px, int py, int team, double time) {
-    GraphicsEffect fx;
-
-    fx.type = FX_POWER_WALL_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = time;
-    fx.px = px;
-    fx.py = py;
-    fx.team = team;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_POWER_WALL_EXPLOSION, px, py, x, y, time, team));
 }
 
 // Create deathbringer powerup smoke, but only if there is no deathbringer sprite.
@@ -2322,68 +2385,21 @@ void Graphics::create_smoke(int x, int y, int px, int py, double time) {
 
 //create deathbringer carrier trail fx
 void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha, double time) {
-    GraphicsEffect fx;
-
-    fx.type = FX_DEATHCARRIER_SMOKE;
-    fx.x = x;
-    fx.y = y;
-    fx.px = px;
-    fx.py = py;
-    fx.time = time;
-    fx.col1 = 0;    // black
-    fx.alpha = alpha / 255.;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, px, py, x, y, time, -1 /* no team */, alpha / 255., 0 /* color: black */));
 }
 
 void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha, double time) {
-    GraphicsEffect fx;
-
-    fx.type = FX_TURBO;
-    fx.x = x;
-    fx.y = y;
-    fx.px = px;
-    fx.py = py;
-    fx.time = time;
-
-    fx.alpha = alpha / 255.;
-    fx.col1 = col1;
-    fx.col2 = col2;
-    fx.gundir = gundir;
-
-    fx.team = 0; // to please GCC
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_TURBO, px, py, x, y, time, -1 /* team not used */, alpha / 255., col1, col2, gundir));
 }
 
 //create deathbringer explosion fx
 void Graphics::create_deathbringer(int team, double start_time, int x, int y, int px, int py) {
-    GraphicsEffect fx;
-
-    fx.team = team;
-    fx.type = FX_DEATHBRINGER_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = start_time;
-    fx.px = px;
-    fx.py = py;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_DEATHBRINGER_EXPLOSION, px, py, x, y, start_time, team));
 }
 
 //create explosion fx
 void Graphics::create_gunexplo(int x, int y, int px, int py, int team, double time) {
-    GraphicsEffect fx;
-
-    fx.type = FX_GUN_EXPLOSION;
-    fx.x = x;
-    fx.y = y;
-    fx.time = time;
-    fx.px = px;
-    fx.py = py;
-    fx.team = team;
-
-    cfx.push_back(fx);
+    cfx.push_back(GraphicsEffect(FX_GUN_EXPLOSION, px, py, x, y, time, team));
 }
 
 void Graphics::draw_effects(int room_x, int room_y, double time) {

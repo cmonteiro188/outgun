@@ -37,8 +37,6 @@ enum FX_TYPE {
 };
 
 struct GraphicsEffect {
-    GraphicsEffect(): px(0), py(0), time(0), x(0), y(0), team(0), alpha(0), col1(0), col2(0), gundir(0) { }
-
     FX_TYPE type;       // type of fx
     int px, py;         // screen where it spawned. if changed when time to redraw, delete it
     double time;        // start time
@@ -51,6 +49,9 @@ struct GraphicsEffect {
     float alpha;  // [0, 1]
     // for turbo effect
     int col1, col2, gundir;
+
+    GraphicsEffect(FX_TYPE type_, int px_, int py_, int x_, int y_, double time_, int team_, float alpha_ = 0, int col1_ = 0, int col2_ = 0, int gundir_ = 0)
+        : type(type_), px(px_), py(py_), time(time_), x(x_), y(y_), team(team_), alpha(alpha_), col1(col1_), col2(col2_), gundir(gundir_) { }
 };
 
 #endif // EFFECTS_H_INC
