@@ -136,6 +136,7 @@ enum ClientCfgSetting {
     CCS_ShowFlagMessages,
     CCS_ShowKillMessages,
     CCS_HighlightReturnedFlag,
+    CCS_ArrowKeysInTextInput,
     CCS_EndOfCommands
 };
 

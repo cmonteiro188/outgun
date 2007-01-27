@@ -201,6 +201,7 @@ Menu_controls::Menu_controls() :
     keyboardLayout      (_("Keyboard layout")),
     keypadMoving        (_("Use keypad for moving"), true),
     arrowKeysInStats    (_("Arrow keys in statistics")),
+    arrowKeysInTextInput(_("Use arrow keys to edit text input"), false),
 
     joystick            (_("Enable joystick control"), false),
     joyMove             (_("Moving stick"), false, 0, 5, 1),
@@ -216,6 +217,7 @@ Menu_controls::Menu_controls() :
     menu.add_component(&keyboardLayout);
     menu.add_component(&keypadMoving);
     menu.add_component(&arrowKeysInStats);
+    menu.add_component(&arrowKeysInTextInput);
     ins_space();
     menu.add_component(&joystick);
     menu.add_component(&joyMove);

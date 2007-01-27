@@ -123,6 +123,7 @@ public:
     Select<std::string> keyboardLayout;
     Checkbox            keypadMoving;
     Select<ArrowKeysInStatsMode> arrowKeysInStats;
+    Checkbox            arrowKeysInTextInput;
     Checkbox            joystick;
     Slider              joyMove;
     StaticText          joyText;

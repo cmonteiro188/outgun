@@ -842,6 +842,7 @@ bool Client::start() {
                 }
             break; case CCS_KeypadMoving:          menu.options.controls.keypadMoving.set(args == "1");
             break; case CCS_ArrowKeysInStats:      menu.options.controls.arrowKeysInStats.set(args == "1" ? Menu_controls::AS_movePlayer : Menu_controls::AS_useMenu);
+            break; case CCS_ArrowKeysInTextInput:  menu.options.controls.arrowKeysInTextInput.set(args == "1");
             break; case CCS_Joystick:              menu.options.controls.joystick.set(args == "1");
             break; case CCS_JoystickMove:          menu.options.controls.joyMove.boundSet(atoi(args));
             break; case CCS_JoystickShoot:         menu.options.controls.joyShoot.boundSet(atoi(args));
@@ -1646,7 +1647,8 @@ void Client::send_frame(bool newFrame, bool forceSend) {
 
     ClientControls currentControls;
     if (openMenus.empty()) { // don't move at all when a real menu is open
-        currentControls = readControls(menusel != menu_maps, menusel == menu_none && talkbuffer.empty() || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
+        const bool text_input_in_use = !talkbuffer.empty() && menu.options.controls.arrowKeysInTextInput();
+        currentControls = readControls(menusel != menu_maps, menusel == menu_none && !text_input_in_use || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
         currentControls.clearModifiersIfIdle();
     }
 
@@ -4013,7 +4015,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                     if (fx.player[i].used)
                         fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
-            else if (!talkbuffer.empty() && talkbuffer_cursor > 0)
+            else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor > 0)
                 talkbuffer_cursor--;
         }
         break; case KEY_RIGHT: {
@@ -4025,7 +4027,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                     if (fx.player[i].used)
                         fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
-            else if (!talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
+            else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
                 talkbuffer_cursor++;
         }
         break; case KEY_UP: {
@@ -4619,6 +4621,7 @@ void Client::stop() {
         cfg << CCS_KeyboardLayout       << ' ' <<  menu.options.controls.keyboardLayout() << '\n';
         cfg << CCS_KeypadMoving         << ' ' << (menu.options.controls.keypadMoving() ? 1 : 0) << '\n';
         cfg << CCS_ArrowKeysInStats     << ' ' << (menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer ? 1 : 0) << '\n';
+        cfg << CCS_ArrowKeysInTextInput << ' ' <<  menu.options.controls.arrowKeysInTextInput() << '\n';
         cfg << CCS_Joystick             << ' ' << (menu.options.controls.joystick() ? 1 : 0) << '\n';
         cfg << CCS_JoystickMove         << ' ' <<  menu.options.controls.joyMove() << '\n';
         cfg << CCS_JoystickShoot        << ' ' <<  menu.options.controls.joyShoot() << '\n';
