@@ -391,8 +391,6 @@ class Client {
     #endif
     bool finished;
 
-    const Server* bot_server;
-
     Routing     routing[Table_Max];
     int         route_x[Table_Max];
     int         route_y[Table_Max];
@@ -694,7 +692,7 @@ class Client {
     #endif
 
 public:
-    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_, const Server* bot_server_ = 0);
+    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
 
     ~Client();
 

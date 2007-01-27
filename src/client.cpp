@@ -47,7 +47,6 @@
 #include "platform.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "timer.h"
-#include "server.h"
 #include "utility.h"
 #include "world.h"
 
@@ -608,7 +607,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         cl->stop();
 }
 
-Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_, const Server* bot_server_):
+Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -625,7 +624,6 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     botmode(false),
     #endif
     finished(false),
-    bot_server(bot_server_),
     botPrevFire(false),
     abortThreads(false),
     #ifndef DEDICATED_SERVER_ONLY
@@ -1102,13 +1100,8 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
 
     servermap = mapname;
 
-    if (botmode)
-        #ifndef DEDICATED_SERVER_ONLY
-        fd.map =
-        #endif
-        fx.map = bot_server->current_map_data();
     // Try to load the map first from "cmaps" and, if not found there, from "maps".
-    if (botmode || load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
+    if (load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
         log("Map '%s' loaded successfully.", mapname.c_str());
         remove_useless_flags();
         mapChanged = true;
@@ -1117,7 +1110,8 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         return;
     }
 
-    nAssert(!botmode);
+    if (botmode)
+        nAssert(0); // ### FIX: Disconnect bot or something.
 
     #ifndef DEDICATED_SERVER_ONLY
     // start download

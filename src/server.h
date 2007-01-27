@@ -240,7 +240,6 @@ public:
     const std::string& getCurrentMapFile() const { return maprot[currmap].file; }
     const std::vector<MapInfo>& maplist() const { return maprot; }
     std::vector<MapInfo>& maplist() { return maprot; }
-    const Map& current_map_data() const { return world.map; }
 
     const std::vector<std::string>& getWelcomeMessage() const { return welcome_message; }
 

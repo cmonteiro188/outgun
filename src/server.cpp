@@ -1048,7 +1048,7 @@ void Server::init_bots() {
     if (!nlStringToAddr(("127.0.0.1:" + itoa(extConfig.port)).c_str(), &address))
         nAssert(0);
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog, this);
+        Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(network.get_server_password());
         bot->bot_start(address, bot_ping, bot_name_lang);
