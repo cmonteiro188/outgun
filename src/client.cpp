@@ -4458,6 +4458,7 @@ void Client::stop_replay() {
 
     replay.close();
     nlClose(spectate_socket);
+    spectate_buffer.str("");
 
     replaying = false;
     spectating = false;
