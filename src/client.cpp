@@ -2229,7 +2229,7 @@ void Client::process_message(const char* const lebuf, int msglen) {
         NLubyte target;
         readByte(lebuf, count, target);
         fx.player[target].hitfx = time + .3;
-        if (replaying && count < msglen) {
+        if (replaying) {
             NLubyte rx, ry;
             readByte(lebuf, count, rx);
             readByte(lebuf, count, ry);
