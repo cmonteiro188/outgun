@@ -73,6 +73,18 @@ int main(int argc, const char* argv[]) {
     nlShutdown();
 }
 
+Peer::Peer(const Peer& peer) {
+    *this = peer;
+}
+
+Peer& Peer::operator=(const Peer& peer) {
+    address = peer.address;
+    socket = peer.socket;
+    buffer.str("");
+    buffer << peer.buffer.str();
+    return *this;
+}
+
 Relay::Relay(unsigned short port):
     listen_port(port),
     server_socket(NL_INVALID),
@@ -108,6 +120,7 @@ void Relay::run() {
 
     while (!quit) {
         listen();
+        check_new_connections();
         get_server_data();
         send_data();
         handle_keys();
@@ -143,70 +156,102 @@ void Relay::listen() {
         nlGetRemoteAddr(new_socket, &addr);
         NLchar addr_str[NL_MAX_STRING_LENGTH];
         nlAddrToString(&addr, addr_str);
-
         cout << "Incoming connection from " << addr_str << ".\n";
 
+        peers.push_back(Peer(addr, new_socket));
+    }
+}
+
+void Relay::check_new_connections() {
+    for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end();) {
         const unsigned max_buffer_size = 2000;
         NLbyte buffer[max_buffer_size];
-        const int result = nlRead(new_socket, buffer, max_buffer_size);
+        const int result = nlRead(pi->socket, buffer, max_buffer_size);
 
         if (result == NL_INVALID) {
             cout << "Socket read error. " << getNlErrorString() << '\n';
-            break;
-        }
-        if (result == 0) {
-            cout << "Nothing to read.\n";
-            break;
+            nlClose(pi->socket);
+            pi = peers.erase(pi);
+            continue;
         }
 
-        istringstream ist(string(buffer, buffer + result));
+        if (result == 0) {
+            ++pi;
+            continue;
+        }
+
+        pi->buffer.write(buffer, result);
+
+        istream& ist = pi->buffer;
         string game;
         read_string(ist, game);
-        if (game != GAME_STRING)
-            return;
+        if (game != GAME_STRING) {
+            cout << "Different game.\n";
+            nlClose(pi->socket);
+            pi = peers.erase(pi);
+            continue;
+        }
         string type;
         read_string(ist, type);
+        if (!ist) {     // Not all data received yet.
+            ist.clear();
+            ist.seekg(0);
+            ++pi;
+            continue;
+        }
         if (type == "SPECTATOR") {
-            Spectator spec(addr, new_socket);
-            spectators.push_back(spec);
             cout << "Spectator connected.\n";
+            spectators.push_back(Spectator(pi->address, pi->socket));
+            pi = peers.erase(pi);
         }
         else if (type == "SERVER") {
             if (server_socket != NL_INVALID) { // if already connected, skip
                 cout << "Attempt to connect from another server blocked.\n";
-                nlClose(new_socket);
+                nlClose(pi->socket);
+                pi = peers.erase(pi);
+                continue;
             }
-            else {
-                unsigned length;
-                string identification;
-                unsigned version;
-                unsigned replay_length;
-                unsigned maxplayers;
-                string map_name;
-                read(ist, length);
-                read(ist, identification, REPLAY_IDENTIFICATION.length());
-                read(ist, version);
-                read(ist, replay_length);
-                read_string(ist, hostname);
-                read(ist, maxplayers);
-                read_string(ist, map_name);
+            unsigned length;
+            string identification;
+            unsigned version;
+            unsigned replay_length;
+            unsigned maxplayers;
+            string map_name;
+            read(ist, length);
+            read(ist, identification, REPLAY_IDENTIFICATION.length());
+            read(ist, version);
+            read(ist, replay_length);
+            read_string(ist, hostname);
+            read(ist, maxplayers);
+            read_string(ist, map_name);
 
-                ostringstream ost;
-                ost << identification;
-                write(ost, version);
-                write(ost, replay_length);
-                write_string(ost, hostname);
-                write(ost, maxplayers);
-                write_string(ost, string());    // This is because the server sent only the map name of the first game.
-                first_buffer = Frame(ost.str().length(), ost.str());
-                log << ost.str();
-
-                server_socket = new_socket;
-                cout << "Server connected: " << hostname << '\n';
+            if (!ist) {     // Not all data received yet.
+                ist.clear();
+                ist.seekg(0);
+                ++pi;
+                continue;
             }
+
+            ostringstream ost;
+            ost << identification;
+            write(ost, version);
+            write(ost, replay_length);
+            write_string(ost, hostname);
+            write(ost, maxplayers);
+            write_string(ost, string());    // This is because the server sent only the map name of the first game.
+            first_buffer = Frame(ost.str().length(), ost.str());
+            log << ost.str();
+
+            server_socket = pi->socket;
+            cout << "Server connected: " << hostname << '\n';
+
+            pi = peers.erase(pi);
         }
-        else
+        else {
             cout << "Refused an unknown program " << type << ".\n";
+            nlClose(pi->socket);
+            pi = peers.erase(pi);
+        }
     }
 }
 
@@ -364,14 +409,4 @@ void Relay::send_master_server() {
 #endif
 
 void Relay::handle_keys() {
-    //cout << "handle_keys()\n";
-    if (cin.rdbuf()->in_avail()) {
-        //cout << "hmm\n";
-        char c;
-        cin.get(c);
-        if (toupper(c) == 'Q') {
-            quit = true;
-            cout << "quit\n";
-        }
-    }
 }

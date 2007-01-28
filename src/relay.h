@@ -30,6 +30,18 @@
 
 #include <nl.h>
 
+class Peer {
+public:
+    Peer(const NLaddress& addr, const NLsocket& sock): address(addr), socket(sock) { }
+    Peer(const Peer& peer);
+
+    Peer& operator=(const Peer& peer);
+
+    NLaddress address;
+    NLsocket  socket;
+    std::stringstream buffer;
+};
+
 class Spectator {
 public:
     Spectator(const NLaddress& addr, const NLsocket& sock): address(addr), socket(sock), next_frame(0), bytes_sent(0), first_buffer_sent(false) { }
@@ -67,8 +79,9 @@ public:
 
 private:
     void listen();
-    void get_server_data();
+    void check_new_connections();
 
+    void get_server_data();
     void add_data(std::istream& in);
 
     void send_data();
@@ -89,6 +102,8 @@ private:
     std::string hostname;
 
     std::vector<Spectator> spectators;
+
+    std::vector<Peer> peers;
 
     std::stringstream incoming_buffer;
     std::vector<Frame> data_buffer;
