@@ -3963,11 +3963,15 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
 
     switch (sc) {
     /*break;*/ case KEY_HOME:   // change colours
-            if (withControl)
-                client_graphics.reset_playground_colors();
-            else
-                client_graphics.random_playground_colors();
-            predrawNeeded = true;
+            if (replaying)
+                replay_rate = 1;
+            else {
+                if (withControl)
+                    client_graphics.reset_playground_colors();
+                else
+                    client_graphics.random_playground_colors();
+                predrawNeeded = true;
+            }
         break; case KEY_INSERT:
             show_all_messages = !show_all_messages;
         break; case KEY_BACKSPACE:
@@ -4043,9 +4047,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 replay_rate = 1 / 32.;
         }
         break; case KEY_END: {
-            if (replaying)
-                replay_rate = 1;
-            else {
+            if (!replaying) {
                 want_change_teams = !want_change_teams;
                 char lebuf[16]; int count = 0;
                 writeByte(lebuf, count, want_change_teams ? data_change_team_on : data_change_team_off);
