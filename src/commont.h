@@ -279,7 +279,7 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
 #define TK1_VERSION_STRING "v048"
 
-static const int REPLAY_VERSION = 0; // increase when the replay structure changes
+static const unsigned REPLAY_VERSION = 0; // increase when the replay structure changes
 static const std::string REPLAY_IDENTIFICATION = "OUTGUNREPLAY";
 
 //************************************************************

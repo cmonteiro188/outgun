@@ -4322,7 +4322,7 @@ bool Client::start_replay(istream& replay) {
         return false;
     }
 
-    int replay_version;
+    unsigned replay_version;
     read(replay, replay_version);
     log("Replay version: %d", replay_version);
     if (replay_version > REPLAY_VERSION) {   // incompatible replay
@@ -5923,16 +5923,16 @@ void Client::MCF_prepareReplayMenu() {
         string identification;
         read(in, identification, REPLAY_IDENTIFICATION.length());
         bool error = identification != REPLAY_IDENTIFICATION;
-        int replay_version;
+        unsigned replay_version;
         read(in, replay_version);
         if (replay_version > REPLAY_VERSION) {
             log.error(_("Replay $1 is a newer version ($2).", replay_file, itoa(replay_version)));
             continue;
         }
-        int length;
+        unsigned length;
         read(in, length);
         string server_name, map_name;
-        int skip;
+        unsigned skip;
         if (!error && read_string(in, server_name) && read(in, skip) && read_string(in, map_name)) {
             ostringstream text;
             text << name << ' ' << server_name << " - " << map_name;
