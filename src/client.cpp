@@ -1852,7 +1852,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
             continue;
         readByte(data, count, whox);
         readByte(data, count, whoy);
- 
+
         //update this player's px,py,x,y
         //ignore self and anybody onscreen -- because then I've got better accuracy
         if (who != me && !fx.player[who].onscreen) {
