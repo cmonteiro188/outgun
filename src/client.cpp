@@ -4434,11 +4434,10 @@ void Client::continue_replay(istream& in) {
     else {
         in.clear();
         in.seekg(pos);
-        if (fx.frame >= replay_start_frame + replay_length - 1)
-            if (replay_length > 0)
-                replay_stopped = true;
-            else if (replay_rate > 1)
-                replay_rate = 1;
+        if (replay_length > 0)
+            replay_stopped = true;
+        else if (replay_rate > 1)
+            replay_rate = 1;
     }
 }
 
