@@ -2351,20 +2351,18 @@ void Client::process_message(const char* const lebuf, int msglen) {
         else
             remove_flags = 0;
         if (replaying) {
+            #ifndef DEDICATED_SERVER_ONLY
             NLulong map_length;
             readLong(lebuf, count, map_length);
             stringstream stream;
             stream.write(lebuf + count, map_length);
             count += map_length;
             fx.map.parse_file(log, stream);
-            #ifndef DEDICATED_SERVER_ONLY
             fd.map = fx.map;
-            #endif
             log("Map loaded from the replay: %s", fx.map.title.c_str());
             remove_useless_flags();
             mapChanged = true;
             map_ready = true;
-            #ifndef DEDICATED_SERVER_ONLY
             current_room = pair<int, int>();
             if (!spectating)
                 break;
