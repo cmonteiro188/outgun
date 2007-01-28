@@ -2166,22 +2166,24 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
     int x = health_x;
     int y = indicators_y;
 
-    const int width = 8;
-    const int height = 14;
+    const int height = text_height(font) + 2;
+    const int width = 4 * height / 7;
     const int gap = 2;
     // pause ||   slowmotion |>   play >   rewind >>   stop []
     if (stopped) {
         rectfill(drawbuf, x, y, x + 5 * width / 3 + gap - 1, y + height - 1, makecol(0, 255, 0));
         x += 2 * (width + gap);
     }
+    else if (rate == 1) {
+        triangle(drawbuf, x, y, x, y + height, x + 2 * width - 1, y + height / 2, makecol(0, 255, 0));
+        x += 2 * (width + gap);
+    }
     else
         for (int i = 0; i < 2; ++i) {
-            if (i == 1 && rate == 1)
-                ;   // nothing to draw
-            else if (i == 0 && rate >= 1 || i == 1 && rate > 0)
-                triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, makecol(0, 255, 0));
-            else
+            if (rate == 0 || i == 0 && rate < 1)
                 rectfill(drawbuf, x, y, x + 2 * width / 3 - 1, y + height - 1, makecol(0, 255, 0));
+            else
+                triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, makecol(0, 255, 0));
             x += width + gap;
         }
 
@@ -2202,7 +2204,7 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
     print_text_border_centre_check_bg(time.str(), x, y, makecol(255, 255, 255), colour(Colour::text_border), -1);
 
     if (length > 0) {
-        y += 3 * text_height(font) / 2;
+        y += 3 * max(height, text_height(font)) / 2;
         const int x1 = health_x;
         const int x2 = plx + roombg->w;
         const int pos_x = x1 + position * (x2 - x1) / length;
