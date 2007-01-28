@@ -3986,7 +3986,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 talkbuffer_cursor = 0;
             }
         break; case KEY_DEL: {
-            if (!talkbuffer.empty())
+            if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty())
                 talkbuffer.erase(talkbuffer_cursor, 1);
             else if (!replaying) {
                 char lebuf[16]; int count = 0;
