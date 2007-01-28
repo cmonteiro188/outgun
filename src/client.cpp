@@ -4308,7 +4308,7 @@ void Client::start_replay(const std::string& filename) {
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
     if (!replay)
-        log("Could not open replay file %s", filename.c_str());
+        log.error(_("Could not open replay file $1.", filename.c_str()));
     else if (!start_replay(replay))
         replay.close();
 }
@@ -4317,14 +4317,18 @@ bool Client::start_replay(istream& replay) {
     string identification;
     read(replay, identification, REPLAY_IDENTIFICATION.length());
     log("Identification: %s", identification.c_str());
-    if (identification != REPLAY_IDENTIFICATION)
+    if (identification != REPLAY_IDENTIFICATION) {
+        log.error(_("This is not an Outgun replay."));
         return false;
+    }
 
     int replay_version;
     read(replay, replay_version);
     log("Replay version: %d", replay_version);
-    if (replay_version > REPLAY_VERSION) // incompatible replay
+    if (replay_version > REPLAY_VERSION) {   // incompatible replay
+        log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
         return false;
+    }
 
     read(replay, replay_length);
     replay_first_frame_loaded = false;
@@ -4464,7 +4468,7 @@ void Client::start_spectating(const NLaddress& address) {
     nlDisable(NL_BLOCKING_IO);
     spectate_socket = nlOpen(0, NL_RELIABLE);
     if (!nlConnect(spectate_socket, &serverIP)) {
-        log("Could not set address to spectate socket.");
+        log.error(_("Could not set address to spectate socket."));
         return;
     }
     ostringstream ost;
@@ -4475,8 +4479,7 @@ void Client::start_spectating(const NLaddress& address) {
     const NetworkResult result = writeToUnblockingTCP(spectate_socket, ost.str().data(), ost.str().length(), 0, 500, 5);
     if (result != NR_ok) {
         nlClose(spectate_socket);
-        log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-        spectating = false;
+        log.error(_("Could not send init data to the relay: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
         return;
     }
     else
@@ -4488,10 +4491,9 @@ void Client::start_spectating(const NLaddress& address) {
     spectate_data_received = false;
 }
 
-
 void Client::continue_spectating() {
     if (spectate_socket == NL_INVALID) {
-        log("Invalid spectate socket.");
+        log.error(_("Connection to the server closed."));
         return;
     }
 
@@ -4500,7 +4502,8 @@ void Client::continue_spectating() {
     const int result = nlRead(spectate_socket, buffer, max_buffer_size);
 
     if (result == NL_INVALID) {
-        log("Spectate socket read error: %s", getNlErrorString());
+        log.error(_("Connection to the server closed: $1", getNlErrorString()));
+        stop_replay();
         return;
     }
     if (result == 0 && !spectate_data_received)
@@ -4511,8 +4514,8 @@ void Client::continue_spectating() {
         spectate_data_received = true;
         spectate_buffer.write(buffer, result);
         if (!start_replay(spectate_buffer)) {
-            log("Could not start spectating.");
-            spectating = false;
+            log.error(_("Could not start spectating."));
+            stop_replay();
         }
     }
     else
