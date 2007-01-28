@@ -3367,7 +3367,7 @@ void Client::print_message(Message_type type, const string& msg) {
     while (chatbuffer.size() > client_graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
     for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
-        Message message(type, *li, static_cast<int>(replaying ? fx.frame / 10. : get_time()));
+        Message message(type, *li, static_cast<int>(fx.frame / 10));
         if (highlight)
             message.highlight();
         chatbuffer.push_back(message);
@@ -4705,7 +4705,7 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
-    const double time = replaying ? fx.frame / 10 : get_time();
+    const double time = fx.frame / 10;
     const bool sound = !replaying || current_room.first == roomx && current_room.second == roomy;
     if (botmode)
         return;
@@ -4839,7 +4839,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0 || me >= maxplayers;
 
-    const double time = replaying ? fd.frame / 10 : get_time();
+    const double time = fd.frame / 10;
 
     // the playground: border, walls and pits
     if (hide_game) {
@@ -5274,7 +5274,7 @@ void Client::draw_game_menu() {
             client_graphics.map_list(sortedMaps, mapListSortKey, current_map, map_vote, edit_map_vote);
         }
         break; case menu_players:
-            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(replaying ? fx.frame / 10 : get_time()), maxplayers, max_world_rank);
+            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(fx.frame / 10), maxplayers, max_world_rank);
         break; case menu_teams:
             client_graphics.team_statistics(fx.teams);
         break; case menu_none: // regular menus are drawn below, regardless of menusel
