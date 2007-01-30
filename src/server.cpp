@@ -120,12 +120,32 @@ void Server::kickPlayer(int pid, int admin) {
         doKickPlayer(pid, admin, 0);
 }
 
+bool Server::loadAuthorizations() {
+    try {
+        RedirectToConstMemFun1<SettingManager, bool, const string&> commandTest(&settings, &SettingManager::isGamemodCommand);
+        authorizations.load(commandTest);
+        return true;
+    } catch (const AuthorizationDatabase::FileError& e) {
+        log.error(e.description);
+        return false;
+    }
+}
+
+void Server::saveAuthorizations() const {
+    try {
+        authorizations.save();
+    } catch (const AuthorizationDatabase::FileError& e) {
+        log.error(e.description);
+    }
+}
+
 void Server::banPlayer(int pid, int admin, int minutes) {
-    authorizations.load();
+    if (!loadAuthorizations())
+        return;
     const NLaddress addr = network.get_client_address(world.player[pid].cid);
     if (!authorizations.isBanned(addr)) {
         authorizations.ban(addr, world.player[pid].name, minutes);
-        authorizations.save();
+        saveAuthorizations();
         doKickPlayer(pid, admin, minutes);
     }
     else
@@ -901,7 +921,7 @@ void Server::check_map_exit() {
 //----- THE REST  ----------------
 
 bool Server::reset_settings(bool reload) {  // set reload if reset_settings has already been called to preserve map and votes, and ensure that fixed values aren't changed
-    authorizations.load();
+    loadAuthorizations();
 
     string currMapFile;
     list< pair<int, string> > oldVotes;    // pair<pid, map-filename>
@@ -1232,7 +1252,7 @@ public:
 };
 
 bool Server::isLocallyAuthorized(int pid) const {
-    return world.player[pid].localIP || authorizations.isProtected(world.player[pid].name); // must have authorized because otherwise couldn't use the name
+    return world.player[pid].localIP || authorizations.nameAccess(world.player[pid].name).isProtected(); // must have authorized because otherwise couldn't use the name
 }
 
 bool Server::isAdmin(int pid) const {
@@ -1240,19 +1260,36 @@ bool Server::isAdmin(int pid) const {
         return false;
     if (world.player[pid].localIP)
         return true;
-    if (!authorizations.isAdmin(world.player[pid].name))
+    const AuthorizationDatabase::AccessDescriptor& access = authorizations.nameAccess(world.player[pid].name);
+    if (!access.isAdmin())
         return false;
     const ClientData& cld = client[world.player[pid].cid];
-    return (cld.token_have && cld.token_valid) || isLocallyAuthorized(pid);
+    return (cld.token_have && cld.token_valid) || access.isProtected();
+}
+
+const AuthorizationDatabase::AccessDescriptor& Server::getAccess(int pid) {
+    if (pid == shell_pid)
+        return authorizations.shellAccess();
+    numAssert(pid >= 0 && pid < MAX_PLAYERS, pid);
+    if (!world.player[pid].used || world.player[pid].is_bot())
+        return authorizations.defaultAccess();
+    const AuthorizationDatabase::AccessDescriptor& nameAccess = authorizations.nameAccess(world.player[pid].name);
+    if (nameAccess.isAdmin()) {
+        const ClientData& cld = client[world.player[pid].cid];
+        if ((cld.token_have && cld.token_valid) || nameAccess.isProtected())
+            return nameAccess;
+    }
+    if (world.player[pid].localIP)
+        return authorizations.localAccess();
+    return authorizations.defaultAccess();
 }
 
 void Server::chat(int pid, const string& message) {
-    static const int shell_pid = -2;
     if (message.empty())
         return;
     // handle 'console' commands
     if (message[0] == '/') {
-        const bool admin = pid == shell_pid || isAdmin(pid);
+        const AuthorizationDatabase::AccessDescriptor& access = getAccess(pid);
 
         const string::size_type pos = message.find(' ', 1);
         const string command = message.substr(1, pos - 1);
@@ -1271,7 +1308,7 @@ void Server::chat(int pid, const string& message) {
                     ostr << " (" << sayadmin_comment << ')';
                 network.player_message(pid, msg_server, ostr.str());
             }
-            if (admin) {
+            if (access.isAdmin()) {
                 network.player_message(pid, msg_header, "Admin commands:");
                 network.player_message(pid, msg_server, "/list       get a list of player IDs");
                 network.player_message(pid, msg_server, "/kick n     kick player with ID n");
@@ -1303,7 +1340,7 @@ void Server::chat(int pid, const string& message) {
             PlayerMessager pm(*this, pid, msg_server);
             world.printTimeStatus(pm);
         }
-        else if (command == "list" && admin) {
+        else if (command == "list" && access.isAdmin()) {
             network.player_message(pid, msg_header, "Players on server: ID, login flags, name");
             for (int ppid = 0; ppid < MAX_PLAYERS; ) {
                 char buf[100];
@@ -1319,8 +1356,8 @@ void Server::chat(int pid, const string& message) {
                     network.player_message(pid, msg_server, buf);
             }
         }
-        else if (admin && (command == "kick" || command == "ban" || command == "mute" ||
-                           command == "smute" || command == "unmute")) {
+        else if (access.isAdmin() && (command == "kick" || command == "ban" || command == "mute" ||
+                                      command == "smute" || command == "unmute")) {
             istringstream ist(arguments);
             int ppid;
             int time;   // used only for bans
@@ -1358,7 +1395,7 @@ void Server::chat(int pid, const string& message) {
                     nAssert(0);
             }
         }
-        else if (command == "forcemap" && admin) {
+        else if (command == "forcemap" && access.isAdmin()) {
             // Make sure that these messages match with the ones in client.cpp.
             if (pid != shell_pid && world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
@@ -1372,7 +1409,7 @@ void Server::chat(int pid, const string& message) {
             }
             server_next_map(NEXTMAP_VOTE_EXIT); // ignore return value
         }
-        else if (command == "bot" && admin) {
+        else if (command == "bot" && access.isAdmin()) {
             istringstream ist(arguments);
             string option;
             ist >> option;
@@ -1460,25 +1497,40 @@ void Server::chat(int pid, const string& message) {
             else
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove, fill, balance, or ping.");
         }
-        else if (command == "set" && admin) {
-            if (arguments == "reset")
-                reset_settings(true);
+        else if (command == "set" && access.isAdmin()) {
+            if (arguments == "reset") {
+                if (access.canReset()) {
+                    reset_settings(true);
+                    network.player_message(pid, msg_server, "Server settings reset.");
+                }
+                else
+                    network.player_message(pid, msg_server, "You aren't allowed to reset the settings");
+            }
             else if (arguments.find_first_not_of(" ") != string::npos) {
-                const string feedback = load_game_mod(true, arguments);
-                if (!feedback.empty())
-                    network.player_message(pid, msg_server, feedback);
+                vector<string> feedback;
+                if (arguments == "list") {
+                    feedback = settings.listSettings(access.gamemodAccess());
+                    if (feedback.empty())
+                        feedback.push_back("You don't have access to any settings.");
+                }
+                else
+                    feedback = settings.executeLine(arguments, access.gamemodAccess());
+                for (vector<string>::const_iterator fi = feedback.begin(); fi != feedback.end(); ++fi)
+                    network.player_message(pid, msg_server, *fi);
             }
             else {
                 network.player_message(pid, msg_server, "Setting management commands:");
                 //network.player_message(pid, msg_server, "/set s      show the current value of setting s");
                 network.player_message(pid, msg_server, "/set s v    change the value of setting s to v");
-                network.player_message(pid, msg_server, "/set reset  reload all settings from gamemod");
+                if (access.canReset())
+                    network.player_message(pid, msg_server, "/set reset  reload all settings from gamemod");
             }
         }
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
     }
-    else if (pid != shell_pid && message.find_first_not_of(" ") != string::npos) {  // ignore messages that are all spaces
+    else if (message.find_first_not_of(" ") != string::npos) {  // ignore messages that are all spaces
+        numAssert(pid >= 0, pid);
         //talk flood protection
         world.player[pid].talk_temp += world.player[pid].talk_hotness;
         world.player[pid].talk_hotness += 3.0;

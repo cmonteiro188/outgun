@@ -28,7 +28,7 @@
 
 #include "gameserver_interface.h"
 #include "log.h"
-#include "nameauth.h"
+#include "auth.h"
 #include "servnet.h"
 #include "utility.h"
 #include "world.h"
@@ -88,7 +88,7 @@ class Server {
     DualLog errorLog;
     SupplementaryLog<FileLog> securityLog;
     SupplementaryLog<FileLog> adminActionLog;
-    LogSet log;
+    mutable LogSet log;
 
     const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems so it's often wise
     MutexHolder threadLockMutex;    // used to implement threadLock, if it is enabled
@@ -146,7 +146,7 @@ class Server {
     int currmap;        // current map in maprot
     bool random_maprot;
     bool random_first_map;
-    NameAuthorizationDatabase authorizations;
+    AuthorizationDatabase authorizations;
     int vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
     std::string server_website_url; // the URL of the server website to be sent to master server
 
@@ -158,6 +158,11 @@ class Server {
     mutable std::ostringstream record_frame;
     NLulong record_start_frame;
     std::string record_map;
+
+    bool loadAuthorizations();
+    void saveAuthorizations() const;
+
+    const AuthorizationDatabase::AccessDescriptor& getAccess(int pid);
 
     void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
 
