@@ -43,6 +43,8 @@ class ServerHelloResult;
 class ServerPlayer;
 class ServerWorld;
 
+static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
+
 class ServerNetworking {
     class ClientTransferData {
     public:
@@ -179,10 +181,10 @@ public:
     int getPid(int cid) const { return ctop[cid]; }   //#fix: this shouldn't be necessary
 
     void send_me_packet(int pid) const;
-    void send_player_name_update(int cid, int pid, bool record_only = false) const;
-    void broadcast_player_name(int pid, bool record_only = false) const;
-    void send_player_crap_update(int cid, int pid, bool record_only = false);
-    void broadcast_player_crap(int pid, bool record_only = false);
+    void send_player_name_update(int cid, int pid) const;
+    void broadcast_player_name(int pid) const;
+    void send_player_crap_update(int cid, int pid);
+    void broadcast_player_crap(int pid);
     void broadcast_team_change(int from, int to, bool swap) const;
 
     void broadcast_reset_map_list();
@@ -201,7 +203,7 @@ public:
     void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
                         DamageType cause, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
-    void broadcast_new_player(const ServerPlayer& player, bool record_only = false) const;
+    void broadcast_new_player(const ServerPlayer& player) const;
     void new_player_to_admin_shell(int pid) const;  // called when the player name is known (unlike at broadcast_new_player)
     void broadcast_player_left(const ServerPlayer& player) const;
     void broadcast_spawn(const ServerPlayer& player) const;
@@ -209,17 +211,17 @@ public:
     void broadcast_stats(const ServerPlayer& player) const;             // Send player's stats to everyone.
     void send_stats(const ServerPlayer& player) const;                  // Send everyone's stats to player.
     void send_stats(const ServerPlayer& player, int cid) const;         // Send player's stats to client cid.
-    void send_team_movements_and_shots(const ServerPlayer& player, bool record_only = false) const;
+    void send_team_movements_and_shots(int cid) const;
     void send_team_stats(const ServerPlayer& player) const;
 
     void send_map_info(const ServerPlayer& player) const;
     void send_map_vote(const ServerPlayer& player) const;
     void broadcast_map_votes_update();
-    void send_map_change_message(int pid, int reason, const char* mapname, bool record_only = false) const;
-    void broadcast_map_change_message(int reason, const char* mapname, bool record_only = false) const;
+    void send_map_change_message(int pid, int reason, const char* mapname) const;
+    void broadcast_map_change_message(int reason, const char* mapname) const;
     void send_map_time(int cid) const;
     void send_server_settings(const ServerPlayer& player) const;
-    void send_server_settings(int cid, bool record_only = false) const;
+    void send_server_settings(int cid) const;
     void broadcast_map_change_info(int votes, int needed, int vote_block_time) const;
 
     void send_too_much_talk(int pid) const;
@@ -254,7 +256,7 @@ public:
     void broadcast_screen_message(int px, int py, const char *lebuf, int count) const;
     void bprintf(Message_type type, const char *fs, ...) const PRINTF_FORMAT(3, 4);
     void plprintf(int pid, Message_type type, const char* fmt, ...) const PRINTF_FORMAT(4, 5);
-    void player_message(int pid, Message_type type, const std::string& text, bool record_only = false) const;
+    void player_message(int pid, Message_type type, const std::string& text) const;
     void broadcast_text(Message_type type, const std::string& text) const;
     void record_players_present() const;
 

@@ -206,7 +206,7 @@ public:
     void remove_bot();
     void set_check_bots() { check_bots = true; }
 
-    void logAdminAction(int admin, const std::string& action, int target = -1);
+    void logAdminAction(int admin, const std::string& action, int target = pid_none);
 
    int check[MAX_PLAYERS];
    int checount;

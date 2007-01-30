@@ -1602,26 +1602,26 @@ bool ServerWorld::load_map(const string& mapdir, const string& mapname, string* 
 
 void ServerWorld::returnAllFlags() {
     WorldBase::returnAllFlags();
-    net->ctf_net_flag_status(-1, 0);
-    net->ctf_net_flag_status(-1, 1);
-    net->ctf_net_flag_status(-1, 2);
+    net->ctf_net_flag_status(pid_all, 0);
+    net->ctf_net_flag_status(pid_all, 1);
+    net->ctf_net_flag_status(pid_all, 2);
 }
 
 void ServerWorld::returnFlag(int team, int flag) {
     WorldBase::returnFlag(team, flag);
-    net->ctf_net_flag_status(-1, team);
+    net->ctf_net_flag_status(pid_all, team);
 }
 
 void ServerWorld::dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly) {
     WorldBase::dropFlag(team, flag, roomx, roomy, lx, ly);
     if (team != 2)
         teams[team].set_flag_drop_time(flag, frame / 10.);
-    net->ctf_net_flag_status(-1, team);
+    net->ctf_net_flag_status(pid_all, team);
 }
 
 void ServerWorld::stealFlag(int team, int flag, int carrier) {
     WorldBase::stealFlag(team, flag, carrier);
-    net->ctf_net_flag_status(-1, team);
+    net->ctf_net_flag_status(pid_all, team);
 }
 
 bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
@@ -1794,7 +1794,7 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
                 if (this->player[i].used && this->player[i].roomx == item[p].px && this->player[i].roomy == item[p].py)
                     net->sendPickupVisible(i, p, item[p]);
             if (host->is_recording())
-                net->sendPickupVisible(-1, p, item[p]);
+                net->sendPickupVisible(pid_record, p, item[p]);
             break;
         }
 }
@@ -1856,7 +1856,7 @@ void ServerWorld::respawn_pickup(int p) {
             net->sendPickupVisible(i, p, item[p]);
 
     if (host->is_recording())
-        net->sendPickupVisible(-1, p, item[p]);
+        net->sendPickupVisible(pid_record, p, item[p]);
 }
 
 void ServerWorld::check_pickup_creation(bool instant) {
@@ -3147,7 +3147,7 @@ void ServerWorld::simulateFrame() {
         }
         else if (timeLeft == 0) {
             net->broadcast_normal_time_out(config.suddenDeath());
-            net->send_map_time(-1);
+            net->send_map_time(pid_all);
         }
     }
 }

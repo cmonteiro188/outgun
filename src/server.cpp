@@ -100,7 +100,7 @@ Server::~Server() { }
 void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = normal, 2 = mute silently (do not inform the player)
     if (world.player[pid].muted == mode || (world.player[pid].muted == 1 && mode == 2))
         return;
-    const string adminName = (admin < 0) ? "" : world.player[admin].name;
+    const string adminName = (admin == shell_pid) ? "" : world.player[admin].name;
     const bool tellPlayer = (mode != 2 && (world.player[pid].muted != 2 || mode == 1));
     network.broadcast_mute_message(pid, mode, adminName, tellPlayer);
     logAdminAction(admin, (mode == 0 ? "unmuted" : mode == 1 ? "muted" : "silently muted"), pid);
@@ -108,7 +108,7 @@ void Server::mutePlayer(int pid, int mode, int admin) { // 0 = unmute, 1 = norma
 }
 
 void Server::doKickPlayer(int pid, int admin, int minutes) {  // if minutes > 0, it's really a ban
-    const string adminName = (admin < 0) ? "" : world.player[admin].name;
+    const string adminName = (admin == shell_pid) ? "" : world.player[admin].name;
     network.broadcast_kick_message(pid, minutes, adminName);
     logAdminAction(admin, (minutes > 0 ? "banned for " + itoa(minutes) + " minutes" : "kicked"), pid);
     if (world.player[pid].kickTimer == 0)
@@ -154,11 +154,11 @@ void Server::banPlayer(int pid, int admin, int minutes) {
 
 void Server::logAdminAction(int admin, const string& action, int target) {
     string message;
-    if (target == -1)
-        message = (admin < 0 ? "Admin shell user" : world.player[admin].name) + ' ' + action;
+    if (target == pid_none)
+        message = (admin == shell_pid ? "Admin shell user" : world.player[admin].name) + ' ' + action;
     else
         message = world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
-                  + action + " by " + (admin < 0 ? "admin shell user" : world.player[admin].name);
+                  + action + " by " + (admin == shell_pid ? "admin shell user" : world.player[admin].name);
     adminActionLog.put(message);
     network.sendTextToAdminShell(message);
 }
@@ -170,7 +170,7 @@ bool Server::check_name_password(const string& name, const string& password) con
 void Server::ctf_game_restart() {
     if (!record) {
         start_recording();
-        network.broadcast_map_change_message(NEXTMAP_NONE, maprot[currmap].file.c_str(), true);
+        network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
     }
 
     //submit all pending reports and update tournament participation flags
@@ -762,7 +762,7 @@ bool Server::server_next_map(int reason) {
             network.sendFragUpdate(i, pl.stats().frags());
         // no need to update oldfrags, since the stats are next cleared
         network.broadcast_movements_and_shots(pl); // player's stats to everyone
-        network.send_team_movements_and_shots(pl); // team stats to player
+        network.send_team_movements_and_shots(pl.cid); // team stats to player
     }
     network.broadcast_stats_ready();
 
@@ -880,19 +880,18 @@ void Server::clear_recording() {
 }
 
 void Server::record_init_data() {
-    network.send_server_settings(-1, true);
+    network.send_server_settings(pid_record);
 
     // Welcome message
     for (vector<string>::const_iterator line = welcome_message.begin(); line != welcome_message.end(); ++line)
-        network.player_message(-1, msg_server, *line, true);
+        network.player_message(pid_record, msg_server, *line);
 
     // Player data
+    network.record_players_present();
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
-            //network.broadcast_new_player(world.player[i], true);
-            network.record_players_present();
-            network.broadcast_player_crap(i, true);
-            network.broadcast_player_name(i, true);
+            network.send_player_crap_update(pid_record, i);
+            network.send_player_name_update(pid_record, i);
         }
 }
 
