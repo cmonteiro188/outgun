@@ -4781,8 +4781,11 @@ void Client::remove_useless_flags() {
 #ifndef DEDICATED_SERVER_ONLY
 void Client::play_sound(int sample) {
     int freq = 1000;
-    if (replaying)
+    if (replaying) {
+        if (replay_rate > 10)
+            return;
         freq = int(freq * replay_rate);
+    }
     client_sounds.play(sample, freq);
 }
 
