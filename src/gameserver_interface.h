@@ -39,7 +39,7 @@ public:
     bool dedserver;     // dedicated server? only affects what's told to master and asking players
     int port;           // the server port
     int minLocalPort, maxLocalPort; // secondary ports
-    bool privateserver; // private server?
+    bool privateserver;
     std::string ipAddress;
     // forced means set from the outside so that the server should not change them according to lesser priority requests
     bool portForced;
