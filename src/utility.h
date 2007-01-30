@@ -57,11 +57,13 @@ std::string date_and_time();
 // Get a verbal approximation of the given time interval
 std::string approxTime(int seconds);
 
-// Convert string to uppercase.
+// Convert string to upper/lower case.
 std::string toupper(std::string str);
+std::string tolower(std::string str);
 
-// Convert Latin 1 character to uppercase.
+// Convert Latin 1 character to upper/lower case.
 unsigned char latin1_toupper(unsigned char c);
+unsigned char latin1_tolower(unsigned char c);
 
 // Case insensitive string comparison.
 bool cmp_case_ins(const std::string& a, const std::string& b);
