@@ -428,7 +428,7 @@ public:
     public:
         A(CallClassT* host_) : host(host_) { }
         void operator()(ArgT& obj) { (host->*memFun)(obj); }
-        A* clone() { return new A(host); }
+        A* clone() const { return new A(host); }
 
     private:
         CallClassT* host;
@@ -439,7 +439,7 @@ public:
     public:
         N(CallClassT* host_) : host(host_) { }
         void operator()(ArgT&) { (host->*memFun)(); }
-        N* clone() { return new N(host); }
+        N* clone() const { return new N(host); }
 
     private:
         CallClassT* host;
@@ -454,7 +454,7 @@ public:
     public:
         A(CallClassT* host_) : host(host_) { }
         bool operator()(ArgT& obj, char scan, unsigned char chr) { return (host->*memFun)(obj, scan, chr); }
-        A* clone() { return new A(host); }
+        A* clone() const { return new A(host); }
 
     private:
         CallClassT* host;
@@ -465,7 +465,7 @@ public:
     public:
         N(CallClassT* host_) : host(host_) { }
         bool operator()(ArgT&, char scan, unsigned char chr) { return (host->*memFun)(scan, chr); }
-        N* clone() { return new N(host); }
+        N* clone() const { return new N(host); }
 
     private:
         CallClassT* host;

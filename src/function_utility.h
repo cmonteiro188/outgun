@@ -44,7 +44,7 @@ class HookFunctionBase0 {
 public:
     virtual ~HookFunctionBase0() { }
     virtual RetT operator()() = 0;
-    virtual HookFunctionBase0* clone() = 0;
+    virtual HookFunctionBase0* clone() const = 0;
 };
 
 template<class RetT>
@@ -104,7 +104,7 @@ class HookFunctionBase1 {
 public:
     virtual ~HookFunctionBase1() { }
     virtual RetT operator()(Arg1T) = 0;
-    virtual HookFunctionBase1* clone() = 0;
+    virtual HookFunctionBase1* clone() const = 0;
 };
 
 template<class RetT, class Arg1T>
@@ -164,7 +164,7 @@ class HookFunctionBase2 {
 public:
     virtual ~HookFunctionBase2() { }
     virtual RetT operator()(Arg1T, Arg2T) = 0;
-    virtual HookFunctionBase2* clone() = 0;
+    virtual HookFunctionBase2* clone() const = 0;
 };
 
 template<class RetT, class Arg1T, class Arg2T>
@@ -224,7 +224,7 @@ class HookFunctionBase3 {
 public:
     virtual ~HookFunctionBase3() { }
     virtual RetT operator()(Arg1T, Arg2T, Arg3T) = 0;
-    virtual HookFunctionBase3* clone() = 0;
+    virtual HookFunctionBase3* clone() const = 0;
 };
 
 template<class RetT, class Arg1T, class Arg2T, class Arg3T>
@@ -287,7 +287,18 @@ class RedirectToMemFun0 : public HookFunctionBase0<ReturnT> {
 public:
     RedirectToMemFun0(HostClass* h, ReturnT (HostClass::*memFun)()) : host(h), function(memFun) { }
     ReturnT operator()() { return (host->*function)(); }
-    RedirectToMemFun0* clone() { return new RedirectToMemFun0(host, function); }
+    RedirectToMemFun0* clone() const { return new RedirectToMemFun0(host, function); }
+};
+
+template<class HostClass, class ReturnT>
+class RedirectToConstMemFun0 : public HookFunctionBase0<ReturnT> {
+    const HostClass* host;
+    ReturnT (HostClass::*function)() const;
+
+public:
+    RedirectToConstMemFun0(const HostClass* h, ReturnT (HostClass::*memFun)() const) : host(h), function(memFun) { }
+    ReturnT operator()() { return (host->*function)(); }
+    RedirectToConstMemFun0* clone() const { return new RedirectToConstMemFun0(host, function); }
 };
 
 template<class ReturnT>
@@ -297,8 +308,17 @@ class RedirectToFun0 : public HookFunctionBase0<ReturnT> {
 public:
     RedirectToFun0(ReturnT (*fun)()) : function(fun) { }
     ReturnT operator()() { return (*function)(); }
-    RedirectToFun0* clone() { return new RedirectToFun0(function); }
+    RedirectToFun0* clone() const { return new RedirectToFun0(function); }
 };
+
+template<class HostClass, class ReturnT>
+RedirectToMemFun0<HostClass, ReturnT>* newRedirectToMemFun0(HostClass* h, ReturnT (HostClass::*memFun)()) { return new RedirectToMemFun0<HostClass, ReturnT>(h, memFun); }
+
+template<class HostClass, class ReturnT>
+RedirectToConstMemFun0<HostClass, ReturnT>* newRedirectToConstMemFun0(const HostClass* h, ReturnT (HostClass::*memFun)() const) { return new RedirectToConstMemFun0<HostClass, ReturnT>(h, memFun); }
+
+template<class ReturnT>
+RedirectToFun0<ReturnT>* newRedirectToFun0(ReturnT (*function)()) { return new RedirectToFun0<ReturnT>(function); }
 
 // 1-argument RedirectToMemFun
 
@@ -310,7 +330,18 @@ class RedirectToMemFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
 public:
     RedirectToMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T)) : host(h), function(memFun) { }
     ReturnT operator()(Arg1T arg) { return (host->*function)(arg); }
-    RedirectToMemFun1* clone() { return new RedirectToMemFun1(host, function); }
+    RedirectToMemFun1* clone() const { return new RedirectToMemFun1(host, function); }
+};
+
+template<class HostClass, class ReturnT, class Arg1T>
+class RedirectToConstMemFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
+    const HostClass* host;
+    ReturnT (HostClass::*function)(Arg1T) const;
+
+public:
+    RedirectToConstMemFun1(const HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) const) : host(h), function(memFun) { }
+    ReturnT operator()(Arg1T arg) { return (host->*function)(arg); }
+    RedirectToConstMemFun1* clone() const { return new RedirectToConstMemFun1(host, function); }
 };
 
 template<class ReturnT, class Arg1T>
@@ -320,8 +351,17 @@ class RedirectToFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
 public:
     RedirectToFun1(ReturnT (*fun)(Arg1T)) : function(fun) { }
     ReturnT operator()(Arg1T arg) { return (*function)(arg); }
-    RedirectToFun1* clone() { return new RedirectToFun1(function); }
+    RedirectToFun1* clone() const { return new RedirectToFun1(function); }
 };
+
+template<class HostClass, class ReturnT, class Arg1T>
+RedirectToMemFun1<HostClass, ReturnT, Arg1T>* newRedirectToMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T)) { return new RedirectToMemFun1<HostClass, ReturnT, Arg1T>(h, memFun); }
+
+template<class HostClass, class ReturnT, class Arg1T>
+RedirectToConstMemFun1<HostClass, ReturnT, Arg1T>* newRedirectToConstMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T)) { return new RedirectToConstMemFun1<HostClass, ReturnT, Arg1T>(h, memFun); }
+
+template<class ReturnT, class Arg1T>
+RedirectToFun1<ReturnT, Arg1T>* newRedirectToFun1(ReturnT (*function)(Arg1T)) { return new RedirectToFun1<ReturnT, Arg1T>(function); }
 
 // 2-argument RedirectToMemFun
 
@@ -342,7 +382,28 @@ class RedirectToFun2 : public HookFunctionBase2<ReturnT, Arg1T, Arg2T> {
 public:
     RedirectToFun2(ReturnT (*fun)(Arg1T, Arg2T)) : function(fun) { }
     ReturnT operator()(Arg1T arg1, Arg2T arg2) { return (*function)(arg1, arg2); }
-    RedirectToFun2* clone() { return new RedirectToFun2(function); }
+    RedirectToFun2* clone() const { return new RedirectToFun2(function); }
 };
+
+template<class HostClass, class ReturnT, class Arg1T, class Arg2T>
+HookFunctionBase2<ReturnT, Arg1T, Arg2T>* newRedirectToMemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T)) { return new RedirectToMemFun2<HostClass, ReturnT, Arg1T, Arg2T>(h, memFun); }
+
+template<class ReturnT, class Arg1T, class Arg2T>
+RedirectToFun2<ReturnT, Arg1T, Arg2T>* newRedirectToFun2(ReturnT (*function)(Arg1T, Arg2T)) { return new RedirectToFun2<ReturnT, Arg1T, Arg2T>(function); }
+
+// 0-argument HookFnStripConstRef0
+
+template<class RetT>
+class HookFnStripConstRef0 : public HookFunctionBase0<RetT> {
+    HookFunctionBase0<const RetT&>& base;
+
+public:
+    HookFnStripConstRef0(HookFunctionBase0<const RetT&>& base_) : base(base_) { }
+    RetT operator()() { return base(); }
+    HookFnStripConstRef0* clone() const { return new HookFnStripConstRef0(base); }
+};
+
+template<class RetT>
+HookFnStripConstRef0<RetT>* newHookFnStripConstRef0(HookFunctionBase0<const RetT&>& base_) { return new HookFnStripConstRef0<RetT>(base_); }
 
 #endif
