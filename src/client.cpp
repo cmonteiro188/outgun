@@ -4178,25 +4178,17 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             platSleep(2);
         }
 
-        if (get_time() >= nextSend && (!replaying || !replay_paused)) {
-            if (replaying)
-                nextSend += .1 / replay_rate;
-            else
-                nextSend += .1; // match 10 Hz frame frequency of server
+        if (get_time() >= nextSend) {
+            nextSend += .1; // match 10 Hz frame frequency of server
             #ifdef SEND_FRAMEOFFSET
             nextSend += netsendAdjustment;
             netsendAdjustment = 0;  // losing a value due to concurrency is vaguely possible but affordable
             #endif
             if (get_time() > nextSend)   // don't accumulate lag
                 nextSend = get_time();
-            if (replaying)
-                continue_replay();
-            else
+            if (!replaying)
                 send_frame(true, true);
         }
-
-        if (spectating)
-            continue_spectating();
 
         if (get_time() < nextClientFrame)
             continue;
@@ -4211,6 +4203,17 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         if (get_time() > nextClientFrame)    // don't accumulate lag
             nextClientFrame = get_time();
 
+        if (replaying && !replay_stopped) {
+            if (spectating)
+                continue_spectating();
+            const double time = get_time();
+            if (!replay_paused)
+                replaySubFrame += (time - replayTime) * 10. * replay_rate;
+            replayTime = time;
+            for (; replaySubFrame >= 1.; replaySubFrame -= 1.)
+                continue_replay();
+        }
+
         // the rest is drawing
 
         if (gameshow) {
@@ -4218,12 +4221,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             MutexLock ml(frameMutex);
 
             ClientPhysicsCallbacks cb(*this);
-            if (replaying) {
-                if (!replay_stopped) {
-                    const double timeDelta = replay_paused ? 0 : (get_time() - frameReceiveTime) * 10. * replay_rate;
-                    fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, timeDelta);
-                }
-            }
+            if (replaying)
+                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replaySubFrame);
             else if (menu.options.game.lagPrediction()) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
@@ -4354,6 +4353,8 @@ bool Client::start_replay(istream& replay) {
     replay_rate = 1;
     replay_paused = false;
     replay_stopped = false;
+    replayTime = get_time();
+    replaySubFrame = 0;
     current_room = pair<int, int>();
 
     show_all_messages = false;

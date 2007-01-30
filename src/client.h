@@ -481,7 +481,7 @@ class Client {
     bool screenshot;
     bool replaying;
     std::ifstream replay;
-    float replay_rate;
+    double replay_rate, replayTime, replaySubFrame;
     bool replay_paused;
     bool replay_stopped;
     bool replay_first_frame_loaded;
