@@ -166,6 +166,7 @@ class ServerNetworking {
     void record_message(const char* data, int length) const;
 
 public:
+
     ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, bool threadLock, MutexHolder& threadLockMutex);
     ~ServerNetworking();
     void setMaxPlayers(int num) { maxplayers = num; }
@@ -261,6 +262,7 @@ public:
     void record_players_present() const;
 
     void set_relay_server(const std::string& address);
+    std::string get_relay_server() const;
     void send_first_relay_data(const std::string& data);
     void send_relay_data(const std::string& data);
 
@@ -280,12 +282,18 @@ public:
     void set_join_start(int val) { join_start = val; }
     void set_join_end  (int val) { join_end   = val; }
     void set_join_limit_message(const std::string& msg) { join_limit_message = msg; }
+    int get_join_start() const { return join_start; }
+    int get_join_end() const { return join_end; }
+    const std::string& get_join_limit_message() const { return join_limit_message; }
 
     void clear_web_servers() { web_servers.clear(); }
     void add_web_server(const std::string& server) { web_servers.push_back(server); }
     void set_web_script(const std::string& script) { web_script = script; }
     void set_web_auth(const std::string& auth) { web_auth = auth; }
     void set_web_refresh(int refresh);
+    const std::string& get_web_script() const { return web_script; }
+    const std::string& get_web_auth() const { return web_auth; }
+    int get_web_refresh() const { return web_refresh; }
 
     void set_server_password(const std::string& passwd) { server_password = passwd; }
     const std::string& get_server_password() const { return server_password; }

@@ -27,12 +27,12 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
-#include <memory>   // auto_ptr
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "client.h"
+#include "function_utility.h"
 #include "incalleg.h"
 #include "gamemod.h"
 #include "language.h"
@@ -82,8 +82,9 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     world(this, &network, log),
     network(this, world, log, threadLock, threadLockMutex),
     extConfig(config),
+    settings(*this),
     authorizations(log),
-    recording(false),
+    recording(0),
     recording_started(false)
 {
     hostLogs("See serverlog.txt for server's log messages");
@@ -185,9 +186,9 @@ void Server::ctf_game_restart() {
 
     world.returnAllFlags();
 
-    if (worldConfig.balanceTeams()) {
+    if (world.getConfig().balanceTeams()) {
         balance_teams();
-        if (worldConfig.balanceTeams() == WorldSettings::TB_balance_and_shuffle)
+        if (world.getConfig().balanceTeams() == WorldSettings::TB_balance_and_shuffle)
             shuffle_teams();
     }
 
@@ -459,7 +460,7 @@ void Server::refresh_team_score_modifiers() {
         return;
     }
 
-    if (worldConfig.respawn_balancing_time >= 5.) {   // artificial treshold for "enough"
+    if (world.getConfig().respawn_balancing_time >= 5.) {   // artificial treshold for "enough"
         // assume team size to make no difference
         raw[0] /= players[0];
         raw[1] /= players[1];
@@ -495,200 +496,272 @@ void Server::score_neg(int p, int amount) {
     }
 }
 
-static void loadGamemodLine(const string& line, const std::auto_ptr<GamemodSetting>* settings, LogSet& argLogs) {
+bool Server::setForceIP(const string& val) { extConfig.ipAddress = val; return true; }
+void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
+
+const string& Server::getForceIP() const { return extConfig.ipAddress; }
+int Server::getMaxplayers() const { return maxplayers; }
+int Server::getRandomMaprot() const { return random_maprot ? 1 : random_first_map ? 2 : 0; }
+
+bool Server::SettingManager::checkForceIpValue(const string& val) {
+    return isValidIP(val);
+}
+
+bool Server::SettingManager::trySetMaxplayers(int val) {
+    if (val != server.maxplayers && server.network.get_player_count() != 0) {
+        server.log.error(_("Can't change max_players while players are connected."));
+        return false;
+    }
+    server.setMaxPlayers(val);
+    return true;
+}
+
+void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const {
     string cmd, value;
     istringstream ist(line);
     ist >> cmd;
     ist.ignore();
     getline(ist, value);
-    for (int si = 0;; ++si) {
-        if (&*settings[si] == 0) {  // end of settings marker
-            argLogs.error(_("Unrecognized gamemod setting: '$1'.", cmd));
-            break;
+    for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci)
+        for (vector<GamemodSetting*>::const_iterator si = ci->settings.begin(); si != ci->settings.end(); ++si) {
+            GamemodSetting& setting = **si;
+            if (!setting.matchCommand(cmd))
+                continue;
+            if (!access.isAllowed(ci->identifier, cmd))
+                argLogs("You don't have permission to access the setting %s.", cmd.c_str());
+            else {
+                if (value.empty() && allowGet) {
+                    const string value = setting.get();
+                    if (value.empty())
+                        argLogs("The setting %s can't be queried.", cmd.c_str());
+                    else
+                        argLogs("%s = %s.", cmd.c_str(), value.c_str());
+                }
+                else
+                    setting.set(argLogs, value);  // ignore return value; the status is logged
+            }
+            return;
         }
-        if (settings[si]->matchCommand(cmd)) {
-            settings[si]->set(argLogs, value);  // ignore return value; the status is logged
-            break;
-        }
-    }
+    argLogs.error(_("Unrecognized gamemod setting: '$1'.", cmd));
 }
 
-bool Server::trySetMaxplayers(int val) {
-    if (val != maxplayers && network.get_player_count() != 0) {
-        log.error(_("Can't change max_players while players are connected."));
-        return false;
+void Server::SettingManager::free() {
+    for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci)
+        for (vector<GamemodSetting*>::const_iterator si = ci->settings.begin(); si != ci->settings.end(); ++si)
+            delete *si;
+    categories.clear();
+    for (vector<DisposerBase*>::const_iterator di = redirectFnDisposers.begin(); di != redirectFnDisposers.end(); ++di) {
+        (*di)->dispose();
+        delete *di;
     }
-    setMaxPlayers(val);
-    return true;
+    redirectFnDisposers.clear();
 }
 
-bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }    // helper for load_game_mod
-bool checkForceIpValue(const string& val) { return isValidIP(val); }
+void Server::SettingManager::build(bool reload) {
+    if (built && builtForReload == reload)
+        return;
+    built = true;
+    builtForReload = reload;
 
-bool Server::setForceIP(const string& val) { extConfig.ipAddress = val; return true; }
-void Server::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
+    free();
 
-string Server::load_game_mod(bool reload, const string& singleLine) { // if singleLine.empty(), load gamemod.txt and log errors, else apply just singleLine and return errors in string
-    RedirectToFun1<bool, const string&> checkForceIP(checkForceIpValue);
-    RedirectToMemFun1<Server, bool, const string&> setForceIP(this, &Server::setForceIP);
+    // create redirections to functions, for those gamemod settings that require more than just setting a variable
 
-    RedirectToMemFun1<ServerNetworking, void, const string&> setHostname(&network, &ServerNetworking::set_hostname);
-    RedirectToMemFun1<ServerNetworking, void, const string&> setServerPassword(&network, &ServerNetworking::set_server_password);
+    // abbreviations to keep the list manageable
+    typedef const string& CSR;
+    typedef SettingManager This;
+    typedef ServerNetworking Network;
 
-    RedirectToFun1<bool, int> checkMaxplayer(checkMaxplayerSetting);
-    RedirectToMemFun1<Server, bool, int> tryMaxplayer(this, &Server::trySetMaxplayers);
+    #define    FUN0            RedirectToFun0
+    #define   NFUN0         newRedirectToFun0
+    #define    FUN1            RedirectToFun1
+    #define   NFUN1         newRedirectToFun1
 
-    RedirectToMemFun1<ServerNetworking, void, const string&> setRelayServer(&network, &ServerNetworking::set_relay_server);
+    #define   MFUN1         RedirectToMemFun1
+    #define  NMFUN1      newRedirectToMemFun1
 
-    RedirectToMemFun1<ServerNetworking, void, const string&> addWebServer(&network, &ServerNetworking::add_web_server);
-    RedirectToMemFun1<ServerNetworking, void, const string&> setWebScript(&network, &ServerNetworking::set_web_script);
-    RedirectToMemFun1<ServerNetworking, void, const string&> setWebAuth(&network, &ServerNetworking::set_web_auth);
-    RedirectToMemFun1<ServerNetworking, void, int> setWebRefresh(&network, &ServerNetworking::set_web_refresh);
+    #define  CMFUN0    RedirectToConstMemFun0
+    #define NCMFUN0 newRedirectToConstMemFun0
 
-    RedirectToMemFun1<Server, void, int> setRandomMaprot(this, &Server::setRandomMaprot);
+    #define  STCSR0      HookFnStripConstRef0
+    #define NSTCSR0   newHookFnStripConstRef0
 
-    RedirectToMemFun1<ServerNetworking, void, int> setJoinStart(&network, &ServerNetworking::set_join_start);
-    RedirectToMemFun1<ServerNetworking, void, int> setJoinEnd(&network, &ServerNetworking::set_join_end);
-    RedirectToMemFun1<ServerNetworking, void, const string&> setJoinLimitMessage(&network, &ServerNetworking::set_join_limit_message);
+    // checkers
+    FUN1 <         bool, CSR> &checkForceIP        = *addFn(NFUN1  (          &         checkForceIpValue     ));
+    FUN1 <         bool, int> &checkMaxplayer      = *addFn(NFUN1  (          &         checkMaxplayerSetting ));
+
+    // setters
+    MFUN1<Server,  bool, CSR> &setForceIP          = *addFn(NMFUN1 (&server,  & Server::setForceIP            ));
+    MFUN1<This,    bool, int> &tryMaxplayer        = *addFn(NMFUN1 ( this,    &   This::trySetMaxplayers      ));
+    MFUN1<Server,  void, int> &setRandomMaprot     = *addFn(NMFUN1 (&server,  & Server::setRandomMaprot       ));
+    MFUN1<Network, void, CSR> &setHostname         = *addFn(NMFUN1 (&network, &Network::set_hostname          ));
+    MFUN1<Network, void, CSR> &setServerPassword   = *addFn(NMFUN1 (&network, &Network::set_server_password   ));
+    MFUN1<Network, void, CSR> &setRelayServer      = *addFn(NMFUN1 (&network, &Network::set_relay_server      ));
+    MFUN1<Network, void, CSR> &addWebServer        = *addFn(NMFUN1 (&network, &Network::add_web_server        ));
+    MFUN1<Network, void, CSR> &setWebScript        = *addFn(NMFUN1 (&network, &Network::set_web_script        ));
+    MFUN1<Network, void, CSR> &setWebAuth          = *addFn(NMFUN1 (&network, &Network::set_web_auth          ));
+    MFUN1<Network, void, int> &setWebRefresh       = *addFn(NMFUN1 (&network, &Network::set_web_refresh       ));
+    MFUN1<Network, void, int> &setJoinStart        = *addFn(NMFUN1 (&network, &Network::set_join_start        ));
+    MFUN1<Network, void, int> &setJoinEnd          = *addFn(NMFUN1 (&network, &Network::set_join_end          ));
+    MFUN1<Network, void, CSR> &setJoinLimitMessage = *addFn(NMFUN1 (&network, &Network::set_join_limit_message));
+
+    // getters that require changing of return type from const string& -> string
+    STCSR0<         string>   &getForceIP          = *addFn(NSTCSR0(*addFn(NCMFUN0(&server,  & Server::getForceIP            ))));
+    STCSR0<         string>   &getHostname         = *addFn(NSTCSR0(*addFn(NCMFUN0(&network, &Network::get_hostname          ))));
+    STCSR0<         string>   &getServerPassword   = *addFn(NSTCSR0(*addFn(NCMFUN0(&network, &Network::get_server_password   ))));
+    STCSR0<         string>   &getWebScript        = *addFn(NSTCSR0(*addFn(NCMFUN0(&network, &Network::get_web_script        ))));
+    STCSR0<         string>   &getWebAuth          = *addFn(NSTCSR0(*addFn(NCMFUN0(&network, &Network::get_web_auth          ))));
+    STCSR0<         string>   &getJoinLimitMessage = *addFn(NSTCSR0(*addFn(NCMFUN0(&network, &Network::get_join_limit_message))));
+
+    // regular getters
+    CMFUN0<Server,  int>      &getMaxplayers       = *addFn(NCMFUN0(&server,  & Server::getMaxplayers         ));
+    CMFUN0<Server,  int>      &getRandomMaprot     = *addFn(NCMFUN0(&server,  & Server::getRandomMaprot       ));
+    CMFUN0<Network, string>   &getRelayServer      = *addFn(NCMFUN0(&network, &Network::get_relay_server      ));
+    CMFUN0<Network, int>      &getWebRefresh       = *addFn(NCMFUN0(&network, &Network::get_web_refresh       ));
+    CMFUN0<Network, int>      &getJoinStart        = *addFn(NCMFUN0(&network, &Network::get_join_start        ));
+    CMFUN0<Network, int>      &getJoinEnd          = *addFn(NCMFUN0(&network, &Network::get_join_end          ));
+    FUN0  <         string>   &notQueriable        = *addFn(NFUN0  (          &         returnEmptyString     ));
+
+    #undef FUN0
+    #undef NFUN0
+    #undef FUN1
+    #undef NFUN1
+    #undef MFUN1
+    #undef NMFUN1
+    #undef CMFUN0
+    #undef NCMFUN0
+    #undef STCSR0
+    #undef NSTCSR0
+
+    // create and categorize settings
 
     GamemodSetting* portSetting, * ipSetting, * privSetting;
     if (reload) {
         portSetting = new GS_DisallowRunning("server_port");
         ipSetting   = new GS_DisallowRunning("server_ip");
-        privSetting = new GS_Boolean("private_server",  &extConfig.privateserver);
     }
     else {
         if (extConfig.portForced)
             portSetting = new GS_Ignore ("server_port");
         else
-            portSetting = new GS_Int    ("server_port",     &extConfig.port, 1, 65535);
+            portSetting = new GS_Int    ("server_port",      &extConfig.port, 1, 65535);
         if (extConfig.ipForced)
             ipSetting = new GS_Ignore   ("server_ip");
         else
-            ipSetting = new GS_CheckForwardStr("server_ip", _("IP address without :port"), checkForceIP, setForceIP);
-        if (extConfig.privSettingForced)
-            privSetting = new GS_Ignore ("private_server");
-        else
-            privSetting = new GS_Boolean("private_server",  &extConfig.privateserver);
+            ipSetting = new GS_CheckForwardStr("server_ip",  _("IP address without :port"), checkForceIP, setForceIP, getForceIP);
     }
+    if (reload || !extConfig.privSettingForced)
+        privSetting = new GS_Ignore ("private_server");
+    else
+        privSetting = new GS_Boolean("private_server",       &extConfig.privateserver);
 
-    typedef std::auto_ptr<GamemodSetting> PT;
-    PT hack(0); // avoid GCC bug http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12883
-    PT settings[] = {
-        PT(portSetting),
-        PT(ipSetting),
-        PT(privSetting),
-        PT(new GS_Double    ("friction",                &world.physics.fric)),
-        PT(new GS_Double    ("drag",                    &world.physics.drag)),
-        PT(new GS_Double    ("acceleration",            &world.physics.accel)),
-        PT(new GS_Double    ("brake_acceleration",      &world.physics.brake_mul, .01)),
-        PT(new GS_Double    ("turn_acceleration",       &world.physics.turn_mul,  .01)),
-        PT(new GS_Double    ("run_acceleration",        &world.physics.run_mul)),
-        PT(new GS_Double    ("turbo_acceleration",      &world.physics.turbo_mul)),
-        PT(new GS_Double    ("flag_acceleration",       &world.physics.flag_mul)),
-        PT(new GS_Double    ("rocket_speed",            &world.physics.rocket_speed)),
-        PT(new GS_Collisions("player_collisions",       &world.physics.player_collisions)),
-        PT(new GS_Percentage("friendly_fire",           &world.physics.friendly_fire)),
-        PT(new GS_Percentage("friendly_deathbringer",   &world.physics.friendly_db)),
-        PT(new GS_Map       ("map",                     &maprot)),
-        PT(new GS_PowerupNum("pups_min",                &pupConfig.pups_min, &pupConfig.pups_min_percentage)),
-        PT(new GS_PowerupNum("pups_max",                &pupConfig.pups_max, &pupConfig.pups_max_percentage)),
-        PT(new GS_Int       ("pups_respawn_time",       &pupConfig.pups_respawn_time,       0)),
-        PT(new GS_Int       ("pup_chance_shield",       &pupConfig.pup_chance_shield,       0)),
-        PT(new GS_Int       ("pup_chance_turbo",        &pupConfig.pup_chance_turbo,        0)),
-        PT(new GS_Int       ("pup_chance_shadow",       &pupConfig.pup_chance_shadow,       0)),
-        PT(new GS_Int       ("pup_chance_power",        &pupConfig.pup_chance_power,        0)),
-        PT(new GS_Int       ("pup_chance_weapon",       &pupConfig.pup_chance_weapon,       0)),
-        PT(new GS_Int       ("pup_chance_megahealth",   &pupConfig.pup_chance_megahealth,   0)),
-        PT(new GS_Int       ("pup_chance_deathbringer", &pupConfig.pup_chance_deathbringer, 0)),
-        PT(new GS_Ulong     ("time_limit",              &worldConfig.time_limit, 0, GS_Ulong::lim::max(), 60 * 10)),    // convert minutes to frames
-        PT(new GS_Ulong     ("extra_time",              &worldConfig.extra_time, 0, GS_Ulong::lim::max(), 60 * 10)),    // convert minutes to frames
-        PT(new GS_Boolean   ("sudden_death",            &worldConfig.sudden_death)),
-        PT(new GS_Int       ("game_end_delay",          &game_end_delay, 0)),
-        PT(new GS_Int       ("capture_limit",           &worldConfig.capture_limit, 0)),
-        PT(new GS_Int       ("win_score_difference",    &worldConfig.win_score_difference, 1)),
-        PT(new GS_Double    ("flag_return_delay",       &worldConfig.flag_return_delay, 0)),
-        PT(new GS_Boolean   ("random_wild_flag",        &worldConfig.random_wild_flag)),
-        PT(new GS_Boolean   ("lock_team_flags",         &worldConfig.lock_team_flags)),
-        PT(new GS_Boolean   ("lock_wild_flags",         &worldConfig.lock_wild_flags)),
-        PT(new GS_Boolean   ("capture_on_team_flag",    &worldConfig.capture_on_team_flag)),
-        PT(new GS_Boolean   ("capture_on_wild_flag",    &worldConfig.capture_on_wild_flag)),
-        PT(new GS_Int       ("carrying_score_time",     &worldConfig.carrying_score_time)),
-        PT(new GS_Balance   ("balance_teams",           &worldConfig.balance_teams)),
-        PT(new GS_ForwardStr("server_name",             setHostname)),
-        PT(new GS_CheckForwardInt("max_players",        _("an even integer between 2 and $1", itoa(MAX_PLAYERS)), checkMaxplayer, tryMaxplayer)),
-        PT(new GS_AddString ("welcome_message",         &welcome_message)),
-        PT(new GS_AddString ("info_message",            &info_message)),
-        PT(new GS_ForwardStr("server_password",         setServerPassword)),
-        PT(new GS_Int       ("pup_add_time",            &pupConfig.pup_add_time, 1, 999)),
-        PT(new GS_Int       ("pup_max_time",            &pupConfig.pup_max_time, 1, 999)),
-        PT(new GS_Boolean   ("pup_deathbringer_switch", &pupConfig.pup_deathbringer_switch)),
-        PT(new GS_Double    ("pup_deathbringer_time",   &pupConfig.pup_deathbringer_time, 1.)),
-        PT(new GS_Boolean   ("pups_drop_at_death",      &pupConfig.pups_drop_at_death)),
-        PT(new GS_Int       ("pups_player_max",         &pupConfig.pups_player_max, 1)),
-        PT(new GS_Int       ("pup_health_bonus",        &pupConfig.pup_health_bonus, 1)),
-        PT(new GS_Double    ("pup_power_damage",        &pupConfig.pup_power_damage, 0.)),
-        PT(new GS_Int       ("pup_weapon_max",          &pupConfig.pup_weapon_max, 1, 9)),
-        PT(new GS_Boolean   ("pup_shield_one_hit",      &pupConfig.pup_shield_one_hit)),
-        PT(new GS_ForwardInt("random_maprot",           setRandomMaprot, 0, 2)),
-        PT(new GS_Int       ("vote_block_time",         &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)), // convert minutes to frames
-        PT(new GS_Boolean   ("require_specific_map_vote",   &require_specific_map_vote)),
-        PT(new GS_Int       ("idlekick_time",           &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true)),  // convert seconds to frames; special setting: allow 0 that is outside the normal range
-        PT(new GS_Int       ("idlekick_playerlimit",    &idlekick_playerlimit, 1, MAX_PLAYERS)),
-        PT(new GS_Double    ("respawn_time",            &worldConfig.respawn_time, 0.)),
-        PT(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.)),
-        PT(new GS_Double    ("respawn_balancing_time",  &worldConfig.respawn_balancing_time, 0.)),
-        PT(new GS_Int       ("pup_shadow_invisibility", &worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal)),  // 0->smn, 1->0
-        PT(new GS_Int       ("rocket_damage",           &worldConfig.rocket_damage, 0)),
-        PT(new GS_Boolean   ("sayadmin_enabled",        &sayadmin_enabled)),
-        PT(new GS_String    ("sayadmin_comment",        &sayadmin_comment)),
-        PT(new GS_Boolean   ("tournament",              &tournament)),
-        PT(new GS_Int       ("save_stats",              &save_stats, 0, MAX_PLAYERS)),
-        PT(new GS_ForwardInt("join_start",              setJoinStart, 0, 24 * 3600 - 1)),
-        PT(new GS_ForwardInt("join_end",                setJoinEnd, 0, 24 * 3600 - 1)),
-        PT(new GS_ForwardStr("join_limit_message",      setJoinLimitMessage)),
-        PT(new GS_Boolean   ("recording",               &recording)),
-        PT(new GS_ForwardStr("relay_server",            setRelayServer)),
-        PT(new GS_Int       ("min_bots",                &min_bots, 0, MAX_PLAYERS)),
-        PT(new GS_Int       ("bots_fill",               &bots_fill, 0, MAX_PLAYERS)),
-        PT(new GS_Boolean   ("balance_bot",             &balance_bot)),
-        PT(new GS_Int       ("bot_ping",                &bot_ping, 0, 500)),
-        PT(new GS_String    ("bot_name_lang",           &bot_name_lang)),
-        PT(new GS_String    ("server_website",          &server_website_url)),
-        PT(new GS_ForwardStr("web_server",              addWebServer)),
-        PT(new GS_ForwardStr("web_script",              setWebScript)),
-        PT(new GS_ForwardStr("web_auth",                setWebAuth)),
-        PT(new GS_ForwardInt("web_refresh",             setWebRefresh, 1)),
-        PT(0)
-    };
+    Category cat("general" , "General settings");
+    cat.add(new GS_ForwardStr("server_name",                 setHostname, getHostname));
+    cat.add(new GS_CheckForwardInt("max_players",            _("an even integer between 2 and $1", itoa(MAX_PLAYERS)), checkMaxplayer, tryMaxplayer, getMaxplayers));
+    cat.add(new GS_AddString ("welcome_message",             &server.welcome_message));
+    cat.add(new GS_AddString ("info_message",                &server.info_message));
+    cat.add(new GS_Boolean   ("sayadmin_enabled",            &server.sayadmin_enabled));
+    cat.add(new GS_String    ("sayadmin_comment",            &server.sayadmin_comment));
+    cat.add(new GS_ForwardStr("server_password",             setServerPassword, getServerPassword));
+    cat.add(new GS_Boolean   ("tournament",                  &server.tournament));
+    cat.add(new GS_Int       ("save_stats",                  &server.save_stats, 0, MAX_PLAYERS));
+    cat.add(new GS_Int       ("idlekick_time",               &server.idlekick_time, 10, GS_Int::lim::max(), 10, 0, true));  // convert seconds to frames; special setting: allow 0 that is outside the normal range
+    cat.add(new GS_Int       ("idlekick_playerlimit",        &server.idlekick_playerlimit, 1, MAX_PLAYERS));
+    cat.add(portSetting);
+    cat.add(ipSetting);
+    cat.add(privSetting);
+    cat.add(new GS_ForwardInt("join_start",                  setJoinStart, getJoinStart, 0, 24 * 3600 - 1));
+    cat.add(new GS_ForwardInt("join_end",                    setJoinEnd, getJoinEnd, 0, 24 * 3600 - 1));
+    cat.add(new GS_ForwardStr("join_limit_message",          setJoinLimitMessage, getJoinLimitMessage));
+    cat.add(new GS_Int       ("recording",                   &server.recording, 0, MAX_PLAYERS));
+    cat.add(new GS_ForwardStr("relay_server",                setRelayServer, getRelayServer));
+    categories.push_back(cat);
 
-    string ret;
+    cat = Category("website" , "Server web site");
+    cat.add(new GS_String    ("server_website",              &server.server_website_url));
+    cat.add(new GS_ForwardStr("web_server",                  addWebServer, notQueriable));
+    cat.add(new GS_ForwardStr("web_script",                  setWebScript, getWebScript));
+    cat.add(new GS_ForwardStr("web_auth",                    setWebAuth, getWebAuth));
+    cat.add(new GS_ForwardInt("web_refresh",                 setWebRefresh, getWebRefresh, 1));
+    categories.push_back(cat);
 
-    if (!singleLine.empty()) {
-        MemoryLog tmpLog;
-        LogSet tmpLogset(&tmpLog, &tmpLog, 0);
-        loadGamemodLine(singleLine, settings, tmpLogset);
-        ret = tmpLog.pop();
-        while (tmpLog.size()) {
-            ret += ' ';
-            ret += tmpLog.pop();
-        }
-    }
-    else {
-        const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
-        ifstream in(filename.c_str());
-        if (in) {
-            log("Loading game mod: '%s'", filename.c_str());
-            string line;
-            while (getline_skip_comments(in, line))
-                loadGamemodLine(line, settings, log);
-            log("Game mod file read.");
-            in.close();
-        }
-        else
-            log.error(_("Can't open game mod file '$1'.", filename));
-    }
+    cat = Category("bots"    , "Bot settings");
+    cat.add(new GS_Int       ("min_bots",                    &server.min_bots, 0, MAX_PLAYERS));
+    cat.add(new GS_Int       ("bots_fill",                   &server.bots_fill, 0, MAX_PLAYERS));
+    cat.add(new GS_Boolean   ("balance_bot",                 &server.balance_bot));
+    cat.add(new GS_Int       ("bot_ping",                    &server.bot_ping, 0, 500));
+    cat.add(new GS_String    ("bot_name_lang",               &server.bot_name_lang));
+    categories.push_back(cat);
 
+    cat = Category("maps"    , "Map rotation");
+    cat.add(new GS_Map       ("map",                         &server.maprot));
+    cat.add(new GS_ForwardInt("random_maprot",               setRandomMaprot, getRandomMaprot, 0, 2));
+    cat.add(new GS_Int       ("vote_block_time",             &server.vote_block_time, 0, GS_Int::lim::max(), 60 * 10)); // convert minutes to frames
+    cat.add(new GS_Boolean   ("require_specific_map_vote",   &server.require_specific_map_vote));
+    categories.push_back(cat);
+
+    cat = Category("game"    , "Game config");
+    cat.add(new GS_Int       ("capture_limit",               &worldConfig.capture_limit, 0));
+    cat.add(new GS_Int       ("win_score_difference",        &worldConfig.win_score_difference, 1));
+    cat.add(new GS_Ulong     ("time_limit",                  &worldConfig.time_limit, 0, GS_Ulong::lim::max(), 60 * 10));    // convert minutes to frames
+    cat.add(new GS_Ulong     ("extra_time",                  &worldConfig.extra_time, 0, GS_Ulong::lim::max(), 60 * 10));    // convert minutes to frames
+    cat.add(new GS_Boolean   ("sudden_death",                &worldConfig.sudden_death));
+    cat.add(new GS_Int       ("game_end_delay",              &server.game_end_delay, 0));
+    cat.add(new GS_Double    ("flag_return_delay",           &worldConfig.flag_return_delay, 0));
+    cat.add(new GS_Int       ("carrying_score_time",         &worldConfig.carrying_score_time));
+    cat.add(new GS_Boolean   ("random_wild_flag",            &worldConfig.random_wild_flag));
+    cat.add(new GS_Boolean   ("lock_team_flags",             &worldConfig.lock_team_flags));
+    cat.add(new GS_Boolean   ("lock_wild_flags",             &worldConfig.lock_wild_flags));
+    cat.add(new GS_Boolean   ("capture_on_team_flag",        &worldConfig.capture_on_team_flag));
+    cat.add(new GS_Boolean   ("capture_on_wild_flag",        &worldConfig.capture_on_wild_flag));
+    cat.add(new GS_Balance   ("balance_teams",               &worldConfig.balance_teams));
+    cat.add(new GS_Percentage("friendly_fire",               &world.physics.friendly_fire));
+    cat.add(new GS_Percentage("friendly_deathbringer",       &world.physics.friendly_db));
+    cat.add(new GS_Double    ("respawn_time",                &worldConfig.respawn_time, 0.));
+    cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
+    cat.add(new GS_Double    ("respawn_balancing_time",      &worldConfig.respawn_balancing_time, 0.));
+    cat.add(new GS_Int       ("rocket_damage",               &worldConfig.rocket_damage, 0));
+    categories.push_back(cat);
+
+    cat = Category("powerups", "Powerups");
+    cat.add(new GS_PowerupNum("pups_min",                    &pupConfig.pups_min, &pupConfig.pups_min_percentage));
+    cat.add(new GS_PowerupNum("pups_max",                    &pupConfig.pups_max, &pupConfig.pups_max_percentage));
+    cat.add(new GS_Int       ("pups_respawn_time",           &pupConfig.pups_respawn_time, 0));
+    cat.add(new GS_Int       ("pup_add_time",                &pupConfig.pup_add_time, 1, 999));
+    cat.add(new GS_Int       ("pup_max_time",                &pupConfig.pup_max_time, 1, 999));
+    cat.add(new GS_Boolean   ("pups_drop_at_death",          &pupConfig.pups_drop_at_death));
+    cat.add(new GS_Int       ("pups_player_max",             &pupConfig.pups_player_max, 1));
+    cat.add(new GS_Int       ("pup_weapon_max",              &pupConfig.pup_weapon_max, 1, 9));
+    cat.add(new GS_Int       ("pup_health_bonus",            &pupConfig.pup_health_bonus, 1));
+    cat.add(new GS_Double    ("pup_power_damage",            &pupConfig.pup_power_damage, 0.));
+    cat.add(new GS_Double    ("pup_deathbringer_time",       &pupConfig.pup_deathbringer_time, 1.));
+    cat.add(new GS_Boolean   ("pup_deathbringer_switch",     &pupConfig.pup_deathbringer_switch));
+    cat.add(new GS_Int       ("pup_shadow_invisibility",     &worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal));  // 0->smn, 1->0
+    cat.add(new GS_Boolean   ("pup_shield_one_hit",          &pupConfig.pup_shield_one_hit));
+    cat.add(new GS_Int       ("pup_chance_shield",           &pupConfig.pup_chance_shield,       0));
+    cat.add(new GS_Int       ("pup_chance_turbo",            &pupConfig.pup_chance_turbo,        0));
+    cat.add(new GS_Int       ("pup_chance_shadow",           &pupConfig.pup_chance_shadow,       0));
+    cat.add(new GS_Int       ("pup_chance_power",            &pupConfig.pup_chance_power,        0));
+    cat.add(new GS_Int       ("pup_chance_weapon",           &pupConfig.pup_chance_weapon,       0));
+    cat.add(new GS_Int       ("pup_chance_megahealth",       &pupConfig.pup_chance_megahealth,   0));
+    cat.add(new GS_Int       ("pup_chance_deathbringer",     &pupConfig.pup_chance_deathbringer, 0));
+    categories.push_back(cat);
+
+    cat = Category("physics" , "Physics");
+    cat.add(new GS_Double    ("friction",                    &world.physics.fric));
+    cat.add(new GS_Double    ("drag",                        &world.physics.drag));
+    cat.add(new GS_Double    ("acceleration",                &world.physics.accel));
+    cat.add(new GS_Double    ("brake_acceleration",          &world.physics.brake_mul, .01));
+    cat.add(new GS_Double    ("turn_acceleration",           &world.physics.turn_mul,  .01));
+    cat.add(new GS_Double    ("run_acceleration",            &world.physics.run_mul));
+    cat.add(new GS_Double    ("turbo_acceleration",          &world.physics.turbo_mul));
+    cat.add(new GS_Double    ("flag_acceleration",           &world.physics.flag_mul));
+    cat.add(new GS_Collisions("player_collisions",           &world.physics.player_collisions));
+    cat.add(new GS_Double    ("rocket_speed",                &world.physics.rocket_speed));
+    categories.push_back(cat);
+}
+
+void Server::SettingManager::commit(bool reload) {
     const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
             + pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
     if (chanceSum == 0)
@@ -698,21 +771,76 @@ string Server::load_game_mod(bool reload, const string& singleLine) { // if sing
           pupConfig.pups_max == 0)    // if they are in different units, only the value of 0 is comparable
         pupConfig.pups_min = pupConfig.pups_max;
 
-    if (!server_website_url.empty() && singleLine.empty())
-        info_message.push_back(string() + "Website: " + server_website_url);
-
     world.setConfig(worldConfig, pupConfig);
     if (reload)
         world.check_pickup_creation(true);
 
-    check_bots = true;
-    for (int i = 0; i < maxplayers; i++)
+    server.check_bots = true;
+    for (int i = 0; i < server.maxplayers; i++)
         if (world.player[i].used)
             network.send_server_settings(world.player[i]);
-    network.send_server_settings(-1, true);     // record
-    network.send_map_time(-1);  // broadcast time to all, in case time limit has been changed
+    if (server.recording)
+        network.send_server_settings(pid_record);
+    network.send_map_time(pid_all);  // broadcast time to all, in case time limit has been changed
+}
 
+vector<string> Server::SettingManager::listSettings(const GamemodAccessDescriptor& access) {
+    vector<string> ret;
+    for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci) {
+        string categorySettings;
+        for (vector<GamemodSetting*>::const_iterator si = ci->settings.begin(); si != ci->settings.end(); ++si) {
+            const string& name = (*si)->getName();
+            if (!access.isAllowed(ci->identifier, name))
+                continue;
+            if (!categorySettings.empty())
+                categorySettings += ", ";
+            categorySettings += name;
+        }
+        if (!categorySettings.empty())
+            ret.push_back(string() + ci->descriptiveName + ": " + categorySettings);
+    }
     return ret;
+}
+
+vector<string> Server::SettingManager::executeLine(const string& line, const GamemodAccessDescriptor& access) {
+    static const bool reload = true;
+    build(reload);
+    MemoryLog tmpLog;
+    LogSet tmpLogset(&tmpLog, &tmpLog, 0);
+    processLine(line, tmpLogset, true, access);
+    vector<string> ret;
+    while (tmpLog.size())
+        ret.push_back(tmpLog.pop());
+    commit(reload);
+    return ret;
+}
+
+void Server::SettingManager::loadGamemod(bool reload) {
+    build(reload);
+    const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
+    ifstream in(filename.c_str());
+    if (in) {
+        server.log("Loading game mod: '%s'", filename.c_str());
+        string line;
+        while (getline_skip_comments(in, line))
+            processLine(line, server.log, false, AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor(true));
+        server.log("Game mod file read.");
+        in.close();
+    }
+    else
+        server.log.error(_("Can't open game mod file '$1'.", filename));
+    commit(reload);
+}
+
+bool Server::SettingManager::isGamemodCommand(const string& cmd, bool includeCategoryNames) const {
+    for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci) {
+        if (includeCategoryNames && cmd == ci->identifier)
+            return true;
+        for (vector<GamemodSetting*>::const_iterator si = ci->settings.begin(); si != ci->settings.end(); ++si)
+            if ((*si)->matchCommand(cmd))
+                return true;
+    }
+    return false;
 }
 
 //load a map from the rotation list
@@ -721,7 +849,7 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
-    if (worldConfig.random_wild_flag) {
+    if (world.getConfig().random_wild_flag) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
         world.remove_team_flags(2);
@@ -731,13 +859,13 @@ bool Server::load_rotation_map(int pos) {
     // Check the flag settings and remove the useless flags (only if there are three kinds of flags).
     if (world.wild_flags.empty() || world.teams[0].flags().empty() || world.teams[1].flags().empty())
         return true;
-    if (worldConfig.lock_team_flags && (worldConfig.lock_wild_flags || !worldConfig.capture_on_team_flag)) {
+    if (world.getConfig().lock_team_flags && (world.getConfig().lock_wild_flags || !world.getConfig().capture_on_team_flag)) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);
-        if (worldConfig.lock_wild_flags)
+        if (world.getConfig().lock_wild_flags)
             world.remove_team_flags(2);
     }
-    else if (worldConfig.lock_wild_flags && !worldConfig.capture_on_wild_flag)
+    else if (world.getConfig().lock_wild_flags && !world.getConfig().capture_on_wild_flag)
         world.remove_team_flags(2);
     return true;
 }
@@ -865,7 +993,7 @@ void Server::stop_recording() {
     }
     record.close();
     record.clear();
-    if (network.get_human_count() < 2)
+    if (network.get_human_count() < recording)
         clear_recording();
 }
 
@@ -933,8 +1061,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
 
     world.physics = PhysicalSettings(); // default values
     maprot.clear();
-    pupConfig.reset();
-    worldConfig.reset();
+    settings.reset();
     currmap = 0;
 
     network.set_hostname("");
@@ -958,7 +1085,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     tournament = true;
     save_stats = 0;
 
-    recording = false;
+    recording = 0;
 
     network.clear_web_servers();
     network.set_web_refresh(2);
@@ -969,7 +1096,10 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
     balance_bot = false;
 
     // load server configuration from gamemod.txt
-    load_game_mod(reload);
+    settings.loadGamemod(reload);
+
+    if (!server_website_url.empty())
+        info_message.push_back(string() + "Website: " + server_website_url);
 
     bot_ping_changed = true;
 
@@ -1519,7 +1649,8 @@ void Server::chat(int pid, const string& message) {
             }
             else {
                 network.player_message(pid, msg_server, "Setting management commands:");
-                //network.player_message(pid, msg_server, "/set s      show the current value of setting s");
+                network.player_message(pid, msg_server, "/set list   list all settings that you can manipulate");
+                network.player_message(pid, msg_server, "/set s      show the current value of setting s");
                 network.player_message(pid, msg_server, "/set s v    change the value of setting s to v");
                 if (access.canReset())
                     network.player_message(pid, msg_server, "/set reset  reload all settings from gamemod");

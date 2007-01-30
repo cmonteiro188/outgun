@@ -1089,6 +1089,13 @@ void ServerNetworking::set_relay_server(const string& address) {
         log("Invalid or missing relay port in %s.", address.c_str());
 }
 
+string ServerNetworking::get_relay_server() const {
+    char buf[NL_MAX_STRING_LENGTH];
+    if (!nlAddrToString(&relay_address, buf))
+        return string();
+    return string(buf);
+}
+
 void ServerNetworking::send_first_relay_data(const string& data) {
     relay_new_game = true;
     if (relay_socket != NL_INVALID) // already sent

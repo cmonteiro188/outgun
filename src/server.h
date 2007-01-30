@@ -34,6 +34,7 @@
 #include "world.h"
 
 class Client; // bots are Clients
+class GamemodSetting;
 
 //per-client struct (statically allocated to a single client)
 class ClientData {
@@ -139,8 +140,77 @@ class Server {
     bool tournament;
     int save_stats;
     ServerExternalSettings extConfig;   // actually, not necessary external: some may be specified in gamemod and written here
-    PowerupSettings pupConfig;
-    WorldSettings worldConfig;
+
+    class SettingManager {
+    public:
+        typedef AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor GamemodAccessDescriptor;
+
+    private:
+        Server& server;
+        // handy aliases to server.*:
+        ServerNetworking& network;
+        ServerExternalSettings& extConfig;
+        ServerWorld& world;
+
+        PowerupSettings pupConfig;
+        WorldSettings worldConfig;
+        //#todo: move more of Server's configuration variables inside this class
+
+        class DisposerBase {
+        public:
+            virtual ~DisposerBase() { }
+            virtual void dispose() = 0;
+        };
+
+        template<class T> class Disposer : public DisposerBase {
+            T* ptr;
+        public:
+            Disposer(T* ptr_) : ptr(ptr_) { }
+            void dispose() { delete ptr; }
+        };
+
+        std::vector<DisposerBase*> redirectFnDisposers;
+
+        template<class T> T* addFn(T* ptr) { redirectFnDisposers.push_back(new Disposer<T>(ptr)); return ptr; }
+
+        struct Category { // no pointers contained are owned by this object
+            const char* identifier;
+            const char* descriptiveName;
+            std::vector<GamemodSetting*> settings;
+
+            Category(const char* id, const char* name) : identifier(id), descriptiveName(name) { }
+            void add(GamemodSetting* setting) { settings.push_back(setting); }
+        };
+        std::vector<Category> categories;
+        bool built, builtForReload;
+
+        static bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }
+        static bool checkForceIpValue(const std::string& val);
+        static std::string returnEmptyString() { return std::string(); }
+        bool trySetMaxplayers(int val);
+
+        void free();
+        void build(bool reload);
+        void commit(bool reload);
+        void processLine(const std::string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const;
+
+    public:
+        SettingManager(Server& server_) : server(server_), network(server_.network), extConfig(server_.extConfig), world(server_.world), built(false) { }
+        ~SettingManager() { free(); }
+
+        std::vector<std::string> listSettings(const GamemodAccessDescriptor& access);
+        std::vector<std::string> executeLine(const std::string& line, const GamemodAccessDescriptor& access);
+        void loadGamemod(bool reload);
+
+        bool isGamemodCommand(const std::string& cmd, bool includeCategories) const;
+
+        bool isGamemodCommand(const std::string& cmd) const { return isGamemodCommand(cmd, false); }
+        bool isGamemodCommandOrCategory(const std::string& cmd) const { return isGamemodCommand(cmd, true); }
+
+        void reset() { pupConfig.reset(); worldConfig.reset(); }
+    };
+
+    SettingManager settings;
 
     std::vector<MapInfo> maprot;
     int currmap;        // current map in maprot
@@ -151,7 +221,7 @@ class Server {
     std::string server_website_url; // the URL of the server website to be sent to master server
 
     // recording
-    bool recording;
+    int recording;
     bool recording_started;
     std::string record_filename;
     mutable std::ofstream record;
@@ -171,6 +241,9 @@ class Server {
 
     bool setForceIP(const std::string& val);
     void setRandomMaprot(int val);
+    const std::string& getForceIP() const;
+    int getMaxplayers() const;
+    int getRandomMaprot() const;
 
     // copying not allowed
     Server(const Server& o);
@@ -252,10 +325,9 @@ public:
 
     bool tournament_active() const { return tournament; }
 
-    std::string load_game_mod(bool reload, const std::string& singleLine = std::string()); // if singleLine.empty(), load gamemod.txt and log errors, else apply just singleLine and return errors in string
     bool reset_settings(bool reload);   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
-    bool is_recording() const { return recording; }
+    bool is_recording() const { return !!recording; }
     std::ostream& record_stream() const { return record_frame; }
     const std::string& record_map_data() const { return record_map; }
 };

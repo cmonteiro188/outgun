@@ -27,7 +27,6 @@
 
 #include "language.h"
 #include "server.h"
-#include "servnet.h"
 #include "world.h"
 
 // implements:
@@ -60,7 +59,11 @@ bool GS_CheckForwardInt::set(LogSet& log, const string& value) {
     rd >> val;
     if (!rd || rd.peek() != eof_ch || !checkValue(val))
         return basicErrorMessage(log, value, expect);
-    return var(val);
+    return setFn(val);
+}
+
+string GS_CheckForwardInt::get() {
+    return itoa(getFn());
 }
 
 bool GS_Map::set(LogSet& log, const string& value) {
@@ -100,6 +103,13 @@ bool GS_PowerupNum::set(LogSet& log, const string& value) {
     return basicErrorMessage(log, value, _("an integer between 0 and $1, or 'n %' with n 0 or greater", itoa(MAX_PICKUPS)));
 }
 
+string GS_PowerupNum::get() {
+    if (*percentFlag)
+        return itoa(*var) + " %";
+    else
+        return itoa(*var);
+}
+
 bool GS_Balance::set(LogSet& log, const string& value) {
     const string tval = trim(value);
     if (tval == "no")
@@ -113,6 +123,15 @@ bool GS_Balance::set(LogSet& log, const string& value) {
     return true;
 }
 
+string GS_Balance::get() {
+    switch (*var) {
+        break; case WorldSettings::TB_disabled:            return "no";
+        break; case WorldSettings::TB_balance:             return "balance";
+        break; case WorldSettings::TB_balance_and_shuffle: return "shuffle";
+        break; default: nAssert(0);
+    }
+}
+
 bool GS_Collisions::set(LogSet& log, const string& value) {
     const string tval = trim(value);
     if (tval == "no" || tval == "0")
@@ -124,6 +143,15 @@ bool GS_Collisions::set(LogSet& log, const string& value) {
     else
         return basicErrorMessage(log, value, _("one of no, normal, and special"));
     return true;
+}
+
+string GS_Collisions::get() {
+    switch (*var) {
+        break; case PhysicalSettings::PC_none:    return "no";
+        break; case PhysicalSettings::PC_normal:  return "normal";
+        break; case PhysicalSettings::PC_special: return "special";
+        break; default: nAssert(0);
+    }
 }
 
 bool GS_Percentage::set(LogSet& log, const string& value) {
@@ -146,4 +174,12 @@ bool GS_Percentage::set(LogSet& log, const string& value) {
         }
     }
     return basicErrorMessage(log, value, _("a real number or 'x %' with x 0 or greater"));
+}
+
+string GS_Percentage::get() {
+    const int perc = static_cast<int>(*var * 100. + .5);
+    if (perc != 0 && fabs(*var * 100. - perc) < .01)
+        return itoa(perc) + " %";
+    else
+        return fcvt(*var);
 }
