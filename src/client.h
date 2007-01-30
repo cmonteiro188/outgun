@@ -138,6 +138,7 @@ enum ClientCfgSetting {
     CCS_HighlightReturnedFlag,
     CCS_ArrowKeysInTextInput,
     CCS_SpawnHighlight,
+    CCS_NeighborMarkers,
     CCS_EndOfCommands
 };
 

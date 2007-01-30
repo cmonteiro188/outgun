@@ -182,6 +182,7 @@ public:
     Select<MinimapPlayerMode> minimapPlayers;
     Checkbox            highlightReturnedFlag;
     Checkbox            spawnHighlight;
+    Checkbox            neighborMarkers;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;
