@@ -4739,7 +4739,7 @@ void Client::rocketOutOfBoundsCallback(int rid) {
 void Client::playerHitWallCallback(int pid) {
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
-    const double currTime = get_time(); //#fix
+    const double currTime = fx.frame / 10.;
     if (currTime > fx.player[pid].wall_sound_time && (!replaying || current_room.first == fx.player[pid].roomx && current_room.second == fx.player[pid].roomy)) {
         fx.player[pid].wall_sound_time = currTime + 0.2;
         play_sound(SAMPLE_WALLBOUNCE);
@@ -4752,7 +4752,7 @@ void Client::playerHitWallCallback(int pid) {
 void Client::playerHitPlayerCallback(int pid1, int pid2) {
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
-    const double currTime = get_time(); //#fix
+    const double currTime = fx.frame / 10.;
     if ((currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) &&
             (!replaying || current_room.first == fx.player[pid1].roomx && current_room.second == fx.player[pid1].roomy ||
                            current_room.first == fx.player[pid2].roomx && current_room.second == fx.player[pid2].roomy)) {
@@ -5146,7 +5146,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer, talkbuffer_cursor);
 
     //"server not responding... connection may have dropped" plaque
-    if (time > lastpackettime + 1.0 && !replaying)
+    if (get_time() > lastpackettime + 1.0 && !replaying)
         m_notResponding.menu.draw(client_graphics.drawbuffer(), client_graphics.colours());
 
     // debug panel
