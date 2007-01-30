@@ -181,6 +181,7 @@ public:
     Checkbox            contTextures;
     Select<MinimapPlayerMode> minimapPlayers;
     Checkbox            highlightReturnedFlag;
+    Checkbox            spawnHighlight;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;

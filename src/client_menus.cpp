@@ -344,6 +344,7 @@ Menu_graphics::Menu_graphics() :
     contTextures(_("Continuous textures between rooms"), false),
     minimapPlayers(_("Disappeared players on minimap")),
     highlightReturnedFlag(_("Highlight returned and dropped flags"), false),
+    spawnHighlight(_("Highlight myself after being spawn"), true),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
 
     fpsLimit    (_("FPS limit"), false, 1, 10000, 60, 0),
@@ -361,6 +362,7 @@ Menu_graphics::Menu_graphics() :
     menu.add_component(&contTextures);
     menu.add_component(&minimapPlayers);
     menu.add_component(&highlightReturnedFlag);
+    menu.add_component(&spawnHighlight);
     menu.add_component(&statsBgAlpha);
     ins_space();
     menu.add_component(&fpsLimit);

@@ -881,6 +881,7 @@ bool Client::start() {
             break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
             break; case CCS_MinimapPlayers:        menu.options.graphics.minimapPlayers.set(args == "1" ? Menu_graphics::MP_EarlyCut : args == "2" ? Menu_graphics::MP_LateCut : Menu_graphics::MP_Fade);
             break; case CCS_HighlightReturnedFlag: menu.options.graphics.highlightReturnedFlag.set(args == "1");
+            break; case CCS_SpawnHighlight:        menu.options.graphics.spawnHighlight.set(args == "1");
             break; case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args));
 
             // sound menu
@@ -4642,6 +4643,7 @@ void Client::stop() {
         cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
         cfg << CCS_MinimapPlayers       << ' ' << (menu.options.graphics.minimapPlayers() == Menu_graphics::MP_EarlyCut ? 1 : menu.options.graphics.minimapPlayers() == Menu_graphics::MP_LateCut ? 2 : 0) << '\n';
         cfg << CCS_HighlightReturnedFlag << ' ' << (menu.options.graphics.highlightReturnedFlag() ? 1 : 0) << '\n';
+        cfg << CCS_SpawnHighlight       << ' ' << (menu.options.graphics.spawnHighlight() ? 1 : 0) << '\n';
         cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
 
         // save sound menu settings
@@ -4956,8 +4958,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     spawnTime = get_time();
                 }
                 static const double highlightTime = .5;
-                if (get_time() - spawnTime < highlightTime) //#@ add option test
-                    client_graphics.draw_me_highlight(fd.player[me].lx, fd.player[me].ly, 1. - (time - spawnTime) / highlightTime);
+                if (menu.options.graphics.spawnHighlight() && get_time() - spawnTime < highlightTime)
+                    client_graphics.draw_me_highlight(fd.player[me].lx, fd.player[me].ly, 1. - (get_time() - spawnTime) / highlightTime);
             }
         }
 
