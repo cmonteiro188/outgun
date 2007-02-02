@@ -413,7 +413,6 @@ public:
 
     bool want_change_teams;
     double team_change_time;
-    bool team_change_pending;
 
     int cid;    // client id (network identity)
     NLubyte lastClientFrame;    // client set frame identifier of the latest data received

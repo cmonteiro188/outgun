@@ -234,27 +234,21 @@ void Server::shuffle_teams() {  // weird system, because players table has gaps
 //check if team change requests can be satisfied
 void Server::check_team_changes() {
     // check players in random order
+    vector<int> order;
     for (int i = 0; i < maxplayers; i++)
-        check[i] = 0;
-    checount = maxplayers;
-    while (checount > 0) {
-        const int p = rand() % maxplayers;
-        if (!check[p]) {
-            check[p] = 1;
-            checount--;
-            check_player_change_teams(p);
-        }
-    }
+        if (world.player[i].used && world.player[i].want_change_teams)
+            order.push_back(i);
+    random_shuffle(order.begin(), order.end());
+    for (vector<int>::const_iterator pi = order.begin(); pi != order.end(); ++pi)
+        check_player_change_teams(*pi); // this may move a player later in the order too, but that doesn't hurt
 }
 
 // Check if a player wants to change teams and if yes, try to fullfill the wish.
 void Server::check_player_change_teams(int pid) {
     if (!world.player[pid].used || !world.player[pid].want_change_teams)
         return;
-    if (get_time() < world.player[pid].team_change_time) {
-        world.player[pid].team_change_pending = true;
+    if (get_time() < world.player[pid].team_change_time)
         return;
-    }
 
     //count players in each team
     int tc[2] = { 0, 0 };
@@ -1470,8 +1464,7 @@ void Server::server_think_after_broadcast() {
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
             ++tc[i / TSIZE];
-            if (world.player[i].team_change_pending &&
-                world.player[i].want_change_teams &&
+            if (world.player[i].want_change_teams &&
                 world.player[i].team_change_time < get_time())
                     check_player_change_teams(i);
         }

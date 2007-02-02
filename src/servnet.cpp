@@ -1563,12 +1563,8 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     pid = ctop[id];
                 }
             }
-            else if (code == data_change_team_off) {
-                if (world.player[pid].want_change_teams) {
-                    world.player[pid].want_change_teams = false;
-                    world.player[pid].team_change_pending = false; //so pra garantir
-                }
-            }
+            else if (code == data_change_team_off)
+                world.player[pid].want_change_teams = false;
             else if (code == data_client_ready) {
                 #ifdef EXTRA_DEBUG
                 nAssert(world.player[pid].awaiting_client_readies); // this is an abnormal condition, but it could be the client's fault se normally we can ignore it
