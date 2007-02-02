@@ -2933,14 +2933,14 @@ void ServerWorld::simulateFrame() {
             // regenerate +1 health or +1 energy
             if (pl.health < 100)
                 pl.health++;
-            else {
-                if (pl.energy < 100)
+            else if (pl.energy < 100)
+                pl.energy++;
+            else if (pl.energy < 200) {
+                if (frame % 2)
                     pl.energy++;
-                else if (pl.energy < 200) {
-                    if (frame % 2)
-                        pl.energy++;
-                }
-                else if (pl.health < 200 && frame % 10 == 0)
+            }
+            else if (pl.health < 200) {
+                if (frame % 10 == 0)
                     pl.health++;
             }
         }
