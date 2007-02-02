@@ -46,6 +46,38 @@ class ServerWorld;
 static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
 
 class ServerNetworking {
+public:
+    class Settings {
+    public:
+        virtual ~Settings() { }
+
+        typedef void StatusOutputFnT(const std::string& str);
+        virtual StatusOutputFnT* statusOutput() const = 0;
+        virtual bool showErrorCount() const = 0;
+        virtual int lowerPriority() const = 0;
+        virtual int networkPriority() const = 0;
+        virtual int minLocalPort() const = 0;
+        virtual int maxLocalPort() const = 0;
+        virtual bool dedicated() const = 0;
+
+        virtual bool privateServer() const = 0;
+        virtual const std::string& ip() const = 0;
+        virtual int get_port() const = 0;
+        virtual const std::string& get_hostname() const = 0;
+
+        virtual int get_join_start() const = 0;
+        virtual int get_join_end() const = 0;
+        virtual const std::string& get_join_limit_message() const = 0;
+
+        virtual const std::vector<std::string>& get_web_servers() const = 0;
+        virtual const std::string& get_web_script() const = 0;
+        virtual const std::string& get_web_auth() const = 0;
+        virtual int get_web_refresh() const = 0;
+
+        virtual const std::string& get_server_password() const = 0;
+    };
+
+private:
     class ClientTransferData {
     public:
         bool        serving_udp_file;
@@ -82,6 +114,7 @@ class ServerNetworking {
     NetworkResult save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) const;   // timeout in ms
 
     Server* host;
+    const Settings& settings;
     ServerWorld&    world;
     int             maxplayers;
 
@@ -109,8 +142,6 @@ class ServerNetworking {
     Thread          mthread;
     Thread          webthread;
 
-    std::string     hostname;
-    std::string     server_password;
     std::string     server_identification;
     int             ping_send_client;
     int             ctop[256];          // client id-to-player id index
@@ -121,16 +152,6 @@ class ServerNetworking {
     MutexHolder     addPlayerMutex;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
-
-    int             join_start;         // allow joining from this time of a day (in seconds)
-    int             join_end;           // disallow joining; set both same to allow always (default)
-    std::string     join_limit_message; // when joining is disallowed, this message is sent to asking clients in addition to information about the open times
-
-    // web site settings
-    std::vector<std::string> web_servers;
-    std::string web_script;
-    std::string web_auth;
-    int web_refresh;
 
     NLaddress relay_address;
     NLsocket  relay_socket;
@@ -167,7 +188,7 @@ class ServerNetworking {
 
 public:
 
-    ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, bool threadLock, MutexHolder& threadLockMutex);
+    ServerNetworking(Server* hostp, const Settings& settings, ServerWorld& w, LogSet logs, bool threadLock, MutexHolder& threadLockMutex);
     ~ServerNetworking();
     void setMaxPlayers(int num) { maxplayers = num; }
 
@@ -271,32 +292,11 @@ public:
 
     void broadcast_frame(bool gameRunning);
 
-    void set_hostname(const std::string& name);
-    const std::string& get_hostname() const { return hostname; }
     NLaddress get_client_address(int cid) const;
     int get_player_count() const { return player_count; }
     int get_human_count() const { return player_count - bot_count; }
     int get_bot_count() const { return bot_count; }
     int numDistinctClients() const { return distinctRemotePlayers.size() + (localPlayers > 0 ? 1 : 0); }
-
-    void set_join_start(int val) { join_start = val; }
-    void set_join_end  (int val) { join_end   = val; }
-    void set_join_limit_message(const std::string& msg) { join_limit_message = msg; }
-    int get_join_start() const { return join_start; }
-    int get_join_end() const { return join_end; }
-    const std::string& get_join_limit_message() const { return join_limit_message; }
-
-    void clear_web_servers() { web_servers.clear(); }
-    void add_web_server(const std::string& server) { web_servers.push_back(server); }
-    void set_web_script(const std::string& script) { web_script = script; }
-    void set_web_auth(const std::string& auth) { web_auth = auth; }
-    void set_web_refresh(int refresh);
-    const std::string& get_web_script() const { return web_script; }
-    const std::string& get_web_auth() const { return web_auth; }
-    int get_web_refresh() const { return web_refresh; }
-
-    void set_server_password(const std::string& passwd) { server_password = passwd; }
-    const std::string& get_server_password() const { return server_password; }
 };
 
 #endif

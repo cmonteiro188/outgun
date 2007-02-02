@@ -76,19 +76,16 @@ public:
     int cid;
 };
 
-ServerNetworking::ServerNetworking(Server* hostp, ServerWorld& w, LogSet logs, bool threadLock_, MutexHolder& threadLockMutex_) :
+ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, ServerWorld& w, LogSet logs, bool threadLock_, MutexHolder& threadLockMutex_) :
     threadLock(threadLock_),
     threadLockMutex(threadLockMutex_),
     host(hostp),
+    settings(settings_),
     world(w),
     log(logs),
-    hostname("Anonymous host"), // not translated - a server's language is irrelevant to clients
     player_count(0),
     localPlayers(0),
     maplist_revision(0),
-    join_start(0),
-    join_end(0),
-    web_refresh(0),
     relay_socket(NL_INVALID),
     playerSlotReservationTime(get_time()),
     reservedPlayerSlots(0)
@@ -807,7 +804,7 @@ void ServerNetworking::client_report_status(int id) {
         mjob_count++;
     }
     RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-    Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
+    Thread::startDetachedThread_assert(rmf, job, settings.lowerPriority());
 
     clid.delta_score = 0;
     clid.neg_delta_score = 0;
@@ -1173,7 +1170,7 @@ bool ServerNetworking::start() {
     server_identification = itoa(abs(rand()));
 
     // start server
-    server = new_server_c(host->config().networkPriority, host->config().minLocalPort, host->config().maxLocalPort);
+    server = new_server_c(settings.networkPriority(), settings.minLocalPort(), settings.maxLocalPort());
 
     server->setHelloCallback(sfunc_client_hello);
     server->setConnectedCallback(sfunc_client_connected);
@@ -1186,8 +1183,8 @@ bool ServerNetworking::start() {
 
     server->set_client_timeout(5, 10);
 
-    if (!server->start(host->config().port)) {
-        log.error(_("Can't start network server on port $1.", itoa(host->config().port)));
+    if (!server->start(settings.get_port())) {
+        log.error(_("Can't start network server on port $1.", itoa(settings.get_port())));
         return false;
     }
 
@@ -1199,24 +1196,15 @@ bool ServerNetworking::start() {
     shellssock = NL_INVALID;    // not in use
 
     //start TCP shell master thread in the port number 500 less than server UDP port
-    shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), host->config().port - 500, host->config().lowerPriority);
+    shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_port() - 500, settings.lowerPriority());
 
     //start TCP thread for talking with master server
-    mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), host->config().lowerPriority);
+    mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), settings.lowerPriority());
 
     //start website thread
-    webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), host->config().lowerPriority);
+    webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), settings.lowerPriority());
 
     return true;
-}
-
-//reload hostname
-void ServerNetworking::set_hostname(const string& name) {
-    if (name.empty())
-        hostname = "Anonymous host"; // not translated - a server's language is irrelevant to clients
-    else
-        hostname = name;
-    log("Hostname: %s", hostname.c_str());
 }
 
 //update serverinfo
@@ -1229,11 +1217,11 @@ void ServerNetworking::update_serverinfo() {
     nAssert(pc == player_count);
 
     ostringstream info;
-    if (host->config().dedserver)
+    if (settings.dedicated())
         info << "D ";
     else
         info << "  ";
-    info << setw(2) << get_human_count() << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << hostname;
+    info << setw(2) << get_human_count() << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << settings.get_hostname();
     server->set_server_info(info.str().c_str());
 }
 
@@ -1661,7 +1649,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     }
 
                     RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-                    Thread::startDetachedThread_assert(rmf, job, host->config().lowerPriority);
+                    Thread::startDetachedThread_assert(rmf, job, settings.lowerPriority());
                 }
             }
             else if (code == data_tournament_participation) {
@@ -2206,7 +2194,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 void ServerNetworking::run_mastertalker_thread() {
     logThreadStart("run_mastertalker_thread", log);
 
-    string localAddress = host->config().ipAddress;
+    string localAddress = settings.ip();
     if (!isValidIP(localAddress) || check_private_IP(localAddress)) {
         log("Master talker: No public IP address. Letting the master server decide.");
         localAddress.clear();
@@ -2222,7 +2210,7 @@ void ServerNetworking::run_mastertalker_thread() {
             continue;
 
         master_talk_time = get_time() + 3 * 60.0 ;      //3 minutes
-        if (host->config().privateserver)
+        if (settings.privateServer())
             continue;
 
         // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
@@ -2339,10 +2327,10 @@ void ServerNetworking::run_mastertalker_thread() {
 void ServerNetworking::run_website_thread() {
     logThreadStart("run_website_thread", log);
 
-    if (web_servers.empty() || web_script.empty())
+    if (settings.get_web_servers().empty() || settings.get_web_script().empty())
         return;
 
-    const string& localAddress = host->config().ipAddress;
+    const string& localAddress = settings.ip();
     // use it even if not public
 
     NLaddress website_address;
@@ -2357,7 +2345,7 @@ void ServerNetworking::run_website_thread() {
         if (get_time() < website_talk_time)
             continue;
 
-        website_talk_time = get_time() + web_refresh * 60.0;
+        website_talk_time = get_time() + settings.get_web_refresh() * 60.0;
 
         // note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
@@ -2370,7 +2358,7 @@ void ServerNetworking::run_website_thread() {
             continue;
         }
         bool success = false;
-        for (vector<string>::const_iterator addri = web_servers.begin(); addri != web_servers.end(); ++addri)
+        for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri)
             if (nlGetAddrFromName(addri->c_str(), &website_address)) {
                 success = true;
                 working_address_string = *addri;
@@ -2401,7 +2389,7 @@ void ServerNetworking::run_website_thread() {
             first_connection = false;
         }
         const string data = build_http_data(parameters);
-        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, working_address_string, web_script, data, web_auth);
+        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, working_address_string, settings.get_web_script(), data, settings.get_web_auth());
         if (result == NR_ok) {
             // save response to a file
             ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
@@ -2442,7 +2430,7 @@ void ServerNetworking::run_website_thread() {
 
     // send quit message
     const string quit = "quit=1";
-    const NetworkResult result = post_http_data(websock, 0, 5000, working_address_string, web_script, quit, web_auth);  // only 5 seconds allowed; it's not so crucial
+    const NetworkResult result = post_http_data(websock, 0, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
     log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
 
     if (result == NR_ok) {
@@ -2458,14 +2446,14 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
     map<string, string> parameters;
     if (!address.empty())
         parameters["ip"] = address;
-    parameters["port"] = itoa(host->config().port);
+    parameters["port"] = itoa(settings.get_port());
     if (quitting)
         parameters["quit"] = "1";
     else {
-        parameters["name"] = hostname;
+        parameters["name"] = settings.get_hostname();
         parameters["players"] = itoa(get_human_count());
         parameters["bots"] = itoa(bot_count);
-        if (host->config().dedserver)
+        if (settings.dedicated())
             parameters["dedicated"] = "1";
         parameters["max_players"] = itoa(maxplayers);
         parameters["version"] = GAME_VERSION;
@@ -2480,12 +2468,12 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
 
 map<string, string> ServerNetworking::website_parameters(const string& address) const {
     map<string, string> parameters;
-    parameters["name"] = hostname;
+    parameters["name"] = settings.get_hostname();
     parameters["ip"] = address;
-    parameters["port"] = itoa(host->config().port);
+    parameters["port"] = itoa(settings.get_port());
     parameters["players"] = itoa(get_human_count());
     parameters["bots"] = itoa(bot_count);
-    if (host->config().dedserver)
+    if (settings.dedicated())
         parameters["dedicated"] = "1";
     parameters["max_players"] = itoa(maxplayers);
     parameters["version"] = GAME_VERSION;
@@ -2651,7 +2639,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
             slaveThread.join();
         slaveRunning = true;    // slave will set it false when exiting
         shellssock = newSock;
-        slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning, host->config().lowerPriority);
+        slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning, settings.lowerPriority());
     }
     nlClose(shellmsock);
     log("Admin shell master thread quitting");
@@ -2826,7 +2814,7 @@ void ServerNetworking::stop() {
     mjob_fastretry = true;
     const double mjmaxtime = get_time() + 30.0;     //timeout : 30 seconds
 
-    host->config().statusOutput(_("Shutdown: net server"));
+    settings.statusOutput()(_("Shutdown: net server"));
 
     if (server)
         server->stop(3);
@@ -2840,29 +2828,29 @@ void ServerNetworking::stop() {
     file_threads_quit = true;   // flag so threads will quit themselves
 
     //close TCP connection with the server admin shell
-    host->config().statusOutput(_("Shutdown: admin shell threads"));
+    settings.statusOutput()(_("Shutdown: admin shell threads"));
     shellmthread.join();
 
     //wait for all master jobs to complete nicely
     while (mjob_count > 0 && get_time() < mjmaxtime) {
-        host->config().statusOutput(_("Shutdown: waiting for $1 tournament updates", itoa(mjob_count)));
+        settings.statusOutput()(_("Shutdown: waiting for $1 tournament updates", itoa(mjob_count)));
         platSleep(100);
     }
 
     //clean up jobs
     mjob_exit = true;       //MUST terminate -- abort
     while (mjob_count > 0) {
-        host->config().statusOutput(_("Shutdown: ABORTING $1 tournament updates", itoa(mjob_count)));
+        settings.statusOutput()(_("Shutdown: ABORTING $1 tournament updates", itoa(mjob_count)));
         platSleep(100);
     }
 
-    host->config().statusOutput(_("Shutdown: master talker thread"));
+    settings.statusOutput()(_("Shutdown: master talker thread"));
     mthread.join();
 
-    host->config().statusOutput(_("Shutdown: website thread"));
+    settings.statusOutput()(_("Shutdown: website thread"));
     webthread.join();
 
-    host->config().statusOutput(_("Shutdown: main thread"));
+    settings.statusOutput()(_("Shutdown: main thread"));
 }
 
 void ServerNetworking::sendWeaponPower(int pid) const {
@@ -3012,6 +3000,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         const time_t tt = time(0);
         const tm* tmb = gmtime(&tt);
         const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
+        const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
         if (stri != GAME_PROTOCOL) {
             log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL, stri.c_str());
             res->accepted = false;
@@ -3037,8 +3026,8 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 temp << wait / 60 << " minutes.";
             else
                 temp << "a minute.";
-            if (!join_limit_message.empty())
-                temp << ' ' << join_limit_message;
+            if (!settings.get_join_limit_message().empty())
+                temp << ' ' << settings.get_join_limit_message();
             writeStr(res->customData, res->customDataLength, temp.str());
         }
         else if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
@@ -3060,7 +3049,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 res->accepted = false;
                 // no need to explain, the client must not allow this
             }
-            else if (password == server_password) {
+            else if (password == settings.get_server_password()) {
                 string player_password;
                 readStr(data, count, player_password);
                 if (host->check_name_password(name, player_password)) {
@@ -3070,7 +3059,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                     playerSlotReservationTime = get_time();
                     res->accepted = true;
                     writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
-                    writeStr(res->customData, res->customDataLength, hostname);
+                    writeStr(res->customData, res->customDataLength, settings.get_hostname());
                 }
                 else {
                     res->accepted = false;
@@ -3144,9 +3133,4 @@ void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, in
     sn->ping_result(client_id, pingtime);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
-}
-
-void ServerNetworking::set_web_refresh(int refresh) {
-    nAssert(refresh >= 1);
-    web_refresh = refresh;
 }

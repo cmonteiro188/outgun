@@ -12,7 +12,8 @@ ifndef BASE_CFLAGS
  BASE_CFLAGS = -W -Wall -O3 -march=pentium -ffast-math
 endif
 
-BASE_OBJS = world.o servnet.o server.o commont.o main.o names.o auth.o \
+BASE_OBJS = world.o servnet.o server.o server_settings.o commont.o main.o \
+	names.o auth.o \
 	nassert.o globals.o log.o utility.o network.o thread.o gamemod.o \
 	debug.o robot.o client.o timer.o \
 	language.o leetnet/ConditionVariable.o leetnet/Mutex.o leetnet/rudp.o \

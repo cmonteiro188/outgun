@@ -97,32 +97,20 @@ class Server {
     bool abortFlag;
 
     // client control
-    std::vector<std::string> welcome_message;   // welcome message line by line
-    std::vector<std::string> info_message;      // the message /info shows, line by line
-    std::string     sayadmin_comment;
-    bool            sayadmin_enabled;
     double          team_smul[2];
-    bool            require_specific_map_vote;
     NLulong         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
-    int             idlekick_time, idlekick_playerlimit;
-    int             game_end_delay;
     ClientData      client[MAX_PLAYERS];
     std::vector<bool> fav_colors[2];
 
     Thread          botthread;
     std::vector<Client*> bots;
-    int min_bots;
-    int bots_fill;
-    int bot_ping;
     int extra_bots;
-    bool balance_bot;
     volatile bool quit_bots;
     NoLog botNoLog;
     MemoryLog botErrorLog;
     bool check_bots;
     bool bot_ping_changed;
-    std::string bot_name_lang;
 
     void init_bots();
     void run_bot_thread();
@@ -136,12 +124,7 @@ class Server {
     // networking
     ServerNetworking network;
 
-    // settings
-    bool tournament;
-    int save_stats;
-    ServerExternalSettings extConfig;   // actually, not necessary external: some may be specified in gamemod and written here
-
-    class SettingManager {
+    class SettingManager : public ServerNetworking::Settings {
     public:
         typedef AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor GamemodAccessDescriptor;
 
@@ -149,12 +132,46 @@ class Server {
         Server& server;
         // handy aliases to server.*:
         ServerNetworking& network;
-        ServerExternalSettings& extConfig;
         ServerWorld& world;
 
+        const ServerExternalSettings extConfig;
+        // values copied from extConfig that may be changed:
+        std::string     ipAddress;
+        int             port;
+        bool            privateserver;
+
         PowerupSettings pupConfig;
-        WorldSettings worldConfig;
-        //#todo: move more of Server's configuration variables inside this class
+        WorldSettings   worldConfig;
+        int             game_end_delay;
+        int             vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
+        bool            require_specific_map_vote;
+        std::vector<std::string> welcome_message;   // welcome message line by line
+        std::vector<std::string> info_message;      // the message /info shows, line by line
+        std::string     sayadmin_comment;
+        bool            sayadmin_enabled;
+        int             idlekick_time, idlekick_playerlimit;
+        int             min_bots;
+        int             bots_fill;
+        int             bot_ping;
+        bool            balance_bot;
+        std::string     bot_name_lang;
+        bool            tournament;
+        int             save_stats;
+        bool            random_maprot;
+        bool            random_first_map;
+        std::string     server_website_url; // the URL of the server website to be sent to master server
+        int             recording;
+
+        int             join_start;         // allow joining from this time of a day (in seconds)
+        int             join_end;           // disallow joining; set both same to allow always (default)
+        std::string     join_limit_message; // when joining is disallowed, this message is sent to asking clients in addition to information about the open times
+
+        std::vector<std::string> web_servers;
+        std::string     web_script, web_auth;
+        int             web_refresh;
+
+        std::string     server_password;
+        std::string     hostname;
 
         class DisposerBase {
         public:
@@ -188,6 +205,11 @@ class Server {
         static bool checkForceIpValue(const std::string& val);
         static std::string returnEmptyString() { return std::string(); }
         bool trySetMaxplayers(int val);
+        bool setForceIP(const std::string& val);
+        void setRandomMaprot(int val);
+        const std::string& getForceIP() const;
+        int getMaxplayers() const;
+        int getRandomMaprot() const;
 
         void free();
         void build(bool reload);
@@ -195,33 +217,86 @@ class Server {
         void processLine(const std::string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const;
 
     public:
-        SettingManager(Server& server_) : server(server_), network(server_.network), extConfig(server_.extConfig), world(server_.world), built(false) { }
+        SettingManager(Server& server_, const ServerExternalSettings& extConfig_) : server(server_), network(server_.network), world(server_.world), extConfig(extConfig_), built(false) { }
         ~SettingManager() { free(); }
 
         std::vector<std::string> listSettings(const GamemodAccessDescriptor& access);
         std::vector<std::string> executeLine(const std::string& line, const GamemodAccessDescriptor& access);
         void loadGamemod(bool reload);
 
-        bool isGamemodCommand(const std::string& cmd, bool includeCategories) const;
+        bool isGamemodCommand(const std::string& cmd, bool includeCategories); // can't be const because might need to build()
 
-        bool isGamemodCommand(const std::string& cmd) const { return isGamemodCommand(cmd, false); }
-        bool isGamemodCommandOrCategory(const std::string& cmd) const { return isGamemodCommand(cmd, true); }
+        bool isGamemodCommand(const std::string& cmd) { return isGamemodCommand(cmd, false); }
+        bool isGamemodCommandOrCategory(const std::string& cmd) { return isGamemodCommand(cmd, true); }
 
-        void reset() { pupConfig.reset(); worldConfig.reset(); }
+        void reset();
+
+        void set_min_bots(int val) { min_bots = val; }
+        void set_bots_fill(int val) { bots_fill = val; }
+        void set_bot_ping(int val) { bot_ping = val; }
+        void set_balance_bot(bool val) { balance_bot = val; }
+
+        bool ownScreen() const { return extConfig.ownScreen; }
+        ServerExternalSettings::StatusOutputFnT* statusOutput() const { return extConfig.statusOutput; }
+        bool showErrorCount() const { return extConfig.showErrorCount; }
+        int lowerPriority() const { return extConfig.lowerPriority; }
+        int networkPriority() const { return extConfig.networkPriority; }
+        int minLocalPort() const { return extConfig.minLocalPort; }
+        int maxLocalPort() const { return extConfig.maxLocalPort; }
+        bool dedicated() const { return extConfig.dedserver; }
+
+        bool privateServer() const { return privateserver; }
+        const std::string& ip() const { return ipAddress; }
+        int get_port() const { return port; }
+
+        int  get_game_end_delay() const { return game_end_delay; }
+        int  get_vote_block_time() const { return vote_block_time; }
+        bool get_require_specific_map_vote() const { return require_specific_map_vote; }
+
+        const std::vector<std::string>& get_welcome_message() const { return welcome_message; }
+        const std::vector<std::string>& get_info_message() const { return info_message; }
+        const std::string& get_sayadmin_comment() const { return sayadmin_comment; }
+        bool get_sayadmin_enabled() const { return sayadmin_enabled; }
+
+        int  get_idlekick_time() const { return idlekick_time; }
+        int  get_idlekick_playerlimit() const { return idlekick_playerlimit; }
+
+        int  get_min_bots() const { return min_bots; }
+        int  get_bots_fill() const { return bots_fill; }
+        int  get_bot_ping() const { return bot_ping; }
+        bool get_balance_bot() const { return balance_bot; }
+        const std::string& get_bot_name_lang() const { return bot_name_lang; }
+
+        bool get_tournament() const { return tournament; }
+        int  get_save_stats() const { return save_stats; }
+
+        bool get_random_maprot() const { return random_maprot; }
+        bool get_random_first_map() const { return random_first_map; }
+
+        const std::string& get_server_website_url() const { return server_website_url; }
+
+        int  get_recording() const { return recording; }
+
+        int get_join_start() const { return join_start; }
+        int get_join_end() const { return join_end; }
+        const std::string& get_join_limit_message() const { return join_limit_message; }
+
+        const std::vector<std::string>& get_web_servers() const { return web_servers; }
+        const std::string& get_web_script() const { return web_script; }
+        const std::string& get_web_auth() const { return web_auth; }
+        int get_web_refresh() const { return web_refresh; }
+
+        const std::string& get_hostname() const { return hostname; }
+        const std::string& get_server_password() const { return server_password; }
     };
 
     SettingManager settings;
 
     std::vector<MapInfo> maprot;
     int currmap;        // current map in maprot
-    bool random_maprot;
-    bool random_first_map;
     AuthorizationDatabase authorizations;
-    int vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
-    std::string server_website_url; // the URL of the server website to be sent to master server
 
     // recording
-    int recording;
     bool recording_started;
     std::string record_filename;
     mutable std::ofstream record;
@@ -232,18 +307,12 @@ class Server {
     bool loadAuthorizations();
     void saveAuthorizations() const;
 
-    const AuthorizationDatabase::AccessDescriptor& getAccess(int pid);
+    AuthorizationDatabase::AccessDescriptor getAccess(int pid);
 
     void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
 
     bool trySetMaxplayers(int val); // checks that no players are connected, if that fails, logs an error and returns false
     void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
-
-    bool setForceIP(const std::string& val);
-    void setRandomMaprot(int val);
-    const std::string& getForceIP() const;
-    int getMaxplayers() const;
-    int getRandomMaprot() const;
 
     // copying not allowed
     Server(const Server& o);
@@ -261,7 +330,6 @@ public:
     bool start(int target_maxplayers);
     void loop(volatile bool *quitFlag, bool quitOnEsc);
     void stop();
-    const ServerExternalSettings& config() const { return extConfig; }
 
     void ctf_game_restart();
     void simulate_and_broadcast_frame();
@@ -280,9 +348,6 @@ public:
     void set_check_bots() { check_bots = true; }
 
     void logAdminAction(int admin, const std::string& action, int target = pid_none);
-
-   int check[MAX_PLAYERS];
-   int checount;
 
     void balance_teams();
     void shuffle_teams();
@@ -304,7 +369,7 @@ public:
     void resetClient(int cid) { client[cid].reset(); }
     void refresh_team_score_modifiers();
     void check_map_exit();
-    bool specific_map_vote_required() const { return require_specific_map_vote; }
+    bool specific_map_vote_required() const { return settings.get_require_specific_map_vote(); } //#fix
     void score_frag(int p, int amount);
     void score_neg(int p, int amount);
     int getLessScoredTeam() const;  // using team_smul ; call refresh_team_score_modifiers before calling this
@@ -319,15 +384,15 @@ public:
     const std::vector<MapInfo>& maplist() const { return maprot; }
     std::vector<MapInfo>& maplist() { return maprot; }
 
-    const std::vector<std::string>& getWelcomeMessage() const { return welcome_message; }
+    const std::vector<std::string>& getWelcomeMessage() const { return settings.get_welcome_message(); } //#fix?
 
-    const std::string& server_website() const { return server_website_url; }
+    const std::string& server_website() const { return settings.get_server_website_url(); } //#fix?
 
-    bool tournament_active() const { return tournament; }
+    bool tournament_active() const { return settings.get_tournament(); }
 
     bool reset_settings(bool reload);   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
-    bool is_recording() const { return !!recording; }
+    bool is_recording() const { return settings.get_recording() != 0; }
     std::ostream& record_stream() const { return record_frame; }
     const std::string& record_map_data() const { return record_map; }
 };
