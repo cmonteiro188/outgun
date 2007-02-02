@@ -1000,7 +1000,7 @@ bool Server::isAdmin(int pid) const {
     return (cld.token_have && cld.token_valid) || access.isProtected();
 }
 
-const AuthorizationDatabase::AccessDescriptor& Server::getAccess(int pid) {
+AuthorizationDatabase::AccessDescriptor Server::getAccess(int pid) {
     if (pid == shell_pid)
         return authorizations.shellAccess();
     numAssert(pid >= 0 && pid < MAX_PLAYERS, pid);
@@ -1022,7 +1022,7 @@ void Server::chat(int pid, const string& message) {
         return;
     // handle 'console' commands
     if (message[0] == '/') {
-        const AuthorizationDatabase::AccessDescriptor& access = getAccess(pid);
+        const AuthorizationDatabase::AccessDescriptor access = getAccess(pid);
 
         const string::size_type pos = message.find(' ', 1);
         const string command = message.substr(1, pos - 1);
