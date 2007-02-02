@@ -2773,9 +2773,8 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
 
 void ServerWorld::simulateFrame() {
     // (-1) check powerup respawn
-    const double thetime = get_time();
     for (int i = 0; i < MAX_PICKUPS; i++)
-        if (item[i].kind == Powerup::pup_respawning && thetime > item[i].respawn_time)
+        if (item[i].kind == Powerup::pup_respawning && get_time() > item[i].respawn_time)
             respawn_pickup(i);
 
     // (0) do stuff for every player
