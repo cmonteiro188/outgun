@@ -243,6 +243,9 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
     cat.add(new GS_Double    ("respawn_balancing_time",      &worldConfig.respawn_balancing_time, 0.));
     cat.add(new GS_Int       ("rocket_damage",               &worldConfig.rocket_damage, 0));
+    cat.add(new GS_Double    ("hit_stun_time",               &worldConfig.hit_stun_time, 0));
+    cat.add(new GS_Double    ("shoot_interval",              &worldConfig.shoot_interval, .1));
+    cat.add(new GS_Double    ("shoot_interval_with_energy",  &worldConfig.shoot_interval_with_energy, .1));
     categories.push_back(cat);
 
     cat = Category("powerups", "Powerups");

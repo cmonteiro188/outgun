@@ -821,8 +821,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     muted = 0;
     want_change_teams = false;  // don't want to change teams yet
     team_change_time = 0;
-    team_change_pending = false;
-    next_shoot_time = 0;
+    next_shoot_frame = 0;
     talk_temp = 0.0;
     talk_hotness = 1.0;
     cid = _cid;
@@ -1474,6 +1473,8 @@ void WorldSettings::reset() {
     respawn_balancing_time = 0;
     shadow_minimum = shadow_minimum_normal;
     rocket_damage = 70;
+    hit_stun_time = 1.;
+    shoot_interval = shoot_interval_with_energy = .5;
     time_limit = 0;     // no time limit
     extra_time = 0;
     sudden_death = false;
@@ -2127,7 +2128,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
         player[target].health -= damage;
         //freeze target's gun
         if (type != DT_collision)
-            player[target].next_shoot_time = get_time() + 1.0;
+            player[target].next_shoot_frame = frame + config.get_hit_stun_time_frames();
     }
     if (player[target].health > 0)
         return;
@@ -2372,7 +2373,8 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
     if (pl1.team() != pl2.team()) {
         // deathbringer player colliding with an enemy player without deathbringer causes a short "deathbringer infection"
         if (pl1.item_deathbringer && !pl2.item_deathbringer) {
-            pl2.deathbringer_end = pl2.next_shoot_time = get_time() + deathbringerEffectTime;
+            pl2.deathbringer_end = get_time() + deathbringerEffectTime;
+            pl2.next_shoot_frame = frame + iround(deathbringerEffectTime * 10.);
             pl2.deathbringer_attacker = pid1;
             // amplify the collision result to help on casting both players apart
             toss_a = true;
@@ -2381,7 +2383,8 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
             net->broadcast_screen_sample(pid2, SAMPLE_HITDEATHBRINGER);
         }
         else if (pl2.item_deathbringer && !pl1.item_deathbringer) {
-            pl1.deathbringer_end = pl1.next_shoot_time = get_time() + deathbringerEffectTime;
+            pl1.deathbringer_end = get_time() + deathbringerEffectTime;
+            pl1.next_shoot_frame = frame + iround(deathbringerEffectTime * 10.);
             pl1.deathbringer_attacker = pid2;
             toss_a = true;
             toss_b = true;
@@ -2397,10 +2400,10 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         const int shieldColdam = static_cast<int>(speed * 60);  // 60 at top running speed without turbo - this only applies to the shielded player
         if (shieldHitBy1) {
             toss_b = true;
-            pl2.next_shoot_time = get_time() + 1.0;
+            pl2.next_shoot_frame = frame + config.get_hit_stun_time_frames();
             if (shieldHitBy2) {
                 toss_a = true;
-                pl1.next_shoot_time = get_time() + 1.0;
+                pl1.next_shoot_frame = frame + config.get_hit_stun_time_frames();
                 net->broadcast_screen_sample(pid1, SAMPLE_SHIELD_LOST); // applies to both players
                 pl1.energy = pl2.energy = 0;
                 pl1.item_shield = pl2.item_shield = 0;
@@ -2410,7 +2413,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         }
         else if (shieldHitBy2) {
             toss_a = true;
-            pl1.next_shoot_time = get_time() + 1.0;
+            pl1.next_shoot_frame = frame + config.get_hit_stun_time_frames();
             damagePlayer(pid2, pid1, shieldColdam, DT_collision);
         }
         // works both ways
@@ -2857,8 +2860,9 @@ void ServerWorld::simulateFrame() {
                         player[v].deathbringer_attacker = i;
 
                         // time of effect ; also freeze his gun for this same amount of time
-                        const double mul = (v / TSIZE == dbTeam ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
-                        player[v].deathbringer_end = player[v].next_shoot_time = get_time() + mul * pupConfig.pup_deathbringer_time;
+                        const double time = pupConfig.pup_deathbringer_time * (v / TSIZE == dbTeam ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
+                        player[v].deathbringer_end = get_time() + time;
+                        player[v].next_shoot_frame = frame + iround(time * 10.);
 
                         // calc recoil:
                         const double tx = player[v].lx - player[i].lx;
@@ -2895,7 +2899,7 @@ void ServerWorld::simulateFrame() {
         }
 
         // check for player weapons fire time
-        if (player[i].attack && player[i].health > 0 && get_time() > player[i].next_shoot_time) {
+        if (player[i].attack && player[i].health > 0 && frame >= player[i].next_shoot_frame) {
             int numshots = 1;
             player[i].energy -= 7;
             if (player[i].energy < 0)
@@ -2913,7 +2917,7 @@ void ServerWorld::simulateFrame() {
                 }
             }
 
-            player[i].next_shoot_time = get_time() + 0.5;       // add minimum interval (in secs)
+            player[i].next_shoot_frame = frame + (player[i].energy > 0 ? config.get_shoot_interval_with_energy_frames() : config.get_shoot_interval_frames());
 
             //show shadow
             if (player[i].item_shadow())

@@ -427,7 +427,7 @@ public:
 
     bool drop_key;
     bool dropped_flag;
-    double next_shoot_time;
+    NLulong next_shoot_frame;
     double respawn_time;
     bool respawn_to_base;
 
@@ -800,6 +800,8 @@ public:
     double respawn_time, waiting_time_deathbringer, respawn_balancing_time;
     int shadow_minimum; // smallest alpha value allowed; 0 is when even the coordinates are not sent
     int rocket_damage;
+    double hit_stun_time;
+    double shoot_interval, shoot_interval_with_energy;
     NLulong time_limit;
     NLulong extra_time;
     bool sudden_death;
@@ -820,6 +822,10 @@ public:
     static const int shadow_minimum_normal;
 
     void reset();
+
+    int get_hit_stun_time_frames() const { return iround(hit_stun_time * 10.); }
+    int get_shoot_interval_frames() const { return iround(shoot_interval * 10.); }
+    int get_shoot_interval_with_energy_frames() const { return iround(shoot_interval_with_energy * 10.); }
 
     double getRespawnTime(int playerTeamSize, int enemyTeamSize) const;
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }
