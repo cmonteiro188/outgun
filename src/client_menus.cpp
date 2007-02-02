@@ -344,7 +344,7 @@ Menu_graphics::Menu_graphics() :
     contTextures(_("Continuous textures between rooms"), false),
     minimapPlayers(_("Disappeared players on minimap")),
     highlightReturnedFlag(_("Highlight returned and dropped flags"), false),
-    spawnHighlight(_("Highlight myself after being spawn"), true),
+    spawnHighlight(_("Highlight self after spawn"), true),
     neighborMarkers(_("Markers for nearby players and flags"), false),
     statsBgAlpha(_("Stats screen alpha"), true, 0, 255, 255, 15),
 
