@@ -643,9 +643,9 @@ public:
         pup_respawning
     };
 
-    Pup_type kind;  // type of powerup
+    Pup_type kind;
 
-    double respawn_time;        // time to respawn
+    double respawn_time;
 
     int px; //screen
     int py;
