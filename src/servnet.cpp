@@ -1824,8 +1824,9 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                 normalView[t] |= 1 << i;    // teammates always visible
                 const int oppTeamStart = (1 - i / TSIZE) * TSIZE;
                 for (int j = oppTeamStart; j < oppTeamStart + TSIZE; ++j)   // find out who this teammate sees (who are in the same room and visible)
-                    if (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-                           (world.player[j].visibility > 10 || world.player[j].stats().has_flag()))
+                    if (world.player[j].used && !world.player[j].dead &&
+                          world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
+                          (world.player[j].visibility > 10 || world.player[j].stats().has_flag()))
                         normalView[t] |= 1 << j;
             }
             else if (!world.player[i].item_shadow() || world.player[i].stats().has_flag())
