@@ -135,15 +135,13 @@ private:
 
 class GS_String : public GamemodSetting {
 public:
-    GS_String(const std::string& name, std::string* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet&, const std::string& value) {
-        *var = value;
-        return true;
-    }
+    GS_String(const std::string& name, std::string* pVar, bool allowEmpty_ = true) : GamemodSetting(name), var(pVar), allowEmpty(allowEmpty_) { }
+    bool set(LogSet& log, const std::string& value);
     std::string get() { return std::string() + '"' + *var + '"'; }
 
 private:
     std::string* var;
+    bool allowEmpty;
 };
 
 class GS_AddString : public GamemodSetting {
