@@ -2273,20 +2273,21 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
             message << _("Say");
         message << ": ";
         const int message_prefix_length = message.str().length();
-        if (talkbuffer[0] == '.')
+        cursor_pos += message_prefix_length;
+        if (talkbuffer[0] == '.') {
             message << talkbuffer.substr(1);
+            cursor_pos--;
+        }
         else
             message << talkbuffer;
-        const vector<string> lines = split_to_lines(message.str(), 79, 0);
+        const vector<string> lines = split_to_lines(message.str(), 79, 0, true);
         int characters = 0;
         for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li, ++line) {
             int cursor;
-            if (cursor_pos < static_cast<int>(characters + li->length()) || characters + li->length() == talkbuffer.length())
+            if (cursor_pos < static_cast<int>(characters + li->length()) || characters + li->length() == message.str().length())
                 cursor = cursor_pos - characters;
             else
                 cursor = -1;
-            if (li == lines.begin())
-                cursor += message_prefix_length;
             print_chat_input(*li, margin, margin + line * line_height, cursor);
             characters += li->length();
         }
