@@ -161,7 +161,7 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
 }
 
 void ServerNetworking::record_message(const string& msg) const {
-    if (host->is_recording()) {
+    if (host->recording_needed()) {
         ostream& out = host->record_stream();
         write(out, static_cast<unsigned>(msg.length()));
         out << msg;
@@ -169,7 +169,7 @@ void ServerNetworking::record_message(const string& msg) const {
 }
 
 void ServerNetworking::record_message(const char* data, int length) const {
-    if (host->is_recording()) {
+    if (host->recording_needed()) {
         ostream& out = host->record_stream();
         write(out, length);
         out.write(data, length);
@@ -842,7 +842,7 @@ void ServerNetworking::broadcast_screen_message(int px, int py, const char* lebu
         if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
             server->send_message(world.player[i].cid, lebuf, count);
 
-    if (host->is_recording()) {
+    if (host->recording_needed()) {
         ostream& out = host->record_stream();
         write(out, count + 2);
         out.write(lebuf, count);
