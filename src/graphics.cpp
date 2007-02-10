@@ -127,7 +127,10 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
 }
 
 void Graphics::make_layout() {
-    scr_mul = static_cast<double>(SCREEN_W) / 640;
+    if (!show_minimap && !show_scoreboard)
+        scr_mul = static_cast<double>(SCREEN_W) / plw;
+    else
+        scr_mul = static_cast<double>(SCREEN_W) / 640;
 
     // Room background
     const int bottombar_h = 3 * (text_height(font) + 2) + 5;
@@ -208,6 +211,12 @@ void Graphics::make_layout() {
 
     load_pictures();
     load_background();
+}
+
+void Graphics::toggle_full_playfield() {
+    // Change if more customisable system is needed.
+    show_minimap = show_scoreboard = !show_minimap;
+    make_layout();
 }
 
 void Graphics::videoMemoryCorrupted() {
@@ -780,6 +789,8 @@ void Graphics::draw_flag(int team, int x, int y, bool flash) {
 // Minimap functions
 
 void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash) {
+    if (!show_minimap)
+        return;
     const double px = static_cast<double>(flag.position().px * plw + flag.position().x) / (plw * map.w);
     const double py = static_cast<double>(flag.position().py * plh + flag.position().y) / (plh * map.h);
     const int pix = static_cast<int>(mmx + minimap_start_x + px * minimap_w);
@@ -790,6 +801,8 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool f
 }
 
 void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
+    if (!show_minimap)
+        return;
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
     const int a = scale(1);
     const int b = a / 2;
@@ -799,6 +812,8 @@ void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
 }
 
 void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
+    if (!show_minimap)
+        return;
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
     if (static_cast<int>(time * 15) % 3 > 0) {
         circlefill(drawbuf, coords.first, coords.second, scale(2), colour(Colour::map_player_me_1));
@@ -817,7 +832,7 @@ pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const Cli
 }
 
 void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibility) {
-    if (visibility >= .99)
+    if (!show_minimap || visibility >= .99)
         return;
     const int x1 = mmx + minimap_start_x +  rx      * minimap_w / map.w;
     const int y1 = mmy + minimap_start_y +  ry      * minimap_h / map.h;

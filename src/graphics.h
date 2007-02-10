@@ -235,6 +235,7 @@ public:
 
     void draw_replay_info(float rate, unsigned position, unsigned length, bool stopped);
     void set_playfield_scale(double val) { playfield_scale = val; }
+    void toggle_full_playfield();
 
 private:
     void unload_bitmaps();

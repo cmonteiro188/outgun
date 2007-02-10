@@ -3888,6 +3888,9 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
                 client->send_message(lebuf, count);
             }
         }
+        break; case KEY_F12:
+            client_graphics.toggle_full_playfield();
+            mapChanged = true;  // just to get minimap updated
         break; default:
             handled = false;
     }
