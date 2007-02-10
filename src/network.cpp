@@ -28,6 +28,7 @@
 
 #include <nl.h>
 
+#include "commont.h"
 #include "nassert.h"
 #include "utility.h"
 #include "timer.h"
@@ -37,6 +38,7 @@
 using std::hex;
 using std::ostream;
 using std::ostringstream;
+using std::map;
 using std::setfill;
 using std::setw;
 using std::string;
@@ -164,6 +166,41 @@ NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const vol
         platSleep(roundDelay);
         ++tries;
     }
+}
+
+string build_http_data(const map<string, string>& parameters) {
+    // URL encode parameter values
+    ostringstream param_line;
+    for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
+        if (i != parameters.begin())
+            param_line << '&';
+        for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
+            url_encode(*s, param_line);
+        param_line << '=';
+        for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
+            url_encode(*s, param_line);
+    }
+    return param_line.str();
+}
+
+NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+                             const string& host, const string& script, const string& parameters, const string& auth) {
+    ostringstream data;
+    data << "POST " << script << " HTTP/1.0\r\n";
+    data << "Host: " << host << "\r\n";
+    data << "User-Agent: " << HTTP_USER_AGENT << "\r\n";
+    if (!auth.empty())
+        data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
+    data << "Connection: close\r\n";
+    data << "Content-Type: application/x-www-form-urlencoded\r\n";
+    data << "Content-Length: " << parameters.length() << "\r\n\r\n";
+    data << parameters;
+    const string& str = data.str();
+    return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
+}
+
+NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
+    return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 
 string url_encode(const string& str) {

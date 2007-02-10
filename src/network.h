@@ -26,6 +26,7 @@
 #define NETWORK_H_INC
 
 #include <iostream>
+#include <map>
 #include <string>
 
 #include <nl.h>
@@ -68,6 +69,13 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
 NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, std::ostream& out,
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
+
+std::string build_http_data(const std::map<std::string, std::string>& parameters);
+
+NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
+                             const std::string& script, const std::string& parameters, const std::string& auth = ""); // timeout in ms
+
+NetworkResult save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout);   // timeout in ms
 
 std::string url_encode(const std::string& str);
 void url_encode(char c, std::ostream& out);

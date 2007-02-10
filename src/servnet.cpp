@@ -2498,41 +2498,6 @@ string ServerNetworking::website_maplist() const {
     return maps.str();
 }
 
-string ServerNetworking::build_http_data(const map<string, string>& parameters) const {
-    // URL encode parameter values
-    ostringstream param_line;
-    for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
-        if (i != parameters.begin())
-            param_line << '&';
-        for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
-            url_encode(*s, param_line);
-        param_line << '=';
-        for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
-            url_encode(*s, param_line);
-    }
-    return param_line.str();
-}
-
-NetworkResult ServerNetworking::post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
-                        const string& host, const string& script, const string& parameters, const string& auth) const {
-    ostringstream data;
-    data << "POST " << script << " HTTP/1.0\r\n";
-    data << "Host: " << host << "\r\n";
-    data << "User-Agent: " << HTTP_USER_AGENT << "\r\n";
-    if (!auth.empty())
-        data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
-    data << "Connection: close\r\n";
-    data << "Content-Type: application/x-www-form-urlencoded\r\n";
-    data << "Content-Length: " << parameters.length() << "\r\n\r\n";
-    data << parameters;
-    const string& str = data.str();
-    return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
-}
-
-NetworkResult ServerNetworking::save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) const {
-    return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
-}
-
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
 bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
     for (;;) {
