@@ -293,15 +293,25 @@ string::value_type consonant() {
 
 string::value_type start_consonant(string::value_type last_cons) {
     switch (last_cons) {
-    /*break;*/ case 'h': return str_rand("jklmnrtv");
-        break; case 'k': return str_rand("ks");
-        break; case 'l': return str_rand("hjklmpstv");
-        break; case 'm': return str_rand("mps");
-        break; case 'n': return str_rand("hjklnst");
-        break; case 'p': return str_rand("lprs");
-        break; case 'r': return str_rand("hjkmnprsv");
-        break; case 's': return str_rand("hkmnpstv");
-        break; case 't': return str_rand("jkprstv");
+    /*break;*/ case 'h': return str_rand("jklmnrtv");   // kahjo, rahka, kahle, kuhmu, vehnä, tahra, tahto, kahva
+        break; case 'k': return str_rand("ks");         // takki, suksi
+        break; case 'l': return str_rand("hjklmpstv");  // kulho, kalju, palko, pallo, palmu, salpa, hylsy, polte, polvi
+        break; case 'm': return str_rand("mps");        // kammo, kampa
+        break; case 'n': return str_rand("hjklnst");    // hanhi, linja, lanko, vanne, kansi, kanto
+        break; case 'p': return str_rand("lprs");       // kupla, kuppi, kupru, kipsi
+        break; case 'r': return str_rand("hjkmnprsv");  // karhu, karju, karku, karmi, kaarna, turpa, tarra, kärsä, kurvi
+        break; case 's': return str_rand("hkmnpstv");   // tasku, lasso, lastu, rasva
+        break; case 't': return str_rand("jkprstv");    // ketju, katko, katras, katse, katto, katve
+    }
+    return consonant();
+}
+
+string::value_type end_consonant(string::value_type last_cons) {
+    switch (last_cons) {
+    /*break;*/ case 'l': return str_rand("kpst");       // kelkka, tolppa, valssi, valtti
+        break; case 'm': return str_rand("p");          // kamppi
+        break; case 'n': return str_rand("kst");        // lankku, tanssi, lantti
+        break; case 'r': return str_rand("kpst");       // karkki, karppi, hirssi, karttu
     }
     return consonant();
 }
@@ -310,11 +320,11 @@ enum Vow_type { any, back, front };
 
 string::value_type vowel(Vow_type type) {
     if (type == back)
-        return str_rand("aeiou");
+        return str_rand("aaeiiou");
     else if (type == front)
-        return str_rand("eiyäö");
+        return str_rand("eeiiiyäö");
     else
-        return str_rand("aeiouyäö");
+        return str_rand("aaaeiiioouuyäö");
 }
 
 string::value_type start_vowel(string::value_type last_vowel, Vow_type type) {
@@ -329,7 +339,7 @@ string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
     if (type == any)
         switch (last_vowel) {
         /*break;*/ case 'a': return str_rand("aaiu");
-            break; case 'e': return str_rand("eiu");
+            break; case 'e': return str_rand("eiiu");
             break; case 'i': return str_rand("eiiu");
             break; case 'o': return str_rand("iou");
             break; case 'u': return str_rand("iouu");
@@ -356,7 +366,7 @@ string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
     return vowel(type);
 }
 
-enum Type { a, aa, aat, at, ta, taa, taat, tat, total_types };
+enum Type { a, aa, aat, at, att, ta, taa, taat, tat, tatt, total_types };
 
 string make_name() {
     Type type;
@@ -367,16 +377,26 @@ string make_name() {
         else if (i >= 3 && (type == taa || type == taat))
             break;
     }
+
+    const int r = rand() % 10;
     int num_groups;
-    if (type == taa)
-        num_groups = 1 + rand() % 3 + rand() % 2;
+    if (r < 5)
+        num_groups = 2;
+    else if (r < 8)
+        num_groups = 3;
+    else if (r < 9)
+        num_groups = 1;
     else
-        num_groups = 2 + rand() % 2 + rand() % 2;
+        num_groups = 4;
+    if (type != taa && num_groups == 1)
+        num_groups = rand() % 2 + 2;
+
     string::value_type end_cons = 0;
     string::value_type end_vow = 0;
 
     Vow_type vow_type = any;
     string name;
+    string::value_type force_cons = 0;
     for (int i = 0; i < num_groups; ++i) {
         string group;
         if (type == ta || type == taa || type == taat || type == tat) {
@@ -409,6 +429,13 @@ string make_name() {
             end_cons = str_rand("hklmnprst");
             group += end_cons;
         }
+        else if (type == att || type == tatt) {
+            const string::value_type mid_cons = str_rand("lmnr");
+            group += mid_cons;
+            end_cons = end_consonant(mid_cons);
+            group += end_cons;
+            force_cons = end_cons;
+        }
         else
             end_vow = vow;
         name += group;
@@ -422,7 +449,9 @@ string make_name() {
             break; case taat: case tat: next.push_back(taa); next.push_back(tat);
             break; default: ;
         }
-        type = next[rand() % next.size()];
+        do
+            type = next[rand() % next.size()];
+        while (force_cons && (type != ta && type != taa && type != taat && type != tat && type != tatt));
     }
 
     if (name.find_last_of("hjkmpv") == name.length() - 1)
