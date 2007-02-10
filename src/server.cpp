@@ -527,7 +527,7 @@ bool Server::server_next_map(int reason) {
         if (pl.oldfrags != pl.stats().frags())
             network.sendFragUpdate(i, pl.stats().frags());
         // no need to update oldfrags, since the stats are next cleared
-        network.broadcast_movements_and_shots(pl); // player's stats to everyone
+        network.broadcast_movements_and_shots(pl);     // player's stats to everyone
         network.send_team_movements_and_shots(pl.cid); // team stats to player
     }
     network.broadcast_stats_ready();
