@@ -214,7 +214,7 @@ string formatForLogging(const string& str) {
 }
 
 // Split string to lines, but only at whitespaces.
-vector<string> split_to_lines(const string& source, int lineLength, int indent) {
+vector<string> split_to_lines(const string& source, int lineLength, int indent, bool keep_spaces) {
     vector<string> lines;
     if (source.empty())
         return lines;
@@ -223,8 +223,16 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent) 
         size_t end;
         if (source.length() <= start + lineLength)
             end = string::npos;
-        else
+        else {
             end = source.find_last_of(" \t", start + lineLength);
+            if (keep_spaces) {  // Append the extra spaces to the end of the line.
+                const size_t next_word = source.find_first_not_of(" \t", end);
+                if (next_word != string::npos)
+                    end = next_word;
+                else
+                    end++;
+            }
+        }
         if (end <= start)
             end = start + lineLength;   // for no forced cutting: source.find_first_of(" \t", start + lineLength);
         string line;
@@ -236,7 +244,7 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent) 
         lines.push_back(line);
         if (end == string::npos)
             break;
-        start = source.find_first_not_of(" \t", end);
+        start = keep_spaces ? end : source.find_first_not_of(" \t", end);
     } while (start != string::npos);
     return lines;
 }
