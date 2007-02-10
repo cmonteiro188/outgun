@@ -2465,6 +2465,8 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["uptime"] = itoa(world.frame / 10);
         parameters["map"] = host->current_map().title;
         parameters["link"] = host->server_website();
+        if (is_relay_working())
+            parameters["spectator"] = "1";
     }
     parameters["id"] = server_identification;
     return parameters;
@@ -2484,6 +2486,8 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     parameters["uptime"] = itoa(world.frame / 10);
     parameters["map"] = host->current_map().title;
     parameters["mapfile"] = host->getCurrentMapFile();
+    if (is_relay_working())
+        parameters["spectator"] = "1";
     string players;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
