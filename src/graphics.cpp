@@ -2171,25 +2171,25 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
     const int gap = 2;
     // pause ||   slowmotion |>   play >   rewind >>   stop []
     if (stopped) {
-        rectfill(drawbuf, x, y, x + 5 * width / 3 + gap - 1, y + height - 1, makecol(0, 255, 0));
+        rectfill(drawbuf, x, y, x + 5 * width / 3 + gap - 1, y + height - 1, colour(Colour::replay_symbol));
         x += 2 * (width + gap);
     }
     else if (rate == 1) {
-        triangle(drawbuf, x, y, x, y + height, x + 2 * width - 1, y + height / 2, makecol(0, 255, 0));
+        triangle(drawbuf, x, y, x, y + height, x + 2 * width - 1, y + height / 2, colour(Colour::replay_symbol));
         x += 2 * (width + gap);
     }
     else
         for (int i = 0; i < 2; ++i) {
             if (rate == 0 || i == 0 && rate < 1)
-                rectfill(drawbuf, x, y, x + 2 * width / 3 - 1, y + height - 1, makecol(0, 255, 0));
+                rectfill(drawbuf, x, y, x + 2 * width / 3 - 1, y + height - 1, colour(Colour::replay_symbol));
             else
-                triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, makecol(0, 255, 0));
+                triangle(drawbuf, x, y, x, y + height, x + width - 1, y + height / 2, colour(Colour::replay_symbol));
             x += width + gap;
         }
 
     if (!stopped && rate != 0) {
         const string text = rate >= 1 ? itoa(int(rate)) : "1/" + itoa(int(1 / rate));
-        print_text_border_check_bg(text, x, y, makecol(255, 255, 255), colour(Colour::text_border), -1);
+        print_text_border_check_bg(text, x, y, colour(Colour::replay_text), colour(Colour::replay_text_border), -1);
     }
 
     x = (health_x + plx + roombg->w) / 2;
@@ -2201,7 +2201,7 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
         time << setprecision(0) << std::fixed << length / 10 / 60 << ':';
         time << setw(2) << setfill('0') << setprecision(0) << std::fixed << length / 10 % 60;
     }
-    print_text_border_centre_check_bg(time.str(), x, y, makecol(255, 255, 255), colour(Colour::text_border), -1);
+    print_text_border_centre_check_bg(time.str(), x, y, colour(Colour::replay_text), colour(Colour::replay_text_border), -1);
 
     if (length > 0) {
         y += 3 * max(height, text_height(font)) / 2;
@@ -2210,8 +2210,8 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
         const int pos_x = x1 + position * (x2 - x1) / length;
         const int y1 = y;
         const int y2 = y1 + scale(5);
-        rectfill(drawbuf, x1, y1, pos_x, y2, colour(Colour::scrollbar));
-        rectfill(drawbuf, pos_x + 1, y1, x2, y2, colour(Colour::scrollbar_bg));
+        rectfill(drawbuf, x1, y1, pos_x, y2, colour(Colour::replay_bar));
+        rectfill(drawbuf, pos_x + 1, y1, x2, y2, colour(Colour::replay_bar_bg));
     }
 }
 

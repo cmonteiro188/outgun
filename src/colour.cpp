@@ -62,6 +62,7 @@ void Colour_manager::init(const string& file) {
         PT(new Colour_setting("flag_pole"             , 0xFF, 0xFF, 0x00)),
         PT(new Colour_setting("name"                  , 0xFF, 0xFF, 0xFF)),
         PT(new Colour_setting("name_highlight"        , 0xFF, 0xFF, 0x00)),
+        PT(new Colour_setting("self_highlight"        , 0xFF, 0xFF, 0x00)),
         PT(new Colour_setting("ground"                , 0x10, 0x40, 0x00)),
         PT(new Colour_setting("wall"                  , 0x30, 0xC0, 0x00)),
         PT(new Colour_setting("map_ground"            , 0x00, 0x00, 0x00)),
@@ -73,6 +74,8 @@ void Colour_manager::init(const string& file) {
         PT(new Colour_setting("map_fog"               , 0xFF, 0xFF, 0xFF)),
         PT(new Colour_setting("map_info_grid"         , 0xFF, 0xFF, 0xFF)),
         PT(new Colour_setting("map_info_grid_main"    , 0xFF, 0xFF, 0x00)),
+        PT(new Colour_setting("map_info_grid_room"    , 0xFF, 0x00, 0x00)),
+        PT(new Colour_setting("room_highlight"        , 0xFF, 0xFF, 0x00)),
 
         PT(new Colour_setting("bar_text"              , 0xFF, 0xFF, 0xFF)),
         PT(new Colour_setting("bar_0"                 , 0x00, 0x00, 0x00)),
@@ -152,6 +155,12 @@ void Colour_manager::init(const string& file) {
 
         PT(new Colour_setting("scrollbar"             , 0x00, 0xFF, 0x00)),
         PT(new Colour_setting("scrollbar_bg"          , 0x00, 0x77, 0x00)),
+
+        PT(new Colour_setting("replay_text"           , 0xFF, 0xFF, 0xFF)),
+        PT(new Colour_setting("replay_text_border"    , 0x00, 0x00, 0x00)),
+        PT(new Colour_setting("replay_symbol"         , 0x00, 0xFF, 0x00)),
+        PT(new Colour_setting("replay_bar"            , 0x00, 0xFF, 0x00)),
+        PT(new Colour_setting("replay_bar_bg"         , 0x00, 0x77, 0x00)),
 
         PT(new Colour_setting("menu_background"       , 0x30, 0x40, 0x30)),
         PT(new Colour_setting("menu_border_shadow"    , 0x50, 0x60, 0x50)),

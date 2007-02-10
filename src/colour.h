@@ -55,6 +55,7 @@ public:
         flag_pole,
         name,
         name_highlight,
+        self_highlight,
         ground,
         wall,
         map_ground,
@@ -66,6 +67,8 @@ public:
         map_fog,
         map_info_grid,
         map_info_grid_main,
+        map_info_grid_room,
+        room_highlight,
 
         bar_text,
         bar_0,
@@ -145,6 +148,12 @@ public:
 
         scrollbar,
         scrollbar_bg,
+
+        replay_text,
+        replay_text_border,
+        replay_symbol,
+        replay_bar,
+        replay_bar_bg,
 
         menu_background,
         menu_border_shadow,
