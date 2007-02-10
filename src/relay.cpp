@@ -22,6 +22,7 @@
  */
 
 #include <iostream>
+#include <map>
 #include <string>
 
 #include "commont.h"
@@ -37,6 +38,7 @@ using std::ios;
 using std::ifstream;
 using std::istream;
 using std::istringstream;
+using std::map;
 using std::ostringstream;
 using std::string;
 using std::stringstream;
@@ -71,6 +73,12 @@ int main(int argc, const char* argv[]) {
 
     platUninit();
     nlShutdown();
+}
+
+string itoa(int val) {
+    ostringstream ss;
+    ss << val;
+    return ss.str();
 }
 
 Peer::Peer(const Peer& peer) {
@@ -123,22 +131,23 @@ void Relay::run() {
         check_new_connections();
         get_server_data();
         send_data();
+        send_master_server();
         handle_keys();
         platSleep(5);
     }
 }
 
+// FIX: getline_skip_comments
 void Relay::load_master_settings() {
-    #if 0
     ifstream in("config/master.txt");
     string line;
-    if (!getline_skip_comments(in, master_name))
+    if (!getline(in, master_name))
         master_name = "koti.mbnet.fi";
-    getline_skip_comments(in, line);
-    getline_skip_comments(in, line);
-    if (!getline_skip_comments(in, master_submit))
+    //master_name = "127.0.0.1"; // test
+    getline(in, line);
+    getline(in, line);
+    if (!getline(in, master_submit))
         master_submit = "/outgun/servers/submit.php";
-    #endif
 }
 
 void Relay::listen() {
@@ -376,7 +385,6 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
     return ost.str();
 }
 
-#if 0
 void Relay::send_master_server() {
     if (get_time() < master_talk_time)
         return;
@@ -390,7 +398,19 @@ void Relay::send_master_server() {
         return;
     }
 
-    if (nlConnect(msock, &master_address) == NL_FALSE) {
+    NLaddress master_address;
+    if (!nlGetAddrFromName(master_name.c_str(), &master_address)) {
+        cout << "Can't resolve master address.\n";
+        nlClose(msock);
+        return;
+    }
+    int port = nlGetPortFromAddr(&master_address);
+    if (!port) {
+        port = 80;
+        nAssert(nlSetAddrPort(&master_address, port));
+    }
+
+    if (!nlConnect(msock, &master_address)) {
         cout << "Can't connect to master server.\n";
         nlClose(msock);
         return;
@@ -399,14 +419,17 @@ void Relay::send_master_server() {
     // build and send data
     map<string, string> parameters;
     parameters["port"] = itoa(listen_port);
-    parameters["servers"] = 1;
+    parameters["servers"] = itoa(1);
     parameters["server[]"] = hostname;
     const string data = build_http_data(parameters);
-    NetworkResult result = post_http_data(msock, 0, 50, master_name, "/outgun/servers/submit.php", data);
+    cout << master_name << ": " << data << '\n';
+    NetworkResult result = post_http_data(msock, &quit, 500, master_name, "/outgun/servers/submit.php", data);
     if (result != NR_ok)
         cout << "Master talker: Error sending info: " << (result == NR_timeout ? "Timeout" : getNlErrorString()) << '\n';
+    else
+        save_http_response(msock, cout, &quit, 1000);
+    nlClose(msock);
 }
-#endif
 
 void Relay::handle_keys() {
 }

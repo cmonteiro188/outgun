@@ -113,7 +113,6 @@ private:
 
     std::string master_name;
     std::string master_submit;
-    NLaddress master_address;
     NLaddress master_socket;
     double master_talk_time;
 
