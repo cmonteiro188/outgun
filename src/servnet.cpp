@@ -216,10 +216,8 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const {
     writeByte(lebuf, count, pid);       // what player id
     writeStr(lebuf, count, world.player[pid].name.empty() ? "?" : world.player[pid].name);
 
-    if (cid == pid_record) {
+    if (cid == pid_record)
         record_message(lebuf, count);
-        return;
-    }
     else if (cid == pid_all) {
         broadcast_message(lebuf, count);
         record_message(lebuf, count);
