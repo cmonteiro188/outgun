@@ -256,6 +256,11 @@ void Relay::check_new_connections() {
 
             pi = peers.erase(pi);
         }
+        else if (type == "RELAY") {
+            cout << "Subrelay connected.\n";
+            nlClose(pi->socket);
+            pi = peers.erase(pi);
+        }
         else {
             cout << "Refused an unknown program " << type << ".\n";
             nlClose(pi->socket);
