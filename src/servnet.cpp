@@ -1096,9 +1096,13 @@ string ServerNetworking::get_relay_server() const {
     return string(buf);
 }
 
+bool ServerNetworking::is_relay_working() const {
+    return relay_socket != NL_INVALID;
+}
+
 void ServerNetworking::send_first_relay_data(const string& data) {
     relay_new_game = true;
-    if (relay_socket != NL_INVALID) // already sent
+    if (is_relay_working()) // already sent
         return;
     nlDisable(NL_BLOCKING_IO);
     relay_socket = nlOpen(0, NL_RELIABLE);
@@ -1129,7 +1133,7 @@ void ServerNetworking::send_first_relay_data(const string& data) {
 }
 
 void ServerNetworking::send_relay_data(const string& data) {
-    if (relay_socket == NL_INVALID)  // Try again in the next game.
+    if (!is_relay_working())  // Try again in the next game.
         return;
     log("Sending relay data.");
     ostringstream ost;
