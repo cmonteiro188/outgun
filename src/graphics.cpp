@@ -2425,7 +2425,7 @@ void Graphics::create_smoke(int x, int y, int px, int py, double time) {
 
 //create deathbringer carrier trail fx
 void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha, double time) {
-    cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, px, py, x, y, time, -1 /* no team */, alpha / 255., 0 /* color: black */));
+    cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, px, py, x, y, time, -1 /* no team */, alpha / 255., colour(Colour::deathbringer_smoke)));
 }
 
 void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha, double time) {
