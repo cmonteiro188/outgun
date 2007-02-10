@@ -96,7 +96,7 @@ public:
 
     void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
-    void startPlayfieldDraw();  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
+    void startPlayfieldDraw(int start_rx, int start_ry);  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
     void endPlayfieldDraw();
 
     void draw_screen(bool acquireWithFlipping);
@@ -108,13 +108,11 @@ public:
     void random_playground_colors();
 
     void predraw(const Room& room, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
-                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, const std::vector< std::pair<int, const WorldRect*> >& respawns, bool grid = false);
+                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, const std::vector< std::pair<int, const WorldRect*> >& respawns,
+                 int roomx, int roomy, bool grid = false);
 
     void draw_background();
     void draw_empty_background(bool map_ready);
-
-    void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
-    void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY);
 
     void draw_flag(int team, int x, int y, bool flash = false);
     void draw_flagpos_mark(int team, int flag_x, int flag_y);
@@ -124,7 +122,7 @@ public:
     void draw_minimap_player(const Map& map, const ClientPlayer& player);
     void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
-    void highlight_minimap_room(const Map& map, int rx, int ry);
+    void highlight_minimap_rooms(const Map& map, int rx, int ry, int size_x, int size_y);
 
     void draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team);
 
@@ -214,6 +212,8 @@ public:
     void search_fonts(LineReceiver& dst_font) const;
     void select_font(const std::string& file);
 
+    void load_pictures();
+
     void set_antialiasing(bool enable) { antialiasing = enable; }
 
     void set_min_transp(bool enable) { min_transp = enable; }
@@ -234,6 +234,7 @@ public:
     const Colour_manager& colours() const { return colour; }
 
     void draw_replay_info(float rate, unsigned position, unsigned length, bool stopped);
+    void set_playfield_scale(double val) { playfield_scale = val; }
 
 private:
     void unload_bitmaps();
@@ -243,6 +244,9 @@ private:
     void make_background(BITMAP* buffer);
 
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
+
+    void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY, int roomx, int roomy);
+    void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY, int roomx, int roomy);
 
     // texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
     void draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture);
@@ -281,7 +285,6 @@ private:
 
     void make_db_effect();
 
-    void load_pictures();
     void load_background();
 
     void load_floor_textures(const std::string& filename);
@@ -318,6 +321,7 @@ private:
     void load_font(const std::string& file);
 
     int scale(double value) const;
+    int pf_scale(double value) const;
 
     // drawing screens
     Bitmap vidpage1;
@@ -344,6 +348,10 @@ private:
     int minimap_start_x, minimap_start_y;
     int indicators_y;
     int health_x, energy_x, pups_x, pups_val_x, weapon_x, time_x, time_y;
+
+    double playfield_scale;
+    int start_room_x;
+    int start_room_y;
 
     bool show_chat_messages;
     bool show_scoreboard;

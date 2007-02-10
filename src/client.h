@@ -488,6 +488,7 @@ class Client {
     unsigned replay_start_frame;
     unsigned replay_length;
     std::pair<int, int> current_room;
+    int visible_rooms;
 
     bool spectating;
     NLsocket spectate_socket;
@@ -671,7 +672,9 @@ class Client {
     void toggle_help();
     template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
     void predraw();
+    bool on_screen(int x, int y);
     void draw_game_frame();
+    void draw_playfield(int x, int y, int screen_x, int screen_y);
     int calculatePlayerAlpha(int pid) const;
     void draw_player(int pid, double time);
     void draw_game_menu();
