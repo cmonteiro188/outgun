@@ -624,7 +624,10 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const {
     writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
     writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
     writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
-    server->send_message(cid, lebuf, count);
+    if (cid == pid_record)
+        record_message(lebuf, count);
+    else
+        server->send_message(cid, lebuf, count);
 }
 
 void ServerNetworking::send_team_movements_and_shots(int cid) const {

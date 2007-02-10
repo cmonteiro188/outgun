@@ -665,6 +665,7 @@ void Server::record_init_data() {
         if (world.player[i].used) {
             network.send_player_crap_update(pid_record, i);
             network.send_player_name_update(pid_record, i);
+            network.send_stats(world.player[i], pid_record);
         }
 }
 
