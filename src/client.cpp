@@ -2971,7 +2971,8 @@ void Client::process_message(const char* const lebuf, int msglen) {
             fx.player[to  ].id =   to;
             fx.player[from].set_team(from / TSIZE);
             fx.player[to  ].set_team(  to / TSIZE);
-            // both players already exist in players_sb -> no changes
+            // both players already exist in players_sb -> no changes except resorting
+            stable_sort(players_sb.begin(), players_sb.end(), compare_players);
         }
         else {
             fx.player[to] = fx.player[from];
