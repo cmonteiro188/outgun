@@ -4993,7 +4993,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                 const ClientPlayer& pl = fx.player[i];
                 if (pl.used && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h && pl.posUpdated > fx.frame - max_time) {
                     const int xDelta = roomDeltaX(pl.roomx, roomx), yDelta = roomDeltaY(pl.roomy, roomy);
-                    const bool drawNeighborMarkers = menu.options.graphics.neighborMarkers() && (abs(xDelta) + abs(yDelta) == 1);
+                    const bool drawNeighborMarkers = menu.options.graphics.neighborMarkers() && (abs(xDelta) + abs(yDelta) == 1) && !replaying;
                     const int alpha = pl.alpha;
                     if (alpha != 255) {
                         set_trans_blender(0, 0, 0, alpha);
@@ -5043,7 +5043,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     client_graphics.draw_mini_flag(t, *fi, fx.map, flash);
                     const WorldCoords& pos = fi->position();
                     const int xDelta = roomDeltaX(pos.px, roomx), yDelta = roomDeltaY(pos.py, roomy);
-                    if (menu.options.graphics.neighborMarkers() && abs(xDelta) + abs(yDelta) == 1)
+                    if (menu.options.graphics.neighborMarkers() && abs(xDelta) + abs(yDelta) == 1 && !replaying)
                         client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pos.x, pos.y, t);
                 }
         }
