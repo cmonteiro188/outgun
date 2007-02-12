@@ -1442,7 +1442,7 @@ void Server::simulate_and_broadcast_frame() {
                 byte = pl.controls.toNetwork(true);
             else
                 byte = ClientControls().toNetwork(true);
-            byte |= pl.gundir << 5;
+            byte |= pl.gundir.toNetworkShortForm() << 5;
             write(temp_frame, byte);
 
             byte = pl.visibility;

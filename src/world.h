@@ -26,6 +26,7 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
+#include "incalleg.h"
 #include <vector>
 #include <list>
 #include <string>
@@ -335,6 +336,37 @@ private:
     double flag_taking_time;
 };
 
+class GunDirection {
+    double data;
+
+    GunDirection(double data_) : data(data_) { }
+
+public:
+    GunDirection() : data(-1) { }
+
+    void adjust(double change) { data += change; while (data < 0.) data += 8.; while (data >= 8.) data -= 8.; }
+
+    void from8way(int dir) { data = dir; }
+    void fromControls(const ClientControls& c) { data = c.getDirection(); }
+    void updateFromControls(const ClientControls& c) { const int d = c.getDirection(); if (d != -1) data = d; }
+
+    void fromNetworkShortForm(NLubyte data_) { data = data_ & 7; }
+    void fromNetworkLongForm(NLushort data_) { data = data_ / 256.; } // only 11 bits used
+
+    NLubyte toNetworkShortForm() const { return to8way(); }
+    NLushort toNetworkLongForm() const { nAssert(data >= 0 && data <= 8); return iround(data * 256.) % (256 * 8); } // only 11 bits used
+
+    int to8way() const { nAssert(data >= 0 && data <= 8); return iround(data) % 8; }
+    #ifndef DEDICATED_SERVER_ONLY
+    fixed toFixed() const { nAssert(data >= 0 && data <= 8); return ftofix(data * 32.); }
+    #endif
+    double toRad() const { nAssert(data >= 0 && data <= 8); return data * N_PI_4; }
+
+    bool operator!() const { return data < 0; }
+
+    GunDirection operator+(const GunDirection& o) const { double d = data + o.data; if (d < 0.) d += 8.; else if (d >= 8.) d -= 8; return GunDirection(d); }
+};
+
 class PlayerBase {
 protected:
     PlayerBase() { clear(false, 0, "", 0); }
@@ -353,7 +385,7 @@ public:
     int roomx, roomy;
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
-    int gundir; // gun direction 0-7 (0 = right 1 = right-down 2 = down ...... 7 = right-up
+    GunDirection gundir;
 
 // get rid of (or move elsewhere)
     bool used;
@@ -493,7 +525,7 @@ public:
     int px, py;         //screen coords
     double x, y;        //start position or current position
     double sx, sy;      //speed
-    int direction;
+    GunDirection direction;
     NLulong time;       //time of shot or current time
 
     Rocket() { owner = -1; }
@@ -680,6 +712,9 @@ public:
     double rocket_speed;
     double friendly_fire, friendly_db;
     enum PlayerCollisions { PC_none, PC_normal, PC_special } player_collisions;
+    AccelerationMode accelerationMode;
+    GunDirectionMode gunDirectionMode;
+    int gunDirectionChangePerFrame;
 
     double max_run_speed;   // max speed without turbo, for turbo effect in client
 
@@ -699,6 +734,8 @@ public:
 
     virtual ~PhysicsCallbacksBase() { }
     virtual bool collideToRockets() const =0;   // should player to rocket collisions be checked at all
+    virtual bool collidesToRockets(int pid) const =0; // should player to rocket collisions be checked for player pid (if collideToRockets())
+    virtual bool collidesToPlayers(int pid) const =0; // should player to player collisions be checked for player pid (with other players who collideToPlayers)
     virtual bool gatherMovementDistance() const =0; // should addMovementDistance be called with player movements
     virtual bool allowRoomChange() const =0;
     virtual void addMovementDistance(int pid, double dist) =0;  // player pid has moved the distance dist
@@ -708,19 +745,20 @@ public:
     virtual void playerHitWall(int pid) =0;
     virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) =0;
     virtual void rocketOutOfBounds(int rid) =0; // caller doesn't remove the rocket
-    virtual bool shouldApplyPhysicsToPlayer(int pid) =0;    // returns true physics should be run to player pid
+    virtual bool shouldApplyPhysicsToPlayer(int pid) =0;    // returns true if physics should be run to player pid
+    virtual bool is_bot(int pid) const { (void)pid; return false; }
 };
 
 class WorldBase {
     void addRocket(int i, int playernum, int team, int px, int py, int x, int y,
-                                                    bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
+                   bool power, GunDirection dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
 
     static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction);
     static double getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction);
     static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
     void limitPlayerSpeed(PlayerBase& pl) const;  // hard limit to somewhat acceptable values; required to call when physically incorrect changes are made
-    void applyPlayerAcceleration(int pid);
+    void applyPlayerAcceleration(int pid, bool is_bot);
     void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const; // returns pair(p1-dead, p2-dead)
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction);
@@ -754,8 +792,8 @@ public:
 
     virtual ~WorldBase() { }
 
-    void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids,
-                                        int frameAdvance, int team, bool power, int px, int py, int x, int y);
+    void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, NLubyte* rids,
+                      int frameAdvance, int team, bool power, int px, int py, int x, int y);
 
     void run_server_player_physics(int pid);
     virtual bool load_map(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) { return map.load(log, mapdir, mapname, buffer); }

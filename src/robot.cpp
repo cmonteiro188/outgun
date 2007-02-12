@@ -193,10 +193,10 @@ int Client::GetDangerousRocket(double mex, double mey) const {
             rocket.px != player.roomx || rocket.py != player.roomy)
                 continue;
 
-        const double rdx = rocket.x - mex;
-        const double rdy = rocket.y - mey;
+        const double rdx = (rocket.x + averageLag * rocket.sx) - mex;
+        const double rdy = (rocket.y + averageLag * rocket.sy) - mey;
 
-        const int d = rocket.direction;
+        const int d = rocket.direction.to8way();
 
         if (IsBehindWall(mex, mey, rdx, rdy))
             continue;
@@ -292,7 +292,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
         const double dx = ttx - mex;
         const double dy = tty - mey;
 
-        const int d = enemy.gundir;
+        const int d = enemy.gundir.to8way();
         double dist1 = sqrt(dx * dx + dy * dy);
 
         const int dd = inv_dir(GetDir(dx, dy));
@@ -370,14 +370,15 @@ bool Client::NeedShoot(double mex, double mey) const {
 }
 
 ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
-    const double sdx = fx.rock[mrock].x - mex;
-    const double sdy = fx.rock[mrock].y - mey;
+    const Rocket& rocket = fx.rock[mrock];
+    const double sdx = (rocket.x + averageLag * rocket.sx) - mex;
+    const double sdy = (rocket.y + averageLag * rocket.sy) - mey;
 
     ClientControls ctrl;
     ctrl.setStrafe();
     ctrl.setRun();
 
-    switch (fx.rock[mrock].direction) {
+    switch (rocket.direction.to8way()) {
         case 0: // r -> d or up
         case 4: // l -> u or d
             if (sdy > 0)
@@ -1599,7 +1600,7 @@ ClientControls Client::Robot() {
     }
 
     if (myGundir == -1) // was dead, or something like that
-        myGundir = fx.player[me].gundir;
+        myGundir = fx.player[me].gundir.to8way();
 
     ClientControls ctrl = getRobotControls();
 
@@ -1626,5 +1627,6 @@ ClientControls Client::Robot() {
         botPrevFire = false;
     }
 
+    gunDir.from8way(myGundir);
     return ctrl;
 }

@@ -42,6 +42,7 @@ class server_c;
 class ServerHelloResult;
 class ServerPlayer;
 class ServerWorld;
+class GunDirection;
 
 static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
 
@@ -258,7 +259,7 @@ public:
     void sendWorldReset() const;
     void sendStartGame() const;
     void sendWeaponPower(int pid) const;
-    void sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y) const; // sid = shot-id: array of NLubyte[shots]
+    void sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y) const; // sid = shot-id: array of NLubyte[shots]
     void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const;
     void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const;
     void sendDeathbringer(int pid, const ServerPlayer& ply) const;

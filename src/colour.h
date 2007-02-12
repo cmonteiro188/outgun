@@ -113,6 +113,8 @@ public:
         player_power_personal,
         blood,
         rocket_shadow,
+        aim_line,
+        aim_dot,
 
         ice_cream_crisp,
         ice_cream_ball_1,

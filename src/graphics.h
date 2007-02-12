@@ -126,10 +126,11 @@ public:
 
     void draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team);
 
-    void draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool power, int alpha, double time);
+    void draw_player(int x, int y, int team, int pli, GunDirection gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);
     void draw_me_highlight(double x, double y, double size);
+    void draw_aim(const Room& room, double x, double y, GunDirection gundir);
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time);
     void draw_gun_explosion(int x, int y, int rad, int team);
@@ -141,7 +142,7 @@ public:
 
     void draw_deathbringer_affected(int x, int y, int team, int alpha);
     void draw_deathbringer_carrier_effect(int x, int y, int alpha);
-    void draw_shield(int x, int y, int r, int alpha = 255, int team = -1, int direction = 0);
+    void draw_shield(int x, int y, int r, int alpha = 255, int team = -1, GunDirection direction = GunDirection());
 
     void draw_virou_sorvete(int x, int y);
 
@@ -200,7 +201,7 @@ public:
     void create_powerwallexplo(int x, int y, int px, int py, int team, double time);
     void create_smoke(int x, int y, int px, int py, double time);
     void create_deathcarrier(int x, int y, int px, int py, int alpha, double time);
-    void create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha, double time);
+    void create_turbofx(int x, int y, int px, int py, int col1, int col2, GunDirection gundir, int alpha, double time);
     void create_deathbringer(int team, double start_time, int x, int y, int px, int py);
     void create_gunexplo(int x, int y, int px, int py, int team, double time);
 

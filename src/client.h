@@ -301,6 +301,7 @@ class Client {
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     ClientControls sentControls;
     double svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
+    GunDirection gunDir; // used only with gunDirectionMode == GDM_Free
     volatile bool connected;
     bool map_ready;
     int clientReadiesWaiting;
@@ -634,6 +635,7 @@ class Client {
     void send_chat(const std::string& msg);
     void send_frame(bool newFrame, bool forceSend);
     #endif
+    void bot_send_frame(ClientControls controls);
     bool process_live_frame_data(const char* data, int length); // returns false if an error occured that requires disconnecting
     #ifndef DEDICATED_SERVER_ONLY
     int process_replay_frame_data(const char* data, int length); // returns number of bytes read
@@ -684,6 +686,8 @@ class Client {
     void draw_game_menu();
 
     ClientControls readControls(bool canUseKeypad, bool useCursorKeys);
+    bool firePressed() const;
+    void refreshGunDir();
 
     void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey
     bool handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence);  // sc = scancode, ch = character, as returned by readkey

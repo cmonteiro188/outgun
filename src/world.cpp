@@ -797,7 +797,7 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     visibility = 255;
     roomx = roomy = 0;
     lx = ly = sx = sy = 0;
-    gundir = 0;
+    gundir.from8way(0);
     controls = ClientControls();
     dead = false;
     reg_status = ClientLoginStatus();   // clear
@@ -1139,12 +1139,8 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& 
     return 1e99;
 }
 
-void WorldBase::applyPlayerAcceleration(int pid) {
+void WorldBase::applyPlayerAcceleration(int pid, bool is_bot) {
     PlayerBase* h = player[pid].getPtr();
-    const bool deathbringer_affected = h->under_deathbringer_effect(get_time());
-
-    double xAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
-    double yAcc = (h->controls.isDown () ? 1 : 0) - (h->controls.isUp  () ? 1 : 0);
 
     double player_accel = physics.accel;
     if (h->item_turbo)
@@ -1185,27 +1181,47 @@ void WorldBase::applyPlayerAcceleration(int pid) {
         h->sy *= mul;
     }
 
-    if (!deathbringer_affected && (xAcc != 0 || yAcc != 0)) {   // no acceleration when under the db effect
-        if (xAcc != 0 && yAcc != 0) {   // normalize the total acceleration vector
-            xAcc /= sqrt(2.);
-            yAcc /= sqrt(2.);
-        }
-        if (fabs(h->sx) > .001 || fabs(h->sy) > .001) { // the player is moving in some direction (otherwise, any direction is 'forward')
-            // handle different directions : scale braking component by brake_mul and turning component by turn_mul
-            // acceleration component parallel to v = par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
-            const double par_mul = (xAcc * h->sx + yAcc * h->sy) / (h->sx * h->sx + h->sy * h->sy);
-            double par_x = par_mul * h->sx, par_y = par_mul * h->sy;
-            const double perp_x = xAcc - par_x, perp_y = yAcc - par_y;
-            if (par_mul < 0) {  // par is opposite to v == braking
-                par_x *= physics.brake_mul;
-                par_y *= physics.brake_mul;
-            }
-            xAcc = perp_x * physics.turn_mul + par_x;
-            yAcc = perp_y * physics.turn_mul + par_y;
-        }
-        h->sx += xAcc * player_accel;
-        h->sy += yAcc * player_accel;
+    if (h->under_deathbringer_effect(get_time()))
+        return;
+
+    double sideAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
+    double forwAcc = (h->controls.isUp   () ? 1 : 0) - (h->controls.isDown() ? 1 : 0);
+
+    if (physics.gunDirectionMode == GDM_Gradual && !h->controls.isStrafe() && !is_bot)
+        sideAcc = 0;
+
+    if (sideAcc == 0 && forwAcc == 0)
+        return;
+    if (sideAcc != 0 && forwAcc != 0) {   // normalize the total acceleration vector
+        sideAcc /= sqrt(2.);
+        forwAcc /= sqrt(2.);
     }
+
+    double xAcc, yAcc;
+    if (physics.accelerationMode == AM_World || is_bot) {
+        xAcc = sideAcc;
+        yAcc = -forwAcc;
+    }
+    else {
+        const double dirX = cos(h->gundir.toRad()), dirY = sin(h->gundir.toRad());
+        xAcc = dirX * forwAcc - dirY * sideAcc;
+        yAcc = dirY * forwAcc + dirX * sideAcc;
+    }
+    if (fabs(h->sx) > .001 || fabs(h->sy) > .001) { // the player is moving in some direction (otherwise, any direction is 'forward')
+        // handle different directions : scale braking component by brake_mul and turning component by turn_mul
+        // acceleration component parallel to v = par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
+        const double par_mul = (xAcc * h->sx + yAcc * h->sy) / (h->sx * h->sx + h->sy * h->sy);
+        double par_x = par_mul * h->sx, par_y = par_mul * h->sy;
+        const double perp_x = xAcc - par_x, perp_y = yAcc - par_y;
+        if (par_mul < 0) {  // par is opposite to v == braking
+            par_x *= physics.brake_mul;
+            par_y *= physics.brake_mul;
+        }
+        xAcc = perp_x * physics.turn_mul + par_x;
+        yAcc = perp_y * physics.turn_mul + par_y;
+    }
+    h->sx += xAcc * player_accel;
+    h->sy += yAcc * player_accel;
 }
 
 void WorldBase::returnAllFlags() {
@@ -1274,7 +1290,7 @@ void WorldBase::add_random_flag(int t) {
 }
 
 void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
-                          bool power, int dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
+                          bool power, GunDirection dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) {
     Rocket& r = rock[i];
     r.owner = playernum;
     r.team = team;
@@ -1285,7 +1301,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
     r.y = y;
     r.direction = dir;
 
-    const double deg = dir * N_PI_4;
+    const double deg = dir.toRad();
 
     if (xdelta) {
         r.sx = xdelta * shot_deltax * cos(deg + N_PI_2);
@@ -1313,7 +1329,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
         cb.rocketOutOfBounds(i);
 }
 
-void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, int dir, NLubyte* rids, int frameAdvance,
+void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, NLubyte* rids, int frameAdvance,
                              int team, bool power, int px, int py, int x, int y) {
     struct RocketFormation {
         int nForward;
@@ -1344,8 +1360,11 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, i
         addRocket(rids[2], playernum, team, px, py, x, y, power, dir, +2, frameAdvance, cb);
     }
     const int* dirp = &form.directions[0];
-    for (int ri = form.nForward; ri < pow; ++ri, ++dirp)
-        addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + *dirp, 0, frameAdvance, cb);
+    for (int ri = form.nForward; ri < pow; ++ri, ++dirp) {
+        GunDirection diff;
+        diff.from8way(*dirp);
+        addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + diff, 0, frameAdvance, cb);
+    }
 }
 
 PhysicalSettings::PhysicalSettings() :
@@ -1360,7 +1379,10 @@ PhysicalSettings::PhysicalSettings() :
     rocket_speed(50.),
     friendly_fire(0.),
     friendly_db(0.),
-    player_collisions(PC_normal)
+    player_collisions(PC_normal),
+    accelerationMode(AM_World),
+    gunDirectionMode(GDM_Locked),
+    gunDirectionChangePerFrame(8)
 {
     calc_max_run_speed();
 }
@@ -1382,9 +1404,23 @@ void PhysicalSettings::read(const char* lebuf, int& count) {
     friendly_db     = safeReadFloat(lebuf, count);
     rocket_speed    = safeReadFloat(lebuf, count);
 
-    NLubyte collisions;
-    readByte(lebuf, count, collisions);
-    player_collisions = static_cast<PlayerCollisions>(collisions & 0x03);
+    NLubyte bitField;
+    readByte(lebuf, count, bitField);
+    player_collisions = static_cast<PlayerCollisions>(bitField & 0x03);
+    accelerationMode = static_cast<AccelerationMode>((bitField >> 2) & 0x01);
+    gunDirectionMode = static_cast<GunDirectionMode>((bitField >> 3) & 0x03);
+
+    unsigned extraBytes = bitField >> 5;
+    if (extraBytes == 7) {
+        readByte(lebuf, count, bitField);
+        extraBytes = unsigned(bitField) + 7;
+    }
+    const int end = count + extraBytes;
+    if (count < end) {
+        readByte(lebuf, count, bitField);
+        gunDirectionChangePerFrame = (bitField & 0x1F) + 1;
+    }
+    count = end; // ignore data we don't understand
 
     calc_max_run_speed();
 }
@@ -1401,7 +1437,9 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
     safeWriteFloat(lebuf, count, friendly_fire);
     safeWriteFloat(lebuf, count, friendly_db);
     safeWriteFloat(lebuf, count, rocket_speed);
-    writeByte(lebuf, count, player_collisions);
+    const unsigned extraBytes = 1;
+    writeByte(lebuf, count, player_collisions | (accelerationMode << 2) | (gunDirectionMode << 3) | (extraBytes << 5));
+    writeByte(lebuf, count, gunDirectionChangePerFrame - 1);
 }
 
 void PowerupSettings::reset() {
@@ -1508,6 +1546,8 @@ public:
     ServerPhysicsCallbacks(ServerWorld& w_) : w(w_) { }
 
     bool collideToRockets() const { return true; }
+    bool collidesToRockets(int pid) const { return w.frame >= w.player[pid].start_take_damage_frame; }
+    bool collidesToPlayers(int pid) const { return w.frame >= w.player[pid].start_take_damage_frame; }
     bool gatherMovementDistance() const { return true; }
     bool allowRoomChange() const { return true; }
     void addMovementDistance(int pid, double dist) { w.addMovementDistanceCallback(pid, dist); }
@@ -1518,6 +1558,7 @@ public:
     PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) { return w.playerHitPlayerCallback(pid1, pid2, speed); }
     void rocketOutOfBounds(int rid) { w.rocketOutOfBoundsCallback(rid); }
     bool shouldApplyPhysicsToPlayer(int pid) { return w.shouldApplyPhysicsToPlayerCallback(pid); }
+    bool is_bot(int pid) const { return w.player[pid].is_bot(); }
 };
 
 void ServerWorld::reset() {
@@ -2313,7 +2354,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
 
     //if player not dead, push him
     if (player[pid].health > 0) {
-        const double mul = .33 * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.);
+        const double mul = 15. / physics.rocket_speed * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.); // divide by rocket_speed to remove its effect in rock.sx,sy
         player[pid].sx += rock[rid].sx * mul;
         player[pid].sy += rock[rid].sy * mul;
     }
@@ -2541,7 +2582,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
         if (callback.shouldApplyPhysicsToPlayer(i)) {
             if (pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= map.w || pl.roomy >= map.h)
                 continue;   //#fix: remove this and track why these are given sometimes
-            applyPlayerAcceleration(i);
+            applyPlayerAcceleration(i, callback.is_bot(i));
             roomPly[pl.roomx][pl.roomy].push_back(i);
         }
     }
@@ -2594,6 +2635,8 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
         if (callback.collideToRockets()) {
             for (uint pi = 0; pi < rply.size(); ++pi) {
                 const int pid = rply[pi];
+                if (!callback.collidesToRockets(pid))
+                    continue;
                 for (uint ri = 0; ri < rrock.size(); ++ri) {
                     const int rid = rrock[ri];
                     if (rock[rid].team == pid / TSIZE && (physics.friendly_fire == 0. || rock[rid].owner == pid))   // friendly rocket
@@ -2619,8 +2662,12 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
         if (physics.player_collisions != PhysicalSettings::PC_none) {
             for (uint pi = 0; pi < rply.size(); ++pi) {
                 const int pid = rply[pi];
+                if (!callback.collidesToPlayers(pid))
+                    continue;
                 for (uint ti = pi + 1; ti < rply.size(); ++ti) {
                     const int tid = rply[ti];
+                    if (!callback.collidesToPlayers(tid))
+                        continue;
                     const double time = getTimeTillCollision(player[pid], player[tid], 2. * plyRadius);
                     if (time < minPlyCollision) {
                         minPlyCollision = time;

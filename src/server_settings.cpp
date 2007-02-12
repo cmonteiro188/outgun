@@ -242,6 +242,8 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Double    ("respawn_time",                &worldConfig.respawn_time, 0.));
     cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
     cat.add(new GS_Double    ("respawn_balancing_time",      &worldConfig.respawn_balancing_time, 0.));
+    cat.add(new GS_ControlMode("control_mode",               &world.physics));
+    cat.add(new GS_Int       ("turning_speed",               &world.physics.gunDirectionChangePerFrame, 1, 16));
     cat.add(new GS_Int       ("rocket_damage",               &worldConfig.rocket_damage, 0));
     cat.add(new GS_Double    ("hit_stun_time",               &worldConfig.hit_stun_time, 0));
     cat.add(new GS_Double    ("shoot_interval",              &worldConfig.shoot_interval, .1));

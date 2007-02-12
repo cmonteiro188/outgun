@@ -120,6 +120,8 @@ void Colour_manager::init(const string& file) {
         PT(new Colour_setting("player_power_personal" , 0x00, 0xFF, 0xFF)),
         PT(new Colour_setting("blood"                 , 0xFF, 0x00, 0x00)),
         PT(new Colour_setting("rocket_shadow"         , 0x18, 0x18, 0x18)),
+        PT(new Colour_setting("aim_line"              , 0xF0, 0x20, 0x20)),
+        PT(new Colour_setting("aim_dot"               , 0xFF, 0x00, 0x00)),
 
         PT(new Colour_setting("ice_cream_crisp"       , 0xFF, 0xA0, 0x00)),
         PT(new Colour_setting("ice_cream_ball_1"      , 0x00, 0x00, 0xFF)),

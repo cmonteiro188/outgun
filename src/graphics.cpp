@@ -52,6 +52,8 @@ const int FULLMODE = GFX_AUTODETECT;
 
 const bool SWITCH_PAUSE_CLIENT = false;
 
+const int GUNPOINT_RADIUS = 28;
+
 using std::ifstream;
 using std::istringstream;
 using std::left;
@@ -1115,7 +1117,7 @@ void Graphics::draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx
 }
 
 //draws a basic player object
-void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double hitfx, bool item_power, int alpha, double time) {
+void Graphics::draw_player(int x, int y, int team, int pli, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) {
     x = pf_scale(x);
     y = pf_scale(y);
     int pc1 = teamcol[team];
@@ -1145,9 +1147,9 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     }
     if (sprite) {
         if (alpha < 255)
-            rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(gundir * 32), alpha);
+            rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, gundir.toFixed(), alpha);
         else
-            rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(gundir * 32));
+            rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, gundir.toFixed());
         return;
     }
 
@@ -1161,41 +1163,35 @@ void Graphics::draw_player(int x, int y, int team, int pli, int gundir, double h
     // inner color: self color
     circlefill(drawbuf, plx + x, ply + y, player_radius * 2 / 3, pc2);
     // gun direction
-    int xg, yg;
-    switch (gundir) {
-    /*break;*/ case 0:  xg =  40; yg =   0;
-        break; case 1:  xg =  28; yg =  28;
-        break; case 2:  xg =   0; yg =  40;
-        break; case 3:  xg = -28; yg =  28;
-        break; case 4:  xg = -40; yg =   0;
-        break; case 5:  xg = -28; yg = -28;
-        break; case 6:  xg =   0; yg = -40;
-        break; case 7:  xg =  28; yg = -28;
-        break; default: xg =   0; yg =   0;
-    }
-    xg = pf_scale(xg * 0.7);
-    yg = pf_scale(yg * 0.7);
-    // draw the gun
-    switch (gundir) {
-    /*break;*/ case 0: case 4:
-            rectfill(drawbuf, plx + x + xg / 2, ply + y + yg - 1, plx + x + xg, ply + y + yg + 1, pc1);
-        break; case 2: case 6:
-            rectfill(drawbuf, plx + x + xg - 1, ply + y + yg / 2, plx + x + xg + 1, ply + y + yg, pc1);
-        break; case 1: case 5:
-            line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
-            line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
-            line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg - 1, pc1);
-        break; case 3: case 7:
-            line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 - 1, plx + x + xg - 1, ply + y + yg + 0, pc1);
-            line(drawbuf, plx + x + xg / 2 + 0, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 0, pc1);
-            line(drawbuf, plx + x + xg / 2 + 1, ply + y + yg / 2 + 0, plx + x + xg + 0, ply + y + yg + 1, pc1);
-    }
+    const double gdx = cos(gundir.toRad()), gdy = sin(gundir.toRad());
+    const int xg0 = pf_scale(gdx * PLAYER_RADIUS), xg1 = pf_scale(gdx * GUNPOINT_RADIUS);
+    const int yg0 = pf_scale(gdy * PLAYER_RADIUS), yg1 = pf_scale(gdy * GUNPOINT_RADIUS);
+    // draw gun in 3 lines: 1 centered, 1 a pixel left and inwards, 1 a pixel right and inwards
+    const int xda = static_cast<int>(( gdy - gdx) * 1.3), yda = static_cast<int>((-gdx - gdy) * 1.3);
+    const int xdb = static_cast<int>((-gdy - gdx) * 1.3), ydb = static_cast<int>(( gdx - gdy) * 1.3);
+    line(drawbuf, plx + x + xg0      , ply + y + yg0      , plx + x + xg1      , ply + y + yg1      , pc1);
+    line(drawbuf, plx + x + xg0 + xda, ply + y + yg0 + yda, plx + x + xg1 + xda, ply + y + yg1 + yda, pc1);
+    line(drawbuf, plx + x + xg0 + xdb, ply + y + yg0 + ydb, plx + x + xg1 + xdb, ply + y + yg1 + ydb, pc1);
 
     solid_mode();
 }
 
 void Graphics::draw_me_highlight(double x, double y, double size) {
     circle(drawbuf, plx + pf_scale(x), ply + pf_scale(y), pf_scale((8 * size + 1) * PLAYER_RADIUS), colour(Colour::self_highlight));
+}
+
+void Graphics::draw_aim(const Room& room, double x, double y, GunDirection gundir) {
+    static const double minDist = pf_scale(GUNPOINT_RADIUS);
+    const double gdx = cos(gundir.toRad()), gdy = sin(gundir.toRad());
+    const int maxDist = pf_scale(min<double>(room.genGetTimeTillWall(x, y, gdx, gdy, ROCKET_RADIUS * .1, plw + plh).first, plw + plh)); // cap at plw+plh, which is somewhere outside the screen, to avoid drawing a *very* long line
+    if (maxDist < minDist)
+        return;
+    const int x0 = plx + pf_scale(x), y0 = ply + pf_scale(y);
+    line(drawbuf,
+         x0 + static_cast<int>(gdx * minDist), y0 + static_cast<int>(gdy * minDist),
+         x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist),
+         colour(Colour::aim_line));
+    circlefill(drawbuf, x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist), pf_scale(ROCKET_RADIUS * .5), colour(Colour::aim_dot));
 }
 
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
@@ -1243,7 +1239,7 @@ void Graphics::draw_player_dead(const ClientPlayer& player) {
     const int y = pf_scale(player.ly + (player.roomy - start_room_y) * plh);
     BITMAP* sprite = dead_sprite[player.team()];
     if (sprite)
-        rotate_alpha_sprite(drawbuf, sprite, plx + x, ply + y, itofix(player.gundir * 32));
+        rotate_alpha_sprite(drawbuf, sprite, plx + x, ply + y, player.gundir.toFixed());
     else {
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
         set_trans_blender(0, 0, 0, 90);
@@ -1384,16 +1380,16 @@ void Graphics::draw_deathbringer_carrier_effect(int x, int y, int alpha) {
         destroy_bitmap(buffer);
 }
 
-void Graphics::draw_shield(int x, int y, int r, int alpha, int team, int direction) {
+void Graphics::draw_shield(int x, int y, int r, int alpha, int team, GunDirection direction) {
     x = pf_scale(x);
     y = pf_scale(y);
     r = pf_scale(r);
     if ((team == 0 || team == 1) && shield_sprite[team]) {
         BITMAP* sprite = shield_sprite[team];
         if (alpha < 255)
-            rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, itofix(direction * 32), alpha);
+            rotate_trans_sprite(drawbuf, sprite, plx + x, ply + y, direction.toFixed(), alpha);
         else
-            rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(direction * 32));
+            rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, direction.toFixed());
         return;
     }
     const int v[] = { pf_scale(3), pf_scale(5), pf_scale(9) };
@@ -1425,7 +1421,7 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
     const int y = pf_scale(rocket.y + (rocket.py - start_room_y) * plh);
     BITMAP* sprite = (rocket.power ? power_rocket_sprite[rocket.team] : rocket_sprite[rocket.team]);
     if (sprite)
-        rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, itofix(rocket.direction * 32));
+        rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, rocket.direction.toFixed());
     else if (rocket.power) {
         //draw rocket shadow
         if (shadow)
@@ -2428,7 +2424,7 @@ void Graphics::create_deathcarrier(int x, int y, int px, int py, int alpha, doub
     cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, px, py, x, y, time, -1 /* no team */, alpha / 255., colour(Colour::deathbringer_smoke)));
 }
 
-void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, int gundir, int alpha, double time) {
+void Graphics::create_turbofx(int x, int y, int px, int py, int col1, int col2, GunDirection gundir, int alpha, double time) {
     cfx.push_back(GraphicsEffect(FX_TURBO, px, py, x, y, time, -1 /* team not used */, alpha / 255., col1, col2, gundir));
 }
 

@@ -1512,12 +1512,43 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
         pl.controls.fromNetwork(ccb, false);
         pl.controls.clearModifiersIfIdle();
 
-        const ClientControls& ctrl = pl.controls;
-        //if not strafing, update direction
-        if (!ctrl.isStrafe() && !pl.dead) {
-            const int newDir = ctrl.getDirection();
-            if (newDir != -1)
-                pl.gundir = newDir;
+        GunDirection newDir;
+        bool newDirReceived = false;
+        if (length >= count) {
+            NLushort gd;
+            readShort(data, count, gd);
+            newDir.fromNetworkLongForm(gd);
+            newDirReceived = true;
+        }
+        if (!pl.dead) {
+            ClientControls& ctrl = pl.controls;
+            switch (world.physics.gunDirectionMode) {
+            /*break;*/ case GDM_Locked:
+                    if (!ctrl.isStrafe())
+                        pl.gundir.updateFromControls(ctrl);
+                break; case GDM_Gradual:
+                    if (pl.is_bot()) {
+                        if (!ctrl.isStrafe())
+                            pl.gundir.updateFromControls(ctrl);
+                        break;
+                    }
+                    if (!ctrl.isStrafe()) {
+                        if (ctrl.isLeft()) {
+                            pl.gundir.adjust(-world.physics.gunDirectionChangePerFrame / 16.);
+                            ctrl.clearLeft();
+                        }
+                        if (ctrl.isRight()) {
+                            pl.gundir.adjust(+world.physics.gunDirectionChangePerFrame / 16.);
+                            ctrl.clearRight();
+                        }
+                    }
+                break; case GDM_Free:
+                    if (newDirReceived)
+                        pl.gundir = newDir;
+                    else
+                        if (!ctrl.isStrafe())
+                            pl.gundir.updateFromControls(ctrl);
+            }
         }
     }
 
@@ -1959,6 +1990,9 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         extra |= 16;
                     if (world.player[j].item_power)
                         extra |= 32;
+                    const bool preciseGundir = world.player[i].protocolExtensionsLevel >= 0 && world.physics.gunDirectionMode != GDM_Locked;
+                    if (preciseGundir)
+                        extra |= 64;
                     writeByte(lebuf, lecount, extra);
 
                     // controls and gundirection in 1 byte
@@ -1967,8 +2001,17 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         ccb = world.player[j].controls.toNetwork(true);
                     else
                         ccb = ClientControls().toNetwork(true);
-                    ccb |= h.gundir << 5;
-                    writeByte(lebuf, lecount, ccb);
+                    if (preciseGundir) {
+                        const NLushort gundir = h.gundir.toNetworkLongForm();
+                        ccb |= (gundir >> 8) << 5;
+                        writeByte(lebuf, lecount, ccb);
+                        ccb = gundir & 0xFF;
+                        writeByte(lebuf, lecount, ccb);
+                    }
+                    else {
+                        ccb |= h.gundir.toNetworkShortForm() << 5;
+                        writeByte(lebuf, lecount, ccb);
+                    }
 
                     // visibility in 1 byte
                     writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
@@ -2845,35 +2888,53 @@ void ServerNetworking::sendWeaponPower(int pid) const {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::sendRocketMessage(int shots, int gundir, NLubyte* sid, int team, bool power,
+void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int team, bool power,
                                          int px, int py, int x, int y) const { // sid = shot-id; array of NLubyte[shots]
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_rocket_fire);
-    writeByte(lebuf, count, shots);         // power and dir
-    writeByte(lebuf, count, gundir);        // power and dir
-    for (int i = 0; i < shots; i++)
-        writeByte(lebuf, count, sid[i]);    // rocket-object id (needed because client-side rockets can be deleted by the server)
-    writeLong(lebuf, count, world.frame);   // time of shot of the rocket: current (last simulated) frame
-    const NLubyte shotType = (team << 1) | power;
-    writeByte(lebuf, count, static_cast<NLubyte>(shotType));    // owner of all rockets
-    writeByte(lebuf, count, static_cast<NLubyte>(px));  //coord
-    writeByte(lebuf, count, static_cast<NLubyte>(py));
-    writeShort(lebuf, count, static_cast<NLshort>(x));
-    writeShort(lebuf, count, static_cast<NLshort>(y));
+    for (int iProto = 0; iProto < 2; ++iProto) {
+        const bool preciseGundir = iProto == 1 && world.physics.gunDirectionMode != GDM_Locked;
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, data_rocket_fire);
+        writeByte(lebuf, count, shots);
+        if (preciseGundir) {
+            const NLushort dirData = gundir.toNetworkLongForm();
+            writeByte(lebuf, count, (dirData >> 8) | 0x80); // high bit signals extended form (it's never set in 1-byte directions)
+            writeByte(lebuf, count, dirData & 0xFF);
+        }
+        else
+            writeByte(lebuf, count, gundir.toNetworkShortForm());
+        for (int i = 0; i < shots; i++)
+            writeByte(lebuf, count, sid[i]);    // rocket-object id (needed because client-side rockets can be deleted by the server)
+        writeLong(lebuf, count, world.frame);   // time of shot of the rocket: current (last simulated) frame
+        const NLubyte shotType = (team << 1) | power;
+        writeByte(lebuf, count, static_cast<NLubyte>(shotType));    // owner of all rockets
+        writeByte(lebuf, count, static_cast<NLubyte>(px));  //coord
+        writeByte(lebuf, count, static_cast<NLubyte>(py));
+        writeShort(lebuf, count, static_cast<NLshort>(x));
+        writeShort(lebuf, count, static_cast<NLshort>(y));
 
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
-            server->send_message(world.player[i].cid, lebuf, count);
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py
+                  && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
+                server->send_message(world.player[i].cid, lebuf, count);
 
-    record_message(lebuf, count);
+        if (iProto == 0)
+            record_message(lebuf, count);
+    }
 }
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const {
+    const bool preciseGundir = world.player[pid].protocolExtensionsLevel >= 0 && world.physics.gunDirectionMode != GDM_Locked;
     char lebuf[256]; int count = 0;
     const NLubyte shotType = (rocket.team << 1) | rocket.power;
     writeByte(lebuf, count, data_old_rocket_visible);
     writeByte(lebuf, count, static_cast<NLubyte>(rid));
-    writeByte(lebuf, count, rocket.direction);
+    if (preciseGundir) {
+        const NLushort dirData = rocket.direction.toNetworkLongForm();
+        writeByte(lebuf, count, (dirData >> 8) | 0x80); // high bit signals extended form (it's never set in 1-byte directions)
+        writeByte(lebuf, count, dirData & 0xFF);
+    }
+    else
+        writeByte(lebuf, count, rocket.direction.toNetworkShortForm());
     writeLong(lebuf, count, world.frame);
     writeByte(lebuf, count, shotType);
     writeByte(lebuf, count, rocket.px);

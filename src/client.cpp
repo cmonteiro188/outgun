@@ -121,6 +121,8 @@ public:
     ClientPhysicsCallbacks(Client& c_) : c(c_) { }
 
     bool collideToRockets() const { return false; }
+    bool collidesToRockets(int) const { return false; }
+    bool collidesToPlayers(int) const { return true; }
     bool gatherMovementDistance() const { return false; }
     bool allowRoomChange() const { return false; }
     void addMovementDistance(int, double) { }
@@ -1314,21 +1316,15 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     //clear client side effects
     client_graphics.clear_fx();
 
+    gunDir.from8way(0);
+
     if (!botmode) {
         send_frame(true, true);
         return;
     }
     #endif
 
-    ++clFrameSent;
-    controlHistory[clFrameSent] = sentControls;
-    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
-    {
-        char lebuf[256]; int count = 0;
-        writeByte(lebuf, count, clFrameSent);
-        writeByte(lebuf, count, sentControls.toNetwork(false));
-        client->send_frame(lebuf, count);
-    }
+    bot_send_frame(ClientControls());
 }
 
 #ifndef DEDICATED_SERVER_ONLY
@@ -1644,6 +1640,18 @@ void Client::issue_change_name_command() {
     client->send_message(lebuf, count);
 }
 
+void Client::bot_send_frame(ClientControls controls) {
+    ++clFrameSent;
+    controlHistory[clFrameSent] = sentControls = controls;
+    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, clFrameSent);
+    writeByte(lebuf, count, sentControls.toNetwork(false));
+    if (fx.physics.gunDirectionMode == GDM_Free)
+        writeShort(lebuf, count, gunDir.toNetworkLongForm());
+    client->send_frame(lebuf, count);
+}
+
 #ifndef DEDICATED_SERVER_ONLY
 void Client::change_name_command() {
     //set new name, close menu
@@ -1664,7 +1672,13 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
+    if (mouse_b & 2)
+        ctrl.setRun();
     return ctrl;
+}
+
+bool Client::firePressed() const {
+    return key[KEY_LCONTROL] || key[KEY_RCONTROL] || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot())) || (mouse_b & 1);
 }
 
 //send the client's frame to server (keypresses)
@@ -1717,8 +1731,19 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, clFrameSent);
     writeByte(lebuf, count, sentControls.toNetwork(false));
+    if (fx.physics.gunDirectionMode == GDM_Free) {
+        refreshGunDir();
+        writeShort(lebuf, count, gunDir.toNetworkLongForm());
+    }
     client->send_frame(lebuf, count);
 }
+
+void Client::refreshGunDir() {
+    int mx, my;
+    get_mouse_mickeys(&mx, &my);
+    gunDir.adjust(mx * .01); //#fix: add sensitivity control
+}
+
 #endif
 
 bool Client::process_live_frame_data(const char* data, int length) { // returns false if an error occured that requires disconnecting
@@ -1861,13 +1886,19 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
         h.item_shield = (extra & 8) != 0;
         h.item_turbo = (extra & 16) != 0;
         h.item_power = (extra & 32) != 0;
+        const bool preciseGundir = (extra & 64) != 0;
 
         NLubyte ccb;
         readByte(data, count, ccb);
         h.controls.fromNetwork(ccb, true);
 
-        //bits 5..7 : gundir= 0..7
-        h.gundir = ccb >> 5;
+        if (preciseGundir) {
+            NLubyte extraGundirBits;
+            readByte(data, count, extraGundirBits);
+            h.gundir.fromNetworkLongForm(((ccb >> 5) << 8) | extraGundirBits);
+        }
+        else
+            h.gundir.fromNetworkShortForm(ccb >> 5);
 
         //read shadow byte
         readByte(data, count, byt);
@@ -1983,7 +2014,7 @@ int Client::process_replay_frame_data(const char* data, int length) { // returns
         readByte(data, count, byte);
         pl.controls.fromNetwork(byte, true);
 
-        pl.gundir = byte >> 5;
+        pl.gundir.fromNetworkShortForm(byte >> 5);
 
         readByte(data, count, byte);
         pl.visibility = byte;
@@ -2175,8 +2206,18 @@ void Client::process_message(const char* const lebuf, int msglen) {
         NLulong frameno;
         NLubyte rteampower;
 
+        GunDirection dir;
+
         readByte(lebuf, count, rpow);
         readByte(lebuf, count, rdir);
+        if (rdir & 0x80) {
+            nAssert(protocolExtensionsS2C >= 0);
+            NLubyte rdir2;
+            readByte(lebuf, count, rdir2);
+            dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | rdir2);
+        }
+        else
+            dir.fromNetworkShortForm(rdir);
         for (int k = 0; k < rpow; k++)
             readByte(lebuf, count, rids[k]);
         readLong(lebuf, count, frameno);    // frame # of shot
@@ -2193,7 +2234,7 @@ void Client::process_message(const char* const lebuf, int msglen) {
         readShort(lebuf, count, ry);
 
         ClientPhysicsCallbacks cb(*this);
-        fx.shootRockets(cb, 0, rpow, rdir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+        fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 
         #ifndef DEDICATED_SERVER_ONLY
         //play sound if rocket on screen
@@ -2212,8 +2253,21 @@ void Client::process_message(const char* const lebuf, int msglen) {
         NLubyte rockid, rdir;
         NLulong frameno;
         NLubyte rteampower;
+
+        GunDirection dir;
+
         readByte(lebuf, count, rockid);
+
         readByte(lebuf, count, rdir);
+        if (rdir & 0x80) {
+            nAssert(protocolExtensionsS2C >= 0);
+            NLubyte rdir2;
+            readByte(lebuf, count, rdir2);
+            dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | rdir2);
+        }
+        else
+            dir.fromNetworkShortForm(rdir);
+
         readLong(lebuf, count, frameno);
         readByte(lebuf, count, rteampower);
         const bool power = ((rteampower & 1) != 0);
@@ -2228,7 +2282,7 @@ void Client::process_message(const char* const lebuf, int msglen) {
         readShort(lebuf, count, ry);
 
         ClientPhysicsCallbacks cb(*this);
-        fx.shootRockets(cb, 0, 1, rdir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+        fx.shootRockets(cb, 0, 1, dir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
         // no sound
     }
 
@@ -4182,6 +4236,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             if (keyboard_needs_poll())
                 poll_keyboard();    // ignore return value
+            if (mouse_needs_poll())
+                poll_mouse();
 
             if (menu.options.controls.keypadMoving()) {
                 // Check Alt+keypad sequences
@@ -4203,7 +4259,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 bool sendnow = false;
 
                 // control == fire
-                const bool fire = controlPressed || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot()));
+                const bool fire = firePressed();
                 if (fire != prevFire) {
                     prevFire = fire;
 
@@ -4313,18 +4369,35 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 if (timeDelta > 3.)
                     timeDelta = 3.;
                 if (!fx.player[me].dead)
-                    for (NLubyte controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
-                        if (controlHistory[controlFrame].isStrafe())
-                            continue;
-                        const int dir = controlHistory[controlFrame].getDirection();
-                        if (dir != -1) {
-                            fx.player[me].gundir = dir;
-                            break;
-                        }
+                    switch (fx.physics.gunDirectionMode) {
+                    /*break;*/ case GDM_Gradual:
+                            for (NLubyte controlFrame = clFrameWorld; controlFrame != lastFrame; ++controlFrame) {
+                                if (controlHistory[controlFrame].isStrafe())
+                                    continue;
+                                if (controlHistory[controlFrame].isLeft() && !controlHistory[controlFrame].isRight())
+                                    fx.player[me].gundir.adjust(-fx.physics.gunDirectionChangePerFrame / 16.);
+                                else if (controlHistory[controlFrame].isRight() && !controlHistory[controlFrame].isLeft())
+                                    fx.player[me].gundir.adjust(+fx.physics.gunDirectionChangePerFrame / 16.);
+                            }
+                        break; case GDM_Free:
+                            fx.player[me].gundir = gunDir;
+                        break; case GDM_Locked:
+                            for (NLubyte controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
+                                if (controlHistory[controlFrame].isStrafe())
+                                    continue;
+                                const int dir = controlHistory[controlFrame].getDirection();
+                                if (dir != -1) {
+                                    fx.player[me].gundir.from8way(dir);
+                                    break;
+                                }
+                            }
+                        break; default: nAssert(0);
                     }
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
             else {
+                if (fx.physics.gunDirectionMode == GDM_Free)
+                    fx.player[me].gundir = gunDir;
                 double timeDelta = (get_time() - frameReceiveTime) * 10.;
                 fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta);
             }
@@ -4624,18 +4697,9 @@ void Client::bot_loop() {
         mapChanged = false;
     }
 
-    sentControls = Robot();
-    sentControls.clearModifiersIfIdle();
-
-    ++clFrameSent;
-    controlHistory[clFrameSent] = sentControls;
-    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
-
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, clFrameSent);
-    writeByte(lebuf, count, sentControls.toNetwork(false));
-
-    client->send_frame(lebuf, count);
+    ClientControls controls = Robot();
+    controls.clearModifiersIfIdle();
+    bot_send_frame(controls);
 }
 
 void Client::stop() {
@@ -5264,6 +5328,13 @@ void Client::draw_playfield(int roomx, int roomy, int start_x, int start_y) {
             static const double highlightTime = .5;
             if (menu.options.graphics.spawnHighlight() && time - spawnTime < highlightTime)
                 client_graphics.draw_me_highlight(fd.player[me].lx, fd.player[me].ly, 1. - (time - spawnTime) / highlightTime);
+            if (fx.physics.gunDirectionMode != GDM_Locked && !replaying) { //#fix: add option
+                if (fx.physics.gunDirectionMode == GDM_Free)
+                    refreshGunDir();
+                else
+                    gunDir = fd.player[me].gundir;
+                client_graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], fd.player[me].lx, fd.player[me].ly, gunDir);
+            }
         }
     }
 
@@ -5582,7 +5653,7 @@ void Client::MCF_prepareControlsMenu() {
         active += _("run")    + ' ';
     if (ctrl.isStrafe())
         active += _("strafe") + ' ';
-    if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot())))
+    if (firePressed())
         active += _("shoot")  + ' ';
     if (menu.options.controls.joystick()) {
         for (int button = 1; button <= 16; ++button)

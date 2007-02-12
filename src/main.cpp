@@ -184,6 +184,7 @@ int wrappedMain(int argc, const char* argv[]) {
         return 1;
     }
     install_keyboard();
+    install_mouse();
 
     #endif // !DEDICATED_SERVER_ONLY
 
