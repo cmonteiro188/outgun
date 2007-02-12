@@ -1718,6 +1718,20 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     update_serverinfo();
                 }
             }
+            else if (code == data_set_extension_level) {
+                NLubyte level;
+                readByte(msg, count, level);
+                if (level > PROTOCOL_EXTENSIONS_VERSION) {
+                    log("Kicked player %d for client misbehavior: tried to set unknown extension level %d.", pid, level);
+                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
+                    break;  // don't process the rest of the messages
+                }
+                world.player[pid].protocolExtensionsLevel = level;
+                char lebuf[10];
+                int count = 0;
+                writeByte(lebuf, count, data_set_extension_level);
+                server->send_message(id, lebuf, count);
+            }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
                     log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i.", pid, code, msglen);
@@ -3031,6 +3045,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                     res->accepted = true;
                     writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
                     writeStr(res->customData, res->customDataLength, settings.get_hostname());
+                    writeByte(res->customData, res->customDataLength, PROTOCOL_EXTENSIONS_VERSION);
                 }
                 else {
                     res->accepted = false;

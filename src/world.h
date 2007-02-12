@@ -424,6 +424,8 @@ public:
     int oldfrags;   // last value informed to clients
     int megabonus;
 
+    int protocolExtensionsLevel;
+
     bool drop_key;
     bool dropped_flag;
     NLulong next_shoot_frame;

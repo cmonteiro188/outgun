@@ -271,6 +271,7 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 // Game specific strings
 #define GAME_STRING "Outgun"
 #define GAME_PROTOCOL "1.0"
+#define PROTOCOL_EXTENSIONS_VERSION 0
 #define GAME_VERSION "1.0.3"
 #define GAME_SHORT_VERSION "1.0.3"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 #define GAME_BRANCH "base"           // this only affects the master server communications, to make it tell the correct newest version

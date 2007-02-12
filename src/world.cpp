@@ -853,6 +853,8 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     bot = false;
     record_position = true;
 
+    protocolExtensionsLevel = -1;
+
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
 

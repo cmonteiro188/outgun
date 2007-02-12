@@ -1163,8 +1163,32 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     readByte(data, count, maxpl);
     setMaxPlayers(maxpl);
 
-    #ifndef DEDICATED_SERVER_ONLY
+    #ifdef DEDICATED_SERVER_ONLY
+    string hostname; // not used by bots
+    #endif
     readStr(data, count, hostname);
+
+    if (length >= count) {
+        NLubyte protoExt;
+        readByte(data, count, protoExt);
+        if (protoExt > PROTOCOL_EXTENSIONS_VERSION)
+            protoExt = PROTOCOL_EXTENSIONS_VERSION;
+        {
+            char lebuf[256]; int count = 0;
+            writeByte(lebuf, count, data_set_extension_level);
+            writeByte(lebuf, count, protoExt);
+            client->send_message(lebuf, count);
+        }
+        protocolExtensionsC2S = protoExt; // server will know how to interpret because data_set_extension_level will be received before any messages with extensions
+    }
+    else
+        protocolExtensionsC2S = -1;
+    protocolExtensionsS2C = -1; // server can't use any extensions until us telling them the appropriate version (and then we will also receive data_set_extension_level before messages with extensions)
+
+    fx.physics = PhysicalSettings(); // to be filled later by a message
+    #ifndef DEDICATED_SERVER_ONLY
+    fd.physics = fx.physics;
+
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
@@ -3311,6 +3335,9 @@ void Client::process_message(const char* const lebuf, int msglen) {
         #ifndef DEDICATED_SERVER_ONLY
         addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
         #endif
+
+    break; case data_set_extension_level:
+        protocolExtensionsS2C = protocolExtensionsC2S;
 
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {

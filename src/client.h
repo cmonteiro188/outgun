@@ -307,6 +307,10 @@ class Client {
     std::string old_map;
     std::string servermap;  //last map command from server
 
+    int protocolExtensionsS2C; // -1 means unextended protocol, 0 up are extension version numbers (<= PROTOCOL_EXTENSIONS_VERSION)
+    int protocolExtensionsC2S; // can only be -1 (before extension negotiation completes), or C2S == S2C (afterwards)
+    // we must be ready to process frame data with extensions as soon as protocolExtensionsC2S is set (and we must recognize from frame data whether extensions are enabled)
+
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
     MutexHolder downloadMutex;
