@@ -591,7 +591,7 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) {
 }
 
 bool Server::recording_needed() const {
-    return network.is_relay_working() || settings.get_recording() && network.get_player_count() < 1;
+    return network.is_relay_working() || settings.get_recording() && network.get_player_count() >= 1;
 }
 
 void Server::start_recording() {
