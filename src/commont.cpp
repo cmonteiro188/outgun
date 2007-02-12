@@ -66,7 +66,7 @@ void ClientControls::fromKeyboard(bool use_pad, bool use_cursor_keys) {
             data |= right;
     }
     if (use_pad) {
-        if (key[KEY_8_PAD] && use_pad)
+        if (key[KEY_8_PAD])
             data |= up;
         if (key[KEY_2_PAD] || key[KEY_5_PAD])
             data |= down;
