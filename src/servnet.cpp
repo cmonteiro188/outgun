@@ -2025,7 +2025,11 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                     }
 
                     // visibility in 1 byte
-                    writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
+                    const bool safeAfterSpawn = world.frame < world.player[j].start_take_damage_frame;
+                    if (safeAfterSpawn)
+                        writeByte(lebuf, lecount, world.frame & 2 ? 128 : 220);
+                    else
+                        writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
                 }
             }
 

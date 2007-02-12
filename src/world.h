@@ -460,7 +460,7 @@ public:
 
     bool drop_key;
     bool dropped_flag;
-    NLulong next_shoot_frame;
+    NLulong next_shoot_frame, start_take_damage_frame;
     double respawn_time;
     bool respawn_to_base;
 
@@ -852,6 +852,7 @@ public:
     double shooting_energy_base, shooting_energy_per_extra_rocket;
     double hit_stun_time;
     double shoot_interval, shoot_interval_with_energy;
+    double spawn_safe_time;
     NLulong time_limit;
     NLulong extra_time;
     bool sudden_death;
@@ -876,6 +877,7 @@ public:
     int get_hit_stun_time_frames() const { return iround(hit_stun_time * 10.); }
     int get_shoot_interval_frames() const { return iround(shoot_interval * 10.); }
     int get_shoot_interval_with_energy_frames() const { return iround(shoot_interval_with_energy * 10.); }
+    int get_spawn_safe_time_frames() const { return iround(spawn_safe_time * 10.); }
 
     double getRespawnTime(int playerTeamSize, int enemyTeamSize) const;
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }

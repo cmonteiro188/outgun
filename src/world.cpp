@@ -1528,6 +1528,7 @@ void WorldSettings::reset() {
     shooting_energy_base = 7.;
     shooting_energy_per_extra_rocket = 1.;
     hit_stun_time = 1.;
+    spawn_safe_time = 0.;
     shoot_interval = shoot_interval_with_energy = .5;
     time_limit = 0;     // no time limit
     extra_time = 0;
@@ -1798,6 +1799,8 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     player[pid].deathbringer_end = 0;
 
     player[pid].respawn_to_base = false;
+
+    player[pid].next_shoot_frame = player[pid].start_take_damage_frame = frame + config.get_spawn_safe_time_frames();
 
     player[pid].dead = false;
 
@@ -2155,7 +2158,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
 }
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType type) {   // inflict damage on target
-    if (player[target].health <= 0)
+    if (player[target].health <= 0 || frame < player[target].start_take_damage_frame)
         return;
 
     // shadow powerup: show player
@@ -2947,7 +2950,7 @@ void ServerWorld::simulateFrame() {
                 //enemy players only if friendly deathbringer is off
                 if ((v/TSIZE != dbTeam || physics.friendly_db > 0.) && player[v].used && player[v].health > 0 &&
                                 player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
-                                player[v].deathbringer_end < get_time()) {
+                                player[v].deathbringer_end < get_time() && frame >= player[v].start_take_damage_frame) {
                     //calculate player distance to the deathbringer core
                     const double ex = player[i].lx;
                     const double ey = player[i].ly;
