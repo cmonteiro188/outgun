@@ -377,7 +377,7 @@ public:
     bool isAdmin(int pid) const;
 
     bool load_rotation_map(int pos);
-    bool server_next_map(int reason);
+    bool server_next_map(int reason, const std::string& currmap_title_override = std::string());
     const MapInfo& current_map() const { return maprot[currmap]; }
     int current_map_nr() const { return currmap; }
     const std::string& getCurrentMapFile() const { return maprot[currmap].file; }

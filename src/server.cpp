@@ -508,7 +508,7 @@ bool Server::load_rotation_map(int pos) {
     return true;
 }
 
-bool Server::server_next_map(int reason) {
+bool Server::server_next_map(int reason, const string& currmap_title_override) {
     network.update_serverinfo();
 
     nAssert(!maprot.empty());
@@ -517,7 +517,7 @@ bool Server::server_next_map(int reason) {
         world.player[i].stats().finish_stats(get_time());
 
     if (settings.get_save_stats() && !gameover && network.get_human_count() >= settings.get_save_stats())    // !gameover: Don't save stats for the game that didn't start.
-        world.save_stats("server_stats", current_map().title);
+        world.save_stats("server_stats", currmap_title_override.empty() ? current_map().title : currmap_title_override);
 
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {
@@ -696,10 +696,11 @@ void Server::check_map_exit() {
 bool Server::reset_settings(bool reload) {  // set reload if reset_settings has already been called to preserve map and votes, and ensure that fixed values aren't changed
     loadAuthorizations();
 
-    string currMapFile;
+    string currMapFile, currMapTitle;
     list< pair<int, string> > oldVotes;    // pair<pid, map-filename>
     if (reload) {
         currMapFile = maprot[currmap].file;
+        currMapTitle = maprot[currmap].title;
         for (int i = 0; i < maxplayers; ++i)
             if (world.player[i].used && world.player[i].mapVote != -1)
                 oldVotes.push_back(pair<int, string>(i, maprot[world.player[i].mapVote].file));
@@ -764,7 +765,7 @@ bool Server::reset_settings(bool reload) {  // set reload if reset_settings has 
             }
         }
         if (currmap == -1)  // not found
-            server_next_map(NEXTMAP_VOTE_EXIT);
+            server_next_map(NEXTMAP_VOTE_EXIT, currMapTitle);
         else
             network.broadcast_current_map(currmap);
         // what is left are players whose voted map was erased from the list
