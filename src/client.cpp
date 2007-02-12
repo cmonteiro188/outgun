@@ -5041,9 +5041,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             for (int y = roomy; y < roomy + visible_rooms && y < fx.map.h; ++y)
                 draw_playfield(x, y, roomx, roomy);
 
+
     //do not draw stuff below if map not ready to show
     if (!hide_game) {
-        vector<NLubyte> roomvis(fx.map.w * fx.map.h, (replaying || me >= 0 && fx.player[me].item_shadow()) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
+        vector<NLubyte> roomvis(fx.map.w * fx.map.h, (replaying || me >= 0 && fx.player[me].item_shadow_time > time) ? 255 : 0);   // how "well" the room is seen (according to the most visible player there)
 
         int max_time, start_fadeout;    // in frames
         switch (menu.options.graphics.minimapPlayers()) {
