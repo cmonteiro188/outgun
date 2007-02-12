@@ -418,8 +418,8 @@ bool compare_players(const PlayerBase* a, const PlayerBase* b);
 
 class ServerPlayer : public PlayerBase {
 public:
-    int health;
-    int energy;
+    double health;
+    double energy;
 
     int weapon;
     bool attack;    // if player is holding attack button
@@ -823,6 +823,8 @@ public:
     double pup_power_damage;
     int pup_weapon_max;
     bool pup_shield_one_hit;
+    int deathbringer_health_limit, deathbringer_energy_limit;
+    double deathbringer_health_degradation, deathbringer_energy_degradation;
 
     void reset();
 
@@ -841,6 +843,13 @@ public:
     double respawn_time, waiting_time_deathbringer, respawn_balancing_time;
     int shadow_minimum; // smallest alpha value allowed; 0 is when even the coordinates are not sent
     int rocket_damage;
+    int start_health, start_energy;
+    int min_health_for_run_penalty;
+    double health_regeneration_0to100, energy_regeneration_0to100,
+           health_regeneration_100to200, energy_regeneration_100to200,
+           health_regeneration_200to300, energy_regeneration_200to300;
+    double run_health_degradation, run_energy_degradation;
+    double shooting_energy_base, shooting_energy_per_extra_rocket;
     double hit_stun_time;
     double shoot_interval, shoot_interval_with_energy;
     NLulong time_limit;
@@ -893,6 +902,9 @@ class ServerWorld : public WorldBase {
     NLubyte getFreeRocket();    // may give an existing rocket to overwrite if the table is full
     void drop_pickup(const ServerPlayer& player);
     void drop_worst_powerup(ServerPlayer& player);
+
+    void regenerateHealthOrEnergy(ServerPlayer& pl);
+    void degradeHealthOrEnergyForRunning(ServerPlayer& pl);
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);

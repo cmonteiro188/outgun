@@ -237,14 +237,30 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Boolean   ("capture_on_team_flag",        &worldConfig.capture_on_team_flag));
     cat.add(new GS_Boolean   ("capture_on_wild_flag",        &worldConfig.capture_on_wild_flag));
     cat.add(new GS_Balance   ("balance_teams",               &worldConfig.balance_teams));
-    cat.add(new GS_Percentage("friendly_fire",               &world.physics.friendly_fire));
-    cat.add(new GS_Percentage("friendly_deathbringer",       &world.physics.friendly_db));
     cat.add(new GS_Double    ("respawn_time",                &worldConfig.respawn_time, 0.));
     cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
     cat.add(new GS_Double    ("respawn_balancing_time",      &worldConfig.respawn_balancing_time, 0.));
     cat.add(new GS_ControlMode("control_mode",               &world.physics));
     cat.add(new GS_Int       ("turning_speed",               &world.physics.gunDirectionChangePerFrame, 1, 16));
+    categories.push_back(cat);
+
+    cat = Category("health"  , "Health, energy and shooting");
+    cat.add(new GS_Percentage("friendly_fire",               &world.physics.friendly_fire));
+    cat.add(new GS_Percentage("friendly_deathbringer",       &world.physics.friendly_db));
     cat.add(new GS_Int       ("rocket_damage",               &worldConfig.rocket_damage, 0));
+    cat.add(new GS_Int       ("start_health",                &worldConfig.start_health, 1, 300));
+    cat.add(new GS_Int       ("start_energy",                &worldConfig.start_energy, 0, 300));
+    cat.add(new GS_Double    ("health_regeneration_0to100",  &worldConfig.health_regeneration_0to100, 0.));
+    cat.add(new GS_Double    ("health_regeneration_100to200",&worldConfig.health_regeneration_100to200, 0.));
+    cat.add(new GS_Double    ("health_regeneration_200to300",&worldConfig.health_regeneration_200to300, 0.));
+    cat.add(new GS_Double    ("energy_regeneration_0to100",  &worldConfig.energy_regeneration_0to100, 0.));
+    cat.add(new GS_Double    ("energy_regeneration_100to200",&worldConfig.energy_regeneration_100to200, 0.));
+    cat.add(new GS_Double    ("energy_regeneration_200to300",&worldConfig.energy_regeneration_200to300, 0.));
+    cat.add(new GS_Int       ("min_health_for_run_penalty",  &worldConfig.min_health_for_run_penalty, 1, 300));
+    cat.add(new GS_Double    ("run_health_degradation",      &worldConfig.run_health_degradation, 0.));
+    cat.add(new GS_Double    ("run_energy_degradation",      &worldConfig.run_energy_degradation, 0.));
+    cat.add(new GS_Double    ("shooting_energy_base",        &worldConfig.shooting_energy_base, 0., 300.));
+    cat.add(new GS_Double    ("shooting_energy_per_extra_rocket", &worldConfig.shooting_energy_per_extra_rocket, 0., 300.));
     cat.add(new GS_Double    ("hit_stun_time",               &worldConfig.hit_stun_time, 0));
     cat.add(new GS_Double    ("shoot_interval",              &worldConfig.shoot_interval, .1));
     cat.add(new GS_Double    ("shoot_interval_with_energy",  &worldConfig.shoot_interval_with_energy, .1));
@@ -263,6 +279,10 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Double    ("pup_power_damage",            &pupConfig.pup_power_damage, 0.));
     cat.add(new GS_Double    ("pup_deathbringer_time",       &pupConfig.pup_deathbringer_time, 1.));
     cat.add(new GS_Boolean   ("pup_deathbringer_switch",     &pupConfig.pup_deathbringer_switch));
+    cat.add(new GS_Int       ("pup_deathbringer_health_limit", &pupConfig.deathbringer_health_limit, 1, 300));
+    cat.add(new GS_Int       ("pup_deathbringer_energy_limit", &pupConfig.deathbringer_energy_limit, 0, 300));
+    cat.add(new GS_Double    ("pup_deathbringer_health_degradation", &pupConfig.deathbringer_health_degradation, 0.));
+    cat.add(new GS_Double    ("pup_deathbringer_energy_degradation", &pupConfig.deathbringer_energy_degradation, 0.));
     cat.add(new GS_Int       ("pup_shadow_invisibility",     &worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal));  // 0->smn, 1->0
     cat.add(new GS_Boolean   ("pup_shield_one_hit",          &pupConfig.pup_shield_one_hit));
     cat.add(new GS_Int       ("pup_chance_shield",           &pupConfig.pup_chance_shield,       0));

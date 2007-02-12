@@ -1941,9 +1941,9 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
 
         // first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
         NLubyte xtra = i << 3;
-        if (world.player[i].health & 256)
+        if (iround(world.player[i].health) & 256)
             xtra |= 1;
-        if (world.player[i].energy & 256)
+        if (iround(world.player[i].energy) & 256)
             xtra |= 2;
         if (skip_frame)
             xtra |= 4;
@@ -2054,12 +2054,12 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             // send 8 bits of player's health
             if (world.player[i].health < 0)
                 world.player[i].health = 0;
-            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].health & 255));
+            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(world.player[i].health) & 255));
 
             // send 8 bits of player's energy
             if (world.player[i].energy < 0)
                 world.player[i].energy = 0;
-            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].energy & 255));
+            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(world.player[i].energy) & 255));
 
             // ping of player frame# % MAXPLAYERS
             const NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);

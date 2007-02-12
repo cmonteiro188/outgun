@@ -1467,6 +1467,8 @@ void PowerupSettings::reset() {
     pup_weapon_max = 9;
     pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
+    deathbringer_health_limit = deathbringer_energy_limit = 100;
+    deathbringer_health_degradation = deathbringer_energy_degradation = 25.;
 
     pups_drop_at_death = false;
     pups_player_max = INT_MAX;
@@ -1514,6 +1516,17 @@ void WorldSettings::reset() {
     respawn_balancing_time = 0;
     shadow_minimum = shadow_minimum_normal;
     rocket_damage = 70;
+    start_health = start_energy = 100;
+    min_health_for_run_penalty = 40;
+    health_regeneration_0to100 = 10.;
+    energy_regeneration_0to100 = 10.;
+    health_regeneration_100to200 = 1.;
+    energy_regeneration_100to200 = 5.;
+    health_regeneration_200to300 = 0.;
+    energy_regeneration_200to300 = 0.;
+    run_health_degradation = run_energy_degradation = 15.;
+    shooting_energy_base = 7.;
+    shooting_energy_per_extra_rocket = 1.;
     hit_stun_time = 1.;
     shoot_interval = shoot_interval_with_energy = .5;
     time_limit = 0;     // no time limit
@@ -1769,8 +1782,8 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     player[pid].sy = 0;
 
     //reset player attributes
-    player[pid].health = 100;
-    player[pid].energy = 100;
+    player[pid].health = config.start_health;
+    player[pid].energy = config.start_energy;
     player[pid].megabonus = 0;
 
     player[pid].weapon = 1;
@@ -2821,6 +2834,45 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
         }
 }
 
+static bool doRegenerate(double& var, double limit, double speed, double& timeLeft) {
+    if (var >= limit || speed == 0)
+        return false;
+    var += speed * timeLeft;
+    if (var <= limit)
+        return true;
+    timeLeft = (var - limit) / speed;
+    var = limit;
+    return false;
+}
+
+void ServerWorld::regenerateHealthOrEnergy(ServerPlayer& pl) {
+    double timeLeft = .1; // 1 frame
+    if (doRegenerate(pl.health, 100., config.health_regeneration_0to100, timeLeft))
+        return;
+    if (doRegenerate(pl.energy, 100., config.energy_regeneration_0to100, timeLeft))
+        return;
+    if (doRegenerate(pl.energy, 200., config.energy_regeneration_100to200, timeLeft))
+        return;
+    if (doRegenerate(pl.health, 200., config.health_regeneration_100to200, timeLeft))
+        return;
+    if (doRegenerate(pl.energy, 300., config.energy_regeneration_200to300, timeLeft))
+        return;
+    doRegenerate(pl.health, 300., config.health_regeneration_200to300, timeLeft);
+}
+
+void ServerWorld::degradeHealthOrEnergyForRunning(ServerPlayer& pl) {
+    double timeLeft = .1; // 1 frame
+    if (pl.energy > 0.) {
+        pl.energy -= config.run_energy_degradation * timeLeft;
+        if (pl.energy >= 0.)
+            return;
+        timeLeft = (0. - pl.energy) / config.run_energy_degradation;
+        pl.energy = 0.;
+    }
+    if (pl.health > config.min_health_for_run_penalty)
+        pl.health = max<double>(config.min_health_for_run_penalty, pl.health - config.run_health_degradation / 10.);
+}
+
 void ServerWorld::simulateFrame() {
     // (-1) check powerup respawn
     for (int i = 0; i < MAX_PICKUPS; i++)
@@ -2950,19 +3002,13 @@ void ServerWorld::simulateFrame() {
         // check for player weapons fire time
         if (player[i].attack && player[i].health > 0 && frame >= player[i].next_shoot_frame) {
             int numshots = 1;
-            player[i].energy -= 7;
+            player[i].energy -= config.shooting_energy_base;
             if (player[i].energy < 0)
                 player[i].energy = 0;
             else {
-                for (int k = 1; k < player[i].weapon; k++) {
-                    //try add one shot
-                    player[i].energy -= 1;
-                    if (player[i].energy < 0) {
-                        player[i].energy = 0;
-                        break;
-                    }
-                    else
-                        numshots++;
+                for (int k = 1; k < player[i].weapon && player[i].energy >= config.shooting_energy_per_extra_rocket; k++) {
+                    player[i].energy -= config.shooting_energy_per_extra_rocket;
+                    ++numshots;
                 }
             }
 
@@ -2975,59 +3021,16 @@ void ServerWorld::simulateFrame() {
             shootRockets(i, numshots);
         }
 
-        // check don't regen because of deathbringer
-        //v0.4.0: do not regen if has deathbringer and both health/energy are at no less than 100
-        const bool deathbringer_penalty = (pl.item_deathbringer && pl.health >= 100 && pl.energy >= 100) || pl.deathbringer_end > get_time();
-
-        if (!deathbringer_penalty) {
-            // regenerate +1 health or +1 energy
-            if (pl.health < 100)
-                pl.health++;
-            else if (pl.energy < 100)
-                pl.energy++;
-            else if (pl.energy < 200) {
-                if (frame % 2)
-                    pl.energy++;
-            }
-            else if (pl.health < 200) {
-                if (frame % 10 == 0)
-                    pl.health++;
-            }
-        }
-        //lose health & energy if running
-        const int min_health_for_run_penalty = 40;
-        if (pl.controls.isRun()) {
-            if (pl.energy <= 0) {
-                if (pl.health > min_health_for_run_penalty) {
-                    if (frame % 2 == 0)
-                        pl.health -= 2;
-                    else
-                        pl.health--;
-                    if (pl.health < min_health_for_run_penalty)
-                        pl.health = min_health_for_run_penalty;
-                }
-            }
-            else {
-                if (frame % 2 == 0)
-                    pl.energy -= 2;
-                else
-                    pl.energy--;
-                if (pl.energy == -1) { // special case
-                    pl.energy++;
-                    if (pl.health > min_health_for_run_penalty) {
-                        pl.health--;
-                        if (pl.health < min_health_for_run_penalty)
-                            pl.health = min_health_for_run_penalty;
-                    }
-                }
-            }
-        }
-        //rot health to 100 if has deathbringer
-        if (pl.item_deathbringer && pl.health > 100 && frame % 4 == 0)
-            pl.health--;
-        //rot energy to 100 if has deathbringer
-        if (pl.item_deathbringer && pl.energy > 100 && frame % 4 == 0)
-            pl.energy--;
+        // adjust health and energy for carrying deathbringer, running, and plain time passing
+        const bool deathbringer_penalty = (pl.item_deathbringer && pl.health >= pupConfig.deathbringer_health_limit && pl.energy >= pupConfig.deathbringer_energy_limit) || pl.deathbringer_end > get_time();
+        if (!deathbringer_penalty)
+            regenerateHealthOrEnergy(pl);
+        if (pl.controls.isRun())
+            degradeHealthOrEnergyForRunning(pl);
+        if (pl.item_deathbringer && pl.health > pupConfig.deathbringer_health_limit)
+            pl.health = max<double>(pupConfig.deathbringer_health_limit, pl.health - pupConfig.deathbringer_health_degradation / 10.);
+        if (pl.item_deathbringer && pl.energy > pupConfig.deathbringer_energy_limit)
+            pl.energy = max<double>(pupConfig.deathbringer_energy_limit, pl.energy - pupConfig.deathbringer_energy_degradation / 10.);
         //megahealth bonus:
         if (pl.megabonus > 0)
             for (int mh = 0; mh < 5; mh++) {
