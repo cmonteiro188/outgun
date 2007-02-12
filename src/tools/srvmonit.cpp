@@ -305,7 +305,7 @@ bool runMonitor(int port, bool messageBoxes) {
     DelaySocketReader reader(sock, &dh);
     for (;;) {
         dh.resumeSay();
-        NLulong val=reader.getLong();
+        const unsigned val = reader.getLong();
         dh.pauseSay();
         if (val>=NUMBER_OF_STA) {
             printf("<Invalid STA code: %u>", val);
@@ -313,11 +313,11 @@ bool runMonitor(int port, bool messageBoxes) {
         }
         static const int ints[NUMBER_OF_STA]={ 0, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 0, 0, 2, 1, 1 };
         static const int strs[NUMBER_OF_STA]={ 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1 };
-        NLulong ival[2];
+        unsigned ival[2];
         const int strBufLen=1024;
         char strBuf[strBufLen+1];
         for (int ii=0; ii<ints[val]; ++ii)
-            ival[ii]=reader.getLong();
+            ival[ii] = reader.getLong();
         if (strs[val]) {
             int si;
             for (si=0; si<strBufLen; ++si) {
