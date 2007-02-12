@@ -132,7 +132,7 @@ bool GS_Balance::set(LogSet& log, const string& value) {
 
 string GS_Balance::get() {
     switch (*var) {
-        break; case WorldSettings::TB_disabled:            return "no";
+    /*break;*/ case WorldSettings::TB_disabled:            return "no";
         break; case WorldSettings::TB_balance:             return "balance";
         break; case WorldSettings::TB_balance_and_shuffle: return "shuffle";
         break; default: nAssert(0);
@@ -154,7 +154,7 @@ bool GS_Collisions::set(LogSet& log, const string& value) {
 
 string GS_Collisions::get() {
     switch (*var) {
-        break; case PhysicalSettings::PC_none:    return "no";
+    /*break;*/ case PhysicalSettings::PC_none:    return "no";
         break; case PhysicalSettings::PC_normal:  return "normal";
         break; case PhysicalSettings::PC_special: return "special";
         break; default: nAssert(0);

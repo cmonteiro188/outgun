@@ -5169,9 +5169,9 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             client_graphics.draw_player_turbo(val);
         }
         if (fx.player[me].item_shadow()) {
-            double val = fx.player[me].item_shadow_time - time;
-            if (val < 0) val = 0;
-            client_graphics.draw_player_shadow(val);
+            const double val = fx.player[me].item_shadow_time - time;
+            if (val > 0)
+                client_graphics.draw_player_shadow(val);
         }
 
         client_graphics.draw_player_weapon(fx.player[me].weapon);
@@ -5428,7 +5428,7 @@ private:
 bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<const MapInfo*, int>& m2) const {
     const MapInfo& m1mi = *m1.first, &m2mi = *m2.first;
     switch (key) {
-        break; case MLSK_Votes: return m1mi.votes > m2mi.votes; // reverse: get high vote counts first
+    /*break;*/ case MLSK_Votes: return m1mi.votes > m2mi.votes; // reverse: get high vote counts first
         break; case MLSK_Title: return cmp_case_ins(m1mi.title, m2mi.title);
         break; case MLSK_Size: {
             const int m1s = m1mi.width * m1mi.height;

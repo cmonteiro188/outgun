@@ -1046,7 +1046,7 @@ void Server::chat(int pid, const string& message) {
             if (settings.get_sayadmin_enabled()) {
                 ostringstream ostr;
                 ostr << "/sayadmin   send a message to the server admin";
-                if (settings.get_sayadmin_comment().length())
+                if (!settings.get_sayadmin_comment().empty())
                     ostr << " (" << settings.get_sayadmin_comment() << ')';
                 network.player_message(pid, msg_server, ostr.str());
             }

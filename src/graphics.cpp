@@ -1517,8 +1517,8 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
         deg += N_PI_2 * b;  // 90°
 
         // position
-        double dx = 10 * cos(deg);
-        double dy = 10 * sin(deg);
+        const double dx = 10 * cos(deg);
+        const double dy = 10 * sin(deg);
 
         // choose colour
         int c;
@@ -2081,7 +2081,7 @@ void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapList
     int y = y1 + (5 + map_list_size + 1) * line_height;
     string sortOrderString;
     switch (sortedBy) {
-        break; case MLSK_Number:   sortOrderString = _("Map number");
+    /*break;*/ case MLSK_Number:   sortOrderString = _("Map number");
         break; case MLSK_Votes:    sortOrderString = _("Votes");
         break; case MLSK_Title:    sortOrderString = _("Title");
         break; case MLSK_Size:     sortOrderString = _("Size");
