@@ -811,7 +811,7 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     used = enable;
 }
 
-void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id) {
+void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id, unsigned uniqueId_) {
     attack = false;
     oldfrags = -666;
     want_map_exit = false;      //by default don't want change maps
@@ -854,6 +854,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     record_position = true;
 
     protocolExtensionsLevel = -1;
+    uniqueId = uniqueId_;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }

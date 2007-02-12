@@ -469,11 +469,13 @@ public:
 
     bool record_position;
 
-    ServerPlayer() { clear(false, 0, 0, "", 0); }
+    unsigned uniqueId;
+
+    ServerPlayer() { clear(false, 0, 0, "", 0, 0); }
 
     bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
-    void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id);
+    void clear(bool enable, int _pid, int _cid, const std::string& _name, int team_id, unsigned uniqueId_);
 
     void set_fav_colors(const std::vector<char>& colors) { fav_col = colors; }
     const std::vector<char>& fav_colors() const { return fav_col; }

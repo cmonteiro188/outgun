@@ -879,7 +879,7 @@ bool Server::start(int target_maxplayers) {
     extra_bots = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++)
-        world.player[i].clear(false, i, 0, "", i / TSIZE);  // 0 : fake cid
+        world.player[i].clear(false, i, 0, "", i / TSIZE, 0);  // 0 : fake cid (and uid)
 
     if (!reset_settings(false))
         return false;
@@ -1083,15 +1083,22 @@ void Server::chat(int pid, const string& message) {
             world.printTimeStatus(pm);
         }
         else if (command == "list" && access.isAdmin()) {
-            network.player_message(pid, msg_header, "Players on server: ID, login flags, name");
+            network.player_message(pid, msg_header, "Remote players on server: ID, login flags, name");
+            int team = -1;
             for (int ppid = 0; ppid < MAX_PLAYERS; ) {
                 char buf[100];
                 int bufi = 0;
-                for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
-                    if (world.player[ppid].used) {
+                for (int onrow = 0; onrow < 2 && ppid < MAX_PLAYERS; ++ppid)
+                    if (world.player[ppid].used && !world.player[ppid].localIP) {
+                        if (ppid / TSIZE != team) {
+                            if (onrow != 0)
+                                break; // print the half-built row first, then come back here
+                            team = ppid / TSIZE;
+                            network.player_message(pid, msg_header, team == 0 ? "Red team:" : "Blue team:");
+                        }
                         const char mute = world.player[ppid].muted == 0 ? ' ' : world.player[ppid].muted == 1 ? 'm' : 's';
-                        platSnprintf(buf + bufi, 27, "%2d %4s%c %-17s", ppid, world.player[ppid].reg_status.strFlags().c_str(), mute, world.player[ppid].name.c_str());
-                        bufi += 26;
+                        platSnprintf(buf + bufi, 37, "%4d %4s%c %-22s", world.player[ppid].uniqueId, world.player[ppid].reg_status.strFlags().c_str(), mute, world.player[ppid].name.c_str());
+                        bufi += 33;
                         ++onrow;
                     }
                 if (bufi > 0)
@@ -1101,9 +1108,9 @@ void Server::chat(int pid, const string& message) {
         else if (access.isAdmin() && (command == "kick" || command == "ban" || command == "mute" ||
                                       command == "smute" || command == "unmute")) {
             istringstream ist(arguments);
-            int ppid;
+            unsigned uid;
             int time;   // used only for bans
-            ist >> ppid;
+            ist >> uid;
             bool ok = ist;
             ist >> time;
             if (command == "ban") {
@@ -1114,15 +1121,22 @@ void Server::chat(int pid, const string& message) {
             }
             else if (ist || !ist.eof())
                 ok = false;
+            int ppid = -1;
+            if (ok)
+                for (ppid = 0; ppid < maxplayers; ++ppid)
+                    if (world.player[ppid].used && !world.player[ppid].localIP && world.player[ppid].uniqueId == uid)
+                        break;
             if (!ok)
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/%s ID%s\".", command.c_str(), command == "ban" ? " [minutes]" : "");
-            else if (ppid < 0 || ppid >= MAX_PLAYERS || !world.player[ppid].used)
+            else if (ppid < 0 || ppid >= maxplayers)
                 network.player_message(pid, msg_warning, "No such player. Type /list for a list of IDs.");
             else {  // syntax OK
                 if (command == "kick")
                     kickPlayer(ppid, pid);
                 else if (command == "ban") {
-                    if (time <= 0 || time > 60 * 24 * 7)    // allow at most a weeks ban (a bit over 10000 minutes)
+                    if (ppid == pid)
+                        network.player_message(pid, msg_warning, "You can't ban yourself.");
+                    else if (time <= 0 || time > 60 * 24 * 7)    // allow at most a weeks ban (a bit over 10000 minutes)
                         network.player_message(pid, msg_warning, "The ban time must be more than 0 and at most 10 000 minutes (1 week).");
                     else
                         banPlayer(ppid, pid, time);

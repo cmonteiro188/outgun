@@ -33,6 +33,7 @@
 #include "utility.h"
 
 #include <map>
+#include <queue>
 
 class Server;
 class MasterQuery;
@@ -147,6 +148,8 @@ private:
     std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
     int             localPlayers;
     MutexHolder     addPlayerMutex;
+    unsigned        newUniqueId;
+    std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 

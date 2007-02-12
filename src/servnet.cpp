@@ -55,6 +55,7 @@
 const double delay_to_report_server = 30.0;
 
 using std::ifstream;
+using std::make_pair;
 using std::map;
 using std::max;
 using std::ofstream;
@@ -85,6 +86,7 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     log(logs),
     player_count(0),
     localPlayers(0),
+    newUniqueId(0),
     maplist_revision(0),
     relay_socket(NL_INVALID),
     playerSlotReservationTime(get_time()),
@@ -1292,7 +1294,14 @@ int ServerNetworking::client_connected(int id) {
     writeLong(lebuf, count, players_present);
     server->send_message(cid, lebuf, count);
 
-    world.player[myself].clear(true, myself, cid, "", myself / TSIZE);
+    unsigned uniqueId;
+    if (!freedUniqueIds.empty() && freedUniqueIds.front().second < get_time()) {
+        uniqueId = freedUniqueIds.front().first;
+        freedUniqueIds.pop();
+    }
+    else
+        uniqueId = ++newUniqueId;
+    world.player[myself].clear(true, myself, cid, "", myself / TSIZE, uniqueId);
 
     addPlayerMutex.unlock();
 
@@ -1429,6 +1438,8 @@ void ServerNetworking::client_disconnected(int id) {
         if (pi->second == 0)
             distinctRemotePlayers.erase(pi);
     }
+
+    freedUniqueIds.push(make_pair(world.player[pid].uniqueId, get_time() + 5 * 60.));
 
     fileTransfer[id].reset();
     host->game_remove_player(pid, true);
