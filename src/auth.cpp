@@ -52,7 +52,7 @@ bool AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::isAllowed
 }
 
 ostream& AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::output(ostream& os) const {
-    os << (defaultAllow ? '+' : '-') << "all";
+    os << (defaultAllow ? '+' : '-') << "gamemod";
     for (vector<ControlLine>::const_iterator li = lines.begin(); li != lines.end(); ++li)
         os << ' ' << (li->allow ? '+' : '-') << li->name;
     return os;
