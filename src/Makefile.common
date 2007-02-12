@@ -39,16 +39,27 @@ ifdef LINUX
  RM = rm -f
  EXE_SUFFIX =
 
- BASE_LIBS = -lNL_debug
+ ifdef DEBUGLIBS
+  BASE_LIBS = -lNL_debug
+ else
+  BASE_LIBS = -lNL
+ endif
  ifdef DEDICATED_SERVER_ONLY
   ALLEG_LIBS =
   ALLEG_CFLAGS =
  else 
   ifdef STATIC_ALLEGRO
-   ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs --static debug`
+   ifdef DEBUGLIBS
+    ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs --static debug`
+   else
+    ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs --static`
+   endif
   else
-   ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs debug`
-#   ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs`
+   ifdef DEBUGLIBS
+    ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs debug`
+   else
+    ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs`
+   endif
   endif
   ALLEG_CFLAGS =
  endif
