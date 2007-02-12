@@ -817,7 +817,7 @@ void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, doubl
     if (!show_minimap)
         return;
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
-    if (static_cast<int>(time * 15) % 3 > 0) {
+    if (static_cast<int>(fmod(time * 15, 3)) > 0) {
         circlefill(drawbuf, coords.first, coords.second, scale(2), colour(Colour::map_player_me_1));
         circlefill(drawbuf, coords.first, coords.second, scale(1), teamlcol[player.team()]);
     }
@@ -1129,7 +1129,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, GunDirection gundir,
         pc1 = pc2 = makecol(rgb, rgb, rgb);
     }
     else if (item_power) {
-        if (static_cast<int>(time * 10) % 2) {
+        if (static_cast<int>(fmod(time * 10, 2))) {
             pc1 = colour(Colour::player_power_team);
             pc2 = colour(Colour::player_power_personal);
         }
@@ -1138,7 +1138,7 @@ void Graphics::draw_player(int x, int y, int team, int pli, GunDirection gundir,
     const int player_radius = pf_scale(PLAYER_RADIUS);
 
     BITMAP* sprite = 0;
-    if (item_power && player_sprite_power && static_cast<int>(time * 10) % 2)
+    if (item_power && player_sprite_power && static_cast<int>(fmod(time * 10, 2)))
         sprite = player_sprite_power;
     else {
         nAssert(team == 0 || team == 1);
@@ -1427,7 +1427,7 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
         if (shadow)
             ellipsefill(drawbuf, plx + x, ply + y + pf_scale(POWER_ROCKET_RADIUS + 8), pf_scale(POWER_ROCKET_RADIUS), pf_scale(3), colour(Colour::rocket_shadow));
         //draw the rocket
-        if (static_cast<int>(time * 30) % 2)
+        if (static_cast<int>(fmod(time * 30, 2)))
             circlefill(drawbuf, plx + x, ply + y, pf_scale(POWER_ROCKET_RADIUS), colour(Colour::power_rocket));
         else
             circlefill(drawbuf, plx + x, ply + y, pf_scale(POWER_ROCKET_RADIUS), teamlcol[rocket.team]);
@@ -1493,7 +1493,7 @@ void Graphics::draw_pup_turbo(int x, int y) {
 
 void Graphics::draw_pup_shadow(int x, int y, double time) {
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    int alpha = static_cast<int>(time * 600.0) % 400;
+    int alpha = static_cast<int>(fmod(time * 600.0, 400));
     if (alpha > 200)
         alpha = 400 - alpha;
     set_trans_blender(0, 0, 0, 55 + alpha);
@@ -1502,7 +1502,7 @@ void Graphics::draw_pup_shadow(int x, int y, double time) {
 }
 
 void Graphics::draw_pup_power(int x, int y, double time) {
-    if (static_cast<int>(time * 30) % 2)
+    if (static_cast<int>(fmod(time * 30, 2)))
         circlefill(drawbuf, plx + pf_scale(x), ply + pf_scale(y), pf_scale(13), colour(Colour::pup_power_1));
     else
         circlefill(drawbuf, plx + pf_scale(x), ply + pf_scale(y), pf_scale(11), colour(Colour::pup_power_2));
@@ -1512,8 +1512,7 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
     // rotate item
     for (int b = 0; b < 4; b++) {
         // deg: 0..360
-        double deg = static_cast<int>(time * 1000) % 1000;      //thousand ticks
-        deg /= 1000.0;      // normalise between 0...1
+        double deg = static_cast<int>(fmod(time * 1000, 1000)) / 1000.;
         deg *= 2 * N_PI;    // 360°
         deg += N_PI_2 * b;  // 90°
 
@@ -1538,7 +1537,7 @@ void Graphics::draw_pup_weapon(int x, int y, double time) {
 void Graphics::draw_pup_health(int x, int y, double time) {
     x = pf_scale(x);
     y = pf_scale(y);
-    int varia = static_cast<int>(time * 15) % 10;
+    int varia = static_cast<int>(fmod(time * 15, 10));
     if (varia > 5)
         varia = 10 - varia;
     const int itemsize = pf_scale(11 + varia);
@@ -2129,7 +2128,7 @@ void Graphics::map_time(int seconds) {
 
 void Graphics::draw_change_team_message(double time) {
     int c;
-    if (static_cast<int>(time * 2.0) % 2)   // blink!
+    if (static_cast<int>(fmod(time * 2.0, 2)))
         c = colour(Colour::change_message_1);
     else
         c = colour(Colour::change_message_2);
@@ -2148,7 +2147,7 @@ void Graphics::draw_change_map_message(double time, bool delayed) {
     }
     else {
         int c;
-        if (static_cast<int>(time * 2.0) % 2)   // blink!
+        if (static_cast<int>(fmod(time * 2.0, 2)))
             c = colour(Colour::change_message_1);
         else
             c = colour(Colour::change_message_2);
@@ -2312,7 +2311,7 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
 
 void Graphics::print_chat_input(const string& message, int x, int y, int cursor) {
     print_text_border(message, x, y, colour(Colour::message_input), colour(Colour::text_border), -1);
-    if (cursor >= 0 && int(2 * get_time()) % 2)
+    if (cursor >= 0 && static_cast<int>(fmod(get_time() * 2., 2)))
         vline(drawbuf, x + text_length(font, message.substr(0, cursor)), y, y + text_height(font), colour(Colour::message_input));
 }
 
