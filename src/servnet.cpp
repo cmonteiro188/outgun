@@ -1090,6 +1090,8 @@ void ServerNetworking::set_relay_server(const string& address) {
     const NLushort port = nlGetPortFromAddr(&relay_address);
     if (port == 0)
         log("Invalid or missing relay port in %s.", address.c_str());
+    else
+        log("Relay server set to %s.", address.c_str());
 }
 
 string ServerNetworking::get_relay_server() const {
