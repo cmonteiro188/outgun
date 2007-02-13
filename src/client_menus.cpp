@@ -210,7 +210,14 @@ Menu_controls::Menu_controls() :
     joyRun              (_("Run   "), false, 0, 16, 2),
     joyStrafe           (_("Strafe"), false, 0, 16, 3),
 
+    mouseText           (_("Mouse control (buttons: 0 = disabled)")),
+    mouseSensitivity    (_("Sensitivity"), true, 1, 100, 1, 0),
+    mouseShoot          (_("Shoot "), false, 0, 16, 1),
+    mouseRun            (_("Run   "), false, 0, 16, 2),
+
     activeControls      (_("Active controls")),
+    activeJoystick      (_("Active joystick buttons")),
+    activeMouse         (_("Active mouse buttons")),
 
     menu                (_("Controls"), true)
 {
@@ -226,7 +233,14 @@ Menu_controls::Menu_controls() :
     menu.add_component(&joyRun);
     menu.add_component(&joyStrafe);
     ins_space();
+    menu.add_component(&mouseText);
+    menu.add_component(&mouseSensitivity);
+    menu.add_component(&mouseShoot);
+    menu.add_component(&mouseRun);
+    ins_space();
     menu.add_component(&activeControls);
+    menu.add_component(&activeJoystick);
+    menu.add_component(&activeMouse);
 
     arrowKeysInStats.addOption(_("change stats view"), AS_useMenu);
     arrowKeysInStats.addOption(_("move player"), AS_movePlayer);

@@ -124,13 +124,22 @@ public:
     Checkbox            keypadMoving;
     Select<ArrowKeysInStatsMode> arrowKeysInStats;
     Checkbox            arrowKeysInTextInput;
+
     Checkbox            joystick;
     Slider              joyMove;
     StaticText          joyText;
     Slider              joyShoot;
     Slider              joyRun;
     Slider              joyStrafe;
+
+    StaticText          mouseText;
+    Slider              mouseSensitivity;
+    Slider              mouseShoot;
+    Slider              mouseRun;
+
     StaticText          activeControls;
+    StaticText          activeJoystick;
+    StaticText          activeMouse;
 
     Menu menu;
 

@@ -139,6 +139,9 @@ enum ClientCfgSetting {
     CCS_ArrowKeysInTextInput,
     CCS_SpawnHighlight,
     CCS_NeighborMarkers,
+    CCS_MouseSensitivity,
+    CCS_MouseShoot,
+    CCS_MouseRun,
     CCS_EndOfCommands
 };
 

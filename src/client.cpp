@@ -849,6 +849,9 @@ bool Client::start() {
             break; case CCS_JoystickShoot:         menu.options.controls.joyShoot.boundSet(atoi(args));
             break; case CCS_JoystickRun:           menu.options.controls.joyRun.boundSet(atoi(args));
             break; case CCS_JoystickStrafe:        menu.options.controls.joyStrafe.boundSet(atoi(args));
+            break; case CCS_MouseSensitivity:      menu.options.controls.mouseSensitivity.boundSet(atoi(args));
+            break; case CCS_MouseShoot:            menu.options.controls.mouseShoot.boundSet(atoi(args));
+            break; case CCS_MouseRun:              menu.options.controls.mouseRun.boundSet(atoi(args));
 
             // screen mode menu
             break; case CCS_Windowed:              menu.options.screenMode.windowed.set(args == "1");
@@ -1672,13 +1675,14 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
-    if (mouse_b & 2)
+    if (mouse_b & (1 << menu.options.controls.mouseRun() - 1))
         ctrl.setRun();
     return ctrl;
 }
 
 bool Client::firePressed() const {
-    return key[KEY_LCONTROL] || key[KEY_RCONTROL] || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot())) || (mouse_b & 1);
+    return key[KEY_LCONTROL] || key[KEY_RCONTROL] || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot())) ||
+           (mouse_b & (1 << menu.options.controls.mouseShoot() - 1));
 }
 
 //send the client's frame to server (keypresses)
@@ -1741,7 +1745,7 @@ void Client::send_frame(bool newFrame, bool forceSend) {
 void Client::refreshGunDir() {
     int mx, my;
     get_mouse_mickeys(&mx, &my);
-    gunDir.adjust(mx * .01); //#fix: add sensitivity control
+    gunDir.adjust(mx * menu.options.controls.mouseSensitivity() / 5000.); //#fix: add sensitivity control
 }
 
 #endif
@@ -4771,6 +4775,9 @@ void Client::stop() {
         cfg << CCS_JoystickShoot        << ' ' <<  menu.options.controls.joyShoot() << '\n';
         cfg << CCS_JoystickRun          << ' ' <<  menu.options.controls.joyRun() << '\n';
         cfg << CCS_JoystickStrafe       << ' ' <<  menu.options.controls.joyStrafe() << '\n';
+        cfg << CCS_MouseSensitivity     << ' ' <<  menu.options.controls.mouseSensitivity() << '\n';
+        cfg << CCS_MouseShoot           << ' ' <<  menu.options.controls.mouseShoot() << '\n';
+        cfg << CCS_MouseRun             << ' ' <<  menu.options.controls.mouseRun() << '\n';
 
         // save screen mode menu settings
         cfg << CCS_Windowed             << ' ' << (menu.options.screenMode.windowed() ? 1 : 0) << '\n';
@@ -5658,12 +5665,19 @@ void Client::MCF_prepareControlsMenu() {
         active += _("strafe") + ' ';
     if (firePressed())
         active += _("shoot")  + ' ';
+    menu.options.controls.activeControls.set(active);
+    active.clear();
     if (menu.options.controls.joystick()) {
         for (int button = 1; button <= 16; ++button)
             if (readJoystickButton(button))
                 active += itoa(button) + ' ';
     }
-    menu.options.controls.activeControls.set(active);
+    menu.options.controls.activeJoystick.set(active);
+    active.clear();
+    for (int button = 1; button <= 16; ++button)
+        if (mouse_b & (1 << button - 1))
+            active += itoa(button) + ' ';
+    menu.options.controls.activeMouse.set(active);
 }
 
 void Client::MCF_keyboardLayout() {
