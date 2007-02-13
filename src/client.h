@@ -391,7 +391,8 @@ class Client {
         Route_None,
         Route_Flag,
         Route_Base,
-        Route_Team
+        Route_Team,
+        Route_Fog
     };
 
     #ifndef DEDICATED_SERVER_ONLY
@@ -458,6 +459,7 @@ class Client {
     int TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num);
     int TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable num);
     int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num);
+    int TargetFog(RouteTable num);
 
     int TargetRoute(int efb, int efd, int efc,
                     int mfb, int mfd, int mfc,

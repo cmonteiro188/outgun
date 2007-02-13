@@ -1148,6 +1148,19 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
                         1, 0, 0,
                         num);  // ..., or enemy, or enemy base
         }
+        if (routing[num] == Route_None || routing[num] == Route_Base) {
+            if (routing[num] == Route_Base) {
+                int enemies = 0;
+                int friends = 0;
+                if (Teams(route_x[num], route_y[num], enemies, friends) > 0)
+                    friends--;
+
+                if (friends) // if we are going to base where is already our forces, forget it
+                    TargetFog(num);
+            }
+            else
+                TargetFog(num);
+        }
     }
     else { // i am flagman ;)
         if (GetPlayers(fx.player[me].team()) > 1) {
@@ -1438,6 +1451,34 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
     }
 
     return 0; // build route to nearest target
+}
+
+int Client::TargetFog(RouteTable num) {
+    int roomx = fx.player[me].roomx;
+    int roomy = fx.player[me].roomy;
+    double delta = 0;
+    int maxi = -1;
+    double max_delta = 0;
+
+    for (int i = 0; i < 4; i++) {
+        int x = roomx;
+        int y = roomy;
+        const Room& room = fx.map.room[x][y];
+        if (!room.pass[i])
+            continue;
+        next_room(x, y, i);
+        delta = fabs(fx.frame - fx.map.room[x][y].visited_frame);
+        if (delta >= max_delta) {
+            max_delta = delta;
+            maxi = i;
+        }
+    }
+    if (maxi == -1)
+        return 0;
+
+    next_room(roomx, roomy, maxi);
+    routing[num] = Route_Fog;
+    return BuildRoute(roomx, roomy, num);
 }
 
 int Client::TargetRoute(int efb, int efd, int efc,
