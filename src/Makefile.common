@@ -78,7 +78,7 @@ else
  RM = del
  EXE_SUFFIX = .exe
 
- BASE_LIBS = -lNL -lpthreadGC -lwinmm
+ BASE_LIBS = -lNL -lpthreadGC1 -lwinmm
  ifdef STATIC_ALLEGRO
   ALLEG_LIBS = -lalleg_s -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 \
 	-ldinput -lddraw -ldxguid -ldsound
