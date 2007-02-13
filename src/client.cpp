@@ -4396,7 +4396,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
             else {
-                if (fx.physics.gunDirectionMode == GDM_Free)
+                if (fx.physics.gunDirectionMode == GDM_Free && !fx.player[me].dead)
                     fx.player[me].gundir = gunDir;
                 double timeDelta = (get_time() - frameReceiveTime) * 10.;
                 fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta);
