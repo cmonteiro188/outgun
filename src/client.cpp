@@ -5343,7 +5343,7 @@ void Client::draw_playfield(int roomx, int roomy, int start_x, int start_y) {
                     refreshGunDir();
                 else
                     gunDir = fd.player[me].gundir;
-                client_graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], fd.player[me].lx, fd.player[me].ly, gunDir);
+                client_graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], fd.player[me].lx, fd.player[me].ly, gunDir, me / TSIZE);
             }
         }
     }

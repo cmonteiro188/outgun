@@ -1180,7 +1180,7 @@ void Graphics::draw_me_highlight(double x, double y, double size) {
     circle(drawbuf, plx + pf_scale(x), ply + pf_scale(y), pf_scale((8 * size + 1) * PLAYER_RADIUS), colour(Colour::self_highlight));
 }
 
-void Graphics::draw_aim(const Room& room, double x, double y, GunDirection gundir) {
+void Graphics::draw_aim(const Room& room, double x, double y, GunDirection gundir, int team) {
     static const double minDist = pf_scale(GUNPOINT_RADIUS);
     const double gdx = cos(gundir.toRad()), gdy = sin(gundir.toRad());
     const int maxDist = pf_scale(min<double>(room.genGetTimeTillWall(x, y, gdx, gdy, ROCKET_RADIUS * .1, plw + plh).first, plw + plh)); // cap at plw+plh, which is somewhere outside the screen, to avoid drawing a *very* long line
@@ -1190,8 +1190,8 @@ void Graphics::draw_aim(const Room& room, double x, double y, GunDirection gundi
     line(drawbuf,
          x0 + static_cast<int>(gdx * minDist), y0 + static_cast<int>(gdy * minDist),
          x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist),
-         colour(Colour::aim_line));
-    circlefill(drawbuf, x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist), pf_scale(ROCKET_RADIUS * .5), colour(Colour::aim_dot));
+         teamcol[team]);
+    circlefill(drawbuf, x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist), pf_scale(ROCKET_RADIUS * .5), teamcol[team]);
 }
 
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {

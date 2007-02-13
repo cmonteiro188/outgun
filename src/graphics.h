@@ -130,7 +130,7 @@ public:
     void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);
     void draw_me_highlight(double x, double y, double size);
-    void draw_aim(const Room& room, double x, double y, GunDirection gundir);
+    void draw_aim(const Room& room, double x, double y, GunDirection gundir, int team);
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time);
     void draw_gun_explosion(int x, int y, int rad, int team);
