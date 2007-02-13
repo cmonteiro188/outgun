@@ -451,7 +451,7 @@ string make_name() {
         }
         do
             type = next[rand() % next.size()];
-        while (force_cons && (type != ta && type != taa && type != taat && type != tat && type != tatt));
+        while (force_cons && type != ta && type != taa && type != taat && type != tat && type != tatt);
     }
 
     if (name.find_last_of("hjkmpv") == name.length() - 1)

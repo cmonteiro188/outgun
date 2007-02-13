@@ -193,8 +193,8 @@ int Client::GetDangerousRocket(double mex, double mey) const {
             rocket.px != player.roomx || rocket.py != player.roomy)
                 continue;
 
-        const double rdx = (rocket.x + averageLag * rocket.sx) - mex;
-        const double rdy = (rocket.y + averageLag * rocket.sy) - mey;
+        const double rdx = rocket.x + averageLag * rocket.sx - mex;
+        const double rdy = rocket.y + averageLag * rocket.sy - mey;
 
         const int d = rocket.direction.to8way();
 
@@ -371,8 +371,8 @@ bool Client::NeedShoot(double mex, double mey) const {
 
 ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
     const Rocket& rocket = fx.rock[mrock];
-    const double sdx = (rocket.x + averageLag * rocket.sx) - mex;
-    const double sdy = (rocket.y + averageLag * rocket.sy) - mey;
+    const double sdx = rocket.x + averageLag * rocket.sx - mex;
+    const double sdy = rocket.y + averageLag * rocket.sy - mey;
 
     ClientControls ctrl;
     ctrl.setStrafe();
