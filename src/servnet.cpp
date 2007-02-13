@@ -946,6 +946,28 @@ void ServerNetworking::broadcast_text(Message_type type, const string& text) con
 void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) const {
     char lebuf[256];
     int count = 0;
+
+    //send a show gameover plaque message, if that is the case
+    if (reason != NEXTMAP_NONE) {
+        writeByte(lebuf, count, data_gameover_show);
+        writeByte(lebuf, count, static_cast<NLubyte>(reason));      //capture limit plaque or vote exit plaque
+        if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
+            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));  //RED team final score
+            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));  //BLUE team final score
+            writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getCaptureLimit()));
+            writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
+        }
+        if (pid == pid_record)
+            record_message(lebuf, count);
+        else if (pid == pid_all) {
+            broadcast_message(lebuf, count);
+            record_message(lebuf, count);
+        }
+        else
+            server->send_message(world.player[pid].cid, lebuf, count);
+    }
+
+    count = 0;
     writeByte(lebuf, count, data_map_change);
 
     writeShort(lebuf, count, world.map.crc);
@@ -986,25 +1008,6 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     }
     else
         ++world.player[pid].awaiting_client_readies;
-
-    //send a show gameover plaque message, if that is the case
-    if (reason != NEXTMAP_NONE) {
-        int count = 0;
-        writeByte(lebuf, count, data_gameover_show);
-        writeByte(lebuf, count, static_cast<NLubyte>(reason));      //capture limit plaque or vote exit plaque
-        if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
-            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));  //RED team final score
-            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));  //BLUE team final score
-            writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getCaptureLimit()));
-            writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
-        }
-        if (pid == pid_all) {
-            broadcast_message(lebuf, count);
-            //record_message(lebuf, count);
-        }
-        else
-            server->send_message(world.player[pid].cid, lebuf, count);
-    }
 }
 
 void ServerNetworking::broadcast_map_change_message(int reason, const char* mapname) const {
