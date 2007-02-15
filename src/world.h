@@ -349,6 +349,7 @@ public:
     void from8way(int dir) { data = dir; }
     void fromControls(const ClientControls& c) { data = c.getDirection(); }
     void updateFromControls(const ClientControls& c) { const int d = c.getDirection(); if (d != -1) data = d; }
+    void fromRad(double r) { data = r / N_PI_4; }
 
     void fromNetworkShortForm(NLubyte data_) { data = data_ & 7; }
     void fromNetworkLongForm(NLushort data_) { data = data_ / 256.; } // only 11 bits used
