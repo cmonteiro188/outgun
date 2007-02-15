@@ -416,6 +416,7 @@ class Client {
     int         Teams(int roomx, int roomy, int &en, int &fr) const; // get num of en and fr for sector
     bool        IsHome(int roomx, int roomy) const; //is it base
 
+    bool        AmILast() const;
     bool        IsMission(RouteTable num) const; // have i mission? (No agression mode)
     int         GetEasyEnemy(double mex, double mey) const; // get easy enemy to kill
     bool        IsMassive() const; // am i berserker? (No rocket avoiding)

@@ -725,6 +725,21 @@ int Client::Teams(int x, int y, int& en, int& fr) const {
     return me_nr;
 }
 
+bool Client::AmILast(void) const {
+    const int x = fx.player[me].roomx;
+    const int y = fx.player[me].roomy;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || pl.roomx != x || pl.roomy != y || pl.dead)
+            continue;
+        if (pl.team() == fx.player[me].team()) {
+	    if (i > me)
+		return false; /* i am not last one */
+        }
+    }
+    return true;
+}
+
 ClientControls Client::Escape(double mex, double mey) const {
     int i = 0;
     const int roomx = fx.player[me].roomx;
@@ -1152,11 +1167,14 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
             if (routing[num] == Route_Base) {
                 int enemies = 0;
                 int friends = 0;
-                if (Teams(route_x[num], route_y[num], enemies, friends) > 0)
-                    friends--;
-
-                if (friends) // if we are going to base where is already our forces, forget it
-                    TargetFog(num);
+                if (Teams(route_x[num], route_y[num], enemies, friends) >= 0)
+                    friends --;
+                
+                if (friends) { // if we are going to base where is already our forces, forget it
+		    if (((route_x[num] != fx.player[me].roomx) ||
+			(route_y[num] != fx.player[me].roomy)) || AmILast())
+			TargetFog(num);
+		}
             }
             else
                 TargetFog(num);
@@ -1395,7 +1413,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
         if (fi->carried() && team == 2) // wild flags can be enemy or friend
             enemy = (fx.player[fi->carrier()].team() == team);
 
-        if (fi->carried()) { // our flag carried, is there near our forces
+        if (fi->carried() && !enemy) { // our flag carried, is there near our forces
             const ClientPlayer& pl = fx.player[fi->carrier()];
             if (!pl.used || pl.roomx < 0 || pl.roomy < 0 ||
                 pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
@@ -1463,10 +1481,16 @@ int Client::TargetFog(RouteTable num) {
     for (int i = 0; i < 4; i++) {
         int x = roomx;
         int y = roomy;
+	int enemies = 0;
+	int friends = 0;
         const Room& room = fx.map.room[x][y];
         if (!room.pass[i])
             continue;
         next_room(x, y, i);
+	if (Teams(x, y, enemies, friends)>=0)
+	    friends --;
+	if (friends && !enemies) /* our sector */
+	    continue;
         delta = fabs(fx.frame - fx.map.room[x][y].visited_frame);
         if (delta >= max_delta) {
             max_delta = delta;
