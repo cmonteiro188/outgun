@@ -669,6 +669,7 @@ class Client {
     #ifndef DEDICATED_SERVER_ONLY
     int roomDeltaX(int x1, int x2) const; // gives a sense of where x1 is relative to x2, wrapping around the edges when considering immediate neighbors
     int roomDeltaY(int y1, int y2) const;
+    WorldCoords playerPos(int pid) const;
 
     // GUI
     void erase_first_message();
@@ -680,7 +681,7 @@ class Client {
     void predraw();
     bool on_screen(int x, int y);
     void draw_game_frame();
-    void draw_playfield(int x, int y, int screen_x, int screen_y);
+    void draw_playfield(int screen_x, int screen_y);
     int calculatePlayerAlpha(int pid) const;
     void draw_player(int pid, double time);
     void draw_game_menu();

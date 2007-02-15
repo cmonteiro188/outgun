@@ -58,6 +58,7 @@ public:
         self_highlight,
         ground,
         wall,
+        room_border,
         map_ground,
         map_wall,
         map_room_border,

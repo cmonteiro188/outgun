@@ -224,6 +224,9 @@ public:
     void addWallClipped    (const WallBase* wall, int texture);
     void clipAll() { clip(0); } // clips all added objects to the current clipping rectangle
 
+    int getClipPos() const { return objects.size(); }
+    void clipFrom(int base) { clip(base); }
+
     void render(Texturizer& tex) const;
 
 private:
