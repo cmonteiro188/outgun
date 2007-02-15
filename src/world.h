@@ -349,6 +349,7 @@ public:
     void from8way(int dir) { data = dir; }
     void fromControls(const ClientControls& c) { data = c.getDirection(); }
     void updateFromControls(const ClientControls& c) { const int d = c.getDirection(); if (d != -1) data = d; }
+    void fromRad(double r) { data = r / N_PI_4; }
 
     void fromNetworkShortForm(NLubyte data_) { data = data_ & 7; }
     void fromNetworkLongForm(NLushort data_) { data = data_ / 256.; } // only 11 bits used
@@ -399,7 +400,7 @@ public:
     int neg_score;
 
     virtual ~PlayerBase() { }
-    void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
+    void move(double fraction) { lx += sx * fraction; ly += sy * fraction; }
     void clear(bool enable, int _pid, const std::string& _name, int team_id);
 
     void set_team(int t) { team_nr = t; }
@@ -735,19 +736,19 @@ public:
     };
 
     virtual ~PhysicsCallbacksBase() { }
-    virtual bool collideToRockets() const =0;   // should player to rocket collisions be checked at all
+    virtual bool collideToRockets() const =0; // should player to rocket collisions be checked at all
     virtual bool collidesToRockets(int pid) const =0; // should player to rocket collisions be checked for player pid (if collideToRockets())
     virtual bool collidesToPlayers(int pid) const =0; // should player to player collisions be checked for player pid (with other players who collideToPlayers)
     virtual bool gatherMovementDistance() const =0; // should addMovementDistance be called with player movements
     virtual bool allowRoomChange() const =0;
-    virtual void addMovementDistance(int pid, double dist) =0;  // player pid has moved the distance dist
-    virtual void playerScreenChange(int pid) =0;    // player pid has moved to a new room (called max. once per frame per player)
-    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0;   // caller doesn't remove the rocket
-    virtual bool rocketHitPlayer(int rid, int pid) =0;  // returns true if player dies (to be removed from further simulation)
+    virtual void addMovementDistance(int pid, double dist) =0; // player pid has moved the distance dist
+    virtual void playerScreenChange(int pid) =0; // player pid has moved to a new room (called max. once per frame per player)
+    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0; // caller doesn't remove the rocket
+    virtual bool rocketHitPlayer(int rid, int pid) =0; // returns true if player dies (to be removed from further simulation)
     virtual void playerHitWall(int pid) =0;
     virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) =0;
     virtual void rocketOutOfBounds(int rid) =0; // caller doesn't remove the rocket
-    virtual bool shouldApplyPhysicsToPlayer(int pid) =0;    // returns true if physics should be run to player pid
+    virtual bool shouldApplyPhysicsToPlayer(int pid) =0; // returns true if physics should be run to player pid
     virtual bool is_bot(int pid) const { (void)pid; return false; }
 };
 
@@ -764,6 +765,7 @@ class WorldBase {
     void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const; // returns pair(p1-dead, p2-dead)
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction);
+    void applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction);
 
     void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
 
@@ -845,9 +847,10 @@ public:
     int rocket_damage;
     int start_health, start_energy;
     int min_health_for_run_penalty;
-    double health_regeneration_0to100, energy_regeneration_0to100,
-           health_regeneration_100to200, energy_regeneration_100to200,
-           health_regeneration_200to300, energy_regeneration_200to300;
+    int health_max, energy_max;
+    double health_regeneration_0_to_100, energy_regeneration_0_to_100,
+           health_regeneration_100_to_200, energy_regeneration_100_to_200,
+           health_regeneration_200_to_max, energy_regeneration_200_to_max;
     double run_health_degradation, run_energy_degradation;
     double shooting_energy_base, shooting_energy_per_extra_rocket;
     double hit_stun_time;

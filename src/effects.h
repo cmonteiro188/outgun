@@ -38,12 +38,8 @@ enum FX_TYPE {
 
 struct GraphicsEffect {
     FX_TYPE type;       // type of fx
-    int px, py;         // screen where it spawned. if changed when time to redraw, delete it
+    WorldCoords pos;
     double time;        // start time
-
-    //fx specific vars
-    int x;  // screen x  of fx
-    int y;  // screen y  of fx
 
     int team;
     float alpha;  // [0, 1]
@@ -51,8 +47,8 @@ struct GraphicsEffect {
     int col1, col2;
     GunDirection gundir;
 
-    GraphicsEffect(FX_TYPE type_, int px_, int py_, int x_, int y_, double time_, int team_, float alpha_ = 0, int col1_ = 0, int col2_ = 0, GunDirection gundir_ = GunDirection())
-        : type(type_), px(px_), py(py_), time(time_), x(x_), y(y_), team(team_), alpha(alpha_), col1(col1_), col2(col2_), gundir(gundir_) { }
+    GraphicsEffect(FX_TYPE type_, const WorldCoords& pos_, double time_, int team_, float alpha_ = 0, int col1_ = 0, int col2_ = 0, GunDirection gundir_ = GunDirection())
+        : type(type_), pos(pos_), time(time_), team(team_), alpha(alpha_), col1(col1_), col2(col2_), gundir(gundir_) { }
 };
 
 #endif // EFFECTS_H_INC

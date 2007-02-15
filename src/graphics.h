@@ -96,7 +96,7 @@ public:
 
     void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
-    void startPlayfieldDraw(int start_rx, int start_ry);  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
+    void startPlayfieldDraw(int start_rx, int start_ry, int visible_rooms_, int map_w_, int map_h_);  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
     void endPlayfieldDraw();
 
     void draw_screen(bool acquireWithFlipping);
@@ -107,14 +107,14 @@ public:
     void reset_playground_colors();
     void random_playground_colors();
 
-    void predraw(const Room& room, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
+    void predraw(const Map& map, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
                  const std::vector< std::pair<int, const WorldCoords*> >& spawns, const std::vector< std::pair<int, const WorldRect*> >& respawns,
-                 int roomx, int roomy, bool grid = false);
+                 int room0x, int room0y, int visible_rooms, bool grid = false);
 
     void draw_background();
     void draw_empty_background(bool map_ready);
 
-    void draw_flag(int team, int x, int y, bool flash = false);
+    void draw_flag(int team, const WorldCoords& pos, bool flash = false);
     void draw_flagpos_mark(int team, int flag_x, int flag_y);
     void draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash = false);
     void draw_minimap_background();
@@ -126,25 +126,25 @@ public:
 
     void draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team);
 
-    void draw_player(int x, int y, int team, int pli, GunDirection gundir, double hitfx, bool power, int alpha, double time);
-    void draw_player_name(const std::string& name, int x, int y, int team, bool highlight = false);
+    void draw_player(const WorldCoords& pos, int team, int pli, GunDirection gundir, double hitfx, bool power, int alpha, double time);
+    void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);
-    void draw_me_highlight(double x, double y, double size);
-    void draw_aim(const Room& room, double x, double y, GunDirection gundir, int team);
+    void draw_me_highlight(const WorldCoords& pos, double size);
+    void draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team);
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time);
-    void draw_gun_explosion(int x, int y, int rad, int team);
-    void draw_deathbringer_smoke(int x, int y, double time, double alpha);
-    void draw_deathbringer(int x, int y, int team, double time);
+    void draw_gun_explosion(const WorldCoords& pos, int rad, int team);
+    void draw_deathbringer_smoke(const WorldCoords& pos, double time, double alpha);
+    void draw_deathbringer(const WorldCoords& pos, int team, double time);
 
     void draw_player_health(int value);
     void draw_player_energy(int value);
 
-    void draw_deathbringer_affected(int x, int y, int team, int alpha);
-    void draw_deathbringer_carrier_effect(int x, int y, int alpha);
-    void draw_shield(int x, int y, int r, int alpha = 255, int team = -1, GunDirection direction = GunDirection());
+    void draw_deathbringer_affected(const WorldCoords& pos, int team, int alpha);
+    void draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha);
+    void draw_shield(const WorldCoords& pos, int r, int alpha = 255, int team = -1, GunDirection direction = GunDirection());
 
-    void draw_virou_sorvete(int x, int y);
+    void draw_virou_sorvete(const WorldCoords& pos);
 
     void draw_waiting_map_message(const std::string& caption, const std::string& map);
     void draw_loading_map_message(const std::string& text);
@@ -183,27 +183,20 @@ public:
 
     // power-ups
     void draw_pup(const Powerup& pup, double time);
-    void draw_pup_shield(int x, int y);
-    void draw_pup_turbo(int x, int y);
-    void draw_pup_shadow(int x, int y, double time);
-    void draw_pup_power(int x, int y, double time);
-    void draw_pup_weapon(int x, int y, double time);
-    void draw_pup_health(int x, int y, double time);
-    void draw_pup_deathbringer(int x, int y);
 
     // client side effects
-    void draw_effects(int room_x, int room_y, double time);
-    void draw_turbofx(int room_x, int room_y, double time);
+    void draw_effects(double time);
+    void draw_turbofx(double time);
 
     void clear_fx();
 
-    void create_wallexplo(int x, int y, int px, int py, int team, double time);
-    void create_powerwallexplo(int x, int y, int px, int py, int team, double time);
-    void create_smoke(int x, int y, int px, int py, double time);
-    void create_deathcarrier(int x, int y, int px, int py, int alpha, double time);
-    void create_turbofx(int x, int y, int px, int py, int col1, int col2, GunDirection gundir, int alpha, double time);
-    void create_deathbringer(int team, double start_time, int x, int y, int px, int py);
-    void create_gunexplo(int x, int y, int px, int py, int team, double time);
+    void create_wallexplo(const WorldCoords& pos, int team, double time);
+    void create_powerwallexplo(const WorldCoords& pos, int team, double time);
+    void create_smoke(const WorldCoords& pos, double time);
+    void create_deathcarrier(WorldCoords pos, int alpha, double time, bool for_item = false);
+    void create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time);
+    void create_deathbringer(const WorldCoords& pos, int team, double start_time);
+    void create_gunexplo(const WorldCoords& pos, int team, double time);
 
     bool save_map_picture(const std::string& filename, const Map& map);
 
@@ -235,7 +228,7 @@ public:
     const Colour_manager& colours() const { return colour; }
 
     void draw_replay_info(float rate, unsigned position, unsigned length, bool stopped);
-    void set_playfield_scale(double val) { playfield_scale = val; }
+    void set_playfield_scale(double val) { playfield_scale = val; make_layout(); }
     void toggle_full_playfield();
 
 private:
@@ -247,17 +240,21 @@ private:
 
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
-    void predraw_room_ground(const Room& room, int texOffsetBaseX, int texOffsetBaseY, int roomx, int roomy);
-    void predraw_room_walls(const Room& room, int texOffsetBaseX, int texOffsetBaseY, int roomx, int roomy);
-
-    // texture should really be const BITMAP* but Allegero function needs BITMAP* for some reason
-    void draw_room_ground(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture);
-    void draw_room_walls(BITMAP* buffer, const Room& room, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, bool texture);
+    void draw_room_ground(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale);
+    void draw_room_walls(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale);
 
     static void draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* tex);
     static void draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
     static void draw_tri_wall (BITMAP* buffer, const TriWall & wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
     static void draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
+
+    void draw_pup_shield(const WorldCoords& pos);
+    void draw_pup_turbo(const WorldCoords& pos);
+    void draw_pup_shadow(const WorldCoords& pos, double time);
+    void draw_pup_power(const WorldCoords& pos, double time);
+    void draw_pup_weapon(const WorldCoords& pos, double time);
+    void draw_pup_health(const WorldCoords& pos, double time);
+    void draw_pup_deathbringer(const WorldCoords& pos);
 
     std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
@@ -324,6 +321,21 @@ private:
 
     int scale(double value) const;
     int pf_scale(double value) const;
+    int scale_x(const WorldCoords& pos) const; // takes the room also into account
+    int scale_y(const WorldCoords& pos) const; // takes the room also into account
+
+    bool on_screen(int rx, int ry) const;
+    int room_offset_x(int rx) const; // returns a (unscaled) multiple of plw according to the screen position of room rx
+    int room_offset_y(int ry) const; // returns a (unscaled) multiple of plh according to the screen position of room ry
+
+    class TemporaryClipToRoom {
+        Graphics& g;
+        int x1, y1, x2, y2;
+
+    public:
+        TemporaryClipToRoom(Graphics& host, int rx, int ry);
+        ~TemporaryClipToRoom();
+    };
 
     // drawing screens
     Bitmap vidpage1;
@@ -339,7 +351,8 @@ private:
 
     Bitmap roombg;      // room background sub-bitmap
 
-    int plx, ply;       // playground position on the screen
+    int playfield_x, playfield_y; // playground area position on the screen
+    int plx, ply;       // active playground position (where the first room resides) on the screen
     int mmx, mmy;       // minimap position
 
     int scoreboard_x1, scoreboard_x2;  // scoreboard position
@@ -354,6 +367,8 @@ private:
     double playfield_scale;
     int start_room_x;
     int start_room_y;
+    int visible_rooms;
+    int map_w, map_h;
 
     bool show_chat_messages;
     bool show_scoreboard;

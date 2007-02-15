@@ -1517,13 +1517,14 @@ void WorldSettings::reset() {
     shadow_minimum = shadow_minimum_normal;
     rocket_damage = 70;
     start_health = start_energy = 100;
+    health_max = energy_max = 300;
     min_health_for_run_penalty = 40;
-    health_regeneration_0to100 = 10.;
-    energy_regeneration_0to100 = 10.;
-    health_regeneration_100to200 = 1.;
-    energy_regeneration_100to200 = 5.;
-    health_regeneration_200to300 = 0.;
-    energy_regeneration_200to300 = 0.;
+    health_regeneration_0_to_100 = 10.;
+    energy_regeneration_0_to_100 = 10.;
+    health_regeneration_100_to_200 = 1.;
+    energy_regeneration_100_to_200 = 5.;
+    health_regeneration_200_to_max = 0.;
+    energy_regeneration_200_to_max = 0.;
     run_health_degradation = run_energy_degradation = 15.;
     shooting_energy_base = 7.;
     shooting_energy_per_extra_rocket = 1.;
@@ -2616,15 +2617,52 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
             applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
+void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) {
+    // this function is heavily copied from applyPhysicsToRoom; any changes should be made primarily there //#fix: refactor?
+
+    double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
+    for (;;) {
+        const BounceData bounce = getTimeTillBounce(map.room[pl.roomx][pl.roomy], pl, plyRadius, fraction);
+        const double bounceTime = bounce.first + subFrame;
+        const double mt = min(fraction, max(bounceTime, subFrame + .01)); // mt is where subFrame will be advanced to for the next round
+        const double plTime = min(bounceTime - .001, mt);
+        if (plTime > subFrame) {
+            pl.move(plTime - subFrame);
+            bool rch = false;
+            double tb = 0; // time to take back: used if room changed; initialized to please GCC
+            if      (pl.lx <   0) { rch = true; pl.roomx = (pl.roomx - 1 + map.w) % map.w; nAssert(pl.sx < 0); tb = pl.lx / pl.sx; pl.lx += plw; }
+            else if (pl.lx > plw) { rch = true; pl.roomx = (pl.roomx + 1        ) % map.w; nAssert(pl.sx > 0); pl.lx -= plw; tb = pl.lx / pl.sx; }
+            if      (pl.ly <   0) { rch = true; pl.roomy = (pl.roomy - 1 + map.h) % map.h; nAssert(pl.sy < 0); tb = max(tb, pl.ly / pl.sy); pl.ly += plh; }
+            else if (pl.ly > plh) { rch = true; pl.roomy = (pl.roomy + 1        ) % map.h; nAssert(pl.sy > 0); pl.ly -= plh; tb = max(tb, pl.ly / pl.sy); }
+            if (rch) {
+                // take back the time by which the player went over the edge and reapply in the new room
+                pl.move(-tb);
+                #ifdef EXTRA_DEBUG
+                nAssert(fabs(fmod(pl.lx + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.ly + plh / 2, plh) - plh / 2) < .001);
+                #endif
+                subFrame = max(plTime - tb, subFrame + .01); // ensure progress
+                continue;
+            }
+        }
+        subFrame = mt;
+        if (subFrame > fraction - .001)
+            break;
+        executeBounce(pl, bounce.second, plyRadius);
+        //callback.playerHitWall(bPly); // should be enabled (maybe other callbacks too) if the client ever needs to (indirectly) execute this method
+    }
+}
+
 void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction) {
+    // many changes in this method should also be made in applyPhysicsToPlayerInIsolation
+
     vector<BounceData> plyMoveMax;  // plyMoveMax changes when player bounces
     vector<double> rockMoveMax; // rockMoveMax is fixed
 
     typedef unsigned int uint;  // for loop counters, to avoid the brainless 'signed vs unsigned comparison' warning by G++
 
-    for (vector<int>::const_iterator pi=rply.begin(); pi!=rply.end(); ++pi)
+    for (vector<int>::const_iterator pi = rply.begin(); pi != rply.end(); ++pi)
         plyMoveMax.push_back(getTimeTillBounce(room, player[*pi], plyRadius, fraction));
-    for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri)
+    for (vector<int>::const_iterator ri = rrock.begin(); ri != rrock.end(); ++ri)
         rockMoveMax.push_back(getTimeTillWall(room, rock[*ri], fraction));
 
     double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
@@ -2724,14 +2762,24 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             if (callback.gatherMovementDistance())
                 callback.addMovementDistance(rply[pi], (plTime - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
             bool rch = false;
+            double tb = 0; // time to take back: used if room changed; initialized to please GCC
             if (callback.allowRoomChange()) {
-                if (pl.lx <   0) { nAssert(pl.sx != 0); pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
-                if (pl.lx > plw) { nAssert(pl.sx != 0); pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
-                if (pl.ly <   0) { nAssert(pl.sy != 0); pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
-                if (pl.ly > plh) { nAssert(pl.sy != 0); pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
+                if      (pl.lx <   0) { rch = true; pl.roomx = (pl.roomx - 1 + map.w) % map.w; nAssert(pl.sx < 0); tb = pl.lx / pl.sx; pl.lx += plw; }
+                else if (pl.lx > plw) { rch = true; pl.roomx = (pl.roomx + 1        ) % map.w; nAssert(pl.sx > 0); pl.lx -= plw; tb = pl.lx / pl.sx; }
+                if      (pl.ly <   0) { rch = true; pl.roomy = (pl.roomy - 1 + map.h) % map.h; nAssert(pl.sy < 0); tb = max(tb, pl.ly / pl.sy); pl.ly += plh; }
+                else if (pl.ly > plh) { rch = true; pl.roomy = (pl.roomy + 1        ) % map.h; nAssert(pl.sy > 0); pl.ly -= plh; tb = max(tb, pl.ly / pl.sy); }
             }
             if (rch) {
+                // take back the time by which the player went over the edge and reapply in the new room
+                pl.move(-tb);
+                #ifdef EXTRA_DEBUG
+                nAssert(fabs(fmod(pl.lx + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.ly + plh / 2, plh) - plh / 2) < .001);
+                #endif
+                applyPhysicsToPlayerInIsolation(pl, plyRadius, tb);
+
                 callback.playerScreenChange(rply[pi]);
+
+                // remove from this simulation
                 rply.erase(rply.begin() + pi);
                 plyMoveMax.erase(plyMoveMax.begin() + pi);
                 if (  bPlyI >= pi) { if (  bPlyI == pi)   bPlyI = -1; else --  bPlyI; }
@@ -2850,17 +2898,17 @@ static bool doRegenerate(double& var, double limit, double speed, double& timeLe
 
 void ServerWorld::regenerateHealthOrEnergy(ServerPlayer& pl) {
     double timeLeft = .1; // 1 frame
-    if (doRegenerate(pl.health, 100., config.health_regeneration_0to100, timeLeft))
+    if (doRegenerate(pl.health, min(config.health_max, 100), config.health_regeneration_0_to_100, timeLeft))
         return;
-    if (doRegenerate(pl.energy, 100., config.energy_regeneration_0to100, timeLeft))
+    if (doRegenerate(pl.energy, min(config.energy_max, 100), config.energy_regeneration_0_to_100, timeLeft))
         return;
-    if (doRegenerate(pl.energy, 200., config.energy_regeneration_100to200, timeLeft))
+    if (doRegenerate(pl.energy, min(config.energy_max, 200), config.energy_regeneration_100_to_200, timeLeft))
         return;
-    if (doRegenerate(pl.health, 200., config.health_regeneration_100to200, timeLeft))
+    if (doRegenerate(pl.health, min(config.health_max, 200), config.health_regeneration_100_to_200, timeLeft))
         return;
-    if (doRegenerate(pl.energy, 300., config.energy_regeneration_200to300, timeLeft))
+    if (doRegenerate(pl.energy,     config.energy_max      , config.energy_regeneration_200_to_max, timeLeft))
         return;
-    doRegenerate(pl.health, 300., config.health_regeneration_200to300, timeLeft);
+    doRegenerate(    pl.health,     config.health_max      , config.health_regeneration_200_to_max, timeLeft);
 }
 
 void ServerWorld::degradeHealthOrEnergyForRunning(ServerPlayer& pl) {
@@ -3037,30 +3085,18 @@ void ServerWorld::simulateFrame() {
         //megahealth bonus:
         if (pl.megabonus > 0)
             for (int mh = 0; mh < 5; mh++) {
-                if (pl.megabonus > 0 && pl.health < 300) {
+                if (pl.megabonus > 0 && pl.health < config.health_max) {
                     pl.health++;
                     pl.megabonus--;
                 }
-                if (pl.megabonus > 0 && pl.energy < 300) {
+                if (pl.megabonus > 0 && pl.energy < config.energy_max) {
                     pl.energy++;
                     pl.megabonus--;
                 }
             }
         // new limit - don't store megabonuses
-        if (pl.health == 300 && pl.energy == 300)
+        if (pl.health == config.health_max && pl.energy == config.energy_max)
             pl.megabonus = 0;
-
-        //limit health 0...300
-        if (pl.health < 0)
-            pl.health = 0;
-        else if (pl.health > 300)
-            pl.health = 300;
-
-        //limit energy 0...300
-        if (pl.energy < 0)
-            pl.energy = 0;
-        else if (pl.energy > 300)
-            pl.energy = 300;
 
         //---------------------------------
         // check game object collisions
@@ -3079,6 +3115,16 @@ void ServerWorld::simulateFrame() {
                 if (dx * dx + dy * dy < touchRadius * touchRadius)
                     game_touch_pickup(i, k);
             }
+
+        // limit health and energy (after pickups because they might have an effect)
+        if (pl.health < 0)
+            pl.health = 0;
+        else if (pl.health > config.health_max)
+            pl.health = config.health_max;
+        if (pl.energy < 0)
+            pl.energy = 0;
+        else if (pl.energy > config.energy_max)
+            pl.energy = config.energy_max;
 
         // Flag steal - touch other team's flag or wild flag
         // ft = 0 => Touch enemy flag

@@ -185,21 +185,23 @@ public:
 };
 
 class TM_GunexploEffect : public ThreadMessage {
-    int rokx, roky, px, py, team;
+    int team;
+    WorldCoords pos;
     double time;
 
 public:
-    TM_GunexploEffect(int rokx_, int roky_, int px_, int py_, double time_) : rokx(rokx_), roky(roky_), px(px_), py(py_), time(time_) { }
-    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(rokx, roky, px, py, team, time); }
+    TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) : team(team_), pos(pos_), time(time_) { }
+    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(pos, team, time); }
 };
 
 class TM_Deathbringer : public ThreadMessage {
-    int team, hx, hy, sx, sy;
+    int team;
+    WorldCoords pos;
     double time;
 
 public:
-    TM_Deathbringer(int team_, double time_, int hx_, int hy_, int sx_, int sy_) : team(team_), hx(hx_), hy(hy_), sx(sx_), sy(sy_), time(time_) { }
-    void execute(Client* cl) const { cl->client_graphics.create_deathbringer(team, time, hx, hy, sx, sy); }
+    TM_Deathbringer(int team_, double time_, const WorldCoords& pos_) : team(team_), pos(pos_), time(time_) { }
+    void execute(Client* cl) const { cl->client_graphics.create_deathbringer(pos, team, time); }
 };
 
 class TM_ServerSettings : public ThreadMessage {
@@ -634,7 +636,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     client_graphics(log),
     screenshot(false),
     replaying(false),
-    visible_rooms(1),
+    visible_rooms(0),
     spectating(false),
     spectate_socket(0),
     #endif
@@ -1572,7 +1574,6 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     if (!botmode && visible_rooms != 1) {
         visible_rooms = 1;
         client_graphics.set_playfield_scale(1. / visible_rooms);
-        client_graphics.make_layout();
     }
     #endif
 
@@ -1989,6 +1990,7 @@ int Client::process_replay_frame_data(const char* data, int length) { // returns
         pl.item_shield = (byte & (1 << 3)) != 0;
         pl.item_turbo = (byte & (1 << 4)) != 0;
         pl.item_power = (byte & (1 << 5)) != 0;
+        const bool preciseGundir = (byte & (1 << 6)) != 0;
 
         const bool position_data = (byte & (1 << 7)) != 0;
         if (position_data) {
@@ -2018,7 +2020,13 @@ int Client::process_replay_frame_data(const char* data, int length) { // returns
         readByte(data, count, byte);
         pl.controls.fromNetwork(byte, true);
 
-        pl.gundir.fromNetworkShortForm(byte >> 5);
+        if (preciseGundir) {
+            NLubyte extraGundirBits;
+            readByte(data, count, extraGundirBits);
+            pl.gundir.fromNetworkLongForm(((byte >> 5) << 8) | extraGundirBits);
+        }
+        else
+            pl.gundir.fromNetworkShortForm(byte >> 5);
 
         readByte(data, count, byte);
         pl.visibility = byte;
@@ -2192,6 +2200,12 @@ void Client::process_message(const char* const lebuf, int msglen) {
                 //carried: get carrier
                 NLubyte carrier;
                 readByte(lebuf, count, carrier);
+                const WorldCoords flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
+                fx.player[carrier].roomx = flagPos.px;
+                fx.player[carrier].roomy = flagPos.py;
+                fx.player[carrier].lx = flagPos.x;
+                fx.player[carrier].ly = flagPos.y;
+                fx.player[carrier].posUpdated = static_cast<NLulong>(fx.frame);
                 if (team == 2)
                     fx.wild_flags[i].take(carrier);
                 else
@@ -2242,7 +2256,7 @@ void Client::process_message(const char* const lebuf, int msglen) {
 
         #ifndef DEDICATED_SERVER_ONLY
         //play sound if rocket on screen
-        if (me >= 0 && rpx == fx.player[me].roomx && rpy == fx.player[me].roomy || replaying && on_screen(rpx, rpy))
+        if (on_screen(rpx, rpy))
             if (power)
                 addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
             else
@@ -2307,7 +2321,7 @@ void Client::process_message(const char* const lebuf, int msglen) {
         if (target != 255) {    // hit player
             if (target != 252)  // not shield hit -> blink player
                 fx.player[target].hitfx = time + .3;
-            addThreadMessage(new TM_GunexploEffect((int)rokx, (int)roky, fx.rock[rockid].px, fx.rock[rockid].py, time));
+            addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
             if (!replaying || on_screen(fx.rock[rockid].px, fx.rock[rockid].py))
                 addThreadMessage(new TM_Sound(SAMPLE_HIT));
         }
@@ -2458,7 +2472,6 @@ void Client::process_message(const char* const lebuf, int msglen) {
             if (visible_rooms > fx.map.w && visible_rooms > fx.map.h) {
                 visible_rooms = max(fx.map.w, fx.map.h);
                 client_graphics.set_playfield_scale(1. / visible_rooms);
-                client_graphics.make_layout();
             }
             if (!fx.map.tinfo[team].flags.empty()) {
                 const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
@@ -2552,16 +2565,16 @@ void Client::process_message(const char* const lebuf, int msglen) {
     break; case data_deathbringer: {
         NLubyte team;
         NLulong frameno;
-        NLubyte sx, sy;
+        NLubyte roomx, roomy;
         readByte(lebuf, count, team);
         readLong(lebuf, count, frameno);    // creation frame
-        readByte(lebuf, count, sx);
-        readByte(lebuf, count, sy);
-        NLushort hx, hy;
-        readShort(lebuf, count, hx);
-        readShort(lebuf, count, hy);
+        readByte(lebuf, count, roomx);
+        readByte(lebuf, count, roomy);
+        NLushort lx, ly;
+        readShort(lebuf, count, lx);
+        readShort(lebuf, count, ly);
         #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Deathbringer(team, time + (frameno - fx.frame) * 0.1, hx, hy, sx, sy));
+        addThreadMessage(new TM_Deathbringer(team, time + (frameno - fx.frame) * 0.1, WorldCoords(roomx, roomy, lx, ly)));
         addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
         #endif
     }
@@ -4075,24 +4088,22 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         if (toupper(ch) == 'P')
             replay_paused = !replay_paused;
         else if (ch == '-') {
-            ++visible_rooms;
-            if (visible_rooms > fx.map.w && visible_rooms > fx.map.h)
-                visible_rooms = max(fx.map.w, fx.map.h);
-            if (current_room.first >= fx.map.w + 1 - visible_rooms && current_room.first > 0)
-                --current_room.first;
-            if (current_room.second >= fx.map.h + 1 - visible_rooms && current_room.second > 0)
-                --current_room.second;
-            predrawNeeded = true;
-            client_graphics.set_playfield_scale(1. / visible_rooms);
-            client_graphics.make_layout();
-            mapChanged = true;  // just to get minimap updated
+            if (visible_rooms < fx.map.w || visible_rooms < fx.map.h) {
+                ++visible_rooms;
+                if (current_room.first == fx.map.w + 1 - visible_rooms && current_room.first > 0) // if map border wasn't broken, don't break it either
+                    --current_room.first;
+                if (current_room.second == fx.map.h + 1 - visible_rooms && current_room.second > 0)
+                    --current_room.second;
+                predrawNeeded = true;
+                client_graphics.set_playfield_scale(1. / visible_rooms);
+                mapChanged = true;  // just to get minimap updated
+            }
         }
         else if (ch == '+') {
             if (visible_rooms > 1) {
                 --visible_rooms;
                 predrawNeeded = true;
                 client_graphics.set_playfield_scale(1. / visible_rooms);
-                client_graphics.make_layout();
                 mapChanged = true;  // just to get minimap updated
             }
         }
@@ -4132,46 +4143,30 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         }
         break; case KEY_LEFT: {
             if (replaying) {
-                if (--current_room.first < 0)
-                    current_room.first = max(0, fx.map.w - visible_rooms);
+                current_room.first = (current_room.first - 1 + fx.map.w) % fx.map.w;
                 predrawNeeded = true;
-                for (int i = 0; i < maxplayers; ++i)
-                    if (fx.player[i].used)
-                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor > 0)
                 talkbuffer_cursor--;
         }
         break; case KEY_RIGHT: {
             if (replaying) {
-                if (++current_room.first >= fx.map.w + 1 - visible_rooms)
-                    current_room.first = 0;
+                current_room.first = (current_room.first + 1) % fx.map.w;
                 predrawNeeded = true;
-                for (int i = 0; i < maxplayers; ++i)
-                    if (fx.player[i].used)
-                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
                 talkbuffer_cursor++;
         }
         break; case KEY_UP: {
             if (replaying) {
-                if (--current_room.second < 0)
-                    current_room.second = max(0, fx.map.h - visible_rooms);
+                current_room.second = (current_room.second - 1 + fx.map.h) % fx.map.h;
                 predrawNeeded = true;
-                for (int i = 0; i < maxplayers; ++i)
-                    if (fx.player[i].used)
-                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
         }
         break; case KEY_DOWN: {
             if (replaying) {
-                if (++current_room.second >= fx.map.h + 1 - visible_rooms)
-                    current_room.second = 0;
+                current_room.second = (current_room.second + 1) % fx.map.h;
                 predrawNeeded = true;
-                for (int i = 0; i < maxplayers; ++i)
-                    if (fx.player[i].used)
-                        fx.player[i].onscreen = fx.player[i].roomx == current_room.first && fx.player[i].roomy == current_room.second;
             }
         }
         break; case KEY_PGUP: {
@@ -4512,7 +4507,6 @@ bool Client::start_replay(istream& replay) {
     if (visible_rooms != 1) {
         visible_rooms = 1;
         client_graphics.set_playfield_scale(1. / visible_rooms);
-        client_graphics.make_layout();
     }
 
     show_all_messages = false;
@@ -4867,12 +4861,12 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     if (botmode)
         return;
     if (power) {
-        client_graphics.create_powerwallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team, time);
+        client_graphics.create_powerwallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_POWERWALLHIT);
     }
     else {
-        client_graphics.create_wallexplo(static_cast<int>(x), static_cast<int>(y), roomx, roomy, fx.rock[rid].team, time);
+        client_graphics.create_wallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_WALLHIT);
     }
@@ -4943,47 +4937,44 @@ void Client::play_sound(int sample) {
 
 void Client::predraw() {
     if (!map_ready || !replaying && (me < 0 || fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
-            fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h))
+                                               fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h))
         return; //#fix: this shouldn't be needed, or should be checked from a simple flag
 
-    const int roomx = (replaying ? current_room.first  : fx.player[me].roomx);
-    const int roomy = (replaying ? current_room.second : fx.player[me].roomy);
+    vector< pair<int, const WorldCoords*> > flags;
+    vector< pair<int, const WorldCoords*> > spawns;
+    vector< pair<int, const WorldRect*> > respawns;
 
-    for (int x = roomx; x < roomx + visible_rooms && x < fx.map.w; ++x)
-        for (int y = roomy; y < roomy + visible_rooms && y < fx.map.h; ++y) {
-            vector< pair<int, const WorldCoords*> > flags;
-            vector< pair<int, const WorldCoords*> > spawns;
-            vector< pair<int, const WorldRect*> > respawns;
-
-            for (int team = 0; team <= 2; team++) {
-                const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
-                for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)     // flags
-                    if (x == pi->px && y == pi->py)
-                        flags.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
-                if (menu.options.graphics.mapInfoMode() && team < 2) {
-                    const vector<WorldCoords>& tspawn = fx.map.tinfo[team].spawn;
-                    for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi) // spawns
-                        if (x == pi->px && y == pi->py)
-                            spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
-                    const vector<WorldRect>& trespawn = fx.map.tinfo[team].respawn;
-                    for (vector<WorldRect>::const_iterator pi = trespawn.begin(); pi != trespawn.end(); ++pi) // respawns
-                        if (x == pi->px && y == pi->py)
-                            respawns.push_back(pair<int, const WorldRect*>(team, &(*pi)));
-                }
-            }
-
-            int texRoomX, texRoomY; // the room is textured as in these coordinates
-            if (menu.options.graphics.contTextures()) {
-                texRoomX = roomx; // use real coordinates -> textures continue from a room to the next one
-                texRoomY = roomy;
-            }
-            else {
-                texRoomX = roomx - x;    // this way the texturing always starts from the top left corner (classic look)
-                texRoomY = roomy - y;
-            }
-            client_graphics.predraw(fx.map.room[x][y], texRoomX, texRoomY, flags, spawns, respawns,
-                                    x - roomx, y - roomy, menu.options.graphics.mapInfoMode());
+    for (int team = 0; team <= 2; team++) {
+        const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
+        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)     // flags
+            if (on_screen(pi->px, pi->py))
+                flags.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
+        if (menu.options.graphics.mapInfoMode() && team < 2) {
+            const vector<WorldCoords>& tspawn = fx.map.tinfo[team].spawn;
+            for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi) // spawns
+                if (on_screen(pi->px, pi->py))
+                    spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
+            const vector<WorldRect>& trespawn = fx.map.tinfo[team].respawn;
+            for (vector<WorldRect>::const_iterator pi = trespawn.begin(); pi != trespawn.end(); ++pi) // respawns
+                if (on_screen(pi->px, pi->py))
+                    respawns.push_back(pair<int, const WorldRect*>(team, &(*pi)));
         }
+    }
+
+    const int room0x = (replaying ? current_room.first  : fx.player[me].roomx);
+    const int room0y = (replaying ? current_room.second : fx.player[me].roomy);
+
+    int texRoomX, texRoomY; // the room is textured as in these coordinates
+    if (menu.options.graphics.contTextures()) {
+        texRoomX = room0x; // use real coordinates -> textures continue from a room to the next one
+        texRoomY = room0y;
+    }
+    else {
+        texRoomX = 0;    // this way the texturing always starts from the top left corner (classic look)
+        texRoomY = 0;
+    }
+    client_graphics.predraw(fx.map, texRoomX, texRoomY, flags, spawns, respawns,
+                            room0x, room0y, visible_rooms, menu.options.graphics.mapInfoMode());
 }
 
 
@@ -4999,6 +4990,14 @@ int Client::roomDeltaY(int y1, int y2) const {
         return (y1 - y2 + fx.map.h + 1) % fx.map.h - 1;
     else
         return y1 - y2;
+}
+
+WorldCoords Client::playerPos(int pid) const {
+    const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
+    return WorldCoords(world.player[pid].roomx,
+                       world.player[pid].roomy,
+                       static_cast<int>(world.player[pid].lx),
+                       static_cast<int>(world.player[pid].ly));
 }
 
 //draw the whole game screen
@@ -5046,9 +5045,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // frame is valid?
     if (!hide_game && fd.frame >= 0)
-        for (int x = roomx; x < roomx + visible_rooms && x < fx.map.w; ++x)
-            for (int y = roomy; y < roomy + visible_rooms && y < fx.map.h; ++y)
-                draw_playfield(x, y, roomx, roomy);
+        draw_playfield(roomx, roomy);
 
     //do not draw stuff below if map not ready to show
     if (!hide_game) {
@@ -5102,11 +5099,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     }
                     const int enemy = 1 - i / TSIZE;
                     int f = 0;
-                    const ClientPlayer& pl_ext = replaying ? fd.player[i] : pl;
                     for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            fx.teams[enemy].move_flag(f, WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
+                            fx.teams[enemy].move_flag(f, playerPos(i));
                             client_graphics.draw_mini_flag(enemy, *fi, fx.map);
                             if (drawNeighborMarkers)
                                 client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, enemy);
@@ -5115,7 +5111,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
                         if (fi->carrier() == i) {
                             // update flag position for draw
-                            fi->move(WorldCoords(pl_ext.roomx, pl_ext.roomy, static_cast<int>(pl_ext.lx), static_cast<int>(pl_ext.ly)));
+                            fi->move(playerPos(i));
                             client_graphics.draw_mini_flag(2, *fi, fx.map);
                             if (drawNeighborMarkers)
                                 client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, 2);
@@ -5123,7 +5119,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
                     if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                            client_graphics.draw_minimap_player(fx.map, pl_ext);
+                            client_graphics.draw_minimap_player(fx.map, replaying ? fd.player[i] : pl);
                         if (drawNeighborMarkers)
                             client_graphics.draw_neighbor_marker(false, xDelta, yDelta, pl.lx, pl.ly, pl.team());
                     }
@@ -5249,18 +5245,21 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 }
 
 bool Client::on_screen(int x, int y) {
-    return x >= current_room.first  && x < current_room.first  + visible_rooms &&
-           y >= current_room.second && y < current_room.second + visible_rooms;
+    if (replaying)
+        return (x - current_room.first  + fx.map.w) % fx.map.w < visible_rooms &&
+               (y - current_room.second + fx.map.h) % fx.map.h < visible_rooms;
+    else
+        return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
 }
 
-void Client::draw_playfield(int roomx, int roomy, int start_x, int start_y) {
+void Client::draw_playfield(int start_x, int start_y) {
     const double time = fd.frame / 10;
 
-    client_graphics.startPlayfieldDraw(start_x, start_y);
+    client_graphics.startPlayfieldDraw(start_x, start_y, visible_rooms, fx.map.w, fx.map.h);
 
     // draw dead players, except ice creams
     for (int i = 0; i < maxplayers; i++) {
-        if (fx.player[i].dead && (fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && fx.player[i].roomx == roomx && fx.player[i].roomy == roomy)) {
+        if (fx.player[i].dead && (fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && on_screen(fx.player[i].roomx, fx.player[i].roomy))) {
             if (fx.player[i].stats().frags() % 10 == 0 && fx.player[i].stats().frags() >= 10)
                 ;   // draw later
             else
@@ -5271,38 +5270,36 @@ void Client::draw_playfield(int roomx, int roomy, int start_x, int start_y) {
     // draw any item pickups
     for (int i = 0; i < MAX_PICKUPS; i++)
         // used power-ups, not respawning, on my screen
-        if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning &&
-                    fx.item[i].px == roomx && fx.item[i].py == roomy) {
+        if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen(fx.item[i].px, fx.item[i].py)) {
             client_graphics.draw_pup(fx.item[i], time);
             if (fx.item[i].kind == Powerup::pup_deathbringer && (!replaying || !replay_paused && !replay_stopped))
-                client_graphics.create_smoke(fx.item[i].x + rand() % 30 - 15, fx.item[i].y + rand() % 30 - 5,
-                    fx.item[i].px, fx.item[i].py, time);
+                client_graphics.create_smoke(WorldCoords(fx.item[i].px, fx.item[i].py,
+                                                         fx.item[i].x + rand() % 30 - 15,
+                                                         fx.item[i].y + rand() % 30 - 5),
+                                             time);
         }
 
     // draw turbo effects
-    client_graphics.draw_turbofx(roomx, roomy, time);
+    client_graphics.draw_turbofx(time);
 
     // draw any dropped flags (use fx since flags don't move)
     for (int t = 0; t < 3; t++) {
         const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-            // not carried, on same screen
-            if (!fi->carried() && fi->position().px == roomx && fi->position().py == roomy) {
-                const int x = (fi->position().px - start_x) * plw + fi->position().x;
-                const int y = (fi->position().py - start_y) * plh + fi->position().y;
+            if (!fi->carried() && on_screen(fi->position().px, fi->position().py)) {
                 const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                     time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
-                client_graphics.draw_flag(t, x, y, flash);
+                client_graphics.draw_flag(t, fi->position(), flash);
             }
     }
 
     // draw any rockets
     for (int i = 0; i < MAX_ROCKETS; i++)
-        if (fx.rock[i].owner != -1 && fx.rock[i].px == roomx && fx.rock[i].py == roomy) {
+        if (fx.rock[i].owner != -1 && on_screen(fx.rock[i].px, fx.rock[i].py)) {
             fd.rock[i].team = fx.rock[i].team;
             fd.rock[i].power = fx.rock[i].power;
             const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
-            const bool shadow = !fd.map.room[roomx][roomy].fall_on_wall(
+            const bool shadow = !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(
                 static_cast<int>(fd.rock[i].x), static_cast<int>(fd.rock[i].y) + radius + 8, radius / 2);
             client_graphics.draw_rocket(fd.rock[i], shadow, time);
         }
@@ -5320,7 +5317,7 @@ void Client::draw_playfield(int roomx, int roomy, int start_x, int start_y) {
                 fd.player[i].visibility = limit;
         }
 
-        if (i != me && (fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && fx.player[i].roomx == roomx && fx.player[i].roomy == roomy))   // draw only players on my screen
+        if (i != me && (fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && on_screen(fx.player[i].roomx, fx.player[i].roomy)))
             draw_player(i, time);
     }
     if (me != -1) {
@@ -5336,34 +5333,28 @@ void Client::draw_playfield(int roomx, int roomy, int start_x, int start_y) {
             }
             static const double highlightTime = .5;
             if (menu.options.graphics.spawnHighlight() && time - spawnTime < highlightTime)
-                client_graphics.draw_me_highlight(fd.player[me].lx, fd.player[me].ly, 1. - (time - spawnTime) / highlightTime);
+                client_graphics.draw_me_highlight(playerPos(me), 1. - (time - spawnTime) / highlightTime);
             if (fx.physics.gunDirectionMode != GDM_Locked && !replaying) { //#fix: add option
                 if (fx.physics.gunDirectionMode == GDM_Free)
                     refreshGunDir();
                 else
                     gunDir = fd.player[me].gundir;
-                client_graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], fd.player[me].lx, fd.player[me].ly, gunDir, me / TSIZE);
+                client_graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], playerPos(me), gunDir, me / TSIZE);
             }
         }
     }
 
     for (int i = 0; i < maxplayers; i++)
-        if ((fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && fx.player[i].roomx == roomx && fx.player[i].roomy == roomy) && fx.player[i].item_deathbringer) {
-                const int x = static_cast<int>((fx.player[i].roomx - start_x) * plw + fd.player[i].lx);
-                const int y = static_cast<int>((fx.player[i].roomy - start_y) * plh + fd.player[i].ly);
-                client_graphics.draw_deathbringer_carrier_effect(x, y, calculatePlayerAlpha(i));
-            }
+        if ((fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && on_screen(fx.player[i].roomx, fx.player[i].roomy)) && fx.player[i].item_deathbringer)
+            client_graphics.draw_deathbringer_carrier_effect(playerPos(i), calculatePlayerAlpha(i));
 
-    client_graphics.draw_effects(roomx, roomy, time);
+    client_graphics.draw_effects(time);
 
     if (menu.options.game.showNames())  // Draw player names but not for invisible enemies.
         for (int i = 0; i < maxplayers; i++)
             if (!fx.player[i].dead && (fx.player[i].onscreen && (fx.player[i].visibility >= 200 || i / TSIZE == me / TSIZE) && !replaying ||
-                  replaying && fx.player[i].used && fx.player[i].roomx == roomx && fx.player[i].roomy == roomy)) {
-                const int ttx = static_cast<int>((fx.player[i].roomx - start_x) * plw + fd.player[i].lx);
-                const int tty = static_cast<int>((fx.player[i].roomy - start_y) * plh + fd.player[i].ly);
-                client_graphics.draw_player_name(fx.player[i].name, ttx, tty, i / TSIZE, i == me);
-            }
+                                       replaying && fx.player[i].used && on_screen(fx.player[i].roomx, fx.player[i].roomy)))
+                client_graphics.draw_player_name(fx.player[i].name, playerPos(i), i / TSIZE, i == me);
 
     client_graphics.endPlayfieldDraw();
 }
@@ -5380,21 +5371,18 @@ int Client::calculatePlayerAlpha(int pid) const {
 void Client::draw_player(int pid, double time) {
     ClientPlayer& player = fx.player[pid];
     const int alpha = calculatePlayerAlpha(pid);
-    const int roomx = replaying ? current_room.first  : fx.player[me].roomx;
-    const int roomy = replaying ? current_room.second : fx.player[me].roomy;
-    const int x = static_cast<int>((player.roomx - roomx) * plw + fd.player[pid].lx);
-    const int y = static_cast<int>((player.roomy - roomy) * plh + fd.player[pid].ly);
+    const WorldCoords pos = playerPos(pid);
     // draw flag if player is carrier of a flag
     for (int t = 0; t < 2; t++)
         for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
             if (fi->carrier() == pid)
-                client_graphics.draw_flag(t, x, y);
+                client_graphics.draw_flag(t, pos);
     for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
         if (fi->carrier() == pid)
-            client_graphics.draw_flag(2, x, y);
+            client_graphics.draw_flag(2, pos);
     if (player.dead) {  // draw only ice creams
         if (player.stats().frags() % 10 == 0 && player.stats().frags() >= 10)
-            client_graphics.draw_virou_sorvete(x, y);
+            client_graphics.draw_virou_sorvete(pos);
     }
     else {
         if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
@@ -5402,25 +5390,25 @@ void Client::draw_player(int pid, double time) {
             if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
                         time > player.next_turbo_effect_time) {
                 player.next_turbo_effect_time = time + 0.05;
-                client_graphics.create_turbofx(static_cast<int>(fd.player[pid].lx), static_cast<int>(fd.player[pid].ly), player.roomx, player.roomy, player.team(), player.color(), player.gundir, alpha, time);
+                client_graphics.create_turbofx(pos, player.team(), player.color(), player.gundir, alpha, time);
             }
 
             //draw player
-            client_graphics.draw_player(x, y, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
+            client_graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
         }
 
         //draw deathbringer carrier effect
         if (player.item_deathbringer && time > player.next_smoke_effect_time) {
             player.next_smoke_effect_time = time + 0.01;
             for (int i = 0; i < 2; i++)
-                client_graphics.create_deathcarrier(static_cast<int>(fd.player[pid].lx) + rand() % 40 - 20, static_cast<int>(fd.player[pid].ly) + rand() % 40, player.roomx, player.roomy, alpha, time);
+                client_graphics.create_deathcarrier(pos, alpha, time);
         }
         // draw deathbringer affected effect
         if (player.deathbringer_affected)
-            client_graphics.draw_deathbringer_affected(x, y, player.team(), alpha);
+            client_graphics.draw_deathbringer_affected(pos, player.team(), alpha);
         // shield
         if (player.item_shield)
-            client_graphics.draw_shield(x, y, PLAYER_RADIUS + SHIELD_RADIUS_ADD, alpha, player.team(), player.gundir);
+            client_graphics.draw_shield(pos, PLAYER_RADIUS + SHIELD_RADIUS_ADD, alpha, player.team(), player.gundir);
     }
 }
 

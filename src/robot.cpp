@@ -1456,6 +1456,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
             ny = fi->position().py;
         }
 
+        nAssert(nx < fx.map.w && ny < fx.map.h);
         label = fx.map.room[nx][ny].label[num];
         if (label == -1)
             continue;
