@@ -1448,6 +1448,8 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
         // this flag is ok
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
+            if (!pl.used || pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
+                continue;
             nx = pl.roomx;
             ny = pl.roomy;
         }
