@@ -1348,8 +1348,12 @@ void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection g
     line(drawbuf,
          x0 + static_cast<int>(gdx * minDist), y0 + static_cast<int>(gdy * minDist),
          x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist),
-         colour(Colour::aim_line));
-    circlefill(drawbuf, x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist), pf_scale(ROCKET_RADIUS * .5), colour(Colour::aim_dot));
+         colour(team == 0 ? Colour::aim_line_red : Colour::aim_line_blue));
+    circlefill(drawbuf,
+               x0 + static_cast<int>(gdx * maxDist),
+               y0 + static_cast<int>(gdy * maxDist),
+               pf_scale(ROCKET_RADIUS * .5),
+               colour(team == 0 ? Colour::aim_dot_red : Colour::aim_dot_blue));
 }
 
 void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
