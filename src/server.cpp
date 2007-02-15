@@ -1436,6 +1436,8 @@ void Server::simulate_and_broadcast_frame() {
             if (pl.item_shield) byte |= (1 << 3);
             if (pl.item_turbo) byte |= (1 << 4);
             if (pl.item_power) byte |= (1 << 5);
+            const bool preciseGundir = world.physics.gunDirectionMode != GDM_Locked;
+            if (preciseGundir) byte |= (1 << 6);
 
             /*if (pl.record_position) */byte |= (1 << 7);
             write(temp_frame, byte);
@@ -1457,8 +1459,18 @@ void Server::simulate_and_broadcast_frame() {
                 byte = pl.controls.toNetwork(true);
             else
                 byte = ClientControls().toNetwork(true);
-            byte |= pl.gundir.toNetworkShortForm() << 5;
-            write(temp_frame, byte);
+
+            if (preciseGundir) {
+                const NLushort gundir = pl.gundir.toNetworkLongForm();
+                byte |= (gundir >> 8) << 5;
+                write(temp_frame, byte);
+                byte = gundir & 0xFF;
+                write(temp_frame, byte);
+            }
+            else {
+                byte |= pl.gundir.toNetworkShortForm() << 5;
+                write(temp_frame, byte);
+            }
 
             byte = pl.visibility;
             write(temp_frame, byte);

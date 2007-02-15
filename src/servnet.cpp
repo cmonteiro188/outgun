@@ -2932,7 +2932,7 @@ void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte
                   && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
                 server->send_message(world.player[i].cid, lebuf, count);
 
-        if (iProto == 0)
+        if (iProto == 1)
             record_message(lebuf, count);
     }
 }

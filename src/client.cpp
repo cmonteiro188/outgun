@@ -1986,6 +1986,7 @@ int Client::process_replay_frame_data(const char* data, int length) { // returns
         pl.item_shield = (byte & (1 << 3)) != 0;
         pl.item_turbo = (byte & (1 << 4)) != 0;
         pl.item_power = (byte & (1 << 5)) != 0;
+        const bool preciseGundir = (byte & (1 << 6)) != 0;
 
         const bool position_data = (byte & (1 << 7)) != 0;
         if (position_data) {
@@ -2015,7 +2016,13 @@ int Client::process_replay_frame_data(const char* data, int length) { // returns
         readByte(data, count, byte);
         pl.controls.fromNetwork(byte, true);
 
-        pl.gundir.fromNetworkShortForm(byte >> 5);
+        if (preciseGundir) {
+            NLubyte extraGundirBits;
+            readByte(data, count, extraGundirBits);
+            pl.gundir.fromNetworkLongForm(((byte >> 5) << 8) | extraGundirBits);
+        }
+        else
+            pl.gundir.fromNetworkShortForm(byte >> 5);
 
         readByte(data, count, byte);
         pl.visibility = byte;
