@@ -2617,7 +2617,44 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
             applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
+void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) {
+    // this function is heavily copied from applyPhysicsToRoom; any changes should be made primarily there //#fix: refactor?
+
+    double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
+    for (;;) {
+        const BounceData bounce = getTimeTillBounce(map.room[pl.roomx][pl.roomy], pl, plyRadius, fraction);
+        const double bounceTime = bounce.first + subFrame;
+        const double mt = min(fraction, max(bounceTime, subFrame + .01)); // mt is where subFrame will be advanced to for the next round
+        const double plTime = min(bounceTime - .001, mt);
+        if (plTime > subFrame) {
+            pl.move(plTime - subFrame);
+            bool rch = false;
+            double tb = 0; // time to take back: used if room changed; initialized to please GCC
+            if      (pl.lx <   0) { rch = true; pl.roomx = (pl.roomx - 1 + map.w) % map.w; nAssert(pl.sx < 0); tb = pl.lx / pl.sx; pl.lx += plw; }
+            else if (pl.lx > plw) { rch = true; pl.roomx = (pl.roomx + 1        ) % map.w; nAssert(pl.sx > 0); pl.lx -= plw; tb = pl.lx / pl.sx; }
+            if      (pl.ly <   0) { rch = true; pl.roomy = (pl.roomy - 1 + map.h) % map.h; nAssert(pl.sy < 0); tb = max(tb, pl.ly / pl.sy); pl.ly += plh; }
+            else if (pl.ly > plh) { rch = true; pl.roomy = (pl.roomy + 1        ) % map.h; nAssert(pl.sy > 0); pl.ly -= plh; tb = max(tb, pl.ly / pl.sy); }
+            if (rch) {
+                // take back the time by which the player went over the edge and reapply in the new room
+                pl.move(-tb);
+                #ifdef EXTRA_DEBUG
+                nAssert(fabs(fmod(pl.lx + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.ly + plh / 2, plh) - plh / 2) < .001);
+                #endif
+                subFrame = max(plTime - tb, subFrame + .01); // ensure progress
+                continue;
+            }
+        }
+        subFrame = mt;
+        if (subFrame > fraction - .001)
+            break;
+        executeBounce(pl, bounce.second, plyRadius);
+        //callback.playerHitWall(bPly); // should be enabled (maybe other callbacks too) if the client ever needs to (indirectly) execute this method
+    }
+}
+
 void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction) {
+    // many changes in this method should also be made in applyPhysicsToPlayerInIsolation
+
     vector<BounceData> plyMoveMax;  // plyMoveMax changes when player bounces
     vector<double> rockMoveMax; // rockMoveMax is fixed
 
@@ -2725,14 +2762,24 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             if (callback.gatherMovementDistance())
                 callback.addMovementDistance(rply[pi], (plTime - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
             bool rch = false;
+            double tb = 0; // time to take back: used if room changed; initialized to please GCC
             if (callback.allowRoomChange()) {
-                if (pl.lx <   0) { nAssert(pl.sx != 0); pl.ly -=  pl.lx     *pl.sy/pl.sx; pl.lx = plw; rch = true; if (--pl.roomx <      0) pl.roomx = map.w - 1; }
-                if (pl.lx > plw) { nAssert(pl.sx != 0); pl.ly -= (pl.lx-plw)*pl.sy/pl.sx; pl.lx =   0; rch = true; if (++pl.roomx >= map.w) pl.roomx =         0; }
-                if (pl.ly <   0) { nAssert(pl.sy != 0); pl.lx -=  pl.ly     *pl.sx/pl.sy; pl.ly = plh; rch = true; if (--pl.roomy <      0) pl.roomy = map.h - 1; }
-                if (pl.ly > plh) { nAssert(pl.sy != 0); pl.lx -= (pl.ly-plh)*pl.sx/pl.sy; pl.ly =   0; rch = true; if (++pl.roomy >= map.h) pl.roomy =         0; }
+                if      (pl.lx <   0) { rch = true; pl.roomx = (pl.roomx - 1 + map.w) % map.w; nAssert(pl.sx < 0); tb = pl.lx / pl.sx; pl.lx += plw; }
+                else if (pl.lx > plw) { rch = true; pl.roomx = (pl.roomx + 1        ) % map.w; nAssert(pl.sx > 0); pl.lx -= plw; tb = pl.lx / pl.sx; }
+                if      (pl.ly <   0) { rch = true; pl.roomy = (pl.roomy - 1 + map.h) % map.h; nAssert(pl.sy < 0); tb = max(tb, pl.ly / pl.sy); pl.ly += plh; }
+                else if (pl.ly > plh) { rch = true; pl.roomy = (pl.roomy + 1        ) % map.h; nAssert(pl.sy > 0); pl.ly -= plh; tb = max(tb, pl.ly / pl.sy); }
             }
             if (rch) {
+                // take back the time by which the player went over the edge and reapply in the new room
+                pl.move(-tb);
+                #ifdef EXTRA_DEBUG
+                nAssert(fabs(fmod(pl.lx + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.ly + plh / 2, plh) - plh / 2) < .001);
+                #endif
+                applyPhysicsToPlayerInIsolation(pl, plyRadius, tb);
+
                 callback.playerScreenChange(rply[pi]);
+
+                // remove from this simulation
                 rply.erase(rply.begin() + pi);
                 plyMoveMax.erase(plyMoveMax.begin() + pi);
                 if (  bPlyI >= pi) { if (  bPlyI == pi)   bPlyI = -1; else --  bPlyI; }

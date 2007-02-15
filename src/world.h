@@ -764,6 +764,7 @@ class WorldBase {
     void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const; // returns pair(p1-dead, p2-dead)
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction);
+    void applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction);
 
     void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
 
