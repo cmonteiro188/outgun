@@ -1549,7 +1549,7 @@ void Graphics::draw_shield(const WorldCoords& pos, int r, int alpha, int team, G
             rotate_sprite(drawbuf, sprite, plx + x - sprite->w / 2, ply + y - sprite->h / 2, direction.toFixed());
         return;
     }
-    const int v[] = { pf_scale(3), pf_scale(5), pf_scale(9) };
+    const int v[] = { pf_scale(2) + 1, pf_scale(4) + 1, pf_scale(8) + 1 };
     if (alpha < 255) {
         drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
         set_trans_blender(0, 0, 0, alpha);
