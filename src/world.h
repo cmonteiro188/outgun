@@ -399,7 +399,7 @@ public:
     int neg_score;
 
     virtual ~PlayerBase() { }
-    void move(double fraction) { lx += sx*fraction; ly += sy*fraction; }
+    void move(double fraction) { lx += sx * fraction; ly += sy * fraction; }
     void clear(bool enable, int _pid, const std::string& _name, int team_id);
 
     void set_team(int t) { team_nr = t; }
@@ -735,19 +735,19 @@ public:
     };
 
     virtual ~PhysicsCallbacksBase() { }
-    virtual bool collideToRockets() const =0;   // should player to rocket collisions be checked at all
+    virtual bool collideToRockets() const =0; // should player to rocket collisions be checked at all
     virtual bool collidesToRockets(int pid) const =0; // should player to rocket collisions be checked for player pid (if collideToRockets())
     virtual bool collidesToPlayers(int pid) const =0; // should player to player collisions be checked for player pid (with other players who collideToPlayers)
     virtual bool gatherMovementDistance() const =0; // should addMovementDistance be called with player movements
     virtual bool allowRoomChange() const =0;
-    virtual void addMovementDistance(int pid, double dist) =0;  // player pid has moved the distance dist
-    virtual void playerScreenChange(int pid) =0;    // player pid has moved to a new room (called max. once per frame per player)
-    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0;   // caller doesn't remove the rocket
-    virtual bool rocketHitPlayer(int rid, int pid) =0;  // returns true if player dies (to be removed from further simulation)
+    virtual void addMovementDistance(int pid, double dist) =0; // player pid has moved the distance dist
+    virtual void playerScreenChange(int pid) =0; // player pid has moved to a new room (called max. once per frame per player)
+    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0; // caller doesn't remove the rocket
+    virtual bool rocketHitPlayer(int rid, int pid) =0; // returns true if player dies (to be removed from further simulation)
     virtual void playerHitWall(int pid) =0;
     virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) =0;
     virtual void rocketOutOfBounds(int rid) =0; // caller doesn't remove the rocket
-    virtual bool shouldApplyPhysicsToPlayer(int pid) =0;    // returns true if physics should be run to player pid
+    virtual bool shouldApplyPhysicsToPlayer(int pid) =0; // returns true if physics should be run to player pid
     virtual bool is_bot(int pid) const { (void)pid; return false; }
 };
 

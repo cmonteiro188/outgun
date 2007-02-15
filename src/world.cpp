@@ -2623,9 +2623,9 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 
     typedef unsigned int uint;  // for loop counters, to avoid the brainless 'signed vs unsigned comparison' warning by G++
 
-    for (vector<int>::const_iterator pi=rply.begin(); pi!=rply.end(); ++pi)
+    for (vector<int>::const_iterator pi = rply.begin(); pi != rply.end(); ++pi)
         plyMoveMax.push_back(getTimeTillBounce(room, player[*pi], plyRadius, fraction));
-    for (vector<int>::const_iterator ri=rrock.begin(); ri!=rrock.end(); ++ri)
+    for (vector<int>::const_iterator ri = rrock.begin(); ri != rrock.end(); ++ri)
         rockMoveMax.push_back(getTimeTillWall(room, rock[*ri], fraction));
 
     double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
