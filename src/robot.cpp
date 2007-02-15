@@ -1382,7 +1382,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
         if (fi->carried() && team == 2) // wild flags can be enemy or friend
             enemy = (fx.player[fi->carrier()].team() == team);
 
-        if (fi->carried()) { // our flag carried, is there near our forces
+        if (fi->carried() && !enemy) { // our flag carried, is there near our forces
             const ClientPlayer& pl = fx.player[fi->carrier()];
             if (!pl.used || pl.roomx < 0 || pl.roomy < 0 ||
                 pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
@@ -1425,6 +1425,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
             ny = fi->position().py;
         }
 
+        nAssert(nx < fx.map.w && ny < fx.map.h);
         label = fx.map.room[nx][ny].label[num];
         if (label == -1)
             continue;
