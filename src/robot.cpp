@@ -725,17 +725,15 @@ int Client::Teams(int x, int y, int& en, int& fr) const {
     return me_nr;
 }
 
-bool Client::AmILast(void) const {
+bool Client::AmILast() const {
     const int x = fx.player[me].roomx;
     const int y = fx.player[me].roomy;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || pl.roomx != x || pl.roomy != y || pl.dead)
             continue;
-        if (pl.team() == fx.player[me].team()) {
-	    if (i > me)
-		return false; /* i am not last one */
-        }
+        if (pl.team() == fx.player[me].team() && i > me)
+            return false; // i am not last one
     }
     return true;
 }
@@ -1167,14 +1165,13 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
             if (routing[num] == Route_Base) {
                 int enemies = 0;
                 int friends = 0;
-                if (Teams(route_x[num], route_y[num], enemies, friends) >= 0)
-                    friends --;
-                
+                if (Teams(route_x[num], route_y[num], enemies, friends) > 0)
+                    friends--;
+
                 if (friends) { // if we are going to base where is already our forces, forget it
-		    if (((route_x[num] != fx.player[me].roomx) ||
-			(route_y[num] != fx.player[me].roomy)) || AmILast())
-			TargetFog(num);
-		}
+                    if (route_x[num] != fx.player[me].roomx || route_y[num] != fx.player[me].roomy || AmILast())
+                        TargetFog(num);
+                }
             }
             else
                 TargetFog(num);
@@ -1484,16 +1481,16 @@ int Client::TargetFog(RouteTable num) {
     for (int i = 0; i < 4; i++) {
         int x = roomx;
         int y = roomy;
-	int enemies = 0;
-	int friends = 0;
+        int enemies = 0;
+        int friends = 0;
         const Room& room = fx.map.room[x][y];
         if (!room.pass[i])
             continue;
         next_room(x, y, i);
-	if (Teams(x, y, enemies, friends)>=0)
-	    friends --;
-	if (friends && !enemies) /* our sector */
-	    continue;
+        if (Teams(x, y, enemies, friends) >= 0)
+            friends--;
+        if (friends && !enemies) // our sector
+            continue;
         delta = fabs(fx.frame - fx.map.room[x][y].visited_frame);
         if (delta >= max_delta) {
             max_delta = delta;
