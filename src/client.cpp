@@ -636,7 +636,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     client_graphics(log),
     screenshot(false),
     replaying(false),
-    visible_rooms(0),
+    visible_rooms(1),
     spectating(false),
     spectate_socket(0),
     #endif
