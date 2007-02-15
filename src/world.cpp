@@ -1517,13 +1517,14 @@ void WorldSettings::reset() {
     shadow_minimum = shadow_minimum_normal;
     rocket_damage = 70;
     start_health = start_energy = 100;
+    health_max = energy_max = 300;
     min_health_for_run_penalty = 40;
-    health_regeneration_0to100 = 10.;
-    energy_regeneration_0to100 = 10.;
-    health_regeneration_100to200 = 1.;
-    energy_regeneration_100to200 = 5.;
-    health_regeneration_200to300 = 0.;
-    energy_regeneration_200to300 = 0.;
+    health_regeneration_0_to_100 = 10.;
+    energy_regeneration_0_to_100 = 10.;
+    health_regeneration_100_to_200 = 1.;
+    energy_regeneration_100_to_200 = 5.;
+    health_regeneration_200_to_max = 0.;
+    energy_regeneration_200_to_max = 0.;
     run_health_degradation = run_energy_degradation = 15.;
     shooting_energy_base = 7.;
     shooting_energy_per_extra_rocket = 1.;
@@ -2850,17 +2851,17 @@ static bool doRegenerate(double& var, double limit, double speed, double& timeLe
 
 void ServerWorld::regenerateHealthOrEnergy(ServerPlayer& pl) {
     double timeLeft = .1; // 1 frame
-    if (doRegenerate(pl.health, 100., config.health_regeneration_0to100, timeLeft))
+    if (doRegenerate(pl.health, min(config.health_max, 100), config.health_regeneration_0_to_100, timeLeft))
         return;
-    if (doRegenerate(pl.energy, 100., config.energy_regeneration_0to100, timeLeft))
+    if (doRegenerate(pl.energy, min(config.energy_max, 100), config.energy_regeneration_0_to_100, timeLeft))
         return;
-    if (doRegenerate(pl.energy, 200., config.energy_regeneration_100to200, timeLeft))
+    if (doRegenerate(pl.energy, min(config.energy_max, 200), config.energy_regeneration_100_to_200, timeLeft))
         return;
-    if (doRegenerate(pl.health, 200., config.health_regeneration_100to200, timeLeft))
+    if (doRegenerate(pl.health, min(config.health_max, 200), config.health_regeneration_100_to_200, timeLeft))
         return;
-    if (doRegenerate(pl.energy, 300., config.energy_regeneration_200to300, timeLeft))
+    if (doRegenerate(pl.energy,     config.energy_max      , config.energy_regeneration_200_to_max, timeLeft))
         return;
-    doRegenerate(pl.health, 300., config.health_regeneration_200to300, timeLeft);
+    doRegenerate(    pl.health,     config.health_max      , config.health_regeneration_200_to_max, timeLeft);
 }
 
 void ServerWorld::degradeHealthOrEnergyForRunning(ServerPlayer& pl) {
@@ -3037,30 +3038,18 @@ void ServerWorld::simulateFrame() {
         //megahealth bonus:
         if (pl.megabonus > 0)
             for (int mh = 0; mh < 5; mh++) {
-                if (pl.megabonus > 0 && pl.health < 300) {
+                if (pl.megabonus > 0 && pl.health < config.health_max) {
                     pl.health++;
                     pl.megabonus--;
                 }
-                if (pl.megabonus > 0 && pl.energy < 300) {
+                if (pl.megabonus > 0 && pl.energy < config.energy_max) {
                     pl.energy++;
                     pl.megabonus--;
                 }
             }
         // new limit - don't store megabonuses
-        if (pl.health == 300 && pl.energy == 300)
+        if (pl.health == config.health_max && pl.energy == config.energy_max)
             pl.megabonus = 0;
-
-        //limit health 0...300
-        if (pl.health < 0)
-            pl.health = 0;
-        else if (pl.health > 300)
-            pl.health = 300;
-
-        //limit energy 0...300
-        if (pl.energy < 0)
-            pl.energy = 0;
-        else if (pl.energy > 300)
-            pl.energy = 300;
 
         //---------------------------------
         // check game object collisions
@@ -3079,6 +3068,16 @@ void ServerWorld::simulateFrame() {
                 if (dx * dx + dy * dy < touchRadius * touchRadius)
                     game_touch_pickup(i, k);
             }
+
+        // limit health and energy (after pickups because they might have an effect)
+        if (pl.health < 0)
+            pl.health = 0;
+        else if (pl.health > config.health_max)
+            pl.health = config.health_max;
+        if (pl.energy < 0)
+            pl.energy = 0;
+        else if (pl.energy > config.energy_max)
+            pl.energy = config.energy_max;
 
         // Flag steal - touch other team's flag or wild flag
         // ft = 0 => Touch enemy flag

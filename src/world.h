@@ -845,9 +845,10 @@ public:
     int rocket_damage;
     int start_health, start_energy;
     int min_health_for_run_penalty;
-    double health_regeneration_0to100, energy_regeneration_0to100,
-           health_regeneration_100to200, energy_regeneration_100to200,
-           health_regeneration_200to300, energy_regeneration_200to300;
+    int health_max, energy_max;
+    double health_regeneration_0_to_100, energy_regeneration_0_to_100,
+           health_regeneration_100_to_200, energy_regeneration_100_to_200,
+           health_regeneration_200_to_max, energy_regeneration_200_to_max;
     double run_health_degradation, run_energy_degradation;
     double shooting_energy_base, shooting_energy_per_extra_rocket;
     double hit_stun_time;
