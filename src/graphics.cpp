@@ -138,7 +138,10 @@ void Graphics::make_layout() {
     const int bottombar_h = 3 * (text_height(font) + 2) + 5;
     if (SCREEN_H < scr_mul * plh + bottombar_h + text_height(font))          // the window is too low for playground and one line for messages
         scr_mul = static_cast<double>(SCREEN_H - bottombar_h - text_height(font)) / plh;
-    playfield_x = plx = 0;
+    if (!show_minimap && !show_scoreboard)
+        playfield_x = plx = (SCREEN_W - scale(plw)) / 2;
+    else
+        playfield_x = plx = 0;
     playfield_y = ply = SCREEN_H - scale(plh) - bottombar_h;
     roombg.free();
     roombg = create_sub_bitmap(background, playfield_x, playfield_y, static_cast<int>(ceil(scr_mul * plw)), static_cast<int>(ceil(scr_mul * plh)));
