@@ -1730,18 +1730,25 @@ void Graphics::draw_loading_map_message(const string& text) {
 }
 
 void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
-    int c;
-    switch (team) {
-    /*break;*/ case 0: case 1: c = teamlcol[team];
-        break; default: c = colour(Colour::game_draw);
-    }
+    const int c = team == 0 || team == 1 ? teamlcol[team] : colour(Colour::game_draw);
     print_text_border_centre_check_bg(text, playfield_x + scale(plw / 2), playfield_y + scale(plh / 2 - 40), c, colour(Colour::text_border), -1);
     print_text_border_centre_check_bg(_("SCORE $1 - $2", itoa(score1), itoa(score2)), playfield_x + scale(plw / 2), playfield_y + scale(plh / 2 - 20), c, colour(Colour::text_border), -1);
 }
 
 void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
-    if (!show_scoreboard)
+    if (!show_scoreboard) {     // show only the team scores in full screen mode
+        int c;
+        if (teams[0].score() > teams[1].score())
+            c = colour(Colour::team_red_light);
+        else if (teams[0].score() < teams[1].score())
+            c = colour(Colour::team_blue_light);
+        else
+            c = colour(Colour::game_draw);
+        ostringstream ost;
+        ost << teams[0].score() << " - " << teams[1].score();
+        print_text_border_check_bg(ost.str(), time_x - text_length(font, ost.str()), time_y + text_height(font), c, colour(Colour::text_border), -1);
         return;
+    }
 
     const int place_width = scoreboard_x2 - scoreboard_x1 + 1;
     const int y_space = scoreboard_y2 - scoreboard_y1 + 1;
