@@ -2114,8 +2114,13 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
             //            Average        Tournament
             //  Playtime lifetime    rank  power  score
             // |00000 min   00:00    0000  00.00 -00000 |
-            stats << setw(5) << static_cast<int>(st.playtime(time)) / 60 << " min"
-                  << setw(5) << static_cast<int>(st.average_lifetime(time)) / 60 << ':'
+            stats << setw(5);
+            const int playtime = static_cast<int>(st.playtime(time));
+            if (playtime > 2 * 60 * 60)
+                stats << playtime / 60 / 60 << " h  ";
+            else
+                stats << playtime / 60 << " min";
+            stats << setw(5) << static_cast<int>(st.average_lifetime(time)) / 60 << ':'
                   << setw(2) << setfill('0') << static_cast<int>(st.average_lifetime(time)) % 60 << setfill(' ');
             if (player.reg_status.masterAuth()) {
                 stats << setw(8) << player.rank
