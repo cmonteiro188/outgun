@@ -151,6 +151,8 @@ private:
     unsigned        newUniqueId;
     std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
+    NLulong         accelerationModeMask;
+
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
     NLaddress relay_address;
@@ -208,6 +210,7 @@ public:
     void send_player_crap_update(int cid, int pid);
     void broadcast_player_crap(int pid);
     void broadcast_team_change(int from, int to, bool swap) const;
+    void send_acceleration_modes(int pid) const;
 
     void broadcast_reset_map_list();
     void broadcast_current_map(int mapNr) const;

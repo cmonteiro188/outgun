@@ -256,16 +256,6 @@ private:
     PhysicalSettings::PlayerCollisions* var;
 };
 
-class GS_ControlMode : public GamemodSetting {
-public:
-    GS_ControlMode(const std::string& name, PhysicalSettings* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
-
-private:
-    PhysicalSettings* var;
-};
-
 class GS_Percentage : public GamemodSetting {
 public:
     GS_Percentage(const std::string& name, double* pVar) : GamemodSetting(name), var(pVar) { }

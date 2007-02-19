@@ -92,8 +92,6 @@ static const std::string::size_type max_chat_message_length = 200; // How long m
 enum DamageType { DT_rocket, DT_deathbringer, DT_collision };
 
 enum AccelerationMode { AM_World, AM_Gun };
-enum GunDirectionMode { GDM_Locked, GDM_Free, GDM_Gradual };
-// GDM_Locked is traditional 8-way aim tied to acceleration (except with strafe) (requires AM_World), GDM_Free is freely adjusted precise, GDM_Gradual is precise with set amount of change per frame (requires AM_Gun)
 
 bool readJoystickButton(int button);    // operates on pseudo button ids that are Allegro button id + 1; returns false on all non-button-mapped indices
 

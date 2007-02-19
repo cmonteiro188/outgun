@@ -161,45 +161,6 @@ string GS_Collisions::get() {
     }
 }
 
-bool GS_ControlMode::set(LogSet& log, const std::string& value) {
-    if (value == "traditional") {
-        var->accelerationMode = AM_World;
-        var->gunDirectionMode = GDM_Locked;
-    }
-    else if (value == "uncoupled") {
-        var->accelerationMode = AM_World;
-        var->gunDirectionMode = GDM_Free;
-    }
-    else if (value == "coupled") {
-        var->accelerationMode = AM_Gun;
-        var->gunDirectionMode = GDM_Free;
-    }
-    else if (value == "turning") {
-        var->accelerationMode = AM_Gun;
-        var->gunDirectionMode = GDM_Gradual;
-    }
-    else
-        return basicErrorMessage(log, value, _("one of traditional, uncoupled, coupled, and turning"));
-    return true;
-}
-
-string GS_ControlMode::get() {
-    switch (var->gunDirectionMode) {
-    /*break;*/ case GDM_Locked:
-            nAssert(var->accelerationMode == AM_World);
-            return "traditional";
-        break; case GDM_Free:
-            if (var->accelerationMode == AM_World)
-                return "uncoupled";
-            else
-                return "coupled";
-        break; case GDM_Gradual:
-            nAssert(var->accelerationMode == AM_Gun);
-            return "turning";
-        break; default: nAssert(0);
-    }
-}
-
 bool GS_Percentage::set(LogSet& log, const string& value) {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));

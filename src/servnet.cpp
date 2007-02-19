@@ -87,6 +87,7 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     player_count(0),
     localPlayers(0),
     newUniqueId(0),
+    accelerationModeMask(0),
     maplist_revision(0),
     relay_socket(NL_INVALID),
     playerSlotReservationTime(get_time()),
@@ -278,6 +279,20 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
 //v0.4.5: broadcast player crap
 void ServerNetworking::broadcast_player_crap(int pid) {
     send_player_crap_update(pid_all, pid);
+}
+
+void ServerNetworking::send_acceleration_modes(int pid) const {
+    char lebuf[10]; int count = 0;
+    writeByte(lebuf, count, data_acceleration_modes);
+    writeLong(lebuf, count, accelerationModeMask);
+    if (pid != pid_all)
+        server->send_message(world.player[pid].cid, lebuf, count);
+    else {
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].protocolExtensionsLevel >= 0)
+                server->send_message(world.player[i].cid, lebuf, count);
+        record_message(lebuf, count);
+    }
 }
 
 void ServerNetworking::move_update_player(int a) {
@@ -1530,41 +1545,21 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
 
         GunDirection newDir;
         bool newDirReceived = false;
-        if (length >= count) {
+        if (count < length) {
             NLushort gd;
             readShort(data, count, gd);
-            newDir.fromNetworkLongForm(gd);
+            pl.accelerationMode = (gd & 0x800) != 0 && world.physics.allowFreeTurning ? AM_Gun : AM_World;
+            newDir.fromNetworkLongForm(gd & 0x7FF);
             newDirReceived = true;
         }
+        else
+            pl.accelerationMode = AM_World;
         if (!pl.dead) {
-            ClientControls& ctrl = pl.controls;
-            switch (world.physics.gunDirectionMode) {
-            /*break;*/ case GDM_Locked:
-                    if (!ctrl.isStrafe())
-                        pl.gundir.updateFromControls(ctrl);
-                break; case GDM_Gradual:
-                    if (pl.is_bot()) {
-                        if (!ctrl.isStrafe())
-                            pl.gundir.updateFromControls(ctrl);
-                        break;
-                    }
-                    if (!ctrl.isStrafe()) {
-                        if (ctrl.isLeft()) {
-                            pl.gundir.adjust(-world.physics.gunDirectionChangePerFrame / 16.);
-                            ctrl.clearLeft();
-                        }
-                        if (ctrl.isRight()) {
-                            pl.gundir.adjust(+world.physics.gunDirectionChangePerFrame / 16.);
-                            ctrl.clearRight();
-                        }
-                    }
-                break; case GDM_Free:
-                    if (newDirReceived)
-                        pl.gundir = newDir;
-                    else
-                        if (!ctrl.isStrafe())
-                            pl.gundir.updateFromControls(ctrl);
-            }
+            if (world.physics.allowFreeTurning && newDirReceived)
+                pl.gundir = newDir;
+            else
+                if (!pl.controls.isStrafe())
+                    pl.gundir.updateFromControls(pl.controls);
         }
     }
 
@@ -1774,10 +1769,8 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                     break;  // don't process the rest of the messages
                 }
                 world.player[pid].protocolExtensionsLevel = level;
-                char lebuf[10];
-                int count = 0;
-                writeByte(lebuf, count, data_set_extension_level);
-                server->send_message(id, lebuf, count);
+                send_simple_message(data_set_extension_level, pid);
+                send_acceleration_modes(pid);
             }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
@@ -1810,56 +1803,16 @@ void ServerNetworking::sendStartGame() const {
 
 //simulate and broadcast frame
 void ServerNetworking::broadcast_frame(bool gameRunning) {
-    // (2)  broadcast the frame
-    //
-    //      o pacote nao eh o mesmo pra todo mundo, entao nao eh broadcast
-    //      m uma parte que depende do player (tipo, qual o health do cara)
-    //
-    // server frame format:  (protocolo v0.4.1)
-    //
-    //  --- PRIMEIRA PARTE : igual pra todo mundo ----
-    //
-    //    LONG  frame
-    //
-    // --- SEGUNDA PARTE : varia p/ cada cliente -----
-    //
-    //      BYTE xtra   (bitfield)
-    //       0  health extra bit (+256)
-    //       1  energy extra bit (+256)
-    //       2  SKIP FRAME : no more frame data (depois desse byte)
-    //       3..7   "me" (0..31)
-    //    BYTE player screen(room) x
-    //    BYTE player screen(room) y
-    //    LONG players onscreen (bits 0..31 dizendo quais players[] estao na mesma room que eu)
-    //
-    //    ** E PARA CADA "PLAYER ONSCREEN", na ordem do bitfield, de 0 a 31:
-    //       3 BYTES   x e y
-    //       2 BYTES   sx e sy
-    //       BYTE   extra (bitfield)
-    //         0   player dead?
-    //         1   has deathbringer?
-    //         2   affected by deathbringer?
-    //         3   has shield?
-    //         4   has turbo?
-    //         5   has power?
-    //         6..7   FREE BITS
-    //       BYTE   keys (aceleracao/bitfield)
-    //           0   left?
-    //           1   right?
-    //           2   up?
-    //           3   down?
-    //           4   running? (SHIFT)
-    //           5..7   gundir  (direcao em que esta mirando)
-    //       BYTE   shadow alpha level
-    //
-    //    SHORT inimigos visiveis (0..15)  (bitfield)
-    //    BYTE  indice "V" do jogador que eu vou ficar sabendo agora (0-31)
-    //    BYTE  minimap x do player V
-    //    BYTE  minimap y do player V
-    //    BYTE  health base do jogador (primeiros 8 bits)
-    //    BYTE  energy base do jogador (primeiros 8 bits)
-    //    SHORT ping do jogador : world.player[frame % maxplayers].ping;
-    //
+    // check if player acceleration modes have changed
+    NLulong newMask = 0;
+    if (world.physics.allowFreeTurning)
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].accelerationMode == AM_Gun)
+                newMask |= NLulong(1) << i;
+    if (newMask != accelerationModeMask) {
+        accelerationModeMask = newMask;
+        send_acceleration_modes(pid_all);
+    }
 
     // ============================
     //   build common data buffer
@@ -2006,7 +1959,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         extra |= 16;
                     if (world.player[j].item_power)
                         extra |= 32;
-                    const bool preciseGundir = world.player[i].protocolExtensionsLevel >= 0 && world.physics.gunDirectionMode != GDM_Locked;
+                    const bool preciseGundir = world.player[i].protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
                     if (preciseGundir)
                         extra |= 64;
                     writeByte(lebuf, lecount, extra);
@@ -2911,7 +2864,7 @@ void ServerNetworking::sendWeaponPower(int pid) const {
 void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int team, bool power,
                                          int px, int py, int x, int y) const { // sid = shot-id; array of NLubyte[shots]
     for (int iProto = 0; iProto < 2; ++iProto) {
-        const bool preciseGundir = iProto == 1 && world.physics.gunDirectionMode != GDM_Locked;
+        const bool preciseGundir = iProto == 1 && world.physics.allowFreeTurning;
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, data_rocket_fire);
         writeByte(lebuf, count, shots);
@@ -2943,7 +2896,7 @@ void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte
 }
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const {
-    const bool preciseGundir = world.player[pid].protocolExtensionsLevel >= 0 && world.physics.gunDirectionMode != GDM_Locked;
+    const bool preciseGundir = world.player[pid].protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
     char lebuf[256]; int count = 0;
     const NLubyte shotType = (rocket.team << 1) | rocket.power;
     writeByte(lebuf, count, data_old_rocket_visible);

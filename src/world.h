@@ -364,8 +364,6 @@ public:
     double toRad() const { nAssert(data >= 0 && data <= 8); return data * N_PI_4; }
 
     bool operator!() const { return data < 0; }
-
-    GunDirection operator+(const GunDirection& o) const { double d = data + o.data; if (d < 0.) d += 8.; else if (d >= 8.) d -= 8; return GunDirection(d); }
 };
 
 class PlayerBase {
@@ -386,6 +384,8 @@ public:
     int roomx, roomy;
     double lx, ly, sx, sy;  // position within room and speed
     ClientControls controls;
+    AccelerationMode accelerationMode;
+
     GunDirection gundir;
 
 // get rid of (or move elsewhere)
@@ -715,9 +715,7 @@ public:
     double rocket_speed;
     double friendly_fire, friendly_db;
     enum PlayerCollisions { PC_none, PC_normal, PC_special } player_collisions;
-    AccelerationMode accelerationMode;
-    GunDirectionMode gunDirectionMode;
-    int gunDirectionChangePerFrame;
+    bool allowFreeTurning;
 
     double max_run_speed;   // max speed without turbo, for turbo effect in client
 
@@ -749,7 +747,6 @@ public:
     virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) =0;
     virtual void rocketOutOfBounds(int rid) =0; // caller doesn't remove the rocket
     virtual bool shouldApplyPhysicsToPlayer(int pid) =0; // returns true if physics should be run to player pid
-    virtual bool is_bot(int pid) const { (void)pid; return false; }
 };
 
 class WorldBase {
@@ -761,7 +758,7 @@ class WorldBase {
     static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius);
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius);
     void limitPlayerSpeed(PlayerBase& pl) const;  // hard limit to somewhat acceptable values; required to call when physically incorrect changes are made
-    void applyPlayerAcceleration(int pid, bool is_bot);
+    void applyPlayerAcceleration(int pid);
     void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const; // returns pair(p1-dead, p2-dead)
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction);

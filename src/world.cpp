@@ -1140,7 +1140,7 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& 
     return 1e99;
 }
 
-void WorldBase::applyPlayerAcceleration(int pid, bool is_bot) {
+void WorldBase::applyPlayerAcceleration(int pid) {
     PlayerBase* h = player[pid].getPtr();
 
     double player_accel = physics.accel;
@@ -1188,9 +1188,6 @@ void WorldBase::applyPlayerAcceleration(int pid, bool is_bot) {
     double sideAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
     double forwAcc = (h->controls.isUp   () ? 1 : 0) - (h->controls.isDown() ? 1 : 0);
 
-    if (physics.gunDirectionMode == GDM_Gradual && !h->controls.isStrafe() && !is_bot)
-        sideAcc = 0;
-
     if (sideAcc == 0 && forwAcc == 0)
         return;
     if (sideAcc != 0 && forwAcc != 0) {   // normalize the total acceleration vector
@@ -1199,7 +1196,7 @@ void WorldBase::applyPlayerAcceleration(int pid, bool is_bot) {
     }
 
     double xAcc, yAcc;
-    if (physics.accelerationMode == AM_World || is_bot) {
+    if (h->accelerationMode == AM_World || !physics.allowFreeTurning) {
         xAcc = sideAcc;
         yAcc = -forwAcc;
     }
@@ -1362,9 +1359,9 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, G
     }
     const int* dirp = &form.directions[0];
     for (int ri = form.nForward; ri < pow; ++ri, ++dirp) {
-        GunDirection diff;
-        diff.from8way(*dirp);
-        addRocket(rids[ri], playernum, team, px, py, x, y, power, dir + diff, 0, frameAdvance, cb);
+        GunDirection adjusted = dir;
+        adjusted.adjust(*dirp);
+        addRocket(rids[ri], playernum, team, px, py, x, y, power, adjusted, 0, frameAdvance, cb);
     }
 }
 
@@ -1381,9 +1378,7 @@ PhysicalSettings::PhysicalSettings() :
     friendly_fire(0.),
     friendly_db(0.),
     player_collisions(PC_normal),
-    accelerationMode(AM_World),
-    gunDirectionMode(GDM_Locked),
-    gunDirectionChangePerFrame(8)
+    allowFreeTurning(false)
 {
     calc_max_run_speed();
 }
@@ -1408,20 +1403,14 @@ void PhysicalSettings::read(const char* lebuf, int& count) {
     NLubyte bitField;
     readByte(lebuf, count, bitField);
     player_collisions = static_cast<PlayerCollisions>(bitField & 0x03);
-    accelerationMode = static_cast<AccelerationMode>((bitField >> 2) & 0x01);
-    gunDirectionMode = static_cast<GunDirectionMode>((bitField >> 3) & 0x03);
+    allowFreeTurning = (bitField & 0x04) != 0;
 
     unsigned extraBytes = bitField >> 5;
     if (extraBytes == 7) {
         readByte(lebuf, count, bitField);
         extraBytes = unsigned(bitField) + 7;
     }
-    const int end = count + extraBytes;
-    if (count < end) {
-        readByte(lebuf, count, bitField);
-        gunDirectionChangePerFrame = (bitField & 0x1F) + 1;
-    }
-    count = end; // ignore data we don't understand
+    count += extraBytes; // ignore data we don't understand
 
     calc_max_run_speed();
 }
@@ -1438,9 +1427,8 @@ void PhysicalSettings::write(char* lebuf, int& count) const {
     safeWriteFloat(lebuf, count, friendly_fire);
     safeWriteFloat(lebuf, count, friendly_db);
     safeWriteFloat(lebuf, count, rocket_speed);
-    const unsigned extraBytes = 1;
-    writeByte(lebuf, count, player_collisions | (accelerationMode << 2) | (gunDirectionMode << 3) | (extraBytes << 5));
-    writeByte(lebuf, count, gunDirectionChangePerFrame - 1);
+    const unsigned extraBytes = 0;
+    writeByte(lebuf, count, player_collisions | (allowFreeTurning << 2) | (extraBytes << 5));
 }
 
 void PowerupSettings::reset() {
@@ -1574,7 +1562,6 @@ public:
     PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) { return w.playerHitPlayerCallback(pid1, pid2, speed); }
     void rocketOutOfBounds(int rid) { w.rocketOutOfBoundsCallback(rid); }
     bool shouldApplyPhysicsToPlayer(int pid) { return w.shouldApplyPhysicsToPlayerCallback(pid); }
-    bool is_bot(int pid) const { return w.player[pid].is_bot(); }
 };
 
 void ServerWorld::reset() {
@@ -2600,7 +2587,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
         if (callback.shouldApplyPhysicsToPlayer(i)) {
             if (pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= map.w || pl.roomy >= map.h)
                 continue;   //#fix: remove this and track why these are given sometimes
-            applyPlayerAcceleration(i, callback.is_bot(i));
+            applyPlayerAcceleration(i);
             roomPly[pl.roomx][pl.roomy].push_back(i);
         }
     }

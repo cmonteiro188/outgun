@@ -241,8 +241,7 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
     cat.add(new GS_Double    ("respawn_balancing_time",      &worldConfig.respawn_balancing_time, 0.));
     cat.add(new GS_Double    ("spawn_safe_time",             &worldConfig.spawn_safe_time, 0.));
-    cat.add(new GS_ControlMode("control_mode",               &world.physics));
-    cat.add(new GS_Int       ("turning_speed",               &world.physics.gunDirectionChangePerFrame, 1, 16));
+    cat.add(new GS_Boolean   ("free_turning",                &world.physics.allowFreeTurning));
     categories.push_back(cat);
 
     cat = Category("health"  , "Health, energy and shooting");

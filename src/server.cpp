@@ -1436,7 +1436,7 @@ void Server::simulate_and_broadcast_frame() {
             if (pl.item_shield) byte |= (1 << 3);
             if (pl.item_turbo) byte |= (1 << 4);
             if (pl.item_power) byte |= (1 << 5);
-            const bool preciseGundir = world.physics.gunDirectionMode != GDM_Locked;
+            const bool preciseGundir = world.physics.allowFreeTurning;
             if (preciseGundir) byte |= (1 << 6);
 
             /*if (pl.record_position) */byte |= (1 << 7);
