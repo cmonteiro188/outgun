@@ -3388,6 +3388,13 @@ bool Client::process_message(const char* const lebuf, int msglen) {
     break; case data_set_extension_level:
         protocolExtensionsS2C = protocolExtensionsC2S;
 
+    break; case data_acceleration_modes: {
+        NLulong mask;
+        readLong(lebuf, count, mask);
+        for (int i = 0; i < maxplayers; ++i)
+            fx.player[i].accelerationMode = (mask & (1 << i)) ? AM_Gun : AM_World;
+    }
+
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
             log.error("Server sent an unknown message code: " + itoa(code) + ", length " + itoa(msglen));
