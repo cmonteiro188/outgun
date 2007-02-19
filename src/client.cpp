@@ -4985,34 +4985,25 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // player's power-ups
     if (me >= 0) {
-        if (fx.player[me].item_power) {
-            double val = fx.player[me].item_power_time - time;
-            if (val < 0) val = 0;
+        // player's power-ups
+        double val = fx.player[me].item_power_time - time;
+        if (val > 0)
             graphics.draw_player_power(val);
-        }
-        if (fx.player[me].item_turbo) {
-            double val = fx.player[me].item_turbo_time - time;
-            if (val < 0) val = 0;
+        val = fx.player[me].item_turbo_time - time;
+        if (val > 0)
             graphics.draw_player_turbo(val);
-        }
-        if (fx.player[me].item_shadow()) {
-            const double val = fx.player[me].item_shadow_time - time;
-            if (val > 0)
-                graphics.draw_player_shadow(val);
-        }
-
+        val = fx.player[me].item_shadow_time - time;
+        if (val > 0)
+            graphics.draw_player_shadow(val);
         graphics.draw_player_weapon(fx.player[me].weapon);
-    }
 
-    if (!replaying) {
-        if (want_change_teams)
-            graphics.draw_change_team_message(time);
-        if (want_map_exit)
-            graphics.draw_change_map_message(time, want_map_exit_delayed);
-    }
+        if (!replaying) {
+            if (want_change_teams)
+                graphics.draw_change_team_message(time);
+            if (want_map_exit)
+                graphics.draw_change_map_message(time, want_map_exit_delayed);
+        }
 
-    // the STATUSBAR : health energy, bars ....
-    if (me >= 0) {
         graphics.draw_player_health(fx.player[me].health);
         graphics.draw_player_energy(fx.player[me].energy);
     }
