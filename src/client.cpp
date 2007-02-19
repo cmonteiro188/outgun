@@ -4646,8 +4646,8 @@ void Client::bot_loop() {
     }
 
     if (mapChanged) {
-        BuildMap();
         mapChanged = false;
+        BuildMap();
     }
 
     ClientControls controls = Robot();
