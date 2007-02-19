@@ -30,7 +30,7 @@ public:
     virtual double read() = 0;
 };
 
-extern SystemTimer* g_systemTimer; // defined in globals.cpp; created in platInit()
+extern SystemTimer* g_systemTimer; // defined in timer.cpp; created in platInit()
 
 class TimeCounter { // usable only when g_systemTimer is, that is after platInit()
     double value, base;
