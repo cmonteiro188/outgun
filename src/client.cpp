@@ -52,34 +52,6 @@
 
 #include "client.h"
 
-/*
-class MutexDebug {
-    std::string mutexName;
-    LogSet& log;
-
-public:
-    MutexDebug(const std::string& name, int line, LogSet& log_) : mutexName(name), log(log_) {
-        lock(mutexName, line, log);
-    }
-    ~MutexDebug() {
-        unlock(mutexName, 0, log);
-    }
-    static void lock(const std::string& name, int line, LogSet& log) {
-        log("+++ %s @ %d thr %d", name.c_str(), line, pthread_self());
-    }
-    static void unlock(const std::string& name, int, LogSet& log) {
-        log("--- %s thr %d", name.c_str(), pthread_self());
-    }
-};
-*/
-class MutexDebug {
-public:
-    MutexDebug(const std::string&, int, LogSet&) { }
-    ~MutexDebug() { }
-    static void lock(const std::string&, int, LogSet&) { }
-    static void unlock(const std::string&, int, LogSet&) { }
-};
-
 using std::deque;
 using std::endl;
 using std::find;
@@ -976,7 +948,6 @@ void Client::send_client_ready() {
 #ifndef DEDICATED_SERVER_ONLY
 // incoming chunk of requested file by UDP
 void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
-    MutexDebug md("downloadMutex", __LINE__, log);
     MutexLock ml(downloadMutex);
     if (downloads.empty() || !downloads.front().isActive()) {
         log.error("Server sent a file we aren't expecting");
@@ -1048,7 +1019,6 @@ void Client::download_server_file(const string& type, const string& name) {
         return;
     }
 
-    MutexDebug md("downloadMutex", __LINE__, log);
     MutexLock ml(downloadMutex);
     const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + name + ".txt";
     downloads.push_back(FileDownload(type, name, fileName));
@@ -1261,7 +1231,6 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     #ifndef DEDICATED_SERVER_ONLY
     {
-        MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         maps.clear();
         mapListChangedAfterSort = true;
@@ -1338,7 +1307,6 @@ void Client::client_disconnected(const char* data, int length) {
     tournamentPassword.disconnectedFromServer();
 
     {
-        MutexDebug md("downloadMutex", __LINE__, log);
         MutexLock ml(downloadMutex);
         downloads.clear();
     }
@@ -2660,7 +2628,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 
     break; case data_reset_map_list: {
         #ifndef DEDICATED_SERVER_ONLY
-        MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         maps.clear();
         mapListChangedAfterSort = true;
@@ -2689,7 +2656,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         mapinfo.height = height;
         mapinfo.votes = votes;
         mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
-        MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         maps.push_back(mapinfo);
         mapListChangedAfterSort = true;
@@ -2708,7 +2674,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #ifndef DEDICATED_SERVER_ONLY
         NLbyte total, map_nr, votes;
         readByte(lebuf, count, total);
-        MutexDebug md("mapInfoMutex", __LINE__, log);
         MutexLock ml(mapInfoMutex);
         for (int i = 0; i < total; i++) {
             readByte(lebuf, count, map_nr);
@@ -3406,7 +3371,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 }
 
 void Client::process_incoming_data(const char* data, int length) {
-    MutexDebug md("frameMutex", __LINE__, log);
     MutexLock ml(frameMutex);
 
     if (!connected && !replaying) // means that the connection notification is still in the thread message queue
@@ -3592,7 +3556,6 @@ public:
 bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
     refreshStatus = RS_contacting;
 
-    MutexDebug::lock("serverListMutex", __LINE__, log);
     serverListMutex.lock();
 
     const int nServers = static_cast<int>(gamespy.size());
@@ -3605,7 +3568,6 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
     }
 
     serverListMutex.unlock();
-    MutexDebug::unlock("serverListMutex", __LINE__, log);
 
     if (pending == 0)
         return true;
@@ -3630,7 +3592,6 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
         }
 
         if (round < 4) {    // on first 4 rounds, packets are sent to each server
-            MutexDebug md("serverListMutex", __LINE__, log);
             MutexLock ml(serverListMutex);
             for (int i = 0; i < nServers; i++) {
                 int count = 0;
@@ -3671,7 +3632,6 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
                 if (index >= nServers || pack >= 4 || pack > round || len < count)  // don't have to worry about < 0 because they're unsigned
                     continue;
 
-                MutexDebug md("serverListMutex", __LINE__, log);
                 MutexLock ml(serverListMutex);
 
                 NLaddress from;
@@ -3694,7 +3654,6 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 
     // mark those that got no responses
     {
-        MutexDebug md("serverListMutex", __LINE__, log);
         MutexLock ml(serverListMutex);
         for (int i = 0; i < nServers; i++)
             if (tempd[i].received() == 0)
@@ -3868,7 +3827,6 @@ bool Client::parseServerList(istream& response) {
     if (!is || is.peek() != eof_ch || total_servers < 0 || total_servers > 10000)
         return false;
 
-    MutexDebug md("serverListMutex", __LINE__, log);
     MutexLock ml(serverListMutex);
 
     // Parse the successful response into the gamespy screen.
@@ -4762,7 +4720,6 @@ void Client::stop() {
         log.error(_("Can't open $1 for writing.", fileName));
 
     {
-        MutexDebug md("downloadMutex", __LINE__, log);
         MutexLock ml(downloadMutex);
         downloads.clear();
     }
@@ -4976,7 +4933,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         if (map_ready)
             graphics.draw_waiting_map_message(_("Waiting game start - next map is"), fx.map.title);
         else {
-            MutexDebug md("downloadMutex", __LINE__, log);
             MutexLock ml(downloadMutex);
             if (!downloads.empty() && downloads.front().isActive()) {
                 const string text = _("Loading map: $1 bytes", itoa(downloads.front().progress()));
@@ -5431,7 +5387,6 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
 void Client::draw_game_menu() {
     switch (menusel) {
     /*break;*/ case menu_maps: {
-            MutexDebug md("mapInfoMutex", __LINE__, log);
             MutexLock ml(mapInfoMutex);
             if (mapListChangedAfterSort) {
                 mapListChangedAfterSort = false;
@@ -5899,7 +5854,6 @@ void Client::MCF_prepareServerMenu() {
     menu.connect.reset();
     vector<NLaddress> addresses;
     const vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
-    MutexDebug::lock("serverListMutex", __LINE__, log);
     serverListMutex.lock();
     for (vector<ServerListEntry>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
         ostringstream info;
@@ -5940,7 +5894,6 @@ void Client::MCF_prepareServerMenu() {
                 addresses.push_back(spy->address());
             }
     serverListMutex.unlock();
-    MutexDebug::unlock("serverListMutex", __LINE__, log);
 
     typedef MenuCallback<Client> MCB;
     typedef MenuKeyCallback<Client> MKC;
