@@ -39,7 +39,6 @@
 #include "platform.h"
 #include "thread.h"
 #include "timer.h"
-#include "world.h"
 
 // implements:
 #include "server.h"

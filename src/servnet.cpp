@@ -34,6 +34,7 @@
 
 #include "leetnet/server.h"
 #include "leetnet/rudp.h"   // get_self_IP
+#include "server.h"
 #include "admshell.h"
 #include "debug.h"
 #include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
@@ -44,7 +45,6 @@
 #include "network.h"
 #include "platform.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
-#include "server.h"
 #include "servnet.h"
 #include "thread.h"
 #include "timer.h"

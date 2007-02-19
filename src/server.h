@@ -26,12 +26,12 @@
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
 
+#include "world.h"
 #include "gameserver_interface.h"
 #include "log.h"
 #include "auth.h"
 #include "servnet.h"
 #include "utility.h"
-#include "world.h"
 
 class Client; // bots are Clients
 class GamemodSetting;
