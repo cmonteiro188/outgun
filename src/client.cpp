@@ -2818,6 +2818,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             fx.teams[attacker_team].add_kill();
         }
         fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
+        fx.player[target].dead = true;
         fx.teams[target_team].add_death();
         if (flag) {
             if (!same_team && known_attacker)
@@ -2926,6 +2927,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         }
         #endif
         fx.player[pid].stats().add_suicide(static_cast<int>(time));
+        fx.player[pid].dead = true;
         fx.teams[team].add_suicide();
         if (flag) {
             fx.player[pid].stats().add_flag_drop(time);
@@ -3130,6 +3132,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         // todo: check id
         Statistics& stats = fx.player[id].stats();
         stats.set_flag(flag, wild_flag);
+        fx.player[id].dead = dead;
         stats.set_dead(dead);
         NLubyte data;
         readByte(lebuf, count, data);
