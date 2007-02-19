@@ -131,8 +131,8 @@ public:
     bool isUpDown   () const { return isUp  () != isDown (); }
     bool isLeftRight() const { return isLeft() != isRight(); }
 
-    bool operator==(const ClientControls& o) { return data == o.data; }
-    bool operator!=(const ClientControls& o) { return data != o.data; }
+    bool operator==(const ClientControls& o) const { return data == o.data; }
+    bool operator!=(const ClientControls& o) const { return data != o.data; }
 
     void clearModifiersIfIdle() { if (!isUpDown() && !isLeftRight()) data &= ~(run | strafe); }
 
