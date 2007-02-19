@@ -611,7 +611,7 @@ class Client {
     #ifndef DEDICATED_SERVER_ONLY
     int process_replay_frame_data(const char* data, int length); // returns number of bytes read
     #endif
-    void process_message(const char* const lebuf, int msglen);
+    bool process_message(const char* const lebuf, int msglen); // if returns false, discard the server/replay
     void process_incoming_data(const char* data, int length);
 
     #ifndef DEDICATED_SERVER_ONLY
