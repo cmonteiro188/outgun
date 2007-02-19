@@ -1855,6 +1855,15 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
         readByte(data, count, byt);
         h.visibility = byt;
 
+        if (i == me) {
+            if (!h.item_turbo)
+                fx.player[me].item_turbo_time = 0;
+            if (!h.item_power)
+                fx.player[me].item_power_time = 0;
+            if (h.visibility == 255)
+                fx.player[me].item_shadow_time = 0;
+        }
+
         if (!h.dead && (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag()))
             h.posUpdated = svframe;
     }
