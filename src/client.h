@@ -488,7 +488,7 @@ class Client {
     std::vector<std::string> highlight_text;
 
     bool stats_autoshowing;
-    Graphics client_graphics;
+    Graphics graphics;
     bool screenshot;
     bool replaying;
     std::ifstream replay;

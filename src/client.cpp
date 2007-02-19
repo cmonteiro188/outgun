@@ -191,7 +191,7 @@ class TM_GunexploEffect : public ThreadMessage {
 
 public:
     TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) : team(team_), pos(pos_), time(time_) { }
-    void execute(Client* cl) const { cl->client_graphics.create_gunexplo(pos, team, time); }
+    void execute(Client* cl) const { cl->graphics.create_gunexplo(pos, team, time); }
 };
 
 class TM_Deathbringer : public ThreadMessage {
@@ -201,7 +201,7 @@ class TM_Deathbringer : public ThreadMessage {
 
 public:
     TM_Deathbringer(int team_, double time_, const WorldCoords& pos_) : team(team_), pos(pos_), time(time_) { }
-    void execute(Client* cl) const { cl->client_graphics.create_deathbringer(pos, team, time); }
+    void execute(Client* cl) const { cl->graphics.create_deathbringer(pos, team, time); }
 };
 
 class TM_ServerSettings : public ThreadMessage {
@@ -633,7 +633,7 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #ifndef DEDICATED_SERVER_ONLY
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
-    client_graphics(log),
+    graphics(log),
     screenshot(false),
     replaying(false),
     visible_rooms(1),
@@ -870,7 +870,7 @@ bool Client::start() {
                     log("Bad screen mode in client.cfg");
                 else {
                     menu.options.screenMode.colorDepth.set(depth);    // may fail if the previous depth isn't available
-                    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+                    menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
                     if (!menu.options.screenMode.resolution.set(ScreenMode(width, height)))
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
                 }
@@ -946,11 +946,11 @@ bool Client::start() {
         menu.options.screenMode.flipping.set(extConfig.trypageflip);
     if (extConfig.targetfps != -1)
         menu.options.graphics.fpsLimit.set(extConfig.targetfps);
-    client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
-    client_graphics.set_min_transp(menu.options.graphics.minTransp());
+    graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
-    client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
-    client_graphics.select_font(menu.options.graphics.font());
+    graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    graphics.select_font(menu.options.graphics.font());
     if (!screenModeChange())
         return false;
 
@@ -1319,7 +1319,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     #ifndef DEDICATED_SERVER_ONLY
     //clear client side effects
-    client_graphics.clear_fx();
+    graphics.clear_fx();
 
     gunDir.from8way(0);
 
@@ -1573,7 +1573,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     stop_replay();
     if (!botmode && visible_rooms != 1) {
         visible_rooms = 1;
-        client_graphics.set_playfield_scale(1. / visible_rooms);
+        graphics.set_playfield_scale(1. / visible_rooms);
     }
     #endif
 
@@ -2471,7 +2471,7 @@ void Client::process_message(const char* const lebuf, int msglen) {
             const int team = rand() % 2;
             if (visible_rooms > fx.map.w && visible_rooms > fx.map.h) {
                 visible_rooms = max(fx.map.w, fx.map.h);
-                client_graphics.set_playfield_scale(1. / visible_rooms);
+                graphics.set_playfield_scale(1. / visible_rooms);
             }
             if (!fx.map.tinfo[team].flags.empty()) {
                 const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
@@ -3487,7 +3487,7 @@ void Client::print_message(Message_type type, const string& msg) {
             }
     }
     const vector<string> lines = split_to_lines(msg, 79, 4);
-    while (chatbuffer.size() > client_graphics.chat_max_lines() + lines.size())
+    while (chatbuffer.size() > graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
     for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
         Message message(type, *li, static_cast<int>(fx.frame / 10));
@@ -3511,7 +3511,7 @@ void Client::save_screenshot() {
     }
 
     string message;
-    if (client_graphics.save_screenshot(filename))
+    if (graphics.save_screenshot(filename))
         message = _("Saved screenshot to $1.", filename);
     else
         message = _("Could not save screenshot to $1.", filename);
@@ -3990,7 +3990,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             }
         }
         break; case KEY_F12:
-            client_graphics.toggle_full_playfield();
+            graphics.toggle_full_playfield();
             mapChanged = true;  // just to get minimap updated
         break; default:
             handled = false;
@@ -4010,12 +4010,12 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
     switch (menusel) {
     /*break;*/ case menu_maps:
             switch (sc) {
-            /*break;*/ case KEY_UP:     client_graphics.map_list_prev();
-                break; case KEY_DOWN:   client_graphics.map_list_next();
-                break; case KEY_PGUP:   client_graphics.map_list_prev_page();
-                break; case KEY_PGDN:   client_graphics.map_list_next_page();
-                break; case KEY_HOME:   client_graphics.map_list_begin();
-                break; case KEY_END:    client_graphics.map_list_end();
+            /*break;*/ case KEY_UP:     graphics.map_list_prev();
+                break; case KEY_DOWN:   graphics.map_list_next();
+                break; case KEY_PGUP:   graphics.map_list_prev_page();
+                break; case KEY_PGDN:   graphics.map_list_next_page();
+                break; case KEY_HOME:   graphics.map_list_begin();
+                break; case KEY_END:    graphics.map_list_end();
                 break; case KEY_BACKSPACE:
                     if (!edit_map_vote.empty())
                         edit_map_vote.erase(edit_map_vote.end() - 1);
@@ -4059,9 +4059,9 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
             return true;
         break; case menu_teams:
             if (sc == KEY_UP || sc == KEY_PGUP)
-                client_graphics.team_captures_prev();
+                graphics.team_captures_prev();
             else if (sc == KEY_DOWN || sc == KEY_PGDN)
-                client_graphics.team_captures_next();
+                graphics.team_captures_next();
             else
                 return false;
             return true;
@@ -4095,7 +4095,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 if (current_room.second == fx.map.h + 1 - visible_rooms && current_room.second > 0)
                     --current_room.second;
                 predrawNeeded = true;
-                client_graphics.set_playfield_scale(1. / visible_rooms);
+                graphics.set_playfield_scale(1. / visible_rooms);
                 mapChanged = true;  // just to get minimap updated
             }
         }
@@ -4103,7 +4103,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             if (visible_rooms > 1) {
                 --visible_rooms;
                 predrawNeeded = true;
-                client_graphics.set_playfield_scale(1. / visible_rooms);
+                graphics.set_playfield_scale(1. / visible_rooms);
                 mapChanged = true;  // just to get minimap updated
             }
         }
@@ -4114,9 +4114,9 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 replay_rate = 1;
             else {
                 if (withControl)
-                    client_graphics.reset_playground_colors();
+                    graphics.reset_playground_colors();
                 else
-                    client_graphics.random_playground_colors();
+                    graphics.random_playground_colors();
                 predrawNeeded = true;
             }
         break; case KEY_INSERT:
@@ -4297,7 +4297,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 handlePendingThreadMessages();
 
                 if (GlobalDisplaySwitchHook::readAndClear() && menu.options.screenMode.flipping()) {
-                    client_graphics.videoMemoryCorrupted();
+                    graphics.videoMemoryCorrupted();
                     predraw();
                 }
             }
@@ -4405,7 +4405,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             if (mapChanged) {
                 mapChanged = false;
-                client_graphics.update_minimap_background(fx.map);
+                graphics.update_minimap_background(fx.map);
                 predrawNeeded = true;
             }
             if (predrawNeeded) {
@@ -4413,7 +4413,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 predraw();
             }
 
-            client_graphics.startDraw();
+            graphics.startDraw();
             draw_game_frame();
 
             #ifdef ROOM_CHANGE_BENCHMARK
@@ -4421,8 +4421,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 quitCommand = true;
             #endif
         } else {
-            client_graphics.startDraw();
-            client_graphics.clear();
+            graphics.startDraw();
+            graphics.clear();
             if (!gameshow && openMenus.empty())
                 showMenu(menu);
         }
@@ -4440,8 +4440,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             draw_game_menu();
         }
 
-        client_graphics.endDraw();
-        client_graphics.draw_screen(!menu.options.screenMode.alternativeFlipping());
+        graphics.endDraw();
+        graphics.draw_screen(!menu.options.screenMode.alternativeFlipping());
         if (screenshot) {
             save_screenshot();
             screenshot = false;
@@ -4506,7 +4506,7 @@ bool Client::start_replay(istream& replay) {
     current_room = pair<int, int>();
     if (visible_rooms != 1) {
         visible_rooms = 1;
-        client_graphics.set_playfield_scale(1. / visible_rooms);
+        graphics.set_playfield_scale(1. / visible_rooms);
     }
 
     show_all_messages = false;
@@ -4559,7 +4559,7 @@ bool Client::start_replay(istream& replay) {
 
     gameover_plaque = NEXTMAP_NONE;
 
-    client_graphics.clear_fx();
+    graphics.clear_fx();
     gameshow = true;
 
     return true;
@@ -4861,12 +4861,12 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     if (botmode)
         return;
     if (power) {
-        client_graphics.create_powerwallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
+        graphics.create_powerwallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_POWERWALLHIT);
     }
     else {
-        client_graphics.create_wallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
+        graphics.create_wallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_WALLHIT);
     }
@@ -4973,7 +4973,7 @@ void Client::predraw() {
         texRoomX = 0;    // this way the texturing always starts from the top left corner (classic look)
         texRoomY = 0;
     }
-    client_graphics.predraw(fx.map, texRoomX, texRoomY, flags, spawns, respawns,
+    graphics.predraw(fx.map, texRoomX, texRoomY, flags, spawns, respawns,
                             room0x, room0y, visible_rooms, menu.options.graphics.mapInfoMode());
 }
 
@@ -5009,26 +5009,26 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // the playground: border, walls and pits
     if (hide_game) {
-        client_graphics.draw_empty_background(map_ready);
+        graphics.draw_empty_background(map_ready);
 
         // game over message
         if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
             if (red_final_score > blue_final_score)
-                client_graphics.draw_scores(_("RED TEAM WINS"), 0, red_final_score, blue_final_score);
+                graphics.draw_scores(_("RED TEAM WINS"), 0, red_final_score, blue_final_score);
             else if (blue_final_score > red_final_score)
-                client_graphics.draw_scores(_("BLUE TEAM WINS"), 1, blue_final_score, red_final_score);
+                graphics.draw_scores(_("BLUE TEAM WINS"), 1, blue_final_score, red_final_score);
             else
-                client_graphics.draw_scores(_("GAME TIED"), -1, blue_final_score, red_final_score);
+                graphics.draw_scores(_("GAME TIED"), -1, blue_final_score, red_final_score);
         }
 
         if (map_ready)
-            client_graphics.draw_waiting_map_message(_("Waiting game start - next map is"), fx.map.title);
+            graphics.draw_waiting_map_message(_("Waiting game start - next map is"), fx.map.title);
         else {
             MutexDebug md("downloadMutex", __LINE__, log);
             MutexLock ml(downloadMutex);
             if (!downloads.empty() && downloads.front().isActive()) {
                 const string text = _("Loading map: $1 bytes", itoa(downloads.front().progress()));
-                client_graphics.draw_loading_map_message(text);
+                graphics.draw_loading_map_message(text);
             }
         }
     }
@@ -5037,7 +5037,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         predraw();
         ++benchmarkRuns;
         #endif
-        client_graphics.draw_background();
+        graphics.draw_background();
     }
 
     const int roomx = me >= 0 ? fx.player[me].roomx : current_room.first;
@@ -5077,12 +5077,12 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         // paint fog of war in all invisible rooms
         for (int ry = 0; ry < fx.map.h; ry++)
             for (int rx = 0; rx < fx.map.w; rx++)
-                client_graphics.draw_minimap_room(fx.map, rx, ry, roomvis[ry * fx.map.w + rx] / 255.);
+                graphics.draw_minimap_room(fx.map, rx, ry, roomvis[ry * fx.map.w + rx] / 255.);
 
         if (replaying) {
             const int size_x = min(visible_rooms, fx.map.w);
             const int size_y = min(visible_rooms, fx.map.h);
-            client_graphics.highlight_minimap_rooms(fx.map, current_room.first, current_room.second, size_x, size_y);
+            graphics.highlight_minimap_rooms(fx.map, current_room.first, current_room.second, size_x, size_y);
         }
 
         // draw all teammates and enemies on screens where there are teammates
@@ -5103,28 +5103,28 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                         if (fi->carrier() == i) {
                             // update flag position for draw
                             fx.teams[enemy].move_flag(f, playerPos(i));
-                            client_graphics.draw_mini_flag(enemy, *fi, fx.map);
+                            graphics.draw_mini_flag(enemy, *fi, fx.map);
                             if (drawNeighborMarkers)
-                                client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, enemy);
+                                graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, enemy);
                         }
 
                     for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
                         if (fi->carrier() == i) {
                             // update flag position for draw
                             fi->move(playerPos(i));
-                            client_graphics.draw_mini_flag(2, *fi, fx.map);
+                            graphics.draw_mini_flag(2, *fi, fx.map);
                             if (drawNeighborMarkers)
-                                client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, 2);
+                                graphics.draw_neighbor_marker(true, xDelta, yDelta, pl.lx, pl.ly, 2);
                         }
 
                     if (i != me) {
                         if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                            client_graphics.draw_minimap_player(fx.map, replaying ? fd.player[i] : pl);
+                            graphics.draw_minimap_player(fx.map, replaying ? fd.player[i] : pl);
                         if (drawNeighborMarkers)
-                            client_graphics.draw_neighbor_marker(false, xDelta, yDelta, pl.lx, pl.ly, pl.team());
+                            graphics.draw_neighbor_marker(false, xDelta, yDelta, pl.lx, pl.ly, pl.team());
                     }
                     else // myself: draw differently
-                        client_graphics.draw_minimap_me(fx.map, pl, time);
+                        graphics.draw_minimap_me(fx.map, pl, time);
 
                     solid_mode();
                 }
@@ -5137,65 +5137,65 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                 if (!fi->carried()) {
                     const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                        time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
-                    client_graphics.draw_mini_flag(t, *fi, fx.map, flash);
+                    graphics.draw_mini_flag(t, *fi, fx.map, flash);
                     const WorldCoords& pos = fi->position();
                     const int xDelta = roomDeltaX(pos.px, roomx), yDelta = roomDeltaY(pos.py, roomy);
                     if (menu.options.graphics.neighborMarkers() && abs(xDelta) + abs(yDelta) == 1 && !replaying)
-                        client_graphics.draw_neighbor_marker(true, xDelta, yDelta, pos.x, pos.y, t);
+                        graphics.draw_neighbor_marker(true, xDelta, yDelta, pos.x, pos.y, t);
                 }
         }
     }//!hide_game
 
-    client_graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB], menu.options.game.underlineMasterAuth(), menu.options.game.underlineServerAuth());
+    graphics.draw_scoreboard(players_sb, fx.teams, maxplayers, key[KEY_TAB], menu.options.game.underlineMasterAuth(), menu.options.game.underlineServerAuth());
 
-    client_graphics.draw_fps(FPS);
+    graphics.draw_fps(FPS);
 
     // Time left if time limit is on and the game is running.
     if (map_time_limit && gameover_plaque == NEXTMAP_NONE && players_sb.size() > 1)
         if (map_end_time > time)
-            client_graphics.map_time(map_end_time - static_cast<int>(time));
+            graphics.map_time(map_end_time - static_cast<int>(time));
         else
-            client_graphics.map_time(0);
+            graphics.map_time(0);
 
     if (replaying)
-        client_graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
+        graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
 
     // player's power-ups
     if (me >= 0) {
         if (fx.player[me].item_power) {
             double val = fx.player[me].item_power_time - time;
             if (val < 0) val = 0;
-            client_graphics.draw_player_power(val);
+            graphics.draw_player_power(val);
         }
         if (fx.player[me].item_turbo) {
             double val = fx.player[me].item_turbo_time - time;
             if (val < 0) val = 0;
-            client_graphics.draw_player_turbo(val);
+            graphics.draw_player_turbo(val);
         }
         if (fx.player[me].item_shadow()) {
             const double val = fx.player[me].item_shadow_time - time;
             if (val > 0)
-                client_graphics.draw_player_shadow(val);
+                graphics.draw_player_shadow(val);
         }
 
-        client_graphics.draw_player_weapon(fx.player[me].weapon);
+        graphics.draw_player_weapon(fx.player[me].weapon);
     }
 
     if (!replaying) {
         if (want_change_teams)
-            client_graphics.draw_change_team_message(time);
+            graphics.draw_change_team_message(time);
         if (want_map_exit)
-            client_graphics.draw_change_map_message(time, want_map_exit_delayed);
+            graphics.draw_change_map_message(time, want_map_exit_delayed);
     }
 
     // the STATUSBAR : health energy, bars ....
     if (me >= 0) {
-        client_graphics.draw_player_health(fx.player[me].health);
-        client_graphics.draw_player_energy(fx.player[me].energy);
+        graphics.draw_player_health(fx.player[me].health);
+        graphics.draw_player_energy(fx.player[me].energy);
     }
 
     // the HUD: message output
-    const int chat_visible = show_all_messages ? client_graphics.chat_max_lines() : client_graphics.chat_lines();
+    const int chat_visible = show_all_messages ? graphics.chat_max_lines() : graphics.chat_lines();
     int start = static_cast<int>(chatbuffer.size()) - static_cast<int>(chat_visible);
     if (start < 0)
         start = 0;
@@ -5205,11 +5205,11 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         for (; msg != chatbuffer.end(); ++msg)
             if (time < msg->time() + 80)
                 break;
-    client_graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer, talkbuffer_cursor);
+    graphics.print_chat_messages(msg, chatbuffer.end(), talkbuffer, talkbuffer_cursor);
 
     //"server not responding... connection may have dropped" plaque
     if (get_time() > lastpackettime + 1.0 && !replaying)
-        m_notResponding.menu.draw(client_graphics.drawbuffer(), client_graphics.colours());
+        m_notResponding.menu.draw(graphics.drawbuffer(), graphics.colours());
 
     // debug panel
     if (key[KEY_F9]) {
@@ -5230,7 +5230,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
                 buttons.push_back(joystick.button[i].b);
         }
 
-        client_graphics.debug_panel(fx.player, me, bpsin, bpsout, sticks, buttons);
+        graphics.debug_panel(fx.player, me, bpsin, bpsout, sticks, buttons);
     }
 
     // another frame, calculate FPS
@@ -5255,7 +5255,7 @@ bool Client::on_screen(int x, int y) {
 void Client::draw_playfield(int start_x, int start_y) {
     const double time = fd.frame / 10;
 
-    client_graphics.startPlayfieldDraw(start_x, start_y, visible_rooms, fx.map.w, fx.map.h);
+    graphics.startPlayfieldDraw(start_x, start_y, visible_rooms, fx.map.w, fx.map.h);
 
     // draw dead players, except ice creams
     for (int i = 0; i < maxplayers; i++) {
@@ -5263,7 +5263,7 @@ void Client::draw_playfield(int start_x, int start_y) {
             if (fx.player[i].stats().frags() % 10 == 0 && fx.player[i].stats().frags() >= 10)
                 ;   // draw later
             else
-                client_graphics.draw_player_dead(fx.player[i]);
+                graphics.draw_player_dead(fx.player[i]);
         }
     }
 
@@ -5271,16 +5271,16 @@ void Client::draw_playfield(int start_x, int start_y) {
     for (int i = 0; i < MAX_PICKUPS; i++)
         // used power-ups, not respawning, on my screen
         if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen(fx.item[i].px, fx.item[i].py)) {
-            client_graphics.draw_pup(fx.item[i], time);
+            graphics.draw_pup(fx.item[i], time);
             if (fx.item[i].kind == Powerup::pup_deathbringer && (!replaying || !replay_paused && !replay_stopped))
-                client_graphics.create_smoke(WorldCoords(fx.item[i].px, fx.item[i].py,
+                graphics.create_smoke(WorldCoords(fx.item[i].px, fx.item[i].py,
                                                          fx.item[i].x + rand() % 30 - 15,
                                                          fx.item[i].y + rand() % 30 - 5),
                                              time);
         }
 
     // draw turbo effects
-    client_graphics.draw_turbofx(time);
+    graphics.draw_turbofx(time);
 
     // draw any dropped flags (use fx since flags don't move)
     for (int t = 0; t < 3; t++) {
@@ -5289,7 +5289,7 @@ void Client::draw_playfield(int start_x, int start_y) {
             if (!fi->carried() && on_screen(fi->position().px, fi->position().py)) {
                 const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                     time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
-                client_graphics.draw_flag(t, fi->position(), flash);
+                graphics.draw_flag(t, fi->position(), flash);
             }
     }
 
@@ -5301,7 +5301,7 @@ void Client::draw_playfield(int start_x, int start_y) {
             const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
             const bool shadow = !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(
                 static_cast<int>(fd.rock[i].x), static_cast<int>(fd.rock[i].y) + radius + 8, radius / 2);
-            client_graphics.draw_rocket(fd.rock[i], shadow, time);
+            graphics.draw_rocket(fd.rock[i], shadow, time);
         }
 
     // the PLAY AREA: the players!
@@ -5333,30 +5333,30 @@ void Client::draw_playfield(int start_x, int start_y) {
             }
             static const double highlightTime = .5;
             if (menu.options.graphics.spawnHighlight() && time - spawnTime < highlightTime)
-                client_graphics.draw_me_highlight(playerPos(me), 1. - (time - spawnTime) / highlightTime);
+                graphics.draw_me_highlight(playerPos(me), 1. - (time - spawnTime) / highlightTime);
             if (fx.physics.gunDirectionMode != GDM_Locked && !replaying) { //#fix: add option
                 if (fx.physics.gunDirectionMode == GDM_Free)
                     refreshGunDir();
                 else
                     gunDir = fd.player[me].gundir;
-                client_graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], playerPos(me), gunDir, me / TSIZE);
+                graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], playerPos(me), gunDir, me / TSIZE);
             }
         }
     }
 
     for (int i = 0; i < maxplayers; i++)
         if ((fx.player[i].onscreen && !replaying || replaying && fx.player[i].used && on_screen(fx.player[i].roomx, fx.player[i].roomy)) && fx.player[i].item_deathbringer)
-            client_graphics.draw_deathbringer_carrier_effect(playerPos(i), calculatePlayerAlpha(i));
+            graphics.draw_deathbringer_carrier_effect(playerPos(i), calculatePlayerAlpha(i));
 
-    client_graphics.draw_effects(time);
+    graphics.draw_effects(time);
 
     if (menu.options.game.showNames())  // Draw player names but not for invisible enemies.
         for (int i = 0; i < maxplayers; i++)
             if (!fx.player[i].dead && (fx.player[i].onscreen && (fx.player[i].visibility >= 200 || i / TSIZE == me / TSIZE) && !replaying ||
                                        replaying && fx.player[i].used && on_screen(fx.player[i].roomx, fx.player[i].roomy)))
-                client_graphics.draw_player_name(fx.player[i].name, playerPos(i), i / TSIZE, i == me);
+                graphics.draw_player_name(fx.player[i].name, playerPos(i), i / TSIZE, i == me);
 
-    client_graphics.endPlayfieldDraw();
+    graphics.endPlayfieldDraw();
 }
 
 int Client::calculatePlayerAlpha(int pid) const {
@@ -5376,13 +5376,13 @@ void Client::draw_player(int pid, double time) {
     for (int t = 0; t < 2; t++)
         for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
             if (fi->carrier() == pid)
-                client_graphics.draw_flag(t, pos);
+                graphics.draw_flag(t, pos);
     for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
         if (fi->carrier() == pid)
-            client_graphics.draw_flag(2, pos);
+            graphics.draw_flag(2, pos);
     if (player.dead) {  // draw only ice creams
         if (player.stats().frags() % 10 == 0 && player.stats().frags() >= 10)
-            client_graphics.draw_virou_sorvete(pos);
+            graphics.draw_virou_sorvete(pos);
     }
     else {
         if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
@@ -5390,25 +5390,25 @@ void Client::draw_player(int pid, double time) {
             if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
                         time > player.next_turbo_effect_time) {
                 player.next_turbo_effect_time = time + 0.05;
-                client_graphics.create_turbofx(pos, player.team(), player.color(), player.gundir, alpha, time);
+                graphics.create_turbofx(pos, player.team(), player.color(), player.gundir, alpha, time);
             }
 
             //draw player
-            client_graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
+            graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
         }
 
         //draw deathbringer carrier effect
         if (player.item_deathbringer && time > player.next_smoke_effect_time) {
             player.next_smoke_effect_time = time + 0.01;
             for (int i = 0; i < 2; i++)
-                client_graphics.create_deathcarrier(pos, alpha, time);
+                graphics.create_deathcarrier(pos, alpha, time);
         }
         // draw deathbringer affected effect
         if (player.deathbringer_affected)
-            client_graphics.draw_deathbringer_affected(pos, player.team(), alpha);
+            graphics.draw_deathbringer_affected(pos, player.team(), alpha);
         // shield
         if (player.item_shield)
-            client_graphics.draw_shield(pos, PLAYER_RADIUS + SHIELD_RADIUS_ADD, alpha, player.team(), player.gundir);
+            graphics.draw_shield(pos, PLAYER_RADIUS + SHIELD_RADIUS_ADD, alpha, player.team(), player.gundir);
     }
 }
 
@@ -5454,18 +5454,18 @@ void Client::draw_game_menu() {
                     stable_sort(sortedMaps.begin(), sortedMaps.end(), sorter);
                 }
             }
-            client_graphics.map_list(sortedMaps, mapListSortKey, current_map, map_vote, edit_map_vote);
+            graphics.map_list(sortedMaps, mapListSortKey, current_map, map_vote, edit_map_vote);
         }
         break; case menu_players:
-            client_graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(fx.frame / 10), maxplayers, max_world_rank);
+            graphics.draw_statistics(players_sb, player_stats_page, static_cast<int>(fx.frame / 10), maxplayers, max_world_rank);
         break; case menu_teams:
-            client_graphics.team_statistics(fx.teams);
+            graphics.team_statistics(fx.teams);
         break; case menu_none: // regular menus are drawn below, regardless of menusel
         break; default:
             numAssert(0, menusel);
     }
     if (!openMenus.empty())
-        openMenus.draw(client_graphics.drawbuffer(), client_graphics.colours());
+        openMenus.draw(graphics.drawbuffer(), graphics.colours());
 }
 
 void Client::initMenus() {
@@ -5561,8 +5561,8 @@ void Client::initMenus() {
     loadHelp();
     loadSplashScreen();
 
-    menu.options.screenMode.init(client_graphics);
-    menu.options.graphics.init(client_graphics);
+    menu.options.screenMode.init(graphics);
+    menu.options.graphics.init(graphics);
     menu.options.sounds.init(client_sounds);
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
@@ -5632,7 +5632,7 @@ void Client::MCF_removePasswords() {
 }
 
 void Client::MCF_prepareGameMenu() {
-    menu.options.game.favoriteColors.setGraphicsCallBack(client_graphics);
+    menu.options.game.favoriteColors.setGraphicsCallBack(graphics);
 }
 
 void Client::MCF_prepareControlsMenu() {
@@ -5689,7 +5689,7 @@ void Client::MCF_messageLogging() {
 }
 
 void Client::MCF_prepareScrModeMenu() {
-    menu.options.screenMode.update(client_graphics);
+    menu.options.screenMode.update(graphics);
 }
 
 void Client::MCF_prepareDrawScrModeMenu() {
@@ -5698,23 +5698,23 @@ void Client::MCF_prepareDrawScrModeMenu() {
 }
 
 void Client::MCF_prepareGfxMenu() {
-    menu.options.graphics.update(client_graphics);
+    menu.options.graphics.update(graphics);
 }
 
 void Client::MCF_gfxThemeChange() {
-    client_graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
     predrawNeeded = true;
 }
 
 void Client::MCF_fontChange() {
-    client_graphics.select_font(menu.options.graphics.font());
-    client_graphics.make_layout();
+    graphics.select_font(menu.options.graphics.font());
+    graphics.make_layout();
     predrawNeeded = true;
     mapChanged = true;  // just to get minimap updated
 }
 
 void Client::MCF_screenDepthChange() {
-    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+    menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
 }
 
 void Client::MCF_screenModeChange() {   // used to lose the return value
@@ -5733,7 +5733,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
     const bool owin = win(), oflip = flip();
 
     for (int nTry = 0;; ++nTry) {
-        if (client_graphics.init(res.width, res.height, depth, win(), flip())) {
+        if (graphics.init(res.width, res.height, depth, win(), flip())) {
             if (nTry != 0)
                 log.error(_("Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.",
                             itoa(res.width), itoa(res.height), itoa(depth),
@@ -5761,17 +5761,17 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
                 if (workingGfxMode.used()) {    // revert to working mode
                     const GFXMode& wm = workingGfxMode;
                     nAssert(menu.options.screenMode.colorDepth.set(wm.depth));
-                    menu.options.screenMode.update(client_graphics);  // fetch resolutions according to the new depth
+                    menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
                     menu.options.screenMode.resolution.set(ScreenMode(wm.width, wm.height));  // ignore potential error here; we couldn't do anything about it anyway
                     win.set(wm.windowed);
                     flip.set(wm.flipping);
-                    return client_graphics.init(wm.width, wm.height, wm.depth, wm.windowed, wm.flipping);
+                    return graphics.init(wm.width, wm.height, wm.depth, wm.windowed, wm.flipping);
                 }
                 return false;
         }
     }
     workingGfxMode = GFXMode(res.width, res.height, depth, win(), flip());
-    client_graphics.update_minimap_background(fx.map);
+    graphics.update_minimap_background(fx.map);
     predrawNeeded = true;
     const int rate = get_refresh_rate();
     ostringstream ost;
@@ -5784,17 +5784,17 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
 }
 
 void Client::MCF_antialiasChange() {
-    client_graphics.set_antialiasing(menu.options.graphics.antialiasing());
-    client_graphics.update_minimap_background(fx.map);
+    graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    graphics.update_minimap_background(fx.map);
     predrawNeeded = true;
 }
 
 void Client::MCF_transpChange() {
-    client_graphics.set_min_transp(menu.options.graphics.minTransp());
+    graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
 void Client::MCF_statsBgChange() {
-    client_graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
+    graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
 void Client::MCF_prepareSndMenu() {
