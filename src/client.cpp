@@ -2172,17 +2172,21 @@ void Client::process_message(const char* const lebuf, int msglen) {
                 //carried: get carrier
                 NLubyte carrier;
                 readByte(lebuf, count, carrier);
-                const WorldCoords flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
-                fx.player[carrier].roomx = flagPos.px;
-                fx.player[carrier].roomy = flagPos.py;
-                fx.player[carrier].lx = flagPos.x;
-                fx.player[carrier].ly = flagPos.y;
-                fx.player[carrier].posUpdated = static_cast<NLulong>(fx.frame);
+                if (!new_flag) {
+                    if (!fx.player[carrier].onscreen && !replaying) {
+                        const WorldCoords flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
+                        fx.player[carrier].roomx = flagPos.px;
+                        fx.player[carrier].roomy = flagPos.py;
+                        fx.player[carrier].lx = flagPos.x;
+                        fx.player[carrier].ly = flagPos.y;
+                        fx.player[carrier].posUpdated = fx.frame;
+                    }
+                    addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
+                }
                 if (team == 2)
                     fx.wild_flags[i].take(carrier);
                 else
                     fx.teams[team].steal_flag(i, carrier);
-                addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
             }
         }
     }
