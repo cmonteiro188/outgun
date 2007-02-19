@@ -94,6 +94,18 @@ public:
     void make_layout();
     void videoMemoryCorrupted();    // call this when that happens with page flipping; predraw also needs to be called
 
+    struct MapDecorations {
+        std::vector< std::pair<int, const WorldCoords*> > flags;
+        std::vector< std::pair<int, const WorldCoords*> > spawns;
+        std::vector< std::pair<int, const WorldRect*> > respawns;
+    };
+
+    void predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, int room0x, int room0y, int visible_rooms, bool grid = false);
+
+    typedef std::vector<std::vector<NLubyte> > VisibilityMap;
+    void draw_background(bool map_ready) { VisibilityMap v; background.draw_background(drawbuf, map_ready && show_minimap, false, v); }
+    void draw_background(bool map_ready, const VisibilityMap& roomVis) { background.draw_background(drawbuf, map_ready, true, roomVis); }
+
     void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
     void startPlayfieldDraw(int start_rx, int start_ry, int visible_rooms_, int map_w_, int map_h_);  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
@@ -102,29 +114,18 @@ public:
     void draw_screen(bool acquireWithFlipping);
     bool save_screenshot(const std::string& filename) const;
 
-    void clear();
-
     void reset_playground_colors();
     void random_playground_colors();
 
-    void predraw(const Map& map, int texRoomX, int texRoomY, const std::vector< std::pair<int, const WorldCoords*> >& flags,
-                 const std::vector< std::pair<int, const WorldCoords*> >& spawns, const std::vector< std::pair<int, const WorldRect*> >& respawns,
-                 int room0x, int room0y, int visible_rooms, bool grid = false);
-
-    void draw_background();
-    void draw_empty_background(bool map_ready);
-
-    void draw_flag(int team, const WorldCoords& pos, bool flash = false);
-    void draw_flagpos_mark(int team, int flag_x, int flag_y);
+    void draw_flag(int team, const WorldCoords& pos, bool flash, int alpha = 255, bool emphasize = false);
     void draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash = false);
-    void draw_minimap_background();
     void update_minimap_background(const Map& map);
     void draw_minimap_player(const Map& map, const ClientPlayer& player);
     void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
     void highlight_minimap_rooms(const Map& map, int rx, int ry, int size_x, int size_y);
 
-    void draw_neighbor_marker(bool flag, int xDelta, int yDelta, double lx, double ly, int team);
+    void draw_neighbor_marker(bool flag, int xDelta, int yDelta, const WorldCoords& pos, int team);
 
     void draw_player(const WorldCoords& pos, int team, int pli, GunDirection gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false);
@@ -142,7 +143,7 @@ public:
 
     void draw_deathbringer_affected(const WorldCoords& pos, int team, int alpha);
     void draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha);
-    void draw_shield(const WorldCoords& pos, int r, int alpha = 255, int team = -1, GunDirection direction = GunDirection());
+    void draw_shield(const WorldCoords& pos, int r, bool live, int alpha = 255, int team = -1, GunDirection direction = GunDirection());
 
     void draw_virou_sorvete(const WorldCoords& pos);
 
@@ -182,7 +183,7 @@ public:
     void draw_change_map_message(double time, bool delayed = false);
 
     // power-ups
-    void draw_pup(const Powerup& pup, double time);
+    void draw_pup(const Powerup& pup, double time, bool live);
 
     // client side effects
     void draw_effects(double time);
@@ -192,7 +193,6 @@ public:
 
     void create_wallexplo(const WorldCoords& pos, int team, double time);
     void create_powerwallexplo(const WorldCoords& pos, int team, double time);
-    void create_smoke(const WorldCoords& pos, double time);
     void create_deathcarrier(WorldCoords pos, int alpha, double time, bool for_item = false);
     void create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time);
     void create_deathbringer(const WorldCoords& pos, int team, double start_time);
@@ -206,9 +206,7 @@ public:
     void search_fonts(LineReceiver& dst_font) const;
     void select_font(const std::string& file);
 
-    void load_pictures();
-
-    void set_antialiasing(bool enable) { antialiasing = enable; }
+    void set_antialiasing(bool enable) { antialiasing = enable; predrawNeeded = true; }
 
     void set_min_transp(bool enable) { min_transp = enable; }
 
@@ -228,17 +226,24 @@ public:
     const Colour_manager& colours() const { return colour; }
 
     void draw_replay_info(float rate, unsigned position, unsigned length, bool stopped);
-    void set_playfield_scale(double val) { playfield_scale = val; make_layout(); }
+    void set_playfield_scale(double val) { playfield_scale = val; reload_pictures(); }
     void toggle_full_playfield();
+
+    bool needPredraw() const { return predrawNeeded; }
+    bool needRedrawMap() const { return mapNeedsRedraw; }
+
+    void mapChanged() { roomGraphicsChanged(); mapNeedsRedraw = true; }
 
 private:
     void unload_bitmaps();
 
     bool reset_video_mode(int width, int height, int depth, bool windowed, int pages = 1);
 
-    void make_background(BITMAP* buffer);
-
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
+
+    void roomGraphicsChanged() { predrawNeeded = true; background.invalidateRoomCache(); }
+
+    void predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int texRoomY, const MapDecorations& deco, int roomx, int roomy, bool grid);
 
     void draw_room_ground(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale);
     void draw_room_walls(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale);
@@ -248,13 +253,15 @@ private:
     static void draw_tri_wall (BITMAP* buffer, const TriWall & wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
     static void draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture);
 
-    void draw_pup_shield(const WorldCoords& pos);
-    void draw_pup_turbo(const WorldCoords& pos);
+    void draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_y);
+
+    void draw_pup_shield(const WorldCoords& pos, bool live);
+    void draw_pup_turbo(const WorldCoords& pos, bool live);
     void draw_pup_shadow(const WorldCoords& pos, double time);
     void draw_pup_power(const WorldCoords& pos, double time);
     void draw_pup_weapon(const WorldCoords& pos, double time);
     void draw_pup_health(const WorldCoords& pos, double time);
-    void draw_pup_deathbringer(const WorldCoords& pos);
+    void draw_pup_deathbringer(const WorldCoords& pos, double time, bool live);
 
     std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
@@ -285,6 +292,8 @@ private:
     void make_db_effect();
 
     void load_background();
+    void load_pictures();
+    void reload_pictures();
 
     void load_floor_textures(const std::string& filename);
     void load_wall_textures(const std::string& filename);
@@ -337,6 +346,80 @@ private:
         ~TemporaryClipToRoom();
     };
 
+    class BackgroundManager {
+    public:
+        BackgroundManager(Graphics& host) : g(host) { }
+
+        void predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, int room0x_, int room0y_, int visible_rooms, bool grid = false);
+
+        void draw_background(BITMAP* drawbuf, bool draw_map, bool draw_playfield, const VisibilityMap& roomVis);
+
+        void invalidateRoomCache() { roomCache.clear(); roomCacheIndex.clear(); cacheTimestamp = 0; }
+
+        bool allocate(bool videoMemory, int cachePages);
+        void free() { roomCacheBitmap.free(); invalidateRoomCache(); }
+
+    private:
+        void cacheRoom(int roomx, int roomy, const Room& room, const MapDecorations& deco, int texRoomX, int texRoomY, bool grid);
+        void drawRoom(int roomx, int roomy, bool fogged, BITMAP* target, int tx0, int ty0);
+
+        struct BitmapRegion {
+            BITMAP* b;
+            int x0, y0, w, h;
+
+            BitmapRegion() : b(0) { }
+            BitmapRegion(BITMAP* bm, int x0_, int y0_, int w_, int h_) : b(bm), x0(x0_), y0(y0_), w(w_), h(h_) { }
+
+            void blitTo(BITMAP* target, int tx0, int ty0) const;
+        };
+
+        class CachedRoomGfx {
+            int roomx, roomy;
+            BitmapRegion baseArea;
+            BitmapRegion foggedArea;
+            bool baseGenerated;
+            mutable bool foggedGenerated;
+            int fogColor;
+
+            void generateFogged(BITMAP* target, int tx0, int ty0, bool fastFog) const;
+
+        public:
+            bool locked;
+            unsigned lastUse;
+
+            CachedRoomGfx() { } // uninitialized CachedRoomGfx's should be used nowhere
+            CachedRoomGfx(const BitmapRegion& b1, const BitmapRegion& b2, int fogColor_) :
+                    roomx(0), roomy(0), baseArea(b1), foggedArea(b2), baseGenerated(false), foggedGenerated(false),
+                    fogColor(fogColor_), locked(false), lastUse(0) { nAssert(baseArea.w == foggedArea.w && baseArea.h == foggedArea.h || !foggedArea.b); }
+
+            bool used() const { return baseGenerated; }
+            int x() const { return roomx; }
+            int y() const { return roomy; }
+
+            BitmapRegion& getAreaForWriting(int roomx_, int roomy_) { roomx = roomx_; roomy = roomy_; baseGenerated = true; foggedGenerated = false; locked = true; return baseArea; }
+
+            void drawUnfogged(BITMAP* target, int tx0, int ty0) const { nAssert(baseGenerated); baseArea.blitTo(target, tx0, ty0); }
+            void drawFogged  (BITMAP* target, int tx0, int ty0, bool fastFog) const;
+            const BitmapRegion& fogged() const;
+        };
+
+        std::vector<CachedRoomGfx> roomCache;
+        std::vector<std::vector<CachedRoomGfx*> > roomCacheIndex;
+        unsigned cacheTimestamp;
+
+        Graphics& g;
+
+        Bitmap roomCacheBitmap;
+
+        bool previousContinuousTextures;
+        int previousVisibleRooms;
+
+        // variables set in predraw, stored for later reference but not modified elsewhere:
+        int xRooms, yRooms, map_w, map_h, room0x, room0y, x0, y0, room_w, room_h;
+    };
+
+    BackgroundManager background;
+
     // drawing screens
     Bitmap vidpage1;
     Bitmap vidpage2;
@@ -345,22 +428,20 @@ private:
     bool min_transp;
 
     BITMAP* drawbuf;    // main draw buffer (points to vidpage# or backbuf at a given time)
-    Bitmap background;  // draw buffer for floor, walls and minimap
     Bitmap minibg;      // minimap draw buffer
     Bitmap minibg_fog;  // minimap with fog in every room
 
-    Bitmap roombg;      // room background sub-bitmap
-
     int playfield_x, playfield_y; // playground area position on the screen
+    int playfield_w, playfield_h;
     int plx, ply;       // active playground position (where the first room resides) on the screen
-    int mmx, mmy;       // minimap position
 
     int scoreboard_x1, scoreboard_x2;  // scoreboard position
     int scoreboard_y1, scoreboard_y2;
 
-    int minimap_w, minimap_h;
+    int minimap_place_x, minimap_place_y;
     int minimap_place_w, minimap_place_h;
-    int minimap_start_x, minimap_start_y;
+    int minimap_x, minimap_y;
+    int minimap_w, minimap_h;
     int indicators_y;
     int health_x, energy_x, pups_x, pups_val_x, weapon_x, time_x, time_y;
 
@@ -424,9 +505,11 @@ private:
     int col[16];         // player colours
     Colour groundCol, wallCol;
 
-    static const int fogOfWarMaxAlpha = 0x38;
+    static const int fogOfWarMaxAlpha = 0x38, playfieldFogOfWarAlpha = 0x38;
 
     Colour_manager colour;
+
+    bool predrawNeeded, mapNeedsRedraw;
 
     mutable LogSet log;
 };

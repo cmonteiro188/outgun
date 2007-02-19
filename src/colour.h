@@ -59,6 +59,7 @@ public:
         ground,
         wall,
         room_border,
+        playfield_fog,
         map_ground,
         map_wall,
         map_room_border,

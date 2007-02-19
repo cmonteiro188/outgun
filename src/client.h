@@ -208,6 +208,8 @@ class Client {
     #endif
     friend class TM_ConnectionUpdate;
 
+    typedef Graphics::VisibilityMap VisibilityMap;
+
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
@@ -472,8 +474,9 @@ class Client {
     #endif
     volatile bool mapChanged;
     #ifndef DEDICATED_SERVER_ONLY
-    volatile bool predrawNeeded;
     Sounds client_sounds;
+
+    std::pair<int, int> predrawnRoom;
 
     std::ofstream message_log;
     bool messageLogOpen;
@@ -635,9 +638,10 @@ class Client {
     static void cfunc_server_data(void* customp, const char* data, int length);
 
     #ifndef DEDICATED_SERVER_ONLY
-    int roomDeltaX(int x1, int x2) const; // gives a sense of where x1 is relative to x2, wrapping around the edges when considering immediate neighbors
-    int roomDeltaY(int y1, int y2) const;
+    int roomDeltaX(int x, bool locallyToTheLeft) const; // gives a sense of where x1 is relative to the screen: 0 = on screen, -1 = immediately on the left, +1 = immediately on the right (wrapping around map edges)
+    int roomDeltaY(int y, bool locallyToTheTop) const;
     WorldCoords playerPos(int pid) const;
+    std::pair<int, int> topLeftRoom() const;
 
     // GUI
     void erase_first_message();
@@ -647,11 +651,18 @@ class Client {
     void toggle_help();
     template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
     void predraw();
-    bool on_screen(int x, int y);
+
+    bool on_screen(int x, int y) const;
+    bool on_screen_exact(int x, int y) const;
+    bool player_on_screen(int pid) const;
+    bool player_on_screen_exact(int pid) const;
+
     void draw_game_frame();
-    void draw_playfield(int screen_x, int screen_y);
+    void draw_map(const VisibilityMap& roomVis);
+    void draw_playfield();
+    VisibilityMap calculateVisibilities(); // calculates how well each player's position is known (applies to out-of-screen players only) and returns a map of how well each room is known (according to the most visible player there)
     int calculatePlayerAlpha(int pid) const;
-    void draw_player(int pid, double time);
+    void draw_player(int pid, double time, bool live);
     void draw_game_menu();
 
     ClientControls readControls(bool canUseKeypad, bool useCursorKeys) const;

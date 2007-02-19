@@ -66,6 +66,7 @@ void Colour_manager::init(const string& file) {
         PT(new Colour_setting("ground"                , 0x10, 0x40, 0x00)),
         PT(new Colour_setting("wall"                  , 0x30, 0xC0, 0x00)),
         PT(new Colour_setting("room_border"           , 0x20, 0x20, 0x20)),
+        PT(new Colour_setting("playfield_fog"         , 0xFF, 0xFF, 0xFF)),
         PT(new Colour_setting("map_ground"            , 0x00, 0x00, 0x00)),
         PT(new Colour_setting("map_wall"              , 0x00, 0x77, 0x00)),
         PT(new Colour_setting("map_room_border"       , 0x30, 0x30, 0x30)),
