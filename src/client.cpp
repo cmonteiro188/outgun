@@ -5173,7 +5173,7 @@ void Client::draw_playfield() {
     // draw dead players, except ice creams
     for (int i = 0; i < maxplayers; i++)
         if (fx.player[i].dead && player_on_screen(i)) {
-            if (fx.player[i].stats().frags() % 10 == 0 && fx.player[i].stats().frags() >= 10)
+            if (fx.player[i].stats().frags() % 100 == 0 && fx.player[i].stats().frags() >= 100)
                 graphics.draw_virou_sorvete(playerPos(i));
             else
                 graphics.draw_player_dead(fx.player[i]);
