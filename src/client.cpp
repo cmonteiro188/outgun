@@ -969,7 +969,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
         log("Download complete: %s '%s' to %s", dl.fileType.c_str(), dl.shortName.c_str(), dl.fullName.c_str());
         if (dl.fileType == "map") {
             if (dl.shortName == servermap) {
-                const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName); //#fix
+                const bool ok = fd.load_map(log, CLIENT_MAPS_DIR, dl.shortName) && fx.load_map(log, CLIENT_MAPS_DIR, dl.shortName);
                 remove_useless_flags();
                 if (!ok) {
                     log.error("After download: map '" + dl.shortName + "' not found");
@@ -1064,7 +1064,7 @@ bool Client::load_map(const string& directory, const string& mapname, NLushort s
         #ifndef DEDICATED_SERVER_ONLY
         fd.load_map(noLogSet, directory, mapname) &&
         #endif
-        fx.load_map(noLogSet, directory, mapname); //#fix
+        fx.load_map(noLogSet, directory, mapname);
 
     if (!ok)
         log("Map '%s' not found in '%s'.", mapname.c_str(), directory.c_str());
@@ -4933,11 +4933,9 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     const double time = fd.frame / 10;
 
-    // the playground: border, walls and pits
     if (hide_game) {
         graphics.draw_background(map_ready);
 
-        // game over message
         if (gameover_plaque == NEXTMAP_CAPTURE_LIMIT || gameover_plaque == NEXTMAP_VOTE_EXIT) {
             if (red_final_score > blue_final_score)
                 graphics.draw_scores(_("RED TEAM WINS"), 0, red_final_score, blue_final_score);
@@ -4983,7 +4981,6 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     if (replaying)
         graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
 
-    // player's power-ups
     if (me >= 0) {
         // player's power-ups
         double val = fx.player[me].item_power_time - time;

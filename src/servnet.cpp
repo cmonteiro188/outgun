@@ -237,7 +237,6 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const {
         server->send_message(cid, lebuf, count);
 }
 
-//broadcast new player name
 void ServerNetworking::broadcast_player_name(int pid) const {
     send_player_name_update(pid_all, pid);
 }
@@ -276,7 +275,6 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) {
         server->send_message(cid, lebuf, count);
 }
 
-//v0.4.5: broadcast player crap
 void ServerNetworking::broadcast_player_crap(int pid) {
     send_player_crap_update(pid_all, pid);
 }
@@ -313,7 +311,6 @@ void ServerNetworking::broadcast_team_change(int from, int to, bool swap) const 
     record_message(lebuf, count);
 }
 
-//broadcast a sample
 void ServerNetworking::broadcast_sample(int code) const {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_sound);
@@ -322,7 +319,6 @@ void ServerNetworking::broadcast_sample(int code) const {
     record_message(lebuf, count);
 }
 
-//play a sample to a player's screen audience
 void ServerNetworking::broadcast_screen_sample(int p, int code) const {
     char lebuf[64]; int count = 0;
     writeByte(lebuf, count, data_sound);
