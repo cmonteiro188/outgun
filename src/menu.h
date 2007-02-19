@@ -177,18 +177,18 @@ class TextfieldBase : public Component {
 public:
     TextfieldBase(const std::string& caption_, const std::string& init_text, int fieldLength, char mask = 0, int reserveTailLength = 0): Component(caption_), value(init_text), maxlen(fieldLength), tailSpace(reserveTailLength), maskChar(mask), cursor_pos(0) { unblink(); }
     virtual ~TextfieldBase() { }
-    void set(const std::string& text) { value = text; cursor_pos = text.length(); unblink(); }
-    const std::string& operator()() const { return value; }
+    virtual void set(const std::string& text) { value = text; cursor_pos = text.length(); unblink(); }
+    virtual const std::string& operator()() const { return value; }
 
     void setTail(const std::string& text) { tail = text; }
     void limitToCharacters(const std::string& chars) { charset = chars; } // set to empty to accept all printable characters
 
     // inherited interface
-    bool needsNumberKeys() const { return true; }
-    int width() const;
-    int height() const;
-    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
-    bool handleKey(char scan, unsigned char chr);
+    virtual bool needsNumberKeys() const { return true; }
+    virtual int width() const;
+    virtual int height() const;
+    virtual void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const;
+    virtual bool handleKey(char scan, unsigned char chr);
 
 private:
     std::string value, tail;
