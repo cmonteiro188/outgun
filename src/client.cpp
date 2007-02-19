@@ -1916,10 +1916,8 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
     NLubyte healt, energ;
     readByte(data, count, healt);
     readByte(data, count, energ);
-    if (me >= 0) {
-        fx.player[me].health = healt + extraHealth;
-        fx.player[me].energy = energ + extraEnergy;
-    }
+    fx.player[me].health = healt + extraHealth;
+    fx.player[me].energy = energ + extraEnergy;
 
     //read ping of player frame % MAX_PLAYERS
     NLushort ping;
@@ -2369,21 +2367,18 @@ void Client::process_message(const char* const lebuf, int msglen) {
         NLushort pup_time;
         readByte(lebuf, count, iid);    //kind
         readShort(lebuf, count, pup_time);  //amount of time
-        if (me >= 0) {
-            if (iid == Powerup::pup_turbo)
-                fx.player[me].item_turbo_time = time + pup_time;
-            else if (iid == Powerup::pup_shadow)
-                fx.player[me].item_shadow_time = time + pup_time;
-            else if (iid == Powerup::pup_power)
-                fx.player[me].item_power_time = time + pup_time;
-        }
+        if (iid == Powerup::pup_turbo)
+            fx.player[me].item_turbo_time = time + pup_time;
+        else if (iid == Powerup::pup_shadow)
+            fx.player[me].item_shadow_time = time + pup_time;
+        else if (iid == Powerup::pup_power)
+            fx.player[me].item_power_time = time + pup_time;
     }
 
     break; case data_weapon_change: {
         NLubyte level;
         readByte(lebuf, count, level);
-        if (me >= 0)
-            fx.player[me].weapon = level;
+        fx.player[me].weapon = level;
     }
 
     break; case data_map_change: {
@@ -4309,8 +4304,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
         // the rest is drawing
 
-        if (gameshow) {
-            MutexDebug md("frameMutex", __LINE__, log);
+        if (gameshow && (replaying || me >= 0)) {
             MutexLock ml(frameMutex);
 
             ClientPhysicsCallbacks cb(*this);
@@ -4941,7 +4935,7 @@ pair<int, int> Client::topLeftRoom() const {
 //draw the whole game screen
 void Client::draw_game_frame() {    // call with frameMutex locked
     // hide stuff if frame skipped
-    const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0 || me >= maxplayers;
+    const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0;
 
     const double time = fd.frame / 10;
 
