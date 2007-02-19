@@ -1414,6 +1414,7 @@ void Server::simulate_and_broadcast_frame() {
             else
                 world.player[i].idleFrames = 0;
         }
+
     network.broadcast_frame(!gameover);
     if (recording_needed()) {
         stringstream temp_frame;
