@@ -3065,8 +3065,9 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         NLubyte pid;
         readByte(lebuf, count, pid);
         fx.player[pid].stats().spawn(time);
-        if (!fx.player[pid].onscreen)   // this information is after the spawn
-            fx.player[pid].posUpdated = 0;  // (probably) not seen in this life, if seen before spawning, not valid anymore
+        if (!fx.player[pid].onscreen && fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
+            fx.player[pid].posUpdated = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
+        fx.player[pid].dead = false;
     }
 
     break; case data_team_movements_shots: {

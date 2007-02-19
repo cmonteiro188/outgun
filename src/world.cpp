@@ -870,7 +870,7 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     next_smoke_effect_time = 0;
     hitfx = 0;
     oldx = oldy = 0;
-    posUpdated = 0;
+    posUpdated = -1e10;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
