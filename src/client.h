@@ -28,6 +28,7 @@
 #define CLIENT_H_INC
 
 #ifndef DEDICATED_SERVER_ONLY
+#include <map>
 #include <set>
 #include <sstream>
 
@@ -86,63 +87,6 @@ enum Menu_selection {   // screens that aren't quite menus //#fix: get rid
     menu_maps,
     menu_players,
     menu_teams
-};
-
-enum ClientCfgSetting {
-    CCS_PlayerName,
-    CCS_Tournament,
-    CCS_Favorites,
-    CCS_FavoriteColors,
-    CCS_LagPrediction,
-    CCS_LagPredictionAmount,
-    CCS_Joystick,
-    CCS_MessageLogging,
-    CCS_SaveStats,
-    CCS_Windowed,
-    CCS_GFXMode,
-    CCS_Flipping,
-    CCS_FPSLimit,
-    CCS_GFXTheme,
-    CCS_Antialiasing,
-    CCS_StatsBgAlpha,
-    CCS_ShowNames,
-    CCS_SoundEnabled,
-    CCS_Volume,
-    CCS_SoundTheme,
-    CCS_ShowStats,
-    CCS_AutoGetServerList,
-    CCS_ShowServerInfo,
-    CCS_KeypadMoving,
-    CCS_JoystickMove,
-    CCS_JoystickShoot,
-    CCS_JoystickRun,
-    CCS_JoystickStrafe,
-    CCS_ContinuousTextures,
-    CCS_UnderlineMasterAuth,
-    CCS_UnderlineServerAuth,
-    CCS_ServerPublic,
-    CCS_ServerPort,
-    CCS_KeyboardLayout,
-    CCS_ServerAddress,
-    CCS_AutodetectAddress,
-    CCS_ArrowKeysInStats,
-    CCS_MinimapPlayers,
-    CCS_AlternativeFlipping,
-    CCS_StayDeadInMenus,
-    CCS_MinTransp,
-    CCS_UseThemeBackground,
-    CCS_Background,
-    CCS_Font,
-    CCS_ShowFlagMessages,
-    CCS_ShowKillMessages,
-    CCS_HighlightReturnedFlag,
-    CCS_ArrowKeysInTextInput,
-    CCS_SpawnHighlight,
-    CCS_NeighborMarkers,
-    CCS_MouseSensitivity,
-    CCS_MouseShoot,
-    CCS_MouseRun,
-    CCS_EndOfCommands
 };
 
 class ServerThreadOwner {
@@ -277,6 +221,22 @@ class Client {
     int remove_player_passwords(const std::string& name) const;
 
     ServerThreadOwner listenServer;
+
+    class SettingManager : public SettingCollector {
+    public:
+        typedef std::map<ClientCfgSetting, SaverLoader*> MapT;
+
+        ~SettingManager() { for (MapT::iterator i = settings.begin(); i != settings.end(); ++i) delete i->second; }
+
+        void add(ClientCfgSetting key, SaverLoader* sl) { settings[key] = sl; }
+
+        SettingCollector::SaverLoader* find(ClientCfgSetting key) const { MapT::const_iterator i = settings.find(key); return i == settings.end() ? 0 : i->second; }
+        const MapT& read() const { return settings; }
+
+    private:
+        MapT settings;
+    };
+    SettingManager settings;
     #endif
 
     // world (these variables all locked by frameMutex)
@@ -304,7 +264,9 @@ class Client {
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
     ClientControls sentControls;
     double svFrameHistory[256];    // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
-    GunDirection gunDir; // used only with gunDirectionMode == GDM_Free
+
+    GunDirection gunDir; // used only with allowFreeTurning
+    double gunDirRefreshedTime;
     volatile bool connected;
     bool map_ready;
     int clientReadiesWaiting;
@@ -545,9 +507,9 @@ class Client {
     void MCF_replay(Textarea& target);
     void MCF_prepareReplayMenu();
     void MCF_prepareMainMenu();
-    void MCF_prepareNameMenu();
-    void MCF_prepareDrawNameMenu();
-    void MCF_nameMenuClose();
+    void MCF_preparePlayerMenu();
+    void MCF_prepareDrawPlayerMenu();
+    void MCF_playerMenuClose();
     void MCF_nameChange();  // only function to clear the password
     void MCF_randomName();
     void MCF_removePasswords();
@@ -692,7 +654,8 @@ class Client {
     void draw_player(int pid, double time);
     void draw_game_menu();
 
-    ClientControls readControls(bool canUseKeypad, bool useCursorKeys);
+    ClientControls readControls(bool canUseKeypad, bool useCursorKeys) const;
+    ClientControls readControlsInGame() const;
     bool firePressed() const;
     void refreshGunDir();
 

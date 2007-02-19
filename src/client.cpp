@@ -776,7 +776,7 @@ bool Client::start() {
         }
         if (!feof(psf)) {
             pas[8] = 0;
-            menu.options.name.password.set(pas);
+            menu.options.player.password.set(pas);
         }
         fclose(psf);
     }
@@ -793,30 +793,35 @@ bool Client::start() {
 
         istringstream command(line);
 
-        int settingId;
-        string args;
-        command >> settingId;
+        int iSettingId;
+        command >> iSettingId;
         command.ignore();   // eat separator (space)
-        if (!command || settingId < 0) {
+        if (!command || iSettingId < 0) {
             log.error(_("Invalid syntax in client.cfg (\"$1\").", line));
             continue;
         }
-        if (settingId >= CCS_EndOfCommands) {
+        if (iSettingId >= CCS_EndOfCommands) {
             log.error(_("Unknown data in client.cfg (\"$1\").", line));
             continue;
         }
 
+        string args;
         getline(command, args); // this might fail, but that only means there is an empty string
-        switch (static_cast<ClientCfgSetting>(settingId)) {
-            // name menu
-        /*break;*/ case CCS_PlayerName:            if (check_name(args)) playername = args;
-            break; case CCS_Tournament:            menu.options.name.tournament.set(args == "1");
 
-            // connect menu
-            break; case CCS_Favorites:             menu.connect.favorites.set(args == "1");
+        const ClientCfgSetting settingId = static_cast<ClientCfgSetting>(iSettingId);
 
-            // game menu
-            break; case CCS_ShowNames:             menu.options.game.showNames.set(args == "1");
+        SettingCollector::SaverLoader* sl = settings.find(settingId);
+        if (sl) {
+            sl->load(args);
+            continue;
+        }
+
+        // some more complicated settings need to be handled here
+        switch (settingId) {
+        /*break;*/ case CCS_PlayerName:
+                if (check_name(args))
+                    playername = args;
+
             break; case CCS_FavoriteColors: {
                 istringstream ist(args);
                 int col;
@@ -824,39 +829,13 @@ bool Client::start() {
                     if (col >= 0 && col < 16 && find(fav_colors.begin(), fav_colors.end(), col) == fav_colors.end())
                         fav_colors.push_back(col);
             }
-            break; case CCS_LagPrediction:         menu.options.game.lagPrediction.set(args == "1");
-            break; case CCS_LagPredictionAmount:   menu.options.game.lagPredictionAmount.boundSet(atoi(args));
-            break; case CCS_MessageLogging:        menu.options.game.messageLogging.set(args == "1" ? Menu_game::ML_full : args == "2" ? Menu_game::ML_chat : Menu_game::ML_none);
-            break; case CCS_SaveStats:             menu.options.game.saveStats.set(args == "1");
-            break; case CCS_ShowFlagMessages:      menu.options.game.showFlagMessages.set(args == "1");
-            break; case CCS_ShowKillMessages:      menu.options.game.showKillMessages.set(args == "1");
-            break; case CCS_ShowStats:             menu.options.game.showStats.set(args == "1" ? Menu_game::SS_teams : args == "2" ? Menu_game::SS_players : Menu_game::SS_none);
-            break; case CCS_ShowServerInfo:        menu.options.game.showServerInfo.set(args == "1");
-            break; case CCS_StayDeadInMenus:       menu.options.game.stayDead.set(args == "1");
-            break; case CCS_UnderlineMasterAuth:   menu.options.game.underlineMasterAuth.set(args == "1");
-            break; case CCS_UnderlineServerAuth:   menu.options.game.underlineServerAuth.set(args == "1");
-            break; case CCS_AutoGetServerList:     menu.options.game.autoGetServerList.set(args == "1");
 
-            // controls menu
             break; case CCS_KeyboardLayout:
                 if (!menu.options.controls.keyboardLayout.set(args)) {  // it is possible to have a layout Outgun doesn't know about
                     menu.options.controls.keyboardLayout.addOption(_("unknown ($1)", args), args);
-                    nAssert(menu.options.controls.keyboardLayout.set(args));
+                    menu.options.controls.keyboardLayout.set(args);
                 }
-            break; case CCS_KeypadMoving:          menu.options.controls.keypadMoving.set(args == "1");
-            break; case CCS_ArrowKeysInStats:      menu.options.controls.arrowKeysInStats.set(args == "1" ? Menu_controls::AS_movePlayer : Menu_controls::AS_useMenu);
-            break; case CCS_ArrowKeysInTextInput:  menu.options.controls.arrowKeysInTextInput.set(args == "1");
-            break; case CCS_Joystick:              menu.options.controls.joystick.set(args == "1");
-            break; case CCS_JoystickMove:          menu.options.controls.joyMove.boundSet(atoi(args));
-            break; case CCS_JoystickShoot:         menu.options.controls.joyShoot.boundSet(atoi(args));
-            break; case CCS_JoystickRun:           menu.options.controls.joyRun.boundSet(atoi(args));
-            break; case CCS_JoystickStrafe:        menu.options.controls.joyStrafe.boundSet(atoi(args));
-            break; case CCS_MouseSensitivity:      menu.options.controls.mouseSensitivity.boundSet(atoi(args));
-            break; case CCS_MouseShoot:            menu.options.controls.mouseShoot.boundSet(atoi(args));
-            break; case CCS_MouseRun:              menu.options.controls.mouseRun.boundSet(atoi(args));
 
-            // screen mode menu
-            break; case CCS_Windowed:              menu.options.screenMode.windowed.set(args == "1");
             break; case CCS_GFXMode: {
                 if (extConfig.forceDefaultGfxMode)
                     break;
@@ -875,35 +854,11 @@ bool Client::start() {
                         log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
                 }
             }
-            break; case CCS_Flipping:              menu.options.screenMode.flipping.set(args == "1");
-            break; case CCS_AlternativeFlipping:   menu.options.screenMode.alternativeFlipping.set(args == "1");
 
-            // graphics menu
-            break; case CCS_FPSLimit:              menu.options.graphics.fpsLimit.boundSet(atoi(args));
-            break; case CCS_GFXTheme:              menu.options.graphics.theme.set(args);      // ignore error
-            break; case CCS_UseThemeBackground:    menu.options.graphics.useThemeBackground.set(args == "1");
-            break; case CCS_Background:            menu.options.graphics.background.set(args); // ignore error
-            break; case CCS_Font:                  menu.options.graphics.font.set(args);       // ignore error
-            break; case CCS_Antialiasing:          menu.options.graphics.antialiasing.set(args == "2");
-            break; case CCS_MinTransp:             menu.options.graphics.minTransp.set(args == "1");
-            break; case CCS_ContinuousTextures:    menu.options.graphics.contTextures.set(args == "1");
-            break; case CCS_MinimapPlayers:        menu.options.graphics.minimapPlayers.set(args == "1" ? Menu_graphics::MP_EarlyCut : args == "2" ? Menu_graphics::MP_LateCut : Menu_graphics::MP_Fade);
-            break; case CCS_HighlightReturnedFlag: menu.options.graphics.highlightReturnedFlag.set(args == "1");
-            break; case CCS_SpawnHighlight:        menu.options.graphics.spawnHighlight.set(args == "1");
-            break; case CCS_NeighborMarkers:       menu.options.graphics.neighborMarkers.set(args == "1");
-            break; case CCS_StatsBgAlpha:          menu.options.graphics.statsBgAlpha.boundSet(atoi(args));
+            break; case CCS_Antialiasing:
+                menu.options.graphics.antialiasing.set(args == "2");
 
-            // sound menu
-            break; case CCS_SoundEnabled:          menu.options.sounds.enabled.set(args == "1");
-            break; case CCS_Volume:                menu.options.sounds.volume.boundSet(atoi(args));
-            break; case CCS_SoundTheme:            menu.options.sounds.theme.set(args); // ignore error
-
-            // local server menu
-            break; case CCS_ServerPublic:          menu.ownServer.pub.set(args == "1");
-            break; case CCS_ServerPort:            menu.ownServer.port.boundSet(atoi(args));
-            break; case CCS_ServerAddress:         menu.ownServer.address.set(args);
-            break; case CCS_AutodetectAddress:     menu.ownServer.autoIP.set(args == "1");
-            break; default: nAssert(0); // must handle all values up to the highest known
+            break; default: nAssert(0); // all values up to the highest known must be handled
         }
     }
     cfg.close();
@@ -922,17 +877,17 @@ bool Client::start() {
 
     // finalize and apply the settings
 
-    // name
-    tournamentPassword.changeData(playername, menu.options.name.password());
-
-    // game
-    if (menu.options.game.messageLogging() != Menu_game::ML_none)
-        openMessageLog();
+    // player
+    tournamentPassword.changeData(playername, menu.options.player.password());
     for (int i = 0; i < 16; i++)
         if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
             fav_colors.push_back(i);
     for (vector<int>::const_iterator col = fav_colors.begin(); col != fav_colors.end(); ++col)
-        menu.options.game.favoriteColors.addOption(*col);
+        menu.options.player.favoriteColors.addOption(*col);
+
+    // game
+    if (menu.options.game.messageLogging() != Menu_game::ML_none)
+        openMessageLog();
 
     // controls
     MCF_keyboardLayout();
@@ -1199,15 +1154,15 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    if (!menu.options.game.favoriteColors.values().empty()) {
+    if (!menu.options.player.favoriteColors.values().empty()) {
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, data_fav_colors);
-        writeByte(lebuf, count, menu.options.game.favoriteColors.values().size());
+        writeByte(lebuf, count, menu.options.player.favoriteColors.values().size());
         // send two colours in a byte
-        for (vector<int>::const_iterator col = menu.options.game.favoriteColors.values().begin();
-                    col != menu.options.game.favoriteColors.values().end(); ++col) {
+        for (vector<int>::const_iterator col = menu.options.player.favoriteColors.values().begin();
+                    col != menu.options.player.favoriteColors.values().end(); ++col) {
             NLubyte byte = static_cast<NLubyte>(*col) & 0x0F;
-            if (++col != menu.options.game.favoriteColors.values().end())
+            if (++col != menu.options.player.favoriteColors.values().end())
                 byte |= static_cast<NLubyte>(*col) << 4;
             writeByte(lebuf, count, byte);
         }
@@ -1322,6 +1277,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     graphics.clear_fx();
 
     gunDir.from8way(0);
+    gunDirRefreshedTime = get_time();
 
     if (!botmode) {
         send_frame(true, true);
@@ -1336,7 +1292,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 void Client::send_tournament_participation() {
     char lebuf[8]; int count = 0;
     writeByte(lebuf, count, data_tournament_participation);
-    writeByte(lebuf, count, menu.options.name.tournament() ? 1 : 0);
+    writeByte(lebuf, count, menu.options.player.tournament() ? 1 : 0);
     client->send_message(lebuf, count);
 }
 #endif
@@ -1651,7 +1607,7 @@ void Client::bot_send_frame(ClientControls controls) {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, clFrameSent);
     writeByte(lebuf, count, sentControls.toNetwork(false));
-    if (fx.physics.gunDirectionMode == GDM_Free)
+    if (fx.physics.allowFreeTurning)
         writeShort(lebuf, count, gunDir.toNetworkLongForm());
     client->send_frame(lebuf, count);
 }
@@ -1659,25 +1615,36 @@ void Client::bot_send_frame(ClientControls controls) {
 #ifndef DEDICATED_SERVER_ONLY
 void Client::change_name_command() {
     //set new name, close menu
-    menu.options.name.name.set(trim(menu.options.name.name()));
-    const string& newName = menu.options.name.name();
+    menu.options.player.name.set(trim(menu.options.player.name()));
+    const string& newName = menu.options.player.name();
     if (!check_name(newName))
         return;
-    openMenus.close(&menu.options.name.menu);
+    openMenus.close(&menu.options.player.menu);
 
     playername = newName;
     m_playerPassword.password.set(load_player_password(playername, addressToString(serverIP)));
     issue_change_name_command();
-    tournamentPassword.changeData(playername, menu.options.name.password());
+    tournamentPassword.changeData(playername, menu.options.player.password());
 }
 
-ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) {
+ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const {
     ClientControls ctrl;
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
         ctrl.fromJoystick(menu.options.controls.joyMove() - 1, menu.options.controls.joyRun(), menu.options.controls.joyStrafe());
     if (mouse_b & (1 << menu.options.controls.mouseRun() - 1))
         ctrl.setRun();
+    return ctrl;
+}
+
+ClientControls Client::readControlsInGame() const {
+    if (!openMenus.empty()) // don't move at all when a real menu is open
+        return ClientControls();
+    const bool text_input_in_use = !talkbuffer.empty() && menu.options.controls.arrowKeysInTextInput();
+    const bool forceUseCursorKeys = menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer;
+    ClientControls ctrl = readControls(menusel != menu_maps,
+                                       menusel == menu_none && !text_input_in_use || forceUseCursorKeys); // reserve cursor keys for stats screen or similar unless forced
+    ctrl.clearModifiersIfIdle();
     return ctrl;
 }
 
@@ -1690,11 +1657,10 @@ bool Client::firePressed() const {
 void Client::send_frame(bool newFrame, bool forceSend) {
     static double keyFilterTimeout = 0;
 
-    ClientControls currentControls;
-    if (openMenus.empty()) { // don't move at all when a real menu is open
-        const bool text_input_in_use = !talkbuffer.empty() && menu.options.controls.arrowKeysInTextInput();
-        currentControls = readControls(menusel != menu_maps, menusel == menu_none && !text_input_in_use || menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer);  // reserve cursor keys for stats screen or similar unless forced
-        currentControls.clearModifiersIfIdle();
+    ClientControls currentControls = readControlsInGame();
+    if (menu.options.controls.aimMode() == Menu_controls::AM_Turn && !currentControls.isStrafe()) {
+        currentControls.clearLeft();
+        currentControls.clearRight();
     }
 
     if (!forceSend && currentControls == sentControls)
@@ -1736,17 +1702,34 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, clFrameSent);
     writeByte(lebuf, count, sentControls.toNetwork(false));
-    if (fx.physics.gunDirectionMode == GDM_Free) {
+    if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() != Menu_controls::AM_8way) {
         refreshGunDir();
-        writeShort(lebuf, count, gunDir.toNetworkLongForm());
+        const AccelerationMode am = menu.options.controls.aimMode() == Menu_controls::AM_Mouse ? menu.options.controls.moveRelativity() : AM_Gun;
+        writeShort(lebuf, count, (am == AM_Gun ? 0x800 : 0) | gunDir.toNetworkLongForm());
     }
     client->send_frame(lebuf, count);
 }
 
 void Client::refreshGunDir() {
-    int mx, my;
-    get_mouse_mickeys(&mx, &my);
-    gunDir.adjust(mx * menu.options.controls.mouseSensitivity() / 5000.); //#fix: add sensitivity control
+    if (menu.options.controls.aimMode() == Menu_controls::AM_Mouse) {
+        int mx, my;
+        get_mouse_mickeys(&mx, &my);
+        gunDir.adjust(mx * menu.options.controls.mouseSensitivity() / 5000.);
+    }
+    else if (menu.options.controls.aimMode() == Menu_controls::AM_Turn) {
+        g_timeCounter.refresh();
+        const double time = get_time() - gunDirRefreshedTime;
+        gunDirRefreshedTime = get_time();
+        const ClientControls ctrl = readControlsInGame();
+        if (!ctrl.isStrafe() && ctrl.isLeftRight()) {
+            // turningSpeed ranges from 0 to 100; we want to scale it so that the minimal speed is 1/4 of a revolution per second (2 in GunDirection units); a reasonable maximum is 4 revolutions (32)
+            static const double sMin = 1, sMax = 32;
+            // we want to have e^100x == sMax/sMin => 100x == ln(sMax/sMin)
+            static const double X = ::log(sMax / sMin) / 100.;
+            const double mul = ctrl.isLeft() ? -1 : +1;
+            gunDir.adjust(mul * time * sMin * exp(menu.options.controls.turningSpeed() * X));
+        }
+    }
 }
 
 #endif
@@ -3922,7 +3905,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             stats_autoshowing = false;
         break; case KEY_F3:
             if (withControl)
-                menu.options.game.showNames.toggle();
+                menu.options.graphics.showNames.set(menu.options.graphics.showNames() == Menu_graphics::N_Never ? Menu_graphics::N_SameRoom : Menu_graphics::N_Never);
             else
                 handled = false;
         break; case KEY_ENTER:
@@ -4369,35 +4352,24 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 }
                 if (timeDelta > 3.)
                     timeDelta = 3.;
-                if (!fx.player[me].dead)
-                    switch (fx.physics.gunDirectionMode) {
-                    /*break;*/ case GDM_Gradual:
-                            for (NLubyte controlFrame = clFrameWorld; controlFrame != lastFrame; ++controlFrame) {
-                                if (controlHistory[controlFrame].isStrafe())
-                                    continue;
-                                if (controlHistory[controlFrame].isLeft() && !controlHistory[controlFrame].isRight())
-                                    fx.player[me].gundir.adjust(-fx.physics.gunDirectionChangePerFrame / 16.);
-                                else if (controlHistory[controlFrame].isRight() && !controlHistory[controlFrame].isLeft())
-                                    fx.player[me].gundir.adjust(+fx.physics.gunDirectionChangePerFrame / 16.);
+                if (!fx.player[me].dead) {
+                    if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() != Menu_controls::AM_8way)
+                        fx.player[me].gundir = gunDir;
+                    else
+                        for (NLubyte controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
+                            if (controlHistory[controlFrame].isStrafe())
+                                continue;
+                            const int dir = controlHistory[controlFrame].getDirection();
+                            if (dir != -1) {
+                                fx.player[me].gundir.from8way(dir);
+                                break;
                             }
-                        break; case GDM_Free:
-                            fx.player[me].gundir = gunDir;
-                        break; case GDM_Locked:
-                            for (NLubyte controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
-                                if (controlHistory[controlFrame].isStrafe())
-                                    continue;
-                                const int dir = controlHistory[controlFrame].getDirection();
-                                if (dir != -1) {
-                                    fx.player[me].gundir.from8way(dir);
-                                    break;
-                                }
-                            }
-                        break; default: nAssert(0);
-                    }
+                        }
+                }
                 fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
             }
             else {
-                if (fx.physics.gunDirectionMode == GDM_Free && !fx.player[me].dead)
+                if (fx.physics.allowFreeTurning && !fx.player[me].dead && menu.options.controls.aimMode() != Menu_controls::AM_8way)
                     fx.player[me].gundir = gunDir;
                 double timeDelta = (get_time() - frameReceiveTime) * 10.;
                 fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta);
@@ -4412,6 +4384,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                 predrawNeeded = false;
                 predraw();
             }
+
+            refreshGunDir();
 
             graphics.startDraw();
             draw_game_frame();
@@ -4726,85 +4700,32 @@ void Client::stop() {
     log("Saving client configuration in %s", fileName.c_str());
     ofstream cfg(fileName.c_str());
     if (cfg) {
-        // save name menu settings
-        cfg << CCS_PlayerName           << ' ' << playername << '\n';
-        cfg << CCS_Tournament           << ' ' << (menu.options.name.tournament() ? 1 : 0) << '\n';
+        for (SettingManager::MapT::const_iterator si = settings.read().begin(); si != settings.read().end(); ++si) {
+            nAssert(si->second);
+            cfg << si->first << ' ';
+            si->second->save(cfg);
+            cfg << '\n';
+        }
 
-        // save connect menu settings
-        cfg << CCS_Favorites            << ' ' << (menu.connect.favorites() ? 1 : 0) << '\n';
-
-        // save game menu settings
-        cfg << CCS_ShowNames            << ' ' << (menu.options.game.showNames() ? 1 : 0) << '\n';
+        // some more complicated settings need to be handled here
+        cfg << CCS_PlayerName << ' ' << playername << '\n';
         {   // favorite colors
-            cfg << CCS_FavoriteColors   << ' ';
-            if (menu.options.game.favoriteColors.values().empty())
+            cfg << CCS_FavoriteColors << ' ';
+            if (menu.options.player.favoriteColors.values().empty())
                 cfg << -1;
             else {
-                const vector<int>& colVec = menu.options.game.favoriteColors.values();
+                const vector<int>& colVec = menu.options.player.favoriteColors.values();
                 for (vector<int>::const_iterator col = colVec.begin(); col != colVec.end(); ++col)
                     cfg << *col << ' ';
             }
             cfg << '\n';
         }
-        cfg << CCS_LagPrediction        << ' ' << (menu.options.game.lagPrediction() ? 1 : 0) << '\n';
-        cfg << CCS_LagPredictionAmount  << ' ' <<  menu.options.game.lagPredictionAmount() << '\n';
-        cfg << CCS_MessageLogging       << ' ' << ((menu.options.game.messageLogging() == Menu_game::ML_full) ? 1 : (menu.options.game.messageLogging() == Menu_game::ML_chat) ? 2 : 0) << '\n';
-        cfg << CCS_SaveStats            << ' ' << (menu.options.game.saveStats() ? 1 : 0) << '\n';
-        cfg << CCS_ShowFlagMessages     << ' ' << (menu.options.game.showFlagMessages() ? 1 : 0) << '\n';
-        cfg << CCS_ShowKillMessages     << ' ' << (menu.options.game.showKillMessages() ? 1 : 0) << '\n';
-        cfg << CCS_ShowStats            << ' ' << ((menu.options.game.showStats() == Menu_game::SS_teams) ? 1 : (menu.options.game.showStats() == Menu_game::SS_players) ? 2 : 0) << '\n';
-        cfg << CCS_ShowServerInfo       << ' ' << (menu.options.game.showServerInfo() ? 1 : 0) << '\n';
-        cfg << CCS_StayDeadInMenus      << ' ' << (menu.options.game.stayDead() ? 1 : 0) << '\n';
-        cfg << CCS_UnderlineMasterAuth  << ' ' << (menu.options.game.underlineMasterAuth() ? 1 : 0) << '\n';
-        cfg << CCS_UnderlineServerAuth  << ' ' << (menu.options.game.underlineServerAuth() ? 1 : 0) << '\n';
-        cfg << CCS_AutoGetServerList    << ' ' << (menu.options.game.autoGetServerList() ? 1 : 0) << '\n';
-
-        // save controls menu settings
-        cfg << CCS_KeyboardLayout       << ' ' <<  menu.options.controls.keyboardLayout() << '\n';
-        cfg << CCS_KeypadMoving         << ' ' << (menu.options.controls.keypadMoving() ? 1 : 0) << '\n';
-        cfg << CCS_ArrowKeysInStats     << ' ' << (menu.options.controls.arrowKeysInStats() == Menu_controls::AS_movePlayer ? 1 : 0) << '\n';
-        cfg << CCS_ArrowKeysInTextInput << ' ' <<  menu.options.controls.arrowKeysInTextInput() << '\n';
-        cfg << CCS_Joystick             << ' ' << (menu.options.controls.joystick() ? 1 : 0) << '\n';
-        cfg << CCS_JoystickMove         << ' ' <<  menu.options.controls.joyMove() << '\n';
-        cfg << CCS_JoystickShoot        << ' ' <<  menu.options.controls.joyShoot() << '\n';
-        cfg << CCS_JoystickRun          << ' ' <<  menu.options.controls.joyRun() << '\n';
-        cfg << CCS_JoystickStrafe       << ' ' <<  menu.options.controls.joyStrafe() << '\n';
-        cfg << CCS_MouseSensitivity     << ' ' <<  menu.options.controls.mouseSensitivity() << '\n';
-        cfg << CCS_MouseShoot           << ' ' <<  menu.options.controls.mouseShoot() << '\n';
-        cfg << CCS_MouseRun             << ' ' <<  menu.options.controls.mouseRun() << '\n';
-
-        // save screen mode menu settings
-        cfg << CCS_Windowed             << ' ' << (menu.options.screenMode.windowed() ? 1 : 0) << '\n';
-        ScreenMode mode = menu.options.screenMode.resolution();
-        cfg << CCS_GFXMode              << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
-        cfg << CCS_Flipping             << ' ' << (menu.options.screenMode.flipping() ? 1 : 0) << '\n';
-        cfg << CCS_AlternativeFlipping  << ' ' << (menu.options.screenMode.alternativeFlipping() ? 1 : 0) << '\n';
-
-        // save graphics menu settings
-        cfg << CCS_FPSLimit             << ' ' <<  menu.options.graphics.fpsLimit() << '\n';
-        cfg << CCS_GFXTheme             << ' ' <<  menu.options.graphics.theme() << '\n';
-        cfg << CCS_UseThemeBackground   << ' ' << (menu.options.graphics.useThemeBackground() ? 1 : 0) << '\n';
-        cfg << CCS_Background           << ' ' <<  menu.options.graphics.background() << '\n';
-        cfg << CCS_Font                 << ' ' <<  menu.options.graphics.font() << '\n';
-        cfg << CCS_Antialiasing         << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
-        cfg << CCS_MinTransp            << ' ' << (menu.options.graphics.minTransp() ? 1 : 0) << '\n';
-        cfg << CCS_ContinuousTextures   << ' ' << (menu.options.graphics.contTextures() ? 1 : 0) << '\n';
-        cfg << CCS_MinimapPlayers       << ' ' << (menu.options.graphics.minimapPlayers() == Menu_graphics::MP_EarlyCut ? 1 : menu.options.graphics.minimapPlayers() == Menu_graphics::MP_LateCut ? 2 : 0) << '\n';
-        cfg << CCS_HighlightReturnedFlag << ' ' << (menu.options.graphics.highlightReturnedFlag() ? 1 : 0) << '\n';
-        cfg << CCS_SpawnHighlight       << ' ' << (menu.options.graphics.spawnHighlight() ? 1 : 0) << '\n';
-        cfg << CCS_NeighborMarkers      << ' ' << (menu.options.graphics.neighborMarkers() ? 1 : 0) << '\n';
-        cfg << CCS_StatsBgAlpha         << ' ' <<  menu.options.graphics.statsBgAlpha() << '\n';
-
-        // save sound menu settings
-        cfg << CCS_SoundEnabled         << ' ' << (menu.options.sounds.enabled() ? 1 : 0) << '\n';
-        cfg << CCS_Volume               << ' ' <<  menu.options.sounds.volume() << '\n';
-        cfg << CCS_SoundTheme           << ' ' <<  menu.options.sounds.theme() << '\n';
-
-        // save local server menu settings
-        cfg << CCS_ServerPublic         << ' ' << (menu.ownServer.pub() ? 1 : 0) << '\n';
-        cfg << CCS_ServerPort           << ' ' <<  menu.ownServer.port() << '\n';
-        cfg << CCS_ServerAddress        << ' ' <<  menu.ownServer.address() << '\n';
-        cfg << CCS_AutodetectAddress    << ' ' << (menu.ownServer.autoIP() ? 1 : 0) << '\n';
+        cfg << CCS_KeyboardLayout << ' ' << menu.options.controls.keyboardLayout() << '\n';
+        {
+            ScreenMode mode = menu.options.screenMode.resolution();
+            cfg << CCS_GFXMode << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
+        }
+        cfg << CCS_Antialiasing << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
 
         cfg.close();
     }
@@ -4824,7 +4745,7 @@ void Client::stop() {
     fileName = wheregamedir + "config" + directory_separator + "password.bin";
     FILE* psf = fopen(fileName.c_str(), "wb");
     if (psf) {
-        const string& password = menu.options.name.password();
+        const string& password = menu.options.player.password();
         for (int c = 0; c < PASSBUFFER; c++) {
             if (c < (int)password.length())
                 fputc(static_cast<unsigned char>(255 - password[c]), psf);
@@ -5474,7 +5395,7 @@ void Client::initMenus() {
     menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
                           new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
 
-    menu.recursiveSetMenuOpener                 (new MCB::A<Menu,           &Client::MCF_menuOpener             >(this));
+    menu.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
 
     menu.menu                       .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareMainMenu        >(this));
 
@@ -5491,12 +5412,12 @@ void Client::initMenus() {
     menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareAddServer       >(this));
     menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &Client::MCF_addServer              >(this));
 
-    menu.options.name.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareNameMenu        >(this));
-    menu.options.name.menu          .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawNameMenu    >(this));
-    menu.options.name.menu         .setCloseHook(new MCB::N<Menu,           &Client::MCF_nameMenuClose          >(this));
-    menu.options.name.name              .setHook(new MCB::N<Textfield,      &Client::MCF_nameChange             >(this));
-    menu.options.name.randomName        .setHook(new MCB::N<Textarea,       &Client::MCF_randomName             >(this));
-    menu.options.name.removePasswords   .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
+    menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_preparePlayerMenu      >(this));
+    menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawPlayerMenu  >(this));
+    menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &Client::MCF_playerMenuClose        >(this));
+    menu.options.player.name            .setHook(new MCB::N<Textfield,      &Client::MCF_nameChange             >(this));
+    menu.options.player.randomName      .setHook(new MCB::N<Textarea,       &Client::MCF_randomName             >(this));
+    menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
 
     menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGameMenu        >(this));
     typedef Select<Menu_game::MessageLoggingMode> mlComponentT;
@@ -5593,32 +5514,33 @@ void Client::MCF_cancelConnect() {
         disconnect_command();   // will cancel the (probably) ongoing connect attempt
 }
 
-void Client::MCF_prepareNameMenu() {
-    menu.options.name.name.set(playername);
+void Client::MCF_preparePlayerMenu() {
+    menu.options.player.name.set(playername);
+    menu.options.player.favoriteColors.setGraphicsCallBack(graphics);
 }
 
-void Client::MCF_prepareDrawNameMenu() {
-    menu.options.name.namestatus.set(tournamentPassword.statusAsString());
+void Client::MCF_prepareDrawPlayerMenu() {
+    menu.options.player.namestatus.set(tournamentPassword.statusAsString());
 }
 
-void Client::MCF_nameMenuClose() {
+void Client::MCF_playerMenuClose() {
     change_name_command();
     send_tournament_participation();
 }
 
 void Client::MCF_nameChange() { // only function to clear the password
-    menu.options.name.password.set("");
+    menu.options.player.password.set("");
     tournamentPassword.changeData(playername, "");
 }
 
 void Client::MCF_randomName() {
     const string name = language.code() == "fi" ? finnish_name(maxPlayerNameLength) : RandomName();
-    menu.options.name.name.set(name);
+    menu.options.player.name.set(name);
     MCF_nameChange();
 }
 
 void Client::MCF_removePasswords() {
-    const int removed = remove_player_passwords(menu.options.name.name());
+    const int removed = remove_player_passwords(menu.options.player.name());
     string dialog;
     if (removed == 1)
         dialog = _("1 password removed.");
@@ -5632,7 +5554,6 @@ void Client::MCF_removePasswords() {
 }
 
 void Client::MCF_prepareGameMenu() {
-    menu.options.game.favoriteColors.setGraphicsCallBack(graphics);
 }
 
 void Client::MCF_prepareControlsMenu() {

@@ -31,6 +31,84 @@
 #include "graphics.h"   // for mode fetching functions
 #include "menu.h"
 
+enum ClientCfgSetting {
+    CCS_PlayerName,
+    CCS_Tournament,
+    CCS_Favorites,
+    CCS_FavoriteColors,
+    CCS_LagPrediction,
+    CCS_LagPredictionAmount,
+    CCS_Joystick,
+    CCS_MessageLogging,
+    CCS_SaveStats,
+    CCS_Windowed,
+    CCS_GFXMode,
+    CCS_Flipping,
+    CCS_FPSLimit,
+    CCS_GFXTheme,
+    CCS_Antialiasing,
+    CCS_StatsBgAlpha,
+    CCS_ShowNames,
+    CCS_SoundEnabled,
+    CCS_Volume,
+    CCS_SoundTheme,
+    CCS_ShowStats,
+    CCS_AutoGetServerList,
+    CCS_ShowServerInfo,
+    CCS_KeypadMoving,
+    CCS_JoystickMove,
+    CCS_JoystickShoot,
+    CCS_JoystickRun,
+    CCS_JoystickStrafe,
+    CCS_ContinuousTextures,
+    CCS_UnderlineMasterAuth,
+    CCS_UnderlineServerAuth,
+    CCS_ServerPublic,
+    CCS_ServerPort,
+    CCS_KeyboardLayout,
+    CCS_ServerAddress,
+    CCS_AutodetectAddress,
+    CCS_ArrowKeysInStats,
+    CCS_MinimapPlayers,
+    CCS_AlternativeFlipping,
+    CCS_StayDeadInMenus,
+    CCS_MinTransp,
+    CCS_UseThemeBackground,
+    CCS_Background,
+    CCS_Font,
+    CCS_ShowFlagMessages,
+    CCS_ShowKillMessages,
+    CCS_HighlightReturnedFlag,
+    CCS_ArrowKeysInTextInput,
+    CCS_SpawnHighlight,
+    CCS_NeighborMarkersPlay,
+    CCS_NeighborMarkersReplay,
+    CCS_BoxRoomsWhenPlaying,
+    CCS_ViewOverMapBorder,
+    CCS_EmphasizeFlags,
+    CCS_MouseSensitivity,
+    CCS_MouseShoot,
+    CCS_MouseRun,
+    CCS_AimMode,
+    CCS_MoveRelativity,
+    CCS_TurningSpeed,
+    CCS_EndOfCommands
+};
+
+class SettingCollector {
+public:
+    virtual ~SettingCollector() { }
+
+    class SaverLoader {
+    public:
+        virtual ~SaverLoader() { }
+        virtual void save(std::ostream& o) const = 0;
+        virtual void load(const std::string& s) = 0;
+    };
+
+    virtual void add(ClientCfgSetting key, SaverLoader* sl) = 0; // ownership of sl is transferred
+};
+
 class Menu_addServer {
 public:
     IPfield     address;
@@ -39,8 +117,7 @@ public:
     Menu menu;
 
     Menu_addServer();
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_serverList {
@@ -59,18 +136,19 @@ public:
     Menu menu;
 
     Menu_serverList();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
     void add(const NLaddress& address, const std::string& serverInfo);
     void reset();
     void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook);
     NLaddress getAddress(const Textarea& target);
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
-class Menu_name {
+class Menu_player {
 public:
     Textfield   name;
     Textarea    randomName;
+    Colorselect favoriteColors;
     Textfield   password;
     StaticText  namestatus;
     Checkbox    tournament;
@@ -78,16 +156,16 @@ public:
 
     Menu menu;
 
-    Menu_name();
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+    Menu_player();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_game {
 public:
     enum MessageLoggingMode {
         ML_none,
-        ML_chat,
-        ML_full
+        ML_full,
+        ML_chat
     };
     enum ShowStatsMode {
         SS_none,
@@ -95,11 +173,9 @@ public:
         SS_players
     };
 
-    Checkbox    showNames;
-    Colorselect favoriteColors;
     Checkbox    lagPrediction;
     Slider      lagPredictionAmount;
-    Select<MessageLoggingMode>  messageLogging;
+    Select<MessageLoggingMode> messageLogging;
     Checkbox    showFlagMessages;
     Checkbox    showKillMessages;
     Checkbox    saveStats;
@@ -113,17 +189,22 @@ public:
     Menu menu;
 
     Menu_game();
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_controls {
 public:
     enum ArrowKeysInStatsMode { AS_useMenu, AS_movePlayer };
+    enum AimMode { AM_8way, AM_Turn, AM_Mouse };
 
     Select<std::string> keyboardLayout;
     Checkbox            keypadMoving;
     Select<ArrowKeysInStatsMode> arrowKeysInStats;
     Checkbox            arrowKeysInTextInput;
+
+    Select<AimMode>     aimMode;
+    Select<AccelerationMode> moveRelativity;
+    Slider              turningSpeed;
 
     Checkbox            joystick;
     Slider              joyMove;
@@ -144,7 +225,7 @@ public:
     Menu menu;
 
     Menu_controls();
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_screenMode {
@@ -167,31 +248,39 @@ public:
     Menu menu;
 
     Menu_screenMode();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 
     void init(const Graphics& gfx); // call just once, before calling update
     void update(const Graphics& gfx);   // tries to keep the selected resolution
     bool newMode(); // returns true if the current selection differs from the one at last call
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_graphics {
     void reloadChoices(const Graphics& gfx);
 
 public:
-    enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut };
+    enum NameMode { N_Never, N_SameRoom, N_Always, N_COUNT };
+    enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut, MP_COUNT };
+    enum FlagEmphasizeMode { FE_Never, FE_MultiRoom, FE_Always, FE_COUNT };
+    enum NeighborMarkerMode { NM_Never, NM_OneRoom, NM_Always, NM_COUNT };
+    enum ViewOverBorderMode { VOB_Never, VOB_MapDoesntFit, VOB_Always, VOB_COUNT };
 
     Select<std::string> theme;
     Select<std::string> background;
     Checkbox            useThemeBackground;
     Select<std::string> font;
+    Select<NameMode>    showNames;
     Checkbox            antialiasing;
     Checkbox            minTransp;
     Checkbox            contTextures;
     Select<MinimapPlayerMode> minimapPlayers;
     Checkbox            highlightReturnedFlag;
+    Select<FlagEmphasizeMode> emphasizeFlags;
     Checkbox            spawnHighlight;
-    Checkbox            neighborMarkers;
+    Select<NeighborMarkerMode> neighborMarkersPlay;
+    Select<NeighborMarkerMode> neighborMarkersReplay;
+    Checkbox            boxRoomsWhenPlaying;
+    Select<ViewOverBorderMode> viewOverMapBorder;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;
@@ -199,11 +288,14 @@ public:
     Menu menu;
 
     Menu_graphics();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 
     void init(const Graphics& gfx); // call just once, before calling update
     void update(const Graphics& gfx);   // tries to keep the selected theme
 
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+    bool showName(bool sameRoom) const { return showNames() != N_Never && (sameRoom || showNames() == N_Always); }
+    bool emphasizeFlag(int visible_rooms) const { return emphasizeFlags() != FE_Never && (visible_rooms > 1 || emphasizeFlags() == FE_Always); }
+    bool showNeighborMarkers(bool replaying, int visible_rooms) const;
 };
 
 class Menu_sounds {
@@ -215,10 +307,10 @@ public:
     Menu menu;
 
     Menu_sounds();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
     void init(const Sounds& snd);
     void update(const Sounds& snd); // tries to keep the selected theme
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_language {
@@ -228,7 +320,7 @@ public:
     Menu menu;
 
     Menu_language();
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_bugReportPolicy {
@@ -241,17 +333,16 @@ public:
     Select<AutoBugReporting> policy;
 
     Menu menu;
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 
     Menu_bugReportPolicy();
     void clear() { lines.clear(); }
     void addLine(const std::string& line);
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener) { menu.setHook(opener); }
 };
 
 class Menu_options {
 public:
-    Menu_name            name;
+    Menu_player          player;
     Menu_game            game;
     Menu_controls        controls;
     Menu_screenMode      screenMode;
@@ -263,7 +354,7 @@ public:
     Menu menu;
 
     Menu_options();
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_help {
@@ -275,10 +366,10 @@ public:
     Menu menu;
 
     Menu_help();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
     void clear() { lines.clear(); }
     void addLine(const std::string& line);
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_ownServer {
@@ -294,11 +385,11 @@ public:
     Menu menu;
 
     Menu_ownServer();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
     void init(const std::string& detectedAddress);
     void refreshCaption(bool serverRunning);
     void refreshEnables(bool serverRunning, bool connected);
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 
 private:
     std::string detectedIP;
@@ -312,12 +403,12 @@ public:
     Menu menu;
 
     Menu_replays();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
     void add(const std::string& replay, const std::string& text);
     void reset();
     void addHooks(MenuHookable<Textarea>::HookFunctionT* hook);
     const std::string& getFile(const Textarea& target);
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_main {
@@ -334,8 +425,7 @@ public:
     Menu menu;
 
     Menu_main();
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 };
 
 class Menu_text {
@@ -349,12 +439,12 @@ public:
     Menu menu;
 
     Menu_text();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
     void clear() { lines.clear(); }
     void addLine(const std::string& line, bool cancelable = false);
     void addLine(const std::string& caption, const std::string& value, bool cancelable = false, bool passive = false); // passive means neither accept nor cancel is used
     void wrapLine(const std::string& line, bool cancelable = false, int wrapPos = 68);
-
-    void recursiveSetMenuOpener(MenuHookable<Menu>::HookFunctionT* opener);
 };
 
 class Menu_playerPassword {
