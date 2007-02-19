@@ -2430,7 +2430,10 @@ void Client::process_message(const char* const lebuf, int msglen) {
             stringstream stream;
             stream.write(lebuf + count, map_length);
             count += map_length;
-            fx.map.parse_file(log, stream);
+            if (!fx.map.parse_file(log, stream)) {
+                log.error(_("Format error in replay file."));
+                return false;
+            }
             fd.map = fx.map;
             log("Map loaded from the replay: %s", fx.map.title.c_str());
             remove_useless_flags();
