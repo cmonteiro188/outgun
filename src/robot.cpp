@@ -1397,8 +1397,6 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;//.begin();
 
-    int label = 0;
-
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
         if (state == 2 && !fi->carried())
             continue;
@@ -1456,7 +1454,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
         }
 
         nAssert(nx < fx.map.w && ny < fx.map.h);
-        label = fx.map.room[nx][ny].label[num];
+        const int label = fx.map.room[nx][ny].label[num];
         if (label == -1)
             continue;
 
