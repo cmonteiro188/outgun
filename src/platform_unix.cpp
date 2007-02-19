@@ -200,7 +200,7 @@ void platUninit() {
 
 void platMessageBox(const string& caption, const string& msg, bool blocking) {
     // The dialog tools may bug totally when given characters in wrong encoding.
-    // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message.
+    // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message. (some versions of it did that with normal input like '&' too, so it's no longer used at all)
     // We have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
 
     char* capBuf = new char[caption.length() + 1];
@@ -209,14 +209,15 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
     const char* captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
     const char*     msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
 
-    static const int nFuncs = 3;
-    static const char* func[nFuncs] = { "gdialog", "kdialog", "xmessage" };
+    static const int nFuncs = 2;
+    static const char* func[nFuncs] = { "kdialog", "xmessage" };
+    static const int iXmessage = 1;
     static int funci = 0;   // updated to whatever works; nFuncs means nothing works
     while (funci != nFuncs) {
         int lFunci = funci; // local copy as a thread safety measure
         pid_t pid = fork();
         if (pid == 0) { // child
-            if (lFunci == 2)    // xmessage
+            if (lFunci == iXmessage)    // xmessage
                 execlp(func[lFunci], func[lFunci], captionConv, ":", msgConv, (const char*)0);
             else
                 execlp(func[lFunci], func[lFunci], "--title", captionConv, "--msgbox", msgConv, (const char*)0);
