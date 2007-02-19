@@ -4040,29 +4040,33 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             return;
         }
 
-    if (replaying)
-        if (toupper(ch) == 'P')
+    switch (toupper(ch)) {
+    /*break;*/ case 'P':
+        if (replaying) {
             replay_paused = !replay_paused;
-        else if (ch == '-') {
-            if (visible_rooms < fx.map.w || visible_rooms < fx.map.h) {
-                ++visible_rooms;
-                if (current_room.first == fx.map.w + 1 - visible_rooms && current_room.first > 0) // if map border wasn't broken, don't break it either
-                    --current_room.first;
-                if (current_room.second == fx.map.h + 1 - visible_rooms && current_room.second > 0)
-                    --current_room.second;
-                predrawNeeded = true;
-                graphics.set_playfield_scale(1. / visible_rooms);
-                mapChanged = true;  // just to get minimap updated
-            }
+            return;
         }
-        else if (ch == '+') {
-            if (visible_rooms > 1) {
-                --visible_rooms;
-                predrawNeeded = true;
-                graphics.set_playfield_scale(1. / visible_rooms);
-                mapChanged = true;  // just to get minimap updated
-            }
+    break; case '-':
+        if (!replaying && !withControl)
+            break;
+        if (visible_rooms < fx.map.w || visible_rooms < fx.map.h) {
+            ++visible_rooms;
+            if (current_room.first == fx.map.w + 1 - visible_rooms && current_room.first > 0) // if map border wasn't broken, don't break it either
+                --current_room.first;
+            if (current_room.second == fx.map.h + 1 - visible_rooms && current_room.second > 0)
+                --current_room.second;
+            graphics.set_playfield_scale(1. / visible_rooms);
         }
+        return;
+    break; case '+':
+        if (!replaying && !withControl)
+            break;
+        if (visible_rooms > 1) {
+            --visible_rooms;
+            graphics.set_playfield_scale(1. / visible_rooms);
+        }
+        return;
+    }
 
     switch (sc) {
     /*break;*/ case KEY_HOME:   // change colours
