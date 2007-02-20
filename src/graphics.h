@@ -104,7 +104,7 @@ public:
 
     typedef std::vector<std::vector<NLubyte> > VisibilityMap;
     void draw_background(bool map_ready) { VisibilityMap v; background.draw_background(drawbuf, map_ready && show_minimap, false, v); }
-    void draw_background(bool map_ready, const VisibilityMap& roomVis) { background.draw_background(drawbuf, map_ready, true, roomVis); }
+    void draw_background(bool map_ready, const VisibilityMap& roomVis) { background.draw_background(drawbuf, map_ready && show_minimap, true, roomVis); }
 
     void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
