@@ -208,7 +208,9 @@ class Client {
     #endif
     friend class TM_ConnectionUpdate;
 
+    #ifndef DEDICATED_SERVER_ONLY
     typedef Graphics::VisibilityMap VisibilityMap;
+    #endif
 
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
