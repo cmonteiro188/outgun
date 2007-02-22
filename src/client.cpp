@@ -2969,7 +2969,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
     break; case data_new_player: {
         NLubyte pid;
         readByte(lebuf, count, pid);
-        nAssert(!fx.player[pid].used);
+        nAssert(!fx.player[pid].used || replaying);
         fx.player[pid].clear(true, pid, "", pid / TSIZE);
 	    fx.player[pid].stats().set_start_time(time);
         #ifndef DEDICATED_SERVER_ONLY
@@ -5080,7 +5080,7 @@ bool Client::player_on_screen(int pid) const {
 
 bool Client::player_on_screen_exact(int pid) const {
     if (replaying)
-        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy);
+        return fx.player[pid].used && on_screen(fx.player[pid].roomx, fx.player[pid].roomy);
     else
         return fx.player[pid].onscreen;
 }
