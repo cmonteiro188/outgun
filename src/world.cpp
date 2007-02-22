@@ -3327,7 +3327,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
         skipped = true;
         return;
     }
-    nAssert(source.frame > 0);
+    nAssert(source.frame >= 0);
 
     frame = source.frame;
 
