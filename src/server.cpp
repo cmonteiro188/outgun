@@ -165,10 +165,10 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() {
-    if (!record) {
-        start_recording();
-        network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
-    }
+	if (!recording_started) {
+	    start_recording();
+	    network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
+	}
 
     //submit all pending reports and update tournament participation flags
     for (int i = 0; i < maxplayers; i++)
@@ -482,7 +482,9 @@ void Server::score_neg(int p, int amount) {
 
 //load a map from the rotation list
 bool Server::load_rotation_map(int pos) {
-    const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file, recording_needed() ? &record_map : 0);
+    record_map.clear();
+    const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file,
+                                   settings.get_recording() || network.is_relay_used() ? &record_map : 0);
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
@@ -589,13 +591,14 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) {
     return true;
 }
 
-bool Server::recording_needed() const {
-    return network.is_relay_working() || settings.get_recording() && network.get_player_count() >= 1;
+bool Server::recording_active() const {
+    return record || network.is_relay_active();
 }
 
 void Server::start_recording() {
-    if (!recording_needed())
+    if ((!settings.get_recording() || network.get_player_count() < 2) && !network.is_relay_used())
         return;
+
     record_start_frame = world.frame;
 
     ostringstream ost;
@@ -615,12 +618,16 @@ void Server::start_recording() {
         record_filename = wheregamedir + "replay" + directory_separator + time_str + ".replay";
         record.clear();
         record.open(record_filename.c_str(), ios::binary);
+        if (record)
+    		log("Recording started to %s.", record_filename.c_str());
+        else
+    		log("Could not create record file %s.", record_filename.c_str());
 
         record << ost.str();
         record_frame.str("");
-        record_init_data();
     }
 
+    record_init_data();
     network.send_first_relay_data(ost.str());
 
     recording_started = true;
@@ -628,22 +635,18 @@ void Server::start_recording() {
 }
 
 void Server::stop_recording() {
-    if (!recording_needed())
-        return;
     recording_started = false;
     if (record) {
         record.seekp(16);
         write(record, world.frame - record_start_frame);
+    	record.close();
+	    record.clear();
+	    if (network.get_human_count() < settings.get_recording())
+	        clear_recording();
     }
-    record.close();
-    record.clear();
-    if (network.get_human_count() < settings.get_recording())
-        clear_recording();
 }
 
 void Server::clear_recording() {
-    if (!settings.get_recording())
-        return;
     record.close();
     if (remove(record_filename.c_str()))
         log("Could not delete the replay file: %s", record_filename.c_str());
@@ -890,6 +893,7 @@ bool Server::start(int target_maxplayers) {
     if (threadLock)
         threadLockMutex.lock();
 
+    record.clear();
     ctf_game_restart();
     world.reset_time();
 
@@ -1415,7 +1419,7 @@ void Server::simulate_and_broadcast_frame() {
         }
 
     network.broadcast_frame(!gameover);
-    if (recording_needed()) {
+    if (recording_active()) {
         stringstream temp_frame;
         write(temp_frame, world.frame);
         unsigned players_present = 0;
@@ -1484,10 +1488,9 @@ void Server::simulate_and_broadcast_frame() {
         ost << temp_frame.str();
         ost << record_frame.str();
 
-        if (settings.get_recording())
+      	if (record)
             record << ost.str();
-        if (recording_started)
-            network.send_relay_data(ost.str());
+        network.send_relay_data(ost.str());
         record_frame.str("");
     }
 }

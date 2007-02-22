@@ -392,7 +392,7 @@ public:
 
     bool reset_settings(bool reload);   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
-    bool recording_needed() const;
+    bool recording_active() const;
     std::ostream& record_stream() const { return record_frame; }
     const std::string& record_map_data() const { return record_map; }
 };

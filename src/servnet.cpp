@@ -164,7 +164,7 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
 }
 
 void ServerNetworking::record_message(const string& msg) const {
-    if (host->recording_needed()) {
+    if (host->recording_active()) {
         ostream& out = host->record_stream();
         write(out, static_cast<unsigned>(msg.length()));
         out << msg;
@@ -172,7 +172,7 @@ void ServerNetworking::record_message(const string& msg) const {
 }
 
 void ServerNetworking::record_message(const char* data, int length) const {
-    if (host->recording_needed()) {
+    if (host->recording_active()) {
         ostream& out = host->record_stream();
         write(out, length);
         out.write(data, length);
@@ -856,7 +856,7 @@ void ServerNetworking::broadcast_screen_message(int px, int py, const char* lebu
         if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
             server->send_message(world.player[i].cid, lebuf, count);
 
-    if (host->recording_needed()) {
+    if (host->recording_active()) {
         ostream& out = host->record_stream();
         write(out, count + 2);
         out.write(lebuf, count);
@@ -1112,13 +1112,17 @@ string ServerNetworking::get_relay_server() const {
     return string(buf);
 }
 
-bool ServerNetworking::is_relay_working() const {
+bool ServerNetworking::is_relay_used() const {
+    return nlGetPortFromAddr(&relay_address);
+}
+
+bool ServerNetworking::is_relay_active() const {
     return relay_socket != NL_INVALID;
 }
 
 void ServerNetworking::send_first_relay_data(const string& data) {
     relay_new_game = true;
-    if (is_relay_working()) // already sent
+    if (is_relay_active()) // already sent
         return;
     nlDisable(NL_BLOCKING_IO);
     relay_socket = nlOpen(0, NL_RELIABLE);
@@ -1149,7 +1153,7 @@ void ServerNetworking::send_first_relay_data(const string& data) {
 }
 
 void ServerNetworking::send_relay_data(const string& data) {
-    if (!is_relay_working())  // Try again in the next game.
+    if (!is_relay_active())  // Try again in the next game.
         return;
     log("Sending relay data.");
     ostringstream ost;
@@ -2489,7 +2493,7 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["uptime"] = itoa(world.frame / 10);
         parameters["map"] = host->current_map().title;
         parameters["link"] = host->server_website();
-        if (is_relay_working())
+        if (is_relay_active())
             parameters["spectator"] = "1";
     }
     parameters["id"] = server_identification;
@@ -2510,7 +2514,7 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     parameters["uptime"] = itoa(world.frame / 10);
     parameters["map"] = host->current_map().title;
     parameters["mapfile"] = host->getCurrentMapFile();
-    if (is_relay_working())
+    if (is_relay_active())
         parameters["spectator"] = "1";
     string players;
     for (int i = 0; i < maxplayers; i++)

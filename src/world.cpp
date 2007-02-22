@@ -1842,7 +1842,7 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
             for (int i = 0; i < maxplayers; i++)
                 if (this->player[i].used && this->player[i].roomx == item[p].px && this->player[i].roomy == item[p].py)
                     net->sendPickupVisible(i, p, item[p]);
-            if (host->recording_needed())
+            if (host->recording_active())
                 net->sendPickupVisible(pid_record, p, item[p]);
             break;
         }
@@ -1904,7 +1904,7 @@ void ServerWorld::respawn_pickup(int p) {
         if (player[i].used && player[i].roomx == px && player[i].roomy == py)
             net->sendPickupVisible(i, p, item[p]);
 
-    if (host->recording_needed())
+    if (host->recording_active())
         net->sendPickupVisible(pid_record, p, item[p]);
 }
 

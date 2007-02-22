@@ -287,7 +287,8 @@ public:
 
     void set_relay_server(const std::string& address);
     std::string get_relay_server() const;
-    bool is_relay_working() const;
+	bool is_relay_used() const;
+    bool is_relay_active() const;
     void send_first_relay_data(const std::string& data);
     void send_relay_data(const std::string& data);
 
