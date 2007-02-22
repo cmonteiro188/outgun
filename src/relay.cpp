@@ -326,9 +326,20 @@ void Relay::add_data(istream& in) {
 }
 
 void Relay::send_data() {
-    if (!first_buffer.full())
-        return;
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
+        const unsigned temp_buffer_size = 10;
+        NLbyte temp[temp_buffer_size];
+        int result = nlRead(si->socket, temp, temp_buffer_size);
+        if (result == NL_INVALID) {
+            cout << "Spectator disconnected: " << getNlErrorString() << '\n';
+            nlClose(si->socket);
+            si = spectators.erase(si);
+            continue;
+        }
+        if (!first_buffer.full()) {
+            ++si;
+            continue;
+        }
         string chunk;
         unsigned protocol_size;
         if (!si->first_buffer_sent) {
@@ -343,11 +354,7 @@ void Relay::send_data() {
             ++si;
             continue;
         }
-        const unsigned temp_buffer_size = 10;
-        NLbyte temp[temp_buffer_size];
-        int result = nlRead(si->socket, temp, temp_buffer_size);
-        if (result != NL_INVALID)
-            result = send_data(si->socket, chunk);
+        result = send_data(si->socket, chunk);
         if (result == NL_INVALID) {
             cout << "Spectator disconnected: " << getNlErrorString() << '\n';
             nlClose(si->socket);
