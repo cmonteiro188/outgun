@@ -2971,6 +2971,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readByte(lebuf, count, pid);
         nAssert(!fx.player[pid].used);
         fx.player[pid].clear(true, pid, "", pid / TSIZE);
+	    fx.player[pid].stats().set_start_time(time);
         #ifndef DEDICATED_SERVER_ONLY
         players_sb.push_back(&fx.player[pid]);
         #endif
