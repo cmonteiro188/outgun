@@ -24,6 +24,7 @@
  */
 
 #include <algorithm>
+
 #include "language.h"
 #include "platform.h"
 #include "sounds.h"

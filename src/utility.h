@@ -28,6 +28,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+
 #include "nassert.h" // for __attribute__ for non-GCC as well as nAssert
 
 // try to keep the includes down: if new includes are needed, consider a separate header

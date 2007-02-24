@@ -23,7 +23,9 @@
  */
 
 #include "incalleg.h"
+
 #include <fstream>
+
 #include "commont.h"
 #include "log.h"
 #include "utility.h"

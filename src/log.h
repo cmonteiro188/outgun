@@ -26,9 +26,12 @@
 
 #include <deque>
 #include <string>
+
 #include <cstdarg>
 #include <cstdio>
+
 #include <nl.h>
+
 #include "mutex.h"
 #include "utility.h"
 

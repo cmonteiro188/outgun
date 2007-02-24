@@ -31,7 +31,9 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+
 #include <cmath>
+
 #include <nl.h>
 
 // Reads a line, stops to \n or \r and skips empty lines.

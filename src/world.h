@@ -27,10 +27,12 @@
 #define WORLD_H_INC
 
 #include "incalleg.h"
+
 #include <vector>
 #include <list>
 #include <string>
 #include <algorithm>
+
 #include "commont.h"
 #include "nassert.h"
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
