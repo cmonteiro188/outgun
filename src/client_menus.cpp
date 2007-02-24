@@ -451,7 +451,7 @@ Menu_graphics::Menu_graphics() :
     font                 (_("Font")),
 
     showNames            (_("Show player names")),
-    scroll               (_("Scroll the screen")),
+    scroll               (_("Scrolling")),
     antialiasing         (_("Antialiasing"), true),
     minTransp            (_("Less transparency effects"), false),
     contTextures         (_("Continuous textures between rooms"), false),
