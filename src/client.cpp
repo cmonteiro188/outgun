@@ -1744,7 +1744,6 @@ void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
 }
 
 bool Client::process_live_frame_data(const char* data, int length) { // returns false if an error occured that requires disconnecting
-    (void)length;
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);

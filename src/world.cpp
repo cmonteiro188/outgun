@@ -1815,7 +1815,7 @@ bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, d
     const double dy = flag.position().y - y;
     const int touchRadius = PLAYER_RADIUS + FLAG_RADIUS;
 
-    return (dx * dx + dy * dy < touchRadius * touchRadius);
+    return dx * dx + dy * dy < touchRadius * touchRadius;
 }
 
 // drop shield, turbo, shadow, power or weapon power-up if player has some of them
