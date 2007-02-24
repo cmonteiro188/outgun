@@ -1069,7 +1069,7 @@ bool Client::load_map(const string& directory, const string& mapname, NLushort s
     if (!ok)
         log("Map '%s' not found in '%s'.", mapname.c_str(), directory.c_str());
     else if (fx.map.crc != server_crc)
-        log("Map '%s' found in '%s' but it's CRC %i differs from server map CRC %i.",
+        log("Map '%s' found in '%s' but its CRC %i differs from server map CRC %i.",
             mapname.c_str(), directory.c_str(), fx.map.crc, server_crc);
     else
         return true;
