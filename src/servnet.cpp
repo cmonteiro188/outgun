@@ -2107,9 +2107,11 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                 world.player[i].energy = 0;
             writeByte(lebuf, lecount, static_cast<NLubyte>(iround(world.player[i].energy) & 255));
 
-            // ping of player frame# % MAXPLAYERS
-            const NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
-            writeShort(lebuf, lecount, theping);
+            // ping of player frame# % maxplayers
+            if (world.player[i].protocolExtensionsLevel < 0 || world.player[world.frame % maxplayers].used) {
+                const NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
+                writeShort(lebuf, lecount, theping);
+            }
         }
 
         //send the packet

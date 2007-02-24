@@ -1938,10 +1938,12 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
     fx.player[me].health = healt + extraHealth;
     fx.player[me].energy = energ + extraEnergy;
 
-    //read ping of player frame % MAX_PLAYERS
-    NLushort ping;
-    readShort(data, count, ping);
-    fx.player[svframe % maxplayers].ping = ping;
+    //read ping of player frame % maxplayers
+    if (count < length) {
+        NLushort ping;
+        readShort(data, count, ping);
+        fx.player[svframe % maxplayers].ping = ping;
+    }
 
     return true;
 }
