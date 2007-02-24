@@ -164,10 +164,10 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() {
-	if (!recording_started) {
-	    start_recording();
-	    network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
-	}
+    if (!recording_started) {
+        start_recording();
+        network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
+    }
 
     //submit all pending reports and update tournament participation flags
     for (int i = 0; i < maxplayers; i++)
@@ -620,9 +620,9 @@ void Server::start_recording() {
         record.clear();
         record.open(record_filename.c_str(), ios::binary);
         if (record)
-    		log("Recording started to %s.", record_filename.c_str());
+            log("Recording started to %s.", record_filename.c_str());
         else
-    		log("Could not create record file %s.", record_filename.c_str());
+            log("Could not create record file %s.", record_filename.c_str());
 
         record << ost.str();
         record_frame.str("");
@@ -640,10 +640,10 @@ void Server::stop_recording() {
     if (record) {
         record.seekp(16);
         write(record, world.frame - record_start_frame);
-    	record.close();
-	    record.clear();
-	    if (network.get_human_count() < settings.get_recording())
-	        clear_recording();
+        record.close();
+        record.clear();
+        if (network.get_human_count() < settings.get_recording())
+            clear_recording();
     }
 }
 
@@ -1490,7 +1490,7 @@ void Server::simulate_and_broadcast_frame() {
         ost << temp_frame.str();
         ost << record_frame.str();
 
-      	if (record)
+        if (record)
             record << ost.str();
         network.send_relay_data(ost.str());
         record_frame.str("");
