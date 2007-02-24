@@ -42,7 +42,7 @@ class Thread {
     template<class Function>
     static void* starter0(void* pv_arg) {
         unsigned long stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
-        randomize();    // help for implementations on which each thread has it's own random seed
+        randomize();    // help for implementations on which each thread has its own random seed
         ThreadData0<Function>* tdata = static_cast<ThreadData0<Function>*>(pv_arg);
         tdata->function();
         delete tdata;
@@ -66,7 +66,7 @@ class Thread {
     template<class Function, class ArgumentT>
     static void* starter1(void* pv_arg) {
         unsigned long stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
-        randomize();    // help for implementations on which each thread has it's own random seed
+        randomize();    // help for implementations on which each thread has its own random seed
         ThreadData1<Function, ArgumentT>* tdata = static_cast<ThreadData1<Function, ArgumentT>*>(pv_arg);
         tdata->function(tdata->arg);
         delete tdata;

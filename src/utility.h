@@ -94,7 +94,7 @@ std::string replace_all(std::string text, const std::string& s1, const std::stri
 // Replace characters &<>"' with HTML entities or character references.
 std::string escape_for_html(std::string text);
 
-// Pad /text/ with /pad/ from the given side until it's length is /size/ characters. Do nothing if length >= /size/.
+// Pad /text/ with /pad/ from the given side until its length is /size/ characters. Do nothing if length >= /size/.
 std::string pad_to_size_left (std::string text, int size, char pad = ' ');
 std::string pad_to_size_right(std::string text, int size, char pad = ' ');
 

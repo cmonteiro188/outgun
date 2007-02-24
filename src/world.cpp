@@ -288,7 +288,7 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const {
 
 /* CircWall::intersects_rect:
  * this function cheats a bit: it often returns true even if they don't really intersect, but if it returns false, it's certain they don't intersect
- * - the rectangle is extended: instead of it, the intersection is tested against it's bounding circle
+ * - the rectangle is extended: instead of it, the intersection is tested against its bounding circle
  * - the cheat in intersects_circ also applies
  */
 bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const {
@@ -923,7 +923,7 @@ BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r)
  *             /
  *           wall
  *
- * the circle hits the wall proper with it's center projection on the line
+ * the circle hits the wall proper with its center projection on the line
  * | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | / | (dx2,dy2)-(dx1,dy1) | = r
  * take the smaller solution of t and make sure the point is on the line
  *
@@ -944,7 +944,7 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
             // collp = p1 + k(p2-p1)    0<=k<=1 if on the line
             // | t*m - collp |  minimum (=r)
             // | t*m - p1 - k(p2-p1) |  minimum (=r)
-            // ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r)
+            // ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r^2)
             // (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the expression above *(-.5))
             // (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)^2 + (dy2-dy1)^2 ]
             const double k = (diffx * (t * mx - dx1) + diffy * (t * my - dy1)) / (diffx * diffx + diffy * diffy);
@@ -969,12 +969,12 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
  *                 \    } ar
  *                  \___}
  *
- * the circle hits the arc proper with it's center ar+cr (if outside) or ar-cr (if inside) and within the given angle from arc center vector
+ * the circle hits the arc proper with its center at a distance of ar+cr (if outside) or ar-cr (if inside) from the arc's radial center, and within the given angle from arc center vector
  *
  * | t(mx,my)-(dx,dy) | = ar+-cr , taking the smaller solution of t and making sure the position is within the given angle from av
  *
  * d? = distance vector of the arc's radial center, m? = movement vector of the circle, ar = radius of the arc, cr = radius of the moving circle
- * av = arc center unit vector, ahwcos = cosine of half arc width
+ * av = arc center unit vector, ahwcos = cosine of half arc "width" (angle)
  * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
  */
 BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) {
