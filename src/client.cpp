@@ -5423,7 +5423,7 @@ void Client::draw_player(int pid, double time, bool live) {
     }
     if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
         if (!fullyVisible) {
-            graphics.draw_player(pos, player.team(), player.color(), GunDirection(), 0, false, alpha, time);
+            graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
             return;
         }
 
