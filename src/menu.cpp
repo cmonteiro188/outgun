@@ -709,8 +709,24 @@ void Checkbox::shortcutActivated() {
 }
 
 
+Slider::Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_) :
+    Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_),
+    step(1),
+    graphic(graphic_)
+{ }
+
+Slider::Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_, int init_value, int step_, bool lockToStep_) :
+    Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value), step(step_), graphic(graphic_), lockToStep(lockToStep_)
+{
+    nAssert(init_value >= vmin_ && init_value <= vmax_);
+    nAssert(step >= 0);
+    nAssert(!lockToStep || (step > 0 && (vmax - vmin) % step == 0));
+}
+
 void Slider::boundSet(int value) {
     val = bound(value, vmin, vmax);
+    if (lockToStep)
+        val -= (val - vmin) % step;
 }
 
 int Slider::width() const {
@@ -747,7 +763,7 @@ void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour
 
 bool Slider::handleKey(char scan, unsigned char chr) {
     if ((scan == KEY_LEFT || chr == '-') && val > vmin) {
-        if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '-')
+        if (!lockToStep && (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '-'))
             --val;
         else if (step == 0) // logarithmic
             val -= (val - vmin) / 11 + 1;   // /11 to have ++,-- or --,++ result in the original value; it's magic ;)
@@ -757,7 +773,7 @@ bool Slider::handleKey(char scan, unsigned char chr) {
             val = vmin;
     }
     else if ((scan == KEY_RIGHT || chr == '+') && val < vmax) {
-        if (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '+')
+        if (!lockToStep && (key[KEY_LCONTROL] || key[KEY_RCONTROL] || chr == '+'))
             ++val;
         else if (step == 0) // logarithmic
             val += (val - vmin) / 10 + 1;

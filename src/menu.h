@@ -320,10 +320,10 @@ private:
 
 class Slider : public Component, public MenuHookable<Slider> {
 public:
-    Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_)
-        : Component(caption_), vmin(vmin_), vmax(vmax_), val(vmin_), step(1), graphic(graphic_) { }
-    Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_, int init_value, int step_ = 1)  // a step of 0 results in a logarithmic behavior
-        : Component(caption_), vmin(vmin_), vmax(vmax_), val(init_value), step(step_), graphic(graphic_) { nAssert(init_value >= vmin_ && init_value <= vmax_); nAssert(step >= 0); }
+    Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_);
+    Slider(const std::string caption_, bool graphic_, int vmin_, int vmax_, int init_value, int step_ = 1, bool lockToStep_ = false);
+    // a step of 0 results in a logarithmic behavior
+    // lockToStep means that the value can never be between the steps (this can't be set with logarithmic stepping)
 
     void set(int value) { nAssert(value >= vmin && value <= vmax); val = value; }
     void boundSet(int value);
@@ -337,7 +337,7 @@ public:
 
 private:
     int vmin, vmax, val, step;
-    bool graphic;
+    bool graphic, lockToStep;
 };
 
 class NumberEntry : public Component, public MenuHookable<NumberEntry> {
