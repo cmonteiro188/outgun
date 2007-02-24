@@ -58,8 +58,14 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
 
     const double tx = mex + dx;
     const double ty = mey + dy;
-    const double sx = cos(deg) * 2 * SCAN_RADIUS;
-    const double sy = sin(deg) * 2 * SCAN_RADIUS;
+    const double dist = sqrt(sqr(dx) + sqr(dy));
+    if (dist < PLAYER_RADIUS)
+        return false;
+    const double sx = dx / dist * 2 * SCAN_RADIUS;
+    const double sy = dy / dist * 2 * SCAN_RADIUS;
+
+    nAssert(fabs(cos(deg) * 2 * SCAN_RADIUS - sx) < 1e-10);
+    nAssert(fabs(sin(deg) * 2 * SCAN_RADIUS - sy) < 1e-10);
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
     bool at_wall = room.fall_on_wall(mex, mey, SCAN_RADIUS);
 
