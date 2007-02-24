@@ -60,7 +60,7 @@ public:
     bool set(LogSet&, const std::string&) { return true; }
 };
 
-// deal with Visual C++'s perks
+// at some time Visual C++ let these through (not sure anymore since they're already undefined in incalleg.h)
 #undef min
 #undef max
 

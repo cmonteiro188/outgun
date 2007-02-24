@@ -33,6 +33,8 @@
 #include <allegro.h>
 #ifdef ALLEGRO_WINDOWS
 #include <winalleg.h>
+#undef min
+#undef max
 #endif
 
 inline int text_length(const FONT* f, const std::string& str) {
