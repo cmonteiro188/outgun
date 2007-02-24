@@ -3266,12 +3266,11 @@ bool ServerWorld::all_kind_of_flags_exist() const {
 }
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) {
-    host->score_frag(pid, 1);   // just add some frags
+    host->score_frag(pid, 1);
     player[pid].stats().add_flag_take(get_time(), team == 2);
     teams[pid / TSIZE].add_flag_take();
     net->broadcast_flag_take(player[pid], team);
     stealFlag(team, flag, pid);
-    // shadow powerup: show player
     if (player[pid].item_shadow())
         player[pid].visibility = maximum_shadow_visibility;
 }
