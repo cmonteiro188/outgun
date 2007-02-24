@@ -664,7 +664,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
         for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
             if (fx.player[me].roomx != pi->px || fx.player[me].roomy != pi->py)
                 continue;
-            if (fi->position().x != pi->x || fi->position().y != pi->y)
+            if (fabs(fi->position().x - pi->x) > 5. || fabs(fi->position().y - pi->y) > 5.)
                 continue;
             at_base = true;
         }
@@ -679,9 +679,8 @@ ClientControls Client::GetFlag(double mex, double mey) const {
     t = 1 - fx.player[me].team(); // enemy team
 
     for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx ||
-            fi->position().py != fx.player[me].roomy)
-                continue;
+        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
+            continue;
         if (!fi->carried() && !carry) { // not my and i am not carry
             const double dx = fi->position().x - mex;
             const double dy = fi->position().y - mey;
@@ -690,8 +689,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
     }
 
     for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx ||
-            fi->position().py != fx.player[me].roomy)
+        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
                 continue;
         if (!fi->carried() && !carry) {
             const double dx = fi->position().x - mex;
@@ -1437,7 +1435,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
             if (pi->px != fi->position().px || pi->py != fi->position().py)
                 continue;
 
-            at_base = pi->x == fi->position().x && pi->y == fi->position().y;
+            at_base = fabs(pi->x - fi->position().x) <= 5. && fabs(pi->y - fi->position().y) <= 5.;
             if (at_base)
                 break;
         }
