@@ -1511,10 +1511,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->connect(false);
     #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
-    if (!botmode && visible_rooms != 1) {
-        visible_rooms = 1;
-        graphics.set_playfield_scale(1. / visible_rooms);
-    }
+    visible_rooms = 1;
     #endif
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
@@ -2258,7 +2255,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 
         #ifndef DEDICATED_SERVER_ONLY
         //play sound if rocket on screen
-        if (on_screen_exact(rpx, rpy))
+        if (on_screen_exact(rpx, rpy, rx, ry))
             if (power)
                 addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
             else
@@ -2324,7 +2321,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             if (target != 252)  // not shield hit -> blink player
                 fx.player[target].hitfx = time + .3;
             addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
-            if (!replaying || on_screen(fx.rock[rockid].px, fx.rock[rockid].py))
+            if (!replaying || on_screen(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
                 addThreadMessage(new TM_Sound(SAMPLE_HIT));
         }
         #endif
@@ -2335,14 +2332,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         NLubyte target;
         readByte(lebuf, count, target);
         fx.player[target].hitfx = time + .3;
-        if (replaying) {
-            NLubyte rx, ry;
-            readByte(lebuf, count, rx);
-            readByte(lebuf, count, ry);
-            if (!on_screen(rx, ry))
-                break;
-        }
-        addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
+        if (!replaying || player_on_screen(target))
+            addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
         #endif
     }
 
@@ -2469,20 +2460,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             remove_useless_flags();
             mapChanged = true;
             map_ready = true;
-            current_room = pair<int, int>();
-            const int team = rand() % 2;
-            if (visible_rooms > fx.map.w && visible_rooms > fx.map.h) {
-                visible_rooms = max(fx.map.w, fx.map.h);
-                graphics.set_playfield_scale(1. / visible_rooms);
-            }
-            if (!fx.map.tinfo[team].flags.empty()) {
-                const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
-                current_room = pair<int, int>(max(0, pos.px + 1 - visible_rooms), max(0, pos.py + 1 - visible_rooms));
-            }
-            else if (!fx.map.wild_flags.empty()) {
-                const WorldCoords& pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
-                current_room = pair<int, int>(max(0, pos.px + 1 - visible_rooms), max(0, pos.py + 1 - visible_rooms));
-            }
             if (!spectating)
                 break;
             #endif
@@ -4095,30 +4072,27 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
 
     switch (toupper(ch)) {
     /*break;*/ case 'P':
-        if (replaying) {
-            replay_paused = !replay_paused;
+            if (replaying) {
+                replay_paused = !replay_paused;
+                return;
+            }
+        break; case '-':
+            if (!replaying && !withControl)
+                break;
+            if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || menu.options.graphics.repeatMap() && visible_rooms < 100) {
+                ++visible_rooms;
+                if (replayTopLeftRoom.first == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.first > 0) // if map border wasn't broken, don't break it either
+                    --replayTopLeftRoom.first;
+                if (replayTopLeftRoom.second == fx.map.h + 1 - visible_rooms && replayTopLeftRoom.second > 0)
+                    --replayTopLeftRoom.second;
+            }
             return;
-        }
-    break; case '-':
-        if (!replaying && !withControl)
-            break;
-        if (visible_rooms < fx.map.w || visible_rooms < fx.map.h) {
-            ++visible_rooms;
-            if (current_room.first == fx.map.w + 1 - visible_rooms && current_room.first > 0) // if map border wasn't broken, don't break it either
-                --current_room.first;
-            if (current_room.second == fx.map.h + 1 - visible_rooms && current_room.second > 0)
-                --current_room.second;
-            graphics.set_playfield_scale(1. / visible_rooms);
-        }
-        return;
-    break; case '+':
-        if (!replaying && !withControl)
-            break;
-        if (visible_rooms > 1) {
-            --visible_rooms;
-            graphics.set_playfield_scale(1. / visible_rooms);
-        }
-        return;
+        break; case '+':
+            if (!replaying && !withControl)
+                break;
+            if (visible_rooms > 1)
+                --visible_rooms;
+            return;
     }
 
     switch (sc) {
@@ -4155,23 +4129,23 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
         }
         break; case KEY_LEFT: {
             if (replaying)
-                current_room.first = (current_room.first - 1 + fx.map.w) % fx.map.w;
+                replayTopLeftRoom.first = (replayTopLeftRoom.first - 1 + fx.map.w) % fx.map.w;
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor > 0)
                 talkbuffer_cursor--;
         }
         break; case KEY_RIGHT: {
             if (replaying)
-                current_room.first = (current_room.first + 1) % fx.map.w;
+                replayTopLeftRoom.first = (replayTopLeftRoom.first + 1) % fx.map.w;
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
                 talkbuffer_cursor++;
         }
         break; case KEY_UP: {
             if (replaying)
-                current_room.second = (current_room.second - 1 + fx.map.h) % fx.map.h;
+                replayTopLeftRoom.second = (replayTopLeftRoom.second - 1 + fx.map.h) % fx.map.h;
         }
         break; case KEY_DOWN: {
             if (replaying)
-                current_room.second = (current_room.second + 1) % fx.map.h;
+                replayTopLeftRoom.second = (replayTopLeftRoom.second + 1) % fx.map.h;
         }
         break; case KEY_PGUP: {
             if (replaying && (replay_rate *= 2) > 128)
@@ -4396,23 +4370,49 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             if (mapChanged) {
                 mapChanged = false;
                 graphics.mapChanged();
-            }
-
-            {
-                const bool redrawMap = graphics.needRedrawMap();
-                bool needPredraw = graphics.needPredraw();
-
-                const pair<int, int> room0 = topLeftRoom();
-                if (room0 != predrawnRoom) {
-                    predrawnRoom = room0;
-                    needPredraw = true;
+                if (visible_rooms > fx.map.w && visible_rooms > fx.map.h)
+                    visible_rooms = max(fx.map.w, fx.map.h);
+                if (replaying) {
+                    const int team = rand() % 2;
+                    replayTopLeftRoom = pair<int, int>();
+                    if (!fx.map.tinfo[team].flags.empty()) {
+                        const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
+                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - visible_rooms), max(0, pos.py + 1 - visible_rooms));
+                    }
+                    else if (!fx.map.wild_flags.empty()) {
+                        const WorldCoords& pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
+                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - visible_rooms), max(0, pos.py + 1 - visible_rooms));
+                    }
                 }
 
-                if (redrawMap)
-                    graphics.update_minimap_background(fx.map);
-                if (needPredraw)
-                    predraw();
+                mapWrapsX = mapWrapsY = false;
+                static const int testSkip = PLAYER_RADIUS / 2;
+                for (int side = 0; side < 2; ++side) {
+                    for (int rx = 0; rx < fx.map.w && !mapWrapsY; ++rx) {
+                        const int ry = side ? fx.map.h - 1 : 0;
+                        const int ly = side ? plh : 0;
+                        for (int lx = 0; lx < plw; lx += testSkip)
+                            if (!fx.map.fall_on_wall(rx, ry, lx, ly, PLAYER_RADIUS)) {
+                                mapWrapsY = true;
+                                break;
+                            }
+                    }
+                    for (int ry = 0; ry < fx.map.h && !mapWrapsX; ++ry) {
+                        const int rx = side ? fx.map.w - 1 : 0;
+                        const int lx = side ? plw : 0;
+                        for (int ly = 0; ly < plh; ly += testSkip)
+                            if (!fx.map.fall_on_wall(rx, ry, lx, ly, PLAYER_RADIUS)) {
+                                mapWrapsX = true;
+                                break;
+                            }
+                    }
+                }
             }
+
+            if (graphics.needRedrawMap())
+                graphics.update_minimap_background(fx.map);
+            if (graphics.needPredraw() || visible_rooms != predrawnVisibleRooms || topLeftRoom() != predrawnRoom)
+                predraw();
 
             refreshGunDir();
 
@@ -4506,11 +4506,8 @@ bool Client::start_replay(istream& replay) {
     replay_stopped = false;
     replayTime = get_time();
     replaySubFrame = 0;
-    current_room = pair<int, int>();
-    if (visible_rooms != 1) {
-        visible_rooms = 1;
-        graphics.set_playfield_scale(1. / visible_rooms);
-    }
+    replayTopLeftRoom = pair<int, int>();
+    visible_rooms = 1;
 
     show_all_messages = false;
     stats_autoshowing = false;
@@ -4806,7 +4803,7 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
     const double time = fx.frame / 10;
-    const bool sound = !replaying || on_screen(roomx, roomy);
+    const bool sound = !replaying || on_screen(roomx, roomy, x, y);
     if (botmode)
         return;
     if (power) {
@@ -4907,12 +4904,22 @@ void Client::predraw() {
         }
     }
 
-    const pair<int, int> room0 = topLeftRoom();
-    graphics.predraw(fx.map, menu.options.graphics.contTextures(), deco, room0.first, room0.second, visible_rooms, menu.options.graphics.mapInfoMode());
+    const WorldCoords topLeft = viewTopLeft();
+    predrawnRoom = pair<int, int>(topLeft.px, topLeft.py);
+    predrawnVisibleRooms = visible_rooms;
+
+    graphics.predraw(fx.map,
+                     menu.options.graphics.contTextures(),
+                     deco,
+                     topLeft,
+                     visible_rooms,
+                     menu.options.graphics.repeatMap(),
+                     menu.options.graphics.scroll(),
+                     menu.options.graphics.mapInfoMode());
 }
 
 static int calculateRoomDelta(int coord, int viewStart, int viewWidth, int mapSize, bool smallLocalCoord) {
-    if ((coord - viewStart + mapSize) % mapSize < viewWidth) // same as in on_screen
+    if ((coord - viewStart + mapSize) % mapSize < viewWidth)
         return 0;
     if (viewWidth == mapSize - 1) { // this means the same room is the neighbor in both directions
         if (viewStart == 0) // if there is a map edge in one direction, the room feels more natural in the other direction
@@ -4931,10 +4938,12 @@ static int calculateRoomDelta(int coord, int viewStart, int viewWidth, int mapSi
 }
 
 int Client::roomDeltaX(int x, bool locallyToTheLeft) const {
+    nAssert(!menu.options.graphics.scroll());
     return calculateRoomDelta(x, topLeftRoom().first, visible_rooms, fx.map.w, locallyToTheLeft);
 }
 
 int Client::roomDeltaY(int y, bool locallyToTheTop) const {
+    nAssert(!menu.options.graphics.scroll());
     return calculateRoomDelta(y, topLeftRoom().second, visible_rooms, fx.map.h, locallyToTheTop);
 }
 
@@ -4946,34 +4955,49 @@ WorldCoords Client::playerPos(int pid) const {
                        world.player[pid].ly);
 }
 
-pair<int, int> Client::topLeftRoom() const {
-    if (!map_ready)
-        return pair<int, int>();
-    else if (me >= 0) {
-        int x, y;
-        const int xToCenter = fx.player[me].roomx - min(fx.map.w, visible_rooms) / 2;
-        const int yToCenter = fx.player[me].roomy - min(fx.map.h, visible_rooms) / 2;
-        const Menu_graphics::ViewOverBorderMode view = menu.options.graphics.viewOverMapBorder();
-        if (visible_rooms >= fx.map.w && view != Menu_graphics::VOB_Always)
-            x = 0;
-        else if (view == Menu_graphics::VOB_Never && xToCenter < 0)
-            x = 0;
-        else if (view == Menu_graphics::VOB_Never && xToCenter + visible_rooms > fx.map.w)
-            x = fx.map.w - visible_rooms;
-        else
-            x = (xToCenter + fx.map.w) % fx.map.w;
-        if (visible_rooms >= fx.map.h && view != Menu_graphics::VOB_Always)
-            y = 0;
-        else if (view == Menu_graphics::VOB_Never && yToCenter < 0)
-            y = 0;
-        else if (view == Menu_graphics::VOB_Never && yToCenter + visible_rooms > fx.map.h)
-            y = fx.map.h - visible_rooms;
-        else
-            y = (yToCenter + fx.map.h) % fx.map.h;
-        return pair<int, int>(x, y);
+static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, int visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) {
+    double coordBase = 0;
+    if (visibleRooms >= mapSize) {
+        coordBase = - (visibleRooms - mapSize) * .5; // as this is added to the view start coordinates, effectively that position then starts the map sized region in the middle of the screen
+        visibleRooms = mapSize; // since we are now operating on the map-sized region
+        if (view != Menu_graphics::VOB_Always && (view != Menu_graphics::VOB_MapWraps || !mapWraps))
+            return coordBase;
     }
-    else
-        return current_room;
+    const double center = myRoom + (scroll ? myLocal / roomSize : .5);
+    const double halfw = visibleRooms * .5;
+    if (view == Menu_graphics::VOB_Never || view != Menu_graphics::VOB_Always && !mapWraps) {
+        if (center - halfw < 0)
+            return coordBase;
+        if (center + halfw >= mapSize)
+            return coordBase + mapSize - visibleRooms;
+    }
+    return coordBase + center - halfw;
+}
+
+static pair<int, double> splitCompositeCoord(double comp, int roomSize, int mapSize) {
+    const double local = positiveFmod(comp, 1.);
+    return pair<int, double>(positiveModulo(iround(comp - local), mapSize), local * roomSize); // iround because of inaccuracies; it should be very close to integral really
+}
+
+WorldCoords Client::viewTopLeft() const {
+    if (!map_ready)
+        return WorldCoords(0, 0, 0, 0);
+    else if (me < 0)
+        return WorldCoords(replayTopLeftRoom.first, replayTopLeftRoom.second, 0, 0);
+    else {
+        const Menu_graphics::ViewOverBorderMode view = menu.options.graphics.viewOverMapBorder();
+        const bool scroll = menu.options.graphics.scroll();
+        const bool repeat = menu.options.graphics.repeatMap();
+        const double x = getViewStartCoord(fd.player[me].roomx, fd.player[me].lx, plw, fx.map.w, mapWrapsX, repeat ? visible_rooms : min(fx.map.w, visible_rooms), view, scroll);
+        const double y = getViewStartCoord(fd.player[me].roomy, fd.player[me].ly, plh, fx.map.h, mapWrapsY, repeat ? visible_rooms : min(fx.map.h, visible_rooms), view, scroll);
+        const pair<int, double> xp = splitCompositeCoord(x, plw, fx.map.w), yp = splitCompositeCoord(y, plh, fx.map.h);
+        return WorldCoords(xp.first, yp.first, xp.second, yp.second);
+    }
+}
+
+pair<int, int> Client::topLeftRoom() const {
+    const WorldCoords c = viewTopLeft();
+    return pair<int, int>(c.px, c.py);
 }
 
 //draw the whole game screen
@@ -5106,9 +5130,22 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 }
 
 bool Client::on_screen(int x, int y) const {
-    const pair<int, int> room0 = topLeftRoom();
-    return (x - room0.first  + fx.map.w) % fx.map.w < visible_rooms &&
-           (y - room0.second + fx.map.h) % fx.map.h < visible_rooms;
+    const WorldCoords topLeft = viewTopLeft();
+    return (x - topLeft.px + fx.map.w) % fx.map.w < visible_rooms + (menu.options.graphics.scroll() || topLeft.x > .01) &&
+           (y - topLeft.py + fx.map.h) % fx.map.h < visible_rooms + (menu.options.graphics.scroll() || topLeft.y > .01);
+}
+
+bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const {
+    const int mapw = fx.map.w * plw,
+              maph = fx.map.h * plh;
+    const double x = rx * plw + lx,
+                 y = ry * plh + ly;
+    const WorldCoords topLeft = viewTopLeft();
+    const double tlx = topLeft.px * plw + topLeft.x - fudge,
+                 tly = topLeft.py * plh + topLeft.y - fudge;
+    const double relX = positiveFmod(x - tlx, mapw),
+                 relY = positiveFmod(y - tly, maph);
+    return relX < visible_rooms * plw + 2 * fudge && relY < visible_rooms * plh + 2 * fudge;
 }
 
 bool Client::on_screen_exact(int x, int y) const {
@@ -5118,18 +5155,26 @@ bool Client::on_screen_exact(int x, int y) const {
         return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
 }
 
+bool Client::on_screen_exact(int rx, int ry, double lx, double ly) const {
+    if (!on_screen(rx, ry, lx, ly))
+        return false;
+    return replaying || me >= 0 && rx == fx.player[me].roomx && ry == fx.player[me].roomy;
+}
+
 bool Client::player_on_screen(int pid) const {
     if (!fx.player[pid].used)
         return false;
     else if (!replaying && !fx.player[pid].onscreen && fx.frame > fx.player[pid].posUpdated + 20)
         return false;
     else
-        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy);
+        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, PLAYER_RADIUS);
 }
 
 bool Client::player_on_screen_exact(int pid) const {
-    if (replaying)
-        return fx.player[pid].used && on_screen(fx.player[pid].roomx, fx.player[pid].roomy);
+    if (!fx.player[pid].used)
+        return false;
+    else if (replaying)
+        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, PLAYER_RADIUS);
     else
         return fx.player[pid].onscreen;
 }
@@ -5142,12 +5187,10 @@ void Client::draw_map(const VisibilityMap& roomVis) {
         for (int rx = 0; rx < fx.map.w; rx++)
             graphics.draw_minimap_room(fx.map, rx, ry, roomVis[rx][ry] / 255.);
 
-    if (replaying || visible_rooms > 1 && menu.options.graphics.boxRoomsWhenPlaying()) {
-        const pair<int, int> room0 = topLeftRoom();
-        const int size_x = min(visible_rooms, fx.map.w);
-        const int size_y = min(visible_rooms, fx.map.h);
-        graphics.highlight_minimap_rooms(fx.map, room0.first, room0.second, size_x, size_y);
-    }
+    if (replaying || (visible_rooms > 1 || menu.options.graphics.scroll()) && menu.options.graphics.boxRoomsWhenPlaying())
+        graphics.highlight_minimap_rooms();
+
+    const bool neighborMarkers = !menu.options.graphics.scroll() && menu.options.graphics.showNeighborMarkers(replaying, visible_rooms);
 
     // draw all teammates and enemies on screens where there are teammates
     if ((me >= 0 || replaying) && fx.frame >= 0)
@@ -5155,8 +5198,9 @@ void Client::draw_map(const VisibilityMap& roomVis) {
             const ClientPlayer& pl = fx.player[i];
             const WorldCoords pos = playerPos(i);
             if (pl.used && pos.px >= 0 && pos.py >= 0 && pos.px < fx.map.w && pos.py < fx.map.h && pl.alpha > 0) {
-                const int xDelta = roomDeltaX(pos.px, pos.x < plw / 2), yDelta = roomDeltaY(pos.py, pos.y < plw / 2);
-                const bool drawNeighborMarkers = abs(xDelta) + abs(yDelta) == 1 && menu.options.graphics.showNeighborMarkers(replaying, visible_rooms);
+                const int xDelta = neighborMarkers ? roomDeltaX(pos.px, pos.x < plw / 2) : 0,
+                          yDelta = neighborMarkers ? roomDeltaY(pos.py, pos.y < plh / 2) : 0;
+                const bool drawNeighborMarkers = neighborMarkers && abs(xDelta) + abs(yDelta) == 1;
                 const int alpha = pl.alpha;
                 if (alpha != 255) {
                     set_trans_blender(0, 0, 0, alpha);
@@ -5204,8 +5248,9 @@ void Client::draw_map(const VisibilityMap& roomVis) {
                                    time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
                 graphics.draw_mini_flag(t, *fi, fx.map, flash);
                 const WorldCoords& pos = fi->position();
-                const int xDelta = roomDeltaX(pos.px, pos.x < plw / 2), yDelta = roomDeltaY(pos.py, pos.y < plh / 2);
-                if (abs(xDelta) + abs(yDelta) == 1 && menu.options.graphics.showNeighborMarkers(replaying, visible_rooms))
+                const int xDelta = neighborMarkers ? roomDeltaX(pos.px, pos.x < plw / 2) : 0,
+                          yDelta = neighborMarkers ? roomDeltaY(pos.py, pos.y < plh / 2) : 0;
+                if (neighborMarkers && abs(xDelta) + abs(yDelta) == 1)
                     graphics.draw_neighbor_marker(true, xDelta, yDelta, pos, t);
             }
     }
@@ -5215,12 +5260,9 @@ void Client::draw_playfield() {
     const double time = fd.frame / 10;
     const bool live = !replaying || !replay_paused && !replay_stopped;
 
-    {
-        const pair<int, int> room0 = topLeftRoom();
-        graphics.startPlayfieldDraw(room0.first, room0.second, visible_rooms, fx.map.w, fx.map.h);
-    }
+    graphics.startPlayfieldDraw(viewTopLeft());
 
-    // draw dead players, except ice creams
+    // draw dead players
     for (int i = 0; i < maxplayers; i++)
         if (fx.player[i].dead && player_on_screen(i)) {
             if (fx.player[i].stats().frags() % 100 == 0 && fx.player[i].stats().frags() >= 100)
@@ -5229,16 +5271,15 @@ void Client::draw_playfield() {
                 graphics.draw_player_dead(fx.player[i]);
         }
 
-    // draw any item pickups
+    // draw item pickups
     for (int i = 0; i < MAX_PICKUPS; i++)
-        // used power-ups, not respawning, on my screen
         if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen_exact(fx.item[i].px, fx.item[i].py))
             graphics.draw_pup(fx.item[i], time, live);
 
     // draw turbo effects
     graphics.draw_turbofx(time);
 
-    // draw any dropped flags (use fx since flags don't move)
+    // draw dropped flags (use fx since flags don't move)
     for (int t = 0; t < 3; t++) {
         const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
@@ -5249,7 +5290,7 @@ void Client::draw_playfield() {
             }
     }
 
-    // draw any rockets
+    // draw rockets
     for (int i = 0; i < MAX_ROCKETS; i++)
         if (fx.rock[i].owner != -1 && on_screen(fx.rock[i].px, fx.rock[i].py)) {
             fd.rock[i].team = fx.rock[i].team;
@@ -5259,7 +5300,7 @@ void Client::draw_playfield() {
             graphics.draw_rocket(fd.rock[i], shadow, time);
         }
 
-    // the PLAY AREA: the players!
+    // draw players
     for (int k = 0; k < maxplayers; k++) {
         const int i = (me / TSIZE == 0 ? k : maxplayers - k - 1);   // own team first
 
@@ -5519,8 +5560,10 @@ void Client::initMenus() {
     menu.options.graphics.background    .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
     menu.options.graphics.font          .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange             >(this));
     menu.options.graphics.antialiasing  .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange        >(this));
+    menu.options.graphics.scroll        .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
     menu.options.graphics.minTransp     .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange           >(this));
     menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
+    menu.options.graphics.repeatMap     .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
     menu.options.graphics.statsBgAlpha  .setHook(new MCB::N<Slider,         &Client::MCF_statsBgChange          >(this));
     menu.options.graphics.mapInfoMode   .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
 

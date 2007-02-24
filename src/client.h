@@ -208,10 +208,6 @@ class Client {
     #endif
     friend class TM_ConnectionUpdate;
 
-    #ifndef DEDICATED_SERVER_ONLY
-    typedef Graphics::VisibilityMap VisibilityMap;
-    #endif
-
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
@@ -247,6 +243,7 @@ class Client {
     ClientWorld fx; //#fix fx and fd: two maps, etc.
     #ifndef DEDICATED_SERVER_ONLY
     ClientWorld fd;
+    bool mapWrapsX, mapWrapsY;
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
     #endif
     int me;
@@ -466,7 +463,7 @@ class Client {
     bool replay_first_frame_loaded;
     unsigned replay_start_frame;
     unsigned replay_length;
-    std::pair<int, int> current_room;
+    std::pair<int, int> replayTopLeftRoom;
     int visible_rooms;
 
     bool spectating;
@@ -481,6 +478,8 @@ class Client {
     Sounds client_sounds;
 
     std::pair<int, int> predrawnRoom;
+    int predrawnVisibleRooms;
+    bool predrawnWithScroll;
 
     std::ofstream message_log;
     bool messageLogOpen;
@@ -648,6 +647,7 @@ class Client {
     int roomDeltaX(int x, bool locallyToTheLeft) const; // gives a sense of where x1 is relative to the screen: 0 = on screen, -1 = immediately on the left, +1 = immediately on the right (wrapping around map edges)
     int roomDeltaY(int y, bool locallyToTheTop) const;
     WorldCoords playerPos(int pid) const;
+    WorldCoords viewTopLeft() const;
     std::pair<int, int> topLeftRoom() const;
 
     // GUI
@@ -659,10 +659,14 @@ class Client {
     template<class MenuT> void showMenu(MenuT& menu) { openMenus.open(&menu.menu); }
     void predraw();
 
-    bool on_screen(int x, int y) const;
-    bool on_screen_exact(int x, int y) const;
+    bool on_screen(int x, int y) const; // returns true if any part of room (x,y) is on screen
+    bool on_screen(int rx, int ry, double lx, double ly, double fudge = 0) const; // coordinates within "fudge" local units from screen border are also considered on screen
+    bool on_screen_exact(int x, int y) const; // returns true if any part of room (x,y) is on screen
+    bool on_screen_exact(int rx, int ry, double lx, double ly) const;
     bool player_on_screen(int pid) const;
     bool player_on_screen_exact(int pid) const;
+
+    typedef Graphics::VisibilityMap VisibilityMap;
 
     void draw_game_frame();
     void draw_map(const VisibilityMap& roomVis);

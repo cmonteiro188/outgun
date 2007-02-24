@@ -451,6 +451,7 @@ Menu_graphics::Menu_graphics() :
     font                 (_("Font")),
 
     showNames            (_("Show player names")),
+    scroll               (_("Scroll the screen")),
     antialiasing         (_("Antialiasing"), true),
     minTransp            (_("Less transparency effects"), false),
     contTextures         (_("Continuous textures between rooms"), false),
@@ -462,6 +463,7 @@ Menu_graphics::Menu_graphics() :
     neighborMarkersReplay(_("Markers for nearby players and flags in replay")),
     boxRoomsWhenPlaying  (_("Box visible rooms on map in game"), false),
     viewOverMapBorder    (_("Let view follow over map border")),
+    repeatMap            (_("Allow parts of map to repeat on screen"), false),
     statsBgAlpha         (_("Stats screen alpha"), true, 0, 255, 255, 15),
 
     fpsLimit             (_("FPS limit"), false, 1, 10000, 60, 0),
@@ -486,6 +488,7 @@ Menu_graphics::Menu_graphics() :
     neighborMarkersReplay.addOption(_("always"       ), NM_Always);
     viewOverMapBorder.addOption(_("never"                      ), VOB_Never);
     viewOverMapBorder.addOption(_("when all rooms aren't shown"), VOB_MapDoesntFit);
+    viewOverMapBorder.addOption(_("if the border has doorways" ), VOB_MapWraps);
     viewOverMapBorder.addOption(_("always"                     ), VOB_Always);
     viewOverMapBorder.set(VOB_MapDoesntFit);
 }
@@ -500,6 +503,7 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add.space();
     add(&showNames,              CCS_ShowNames);
     add(&antialiasing);
+    add(&scroll,                 CCS_Scroll);
     add(&minTransp,              CCS_MinTransp);
     add(&contTextures,           CCS_ContinuousTextures);
     add(&minimapPlayers,         CCS_MinimapPlayers);
@@ -510,6 +514,7 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add(&neighborMarkersReplay,  CCS_NeighborMarkersReplay);
     add(&boxRoomsWhenPlaying,    CCS_BoxRoomsWhenPlaying);
     add(&viewOverMapBorder,      CCS_ViewOverMapBorder);
+    add(&repeatMap,              CCS_RepeatMap);
     add(&statsBgAlpha,           CCS_StatsBgAlpha);
     add.space();
     add(&fpsLimit,               CCS_FPSLimit);

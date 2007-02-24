@@ -97,6 +97,11 @@ int numberWidth(int num) {
     return (num < 0) ? absw + 1 : absw;
 }
 
+double positiveFmod(double val, double modulus) {
+    nAssert(modulus > 0);
+    return val >= 0 ? fmod(val, modulus) : fmod(modulus - fmod(-val, modulus), modulus); // the outer fmod in : part is only necessary to return 0 instead of modulus
+}
+
 string toupper(string str) {
     for (string::iterator s = str.begin(); s != str.end(); ++s)
         *s = latin1_toupper(*s);

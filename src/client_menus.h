@@ -93,6 +93,8 @@ enum ClientCfgSetting {
     CCS_MoveRelativity,
     CCS_TurningSpeed,
     CCS_MinimapBandwidth,
+    CCS_RepeatMap,
+    CCS_Scroll,
     CCS_EndOfCommands
 };
 
@@ -265,13 +267,14 @@ public:
     enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut, MP_COUNT };
     enum FlagEmphasizeMode { FE_Never, FE_MultiRoom, FE_Always, FE_COUNT };
     enum NeighborMarkerMode { NM_Never, NM_OneRoom, NM_Always, NM_COUNT };
-    enum ViewOverBorderMode { VOB_Never, VOB_MapDoesntFit, VOB_Always, VOB_COUNT };
+    enum ViewOverBorderMode { VOB_Never, VOB_MapDoesntFit, VOB_MapWraps, VOB_Always, VOB_COUNT };
 
     Select<std::string> theme;
     Select<std::string> background;
     Checkbox            useThemeBackground;
     Select<std::string> font;
     Select<NameMode>    showNames;
+    Checkbox            scroll;
     Checkbox            antialiasing;
     Checkbox            minTransp;
     Checkbox            contTextures;
@@ -283,6 +286,7 @@ public:
     Select<NeighborMarkerMode> neighborMarkersReplay;
     Checkbox            boxRoomsWhenPlaying;
     Select<ViewOverBorderMode> viewOverMapBorder;
+    Checkbox            repeatMap;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;

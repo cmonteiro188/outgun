@@ -81,6 +81,15 @@ public:
     BITMAP* operator->() const { return ptr; }
 };
 
+class TemporaryClipRect {
+    BITMAP* b;
+    int x1, y1, x2, y2;
+
+public:
+    TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld);
+    ~TemporaryClipRect();
+};
+
 enum MapListSortKey { MLSK_Number, MLSK_Votes, MLSK_Title, MLSK_Size, MLSK_Author, MLSK_Favorite, MLSK_COUNT };
 
 class Graphics {
@@ -100,7 +109,8 @@ public:
         std::vector< std::pair<int, const WorldRect*> > respawns;
     };
 
-    void predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, int room0x, int room0y, int visible_rooms, bool grid = false);
+    void predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, const WorldCoords& viewTopLeft,
+                 int visible_rooms, bool repeatMap, bool scroll, bool grid = false);
 
     typedef std::vector<std::vector<NLubyte> > VisibilityMap;
     void draw_background(bool map_ready) { VisibilityMap v; background.draw_background(drawbuf, map_ready && show_minimap, false, v); }
@@ -108,7 +118,7 @@ public:
 
     void startDraw();   // call startDraw before any drawing operations are done and endDraw when done, before drawScreen
     void endDraw();
-    void startPlayfieldDraw(int start_rx, int start_ry, int visible_rooms_, int map_w_, int map_h_);  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
+    void startPlayfieldDraw(const WorldCoords& topLeft);  // between calls to startPlayfieldDraw and endPlayfieldDraw, anything is only drawn to within the playfield area
     void endPlayfieldDraw();
 
     void draw_screen(bool acquireWithFlipping);
@@ -123,7 +133,7 @@ public:
     void draw_minimap_player(const Map& map, const ClientPlayer& player);
     void draw_minimap_me(const Map& map, const ClientPlayer& player, double time);
     void draw_minimap_room(const Map& map, int rx, int ry, float visibility);
-    void highlight_minimap_rooms(const Map& map, int rx, int ry, int size_x, int size_y);
+    void highlight_minimap_rooms();
 
     void draw_neighbor_marker(bool flag, int xDelta, int yDelta, const WorldCoords& pos, int team);
 
@@ -226,7 +236,6 @@ public:
     const Colour_manager& colours() const { return colour; }
 
     void draw_replay_info(float rate, unsigned position, unsigned length, bool stopped);
-    void set_playfield_scale(double val) { playfield_scale = val; reload_pictures(); }
     void toggle_full_playfield();
 
     bool needPredraw() const { return predrawNeeded; }
@@ -292,8 +301,9 @@ private:
     void make_db_effect();
 
     void load_background();
-    void load_pictures();
-    void reload_pictures();
+    void load_generic_pictures();
+    void load_playfield_pictures();
+    void reload_playfield_pictures();
 
     void load_floor_textures(const std::string& filename);
     void load_wall_textures(const std::string& filename);
@@ -317,6 +327,8 @@ private:
     static void combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol); // give the colors in same format as sprite
 
     void unload_pictures();
+    void unload_generic_pictures();
+    void unload_playfield_pictures();
     void unload_floor_textures();
     void unload_wall_textures();
     void unload_player_sprites();
@@ -329,28 +341,80 @@ private:
     void load_font(const std::string& file);
 
     int scale(double value) const;
-    int pf_scale(double value) const;
-    int scale_x(const WorldCoords& pos) const; // takes the room also into account
-    int scale_y(const WorldCoords& pos) const; // takes the room also into account
+    int pf_scale(double value) const { return roomLayout.pf_scale(value); }
 
-    bool on_screen(int rx, int ry) const;
-    int room_offset_x(int rx) const; // returns a (unscaled) multiple of plw according to the screen position of room rx
-    int room_offset_y(int ry) const; // returns a (unscaled) multiple of plh according to the screen position of room ry
-
-    class TemporaryClipToRoom {
+    class RoomLayoutManager {
         Graphics& g;
-        int x1, y1, x2, y2;
+
+        int plx, ply;
+        double playfield_scale;
+        WorldCoords topLeft;
+        int visible_rooms, visible_rooms_x, visible_rooms_y;
+        int map_w, map_h;
+        int room_w, room_h;
 
     public:
-        TemporaryClipToRoom(Graphics& host, int rx, int ry);
-        ~TemporaryClipToRoom();
+        RoomLayoutManager(Graphics& host) : g(host) { }
+
+        bool set(int mapWidth, int mapHeight, int visibleRooms, bool repeatMap, const WorldCoords& topLeftCoords); // returns true if scale has changed
+        void setTopLeft(const WorldCoords& tl) { nAssert(tl.px == topLeft.px && tl.py == topLeft.py); topLeft = tl; }
+
+        int x0() const { return plx; }
+        int y0() const { return ply; }
+        int xMax() const { return plx + visible_rooms_x * room_w - 1; }
+        int yMax() const { return ply + visible_rooms_y * room_h - 1; }
+
+        int mapWidth() const { return map_w; }
+        int mapHeight() const { return map_h; }
+        int roomWidth() const { return room_w; }
+        int roomHeight() const { return room_h; }
+
+        const WorldCoords& topLeftCoords() const { return topLeft; }
+        int visibleRoomsX() const { return visible_rooms_x; }
+        int visibleRoomsY() const { return visible_rooms_y; }
+
+        int pf_scale(double value) const;
+
+        std::vector<int> scale_x(const WorldCoords& pos) const { return scale_x(pos.px, pos.x); }
+        std::vector<int> scale_y(const WorldCoords& pos) const { return scale_y(pos.py, pos.y); }
+        std::vector<int> scale_x(int roomx, double lx) const;
+        std::vector<int> scale_y(int roomy, double ly) const;
+
+        std::vector<int> room_offset_x(int rx) const; // returns the pixel position(s) where room rx begins
+        std::vector<int> room_offset_y(int ry) const; // returns the pixel position(s) where room ry begins
+
+        bool on_screen(int rx, int ry) const; // returns true if some part of the room may be on screen
+    };
+    RoomLayoutManager roomLayout;
+
+    class ScaledCoordSet {
+        const std::vector<int> vx, vy;
+        CartesianProductIterator i;
+
+    public:
+        ScaledCoordSet(const WorldCoords& pos, const Graphics* g) : vx(g->roomLayout.scale_x(pos)), vy(g->roomLayout.scale_y(pos)), i(vx.size(), vy.size()) { }
+        ScaledCoordSet(int roomx, int roomy, double lx, double ly, const Graphics* g) : vx(g->roomLayout.scale_x(roomx, lx)), vy(g->roomLayout.scale_y(roomy, ly)), i(vx.size(), vy.size()) { }
+        bool next() { return i.next(); }
+        int x() const { return vx[i.i1()]; }
+        int y() const { return vy[i.i2()]; }
+    };
+
+    class RoomPosSet {
+        const std::vector<int> vx, vy;
+        CartesianProductIterator i;
+
+    public:
+        RoomPosSet(int roomx, int roomy, const Graphics* g) : vx(g->roomLayout.room_offset_x(roomx)), vy(g->roomLayout.room_offset_y(roomy)), i(vx.size(), vy.size()) { }
+        bool next() { return i.next(); }
+        int x() const { return vx[i.i1()]; }
+        int y() const { return vy[i.i2()]; }
     };
 
     class BackgroundManager {
     public:
         BackgroundManager(Graphics& host) : g(host) { }
 
-        void predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, int room0x_, int room0y_, int visible_rooms, bool grid = false);
+        void predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, bool scroll, bool grid = false);
 
         void draw_background(BITMAP* drawbuf, bool draw_map, bool draw_playfield, const VisibilityMap& roomVis);
 
@@ -412,10 +476,9 @@ private:
         Bitmap roomCacheBitmap;
 
         bool previousContinuousTextures;
-        int previousVisibleRooms;
 
         // variables set in predraw, stored for later reference but not modified elsewhere:
-        int xRooms, yRooms, map_w, map_h, room0x, room0y, x0, y0, room_w, room_h;
+        int xRooms, yRooms;
     };
 
     BackgroundManager background;
@@ -433,7 +496,6 @@ private:
 
     int playfield_x, playfield_y; // playground area position on the screen
     int playfield_w, playfield_h;
-    int plx, ply;       // active playground position (where the first room resides) on the screen
 
     int scoreboard_x1, scoreboard_x2;  // scoreboard position
     int scoreboard_y1, scoreboard_y2;
@@ -444,12 +506,6 @@ private:
     int minimap_w, minimap_h;
     int indicators_y;
     int health_x, energy_x, pups_x, pups_val_x, weapon_x, time_x, time_y;
-
-    double playfield_scale;
-    int start_room_x;
-    int start_room_y;
-    int visible_rooms;
-    int map_w, map_h;
 
     bool show_chat_messages;
     bool show_scoreboard;
@@ -509,7 +565,7 @@ private:
 
     Colour_manager colour;
 
-    bool predrawNeeded, mapNeedsRedraw;
+    bool predrawNeeded, mapNeedsRedraw, needReloadPlayfieldPictures;
 
     mutable LogSet log;
 };

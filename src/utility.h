@@ -25,6 +25,7 @@
 #ifndef UTILITY_H_INC
 #define UTILITY_H_INC
 
+#include <limits>
 #include <string>
 #include <vector>
 #include "nassert.h" // for __attribute__ for non-GCC as well as nAssert
@@ -50,6 +51,22 @@ int numberWidth(int num);   // how many characters num takes when printed
 inline double sqr(double value) {  // the square of the given value (just to keep the code readable)
     return value * value;
 }
+
+template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) {
+    nAssert(modulus > 0);
+    return val >= 0 ? val % modulus : modulus - (-val % modulus);
+}
+
+double positiveFmod(double val, double modulus);
+
+template<class UnsignedIntT> UnsignedIntT rotateRight(UnsignedIntT val, int bits) {
+    nAssert(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    const unsigned typew = sizeof(UnsignedIntT) * CHAR_BIT;
+    bits = positiveModulo(bits, typew);
+    return (val >> bits) | (val << (typew - bits));
+}
+
+template<class UnsignedIntT> UnsignedIntT rotateLeft(UnsignedIntT val, int bits) { rotateRight(val, -bits); }
 
 // Returns the current time in the standard format.
 std::string date_and_time();
@@ -145,6 +162,25 @@ public:
 
 private:
     std::string path, base, ext;
+};
+
+class CartesianProductIterator {
+    const int N1, N2;
+    int val1, val2;
+
+public:
+    CartesianProductIterator(int n1, int n2) : N1(n1), N2(n1 ? n2 : 0), val1(n1 - 1), val2(-1) { }
+    bool next() {
+        if (++val1 == N1) {
+            if (++val2 == N2)
+                return false;
+            val1 = 0;
+        }
+        return true;
+    }
+    std::pair<int, int> operator()() const { return std::pair<int, int>(val1, val2); } // only valid after next() returning true
+    int i1() const { return val1; }
+    int i2() const { return val2; }
 };
 
 #endif
