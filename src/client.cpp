@@ -4803,12 +4803,12 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     if (botmode)
         return;
     if (power) {
-        graphics.create_powerwallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
+        graphics.create_powerwallexplo(WorldCoords(roomx, roomy, x, y), fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_POWERWALLHIT);
     }
     else {
-        graphics.create_wallexplo(WorldCoords(roomx, roomy, static_cast<int>(x), static_cast<int>(y)), fx.rock[rid].team, time);
+        graphics.create_wallexplo(WorldCoords(roomx, roomy, x, y), fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_WALLHIT);
     }
@@ -4935,8 +4935,8 @@ WorldCoords Client::playerPos(int pid) const {
     const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
     return WorldCoords(world.player[pid].roomx,
                        world.player[pid].roomy,
-                       static_cast<int>(world.player[pid].lx),
-                       static_cast<int>(world.player[pid].ly));
+                       world.player[pid].lx,
+                       world.player[pid].ly);
 }
 
 pair<int, int> Client::topLeftRoom() const {
@@ -5248,8 +5248,7 @@ void Client::draw_playfield() {
             fd.rock[i].team = fx.rock[i].team;
             fd.rock[i].power = fx.rock[i].power;
             const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
-            const bool shadow = !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(
-                static_cast<int>(fd.rock[i].x), static_cast<int>(fd.rock[i].y) + radius + 8, radius / 2);
+            const bool shadow = !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(fd.rock[i].x, fd.rock[i].y + radius + 8, radius / 2);
             graphics.draw_rocket(fd.rock[i], shadow, time);
         }
 

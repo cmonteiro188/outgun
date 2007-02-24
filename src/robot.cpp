@@ -61,10 +61,10 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
     const double sx = cos(deg) * 2 * SCAN_RADIUS;
     const double sy = sin(deg) * 2 * SCAN_RADIUS;
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-    bool at_wall = room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS);
+    bool at_wall = room.fall_on_wall(mex, mey, SCAN_RADIUS);
 
     while (1) {
-        const bool blocked = room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS);
+        const bool blocked = room.fall_on_wall(mex, mey, SCAN_RADIUS);
         if (blocked && !at_wall)
             return true;
         if (!blocked && at_wall)
@@ -92,9 +92,9 @@ double Client::ScanDir(double mex, double mey, int dir) const {
     double ty = mey;
 
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-    bool at_wall = room.fall_on_wall((int)mex, (int)mey, SCAN_RADIUS);
+    bool at_wall = room.fall_on_wall(mex, mey, SCAN_RADIUS);
     while (1) {
-        const bool blocked = room.fall_on_wall((int)tx, (int)ty, SCAN_RADIUS);
+        const bool blocked = room.fall_on_wall(tx, ty, SCAN_RADIUS);
         if (blocked && !at_wall)
             break;
         if (!blocked && at_wall)

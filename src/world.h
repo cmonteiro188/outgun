@@ -138,8 +138,8 @@ public:
     void addWall(WallBase* w) { walls.push_back(w); }
     void addGround(WallBase* w) { ground.push_back(w); }
 
-    bool fall_on_wall(int x1, int y1, int x2, int y2) const;    // this check follows the quality of *Wall::intersects_rect and isn't perfect
-    bool fall_on_wall(int x, int y, int r) const;   // this check follows the quality of *Wall::intersects_circ and isn't perfect
+    bool fall_on_wall(double x1, double y1, double x2, double y2) const;    // this check follows the quality of *Wall::intersects_rect and isn't perfect
+    bool fall_on_wall(double x, double y, double r) const;   // this check follows the quality of *Wall::intersects_circ and isn't perfect
     BounceData genGetTimeTillWall(double x, double y, double mx, double my, double radius, double maxFraction) const;
 
     const std::vector<WallBase*>& readWalls() const { return walls; }
@@ -153,22 +153,22 @@ private:
 
 //entity locale
 struct WorldCoords {
-    WorldCoords(int px_, int py_, int x_, int y_): px(px_), py(py_), x(x_), y(y_) { }
+    WorldCoords(int px_, int py_, double x_, double y_): px(px_), py(py_), x(x_), y(y_) { }
     WorldCoords() { }
 
     bool operator==(const WorldCoords& op) const { return px == op.px && py == op.py && x == op.x && y == op.y; }
     bool operator!=(const WorldCoords& op) const { return !(*this == op); }
 
-    int px, py; //screen (if px == -1, unused)
-    int x, y;   //relative (to screen) X,Y position
+    int px, py; // room
+    double x, y; // coords within the room
 };
 
 struct WorldRect {
-    WorldRect(int px_, int py_, int x1_, int y1_, int x2_, int y2_) : px(px_), py(py_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
+    WorldRect(int px_, int py_, double x1_, double y1_, double x2_, double y2_) : px(px_), py(py_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
     WorldRect() { }
 
-    int px, py; // screen
-    int x1, y1, x2, y2;
+    int px, py; // room
+    double x1, y1, x2, y2;
 };
 
 //team info
@@ -197,13 +197,13 @@ public:
 
     Map() : w(0), h(0), crc(0) { }
 
-    bool fall_on_wall(int px, int py, int x1, int y1, int x2, int y2) const {
-if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
+    bool fall_on_wall(int px, int py, double x1, double y1, double x2, double y2) const {
+        //if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
         nAssert(px>=0 && py>=0 && px<w && py<h);
         return room[px][py].fall_on_wall(x1, y1, x2, y2);
     }
-    bool fall_on_wall(int px, int py, int x, int y, int r) const {
-if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
+    bool fall_on_wall(int px, int py, double x, double y, double r) const {
+        //if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
         nAssert(px>=0 && py>=0 && px<w && py<h);
         return room[px][py].fall_on_wall(x, y, r);
     }
@@ -801,7 +801,7 @@ public:
     virtual bool load_map(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) { return map.load(log, mapdir, mapname, buffer); }
     virtual void returnAllFlags();
     virtual void returnFlag(int team, int flag);
-    virtual void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
+    virtual void dropFlag(int team, int flag, int roomx, int roomy, double lx, double ly);
     virtual void stealFlag(int team, int flag, int carrier);
 
     void save_stats(const std::string& dir, const std::string& map_name) const;
@@ -940,7 +940,7 @@ public:
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer);
     void returnAllFlags();
     void returnFlag(int team, int flag);
-    void dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly);
+    void dropFlag(int team, int flag, int roomx, int roomy, double lx, double ly);
     void stealFlag(int team, int flag, int carrier);
     int getMapTime() const { return frame - map_start_time; }
     bool isTimeLimit() const { return config.getTimeLimit() > 0; }
@@ -961,7 +961,7 @@ public:
     void respawn_pickup(int p);
     void check_pickup_creation(bool instant);
     void game_touch_pickup(int p, int pk);
-    bool check_flag_touch(const Flag& flag, int px, int py, int x, int y);
+    bool check_flag_touch(const Flag& flag, int px, int py, double x, double y);
     void game_player_screen_change(int p);
 
     bool dropFlagIfAny(int pid, bool purpose = false);

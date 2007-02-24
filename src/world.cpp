@@ -336,14 +336,14 @@ Room::~Room() {
         delete *i;
 }
 
-bool Room::fall_on_wall(int x1, int y1, int x2, int y2) const { // note: this is only a bounding-box check - no accurate checks possible for circular walls yet
+bool Room::fall_on_wall(double x1, double y1, double x2, double y2) const { // note: this is only a bounding-box check - no accurate checks possible for circular walls yet
     for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
         if ((*wi)->intersects_rect(x1, y1, x2, y2))
             return true;
     return false;
 }
 
-bool Room::fall_on_wall(int x, int y, int r) const {
+bool Room::fall_on_wall(double x, double y, double r) const {
     for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
         if ((*wi)->intersects_circ(x, y, r))
             return true;
@@ -462,15 +462,15 @@ bool Map::parse_file(LogSet& log, istream& in) {
         }
         for (unsigned i = 0; i < tinfo[t].respawn.size(); ++i) {
             const WorldRect& area = tinfo[t].respawn[i];
-            const int xStepSize = max((area.x2 - area.x1) / 5, PLAYER_RADIUS * 2),
-                      yStepSize = max((area.y2 - area.y1) / 5, PLAYER_RADIUS * 2);
-            const int xSteps = (area.x2 - area.x1) / xStepSize + 1,
-                      ySteps = (area.y2 - area.y1) / yStepSize + 1;
+            const int xStepSize = max(static_cast<int>(area.x2 - area.x1) / 5, PLAYER_RADIUS * 2),
+                      yStepSize = max(static_cast<int>(area.y2 - area.y1) / 5, PLAYER_RADIUS * 2);
+            const int xSteps = static_cast<int>(area.x2 - area.x1) / xStepSize + 1,
+                      ySteps = static_cast<int>(area.y2 - area.y1) / yStepSize + 1;
             const int minFreeSpace = max(1, xSteps * ySteps / 5); // for area size 1..9, 1 free spot is enough
             int freeSpace = 0;
             bool ok = false;
-            for (int y = area.y1; y <= area.y2 && !ok; y += yStepSize)
-                for (int x = area.x1; x <= area.x2 && !ok; x += xStepSize)
+            for (double y = area.y1; y <= area.y2 && !ok; y += yStepSize)
+                for (double x = area.x1; x <= area.x2 && !ok; x += xStepSize)
                     if (!fall_on_wall(area.px, area.py, x, y, PLAYER_RADIUS * 5 / 4))
                         if (++freeSpace >= minFreeSpace)
                             ok = true;
@@ -691,7 +691,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             log.error(_("Invalid map line: $1", line));
             return false;
         }
-        const WorldCoords spot(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
+        const WorldCoords spot(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley)); // cast to int to keep identical behaviour with previous versions
         tinfo[team].spawn.push_back(spot);
     }
     else if (command == "flag") {   // flag t rx ry x y : set team t's flag position to room (rx,ry) at (x,y)
@@ -703,7 +703,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             log.error(_("Invalid map line: $1", line));
             return false;
         }
-        const WorldCoords flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley));
+        const WorldCoords flag(rx, ry, static_cast<int>(x * plw / scalex), static_cast<int>(y * plh / scaley)); // cast to int to keep identical behaviour with previous versions
         if (team < 2)
             tinfo[team].flags.push_back(flag);
         else
@@ -737,19 +737,19 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 x2 = scalex;
                 y2 = scaley;
             }
-            int ix1 = static_cast<int>(x1 * plw / scalex), iy1 = static_cast<int>(y1 * plh / scaley);
-            int ix2 = static_cast<int>(x2 * plw / scalex), iy2 = static_cast<int>(y2 * plh / scaley);
+            double cx1 = x1 * plw / scalex, cy1 = y1 * plh / scaley;
+            double cx2 = x2 * plw / scalex, cy2 = y2 * plh / scaley;
             if (!point) {
-                ix1 += PLAYER_RADIUS; iy1 += PLAYER_RADIUS;
-                ix2 -= PLAYER_RADIUS; iy2 -= PLAYER_RADIUS;
+                cx1 += PLAYER_RADIUS; cy1 += PLAYER_RADIUS;
+                cx2 -= PLAYER_RADIUS; cy2 -= PLAYER_RADIUS;
             }
             if (!ist || !ist.eof() || team < 0 || team > 2 || rx < 0 || rx >= w ||
                   ry < 0 || ry >= h || x1 < 0 || y1 < 0 ||
-                  ix2 < ix1 || x2 > scalex || iy2 < iy1 || y2 > scaley) { // although initially ordered, ix2 < ix1 is possible because of PLAYER_RADIUS adjustments above
+                  cx2 < cx1 || x2 > scalex || cy2 < cy1 || y2 > scaley) { // although initially ordered, cx2 < cx1 is possible because of PLAYER_RADIUS adjustments above
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
-            const WorldRect area(rx, ry, ix1, iy1, ix2, iy2);
+            const WorldRect area(rx, ry, cx1, cy1, cx2, cy2);
             if (team < 2)
                 tinfo[team].respawn.push_back(area);
             else {
@@ -1240,7 +1240,7 @@ void WorldBase::returnFlag(int team, int flag) {
         teams[team].return_flag(flag);
 }
 
-void WorldBase::dropFlag(int team, int flag, int px, int py, int x, int y) {
+void WorldBase::dropFlag(int team, int flag, int px, int py, double x, double y) {
     const WorldCoords pos(px, py, x, y);
     if (team == 2) {
         wild_flags[flag].move(pos);
@@ -1663,7 +1663,7 @@ void ServerWorld::returnFlag(int team, int flag) {
     net->ctf_net_flag_status(pid_all, team);
 }
 
-void ServerWorld::dropFlag(int team, int flag, int roomx, int roomy, int lx, int ly) {
+void ServerWorld::dropFlag(int team, int flag, int roomx, int roomy, double lx, double ly) {
     WorldBase::dropFlag(team, flag, roomx, roomy, lx, ly);
     if (team != 2)
         teams[team].set_flag_drop_time(flag, frame / 10.);
@@ -1698,7 +1698,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
     nAssert(flag != -1);
     player[pid].stats().add_flag_drop(get_time());  // before dropFlag in hopes to alleviate the assertion above
     teams[pid / TSIZE].add_flag_drop();
-    dropFlag(team, flag, player[pid].roomx, player[pid].roomy, (int)player[pid].lx, (int)player[pid].ly);
+    dropFlag(team, flag, player[pid].roomx, player[pid].roomy, player[pid].lx, player[pid].ly);
     if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
         net->broadcast_flag_drop(player[pid], team);
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
@@ -1726,8 +1726,8 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
         pos.px = area.px;
         pos.py = area.py;
         do { // since the areas are checked not to contain too much wall, we are sure to find a space soon enough
-            pos.x = area.x1 + rand() % (area.x2 - area.x1 + 1);
-            pos.y = area.y1 + rand() % (area.y2 - area.y1 + 1);
+            pos.x = area.x1 + rand() % (static_cast<int>(area.x2 - area.x1) + 1);
+            pos.y = area.y1 + rand() % (static_cast<int>(area.y2 - area.y1) + 1);
         } while (map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS));
     }
     else {
@@ -1806,13 +1806,13 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
 }
 
 //flag touched by player?
-bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, int x, int y) {
+bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, double y) {
     //carried and in different screen can't be touched
     if (flag.carried() || flag.position().px != px || flag.position().py != py)
         return false;
 
-    const int dx = flag.position().x - x;
-    const int dy = flag.position().y - y;
+    const double dx = flag.position().x - x;
+    const double dy = flag.position().y - y;
     const int touchRadius = PLAYER_RADIUS + FLAG_RADIUS;
 
     return (dx * dx + dy * dy < touchRadius * touchRadius);
@@ -2282,7 +2282,7 @@ NLubyte ServerWorld::getFreeRocket() {
 }
 
 void ServerWorld::shootRockets(int pid, int shots) {
-    const int px = player[pid].roomx, py = player[pid].roomy, x = int(player[pid].lx), y = int(player[pid].ly);
+    const int px = player[pid].roomx, py = player[pid].roomy, x = static_cast<int>(player[pid].lx), y = static_cast<int>(player[pid].ly); // cast to be in sync: the coords need to be the same as client receives
 
     player[pid].stats().add_shot();
     teams[pid / TSIZE].add_shot();
@@ -3140,7 +3140,7 @@ void ServerWorld::simulateFrame() {
             }
             int f = 0;
             for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
-                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
                     touches_flag = true;
                     // Has player just dropped the flag or not?
                     if (!pl.dropped_flag && !pl.drop_key) {
@@ -3155,7 +3155,7 @@ void ServerWorld::simulateFrame() {
         // Flag return - wild flags can't be returned
         int f = 0;
         for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly) &&
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly) &&
                              frame / 10. >= fi->drop_time() + config.flag_return_delay) {
                 //FLAG RETURNED!
                 host->score_frag(i, 1); // just add some frags
@@ -3182,7 +3182,7 @@ void ServerWorld::simulateFrame() {
                     const int flagTeam = t == 0 ? enemyteam : 2;
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
-                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly)) {
+                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
                             player_captures_flag(i, flagTeam, f);
                             if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                                         teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
