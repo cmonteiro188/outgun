@@ -609,6 +609,7 @@ class Client {
     void send_frame(bool newFrame, bool forceSend);
     #endif
     void bot_send_frame(ClientControls controls);
+    void readMinimapPlayerPosition(const char* data, int& count, int pid);
     bool process_live_frame_data(const char* data, int length); // returns false if an error occured that requires disconnecting
     #ifndef DEDICATED_SERVER_ONLY
     int process_replay_frame_data(const char* data, int length); // returns number of bytes read

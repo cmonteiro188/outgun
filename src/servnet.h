@@ -76,6 +76,8 @@ public:
         virtual const std::string& get_web_auth() const = 0;
         virtual int get_web_refresh() const = 0;
 
+        virtual int minimapSendLimit() const = 0;
+
         virtual const std::string& get_server_password() const = 0;
     };
 
@@ -187,6 +189,8 @@ private:
 
     void record_message(const std::string& msg) const;
     void record_message(const char* data, int length) const;
+
+    void writeMinimapPlayerPosition(char* lebuf, int& lecount, int pid) const;
 
 public:
 

@@ -853,6 +853,10 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     bot = false;
     record_position = true;
 
+    current_map_list_item = 0;
+    nextMinimapPlayer = 0;
+    minimapPlayersPerFrame = 2;
+
     protocolExtensionsLevel = -1;
     uniqueId = uniqueId_;
 

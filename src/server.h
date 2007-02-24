@@ -161,6 +161,7 @@ class Server {
         bool            random_first_map;
         std::string     server_website_url; // the URL of the server website to be sent to master server
         int             recording;
+        int             minimap_send_limit;
 
         int             join_start;         // allow joining from this time of a day (in seconds)
         int             join_end;           // disallow joining; set both same to allow always (default)
@@ -248,6 +249,8 @@ class Server {
         bool privateServer() const { return privateserver; }
         const std::string& ip() const { return ipAddress; }
         int get_port() const { return port; }
+
+        int minimapSendLimit() const { return minimap_send_limit; }
 
         int  get_game_end_delay() const { return game_end_delay; }
         int  get_vote_block_time() const { return vote_block_time; }

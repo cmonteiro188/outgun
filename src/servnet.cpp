@@ -58,6 +58,7 @@ using std::ifstream;
 using std::make_pair;
 using std::map;
 using std::max;
+using std::min;
 using std::ofstream;
 using std::ostream;
 using std::ostringstream;
@@ -1409,7 +1410,6 @@ int ServerNetworking::client_connected(int id) {
     send_map_time(id);
     send_stats(world.player[myself]);
     send_team_stats(world.player[myself]);
-    world.player[myself].current_map_list_item = 0; // the first map info to be sent
 
     if (player_count == 2) {
         host->ctf_game_restart();
@@ -1772,6 +1772,11 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 send_simple_message(data_set_extension_level, pid);
                 send_acceleration_modes(pid);
             }
+            else if (code == data_set_minimap_player_bandwidth) {
+                NLubyte number;
+                readByte(msg, count, number);
+                world.player[pid].minimapPlayersPerFrame = number;
+            }
             else {
                 if (code < data_reserved_range_first || code > data_reserved_range_last) {
                     log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i.", pid, code, msglen);
@@ -1799,6 +1804,16 @@ void ServerNetworking::sendWorldReset() const {
 void ServerNetworking::sendStartGame() const {
     broadcast_simple_message(data_start_game);
     send_map_time(pid_all);
+}
+
+void ServerNetworking::writeMinimapPlayerPosition(char* lebuf, int& lecount, int pid) const {
+    nAssert(world.player[pid].used);
+    const int xmul = 255 / world.map.w;
+    const int ymul = 255 / world.map.h;
+    const NLubyte mx = world.player[pid].roomx * xmul + static_cast<NLubyte>(xmul * (world.player[pid].lx - 1e-5) / plw);
+    const NLubyte my = world.player[pid].roomy * ymul + static_cast<NLubyte>(ymul * (world.player[pid].ly - 1e-5) / plh);
+    writeByte(lebuf, lecount, mx);
+    writeByte(lebuf, lecount, my);
 }
 
 //simulate and broadcast frame
@@ -1857,8 +1872,12 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     // send 2 players' coordinates each frame; pick those two for each team both with and without shadow
     int normalIters[2][2];  // [team][number]
     int shadowIters[2][2];  // [team][number]
-    for (int round = 0; round < 2; ++round)
+    for (int round = 0; round < 2; ++round) {
         for (int t = 0; t < 2; ++t) {
+            if (round >= settings.minimapSendLimit()) {
+                normalIters[t][round] = shadowIters[t][round] = -1;
+                continue;
+            }
             if (normalView[t] == 0) // no visible players
                 normalViewI[t] = -1;
             else
@@ -1876,6 +1895,13 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             normalIters[t][round] = normalViewI[t];
             shadowIters[t][round] = shadowViewI[t];
         }
+    }
+    for (int t = 0; t < 2; ++t) {
+        if (normalIters[t][1] == normalIters[t][0])
+            normalIters[t][1] = -1;
+        if (shadowIters[t][1] == shadowIters[t][0])
+            shadowIters[t][1] = -1;
+    }
 
     // ==================================================================
     //   BUILD AND SEND EVERY DAMN PACKET
@@ -1994,24 +2020,82 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             // write players_onscreen in its place (reserved before the above loop)
             writeLong(lebuf, p_on_count, players_onscreen);
 
-            for (int round = 0; round < 2; ++round) {
-                int who;
-                if (world.player[i].item_shadow())
-                    who = shadowIters[i / TSIZE][round];
-                else
-                    who = normalIters[i / TSIZE][round];
-                if (who == -1)
-                    writeByte(lebuf, lecount, 255);
+            /* minimap player position protocol:
+             * old protocol:
+             *  2 * {
+             *        byte1 = 255 -> no info
+             *        byte1 in [0, 31] ->
+             *          byte2,
+             *          byte3 = coords of player byte1
+             *  }
+             * extended protocol: (can be distinguished by examining byte1: byte1 != 255 && (byte1 & 0xE0) != 0)
+             *  P = bitmask indicating visible players (32 bits long)
+             *  to use the minimum amount of bytes, we use
+             *   - 3 bits to indicate which 5-bit boundary the sent data begins from (excluding the boundary at 30; this intentionally leaves 2 values unused)
+             *   - 2 bits to tell how many extra bytes of mask are sent (1..4)
+             *  this leaves us with free 3 bits in byte1 which we use to start the mask with
+             *
+             *  byte1 & 0xE0 == (5-bit boundary of P to start from) + 1  (1->start from bit 0, 2->bit 5, ..., 6->bit 25; 0 and 7 (binary 000 and 111) aren't used so that we can't be confused with the old protocol)
+             *  byte1 & 0x18 == extra byte count - 1
+             *  byte1 & 0x07 == first 3 bits of P
+             *  extra byte count *
+             *    byte == next 8 bits of P
+             *  for each sent bit of P that's set {
+             *    byte1,
+             *    byte2 = coords of the player
+             *  }
+             * note: there still remains room for extensions where byte1 & 0xE0 == 0xE0 && byte1 & 0x1F != 0x1F
+             */
+            if (world.player[i].protocolExtensionsLevel >= 0) {
+                NLulong P = (world.player[i].item_shadow() ? shadowView : normalView)[i / TSIZE];
+                for (int pi = 0; pi < maxplayers; ++pi)
+                    if (world.player[pi].roomx == world.player[i].roomx && world.player[pi].roomy == world.player[i].roomy)
+                        P &= ~(NLulong(1) << pi);
+                const unsigned maxPlayers = min(settings.minimapSendLimit(), world.player[i].minimapPlayersPerFrame);
+                if (P == 0 || maxPlayers == 0) {
+                    writeByte(lebuf, lecount, 0x20); // start from bit 0 (irrelevant), only 1 (mandatory) extra byte
+                    writeByte(lebuf, lecount, 0x00);
+                }
                 else {
-                    const int xmul = 255 / world.map.w;
-                    const int ymul = 255 / world.map.h;
-                    const NLubyte mx = world.player[who].roomx * xmul + static_cast<NLubyte>(xmul * (world.player[who].lx - 1e-5) / plw);
-                    const NLubyte my = world.player[who].roomy * ymul + static_cast<NLubyte>(ymul * (world.player[who].ly - 1e-5) / plh);
-                    writeByte(lebuf, lecount, static_cast<NLubyte>(who));
-                    writeByte(lebuf, lecount, mx);
-                    writeByte(lebuf, lecount, my);
+                    int nextPlayer = world.player[i].nextMinimapPlayer;
+                    while ((P & (NLulong(1) << nextPlayer)) == 0)
+                        nextPlayer = (nextPlayer + 1) % MAX_PLAYERS;
+                    const int sendBoundary = nextPlayer >= 25 ? 25 : nextPlayer - nextPlayer % 5;
+                    NLulong rotP = rotateRight(P, sendBoundary);
+                    nextPlayer -= sendBoundary; // now nextPlayer is relative to rotP
+                    rotP &= ~NLulong(0) << nextPlayer;
+                    vector<int> players;
+                    players.reserve(maxPlayers);
+                    int bits;
+                    for (bits = nextPlayer; bits < 32 && players.size() < maxPlayers; ++bits) {
+                        if (rotP >> bits == 0)
+                            break;
+                        if ((rotP >> bits) & 1)
+                            players.push_back((bits + sendBoundary) % 32);
+                    }
+                    world.player[i].nextMinimapPlayer = (sendBoundary + bits) % 32;
+                    rotP &= ~NLulong(0) >> (32 - bits);
+                    const int extraBytes = max(1, (bits - 3 + 7) / 8);
+                    writeByte(lebuf, lecount, ((sendBoundary / 5 + 1) << 5) | ((extraBytes - 1) << 3) | (rotP & 7));
+                    rotP >>= 3;
+                    for (int eb = 0; eb < extraBytes; ++eb) {
+                        writeByte(lebuf, lecount, rotP & 0xFF);
+                        rotP >>= 8;
+                    }
+                    for (vector<int>::const_iterator pi = players.begin(); pi != players.end(); ++pi)
+                        writeMinimapPlayerPosition(lebuf, lecount, *pi);
                 }
             }
+            else
+                for (int round = 0; round < 2; ++round) {
+                    const int who = (world.player[i].item_shadow() ? shadowIters : normalIters)[i / TSIZE][round];
+                    if (who == -1)
+                        writeByte(lebuf, lecount, 255);
+                    else {
+                        writeByte(lebuf, lecount, static_cast<NLubyte>(who));
+                        writeMinimapPlayerPosition(lebuf, lecount, who);
+                    }
+                }
 
             // send 8 bits of player's health
             if (world.player[i].health < 0)

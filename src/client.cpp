@@ -1701,6 +1701,32 @@ void Client::refreshGunDir() {
 
 #endif
 
+void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
+    NLubyte whox, whoy;
+    readByte(data, count, whox);
+    readByte(data, count, whoy);
+    if (pid != me && !fx.player[pid].onscreen) {
+        const double oldx = fx.player[pid].roomx * plw + fx.player[pid].lx;
+        const double oldy = fx.player[pid].roomy * plh + fx.player[pid].ly;
+        const int xmul = 255 / fx.map.w;
+        const int ymul = 255 / fx.map.h;
+        fx.player[pid].roomx = whox / xmul;
+        fx.player[pid].roomy = whoy / ymul;
+        fx.player[pid].lx = (xmul == 1) ? 0 : (whox % xmul) * plw / (xmul - 1);
+        fx.player[pid].ly = (ymul == 1) ? 0 : (whoy % ymul) * plh / (ymul - 1);
+        fx.player[pid].posUpdated = fx.frame;
+        double newx = fx.player[pid].roomx * plw + fx.player[pid].lx;
+        double newy = fx.player[pid].roomy * plh + fx.player[pid].ly;
+        if (fabs(newx - oldx) > fx.map.w * plw / 2)
+            newx += fx.map.w * plw * (newx < oldx ? +1 : -1);
+        if (fabs(newy - oldy) > fx.map.h * plh / 2)
+            newy += fx.map.h * plh * (newy < oldy ? +1 : -1);
+        const double dx = newx - oldx, dy = newy - oldy;
+        if (dx || dy)
+            fx.player[pid].gundir.fromRad(atan2(dy, dx));
+    }
+}
+
 bool Client::process_live_frame_data(const char* data, int length) { // returns false if an error occured that requires disconnecting
     (void)length;
     int count = 0;
@@ -1868,25 +1894,27 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
             h.posUpdated = svframe;
     }
 
-    for (int round = 0; round < 2; ++round) {
-        NLubyte who, whox, whoy;
-        readByte(data, count, who);
-        if (who == 255)
-            continue;
-        readByte(data, count, whox);
-        readByte(data, count, whoy);
-
-        //update this player's px,py,x,y
-        //ignore self and anybody onscreen -- because then I've got better accuracy
-        if (who != me && !fx.player[who].onscreen) {
-            const int xmul = 255 / fx.map.w;
-            const int ymul = 255 / fx.map.h;
-            fx.player[who].roomx = whox / xmul;
-            fx.player[who].roomy = whoy / ymul;
-            fx.player[who].lx = (xmul == 1) ? 0 : (whox % xmul) * plw / (xmul - 1);
-            fx.player[who].ly = (ymul == 1) ? 0 : (whoy % ymul) * plh / (ymul - 1);
-            fx.player[who].posUpdated = svframe;
+    // see servnet.cpp for a short documentation of the minimap player position protocol
+    NLubyte mmByte;
+    readByte(data, count, mmByte);
+    if (mmByte == 255 || (mmByte & 0xE0) == 0) { // old protocol
+        if (mmByte != 255)
+            readMinimapPlayerPosition(data, count, mmByte);
+        readByte(data, count, mmByte);
+        if (mmByte != 255)
+            readMinimapPlayerPosition(data, count, mmByte);
+    }
+    else { // new protocol
+        int pos = 5 * (((mmByte & 0xE0) >> 5) - 1);
+        const int extraBytes = ((mmByte & 0x18) >> 3) + 1;
+        NLulong rotP = mmByte & 0x07;
+        for (int i = 0, rotPpos = 3; i < extraBytes; ++i, rotPpos += 8) {
+            readByte(data, count, mmByte);
+            rotP |= mmByte << rotPpos;
         }
+        for (int pid = pos; rotP; pid = (pid + 1) % 32, rotP >>= 1)
+            if (rotP & 1)
+                readMinimapPlayerPosition(data, count, pid);
     }
 
     //read player's health and energy

@@ -438,6 +438,7 @@ public:
     bool want_map_exit;
 
     size_t current_map_list_item;
+    int nextMinimapPlayer, minimapPlayersPerFrame;
 
     int mapVote;
     int idleFrames;

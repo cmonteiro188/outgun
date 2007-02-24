@@ -110,10 +110,11 @@ enum Network_data_code {
     data_current_map = data_reserved_range_first,
     data_bot,
     data_set_extension_level, // this is to enable incompatible extensions (an emulation mode for unextended clients should also exist)
-    // insert simple extensions here (any that don't fit the data_set_extension_level structure)
-    data_negotiated_extensions_first = data_reserved_range_last, // from here on, messages are only sent when an extension level has been negotiated using data_set_extension_level and it is therefore known that the remote will understand the message
+    data_negotiate_third_party_extensions, // this message is reserved for unofficial extensions; it's guaranteed to be ignored by official versions, but to gain compatibility across different 3rd party extensions, the extension to be negotiated should be identified, and unrecognized messages ignored
+    data_negotiated_extensions_first = data_reserved_range_last + 1, // from here on, messages are only sent when an extension level has been negotiated using data_set_extension_level and it is therefore known that the remote will understand the message
     data_acceleration_modes = data_negotiated_extensions_first,
-    data_negotiated_extensions_end
+    data_set_minimap_player_bandwidth,
+    data_negotiated_third_party_extensions_first = 150 // from here on, codes are guaranteed to not be used by official versions present or future, and can be used after successful negotiation with data_negotiate_third_party_extensions
 };
 
 enum Disconnect_reason {
