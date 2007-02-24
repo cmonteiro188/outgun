@@ -615,7 +615,7 @@ class Client {
     void readMinimapPlayerPosition(const char* data, int& count, int pid);
     bool process_live_frame_data(const char* data, int length); // returns false if an error occured that requires disconnecting
     #ifndef DEDICATED_SERVER_ONLY
-    int process_replay_frame_data(const char* data, int length); // returns number of bytes read
+    int process_replay_frame_data(const char* data); // returns number of bytes read
     #endif
     bool process_message(const char* const lebuf, int msglen); // if returns false, discard the server/replay
     void process_incoming_data(const char* data, int length);

@@ -1951,8 +1951,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-int Client::process_replay_frame_data(const char* data, int length) { // returns number of bytes read
-    (void)length;
+int Client::process_replay_frame_data(const char* data) { // returns number of bytes read
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
@@ -3420,7 +3419,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
     if (replaying) {
         #ifndef DEDICATED_SERVER_ONLY
-        int replay_pos = process_replay_frame_data(data, length);
+        int replay_pos = process_replay_frame_data(data);
         while (replay_pos < length) {
             int msglen;
             readLong(data, replay_pos, msglen);
