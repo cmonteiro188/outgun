@@ -5714,7 +5714,8 @@ void Client::MCF_screenDepthChange() {
 }
 
 void Client::MCF_screenModeChange() {   // used to lose the return value
-    nAssert(screenModeChange());    // it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
+    const bool ret = screenModeChange();
+    nAssert(ret); // it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
 }
 
 bool Client::screenModeChange() {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
