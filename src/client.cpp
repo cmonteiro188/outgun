@@ -5265,7 +5265,7 @@ void Client::draw_playfield() {
                 graphics.draw_player_dead(fx.player[i]);
         }
 
-    // draw item pickups
+    // draw powerups
     for (int i = 0; i < MAX_PICKUPS; i++)
         if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen_exact(fx.item[i].px, fx.item[i].py))
             graphics.draw_pup(fx.item[i], time, live);
