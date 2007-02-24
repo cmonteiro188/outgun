@@ -220,6 +220,36 @@ bool GlobalDisplaySwitchHook::readAndClear() {
     return f;
 }
 
+
+volatile unsigned GlobalMouseHook::buttonActivityCount[16];
+
+void GlobalMouseHook__callback(int) {
+    if (mouse_b & 0xFFFF)
+        for (int i = 0; i < 16; ++i)
+            if (mouse_b & (1 << i))
+                ++GlobalMouseHook::buttonActivityCount[i];
+} END_OF_FUNCTION(GlobalMouseHook::closeCallback)
+
+void GlobalMouseHook::install() {
+    for (int i = 0; i < 16; ++i)
+        buttonActivityCount[i] = 0;
+    LOCK_VARIABLE(buttonActivityCount);
+    LOCK_FUNCTION(GlobalMouseHook__callback);
+    mouse_callback = GlobalMouseHook__callback;
+}
+
+void RegisterMouseClicks::clear() {
+    for (int i = 0; i < 16; ++i)
+        readCounts[i] = GlobalMouseHook::read(i);
+}
+
+bool RegisterMouseClicks::wasClicked(int button) {
+    const unsigned count = GlobalMouseHook::read(button);
+    const bool changed = count != readCounts[button];
+    readCounts[button] = count;
+    return changed;
+}
+
 #endif // DEDICATED_SERVER_ONLY
 
 void MasterSettings::load(LogSet& log) {

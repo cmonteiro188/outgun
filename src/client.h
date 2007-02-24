@@ -345,6 +345,8 @@ class Client {
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
     MutexHolder serverListMutex;
+
+    RegisterMouseClicks mouseClicked;
     #endif
 
     std::string playername;
@@ -672,7 +674,7 @@ class Client {
 
     ClientControls readControls(bool canUseKeypad, bool useCursorKeys) const;
     ClientControls readControlsInGame() const;
-    bool firePressed() const;
+    bool firePressed();
     void refreshGunDir();
 
     void handleKeypress(int sc, int ch, bool withControl, bool alt_sequence);   // sc = scancode, ch = character, as returned by readkey

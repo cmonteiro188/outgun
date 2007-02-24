@@ -202,6 +202,27 @@ public:
     static bool readAndClear();
 };
 
+#ifndef DEDICATED_SERVER_ONLY
+
+class GlobalMouseHook {
+    static volatile unsigned buttonActivityCount[16];
+    friend void GlobalMouseHook__callback(int);
+
+public:
+    static void install();
+    static int read(int button) { return buttonActivityCount[button]; }
+};
+
+class RegisterMouseClicks {
+    unsigned readCounts[16];
+
+public:
+    void clear();
+    bool wasClicked(int button);
+};
+
+#endif
+
 class LogSet;
 
 class MasterSettings {

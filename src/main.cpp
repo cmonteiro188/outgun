@@ -184,7 +184,6 @@ int wrappedMain(int argc, const char* argv[]) {
         return 1;
     }
     install_keyboard();
-    install_mouse();
 
     #endif // !DEDICATED_SERVER_ONLY
 
@@ -579,6 +578,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     #ifndef DEDICATED_SERVER_ONLY
     // run client
     else {
+        install_mouse();
+        GlobalMouseHook::install();
+
         check_dir(CLIENT_MAPS_DIR, log);
         check_dir("screens"      , log);
         check_dir("graphics"     , log);

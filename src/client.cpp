@@ -1261,6 +1261,8 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     gunDir.from8way(0);
     gunDirRefreshedTime = get_time();
 
+    mouseClicked.clear();
+
     if (!botmode) {
         send_frame(true, true);
         return;
@@ -1629,9 +1631,14 @@ ClientControls Client::readControlsInGame() const {
     return ctrl;
 }
 
-bool Client::firePressed() const {
+bool Client::firePressed() {
+    static double checkTime = 0;
+    if (get_time() > checkTime + 1.)
+        mouseClicked.clear();
+    checkTime = get_time();
+    const bool click = mouseClicked.wasClicked(menu.options.controls.mouseShoot() - 1);
     return key[KEY_LCONTROL] || key[KEY_RCONTROL] || (menu.options.controls.joystick() && readJoystickButton(menu.options.controls.joyShoot())) ||
-           (mouse_b & (1 << menu.options.controls.mouseShoot() - 1));
+           (mouse_b & (1 << menu.options.controls.mouseShoot() - 1)) || click;
 }
 
 //send the client's frame to server (keypresses)
@@ -1650,27 +1657,24 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     bool filtered;
     // filtering is applied when first going diagonally and then one of the directions is dropped
     if (sentControls.isUpDown() && sentControls.isLeftRight() && currentControls.isUpDown() != currentControls.isLeftRight()) {
-        if (keyFilterTimeout == 0) {
+        if (currentControls.isUpDown() ? currentControls.isUp() != sentControls.isUp() : currentControls.isLeft() != sentControls.isLeft())
+            filtered = false;
+        else if (keyFilterTimeout == 0) {
             filtered = true;
             keyFilterTimeout = get_time() + .02;
         }
-        else if (get_time() < keyFilterTimeout)
-            filtered = true;
-        else {
-            filtered = false;
-            keyFilterTimeout = 0;
-        }
+        else
+            filtered = get_time() < keyFilterTimeout;
     }
-    else {
+    else
         filtered = false;
+
+    if (!filtered) {
         keyFilterTimeout = 0;
-    }
-
-    if (filtered && !forceSend)
-        return;
-
-    if (!filtered)
         sentControls = currentControls;
+    }
+    else if (!forceSend)
+        return;
 
     if (newFrame) {
         ++clFrameSent;
@@ -4224,6 +4228,11 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     while (!quitCommand && !*quitFlag) {
         // (1) loop doing input/sleep before next send or draw time
         for (;;) {
+            if (keyboard_needs_poll())
+                poll_keyboard();    // ignore return value
+            if (mouse_needs_poll())
+                poll_mouse();
+
             const bool controlPressed = (key[KEY_LCONTROL] || key[KEY_RCONTROL]);
 
             //quit key Control-F12
@@ -4233,11 +4242,6 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
 
             static bool alt_sequence = false;
-
-            if (keyboard_needs_poll())
-                poll_keyboard();    // ignore return value
-            if (mouse_needs_poll())
-                poll_mouse();
 
             if (menu.options.controls.keypadMoving()) {
                 // Check Alt+keypad sequences
