@@ -376,8 +376,10 @@ void Server::swap_players(int a, int b) {
 }
 
 void Server::set_fav_colors(int pid, const vector<char>& colors) {
-    if (world.player[pid].used)
+    if (world.player[pid].used) {
         world.player[pid].set_fav_colors(colors);
+        check_fav_colors(pid);
+    }
 }
 
 void Server::check_fav_colors(int pid) {

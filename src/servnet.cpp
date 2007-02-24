@@ -1747,7 +1747,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                         fav_colors.push_back(c);
                 }
                 host->set_fav_colors(pid, fav_colors);
-                host->check_fav_colors(pid);
+                broadcast_player_crap(pid);
             }
             else if (code == data_bot) {
                 NLaddress address = get_client_address(world.player[pid].cid);
