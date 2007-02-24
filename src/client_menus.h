@@ -92,6 +92,7 @@ enum ClientCfgSetting {
     CCS_AimMode,
     CCS_MoveRelativity,
     CCS_TurningSpeed,
+    CCS_MinimapBandwidth,
     CCS_EndOfCommands
 };
 
@@ -175,6 +176,7 @@ public:
 
     Checkbox    lagPrediction;
     Slider      lagPredictionAmount;
+    Slider      minimapBandwidth;
     Select<MessageLoggingMode> messageLogging;
     Checkbox    showFlagMessages;
     Checkbox    showKillMessages;

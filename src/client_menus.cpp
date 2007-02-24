@@ -227,6 +227,7 @@ void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingC
 Menu_game::Menu_game() :
     lagPrediction       (_("Lag prediction"), false),
     lagPredictionAmount (_("Lag prediction amount"), true, 0, 10, 10),
+    minimapBandwidth    (_("Bandwidth for out-of-room players (cps)"), false, 0, 640, 80, 20, true),
 
     messageLogging      (_("Save game messages")),
     showFlagMessages    (_("Show flag messages"), true),
@@ -256,6 +257,7 @@ void Menu_game::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
     DualComponentAdder add(menu, collector);
     add(&lagPrediction,          CCS_LagPrediction);
     add(&lagPredictionAmount,    CCS_LagPredictionAmount);
+    add(&minimapBandwidth,       CCS_MinimapBandwidth);
     add.space();
     add(&messageLogging,         CCS_MessageLogging);
     add(&showFlagMessages,       CCS_ShowFlagMessages);

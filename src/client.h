@@ -598,6 +598,8 @@ class Client {
     #ifndef DEDICATED_SERVER_ONLY
     void send_player_token();
     void send_tournament_participation();
+    void sendFavoriteColors();
+    void sendMinimapBandwidth();
     #endif
     void issue_change_name_command();
     #ifndef DEDICATED_SERVER_ONLY

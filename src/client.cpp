@@ -1076,6 +1076,32 @@ bool Client::load_map(const string& directory, const string& mapname, NLushort s
     return false;
 }
 
+void Client::sendFavoriteColors() {
+    if (menu.options.player.favoriteColors.values().empty())
+        return;
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_fav_colors);
+    writeByte(lebuf, count, menu.options.player.favoriteColors.values().size());
+    // send two colours in a byte
+    for (vector<int>::const_iterator col = menu.options.player.favoriteColors.values().begin();
+                                    col != menu.options.player.favoriteColors.values().end(); ++col) {
+        NLubyte byte = static_cast<NLubyte>(*col) & 0x0F;
+        if (++col != menu.options.player.favoriteColors.values().end())
+            byte |= static_cast<NLubyte>(*col) << 4;
+        writeByte(lebuf, count, byte);
+    }
+    client->send_message(lebuf, count);
+}
+
+void Client::sendMinimapBandwidth() {
+    if (protocolExtensionsC2S >= 0) {
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, data_set_minimap_player_bandwidth);
+        writeByte(lebuf, count, menu.options.game.minimapBandwidth() / 20);
+        client->send_message(lebuf, count);
+    }
+}
+
 void Client::disconnect_command() { // do not call from a network thread
     //disconnect the client here if was connected, else does nothing
     client->connect(false);
@@ -1123,20 +1149,8 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    if (!menu.options.player.favoriteColors.values().empty()) {
-        char lebuf[256]; int count = 0;
-        writeByte(lebuf, count, data_fav_colors);
-        writeByte(lebuf, count, menu.options.player.favoriteColors.values().size());
-        // send two colours in a byte
-        for (vector<int>::const_iterator col = menu.options.player.favoriteColors.values().begin();
-                    col != menu.options.player.favoriteColors.values().end(); ++col) {
-            NLubyte byte = static_cast<NLubyte>(*col) & 0x0F;
-            if (++col != menu.options.player.favoriteColors.values().end())
-                byte |= static_cast<NLubyte>(*col) << 4;
-            writeByte(lebuf, count, byte);
-        }
-        client->send_message(lebuf, count);
-    }
+    sendFavoriteColors();
+    sendMinimapBandwidth();
 
     show_all_messages = false;
     stats_autoshowing = false;
@@ -5478,6 +5492,7 @@ void Client::initMenus() {
     menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
 
     menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGameMenu        >(this));
+    menu.options.game.minimapBandwidth  .setHook(new MCB::N<Slider,         &Client::sendMinimapBandwidth       >(this));
     typedef Select<Menu_game::MessageLoggingMode> mlComponentT;
     menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &Client::MCF_messageLogging         >(this));
 
