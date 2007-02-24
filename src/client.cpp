@@ -875,10 +875,10 @@ bool Client::start() {
     graphics.set_antialiasing(menu.options.graphics.antialiasing());
     graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
-    graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
-    graphics.select_font(menu.options.graphics.font());
     if (!screenModeChange())
         return false;
+    graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    graphics.select_font(menu.options.graphics.font());
 
     // sounds
     if (extConfig.nosound)
