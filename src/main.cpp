@@ -127,7 +127,6 @@ void GlobalCloseButtonHook__closeCallback() {
     g_exitFlag = true;
 } END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
 
-
 void statusOutputWindow(const string& str) {
     set_window_title(str.c_str());
 }
