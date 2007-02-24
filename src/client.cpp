@@ -1072,6 +1072,7 @@ bool Client::load_map(const string& directory, const string& mapname, NLushort s
     return false;
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 void Client::sendFavoriteColors() {
     if (menu.options.player.favoriteColors.values().empty())
         return;
@@ -1097,6 +1098,7 @@ void Client::sendMinimapBandwidth() {
         client->send_message(lebuf, count);
     }
 }
+#endif // DEDICATED_SERVER_ONLY
 
 void Client::disconnect_command() { // do not call from a network thread
     //disconnect the client here if was connected, else does nothing
@@ -1711,7 +1713,7 @@ void Client::refreshGunDir() {
     }
 }
 
-#endif
+#endif // DEDICATED_SERVER_ONLY
 
 void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
     NLubyte whox, whoy;
@@ -1744,6 +1746,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
 
+    #ifndef DEDICATED_SERVER_ONLY
     if (WATCH_CONNECTION && svframe != fx.frame + 1) {
         ostringstream dstr;
         if (svframe == fx.frame)
@@ -1754,6 +1757,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
             dstr << "S>C packet lost : prev " << fx.frame << " this " << svframe;
         addThreadMessage(new TM_Text(msg_warning, dstr.str().c_str()));
     }
+    #endif
     if (svframe < fx.frame)
         return true;
 
