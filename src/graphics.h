@@ -463,7 +463,7 @@ private:
             BitmapRegion& getAreaForWriting(int roomx_, int roomy_) { roomx = roomx_; roomy = roomy_; baseGenerated = true; foggedGenerated = false; locked = true; return baseArea; }
 
             void drawUnfogged(BITMAP* target, int tx0, int ty0) const { nAssert(baseGenerated); baseArea.blitTo(target, tx0, ty0); }
-            void drawFogged  (BITMAP* target, int tx0, int ty0, bool fastFog) const;
+            void drawFogged  (BITMAP* target, int tx0, int ty0) const;
             const BitmapRegion& fogged() const;
         };
 

@@ -3497,7 +3497,7 @@ void Graphics::BackgroundManager::drawRoom(int roomx, int roomy, bool fogged, BI
     nAssert(roomCacheIndex[roomx][roomy]);
     const CachedRoomGfx& room = *roomCacheIndex[roomx][roomy];
     if (fogged)
-        room.drawFogged(target, tx0, ty0, g.min_transp);
+        room.drawFogged(target, tx0, ty0);
     else
         room.drawUnfogged(target, tx0, ty0);
 }
@@ -3521,14 +3521,14 @@ void Graphics::BackgroundManager::CachedRoomGfx::generateFogged(BITMAP* target, 
     }
 }
 
-void Graphics::BackgroundManager::CachedRoomGfx::drawFogged(BITMAP* target, int tx0, int ty0, bool fastFog) const {
+void Graphics::BackgroundManager::CachedRoomGfx::drawFogged(BITMAP* target, int tx0, int ty0) const {
     nAssert(baseGenerated);
     if (foggedGenerated)
         foggedArea.blitTo(target, tx0, ty0);
     else if (!foggedArea.b)
-        generateFogged(target, tx0, ty0, fastFog);
+        generateFogged(target, tx0, ty0, true);
     else {
-        generateFogged(foggedArea.b, foggedArea.x0, foggedArea.y0, false); // fastFog not used since the cached one will be used after this once
+        generateFogged(foggedArea.b, foggedArea.x0, foggedArea.y0, false);
         foggedGenerated = true;
         foggedArea.blitTo(target, tx0, ty0);
     }
