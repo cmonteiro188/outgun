@@ -21,11 +21,8 @@
  *
  */
 
-#include <vector>
-#include <list>
 #include <algorithm>
 #include <cmath>
-#include "nassert.h"
 #include "world.h"
 
 #include "antialias_internal.h"

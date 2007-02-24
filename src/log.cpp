@@ -21,12 +21,8 @@
  *
  */
 
-#include <cstdio>
-#include <cstdarg>
-#include <string>
 #include "platform.h"
 #include "timer.h"
-#include "utility.h"
 
 #include "log.h"
 

@@ -25,9 +25,7 @@
 #include <sstream>
 #include <string>
 
-#include "language.h"
 #include "server.h"
-#include "world.h"
 
 // implements:
 #include "gamemod.h"

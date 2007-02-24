@@ -26,8 +26,6 @@
 #include <sstream>
 #include <string>
 
-#include <nl.h>
-
 #include "commont.h"
 #include "nassert.h"
 #include "utility.h"

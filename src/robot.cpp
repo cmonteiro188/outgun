@@ -26,8 +26,6 @@
 
 #include "leetnet/client.h"
 #include "nassert.h"
-#include "protocol.h"
-#include "world.h"
 
 #include "client.h"
 

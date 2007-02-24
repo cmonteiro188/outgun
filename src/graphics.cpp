@@ -26,12 +26,9 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
-#include <string>
-#include <vector>
 
 #include <cmath>
 
-#include "incalleg.h"
 #include "antialias.h"
 #include "client.h"
 #include "commont.h"
@@ -40,7 +37,6 @@
 #include "platform.h"
 #include "sounds.h"
 #include "timer.h"
-#include "world.h"
 
 #include "graphics.h"
 

@@ -27,17 +27,13 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <string>
 #include <vector>
 
 #include <cmath>
 
 #include "language.h"
-#include "nassert.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
-#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
 #include "timer.h"
-#include "utility.h"
 
 #include "world.h"
 

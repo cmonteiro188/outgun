@@ -28,7 +28,6 @@
 #include "incalleg.h"
 #include "client.h"
 #include "language.h" // needed by IPfield
-#include "nassert.h"
 #include "network.h"  // needed by IPfield
 #include "timer.h" // for blinking cursor
 

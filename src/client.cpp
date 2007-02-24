@@ -27,7 +27,6 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -39,16 +38,13 @@
 #include "commont.h"
 #include "debug.h"
 #include "debugconfig.h" // for LOG_MESSAGE_TRAFFIC
-#include "gameserver_interface.h"
 #include "language.h"
 #include "names.h"
 #include "nassert.h"
 #include "network.h"
 #include "platform.h"
-#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "timer.h"
 #include "utility.h"
-#include "world.h"
 
 #include "client.h"
 

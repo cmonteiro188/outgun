@@ -24,7 +24,6 @@
  *
  */
 
-#include <string>
 #include "commont.h"
 #include "utility.h"
 #include "names.h"

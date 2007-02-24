@@ -40,13 +40,9 @@
 #include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
 #include "language.h"
-#include "mutex.h"
 #include "nassert.h"
-#include "network.h"
 #include "platform.h"
-#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "servnet.h"
-#include "thread.h"
 #include "timer.h"
 
 // Delay for the server contacting the master server, in seconds.

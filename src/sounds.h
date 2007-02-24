@@ -28,7 +28,8 @@
 #include "incalleg.h"
 #include "commont.h"
 #include "log.h"
-#include "utility.h"
+
+class LineReceiver;
 
 class Sounds {
 public:

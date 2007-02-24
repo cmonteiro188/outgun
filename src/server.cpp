@@ -42,7 +42,6 @@
 
 // implements:
 #include "server.h"
-#include "gameserver_interface.h"
 
 const int minimum_positive_score_for_ranking = 100;
 const int voteAnnounceInterval = 5; // in seconds, how often a changing voting status will be announced
