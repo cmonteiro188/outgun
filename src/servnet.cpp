@@ -2119,7 +2119,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         }
 
         //send the packet
-        server->send_frame(world.player[i].cid, lebuf, lecount);    //use client id of the player, and LEcount
+        server->send_frame(world.player[i].cid, lebuf, lecount);
 
         //send server map list if not sent yet
         if (world.player[i].current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
