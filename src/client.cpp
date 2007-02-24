@@ -4202,7 +4202,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             if (mouse_needs_poll())
                 poll_mouse();
 
-            const bool controlPressed = (key[KEY_LCONTROL] || key[KEY_RCONTROL]);
+            const bool controlPressed = key[KEY_LCONTROL] || key[KEY_RCONTROL];
 
             //quit key Control-F12
             if (controlPressed && key[KEY_F12]) {

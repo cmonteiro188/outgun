@@ -688,7 +688,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
 
     for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi) {
         if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
-                continue;
+            continue;
         if (!fi->carried() && !carry) {
             const double dx = fi->position().x - mex;
             const double dy = fi->position().y - mey;
