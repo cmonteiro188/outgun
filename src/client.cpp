@@ -5535,6 +5535,7 @@ void Client::initMenus() {
     menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &Client::MCF_playerMenuClose        >(this));
     menu.options.player.name            .setHook(new MCB::N<Textfield,      &Client::MCF_nameChange             >(this));
     menu.options.player.randomName      .setHook(new MCB::N<Textarea,       &Client::MCF_randomName             >(this));
+    menu.options.player.favoriteColors  .setHook(new MCB::N<Colorselect,    &Client::sendFavoriteColors         >(this));
     menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
 
     menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGameMenu        >(this));
