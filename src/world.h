@@ -561,7 +561,7 @@ public:
     double return_time() const { return return_t; }
 
     const WorldCoords& position() const { return pos; }
-    const WorldCoords& home_position() const { return home_pos; }
+    //const WorldCoords& home_position() const { return home_pos; }
 
     int carrying_team() const { return cteam; }
     int carrying_time() const { return ctime; }
