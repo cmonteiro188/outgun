@@ -26,14 +26,14 @@
 #ifndef SERVNET_H_INC
 #define SERVNET_H_INC
 
+#include <map>
+#include <queue>
+
 #include "mutex.h"
 #include "network.h"    // for NetworkResult
 #include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
 #include "thread.h"
 #include "utility.h"
-
-#include <map>
-#include <queue>
 
 class Server;
 class MasterQuery;
