@@ -1456,7 +1456,7 @@ void PowerupSettings::reset() {
     pup_shield_one_hit = false;
     pup_deathbringer_time = 5.0;
     deathbringer_health_limit = deathbringer_energy_limit = 100;
-    deathbringer_health_degradation = deathbringer_energy_degradation = 25.;
+    deathbringer_health_degradation = deathbringer_energy_degradation = 2.5;
 
     pups_drop_at_death = false;
     pups_player_max = INT_MAX;
