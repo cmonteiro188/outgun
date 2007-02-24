@@ -24,7 +24,7 @@
 #ifndef THREAD_H_INC
 #define THREAD_H_INC
 
-#include <pthread.h>
+#include "incpthread.h"
 #include "errno.h"
 #include "nassert.h"    // for STACK_GUARD and __attribute__ for non-GCC, as well as nAssert
 

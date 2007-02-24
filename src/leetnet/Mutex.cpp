@@ -20,7 +20,7 @@
 #include "gneintern.h"
 #include "Mutex.h"
 
-#include <pthread.h>
+#include "../incpthread.h"
 
 namespace GNE {
 

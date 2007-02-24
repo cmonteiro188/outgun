@@ -24,7 +24,7 @@
 #ifndef MUTEX_H_INC
 #define MUTEX_H_INC
 
-#include <pthread.h>
+#include "incpthread.h"
 #include "debugconfig.h"    // for LOG_MUTEX_LOCKUNLOCK
 #include "nassert.h"
 #include "utility.h"

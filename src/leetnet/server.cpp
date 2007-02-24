@@ -33,7 +33,7 @@
 
 */
 
-#include <pthread.h>
+#include "../incpthread.h"
 #include <sched.h>
 #include <nl.h>
 #include <stdio.h>

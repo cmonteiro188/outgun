@@ -22,7 +22,7 @@
  */
 
 #include <cstdio>
-#include <pthread.h>
+#include "incpthread.h"
 #include "debug.h"
 #include "debugconfig.h"
 #include "log.h"

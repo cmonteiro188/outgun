@@ -59,7 +59,7 @@
 
 //Include pthreads, disabling the catch warning.
 #define PtW32NoCatchWarn
-#include <pthread.h>
+#include "../incpthread.h"
 #include <sched.h>
 #undef PtW32NoCatchWarn
 

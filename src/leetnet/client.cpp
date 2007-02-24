@@ -35,7 +35,7 @@
 
 #include <nl.h>
 
-#include <pthread.h>
+#include "../incpthread.h"
 #include <sched.h>
 #include <stdio.h>
 

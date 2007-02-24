@@ -34,7 +34,7 @@
 #include "../nassert.h"
 #include "rudp.h"
 #include <nl.h>             // HawkNL
-#include <pthread.h>
+#include "../incpthread.h"
 
 // buffer size limitations (stupid hardcoded but works)
 //

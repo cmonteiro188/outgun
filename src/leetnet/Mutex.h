@@ -21,7 +21,7 @@
  */
 
 #include "gneintern.h"
-#include <pthread.h>
+#include "../incpthread.h"
 
 namespace GNE {
 

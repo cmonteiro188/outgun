@@ -24,7 +24,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <cerrno>
-#include <pthread.h>
+#include "incpthread.h"
 #include "language.h"
 #include "mutex.h"
 #include "thread.h"
