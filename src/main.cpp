@@ -117,7 +117,7 @@ class GlobalCloseButtonHook {
 
 public:
     static void install() {
-        LOCK_VARIABLE(flag);
+        LOCK_VARIABLE(g_exitFlag);
         LOCK_FUNCTION(GlobalCloseButtonHook__closeCallback);
         set_close_button_callback(GlobalCloseButtonHook__closeCallback);
     }
