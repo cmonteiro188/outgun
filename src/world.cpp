@@ -812,7 +812,7 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
 }
 
 void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id, unsigned uniqueId_) {
-    attack = false;
+    attack = attackOnce = false;
     oldfrags = -666;
     want_map_exit = false;      //by default don't want change maps
     mapVote = -1;
@@ -2292,7 +2292,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
         sid[i] = getFreeRocket();
 
     ServerPhysicsCallbacks cb(*this);
-    WorldBase::shootRockets(cb, pid, shots, player[pid].gundir, sid, 0, pid/TSIZE, player[pid].item_power, px, py, x, y);
+    WorldBase::shootRockets(cb, pid, shots, player[pid].attackGunDir, sid, 0, pid/TSIZE, player[pid].item_power, px, py, x, y);
 
     //build people-that-know DOUBLE WORD (32bits == 32players max)
     //send message to players on the same screen
@@ -2305,7 +2305,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
     for (int k = 0; k < shots; k++)
         rock[sid[k]].vislist = vislist;
 
-    net->sendRocketMessage(shots, player[pid].gundir, sid, pid / TSIZE, player[pid].item_power, px, py, x, y);
+    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid / TSIZE, player[pid].item_power, px, py, x, y);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
@@ -3042,7 +3042,7 @@ void ServerWorld::simulateFrame() {
         }
 
         // check for player weapons fire time
-        if (player[i].attack && player[i].health > 0 && frame >= player[i].next_shoot_frame) {
+        if ((player[i].attack || player[i].attackOnce) && player[i].health > 0 && frame >= player[i].next_shoot_frame) {
             int numshots = 1;
             player[i].energy -= config.shooting_energy_base;
             if (player[i].energy < 0)
@@ -3062,6 +3062,7 @@ void ServerWorld::simulateFrame() {
 
             shootRockets(i, numshots);
         }
+        player[i].attackOnce = false;
 
         // adjust health and energy for carrying deathbringer, running, and plain time passing
         const bool deathbringer_penalty = (pl.item_deathbringer && pl.health >= pupConfig.deathbringer_health_limit && pl.energy >= pupConfig.deathbringer_energy_limit) || pl.deathbringer_end > get_time();

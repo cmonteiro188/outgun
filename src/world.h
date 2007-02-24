@@ -341,15 +341,17 @@ class GunDirection {
 
     GunDirection(double data_) : data(data_) { }
 
+    void normalize() { data = positiveFmod(data, 8.); nAssert(data >= 0 && data < 8); }
+
 public:
     GunDirection() : data(-1) { }
 
-    void adjust(double change) { data += change; while (data < 0.) data += 8.; while (data >= 8.) data -= 8.; }
+    void adjust(double change) { data += change; normalize(); }
 
     void from8way(int dir) { data = dir; }
     void fromControls(const ClientControls& c) { data = c.getDirection(); }
     void updateFromControls(const ClientControls& c) { const int d = c.getDirection(); if (d != -1) data = d; }
-    void fromRad(double r) { data = r / N_PI_4; }
+    void fromRad(double r) { data = r / N_PI_4; normalize(); }
 
     void fromNetworkShortForm(NLubyte data_) { data = data_ & 7; }
     void fromNetworkLongForm(NLushort data_) { data = data_ / 256.; } // only 11 bits used
@@ -423,7 +425,9 @@ public:
     double energy;
 
     int weapon;
-    bool attack;    // if player is holding attack button
+    bool attack;     // if player is holding the attack button
+    bool attackOnce; // if player has pressed (maybe also released) the attack button after the last frame
+    GunDirection attackGunDir; // the gun direction when player last pressed the attack button
 
     double item_power_time;
     double item_turbo_time;

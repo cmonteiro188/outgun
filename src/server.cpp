@@ -1402,7 +1402,8 @@ void Server::simulate_and_broadcast_frame() {
                 continue;
             }
             const int iktime = settings.get_idlekick_time();
-            if (iktime != 0 && !world.player[i].attack && world.player[i].controls.idle() && network.get_human_count() >= settings.get_idlekick_playerlimit()) {
+            const bool idle = !world.player[i].attack && !world.player[i].attackOnce && world.player[i].controls.idle();
+            if (iktime != 0 && idle && network.get_human_count() >= settings.get_idlekick_playerlimit() && !gameover) {
                 ++world.player[i].idleFrames;
                 int timeToKick = iktime - world.player[i].idleFrames;
                 if (timeToKick == 0)

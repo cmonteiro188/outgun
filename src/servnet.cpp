@@ -1595,8 +1595,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
                 else
                     host->chat(pid, msg + 1);
             }
-            else if (code == data_fire_on)
-                world.player[pid].attack = true;
+            else if (code == data_fire_on) {
+                world.player[pid].attackOnce = world.player[pid].attack = true;
+                world.player[pid].attackGunDir = world.player[pid].gundir;
+            }
             else if (code == data_fire_off)
                 world.player[pid].attack = false;
             else if (code == data_suicide) {
@@ -1787,6 +1789,8 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             }
         }
     } while (msg != 0);
+    if (!world.player[pid].attackOnce) // if the player did started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
+        world.player[pid].attackGunDir = world.player[pid].gundir;
 }
 
 void ServerNetworking::removePlayer(int pid) {  // call only when moving players around; this actually does close to nothing
