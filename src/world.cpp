@@ -3201,7 +3201,7 @@ void ServerWorld::simulateFrame() {
                 fi->add_carrying_time(team);
                 if (fi->carrying_time() >= 10 * config.carrying_score_time) {
                     fi->reset_carrying_time();
-                    team_gets_carrying_point(team);
+                    team_gets_carrying_point(team, config.carrying_score_time >= minimum_grab_to_capture_time);
                     if (teams[team].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                                 teams[team].score() - teams[1 - team].score() >= config.getWinScoreDifference() ||
                                 extra_time_and_sudden_death) {
@@ -3309,13 +3309,13 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
     net->ctf_update_teamscore(myteam);      // this function can decide to restart the game
 }
 
-void ServerWorld::team_gets_carrying_point(int team) {
+void ServerWorld::team_gets_carrying_point(int team, bool forTournament) {
     for (int i = 0; i < MAX_PLAYERS; i++)
         if (player[i].used) {
             if (i / TSIZE == team)
-                host->score_frag(i, 2);
+                host->score_frag(i, 2, forTournament);
             else
-                host->score_neg(i, 1);
+                host->score_neg(i, 1, forTournament);
         }
     teams[team].add_point();
     net->ctf_update_teamscore(team);

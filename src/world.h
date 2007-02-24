@@ -917,7 +917,7 @@ class ServerWorld : public WorldBase {
 
     void player_steals_flag(int pid, int team, int flag);
     void player_captures_flag(int pid, int team, int flag);
-    void team_gets_carrying_point(int team);
+    void team_gets_carrying_point(int team, bool forTournament);
 
     bool lock_team_flags_in_effect() const;
     bool lock_wild_flags_in_effect() const;

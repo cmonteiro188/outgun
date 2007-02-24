@@ -373,8 +373,8 @@ public:
     void refresh_team_score_modifiers();
     void check_map_exit();
     bool specific_map_vote_required() const { return settings.get_require_specific_map_vote(); } //#fix
-    void score_frag(int p, int amount);
-    void score_neg(int p, int amount);
+    void score_frag(int p, int amount, bool forTournament = true);
+    void score_neg(int p, int amount, bool forTournament = true);
     int getLessScoredTeam() const;  // using team_smul ; call refresh_team_score_modifiers before calling this
     bool isLocallyAuthorized(int pid) const;
     bool isAdmin(int pid) const;

@@ -457,13 +457,13 @@ void Server::refresh_team_score_modifiers() {
 }
 
 //score!
-void Server::score_frag(int pid, int amount) {
+void Server::score_frag(int pid, int amount, bool forTournament) {
     world.player[pid].stats().add_frag(amount);
 
     const int cid = world.player[pid].cid;
 
     // add tournament scoring delta if all criteria for tournament scoring are satisfied
-    if (settings.get_tournament() && network.numDistinctClients() >= 4 && client[cid].current_participation) {
+    if (forTournament && settings.get_tournament() && network.numDistinctClients() >= 4 && client[cid].current_participation) {
         refresh_team_score_modifiers();
         client[cid].fdp += amount * team_smul[pid / TSIZE];
         client[cid].delta_score = static_cast<int>(client[cid].fdp);
@@ -471,11 +471,11 @@ void Server::score_frag(int pid, int amount) {
 }
 
 //score! NEG FRAG (v0.4.8)
-void Server::score_neg(int p, int amount) {
+void Server::score_neg(int p, int amount, bool forTournament) {
     const int cid = world.player[p].cid;
 
     // add tournament scoring delta if all criteria for tournament scoring are satisfied
-    if (settings.get_tournament() && network.numDistinctClients() >= 4 && client[cid].current_participation) {
+    if (forTournament && settings.get_tournament() && network.numDistinctClients() >= 4 && client[cid].current_participation) {
         client[cid].fdn += amount;  // not affected by team modifier
         client[cid].neg_delta_score = static_cast<int>(client[cid].fdn);
     }
