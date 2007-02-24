@@ -1276,10 +1276,8 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int pli, GunDirecti
 void Graphics::draw_me_highlight(const WorldCoords& pos, double size) {
     ScaledCoordSet sc(pos, this);
     while (sc.next())
-        if (sc.x() >= roomLayout.x0() && sc.x() <= roomLayout.xMax() && sc.y() >= roomLayout.y0() && sc.y() <= roomLayout.yMax()) {
+        if (sc.x() >= roomLayout.x0() && sc.x() <= roomLayout.xMax() && sc.y() >= roomLayout.y0() && sc.y() <= roomLayout.yMax())
             circle(drawbuf, sc.x(), sc.y(), scale((8 * size + 1) * PLAYER_RADIUS), colour(Colour::self_highlight));
-            break;
-        }
 }
 
 void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team) {
