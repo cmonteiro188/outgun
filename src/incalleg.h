@@ -63,6 +63,13 @@ inline void set_clip_rect(BITMAP* bitmap, int x1, int y1, int x2, int y2) {
     set_clip(bitmap, x1, y1, x2, y2);
 }
 
+inline void get_clip_rect(BITMAP* bitmap, int* x1, int* y1, int* x2, int* y2) {
+    *x1 = bitmap->cl;
+    *y1 = bitmap->ct;
+    *x2 = bitmap->cr - 1;
+    *y2 = bitmap->cb - 1;
+}
+
 #endif
 
 #endif  // INCALLEG_H_INC
