@@ -2550,14 +2550,15 @@ void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col
 bool Graphics::save_screenshot(const string& filename) const {
     PALETTE pal;
     get_palette(pal);
-    if (page_flipping) {
-        BITMAP* current_screen = drawbuf == vidpage1 ? vidpage2 : vidpage1;
-        Bitmap temp = create_bitmap(current_screen->w, current_screen->h);
-        nAssert(temp);
-        blit(current_screen, temp, 0, 0, 0, 0, current_screen->w, current_screen->h);
-        return !save_bitmap(filename.c_str(), temp, pal);
-    }
-    return !save_bitmap(filename.c_str(), drawbuf, pal);
+    BITMAP* current_screen;
+    if (page_flipping)
+        current_screen = drawbuf == vidpage1 ? vidpage2 : vidpage1;
+    else
+        current_screen = drawbuf;
+    Bitmap temp = create_bitmap_ex(16, current_screen->w, current_screen->h);
+    nAssert(temp);
+    blit(current_screen, temp, 0, 0, 0, 0, current_screen->w, current_screen->h);
+    return !save_bitmap(filename.c_str(), temp, pal);
 }
 
 // client side effects

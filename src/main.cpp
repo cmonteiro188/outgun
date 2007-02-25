@@ -41,6 +41,7 @@
 
 #ifndef DEDICATED_SERVER_ONLY
 #include "client.h"
+#include "loadpng.h"
 #include "mappic.h"
 #endif
 
@@ -577,6 +578,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     #ifndef DEDICATED_SERVER_ONLY
     // run client
     else {
+        register_png_file_type();
         install_mouse();
         GlobalMouseHook::install();
 
