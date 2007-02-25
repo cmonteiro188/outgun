@@ -5625,6 +5625,7 @@ void Client::MCF_prepareMainMenu() {
 
 void Client::MCF_disconnect() {
     disconnect_command();
+    stop_replay();
 }
 
 void Client::MCF_exitOutgun() {
