@@ -100,7 +100,6 @@ public:
     bool depthAvailable(int depth) const;
     std::vector<ScreenMode> getResolutions(int depth, bool forceTryIfNothing = true) const; // returns a sorted list of unique resolutions
     bool init(int width, int height, int depth, bool windowed, bool flipping);
-    void make_layout();
     void videoMemoryCorrupted();    // call this when that happens with page flipping; predraw also needs to be called
 
     struct MapDecorations {
@@ -247,6 +246,8 @@ private:
     void unload_bitmaps();
 
     bool reset_video_mode(int width, int height, int depth, bool windowed, int pages = 1);
+
+    void make_layout();
 
     void update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic = false);
 
