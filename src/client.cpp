@@ -709,7 +709,6 @@ bool Client::start() {
     netsendAdjustment = 0;
 
     // default map
-    //load_default_map(&map);
     map_ready = false;  // NO map change commands from server yet
     clientReadiesWaiting = 0;
 
