@@ -5756,7 +5756,6 @@ void Client::MCF_gfxThemeChange() {
 
 void Client::MCF_fontChange() {
     graphics.select_font(menu.options.graphics.font());
-    graphics.make_layout();
 }
 
 void Client::MCF_screenDepthChange() {
