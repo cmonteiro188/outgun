@@ -400,8 +400,6 @@ void Server::SettingManager::reset() {
     pupConfig.reset();
     worldConfig.reset();
 
-    ipAddress = extConfig.ipAddress;
-    port = extConfig.port;
     privateserver = extConfig.privateserver;
 
     game_end_delay = 5;

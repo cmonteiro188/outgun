@@ -218,7 +218,8 @@ class Server {
         void processLine(const std::string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const;
 
     public:
-        SettingManager(Server& server_, const ServerExternalSettings& extConfig_) : server(server_), network(server_.network), world(server_.world), extConfig(extConfig_), built(false) { }
+        SettingManager(Server& server_, const ServerExternalSettings& extConfig_) : server(server_), network(server_.network), world(server_.world),
+                extConfig(extConfig_), ipAddress(extConfig.ipAddress), port(extConfig.port), built(false) { }
         ~SettingManager() { free(); }
 
         std::vector<std::string> listSettings(const GamemodAccessDescriptor& access);
