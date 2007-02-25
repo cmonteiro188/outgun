@@ -1074,6 +1074,15 @@ bool Client::load_map(const string& directory, const string& mapname, NLushort s
     return false;
 }
 
+void Client::sendMinimapBandwidthAny(int players) {
+    if (protocolExtensionsC2S >= 0) {
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, data_set_minimap_player_bandwidth);
+        writeByte(lebuf, count, players);
+        client->send_message(lebuf, count);
+    }
+}
+
 #ifndef DEDICATED_SERVER_ONLY
 void Client::sendFavoriteColors() {
     if (menu.options.player.favoriteColors.values().empty())
@@ -1093,12 +1102,7 @@ void Client::sendFavoriteColors() {
 }
 
 void Client::sendMinimapBandwidth() {
-    if (protocolExtensionsC2S >= 0) {
-        char lebuf[256]; int count = 0;
-        writeByte(lebuf, count, data_set_minimap_player_bandwidth);
-        writeByte(lebuf, count, menu.options.game.minimapBandwidth() / 20);
-        client->send_message(lebuf, count);
-    }
+    sendMinimapBandwidthAny(menu.options.game.minimapBandwidth() / 20);
 }
 #endif // DEDICATED_SERVER_ONLY
 
@@ -1143,6 +1147,9 @@ void Client::client_connected(const char* data, int length) {   // call with fra
         protocolExtensionsC2S = -1;
     protocolExtensionsS2C = -1; // server can't use any extensions until us telling them the appropriate version (and then we will also receive data_set_extension_level before messages with extensions)
 
+    if (botmode)
+        sendMinimapBandwidthAny(32);
+
     fx.physics = PhysicalSettings(); // to be filled later by a message
     #ifndef DEDICATED_SERVER_ONLY
     fd.physics = fx.physics;
@@ -1150,17 +1157,15 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    sendFavoriteColors();
-    sendMinimapBandwidth();
+    if (!botmode) {
+        sendFavoriteColors();
+        sendMinimapBandwidth();
+
+        extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP)));
+    }
 
     show_all_messages = false;
     stats_autoshowing = false;
-
-    if (!botmode) {
-        //set window title: the hostname
-        const string caption = _("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP));
-        extConfig.statusOutput(caption);
-    }
 
     //don't want to change teams by default
     want_change_teams = false;

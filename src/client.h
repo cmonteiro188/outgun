@@ -596,6 +596,7 @@ class Client {
     void connect_failed_denied(const char* data, int length);
     void connect_failed_unreachable();
     void connect_failed_socket();
+    void sendMinimapBandwidthAny(int players);
     #ifndef DEDICATED_SERVER_ONLY
     void send_player_token();
     void send_tournament_participation();
