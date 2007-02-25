@@ -12,6 +12,10 @@ ifndef BASE_CFLAGS
  BASE_CFLAGS = -W -Wall -O3 -march=pentium -ffast-math
 endif
 
+ifndef BASE_C_CFLAGS
+ BASE_C_CFLAGS = $(BASE_CFLAGS)
+endif
+
 BASE_OBJS = world.o servnet.o server.o server_settings.o commont.o main.o \
 	names.o auth.o \
 	nassert.o globals.o log.o utility.o network.o thread.o gamemod.o \
@@ -107,11 +111,13 @@ else
 endif
 
 ifdef DEDICATED_SERVER_ONLY
- CFLAGS = $(BASE_CFLAGS) $(STLP_CFLAGS) -DDEDICATED_SERVER_ONLY
+   CFLAGS = $(BASE_CFLAGS)   $(STLP_CFLAGS) -DDEDICATED_SERVER_ONLY
+ C_CFLAGS = $(BASE_C_CFLAGS) $(STLP_CFLAGS) -DDEDICATED_SERVER_ONLY
  OBJS = $(BASE_OBJS) $(PLATFORM_OBJS) $(EXTRA_OBJS)
  LIBS = $(BASE_LIBS) $(STLP_LIBS)
 else
- CFLAGS = $(BASE_CFLAGS) $(ALLEG_CFLAGS) $(STLP_CFLAGS)
+   CFLAGS = $(BASE_CFLAGS)   $(ALLEG_CFLAGS) $(STLP_CFLAGS)
+ C_CFLAGS = $(BASE_C_CFLAGS) $(ALLEG_CFLAGS) $(STLP_CFLAGS)
  OBJS = $(BASE_OBJS) $(CLIENT_OBJS) $(PLATFORM_OBJS) $(EXTRA_OBJS)
  LIBS = $(BASE_LIBS) $(ALLEG_LIBS) $(STLP_LIBS) $(PNG_LIBS)
 endif
@@ -155,6 +161,7 @@ network_relay.o : network.o
 	$(WINDRES) -i $< -O coff -o $@
 
 OBJCOMPILE = $(GCC) $(CFLAGS) -c -o $@ $<
+COBJCOMPILE = $(GCC) $(C_CFLAGS) -c -o $@ $<
 LEETNETCOMPILE = $(OBJCOMPILE)
 
 include Makefile.dependencies
