@@ -2739,8 +2739,8 @@ void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) cons
     for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti) {
         dst_theme(*ti);
         // Check if the theme has a background image
-        const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background.pcx";
-        if (platIsFile(bg))
+        const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background";
+        if (platIsFile(bg + ".png") || platIsFile(bg + ".pcx"))
             dst_bg(*ti);
     }
 }
@@ -2794,21 +2794,28 @@ void Graphics::load_playfield_pictures() {
     load_pup_sprites   (theme_path);
 }
 
+BITMAP* Graphics::load_bitmap(const string& file) const {
+    BITMAP* buf = ::load_bitmap((file + ".png").c_str(), 0);
+    if (!buf)
+        buf = ::load_bitmap((file + ".pcx").c_str(), 0);
+    return buf;
+}
+
 void Graphics::load_background() {
     if (!bg_path.empty())
-        bg_texture = load_bitmap((bg_path + "background.pcx").c_str(), NULL);
+        bg_texture = load_bitmap(bg_path + "background");
 }
 
 void Graphics::load_floor_textures(const string& path) {
     int t = 0;
-    floor_texture[t++] = load_bitmap((path + "floor_normal1.pcx").c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_normal2.pcx").c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_normal3.pcx").c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_red.pcx"    ).c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_blue.pcx"   ).c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_ice.pcx"    ).c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_sand.pcx"   ).c_str(), NULL);
-    floor_texture[t++] = load_bitmap((path + "floor_mud.pcx"    ).c_str(), NULL);
+    floor_texture[t++] = load_bitmap(path + "floor_normal1");
+    floor_texture[t++] = load_bitmap(path + "floor_normal2");
+    floor_texture[t++] = load_bitmap(path + "floor_normal3");
+    floor_texture[t++] = load_bitmap(path + "floor_red");
+    floor_texture[t++] = load_bitmap(path + "floor_blue");
+    floor_texture[t++] = load_bitmap(path + "floor_ice");
+    floor_texture[t++] = load_bitmap(path + "floor_sand");
+    floor_texture[t++] = load_bitmap(path + "floor_mud");
     // Check that width and height are powers of 2.
     for (int i = 0; i < 8; i++) {
         Bitmap& texture = floor_texture[i];
@@ -2821,14 +2828,14 @@ void Graphics::load_floor_textures(const string& path) {
 
 void Graphics::load_wall_textures(const string& path) {
     int t = 0;
-    wall_texture[t++] = load_bitmap((path + "wall_normal1.pcx").c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_normal2.pcx").c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_normal3.pcx").c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_red.pcx"    ).c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_blue.pcx"   ).c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_metal.pcx"  ).c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_wood.pcx"   ).c_str(), NULL);
-    wall_texture[t++] = load_bitmap((path + "wall_rubber.pcx" ).c_str(), NULL);
+    wall_texture[t++] = load_bitmap(path + "wall_normal1");
+    wall_texture[t++] = load_bitmap(path + "wall_normal2");
+    wall_texture[t++] = load_bitmap(path + "wall_normal3");
+    wall_texture[t++] = load_bitmap(path + "wall_red");
+    wall_texture[t++] = load_bitmap(path + "wall_blue");
+    wall_texture[t++] = load_bitmap(path + "wall_metal");
+    wall_texture[t++] = load_bitmap(path + "wall_wood");
+    wall_texture[t++] = load_bitmap(path + "wall_rubber");
     // Check that width and height are powers of 2.
     for (int i = 0; i < 8; i++) {
         Bitmap& texture = wall_texture[i];
@@ -2855,9 +2862,9 @@ BITMAP* Graphics::get_wall_texture(int texid) {
 
 void Graphics::load_player_sprites(const string& path) {
     const int size = max(1, pf_scale(2 * 2 * PLAYER_RADIUS));
-    const Bitmap common   = scale_sprite      (path + "player.pcx"         , size, size);
-    const Bitmap team     = scale_alpha_sprite(path + "player_team.pcx"    , size, size);
-    const Bitmap personal = scale_alpha_sprite(path + "player_personal.pcx", size, size);
+    const Bitmap common   = scale_sprite      (path + "player"         , size, size);
+    const Bitmap team     = scale_alpha_sprite(path + "player_team"    , size, size);
+    const Bitmap personal = scale_alpha_sprite(path + "player_personal", size, size);
     if (common && team && personal) {
         // Make player sprites by combining player image with team and personal colours.
         for (int t = 0; t < 2; t++)
@@ -2899,10 +2906,10 @@ void Graphics::combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITM
 
 void Graphics::load_shield_sprites(const string& path) {
     const int size = max(1, pf_scale(2 * 2 * PLAYER_RADIUS));
-    Bitmap picture = scale_sprite(path + "player_shield.pcx", size, size);
+    Bitmap picture = scale_sprite(path + "player_shield", size, size);
     if (!picture)
         return;
-    Bitmap team  = scale_alpha_sprite(path + "player_shield_team.pcx", size, size);
+    Bitmap team  = scale_alpha_sprite(path + "player_shield_team", size, size);
     for (int t = 0; t < 2; t++) {
         shield_sprite[t] = create_bitmap(size, size);
         nAssert(shield_sprite[t]);
@@ -2912,12 +2919,12 @@ void Graphics::load_shield_sprites(const string& path) {
 
 void Graphics::load_dead_sprites(const string& path) {
     const int size = max(1, pf_scale(2 * 2 * PLAYER_RADIUS));
-    ice_cream = scale_sprite(path + "ice_cream.pcx", size, size);
-    Bitmap picture = scale_sprite(path + "dead.pcx", size, size);
+    ice_cream = scale_sprite(path + "ice_cream", size, size);
+    Bitmap picture = scale_sprite(path + "dead", size, size);
     if (!picture)
         return;
-    Bitmap alpha = scale_alpha_sprite(path + "dead_alpha.pcx", size, size);
-    Bitmap team  = scale_alpha_sprite(path + "dead_team.pcx" , size, size);
+    Bitmap alpha = scale_alpha_sprite(path + "dead_alpha", size, size);
+    Bitmap team  = scale_alpha_sprite(path + "dead_team" , size, size);
     for (int t = 0; t < 2; t++) {
         dead_sprite[t] = create_bitmap_ex(32, size, size);
         nAssert(dead_sprite[t]);
@@ -2929,9 +2936,9 @@ void Graphics::load_dead_sprites(const string& path) {
 // Make rocket sprites by combining rocket image with team colour.
 void Graphics::load_rocket_sprites(const string& path) {
     const int size = max(1, pf_scale(2 * 2 * ROCKET_RADIUS));
-    Bitmap normal = scale_sprite(path + "rocket.pcx", size, size);
+    Bitmap normal = scale_sprite(path + "rocket", size, size);
     if (normal) {
-        Bitmap team = scale_alpha_sprite(path + "rocket_team.pcx", size, size);
+        Bitmap team = scale_alpha_sprite(path + "rocket_team", size, size);
         for (int t = 0; t < 2; t++) {
             rocket_sprite[t] = create_bitmap(size, size);
             nAssert(rocket_sprite[t]);
@@ -2939,9 +2946,9 @@ void Graphics::load_rocket_sprites(const string& path) {
         }
         normal.free();
     }
-    Bitmap power = scale_sprite(path + "rocket_pow.pcx", size, size);
+    Bitmap power = scale_sprite(path + "rocket_pow", size, size);
     if (power) {
-        Bitmap team = scale_alpha_sprite(path + "rocket_pow_team.pcx", size, size);
+        Bitmap team = scale_alpha_sprite(path + "rocket_pow_team", size, size);
         for (int t = 0; t < 2; t++) {
             power_rocket_sprite[t] = create_bitmap(size, size);
             nAssert(power_rocket_sprite[t]);
@@ -2953,9 +2960,9 @@ void Graphics::load_rocket_sprites(const string& path) {
 // Make flag sprites by combining flag image with team colour.
 void Graphics::load_flag_sprites(const string& path) {
     const int size = max(1, pf_scale(100));
-    Bitmap flag = scale_sprite(path + "flag.pcx", size, size);
+    Bitmap flag = scale_sprite(path + "flag", size, size);
     if (flag) {
-        Bitmap team = scale_alpha_sprite(path + "flag_team.pcx", size, size);
+        Bitmap team = scale_alpha_sprite(path + "flag_team", size, size);
         for (int t = 0; t < 3; t++) {
             flag_sprite[t] = create_bitmap(size, size);
             flag_flash_sprite[t] = create_bitmap(size, size);
@@ -2968,17 +2975,17 @@ void Graphics::load_flag_sprites(const string& path) {
 
 void Graphics::load_pup_sprites(const string& path) {
     const int size = max(1, pf_scale(2 * PLAYER_RADIUS));
-    pup_sprite[Powerup::pup_shield      ] = scale_sprite(path + "shield.pcx"      , size, size);
-    pup_sprite[Powerup::pup_turbo       ] = scale_sprite(path + "turbo.pcx"       , size, size);
-    pup_sprite[Powerup::pup_shadow      ] = scale_sprite(path + "shadow.pcx"      , size, size);
-    pup_sprite[Powerup::pup_power       ] = scale_sprite(path + "power.pcx"       , size, size);
-    pup_sprite[Powerup::pup_weapon      ] = scale_sprite(path + "weapon.pcx"      , size, size);
-    pup_sprite[Powerup::pup_health      ] = scale_sprite(path + "health.pcx"      , size, size);
-    pup_sprite[Powerup::pup_deathbringer] = scale_sprite(path + "deathbringer.pcx", size, size);
+    pup_sprite[Powerup::pup_shield      ] = scale_sprite(path + "shield"      , size, size);
+    pup_sprite[Powerup::pup_turbo       ] = scale_sprite(path + "turbo"       , size, size);
+    pup_sprite[Powerup::pup_shadow      ] = scale_sprite(path + "shadow"      , size, size);
+    pup_sprite[Powerup::pup_power       ] = scale_sprite(path + "power"       , size, size);
+    pup_sprite[Powerup::pup_weapon      ] = scale_sprite(path + "weapon"      , size, size);
+    pup_sprite[Powerup::pup_health      ] = scale_sprite(path + "health"      , size, size);
+    pup_sprite[Powerup::pup_deathbringer] = scale_sprite(path + "deathbringer", size, size);
 }
 
 BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
-    Bitmap temp = load_bitmap(filename.c_str(), NULL);
+    Bitmap temp = load_bitmap(filename);
     if (!temp)
         return 0;
     BITMAP* target = create_bitmap(x, y);
@@ -2989,7 +2996,7 @@ BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
 
 BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const {
     set_color_conversion(COLORCONV_NONE);
-    Bitmap temp = load_bitmap(filename.c_str(), NULL);
+    Bitmap temp = load_bitmap(filename);
     set_color_conversion(COLORCONV_TOTAL);
     if (!temp)
         return 0;

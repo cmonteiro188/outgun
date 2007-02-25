@@ -300,6 +300,8 @@ private:
 
     void make_db_effect();
 
+    BITMAP* load_bitmap(const std::string& file) const;
+
     void load_background();
     void load_generic_pictures();
     void load_playfield_pictures();
