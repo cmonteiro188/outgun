@@ -274,7 +274,7 @@ private:
 
     std::pair<int, int> calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const;
 
-    void draw_bar(int x, int y, const std::string& caption, int value, int c100, int c200, int c300);
+    void draw_bar(int x, const std::string& caption, int value, int c100, int c200, int c300);
     void draw_powerup_time(int line, const std::string& caption, double val, int c);
 
     void draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time);

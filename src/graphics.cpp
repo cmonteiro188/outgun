@@ -2322,23 +2322,20 @@ void Graphics::draw_change_map_message(double time, bool delayed) {
 }
 
 void Graphics::draw_player_health(int value) {
-    const int x0 = health_x;
-    const int y0 = indicators_y;
-    draw_bar(x0, y0, _("Health"), value, colour(Colour::health_100), colour(Colour::health_200), colour(Colour::health_300));
+    draw_bar(health_x, _("Health"), value, colour(Colour::health_100), colour(Colour::health_200), colour(Colour::health_300));
 }
 
 void Graphics::draw_player_energy(int value) {
-    const int x0 = energy_x;
-    const int y0 = indicators_y;
-    draw_bar(x0, y0, _("Energy"), value, colour(Colour::energy_100), colour(Colour::energy_200), colour(Colour::energy_300));
+    draw_bar(energy_x, _("Energy"), value, colour(Colour::energy_100), colour(Colour::energy_200), colour(Colour::energy_300));
 }
 
-void Graphics::draw_bar(int x, int y, const string& caption, int value, int c100, int c200, int c300) {
+void Graphics::draw_bar(int x, const string& caption, int value, int c100, int c200, int c300) {
+    const int y = indicators_y;
     print_text_border_check_bg(caption, x, y, colour(Colour::bar_text), colour(Colour::text_border), -1);
     const string val_str = itoa_w(value, 3);
     const int width = scale(100);
     const int bar_y1 = y + 3 * text_height(font) / 2;
-    const int bar_y2 = bar_y1 + scale(10);
+    const int bar_y2 = SCREEN_H - 5;
 
     const int val_x = max(x + text_length(font, caption) + text_length(font, " "), x + width - text_length(font, val_str));
     print_text_border_check_bg(val_str, val_x, y, colour(Colour::bar_text), colour(Colour::text_border), -1);
