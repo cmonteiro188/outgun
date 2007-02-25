@@ -153,12 +153,16 @@ void handleFile(std::string name, FILE* dst, const std::string& compileCommand) 
         id.erase(id.length() - 2);
         fprintf(dst, "%s_inc =\t%s", id.c_str(), name.c_str());
     }
+    else if (id.length() > 2 && id.substr(id.length() - 2) == ".c") {
+        id.erase(id.length() - 2);
+        fprintf(dst, "%s.o:\t%s", id.c_str(), name.c_str());
+    }
     else if (id.length() > 4 && id.substr(id.length() - 4) == ".cpp") {
         id.erase(id.length() - 4);
         fprintf(dst, "%s.o:\t%s", id.c_str(), name.c_str());
     }
     else
-        throw StrError("'%s' - only .h and .cpp files are handled", name.c_str());
+        throw StrError("'%s' - only .h, .c and .cpp files are handled", name.c_str());
     FILE* src = fopen(name.c_str(), "rb");
     if (!src)
         throw StrError("'%s' - can't open for reading", name.c_str());
@@ -178,7 +182,7 @@ void handleFile(std::string name, FILE* dst, const std::string& compileCommand) 
 
 int main(int argc, const char* argv[]) {
     if (argc < 3) {
-        fprintf(stderr, "args: %s [\"Compile command\"] .h-or-.cpp-files\n", argv[0]);
+        fprintf(stderr, "args: %s [\"Compile command\"] .h-or-.c-or-.cpp-files\n", argv[0]);
         return 1;
     }
     try {
