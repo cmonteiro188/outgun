@@ -5620,7 +5620,7 @@ void Client::MCF_menuCloser() {
 
 void Client::MCF_prepareMainMenu() {
     menu.ownServer.refreshCaption(listenServer.running());
-    menu.disconnect.setEnable(connected);
+    menu.disconnect.setEnable(connected || spectating);
 }
 
 void Client::MCF_disconnect() {
