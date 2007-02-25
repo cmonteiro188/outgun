@@ -2791,7 +2791,7 @@ void Graphics::load_playfield_pictures() {
     load_pup_sprites   (theme_path);
 }
 
-BITMAP* Graphics::load_bitmap(const string& file) const {
+BITMAP* Graphics::load_bitmap(const string& file) {
     BITMAP* buf = ::load_bitmap((file + ".png").c_str(), 0);
     if (!buf)
         buf = ::load_bitmap((file + ".pcx").c_str(), 0);
