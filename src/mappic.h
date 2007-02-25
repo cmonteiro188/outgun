@@ -38,7 +38,6 @@ class Mappic {
 
     std::vector<std::string> load_maps(const std::string& dir);
 
-    void find_maps();
     void save_pictures() const;
 
 public:

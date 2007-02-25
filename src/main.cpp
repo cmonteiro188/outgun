@@ -392,6 +392,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         }
         #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-mappic")) {
+            register_png_file_type();
             check_dir("mappic", log);
             if (argc != 2)
                 log.error(_("-mappic can't be combined with other command line options."));

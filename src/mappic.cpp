@@ -25,7 +25,6 @@
 #include "commont.h"
 #include "graphics.h"
 #include "language.h"
-#include "loadpng.h"
 #include "platform.h"
 #include "world.h"
 
@@ -35,13 +34,8 @@ using std::string;
 using std::vector;
 
 void Mappic::run() {
-    register_png_file_type();
-    find_maps();
-    save_pictures();
-}
-
-void Mappic::find_maps() {
     smaps = load_maps(SERVER_MAPS_DIR);
+    save_pictures();
 }
 
 vector<string> Mappic::load_maps(const string& dir) {
