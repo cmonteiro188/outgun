@@ -95,6 +95,7 @@ enum ClientCfgSetting {
     CCS_MinimapBandwidth,
     CCS_RepeatMap,
     CCS_Scroll,
+    CCS_VisibleRooms,
     CCS_EndOfCommands
 };
 

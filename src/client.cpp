@@ -824,6 +824,9 @@ bool Client::start() {
             break; case CCS_Antialiasing:
                 menu.options.graphics.antialiasing.set(args == "2");
 
+            break; case CCS_VisibleRooms:
+                visible_rooms = atoi(args);
+
             break; default: nAssert(0); // all values up to the highest known must be handled
         }
     }
@@ -1508,7 +1511,6 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->connect(false);
     #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
-    visible_rooms = 1;
     #endif
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
@@ -4504,7 +4506,6 @@ bool Client::start_replay(istream& replay) {
     replayTime = get_time();
     replaySubFrame = 0;
     replayTopLeftRoom = pair<int, int>();
-    visible_rooms = 1;
 
     show_all_messages = false;
     stats_autoshowing = false;
@@ -4749,6 +4750,7 @@ void Client::stop() {
             cfg << CCS_GFXMode << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
         }
         cfg << CCS_Antialiasing << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
+        cfg << CCS_VisibleRooms << ' ' << visible_rooms << '\n';
 
         cfg.close();
     }
