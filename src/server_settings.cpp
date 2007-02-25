@@ -173,9 +173,9 @@ void Server::SettingManager::build(bool reload) {
             ipSetting = new GS_CheckForwardStr("server_ip",  _("IP address without :port"), checkForceIP, setForceIP, getForceIP);
     }
     if (reload || !extConfig.privSettingForced)
-        privSetting = new GS_Ignore ("private_server");
-    else
         privSetting = new GS_Boolean("private_server",       &privateserver);
+    else
+        privSetting = new GS_Ignore ("private_server");
 
     Category cat("general" , "General settings");
     cat.add(new GS_String    ("server_name",                 &hostname, false));
