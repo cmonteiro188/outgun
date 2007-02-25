@@ -25,7 +25,7 @@ BASE_OBJS = world.o servnet.o server.o server_settings.o commont.o main.o \
 	leetnet/dlog.o
 
 CLIENT_OBJS = antialias.o graphics.o colour.o client_menus.o sounds.o menu.o \
-	mappic.o loadpng.o savepng.o regpng.o
+	mappic.o loadpng/loadpng.o loadpng/savepng.o loadpng/regpng.o
 
 RELAY_OBJS = relay.o platform_relay.o timer.o nassert_mon.o network_relay.o
 

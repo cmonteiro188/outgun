@@ -41,7 +41,7 @@
 
 #ifndef DEDICATED_SERVER_ONLY
 #include "client.h"
-#include "loadpng.h"
+#include "loadpng/loadpng.h"
 #include "mappic.h"
 #endif
 
