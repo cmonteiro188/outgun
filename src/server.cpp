@@ -1484,7 +1484,7 @@ void Server::simulate_and_broadcast_frame() {
         write(temp_frame, static_cast<unsigned short>(world.player[world.frame % maxplayers].ping));
 
         const unsigned frame_length = temp_frame.str().length() + record_frame.str().length();
-        log("Recording frame %lu, total %u bytes.", static_cast<long unsigned>(world.frame), frame_length);
+        //log("Recording frame %lu, total %u bytes.", static_cast<long unsigned>(world.frame), frame_length);
         ostringstream ost;
         write(ost, frame_length);
         ost << temp_frame.str();

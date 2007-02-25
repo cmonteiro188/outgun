@@ -1152,7 +1152,7 @@ void ServerNetworking::send_first_relay_data(const string& data) {
 void ServerNetworking::send_relay_data(const string& data) {
     if (!is_relay_active())  // Try again in the next game.
         return;
-    log("Sending relay data.");
+    //log("Sending relay data.");
     ostringstream ost;
     write(ost, static_cast<char>(relay_new_game ? 1 : 0));
     ost << data;
@@ -1173,8 +1173,8 @@ void ServerNetworking::send_relay_data(const string& data) {
         nlClose(relay_socket);
         relay_socket = NL_INVALID;
     }
-    else
-        log("Spectator data sent to the relay (%lu bytes).", static_cast<long unsigned>(data.length()));
+    //else
+        //log("Spectator data sent to the relay (%lu bytes).", static_cast<long unsigned>(data.length()));
 }
 
 bool ServerNetworking::start() {
