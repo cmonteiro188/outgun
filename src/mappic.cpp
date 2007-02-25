@@ -25,6 +25,7 @@
 #include "commont.h"
 #include "graphics.h"
 #include "language.h"
+#include "loadpng.h"
 #include "platform.h"
 #include "world.h"
 
@@ -34,6 +35,7 @@ using std::string;
 using std::vector;
 
 void Mappic::run() {
+    register_png_file_type();
     find_maps();
     save_pictures();
 }
@@ -58,7 +60,7 @@ void Mappic::save_pictures() const {
     graphics.setColors();
     const string dir(wheregamedir + "mappic" + directory_separator);
     for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
-        string picture = dir + *name + ".pcx";
+        string picture = dir + *name + ".png";
         Map mp;
         if (!mp.load(log, SERVER_MAPS_DIR, *name))
             log.error(_("Map picture saver: Map '$1' is not a valid map file.", *name));
