@@ -230,7 +230,7 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Boolean   ("sudden_death",                &worldConfig.sudden_death));
     cat.add(new GS_Int       ("game_end_delay",              &game_end_delay, 0));
     cat.add(new GS_Double    ("flag_return_delay",           &worldConfig.flag_return_delay, 0));
-    cat.add(new GS_Int       ("carrying_score_time",         &worldConfig.carrying_score_time, 4, GS_Int::lim::max(), 1, 0, true));
+    cat.add(new GS_Int       ("carrying_score_time",         &worldConfig.carrying_score_time, 0));
     cat.add(new GS_Boolean   ("random_wild_flag",            &worldConfig.random_wild_flag));
     cat.add(new GS_Boolean   ("lock_team_flags",             &worldConfig.lock_team_flags));
     cat.add(new GS_Boolean   ("lock_wild_flags",             &worldConfig.lock_wild_flags));
