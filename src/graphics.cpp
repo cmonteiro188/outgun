@@ -3091,6 +3091,7 @@ void Graphics::select_font(const string& file) {
     }
     else
         load_font(file);
+    make_layout();
 }
 
 void Graphics::load_font(const string& file) {
