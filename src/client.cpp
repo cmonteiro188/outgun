@@ -3926,6 +3926,13 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             }
             else
                 handled = false;
+        break; case KEY_M:
+            if (withControl) {
+                menu.options.sounds.enabled.toggle();
+                MCF_sndEnableChange();
+            }
+            else
+                handled = false;
         break; default:
             handled = false;
     }
