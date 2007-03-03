@@ -29,6 +29,8 @@
 
 #include <cmath>
 
+#include <png.h>
+
 #include "antialias.h"
 #include "client.h"
 #include "commont.h"
@@ -37,6 +39,7 @@
 #include "platform.h"
 #include "sounds.h"
 #include "timer.h"
+#include "loadpng/loadpng.h"
 
 #include "graphics.h"
 
@@ -2556,7 +2559,10 @@ bool Graphics::save_screenshot(const string& filename) const {
     Bitmap temp = create_bitmap_ex(16, current_screen->w, current_screen->h);
     nAssert(temp);
     blit(current_screen, temp, 0, 0, 0, 0, current_screen->w, current_screen->h);
-    return !save_bitmap(filename.c_str(), temp, pal);
+    _png_compression_level = Z_BEST_SPEED;
+    const bool ok = !save_bitmap(filename.c_str(), temp, pal);
+    _png_compression_level = Z_BEST_COMPRESSION;
+    return ok;
 }
 
 // client side effects
