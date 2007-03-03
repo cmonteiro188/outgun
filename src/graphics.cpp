@@ -1688,11 +1688,12 @@ void Graphics::draw_pup_health(const WorldCoords& pos, double time) {
     const int itemsize = pf_scale(11 + varia);
     const int crossize = pf_scale(8 + varia);
     const int crosslar = pf_scale(3);
+    const int border = max(1, pf_scale(2));
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
         // health box black border
-        rectfill(drawbuf, x - itemsize - 2, y - itemsize - 2, x + itemsize + 2, y + itemsize + 2, colour(Colour::pup_health_border));
+        rectfill(drawbuf, x - itemsize - border, y - itemsize - border, x + itemsize + border, y + itemsize + border, colour(Colour::pup_health_border));
         // health box
         rectfill(drawbuf, x - itemsize, y - itemsize, x + itemsize, y + itemsize, colour(Colour::pup_health_bg));
         // red cross
