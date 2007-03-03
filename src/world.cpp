@@ -3031,6 +3031,7 @@ void ServerWorld::simulateFrame() {
 
         //check if dead/respawn
         if (pl.health <= 0) {
+            player[i].attackOnce = false;
             if (pl.respawn_time < get_time() && !pl.awaiting_client_readies)
                 respawnPlayer(i);       //time to respawn player
             else
