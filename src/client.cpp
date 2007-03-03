@@ -5239,12 +5239,12 @@ void Client::draw_map(const VisibilityMap& roomVis) {
 
                 if (i != me) {
                     if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                        graphics.draw_minimap_player(fx.map, replaying ? fd.player[i] : pl);
+                        graphics.draw_minimap_player(fx.map, replaying || pl.onscreen ? fd.player[i] : pl);
                     if (drawNeighborMarkers)
                         graphics.draw_neighbor_marker(false, xDelta, yDelta, pos, pl.team());
                 }
                 else // myself: draw differently
-                    graphics.draw_minimap_me(fx.map, pl, time);
+                    graphics.draw_minimap_me(fx.map, fd.player[me], time);
 
                 solid_mode();
             }
