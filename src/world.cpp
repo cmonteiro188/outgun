@@ -789,7 +789,8 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     ping = 0;
     id = _pid;
     name = _name;
-    item_deathbringer = item_shield = item_power = item_turbo = false;
+    item_deathbringer = item_power = item_turbo = false;
+    item_shield = 0;
     visibility = 255;
     roomx = roomy = 0;
     lx = ly = sx = sy = 0;
@@ -1453,7 +1454,7 @@ void PowerupSettings::reset() {
     pup_health_bonus = 160;
     pup_power_damage = 2.0;
     pup_weapon_max = 9;
-    pup_shield_one_hit = false;
+    pup_shield_hits = 0;
     pup_deathbringer_time = 5.0;
     deathbringer_health_limit = deathbringer_energy_limit = 100;
     deathbringer_health_degradation = deathbringer_energy_degradation = 2.5;
@@ -1964,7 +1965,7 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
 
     switch (it.kind) {
     /*break;*/ case Powerup::pup_shield: {
-            pl.item_shield = true;
+            pl.item_shield = pupConfig.pup_shield_hits ? pupConfig.pup_shield_hits : 1;
 
             //increase health to minimum of 100
             if (pl.health < 100)
@@ -2072,7 +2073,7 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
         net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
     }
     else if (pl.item_shield) {
-        pl.item_shield = false;
+        pl.item_shield = 0;
         net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_LOST);
     }
     else {
@@ -2154,16 +2155,16 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
         player[target].visibility = maximum_shadow_visibility;
 
     if (player[target].item_shield) {
-        if (pupConfig.pup_shield_one_hit) {
-            player[target].item_shield = false;
-            if (type != DT_deathbringer)
+        if (pupConfig.pup_shield_hits) {
+            player[target].item_shield--;
+            if (!player[target].item_shield && type != DT_deathbringer)
                 net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
         }
         else {
             player[target].energy -= damage;
             if (player[target].energy <= 0) {
                 player[target].energy = 0;
-                player[target].item_shield = false;
+                player[target].item_shield = 0;
                 if (type != DT_deathbringer)
                     net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
             }

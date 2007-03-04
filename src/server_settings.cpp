@@ -287,7 +287,7 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Double    ("pup_deathbringer_health_degradation", &pupConfig.deathbringer_health_degradation, 0.));
     cat.add(new GS_Double    ("pup_deathbringer_energy_degradation", &pupConfig.deathbringer_energy_degradation, 0.));
     cat.add(new GS_Int       ("pup_shadow_invisibility",     &worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal));  // 0->smn, 1->0
-    cat.add(new GS_Boolean   ("pup_shield_one_hit",          &pupConfig.pup_shield_one_hit));
+    cat.add(new GS_Int       ("pup_shield_one_hit",          &pupConfig.pup_shield_hits, 0));
     cat.add(new GS_Int       ("pup_chance_shield",           &pupConfig.pup_chance_shield,       0));
     cat.add(new GS_Int       ("pup_chance_turbo",            &pupConfig.pup_chance_turbo,        0));
     cat.add(new GS_Int       ("pup_chance_shadow",           &pupConfig.pup_chance_shadow,       0));

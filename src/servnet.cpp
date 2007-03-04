@@ -769,7 +769,7 @@ void ServerNetworking::send_server_settings(int cid) const {
     if (pupConfig.pup_deathbringer_switch)
         settings |= (1 << i);
     i++;
-    if (pupConfig.pup_shield_one_hit)
+    if (pupConfig.pup_shield_hits == 1)
         settings |= (1 << i);
     i++;
     settings |= (pupConfig.pup_weapon_max << i);

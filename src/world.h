@@ -380,7 +380,7 @@ protected:
 
 public:
     bool item_deathbringer;
-    bool item_shield;
+    int item_shield;    // how many hits the shield can still take, 0 = no shield
     bool item_power;
     bool item_turbo;
     int visibility;     // alpha
@@ -828,7 +828,7 @@ public:
     int pup_health_bonus;
     double pup_power_damage;
     int pup_weapon_max;
-    bool pup_shield_one_hit;
+    int pup_shield_hits;
     int deathbringer_health_limit, deathbringer_energy_limit;
     double deathbringer_health_degradation, deathbringer_energy_degradation;
 
