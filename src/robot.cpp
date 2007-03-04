@@ -1574,12 +1574,11 @@ int Client::TargetRoute(int efb, int efd, int efc,
 
 bool Client::IsMission(RouteTable num) const {
     const int to_home = IsHome(route_x[num], route_y[num]);
-// if we are looking for flag or going to our base for something
+    // if we are looking for flag or going to our base for something
     if (fx.player[me].roomx == route_x[num] && fx.player[me].roomy == route_y[num])
         return false;
-    if (HaveFlag(me) || routing[num] == Route_Flag || to_home ||
-        (!to_home && routing[num] == Route_Base))
-            return true;
+    if (HaveFlag(me) || routing[num] == Route_Flag || to_home || !to_home && routing[num] == Route_Base)
+        return true;
     return false;
 }
 
