@@ -832,6 +832,13 @@ public:
     int deathbringer_health_limit, deathbringer_energy_limit;
     double deathbringer_health_degradation, deathbringer_energy_degradation;
 
+    bool start_shield;
+    int start_turbo;
+    int start_shadow;
+    int start_power;
+    int start_weapon;
+    bool start_deathbringer;
+
     void reset();
 
     Powerup::Pup_type choose_powerup_kind() const;

@@ -1461,6 +1461,13 @@ void PowerupSettings::reset() {
 
     pups_drop_at_death = false;
     pups_player_max = INT_MAX;
+
+    start_shield = false;
+    start_turbo = 0;
+    start_shadow = 0;
+    start_power = 0;
+    start_weapon = 1;
+    start_deathbringer = false;
 }
 
 Powerup::Pup_type PowerupSettings::choose_powerup_kind() const {
@@ -1776,15 +1783,15 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     player[pid].energy = config.start_energy;
     player[pid].megabonus = 0;
 
-    player[pid].weapon = 1;
+    player[pid].weapon = pupConfig.start_weapon;
 
     net->sendWeaponPower(pid);
 
-    player[pid].item_shield = false;
-    player[pid].item_power = false;
-    player[pid].item_turbo = false;
+    player[pid].item_shield = pupConfig.start_shield;
+    player[pid].item_power = pupConfig.start_power;
+    player[pid].item_turbo = pupConfig.start_turbo;
     player[pid].visibility = 255;
-    player[pid].item_deathbringer = false;
+    player[pid].item_deathbringer = pupConfig.start_deathbringer;
     player[pid].deathbringer_end = 0;
 
     player[pid].respawn_to_base = false;
