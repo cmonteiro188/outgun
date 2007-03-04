@@ -618,7 +618,9 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     , serverExtConfig(serverConfig)
     #endif
 {
+    #ifndef DEDICATED_SERVER_ONLY
     hostLogs("See clientlog.txt for client's log messages");
+    #endif
 
     //net client
     client = 0;
