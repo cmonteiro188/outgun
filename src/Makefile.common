@@ -71,6 +71,7 @@ ifdef LINUX
  endif
  STLP_LIBS =
  STLP_CFLAGS =
+ PLATFORM_CPP = platform_unix.cpp
  PLATFORM_OBJS = platform_unix.o
  EXTRA_OBJS =
  #LFLAGS =
@@ -101,6 +102,7 @@ else
   STLP_LIBS =
   STLP_CFLAGS =
  endif
+ PLATFORM_CPP = platform_win.cpp
  PLATFORM_OBJS = platform_win.o
  EXTRA_OBJS = icon.res
  LFLAGS = -mwindows
@@ -152,7 +154,7 @@ nassert_mon.o : nassert.o
 	$(GCC) $(CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
 
 platform_relay.o : $(PLATFORM_OBJS)
-	$(GCC) $(CFLAGS) -DRELAY -DDISABLE_ENHANCED_NASSERT -c -o $@ platform_unix.cpp
+	$(GCC) $(CFLAGS) -DRELAY -DDISABLE_ENHANCED_NASSERT -c -o $@ $(PLATFORM_CPP)
 
 network_relay.o : network.o
 	$(GCC) $(CFLAGS) -DRELAY -DDISABLE_ENHANCED_NASSERT -c -o $@ network.cpp
