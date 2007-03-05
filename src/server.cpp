@@ -1611,7 +1611,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
 }
 
 void Server::stop() {
-    clear_recording();
+    stop_recording();
 
     network.stop();
 
