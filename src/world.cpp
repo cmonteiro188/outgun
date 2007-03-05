@@ -1789,8 +1789,11 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
 
     player[pid].item_shield = pupConfig.start_shield;
     player[pid].item_power = pupConfig.start_power;
+    player[pid].item_power_time = get_time() + pupConfig.start_power;
     player[pid].item_turbo = pupConfig.start_turbo;
-    player[pid].visibility = 255;
+    player[pid].item_turbo_time = get_time() + pupConfig.start_turbo;
+    player[pid].visibility = pupConfig.start_shadow ? config.getShadowMinimum() : 255;
+    player[pid].item_shadow_time = get_time() + pupConfig.start_shadow;
     player[pid].item_deathbringer = pupConfig.start_deathbringer;
     player[pid].deathbringer_end = 0;
 
