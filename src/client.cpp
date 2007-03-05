@@ -620,6 +620,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
 {
     #ifndef DEDICATED_SERVER_ONLY
     hostLogs("See clientlog.txt for client's log messages");
+    #else
+    (void)hostLogs;
     #endif
 
     //net client
