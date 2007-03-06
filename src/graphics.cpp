@@ -917,6 +917,7 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
 void Graphics::highlight_minimap_rooms() {
     if (!show_minimap)
         return;
+
     const WorldCoords& topLeft = roomLayout.topLeftCoords();
     const int map_w = roomLayout.mapWidth();
     const int map_h = roomLayout.mapHeight();
@@ -1494,6 +1495,7 @@ void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int 
         for (int i = 0; i < 5; i++)
             circlefill(drawbuf, x + pf_scale(rand() % 40 - 20), y + pf_scale(rand() % 40 - 20), pf_scale(15), 0);
     }
+
     solid_mode();
 }
 
