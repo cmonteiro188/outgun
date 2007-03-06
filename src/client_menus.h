@@ -95,7 +95,8 @@ enum ClientCfgSetting {
     CCS_MinimapBandwidth,
     CCS_RepeatMap,
     CCS_Scroll,
-    CCS_VisibleRooms,
+    CCS_VisibleRoomsPlay,
+    CCS_VisibleRoomsReplay,
     CCS_OldFlagPositions,
     CCS_EndOfCommands
 };
@@ -276,6 +277,8 @@ public:
     Checkbox            useThemeBackground;
     Select<std::string> font;
     Select<NameMode>    showNames;
+    Slider              visibleRoomsPlay;
+    Slider              visibleRoomsReplay;
     Checkbox            scroll;
     Checkbox            antialiasing;
     Checkbox            minTransp;
@@ -303,8 +306,8 @@ public:
     void update(const Graphics& gfx);   // tries to keep the selected theme
 
     bool showName(bool sameRoom) const { return showNames() != N_Never && (sameRoom || showNames() == N_Always); }
-    bool emphasizeFlag(int visible_rooms) const { return emphasizeFlags() != FE_Never && (visible_rooms > 1 || emphasizeFlags() == FE_Always); }
-    bool showNeighborMarkers(bool replaying, int visible_rooms) const;
+    bool emphasizeFlag(double visible_rooms) const { return emphasizeFlags() != FE_Never && (visible_rooms >= 2. || emphasizeFlags() == FE_Always); }
+    bool showNeighborMarkers(bool replaying, double visible_rooms) const;
 };
 
 class Menu_sounds {

@@ -81,7 +81,6 @@ Graphics::Graphics(LogSet logs):
     map_list_start      (0),
     team_captures_start (0),
     antialiasing        (true),
-    predrawNeeded       (true),
     mapNeedsRedraw      (true),
     log                 (logs)
 { }
@@ -220,17 +219,6 @@ void Graphics::make_layout() {
     mapNeedsRedraw = true;
 }
 
-void Graphics::predraw(const Map& map, bool continuousTextures, const MapDecorations& deco,
-                       const WorldCoords& viewTopLeft, int visible_rooms, bool repeatMap, bool scroll, bool grid) {
-    if (roomLayout.set(map.w, map.h, visible_rooms, repeatMap, viewTopLeft) || needReloadPlayfieldPictures) {
-        reload_playfield_pictures();
-        background.invalidateRoomCache();
-    }
-    predrawNeeded = false;
-
-    background.predraw(map, continuousTextures, deco, scroll, grid);
-}
-
 void Graphics::reload_playfield_pictures() {
     needReloadPlayfieldPictures = false;
     unload_playfield_pictures();
@@ -266,8 +254,7 @@ void Graphics::endDraw() {
     release_bitmap(drawbuf);
 }
 
-void Graphics::startPlayfieldDraw(const WorldCoords& topLeft) {
-    roomLayout.setTopLeft(topLeft);
+void Graphics::startPlayfieldDraw() {
     set_clip_rect(drawbuf, roomLayout.x0(), roomLayout.y0(), roomLayout.xMax(), roomLayout.yMax());
 }
 
@@ -472,7 +459,26 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
     return true;
 }
 
-void Graphics::predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int texRoomY, const MapDecorations& deco, int roomx, int roomy, bool grid) {
+void Graphics::setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) {
+    if (roomLayout.set(map.w, map.h, visible_rooms, repeatMap))
+        needReloadPlayfieldPictures = true;
+}
+
+void Graphics::draw_background(bool map_ready) {
+    background.draw_background(drawbuf, map_ready && show_minimap, false);
+}
+
+void Graphics::draw_background(const Map& map, const VisibilityMap& roomVis, const WorldCoords& topLeft, bool continuousTextures, bool mapInfoMode) {
+    if (needReloadPlayfieldPictures)
+        reload_playfield_pictures();
+    roomLayout.setTopLeft(topLeft);
+    background.draw_background(drawbuf, show_minimap, true);
+    background.draw_playfield_background(drawbuf, map, roomVis, continuousTextures, mapInfoMode);
+}
+
+void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int roomy, int texRoomX, int texRoomY, bool mapInfoMode) {
+    const Room& room = map.room[roomx][roomy];
+
     // the room at top left is textured like it's the room at coordinates (texRoomX,texRoomY)
     // this means moving the texture offsetting origin to the top left of room (0,0)
     const int texOffsetBaseX = - texRoomX * roombg->w;
@@ -507,31 +513,31 @@ void Graphics::predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int t
         }
 
         // add respawn areas as overlays
-        for (vector< pair<int, const WorldRect*> >::const_iterator ri = deco.respawns.begin(); ri != deco.respawns.end(); ++ri) {
-            if (ri->second->px != roomx || ri->second->py != roomy) //#opt: do these one by one outside the room loop (same goes for flag markers, and both in unantialiased mode)
-                continue;
-            nAssert(ri->first == 0 || ri->first == 1);
-            const WorldRect& r = *ri->second;
-            scene.addRectangle(r.x1 - PLAYER_RADIUS, r.y1 - PLAYER_RADIUS,
-                               r.x2 + PLAYER_RADIUS, r.y2 + PLAYER_RADIUS, textures.size() + ri->first, true);
-        }
-        for (int team = 0; team < 2; ++team) {
-            td.setSolid(teamcol[team], 120);
-            textures.push_back(td);
+        if (mapInfoMode) {
+            for (int team = 0; team < 2; ++team) {
+                for (vector<WorldRect>::const_iterator ri = map.tinfo[team].respawn.begin(); ri != map.tinfo[team].respawn.end(); ++ri)
+                    if (ri->px == roomx && ri->py == roomy)
+                        scene.addRectangle(ri->x1 - PLAYER_RADIUS, ri->y1 - PLAYER_RADIUS,
+                                           ri->x2 + PLAYER_RADIUS, ri->y2 + PLAYER_RADIUS, textures.size(), true);
+                td.setSolid(teamcol[team], 120);
+                textures.push_back(td);
+            }
         }
 
         // add flag markers as overlays
         const double fr = flagpos_radius;
-        for (vector< pair<int, const WorldCoords*> >::const_iterator fi = deco.flags.begin(); fi != deco.flags.end(); ++fi) {
-            if (fi->second->px != roomx || fi->second->py != roomy)
-                continue;
-            const double fx = fi->second->x, fy = fi->second->y;
-            scene.addRectangle(fx - fr, fy - fr, fx + fr, fy + fr, textures.size(), true);
-            td.setFlagmarker(teamcol[fi->first],
-                             x0 + fi->second->x * scale,
-                             y0 + fi->second->y * scale,
-                             flagpos_radius * scale);   // note: setFlagmarker does not scale the coordinates
-            textures.push_back(td);
+        for (int team = 0; team < 3; ++team) {
+            const vector<WorldCoords>& tflags = (team == 2 ? map.wild_flags : map.tinfo[team].flags);
+            for (vector<WorldCoords>::const_iterator fi = tflags.begin(); fi != tflags.end(); ++fi) {
+                if (fi->px != roomx || fi->py != roomy)
+                    continue;
+                scene.addRectangle(fi->x - fr, fi->y - fr, fi->x + fr, fi->y + fr, textures.size(), true);
+                td.setFlagmarker(teamcol[team],
+                                 x0 + fi->x * scale,
+                                 y0 + fi->y * scale,
+                                 flagpos_radius * scale);
+                textures.push_back(td);
+            }
         }
 
         // add room boundaries
@@ -572,7 +578,9 @@ void Graphics::predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int t
         tex.finalize();
     }
     else {
-        const double scale = roombg->w / plw;
+        const double fillingScaleX = double(roombg->w) / plw;
+        const double fillingScaleY = double(roombg->h) / plh;
+        const double scale = max(fillingScaleX, fillingScaleY);
 
         // draw ground/floor
         if (floor_texture.front())
@@ -582,24 +590,26 @@ void Graphics::predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int t
         draw_room_ground(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scale);
 
         // draw respawn areas
-        for (vector< pair<int, const WorldRect*> >::const_iterator ri = deco.respawns.begin(); ri != deco.respawns.end(); ++ri) {
-            if (ri->second->px != roomx || ri->second->py != roomy)
-                continue;
-            nAssert(ri->first == 0 || ri->first == 1);
-            const WorldRect& r = *ri->second;
-            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-            set_trans_blender(0, 0, 0, 120);
-            rectfill(roombg,
-                     pf_scale(r.x1 - PLAYER_RADIUS),
-                     pf_scale(r.y1 - PLAYER_RADIUS),
-                     pf_scale(r.x2 + PLAYER_RADIUS),
-                     pf_scale(r.y2 + PLAYER_RADIUS), teamcol[ri->first]);
+        if (mapInfoMode) {
+            set_trans_mode(120);
+            for (int team = 0; team < 2; ++team)
+                for (vector<WorldRect>::const_iterator ri = map.tinfo[team].respawn.begin(); ri != map.tinfo[team].respawn.end(); ++ri)
+                    if (ri->px == roomx && ri->py == roomy) {
+                        rectfill(roombg,
+                                 pf_scale(ri->x1 - PLAYER_RADIUS),
+                                 pf_scale(ri->y1 - PLAYER_RADIUS),
+                                 pf_scale(ri->x2 + PLAYER_RADIUS),
+                                 pf_scale(ri->y2 + PLAYER_RADIUS), teamcol[team]);
+                    }
             solid_mode();
         }
         // draw flag position marks
-        for (vector< pair<int, const WorldCoords*> >::const_iterator fi = deco.flags.begin(); fi != deco.flags.end(); ++fi)
-            if (fi->second->px == roomx && fi->second->py == roomy)
-                draw_flagpos_mark(roombg, fi->first, pf_scale(fi->second->x), pf_scale(fi->second->y));
+        for (int team = 0; team < 3; ++team) {
+            const vector<WorldCoords>& tflags = (team == 2 ? map.wild_flags : map.tinfo[team].flags);
+            for (vector<WorldCoords>::const_iterator fi = tflags.begin(); fi != tflags.end(); ++fi)
+                if (fi->px == roomx && fi->py == roomy)
+                    draw_flagpos_mark(roombg, team, pf_scale(fi->x), pf_scale(fi->y));
+        }
 
         // draw room boundaries
         hline(roombg, 0, 0, roombg->w - 1, colour(Colour::room_border));
@@ -608,10 +618,12 @@ void Graphics::predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int t
         // draw walls
         draw_room_walls(roombg, room, 0, 0, texOffsetBaseX, texOffsetBaseY, scale);
     }
-    for (vector< pair<int, const WorldCoords*> >::const_iterator si = deco.spawns.begin(); si != deco.spawns.end(); ++si)
-        if (si->second->px == roomx && si->second->py == roomy)
-            circlefill(roombg, pf_scale(si->second->x), pf_scale(si->second->y), pf_scale(PLAYER_RADIUS), teamcol[si->first]);
-    if (grid) {
+
+    if (mapInfoMode) {
+        for (int team = 0; team < 2; ++team)
+            for (vector<WorldCoords>::const_iterator si = map.tinfo[team].spawn.begin(); si != map.tinfo[team].spawn.end(); ++si)
+                if (si->px == roomx && si->py == roomy)
+                    circlefill(roombg, pf_scale(si->x), pf_scale(si->y), pf_scale(PLAYER_RADIUS), teamcol[team]);
         for (int y = 1; y < 12; ++y)
             hline(roombg, 0, pf_scale(plh * y / 12.), roombg->w - 1, y == 6 ? colour(Colour::map_info_grid_main) : colour(Colour::map_info_grid));
         for (int x = 1; x < 16; ++x)
@@ -787,7 +799,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
     solid_mode();
 }
 
-void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha, bool emphasize) {
+void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha, bool emphasize, double timeUnknown) {
     set_trans_mode(alpha);
 
     ScaledCoordSet sc(pos, this);
@@ -830,6 +842,8 @@ void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha
                      flash ? teamflashcol[team] : teamcol[team]
                      );
         }
+        if (timeUnknown >= 3.)
+            print_text_border_centre(itoa(static_cast<int>(timeUnknown)), x, y, teamcol[team], colour(Colour::old_flag_time_border), -1);
     }
 
     solid_mode();
@@ -837,7 +851,7 @@ void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha
 
 // Minimap functions
 
-void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash) {
+void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash, bool old) {
     if (!show_minimap)
         return;
     const double px = (flag.position().px * plw + flag.position().x) / (plw * map.w);
@@ -845,8 +859,9 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool f
     const int pix = minimap_x + static_cast<int>(px * minimap_w);
     const int piy = minimap_y + static_cast<int>(py * minimap_h);
     const int scl = minimap_place_w;
-    rectfill(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, colour(Colour::flag_pole));
-    rectfill(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, flash ? teamflashcol[team] : teamcol[team]);
+    void (*rectfn)(BITMAP*, int, int, int, int, int) = old ? rect : rectfill;
+    rectfn(drawbuf, pix, piy - scl / 32, pix + scl / 160 - 1, piy, colour(Colour::flag_pole));
+    rectfn(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, flash ? teamflashcol[team] : teamcol[team]);
 }
 
 void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
@@ -905,26 +920,29 @@ void Graphics::highlight_minimap_rooms() {
     const WorldCoords& topLeft = roomLayout.topLeftCoords();
     const int map_w = roomLayout.mapWidth();
     const int map_h = roomLayout.mapHeight();
-    const int size_x = roomLayout.visibleRoomsX();
-    const int size_y = roomLayout.visibleRoomsY();
-    const int rx1 = topLeft.px, ry1 = topLeft.py;
-    int rx2 = (rx1 + size_x) % map_w, ry2 = (ry1 + size_y) % map_h;
-    if (rx2 == 0 && topLeft.x < .01)
-        rx2 = map_w;
-    if (ry2 == 0 && topLeft.y < .01)
-        ry2 = map_h;
-    const int dx = static_cast<int>(topLeft.x * minimap_w / map_w / plw);
-    const int dy = static_cast<int>(topLeft.y * minimap_h / map_h / plh);
+    const double size_x = roomLayout.visibleRoomsX();
+    const double size_y = roomLayout.visibleRoomsY();
+
     const int x0 = minimap_x, y0 = minimap_y;
     const int xm = x0 + minimap_w - 1, ym = y0 + minimap_h - 1;
-    const int x1 = size_x > map_w ? x0 : x0 + rx1 * minimap_w / map_w + dx;
-    const int y1 = size_y > map_h ? y0 : y0 + ry1 * minimap_h / map_h + dy;
-    const int x2 = size_x > map_w ? xm : x0 + rx2 * minimap_w / map_w + dx - 1;
-    const int y2 = size_y > map_h ? ym : y0 + ry2 * minimap_h / map_h + dy - 1;
+
+    double xPos = positiveFmod(topLeft.px + topLeft.x / plw, map_w);
+    double yPos = positiveFmod(topLeft.py + topLeft.y / plh, map_h);
+    const int x1 = size_x > map_w ? x0 : x0 + static_cast<int>(xPos / map_w * minimap_w);
+    const int y1 = size_y > map_h ? y0 : y0 + static_cast<int>(yPos / map_h * minimap_h);
+    xPos = positiveFmod(xPos + size_x, map_w);
+    yPos = positiveFmod(yPos + size_y, map_h);
+    if (xPos == 0)
+        xPos = map_w;
+    if (yPos == 0)
+        yPos = map_h;
+    const int x2 = size_x > map_w ? xm : x0 + static_cast<int>(xPos / map_w * minimap_w) - 1;
+    const int y2 = size_y > map_h ? ym : y0 + static_cast<int>(yPos / map_h * minimap_h) - 1;
+
     const int col = colour(Colour::room_highlight);
     // horizontal borders
     if (size_y <= map_h) {
-        if (rx2 <= rx1) {
+        if (x2 <= x1) {
             line(drawbuf, x0, y1, x2, y1, col);
             line(drawbuf, x0, y2, x2, y2, col);
             line(drawbuf, x1, y1, xm, y1, col);
@@ -937,7 +955,7 @@ void Graphics::highlight_minimap_rooms() {
     }
     // vertical borders
     if (size_x <= map_w) {
-        if (ry2 <= ry1) {
+        if (y2 <= y1) {
             line(drawbuf, x1, y0, x1, y2, col);
             line(drawbuf, x2, y0, x2, y2, col);
             line(drawbuf, x1, y1, x1, ym, col);
@@ -1162,47 +1180,54 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     }
 }
 
-void Graphics::draw_neighbor_marker(bool flag, int xDelta, int yDelta, const WorldCoords& pos, int team) {
+void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team, bool old) {
     static const int marginDist = 15;
     static const int flagSizeMax = 8, flagSizeMin = 5, playerRadMax = 10, playerRadMin = 5;
-    int x, y;
+
+    nAssert(flag || !old);
+
+    const double xDelta = roomLayout.distanceFromScreenX(pos.px, pos.x),
+                 yDelta = roomLayout.distanceFromScreenY(pos.py, pos.y);
+
+    vector<int> x, y;
     double dist;
     if (xDelta) {
-        nAssert(!yDelta);
-        if (xDelta < 0) {
-            x = roomLayout.x0() + pf_scale(marginDist);
-            dist = 1. - pos.x / plw;
-        }
-        else {
-            x = roomLayout.xMax() - pf_scale(marginDist);
-            dist = pos.x / plw;
-        }
-        const vector<int> sy = roomLayout.scale_y(pos);
-        nAssert(sy.size() == 1);
-        y = sy[0];
+        if (yDelta)
+            return;
+        if (xDelta < 0)
+            x.push_back(roomLayout.x0() + pf_scale(marginDist));
+        else
+            x.push_back(roomLayout.xMax() - pf_scale(marginDist));
+        dist = fabs(xDelta);
+        y = roomLayout.scale_y(pos);
     }
     else {
-        nAssert(yDelta);
-        if (yDelta < 0) {
-            y = roomLayout.y0() + pf_scale(marginDist);
-            dist = 1. - pos.y / plh;
-        }
-        else {
-            y = roomLayout.yMax() - pf_scale(marginDist);
-            dist = pos.y / plh;
-        }
-        const vector<int> sx = roomLayout.scale_x(pos);
-        nAssert(sx.size() == 1);
-        x = sx[0];
+        if (!yDelta)
+            return;
+        if (yDelta < 0)
+            y.push_back(roomLayout.y0() + pf_scale(marginDist));
+        else
+            y.push_back(roomLayout.yMax() - pf_scale(marginDist));
+        dist = fabs(yDelta);
+        x = roomLayout.scale_x(pos);
     }
+    if (dist >= 1.)
+        return;
+    CartesianProductIterator coords(x.size(), y.size());
     if (flag) {
         const int flagSize = pf_scale(flagSizeMax - (flagSizeMax - flagSizeMin) * dist);
-        const int x0 = x - flagSize / 2, y0 = y - flagSize / 2;
-        rectfill(drawbuf, x0, y0, x0 + flagSize, y0 + flagSize, teamcol[team]);
+        while (coords.next()) {
+            const int x0 = x[coords.i1()] - flagSize / 2, y0 = y[coords.i2()] - flagSize / 2;
+            if (old)
+                rect    (drawbuf, x0, y0, x0 + flagSize, y0 + flagSize, teamcol[team]);
+            else
+                rectfill(drawbuf, x0, y0, x0 + flagSize, y0 + flagSize, teamcol[team]);
+        }
     }
     else {
         const double playerRad = playerRadMax - iround((playerRadMax - playerRadMin) * dist);
-        circle(drawbuf, x, y, pf_scale(playerRad), teamcol[team]);
+        while (coords.next())
+            circle(drawbuf, x[coords.i1()], y[coords.i2()], pf_scale(playerRad), teamcol[team]);
     }
 }
 
@@ -3129,39 +3154,48 @@ TemporaryClipRect::~TemporaryClipRect() {
     set_clip_rect(b, x1, y1, x2, y2);
 }
 
-bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, int visibleRooms, bool repeatMap, const WorldCoords& topLeftCoords) {
-    const bool scaleChange = visible_rooms != visibleRooms;
+bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) {
+    const double oldScale = playfield_scale;
 
     map_w = mapWidth;
     map_h = mapHeight;
-    topLeft = topLeftCoords;
 
-    visible_rooms = visibleRooms;
-    if (repeatMap)
-        visible_rooms_x = visible_rooms_y = visible_rooms;
-    else {
-        visible_rooms_x = min(visible_rooms, map_w);
-        visible_rooms_y = min(visible_rooms, map_h);
+    visible_rooms_x = visible_rooms_y = visibleRooms;
+    if (!repeatMap) {
+        visible_rooms_x = min<double>(visible_rooms_x, map_w);
+        visible_rooms_y = min<double>(visible_rooms_y, map_h);
     }
-
-    room_w = g.playfield_w / visible_rooms;
-    room_h = g.playfield_h / visible_rooms;
+    room_w = static_cast<int>(g.playfield_w / visible_rooms_x);
+    room_h = static_cast<int>(g.playfield_h / visible_rooms_y);
+    // at least visible_rooms_* must fit in each direction -> to correct aspect ratio, shrink one of room_w,h
+    const int reverse_room_w = iround(double(room_h) * plw / plh);
+    const int reverse_room_h = iround(double(room_w) * plh / plw);
+    if (room_w > reverse_room_w)
+        room_w = reverse_room_w;
+    else if (room_h > reverse_room_h)
+        room_h = reverse_room_h;
     nAssert(room_w > 0 && room_h > 0);
 
-    playfield_scale = double(room_w) / plw;
+    visible_rooms_x = double(g.playfield_w) / room_w;
+    visible_rooms_y = double(g.playfield_h) / room_h;
+    if (!repeatMap) {
+        visible_rooms_x = min<double>(visible_rooms_x, map_w);
+        visible_rooms_y = min<double>(visible_rooms_y, map_h);
+    }
 
-    plx = g.playfield_x + (g.playfield_w - room_w * visible_rooms_x) / 2;
-    ply = g.playfield_y + (g.playfield_h - room_h * visible_rooms_y) / 2;
+    playfield_scale = (double(room_w) / plw + double(room_h) / plh) / 2.;
+
+    plx = g.playfield_x + (g.playfield_w - static_cast<int>(room_w * visible_rooms_x)) / 2;
+    ply = g.playfield_y + (g.playfield_h - static_cast<int>(room_h * visible_rooms_y)) / 2;
     nAssert(plx >= g.playfield_x && ply >= g.playfield_y);
 
     #if 0
-    g.log("RLM::set(%d, %d, %d, [%d,%d,%f,%f] -> %d %d %d %d %d %f %d %d",
+    g.log("RLM::set(%d, %d, %f -> %f %f %f %d %d %f %d %d",
           mapWidth, mapHeight, visibleRooms,
-          topLeftCoords.px, topLeftCoords.py, topLeftCoords.x, topLeftCoords.y,
           visible_rooms, visible_rooms_x, visible_rooms_y, room_w, room_h, playfield_scale, plx, ply);
     #endif
 
-    return scaleChange;
+    return fabs(playfield_scale - oldScale) > oldScale * 1e-8;
 }
 
 int Graphics::RoomLayoutManager::pf_scale(double value) const {
@@ -3184,9 +3218,27 @@ vector<int> Graphics::RoomLayoutManager::scale_y(int roomy, double ly) const {
     return pos;
 }
 
+static double calculateDistanceFromScreen(double coord, double viewStart, double viewSize, int mapSize) {
+    if (positiveFmod(coord - viewStart, mapSize) <= viewSize)
+        return 0;
+    const double diffFromViewCenter = positiveFmod(coord - (viewStart + viewSize / 2), mapSize);
+    if (diffFromViewCenter < mapSize / 2) // nearer in the positive direction
+        return diffFromViewCenter - viewSize / 2;
+    else
+        return diffFromViewCenter - mapSize + viewSize / 2;
+}
+
+double Graphics::RoomLayoutManager::distanceFromScreenX(int rx, double lx) const {
+    return calculateDistanceFromScreen(rx + lx / plw, topLeft.px + topLeft.x / plw, visible_rooms_x, map_w);
+}
+
+double Graphics::RoomLayoutManager::distanceFromScreenY(int ry, double ly) const {
+    return calculateDistanceFromScreen(ry + ly / plh, topLeft.py + topLeft.y / plh, visible_rooms_y, map_h);
+}
+
 bool Graphics::RoomLayoutManager::on_screen(int rx, int ry) const {
-    return (rx - topLeft.px + map_w) % map_w <= visible_rooms &&
-           (ry - topLeft.py + map_h) % map_h <= visible_rooms; // <= instead of <, because the first room may be visible only in part
+    return positiveModulo(rx - topLeft.px, map_w) <= visible_rooms_x &&
+           positiveModulo(ry - topLeft.py, map_h) <= visible_rooms_y; // <= instead of <, because the first room may be visible only in part
 }
 
 vector<int> Graphics::RoomLayoutManager::room_offset_x(int rx) const {
@@ -3201,81 +3253,6 @@ vector<int> Graphics::RoomLayoutManager::room_offset_y(int ry) const {
     for (int y = ((ry - topLeft.py + map_h) % map_h) * room_h - pf_scale(topLeft.y); y < visible_rooms_y * room_h; y += map_h * room_h)
         pos.push_back(ply + y);
     return pos;
-}
-
-void Graphics::BackgroundManager::predraw(const Map& map, bool continuousTextures, const MapDecorations& deco, bool scroll, bool grid) {
-    if (continuousTextures != previousContinuousTextures) {
-        invalidateRoomCache();
-        previousContinuousTextures = continuousTextures;
-    }
-
-    xRooms = g.roomLayout.visibleRoomsX() + (scroll || g.roomLayout.topLeftCoords().x != 0);
-    yRooms = g.roomLayout.visibleRoomsY() + (scroll || g.roomLayout.topLeftCoords().y != 0);
-
-    const int room_w = g.roomLayout.roomWidth();
-    const int room_h = g.roomLayout.roomHeight();
-    const int room0x = g.roomLayout.topLeftCoords().px;
-    const int room0y = g.roomLayout.topLeftCoords().py;
-
-    if (roomCache.empty()) {
-        const int xUsable = roomCacheBitmap->w / room_w;
-        const int yUsable = roomCacheBitmap->h / room_h;
-        const int xDifferentRooms = min(map.w, xRooms);
-        const int yDifferentRooms = min(map.h, yRooms);
-        nAssert(xUsable * yUsable >= xDifferentRooms * yDifferentRooms); // we need xDifferentRooms * yDifferentRooms rooms locked in the cache
-        const bool useB2 = xUsable * yUsable >= 2 * xDifferentRooms * yDifferentRooms;
-        BitmapRegion b1(0, 0, 0, 0, 0); // initialized to please GCC
-        bool b1set = false;
-        const int fogColor = g.colour(Colour::playfield_fog);
-        for (int x0 = 0; x0 + room_w <= roomCacheBitmap->w && (int)roomCache.size() < map.w * map.h; x0 += room_w) {
-            for (int y0 = 0; y0 + room_h <= roomCacheBitmap->h; y0 += room_h) {
-                if (!b1set) {
-                    b1 = BitmapRegion(roomCacheBitmap, x0, y0, room_w, room_h);
-                    if (useB2)
-                        b1set = true;
-                    else
-                        roomCache.push_back(CachedRoomGfx(b1, BitmapRegion(), fogColor));
-                }
-                else {
-                    BitmapRegion b2(roomCacheBitmap, x0, y0, room_w, room_h);
-                    roomCache.push_back(CachedRoomGfx(b1, b2, fogColor));
-                    b1set = false;
-                }
-            }
-        }
-        roomCacheIndex.resize(map.w);
-        for (int x = 0; x < map.w; ++x)
-            roomCacheIndex[x].resize(map.h);
-    }
-    else {
-        // update room locks, so that cached but now unused rooms can be reclaimed, while those in use won't
-        for (int x = 0; x < map.w; ++x) {
-            const bool xIn = (x - room0x + map.w) % map.w < xRooms;
-            for (int y = 0; y < map.h; ++y) {
-                CachedRoomGfx* roomp = roomCacheIndex[x][y];
-                if (!roomp)
-                    continue;
-                CachedRoomGfx& room = *roomp;
-                const bool in = xIn && (y - room0y + map.h) % map.h < yRooms;
-                if (room.locked != in) {
-                    room.locked = in;
-                    if (!in)
-                        room.lastUse = cacheTimestamp;
-                }
-            }
-        }
-        ++cacheTimestamp;
-    }
-
-    for (int dx = 0; dx < xRooms; ++dx) {
-        const int roomx = (room0x + dx) % map.w;
-        const int texRoomX = continuousTextures ? roomx : 0;
-        for (int dy = 0; dy < yRooms; ++dy) {
-            const int roomy = (room0y + dy) % map.h;
-            const int texRoomY = continuousTextures ? roomy : 0;
-            cacheRoom(roomx, roomy, map.room[roomx][roomy], deco, texRoomX, texRoomY, grid);
-        }
-    }
 }
 
 class BackgroundMasker { // helper for Graphics::BackgroundManager::draw_background
@@ -3364,12 +3341,12 @@ static void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex
     }
 }
 
-void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map, bool draw_playfield, const VisibilityMap& roomVis) {
+void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map, bool reserve_playfield) {
     const int pfx0 = g.roomLayout.x0(), pfy0 = g.roomLayout.y0(), pfxm = g.roomLayout.xMax(), pfym = g.roomLayout.yMax();
 
-    // calculate the area that needs to be filled with background (the same that is fully drawn in the rest of the method)
+    // calculate the area that needs to be filled with background (what ever is not fully drawn in the rest of the method or in draw_playfield_background if reserve_playfield is set)
     BackgroundMasker bkMask;
-    if (draw_playfield)
+    if (reserve_playfield)
         bkMask.addMask(pfx0, pfy0, pfxm, pfym);
     if (draw_map)
         bkMask.addMask(g.minimap_x, g.minimap_y, g.minimap_x + g.minimap_w - 1, g.minimap_y + g.minimap_h - 1);
@@ -3407,7 +3384,7 @@ void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map
 
     #if 0
     static bool hasRun = false;
-    if (!hasRun && draw_map && draw_playfield) {
+    if (!hasRun && draw_map && reserve_playfield) {
         hasRun = true;
         for (int y = 1; y <= 256; y *= 2)
             for (int x = 8; x < 512; x *= 2) {
@@ -3433,22 +3410,97 @@ void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map
         for (BackgroundMasker::YSegment::SectionList::const_iterator xsi = ysi->unmasked.begin(); xsi != ysi->unmasked.end(); ++xsi)
             tileBlit(drawbuf, xsi->first, ysi->y0, xsi->second, ysi->y1, g.bg_texture);
 
-    // draw room/map background
     if (draw_map)
         blit(g.minibg, drawbuf, 0, 0, g.minimap_x, g.minimap_y, g.minimap_w, g.minimap_h);
-    if (draw_playfield) {
-        TemporaryClipRect clipRestorer(drawbuf, pfx0, pfy0, pfxm, pfym, false);
-        const WorldCoords& topLeft = g.roomLayout.topLeftCoords();
-        const int room_w = g.roomLayout.roomWidth(), room_h = g.roomLayout.roomHeight();
-        const int map_w = g.roomLayout.mapWidth(), map_h = g.roomLayout.mapHeight();
-        for (int dx = 0; dx < xRooms; ++dx) {
-            const int roomx = (topLeft.px + dx) % map_w;
-            const int rx0 = pfx0 - g.pf_scale(topLeft.x) + dx * room_w;
-            for (int dy = 0; dy < yRooms; ++dy) {
-                const int roomy = (topLeft.py + dy) % map_h;
-                const int ry0 = pfy0 - g.pf_scale(topLeft.y) + dy * room_h;
-                drawRoom(roomx, roomy, roomVis[roomx][roomy] < 255, drawbuf, rx0, ry0);
+}
+
+void Graphics::BackgroundManager::allocateRoomCache(int room_w, int room_h, int minRooms, int maxRooms) {
+    nAssert(minRooms <= maxRooms);
+    nAssert(roomCache.empty() && !roomCacheMemoryBitmap && roomCacheBitmap);
+    const bool useB2 = (roomCacheBitmap->w / room_w) * (roomCacheBitmap->h / room_h) >= 2 * minRooms;
+    BitmapRegion b1(0, 0, 0, 0, 0); // initialized to please GCC
+    bool b1set = false;
+    const int fogColor = g.colour(Colour::playfield_fog);
+    for (int x0 = 0; x0 + room_w <= roomCacheBitmap->w; x0 += room_w) {
+        for (int y0 = 0; y0 + room_h <= roomCacheBitmap->h; y0 += room_h) {
+            if (!b1set) {
+                b1 = BitmapRegion(roomCacheBitmap, x0, y0, room_w, room_h);
+                if (useB2)
+                    b1set = true;
+                else
+                    roomCache.push_back(CachedRoomGfx(b1, BitmapRegion(), fogColor));
             }
+            else {
+                BitmapRegion b2(roomCacheBitmap, x0, y0, room_w, room_h);
+                roomCache.push_back(CachedRoomGfx(b1, b2, fogColor));
+                b1set = false;
+            }
+            if ((int)roomCache.size() >= maxRooms)
+                return;
+        }
+    }
+    if ((int)roomCache.size() < minRooms) {
+        nAssert(!useB2);
+        roomCacheMemoryBitmap = create_bitmap(room_w * (minRooms - roomCache.size()), room_h);
+        nAssert(roomCacheMemoryBitmap);
+        for (int x0 = 0; x0 < roomCacheMemoryBitmap->w; x0 += room_w)
+            roomCache.push_back(CachedRoomGfx(BitmapRegion(roomCacheMemoryBitmap, x0, 0, room_w, room_h), BitmapRegion(), fogColor));
+        nAssert((int)roomCache.size() == minRooms);
+    }
+}
+
+void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, const Map& map, const VisibilityMap& roomVis, bool continuousTextures, bool mapInfoMode) {
+    const WorldCoords& topLeft = g.roomLayout.topLeftCoords();
+    const int room_w = g.roomLayout.roomWidth();
+    const int room_h = g.roomLayout.roomHeight();
+
+    const int xRooms = static_cast<int>(ceil(g.roomLayout.visibleRoomsX() + topLeft.x / plw - .0001));
+    const int yRooms = static_cast<int>(ceil(g.roomLayout.visibleRoomsY() + topLeft.y / plh - .0001));
+    const unsigned needLockedRooms = min(map.w, xRooms) * min(map.h, yRooms);
+
+    if (continuousTextures != previousContinuousTextures || mapInfoMode != previousMapInfoMode || needLockedRooms > roomCache.size()) {
+        invalidateRoomCache();
+        previousContinuousTextures = continuousTextures;
+        previousMapInfoMode = mapInfoMode;
+    }
+
+    if (roomCache.empty()) {
+        allocateRoomCache(room_w, room_h, needLockedRooms, map.w * map.h);
+        roomCacheIndex.resize(map.w);
+        for (int x = 0; x < map.w; ++x)
+            roomCacheIndex[x].resize(map.h);
+    }
+    else if (topLeft.px != previousRoom0x || topLeft.py != previousRoom0y || xRooms != previousXrooms || yRooms != previousYrooms) {
+        // update room locks, so that cached but now unused rooms can be reclaimed, while those in use won't
+        for (int x = 0; x < map.w; ++x) {
+            const bool xIn = (x - topLeft.px + map.w) % map.w < xRooms;
+            for (int y = 0; y < map.h; ++y) {
+                CachedRoomGfx* roomp = roomCacheIndex[x][y];
+                if (!roomp)
+                    continue;
+                CachedRoomGfx& room = *roomp;
+                const bool in = xIn && (y - topLeft.py + map.h) % map.h < yRooms;
+                if (room.locked != in) {
+                    room.locked = in;
+                    if (!in)
+                        room.lastUse = cacheTimestamp;
+                }
+            }
+        }
+        ++cacheTimestamp;
+    }
+    previousRoom0x = topLeft.px; previousRoom0y = topLeft.py; previousXrooms = xRooms; previousYrooms = yRooms;
+
+    const int pfx0 = g.roomLayout.x0(), pfy0 = g.roomLayout.y0(), pfxm = g.roomLayout.xMax(), pfym = g.roomLayout.yMax();
+
+    TemporaryClipRect clipRestorer(drawbuf, pfx0, pfy0, pfxm, pfym, false);
+    for (int dx = 0; dx < xRooms; ++dx) {
+        const int roomx = (topLeft.px + dx) % map.w;
+        const int rx0 = pfx0 - g.pf_scale(topLeft.x) + dx * room_w;
+        for (int dy = 0; dy < yRooms; ++dy) {
+            const int roomy = (topLeft.py + dy) % map.h;
+            const int ry0 = pfy0 - g.pf_scale(topLeft.y) + dy * room_h;
+            drawRoom(map, roomx, roomy, continuousTextures, mapInfoMode, roomVis[roomx][roomy] < 255, drawbuf, rx0, ry0);
         }
     }
 }
@@ -3462,9 +3514,7 @@ bool Graphics::BackgroundManager::allocate(bool videoMemory, int cachePages) {
     return !!roomCacheBitmap;
 }
 
-void Graphics::BackgroundManager::cacheRoom(int roomx, int roomy, const Room& room, const MapDecorations& deco, int texRoomX, int texRoomY, bool grid) {
-    if (roomCacheIndex[roomx][roomy])
-        return;
+void Graphics::BackgroundManager::cacheRoom(const Map& map, int roomx, int roomy, bool continuousTextures, bool mapInfoMode) {
     vector<CachedRoomGfx>::iterator ci, oldest;
     unsigned oldestTime = cacheTimestamp + 1;
     for (ci = roomCache.begin(); ci != roomCache.end() && ci->used(); ++ci)
@@ -3482,12 +3532,13 @@ void Graphics::BackgroundManager::cacheRoom(int roomx, int roomy, const Room& ro
     BitmapRegion& area = ci->getAreaForWriting(roomx, roomy); // this locks the room, so we don't need to update lastUse yet
     Bitmap roombg = create_sub_bitmap(area.b, area.x0, area.y0, area.w, area.h);
     acquire_bitmap(roombg);
-    g.predrawRoom(roombg, room, texRoomX, texRoomY, deco, roomx, roomy, grid);
+    g.drawRoomBackground(roombg, map, roomx, roomy, continuousTextures ? roomx : 0, continuousTextures ? roomy : 0, mapInfoMode);
     release_bitmap(roombg);
 }
 
-void Graphics::BackgroundManager::drawRoom(int roomx, int roomy, bool fogged, BITMAP* target, int tx0, int ty0) {
-    nAssert(roomCacheIndex[roomx][roomy]);
+void Graphics::BackgroundManager::drawRoom(const Map& map, int roomx, int roomy, bool continuousTextures, bool mapInfoMode, bool fogged, BITMAP* target, int tx0, int ty0) {
+    if (!roomCacheIndex[roomx][roomy])
+        cacheRoom(map, roomx, roomy, continuousTextures, mapInfoMode);
     const CachedRoomGfx& room = *roomCacheIndex[roomx][roomy];
     if (fogged)
         room.drawFogged(target, tx0, ty0);

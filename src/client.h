@@ -208,6 +208,8 @@ class Client {
     #endif
     friend class TM_ConnectionUpdate;
 
+    static const int disappearedFlagAlpha = 150;
+
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
@@ -464,7 +466,7 @@ class Client {
     unsigned replay_start_frame;
     unsigned replay_length;
     std::pair<int, int> replayTopLeftRoom;
-    int visible_rooms;
+    double visible_rooms;
 
     bool spectating;
     NLsocket spectate_socket;
@@ -528,6 +530,8 @@ class Client {
     void MCF_screenModeChange();
     void MCF_gfxThemeChange();
     void MCF_fontChange();
+    void MCF_visibleRoomsPlayChange();
+    void MCF_visibleRoomsReplayChange();
     void MCF_antialiasChange();
     void MCF_transpChange();
     void MCF_statsBgChange();
@@ -645,8 +649,6 @@ class Client {
     static void cfunc_server_data(void* customp, const char* data, int length);
 
     #ifndef DEDICATED_SERVER_ONLY
-    int roomDeltaX(int x, bool locallyToTheLeft) const; // gives a sense of where x1 is relative to the screen: 0 = on screen, -1 = immediately on the left, +1 = immediately on the right (wrapping around map edges)
-    int roomDeltaY(int y, bool locallyToTheTop) const;
     WorldCoords playerPos(int pid) const;
     WorldCoords viewTopLeft() const;
     std::pair<int, int> topLeftRoom() const;
@@ -662,8 +664,8 @@ class Client {
 
     bool on_screen(int x, int y) const; // returns true if any part of room (x,y) is on screen
     bool on_screen(int rx, int ry, double lx, double ly, double fudge = 0) const; // coordinates within "fudge" local units from screen border are also considered on screen
-    bool on_screen_exact(int x, int y) const; // returns true if any part of room (x,y) is on screen
-    bool on_screen_exact(int rx, int ry, double lx, double ly) const;
+    bool on_screen_exact(int x, int y) const;
+    bool on_screen_exact(int rx, int ry, double lx, double ly, double fudge = 0) const;
     bool player_on_screen(int pid) const;
     bool player_on_screen_exact(int pid) const;
 

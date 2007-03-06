@@ -842,9 +842,6 @@ bool Client::start() {
             break; case CCS_Antialiasing:
                 menu.options.graphics.antialiasing.set(args == "2");
 
-            break; case CCS_VisibleRooms:
-                visible_rooms = atoi(args);
-
             break; default: nAssert(0); // all values up to the highest known must be handled
         }
     }
@@ -889,6 +886,7 @@ bool Client::start() {
     if (extConfig.targetfps != -1)
         menu.options.graphics.fpsLimit.set(extConfig.targetfps);
     graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    visible_rooms = menu.options.graphics.visibleRoomsPlay();
     graphics.set_min_transp(menu.options.graphics.minTransp());
     MCF_statsBgChange();
     if (!screenModeChange())
@@ -4399,6 +4397,10 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             if (mapChanged) {
                 mapChanged = false;
                 graphics.mapChanged();
+                if (replaying)
+                    visible_rooms = menu.options.graphics.visibleRoomsReplay();
+                else
+                    visible_rooms = menu.options.graphics.visibleRoomsPlay();
                 if (visible_rooms > fx.map.w && visible_rooms > fx.map.h)
                     visible_rooms = max(fx.map.w, fx.map.h);
                 if (replaying) {
@@ -4406,11 +4408,11 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
                     replayTopLeftRoom = pair<int, int>();
                     if (!fx.map.tinfo[team].flags.empty()) {
                         const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
-                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - visible_rooms), max(0, pos.py + 1 - visible_rooms));
+                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - static_cast<int>(visible_rooms)), max(0, pos.py + 1 - static_cast<int>(visible_rooms)));
                     }
                     else if (!fx.map.wild_flags.empty()) {
                         const WorldCoords& pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
-                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - visible_rooms), max(0, pos.py + 1 - visible_rooms));
+                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - static_cast<int>(visible_rooms)), max(0, pos.py + 1 - static_cast<int>(visible_rooms)));
                     }
                 }
 
@@ -4440,10 +4442,27 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             if (graphics.needRedrawMap())
                 graphics.update_minimap_background(fx.map);
-            if (graphics.needPredraw() || visible_rooms != predrawnVisibleRooms || topLeftRoom() != predrawnRoom)
-                predraw();
 
             refreshGunDir();
+
+            // update carried flags' positions
+            for (int t = 0; t < 3; t++) {
+                const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
+                int f = 0;
+                for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f) {
+                    if (!fi->carried())
+                        continue;
+                    const ClientPlayer& pl = fx.player[fi->carrier()];
+                    const WorldCoords pos = playerPos(fi->carrier());
+                    nAssert(pos.px >= 0 && pos.py >= 0);
+                    if (!pl.used || pos.px >= fx.map.w || pos.py >= fx.map.h)
+                        continue;
+                    if (t < 2)
+                        fx.teams[t].move_flag(f, pos);
+                    else
+                        fx.wild_flags[f].move(pos);
+                }
+            }
 
             graphics.startDraw();
             draw_game_frame();
@@ -4780,7 +4799,6 @@ void Client::stop() {
             cfg << CCS_GFXMode << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
         }
         cfg << CCS_Antialiasing << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
-        cfg << CCS_VisibleRooms << ' ' << visible_rooms << '\n';
 
         cfg.close();
     }
@@ -4909,73 +4927,6 @@ void Client::play_sound(int sample) {
     client_sounds.play(sample, freq);
 }
 
-void Client::predraw() {
-    if (!map_ready || !replaying && (fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
-                                     fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h))
-        return;
-
-    Graphics::MapDecorations deco;
-
-    for (int team = 0; team <= 2; team++) {
-        const vector<WorldCoords>& tflags = (team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags);
-        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)     // flags
-            if (on_screen(pi->px, pi->py))
-                deco.flags.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
-        if (menu.options.graphics.mapInfoMode() && team < 2) {
-            const vector<WorldCoords>& tspawn = fx.map.tinfo[team].spawn;
-            for (vector<WorldCoords>::const_iterator pi = tspawn.begin(); pi != tspawn.end(); ++pi) // spawns
-                if (on_screen(pi->px, pi->py))
-                    deco.spawns.push_back(pair<int, const WorldCoords*>(team, &(*pi)));
-            const vector<WorldRect>& trespawn = fx.map.tinfo[team].respawn;
-            for (vector<WorldRect>::const_iterator pi = trespawn.begin(); pi != trespawn.end(); ++pi) // respawns
-                if (on_screen(pi->px, pi->py))
-                    deco.respawns.push_back(pair<int, const WorldRect*>(team, &(*pi)));
-        }
-    }
-
-    const WorldCoords topLeft = viewTopLeft();
-    predrawnRoom = pair<int, int>(topLeft.px, topLeft.py);
-    predrawnVisibleRooms = visible_rooms;
-
-    graphics.predraw(fx.map,
-                     menu.options.graphics.contTextures(),
-                     deco,
-                     topLeft,
-                     visible_rooms,
-                     menu.options.graphics.repeatMap(),
-                     menu.options.graphics.scroll(),
-                     menu.options.graphics.mapInfoMode());
-}
-
-static int calculateRoomDelta(int coord, int viewStart, int viewWidth, int mapSize, bool smallLocalCoord) {
-    if ((coord - viewStart + mapSize) % mapSize < viewWidth)
-        return 0;
-    if (viewWidth == mapSize - 1) { // this means the same room is the neighbor in both directions
-        if (viewStart == 0) // if there is a map edge in one direction, the room feels more natural in the other direction
-            return +1;
-        else if (viewStart + viewWidth == mapSize)
-            return -1;
-        else
-            return smallLocalCoord ? +1 : -1; // the rooms are equal -> return on which ever side the target is nearer to view
-    }
-    else if (coord == (viewStart - 1 + mapSize) % mapSize)
-        return -1;
-    else if (coord == (viewStart + viewWidth) % mapSize)
-        return +1;
-    else
-        return -2;
-}
-
-int Client::roomDeltaX(int x, bool locallyToTheLeft) const {
-    nAssert(!menu.options.graphics.scroll());
-    return calculateRoomDelta(x, topLeftRoom().first, visible_rooms, fx.map.w, locallyToTheLeft);
-}
-
-int Client::roomDeltaY(int y, bool locallyToTheTop) const {
-    nAssert(!menu.options.graphics.scroll());
-    return calculateRoomDelta(y, topLeftRoom().second, visible_rooms, fx.map.h, locallyToTheTop);
-}
-
 WorldCoords Client::playerPos(int pid) const {
     const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
     return WorldCoords(world.player[pid].roomx,
@@ -4984,7 +4935,7 @@ WorldCoords Client::playerPos(int pid) const {
                        world.player[pid].ly);
 }
 
-static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, int visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) {
+static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, double visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) {
     double coordBase = 0;
     if (visibleRooms >= mapSize) {
         coordBase = - (visibleRooms - mapSize) * .5; // as this is added to the view start coordinates, effectively that position then starts the map sized region in the middle of the screen
@@ -5017,8 +4968,9 @@ WorldCoords Client::viewTopLeft() const {
         const Menu_graphics::ViewOverBorderMode view = menu.options.graphics.viewOverMapBorder();
         const bool scroll = menu.options.graphics.scroll();
         const bool repeat = menu.options.graphics.repeatMap();
-        const double x = getViewStartCoord(fd.player[me].roomx, fd.player[me].lx, plw, fx.map.w, mapWrapsX, repeat ? visible_rooms : min(fx.map.w, visible_rooms), view, scroll);
-        const double y = getViewStartCoord(fd.player[me].roomy, fd.player[me].ly, plh, fx.map.h, mapWrapsY, repeat ? visible_rooms : min(fx.map.h, visible_rooms), view, scroll);
+        const double xVis = graphics.get_visible_rooms_x(), yVis = graphics.get_visible_rooms_y();
+        const double x = getViewStartCoord(fd.player[me].roomx, fd.player[me].lx, plw, fx.map.w, mapWrapsX, repeat ? xVis : min<double>(fx.map.w, xVis), view, scroll);
+        const double y = getViewStartCoord(fd.player[me].roomy, fd.player[me].ly, plh, fx.map.h, mapWrapsY, repeat ? yVis : min<double>(fx.map.h, yVis), view, scroll);
         const pair<int, double> xp = splitCompositeCoord(x, plw, fx.map.w), yp = splitCompositeCoord(y, plh, fx.map.h);
         return WorldCoords(xp.first, yp.first, xp.second, yp.second);
     }
@@ -5061,11 +5013,15 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     else {
         #ifdef ROOM_CHANGE_BENCHMARK
         graphics.videoMemoryCorrupted(); // evil trick to invalidate room cache
-        predraw();
         ++benchmarkRuns;
         #endif
         const VisibilityMap roomVis = calculateVisibilities();
-        graphics.draw_background(true, roomVis);
+        graphics.setRoomLayout(fx.map, visible_rooms, menu.options.graphics.repeatMap());
+        graphics.draw_background(fx.map,
+                                 roomVis,
+                                 viewTopLeft(),
+                                 menu.options.graphics.contTextures(),
+                                 menu.options.graphics.mapInfoMode());
         draw_playfield();
         draw_map(roomVis);
     }
@@ -5160,8 +5116,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
 bool Client::on_screen(int x, int y) const {
     const WorldCoords topLeft = viewTopLeft();
-    return (x - topLeft.px + fx.map.w) % fx.map.w < visible_rooms + (menu.options.graphics.scroll() || topLeft.x > .01) &&
-           (y - topLeft.py + fx.map.h) % fx.map.h < visible_rooms + (menu.options.graphics.scroll() || topLeft.y > .01);
+    return positiveModulo(x - topLeft.px, fx.map.w) < graphics.get_visible_rooms_x() + topLeft.x / plw &&
+           positiveModulo(y - topLeft.py, fx.map.h) < graphics.get_visible_rooms_y() + topLeft.y / plh;
 }
 
 bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const {
@@ -5174,7 +5130,7 @@ bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const
                  tly = topLeft.py * plh + topLeft.y - fudge;
     const double relX = positiveFmod(x - tlx, mapw),
                  relY = positiveFmod(y - tly, maph);
-    return relX < visible_rooms * plw + 2 * fudge && relY < visible_rooms * plh + 2 * fudge;
+    return relX < graphics.get_visible_rooms_x() * plw + 2 * fudge && relY < graphics.get_visible_rooms_y() * plh + 2 * fudge;
 }
 
 bool Client::on_screen_exact(int x, int y) const {
@@ -5184,8 +5140,8 @@ bool Client::on_screen_exact(int x, int y) const {
         return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
 }
 
-bool Client::on_screen_exact(int rx, int ry, double lx, double ly) const {
-    if (!on_screen(rx, ry, lx, ly))
+bool Client::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const {
+    if (!on_screen(rx, ry, lx, ly, fudge))
         return false;
     return replaying || me >= 0 && rx == fx.player[me].roomx && ry == fx.player[me].roomy;
 }
@@ -5196,7 +5152,7 @@ bool Client::player_on_screen(int pid) const {
     else if (!replaying && !fx.player[pid].onscreen && fx.frame > fx.player[pid].posUpdated + 20)
         return false;
     else
-        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, PLAYER_RADIUS);
+        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, Graphics::extended_player_max_size_in_world / 2);
 }
 
 bool Client::player_on_screen_exact(int pid) const {
@@ -5216,80 +5172,52 @@ void Client::draw_map(const VisibilityMap& roomVis) {
         for (int rx = 0; rx < fx.map.w; rx++)
             graphics.draw_minimap_room(fx.map, rx, ry, roomVis[rx][ry] / 255.);
 
-    if (replaying || (visible_rooms > 1 || menu.options.graphics.scroll()) && menu.options.graphics.boxRoomsWhenPlaying())
+    if (replaying || (graphics.get_visible_rooms_x() > 1 || graphics.get_visible_rooms_y() > 1 || menu.options.graphics.scroll()) && menu.options.graphics.boxRoomsWhenPlaying())
         graphics.highlight_minimap_rooms();
 
-    const bool neighborMarkers = !menu.options.graphics.scroll() && menu.options.graphics.showNeighborMarkers(replaying, visible_rooms);
+    if (!replaying && menu.options.graphics.oldFlagPositions()) {
+        set_trans_mode(disappearedFlagAlpha);
+        for (ConstDisappearedFlagIterator fi(this); fi; ++fi)
+            if (fx.player[fi->carrier()].alpha != 255)
+                graphics.draw_mini_flag(fi.team(), *fi, fx.map, false, true);
+        solid_mode();
+    }
 
     // draw all teammates and enemies on screens where there are teammates
     if ((me >= 0 || replaying) && fx.frame >= 0)
         for (int i = 0; i < maxplayers; i++) {
             const ClientPlayer& pl = fx.player[i];
             const WorldCoords pos = playerPos(i);
-            if (pl.used && pos.px >= 0 && pos.py >= 0 && pos.px < fx.map.w && pos.py < fx.map.h && pl.alpha > 0) {
-                const int xDelta = neighborMarkers ? roomDeltaX(pos.px, pos.x < plw / 2) : 0,
-                          yDelta = neighborMarkers ? roomDeltaY(pos.py, pos.y < plh / 2) : 0;
-                const bool drawNeighborMarkers = neighborMarkers && abs(xDelta) + abs(yDelta) == 1;
-                const int alpha = pl.alpha;
-                if (alpha != 255) {
-                    set_trans_blender(0, 0, 0, alpha);
-                    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-                }
-                const int enemy = 1 - i / TSIZE;
-                int f = 0;
-                for (vector<Flag>::const_iterator fi = fx.teams[enemy].flags().begin(); fi != fx.teams[enemy].flags().end(); ++fi, ++f)
-                    if (fi->carrier() == i) {
-                        // update flag position for draw
-                        fx.teams[enemy].move_flag(f, pos);
-                        graphics.draw_mini_flag(enemy, *fi, fx.map);
-                        if (drawNeighborMarkers)
-                            graphics.draw_neighbor_marker(true, xDelta, yDelta, pos, enemy);
-                    }
-
-                for (vector<Flag>::iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-                    if (fi->carrier() == i) {
-                        // update flag position for draw
-                        fi->move(pos);
-                        graphics.draw_mini_flag(2, *fi, fx.map);
-                        if (drawNeighborMarkers)
-                            graphics.draw_neighbor_marker(true, xDelta, yDelta, pos, 2);
-                    }
-
-                if (i != me) {
-                    if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                        graphics.draw_minimap_player(fx.map, replaying || pl.onscreen ? fd.player[i] : pl);
-                    if (drawNeighborMarkers)
-                        graphics.draw_neighbor_marker(false, xDelta, yDelta, pos, pl.team());
-                }
-                else // myself: draw differently
-                    graphics.draw_minimap_me(fx.map, fd.player[me], time);
-
-                solid_mode();
+            if (!pl.used || pos.px >= fx.map.w || pos.py >= fx.map.h || pl.alpha <= 0)
+                continue;
+            set_trans_mode(pl.alpha);
+            for (ConstFlagIterator fi(fx); fi; ++fi)
+                if (fi->carrier() == i)
+                    graphics.draw_mini_flag(fi.team(), *fi, fx.map);
+            const ClientPlayer& exactPl = replaying || fx.player[i].onscreen ? fd.player[i] : pl;
+            if (i != me) {
+                if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
+                    graphics.draw_minimap_player(fx.map, exactPl);
             }
+            else // myself: draw differently
+                graphics.draw_minimap_me(fx.map, exactPl, time);
+            solid_mode();
         }
 
     // draw the miniflags (in the base and on the ground but not carried)
-    for (int t = 0; t < 3; t++) {
-        const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
-        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-            if (!fi->carried()) {
-                const bool flash = menu.options.graphics.highlightReturnedFlag() &&
-                                   time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
-                graphics.draw_mini_flag(t, *fi, fx.map, flash);
-                const WorldCoords& pos = fi->position();
-                const int xDelta = neighborMarkers ? roomDeltaX(pos.px, pos.x < plw / 2) : 0,
-                          yDelta = neighborMarkers ? roomDeltaY(pos.py, pos.y < plh / 2) : 0;
-                if (neighborMarkers && abs(xDelta) + abs(yDelta) == 1)
-                    graphics.draw_neighbor_marker(true, xDelta, yDelta, pos, t);
-            }
-    }
+    for (ConstFlagIterator fi(fx); fi; ++fi)
+        if (!fi->carried()) {
+            const bool flash = menu.options.graphics.highlightReturnedFlag() &&
+                               time < fi->return_time() + 2 && static_cast<int>(fmod(time * 15, 3)) == 0;
+            graphics.draw_mini_flag(fi.team(), *fi, fx.map, flash);
+        }
 }
 
 void Client::draw_playfield() {
     const double time = fd.frame / 10;
     const bool live = !replaying || !replay_paused && !replay_stopped;
 
-    graphics.startPlayfieldDraw(viewTopLeft());
+    graphics.startPlayfieldDraw();
 
     // draw dead players
     for (int i = 0; i < maxplayers; i++)
@@ -5300,32 +5228,41 @@ void Client::draw_playfield() {
                 graphics.draw_player_dead(fx.player[i]);
         }
 
+    // draw disappeared flags
+    if (!replaying && menu.options.graphics.oldFlagPositions())
+        for (ConstDisappearedFlagIterator fi(this); fi; ++fi) {
+            const WorldCoords& pos = fi->position();
+            if (on_screen(pos.px, pos.py, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2))
+                graphics.draw_flag(fi.team(), pos, false, 100, false, (fx.frame - fx.player[fi->carrier()].posUpdated) * .1);
+        }
+
     // draw powerups
     for (int i = 0; i < MAX_PICKUPS; i++)
-        if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen_exact(fx.item[i].px, fx.item[i].py))
+        if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen_exact(fx.item[i].px, fx.item[i].py, fx.item[i].x, fx.item[i].y, Graphics::extended_item_max_size_in_world / 2))
             graphics.draw_pup(fx.item[i], time, live);
 
     // draw turbo effects
     graphics.draw_turbofx(time);
 
     // draw dropped flags (use fx since flags don't move)
-    for (int t = 0; t < 3; t++) {
-        const vector<Flag>& flags = t == 2 ? fx.wild_flags : fx.teams[t].flags();
-        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-            if (!fi->carried() && on_screen(fi->position().px, fi->position().py)) {
-                const bool flash = menu.options.graphics.highlightReturnedFlag() &&
-                                    time < fi->return_time() + 2 && static_cast<int>(time * 15) % 3 == 0;
-                graphics.draw_flag(t, fi->position(), flash, 255, menu.options.graphics.emphasizeFlag(visible_rooms));
-            }
+    for (ConstFlagIterator fi(fx); fi; ++fi) {
+        if (fi->carried())
+            continue;
+        const WorldCoords& pos = fi->position();
+        if (on_screen(pos.px, pos.py, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2)) {
+            const bool flash = menu.options.graphics.highlightReturnedFlag() &&
+                               time < fi->return_time() + 2 && static_cast<int>(fmod(time * 15, 3)) == 0;
+            graphics.draw_flag(fi.team(), pos, flash, 255, menu.options.graphics.emphasizeFlag(visible_rooms));
+        }
     }
 
     // draw rockets
     for (int i = 0; i < MAX_ROCKETS; i++)
-        if (fx.rock[i].owner != -1 && on_screen(fx.rock[i].px, fx.rock[i].py)) {
+        if (fx.rock[i].owner != -1 && on_screen(fx.rock[i].px, fx.rock[i].py, fd.rock[i].x, fd.rock[i].y, Graphics::extended_rocket_max_size_in_world / 2)) {
             fd.rock[i].team = fx.rock[i].team;
             fd.rock[i].power = fx.rock[i].power;
             const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
-            const bool shadow = !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(fd.rock[i].x, fd.rock[i].y + radius + 8, radius / 2);
+            const bool shadow = fd.rock[i].y + radius + 8 < plh && !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(fd.rock[i].x, fd.rock[i].y + radius + 8, radius / 2);
             graphics.draw_rocket(fd.rock[i], shadow, time);
         }
 
@@ -5374,6 +5311,35 @@ void Client::draw_playfield() {
             graphics.draw_deathbringer_carrier_effect(playerPos(i), calculatePlayerAlpha(i));
 
     graphics.draw_effects(time);
+
+    if (menu.options.graphics.showNeighborMarkers(replaying, visible_rooms)) {
+        // neighbor markers: disappeared flags first
+        set_trans_mode(disappearedFlagAlpha);
+        for (ConstDisappearedFlagIterator fi(this); fi; ++fi)
+            graphics.draw_neighbor_marker(true, fi->position(), fi.team(), true);
+        solid_mode();
+        // players
+        for (int i = 0; i < maxplayers; ++i) {
+            const ClientPlayer& pl = fx.player[i];
+            if (!pl.used || pl.alpha <= 0)
+                continue;
+            set_trans_mode(pl.alpha);
+            graphics.draw_neighbor_marker(false, playerPos(i), pl.team());
+        }
+        solid_mode();
+        // flags
+        for (ConstFlagIterator fi(fx); fi; ++fi) {
+            if (fi->carried()) {
+                if (fx.player[fi->carrier()].alpha <= 0)
+                    continue;
+                set_trans_mode(fx.player[fi->carrier()].alpha);
+            }
+            else
+                solid_mode();
+            graphics.draw_neighbor_marker(true, fi->position(), fi.team());
+        }
+        solid_mode();
+    }
 
     if (menu.options.graphics.showName(true))
         for (int i = 0; i < maxplayers; i++) {
@@ -5445,12 +5411,9 @@ void Client::draw_player(int pid, double time, bool live) {
     const int flagAlpha = fullyVisible ? 255 : alpha;
     const WorldCoords pos = playerPos(pid);
     // draw flag if player is carrier of a flag
-    for (int t = 0; t < 3; t++) {
-        const vector<Flag>& flags = t < 2 ? fx.teams[t].flags() : fx.wild_flags;
-        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-            if (fi->carrier() == pid)
-                graphics.draw_flag(t, pos, false, flagAlpha, menu.options.graphics.emphasizeFlag(visible_rooms));
-    }
+    for (ConstFlagIterator fi(fx); fi; ++fi)
+        if (fi->carrier() == pid)
+            graphics.draw_flag(fi.team(), pos, false, flagAlpha, menu.options.graphics.emphasizeFlag(visible_rooms));
     if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
         if (!fullyVisible) {
             graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
@@ -5584,18 +5547,16 @@ void Client::initMenus() {
     menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
     menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
 
-    menu.options.graphics.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxMenu         >(this));
-    menu.options.graphics.theme         .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
-    menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,   &Client::MCF_gfxThemeChange         >(this));
-    menu.options.graphics.background    .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange         >(this));
-    menu.options.graphics.font          .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange             >(this));
-    menu.options.graphics.antialiasing  .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange        >(this));
-    menu.options.graphics.scroll        .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
-    menu.options.graphics.minTransp     .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange           >(this));
-    menu.options.graphics.contTextures  .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
-    menu.options.graphics.repeatMap     .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
-    menu.options.graphics.statsBgAlpha  .setHook(new MCB::N<Slider,         &Client::MCF_statsBgChange          >(this));
-    menu.options.graphics.mapInfoMode   .setHook(new MCB::N<Checkbox,       &Client::predraw                    >(this));
+    menu.options.graphics.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxMenu          >(this));
+    menu.options.graphics.theme             .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
+    menu.options.graphics.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.graphics.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
+    menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsPlayChange  >(this));
+    menu.options.graphics.visibleRoomsReplay.setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsReplayChange>(this));
+    menu.options.graphics.antialiasing      .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange         >(this));
+    menu.options.graphics.minTransp         .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange            >(this));
+    menu.options.graphics.statsBgAlpha      .setHook(new MCB::N<Slider,         &Client::MCF_statsBgChange           >(this));
 
     menu.options.sounds.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareSndMenu         >(this));
     menu.options.sounds.enabled         .setHook(new MCB::N<Checkbox,       &Client::MCF_sndEnableChange        >(this));
@@ -5850,6 +5811,22 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
         ost << _("$1 Hz", itoa(rate));
     menu.options.screenMode.refreshRate.set(ost.str());
     return true;
+}
+
+void Client::MCF_visibleRoomsPlayChange() {
+    if (!replaying) {
+        visible_rooms = menu.options.graphics.visibleRoomsPlay();
+        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
+            visible_rooms = max(fx.map.w, fx.map.h);
+    }
+}
+
+void Client::MCF_visibleRoomsReplayChange() {
+    if (replaying) {
+        visible_rooms = menu.options.graphics.visibleRoomsReplay();
+        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
+            visible_rooms = max(fx.map.w, fx.map.h);
+    }
 }
 
 void Client::MCF_antialiasChange() {

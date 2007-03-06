@@ -451,7 +451,10 @@ Menu_graphics::Menu_graphics() :
     font                 (_("Font")),
 
     showNames            (_("Show player names")),
+    visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 1),
+    visibleRoomsReplay   (_("Rooms on screen in each direction in replay"), false, 1, 20, 20),
     scroll               (_("Scrolling")),
+
     antialiasing         (_("Antialiasing"), true),
     minTransp            (_("Less transparency effects"), false),
     contTextures         (_("Continuous textures between rooms"), false),
@@ -503,8 +506,11 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add(&font,                   CCS_Font);
     add.space();
     add(&showNames,              CCS_ShowNames);
-    add(&antialiasing);
+    add(&visibleRoomsPlay,       CCS_VisibleRoomsPlay);
+    add(&visibleRoomsReplay,     CCS_VisibleRoomsReplay);
     add(&scroll,                 CCS_Scroll);
+    add.space();
+    add(&antialiasing);
     add(&minTransp,              CCS_MinTransp);
     add(&contTextures,           CCS_ContinuousTextures);
     add(&minimapPlayers,         CCS_MinimapPlayers);
@@ -538,10 +544,10 @@ void Menu_graphics::update(const Graphics& gfx) {   // tries to keep the selecte
     font.set(oldfont);
 }
 
-bool Menu_graphics::showNeighborMarkers(bool replaying, int visible_rooms) const {
+bool Menu_graphics::showNeighborMarkers(bool replaying, double visible_rooms) const {
     switch (replaying ? neighborMarkersReplay() : neighborMarkersPlay()) {
     /*break;*/ case NM_Never:   return false;
-        break; case NM_OneRoom: return visible_rooms == 1;
+        break; case NM_OneRoom: return visible_rooms < 2.;
         break; case NM_Always:  return true;
         break; default: nAssert(0);
     }

@@ -56,6 +56,7 @@ public:
         name,
         name_highlight,
         self_highlight,
+        old_flag_time_border,
         ground,
         wall,
         room_border,
