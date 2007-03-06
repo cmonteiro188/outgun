@@ -1760,7 +1760,7 @@ void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
         if (fabs(newy - oldy) > fx.map.h * plh / 2)
             newy += fx.map.h * plh * (newy < oldy ? +1 : -1);
         const double dx = newx - oldx, dy = newy - oldy;
-        if (dx || dy)
+        if (fabs(dx) + fabs(dy) > .1)
             fx.player[pid].gundir.fromRad(atan2(dy, dx));
     }
 }
