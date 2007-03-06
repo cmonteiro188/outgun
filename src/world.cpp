@@ -2140,8 +2140,8 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
             ++ts[i / TSIZE];
     const int plTeam = target / TSIZE;
     double timeDelay = config.getRespawnTime(ts[plTeam], ts[1 - plTeam]) + time_penalty;
-    if (player[target].item_deathbringer && timeDelay < 1.8)    // the time required for a deathbringer explosion to reach the other end of the screen
-        timeDelay = 1.8;
+    if (player[target].item_deathbringer)
+        timeDelay = max(timeDelay, 1.8); // the time required for a deathbringer explosion to reach the other end of the screen
     player[target].respawn_time = get_time() + timeDelay;
     player[target].stats().kill(get_time(), true);
     player[target].dead = true;
