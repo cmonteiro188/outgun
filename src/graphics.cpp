@@ -890,10 +890,12 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
     if ((visibility <= 0.01 || min_transp) && minibg_fog)
         blit(minibg_fog, drawbuf, x1, y1, minimap_x + x1, minimap_y + y1, x2 - x1 + 1, y2 - y1 + 1);
     else {
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-        set_trans_blender(0, 0, 0, static_cast<int>(fogOfWarMaxAlpha * (1. - visibility)));
-        rectfill(drawbuf, minimap_x + x1, minimap_y + y1, minimap_x + x2, minimap_y + y2, colour(Colour::map_fog));
-        solid_mode();
+        const int alpha = static_cast<int>(fogOfWarMaxAlpha * (1. - visibility));
+        if (alpha > 0) {
+            set_trans_mode(alpha);
+            rectfill(drawbuf, minimap_x + x1, minimap_y + y1, minimap_x + x2, minimap_y + y2, colour(Colour::map_fog));
+            solid_mode();
+        }
     }
 }
 
