@@ -579,6 +579,19 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         cl->stop();
 }
 
+void Client::ConstDisappearedFlagIterator::findValid() {
+    for (; valid(); next()) {
+        const Flag& fl = flag();
+        if (!fl.carried())
+            continue;
+        const ClientPlayer& pl = c.fx.player[fl.carrier()];
+        const WorldCoords& pos = fl.position();
+        nAssert(pos.px >= 0 && pos.py >= 0);
+        if (pl.used && pos.px < c.fx.map.w && pos.py < c.fx.map.h && !pl.onscreen && pl.posUpdated > c.fx.frame - 300.)
+            return;
+    }
+}
+
 Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),

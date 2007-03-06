@@ -697,6 +697,16 @@ class Client {
     void continue_spectating();
     #endif
 
+    class ConstDisappearedFlagIterator : public ConstFlagIterator {
+        const Client& c;
+
+        void findValid();
+
+    public:
+        ConstDisappearedFlagIterator(const Client* host) : ConstFlagIterator(host->fx), c(*host) { findValid(); }
+        ConstDisappearedFlagIterator& operator++() { next(); findValid(); return *this; }
+    };
+
 public:
     Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
 
