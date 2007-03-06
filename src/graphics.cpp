@@ -626,7 +626,6 @@ void Graphics::predrawRoom(BITMAP* roombg, const Room& room, int texRoomX, int t
 }
 
 void Graphics::draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_y) {
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
     const int radius = pf_scale(flagpos_radius);
     const int step = 300 / radius;
     for (int y = flag_y - radius; y < flag_y + radius; y++)
@@ -634,10 +633,10 @@ void Graphics::draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_
             const int dx = flag_x - x;
             const int dy = flag_y - y;
             const double dist = sqrt(static_cast<double>(dx * dx + dy * dy));
-            if (dist > radius)
-                continue;
             const int alpha = static_cast<int>(step * (radius - dist));
-            set_trans_blender(0, 0, 0, min(alpha, 255));
+            if (alpha <= 0)
+                continue;
+            set_trans_mode(min(alpha, 255));
             putpixel(roombg, x, y, teamcol[team]);
         }
     solid_mode();
@@ -789,10 +788,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
 }
 
 void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha, bool emphasize) {
-    if (alpha < 255) {
-        set_trans_blender(0, 0, 0, alpha);
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    }
+    set_trans_mode(alpha);
 
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
@@ -958,8 +954,7 @@ void Graphics::update_minimap_background(const Map& map) {
     update_minimap_background(minibg, map);
     if (minibg_fog) {
         blit(minibg, minibg_fog, 0, 0, 0, 0, minibg->w, minibg->h);
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-        set_trans_blender(0, 0, 0, fogOfWarMaxAlpha);
+        set_trans_mode(fogOfWarMaxAlpha);
         rectfill(minibg_fog, 0, 0, minibg_fog->w - 1, minibg_fog->h - 1, colour(Colour::map_fog));
         solid_mode();
     }
@@ -1247,10 +1242,7 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int pli, GunDirecti
                 rotate_sprite(drawbuf, sprite, x - sprite->w / 2, y - sprite->h / 2, gundir.toFixed());
         }
         else {
-            if (alpha < 255) {
-                set_trans_blender(0, 0, 0, alpha);
-                drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-            }
+            set_trans_mode(alpha);
 
             const int player_radius = pf_scale(PLAYER_RADIUS);
 
@@ -1326,8 +1318,7 @@ void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
     nAssert(buffer);
     clear_to_color(buffer, bitmap_mask_color(buffer));
     rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, alpha);
+    set_trans_mode(alpha);
     draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
     solid_mode();
 }
@@ -1359,8 +1350,7 @@ void Graphics::draw_player_dead(const ClientPlayer& player) {
             rotate_alpha_sprite(drawbuf, sprite, x, y, gundir.toFixed());
         }
         else {
-            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-            set_trans_blender(0, 0, 0, 90);
+            set_trans_mode(90);
             const int plrScale = pf_scale(PLAYER_RADIUS * 10);
             ellipsefill(drawbuf, x - plrScale / 25, y + plrScale / 20, plrScale / 9, plrScale / 10, colour(Colour::blood));
             ellipsefill(drawbuf, x                , y - plrScale / 30, plrScale / 8, plrScale / 10, colour(Colour::blood));
@@ -1412,8 +1402,7 @@ void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, doub
     }
     else {
         c = colour(Colour::deathbringer_smoke);
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-        set_trans_blender(0, 0, 0, effAlpha);
+        set_trans_mode(effAlpha);
     }
     const int subdist = pf_scale(96.0 - drad * 8.0);
     ScaledCoordSet sc(pos, this);
@@ -1465,8 +1454,7 @@ void Graphics::draw_deathbringer(const WorldCoords& pos, int team, double time) 
 }
 
 void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int alpha) {
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_trans_blender(0, 0, 0, alpha / 2);
+    set_trans_mode(alpha / 2);
 
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
@@ -1537,10 +1525,7 @@ void Graphics::draw_shield(const WorldCoords& pos, int r, bool live, int alpha, 
             continue;
         }
         else {
-            if (alpha < 255) {
-                drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-                set_trans_blender(0, 0, 0, alpha);
-            }
+            set_trans_mode(alpha);
             if (team == 0)
                 for (int i = 0, c = rand() % 256; i < 3; i++)
                     ellipse(drawbuf, x, y, r + rx[i], r + ry[i], makecol(255, c, c));
@@ -1638,11 +1623,10 @@ void Graphics::draw_pup_turbo(const WorldCoords& pos, bool live) {
 }
 
 void Graphics::draw_pup_shadow(const WorldCoords& pos, double time) {
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
     int alpha = static_cast<int>(fmod(time * 600.0, 400));
     if (alpha > 200)
         alpha = 400 - alpha;
-    set_trans_blender(0, 0, 0, 55 + alpha);
+    set_trans_mode(55 + alpha);
     ScaledCoordSet sc(pos, this);
     while (sc.next())
         circlefill(drawbuf, sc.x(), sc.y(), pf_scale(12), colour(Colour::pup_shadow));
@@ -1876,10 +1860,7 @@ void Graphics::team_statistics(const Team* teams) {
     const int y2 = my + h / 2;
 
     if (stats_alpha > 0) {
-        if (stats_alpha < 255) {
-            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-            set_trans_blender(0, 0, 0, stats_alpha);
-        }
+        set_trans_mode(stats_alpha);
         rectfill(drawbuf, x1, y1, x2, y2, 0);
         // caption backgrounds
         int line = 1;
@@ -2006,10 +1987,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     const int team1y = y1 + line_h, team2y = team1y + (3 + maxplayers / 2 + 1) * line_h, pageNumY = team2y + (3 + maxplayers / 2) * line_h;
 
     if (stats_alpha > 0) {
-        if (stats_alpha < 255) {
-            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-            set_trans_blender(0, 0, 0, stats_alpha);
-        }
+        set_trans_mode(stats_alpha);
         rectfill(drawbuf, x1, y1, x2, y2, 0);
         // caption backgrounds
         rectfill(drawbuf, x1, team1y - 4, x2, team1y + 2 * line_h - 1, teamdcol[0]);
@@ -2190,10 +2168,7 @@ void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapList
     const int x_left = x1 + 30;
 
     if (stats_alpha > 0) {
-        if (stats_alpha < 255) {
-            drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-            set_trans_blender(0, 0, 0, stats_alpha);
-        }
+        set_trans_mode(stats_alpha);
         rectfill(drawbuf, x1, y1, x2, y2, 0);
         // caption background
         rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, colour(Colour::stats_caption_bg));
@@ -3527,8 +3502,7 @@ void Graphics::BackgroundManager::CachedRoomGfx::generateFogged(BITMAP* target, 
             hline(target, tx0, ty0 + y, tx0 + baseArea.w - 1, fogColor);
     }
     else {
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-        set_trans_blender(0, 0, 0, playfieldFogOfWarAlpha);
+        set_trans_mode(playfieldFogOfWarAlpha);
         rectfill(target, tx0, ty0, tx0 + baseArea.w - 1, ty0 + baseArea.h - 1, fogColor);
         solid_mode();
     }

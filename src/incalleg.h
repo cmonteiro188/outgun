@@ -74,4 +74,7 @@ inline void get_clip_rect(BITMAP* bitmap, int* x1, int* y1, int* x2, int* y2) {
 
 #endif
 
+// simple "extensions": implemented in utility.cpp
+void set_trans_mode(int alpha);
+
 #endif  // INCALLEG_H_INC
