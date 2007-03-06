@@ -2449,7 +2449,7 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
     if (highlight && type != msg_team)
         c = colour(Colour::message_highlight);
     // Check if the border is needed.
-    if (!bg_texture && y + text_height(font) < playfield_y - scale(PLAYER_RADIUS + 10))
+    if (!bg_texture && y + text_height(font) < playfield_y)
         textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
     else
         print_text_border(message, x, y, c, colour(Colour::text_border), -1);
