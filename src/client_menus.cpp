@@ -458,6 +458,7 @@ Menu_graphics::Menu_graphics() :
     minimapPlayers       (_("Disappeared players on minimap")),
     highlightReturnedFlag(_("Highlight returned and dropped flags"), false),
     emphasizeFlags       (_("Make flags extra-visible")),
+    oldFlagPositions     (_("Show flag disappearance positions"), false),
     spawnHighlight       (_("Highlight self after spawn"), true),
     neighborMarkersPlay  (_("Markers for nearby players and flags in game")),
     neighborMarkersReplay(_("Markers for nearby players and flags in replay")),
@@ -509,6 +510,7 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add(&minimapPlayers,         CCS_MinimapPlayers);
     add(&highlightReturnedFlag,  CCS_HighlightReturnedFlag);
     add(&emphasizeFlags,         CCS_EmphasizeFlags);
+    add(&oldFlagPositions,       CCS_OldFlagPositions);
     add(&spawnHighlight,         CCS_SpawnHighlight);
     add(&neighborMarkersPlay,    CCS_NeighborMarkersPlay);
     add(&neighborMarkersReplay,  CCS_NeighborMarkersReplay);

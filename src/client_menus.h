@@ -96,6 +96,7 @@ enum ClientCfgSetting {
     CCS_RepeatMap,
     CCS_Scroll,
     CCS_VisibleRooms,
+    CCS_OldFlagPositions,
     CCS_EndOfCommands
 };
 
@@ -282,6 +283,7 @@ public:
     Select<MinimapPlayerMode> minimapPlayers;
     Checkbox            highlightReturnedFlag;
     Select<FlagEmphasizeMode> emphasizeFlags;
+    Checkbox            oldFlagPositions;
     Checkbox            spawnHighlight;
     Select<NeighborMarkerMode> neighborMarkersPlay;
     Select<NeighborMarkerMode> neighborMarkersReplay;
