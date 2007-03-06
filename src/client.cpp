@@ -5384,7 +5384,7 @@ Client::VisibilityMap Client::calculateVisibilities() {
     }
     for (int i = 0; i < maxplayers; i++) {
         ClientPlayer& pl = fx.player[i];
-        if (pl.used && (pl.posUpdated > fx.frame - max_time || i == me) && pl.roomx >= 0 && pl.roomy >= 0 && pl.roomx < fx.map.w && pl.roomy < fx.map.h) {
+        if (pl.used && (pl.posUpdated > fx.frame - max_time || i == me) && pl.roomx < fx.map.w && pl.roomy < fx.map.h) {
             if (fx.frame > pl.posUpdated + start_fadeout && i != me)
                 pl.alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
             else
