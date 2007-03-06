@@ -4097,29 +4097,9 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             return;
         }
 
-    switch (toupper(ch)) {
-    /*break;*/ case 'P':
-            if (replaying) {
-                replay_paused = !replay_paused;
-                return;
-            }
-        break; case '-':
-            if (!replaying && !withControl)
-                break;
-            if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || menu.options.graphics.repeatMap() && visible_rooms < 100) {
-                ++visible_rooms;
-                if (replayTopLeftRoom.first == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.first > 0) // if map border wasn't broken, don't break it either
-                    --replayTopLeftRoom.first;
-                if (replayTopLeftRoom.second == fx.map.h + 1 - visible_rooms && replayTopLeftRoom.second > 0)
-                    --replayTopLeftRoom.second;
-            }
-            return;
-        break; case '+':
-            if (!replaying && !withControl)
-                break;
-            if (visible_rooms > 1)
-                --visible_rooms;
-            return;
+    if (toupper(ch) == 'P' && replaying) {
+        replay_paused = !replay_paused;
+        return;
     }
 
     switch (sc) {
@@ -4191,6 +4171,29 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             }
         }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
+        break; case KEY_MINUS_PAD:
+            if (!replaying && !withControl)
+                break;
+            if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || menu.options.graphics.repeatMap() && visible_rooms < 100) {
+                if (replaying) {
+                    ++visible_rooms;
+                    if (replayTopLeftRoom.first == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.first > 0) // if map border wasn't broken, don't break it either
+                        --replayTopLeftRoom.first;
+                    if (replayTopLeftRoom.second == fx.map.h + 1 - visible_rooms && replayTopLeftRoom.second > 0)
+                        --replayTopLeftRoom.second;
+                }
+                else
+                    visible_rooms += visible_rooms < 3 ? .25 : visible_rooms < 5 ? .5 : 1.;
+            }
+        break; case KEY_PLUS_PAD:
+            if (!replaying && !withControl)
+                break;
+            if (visible_rooms > 1) {
+                if (replaying)
+                    --visible_rooms;
+                else
+                    visible_rooms -= visible_rooms <= 3 ? .25 : visible_rooms <= 5 ? .5 : 1.;
+            }
         break; default:
             // Add character to text
             if (!replaying && talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
