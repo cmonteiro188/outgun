@@ -40,9 +40,13 @@
 #include "utility.h"
 
 #ifndef DEDICATED_SERVER_ONLY
-#include "client.h"
-#include "loadpng/loadpng.h"
-#include "mappic.h"
+# ifdef WITH_PNG
+#  include "loadpng/loadpng.h"
+# else
+   static inline void register_png_file_type() { }
+# endif
+# include "client.h"
+# include "mappic.h"
 #endif
 
 using std::ifstream;

@@ -54,7 +54,7 @@ void Mappic::save_pictures() const {
     graphics.setColors();
     const string dir(wheregamedir + "mappic" + directory_separator);
     for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
-        string picture = dir + *name + ".png";
+        const string picture = dir + *name + Graphics::save_extension;
         Map mp;
         if (!mp.load(log, SERVER_MAPS_DIR, *name))
             log.error(_("Map picture saver: Map '$1' is not a valid map file.", *name));

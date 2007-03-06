@@ -66,6 +66,12 @@ using std::sort;
 using std::string;
 using std::vector;
 
+#ifdef WITH_PNG
+const char* const Graphics::save_extension = ".png";
+#else
+const char* const Graphics::save_extension = ".pcx";
+#endif
+
 Graphics::Graphics(LogSet logs):
     roomLayout          (*this),
     background          (*this),
@@ -80,7 +86,12 @@ Graphics::Graphics(LogSet logs):
     antialiasing        (true),
     mapNeedsRedraw      (true),
     log                 (logs)
-{ }
+{
+    file_extensions.push_back(".pcx");
+    #ifdef WITH_PNG
+    file_extensions.push_back(".png");
+    #endif
+}
 
 Graphics::~Graphics() {
     unload_bitmaps();
@@ -2745,8 +2756,11 @@ void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) cons
         dst_theme(*ti);
         // Check if the theme has a background image
         const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background";
-        if (platIsFile(bg + ".png") || platIsFile(bg + ".pcx"))
-            dst_bg(*ti);
+        for (vector<string>::const_iterator ei = file_extensions.begin(); ei != file_extensions.end(); ++ei)
+            if (platIsFile(bg + *ei)) {
+                dst_bg(*ti);
+                break;
+            }
     }
 }
 
@@ -2799,11 +2813,13 @@ void Graphics::load_playfield_pictures() {
     load_pup_sprites   (theme_path);
 }
 
-BITMAP* Graphics::load_bitmap(const string& file) {
-    BITMAP* buf = ::load_bitmap((file + ".png").c_str(), 0);
-    if (!buf)
-        buf = ::load_bitmap((file + ".pcx").c_str(), 0);
-    return buf;
+BITMAP* Graphics::load_bitmap(const string& file) const {
+    for (vector<string>::const_iterator ei = file_extensions.begin(); ei != file_extensions.end(); ++ei) {
+        BITMAP* buf = ::load_bitmap((file + *ei).c_str(), 0);
+        if (buf)
+            return buf;
+    }
+    return 0;
 }
 
 void Graphics::load_background() {

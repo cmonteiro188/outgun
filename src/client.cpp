@@ -3513,10 +3513,10 @@ void Client::print_message(Message_type type, const string& msg) {
 void Client::save_screenshot() {
     string filename;
     for (int i = 0; i < 1000; i++) {
-        // filename: screens/outgxxx.png
+        // filename: screens/outgxxx.ext
         ostringstream fname;
         fname << wheregamedir << "screens" << directory_separator;
-        fname << "outg" << setfill('0') << setw(3) << i << ".png";
+        fname << "outg" << setfill('0') << setw(3) << i << Graphics::save_extension;
         if (!file_exists(fname.str().c_str(), FA_ARCH | FA_DIREC | FA_HIDDEN | FA_RDONLY | FA_SYSTEM, 0)) {
             filename = fname.str();
             break;

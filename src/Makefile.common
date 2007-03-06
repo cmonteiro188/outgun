@@ -52,6 +52,7 @@ ifdef LINUX
   ALLEG_LIBS =
   ALLEG_CFLAGS =
   PNG_LIBS =
+  PNG_CFLAGS =
  else 
   ifdef STATIC_ALLEGRO
    ifdef DEBUGLIBS
@@ -68,6 +69,7 @@ ifdef LINUX
   endif
   ALLEG_CFLAGS =
   PNG_LIBS = -lz -lpng
+  PNG_CFLAGS = -DWITH_PNG
  endif
  STLP_LIBS =
  STLP_CFLAGS =
@@ -87,6 +89,7 @@ else
 
  BASE_LIBS = -lNL -lpthreadGC1 -lwinmm
  PNG_LIBS = -lz -lpng
+ PNG_CFLAGS = -DWITH_PNG
  ifdef STATIC_ALLEGRO
   ALLEG_LIBS = -lalleg_s -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lole32 \
 	-ldinput -lddraw -ldxguid -ldsound
@@ -118,7 +121,7 @@ ifdef DEDICATED_SERVER_ONLY
  OBJS = $(BASE_OBJS) $(PLATFORM_OBJS) $(EXTRA_OBJS)
  LIBS = $(BASE_LIBS) $(STLP_LIBS)
 else
-   CFLAGS = $(BASE_CFLAGS)   $(ALLEG_CFLAGS) $(STLP_CFLAGS)
+   CFLAGS = $(BASE_CFLAGS)   $(ALLEG_CFLAGS) $(STLP_CFLAGS) $(PNG_CFLAGS)
  C_CFLAGS = $(BASE_C_CFLAGS) $(ALLEG_CFLAGS) $(STLP_CFLAGS)
  OBJS = $(BASE_OBJS) $(CLIENT_OBJS) $(PLATFORM_OBJS) $(EXTRA_OBJS)
  LIBS = $(BASE_LIBS) $(ALLEG_LIBS) $(STLP_LIBS) $(PNG_LIBS)
