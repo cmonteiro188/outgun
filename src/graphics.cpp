@@ -1206,6 +1206,9 @@ void Graphics::draw_neighbor_marker(bool flag, int xDelta, int yDelta, const Wor
 
 //draws a basic player object
 void Graphics::draw_player(const WorldCoords& pos, int team, int pli, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) {
+    if (alpha <= 0)
+        return;
+
     int pc1 = teamcol[team];
     int pc2 = col[pli];
     //blink player when hit
