@@ -813,21 +813,20 @@ void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha
                 draw_sprite(drawbuf, sprite, sx, sy);
         }
         else {
-            y += pf_scale(20);
             //draw flagpole
             rectfill(drawbuf,
                      x - pf_scale(3),
-                     y - pf_scale(40),
+                     y - pf_scale(20),
                      x + pf_scale(3),
-                     y,
+                     y + pf_scale(20),
                      colour(Colour::flag_pole)
                      );
             //draw the flag itself
             rectfill(drawbuf,
                      x,
-                     y - pf_scale(38),
+                     y - pf_scale(18),
                      x + pf_scale(20),
-                     y - pf_scale(20),
+                     y,
                      flash ? teamflashcol[team] : teamcol[team]
                      );
         }
