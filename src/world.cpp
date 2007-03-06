@@ -3369,7 +3369,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
             rock[i] = source.rock[i];
     }
 
-    static const double playerPosAccuracy = plw / double(0xFFF) / 2.;
+    static const double playerPosAccuracy = plw / double(0xFFF) / 2.; // used to counter problems in bouncing caused by inaccurate positions over network
     for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
         if (me != -1)
             player[me].controls = ctrlTab[ctrli];
@@ -3380,7 +3380,6 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
         player[me].controls = ctrlTab[ctrlLast];
     applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
     frame += subFrameAfter;
-    // playerPosAccuracy is used to counter problems in bouncing caused by inaccurate positions over network
 }
 
 // Save stats in HTML file.
