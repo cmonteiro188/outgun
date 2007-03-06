@@ -1321,7 +1321,7 @@ bool Client::IsCarriersDef(int team) const {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
     int defenders = 0;
     int def_me = -1;
-    int players = GetPlayers(fx.player[me].team());
+    const int players = GetPlayers(fx.player[me].team());
     int flags_nr = 0;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
@@ -1577,9 +1577,7 @@ bool Client::IsMission(RouteTable num) const {
     // if we are looking for flag or going to our base for something
     if (fx.player[me].roomx == route_x[num] && fx.player[me].roomy == route_y[num])
         return false;
-    if (HaveFlag(me) || routing[num] == Route_Flag || to_home || !to_home && routing[num] == Route_Base)
-        return true;
-    return false;
+    return HaveFlag(me) || routing[num] == Route_Flag || to_home || !to_home && routing[num] == Route_Base;
 }
 
 ClientControls Client::getRobotControls() {
