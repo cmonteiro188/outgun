@@ -2882,7 +2882,7 @@ BITMAP* Graphics::get_wall_texture(int texid) {
 }
 
 void Graphics::load_player_sprites(const string& path) {
-    const int size = max(1, pf_scale(2 * 2 * PLAYER_RADIUS));
+    const int size = max(1, pf_scale(player_max_size_in_world));
     const Bitmap common   = scale_sprite      (path + "player"         , size, size);
     const Bitmap team     = scale_alpha_sprite(path + "player_team"    , size, size);
     const Bitmap personal = scale_alpha_sprite(path + "player_personal", size, size);
@@ -2926,7 +2926,7 @@ void Graphics::combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITM
 }
 
 void Graphics::load_shield_sprites(const string& path) {
-    const int size = max(1, pf_scale(2 * 2 * PLAYER_RADIUS));
+    const int size = max(1, pf_scale(player_max_size_in_world));
     Bitmap picture = scale_sprite(path + "player_shield", size, size);
     if (!picture)
         return;
@@ -2939,7 +2939,7 @@ void Graphics::load_shield_sprites(const string& path) {
 }
 
 void Graphics::load_dead_sprites(const string& path) {
-    const int size = max(1, pf_scale(2 * 2 * PLAYER_RADIUS));
+    const int size = max(1, pf_scale(player_max_size_in_world));
     ice_cream = scale_sprite(path + "ice_cream", size, size);
     Bitmap picture = scale_sprite(path + "dead", size, size);
     if (!picture)
@@ -2956,7 +2956,7 @@ void Graphics::load_dead_sprites(const string& path) {
 
 // Make rocket sprites by combining rocket image with team colour.
 void Graphics::load_rocket_sprites(const string& path) {
-    const int size = max(1, pf_scale(2 * 2 * ROCKET_RADIUS));
+    const int size = max(1, pf_scale(rocket_max_size_in_world));
     Bitmap normal = scale_sprite(path + "rocket", size, size);
     if (normal) {
         Bitmap team = scale_alpha_sprite(path + "rocket_team", size, size);
@@ -2980,7 +2980,7 @@ void Graphics::load_rocket_sprites(const string& path) {
 
 // Make flag sprites by combining flag image with team colour.
 void Graphics::load_flag_sprites(const string& path) {
-    const int size = max(1, pf_scale(100));
+    const int size = max(1, pf_scale(flag_max_size_in_world));
     Bitmap flag = scale_sprite(path + "flag", size, size);
     if (flag) {
         Bitmap team = scale_alpha_sprite(path + "flag_team", size, size);
@@ -2995,7 +2995,7 @@ void Graphics::load_flag_sprites(const string& path) {
 }
 
 void Graphics::load_pup_sprites(const string& path) {
-    const int size = max(1, pf_scale(2 * PLAYER_RADIUS));
+    const int size = max(1, pf_scale(item_max_size_in_world));
     pup_sprite[Powerup::pup_shield      ] = scale_sprite(path + "shield"      , size, size);
     pup_sprite[Powerup::pup_turbo       ] = scale_sprite(path + "turbo"       , size, size);
     pup_sprite[Powerup::pup_shadow      ] = scale_sprite(path + "shadow"      , size, size);
