@@ -2219,7 +2219,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
                 readByte(lebuf, count, carrier);
                 if (!new_flag) {
                     if (!fx.player[carrier].onscreen && !replaying) {
-                        const WorldCoords flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
+                        const WorldCoords& flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
                         fx.player[carrier].roomx = flagPos.px;
                         fx.player[carrier].roomy = flagPos.py;
                         fx.player[carrier].lx = flagPos.x;
