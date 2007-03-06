@@ -1263,9 +1263,10 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int pli, GunDirecti
                 line(drawbuf, x + xg0 + xda, y + yg0 + yda, x + xg1 + xda, y + yg1 + yda, pc1);
                 line(drawbuf, x + xg0 + xdb, y + yg0 + ydb, x + xg1 + xdb, y + yg1 + ydb, pc1);
             }
+
+            solid_mode();
         }
     }
-    solid_mode();
 }
 
 void Graphics::draw_me_highlight(const WorldCoords& pos, double size) {
