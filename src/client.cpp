@@ -619,7 +619,8 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     #endif
 {
     #ifndef DEDICATED_SERVER_ONLY
-    hostLogs("See clientlog.txt for client's log messages");
+    if (!botmode)
+        hostLogs("See clientlog.txt for client's log messages");
     #else
     (void)hostLogs;
     #endif
