@@ -1366,6 +1366,15 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, G
     }
 }
 
+void ConstFlagIterator::findValid() {
+    while (iFlag >= flags->size()) {
+        if (++iTeam == 3)
+            break;
+        setFlags();
+        iFlag = 0;
+    }
+}
+
 PhysicalSettings::PhysicalSettings() :
     fric        (0.20),
     drag        (0.16),

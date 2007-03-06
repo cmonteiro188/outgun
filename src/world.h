@@ -813,6 +813,32 @@ public:
     void save_stats(const std::string& dir, const std::string& map_name) const;
 };
 
+class ConstFlagIterator {
+    const WorldBase& w;
+    unsigned iTeam, iFlag;
+    const std::vector<Flag>* flags;
+
+    void setFlags() { flags = iTeam == 2 ? &w.wild_flags : &w.teams[iTeam].flags(); }
+    void findValid();
+
+protected:
+    bool valid() const { return iTeam < 3; }
+    void next() { ++iFlag; findValid(); }
+    const Flag& flag() const { nAssert(iTeam < 3 && iFlag < flags->size()); return (*flags)[iFlag]; }
+
+public:
+    ConstFlagIterator(const WorldBase& world) : w(world), iTeam(0), iFlag(0) { setFlags(); findValid(); }
+    virtual ~ConstFlagIterator() { }
+
+    bool operator!() const { return !valid(); }
+    operator bool() const { return valid(); }
+    virtual ConstFlagIterator& operator++() { next(); return *this; }
+
+    int team() const { return iTeam; }
+    const Flag& operator*() const { return flag(); }
+    const Flag* operator->() const { return &flag(); }
+};
+
 class PowerupSettings {
     int pups_by_percent(int percentage, const Map& map) const;
 
