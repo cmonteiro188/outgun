@@ -3405,6 +3405,7 @@ void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map
     }
 
     #if 0
+    // Performance test
     static bool hasRun = false;
     if (!hasRun && draw_map && reserve_playfield) {
         hasRun = true;
