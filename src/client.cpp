@@ -5422,8 +5422,10 @@ void Client::draw_player(int pid, double time, bool live) {
     const WorldCoords pos = playerPos(pid);
     // draw flag if player is carrier of a flag
     for (ConstFlagIterator fi(fx); fi; ++fi)
-        if (fi->carrier() == pid)
+        if (fi->carrier() == pid) {
             graphics.draw_flag(fi.team(), pos, false, flagAlpha, menu.options.graphics.emphasizeFlag(visible_rooms));
+            break;
+        }
     if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
         if (!fullyVisible) {
             graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
