@@ -4698,6 +4698,7 @@ void Client::start_spectating(const NLaddress& address) {
     replaying = true;
     replay_rate = 1;
     spectate_data_received = false;
+    // TODO: Show a dialog "Waiting for the game to start" or something.
 }
 
 void Client::continue_spectating() {
@@ -4719,6 +4720,7 @@ void Client::continue_spectating() {
         return;
 
     if (!spectate_data_received) {
+        // TODO: Hide the waiting dialog.
         log("First data from relay, %d bytes: %s", result, buffer);
         spectate_data_received = true;
         spectate_buffer.write(buffer, result);
