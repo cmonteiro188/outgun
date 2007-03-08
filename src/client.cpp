@@ -2349,7 +2349,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             readShort(lebuf, count, rokx);
             readShort(lebuf, count, roky);
             addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
-            if (!replaying || on_screen(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
+            if (on_screen_exact(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
                 addThreadMessage(new TM_Sound(SAMPLE_HIT));
         }
         #endif
