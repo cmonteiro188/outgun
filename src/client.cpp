@@ -4866,10 +4866,10 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
-    const double time = fx.frame / 10;
-    const bool sound = !replaying || on_screen(roomx, roomy, x, y);
     if (botmode)
         return;
+    const double time = fx.frame / 10;
+    const bool sound = on_screen_exact(roomx, roomy, x, y);
     if (power) {
         graphics.create_powerwallexplo(WorldCoords(roomx, roomy, x, y), fx.rock[rid].team, time);
         if (sound)
