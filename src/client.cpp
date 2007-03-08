@@ -2480,7 +2480,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             stream.write(lebuf + count, map_length);
             count += map_length;
             if (!fx.map.parse_file(log, stream)) {
-                log.error(_("Format error in replay file."));
+                log("Problem with map data.");
                 return false;
             }
             fd.map = fx.map;
@@ -3430,7 +3430,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
-            log.error("Server sent an unknown message code: " + itoa(code) + ", length " + itoa(msglen));
+            log("Unknown message code: %d, length %d", code, msglen);
             return false;
         }
         // just ignore commands in reserved range: they're probably some extension we don't have to care about
@@ -3453,6 +3453,7 @@ void Client::process_incoming_data(const char* data, int length) {
             int msglen;
             readLong(data, replay_pos, msglen);
             if (!process_message(data + replay_pos, msglen)) {
+                log.error(_("Format error in replay file."));
                 stop_replay();
                 return;
             }
@@ -3471,6 +3472,7 @@ void Client::process_incoming_data(const char* data, int length) {
             if (lebuf == 0)
                 break;
             if (!process_message(lebuf, msglen)) {
+                log.error(_("Format error in data received from the server."));
                 addThreadMessage(new TM_DoDisconnect());
                 return;
             }
