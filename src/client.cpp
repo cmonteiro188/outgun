@@ -1916,7 +1916,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
                 fx.player[me].item_shadow_time = 0;
         }
 
-        if (!h.dead && (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag()))
+        if (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag())
             h.posUpdated = svframe;
     }
 
@@ -2035,8 +2035,7 @@ int Client::process_replay_frame_data(const char* data) { // returns number of b
         readByte(data, count, byte);
         pl.visibility = byte;
 
-        if (!pl.dead)
-            pl.posUpdated = svframe;
+        pl.posUpdated = svframe;
     }
     unsigned short ping;
     readShort(data, count, ping);
