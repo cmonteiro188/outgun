@@ -25,6 +25,8 @@
 #ifndef EFFECTS_H_INC
 #define EFFECTS_H_INC
 
+#include "world.h"
+
 // client side effects
 
 enum FX_TYPE {

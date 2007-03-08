@@ -30,7 +30,6 @@
 #include <cmath>
 
 #include "antialias.h"
-#include "client.h"
 #include "commont.h"
 #include "effects.h"
 #include "language.h"

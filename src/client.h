@@ -713,25 +713,4 @@ public:
     int team() const { return me / TSIZE; }
 };
 
-#ifndef DEDICATED_SERVER_ONLY
-class Message {
-public:
-    Message(Message_type type_, const std::string& txt, int time_):
-        msg_type(type_), msg_text(txt), msg_time(time_), is_highlighted(false) { }
-
-    void highlight() { is_highlighted = true; }
-
-    Message_type type() const { return msg_type; }
-    const std::string& text() const { return msg_text; }
-    int time() const { return msg_time; }
-    bool highlighted() const { return is_highlighted; }
-
-private:
-    Message_type msg_type;
-    std::string msg_text;
-    int msg_time;
-    bool is_highlighted;
-};
-#endif
-
 #endif
