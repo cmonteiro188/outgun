@@ -2341,13 +2341,13 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #ifndef DEDICATED_SERVER_ONLY
         NLubyte target;
         readByte(lebuf, count, target);
-        //hit position
-        NLshort rokx, roky;
-        readShort(lebuf, count, rokx);
-        readShort(lebuf, count, roky);
         if (target != 255) {    // hit player
             if (target != 252)  // not shield hit -> blink player
                 fx.player[target].hitfx = time + .3;
+            //hit position
+            NLshort rokx, roky;
+            readShort(lebuf, count, rokx);
+            readShort(lebuf, count, roky);
             addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
             if (!replaying || on_screen(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
                 addThreadMessage(new TM_Sound(SAMPLE_HIT));
