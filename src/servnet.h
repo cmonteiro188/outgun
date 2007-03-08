@@ -269,7 +269,7 @@ public:
     void sendWorldReset() const;
     void sendStartGame() const;
     void sendWeaponPower(int pid) const;
-    void sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int team, bool power, int px, int py, int x, int y) const; // sid = shot-id: array of NLubyte[shots]
+    void sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int pid, bool power, int px, int py, int x, int y, NLulong vislist) const; // sid = shot-id: array of NLubyte[shots]
     void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const;
     void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const;
     void sendDeathbringer(int pid, const ServerPlayer& ply) const;

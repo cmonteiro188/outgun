@@ -908,6 +908,8 @@ public:
     bool capture_on_team_flag;
     bool capture_on_wild_flag;
 
+    int see_rockets_distance;
+
     int carrying_score_time;
 
     static const int shadow_minimum_normal;
@@ -942,6 +944,7 @@ class ServerWorld : public WorldBase {
     LogSet log;
 
     NLubyte getFreeRocket();    // may give an existing rocket to overwrite if the table is full
+    bool doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const;
     void drop_pickup(const ServerPlayer& player);
     void drop_worst_powerup(ServerPlayer& player);
 

@@ -2246,9 +2246,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         for (int k = 0; k < rpow; k++)
             readByte(lebuf, count, rids[k]);
         readLong(lebuf, count, frameno);    // frame # of shot
-        readByte(lebuf, count, rteampower); // team (bit 1) and power (bit 0)
-        const bool power = ((rteampower & 1) != 0);
-        const int team = (rteampower & 2) >> 1;
+        readByte(lebuf, count, rteampower); // power (bit 0) and shooter pid/team
+        const bool power = (rteampower & 1) != 0;
 
         NLubyte rpx, rpy;
         NLshort rx, ry;
@@ -2257,6 +2256,30 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
         readShort(lebuf, count, rx);
         readShort(lebuf, count, ry);
+
+        int team;
+        if (protocolExtensionsS2C >= 0) {
+            if (rteampower & 2) { // with player id
+                const int pid = (rteampower & 0x7C) >> 2;
+                if (pid >= maxplayers || !fx.player[pid].used) {
+                    log("Bad pid in data_rocket_fire: %d.", pid);
+                    return false;
+                }
+                team = pid / TSIZE;
+                if (fx.player[pid].posUpdated < frameno) {
+                    fx.player[pid].roomx = rpx;
+                    fx.player[pid].roomy = rpy;
+                    fx.player[pid].lx = rx;
+                    fx.player[pid].ly = ry;
+                    fx.player[pid].gundir = dir;
+                    fx.player[pid].posUpdated = frameno;
+                }
+            }
+            else
+                team = (rteampower & 4) >> 2;
+        }
+        else
+            team = (rteampower & 2) >> 1;
 
         ClientPhysicsCallbacks cb(*this);
         fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);

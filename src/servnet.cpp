@@ -2947,8 +2947,8 @@ void ServerNetworking::sendWeaponPower(int pid) const {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int team, bool power,
-                                         int px, int py, int x, int y) const { // sid = shot-id; array of NLubyte[shots]
+void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int pid, bool power,
+                                         int px, int py, int x, int y, NLulong vislist) const { // sid = shot-id; array of NLubyte[shots]
     for (int iProto = 0; iProto < 2; ++iProto) {
         const bool preciseGundir = iProto == 1 && world.physics.allowFreeTurning;
         char lebuf[256]; int count = 0;
@@ -2964,7 +2964,11 @@ void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte
         for (int i = 0; i < shots; i++)
             writeByte(lebuf, count, sid[i]);    // rocket-object id (needed because client-side rockets can be deleted by the server)
         writeLong(lebuf, count, world.frame);   // time of shot of the rocket: current (last simulated) frame
-        const NLubyte shotType = (team << 1) | power;
+        NLubyte shotType = power;
+        if (iProto == 0)
+            shotType |= (pid / TSIZE) << 1;
+        else
+            shotType |= 2 | (pid << 2); // we're always sending the pid, but this might change in the future
         writeByte(lebuf, count, static_cast<NLubyte>(shotType));    // owner of all rockets
         writeByte(lebuf, count, static_cast<NLubyte>(px));  //coord
         writeByte(lebuf, count, static_cast<NLubyte>(py));
@@ -2972,8 +2976,7 @@ void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte
         writeShort(lebuf, count, static_cast<NLshort>(y));
 
         for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py
-                  && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
+            if ((vislist & (1 << i)) && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
                 server->send_message(world.player[i].cid, lebuf, count);
 
         if (iProto == 1)

@@ -1551,6 +1551,8 @@ void WorldSettings::reset() {
     capture_on_team_flag = true;
     capture_on_wild_flag = false;
 
+    see_rockets_distance = 0;
+
     carrying_score_time = 0;
 }
 
@@ -2112,9 +2114,9 @@ void ServerWorld::game_player_screen_change(int p) {
             it.px == player[p].roomx && it.py == player[p].roomy)
                 net->sendPickupVisible(p, i, item[i]);
     }
-    // check for rockets in the new room
+    // check for rockets visible to the new room
     for (int i = 0; i < MAX_ROCKETS; ++i)
-        if (rock[i].owner != -1 && rock[i].px == player[p].roomx && rock[i].py == player[p].roomy && !(rock[i].vislist & (1 << p))) {
+        if (rock[i].owner != -1 && !(rock[i].vislist & (1 << p)) && doesPlayerSeeRocket(player[p], rock[i].px, rock[i].py)) {
             rock[i].vislist |= (1 << p);
             net->sendOldRocketVisible(p, i, rock[i]);
         }
@@ -2297,6 +2299,18 @@ NLubyte ServerWorld::getFreeRocket() {
     return i;
 }
 
+bool ServerWorld::doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const {
+    if (pl.protocolExtensionsLevel < 0) // older clients can't show other rooms anyway, and will play some sounds for all rockets
+        return false;
+    int dx = positiveModulo(pl.roomx - roomx, map.w),
+        dy = positiveModulo(pl.roomy - roomy, map.h);
+    if (dx > map.w / 2)
+        dx = map.w - dx;
+    if (dy > map.h / 2)
+        dy = map.h - dy;
+    return dx <= config.see_rockets_distance && dy <= config.see_rockets_distance;
+}
+
 void ServerWorld::shootRockets(int pid, int shots) {
     const int px = player[pid].roomx, py = player[pid].roomy, x = static_cast<int>(player[pid].lx), y = static_cast<int>(player[pid].ly); // cast to be in sync: the coords need to be the same as client receives
 
@@ -2314,14 +2328,14 @@ void ServerWorld::shootRockets(int pid, int shots) {
     //send message to players on the same screen
     NLulong vislist = 0;
     for (int p = 0; p < maxplayers; p++)
-        if (player[p].used && player[p].roomx == px && player[p].roomy == py)
+        if (player[p].used && doesPlayerSeeRocket(player[p], px, py))
             vislist |= (1 << p);
 
     //mark all created rockets with the vislist
     for (int k = 0; k < shots; k++)
         rock[sid[k]].vislist = vislist;
 
-    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid / TSIZE, player[pid].item_power, px, py, x, y);
+    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, px, py, x, y, vislist);
 }
 
 void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
