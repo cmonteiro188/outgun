@@ -3600,16 +3600,7 @@ void Client::refreshThread() {
     refreshStatus = ok ? RS_none : RS_failed;
 }
 
-//refresh servers command
-bool Client::refresh_all_servers() {
-    bool ok = refresh_servers(gamespy);
-    if (!abortThreads && !menu.connect.favorites())
-        if (!refresh_servers(mgamespy))
-            ok = false;
-    return ok;
-}
-
-class TempPingData {    // internal to Client::refresh_servers
+class TempPingData {    // internal to Client::refresh_all_servers
     double st[4];   // send time
     int rc;         // count of received packets
     double rt;      // sum of pings (for averaging)
@@ -3622,19 +3613,25 @@ public:
     int ping() const { return static_cast<int>(1000 * rt / rc); }
 };
 
-//refresh servers command
-bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
+bool Client::refresh_all_servers() {
     refreshStatus = RS_contacting;
 
     serverListMutex.lock();
 
-    const int nServers = static_cast<int>(gamespy.size());
+    vector<ServerListEntry*> servers;
+    for (vector<ServerListEntry>::iterator si = gamespy.begin(); si != gamespy.end(); ++si)
+        servers.push_back(&*si);
+    if (!menu.connect.favorites())
+        for (vector<ServerListEntry>::iterator si = mgamespy.begin(); si != mgamespy.end(); ++si)
+            servers.push_back(&*si);
+
+    const int nServers = static_cast<int>(servers.size());
     vector<TempPingData> tempd(nServers);
     int pending = nServers;         // count of valid entries still waiting for a response
 
     for (int i = 0; i < nServers; i++) {
-        gamespy[i].refreshed = true;
-        gamespy[i].ping = 0;
+        servers[i]->refreshed = true;
+        servers[i]->ping = 0;
     }
 
     serverListMutex.unlock();
@@ -3670,7 +3667,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
                 writeByte(lebuf, count, (NLubyte)i);        //connect entry (am I lazy or what)
                 writeByte(lebuf, count, (NLubyte)round);        //packet number
 
-                nlSetRemoteAddr(sock, &gamespy[i].address());
+                nlSetRemoteAddr(sock, &servers[i]->address());
                 nlWrite(sock, lebuf, count);
                 tempd[i].send(round);
             }
@@ -3696,7 +3693,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
                     continue;
 
                 NLubyte index, pack;
-                readByte(lebuf, count, index);  // gamespy entry number echoed by the server
+                readByte(lebuf, count, index);  // entry number echoed by the server
                 readByte(lebuf, count, pack);   // packet #
 
                 if (index >= nServers || pack >= 4 || pack > round || len < count)  // don't have to worry about < 0 because they're unsigned
@@ -3706,18 +3703,18 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
 
                 NLaddress from;
                 nlGetRemoteAddr(sock, &from);
-                if (!nlAddrCompare(&from, &gamespy[index].address()))
+                if (!nlAddrCompare(&from, &servers[index]->address()))
                     continue;
 
-                readStr(lebuf, count, gamespy[index].info);
+                readStr(lebuf, count, servers[index]->info);
 
                 if (tempd[index].received() == 0)   // first reply -> server has changed to being valid
                     pending--;
 
                 tempd[index].receive(pack);
-                gamespy[index].ping = tempd[index].ping();
+                servers[index]->ping = tempd[index].ping();
 
-                gamespy[index].noresponse = false;  // set here in advance so that the main thread will already show it
+                servers[index]->noresponse = false;  // set here in advance so that the main thread will already show it
             }
         }
     }
@@ -3727,7 +3724,7 @@ bool Client::refresh_servers(vector<ServerListEntry>& gamespy) {
         MutexLock ml(serverListMutex);
         for (int i = 0; i < nServers; i++)
             if (tempd[i].received() == 0)
-                gamespy[i].noresponse = true;
+                servers[i]->noresponse = true;
     }
 
     nlClose(sock);

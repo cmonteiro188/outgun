@@ -630,7 +630,6 @@ class Client {
     void getServerListThread();
     void refreshThread();
     bool refresh_all_servers();
-    bool refresh_servers(std::vector<ServerListEntry>& gamespy);
     bool getServerList();
     bool get_local_servers();
     bool parseServerList(std::istream& response);
