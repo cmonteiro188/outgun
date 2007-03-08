@@ -710,8 +710,7 @@ class Client {
     };
 
 public:
-    Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
-
+    Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
     ~Client();
 
     bool start();

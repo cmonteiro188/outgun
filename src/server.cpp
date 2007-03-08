@@ -813,7 +813,7 @@ void Server::init_bots() {
     if (!nlStringToAddr(("127.0.0.1:" + itoa(settings.get_port())).c_str(), &address))
         nAssert(0);
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        Client* bot = new Client(log, clientCfg, serverCfg, botNoLog, botErrorLog);
+        Client* bot = new Client(clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), settings.get_bot_name_lang());

@@ -599,8 +599,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         // run client
         clientCfg.statusOutput = statusOutputWindow;
         serverCfg.statusOutput = statusOutputWindow;
+        log("See clientlog.txt for client's log messages");
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
-        Client* gameclient = new Client(log, clientCfg, serverCfg, clientLog, memoryErrorLog);
+        Client* gameclient = new Client(clientCfg, serverCfg, clientLog, memoryErrorLog);
         if (gameclient->start()) {
             gameclient->loop(&g_exitFlag, showFirstTimeSplash);
             gameclient->stop();

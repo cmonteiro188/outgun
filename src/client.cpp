@@ -592,7 +592,7 @@ void Client::ConstDisappearedFlagIterator::findValid() {
     }
 }
 
-Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
+Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -631,13 +631,6 @@ Client::Client(LogSet hostLogs, const ClientExternalSettings& config, const Serv
     , serverExtConfig(serverConfig)
     #endif
 {
-    #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode)
-        hostLogs("See clientlog.txt for client's log messages");
-    #else
-    (void)hostLogs;
-    #endif
-
     //net client
     client = 0;
 
