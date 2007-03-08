@@ -646,14 +646,6 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     //time of last packet received
     lastpackettime = 0;
 
-    #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode) {
-        initMenus();
-        showMenu(menu);
-    }
-    menusel = menu_none;
-    #endif
-
     //game showing?
     gameshow = false;
 
@@ -697,8 +689,12 @@ Client::~Client() {
 
 bool Client::start() {
     #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode)
+    if (!botmode) {
         extConfig.statusOutput(_("Outgun client"));
+        initMenus();
+        showMenu(menu);
+    }
+    menusel = menu_none;
     #endif
 
     totalframecount = 0;
