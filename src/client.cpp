@@ -2287,10 +2287,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #ifndef DEDICATED_SERVER_ONLY
         //play sound if rocket on screen
         if (on_screen_exact(rpx, rpy, rx, ry))
-            if (power)
-                addThreadMessage(new TM_Sound(SAMPLE_POWER_FIRE));
-            else
-                addThreadMessage(new TM_Sound(SAMPLE_FIRE));
+            addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
         #endif
     }
 
