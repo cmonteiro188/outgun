@@ -2104,8 +2104,6 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
     }
 }
 
-//game player screen changed
-// --> send any pickups on screen
 void ServerWorld::game_player_screen_change(int p) {
     player[p].record_position = true;
     //check for new pickups visible
