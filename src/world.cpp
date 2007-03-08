@@ -1812,6 +1812,7 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     player[pid].respawn_to_base = false;
 
     player[pid].next_shoot_frame = player[pid].start_take_damage_frame = frame + config.get_spawn_safe_time_frames();
+    player[pid].attackOnce = false;
 
     player[pid].dead = false;
 
