@@ -45,7 +45,7 @@
 # else
    static inline void register_png_file_type() { }
 # endif
-# include "client.h"
+# include "client_interface.h"
 # include "mappic.h"
 #endif
 
@@ -601,7 +601,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         serverCfg.statusOutput = statusOutputWindow;
         log("See clientlog.txt for client's log messages");
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
-        Client* gameclient = new Client(clientCfg, serverCfg, clientLog, memoryErrorLog);
+        ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);
         if (gameclient->start()) {
             gameclient->loop(&g_exitFlag, showFirstTimeSplash);
             gameclient->stop();

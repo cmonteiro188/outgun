@@ -38,6 +38,7 @@
 #include "sounds.h"
 #endif
 
+#include "client_interface.h"
 #include "function_utility.h"
 #include "gameserver_interface.h"
 #include "log.h"
@@ -162,23 +163,6 @@ private:
 };
 #endif
 
-class ClientExternalSettings {
-public:
-    int winclient;      // windowed client? ; -1 = undefined, 0 = false, 1 = true (-win / -fs)
-    int trypageflip;    // try page flipping? ; -1 = undefined, 0 = false, 1 = true (-flip / -dbuf)
-    bool forceDefaultGfxMode;
-    bool nosound;       // disable sound? -nosound
-    int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
-    int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
-    int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
-    std::string autoReplay;
-
-    typedef void StatusOutputFnT(const std::string& str);
-    StatusOutputFnT* statusOutput;
-
-    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0) { }
-};
-
 class Client;
 class client_c; // of leetnet
 class client_runes_t;
@@ -194,7 +178,7 @@ public:
     virtual void execute(Client* cl) const = 0;
 };
 
-class Client {
+class Client : public ClientInterface {
     friend class ClientPhysicsCallbacks;
     friend class TM_DoDisconnect;
     friend class TM_Text;

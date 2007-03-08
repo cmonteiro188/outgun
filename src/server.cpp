@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 
-#include "client.h"
+#include "client_interface.h"
 #include "function_utility.h"
 #include "incalleg.h"
 #include "language.h"
@@ -813,7 +813,7 @@ void Server::init_bots() {
     if (!nlStringToAddr(("127.0.0.1:" + itoa(settings.get_port())).c_str(), &address))
         nAssert(0);
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        Client* bot = new Client(clientCfg, serverCfg, botNoLog, botErrorLog);
+        ClientInterface* bot = ClientInterface::newClient(clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), settings.get_bot_name_lang());
@@ -1645,7 +1645,7 @@ void Server::run_bot_thread() {
         const bool adjust_pings = bot_ping_changed;
         if (adjust_pings)
             bot_ping_changed = false;
-        for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ) {
+        for (vector<ClientInterface*>::iterator bi = bots.begin(); bi != bots.end(); ) {
             nAssert(*bi);
             if ((*bi)->bot_finished()) {
                 delete *bi;
@@ -1660,7 +1660,7 @@ void Server::run_bot_thread() {
             }
         }
     }
-    for (vector<Client*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
+    for (vector<ClientInterface*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
         nAssert(*bi);
         (*bi)->stop();
         delete *bi;

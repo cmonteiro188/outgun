@@ -6318,3 +6318,7 @@ void Client::cfunc_server_data(void* customp, const char* data, int length) {
     Client* cl = static_cast<Client*>(customp);
     cl->process_incoming_data(data, length);
 }
+
+ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) {
+    return new Client(config, serverConfig, clientLog, externalErrorLog_);
+}

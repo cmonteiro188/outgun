@@ -33,7 +33,7 @@
 #include "servnet.h"
 #include "utility.h"
 
-class Client; // bots are Clients
+class ClientInterface; // bots are Clients
 class GamemodSetting;
 
 //per-client struct (statically allocated to a single client)
@@ -104,7 +104,7 @@ class Server {
     std::vector<bool> fav_colors[2];
 
     Thread          botthread;
-    std::vector<Client*> bots;
+    std::vector<ClientInterface*> bots;
     int extra_bots;
     volatile bool quit_bots;
     NoLog botNoLog;
