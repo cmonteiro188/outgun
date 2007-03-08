@@ -136,9 +136,10 @@ void AuthorizationDatabase::load(SettingChecker& validityChecker) throw(FileErro
         if (strl && command == "class") {
             if (name.empty())
                 throw FileError(_("Class command without class name in auth.txt."));
-            AccessDescriptor access(false, true);
+            name = tolower(name);
+            AccessDescriptor access(false, name != "user");
             access.read(strl, validityChecker);
-            classes[tolower(name)] = access;
+            classes[name] = access;
             continue;
         }
         const string compName = makeComparable(name);
