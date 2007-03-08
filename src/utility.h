@@ -47,6 +47,7 @@ std::string itoa_w(int val, int width, bool left = false);
 std::string fcvt(double val);
 std::string fcvt(double val, int precision);
 int iround(double value);
+int iround_bound(double value); // if value is out of int range, nearest value is used
 int numberWidth(int num);   // how many characters num takes when printed
 
 inline double sqr(double value) {  // the square of the given value (just to keep the code readable)

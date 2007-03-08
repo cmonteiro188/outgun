@@ -238,8 +238,9 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Boolean   ("capture_on_wild_flag",        &worldConfig.capture_on_wild_flag));
     cat.add(new GS_Balance   ("balance_teams",               &worldConfig.balance_teams));
     cat.add(new GS_Double    ("respawn_time",                &worldConfig.respawn_time, 0.));
-    cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
+    cat.add(new GS_Double    ("extra_respawn_time_alone",    &worldConfig.extra_respawn_time_alone, 0.));
     cat.add(new GS_Double    ("respawn_balancing_time",      &worldConfig.respawn_balancing_time, 0.));
+    cat.add(new GS_Double    ("waiting_time_deathbringer",   &worldConfig.waiting_time_deathbringer, 0.));
     cat.add(new GS_Double    ("spawn_safe_time",             &worldConfig.spawn_safe_time, 0.));
     cat.add(new GS_Boolean   ("free_turning",                &world.physics.allowFreeTurning));
     cat.add(new GS_Int       ("minimap_send_limit",          &minimap_send_limit, 0, 32));

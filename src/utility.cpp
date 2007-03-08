@@ -25,6 +25,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 
 #include <cmath>
@@ -42,6 +43,7 @@
 using std::dec;
 using std::hex;
 using std::min;
+using std::numeric_limits;
 using std::ofstream;
 using std::ostream;
 using std::ostringstream;
@@ -86,6 +88,15 @@ int iround(double value) {
         return static_cast<int>(value + 0.5);
     else
         return static_cast<int>(value - 0.5);
+}
+
+int iround_bound(double value) {
+    if (value <= numeric_limits<int>::min())
+        return numeric_limits<int>::min();
+    else if (value >= numeric_limits<int>::max())
+        return numeric_limits<int>::max();
+    else
+        return iround(value);
 }
 
 int numberWidth(int num) {

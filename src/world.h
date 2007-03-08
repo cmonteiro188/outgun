@@ -469,7 +469,7 @@ public:
     bool drop_key;
     bool dropped_flag;
     NLulong next_shoot_frame, start_take_damage_frame;
-    double respawn_time;
+    int frames_to_respawn, extra_frames_to_respawn;
     bool respawn_to_base;
 
     double talk_temp;
@@ -879,7 +879,7 @@ class WorldSettings {
 public:
     enum Team_balance { TB_disabled = 0, TB_balance, TB_balance_and_shuffle };
 
-    double respawn_time, waiting_time_deathbringer, respawn_balancing_time;
+    double respawn_time, extra_respawn_time_alone, waiting_time_deathbringer, respawn_balancing_time;
     int shadow_minimum; // smallest alpha value allowed; 0 is when even the coordinates are not sent
     int rocket_damage;
     int start_health, start_energy;
@@ -921,7 +921,7 @@ public:
     int get_shoot_interval_with_energy_frames() const { return iround(shoot_interval_with_energy * 10.); }
     int get_spawn_safe_time_frames() const { return iround(spawn_safe_time * 10.); }
 
-    double getRespawnTime(int playerTeamSize, int enemyTeamSize) const;
+    std::pair<double, double> getRespawnTime(int playerTeamSize, int enemyTeamSize) const;
     double getDeathbringerWaitingTime() const { return waiting_time_deathbringer; }
     int getShadowMinimum() const { return shadow_minimum; }
     int getCaptureLimit() const { return capture_limit; }

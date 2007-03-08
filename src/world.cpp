@@ -840,7 +840,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     weapon = 1;
     drop_key = false;
     dropped_flag = false;
-    respawn_time = 0;
+    frames_to_respawn = extra_frames_to_respawn = 0;
     respawn_to_base = false;
     fav_col.clear();
     for (char i = 0; i < 16; ++i)
@@ -1517,6 +1517,7 @@ const int WorldSettings::shadow_minimum_normal = 7;
 
 void WorldSettings::reset() {
     respawn_time = 2.0;
+    extra_respawn_time_alone = 0;
     waiting_time_deathbringer = 4.0;
     respawn_balancing_time = 0;
     shadow_minimum = shadow_minimum_normal;
@@ -1556,10 +1557,11 @@ void WorldSettings::reset() {
     carrying_score_time = 0;
 }
 
-double WorldSettings::getRespawnTime(int playerTeamSize, int enemyTeamSize) const {
-    if (playerTeamSize <= enemyTeamSize || enemyTeamSize == 0)
-        return respawn_time;
-    return respawn_time + respawn_balancing_time * (playerTeamSize - enemyTeamSize) / (double)enemyTeamSize;
+pair<double, double> WorldSettings::getRespawnTime(int playerTeamSize, int enemyTeamSize) const {
+    double extraTime = extra_respawn_time_alone;
+    if (playerTeamSize > enemyTeamSize && enemyTeamSize != 0)
+        extraTime += respawn_balancing_time * (playerTeamSize - enemyTeamSize) / (double)enemyTeamSize;
+    return pair<double, double>(respawn_time, extraTime);
 }
 
 class ServerPhysicsCallbacks : public PhysicsCallbacksBase {
@@ -1722,7 +1724,6 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
 }
 
 void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
-    player[pid].respawn_time = -1;
     const int team = pid / TSIZE;
 
     WorldCoords pos;
@@ -2141,10 +2142,18 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
         if (player[i].used)
             ++ts[i / TSIZE];
     const int plTeam = target / TSIZE;
-    double timeDelay = config.getRespawnTime(ts[plTeam], ts[1 - plTeam]) + time_penalty;
-    if (player[target].item_deathbringer)
-        timeDelay = max(timeDelay, 1.8); // the time required for a deathbringer explosion to reach the other end of the screen
-    player[target].respawn_time = get_time() + timeDelay;
+    pair<double, double> respawnTime = config.getRespawnTime(ts[plTeam], ts[1 - plTeam]);
+    respawnTime.first += time_penalty;
+    if (player[target].item_deathbringer && respawnTime.first < 1.8) {
+        respawnTime.second -= 1.8 - respawnTime.first;
+        respawnTime.first = 1.8; // the time required for a deathbringer explosion to reach the other end of the screen
+    }
+    if (respawnTime.first < 0) { // a negative time_penalty can cause this; in that case we want to eliminate extra waiting time too
+        respawnTime.second += respawnTime.first;
+        respawnTime.first = 0;
+    }
+    player[target].frames_to_respawn = iround_bound(respawnTime.first * 10.);
+    player[target].extra_frames_to_respawn = iround_bound(max(0., respawnTime.second) * 10.);
     player[target].stats().kill(get_time(), true);
     player[target].dead = true;
 }
@@ -2945,6 +2954,11 @@ void ServerWorld::degradeHealthOrEnergyForRunning(ServerPlayer& pl) {
         pl.health = max<double>(config.min_health_for_run_penalty, pl.health - config.run_health_degradation / 10.);
 }
 
+static bool sortByExtraFramesToRespawn(ServerPlayer* p1, ServerPlayer* p2) {
+    return p1->extra_frames_to_respawn < p2->extra_frames_to_respawn
+        || p1->extra_frames_to_respawn == p2->extra_frames_to_respawn && p1->frames_to_respawn < p2->frames_to_respawn;
+}
+
 void ServerWorld::simulateFrame() {
     // (-1) check powerup respawn
     for (int i = 0; i < MAX_PICKUPS; i++)
@@ -3057,20 +3071,46 @@ void ServerWorld::simulateFrame() {
 
     const bool extra_time_and_sudden_death = config.suddenDeath() && getTimeLeft() < 0;
 
+    // check player respawn
+    vector<ServerPlayer*> respawners[2];
+    for (int i = 0; i < maxplayers; ++i) {
+        ServerPlayer& pl = player[i];
+        if (!pl.used || pl.health > 0)
+            continue;
+        if (pl.frames_to_respawn)
+            --pl.frames_to_respawn;
+        else if (pl.extra_frames_to_respawn)
+            --pl.extra_frames_to_respawn;
+        if (!pl.awaiting_client_readies)
+            respawners[i / TSIZE].push_back(&pl);
+    }
+    for (int i = 0; i < 2; ++i)
+        sort(respawners[i].begin(), respawners[i].end(), sortByExtraFramesToRespawn);
+    unsigned i0 = 0, i1 = 0;
+    for (;;) {
+        ServerPlayer* p0 = i0 < respawners[0].size() ? respawners[0][i0] : 0;
+        ServerPlayer* p1 = i1 < respawners[1].size() ? respawners[1][i1] : 0;
+        if (!p0 && !p1)
+            break;
+        if (p1 && (!p0 || p1->extra_frames_to_respawn < p0->extra_frames_to_respawn)) {
+            swap(p0, p1);
+            ++i1;
+        }
+        else
+            ++i0;
+        if (p1) {
+            p1->extra_frames_to_respawn -= p0->extra_frames_to_respawn;
+            p0->extra_frames_to_respawn = 0;
+        }
+        if (p0->extra_frames_to_respawn == 0 && p0->frames_to_respawn == 0)
+            respawnPlayer(p0->id);
+    }
+
     // for each player, do misc stuff
     for (int i = 0; i < maxplayers; i++) {
         ServerPlayer& pl = player[i];
-        if (!pl.used)
+        if (!pl.used || pl.health <= 0)
             continue;
-
-        //check if dead/respawn
-        if (pl.health <= 0) {
-            player[i].attackOnce = false;
-            if (pl.respawn_time < get_time() && !pl.awaiting_client_readies)
-                respawnPlayer(i);       //time to respawn player
-            else
-                continue;
-        }
 
         // check for player weapons fire time
         if ((player[i].attack || player[i].attackOnce) && player[i].health > 0 && frame >= player[i].next_shoot_frame) {
