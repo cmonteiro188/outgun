@@ -4639,7 +4639,6 @@ void Client::continue_replay(istream& in) {
     const istream::pos_type pos = in.tellg();
     unsigned length;
     if (read(in, length)) {
-        log("%u bytes read from the replay.", length);
         char* data = new char[length];
         if (in.read(data, length))
             process_incoming_data(data, length);
