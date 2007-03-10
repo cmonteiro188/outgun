@@ -1952,8 +1952,10 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
 
     //read ping of player frame % maxplayers
     if (count < length) {
-        NLushort ping;
+        NLshort ping;
         readShort(data, count, ping);
+        if (ping < 0) // Server versions up to 1.0.3 using a multicore processor can send negative pings.
+            ping = 0;
         fx.player[svframe % maxplayers].ping = ping;
     }
 

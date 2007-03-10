@@ -3236,6 +3236,8 @@ void ServerNetworking::sfunc_client_data(void* customp, int client_id, char* dat
 }
 
 void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, int pingtime) {
+    if (pingtime < 0)
+        pingtime = 0;
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
