@@ -27,7 +27,6 @@
 #include <cmath>
 
 #include "incalleg.h"
-//#include "client.h"
 #include "graphics.h"
 #include "language.h" // needed by IPfield
 #include "network.h"  // needed by IPfield
