@@ -119,7 +119,7 @@ else
  LFLAGS = -mwindows
  MON_LFLAGS = -mconsole
  RELAY_LFLAGS = -mconsole
- RELAY_LIBS = -lNL
+ RELAY_LIBS = -lNL -lwinmm
 
 endif
 
