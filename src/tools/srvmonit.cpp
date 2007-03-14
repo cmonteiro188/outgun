@@ -111,10 +111,12 @@ public:
                     sayIdx=-1;
                 }
                 else if (key=='\r' || key == '\n') {
-                    writeLong(buf, idx, ATS_SERVER_CHAT);
-                    sayBuf[sayIdx]=0;
-                    writeString(buf, idx, sayBuf);
-                    send(sock, buf, idx);
+                    if (sayIdx > 0) {
+                        writeLong(buf, idx, ATS_SERVER_CHAT);
+                        sayBuf[sayIdx]=0;
+                        writeString(buf, idx, sayBuf);
+                        send(sock, buf, idx);
+                    }
                     sayIdx=-1;
                     printf("\n");
                 }
