@@ -2463,7 +2463,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         current_map = map_nr;
         if (map_vote == current_map)
             map_vote = -1;
-        old_map = fx.map.title;
         #endif
         if (me != -1) {
             fx.player[me].oldx = -1;
@@ -2765,7 +2764,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             pi->stats().finish_stats(time);
         #ifndef DEDICATED_SERVER_ONLY
         if (menu.options.game.saveStats())
-            fx.save_stats("client_stats", old_map);
+            fx.save_stats("client_stats", fx.map.title);
         #endif
     }
 

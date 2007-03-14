@@ -257,7 +257,6 @@ class Client : public ClientInterface {
     volatile bool connected;
     bool map_ready;
     int clientReadiesWaiting;
-    std::string old_map;
     std::string servermap;  //last map command from server
 
     int protocolExtensionsS2C; // -1 means unextended protocol, 0 up are extension version numbers (<= PROTOCOL_EXTENSIONS_VERSION)
