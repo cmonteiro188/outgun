@@ -216,10 +216,12 @@ void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingC
     add(&randomName);
     add.space();
     add(&favoriteColors);
+    #if 0
     add.space();
     add(&password);
     add(&namestatus);
     add(&tournament, CCS_Tournament);
+    #endif
     add.space();
     add(&removePasswords);
 }

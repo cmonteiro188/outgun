@@ -831,6 +831,9 @@ bool Client::start() {
             break; case CCS_Antialiasing:
                 menu.options.graphics.antialiasing.set(args == "2");
 
+            break; case CCS_Tournament:
+                ;   // skip
+
             break; default: nAssert(0); // all values up to the highest known must be handled
         }
     }
