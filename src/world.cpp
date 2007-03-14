@@ -1828,6 +1828,15 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
     if (!dontInformClients)
         net->broadcast_spawn(player[pid]);
 
+    if (pupConfig.start_weapon > 1)
+        net->sendWeaponPower(pid);
+    if (pupConfig.start_power)
+        net->sendPupTime(pid, Powerup::pup_power, pupConfig.start_power);
+    if (pupConfig.start_turbo)
+        net->sendPupTime(pid, Powerup::pup_turbo, pupConfig.start_turbo);
+    if (pupConfig.start_shadow)
+        net->sendPupTime(pid, Powerup::pup_shadow, pupConfig.start_shadow);
+
     //for all effects, player screen changed
     game_player_screen_change(pid);
 }
