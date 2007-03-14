@@ -415,6 +415,12 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             }
             return;
         }
+        else if (!strcmp(argv[i], "-play")) {
+            if (++i < argc)
+                clientCfg.autoPlay = argv[i];
+            else
+                log.error(_("-play must be followed by an IP address and optionally port."));
+        }
         else if (!strcmp(argv[i], "-replay")) {
             if (++i < argc)
                 clientCfg.autoReplay = argv[i];

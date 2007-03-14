@@ -43,6 +43,8 @@ public:
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
+
+    std::string autoPlay;
     std::string autoReplay;
 
     typedef void StatusOutputFnT(const std::string& str);
