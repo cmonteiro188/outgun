@@ -1176,6 +1176,7 @@ void Server::chat(int pid, const string& message) {
             ist >> option;
             if (!ist) {
                 network.player_message(pid, msg_header, "Bot commands:");
+                network.player_message(pid, msg_server, "/bot list        list the bots with their ID");
                 network.player_message(pid, msg_server, "/bot add n       add n bots, default 1");
                 network.player_message(pid, msg_server, "/bot remove n    remove n bots, default 1");
                 network.player_message(pid, msg_server, "/bot fill n      set bots_fill to n");
@@ -1184,6 +1185,27 @@ void Server::chat(int pid, const string& message) {
                 network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
                 network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d, balance_bot %s",
                                        settings.get_min_bots(), settings.get_bots_fill(), extra_bots, settings.get_balance_bot() ? "on" : "off");
+            }
+            else if (option == "list") {
+                int team = -1;
+                for (int ppid = 0; ppid < MAX_PLAYERS; ) {
+                    char buf[100];
+                    int bufi = 0;
+                    for (int onrow = 0; onrow < 2 && ppid < MAX_PLAYERS; ++ppid)
+                        if (world.player[ppid].used && world.player[ppid].is_bot()) {
+                            if (ppid / TSIZE != team) {
+                                if (onrow != 0)
+                                    break; // print the half-built row first, then come back here
+                                team = ppid / TSIZE;
+                                network.player_message(pid, msg_header, team == 0 ? "Red team:" : "Blue team:");
+                            }
+                            platSnprintf(buf + bufi, 37, "%4d %-22s", world.player[ppid].uniqueId, world.player[ppid].name.c_str());
+                            bufi += 33;
+                            ++onrow;
+                        }
+                    if (bufi > 0)
+                        network.player_message(pid, msg_server, buf);
+                }
             }
             else if (option == "add" || option == "remove") {
                 const bool add = option == "add";
