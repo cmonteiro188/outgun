@@ -421,7 +421,7 @@ class Client : public ClientInterface {
 
     ClientControls getRobotControls();
 
-    ClientControls Robot(); /// oh... here it is :)
+    ClientControls Robot();
 
     volatile bool abortThreads;
 
