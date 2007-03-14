@@ -1292,7 +1292,7 @@ void Server::chat(int pid, const string& message) {
                 else {
                     bool handled = false;
                     for (int i = 0; i < MAX_PLAYERS; ++i)
-                        if (world.player[i].uniqueId == bot_id) {
+                        if (world.player[i].used && world.player[i].uniqueId == bot_id) {
                             if (world.player[i].is_bot())
                                 nameChange(world.player[i].cid, i, name, string());
                             else
