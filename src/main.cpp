@@ -427,6 +427,12 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             else
                 log.error(_("-replay must be followed by a filename."));
         }
+        else if (!strcmp(argv[i], "-spectate")) {
+            if (++i < argc)
+                clientCfg.autoSpectate = argv[i];
+            else
+                log.error(_("-spectate must be followed by an IP address and port."));
+        }
         #endif
         else if (!strcmp(argv[i], "-suppressmessages"))
             g_allowBlockingMessages = false;

@@ -46,6 +46,7 @@ public:
 
     std::string autoPlay;
     std::string autoReplay;
+    std::string autoSpectate;
 
     typedef void StatusOutputFnT(const std::string& str);
     StatusOutputFnT* statusOutput;

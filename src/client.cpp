@@ -4242,6 +4242,11 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         nlStringToAddr(extConfig.autoPlay.c_str(), &serverIP);
         connect_command(true);
     }
+    else if (!extConfig.autoSpectate.empty()) {
+        NLaddress addr;
+        nlStringToAddr(extConfig.autoSpectate.c_str(), &addr);
+        start_spectating(addr);
+    }
     else if (!extConfig.autoReplay.empty())
         start_replay(extConfig.autoReplay);
 
