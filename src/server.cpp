@@ -1301,7 +1301,7 @@ void Server::chat(int pid, const string& message) {
                             break;
                         }
                     if (!handled)
-                        network.player_message(pid, msg_warning, "No such bot. Type /list bots for a list of IDs.");
+                        network.player_message(pid, msg_warning, "No such bot. Type /bot list for a list of IDs.");
                 }
             }
             else
