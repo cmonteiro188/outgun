@@ -1601,6 +1601,10 @@ void ServerWorld::reset() {
     for (int i = 0; i < MAX_PICKUPS; i++)
         item[i].kind = Powerup::pup_unused;
 
+    // remove rockets
+    for (int i = 0; i < MAX_ROCKETS; i++)
+        rock[i].owner = -1;
+
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used) {
             player[i].stats().clear(true);
@@ -1611,10 +1615,6 @@ void ServerWorld::reset() {
             player[i].respawn_to_base = true;   // always spawn in the base at the beginning of a map
             // don't actually spawn until the client has loaded the map and is in the game
         }
-
-    // remove rockets
-    for (int i = 0; i < MAX_ROCKETS; i++)
-        rock[i].owner = -1;
 
     // regenerate powerups
     check_pickup_creation(true);
