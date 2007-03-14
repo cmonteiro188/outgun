@@ -1192,7 +1192,7 @@ void Server::chat(int pid, const string& message) {
                 for (int ppid = 0; ppid < MAX_PLAYERS; ) {
                     char buf[100];
                     int bufi = 0;
-                    for (int onrow = 0; onrow < 2 && ppid < MAX_PLAYERS; ++ppid)
+                    for (int onrow = 0; onrow < 3 && ppid < MAX_PLAYERS; ++ppid)
                         if (world.player[ppid].used && world.player[ppid].is_bot()) {
                             if (ppid / TSIZE != team) {
                                 if (onrow != 0)
@@ -1200,8 +1200,8 @@ void Server::chat(int pid, const string& message) {
                                 team = ppid / TSIZE;
                                 network.player_message(pid, msg_header, team == 0 ? "Red team:" : "Blue team:");
                             }
-                            platSnprintf(buf + bufi, 37, "%4d %-22s", world.player[ppid].uniqueId, world.player[ppid].name.c_str());
-                            bufi += 33;
+                            platSnprintf(buf + bufi, 37, "%4d %-17s", world.player[ppid].uniqueId, world.player[ppid].name.c_str());
+                            bufi += 22;
                             ++onrow;
                         }
                     if (bufi > 0)
