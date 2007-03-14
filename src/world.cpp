@@ -2309,7 +2309,7 @@ NLubyte ServerWorld::getFreeRocket() {
 
 bool ServerWorld::doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const {
     if (pl.protocolExtensionsLevel < 0) // older clients can't show other rooms anyway, and will play some sounds for all rockets
-        return false;
+        return pl.roomx == roomx && pl.roomy == roomy;
     int dx = positiveModulo(pl.roomx - roomx, map.w),
         dy = positiveModulo(pl.roomy - roomy, map.h);
     if (dx > map.w / 2)
