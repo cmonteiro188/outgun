@@ -4420,6 +4420,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
             if (mapChanged) {
                 mapChanged = false;
+                if (current_map < int(maps.size()))
+                    maps[current_map].update(fx.map);
                 graphics.mapChanged();
                 if (replaying)
                     visible_rooms = menu.options.graphics.visibleRoomsReplay();

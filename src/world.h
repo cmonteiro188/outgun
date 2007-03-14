@@ -223,6 +223,7 @@ public:
 
     MapInfo();
     bool load(LogSet& log, const std::string& mapName);
+    void update(const Map& map);
     bool operator<(const MapInfo& o) const { return cmp_case_ins(title, o.title); }
 };
 

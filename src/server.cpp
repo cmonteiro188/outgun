@@ -489,6 +489,7 @@ bool Server::load_rotation_map(int pos) {
     if (!ok)
         return false;
     log("Map number %i: '%s'", pos, maprot[pos].file.c_str());
+    maprot[pos].update(world.map);   // In case the map file has been modified since the map list loading.
     if (world.getConfig().random_wild_flag) {
         world.remove_team_flags(0);
         world.remove_team_flags(1);

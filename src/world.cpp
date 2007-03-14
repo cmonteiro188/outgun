@@ -785,6 +785,13 @@ bool MapInfo::load(LogSet& log, const string& mapName) {
     return true;
 }
 
+void MapInfo::update(const Map& map) {
+    title = map.title;
+    author = map.author;
+    width = map.w;
+    height = map.h;
+}
+
 void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) {
     ping = 0;
     id = _pid;
