@@ -262,7 +262,7 @@ void Relay::check_new_connections() {
             pi = peers.erase(pi);
         }
         else {
-            cout << "Refused an unknown program " << type << ".\n";
+            cout << "Refused an unknown program.\n";
             nlClose(pi->socket);
             pi = peers.erase(pi);
         }
