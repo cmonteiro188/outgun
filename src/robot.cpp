@@ -437,11 +437,7 @@ ClientControls Client::Aim(double mex, double mey, int i) const {
 
     if (dir == 1) { // almost aimed
         ctrl.setStrafe();
-        if (myGundir == 0 ||
-            myGundir == 2 ||
-            myGundir == 4 ||
-            myGundir == 6)
-        {
+        if (myGundir == 0 || myGundir == 2 || myGundir == 4 || myGundir == 6) {
             if (dx > 0)
                 ctrl.setRight();
             else if (dx < 0)

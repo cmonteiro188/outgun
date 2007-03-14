@@ -1134,7 +1134,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     #endif
     readStr(data, count, hostname);
 
-    if (length >= count) {
+    if (count < length) {
         NLubyte protoExt;
         readByte(data, count, protoExt);
         log("Protocol extensions enabled. Server: %d (client: %d; using the smaller)", protoExt, PROTOCOL_EXTENSIONS_VERSION);
