@@ -1182,6 +1182,7 @@ void Server::chat(int pid, const string& message) {
                 network.player_message(pid, msg_server, "/bot fill n      set bots_fill to n");
                 network.player_message(pid, msg_server, "/bot balance s   set balance_bot on or off");
                 network.player_message(pid, msg_server, "/bot ping p all  show or set the bot ping");
+                network.player_message(pid, msg_server, "/bot rename n s  set the name of bot with ID n to s");
                 network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
                 network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d, balance_bot %s",
                                        settings.get_min_bots(), settings.get_bots_fill(), extra_bots, settings.get_balance_bot() ? "on" : "off");
@@ -1277,6 +1278,31 @@ void Server::chat(int pid, const string& message) {
                 }
                 else
                     network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 500.");
+            }
+            else if (option == "rename") {
+                unsigned bot_id;
+                ist >> bot_id;
+                string name;
+                getline(ist, name);
+                name = trim(name);
+                if (!ist)
+                    network.plprintf(pid, msg_warning, "Syntax error. Expecting \"/rename ID name\".");
+                else if (!check_name(name))
+                    network.plprintf(pid, msg_warning, "Invalid name, \"%s\".", name.c_str());
+                else {
+                    bool handled = false;
+                    for (int i = 0; i < MAX_PLAYERS; ++i)
+                        if (world.player[i].uniqueId == bot_id) {
+                            if (world.player[i].is_bot())
+                                nameChange(world.player[i].cid, i, name, string());
+                            else
+                                network.plprintf(pid, msg_warning, "Player %d is not a bot.", bot_id);
+                            handled = true;
+                            break;
+                        }
+                    if (!handled)
+                        network.player_message(pid, msg_warning, "No such bot. Type /list bots for a list of IDs.");
+                }
             }
             else
                 network.plprintf(pid, msg_warning, "Syntax error. Expecting add, remove, fill, balance, or ping.");
