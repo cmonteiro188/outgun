@@ -427,7 +427,7 @@ void Server::SettingManager::reset() {
 
     server_website_url.clear();
 
-    tournament = true;
+    tournament = false;
     save_stats = 0;
 
     recording = 0;
