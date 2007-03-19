@@ -66,9 +66,9 @@ using std::string;
 using std::vector;
 
 #ifdef WITH_PNG
-const char* const Graphics::save_extension = ".png";
+const string Graphics::save_extension = ".png";
 #else
-const char* const Graphics::save_extension = ".pcx";
+const string Graphics::save_extension = ".pcx";
 #endif
 
 Graphics::Graphics(LogSet logs):

@@ -123,7 +123,7 @@ public:
                 player_max_size_in_world = 2 * 2 * PLAYER_RADIUS,
        extended_player_max_size_in_world = extended_flag_max_size_in_world; // max(extended_flag_max_size_in_world, player_max_size_in_world + 50) (include space for carried flag and deathbringer smoke)
 
-    static const char* const save_extension; // file extension like ".pcx", depending on configured libraries
+    static const std::string save_extension; // file extension like ".pcx", depending on configured libraries (and potentially selectable by user in the future)
 
     Graphics(LogSet logs);
     ~Graphics();
