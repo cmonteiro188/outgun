@@ -837,7 +837,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     frameOffset = 0;
     #endif
     awaiting_client_readies = 0;
-    item_deathbringer_time = 0;
+    item_deathbringer_frame = 0;
     deathbringer_team = 0;  // need not be valid yet
     deathbringer_end = 0;
     deathbringer_attacker = 0;
@@ -2180,7 +2180,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
 
     if (player[target].item_deathbringer) {
         //record time to simulate the deathbringer explosion
-        player[target].item_deathbringer_time = frame;
+        player[target].item_deathbringer_frame = frame;
         player[target].deathbringer_team = player[target].team();
         net->sendDeathbringer(target, player[target]);
     }
@@ -3034,7 +3034,7 @@ void ServerWorld::simulateFrame() {
             // note: if any of this calculation is changed, also update the time constant 1.8 in resetPlayer
             const bool dbTeam = player[i].deathbringer_team;
             //delta time since shoot
-            const double delta = (frame - player[i].item_deathbringer_time) * 0.1;
+            const double delta = (frame - player[i].item_deathbringer_frame) * 0.1;
             //figure out new radius
             int rad;
             if (delta < 1.0)

@@ -438,7 +438,7 @@ public:
     double item_turbo_time;
     double item_shadow_time;
 
-    long item_deathbringer_time;    // explosion of this players deathbringer
+    long item_deathbringer_frame; // explosion of this players deathbringer (only valid if dead and item_deathbringer set)
     int deathbringer_team;  // valid if own deathbringer has exploded (this is needed for when changing teams)
     double deathbringer_end;    // end of effect of another players deathbringer
     int deathbringer_attacker;  // whose deathbringer it is
