@@ -1707,6 +1707,8 @@ void Client::send_frame(bool newFrame, bool forceSend) {
 }
 
 void Client::refreshGunDir() {
+    if (!fx.physics.allowFreeTurning)
+        return;
     if (menu.options.controls.aimMode() == Menu_controls::AM_Mouse) {
         int mx, my;
         get_mouse_mickeys(&mx, &my);
