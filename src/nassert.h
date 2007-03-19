@@ -24,14 +24,16 @@
 #ifndef NASSERT_H_INC
 #define NASSERT_H_INC
 
+#include <inttypes.h>
+
 #ifndef __GNUC__
 #define __attribute__(a)
 #endif
 
 // stack guard is a magic number that should be somewhere on the stack to prevent the stack dump from going further and making a page fault
-// you should have a local variable unsigned long stackGuard = STACK_GUARD; in main() and all thread entry functions
-static const unsigned long STACK_GUARD = 0x39D1209E;
-extern unsigned long* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to make sure the stackGuard variable isn't optimized away
+// you should have a local variable uint32_t stackGuard = STACK_GUARD; in main() and all thread entry functions
+static const uint32_t STACK_GUARD = 0x39D1209E;
+extern uint32_t* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to make sure the stackGuard variable isn't optimized away
 
 #ifdef NDEBUG
  #define nAssert(expr) ((void)0)

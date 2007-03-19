@@ -42,23 +42,23 @@
 #include "nassert.h"
 
 #ifndef DISABLE_ENHANCED_NASSERT
-unsigned long* stackGuardHackPtr;
+uint32_t* stackGuardHackPtr;
 
 void stackDump(FILE* dst) { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
-    unsigned long unused;
-    for (unsigned long* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
-        unsigned long value = *stackPtr;
+    uint32_t unused;
+    for (uint32_t* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
+        uint32_t value = *stackPtr;
         fwrite(&stackPtr, sizeof(stackPtr), 1, dst);
         fwrite(&value, sizeof(value), 1, dst);
     }
 }
 
 int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
-    unsigned long unused;
+    uint32_t unused;
     bufCap -= 4;    // make it better work as a stopper
     int bufSize = 0;
-    unsigned long* stackPtr = (&unused) + 1;
-    writeLong(buf, bufSize, reinterpret_cast<unsigned long>(stackPtr));
+    uint32_t* stackPtr = (&unused) + 1;
+    writeLong(buf, bufSize, reinterpret_cast<intptr_t>(stackPtr)); // only 32 bits saved -> information lost on 64-bit platforms
     for (; *stackPtr != STACK_GUARD && bufSize <= bufCap; ++stackPtr)
         writeLong(buf, bufSize, *stackPtr);
     return bufSize;

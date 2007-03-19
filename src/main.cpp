@@ -157,7 +157,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 int wrappedMain(int argc, const char* argv[]);
 
 int main(int argc, const char* argv[]) {
-    unsigned long stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
+    uint32_t stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
     srand((unsigned)time(0));
 
     platInit();
