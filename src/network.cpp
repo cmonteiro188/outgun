@@ -82,23 +82,21 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
     return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
 }
 
-#ifndef RELAY
-string getPublicIP(LogSet& log, bool allowAnyExternal) {
+string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
     NLint nLocals;
     NLaddress* locals = nlGetAllLocalAddr(&nLocals);
     for (int i = 0; i < nLocals; ++i) {
         const string addr = addressToString(locals[i]);
         if (check_private_IP(addr, allowAnyExternal))
-            log("Local address %s ignored", addr.c_str());
+            output("Local address " + addr + " ignored");
         else {
-            log("Found public address %s", addr.c_str());
+            output("Found public address "  + addr);
             return addr;
         }
     }
-    log("No public address found");
+    output("No public address found");
     return string();
 }
-#endif
 
 bool isLocalIP(NLaddress address) { // local doesn't mean private
     nlSetAddrPort(&address, 0);
