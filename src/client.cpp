@@ -1325,13 +1325,13 @@ void Client::client_disconnected(const char* data, int length) {
             break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
             break; default:;
         }
-    if (!botmode) {
-        m_connectProgress.clear();
-        m_connectProgress.wrapLine(_("You have been disconnected."));
-        if (!description.empty())
-            m_connectProgress.wrapLine(description);
-        showMenu(m_connectProgress);
-    }
+
+    m_connectProgress.clear();
+    m_connectProgress.wrapLine(_("You have been disconnected."));
+    if (!description.empty())
+        m_connectProgress.wrapLine(description);
+    showMenu(m_connectProgress);
+
     if (description.empty())
         log("Disconnection successful");
     else
