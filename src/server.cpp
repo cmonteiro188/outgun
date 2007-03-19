@@ -1441,33 +1441,36 @@ void Server::simulate_and_broadcast_frame() {
         if (world.getMapTime() == settings.get_vote_block_time())
             check_map_exit();
     }
-    for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used && !world.player[i].is_bot()) {
-            if (world.player[i].kickTimer) {
-                --world.player[i].kickTimer;
-                if (world.player[i].kickTimer == 0)
-                    disconnectPlayer(i, disconnect_kick);
-                else if (world.player[i].kickTimer % 10 == 0 && world.player[i].kickTimer <= 50)
-                    network.send_disconnecting_message(i, world.player[i].kickTimer / 10);
-                continue;
-            }
-            const int iktime = settings.get_idlekick_time();
-            const bool idle = !world.player[i].attack && !world.player[i].attackOnce && world.player[i].controls.idle();
-            if (iktime != 0 && idle && network.get_human_count() >= settings.get_idlekick_playerlimit() && !gameover) {
-                ++world.player[i].idleFrames;
-                int timeToKick = iktime - world.player[i].idleFrames;
-                if (timeToKick == 0)
-                    disconnectPlayer(i, disconnect_idlekick);
-                else if (timeToKick == 60 * 10 && iktime >= 3 * 60 * 10 ||
-                         timeToKick == 30 * 10 && iktime >= 3 * 30 * 10 ||
-                         timeToKick == 15 * 10 && iktime >= 2 * 15 * 10 ||
-                         timeToKick ==  5 * 10 && iktime >= 2 *  5 * 10) {
-                    network.send_idlekick_warning(i, timeToKick / 10);
-                }
-            }
-            else
-                world.player[i].idleFrames = 0;
+    for (int i = 0; i < maxplayers; ++i) {
+        if (!world.player[i].used)
+            continue;
+        if (world.player[i].kickTimer) {
+            --world.player[i].kickTimer;
+            if (world.player[i].kickTimer == 0)
+                disconnectPlayer(i, disconnect_kick);
+            else if (world.player[i].kickTimer % 10 == 0 && world.player[i].kickTimer <= 50)
+                network.send_disconnecting_message(i, world.player[i].kickTimer / 10);
+            continue;
         }
+        if (gameover || world.player[i].dead || world.player[i].is_bot() && world.player[i].localIP)
+            continue;
+        const int iktime = settings.get_idlekick_time();
+        const bool idle = !world.player[i].attack && !world.player[i].attackOnce && world.player[i].controls.idle();
+        if (iktime != 0 && idle && network.get_human_count() >= settings.get_idlekick_playerlimit()) {
+            ++world.player[i].idleFrames;
+            int timeToKick = iktime - world.player[i].idleFrames;
+            if (timeToKick == 0)
+                disconnectPlayer(i, disconnect_idlekick);
+            else if (timeToKick == 60 * 10 && iktime >= 3 * 60 * 10 ||
+                     timeToKick == 30 * 10 && iktime >= 3 * 30 * 10 ||
+                     timeToKick == 15 * 10 && iktime >= 2 * 15 * 10 ||
+                     timeToKick ==  5 * 10 && iktime >= 2 *  5 * 10) {
+                network.send_idlekick_warning(i, timeToKick / 10);
+            }
+        }
+        else
+            world.player[i].idleFrames = 0;
+    }
 
     network.broadcast_frame(!gameover);
     if (recording_active()) {
