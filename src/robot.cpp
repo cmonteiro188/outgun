@@ -115,7 +115,7 @@ double Client::ScanDir(double mex, double mey, int dir) const {
     return sqrt((tx - mex) * (tx - mex) + (ty - mey) * (ty - mey));
 }
 
-int Client::IsAimed(double mex, double mey, int i) const { // return 1 if in hit point
+int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     // XXX?
     const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
     const double tty = fx.player[i].ly + averageLag * fx.player[i].sy;
@@ -140,17 +140,13 @@ int Client::IsAimed(double mex, double mey, int i) const { // return 1 if in hit
     if (IsBehindWall(mex, mey, dx, dy))
         return 0;
 
+    static const double treshold = 1.3 * PLAYER_RADIUS;
     if (dir == 0 || dir == 4) // left or right
-        return fabs(dy) < 1.3 * PLAYER_RADIUS ? 2 : 1;
+        return fabs(dy) < treshold ? 2 : 1;
     if (dir == 2 || dir == 6) // up or down
-        return fabs(dx) < 1.3 * PLAYER_RADIUS ? 2 : 1;
-
-    const double a = sqrt(2 * PLAYER_RADIUS * PLAYER_RADIUS); // diagonal?
-
-    if (fabs(dy) <= fabs(dx) + 1.3 * a && fabs(dy) >= fabs(dx) - 1.3 * a)
-        return 2;
-    else
-        return 1;
+        return fabs(dx) < treshold ? 2 : 1;
+    // diagonal
+    return fabs(fabs(dy) - fabs(dx)) <= treshold * sqrt(2) ? 2 : 1;
 }
 
 int Client::GetDir(double dx, double dy) const {
@@ -187,7 +183,7 @@ int Client::GetDir(double dx, double dy) const {
 
 int Client::GetDangerousRocket(double mex, double mey) const {
     int mrock = -1;
-    double rdist = 0;
+    double nearestDist = 1e10;
 
     for (int i = 0; i < MAX_ROCKETS; ++i) {
         const Rocket& rocket = fx.rock[i];
@@ -214,36 +210,35 @@ int Client::GetDangerousRocket(double mex, double mey) const {
         if ((d == 5 || d == 6 || d == 7) && rdy < -4 * PLAYER_RADIUS)
             continue;
 
-        double dist1 = sqrt(rdx * rdx + rdy * rdy);
-        const double dist2 = (dist1 / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
+        const double dist2 = (sqrt(rdx * rdx + rdy * rdy) / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
 
+        double dist1;
         if (d == 0 || d == 4)
             dist1 = fabs(rdy);
         else if (d == 2 || d == 6)
             dist1 = fabs(rdx);
         else if (d == 1 || d == 5)
-            dist1 = sqrt((rdy - rdx) * (rdy - rdx) / 2);
+            dist1 = fabs(rdy - rdx) / sqrt(2.);
         else
-            dist1 = sqrt((rdy + rdx) * (rdy + rdx) / 2);
+            dist1 = fabs(rdy + rdx) / sqrt(2.);
 
-        if (dist1 < 6 * PLAYER_RADIUS && (dist1 + dist2 < rdist || rdist == 0)) { //was 4
+        if (dist1 < 6 * PLAYER_RADIUS && dist1 + dist2 < nearestDist) { //was 4
             mrock = i;
-            rdist = dist1 + dist2;
+            nearestDist = dist1 + dist2;
         }
     }
     return mrock;
 }
 
 int Client::GetEasyEnemy(double mex, double mey) const {
-    int snap = -1;
-    double rdist = 0;
+    int target = -1;
+    double nearestDist = 1e10;
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
         const ClientPlayer& player = fx.player[me];
-        if (!enemy.used || enemy.roomx != player.roomx || enemy.roomy != player.roomy ||
-            enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
-               continue;
+        if (!enemy.used || enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
+            continue;
 
         const double ttx = enemy.lx + averageLag * enemy.sx;
         const double tty = enemy.ly + averageLag * enemy.sy;
@@ -253,42 +248,39 @@ int Client::GetEasyEnemy(double mex, double mey) const {
 
         const int d = GetDir(dx, dy);
 
-        double dist1 = sqrt(dx * dx + dy * dy);
-        const double dist2 = (dist1 / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
+        const double dist2 = (sqrt(dx * dx + dy * dy) / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
 
+        double dist1;
         if (d == 0 || d == 4)
             dist1 = fabs(dy);
         else if (d == 2 || d == 6)
             dist1 = fabs(dx);
         else if (d == 1 || d == 5)
-            dist1 = sqrt((dy - dx) * (dy - dx) / 2);
+            dist1 = fabs(dy - dx) / sqrt(2.);
         else
-            dist1 = sqrt((dy + dx) * (dy + dx) / 2);
+            dist1 = fabs(dy + dx) / sqrt(2.);
 
-        if (dist1 < 2 * PLAYER_RADIUS && (dist1 + dist2 < rdist || rdist == 0)) { //was 4
-            if (IsBehindWall(mex, mey, ttx - mex, tty - mey))
-                continue;
-            snap = i;
-            rdist = dist1 + dist2;
+        if (dist1 < 2 * PLAYER_RADIUS && dist1 + dist2 < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
+            target = i;
+            nearestDist = dist1 + dist2;
         }
     }
     #ifdef BOTDEBUG
-    if (snap != -1)
-        fprintf(stderr,"Looking on easy. enemy %d\n", snap);
+    if (target != -1)
+        fprintf(stderr,"Looking on easy. enemy %d\n", target);
     #endif
-    return snap;
+    return target;
 }
 
 int Client::GetDangerousEnemy(double mex, double mey) const {
-    int snap = -1;
-    double rdist = 0;
+    int target = -1;
+    double nearestDist = 1e10;
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
         const ClientPlayer& player = fx.player[me];
-        if (!enemy.used || enemy.roomx != player.roomx || enemy.roomy != player.roomy ||
-            enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
-               continue;
+        if (!enemy.used || enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
+            continue;
 
         const double ttx = enemy.lx + averageLag * enemy.sx;
         const double tty = enemy.ly + averageLag * enemy.sy;
@@ -297,40 +289,39 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
         const double dy = tty - mey;
 
         const int d = enemy.gundir.to8way();
-        double dist1 = sqrt(dx * dx + dy * dy);
+        const double rawDist = sqrt(dx * dx + dy * dy);
 
         const int dd = inv_dir(GetDir(dx, dy));
 
-        if (d != dd && dist1 > 2 * PLAYER_RADIUS)
+        if (d != dd && rawDist > 2 * PLAYER_RADIUS)
             continue;
 
-        const double dist2 = (dist1 / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
+        const double dist2 = (rawDist / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
 
+        double dist1;
         if (d == 0 || d == 4)
             dist1 = fabs(dy);
         else if (d == 2 || d == 6)
             dist1 = fabs(dx);
         else if (d == 1 || d == 5)
-            dist1 = sqrt((dy - dx) * (dy - dx) / 2);
+            dist1 = fabs(dy - dx) / sqrt(2.);
         else
-            dist1 = sqrt((dy + dx) * (dy + dx) / 2);
+            dist1 = fabs(dy + dx) / sqrt(2.);
 
-        if (dist1 < 2 * PLAYER_RADIUS && (dist1 + dist2 < rdist || rdist == 0)) { //was 4
-            if (IsBehindWall(mex, mey, ttx - mex, tty - mey))
-                continue;
-            snap = i;
-            rdist = dist1 + dist2;
+        if (dist1 < 2 * PLAYER_RADIUS && dist1 + dist2 < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
+            target = i;
+            nearestDist = dist1 + dist2;
         }
     }
     #ifdef BOTDEBUG
-    if (snap != -1)
-        fprintf(stderr,"Looking on dang. enemy %d\n", snap);
+    if (target != -1)
+        fprintf(stderr,"Looking on dang. enemy %d\n", target);
     #endif
-    return snap;
+    return target;
 }
 
 int Client::GetNearestEnemy(double mex, double mey) const {
-    int snap = -1;
+    int target = -1;
     double mdist = 0;
 
     for (int i = 0; i < maxplayers; ++i) {
@@ -353,10 +344,10 @@ int Client::GetNearestEnemy(double mex, double mey) const {
             //if (IsBehindWall(mex, mey, dx, dy)) // XXX ?
             //    continue;
             mdist = dist;
-            snap = i;
+            target = i;
         }
     }
-    return snap;
+    return target;
 }
 
 bool Client::NeedShoot(double mex, double mey) const {
@@ -424,49 +415,45 @@ ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
 }
 
 ClientControls Client::Aim(double mex, double mey, int i) const {
-    ClientControls ctrl;
-    ctrl.setRun(); //always run!
-
     const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
     const double tty = fx.player[i].ly + averageLag * fx.player[i].sy;
 
     const double dx = ttx - mex;
     const double dy = tty - mey;
 
-    const int dir = IsAimed(mex, mey, i);
+    const int aimed = IsAimed(mex, mey, i);
+    if (aimed == 2)
+        return ClientControls();
+    else if (aimed == 0)
+        return MoveTo(mex, mey, dx, dy);
 
-    if (dir == 1) { // almost aimed
-        ctrl.setStrafe();
-        if (myGundir == 0 || myGundir == 2 || myGundir == 4 || myGundir == 6) {
-            if (dx > 0)
-                ctrl.setRight();
-            else if (dx < 0)
-                ctrl.setLeft();
-            if (dy > 0)
-                ctrl.setDown();
-            else if (dy < 0)
-                ctrl.setUp();
-        }
-        else if (fabs(dy) > fabs(dx)) {
-            if (dy < 0)
-                ctrl.setUp();
-            else
-                ctrl.setDown();
-        }
-        else {
-            if (dx < 0)
-                ctrl.setLeft();
-            else
-                ctrl.setRight();
-        }
-        return ctrl;
+    // almost aimed
+    ClientControls ctrl;
+    ctrl.setRun(); //always run!
+    ctrl.setStrafe();
+    if (myGundir == 0 || myGundir == 2 || myGundir == 4 || myGundir == 6) {
+        if (dx > 0)
+            ctrl.setRight();
+        else if (dx < 0)
+            ctrl.setLeft();
+        if (dy > 0)
+            ctrl.setDown();
+        else if (dy < 0)
+            ctrl.setUp();
     }
-    // aimed or nor, go to mdir
-
-    if (dir == 2)
-        return ctrl;
-
-    return MoveTo(mex, mey, dx, dy);
+    else if (fabs(dy) > fabs(dx)) {
+        if (dy < 0)
+            ctrl.setUp();
+        else
+            ctrl.setDown();
+    }
+    else {
+        if (dx < 0)
+            ctrl.setLeft();
+        else
+            ctrl.setRight();
+    }
+    return ctrl;
 }
 
 
@@ -1042,43 +1029,62 @@ ClientControls Client::DoRoute(double melx, double mely, RouteTable num) const {
 
 ClientControls Client::MoveToDoor(double dmex, double dmey, int dir) const {
     const int mex = int(dmex), mey = int(dmey);
-    int fixedCoord;
+    int fixedBorder, fixedTarget;
     bool xFixed;
+    ClientControls ctrl;
+    ctrl.setRun();
     switch (dir) {
     /*break;*/ case 0:
-            fixedCoord =   0 - PLAYER_RADIUS;
+            fixedBorder = 0;
+            fixedTarget = -PLAYER_RADIUS;
             xFixed = false;
+            if (dmey < 0) // if predicted correctly, we're already in the target room (by the time our controls reach the server)
+                return ctrl.setUp();
         break; case 1:
-            fixedCoord = S_H + PLAYER_RADIUS;
+            fixedBorder = S_H;
+            fixedTarget = S_H + PLAYER_RADIUS;
             xFixed = false;
+            if (dmey > S_H)
+                return ctrl.setDown();
         break; case 2:
-            fixedCoord =   0 - PLAYER_RADIUS;
+            fixedBorder = 0;
+            fixedTarget = -PLAYER_RADIUS;
             xFixed = true;
+            if (dmex < 0)
+                return ctrl.setLeft();
         break; case 3:
-            fixedCoord = S_W + PLAYER_RADIUS;
+            fixedBorder = S_W;
+            fixedTarget = S_W + PLAYER_RADIUS;
             xFixed = true;
+            if (dmex > S_W)
+                return ctrl.setRight();
         break; default:
             nAssert(0);
     }
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
+    for (int r = 4; r >= 1; --r) { // try to find a larger hole first, mainly to avoid bumping into walls
+        const double holeRadius = r * PLAYER_RADIUS;
+        if (xFixed) {
+            for (int dist = 0; dist < S_H; dist += PLAYER_RADIUS) {
+                if (mey - dist > 0   && !room.fall_on_wall(fixedBorder, mey - dist, holeRadius))
+                    return MoveToNoAggregate(mex, mey, fixedTarget - mex, -dist);
+                if (mey + dist < S_H && !room.fall_on_wall(fixedBorder, mey + dist, holeRadius))
+                    return MoveToNoAggregate(mex, mey, fixedTarget - mex,  dist);
+            }
+        }
+        else
+            for (int dist = 0; dist < S_W; dist += PLAYER_RADIUS) {
+                if (mex - dist > 0   && !room.fall_on_wall(mex - dist, fixedBorder, holeRadius))
+                    return MoveToNoAggregate(mex, mey, -dist, fixedTarget - mey);
+                if (mex + dist < S_W && !room.fall_on_wall(mex + dist, fixedBorder, holeRadius))
+                    return MoveToNoAggregate(mex, mey,  dist, fixedTarget - mey);
+            }
+    }
+    // not even a player-sized opening found (at the probed places); one should reveal itself when we move about, or if not, the map sucks
     if (xFixed)
-        for (int dist = 0; ; dist += PLAYER_RADIUS) {
-            if (mey - dist > 0   && !room.fall_on_wall(fixedCoord, mey - dist, PLAYER_RADIUS))
-                return MoveToNoAggregate(mex, mey, fixedCoord - mex, -dist);
-            if (mey + dist < S_H && !room.fall_on_wall(fixedCoord, mey + dist, PLAYER_RADIUS))
-                return MoveToNoAggregate(mex, mey, fixedCoord - mex,  dist);
-            if (dist > S_H) // no opening found
-                return MoveToNoAggregate(mex, mey, fixedCoord - mex,     0); // one should reveal itself when we move about, or if not, the map sucks
-        }
+        return MoveToNoAggregate(mex, mey, fixedTarget - mex, 0);
     else
-        for (int dist = 0; ; dist += PLAYER_RADIUS) {
-            if (mex - dist > 0   && !room.fall_on_wall(mex - dist, fixedCoord, PLAYER_RADIUS))
-                return MoveToNoAggregate(mex, mey, -dist, fixedCoord - mey);
-            if (mex + dist < S_W && !room.fall_on_wall(mex + dist, fixedCoord, PLAYER_RADIUS))
-                return MoveToNoAggregate(mex, mey,  dist, fixedCoord - mey);
-            if (dist > S_W) // no opening found
-                return MoveToNoAggregate(mex, mey,     0, fixedCoord - mey); // one should reveal itself when we move about, or if not, the map sucks
-        }
+        return MoveToNoAggregate(mex, mey, 0, fixedTarget - mey);
 }
 
 int Client::GetPlayers(int team) const {
@@ -1582,22 +1588,19 @@ ClientControls Client::getRobotControls() {
 
     fx.map.room[fx.player[me].roomx][fx.player[me].roomy].visited_frame = fx.frame;
 
-    int i = last_seen; // lost target
-    if (i == -1 || !fx.player[i].used ||
-        fx.player[i].roomx != fx.player[me].roomx ||
-        fx.player[i].roomy != fx.player[me].roomy ||
-        fx.player[i].team() == fx.player[me].team() ||
-        !fx.player[i].onscreen || fx.player[i].dead)
+    if (last_seen != -1) {
+        const ClientPlayer& lsp = fx.player[last_seen];
+        if (!lsp.used || lsp.team() == fx.player[me].team() || !lsp.onscreen || lsp.dead) // lost target
             last_seen = -1;
+    }
 
-    if (!IsMassive())
-        i = GetDangerousRocket(mex, mey);
-    else
-        i = -1;
-    if (i != -1) {
-        if (last_seen == -1)
-            last_seen = GetDangerousEnemy(mex, mey);
-        return EscapeRocket(mex, mey, i);
+    if (!IsMassive()) {
+        const int dangerousRocket = GetDangerousRocket(mex, mey);
+        if (dangerousRocket != -1) {
+            if (last_seen == -1)
+                last_seen = GetDangerousEnemy(mex, mey);
+            return EscapeRocket(mex, mey, dangerousRocket);
+        }
     }
 
     if (last_seen == -1) {
@@ -1611,17 +1614,15 @@ ClientControls Client::getRobotControls() {
     if (IsMission(Table_Main)) // get only dangerous enemy
         last_seen = GetDangerousEnemy(mex, mey);
     else if (last_seen != -1) { // already locked on someone
-        i = GetEasyEnemy(mex, mey); // more easy???
-        if (i != -1)
-            last_seen = i;
+        const int easy = GetEasyEnemy(mex, mey); // more easy???
+        if (easy != -1)
+            last_seen = easy;
     }
     else // get someone
         last_seen = GetNearestEnemy(mex, mey);
 
-    i = last_seen;
-
-    if (i != -1)
-        return Aim(mex, mey, i);
+    if (last_seen != -1)
+        return Aim(mex, mey, last_seen);
 
     // ok, free tour ;)
     ClientControls ctrl = GetPowerup(mex, mey);
@@ -1671,7 +1672,7 @@ ClientControls Client::Robot() {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
     if (NeedShoot(mex, mey)) {
-        if (!botPrevFire) { //if not fired
+        if (!botPrevFire) {
             char lebuf[16]; int count = 0;
             writeByte(lebuf, count, data_fire_on);
             client->send_message(lebuf, count);
