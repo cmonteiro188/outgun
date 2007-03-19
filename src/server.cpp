@@ -1102,7 +1102,7 @@ void Server::chat(int pid, const string& message) {
                             network.player_message(pid, msg_header, team == 0 ? "Red team:" : "Blue team:");
                         }
                         const char mute = world.player[ppid].muted == 0 ? ' ' : world.player[ppid].muted == 1 ? 'm' : 's';
-                        platSnprintf(buf + bufi, 37, "%4d %4s%c %-22s", world.player[ppid].uniqueId, world.player[ppid].reg_status.strFlags().c_str(), mute, world.player[ppid].name.c_str());
+                        platSnprintf(buf + bufi, 34, "%4d %4s%c %-22s", world.player[ppid].uniqueId, world.player[ppid].reg_status.strFlags().c_str(), mute, world.player[ppid].name.c_str());
                         bufi += 33;
                         ++onrow;
                     }
@@ -1200,7 +1200,7 @@ void Server::chat(int pid, const string& message) {
                                 team = ppid / TSIZE;
                                 network.player_message(pid, msg_header, team == 0 ? "Red team:" : "Blue team:");
                             }
-                            platSnprintf(buf + bufi, 37, "%4d %-17s", world.player[ppid].uniqueId, world.player[ppid].name.c_str());
+                            platSnprintf(buf + bufi, 23, "%4d %-17s", world.player[ppid].uniqueId, world.player[ppid].name.c_str());
                             bufi += 22;
                             ++onrow;
                         }
