@@ -2092,6 +2092,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readStr(lebuf, count, chatmsg);
         if (find_nonprintable_char(chatmsg)) {
             log.error("Server sent non-printable characters in a message.");
+            nAssert(!botmode);
             addThreadMessage(new TM_DoDisconnect());
             break;
         }
@@ -3469,6 +3470,7 @@ void Client::process_incoming_data(const char* data, int length) {
     }
     else {
         if (!process_live_frame_data(data, length)) {
+            nAssert(!botmode);
             addThreadMessage(new TM_DoDisconnect());
             return;
         }
@@ -3478,6 +3480,7 @@ void Client::process_incoming_data(const char* data, int length) {
             if (lebuf == 0)
                 break;
             if (!process_message(lebuf, msglen)) {
+                nAssert(!botmode);
                 log.error(_("Format error in data received from the server."));
                 addThreadMessage(new TM_DoDisconnect());
                 return;
