@@ -262,7 +262,7 @@ public:
         if (iVal < mantissaLimit)   // we have a loss of precision; this is a special case without the implicit mantissa-bit
             return sign | iVal; // mark it with exp = 0
         int exp = 1;
-        while (iVal > 4 * mantissaLimit) {
+        while (iVal >= 4 * mantissaLimit) {
             iVal /= 2;
             ++exp;
         }
