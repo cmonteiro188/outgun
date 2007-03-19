@@ -63,9 +63,9 @@ int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
         writeLong(buf, bufSize, *stackPtr);
     return bufSize;
 }
+#endif
 
 void nasprintf(const char* file, int line, const char* expr, ...) PRINTF_FORMAT(3, 4); // PRINTF_FORMAT is defined in utility.h
-#endif
 
 void nasprintf(const char* file, int line, const char* expr, ...) {
     // display to console (should be safest, but rarely visible on Windows)
