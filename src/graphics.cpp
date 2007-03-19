@@ -1930,7 +1930,7 @@ void Graphics::team_statistics(const Team* teams) {
     textout_centre_ex(drawbuf, stfont, _("Hit accuracy"  ).c_str(), mx, y1 + line++ * line_height, c, -1);
     textout_centre_ex(drawbuf, stfont, _("Shots taken"   ).c_str(), mx, y1 + line++ * line_height, c, -1);
     textout_centre_ex(drawbuf, stfont, _("Movement"      ).c_str(), mx, y1 + line++ * line_height, c, -1);
-    textout_centre_ex(drawbuf, stfont, _("Team power"    ).c_str(), mx, y1 + line++ * line_height, c, -1);
+    //textout_centre_ex(drawbuf, stfont, _("Team power"    ).c_str(), mx, y1 + line++ * line_height, c, -1);
 
     for (int t = 0; t < 2; t++) {
         const Team& team = teams[t];
@@ -1947,7 +1947,7 @@ void Graphics::team_statistics(const Team* teams) {
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
-        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
+        //textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
     }
 
     line++;
