@@ -2129,8 +2129,10 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readByte(lebuf, count, color);
         if (color < PlayerBase::invalid_color)
             fx.player[pid].set_color(color);
-        else
+        else {
             log("Invalid colour (%d) for player %d (me).", color, pid);
+            return false;
+        }
 
         NLubyte map_nr;
         readByte(lebuf, count, map_nr); //current map number
@@ -2627,8 +2629,10 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readLong(lebuf, count, max_world_rank);     //world players count
         if (color < PlayerBase::invalid_color)
             fx.player[pid].set_color(color);
-        else
+        else {
             log("Invalid colour (%d) for player %d.", color, pid);
+            return false;
+        }
         ClientLoginStatus ls;
         ls.fromNetwork(regStatus);
         const ClientLoginStatus& os = fx.player[me].reg_status;
@@ -3108,8 +3112,10 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #ifndef DEDICATED_SERVER_ONLY
         if (col1 < PlayerBase::invalid_color)
             fx.player[to].set_color(col1);
-        else
+        else {
             log("Invalid colour (%d) for player %d.", col1, to);
+            return false;
+        }
         #endif
         fx.player[to].stats().kill(static_cast<int>(time), true);
         fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
@@ -3117,8 +3123,10 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             #ifndef DEDICATED_SERVER_ONLY
             if (col2 < PlayerBase::invalid_color)
                 fx.player[from].set_color(col2);
-            else
+            else {
                 log("Invalid colour (%d) for player %d.", col2, from);
+                return false;
+            }
             #endif
             fx.player[from].stats().kill(static_cast<int>(time), true);
             fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
@@ -5231,10 +5239,8 @@ void Client::draw_map(const VisibilityMap& roomVis) {
                 if (fi->carrier() == i)
                     graphics.draw_mini_flag(fi.team(), *fi, fx.map);
             const ClientPlayer& exactPl = replaying || fx.player[i].onscreen ? fd.player[i] : pl;
-            if (i != me) {
-                if (pl.color() >= 0 && pl.color() < MAX_PLAYERS / 2)    // Check because the server may have sent invalid colour.
-                    graphics.draw_minimap_player(fx.map, exactPl);
-            }
+            if (i != me)
+                graphics.draw_minimap_player(fx.map, exactPl);
             else // myself: draw differently
                 graphics.draw_minimap_me(fx.map, exactPl, time);
             solid_mode();
@@ -5452,22 +5458,20 @@ void Client::draw_player(int pid, double time, bool live) {
             graphics.draw_flag(fi.team(), pos, false, flagAlpha, menu.options.graphics.emphasizeFlag(visible_rooms));
             break;
         }
-    if (player.color() >= 0 && player.color() < MAX_PLAYERS / 2) {  // Check because the server may have sent invalid colour.
-        if (!fullyVisible) {
-            graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
-            return;
-        }
-
-        // turbo effect
-        if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
-            time > player.next_turbo_effect_time) {
-            player.next_turbo_effect_time = time + 0.05;
-            graphics.create_turbofx(pos, player.team(), player.color(), player.gundir, alpha, time);
-        }
-
-        //draw player
-        graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
+    if (!fullyVisible) {
+        graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
+        return;
     }
+
+    // turbo effect
+    if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
+        time > player.next_turbo_effect_time) {
+        player.next_turbo_effect_time = time + 0.05;
+        graphics.create_turbofx(pos, player.team(), player.color(), player.gundir, alpha, time);
+    }
+
+    //draw player
+    graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
 
     //draw deathbringer carrier effect
     if (player.item_deathbringer && time > player.next_smoke_effect_time) {
