@@ -1966,7 +1966,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                     xy = static_cast<NLubyte>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
                     writeByte(lebuf, lecount, xy);
 
-                    // speed in 2 bytes
+                    // speed in 2 bytes //#fix: don't send if dead
                     typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
                     writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
                     writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
