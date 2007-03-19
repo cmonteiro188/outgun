@@ -116,12 +116,12 @@ public:
     bool isStrafe() const { return (data & strafe) != 0; }
     bool idle    () const { return  data           == 0; }
 
-    void setUp    () { data |= up; }
-    void setDown  () { data |= down; }
-    void setLeft  () { data |= left; }
-    void setRight () { data |= right; }
-    void setRun   () { data |= run; }
-    void setStrafe() { data |= strafe; }
+    ClientControls& setUp    () { data |= up;     return *this; }
+    ClientControls& setDown  () { data |= down;   return *this; }
+    ClientControls& setLeft  () { data |= left;   return *this; }
+    ClientControls& setRight () { data |= right;  return *this; }
+    ClientControls& setRun   () { data |= run;    return *this; }
+    ClientControls& setStrafe() { data |= strafe; return *this; }
 
     void clearLeft () { data &= ~left; }
     void clearRight() { data &= ~right; }
