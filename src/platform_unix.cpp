@@ -159,6 +159,8 @@ void platInit() {
 #ifndef RELAY
 
 static void closeSignalHandler(int) {
+    if (g_exitFlag)
+        _exit(EXIT_FAILURE);
     g_exitFlag = true;
 }
 
