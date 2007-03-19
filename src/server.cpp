@@ -1442,7 +1442,7 @@ void Server::simulate_and_broadcast_frame() {
             check_map_exit();
     }
     for (int i = 0; i < maxplayers; ++i)
-        if (world.player[i].used) {
+        if (world.player[i].used && !world.player[i].is_bot()) {
             if (world.player[i].kickTimer) {
                 --world.player[i].kickTimer;
                 if (world.player[i].kickTimer == 0)
