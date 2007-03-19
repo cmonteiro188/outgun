@@ -2572,20 +2572,18 @@ bool Graphics::save_screenshot(const string& filename) const {
         current_screen = drawbuf == vidpage1 ? vidpage2 : vidpage1;
     else
         current_screen = drawbuf;
-    #ifndef WITH_PNG
-    if (page_flipping) {
-        Bitmap temp = create_bitmap(current_screen->w, current_screen->h);
-    #else
-        Bitmap temp = create_bitmap_ex(16, current_screen->w, current_screen->h); // Colour depth change just to remove the alpha channel. Could probably be done better...
-    #endif
+
+    const bool needAdjustDepth = save_extension == ".png" && bitmap_color_depth(current_screen) == 32; // we don't want to save the alpha channel
+
+    if (!page_flipping && !needAdjustDepth)
+        return !save_bitmap(filename.c_str(), current_screen, pal);
+    else {
+        Bitmap temp = needAdjustDepth ? create_bitmap_ex(24, current_screen->w, current_screen->h)
+                                      : create_bitmap(current_screen->w, current_screen->h);
         nAssert(temp);
         blit(current_screen, temp, 0, 0, 0, 0, current_screen->w, current_screen->h);
         return !save_bitmap(filename.c_str(), temp, pal);
-    #ifndef WITH_PNG
     }
-    else
-        return !save_bitmap(filename.c_str(), drawbuf, pal);
-    #endif
 }
 
 // client side effects
