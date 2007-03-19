@@ -113,8 +113,17 @@ std::vector<std::string> split_to_lines(const std::string& source, int lineLengt
 char* strspnp(char* str, const char* charset);
 const char* strspnp(const char* str, const char* charset);
 
+class LineReceiver {
+protected:
+    LineReceiver() { }
+    virtual ~LineReceiver() { }
+
+public:
+    virtual LineReceiver& operator()(const std::string& str) =0;
+};
+
 class Log;
-class LogSet {
+class LogSet : public LineReceiver {
     // the objects aren't owned by this class
     Log* normalLog;
     Log* errorLog;
@@ -124,9 +133,10 @@ public:
     LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }  // null pointers are allowed
     ~LogSet() { }
 
-    void operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);
-    void error(const std::string);
-    void security(const char* fmt, ...) PRINTF_FORMAT(2, 3);
+    LogSet& operator()(const std::string&);
+    LogSet& operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);
+    LogSet& error(const std::string&);
+    LogSet& security(const char* fmt, ...) PRINTF_FORMAT(2, 3);
 
     Log* accessNormal() { return normalLog; }
     Log* accessError() { return errorLog; }
@@ -141,15 +151,6 @@ void criticalError(const std::string& msg) __attribute__ ((noreturn));
 
 class MemoryLog;
 void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);
-
-class LineReceiver {
-protected:
-    LineReceiver() { }
-    virtual ~LineReceiver() { }
-
-public:
-    virtual LineReceiver& operator()(const std::string& str) =0;
-};
 
 void rotate_angle(double& angle, double shift);
 

@@ -274,9 +274,10 @@ const char* strspnp(const char* str, const char* charset) {
     return strspnp(const_cast<char*>(str), charset);
 }
 
-void LogSet::operator()(const char* fmt, ... ) { if (!  normalLog) return; va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); }
-void LogSet::error     (const string msg) { if (!   errorLog) return;                                         errorLog->put(msg)  ;               }
-void LogSet::security  (const char* fmt, ... ) { if (!securityLog) return; va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); }
+LogSet& LogSet::operator()(const string& msg   ) { if (  normalLog) {                                        normalLog->put(msg)  ;               } return *this; }
+LogSet& LogSet::operator()(const char* fmt, ...) { if (  normalLog) { va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); } return *this; }
+LogSet& LogSet::error     (const string& msg   ) { if (   errorLog) {                                         errorLog->put(msg)  ;               } return *this; }
+LogSet& LogSet::security  (const char* fmt, ...) { if (securityLog) { va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); } return *this; }
 
 bool g_allowBlockingMessages = true;
 
