@@ -266,7 +266,7 @@ public:
             iVal /= 2;
             ++exp;
         }
-        while (iVal >= 2 * mantissaLimit) { // it can be repeated once if the rounding bumps it to exactly 2 * mantissaLimit
+        while (iVal >= 2 * mantissaLimit) { // the loop can be repeated once if the rounding bumps iVal to exactly 2 * mantissaLimit
             iVal = (iVal + 1) / 2;  // round
             ++exp;
         }
