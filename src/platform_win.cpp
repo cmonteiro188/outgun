@@ -32,7 +32,6 @@
 #include "timer.h"
 #include "incalleg.h"
 
-#ifndef RELAY
 #include "mutex.h"
 
 using std::string;
@@ -45,11 +44,12 @@ int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
     return _vsnprintf(buf, count, fmt, arg);
 }
 
+#ifndef DEDICATED_SERVER_ONLY
 void platMessageBox(const string& caption, const string& msg, bool blocking) {
     (void)blocking; // can't produce nonblocking messages too easily
     MessageBox(NULL, msg.c_str(), caption.c_str(), MB_OK);
 }
-#endif // RELAY
+#endif
 
 class PerformanceCounterTimer : public SystemTimer {
     double mul;
@@ -75,9 +75,7 @@ class MMSystemTimer : public SystemTimer {
     uint64_t base;
     uint32_t prev;
 
-    #ifndef RELAY
     MutexHolder readMutex; // read needs to be locked to avoid extra additions to base
-    #endif
 
 public:
     MMSystemTimer() {
@@ -86,9 +84,7 @@ public:
     }
 
     double read() {
-        #ifndef RELAY
         MutexLock ml(readMutex);
-        #endif
         uint32_t val = static_cast<uint32_t>(timeGetTime());
         if (val < prev) // check wrap-around
             base += uint64_t(1) << 32;
@@ -101,7 +97,7 @@ void platSleep(unsigned ms) {
     Sleep(ms);
 }
 
-#ifndef RELAY
+#ifndef DEDICATED_SERVER_ONLY
 class AllegroFileFinder : public FileFinder {
     bool directories;
     al_ffblk ffblk;
@@ -158,14 +154,12 @@ bool platIsDirectory(const string& name) {
 int platMkdir(const string& path) {
     return mkdir(path.c_str());
 }
-#endif // RELAY
+#endif // DEDICATED_SERVER_ONLY
 
 static UINT g_timerResolution;
 
 void platInit() {
-    #ifndef RELAY
     directory_separator = '\\';
-    #endif
 
     // increase resolution of timers for the benefit of both Sleep (used by platSleep) and timeGetTime (used by MMSystemTimer)
     TIMECAPS tc;
@@ -184,7 +178,7 @@ void platInit() {
     }
 }
 
-#ifndef RELAY
+#ifndef DEDICATED_SERVER_ONLY
 void platInitAfterAllegro() {
     static const int bufSize = 1000;
     char pathBuf[bufSize];
@@ -192,7 +186,7 @@ void platInitAfterAllegro() {
     replace_filename(pathBuf, pathBuf, "", bufSize);
     wheregamedir = pathBuf;
 }
-#endif // RELAY
+#endif
 
 void platUninit() {
     delete g_systemTimer;

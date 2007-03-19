@@ -145,7 +145,7 @@ void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
      }
 }
 
-void handleFile(std::string name, FILE* dst, const std::string& compileCommand) {
+void handleFile(std::string name, FILE* dst, const std::string& objPath, const std::string& compileCommand) {
     replaceChars(name, '\\', '/');  // for DOS users getting '\'s in their paths
     std::string id = name;
     if (id.length() > 2 && id.substr(id.length() - 2) == ".h") {
@@ -155,11 +155,11 @@ void handleFile(std::string name, FILE* dst, const std::string& compileCommand) 
     }
     else if (id.length() > 2 && id.substr(id.length() - 2) == ".c") {
         id.erase(id.length() - 2);
-        fprintf(dst, "%s.o:\t%s", id.c_str(), name.c_str());
+        fprintf(dst, "%s%s.o:\t%s", objPath.c_str(), id.c_str(), name.c_str());
     }
     else if (id.length() > 4 && id.substr(id.length() - 4) == ".cpp") {
         id.erase(id.length() - 4);
-        fprintf(dst, "%s.o:\t%s", id.c_str(), name.c_str());
+        fprintf(dst, "%s%s.o:\t%s", objPath.c_str(), id.c_str(), name.c_str());
     }
     else
         throw StrError("'%s' - only .h, .c and .cpp files are handled", name.c_str());
@@ -181,13 +181,17 @@ void handleFile(std::string name, FILE* dst, const std::string& compileCommand) 
 }
 
 int main(int argc, const char* argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "args: %s [\"Compile command\"] .h-or-.c-or-.cpp-files\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr, "syntax: %s obj-file-path compile-command .h-or-.c-or-.cpp-files\n", argv[0]);
         return 1;
     }
+    std::string objPath = argv[1];
+    replaceChars(objPath, '\\', '/');
+    if (!objPath.empty() && *objPath.rbegin() != '/')
+        objPath += '/';
     try {
-        for (int i = 2; i < argc; ++i)
-            handleFile(argv[i], stdout, argv[1]);
+        for (int i = 3; i < argc; ++i)
+            handleFile(argv[i], stdout, objPath, argv[2]);
     } catch (const StrError& e) {
         e.print();
         return 1;

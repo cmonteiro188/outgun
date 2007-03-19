@@ -77,8 +77,6 @@ void platSleep(unsigned ms) {
     */
 }
 
-#ifndef RELAY
-
 class LinuxFileFinder : public FileFinder {
     string path, extension;
     bool directories;
@@ -147,16 +145,11 @@ bool platIsDirectory(const string& name) {
         return false;
     return S_ISDIR(s.st_mode);
 }
-#endif // RELAY
 
 void platInit() {
-    #ifndef RELAY
     directory_separator = '/';
-    #endif
     g_systemTimer = new LinuxTimer();
 }
-
-#ifndef RELAY
 
 static void closeSignalHandler(int) {
     if (g_exitFlag)
@@ -191,14 +184,12 @@ void platInitAfterAllegro() {
 
     signal(SIGPIPE, SIG_IGN); // we don't want closed (TCP) sockets to kill us
 }
-#endif // RELAY
 
 void platUninit() {
     delete g_systemTimer;
     g_systemTimer = 0;
 }
 
-#ifndef RELAY
 #ifndef DEDICATED_SERVER_ONLY
 
 void platMessageBox(const string& caption, const string& msg, bool blocking) {
@@ -267,4 +258,3 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
 }
 
 #endif // DEDICATED_SERVER_ONLY
-#endif // RELAY
