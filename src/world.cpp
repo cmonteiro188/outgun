@@ -1527,6 +1527,7 @@ void WorldSettings::reset() {
     extra_respawn_time_alone = 0;
     waiting_time_deathbringer = 4.0;
     respawn_balancing_time = 0;
+    respawn_on_capture = false;
     shadow_minimum = shadow_minimum_normal;
     rocket_damage = 70;
     start_health = start_energy = 100;
@@ -2159,10 +2160,6 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
     const int plTeam = target / TSIZE;
     pair<double, double> respawnTime = config.getRespawnTime(ts[plTeam], ts[1 - plTeam]);
     respawnTime.first += time_penalty;
-    if (player[target].item_deathbringer && respawnTime.first < 1.8) {
-        respawnTime.second -= 1.8 - respawnTime.first;
-        respawnTime.first = 1.8; // the time required for a deathbringer explosion to reach the other end of the screen
-    }
     if (respawnTime.first < 0) { // a negative time_penalty can cause this; in that case we want to eliminate extra waiting time too
         respawnTime.second += respawnTime.first;
         respawnTime.first = 0;
@@ -3031,7 +3028,7 @@ void ServerWorld::simulateFrame() {
 
         // check for a player's deathbringer to bring death
         if (player[i].dead && player[i].item_deathbringer) {
-            // note: if any of this calculation is changed, also update the time constant 1.8 in resetPlayer
+            // note: if any of this calculation is changed, also update the time constant 18 in the call to respawnPlayer
             const bool dbTeam = player[i].deathbringer_team;
             //delta time since shoot
             const double delta = (frame - player[i].item_deathbringer_frame) * 0.1;
@@ -3118,7 +3115,8 @@ void ServerWorld::simulateFrame() {
             p0->extra_frames_to_respawn = 0;
         }
         if (p0->extra_frames_to_respawn == 0 && p0->frames_to_respawn == 0)
-            respawnPlayer(p0->id);
+            if (!p0->item_deathbringer || frame > p0->item_deathbringer_frame + 18) // the time required for a deathbringer explosion to reach the other end of the screen
+                respawnPlayer(p0->id);
     }
 
     // for each player, do misc stuff
@@ -3396,7 +3394,11 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) {
 
     net->broadcast_capture(player[pid], team);
 
-    net->ctf_update_teamscore(myteam);      // this function can decide to restart the game
+    net->ctf_update_teamscore(myteam);
+
+    if (config.respawn_on_capture)
+        for (int i = 0; i < maxplayers; ++i)
+            player[i].frames_to_respawn = player[i].extra_frames_to_respawn = 0; // will respawn on next frame (only relevant for dead players, obviously)
 }
 
 void ServerWorld::team_gets_carrying_point(int team, bool forTournament) {

@@ -883,6 +883,7 @@ public:
     enum Team_balance { TB_disabled = 0, TB_balance, TB_balance_and_shuffle };
 
     double respawn_time, extra_respawn_time_alone, waiting_time_deathbringer, respawn_balancing_time;
+    bool respawn_on_capture;
     int shadow_minimum; // smallest alpha value allowed; 0 is when even the coordinates are not sent
     int rocket_damage;
     int start_health, start_energy;
