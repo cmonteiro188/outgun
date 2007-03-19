@@ -159,7 +159,7 @@ public:
 
     void draw_neighbor_marker(bool flag, const WorldCoords& pos, int team, bool old = false);
 
-    void draw_player(const WorldCoords& pos, int team, int pli, GunDirection gundir, double hitfx, bool power, int alpha, double time);
+    void draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false);
     void draw_player_dead(const ClientPlayer& player);
     void draw_me_highlight(const WorldCoords& pos, double size);
@@ -241,7 +241,7 @@ public:
 
     void set_min_transp(bool enable) { min_transp = enable; }
 
-    int player_color(int index) const { nAssert(index >= 0 && index < 16); return col[index]; }
+    int player_color(int index) const { nAssert(index >= 0 && index <= MAX_PLAYERS / 2); return col[index]; }
 
     // How many lines fit on the chat area and screen.
     int chat_lines() const;
@@ -589,7 +589,7 @@ private:
     int teamlcol[2];     // light colours
     int teamdcol[2];     // dark colours
 
-    int col[16];         // player colours
+    int col[MAX_PLAYERS / 2 + 1]; // player colours
     Colour groundCol, wallCol;
 
     static const int fogOfWarMaxAlpha = 0x38, playfieldFogOfWarAlpha = 0x38;

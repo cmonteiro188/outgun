@@ -811,7 +811,7 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     team_nr = team_id;
     stats().clear(false);
     stats().set_start_time(static_cast<int>(get_time()));
-    personal_color = -1;
+    personal_color = invalid_color;
     used = enable;
 }
 

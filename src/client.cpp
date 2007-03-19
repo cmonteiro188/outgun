@@ -2127,7 +2127,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 
         NLubyte color;
         readByte(lebuf, count, color);
-        if (color < MAX_PLAYERS / 2)
+        if (color < PlayerBase::invalid_color)
             fx.player[pid].set_color(color);
         else
             log("Invalid colour (%d) for player %d (me).", color, pid);
@@ -2625,7 +2625,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readLong(lebuf, count, pscore);     //score
         readLong(lebuf, count, nscore);     //score NEG v0.4.8
         readLong(lebuf, count, max_world_rank);     //world players count
-        if (color < MAX_PLAYERS / 2)
+        if (color < PlayerBase::invalid_color)
             fx.player[pid].set_color(color);
         else
             log("Invalid colour (%d) for player %d.", color, pid);
@@ -3106,7 +3106,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         }
 
         #ifndef DEDICATED_SERVER_ONLY
-        if (col1 < MAX_PLAYERS / 2)
+        if (col1 < PlayerBase::invalid_color)
             fx.player[to].set_color(col1);
         else
             log("Invalid colour (%d) for player %d.", col1, to);
@@ -3115,7 +3115,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
         if (swap) {
             #ifndef DEDICATED_SERVER_ONLY
-            if (col2 < MAX_PLAYERS / 2)
+            if (col2 < PlayerBase::invalid_color)
                 fx.player[from].set_color(col2);
             else
                 log("Invalid colour (%d) for player %d.", col2, from);

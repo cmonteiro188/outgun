@@ -380,6 +380,8 @@ protected:
     Statistics player_stats;
 
 public:
+    static const int invalid_color = MAX_PLAYERS / 2;
+
     bool item_deathbringer;
     int item_shield;    // how many hits the shield can still take, 0 = no shield
     bool item_power;

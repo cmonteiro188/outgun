@@ -312,7 +312,8 @@ void Graphics::setColors() {
     col[i++] = makecol(0x00, 0x00, 0x80);
     col[i++] = makecol(0x80, 0x00, 0x00);
     col[i++] = makecol(0x66, 0x66, 0x66);
-    nAssert(i == 16);
+    col[i++] = makecol(0xFF, 0x00, 0x00); // used only when server doesn't send a player color, which it always should do
+    nAssert(i == 17 && MAX_PLAYERS == 32);
 
     // team colours
     teamcol[0] = colour(Colour::team_red_basic);
@@ -1240,12 +1241,14 @@ void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team,
 }
 
 //draws a basic player object
-void Graphics::draw_player(const WorldCoords& pos, int team, int pli, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) {
+void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) {
+    nAssert(colorId >= 0 && colorId <= MAX_PLAYERS / 2);
+
     if (alpha <= 0)
         return;
 
     int pc1 = teamcol[team];
-    int pc2 = col[pli];
+    int pc2 = col[colorId];
     //blink player when hit
     const double deltafx = hitfx - time;
     if (deltafx > 0) {
@@ -1258,14 +1261,13 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int pli, GunDirecti
     }
 
     BITMAP* sprite;
-    if (!gundir)
+    if (!gundir || colorId == MAX_PLAYERS / 2)
         sprite = 0;
     else if (item_power && player_sprite_power && static_cast<int>(fmod(time * 10, 2)))
         sprite = player_sprite_power;
     else {
         nAssert(team == 0 || team == 1);
-        nAssert(pli >= 0 && pli < MAX_PLAYERS / 2);
-        sprite = player_sprite[team][pli];
+        sprite = player_sprite[team][colorId];
     }
 
     ScaledCoordSet sc(pos, this);

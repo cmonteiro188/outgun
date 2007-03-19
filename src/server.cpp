@@ -86,8 +86,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     setMaxPlayers(MAX_PLAYERS);
     next_vote_announce_frame = 0;
     last_vote_announce_votes = last_vote_announce_needed = 0;
-    fav_colors[0].resize(16, false);
-    fav_colors[1].resize(16, false);
+    fav_colors[0].resize(MAX_PLAYERS / 2, false);
+    fav_colors[1].resize(MAX_PLAYERS / 2, false);
     Thread::setCallerPriority(config.priority);
 }
 
@@ -309,7 +309,7 @@ void Server::check_player_change_teams(int pid) {
 //move player - move player (f rom) to empty position (t o)
 void Server::move_player(int f, int t) {
     fav_colors[f / TSIZE][world.player[f].color()] = false;
-    world.player[f].set_color(-1);
+    world.player[f].set_color(PlayerBase::invalid_color);
 
     world.dropFlagIfAny(f, true);
     if (world.player[f].health > 0)
@@ -342,8 +342,8 @@ void Server::move_player(int f, int t) {
 void Server::swap_players(int a, int b) {
     fav_colors[a / TSIZE][world.player[a].color()] = false;
     fav_colors[b / TSIZE][world.player[b].color()] = false;
-    world.player[a].set_color(-1);
-    world.player[b].set_color(-1);
+    world.player[a].set_color(PlayerBase::invalid_color);
+    world.player[b].set_color(PlayerBase::invalid_color);
 
     world.dropFlagIfAny(a, true);
     world.dropFlagIfAny(b, true);
@@ -394,7 +394,7 @@ void Server::check_fav_colors(int pid) {
         if (player.color() == *col)
             return;
         else if (!fav_colors[team][*col]) {
-            if (player.color() != -1)
+            if (player.color() != PlayerBase::invalid_color)
                 fav_colors[team][player.color()] = false;
             player.set_color(*col);
             fav_colors[team][player.color()] = true;
@@ -402,7 +402,7 @@ void Server::check_fav_colors(int pid) {
         }
     }
 
-    if (player.color() != -1)
+    if (player.color() != PlayerBase::invalid_color)
         return;
 
     // if no favourites free, give a random colour
@@ -926,7 +926,7 @@ int Server::getLessScoredTeam() const {
 }
 
 void Server::game_remove_player(int pid, bool removeClient) {
-    if (world.player[pid].color() != -1)
+    if (world.player[pid].color() != PlayerBase::invalid_color)
         fav_colors[pid / TSIZE][world.player[pid].color()] = false;
     if (removeClient)
         client[world.player[pid].cid].reset();
