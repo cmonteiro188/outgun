@@ -3258,7 +3258,7 @@ void ServerWorld::simulateFrame() {
             if (ft == 0 && !capture_on_team_flags_in_effect())
                 continue;
             if (ft == 1 && !capture_on_wild_flags_in_effect())
-                break;
+                continue;
             const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
             for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy) {
                 if (!fmy->at_base())
