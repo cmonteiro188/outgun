@@ -27,6 +27,7 @@
 #include <ctime>
 
 #include "incalleg.h"
+#include "utility.h"
 
 #ifndef DISABLE_ENHANCED_NASSERT
 #include <nl.h>
@@ -36,7 +37,6 @@
 #include "language.h"
 #include "mutex.h"
 #include "platform.h"
-#include "utility.h"
 #endif
 
 #include "nassert.h"
