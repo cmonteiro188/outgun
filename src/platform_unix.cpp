@@ -73,7 +73,7 @@ void platSleep(unsigned ms) {
     struct timespec t;
     t.tv_sec = ms / 1000;
     t.tv_nsec = (ms % 1000) * 1000000;
-    while (nanosleep(&t, &t) != 0); // we can't test for failure reason because reading errno isn't thread-safe, just assume it's EINTR
+    while (nanosleep(&t, &t) != 0 && errno == EINTR);
     */
 }
 
