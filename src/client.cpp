@@ -1302,10 +1302,13 @@ void Client::client_disconnected(const char* data, int length) {
     connected = false;
     gameshow = false;
 
-    #ifndef DEDICATED_SERVER_ONLY
-    if (botmode)
+    if (botmode) {
+        numAssert2(length == 1 && (data[0] == server_c::disconnect_client_initiated || data[0] == server_c::disconnect_server_shutdown
+                                   || data[0] == server_c::disconnect_timeout || data[0] == disconnect_kick), length, data[0]);
         return;
+    }
 
+    #ifndef DEDICATED_SERVER_ONLY
     //restore window title
     extConfig.statusOutput(_("Outgun client"));
 
@@ -1340,8 +1343,6 @@ void Client::client_disconnected(const char* data, int length) {
         MutexLock ml(downloadMutex);
         downloads.clear();
     }
-    #else
-    (void)data; (void)length;
     #endif
 }
 
