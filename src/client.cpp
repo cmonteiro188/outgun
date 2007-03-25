@@ -1525,6 +1525,9 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     client->set_server_address(strAddress.c_str());
 
     #ifndef DEDICATED_SERVER_ONLY
+    if (loadPassword && !botmode)
+        m_playerPassword.password.set(load_player_password(playername, strAddress));
+
     log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
         m_serverPassword.password().empty() ? "no" : "yes",
         m_playerPassword.password().empty() ? "no" : "yes");
@@ -1542,8 +1545,6 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     #ifndef DEDICATED_SERVER_ONLY
     else {
         writeStr(lebuf, count, m_serverPassword.password());    // empty or not, it's needed
-        if (loadPassword)
-            m_playerPassword.password.set(load_player_password(playername, strAddress));
         writeStr(lebuf, count, m_playerPassword.password());    // empty or not, it's needed
     }
     #endif
