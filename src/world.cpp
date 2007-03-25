@@ -3034,7 +3034,6 @@ void ServerWorld::simulateFrame() {
             //check players onscreen that are not hit by it yet and are inside
             // the donut radius...radius-50
             for (int v = 0; v < maxplayers; v++)
-                //enemy players only if friendly deathbringer is off
                 if ((v/TSIZE != dbTeam || physics.friendly_db > 0.) && player[v].used && !player[v].dead &&
                                 player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
                                 player[v].deathbringer_end < get_time() && frame >= player[v].start_take_damage_frame) {

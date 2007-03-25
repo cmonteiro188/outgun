@@ -640,8 +640,6 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     client = 0;
 
     setMaxPlayers(MAX_PLAYERS);
-    //all the players to show including me
-    //player_t player[MAX_PLAYERS];
     for (int p = 0; p < MAX_PLAYERS; p++)
         fx.player[p].used = false;
 

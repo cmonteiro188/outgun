@@ -1730,7 +1730,6 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     if (ctop[id] == -1)
         return;
 
-    //player id
     int pid = ctop[id];
 
     //1. process client's frame data
