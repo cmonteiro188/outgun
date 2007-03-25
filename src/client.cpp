@@ -724,7 +724,7 @@ bool Client::start() {
 
     connected = false;
 
-    client = new_client_c(extConfig.networkPriority);
+    client = new_client_c(extConfig.networkPriority, botmode ? "_bot" + itoa(botId) : "");
     client->setCallbackCustomPointer(this);
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
@@ -913,11 +913,12 @@ bool Client::start() {
     return true;
 }
 
-void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang) {
+void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang, int bot_id) {
     MutexLock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
     #endif
+    botId = bot_id;
     serverIP = addr;
 
     nAssert(start());

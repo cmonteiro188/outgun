@@ -350,6 +350,7 @@ class Client : public ClientInterface {
     #else
     static const bool botmode = true;
     #endif
+    int botId;
     bool finished;
 
     Routing     routing[Table_Max];
@@ -701,7 +702,7 @@ public:
     #endif
     void stop();
 
-    void bot_start(const NLaddress& addr, int ping, const std::string& name_lang);
+    void bot_start(const NLaddress& addr, int ping, const std::string& name_lang, int botId);
     void bot_loop();
     void set_ping(int ping);
     bool is_connected() const { return connected; }

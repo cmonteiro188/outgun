@@ -30,6 +30,8 @@
 #ifndef _client_h_
 #define _client_h_
 
+#include <string>
+
 //the client class
 class client_c {
 public:
@@ -75,7 +77,7 @@ public:
 
 
 //factory
-client_c        *new_client_c(int thread_priority);
+client_c* new_client_c(int thread_priority, const std::string& logPostfix);
 
 
 #endif // _client_h_

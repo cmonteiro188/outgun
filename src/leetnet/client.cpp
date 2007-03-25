@@ -749,10 +749,10 @@ DLOG_Scope s("CPIDg");
     }
 
     //ctor
-    client_ci(int thread_priority) :
+    client_ci(int thread_priority, const std::string& logPostfix) :
         #ifdef LEETNET_LOG
         logp(g_leetnetLog ?
-             static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetclientlog.txt").c_str(), true)) :
+             static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetclientlog" + logPostfix + ".txt").c_str(), true)) :
              static_cast<Log*>(new NoLog())),
         log(*logp),
         #else
@@ -762,7 +762,7 @@ DLOG_Scope s("CPIDg");
     {
         #ifdef LEETNET_DATA_LOG
         if (g_leetnetDataLog)
-            datalog = fopen((wheregamedir + "log" + directory_separator + "leetclientdata.bin").c_str(), "wb");
+            datalog = fopen((wheregamedir + "log" + directory_separator + "leetclientdata" + logPostfix + ".bin").c_str(), "wb");
         else
             datalog = 0;
         #endif
@@ -887,8 +887,8 @@ DLOG_ScopeNeg s("CTR");
 
 
 //factory
-client_c        *new_client_c(int thread_priority) {
-    return new client_ci(thread_priority);
+client_c* new_client_c(int thread_priority, const std::string& logPostfix) {
+    return new client_ci(thread_priority, logPostfix);
 }
 
 void QSendFrame::execute(client_ci* client, station_c*) {
