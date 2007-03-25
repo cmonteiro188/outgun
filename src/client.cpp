@@ -4712,7 +4712,10 @@ void Client::stop_replay() {
         return;
 
     replay.close();
-    nlClose(spectate_socket);
+    if (spectate_socket != NL_INVALID) {
+        nlClose(spectate_socket);
+        spectate_socket = NL_INVALID;
+    }
     spectate_buffer.str("");
 
     replaying = false;
