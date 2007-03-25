@@ -58,7 +58,7 @@ else
  RELAY_LFLAGS = -mconsole
  RELAY_LIBS = -lNL -lwinmm
 
- %.res: %.rc
+ obj/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
 
 endif
@@ -98,13 +98,13 @@ ifdef WITH_PNG
  OUTGUN_CLIENT_LIBS += $(PNG_LIBS)
 endif
 
-all: outgun makedep srvmonit relay TAGS
+all: outgun makedep srvmonit relay
 
 outgun: ../outgun$(EXE_SUFFIX)
 outgun-ded: ../outgun-ded$(EXE_SUFFIX)
 makedep: tools/makedep$(EXE_SUFFIX)
 srvmonit: tools/srvmonit$(EXE_SUFFIX)
-relay: ../relay$(EXE_SUFFIX)
+relay: tools/relay$(EXE_SUFFIX)
 
 ../outgun$(EXE_SUFFIX): $(OUTGUN_CLIENT_OBJS)
 	$(GCC) $(OUTGUN_LFLAGS) -o $@ $(OUTGUN_CLIENT_OBJS) $(OUTGUN_CLIENT_LIBS)
@@ -119,7 +119,7 @@ tools/makedep$(EXE_SUFFIX): $(MAKEDEP_OBJS)
 tools/srvmonit$(EXE_SUFFIX) : $(MON_OBJS)
 	$(GCC) $(MON_LFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)
 
-../relay$(EXE_SUFFIX) : $(RELAY_OBJS)
+tools/relay$(EXE_SUFFIX) : $(RELAY_OBJS)
 	$(GCC) $(RELAY_LFLAGS) -o $@ $(RELAY_OBJS) $(RELAY_LIBS)
 
 obj/text/nassert_simple.o : obj/text/nassert.o
