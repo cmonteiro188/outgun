@@ -3185,9 +3185,8 @@ void ServerWorld::simulateFrame() {
             }
 
         // limit health and energy (after pickups because they might have an effect)
-        if (pl.health < 0)
-            pl.health = 0;
-        else if (pl.health > config.health_max)
+        nAssert(pl.health > 0);
+        if (pl.health > config.health_max)
             pl.health = config.health_max;
         if (pl.energy < 0)
             pl.energy = 0;
