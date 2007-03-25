@@ -311,11 +311,10 @@ class Client : public ClientInterface {
     bool quitCommand;
     Menu_selection menusel; // a special screen rather than menu: maplist, stats
     #endif
+
     bool gameshow;
-    double FPS;
-    int framecount, totalframecount;
-    double frameCountStartTime;
     int gameover_plaque;
+
     #ifndef DEDICATED_SERVER_ONLY
     int red_final_score, blue_final_score;
     std::string hostname;
@@ -323,6 +322,10 @@ class Client : public ClientInterface {
     int player_stats_page;
     double lastAltEnterTime;
     bool deadAfterHighlighted;
+
+    double FPS;
+    int framecount, totalframecount;
+    double frameCountStartTime;
 
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server

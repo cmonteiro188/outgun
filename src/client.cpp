@@ -606,6 +606,10 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     map_vote(-1),
     player_stats_page(0),
     lastAltEnterTime(0),
+    FPS(0),
+    framecount(0),
+    totalframecount(0),
+    frameCountStartTime(0),
     botmode(false),
     #endif
     finished(false),
@@ -649,12 +653,6 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     //game showing?
     gameshow = false;
 
-    //frames and seconds for FPS counter
-    FPS = 0;
-    framecount = 0;
-    totalframecount = 0;
-    frameCountStartTime = 0;
-
     #ifndef DEDICATED_SERVER_ONLY
     //if player wants to changeteams
     want_change_teams = false;
@@ -695,10 +693,10 @@ bool Client::start() {
         showMenu(menu);
     }
     menusel = menu_none;
-    #endif
 
     totalframecount = 0;
     framecount = 0;
+    #endif
 
     clFrameSent = clFrameWorld = 0;
     fx.frame = -1;
