@@ -209,10 +209,13 @@ void ServerNetworking::send_me_packet(int pid) const {
 
 // send a player name update to a client (cid = pid_all: to all clients; pid_record: record only)
 void ServerNetworking::send_player_name_update(int cid, int pid) const {
+    if (world.player[pid].name.empty())
+        return;
+
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_name_update);
     writeByte(lebuf, count, pid);       // what player id
-    writeStr(lebuf, count, world.player[pid].name.empty() ? "?" : world.player[pid].name);
+    writeStr(lebuf, count, world.player[pid].name);
 
     if (cid == pid_record)
         record_message(lebuf, count);
