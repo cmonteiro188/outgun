@@ -35,15 +35,15 @@
 #include "thread.h"
 #include "utility.h"
 
-class Server;
+class GunDirection;
 class MasterQuery;
 class Powerup;
-class Rocket;
+class Server;
 class server_c;
 class ServerHelloResult;
 class ServerPlayer;
 class ServerWorld;
-class GunDirection;
+class Rocket;
 
 static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
 
